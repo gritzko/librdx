@@ -27,10 +27,10 @@ fun ok64 _LEXop($cu8c text, $cu8c tok, LEXstate *state) {
 fun ok64 _LEXclass($cu8c text, $cu8c tok, LEXstate *state) {
   return $u8feed(state->syn, tok);
 }
-fun ok64 _LEXstringA($cu8c text, $cu8c tok, LEXstate *state) {
+fun ok64 _LEXstring($cu8c text, $cu8c tok, LEXstate *state) {
   return $u8feed(state->syn, tok);
 }
-fun ok64 _LEXstringB($cu8c text, $cu8c tok, LEXstate *state) {
+fun ok64 _LEXspace($cu8c text, $cu8c tok, LEXstate *state) {
   return $u8feed(state->syn, tok);
 }
 

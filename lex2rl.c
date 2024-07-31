@@ -40,12 +40,12 @@ pro(lex2rl, $u8c mod) {
 
   aBpad(u8, pad, MB);
   a$strc(tmpl, ragel_template);
-  $feedf(Bu8idle(pad), tmpl, mod, Bu8cdata(enmpad), mod, mod, mod, mod,
+  $feedf(Bu8idle(pad), tmpl, mod, mod, Bu8cdata(enmpad), mod, mod, mod, mod,
          Bu8cdata(fnspad), mod, Bu8cdata(actpad), Bu8cdata(synpad), mod, mod,
          mod, mod, mod, mod, mod, mod);
   $println(Bu8cdata(pad));
 
-  nedo(fprintf(stdout, "--------\n"), $println(text));
+  nedo($println(text));
 }
 
 int main(int argn, char **args) {
@@ -65,6 +65,7 @@ con char *ragel_template =
     "#include \"$s.h\"\n"
     "\n"
     "enum {\n"
+    "\t$s = 0,\n"
     "$s"
     "};\n"
     "\n"
@@ -113,7 +114,7 @@ con char *ragel_template =
     "    u8c *pb = p;\n"
     "\n"
     "    u32 stack[$smaxnest] = {0, $s};\n"
-    "    u32 sp = 1;\n"
+    "    u32 sp = 2;\n"
     "    $$u8c tok = {p, p};\n"
     "\n"
     "    %% write init;\n"

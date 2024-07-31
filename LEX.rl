@@ -1,20 +1,21 @@
 #include "LEX.h"
 
 enum {
-    LEX=0,
-    LEXname =LEX+1,
-    LEXop =LEX+2,
-    LEXclass =LEX+3,
-    LEXstringA =LEX+4,
-    LEXstringB =LEX+5,
-    LEXentity =LEX+6,
-    LEXexpr =LEX+7,
-    LEXeq =LEX+8,
-    LEXrulename =LEX+9,
-    LEXline =LEX+10,
+	LEX = 0,
+	LEXspace = LEX+1,
+	LEXname = LEX+2,
+	LEXop = LEX+3,
+	LEXclass = LEX+4,
+	LEXstring = LEX+5,
+	LEXentity = LEX+6,
+	LEXexpr = LEX+7,
+	LEXrulename = LEX+8,
+	LEXeq = LEX+9,
+	LEXline = LEX+10,
+	LEXroot = LEX+11,
 };
 
-#define LEXmaxnest 32
+#define LEXmaxnest 1024
 
 fun ok64 popfails(u32* stack, u32* sp, u32 type) {
     while (*sp && stack[*sp]!=type) *sp -= 2;
@@ -32,16 +33,18 @@ fun ok64 popfails(u32* stack, u32* sp, u32 type) {
     tok[1] = p; \
     sp -= 2;
 
+ok64 _LEXspace ($cu8c text, $cu8c tok, LEXstate* state);
 ok64 _LEXname ($cu8c text, $cu8c tok, LEXstate* state);
 ok64 _LEXop ($cu8c text, $cu8c tok, LEXstate* state);
 ok64 _LEXclass ($cu8c text, $cu8c tok, LEXstate* state);
-ok64 _LEXstringA ($cu8c text, $cu8c tok, LEXstate* state);
-ok64 _LEXstringB ($cu8c text, $cu8c tok, LEXstate* state);
+ok64 _LEXstring ($cu8c text, $cu8c tok, LEXstate* state);
 ok64 _LEXentity ($cu8c text, $cu8c tok, LEXstate* state);
 ok64 _LEXexpr ($cu8c text, $cu8c tok, LEXstate* state);
 ok64 _LEXrulename ($cu8c text, $cu8c tok, LEXstate* state);
+ok64 _LEXeq ($cu8c text, $cu8c tok, LEXstate* state);
 ok64 _LEXline ($cu8c text, $cu8c tok, LEXstate* state);
-ok64 _LEX ($cu8c text, $cu8c tok, LEXstate* state);
+ok64 _LEXroot ($cu8c text, $cu8c tok, LEXstate* state);
+
 
 %%{
 
@@ -49,42 +52,53 @@ machine LEX;
 
 alphtype unsigned char;
 
+action LEXspace0 { lexpush(LEXspace); }
+action LEXspace1 { lexpop(LEXspace); call(_LEXspace, text, tok, state); }
 action LEXname0 { lexpush(LEXname); }
 action LEXname1 { lexpop(LEXname); call(_LEXname, text, tok, state); }
 action LEXop0 { lexpush(LEXop); }
 action LEXop1 { lexpop(LEXop); call(_LEXop, text, tok, state); }
 action LEXclass0 { lexpush(LEXclass); }
 action LEXclass1 { lexpop(LEXclass); call(_LEXclass, text, tok, state); }
-action LEXstringA0 { lexpush(LEXstringA); }
-action LEXstringA1 { lexpop(LEXstringA); call(_LEXstringA, text, tok, state); }
-action LEXstringB0 { lexpush(LEXstringB); }
-action LEXstringB1 { lexpop(LEXstringB); call(_LEXstringB, text, tok, state); }
+action LEXstring0 { lexpush(LEXstring); }
+action LEXstring1 { lexpop(LEXstring); call(_LEXstring, text, tok, state); }
 action LEXentity0 { lexpush(LEXentity); }
 action LEXentity1 { lexpop(LEXentity); call(_LEXentity, text, tok, state); }
 action LEXexpr0 { lexpush(LEXexpr); }
 action LEXexpr1 { lexpop(LEXexpr); call(_LEXexpr, text, tok, state); }
-action LEXeq0 { lexpush(LEXeq); }
-action LEXeq1 { lexpop(LEXeq); call(_LEXeq, text, tok, state); }
 action LEXrulename0 { lexpush(LEXrulename); }
 action LEXrulename1 { lexpop(LEXrulename); call(_LEXrulename, text, tok, state); }
+action LEXeq0 { lexpush(LEXeq); }
+action LEXeq1 { lexpop(LEXeq); call(_LEXeq, text, tok, state); }
 action LEXline0 { lexpush(LEXline); }
 action LEXline1 { lexpop(LEXline); call(_LEXline, text, tok, state); }
-action LEX0 { lexpush(LEX); }
-action LEX1 { lexpop(LEX); call(_LEXroot, text, tok, state); }
+action LEXroot0 { lexpush(LEXroot); }
+action LEXroot1 { lexpop(LEXroot); call(_LEXroot, text, tok, state); }
 
-LEXname = ( [A-Za-z][A-Z0-9a-z_]+ ) >LEXname0 %LEXname1;
-LEXop = ( [ \t\n()+*\-?|]+ ) >LEXop0 %LEXop1;
-LEXclass = ( "[" ([^\]]|"\\]")* "]" ) >LEXclass0 %LEXclass1;
-LEXstringA = ( '"' ([^"]|'\\"')* '"' ) >LEXstringA0 %LEXstringA1;
-LEXstringB = ( "'" ([^']|"\\'")* "'" ) >LEXstringB0 %LEXstringB1;
-LEXentity = ( LEXclass | LEXname | LEXstringA | LEXstringB ) >LEXentity0 %LEXentity1;
-LEXexpr = ( (LEXop LEXentity)* LEXop? ) >LEXexpr0 %LEXexpr1;
-LEXeq = ( '=' ) >LEXeq0 %LEXeq1;
-LEXrulename = ( LEXname ) >LEXrulename0 %LEXrulename1;
-LEXline = ( LEXrulename space* LEXeq LEXexpr ';' space* ) >LEXline0 %LEXline1;
-LEX = ( LEXline* ) >LEX0 %LEX1;
+LEXspace  = (   [ \t\r\n]  
+ ) >LEXspace0 %LEXspace1;
+LEXname  = (   [A-Za-z]  [A-Z0-9a-z_]**  
+ ) >LEXname0 %LEXname1;
+LEXop  = (   LEXspace  |  [()+*\-?|]  
+ ) >LEXop0 %LEXop1;
+LEXclass  = (   "["  ([^\]]|"\\]")*  "]"  
+ ) >LEXclass0 %LEXclass1;
+LEXstring  = (   "\""  ([^"]|"\\\"")*  "\""  
+ ) >LEXstring0 %LEXstring1;
+LEXentity  = (   LEXclass  |  LEXname  |  LEXstring  
+ ) >LEXentity0 %LEXentity1;
+LEXexpr  = (   (LEXop+  LEXentity)*  LEXop*  
+ ) >LEXexpr0 %LEXexpr1;
+LEXrulename  = (   LEXname  
+ ) >LEXrulename0 %LEXrulename1;
+LEXeq  = (   LEXspace*  "=" 
+ ) >LEXeq0 %LEXeq1;
+LEXline  = (   LEXrulename  LEXeq  LEXexpr  ";"  LEXspace*  
+ ) >LEXline0 %LEXline1;
+LEXroot  = (   LEXline*  
 
-main := LEX;
+ ) >LEXroot0 %LEXroot1;
+main := LEXroot;
 
 }%%
 
@@ -100,7 +114,7 @@ pro(LEXlexer, $u8c text, LEXstate* state) {
     u8c *pb = p;
 
     u32 stack[LEXmaxnest] = {0, LEX};
-    u32 sp = 1;
+    u32 sp = 2;
     $u8c tok = {p, p};
 
     %% write init;
@@ -112,4 +126,5 @@ pro(LEXlexer, $u8c text, LEXstate* state) {
         text[0] = p;
     );
 }
+
 
