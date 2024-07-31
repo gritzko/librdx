@@ -76,33 +76,53 @@ uint32_t __inline clz64(u64 value) {
 #endif
 
 // flipping byte order (we imply CPU is little endian)
-#if defined(__linux__) || defined(__CYGWIN__)
-#include <endian.h>
-#define flip64(x) __bswap_64(x)
-#define flip32(x) __bswap_32(x)
+// from Google's CityHash
+#ifdef _MSC_VER
+
+#include <stdlib.h>
+#define bswap_32(x) _byteswap_ulong(x)
+#define bswap_64(x) _byteswap_uint64(x)
+
 #elif defined(__APPLE__)
+
+// Mac OS X / Darwin features
 #include <libkern/OSByteOrder.h>
-#define flip64(x) OSSwapInt64(x)
-#define flip32(x) OSSwapInt32(x)
+#define bswap_32(x) OSSwapInt32(x)
+#define bswap_64(x) OSSwapInt64(x)
+
+#elif defined(__sun) || defined(sun)
+
+#include <sys/byteorder.h>
+#define bswap_32(x) BSWAP_32(x)
+#define bswap_64(x) BSWAP_64(x)
+
+#elif defined(__FreeBSD__)
+
+#include <sys/endian.h>
+#define bswap_32(x) bswap32(x)
+#define bswap_64(x) bswap64(x)
+
 #elif defined(__OpenBSD__)
-#include <sys/endian.h>
-// TODO
-#elif defined(__NetBSD__) || defined(__FreeBSD__) || defined(__DragonFly__)
-#include <sys/endian.h>
-// TODO
-#elif defined(__WINDOWS__)
-#include <sys/param.h>
-#include <winsock2.h>
-#if BYTE_ORDER == LITTLE_ENDIAN
-// TODO
-#elif BYTE_ORDER == BIG_ENDIAN
-// TODO xbox?
-#else
-#error unknown platform
+
+#include <sys/types.h>
+#define bswap_32(x) swap32(x)
+#define bswap_64(x) swap64(x)
+
+#elif defined(__NetBSD__)
+
+#include <machine/bswap.h>
+#include <sys/types.h>
+#if defined(__BSWAP_RENAME) && !defined(__bswap_32)
+#define bswap_32(x) bswap32(x)
+#define bswap_64(x) bswap64(x)
 #endif
+
 #else
-#error platform not supported
+#include <byteswap.h>
 #endif
+
+#define flip32(x) bswap_32(x)
+#define flip64(x) bswap_64(x)
 
 fun u64 rotr64(u64 val, uint8_t len) {
   return (val >> len) | (val << (64U - len));
