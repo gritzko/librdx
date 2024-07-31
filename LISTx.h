@@ -1,0 +1,23 @@
+#include "Bx.h"
+
+#define T X(, )
+
+fun T* X(LIST, at)(X(B, ) list, u32 ndx) { return X(B, at)(list, ndx); }
+
+fun u32 X(LIST, next)(X(B, ) list, u32 ndx) {
+    return X(B, at)(list, ndx)->_list.next;
+}
+
+fun ok64 X(LIST, insert)(X(B, ) list, T const* entry, u32 prev) {
+    T** data = X(B, data)(list);
+    size_t len = $len(data);
+    if (len < prev) return LISTbadndx;
+    ok64 o = X(B, feedp)(list, entry);
+    if (o != OK) return o;
+    u32 next = X(B, at)(list, prev)->_list.next;
+    X(B, at)(list, len)->_list.next = next;
+    X(B, at)(list, len)->_list.prev = prev;
+    X(B, at)(list, prev)->_list.next = len;
+    X(B, at)(list, next)->_list.prev = len;
+    return OK;
+}
