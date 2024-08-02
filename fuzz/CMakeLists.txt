@@ -5,6 +5,7 @@ set(CMAKE_C_STANDARD 23)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS on)
 
+include_directories(..)
 #find_package(sodium CONFIG)
 
 set(FUZZ_CXX_FLAGS ${CMAKE_CXX_FLAGS} $<$<C_COMPILER_ID:Clang>:-fsanitize=er,address> -g -O2 -DABC_NOTRACE)
