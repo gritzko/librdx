@@ -50,9 +50,9 @@ typedef WORDS(2) u128;
 typedef WORDS(4) u256;
 typedef WORDS(8) u512;
 
-#define PAGELOG2 12
-#define PAGESIZE (1 << LOG2PAGE)
-#define PAGEMASK (PAGE_SIZE - 1)
+#ifndef PAGESIZE
+#define PAGESIZE (1 << 12)
+#endif
 
 #define max(a, b) ((a) > (b) ? (a) : (b))
 #define min(a, b) ((a) < (b) ? (a) : (b))
