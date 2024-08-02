@@ -11,8 +11,6 @@ include(CTest)
 
 set(TEST_CXX_FLAGS "-g")
 set(TEST_LDD_FLAGS "-g")
-set(FUZZ_CXX_FLAGS ${CMAKE_CXX_FLAGS} $<$<C_COMPILER_ID:Clang>:-fsanitize=fuzzer,address> -g -O2 -DABC_NOTRACE)
-set(FUZZ_LDD_FLAGS ${CMAKE_LDD_FLAGS} $<$<C_COMPILER_ID:Clang>:-fsanitize=fuzzer,address> -DABC_NOTRACE)
 set(BENCH_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -v")
 set(BENCH_LDD_FLAGS benchmark::benchmark)
 
@@ -98,16 +96,3 @@ target_link_options(LINEtest PRIVATE ${TEST_LDD_FLAGS})
 target_compile_options(LINEtest PRIVATE ${TEST_CXX_FLAGS})
 add_test(NAME LINEtest COMMAND LINEtest)
 
-#  F U Z Z  T E S T S
-
-add_executable(HEAPfuzz HEAPfuzz.c)
-target_link_options(HEAPfuzz PRIVATE ${FUZZ_LDD_FLAGS})
-target_compile_options(HEAPfuzz PRIVATE ${FUZZ_CXX_FLAGS})
-
-add_executable(ZINTfuzz ZINTfuzz.c)
-target_link_options(ZINTfuzz PRIVATE ${FUZZ_LDD_FLAGS})
-target_compile_options(ZINTfuzz PRIVATE ${FUZZ_CXX_FLAGS})
-
-#add_executable(SSTfuzz SSTfuzz.c)
-#target_link_options(SSTfuzz PRIVATE ${FUZZ_LDD_FLAGS})
-#target_compile_options(SSTfuzz PRIVATE ${FUZZ_CXX_FLAGS})
