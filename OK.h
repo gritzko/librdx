@@ -49,56 +49,54 @@ con u8 BASEron64rev[256] = {
 static char _ok64_tmp[16];
 
 fun ok64 OKprint(ok64 o, uint8_t **into) {
-  if (o == 0) {
-    if (into[1] < into[0] + 2)
-      return OKnoroom;
-    **into = 'O';
-    ++*into;
-    **into = 'K';
-    ++*into;
-    return OK;
-  }
-  while (o && !$empty(into)) {
-    **into = _base_ron64[o & 63];
-    o >>= 6;
-    ++*into;
-  }
-  return o ? OKnoroom : OK;
+    if (o == 0) {
+        if (into[1] < into[0] + 2) return OKnoroom;
+        **into = 'O';
+        ++*into;
+        **into = 'K';
+        ++*into;
+        return OK;
+    }
+    while (o && !$empty(into)) {
+        **into = _base_ron64[o & 63];
+        o >>= 6;
+        ++*into;
+    }
+    return o ? OKnoroom : OK;
 }
 
 fun ok64 OKscan(ok64 *o, uint8_t const **from) {
-  ok64 res = 0;
-  int shift = 0;
-  for (uint8_t const *p = from[0]; p < from[1]; ++p) {
-    uint64_t v = BASEron64rev[*p];
-    if (v == 0xff)
-      return OKbadtext;
-    res |= v << shift;
-    shift += 6;
-  }
-  *o = res;
-  return OK;
+    ok64 res = 0;
+    int shift = 0;
+    for (uint8_t const *p = from[0]; p < from[1]; ++p) {
+        uint64_t v = BASEron64rev[*p];
+        if (v == 0xff) return OKbadtext;
+        res |= v << shift;
+        shift += 6;
+    }
+    *o = res;
+    return OK;
 }
 
 fun const char *ok64str(ok64 o) {
-  char *tmp[2] = {_ok64_tmp, _ok64_tmp + sizeof(_ok64_tmp)};
-  OKprint(o, (uint8_t **)tmp);
-  **tmp = 0;
-  return _ok64_tmp;
+    char *tmp[2] = {_ok64_tmp, _ok64_tmp + sizeof(_ok64_tmp)};
+    OKprint(o, (uint8_t **)tmp);
+    **tmp = 0;
+    return _ok64_tmp;
 }
 
 fun const char *okstr(ok64 o) { return ok64str(o); }
 
 fun int ok64is(ok64 val, ok64 root) {
-  return val == root || (val >> 6) == root || (val >> 12) == root ||
-         (val >> 18) == root || (val >> 24) == root;
+    return val == root || (val >> 6) == root || (val >> 12) == root ||
+           (val >> 18) == root || (val >> 24) == root;
 }
 
 fun ok64 errnok() {
-  ok64 e = errno;
-  e &= 63;
-  e <<= 54;
-  return e;
+    ok64 e = errno;
+    e &= 63;
+    e <<= 54;
+    return e;
 }
 
 #endif

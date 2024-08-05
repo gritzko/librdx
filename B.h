@@ -18,10 +18,10 @@ con ok64 Bnoroom = 0x31cf3db3c8b;
 con ok64 Bnodata = 0x25e25a33c8b;
 
 enum {
-  B_NONE = 0,
-  B_MMAP = 1,
-  B_FMAP = 2,
-  B_MALLOC = 3,
+    B_NONE = 0,
+    B_MMAP = 1,
+    B_FMAP = 2,
+    B_MALLOC = 3,
 };
 
 #define BTYPE(T) typedef T *const B##T[4];
@@ -32,8 +32,8 @@ typedef void const *const *voidc$;
 
 #define B(T, b) B##T b = {0, 0, 0, 0}
 
-#define Bbusy(b)                                                               \
-  { b[0], b[2] }
+#define Bbusy(b) \
+    { b[0], b[2] }
 
 #define Bpast(b) (b + 0)
 #define Bdata(b) (b + 1)
@@ -42,6 +42,8 @@ typedef void const *const *voidc$;
 #define $data(b) (b + 1)
 #define $idle(b) (b + 2)
 
+#define Blast(b) (*(b[2] - 1))
+
 #define Bi(b) *(b[2])
 #define Bd(b) *(b[1])
 
@@ -49,68 +51,70 @@ typedef void const *const *voidc$;
 #define Bsize(b) ((uint8_t *)(b[3]) - (uint8_t *)(b[0]))
 #define Busylen(b) (b[2] - b[0])
 
+#define Bok(b) \
+    (b != nil && b[0] != nil && b[0] <= b[1] && b[1] <= b[2] && b[2] <= b[3])
 #define Bnil(b) (b == nil || b[0] == nil)
 #define Bhasroom(b) (b[2] < b[3])
 
-#define aBpad(T, n, l)                                                         \
-  T _##n[(l)];                                                                 \
-  B##T n = {_##n, _##n, _##n, _##n + (l)}
+#define aBpad(T, n, l) \
+    T _##n[(l)];       \
+    B##T n = {_##n, _##n, _##n, _##n + (l)}
 
 #define Bzero(buf) memset(buf[0], 0, ((void *)buf[3]) - ((void *)buf[0]))
 
-#define _Brebase(buf, newhead, newlen)                                         \
-  {                                                                            \
-    size_t data = buf[1] - buf[0];                                             \
-    if (data > newlen)                                                         \
-      data = newlen;                                                           \
-    size_t idle = buf[2] - buf[0];                                             \
-    if (idle > newlen)                                                         \
-      idle = newlen;                                                           \
-    u8 **b = (u8 **)buf;                                                       \
-    b[0] = (u8 *)newhead;                                                      \
-    b[1] = b[0] + data;                                                        \
-    b[2] = b[0] + idle;                                                        \
-    b[3] = b[0] + newlen;                                                      \
-  }
+#define _Brebase(buf, newhead, newlen)    \
+    {                                     \
+        size_t data = buf[1] - buf[0];    \
+        if (data > newlen) data = newlen; \
+        size_t idle = buf[2] - buf[0];    \
+        if (idle > newlen) idle = newlen; \
+        u8 **b = (u8 **)buf;              \
+        b[0] = (u8 *)newhead;             \
+        b[1] = b[0] + data;               \
+        b[2] = b[0] + idle;               \
+        b[3] = b[0] + newlen;             \
+    }
 
 fun ok64 Balloc(Bvoid b, size_t sz) {
-  if (!Bnil(b))
-    return Bnotnull;
-  uint8_t *p = (uint8_t *)malloc(sz);
-  if (p == NULL)
-    return Ballocfail;
-  uint8_t **buf = (uint8_t **)b;
-  buf[0] = buf[1] = buf[2] = p;
-  buf[3] = p + sz;
-  buf[4] = (uint8_t *)B_MALLOC;
-  return OK;
+    if (!Bnil(b)) return Bnotnull;
+    uint8_t *p = (uint8_t *)malloc(sz);
+    if (p == NULL) return Ballocfail;
+    uint8_t **buf = (uint8_t **)b;
+    buf[0] = buf[1] = buf[2] = p;
+    buf[3] = p + sz;
+    buf[4] = (uint8_t *)B_MALLOC;
+    return OK;
 }
 
 fun ok64 Bfree(Bvoid buf) {
-  if (Bnil(buf))
-    return Bisnull;
-  free(buf[0]);
-  memset((void **)buf, 0, sizeof(Bvoid));
-  return OK;
+    if (Bnil(buf)) return Bisnull;
+    free(buf[0]);
+    memset((void **)buf, 0, sizeof(Bvoid));
+    return OK;
 }
 
-#define Breset(b, past, data)                                                  \
-  {                                                                            \
-    assert(past + data <= Blen(b));                                            \
-    b[1] = b[0] + past;                                                        \
-    b[2] = b[0] + past + data;                                                 \
-  }
+#define Breset(b, past, data)           \
+    {                                   \
+        assert(past + data <= Blen(b)); \
+        b[1] = b[0] + past;             \
+        b[2] = b[0] + past + data;      \
+    }
 
-#define Brestart(b)                                                            \
-  { Breset(b, 0, 0); }
+#define Brestart(b) \
+    { Breset(b, 0, 0); }
 
 #define aB(T, n) T *n[4] = {0, 0, 0, 0};
 
 #define Bat(buf, ndx) (buf[0] + ndx)
 
-#define Bpop(buf)                                                              \
-  { --buf[2]; }
+#define Bpop(buf) \
+    { --buf[2]; }
 
-#define Blast(buf) (buf[2] - 1)
+// #define Blast(buf) (buf[2] - 1)
+
+typedef struct {
+    u32 from;
+    u32 till;
+} range64;
 
 #endif

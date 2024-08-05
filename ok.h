@@ -5,11 +5,11 @@
 #ifndef UNTITLED_OK_H
 #define UNTITLED_OK_H
 
-#include <string.h>
-#include <stdint.h>
-#include <stdarg.h>
-#include <stdio.h>
 #include <errno.h>
+#include <stdarg.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <string.h>
 #include <unistd.h>
 
 /* . . . . . . . .  Integer types . . . . . . . .  */
@@ -24,30 +24,31 @@ typedef uint64_t ok64;
 typedef ok64 ok;
 typedef u64 pos64;
 
-#define as64(v) (*(u64*)&(v))
+#define as64(v) (*(u64 *)&(v))
 
-#define WORDS(k) union { \
-    u64 _64[k];          \
-    u32 _32[k*2];        \
-    u16 _16[k*4];        \
-    u8 _8[k*8];          \
-}
+#define WORDS(k)        \
+    union {             \
+        u64 _64[k];     \
+        u32 _32[k * 2]; \
+        u16 _16[k * 4]; \
+        u8 _8[k * 8];   \
+    }
 
 typedef WORDS(2) u128;
 typedef WORDS(4) u256;
 typedef WORDS(8) u512;
 
 #define LOG2PAGE 12
-#define PAGE_SIZE (1<<LOG2PAGE)
-#define PAGE_MASK (PAGE_SIZE-1)
+#define PAGE_SIZE (1 << LOG2PAGE)
+#define PAGE_MASK (PAGE_SIZE - 1)
 
 typedef uint8_t b8;
 typedef u128 u120;
 con b8 FALSE = 0;
 con b8 TRUE = 1;
 
-#define max(a, b) ((a)>(b)?(a):(b))
-#define min(a, b) ((a)<(b)?(a):(b))
+#define max(a, b) ((a) > (b) ? (a) : (b))
+#define min(a, b) ((a) < (b) ? (a) : (b))
 
 #define OK 0UL
 
@@ -76,16 +77,23 @@ extern int __NESTING__;
 
 extern const char *__TRACE_INDENTS__[32];
 
-#define __INDENT__ __TRACE_INDENTS__[__NESTING__&0x1f]
+#define __INDENT__ __TRACE_INDENTS__[__NESTING__ & 0x1f]
 
 #define traces(msg) \
-    if (traced) fprintf(stderr, "%s%s:%d %s", __INDENT__, __func__, __LINE__, msg);
+    if (traced)     \
+        fprintf(stderr, "%s%s:%d %s", __INDENT__, __func__, __LINE__, msg);
 
-#define tracef(fmt, ...) \
-    if (traced) { fprintf(stderr, "%s%s:%d " fmt, __INDENT__, __func__, __LINE__, __VA_ARGS__); }
+#define tracef(fmt, ...)                                                \
+    if (traced) {                                                       \
+        fprintf(stderr, "%s%s:%d " fmt, __INDENT__, __func__, __LINE__, \
+                __VA_ARGS__);                                           \
+    }
 
-#define inf(fmt, ...) \
-    if (traced) { fprintf(stderr, "%s>%s:%d " fmt, __INDENT__, __func__, __LINE__, __VA_ARGS__); }
+#define inf(fmt, ...)                                                    \
+    if (traced) {                                                        \
+        fprintf(stderr, "%s>%s:%d " fmt, __INDENT__, __func__, __LINE__, \
+                __VA_ARGS__);                                            \
+    }
 
 #ifdef __GNUC__
 #define unlikely(x) (__builtin_expect(x, 0))
@@ -97,151 +105,177 @@ extern const char *__TRACE_INDENTS__[32];
 
 /* . . . . . . . .  Control flow . . . . . . . .  */
 
-#define done { \
-    over:         \
-    if (traced) fprintf(stderr, "%s<%s:%d %s\n", __INDENT__, __func__, __LINE__, ok64str(_));  \
-    __NESTING__--;              \
-    return _;  \
-}
+#define done                                                                 \
+    {                                                                        \
+    over:                                                                    \
+        if (traced)                                                          \
+            fprintf(stderr, "%s<%s:%d %s\n", __INDENT__, __func__, __LINE__, \
+                    ok64str(_));                                             \
+        __NESTING__--;                                                       \
+        return _;                                                            \
+    }
 
-#define nedo(fixes) { \
-    over:             \
-    fixes;              \
-    if (traced) fprintf(stderr, "%s<%s:%d %s\n", __INDENT__, __func__, __LINE__, ok64str(_));  \
-    __NESTING__--;              \
-    return _; \
-}
+#define nedo(fixes)                                                          \
+    {                                                                        \
+    over:                                                                    \
+        fixes;                                                               \
+        if (traced)                                                          \
+            fprintf(stderr, "%s<%s:%d %s\n", __INDENT__, __func__, __LINE__, \
+                    ok64str(_));                                             \
+        __NESTING__--;                                                       \
+        return _;                                                            \
+    }
 
-#define fail(code) { \
-    _ = code;        \
-    goto over;                 \
-}
+#define fail(code) \
+    {              \
+        _ = code;  \
+        goto over; \
+    }
 
-#define skip  { _=OK; goto over; }
+#define skip       \
+    {              \
+        _ = OK;    \
+        goto over; \
+    }
 
-#define args(cond, fmt, ...) \
-    __NESTING__++;              \
-    ok _ = OK;               \
-    if (traced) fprintf(stderr, "%s>%s:%d " fmt "\n", __INDENT__, __func__, __LINE__, __VA_ARGS__); \
-    if (checked && !likely(cond)) { \
-        if (traced) fprintf(stderr, "%s!%s:%d fails: %s\n", __INDENT__, __func__, __LINE__, #cond); \
-        fail(BADARGUMNT);    \
-    }                        \
+#define args(cond, fmt, ...)                                                  \
+    __NESTING__++;                                                            \
+    ok _ = OK;                                                                \
+    if (traced)                                                               \
+        fprintf(stderr, "%s>%s:%d " fmt "\n", __INDENT__, __func__, __LINE__, \
+                __VA_ARGS__);                                                 \
+    if (checked && !likely(cond)) {                                           \
+        if (traced)                                                           \
+            fprintf(stderr, "%s!%s:%d fails: %s\n", __INDENT__, __func__,     \
+                    __LINE__, #cond);                                         \
+        fail(BADARGUMNT);                                                     \
+    }
 
 con ok BADARG0000 = 201031024430284800UL;
 
-#define sane(cond, ...)                                                              \
-    __NESTING__++;                                                                   \
-    ok _ = OK;                                                                       \
-    if (traced) Pile(), Pstr(__INDENT__), Pu8('>'), Pstr(__func__), Pu8(':'),                 \
-        Pint(__LINE__), Pu8('('), __VA_ARGS__, Pu8(')'), Pnl(), Perr();               \
-    if (checked && !likely(cond)) {                                                   \
-        if (traced) Pile(), Pstr(__INDENT__), Pstr("bad args: "), Pstr(#cond), Pnl(), Perr(); \
-        fail(BADARG0000 + __LINE__);                                                 \
+#define sane(cond, ...)                                                       \
+    __NESTING__++;                                                            \
+    ok _ = OK;                                                                \
+    if (traced)                                                               \
+        Pile(), Pstr(__INDENT__), Pu8('>'), Pstr(__func__), Pu8(':'),         \
+            Pint(__LINE__), Pu8('('), __VA_ARGS__, Pu8(')'), Pnl(), Perr();   \
+    if (checked && !likely(cond)) {                                           \
+        if (traced)                                                           \
+            Pile(), Pstr(__INDENT__), Pstr("bad args: "), Pstr(#cond), Pnl(), \
+                Perr();                                                       \
+        fail(BADARG0000 + __LINE__);                                          \
     }
 
-#define quiet(cond)                                                              \
-    __NESTING__++;                                                                   \
-    ok _ = OK;                                                                       \
-    if (checked && !likely(cond)) {                                                   \
-        if (traced) Pstr(__INDENT__), Pstr("bad args: "), Pstr(#cond), Pnl(), Perr(); \
-        fail(BADARG0000 + __LINE__);                                                 \
+#define quiet(cond)                                                           \
+    __NESTING__++;                                                            \
+    ok _ = OK;                                                                \
+    if (checked && !likely(cond)) {                                           \
+        if (traced)                                                           \
+            Pstr(__INDENT__), Pstr("bad args: "), Pstr(#cond), Pnl(), Perr(); \
+        fail(BADARG0000 + __LINE__);                                          \
     }
 
 // TODO nowarn
-//#define quiet int traced = 0;
+// #define quiet int traced = 0;
 
-#define noargs \
-    __NESTING__++;              \
-    ok _ = OK; \
+#define noargs     \
+    __NESTING__++; \
+    ok _ = OK;     \
     if (traced) fprintf(stderr, "%s>%s:%d\n", __INDENT__, __func__, __LINE__);
 
-#define try(x) { \
-    _ = (x);         \
-}
+#define try(x) \
+    { _ = (x); }
 
-#define fix(x) if (_==(x) && !(_=OK))
-#define fixany(x) if ((_&~63)==x && !(_=OK))
-#define fixfail if (_ && !(_=OK))
+#define fix(x) if (_ == (x) && !(_ = OK))
+#define fixany(x) if ((_ & ~63) == x && !(_ = OK))
+#define fixfail if (_ && !(_ = OK))
 
-#define on(x) if (_==x)
-#define onany(x) if ((_&~63)==x)
+#define on(x) if (_ == x)
+#define onany(x) if ((_ & ~63) == x)
 #define onfail if (_)
 
-#define call(x) {         \
-    try(x)                \
-    if (_!=OK) fail(_)  \
-}
+#define call(x) \
+    { try(x) if (_ != OK) fail(_) }
 
-#define callcv(x, fail) {         \
-    if (!(x)) { failcv(fail); } \
-}
-
-#define xcall(S, V, args) call(X(S,V)args)
-
-#define test(cond, err) { \
-    if (!likely(cond)) {        \
-        fail(err)                  \
-    }                      \
-}
-
-#define failv(code) \
-        fprintf(stderr, "%s at %s:%d\n", ok64str(code), __FILE__, __LINE__); \
-        fail((code) + errno)
-
-#define testv(cond, err) { \
-    if (!likely(cond)) {        \
-        failv(err)                  \
-    }                      \
-}
-
-#define failcv(code) { \
-        fprintf(stderr, "%s at %s:%d\n", strerror(errno), __FILE__, __LINE__); \
-        fail((code) + errno); \
-}
-
-#define testcv(cond, fail)              \
-    if (!likely(cond)) {                \
-        failcv(fail)                   \
+#define callcv(x, fail)   \
+    {                     \
+        if (!(x)) {       \
+            failcv(fail); \
+        }                 \
     }
 
+#define xcall(S, V, args) call(X(S, V) args)
 
-#define mute(cond, err) { \
-    _ = (cond);        \
-    if (_==err) _ = OK;   \
-    if (_) fail(_)                      \
-}
+#define test(cond, err)      \
+    {                        \
+        if (!likely(cond)) { \
+            fail(err)        \
+        }                    \
+    }
 
-#define testeq(a, b) { \
-    if (!likely((a)==(b))) {        \
-        fail(FAILEQTEST)                  \
-    }                      \
-}
+#define failv(code)                                                      \
+    fprintf(stderr, "%s at %s:%d\n", ok64str(code), __FILE__, __LINE__); \
+    fail((code) + errno)
 
-#define testeqv(a, b) { \
-    if (!likely((a)==(b))) {        \
-        failv(FAILEQTEST)                  \
-    }                      \
-}
+#define testv(cond, err)     \
+    {                        \
+        if (!likely(cond)) { \
+            failv(err)       \
+        }                    \
+    }
 
-#define $testeq(a, b) { \
-    if (! likely( $size(a)==$size(b) && 0 == memcmp(*a, *b, $size(a)) ) ) {        \
-        fail(FAILEQTEST)                  \
-    }                      \
-}
+#define failcv(code)                                                           \
+    {                                                                          \
+        fprintf(stderr, "%s at %s:%d\n", strerror(errno), __FILE__, __LINE__); \
+        fail((code) + errno);                                                  \
+    }
+
+#define testcv(cond, fail) \
+    if (!likely(cond)) {   \
+        failcv(fail)       \
+    }
+
+#define mute(cond, err)       \
+    {                         \
+        _ = (cond);           \
+        if (_ == err) _ = OK; \
+        if (_) fail(_)        \
+    }
+
+#define testeq(a, b)               \
+    {                              \
+        if (!likely((a) == (b))) { \
+            fail(FAILEQTEST)       \
+        }                          \
+    }
+
+#define testeqv(a, b)              \
+    {                              \
+        if (!likely((a) == (b))) { \
+            failv(FAILEQTEST)      \
+        }                          \
+    }
+
+#define $testeq(a, b)                                                         \
+    {                                                                         \
+        if (!likely($size(a) == $size(b) && 0 == memcmp(*a, *b, $size(a)))) { \
+            fail(FAILEQTEST)                                                  \
+        }                                                                     \
+    }
 
 // sanity checks; crash on fail
-#define must(cond)  if (!likely(cond)) { \
-    tracef("condition %s failed\n", #cond);  \
-    abort(); \
-}
+#define must(cond)                              \
+    if (!likely(cond)) {                        \
+        tracef("condition %s failed\n", #cond); \
+        abort();                                \
+    }
 
 // hash number (like hashtable hash)
 typedef uint64_t h64;
 
 /* . . . . . . . .  Bitwise magic . . . . . . . .  */
 
-#define MIN(x, y) ((x)<(y)?(x):(y))
+#define MIN(x, y) ((x) < (y) ? (x) : (y))
 
 #ifdef _MSC_VER
 #include <intrin.h>
@@ -385,16 +419,14 @@ fun u32 rotl32(u32 val, uint8_t len) {
 fun int is_power_of_2(u64 w) { return 0 == ((w - 1U) & w); }
 
 fun u64 round_power_of_2(u64 a) {
-    if (is_power_of_2(a))
-        return a;
+    if (is_power_of_2(a)) return a;
     int p = clz64(a);
     return 1UL << (64 - p);
 }
 
 fun u8 upper_log_2(u64 val) {
     u8 pow = 64 - clz64(val);
-    if (!is_power_of_2(val))
-        ++pow;
+    if (!is_power_of_2(val)) ++pow;
     return pow;
 }
 
@@ -409,9 +441,7 @@ con u64 PRIME3 = 1609587929392839161ULL;
 con u64 PRIME4 = 9650029242287828579ULL;
 con u64 PRIME5 = 2870177450012600261ULL;
 
-fun h64 mix32(u32 a) {
-    return (a * PRIME1) >> 32;
-}
+fun h64 mix32(u32 a) { return (a * PRIME1) >> 32; }
 
 fun h64 mix64(u64 a) {
     h64 mix1 = a * PRIME1;
@@ -423,7 +453,8 @@ fun h64 mix64(u64 a) {
 
 con char *BASE16 = "0123456789abcdef";
 
-con char *BASE64 = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz~";
+con char *BASE64 =
+    "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz~";
 
 extern const u8 BASE64rev[256];
 
@@ -502,9 +533,9 @@ typedef u8 *$u8[2];
 typedef const u8 *$u8c[2];
 
 typedef u64 u60;
-#define MASK60 ((1UL<<60)-1)
-#define MASK30 ((1UL<<30)-1)
-#define MASK30h (((1UL<<30)-1)<<30)
+#define MASK60 ((1UL << 60) - 1)
+#define MASK30 ((1UL << 30) - 1)
+#define MASK30h (((1UL << 30) - 1) << 30)
 
 fun void Pstr(const char *s);
 
@@ -547,18 +578,18 @@ con ok NOTIMPLYET = 421215369505940381UL;
 con ok FAILEQTEST = 273111350831802141UL;
 con ok FAILMUTEOK = 273111359488845332UL;
 
-#define RUN_TESTS \
-    int main(int argn, char **argc) { \
-        char *tmp = getenv("TMP"); \
-        if (!tmp) tmp = "/tmp"; \
-        char __tmp_path[1024]; \
-        sprintf(__tmp_path, "%s/test-XXXXXX", tmp); \
-        mkdtemp(__tmp_path); \
-        assert(0 == chdir(__tmp_path)); \
-        ok _ = Tests(); \
+#define RUN_TESTS                                           \
+    int main(int argn, char **argc) {                       \
+        char *tmp = getenv("TMP");                          \
+        if (!tmp) tmp = "/tmp";                             \
+        char __tmp_path[1024];                              \
+        sprintf(__tmp_path, "%s/test-XXXXXX", tmp);         \
+        mkdtemp(__tmp_path);                                \
+        assert(0 == chdir(__tmp_path));                     \
+        ok _ = Tests();                                     \
         if (_) printf("abnormal finish: %s\n", ok64str(_)); \
-        Frmrf(__tmp_path); \
-        return (int) _; \
+        Frmrf(__tmp_path);                                  \
+        return (int)_;                                      \
     }
 
 /* . . . . . . . .  Colors . . . . . . . .  */
@@ -623,7 +654,8 @@ fun void Pout() { Pflush(STDOUT_FILENO); }
 fun void Perr() { Pflush(STDERR_FILENO); }
 
 // todo realloc
-#define Prep(i) if (Pad[3]-Pad[2] < (i)) return;
+#define Prep(i) \
+    if (Pad[3] - Pad[2] < (i)) return;
 #define Push(c) *(Pad[2]++) = (c);
 
 fun void Phexn(u64 num, u8 len) {
@@ -635,7 +667,7 @@ fun void Ptr(const void *p) {
     Prep(18);
     Push('0');
     Push('x');
-    Phexn((u64) p, 12);
+    Phexn((u64)p, 12);
 }
 
 fun void Pint(i64 i) {
@@ -655,9 +687,7 @@ fun void Pfeed(const $u8 data) {
     *iPad += sz;
 }
 
-fun void P$u8($u8 str) {
-    Pfeed(str);
-}
+fun void P$u8($u8 str) { Pfeed(str); }
 
 fun void Pu8(u8 c) {
     Prep(1);
@@ -709,7 +739,7 @@ fun void Pok(ok64 _) {
 }
 
 fun void Pstr(const char *str) {
-    $u8 s = {(u8 *) str, (u8 *) str + strlen(str)};
+    $u8 s = {(u8 *)str, (u8 *)str + strlen(str)};
     Pfeed(s);
 }
 
@@ -746,4 +776,4 @@ void Pile();
 
 extern int Piled;
 
-#endif //UNTITLED_OK_H
+#endif  // UNTITLED_OK_H

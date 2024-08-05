@@ -90,3 +90,12 @@ target_link_options(LINEtest PRIVATE ${TEST_LDD_FLAGS})
 target_compile_options(LINEtest PRIVATE ${TEST_CXX_FLAGS})
 add_test(NAME LINEtest COMMAND LINEtest)
 
+#add_executable(CITRtest CITR.c)
+#target_link_options(CITRtest PRIVATE ${TEST_LDD_FLAGS})
+#target_compile_options(CITRtest PRIVATE ${TEST_CXX_FLAGS})
+#add_test(NAME CITRtest COMMAND CITRtest)
+
+add_executable(MARKtest MARK.c)
+target_link_options(MARKtest PRIVATE ${TEST_LDD_FLAGS})
+target_compile_options(MARKtest PRIVATE ${TEST_CXX_FLAGS})
+add_test(NAME MARKtest COMMAND MARKtest)

@@ -1,8 +1,8 @@
 #ifndef LIBRDX_TLV_H
 #define LIBRDX_TLV_H
 #include "$.h"
-#include "PRO.h"
 #include "INT.h"
+#include "PRO.h"
 
 con ok64 TLVbadrec = 0x27a76a2599f55d;
 con ok64 TLVnodata = 0x25e25a33c9f55d;
@@ -39,6 +39,13 @@ fun ok64 TLVprobe(u8* t, u32* hlen, u32* blen, $u8c data) {
     }
     // trace("%sTLVprobe: %u %u\n", PROindent, *hlen, *blen);
     return (*hlen + *blen) <= $len(data) ? OK : TLVnodata;
+}
+
+pro(TLVdrain, u8* t, $u8c value, $u8c from) { done; }
+
+fun ok64 TLVpick(u8* type, $u8c value, $cu8c tlv, size_t offset) {
+    a$tail(u8c, keytlv, tlv, offset);
+    return TLVdrain(type, value, keytlv);
 }
 
 pro(TLVtake, u8 t, $u8c value, $u8c from) {
@@ -131,5 +138,19 @@ fun pro(TLVclose, Bu8 tlv, u8 type, TLVstack stack) {
     }
     done;
 }
+
+fun pro(TLVfeedkv, $u8 tlv, u8c type, $u8c key, $u8c val) {
+    sane($ok(tlv) && $ok(key) && $ok(val) && $len(key) <= 0xff);
+    u64 blen = $len(key) + $len(val);
+    test($len(tlv) >= blen + 1 + 4 + 1, TLVnospace);
+    TLVhead(tlv, type, blen + 1);
+    **tlv = $len(key);
+    ++*tlv;
+    $feed(tlv, key);
+    $feed(tlv, val);
+    done;
+}
+
+fun pro(TLVdrainkv, u8* type, $u8 key, $u8 val, $u8c tlv) { done; }
 
 #endif
