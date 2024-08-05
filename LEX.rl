@@ -29,7 +29,7 @@ fun ok64 popfails(u32* stack, u32* sp, u32 type) {
 }
 #define lexpop(t)  \
     if (stack[sp]!=t) call(popfails, stack, &sp, t); \
-    tok[0] = *text+stack[sp-1]; \
+    tok[0] = *(text)+stack[sp-1]; \
     tok[1] = p; \
     sp -= 2;
 
@@ -91,7 +91,7 @@ LEXexpr  = (   (LEXop+  LEXentity)*  LEXop*
  ) >LEXexpr0 %LEXexpr1;
 LEXrulename  = (   LEXname  
  ) >LEXrulename0 %LEXrulename1;
-LEXeq  = (   LEXspace*  "=" 
+LEXeq  = (   LEXspace*  "="
  ) >LEXeq0 %LEXeq1;
 LEXline  = (   LEXrulename  LEXeq  LEXexpr  ";"  LEXspace*  
  ) >LEXline0 %LEXline1;
@@ -104,13 +104,15 @@ main := LEXroot;
 
 %%write data;
 
-pro(LEXlexer, $u8c text, LEXstate* state) {
-    test(text!=nil && *text!=nil, LEXfail);
+pro(LEXlexer, LEXstate* state) {
+    a$dup(u8c, text, state->text);
+    sane($ok(text));
 
-    int cs, res = 0;
+    int cs = state->cs;
+    int res = 0;
     u8c *p = (u8c*) text[0];
     u8c *pe = (u8c*) text[1];
-    u8c *eof = pe;
+    u8c *eof = state->tbc ? NULL : pe;
     u8c *pb = p;
 
     u32 stack[LEXmaxnest] = {0, LEX};
@@ -120,10 +122,17 @@ pro(LEXlexer, $u8c text, LEXstate* state) {
     %% write init;
     %% write exec;
 
-    test(cs >= LEX_first_final, LEXfail);
+    test(p==text[1], LEXfail);
+
+    if (state->tbc) {
+        test(cs != LEX_error, LEXfail);
+        state->cs = cs;
+    } else {
+        test(cs >= LEX_first_final, LEXfail);
+    }
 
     nedo(
-        text[0] = p;
+        state->text[0] = p;
     );
 }
 
