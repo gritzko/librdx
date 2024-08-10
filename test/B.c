@@ -2,9 +2,9 @@
 #include <stdio.h>
 #include <unistd.h>
 
+#include "INT.h"
 #include "PRO.h"
 #include "TEST.h"
-#include "INT.h"
 
 pro(fail_test) {
     fail(badarg);
@@ -20,9 +20,22 @@ pro(B$_test) {
     done;
 }
 
+pro(Breserve_test) {
+    Bu8 buf = {};
+    call(Bu8alloc, buf, 1024);
+    for (int i = 0; i < (1 << 20); i++) {
+        try(Bu8feed2, buf, '1', '2');
+        on(noroom) call(Bu8reserve, buf, 1024);
+        sure(OK);
+    }
+    call(Bu8free, buf);
+    done;
+}
+
 pro(Btest) {
     call(Bmap_test);
     call(B$_test);
+    call(Breserve_test);
     done;
 }
 

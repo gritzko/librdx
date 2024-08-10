@@ -67,7 +67,8 @@
 
 #define $shift(s) (*(s[0]++))
 
-#define $for(T, n, s) for (T *n = s[0]; n + 1 <= s[1]; p++)
+#define $for(T, n, s) for (T *n = s[0]; n + 1 <= s[1]; ++n)
+#define $rof(T, n, s) for (T *n = s[1] - 1; n >= s[0]; --n)
 
 #define $eat(s) for (; s[0] < s[1]; s[0]++)
 
@@ -182,5 +183,8 @@ fun ok64 $feedf(u8 **into, u8 const *const *tmpl, ...) {
         memmove(*(s) + (off), *(s) + (off) + (rm),         \
                 ($len(s) - (off) - (rm)) * sizeof(**(s))); \
     }
+
+#define zero(s) memset(&s, 0, sizeof(s))
+#define zerop(s) memset(s, 0, sizeof(*s))
 
 #endif  // LIBRDX_$_H

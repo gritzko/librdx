@@ -64,6 +64,7 @@ int main(int argn, char **args) {
 }
 
 con char *ragel_template =
+    "#include \"PRO.h\"\n"
     "#include \"$s.h\"\n"
     "\n"
     "enum {\n"

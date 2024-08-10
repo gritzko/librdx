@@ -16,6 +16,7 @@ con ok64 FAILsanity = 0xf78b7297755228f;
 con ok64 notimplyet = 0xe29f70d31b78cf2;
 con ok64 OKnoroom = 0x614cb3db3cf1;
 con ok64 OKbadtext = 0x18526968e29f38;
+con ok64 noroom = 0xc73cf6cf2;
 
 con char *_base_ron64 =
     "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz~";

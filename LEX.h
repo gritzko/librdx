@@ -49,6 +49,8 @@ fun ok64 _LEXrulename($cu8c text, $cu8c tok, LEXstate *state) {
     u8c$ mod = state->mod;
     state->ruleno++;
 
+    if (**tok == '_') return OK;
+
     a$strc(tmpl,
            "action $s$s0 { lexpush($s$s); }\n"
            "action $s$s1 { lexpop($s$s); call(_$s$s, text, tok, state); }\n");
@@ -66,8 +68,13 @@ fun ok64 _LEXline($cu8c text, $cu8c tok, LEXstate *state) {
     if ($len(state->syn) < l) return LEXnoroom;
     u8c$ mod = state->mod;
     u8c$ cur = state->cur;
-    a$strc(tmpl, " ) >$s$s0 %$s$s1;\n");
-    $feedf(state->syn, tmpl, mod, cur, mod, cur);
+    if (**cur != '_') {
+        a$strc(tmpl, " ) >$s$s0 %$s$s1;\n");
+        $feedf(state->syn, tmpl, mod, cur, mod, cur);
+    } else {
+        $u8feed2(state->syn, ' ', ')');
+        $u8feed2(state->syn, ';', '\n');
+    }
     return OK;
 }
 fun ok64 _LEXroot($cu8c text, $cu8c tok, LEXstate *state) { return OK; }

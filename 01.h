@@ -49,9 +49,13 @@ con ok64 $badarg = 0x2bda5a259bf;
         u8 _8[k * 8];   \
     }
 
-typedef WORDS(2) u128;
-typedef WORDS(4) u256;
-typedef WORDS(8) u512;
+typedef WORDS(1) w64;
+typedef WORDS(2) w128;
+typedef WORDS(4) w256;
+typedef WORDS(8) w512;
+typedef w128 u128;
+typedef w256 u256;
+typedef w512 u512;
 
 #ifndef PAGESIZE
 #define PAGESIZE (1 << 12)
@@ -162,6 +166,12 @@ fun u8 log_2(size_t x) {
     return 63 - z;
 }
 
+fun u64 roundup(u64 val, u64 page) {
+    u64 mask = page - 1;
+    if (val & mask) val = (val & ~mask) + page;
+    return val;
+}
+
 con u64 PRIME1 = 11400714785074694791ULL;
 con u64 PRIME2 = 14029467366897019727ULL;
 con u64 PRIME3 = 1609587929392839161ULL;
@@ -184,5 +194,27 @@ fun h64 mix64(u64 a) {
 #define GB (1UL << 30)
 #define MB (1UL << 20)
 #define KB (1UL << 10)
+
+fun u64 nextbit64(u64 bits) {}
+fun u32 nextbit32(u32 bits) {}
+
+#define bitpick(T, N, OFF, LEN)                         \
+    fun T T##N(T val) {                                 \
+        T one = 1;                                      \
+        return (val >> (OFF)) & ((one << LEN) - one);   \
+    }                                                   \
+    fun T T##set##N(T val) {                            \
+        T one = 1;                                      \
+        T mask = ((one << (LEN)) - one) << (OFF);       \
+        return (val & ~mask) | ((val << (OFF)) & mask); \
+    }
+
+#ifdef __GNUC__
+#define unlikely(x) (__builtin_expect(x, 0))
+#define likely(x) (__builtin_expect(!!(x), 1))
+#else
+#define unlikely(x) (x)
+#define likely(x) (x)
+#endif
 
 #endif

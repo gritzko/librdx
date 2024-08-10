@@ -8,6 +8,8 @@
 #include "PRO.h"
 #include "trace.h"
 
+con ok64 TESTfail = 0xc2d96a75c39d;
+
 #define TEST(f)                                                          \
     int main(int argn, char **args) {                                    \
         ok64 ret = f();                                                  \

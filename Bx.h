@@ -33,16 +33,16 @@ fun T *X(B, at)(X(B, ) buf, size_t ndx) {
     // todo range checks
     return buf[1] + ndx;
 }
-
 fun ok64 X(B, alloc)(X(B, ) buf, size_t len) {
     return Balloc((void **)buf, len * sizeof(T));
 }
 
 fun ok64 X(B, free)(X(B, ) buf) { return Bfree((void **)buf); }
 
+// fun ok64 X(B, reset)(X(B, ) buf) { buf[1] = buf[2] = buf[0]; }
+
 fun ok64 X(B, reserve)(X(B, ) buf, size_t len) {
-    if ($len(X(B, idle)(buf)) >= len) return OK;
-    return notimplyet;
+    return Breserve((void *const *)buf, len * sizeof(T));
 }
 
 fun ok64 X(B, feedp)(X(B, ) buf, T const *one) {

@@ -3,6 +3,7 @@
 
 #include <errno.h>
 #include <stdint.h>
+#include <stdio.h>
 
 #include "OK.h"
 #include "trace.h"
@@ -13,6 +14,7 @@ con char *_pro_indent =
     "\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t";
 
 con ok64 badarg = 0xaf6968966;
+con ok64 faileq = 0xd69c2d96a;
 
 #define PROindent (_pro_indent + 32 - (_pro_depth & 31))
 #define PROind (_pro_indent + 32 - (__depth & 31))
@@ -59,6 +61,16 @@ con ok64 badarg = 0xaf6968966;
 #define sane(c) \
     if (!(c)) fail(FAILsanity);
 
+#define try(f, ...) \
+    { __ = (f(__VA_ARGS__)); }
+
+#define on(f) if (__ == (f))
+
+#define is(f) (__ == f)
+
+#define sure(f) \
+    if (__ != f) fail(__);
+
 #define call(f, ...)                                                 \
     {                                                                \
         __ = (f(__VA_ARGS__));                                       \
@@ -76,6 +88,29 @@ con ok64 badarg = 0xaf6968966;
         if (__ != OK) {       \
             goto _over;       \
         }                     \
+    }
+
+#define testeq(a, b)               \
+    {                              \
+        if (!likely((a) == (b))) { \
+            fail(faileq)           \
+        }                          \
+    }
+
+#define testeqv(a, b, fmt)                                                  \
+    {                                                                       \
+        if (!likely((a) == (b))) {                                          \
+            fprintf(stderr, "%sNot equal: " fmt " <> " fmt "\n", PROind, a, \
+                    b);                                                     \
+            fail(faileq)                                                    \
+        }                                                                   \
+    }
+
+#define $testeq(a, b)                                                         \
+    {                                                                         \
+        if (!likely($size(a) == $size(b) && 0 == memcmp(*a, *b, $size(a)))) { \
+            fail(faileq)                                                      \
+        }                                                                     \
     }
 
 #endif

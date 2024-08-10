@@ -1,18 +1,19 @@
+#include "PRO.h"
 #include "LEX.h"
 
 enum {
 	LEX = 0,
 	LEXspace = LEX+1,
 	LEXname = LEX+2,
-	LEXop = LEX+3,
-	LEXclass = LEX+4,
-	LEXstring = LEX+5,
-	LEXentity = LEX+6,
-	LEXexpr = LEX+7,
-	LEXrulename = LEX+8,
-	LEXeq = LEX+9,
-	LEXline = LEX+10,
-	LEXroot = LEX+11,
+	LEXop = LEX+4,
+	LEXclass = LEX+5,
+	LEXstring = LEX+6,
+	LEXentity = LEX+7,
+	LEXexpr = LEX+8,
+	LEXrulename = LEX+9,
+	LEXeq = LEX+10,
+	LEXline = LEX+11,
+	LEXroot = LEX+12,
 };
 
 #define LEXmaxnest 1024
@@ -77,9 +78,11 @@ action LEXroot1 { lexpop(LEXroot); call(_LEXroot, text, tok, state); }
 
 LEXspace  = (   [ \t\r\n]  
  ) >LEXspace0 %LEXspace1;
-LEXname  = (   [A-Za-z]  [A-Z0-9a-z_]**  
+LEXname  = (   [A-Za-z_]  [A-Z0-9a-z_]**  
  ) >LEXname0 %LEXname1;
-LEXop  = (   LEXspace  |  [()+*\-?|]  
+LEX_rep  = (   "{"  [0-9]*  (","  [0-9]*)?  "}"  -  "{}"
+ );
+LEXop  = (   LEXspace  |  [()+*\-?><:|]  |  LEX_rep
  ) >LEXop0 %LEXop1;
 LEXclass  = (   "["  ([^\]]|"\\]")*  "]"  
  ) >LEXclass0 %LEXclass1;

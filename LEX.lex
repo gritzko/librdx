@@ -1,6 +1,7 @@
 space = [ \t\r\n] ;
-name = [A-Za-z] [A-Z0-9a-z_]** ;
-op = space | [()+*\-?|] ;
+name = [A-Za-z_] [A-Z0-9a-z_]** ;
+_rep = "{" [0-9]* ("," [0-9]*)? "}" - "{}";
+op = space | [()+*\-?><:|] | _rep;
 class = "[" ([^\]]|"\\]")* "]" ;
 string = "\"" ([^"]|"\\\"")* "\"" ;
 entity = class | name | string ;

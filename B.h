@@ -48,8 +48,10 @@ typedef void const *const *voidc$;
 #define Bd(b) *(b[1])
 
 #define Blen(b) (b[3] - b[0])
-#define Bsize(b) ((uint8_t *)(b[3]) - (uint8_t *)(b[0]))
+#define Bsize(b) ((u8 *)(b[3]) - (u8 *)(b[0]))
 #define Busylen(b) (b[2] - b[0])
+#define Busysize(b) ((u8 const *)b[2] - (u8 const *)b[0])
+#define Bdatalen(b) $len(Bdata(b))
 
 #define Bok(b) \
     (b != nil && b[0] != nil && b[0] <= b[1] && b[1] <= b[2] && b[2] <= b[3])
@@ -62,28 +64,39 @@ typedef void const *const *voidc$;
 
 #define Bzero(buf) memset(buf[0], 0, ((void *)buf[3]) - ((void *)buf[0]))
 
-#define _Brebase(buf, newhead, newlen)    \
-    {                                     \
-        size_t data = buf[1] - buf[0];    \
-        if (data > newlen) data = newlen; \
-        size_t idle = buf[2] - buf[0];    \
-        if (idle > newlen) idle = newlen; \
-        u8 **b = (u8 **)buf;              \
-        b[0] = (u8 *)newhead;             \
-        b[1] = b[0] + data;               \
-        b[2] = b[0] + idle;               \
-        b[3] = b[0] + newlen;             \
-    }
+fun void _Brebase(Bvoid buf, void *newhead, size_t newlen) {
+    size_t data = buf[1] - buf[0];
+    if (data > newlen) data = newlen;
+    size_t idle = buf[2] - buf[0];
+    if (idle > newlen) idle = newlen;
+    u8 **b = (u8 **)buf;
+    b[0] = (u8 *)newhead;
+    b[1] = b[0] + data;
+    b[2] = b[0] + idle;
+    b[3] = b[0] + newlen;
+}
 
 fun ok64 Balloc(Bvoid b, size_t sz) {
     if (!Bnil(b)) return Bnotnull;
-    uint8_t *p = (uint8_t *)malloc(sz);
+    u8 *p = (u8 *)malloc(sz);
     if (p == NULL) return Ballocfail;
-    uint8_t **buf = (uint8_t **)b;
+    u8 **buf = (u8 **)b;
     buf[0] = buf[1] = buf[2] = p;
     buf[3] = p + sz;
-    buf[4] = (uint8_t *)B_MALLOC;
     return OK;
+}
+
+fun ok64 Brealloc(Bvoid b, size_t sz) {
+    void *m = realloc(b[0], sz);
+    if (m == NULL) return noroom;
+    _Brebase(b, m, sz);
+    return OK;
+}
+
+fun ok64 Breserve(Bvoid b, size_t sz) {
+    size_t i = $size(Bidle(b));
+    if (i >= sz) return OK;
+    return Brealloc(b, roundup(Busysize(b) + sz, 256));
 }
 
 fun ok64 Bfree(Bvoid buf) {
@@ -105,6 +118,8 @@ fun ok64 Bfree(Bvoid buf) {
 
 #define aB(T, n) T *n[4] = {0, 0, 0, 0};
 
+#define Batp(buf, ndx) (buf[0] + ndx)
+// TODO Bat is a value
 #define Bat(buf, ndx) (buf[0] + ndx)
 
 #define Bpop(buf) \

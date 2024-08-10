@@ -19,7 +19,7 @@ typedef T const *const X($c, c)[2];
 
 typedef T **X(, $);
 typedef T const **X(, c$);
-// typedef T const* const* X(, c$c);
+typedef T const *const *X(, $cc);
 
 typedef int (*X(, cmpfn))(const X(, ) *, const X(, ) *);
 
