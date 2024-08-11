@@ -28,6 +28,7 @@ pro(MARKparsetest) {
     call(MARKlexer, &state);
     testeqv(0L, $len(state.text), "%li");
     testeqv(5L, Bdatalen(state.lines), "%li");
+    testeqv(5L, Bdatalen(state.linedivs), "%li");
     testeqv((u64)MARK_DIV_H1, *Bat(state.linedivs, 0), "%lu");
     testeqv((u64)MARK_DIV_OLIST, *Bat(state.linedivs, 1), "%lu");
     testeqv((u64)MARK_DIV_PLAIN, *Bat(state.linedivs, 2), "%lu");
@@ -85,9 +86,9 @@ pro(MARKtest1) {
         $print(hline);
         test($eq(cases[i][1], Bu8cdata(into)), TESTfail);
 
-        Bu64restart(state.lines);
-        Bu64restart(state.linedivs);
-        Bu64restart(state.links);
+        Bu64reset(state.lines);
+        Bu64reset(state.linedivs);
+        Bu64reset(state.links);
     }
     done;
 };

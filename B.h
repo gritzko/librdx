@@ -106,15 +106,15 @@ fun ok64 Bfree(Bvoid buf) {
     return OK;
 }
 
-#define Breset(b, past, data)           \
+#define Brewind(b, past, data)           \
     {                                   \
         assert(past + data <= Blen(b)); \
         b[1] = b[0] + past;             \
         b[2] = b[0] + past + data;      \
     }
 
-#define Brestart(b) \
-    { Breset(b, 0, 0); }
+#define Breset(b) \
+    { Brewind(b, 0, 0); }
 
 #define aB(T, n) T *n[4] = {0, 0, 0, 0};
 
