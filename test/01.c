@@ -1,10 +1,11 @@
 //
 // Created by gritzko on 5/11/24.
 //
+#include "01.h"
+
 #include <assert.h>
 #include <stdio.h>
 
-#include "01.h"
 #include "PRO.h"
 #include "TEST.h"
 
@@ -21,8 +22,21 @@ pro(BITStest1) {
     done;
 }
 
+pro(BITSbytelen) {
+    sane(YES);
+    testeq(2, u32bytelen(0x111));
+    testeq(2, u32bytelen(0x1111));
+    testeq(2, u64bytelen(0x111));
+    testeq(2, u64bytelen(0x1111));
+    testeq(5, u64bytelen(0x1122334455));
+    testeq(6, u64bytelen(0x12233445566));
+    testeq(0, u64bytelen(0x0));
+    done;
+}
+
 pro(BITStest) {
     call(BITStest1);
+    call(BITSbytelen);
     done;
 }
 

@@ -106,7 +106,7 @@ fun ok64 Bfree(Bvoid buf) {
     return OK;
 }
 
-#define Brewind(b, past, data)           \
+#define Brewind(b, past, data)          \
     {                                   \
         assert(past + data <= Blen(b)); \
         b[1] = b[0] + past;             \
@@ -119,8 +119,7 @@ fun ok64 Bfree(Bvoid buf) {
 #define aB(T, n) T *n[4] = {0, 0, 0, 0};
 
 #define Batp(buf, ndx) (buf[0] + ndx)
-// TODO Bat is a value
-#define Bat(buf, ndx) (buf[0] + ndx)
+#define Bat(buf, ndx) (buf[0][ndx])
 
 #define Bpop(buf) \
     { --buf[2]; }

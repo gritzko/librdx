@@ -1,4 +1,5 @@
 #include "FILE.h"
+
 #include "INT.h"
 #include "PRO.h"
 #include "TEST.h"
@@ -22,13 +23,13 @@ pro(FILEtest2) {
     aB(u8, map);
     call(FILEmap, (void$)map, fd, PROT_READ | PROT_WRITE, 0);
     sane(Bsize(map) == 4096);
-    *Bat(map, 42) = 1;
+    Bat(map, 42) = 1;
     call(Bunfmap, map);
     call(Bfmap, map, fd, PROT_READ | PROT_WRITE, 0);
     call(FILEclose, fd);
     sane(Blen(map) == 4096);
-    sane(*Bat(map, 41) == 0);
-    sane(*Bat(map, 42) == 1);
+    sane(Bat(map, 41) == 0);
+    sane(Bat(map, 42) == 1);
     call(Bunfmap, map);
     done;
 }

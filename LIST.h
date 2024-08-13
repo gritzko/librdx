@@ -16,10 +16,10 @@ typedef struct {
     u32 prev, next;
 } list64;
 
-#define LISTat Bat
+#define LISTat Batp
 
-#define LISTfor(list, i) for (; i != 0 && _ == OK; i = Bat(list, i).next)
+#define LISTfor(list, i) for (; i != 0 && _ == OK; i = Batp(list, i).next)
 
-#define LISTnext(list, ndx) Bat(list, ndx)->_list.next
+#define LISTnext(list, ndx) Batp(list, ndx)->_list.next
 
 #endif

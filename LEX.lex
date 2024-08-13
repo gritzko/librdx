@@ -8,6 +8,6 @@ entity = class | name | string ;
 expr = (op+ entity)* op* ;
 rulename = name ;
 eq = space* "=";
-line = rulename eq expr ";" space* ;
+line = space* rulename eq expr ";" space** ;
 root = line* ;
 

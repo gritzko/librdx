@@ -34,7 +34,11 @@ fun T *X(B, at)(X(B, ) buf, size_t ndx) {
     return buf[1] + ndx;
 }
 fun ok64 X(B, alloc)(X(B, ) buf, size_t len) {
-    return Balloc((void **)buf, len * sizeof(T));
+    size_t sz = len * sizeof(T);
+    ok64 o = Balloc((void **)buf, sz);
+    if (o != OK) return o;
+    memset(*buf, 0, sz);
+    return OK;
 }
 
 fun ok64 X(B, free)(X(B, ) buf) { return Bfree((void **)buf); }

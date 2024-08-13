@@ -15,26 +15,24 @@ pro(MARKparsetest) {
     sane(YES);
     MARKstate state = {};
     aBpad(u8, into, 1024);
-    call(Bu64alloc, state.lines, 1024);
-    call(Bu64alloc, state.linedivs, 1024);
-    call(Bu64alloc, state.links, 512);
-    a$str(mark,
-          "  # Header\n"
-          " 1. list of\n"
-          "    two lines\n"
-          " 2. two entries\n"
-          "...and some text\n");
+    a$strc(mark,
+           "  # Header\n"
+           " 1. list of\n"
+           "    two lines\n"
+           " 2. two entries\n"
+           "...and some text\n");
+    call(MARKstatealloc, &state, mark);
     $mv(state.text, mark);
     call(MARKlexer, &state);
     testeqv(0L, $len(state.text), "%li");
     testeqv(5L, Bdatalen(state.lines), "%li");
-    testeqv(5L, Bdatalen(state.linedivs), "%li");
-    testeqv((u64)MARK_DIV_H1, *Bat(state.linedivs, 0), "%lu");
-    testeqv((u64)MARK_DIV_OLIST, *Bat(state.linedivs, 1), "%lu");
-    testeqv((u64)MARK_DIV_PLAIN, *Bat(state.linedivs, 2), "%lu");
-    testeqv((u64)MARK_DIV_OLIST, *Bat(state.linedivs, 3), "%lu");
-    testeqv(0L, *Bat(state.linedivs, 4), "%lu");
-    done;
+    testeqv(5L, Bdatalen(state.divs), "%li");
+    testeqv((u64)MARK_H1, Bat(state.divs, 0), "%lu");
+    testeqv((u64)MARK_OLIST, Bat(state.divs, 1), "%lu");
+    testeqv((u64)MARK_INDENT, Bat(state.divs, 2), "%lu");
+    testeqv((u64)MARK_OLIST, Bat(state.divs, 3), "%lu");
+    testeqv(0L, Bat(state.divs, 4), "%lu");
+    nedo(MARKstatefree(&state););
 }
 
 pro(MARKtest1) {
@@ -72,9 +70,7 @@ pro(MARKtest1) {
     a$str(hline, "---\n");
     MARKstate state = {};
     aBpad(u8, into, 1024);
-    call(Bu64alloc, state.lines, 1024);
-    call(Bu64alloc, state.linedivs, 1024);
-    call(Bu64alloc, state.links, 512);
+    call(MARKstatealloc, &state, cases[4][0]);
     for (int i = 0; i < MARK1cases; i++) {
         zero(state);
         $mv(state.text, cases[i][0]);
@@ -86,16 +82,14 @@ pro(MARKtest1) {
         $print(hline);
         test($eq(cases[i][1], Bu8cdata(into)), TESTfail);
 
-        Bu64reset(state.lines);
-        Bu64reset(state.linedivs);
-        Bu64reset(state.links);
+        MARKstatereset(&state);
     }
-    done;
+    nedo(MARKstatefree(&state););
 };
 
 pro(MARKtest) {
     call(MARKparsetest);
-    // call(MARKtest1);
+    call(MARKtest1);
     done;
 }
 

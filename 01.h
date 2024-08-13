@@ -209,6 +209,24 @@ fun u32 nextbit32(u32 bits) {}
         return (val & ~mask) | ((val << (OFF)) & mask); \
     }
 
+fun u8 u8bytelen(u8 u) { return u == 0 ? 0 : 1; }
+
+fun u8 u16bytelen(u16 u) { return u > 0xff ? 2 : u8bytelen((u8)u); }
+
+fun u8 u32bytelen(u32 u) {
+    return u > 0xffff ? 2 + u16bytelen(u >> 16) : u16bytelen((u16)u);
+}
+
+fun u8 u64bytelen(u64 u) {
+    return u > 0xffffffff ? 4 + u32bytelen(u >> 32) : u32bytelen((u32)u);
+}
+
+fun u8 w64bytelen(w64 w) { return u64bytelen(w._64[0]); }
+
+fun u8 u128bytelen(u128 u) {
+    return u._64[1] ? 8 + u64bytelen(u._64[1]) : u64bytelen(u._64[0]);
+}
+
 #ifdef __GNUC__
 #define unlikely(x) (__builtin_expect(x, 0))
 #define likely(x) (__builtin_expect(!!(x), 1))
