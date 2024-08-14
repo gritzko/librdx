@@ -11,6 +11,7 @@
 con ok64 TESTfail = 0xc2d96a75c39d;
 
 #define TEST(f)                                                          \
+    uint8_t _pro_depth = 0;                                              \
     int main(int argn, char **args) {                                    \
         ok64 ret = f();                                                  \
         if (ret != OK)                                                   \

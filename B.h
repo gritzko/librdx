@@ -10,12 +10,13 @@
 
 con ok64 Bmapfail = 0xc2d96ad25c4b;
 con ok64 Bnotnull = 0xc30e72e33c8b;
-con ok64 Bisnull = 0x30c39cb7b4b;
+con ok64 Bisnil = 0xc2dcb7b4b;
 con ok64 Bnotmap = 0x34971e33c8b;
 con ok64 Ballocfail = 0xc2d96a9f3c3094b;
 con ok64 Bnotalloc = 0x27cf0c25e33c8b;
 con ok64 Bnoroom = 0x31cf3db3c8b;
 con ok64 Bnodata = 0x25e25a33c8b;
+con ok64 Bbadarg = 0x2bda5a2598b;
 
 enum {
     B_NONE = 0,
@@ -100,7 +101,7 @@ fun ok64 Breserve(Bvoid b, size_t sz) {
 }
 
 fun ok64 Bfree(Bvoid buf) {
-    if (Bnil(buf)) return Bisnull;
+    if (Bnil(buf)) return Bisnil;
     free(buf[0]);
     memset((void **)buf, 0, sizeof(Bvoid));
     return OK;

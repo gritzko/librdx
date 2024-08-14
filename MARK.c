@@ -1,6 +1,7 @@
 #include "MARK.h"
 
 #include "01.h"
+#include "FILE.h"
 #include "PRO.h"
 
 pro(MARKstatealloc, MARKstate* state, $u8c text) {
@@ -12,6 +13,7 @@ pro(MARKstatealloc, MARKstate* state, $u8c text) {
     call(Bu64alloc, state->links, lines);
     call(Bu64alloc, state->divs, lines);
     call(Bu8alloc, state->fmt, $len(text));
+    call(Bu8cpfeed1, state->lines, text[0]);
     done;
 }
 
@@ -30,6 +32,8 @@ pro(MARKstatefree, MARKstate* state) {
     call(Bu64free, state->links);
     call(Bu64free, state->divs);
     call(Bu8free, state->fmt);
+    $mvnil(state->text);
+    $mvnil(state->doc);
     done;
 }
 
@@ -79,7 +83,7 @@ pro(MARKilexer, MARKstate* state) {
             u8c$ line = state->lines[0] + l;
             a$tail(u8c, iline, line, dl * 4);
             $mv(state->text, iline);
-            call(MARK2lexer, state);
+            // call(MARK2lexer, state);
             ++l;
         } while (l < e && iscomas($at(divs, l), dl));
     }
@@ -94,84 +98,171 @@ pro(MARKparse, MARKstate* state) {
     done;
 }
 
-ok64 _open($u8 into, u32 tag) { return OK; }
-ok64 _close($u8 into, u32 tag) { return OK; }
+ok64 _open($u8 $into, u32 tag) { return OK; }
+ok64 _close($u8 $into, u32 tag) { return OK; }
 
-pro(MARKlinehtml, $u8 into, u32 line, MARKstate const* state) {
-    sane($ok(into));
+pro(MARKlinehtml, $u8 $into, u32 line, MARKstate const* state) {
+    sane($ok($into));
     done;
 }
 
-a$str(TAG_H1, "h1");
-a$str(TAG_H2, "h2");
-a$str(TAG_H3, "h3");
-a$str(TAG_OL, "ol");
-a$str(TAG_UL, "ul");
-a$str(TAG_LI, "li");
-a$str(TAG_HR, "hr");
-a$str(TAG_P, "p");
-a$str(TAG_DIV, "div");
+$u8c H1TRIO[3] = {
+    $u8str("<h1>"),
+    $u8str("</h1><h1>"),
+    $u8str("</h1>"),
+};
+$u8c H2TRIO[3] = {
+    $u8str("<h2>"),
+    $u8str("</h2><h2>"),
+    $u8str("</h2>"),
+};
+$u8c H3TRIO[3] = {
+    $u8str("<h3>"),
+    $u8str("</h3><h3>"),
+    $u8str("</h3>"),
+};
+$u8c H4TRIO[3] = {
+    $u8str("<h4>"),
+    $u8str("</h4><h4>"),
+    $u8str("</h4>"),
+};
+$u8c OLTRIO[3] = {
+    $u8str("<ol><li>"),
+    $u8str("</li><li>"),
+    $u8str("</li></ol>"),
+};
+$u8c ULTRIO[3] = {
+    $u8str("<ul><li>"),
+    $u8str("</li><li>"),
+    $u8str("</li></ul>"),
+};
+$u8c HRTRIO[3] = {
+    $u8str("<hr>"),
+    $u8str("</hr><hr>"),
+    $u8str("</hr>"),
+};
+$u8c PTRIO[3] = {
+    $u8str("<p/>"),
+    $u8str(""),
+    $u8str(""),
+};
+$cu8c QUOTETRIO[3] = {
+    $u8str("<blockquote>"),
+    $u8str(""),
+    $u8str("</blockquote>"),
+};
 
-fun u8$cc tag4mark(u8 mark) {
+fun $cu8c* tag4mark(u8 mark) {
     switch (mark) {
         case '1':
-            return TAG_H1;
+            return H1TRIO;
         case '2':
-            return TAG_H2;
+            return H2TRIO;
         case '3':
-            return TAG_H3;
+            return H3TRIO;
+        case '4':
+            return H4TRIO;
         case '-':
-            return TAG_UL;
+            return ULTRIO;
         case '.':
-            return TAG_OL;
-        case '*':
-            return TAG_LI;
+            return OLTRIO;
         case '~':
-            return TAG_HR;
+            return HRTRIO;
         case ' ':
-            return TAG_P;
+            return PTRIO;
+        case '>':
+            return QUOTETRIO;
         default:
             return nil;
     }
 }
 
-pro(opentag, $u8 into, u8 mark) {
-    u8$cc tag = tag4mark(mark);
-    sane(tag != nil && $len(into) >= $len(tag) + 2);
-    $feed1(into, '<');
-    $feed(into, tag);
-    $feed1(into, '>');
-    done;
-}
-pro(closetag, $u8 into, u8 mark) {
-    sane($len(into) >= 6);
-    u8$cc tag = tag4mark(mark);
-    $feed1(into, '<');
-    $feed1(into, '/');
-    $feed(into, tag);
-    $feed1(into, '>');
+pro(tagopen, $u8 $into, u8 tag) {
+    sane($into != nil);
     done;
 }
 
-/*pro(closetags, $u8 into, $u8 tags) {
-    sane($len(into) >= $len(tags) * 6);
-    while (!$empty(tags)) call(closetag, into, tags);
+pro(tagrefresh, $u8 $into, u8 tag) {
+    sane($into != nil);
     done;
-}*/
+}
 
-pro(linehtml, $u8 into, MARKstate const* state, u8 tab, u64 from, u64 till) {
-    sane($ok(into));
+pro(tagclose, $u8 $into, u8 tag) {
+    sane($into != nil);
+    done;
+}
+
+pro(linehtml, $u8 $into, MARKstate const* state, u64 from, u64 till, u8 tab) {
+    sane($ok($into));
+    u8c$ line = state->lines[0] + from;
+    $print(line);
+    call($u8feed, $into, line);
     // just feed the text
     // acc to the line limits
     // FIXME here we don't see divs
     done;
 }
+
+pro(eatblock, u64* len, MARKstate const* state, u64 from, u64 till, u8 tab) {
+    sane(len != nil);
+    for (u64 l = from + 1; l < till; ++l) {
+        w64 div = *(w64*)Batp(state->divs, l);
+        for (u8 d = 0; d < tab; d++)
+            if (div._8[d] != MARK_INDENT) {
+                *len = l;
+                skip;
+            }
+    }
+    *len = till;
+    done;
+}
+
+pro(html, $u8 $into, MARKstate const* state, u64 from, u64 till, u8 tab) {
+    sane(1);
+    u8 pd = 0;
+    u64 l = from;
+    while (l < till) {
+        w64 div = *(w64*)Batp(state->divs, l);
+        u64 btill = l + 1;
+        u8 tag = 0;
+        if (w64bytelen(div) <= tab) {
+            printf("1\n");
+            if (pd != 0) call(tagclose, $into, pd);
+            call(eatblock, &btill, state, l, till, tab);
+            call(linehtml, $into, state, l, btill, tab);
+        } else {
+            printf("2\n");
+            tag = div._8[tab];
+            if (pd == tag) {
+                call(tagrefresh, $into, pd);
+            } else if (pd != 0) {
+                call(tagclose, $into, pd);
+                call(tagopen, $into, tag);
+            }
+            call(eatblock, &btill, state, l, till, tab + 1);
+            call(html, $into, state, l, btill, tab + 1);
+        }
+        pd = tag;
+        l = btill;
+    }
+    printf("3\n");
+    if (pd != 0) call(tagclose, $into, pd);
+    done;
+}
+
+pro(MARKhtml, $u8 $into, MARKstate const* state) {
+    sane($ok($into) && state != nil && Bok(state->lines) &&
+         Bdatalen(state->lines) > 0);
+    call(html, $into, state, 0, Bdatalen(state->lines), 0);
+    done;
+}
+
 /*
-pro(h1html, $u8 into, MARKstate const* state, u8 tab, u64 from, u64* till) {
-    sane($ok(into));
+pro(h1html, $u8 $into, MARKstate const* state, u8 tab, u64 from, u64* till) {
+    sane($ok($into));
     u8cp$cc lines = Bu8cpcdata(state->lines);
     w64 divs = {._64 = {Bat(state->divs, from)}};
-    call(opentag, into, '1');
+    call(opentag, $into, '1');
     $u8c line;
     call(MARK2lex, state, line);
     u64 l = from + 1;
@@ -181,41 +272,29 @@ pro(h1html, $u8 into, MARKstate const* state, u8 tab, u64 from, u64* till) {
         $mv(line, line);
         call(MARK2lex, state, line);
     }
-    call(linehtml, into, state, tab, from, l);
-    call(closetag, into, '1');
+    call(linehtml, $into, state, tab, from, l);
+    call(closetag, $into, '1');
     *till = l;
     done;
 }
 
-pro(MARKlihtml, $u8 into, MARKstate const* state, u64 line) {
-    sane($ok(into));
+pro(MARKlihtml, $u8 $into, MARKstate const* state, u64 line) {
+    sane($ok($into));
     // check nesteds
     // if nothing, p
     // scan forward
     done;
 }
 
-pro(MARKolisthtml, $u8 into, MARKstate const* state, u64 line) {
-    sane($ok(into));
+pro(MARKolisthtml, $u8 $into, MARKstate const* state, u64 line) {
+    sane($ok($into));
     done;
 }
 */
-pro(MARKhtml, $u8 into, MARKstate const* state) {
-    sane($ok(into));
-    done;
-}
-
-pro(html, $u8 into, MARKstate const* state, u64 line, u8 indent) {
-    sane(YES);
-    // scan, open/refresh/close
-    // zero(mark2), parse?...
-
-    done;
-}
 
 /*
-pro(MARKhtml, $u8 into, MARKstate const* state) {
-    sane($ok(into));
+pro(MARKhtml, $u8 $into, MARKstate const* state) {
+    sane($ok($into));
     aBpad(u8, tagpad, 32);
     u8$ tags = Bu8data(tagpad);
     $u8c stack;
@@ -225,32 +304,32 @@ pro(MARKhtml, $u8 into, MARKstate const* state) {
         *tags = *tagpad;
         switch (*p) {
             case '1':
-                call(closetags, into, tags);
-                call(opentag, into, tags, '1');
+                call(closetags, $into, tags);
+                call(opentag, $into, tags, '1');
                 break;
             case '2':
-                call(closetags, into, tags);
-                call(opentag, into, tags, '2');
+                call(closetags, $into, tags);
+                call(opentag, $into, tags, '2');
                 break;
             case '.':
                 if ($empty(tags)) {
-                    call(opentag, into, tags, '.');
+                    call(opentag, $into, tags, '.');
                 } else if (**tags == '.') {
                     ++*tags;
-                    call(closetags, into, tags);
+                    call(closetags, $into, tags);
                 } else {
-                    call(closetags, into, tags);
-                    call(opentag, into, tags, '.');
+                    call(closetags, $into, tags);
+                    call(opentag, $into, tags, '.');
                 }
-                call(opentag, into, tags, '*');
-                call(opentag, into, tags, ' ');
+                call(opentag, $into, tags, '*');
+                call(opentag, $into, tags, ' ');
                 break;
             case '-':
                 // TODO same
                 break;
             case '~':
-                call(closetags, into, tags);
-                call(opentag, into, tags, '~');
+                call(closetags, $into, tags);
+                call(opentag, $into, tags, '~');
                 break;
             case ' ':
                 if ($empty(tags)) {
@@ -267,8 +346,8 @@ pro(MARKhtml, $u8 into, MARKstate const* state) {
     done;
 }
 /*
-pro(MARKhtml, $u8 into, MARKstate const* state) {
-    sane($ok(into));
+pro(MARKhtml, $u8 $into, MARKstate const* state) {
+    sane($ok($into));
     con u32 MASK = (1 << MARK_BITS) - 1;
     u32 pfmt = 0;
     u32 fmt = 0;
@@ -277,21 +356,21 @@ pro(MARKhtml, $u8 into, MARKstate const* state) {
         u8 pr = MARKprefix(pfmt, fmt);
         u8 pl = MARKdivlen(pfmt);
         while (pl > pr) {
-            call(_close, into, pfmt & MASK);
+            call(_close, $into, pfmt & MASK);
             pfmt >>= MARK_BITS;
             --pl;
         }
         u8 l = MARKdivlen(fmt);
         while (l > pr) {
             u8 w = (l - pr - 1) * MARK_BITS;
-            call(_open, into, (fmt >> w) & MASK);
+            call(_open, $into, (fmt >> w) & MASK);
             ++l;
         }
-        call(MARKlinehtml, into, line, state);
+        call(MARKlinehtml, $into, line, state);
         pfmt = fmt;
     }
     while (pfmt > 0) {
-        call(_close, into, pfmt & MASK);
+        call(_close, $into, pfmt & MASK);
         pfmt >>= MARK_BITS;
     }
     done;

@@ -4,6 +4,7 @@
 
 #include "$.h"
 #include "B.h"
+#include "PRO.h"
 
 #define T X(, )
 
@@ -42,6 +43,7 @@ fun size_t X($, copy)(X($c, ) into, X($c, c) from) {
 }
 
 fun ok64 X($, feed)(X($, ) into, X($c, c) from) {
+    if (unlikely(!$ok(from) || !$ok(into))) return $badarg;
     if ($size(from) > $size(into)) return $noroom;
     $feed(into, from);
     return OK;

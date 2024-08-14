@@ -262,7 +262,7 @@ fun ok64 FILEerr(u8 const *const *txt) {
     return FILEfeedall(STDERR_FILENO, dup);
 }
 
-u8 _NL[2] = {'\n', 0};
+static u8 _NL[2] = {'\n', 0};
 con u8 *const NL[2] = {_NL, _NL + 1};
 
 // todo buffered print

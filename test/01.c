@@ -6,6 +6,7 @@
 #include <assert.h>
 #include <stdio.h>
 
+#include "OK.h"
 #include "PRO.h"
 #include "TEST.h"
 
@@ -34,9 +35,19 @@ pro(BITSbytelen) {
     done;
 }
 
+pro(BITSstr) {
+    sane(YES);
+    const char* badarg = okstr($badarg);
+    testeq(0, strcmp(badarg, "~badarg"));
+    const char* ok = okstr(OK);
+    testeq(0, strcmp(badarg, "OK"));
+    done;
+}
+
 pro(BITStest) {
     call(BITStest1);
     call(BITSbytelen);
+    call(BITSstr);
     done;
 }
 

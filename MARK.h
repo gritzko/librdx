@@ -52,6 +52,10 @@ ok64 MARKstatealloc(MARKstate* state, $u8c text);
 ok64 MARKstatereset(MARKstate* state);
 ok64 MARKstatefree(MARKstate* state);
 
+fun u8c$ MARKline$(MARKstate const* state, u64 lno) {
+    return state->lines[0] + lno;
+}
+
 fun ok64 _MARKpushdiv(MARKstate* state, u8 div) {
     if (state->divlen >= 8) return noroom;
     state->div._8[state->divlen] = div;
@@ -84,7 +88,7 @@ fun ok64 _MARKline($cu8c text, $cu8c tok, MARKstate* state) {
     fprintf(stderr, "line\n");
     state->div._64[0] = 0;
     state->divlen = 0;
-    return Bu8cpfeed1(state->lines, tok[0]);
+    return Bu8cpfeed1(state->lines, tok[1]);
 }
 
 ok64 MARKlexer(MARKstate* state);

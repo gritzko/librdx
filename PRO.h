@@ -8,7 +8,10 @@
 #include "OK.h"
 #include "trace.h"
 
-static uint8_t _pro_depth = 0;
+extern uint8_t _pro_depth;
+
+// use this with every int main() {...}
+#define ABC_INIT uint8_t _pro_depth = 0;
 
 con char *_pro_indent =
     "\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t";
@@ -35,6 +38,7 @@ con ok64 faileq = 0xd69c2d96a;
 #define nedo(...)           \
     _over: { __VA_ARGS__; } \
     }                       \
+    _pro_depth = __depth;   \
     return __;
 
 #define fail(code)                                                          \
@@ -43,6 +47,8 @@ con ok64 faileq = 0xd69c2d96a;
         trace("%s<%s at %s:%i\n", PROind, ok64str(__), __func__, __LINE__); \
         goto _over;                                                         \
     }
+
+#define skip goto _over;
 
 #define failc(code)                                                       \
     {                                                                     \

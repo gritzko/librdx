@@ -53,6 +53,9 @@
     { s1[0] = s2[0], s1[1] = s2[1]; }
 
 // produce a subslice given an offset
+#define $mvnil(s1) \
+    { s1[0] = nil, s1[1] = nil; }
+
 #define $sub(s, o) \
     { $off(s, o), s[1] }
 
