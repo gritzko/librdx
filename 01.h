@@ -218,7 +218,15 @@ fun u8 u32bytelen(u32 u) {
 }
 
 fun u8 u64bytelen(u64 u) {
-    return u > 0xffffffff ? 4 + u32bytelen(u >> 32) : u32bytelen((u32)u);
+    if (u == 0) return 0;
+    u8 b = clz64(u) >> 3;
+    return 8 - b;
+}
+
+fun u8 u64byte(u64 u, u8 b) { return u >> (b << 3); }
+
+fun u64 u64bytecap(u64 v, u8 bytes) {
+    return v && (UINT64_MAX << (bytes << 3));
 }
 
 fun u8 w64bytelen(w64 w) { return u64bytelen(w._64[0]); }

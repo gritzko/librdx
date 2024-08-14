@@ -45,13 +45,13 @@ pro(MARKtest1) {
 #define MARK1cases 7
     $u8c cases[MARK1cases][2] = {
 
-        {$u8str("Good morning!\n"), $u8str("<p>Good morning!</p>\n")},
+        {$u8str("Good morning!\n"), $u8str("<p>Good morning!\n</p>\n")},
 
         {$u8str("Good morning!\nHave a good day!\n"),
-         $u8str("<p>Good morning!\nHave a good day!</p>\n")},
+         $u8str("<p>Good morning!\nHave a good day!\n</p>\n")},
 
         {$u8str("Good morning!\n\nHave a good day!\n"),
-         $u8str("<p>Good morning!</p>\n\n<p>Have a good day!</p>\n")},
+         $u8str("<p>Good morning!\n</p>\n\n<p>Have a good day!\n</p>\n")},
 
         {$u8str("#   Good morning!\nHave a good day!\n"),
          $u8str("<h1>Good morning!</h1>\n<p>Have a good day!</p>\n")},

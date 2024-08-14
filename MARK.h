@@ -1,6 +1,8 @@
 #ifndef ABC_MARK_H
 #define ABC_MARK_H
 
+#include <stdint.h>
+
 #include "01.h"
 #include "INT.h"
 #include "OK.h"
@@ -13,6 +15,7 @@ typedef enum {
     MARK_H3 = '3',
     MARK_H4 = '4',
     MARK_HLINE = '~',
+    MARK_P = 'p',
     MARK_COMA = ',',
     MARK_INDENT = ' ',
     MARK_OLIST = '.',
@@ -23,6 +26,13 @@ typedef enum {
 } markdiv;
 
 con u8 MARK_BITS = 4;
+
+con u64 MARK_ALL_INDENTS = 0x2020202020202020;
+
+fun b8 MARKindents(u64 v, u8 tab) {
+    u64 expect = u64bytecap(MARK_ALL_INDENTS, tab);
+    return u64bytecap(v, tab) == expect;
+}
 
 // con u32 MARK_CLOSE = 1U << 31;
 con u32 NOT_DIV = 0x1U << 30;

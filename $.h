@@ -63,10 +63,8 @@
 #define $cut(s, o, l) \
     { $off(s, o), $off(s, o + l) }
 
-#define $trim(s, o)                  \
-    {                                \
-        if (o <= $len(s)) s[0] += o; \
-    }
+#define $trim2(s, v) \
+    if ($len(s) > 0 && *$last(s) == v) --s[1];
 
 #define $shift(s) (*(s[0]++))
 
