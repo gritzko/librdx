@@ -18,6 +18,7 @@ pro(MARKparsetest) {
     a$strc(mark,
            "  # Header\n"
            " 1. list of\n"
+           "\n"
            "    two lines\n"
            " 2. two entries\n"
            "...and some text\n");
@@ -25,19 +26,27 @@ pro(MARKparsetest) {
     $mv(state.text, mark);
     call(MARKlexer, &state);
     testeqv(0L, $len(state.text), "%li");
-    testeqv(6L, Bdatalen(state.lines), "%li");
+    testeqv(7L, Bdatalen(state.lines), "%li");
     a$str(line1, " 1. list of\n");
     u8c$ l1 = MARKline$(&state, 1);
     $println(l1);
     $testeq(line1, l1);
-    testeqv(5L, Bdatalen(state.divs), "%li");
+    testeqv(6L, Bdatalen(state.divs), "%li");
     testeqv((u64)MARK_H1, Bat(state.divs, 0), "%lu");
     testeqv((u64)MARK_OLIST, Bat(state.divs, 1), "%lu");
-    testeqv((u64)MARK_INDENT, Bat(state.divs, 2), "%lu");
-    testeqv((u64)MARK_OLIST, Bat(state.divs, 3), "%lu");
-    testeqv(0L, Bat(state.divs, 4), "%lu");
+    testeqv((u64)MARK_INDENT, Bat(state.divs, 3), "%lu");
+    testeqv((u64)MARK_OLIST, Bat(state.divs, 4), "%lu");
+    testeqv(0L, Bat(state.divs, 5), "%lu");
     testeqv(12L, $len(state.lines[0] + 1), "%lu");
     nedo(MARKstatefree(&state););
+}
+
+void debugdivs($cu64c $divs) {
+    $for(u64c, p, $divs) {
+        printf("|%c%c%c%c%c%c%c%c|\n", u64byte(*p, 0), u64byte(*p, 1),
+               u64byte(*p, 2), u64byte(*p, 3), u64byte(*p, 4), u64byte(*p, 5),
+               u64byte(*p, 6), u64byte(*p, 7));
+    }
 }
 
 pro(MARKtest1) {
@@ -51,19 +60,20 @@ pro(MARKtest1) {
          $u8str("<p>Good morning!\nHave a good day!\n</p>\n")},
 
         {$u8str("Good morning!\n\nHave a good day!\n"),
-         $u8str("<p>Good morning!\n</p>\n\n<p>Have a good day!\n</p>\n")},
+         $u8str("<p>Good morning!\n</p>\n<p>\nHave a good day!\n</p>\n")},
 
         {$u8str("#   Good morning!\nHave a good day!\n"),
-         $u8str("<h1>Good morning!</h1>\n<p>Have a good day!</p>\n")},
+         $u8str("<h1>Good morning!\n</h1>\n<p>Have a good day!\n</p>\n")},
 
         {$u8str("#   Good morning!\n"
                 " 1. Take\n"
                 " 2. a list,\n"
                 "buy things\n"),
-         $u8str("<h1>Good morning!</h1>\n"
-                "<ol><li>Take</li>\n"
-                "<li>a list,</li></ol>\n"
-                "<p>buy things</p>\n")},
+         $u8str("<h1>Good morning!\n</h1>\n"
+                "<ol><li>Take\n"
+                "</li><li>a list,\n"
+                "</li></ol>\n"
+                "<p>buy things\n</p>\n")},
 
         {$u8str("Hello *world*!\n"), $u8str("Hello <b>world</b>!\n")},
 
@@ -81,6 +91,7 @@ pro(MARKtest1) {
         call(MARKhtml, Bu8idle(into), &state);
 
         $print(hline);
+        debugdivs(Bu64cdata(state.divs));
         $print(Bu8cdata(into));
         $print(hline);
         test($eq(cases[i][1], Bu8cdata(into)), TESTfail);

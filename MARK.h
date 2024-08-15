@@ -17,7 +17,7 @@ typedef enum {
     MARK_HLINE = '~',
     MARK_P = 'p',
     MARK_COMA = ',',
-    MARK_INDENT = ' ',
+    MARK_INDENT = '_',
     MARK_OLIST = '.',
     MARK_ULIST = '-',
     MARK_LIST = '*',
