@@ -8,6 +8,7 @@
 #include "FILE.h"
 #include "INT.h"
 #include "LEX.h"
+#include "MARK2.h"
 #include "PRO.h"
 #include "TEST.h"
 
@@ -23,7 +24,6 @@ pro(MARKparsetest) {
            " 2. two entries\n"
            "...and some text\n");
     call(MARKstatealloc, &state, mark);
-    $mv(state.text, mark);
     call(MARKlexer, &state);
     testeqv(0L, $len(state.text), "%li");
     testeqv(7L, Bdatalen(state.lines), "%li");
@@ -39,6 +39,17 @@ pro(MARKparsetest) {
     testeqv(0L, Bat(state.divs, 5), "%lu");
     testeqv(12L, $len(state.lines[0] + 1), "%lu");
     nedo(MARKstatefree(&state););
+}
+
+pro(MARKinlinetest) {
+    sane(1);
+    MARKstate state = {};
+    aBpad(u8, into, 1024);
+    a$strc(mark, "some *bold* text\n");
+    call(MARKstatealloc, &state, mark);
+    call(MARK2lexer, &state);
+    testeqv(MARK2_EMPH, Bat(state.fmt, 7), "%c");
+    nedo($print(state.text); MARKstatefree(&state););
 }
 
 void debugdivs($cu64c $divs) {
@@ -75,10 +86,11 @@ pro(MARKtest1) {
                 "</li></ol>\n"
                 "<p>buy things\n</p>\n")},
 
-        {$u8str("Hello *world*!\n"), $u8str("Hello <b>world</b>!\n")},
+        {$u8str("Hello *world*!\n"),
+         $u8str("<p>Hello <b>*world*</b>!\n</p>\n")},
 
         {$u8str("#   Hello *world*!\n"),
-         $u8str("<h1>Hello <b>world</b>!</h1>\n")},
+         $u8str("<h1>Hello <b>*world*</b>!\n</h1>\n")},
 
     };
 
@@ -103,6 +115,7 @@ pro(MARKtest1) {
 
 pro(MARKtest) {
     call(MARKparsetest);
+    call(MARKinlinetest);
     call(MARKtest1);
     done;
 }

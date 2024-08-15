@@ -8,6 +8,7 @@
 #include "OK.h"
 
 con ok64 MARKfail = 0xc2d96a51b296;
+con ok64 MARKnospace = 0x99e5d37cf251b296;
 
 typedef enum {
     MARK_H1 = '1',
@@ -79,13 +80,11 @@ fun ok64 _MARKhline($cu8c text, $cu8c tok, MARKstate* state) {
 }
 
 fun ok64 _MARKolist($cu8c text, $cu8c tok, MARKstate* state) {
-    fprintf(stderr, "olist\n");
     _MARKpushdiv(state, MARK_OLIST);
     return OK;
 }
 
 fun ok64 _MARKulist($cu8c text, $cu8c tok, MARKstate* state) {
-    fprintf(stderr, "ulist\n");
     _MARKpushdiv(state, MARK_ULIST);
     return OK;
 }
@@ -95,7 +94,6 @@ fun ok64 _MARKdiv($cu8c text, $cu8c tok, MARKstate* state) {
 }
 
 fun ok64 _MARKline($cu8c text, $cu8c tok, MARKstate* state) {
-    fprintf(stderr, "line\n");
     state->div._64[0] = 0;
     state->divlen = 0;
     return Bu8cpfeed1(state->lines, tok[1]);
@@ -114,27 +112,22 @@ ok64 MARKhtml($u8 into, MARKstate const* state);
 ok64 MARKansi($u8 into, MARKstate const* state);
 
 fun ok64 _MARKh1($cu8c text, $cu8c tok, MARKstate* state) {
-    fprintf(stderr, "h1\n");
     _MARKpushdiv(state, MARK_H1);
     return OK;
 }
 fun ok64 _MARKh2($cu8c text, $cu8c tok, MARKstate* state) {
-    fprintf(stderr, "h2\n");
     _MARKpushdiv(state, MARK_H2);
     return OK;
 }
 fun ok64 _MARKh3($cu8c text, $cu8c tok, MARKstate* state) {
-    fprintf(stderr, "h3\n");
     _MARKpushdiv(state, MARK_H3);
     return OK;
 }
 fun ok64 _MARKh4($cu8c text, $cu8c tok, MARKstate* state) {
-    fprintf(stderr, "h4\n");
     _MARKpushdiv(state, MARK_H4);
     return OK;
 }
 fun ok64 _MARKindent($cu8c text, $cu8c tok, MARKstate* state) {
-    fprintf(stderr, "ind\n");
     _MARKpushdiv(state, MARK_INDENT);
     return OK;
 }

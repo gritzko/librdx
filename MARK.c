@@ -2,6 +2,7 @@
 
 #include "01.h"
 #include "FILE.h"
+#include "MARK2.h"
 #include "PRO.h"
 
 pro(MARKstatealloc, MARKstate* state, $u8c text) {
@@ -104,6 +105,8 @@ pro(MARKparse, MARKstate* state) {
     sane(state != nil && $ok(state->text));
     call(MARKlexer, state);
     call(MARKnester, state);
+    $mv(state->text, state->doc);
+    call(MARK2lexer, state);
     call(MARKilexer, state);
     done;
 }
@@ -208,17 +211,44 @@ pro(tagclose, $u8 $into, u8 tag) {
     done;
 }
 
+pro(tagbalance, $u8 $into, u8 was, u8 is) {
+    sane($into != nil);
+    $cu8c BOPEN = $u8str("<b>");
+    $cu8c BCLOSE = $u8str("</b>");
+    if (was == MARK2_EMPH) {
+        call($u8feed, $into, BCLOSE);
+    } else {
+        call($u8feed, $into, BOPEN);
+    }
+    done;
+}
+
 pro(linehtml, $u8 $into, MARKstate const* state, u64 from, u64 till, u8 tab) {
     sane($ok($into));
     u64 headdiv = Bat(state->divs, from);
     b8 term = NO;
     if (headdiv) term = u64byte(headdiv, u64bytelen(headdiv) - 1);
     if (!term) call(tagopen, $into, MARK_P);
+    u8 fmt = 0;
     for (u64 l = from; l < till; ++l) {
         a$dup(u8c, line, state->lines[0] + l);
         line[0] += 4 * u64bytelen(Bat(state->divs, l));
-        $print(line);
-        call($u8feed, $into, line);
+        test($len($into) >= $len(line), MARKnospace);
+
+        $for(u8c, p, line) {
+            u8 f = Bat(state->fmt, p - state->doc[0]);
+            if (f != fmt) {
+                printf("balance %d %d\n", fmt, f);
+                call(tagbalance, $into, fmt, f);
+                fmt = f;
+            }
+            // FIXME $into
+            **$into = *p;
+            ++*$into;
+        }
+        // call($u8feed, $into, line);
+    }
+    if (fmt != 0) {
     }
     if (!term) call(tagclose, $into, MARK_P);
     // just feed the text

@@ -10,6 +10,8 @@ a$strc(ext, ".lex");
 
 con char *ragel_template;
 
+ABC_INIT;
+
 pro(lex2rl, $u8c mod) {
     aBpad(u8, synpad, KB * 4);
     aBpad(u8, actpad, KB * 4);

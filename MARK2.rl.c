@@ -5,14 +5,11 @@
 
 enum {
 	MARK2 = 0,
-	MARK2plain = MARK2+5,
-	MARK2ref = MARK2+6,
-	MARK2tostress = MARK2+7,
-	MARK2stress = MARK2+8,
-	MARK2toemph = MARK2+9,
-	MARK2emph = MARK2+10,
-	MARK2inline = MARK2+11,
-	MARK2root = MARK2+12,
+	MARK2plain = MARK2+4,
+	MARK2ref = MARK2+5,
+	MARK2em = MARK2+7,
+	MARK2inline = MARK2+8,
+	MARK2root = MARK2+9,
 };
 
 #define MARK2maxnest 1024
@@ -35,96 +32,82 @@ fun ok64 popfails(u32* stack, u32* sp, u32 type) {
 
 ok64 _MARK2plain ($cu8c text, $cu8c tok, MARK2state* state);
 ok64 _MARK2ref ($cu8c text, $cu8c tok, MARK2state* state);
-ok64 _MARK2tostress ($cu8c text, $cu8c tok, MARK2state* state);
-ok64 _MARK2stress ($cu8c text, $cu8c tok, MARK2state* state);
-ok64 _MARK2toemph ($cu8c text, $cu8c tok, MARK2state* state);
-ok64 _MARK2emph ($cu8c text, $cu8c tok, MARK2state* state);
+ok64 _MARK2em ($cu8c text, $cu8c tok, MARK2state* state);
 ok64 _MARK2inline ($cu8c text, $cu8c tok, MARK2state* state);
 ok64 _MARK2root ($cu8c text, $cu8c tok, MARK2state* state);
 
 
 
-#line 94 "MARK2.rl"
+#line 75 "MARK2.rl"
 
 
 
-#line 47 "MARK2.rl.c"
+#line 41 "MARK2.rl.c"
 static const char _MARK2_actions[] = {
-	0, 1, 0, 1, 1, 2, 0, 1, 
-	2, 1, 2, 2, 6, 7, 3, 1, 
-	2, 0, 3, 3, 5, 7, 3, 6, 
-	4, 0, 4, 3, 5, 4, 0, 5, 
-	1, 3, 5, 4, 0
+	0, 1, 6, 1, 7, 2, 1, 5, 
+	2, 4, 0, 2, 4, 2, 2, 6, 
+	7, 3, 1, 3, 5, 3, 1, 5, 
+	7, 3, 6, 4, 0, 3, 6, 4, 
+	2, 4, 1, 3, 5, 7, 4, 1, 
+	5, 4, 0, 4, 1, 5, 4, 2, 
+	5, 1, 3, 5, 4, 0, 5, 1, 
+	3, 5, 4, 2
 };
 
 static const char _MARK2_key_offsets[] = {
-	0, 0, 5, 10, 16, 22, 28, 40, 
-	46, 58, 62
+	0, 4, 8, 12, 17, 23, 30
 };
 
 static const unsigned char _MARK2_trans_keys[] = {
-	13u, 32u, 91u, 9u, 10u, 13u, 32u, 91u, 
-	9u, 10u, 13u, 32u, 91u, 93u, 9u, 10u, 
-	13u, 32u, 91u, 93u, 9u, 10u, 13u, 32u, 
-	91u, 93u, 9u, 10u, 13u, 32u, 91u, 93u, 
-	9u, 10u, 48u, 57u, 65u, 90u, 97u, 122u, 
-	13u, 32u, 91u, 93u, 9u, 10u, 13u, 32u, 
-	91u, 93u, 9u, 10u, 48u, 57u, 65u, 90u, 
-	97u, 122u, 13u, 32u, 9u, 10u, 13u, 32u, 
-	91u, 93u, 9u, 10u, 0
+	13u, 32u, 9u, 10u, 13u, 32u, 9u, 10u, 
+	13u, 32u, 9u, 10u, 13u, 32u, 42u, 9u, 
+	10u, 13u, 32u, 9u, 10u, 97u, 122u, 13u, 
+	32u, 42u, 9u, 10u, 97u, 122u, 13u, 32u, 
+	9u, 10u, 0
 };
 
 static const char _MARK2_single_lengths[] = {
-	0, 3, 3, 4, 4, 4, 4, 4, 
-	4, 2, 4
+	2, 2, 2, 3, 2, 3, 2
 };
 
 static const char _MARK2_range_lengths[] = {
-	0, 1, 1, 1, 1, 1, 4, 1, 
-	4, 1, 1
+	1, 1, 1, 1, 2, 2, 1
 };
 
 static const char _MARK2_index_offsets[] = {
-	0, 0, 5, 10, 16, 22, 28, 37, 
-	43, 52, 56
+	0, 4, 8, 12, 17, 22, 28
 };
 
 static const char _MARK2_indicies[] = {
-	1, 1, 2, 1, 0, 1, 1, 4, 
-	1, 3, 1, 1, 6, 7, 1, 5, 
-	1, 1, 4, 8, 1, 3, 1, 1, 
-	9, 7, 1, 5, 1, 1, 4, 8, 
-	1, 10, 10, 10, 3, 1, 1, 6, 
-	11, 1, 5, 1, 1, 6, 7, 1, 
-	12, 12, 12, 5, 1, 1, 1, 13, 
-	1, 1, 15, 16, 1, 14, 0
+	1, 2, 1, 0, 4, 5, 4, 3, 
+	7, 8, 7, 6, 7, 8, 9, 7, 
+	6, 4, 5, 4, 10, 3, 4, 5, 
+	11, 4, 10, 3, 13, 14, 13, 12, 
+	0
 };
 
 static const char _MARK2_trans_targs[] = {
-	1, 0, 2, 3, 4, 3, 4, 5, 
-	5, 6, 7, 10, 7, 1, 3, 8, 
-	5
+	1, 2, 3, 1, 2, 3, 1, 2, 
+	3, 4, 5, 6, 1, 2, 3
 };
 
 static const char _MARK2_trans_actions[] = {
-	0, 0, 8, 1, 14, 0, 8, 3, 
-	5, 8, 1, 3, 0, 22, 26, 26, 
-	31
+	25, 1, 29, 38, 5, 43, 8, 0, 
+	11, 8, 38, 38, 48, 17, 54
 };
 
 static const char _MARK2_eof_actions[] = {
-	0, 0, 0, 0, 0, 0, 0, 0, 
-	0, 11, 18
+	14, 21, 3, 3, 21, 21, 33
 };
 
-static const int MARK2_start = 9;
-static const int MARK2_first_final = 9;
-static const int MARK2_error = 0;
+static const int MARK2_start = 0;
+static const int MARK2_first_final = 0;
+static const int MARK2_error = -1;
 
-static const int MARK2_en_main = 9;
+static const int MARK2_en_main = 0;
 
 
-#line 97 "MARK2.rl"
+#line 78 "MARK2.rl"
 
 pro(MARK2lexer, MARK2state* state) {
     a$dup(u8c, text, state->text);
@@ -142,14 +125,14 @@ pro(MARK2lexer, MARK2state* state) {
     $u8c tok = {p, p};
 
     
-#line 137 "MARK2.rl.c"
+#line 120 "MARK2.rl.c"
 	{
 	cs = MARK2_start;
 	}
 
-#line 114 "MARK2.rl"
+#line 95 "MARK2.rl"
     
-#line 140 "MARK2.rl.c"
+#line 123 "MARK2.rl.c"
 	{
 	int _klen;
 	unsigned int _trans;
@@ -159,8 +142,6 @@ pro(MARK2lexer, MARK2state* state) {
 
 	if ( p == pe )
 		goto _test_eof;
-	if ( cs == 0 )
-		goto _out;
 _resume:
 	_keys = _MARK2_trans_keys + _MARK2_key_offsets[cs];
 	_trans = _MARK2_index_offsets[cs];
@@ -224,40 +205,38 @@ _match:
 		switch ( *_acts++ )
 		{
 	case 0:
-#line 50 "MARK2.rl"
+#line 44 "MARK2.rl"
 	{ lexpush(MARK2plain); }
 	break;
 	case 1:
-#line 51 "MARK2.rl"
+#line 45 "MARK2.rl"
 	{ lexpop(MARK2plain); call(_MARK2plain, text, tok, state); }
 	break;
 	case 2:
-#line 52 "MARK2.rl"
-	{ lexpush(MARK2ref); }
+#line 48 "MARK2.rl"
+	{ lexpush(MARK2em); }
 	break;
 	case 3:
-#line 53 "MARK2.rl"
-	{ lexpop(MARK2ref); call(_MARK2ref, text, tok, state); }
+#line 49 "MARK2.rl"
+	{ lexpop(MARK2em); call(_MARK2em, text, tok, state); }
 	break;
 	case 4:
-#line 62 "MARK2.rl"
+#line 50 "MARK2.rl"
 	{ lexpush(MARK2inline); }
 	break;
 	case 5:
-#line 63 "MARK2.rl"
+#line 51 "MARK2.rl"
 	{ lexpop(MARK2inline); call(_MARK2inline, text, tok, state); }
 	break;
 	case 6:
-#line 64 "MARK2.rl"
+#line 52 "MARK2.rl"
 	{ lexpush(MARK2root); }
 	break;
-#line 234 "MARK2.rl.c"
+#line 215 "MARK2.rl.c"
 		}
 	}
 
 _again:
-	if ( cs == 0 )
-		goto _out;
 	if ( ++p != pe )
 		goto _resume;
 	_test_eof: {}
@@ -267,31 +246,34 @@ _again:
 	unsigned int __nacts = (unsigned int) *__acts++;
 	while ( __nacts-- > 0 ) {
 		switch ( *__acts++ ) {
+	case 1:
+#line 45 "MARK2.rl"
+	{ lexpop(MARK2plain); call(_MARK2plain, text, tok, state); }
+	break;
 	case 3:
-#line 53 "MARK2.rl"
-	{ lexpop(MARK2ref); call(_MARK2ref, text, tok, state); }
+#line 49 "MARK2.rl"
+	{ lexpop(MARK2em); call(_MARK2em, text, tok, state); }
 	break;
 	case 5:
-#line 63 "MARK2.rl"
+#line 51 "MARK2.rl"
 	{ lexpop(MARK2inline); call(_MARK2inline, text, tok, state); }
 	break;
 	case 6:
-#line 64 "MARK2.rl"
+#line 52 "MARK2.rl"
 	{ lexpush(MARK2root); }
 	break;
 	case 7:
-#line 65 "MARK2.rl"
+#line 53 "MARK2.rl"
 	{ lexpop(MARK2root); call(_MARK2root, text, tok, state); }
 	break;
-#line 261 "MARK2.rl.c"
+#line 243 "MARK2.rl.c"
 		}
 	}
 	}
 
-	_out: {}
 	}
 
-#line 115 "MARK2.rl"
+#line 96 "MARK2.rl"
 
     test(p==text[1], MARK2fail);
 
