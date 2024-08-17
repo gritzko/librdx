@@ -95,7 +95,7 @@ add_test(NAME LINEtest COMMAND LINEtest)
 #target_compile_options(CITRtest PRIVATE ${TEST_CXX_FLAGS})
 #add_test(NAME CITRtest COMMAND CITRtest)
 
-add_executable(MARKtest MARK.c ../MARK.c ../MARK.rl.c ../MARK2.rl.c)
+add_executable(MARKtest MARK.c ../MARK.c ../MARK2.c ../MARK.rl.c ../MARK2.rl.c)
 target_link_options(MARKtest PRIVATE ${TEST_LDD_FLAGS})
 target_compile_options(MARKtest PRIVATE ${TEST_CXX_FLAGS})
 add_test(NAME MARKtest COMMAND MARKtest)

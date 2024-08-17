@@ -215,7 +215,7 @@ pro(tagbalance, $u8 $into, u8 was, u8 is) {
     sane($into != nil);
     $cu8c BOPEN = $u8str("<b>");
     $cu8c BCLOSE = $u8str("</b>");
-    if (was == MARK2_EMPH) {
+    if (was == MARK2_STRONG) {
         call($u8feed, $into, BCLOSE);
     } else {
         call($u8feed, $into, BOPEN);
@@ -318,4 +318,45 @@ pro(MARKhtml, $u8 $into, MARKstate const* state) {
          Bdatalen(state->lines) > 0);
     call(html, $into, state, 0, Bdatalen(state->lines) - 1, 0);
     done;
+}
+
+fun ok64 pushdiv(MARKstate* state, u8 div) {
+    if (state->divlen < 8) {
+        state->div._8[state->divlen] = div;
+        ++state->divlen;
+    }
+    return OK;
+}
+
+ok64 MARKonHLine($cu8c tok, MARKstate* state) {
+    return pushdiv(state, MARK_HLINE);
+}
+
+ok64 MARKonOList($cu8c tok, MARKstate* state) {
+    return pushdiv(state, MARK_OLIST);
+}
+
+ok64 MARKonUList($cu8c tok, MARKstate* state) {
+    return pushdiv(state, MARK_ULIST);
+}
+
+ok64 MARKonDiv($cu8c tok, MARKstate* state) {
+    return Bu64feed1(state->divs, state->div._64[0]);
+}
+
+ok64 MARKonLink($cu8c tok, MARK2state* state) { return OK; }
+
+ok64 MARKonRoot($cu8c tok, MARK2state* state) { return OK; }
+
+ok64 MARKonLine($cu8c tok, MARKstate* state) {
+    state->div._64[0] = 0;
+    state->divlen = 0;
+    return Bu8cpfeed1(state->lines, tok[1]);
+}
+ok64 MARKonH1($cu8c tok, MARKstate* state) { return pushdiv(state, MARK_H1); }
+ok64 MARKonH2($cu8c tok, MARKstate* state) { return pushdiv(state, MARK_H2); }
+ok64 MARKonH3($cu8c tok, MARKstate* state) { return pushdiv(state, MARK_H3); }
+ok64 MARKonH4($cu8c tok, MARKstate* state) { return pushdiv(state, MARK_H4); }
+ok64 MARKonIndent($cu8c tok, MARKstate* state) {
+    return pushdiv(state, MARK_INDENT);
 }

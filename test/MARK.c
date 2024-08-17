@@ -29,7 +29,6 @@ pro(MARKparsetest) {
     testeqv(7L, Bdatalen(state.lines), "%li");
     a$str(line1, " 1. list of\n");
     u8c$ l1 = MARKline$(&state, 1);
-    $println(l1);
     $testeq(line1, l1);
     testeqv(6L, Bdatalen(state.divs), "%li");
     testeqv((u64)MARK_H1, Bat(state.divs, 0), "%lu");
@@ -48,7 +47,7 @@ pro(MARKinlinetest) {
     a$strc(mark, "some *bold* text\n");
     call(MARKstatealloc, &state, mark);
     call(MARK2lexer, &state);
-    testeqv(MARK2_EMPH, Bat(state.fmt, 7), "%c");
+    testeqv(MARK2_STRONG, Bat(state.fmt, 7), "%d");
     nedo($print(state.text); MARKstatefree(&state););
 }
 

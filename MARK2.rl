@@ -1,38 +1,4 @@
-#include "PRO.h"
-#include "MARK2.h"
-
-enum {
-	MARK2 = 0,
-	MARK2plain = MARK2+4,
-	MARK2ref = MARK2+5,
-	MARK2em = MARK2+7,
-	MARK2inline = MARK2+8,
-	MARK2root = MARK2+9,
-};
-
-#define MARK2maxnest 1024
-
-fun ok64 popfails(u32* stack, u32* sp, u32 type) {
-    while (*sp && stack[*sp]!=type) *sp -= 2;
-    return *sp ? OK : MARK2fail;
-}
-
-#define lexpush(t) { \
-    if (sp>=MARK2maxnest) fail(MARK2fail); \
-    stack[++sp] = p - pb; \
-    stack[++sp] = t; \
-}
-#define lexpop(t)  \
-    if (stack[sp]!=t) call(popfails, stack, &sp, t); \
-    tok[0] = *(text)+stack[sp-1]; \
-    tok[1] = p; \
-    sp -= 2;
-
-ok64 _MARK2plain ($cu8c text, $cu8c tok, MARK2state* state);
-ok64 _MARK2ref ($cu8c text, $cu8c tok, MARK2state* state);
-ok64 _MARK2em ($cu8c text, $cu8c tok, MARK2state* state);
-ok64 _MARK2inline ($cu8c text, $cu8c tok, MARK2state* state);
-ok64 _MARK2root ($cu8c text, $cu8c tok, MARK2state* state);
+#include "MARK2.rl.h"
 
 
 %%{
@@ -41,36 +7,76 @@ machine MARK2;
 
 alphtype unsigned char;
 
-action MARK2plain0 { lexpush(MARK2plain); }
-action MARK2plain1 { lexpop(MARK2plain); call(_MARK2plain, text, tok, state); }
-action MARK2ref0 { lexpush(MARK2ref); }
-action MARK2ref1 { lexpop(MARK2ref); call(_MARK2ref, text, tok, state); }
-action MARK2em0 { lexpush(MARK2em); }
-action MARK2em1 { lexpop(MARK2em); call(_MARK2em, text, tok, state); }
-action MARK2inline0 { lexpush(MARK2inline); }
-action MARK2inline1 { lexpop(MARK2inline); call(_MARK2inline, text, tok, state); }
-action MARK2root0 { lexpush(MARK2root); }
-action MARK2root1 { lexpop(MARK2root); call(_MARK2root, text, tok, state); }
+action MARK2Ref00 { state->mark0[MARK2Ref0] = p - state->doc[0]; }
+action MARK2Ref01 {
+    tok[0] = state->doc[0]+state->mark0[MARK2Ref0];
+    tok[1] = p;
+    call(MARK2onRef0, tok, state); 
+}
+action MARK2Ref10 { state->mark0[MARK2Ref1] = p - state->doc[0]; }
+action MARK2Ref11 {
+    tok[0] = state->doc[0]+state->mark0[MARK2Ref1];
+    tok[1] = p;
+    call(MARK2onRef1, tok, state); 
+}
+action MARK2Em0 { state->mark0[MARK2Em] = p - state->doc[0]; }
+action MARK2Em1 {
+    tok[0] = state->doc[0]+state->mark0[MARK2Em];
+    tok[1] = p;
+    call(MARK2onEm, tok, state); 
+}
+action MARK2StA00 { state->mark0[MARK2StA0] = p - state->doc[0]; }
+action MARK2StA01 {
+    tok[0] = state->doc[0]+state->mark0[MARK2StA0];
+    tok[1] = p;
+    call(MARK2onStA0, tok, state); 
+}
+action MARK2StA10 { state->mark0[MARK2StA1] = p - state->doc[0]; }
+action MARK2StA11 {
+    tok[0] = state->doc[0]+state->mark0[MARK2StA1];
+    tok[1] = p;
+    call(MARK2onStA1, tok, state); 
+}
+action MARK2Root0 { state->mark0[MARK2Root] = p - state->doc[0]; }
+action MARK2Root1 {
+    tok[0] = state->doc[0]+state->mark0[MARK2Root];
+    tok[1] = p;
+    call(MARK2onRoot, tok, state); 
+}
 
-MARK2_a  = (   [0-9A-Za-z]
- );
-MARK2_sp  = (   [ \t\n\r]
- );
-MARK2_any  = (   [0-0xff]
- );
-MARK2plain  = (   [^\n\r \t]+
- ) >MARK2plain0 %MARK2plain1;
-MARK2ref  = (   "["  MARK2plain  "]["  MARK2_a  "]"
- ) >MARK2ref0 %MARK2ref1;
-MARK2_em  = (   " *"  (MARK2_any  -  ("* "))*  "* "
- );
-MARK2em  = (   " *"  [a-z]+  "*"
- ) >MARK2em0 %MARK2em1;
-MARK2inline  = (   MARK2plain  |  MARK2em
- ) >MARK2inline0 %MARK2inline1;
-MARK2root  = (   (MARK2_sp*  MARK2inline)*  MARK2_sp*
- ) >MARK2root0 %MARK2root1;
-main := MARK2root;
+MARK2alpha  = (   [0-9A-Za-z] );
+
+MARK2ws  = (   [ \t\n\r] );
+
+MARK2any  = (   [0-0xff] );
+
+MARK2nonws  = (   [^ \t\n\r] );
+
+MARK2word  = (   MARK2nonws  + );
+
+MARK2words  = (   MARK2word  (  MARK2ws+  MARK2word  )* );
+
+
+MARK2Ref0  = (   MARK2ws  "["  MARK2nonws )  >MARK2Ref00 %MARK2Ref01;
+
+MARK2Ref1  = (   MARK2nonws  "]["  MARK2alpha  "]" )  >MARK2Ref10 %MARK2Ref11;
+
+
+MARK2emword  = (   ([^ \t\r\n_]|"\\_")+ );
+
+MARK2Em  = (   "_"  MARK2emword  (MARK2ws+  MARK2emword)*  "_" )  >MARK2Em0 %MARK2Em1;
+
+
+MARK2StA0  = (   MARK2ws  "*"  MARK2nonws )  >MARK2StA00 %MARK2StA01;
+
+MARK2StA1  = (   [^\t\r\n *]  "*" )  >MARK2StA10 %MARK2StA11;
+
+
+MARK2inline  = (   MARK2words  |  MARK2Em  |  MARK2StA0  |  MARK2StA1  |  MARK2Ref0  |  MARK2Ref1 );
+
+MARK2Root  = (   (MARK2ws*  MARK2inline)*  MARK2ws* )  >MARK2Root0 %MARK2Root1;
+
+main := MARK2Root;
 
 }%%
 
@@ -87,7 +93,6 @@ pro(MARK2lexer, MARK2state* state) {
     u8c *eof = state->tbc ? NULL : pe;
     u8c *pb = p;
 
-    u32 stack[MARK2maxnest] = {0, MARK2};
     u32 sp = 2;
     $u8c tok = {p, p};
 
@@ -107,5 +112,3 @@ pro(MARK2lexer, MARK2state* state) {
         state->text[0] = p;
     );
 }
-
-

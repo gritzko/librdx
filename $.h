@@ -132,7 +132,9 @@ fun int $memcmp($cc a, $cc b) {
         *into += min($size(into), l);                                   \
     }
 
-#define a$str(n, c) u8 const *const n[2] = {(u8 *)c, (u8 *)c + strlen(c)}
+#define a$str(n, s)        \
+    char const *__##n = s; \
+    u8 const *const n[2] = {(u8 *)__##n, (u8 *)__##n + strlen(__##n)};
 
 #define a$strc(n, c) u8 const *n[2] = {(u8c *)(c), (u8c *)((c) + strlen(c))}
 

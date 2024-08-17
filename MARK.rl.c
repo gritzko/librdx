@@ -1,102 +1,39 @@
 
 #line 1 "MARK.rl"
-#include "PRO.h"
-#include "MARK.h"
-
-enum {
-	MARK = 0,
-	MARKhline = MARK+2,
-	MARKindent = MARK+3,
-	MARKolist = MARK+4,
-	MARKulist = MARK+5,
-	MARKh1 = MARK+6,
-	MARKh2 = MARK+7,
-	MARKh3 = MARK+8,
-	MARKh4 = MARK+9,
-	MARKh = MARK+10,
-	MARKlndx = MARK+11,
-	MARKlink = MARK+12,
-	MARKnest = MARK+13,
-	MARKterm = MARK+14,
-	MARKdiv = MARK+15,
-	MARKline = MARK+16,
-	MARKroot = MARK+17,
-};
-
-#define MARKmaxnest 1024
-
-fun ok64 popfails(u32* stack, u32* sp, u32 type) {
-    while (*sp && stack[*sp]!=type) *sp -= 2;
-    return *sp ? OK : MARKfail;
-}
-
-#define lexpush(t) { \
-    if (sp>=MARKmaxnest) fail(MARKfail); \
-    stack[++sp] = p - pb; \
-    stack[++sp] = t; \
-}
-#define lexpop(t)  \
-    if (stack[sp]!=t) call(popfails, stack, &sp, t); \
-    tok[0] = *(text)+stack[sp-1]; \
-    tok[1] = p; \
-    sp -= 2;
-
-ok64 _MARKhline ($cu8c text, $cu8c tok, MARKstate* state);
-ok64 _MARKindent ($cu8c text, $cu8c tok, MARKstate* state);
-ok64 _MARKolist ($cu8c text, $cu8c tok, MARKstate* state);
-ok64 _MARKulist ($cu8c text, $cu8c tok, MARKstate* state);
-ok64 _MARKh1 ($cu8c text, $cu8c tok, MARKstate* state);
-ok64 _MARKh2 ($cu8c text, $cu8c tok, MARKstate* state);
-ok64 _MARKh3 ($cu8c text, $cu8c tok, MARKstate* state);
-ok64 _MARKh4 ($cu8c text, $cu8c tok, MARKstate* state);
-ok64 _MARKh ($cu8c text, $cu8c tok, MARKstate* state);
-ok64 _MARKlndx ($cu8c text, $cu8c tok, MARKstate* state);
-ok64 _MARKlink ($cu8c text, $cu8c tok, MARKstate* state);
-ok64 _MARKnest ($cu8c text, $cu8c tok, MARKstate* state);
-ok64 _MARKterm ($cu8c text, $cu8c tok, MARKstate* state);
-ok64 _MARKdiv ($cu8c text, $cu8c tok, MARKstate* state);
-ok64 _MARKline ($cu8c text, $cu8c tok, MARKstate* state);
-ok64 _MARKroot ($cu8c text, $cu8c tok, MARKstate* state);
+#include "MARK.rl.h"
 
 
 
-#line 148 "MARK.rl"
+#line 138 "MARK.rl"
 
 
 
-#line 63 "MARK.rl.c"
+#line 7 "MARK.rl.c"
 static const char _MARK_actions[] = {
-	0, 1, 16, 1, 17, 2, 27, 29, 
-	2, 28, 29, 3, 1, 23, 25, 3, 
-	3, 21, 25, 3, 5, 21, 25, 3, 
-	7, 21, 25, 3, 9, 23, 25, 3, 
-	11, 23, 25, 3, 13, 23, 25, 3, 
-	15, 23, 25, 3, 19, 23, 25, 4, 
-	3, 21, 20, 4, 4, 3, 21, 22, 
-	18, 4, 5, 21, 20, 4, 4, 5, 
-	21, 22, 18, 4, 7, 21, 20, 4, 
-	4, 7, 21, 22, 18, 4, 27, 26, 
-	24, 25, 4, 28, 26, 24, 25, 5, 
-	27, 26, 24, 20, 4, 5, 27, 26, 
-	24, 22, 18, 5, 28, 26, 24, 20, 
-	4, 5, 28, 26, 24, 22, 18, 6, 
-	3, 21, 20, 6, 22, 0, 6, 5, 
-	21, 20, 6, 22, 0, 6, 7, 21, 
-	20, 6, 22, 0, 7, 3, 21, 22, 
-	8, 10, 12, 14, 7, 5, 21, 22, 
-	8, 10, 12, 14, 7, 7, 21, 22, 
-	8, 10, 12, 14, 7, 27, 26, 24, 
-	20, 6, 22, 0, 7, 28, 26, 24, 
-	20, 6, 22, 0, 8, 27, 26, 24, 
-	22, 8, 10, 12, 14, 8, 28, 26, 
-	24, 22, 8, 10, 12, 14, 10, 3, 
-	21, 20, 2, 4, 6, 22, 8, 10, 
-	12, 10, 5, 21, 20, 2, 4, 6, 
-	22, 8, 10, 12, 10, 7, 21, 20, 
-	2, 4, 6, 22, 8, 10, 12, 11, 
-	27, 26, 24, 20, 2, 4, 6, 22, 
-	8, 10, 12, 11, 28, 26, 24, 20, 
-	2, 4, 6, 22, 8, 10, 12
+	0, 2, 1, 19, 2, 3, 4, 2, 
+	3, 16, 2, 3, 19, 2, 5, 4, 
+	2, 5, 16, 2, 5, 19, 2, 7, 
+	4, 2, 7, 16, 2, 7, 19, 2, 
+	9, 19, 2, 11, 19, 2, 13, 19, 
+	2, 15, 19, 2, 17, 19, 2, 21, 
+	23, 2, 22, 23, 3, 3, 6, 0, 
+	3, 5, 6, 0, 3, 7, 6, 0, 
+	4, 21, 20, 18, 4, 4, 21, 20, 
+	18, 16, 4, 21, 20, 18, 19, 4, 
+	22, 20, 18, 4, 4, 22, 20, 18, 
+	16, 4, 22, 20, 18, 19, 5, 3, 
+	8, 10, 12, 14, 5, 5, 8, 10, 
+	12, 14, 5, 7, 8, 10, 12, 14, 
+	5, 21, 20, 18, 6, 0, 5, 22, 
+	20, 18, 6, 0, 7, 3, 2, 4, 
+	6, 8, 10, 12, 7, 5, 2, 4, 
+	6, 8, 10, 12, 7, 7, 2, 4, 
+	6, 8, 10, 12, 7, 21, 20, 18, 
+	8, 10, 12, 14, 7, 22, 20, 18, 
+	8, 10, 12, 14, 9, 21, 20, 18, 
+	2, 4, 6, 8, 10, 12, 9, 22, 
+	20, 18, 2, 4, 6, 8, 10, 12
+	
 };
 
 static const char _MARK_key_offsets[] = {
@@ -167,19 +104,19 @@ static const char _MARK_trans_targs[] = {
 static const unsigned char _MARK_trans_actions[] = {
 	0, 0, 0, 0, 0, 0, 0, 0, 
 	0, 0, 0, 0, 0, 0, 0, 0, 
-	15, 190, 132, 111, 52, 47, 15, 0, 
-	0, 0, 0, 0, 0, 0, 27, 27, 
-	0, 0, 0, 0, 0, 31, 31, 0, 
-	0, 0, 35, 35, 39, 39, 0, 0, 
-	0, 0, 0, 0, 0, 23, 212, 148, 
-	125, 72, 67, 23, 0, 0, 0, 0, 
-	0, 0, 0, 19, 201, 140, 118, 62, 
-	57, 19, 1, 1, 1, 0, 3, 0, 
+	10, 124, 94, 52, 7, 4, 10, 0, 
+	0, 0, 0, 0, 0, 0, 31, 31, 
+	0, 0, 0, 0, 0, 34, 34, 0, 
+	0, 0, 37, 37, 40, 40, 0, 0, 
+	0, 0, 0, 0, 0, 28, 140, 106, 
+	60, 25, 22, 28, 0, 0, 0, 0, 
+	0, 0, 0, 19, 132, 100, 56, 16, 
+	13, 19, 0, 0, 0, 0, 0, 0, 
 	0, 0, 43, 43, 0, 0, 0, 0, 
-	0, 0, 0, 0, 0, 11, 11, 0, 
+	0, 0, 0, 0, 0, 1, 1, 0, 
 	0, 0, 0, 0, 0, 0, 0, 0, 
-	82, 235, 181, 164, 105, 99, 82, 77, 
-	223, 172, 156, 93, 87, 77, 0
+	89, 174, 156, 118, 84, 79, 89, 74, 
+	164, 148, 112, 69, 64, 74, 0
 };
 
 static const unsigned char _MARK_eof_actions[] = {
@@ -187,7 +124,7 @@ static const unsigned char _MARK_eof_actions[] = {
 	0, 0, 0, 0, 0, 0, 0, 0, 
 	0, 0, 0, 0, 0, 0, 0, 0, 
 	0, 0, 0, 0, 0, 0, 0, 0, 
-	0, 0, 0, 0, 8, 5
+	0, 0, 0, 0, 49, 46
 };
 
 static const int MARK_start = 36;
@@ -197,7 +134,7 @@ static const int MARK_error = 0;
 static const int MARK_en_main = 36;
 
 
-#line 151 "MARK.rl"
+#line 141 "MARK.rl"
 
 pro(MARKlexer, MARKstate* state) {
     a$dup(u8c, text, state->text);
@@ -210,19 +147,18 @@ pro(MARKlexer, MARKstate* state) {
     u8c *eof = state->tbc ? NULL : pe;
     u8c *pb = p;
 
-    u32 stack[MARKmaxnest] = {0, MARK};
     u32 sp = 2;
     $u8c tok = {p, p};
 
     
-#line 210 "MARK.rl.c"
+#line 146 "MARK.rl.c"
 	{
 	cs = MARK_start;
 	}
 
-#line 168 "MARK.rl"
+#line 157 "MARK.rl"
     
-#line 213 "MARK.rl.c"
+#line 149 "MARK.rl.c"
 	{
 	int _klen;
 	unsigned int _trans;
@@ -296,122 +232,142 @@ _match:
 		switch ( *_acts++ )
 		{
 	case 0:
-#line 66 "MARK.rl"
-	{ lexpush(MARKhline); }
+#line 10 "MARK.rl"
+	{ state->mark0[MARKHLine] = p - state->doc[0]; }
 	break;
 	case 1:
-#line 67 "MARK.rl"
-	{ lexpop(MARKhline); call(_MARKhline, text, tok, state); }
+#line 11 "MARK.rl"
+	{
+    tok[0] = state->doc[0]+state->mark0[MARKHLine];
+    tok[1] = p;
+    call(MARKonHLine, tok, state); 
+}
 	break;
 	case 2:
-#line 68 "MARK.rl"
-	{ lexpush(MARKindent); }
+#line 16 "MARK.rl"
+	{ state->mark0[MARKIndent] = p - state->doc[0]; }
 	break;
 	case 3:
-#line 69 "MARK.rl"
-	{ lexpop(MARKindent); call(_MARKindent, text, tok, state); }
+#line 17 "MARK.rl"
+	{
+    tok[0] = state->doc[0]+state->mark0[MARKIndent];
+    tok[1] = p;
+    call(MARKonIndent, tok, state); 
+}
 	break;
 	case 4:
-#line 70 "MARK.rl"
-	{ lexpush(MARKolist); }
+#line 22 "MARK.rl"
+	{ state->mark0[MARKOList] = p - state->doc[0]; }
 	break;
 	case 5:
-#line 71 "MARK.rl"
-	{ lexpop(MARKolist); call(_MARKolist, text, tok, state); }
+#line 23 "MARK.rl"
+	{
+    tok[0] = state->doc[0]+state->mark0[MARKOList];
+    tok[1] = p;
+    call(MARKonOList, tok, state); 
+}
 	break;
 	case 6:
-#line 72 "MARK.rl"
-	{ lexpush(MARKulist); }
+#line 28 "MARK.rl"
+	{ state->mark0[MARKUList] = p - state->doc[0]; }
 	break;
 	case 7:
-#line 73 "MARK.rl"
-	{ lexpop(MARKulist); call(_MARKulist, text, tok, state); }
+#line 29 "MARK.rl"
+	{
+    tok[0] = state->doc[0]+state->mark0[MARKUList];
+    tok[1] = p;
+    call(MARKonUList, tok, state); 
+}
 	break;
 	case 8:
-#line 74 "MARK.rl"
-	{ lexpush(MARKh1); }
+#line 34 "MARK.rl"
+	{ state->mark0[MARKH1] = p - state->doc[0]; }
 	break;
 	case 9:
-#line 75 "MARK.rl"
-	{ lexpop(MARKh1); call(_MARKh1, text, tok, state); }
+#line 35 "MARK.rl"
+	{
+    tok[0] = state->doc[0]+state->mark0[MARKH1];
+    tok[1] = p;
+    call(MARKonH1, tok, state); 
+}
 	break;
 	case 10:
-#line 76 "MARK.rl"
-	{ lexpush(MARKh2); }
+#line 40 "MARK.rl"
+	{ state->mark0[MARKH2] = p - state->doc[0]; }
 	break;
 	case 11:
-#line 77 "MARK.rl"
-	{ lexpop(MARKh2); call(_MARKh2, text, tok, state); }
+#line 41 "MARK.rl"
+	{
+    tok[0] = state->doc[0]+state->mark0[MARKH2];
+    tok[1] = p;
+    call(MARKonH2, tok, state); 
+}
 	break;
 	case 12:
-#line 78 "MARK.rl"
-	{ lexpush(MARKh3); }
+#line 46 "MARK.rl"
+	{ state->mark0[MARKH3] = p - state->doc[0]; }
 	break;
 	case 13:
-#line 79 "MARK.rl"
-	{ lexpop(MARKh3); call(_MARKh3, text, tok, state); }
+#line 47 "MARK.rl"
+	{
+    tok[0] = state->doc[0]+state->mark0[MARKH3];
+    tok[1] = p;
+    call(MARKonH3, tok, state); 
+}
 	break;
 	case 14:
-#line 80 "MARK.rl"
-	{ lexpush(MARKh4); }
+#line 52 "MARK.rl"
+	{ state->mark0[MARKH4] = p - state->doc[0]; }
 	break;
 	case 15:
-#line 81 "MARK.rl"
-	{ lexpop(MARKh4); call(_MARKh4, text, tok, state); }
+#line 53 "MARK.rl"
+	{
+    tok[0] = state->doc[0]+state->mark0[MARKH4];
+    tok[1] = p;
+    call(MARKonH4, tok, state); 
+}
 	break;
 	case 16:
-#line 84 "MARK.rl"
-	{ lexpush(MARKlndx); }
+#line 64 "MARK.rl"
+	{ state->mark0[MARKLink] = p - state->doc[0]; }
 	break;
 	case 17:
-#line 85 "MARK.rl"
-	{ lexpop(MARKlndx); call(_MARKlndx, text, tok, state); }
+#line 65 "MARK.rl"
+	{
+    tok[0] = state->doc[0]+state->mark0[MARKLink];
+    tok[1] = p;
+    call(MARKonLink, tok, state); 
+}
 	break;
 	case 18:
-#line 86 "MARK.rl"
-	{ lexpush(MARKlink); }
+#line 70 "MARK.rl"
+	{ state->mark0[MARKDiv] = p - state->doc[0]; }
 	break;
 	case 19:
-#line 87 "MARK.rl"
-	{ lexpop(MARKlink); call(_MARKlink, text, tok, state); }
+#line 71 "MARK.rl"
+	{
+    tok[0] = state->doc[0]+state->mark0[MARKDiv];
+    tok[1] = p;
+    call(MARKonDiv, tok, state); 
+}
 	break;
 	case 20:
-#line 88 "MARK.rl"
-	{ lexpush(MARKnest); }
+#line 76 "MARK.rl"
+	{ state->mark0[MARKLine] = p - state->doc[0]; }
 	break;
 	case 21:
-#line 89 "MARK.rl"
-	{ lexpop(MARKnest); call(_MARKnest, text, tok, state); }
+#line 77 "MARK.rl"
+	{
+    tok[0] = state->doc[0]+state->mark0[MARKLine];
+    tok[1] = p;
+    call(MARKonLine, tok, state); 
+}
 	break;
 	case 22:
-#line 90 "MARK.rl"
-	{ lexpush(MARKterm); }
+#line 82 "MARK.rl"
+	{ state->mark0[MARKRoot] = p - state->doc[0]; }
 	break;
-	case 23:
-#line 91 "MARK.rl"
-	{ lexpop(MARKterm); call(_MARKterm, text, tok, state); }
-	break;
-	case 24:
-#line 92 "MARK.rl"
-	{ lexpush(MARKdiv); }
-	break;
-	case 25:
-#line 93 "MARK.rl"
-	{ lexpop(MARKdiv); call(_MARKdiv, text, tok, state); }
-	break;
-	case 26:
-#line 94 "MARK.rl"
-	{ lexpush(MARKline); }
-	break;
-	case 27:
-#line 95 "MARK.rl"
-	{ lexpop(MARKline); call(_MARKline, text, tok, state); }
-	break;
-	case 28:
-#line 96 "MARK.rl"
-	{ lexpush(MARKroot); }
-	break;
-#line 372 "MARK.rl.c"
+#line 334 "MARK.rl.c"
 		}
 	}
 
@@ -427,19 +383,27 @@ _again:
 	unsigned int __nacts = (unsigned int) *__acts++;
 	while ( __nacts-- > 0 ) {
 		switch ( *__acts++ ) {
-	case 27:
-#line 95 "MARK.rl"
-	{ lexpop(MARKline); call(_MARKline, text, tok, state); }
+	case 21:
+#line 77 "MARK.rl"
+	{
+    tok[0] = state->doc[0]+state->mark0[MARKLine];
+    tok[1] = p;
+    call(MARKonLine, tok, state); 
+}
 	break;
-	case 28:
-#line 96 "MARK.rl"
-	{ lexpush(MARKroot); }
+	case 22:
+#line 82 "MARK.rl"
+	{ state->mark0[MARKRoot] = p - state->doc[0]; }
 	break;
-	case 29:
-#line 97 "MARK.rl"
-	{ lexpop(MARKroot); call(_MARKroot, text, tok, state); }
+	case 23:
+#line 83 "MARK.rl"
+	{
+    tok[0] = state->doc[0]+state->mark0[MARKRoot];
+    tok[1] = p;
+    call(MARKonRoot, tok, state); 
+}
 	break;
-#line 396 "MARK.rl.c"
+#line 366 "MARK.rl.c"
 		}
 	}
 	}
@@ -447,7 +411,7 @@ _again:
 	_out: {}
 	}
 
-#line 169 "MARK.rl"
+#line 158 "MARK.rl"
 
     test(p==text[1], MARKfail);
 
@@ -462,5 +426,3 @@ _again:
         state->text[0] = p;
     );
 }
-
-

@@ -30,7 +30,8 @@ ok64 LEXonRuleName($cu8c tok, LEXstate *state) {
     a$strc(tmpl,
            "action $s$s0 { state->mark0[$s$s] = p - state->doc[0]; }\n"
            "action $s$s1 {\n"
-           "    $cu8c tok = {state->doc[0]+state->mark0[$s$s], p};\n"
+           "    tok[0] = state->doc[0]+state->mark0[$s$s];\n"
+           "    tok[1] = p;\n"
            "    call($son$s, tok, state); \n"
            "}\n");
     $feedf(state->act, tmpl, mod, tok, mod, tok, mod, tok, mod, tok, mod, tok);

@@ -16,7 +16,7 @@ set(BENCH_LDD_FLAGS benchmark::benchmark)
 
 add_executable(ron64 ron64.c)
 
-add_executable(lex2rl lex2rl.c LEX.rl.c)
+add_executable(lex2rl lex2rl.c LEX.rl.c LEX.c)
 
 add_subdirectory(test)
 

@@ -1,27 +1,27 @@
 _a = [0-0xff];
 
-hline = "----";
-indent = "    ";
+HLine = "----";
+Indent = "    ";
 
-olist = 
+OList = 
   [0-9] ".  " | " " [0-9] ". " | "  " [0-9] "." |
   [0-9]{2} ". " | " " [0-9]{2} "." |
   [0-9]{3} ".";
-ulist = "-   " | " -  " | "  - " | "   -";
+UList = "-   " | " -  " | "  - " | "   -";
 
-h1 = "#   " | " #  " | "  # " | "   #";
-h2 = "##  " | " ## " | "  ##";
-h3 = "### " | " ###";
-h4 = "####"; 
-h = h1 | h2 | h3 | h4;
+H1 = "#   " | " #  " | "  # " | "   #";
+H2 = "##  " | " ## " | "  ##";
+H3 = "### " | " ###";
+H4 = "####"; 
+H = H1 | H2 | H3 | H4;
 
 lndx = [0-9A-Za-z];
-link = "[" lndx "]:";
+Link = "[" lndx "]:";
 
-nest = indent | olist | ulist;
-term = hline | h1 | h2 | h3 | h4 | link;
-div = nest* term?;
+nest = Indent | OList | UList;
+term = HLine | H1 | H2 | H3 | H4 | Link;
+Div = nest* term?;
 
-line = div <: [^\n]* "\n";
+Line = Div <: [^\n]* "\n";
 
-root = line*;
+Root = Line*;

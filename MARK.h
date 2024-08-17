@@ -9,6 +9,8 @@
 
 con ok64 MARKfail = 0xc2d96a51b296;
 con ok64 MARKnospace = 0x99e5d37cf251b296;
+#define MARKenum 0
+#define MARK2enum 16
 
 typedef enum {
     MARK_H1 = '1',
@@ -50,6 +52,9 @@ typedef struct {
     int cs;
     int tbc;
 
+    size_t mark0[32];
+    size_t mark2[256];  // FIXME
+
     w64 div;
     u8 divlen;
 
@@ -67,75 +72,14 @@ fun u8c$ MARKline$(MARKstate const* state, u64 lno) {
     return state->lines[0] + lno;
 }
 
-fun ok64 _MARKpushdiv(MARKstate* state, u8 div) {
-    if (state->divlen >= 8) return noroom;
-    state->div._8[state->divlen] = div;
-    ++state->divlen;
-    return OK;
-}
-
-fun ok64 _MARKhline($cu8c text, $cu8c tok, MARKstate* state) {
-    _MARKpushdiv(state, MARK_HLINE);
-    return OK;
-}
-
-fun ok64 _MARKolist($cu8c text, $cu8c tok, MARKstate* state) {
-    _MARKpushdiv(state, MARK_OLIST);
-    return OK;
-}
-
-fun ok64 _MARKulist($cu8c text, $cu8c tok, MARKstate* state) {
-    _MARKpushdiv(state, MARK_ULIST);
-    return OK;
-}
-
-fun ok64 _MARKdiv($cu8c text, $cu8c tok, MARKstate* state) {
-    return Bu64feed1(state->divs, state->div._64[0]);
-}
-
-fun ok64 _MARKline($cu8c text, $cu8c tok, MARKstate* state) {
-    state->div._64[0] = 0;
-    state->divlen = 0;
-    return Bu8cpfeed1(state->lines, tok[1]);
-}
+ok64 MARKparse(MARKstate* state);
 
 ok64 MARKlexer(MARKstate* state);
 
 ok64 MARK2lexer(MARKstate* state);
 
-ok64 MARK2lex(MARKstate* state, $u8c text);
-
-ok64 MARKparse(MARKstate* state);
-
 ok64 MARKhtml($u8 into, MARKstate const* state);
 
 ok64 MARKansi($u8 into, MARKstate const* state);
-
-fun ok64 _MARKh1($cu8c text, $cu8c tok, MARKstate* state) {
-    _MARKpushdiv(state, MARK_H1);
-    return OK;
-}
-fun ok64 _MARKh2($cu8c text, $cu8c tok, MARKstate* state) {
-    _MARKpushdiv(state, MARK_H2);
-    return OK;
-}
-fun ok64 _MARKh3($cu8c text, $cu8c tok, MARKstate* state) {
-    _MARKpushdiv(state, MARK_H3);
-    return OK;
-}
-fun ok64 _MARKh4($cu8c text, $cu8c tok, MARKstate* state) {
-    _MARKpushdiv(state, MARK_H4);
-    return OK;
-}
-fun ok64 _MARKindent($cu8c text, $cu8c tok, MARKstate* state) {
-    _MARKpushdiv(state, MARK_INDENT);
-    return OK;
-}
-fun ok64 _MARKh($cu8c text, $cu8c tok, MARKstate* state) { return OK; }
-fun ok64 _MARKlndx($cu8c text, $cu8c tok, MARKstate* state) { return OK; }
-fun ok64 _MARKlink($cu8c text, $cu8c tok, MARKstate* state) { return OK; }
-fun ok64 _MARKnest($cu8c text, $cu8c tok, MARKstate* state) { return OK; }
-fun ok64 _MARKterm($cu8c text, $cu8c tok, MARKstate* state) { return OK; }
-fun ok64 _MARKroot($cu8c text, $cu8c tok, MARKstate* state) { return OK; }
 
 #endif

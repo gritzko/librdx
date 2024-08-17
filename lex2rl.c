@@ -9,6 +9,7 @@
 a$strc(ext, ".lex");
 
 con char *ragel_template;
+con char *header_template;
 
 ABC_INIT;
 
@@ -28,11 +29,25 @@ pro(lex2rl, $u8c mod) {
     };
 
     aBpad(u8, name, KB);
-    call(Bu8feed$, name, mod);
-    call(Bu8feed$, name, ext);
+    $u8c $namet = $u8str("$s.lex");
+    $feedf(Bu8idle(name), $namet, mod);
 
     int fd;
     call(FILEopen, &fd, Bu8cdata(name), O_RDONLY);
+
+    aBpad(u8, hname, KB);
+    $u8c $hnamet = $u8str("$s.rl.h");
+    $feedf(Bu8idle(hname), $hnamet, mod);
+
+    int hfd;
+    call(FILEcreate, &hfd, Bu8cdata(hname));
+
+    aBpad(u8, rname, KB);
+    $u8c $rnamet = $u8str("$s.rl");
+    $feedf(Bu8idle(rname), $rnamet, mod);
+
+    int rfd;
+    call(FILEcreate, &rfd, Bu8cdata(rname));
 
     aBpad(u8, syn, MB);
     call(FILEdrainall, Bu8idle(syn), fd);
@@ -42,12 +57,18 @@ pro(lex2rl, $u8c mod) {
 
     call(FILEclose, fd);
 
-    aBpad(u8, pad, MB);
-    a$strc(tmpl, ragel_template);
-    $feedf(Bu8idle(pad), tmpl, mod, mod, Bu8cdata(enmpad), mod, mod, mod, mod,
-           Bu8cdata(fnspad), mod, Bu8cdata(actpad), Bu8cdata(synpad), mod, mod,
-           mod, mod, mod, mod, mod, mod, mod, mod, mod);
-    $println(Bu8cdata(pad));
+    aBpad(u8, rpad, MB);
+    a$strc(rtmpl, ragel_template);
+    $feedf(Bu8idle(rpad), rtmpl, mod, mod, Bu8cdata(actpad), Bu8cdata(synpad),
+           mod, mod, mod, mod, mod, mod, mod, mod, mod, mod, mod);
+    call(FILEfeed, rfd, Bu8cdata(rpad));
+    call(FILEclose, rfd);
+
+    aBpad(u8, hpad, MB);
+    a$strc(htmpl, header_template);
+    $feedf(Bu8idle(hpad), htmpl, mod, Bu8cdata(enmpad), Bu8cdata(fnspad));
+    call(FILEfeed, hfd, Bu8cdata(hpad));
+    call(FILEclose, hfd);
 
     nedo($println(state.text));
 }
@@ -65,34 +86,20 @@ int main(int argn, char **args) {
     return o;
 }
 
-con char *ragel_template =
+con char *header_template =
     "#include \"PRO.h\"\n"
+    "#include \"INT.h\"\n"
     "#include \"$s.h\"\n"
     "\n"
     "enum {\n"
-    "\t$s = 0,\n"
     "$s"
     "};\n"
-    "\n"
-    "#define $smaxnest 1024\n"
-    "\n"
-    "fun ok64 popfails(u32* stack, u32* sp, u32 type) {\n"
-    "    while (*sp && stack[*sp]!=type) *sp -= 2;\n"
-    "    return *sp ? OK : $sfail;\n"
-    "}\n"
-    "\n"
-    "#define lexpush(t) { \\\n"
-    "    if (sp>=$smaxnest) fail($sfail); \\\n"
-    "    stack[++sp] = p - pb; \\\n"
-    "    stack[++sp] = t; \\\n"
-    "}\n"
-    "#define lexpop(t)  \\\n"
-    "    if (stack[sp]!=t) call(popfails, stack, &sp, t); \\\n"
-    "    tok[0] = *(text)+stack[sp-1]; \\\n"
-    "    tok[1] = p; \\\n"
-    "    sp -= 2;\n"
-    "\n"
     "$s\n"  // FUNCTIONS
+    "\n";
+
+con char *ragel_template =
+    "#include \"$s.rl.h\"\n"
+    "\n"
     "\n"
     "%%{\n"
     "\n"
@@ -103,7 +110,7 @@ con char *ragel_template =
     "$s"  // ACTIONS
     "\n"
     "$s"  // SYNTAX
-    "main := $sroot;\n"
+    "main := $sRoot;\n"
     "\n"
     "}%%\n"
     "\n"
@@ -120,7 +127,6 @@ con char *ragel_template =
     "    u8c *eof = state->tbc ? NULL : pe;\n"
     "    u8c *pb = p;\n"
     "\n"
-    "    u32 stack[$smaxnest] = {0, $s};\n"
     "    u32 sp = 2;\n"
     "    $$u8c tok = {p, p};\n"
     "\n"
