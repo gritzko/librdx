@@ -35,7 +35,7 @@ ok64 LEXonRuleName($cu8c tok, LEXstate *state) {
            "}\n");
     $feedf(state->act, tmpl, mod, tok, mod, tok, mod, tok, mod, tok, mod, tok);
 
-    a$strc(enmtmpl, "\t$s$s = $s+$u,\n");
+    a$strc(enmtmpl, "\t$s$s = $senum+$u,\n");
     $feedf(state->enm, enmtmpl, mod, tok, mod, state->ruleno);
 
     a$strc(fnstmpl, "ok64 $son$s ($$cu8c tok, $sstate* state);\n");

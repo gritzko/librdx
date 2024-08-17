@@ -1,22 +1,20 @@
 #include "PRO.h"
 #include "INT.h"
 #include "LEX.h"
-#define LEXmaxnest 1024
 
 enum {
-	LEX = 0,
-	LEXSpace = LEX+1,
-	LEXName = LEX+2,
-	LEXRep = LEX+3,
-	LEXOp = LEX+4,
-	LEXClass = LEX+5,
-	LEXString = LEX+6,
-	LEXEntity = LEX+7,
-	LEXExpr = LEX+8,
-	LEXRuleName = LEX+9,
-	LEXEq = LEX+10,
-	LEXLine = LEX+11,
-	LEXRoot = LEX+12,
+	LEXSpace = LEXenum+1,
+	LEXName = LEXenum+2,
+	LEXRep = LEXenum+3,
+	LEXOp = LEXenum+4,
+	LEXClass = LEXenum+5,
+	LEXString = LEXenum+6,
+	LEXEntity = LEXenum+7,
+	LEXExpr = LEXenum+8,
+	LEXRuleName = LEXenum+9,
+	LEXEq = LEXenum+10,
+	LEXLine = LEXenum+11,
+	LEXRoot = LEXenum+12,
 };
 ok64 LEXonSpace ($cu8c tok, LEXstate* state);
 ok64 LEXonName ($cu8c tok, LEXstate* state);
