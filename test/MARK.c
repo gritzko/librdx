@@ -47,7 +47,7 @@ pro(MARKinlinetest) {
     a$strc(mark, "some *bold* text\n");
     call(MARKstatealloc, &state, mark);
     call(MARK2lexer, &state);
-    testeqv(MARK2_STRONG, Bat(state.fmt, 7), "%d");
+    testeqv(1 << MARK2_STRONG, Bat(state.fmt, 7), "%d");
     nedo($print(state.text); MARKstatefree(&state););
 }
 
@@ -61,35 +61,44 @@ void debugdivs($cu64c $divs) {
 
 pro(MARKtest1) {
     sane(YES);
-#define MARK1cases 7
+#define MARK1cases 8
     $u8c cases[MARK1cases][2] = {
 
-        {$u8str("Good morning!\n"), $u8str("<p>Good morning!\n</p>\n")},
+        {$u8str("Good morning!\n"),
+         $u8str("<p><span>Good morning!\n</span></p>\n")},
 
         {$u8str("Good morning!\nHave a good day!\n"),
-         $u8str("<p>Good morning!\nHave a good day!\n</p>\n")},
+         $u8str("<p><span>Good morning!\nHave a good day!\n</span></p>\n")},
 
         {$u8str("Good morning!\n\nHave a good day!\n"),
-         $u8str("<p>Good morning!\n</p>\n<p>\nHave a good day!\n</p>\n")},
+         $u8str("<p><span>Good morning!\n</span></p>\n<p><span>\nHave a good "
+                "day!\n</span></p>\n")},
 
         {$u8str("#   Good morning!\nHave a good day!\n"),
-         $u8str("<h1>Good morning!\n</h1>\n<p>Have a good day!\n</p>\n")},
+         $u8str("<h1><span>Good morning!\n</span></h1>\n<p><span>Have a good "
+                "day!\n</span></p>\n")},
 
         {$u8str("#   Good morning!\n"
                 " 1. Take\n"
                 " 2. a list,\n"
                 "buy things\n"),
-         $u8str("<h1>Good morning!\n</h1>\n"
-                "<ol><li>Take\n"
-                "</li><li>a list,\n"
-                "</li></ol>\n"
-                "<p>buy things\n</p>\n")},
+         $u8str("<h1><span>Good morning!\n</span></h1>\n"
+                "<ol><li><span>Take\n"
+                "</span></li><li><span>a list,\n"
+                "</span></li></ol>\n"
+                "<p><span>buy things\n</span></p>\n")},
 
         {$u8str("Hello *world*!\n"),
-         $u8str("<p>Hello <b>*world*</b>!\n</p>\n")},
+         $u8str("<p><span>Hello </span><span class='"
+                "strong'>*world*</span><span>!\n</span></p>\n")},
 
         {$u8str("#   Hello *world*!\n"),
-         $u8str("<h1>Hello <b>*world*</b>!\n</h1>\n")},
+         $u8str("<h1><span>Hello </span><span class='"
+                "strong'>*world*</span><span>!\n</span></h1>\n")},
+
+        {$u8str("Hello _beautiful world_!\n"),
+         $u8str("<p><span>Hello </span><span class='emph'>_beautiful "
+                "world_</span><span>!\n</span></p>\n")},
 
     };
 

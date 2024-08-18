@@ -52,6 +52,8 @@ MARK2any  = (   [0-0xff] );
 
 MARK2nonws  = (   [^ \t\n\r] );
 
+MARK2punkt  = (   [,.;:!?\-"'()"] );
+
 MARK2word  = (   MARK2nonws  + );
 
 MARK2words  = (   MARK2word  (  MARK2ws+  MARK2word  )* );
@@ -62,9 +64,7 @@ MARK2Ref0  = (   MARK2ws  "["  MARK2nonws )  >MARK2Ref00 %MARK2Ref01;
 MARK2Ref1  = (   MARK2nonws  "]["  MARK2alpha  "]" )  >MARK2Ref10 %MARK2Ref11;
 
 
-MARK2emword  = (   ([^ \t\r\n_]|"\\_")+ );
-
-MARK2Em  = (   "_"  MARK2emword  (MARK2ws+  MARK2emword)*  "_" )  >MARK2Em0 %MARK2Em1;
+MARK2Em  = (   "_"  (MARK2word  MARK2ws+)*  MARK2word?  (MARK2nonws-"\\")  :>>  "_" )  >MARK2Em0 %MARK2Em1;
 
 
 MARK2StA0  = (   MARK2ws  "*"  MARK2nonws )  >MARK2StA00 %MARK2StA01;

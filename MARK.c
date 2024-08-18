@@ -211,16 +211,32 @@ pro(tagclose, $u8 $into, u8 tag) {
     done;
 }
 
-pro(tagbalance, $u8 $into, u8 was, u8 is) {
-    sane($into != nil);
-    $cu8c BOPEN = $u8str("<b>");
-    $cu8c BCLOSE = $u8str("</b>");
-    if (was == MARK2_STRONG) {
-        call($u8feed, $into, BCLOSE);
-    } else {
-        call($u8feed, $into, BOPEN);
+pro(openspan, $u8 $into, u8 mask) {
+    sane($ok($into));
+    $cu8c OPEN0 = $u8str("<span>");
+    if (mask == 0) return $u8feed($into, OPEN0);
+    $cu8c OPEN = $u8str("<span class='");
+    $cu8c END = $u8str("'>");
+    $cu8c CLASSES[] = {
+        $u8str("mark"),   $u8str("code"), $u8str("link"),
+        $u8str("strong"), $u8str("emph"),
+    };
+    call($u8feed, $into, OPEN);
+    b8 first = YES;
+    while (mask != 0) {
+        u8 low = ctz32(mask);
+        if (!first) call($u8feed1, $into, ' ');
+        call($u8feed, $into, CLASSES[low]);
+        mask -= 1 << low;
+        first = NO;
     }
+    call($u8feed, $into, END);
     done;
+}
+
+fun ok64 closespan($u8 $into) {
+    $cu8c CLOSE = $u8str("</span>");
+    return $u8feed($into, CLOSE);
 }
 
 pro(linehtml, $u8 $into, MARKstate const* state, u64 from, u64 till, u8 tab) {
@@ -229,17 +245,16 @@ pro(linehtml, $u8 $into, MARKstate const* state, u64 from, u64 till, u8 tab) {
     b8 term = NO;
     if (headdiv) term = u64byte(headdiv, u64bytelen(headdiv) - 1);
     if (!term) call(tagopen, $into, MARK_P);
-    u8 fmt = 0;
+    u32 fmt = 0xffff;
     for (u64 l = from; l < till; ++l) {
         a$dup(u8c, line, state->lines[0] + l);
         line[0] += 4 * u64bytelen(Bat(state->divs, l));
         test($len($into) >= $len(line), MARKnospace);
-
         $for(u8c, p, line) {
             u8 f = Bat(state->fmt, p - state->doc[0]);
             if (f != fmt) {
-                printf("balance %d %d\n", fmt, f);
-                call(tagbalance, $into, fmt, f);
+                if (fmt != 0xffff) call(closespan, $into);
+                call(openspan, $into, f);
                 fmt = f;
             }
             // FIXME $into
@@ -248,8 +263,7 @@ pro(linehtml, $u8 $into, MARKstate const* state, u64 from, u64 till, u8 tab) {
         }
         // call($u8feed, $into, line);
     }
-    if (fmt != 0) {
-    }
+    call(closespan, $into);
     if (!term) call(tagclose, $into, MARK_P);
     // just feed the text
     // acc to the line limits

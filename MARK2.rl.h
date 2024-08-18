@@ -3,8 +3,8 @@
 #include "MARK2.h"
 
 enum {
-	MARK2Ref0 = MARK2enum+7,
-	MARK2Ref1 = MARK2enum+8,
+	MARK2Ref0 = MARK2enum+8,
+	MARK2Ref1 = MARK2enum+9,
 	MARK2Em = MARK2enum+10,
 	MARK2StA0 = MARK2enum+11,
 	MARK2StA1 = MARK2enum+12,
