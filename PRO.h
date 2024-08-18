@@ -87,6 +87,16 @@ con ok64 faileq = 0xd69c2d96a;
         }                                                            \
     }
 
+#define fwdcall(f, ...)                                              \
+    {                                                                \
+        __ = (f(__VA_ARGS__));                                       \
+        if (__ != OK) {                                              \
+            trace("%s<%s at %s:%i\n", PROind, ok64str(__), __func__, \
+                  __LINE__);                                         \
+        }                                                            \
+        goto _over;                                                  \
+    }
+
 #define mute(f, o)            \
     {                         \
         __ = (f);             \
