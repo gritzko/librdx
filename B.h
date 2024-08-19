@@ -43,7 +43,8 @@ typedef void const *const *voidc$;
 #define $data(b) (b + 1)
 #define $idle(b) (b + 2)
 
-#define Blast(b) (*(b[2] - 1))
+#define Blastp(b) (b[2] - 1)
+#define Blast(b) (*Blastp(b))
 
 #define Bi(b) *(b[2])
 #define Bd(b) *(b[1])
@@ -124,8 +125,6 @@ fun ok64 Bfree(Bvoid buf) {
 
 #define Bpop(buf) \
     { --buf[2]; }
-
-// #define Blast(buf) (buf[2] - 1)
 
 typedef struct {
     u32 from;

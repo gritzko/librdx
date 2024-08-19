@@ -22,6 +22,6 @@ nest = Indent | OList | UList;
 term = HLine | H1 | H2 | H3 | H4 | Link;
 Div = nest* term?;
 
-Line = Div <: [^\n]* "\n";
+Line = Div [^\n]* "\n";
 
 Root = Line*;

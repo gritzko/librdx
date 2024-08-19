@@ -30,7 +30,7 @@ pro(MARKparsetest) {
     a$str(line1, " 1. list of\n");
     u8c$ l1 = MARKline$(&state, 1);
     $testeq(line1, l1);
-    testeqv(6L, Bdatalen(state.divs), "%li");
+    testeqv(7L, Bdatalen(state.divs), "%li");
     testeqv((u64)MARK_H1, Bat(state.divs, 0), "%lu");
     testeqv((u64)MARK_OLIST, Bat(state.divs, 1), "%lu");
     testeqv((u64)MARK_INDENT, Bat(state.divs, 3), "%lu");

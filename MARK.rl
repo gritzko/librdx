@@ -128,7 +128,7 @@ MARKterm  = (   MARKHLine  |  MARKH1  |  MARKH2  |  MARKH3  |  MARKH4  |  MARKLi
 MARKDiv  = (   MARKnest*  MARKterm? )  >MARKDiv0 %MARKDiv1;
 
 
-MARKLine  = (   MARKDiv  <:  [^\n]*  "\n" )  >MARKLine0 %MARKLine1;
+MARKLine  = (   MARKDiv  [^\n]*  "\n" )  >MARKLine0 %MARKLine1;
 
 
 MARKRoot  = (   MARKLine* )  >MARKRoot0 %MARKRoot1;

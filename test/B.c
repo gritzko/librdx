@@ -20,6 +20,17 @@ pro(B$_test) {
     done;
 }
 
+pro(Bndx_test) {
+    sane(YES);
+    Bu64 buf = {};
+    Bu64alloc(buf, 1024);
+    for (u64 i = 0; i < 1000; ++i) {
+        call(Bu64feed1, buf, i);
+        sane(Blast(buf) == i);
+    }
+    nedo(Bu64free(buf));
+}
+
 pro(Breserve_test) {
     Bu8 buf = {};
     call(Bu8alloc, buf, 1024);
@@ -35,6 +46,7 @@ pro(Breserve_test) {
 pro(Btest) {
     call(Bmap_test);
     call(B$_test);
+    call(Bndx_test);
     call(Breserve_test);
     done;
 }

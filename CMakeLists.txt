@@ -18,6 +18,8 @@ add_executable(ron64 ron64.c)
 
 add_executable(lex2rl lex2rl.c LEX.rl.c LEX.c)
 
+add_executable(md2html md2html.c LEX.rl.c LEX.c MARK.rl.c MARK.c MARK2.rl.c MARK2.c)
+
 add_subdirectory(test)
 
 add_subdirectory(fuzz EXCLUDE_FROM_ALL)

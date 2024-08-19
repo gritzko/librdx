@@ -33,6 +33,7 @@ fun T *X(B, at)(X(B, ) buf, size_t ndx) {
     // todo range checks
     return buf[1] + ndx;
 }
+
 fun ok64 X(B, alloc)(X(B, ) buf, size_t len) {
     size_t sz = len * sizeof(T);
     ok64 o = Balloc((void **)buf, sz);

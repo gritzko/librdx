@@ -335,9 +335,11 @@ pro(MARKhtml, $u8 $into, MARKstate const* state) {
 }
 
 fun ok64 pushdiv(MARKstate* state, u8 div) {
-    if (state->divlen < 8) {
-        state->div._8[state->divlen] = div;
-        ++state->divlen;
+    if (Bdatalen(state->divs) == 0) Bu64feed1(state->divs, 0);
+    u64* last = Blastp(state->divs);
+    u8 l = u64bytelen(*last);
+    if (l < 8) {
+        *last |= ((u64)div) << (l << 3);
     }
     return OK;
 }
@@ -354,17 +356,14 @@ ok64 MARKonUList($cu8c tok, MARKstate* state) {
     return pushdiv(state, MARK_ULIST);
 }
 
-ok64 MARKonDiv($cu8c tok, MARKstate* state) {
-    return Bu64feed1(state->divs, state->div._64[0]);
-}
+ok64 MARKonDiv($cu8c tok, MARKstate* state) { return OK; }
 
 ok64 MARKonLink($cu8c tok, MARK2state* state) { return OK; }
 
 ok64 MARKonRoot($cu8c tok, MARK2state* state) { return OK; }
 
 ok64 MARKonLine($cu8c tok, MARKstate* state) {
-    state->div._64[0] = 0;
-    state->divlen = 0;
+    Bu64feed1(state->divs, 0);
     return Bu8cpfeed1(state->lines, tok[1]);
 }
 ok64 MARKonH1($cu8c tok, MARKstate* state) { return pushdiv(state, MARK_H1); }

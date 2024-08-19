@@ -55,9 +55,6 @@ typedef struct {
     size_t mark0[32];
     size_t mark2[256];  // FIXME
 
-    w64 div;
-    u8 divlen;
-
     Bu8cp lines;
     Bu64 divs;
     Bu8 fmt;
