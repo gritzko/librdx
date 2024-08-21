@@ -336,3 +336,6 @@ ok64 MARKonH4($cu8c tok, MARKstate* state) { return pushdiv(state, MARK_H4); }
 ok64 MARKonIndent($cu8c tok, MARKstate* state) {
     return pushdiv(state, MARK_INDENT);
 }
+ok64 MARKonQuote($cu8c tok, MARKstate* state) {
+    return pushdiv(state, MARK_QUOTE);
+}

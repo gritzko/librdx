@@ -15,11 +15,13 @@ H3 = "### " | " ###";
 H4 = "####"; 
 H = H1 | H2 | H3 | H4;
 
+Quote = ">   " | " >  " | "  > " | "   >";
+
 lndx = [0-9A-Za-z];
 Link = "[" lndx "]:";
 
-nest = Indent | OList | UList;
-term = HLine | H1 | H2 | H3 | H4 | Link;
+nest = Indent | Quote;
+term = HLine | H1 | H2 | H3 | H4 | Link | OList | UList;
 Div = nest* term?;
 
 Line = Div [^\n]* "\n";

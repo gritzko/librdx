@@ -61,6 +61,12 @@ action MARKH1 {
     tok[1] = p;
     call(MARKonH, tok, state); 
 }
+action MARKQuote0 { state->mark0[MARKQuote] = p - state->doc[0]; }
+action MARKQuote1 {
+    tok[0] = state->doc[0]+state->mark0[MARKQuote];
+    tok[1] = p;
+    call(MARKonQuote, tok, state); 
+}
 action MARKLink0 { state->mark0[MARKLink] = p - state->doc[0]; }
 action MARKLink1 {
     tok[0] = state->doc[0]+state->mark0[MARKLink];
@@ -116,14 +122,17 @@ MARKH4  = (   "####" )  >MARKH40 %MARKH41;
 MARKH  = (   MARKH1  |  MARKH2  |  MARKH3  |  MARKH4 )  >MARKH0 %MARKH1;
 
 
+MARKQuote  = (   ">   "  |  " >  "  |  "  > "  |  "   >" )  >MARKQuote0 %MARKQuote1;
+
+
 MARKlndx  = (   [0-9A-Za-z] );
 
 MARKLink  = (   "["  MARKlndx  "]:" )  >MARKLink0 %MARKLink1;
 
 
-MARKnest  = (   MARKIndent  |  MARKOList  |  MARKUList );
+MARKnest  = (   MARKIndent  |  MARKQuote );
 
-MARKterm  = (   MARKHLine  |  MARKH1  |  MARKH2  |  MARKH3  |  MARKH4  |  MARKLink );
+MARKterm  = (   MARKHLine  |  MARKH1  |  MARKH2  |  MARKH3  |  MARKH4  |  MARKLink  |  MARKOList  |  MARKUList );
 
 MARKDiv  = (   MARKnest*  MARKterm? )  >MARKDiv0 %MARKDiv1;
 
