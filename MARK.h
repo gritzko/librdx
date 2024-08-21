@@ -54,6 +54,7 @@ typedef struct {
 
     size_t mark0[32];
     size_t mark2[256];  // FIXME
+    u64 div;
 
     Bu8cp lines;
     Bu64 divs;
@@ -75,7 +76,7 @@ ok64 MARKlexer(MARKstate* state);
 
 ok64 MARK2lexer(MARKstate* state);
 
-ok64 MARKhtml($u8 into, MARKstate const* state);
+ok64 MARKHTML($u8 into, MARKstate const* state);
 
 ok64 MARKansi($u8 into, MARKstate const* state);
 

@@ -30,7 +30,7 @@ pro(MARKparsetest) {
     a$str(line1, " 1. list of\n");
     u8c$ l1 = MARKline$(&state, 1);
     $testeq(line1, l1);
-    testeqv(7L, Bdatalen(state.divs), "%li");
+    testeqv(6L, Bdatalen(state.divs), "%li");
     testeqv((u64)MARK_H1, Bat(state.divs, 0), "%lu");
     testeqv((u64)MARK_OLIST, Bat(state.divs, 1), "%lu");
     testeqv((u64)MARK_INDENT, Bat(state.divs, 3), "%lu");
@@ -68,10 +68,11 @@ pro(MARKtest1) {
          $u8str("<p><span>Good morning!\n</span></p>\n")},
 
         {$u8str("Good morning!\nHave a good day!\n"),
-         $u8str("<p><span>Good morning!\nHave a good day!\n</span></p>\n")},
+         $u8str("<p><span>Good morning!\n</span><span>Have a good "
+                "day!\n</span></p>\n")},
 
         {$u8str("Good morning!\n\nHave a good day!\n"),
-         $u8str("<p><span>Good morning!\n</span></p>\n<p><span>\nHave a good "
+         $u8str("<p><span>Good morning!\n</span></p>\n<p><span>Have a good "
                 "day!\n</span></p>\n")},
 
         {$u8str("#   Good morning!\nHave a good day!\n"),
@@ -83,9 +84,11 @@ pro(MARKtest1) {
                 " 2. a list,\n"
                 "buy things\n"),
          $u8str("<h1><span>Good morning!\n</span></h1>\n"
-                "<ol><li><span>Take\n"
-                "</span></li><li><span>a list,\n"
-                "</span></li></ol>\n"
+                "<ol><li><p><span>Take\n"
+                "</span></p>\n"
+                "</li><li><p><span>a list,\n"
+                "</span></p>\n"
+                "</li></ol>\n"
                 "<p><span>buy things\n</span></p>\n")},
 
         {$u8str("Hello *world*!\n"),
@@ -108,7 +111,7 @@ pro(MARKtest1) {
         aBpad(u8, into, 1024);
         call(MARKstatealloc, &state, cases[i][0]);
         call(MARKparse, &state);
-        call(MARKhtml, Bu8idle(into), &state);
+        call(MARKHTML, Bu8idle(into), &state);
 
         $print(hline);
         debugdivs(Bu64cdata(state.divs));

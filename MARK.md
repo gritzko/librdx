@@ -2,7 +2,7 @@
 
 The MARK is a minimalistic markup format based on [Markdown][m].
 Markup languages have a long and boring history; we can 
-mention `man``, `TeX` or even `HTML` that now requires some 
+mention `man`, `TeX` or even `HTML` that now requires some 
 million lines of code to properly parse and display itself.
 The huge upside of `Markdown` is that it is simple and intuitive.
 The key downside is ambiguity and incompatibility of parsers.

@@ -224,9 +224,22 @@ fun u8 u64bytelen(u64 u) {
 }
 
 fun u8 u64byte(u64 u, u8 b) { return u >> (b << 3); }
+fun u8 u64getbyte(u64 u, u8 b) { return u64byte(u, b); }
+
+fun u64 u64setbyte(u64 u, u8 b, u8 ndx) {
+    u8 shift = ndx << 3;
+    u64 mask = 0xffUL << shift;
+    u64 newval = ((u64)b) << shift;
+    return (u & ~mask) | newval;
+}
 
 fun u64 u64bytecap(u64 v, u8 bytes) {
     return v && (UINT64_MAX << (bytes << 3));
+}
+
+fun u64 u64lowbytes(u64 u, u8 keep) {
+    if (keep == 0) return 0;
+    return u & (UINT64_MAX >> ((8 - keep) << 3));
 }
 
 fun u8 w64bytelen(w64 w) { return u64bytelen(w._64[0]); }

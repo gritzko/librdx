@@ -16,20 +16,12 @@ ok64 MARK2onEm($cu8c tok, MARK2state* state) {
 }
 
 ok64 MARK2onStA0($cu8c tok, MARK2state* state) {
-    a$str(s, "<<<\n");
-    $print(s);
-    $print(tok);
-    $print(s);
     size_t f = tok[0] - state->doc[0];
     state->mark2[MARK2_STRONG] = f + 1;
     return OK;
 }
 
 ok64 MARK2onStA1($cu8c tok, MARK2state* state) {
-    a$str(s, ">>>\n");
-    $print(s);
-    $print(tok);
-    $print(s);
     size_t t = tok[0] - state->doc[0] + 2;
     size_t f = state->mark2[MARK2_STRONG];
     state->mark2[MARK2_STRONG] = 0;
@@ -38,10 +30,6 @@ ok64 MARK2onStA1($cu8c tok, MARK2state* state) {
 }
 
 ok64 MARK2onStB($cu8c tok, MARK2state* state) {
-    a$str(s, "```\n");
-    $print(s);
-    $print(tok);
-    $print(s);
     size_t f = tok[0] - state->doc[0];
     size_t t = tok[1] - state->doc[0];
     for (size_t i = f; i < t; ++i) Bat(state->fmt, i) |= MARK2_STRONG;
