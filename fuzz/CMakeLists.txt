@@ -8,8 +8,8 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS on)
 include_directories(..)
 #find_package(sodium CONFIG)
 
-set(FUZZ_CXX_FLAGS ${CMAKE_CXX_FLAGS} $<$<C_COMPILER_ID:Clang>:-fsanitize=er,address> -g -O2 -DABC_NOTRACE)
-set(FUZZ_LDD_FLAGS ${CMAKE_LDD_FLAGS} $<$<C_COMPILER_ID:Clang>:-fsanitize=er,address> -DABC_NOTRACE)
+set(FUZZ_CXX_FLAGS ${CMAKE_CXX_FLAGS} $<$<C_COMPILER_ID:Clang>:-fsanitize=fuzzer,address> -g -O2 -DABC_NOTRACE)
+set(FUZZ_LDD_FLAGS ${CMAKE_LDD_FLAGS} $<$<C_COMPILER_ID:Clang>:-fsanitize=fuzzer,address> -DABC_NOTRACE)
 
 add_executable(HEAP HEAP.c)
 target_link_options(HEAP PRIVATE ${FUZZ_LDD_FLAGS})
