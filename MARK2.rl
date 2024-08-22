@@ -19,23 +19,41 @@ action MARK2Ref11 {
     tok[1] = p;
     call(MARK2onRef1, tok, state); 
 }
+action MARK2Em00 { state->mark0[MARK2Em0] = p - state->doc[0]; }
+action MARK2Em01 {
+    tok[0] = state->doc[0]+state->mark0[MARK2Em0];
+    tok[1] = p;
+    call(MARK2onEm0, tok, state); 
+}
+action MARK2Em10 { state->mark0[MARK2Em1] = p - state->doc[0]; }
+action MARK2Em11 {
+    tok[0] = state->doc[0]+state->mark0[MARK2Em1];
+    tok[1] = p;
+    call(MARK2onEm1, tok, state); 
+}
 action MARK2Em0 { state->mark0[MARK2Em] = p - state->doc[0]; }
 action MARK2Em1 {
     tok[0] = state->doc[0]+state->mark0[MARK2Em];
     tok[1] = p;
     call(MARK2onEm, tok, state); 
 }
-action MARK2StA00 { state->mark0[MARK2StA0] = p - state->doc[0]; }
-action MARK2StA01 {
-    tok[0] = state->doc[0]+state->mark0[MARK2StA0];
+action MARK2St00 { state->mark0[MARK2St0] = p - state->doc[0]; }
+action MARK2St01 {
+    tok[0] = state->doc[0]+state->mark0[MARK2St0];
     tok[1] = p;
-    call(MARK2onStA0, tok, state); 
+    call(MARK2onSt0, tok, state); 
 }
-action MARK2StA10 { state->mark0[MARK2StA1] = p - state->doc[0]; }
-action MARK2StA11 {
-    tok[0] = state->doc[0]+state->mark0[MARK2StA1];
+action MARK2St10 { state->mark0[MARK2St1] = p - state->doc[0]; }
+action MARK2St11 {
+    tok[0] = state->doc[0]+state->mark0[MARK2St1];
     tok[1] = p;
-    call(MARK2onStA1, tok, state); 
+    call(MARK2onSt1, tok, state); 
+}
+action MARK2St0 { state->mark0[MARK2St] = p - state->doc[0]; }
+action MARK2St1 {
+    tok[0] = state->doc[0]+state->mark0[MARK2St];
+    tok[1] = p;
+    call(MARK2onSt, tok, state); 
 }
 action MARK2Root0 { state->mark0[MARK2Root] = p - state->doc[0]; }
 action MARK2Root1 {
@@ -54,6 +72,8 @@ MARK2nonws  = (   [^ \t\n\r] );
 
 MARK2punkt  = (   [,.;:!?\-"'()"] );
 
+MARK2wsp  = (   MARK2ws  |  MARK2punkt );
+
 MARK2word  = (   MARK2nonws  + );
 
 MARK2words  = (   MARK2word  (  MARK2ws+  MARK2word  )* );
@@ -64,15 +84,21 @@ MARK2Ref0  = (   MARK2ws  "["  MARK2nonws )  >MARK2Ref00 %MARK2Ref01;
 MARK2Ref1  = (   MARK2nonws  "]["  MARK2alpha  "]" )  >MARK2Ref10 %MARK2Ref11;
 
 
+MARK2Em0  = (   MARK2wsp  "_"  MARK2nonws )  >MARK2Em00 %MARK2Em01;
+
+MARK2Em1  = (   MARK2nonws  "_"  MARK2wsp )  >MARK2Em10 %MARK2Em11;
+
 MARK2Em  = (   "_"  (MARK2word  MARK2ws+)*  MARK2word?  (MARK2nonws-"\\")  :>>  "_" )  >MARK2Em0 %MARK2Em1;
 
 
-MARK2StA0  = (   MARK2ws  "*"  MARK2nonws )  >MARK2StA00 %MARK2StA01;
+MARK2St0  = (   MARK2ws  "*"  MARK2nonws )  >MARK2St00 %MARK2St01;
 
-MARK2StA1  = (   [^\t\r\n *]  "*" )  >MARK2StA10 %MARK2StA11;
+MARK2St1  = (   [^\t\r\n *]  "*" )  >MARK2St10 %MARK2St11;
+
+MARK2St  = (   "*"  (MARK2word  MARK2ws+)*  MARK2word?  (MARK2nonws-"\\")  :>>  "*" )  >MARK2St0 %MARK2St1;
 
 
-MARK2inline  = (   MARK2words  |  MARK2Em  |  MARK2StA0  |  MARK2StA1  |  MARK2Ref0  |  MARK2Ref1 );
+MARK2inline  = (   MARK2words  |  MARK2Em0  |  MARK2Em1  |  MARK2Em  |  MARK2St0  |  MARK2St1  |  MARK2Ref0  |  MARK2Ref1 );
 
 MARK2Root  = (   (MARK2ws*  MARK2inline)*  MARK2ws* )  >MARK2Root0 %MARK2Root1;
 

@@ -1,15 +1,15 @@
 #include <stdlib.h>
 
+#include "INT.h"
 #include "PRO.h"
 #include "TEST.h"
-#include "INT.h"
 
 #define X(M, name) M##u32##name
 #include "HEAPx.h"
 #undef X
 
 fuzz(u32, HEAPfuzz) {
-    if ($len(input) > 1024) $trim(input, $len(input) - 1024);
+    if ($len(input) > 1024) input[1] = input[0] + 1024;
 
     aBpad(u32, sorted, 1024);
     call(Bu32feed$, sorted, input);

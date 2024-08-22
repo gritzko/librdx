@@ -195,9 +195,6 @@ fun h64 mix64(u64 a) {
 #define MB (1UL << 20)
 #define KB (1UL << 10)
 
-fun u64 nextbit64(u64 bits) {}
-fun u32 nextbit32(u32 bits) {}
-
 #define bitpick(T, N, OFF, LEN)                         \
     fun T T##N(T val) {                                 \
         T one = 1;                                      \

@@ -22,6 +22,7 @@ con ok64 TESTfail = 0xc2d96a75c39d;
 
 #define fuzz(T, n)                                                 \
     ok64 n($##T##c input);                                         \
+    uint8_t _pro_depth = 0;                                        \
     int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) { \
         T const *p = (T const *)Data;                              \
         $##T##c data = {p, p + (Size / sizeof(T))};                \

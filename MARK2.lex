@@ -3,16 +3,20 @@ ws = [ \t\n\r];
 any = [0-0xff];
 nonws = [^ \t\n\r];
 punkt = [,.;:!?\-"'()"];
+wsp = ws | punkt;
 word = nonws +;
 words = word ( ws+ word )*;
 
 Ref0 = ws "[" nonws;
 Ref1 = nonws "][" alpha "]";
 
+Em0 = wsp "_" nonws;
+Em1 = nonws "_" wsp;
 Em = "_" (word ws+)* word? (nonws-"\\") :>> "_";
 
-StA0 = ws "*" nonws;
-StA1 = [^\t\r\n *] "*";
+St0 = ws "*" nonws;
+St1 = [^\t\r\n *] "*";
+St = "*" (word ws+)* word? (nonws-"\\") :>> "*";
 
-inline = words | Em | StA0 | StA1 | Ref0 | Ref1;
+inline = words | Em0 | Em1 | Em | St0 | St1 | Ref0 | Ref1;
 Root = (ws* inline)* ws*;
