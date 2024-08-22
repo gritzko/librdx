@@ -1,0 +1,104 @@
+<html><head>
+<link rel='stylesheet' href='style.css' type='text/css'>
+</head><body>
+<h1><span class='strong'>MARK: deterministic Markdown dialect
+</span></h1>
+<p><span class='strong'>
+</span><span class='strong'>The MARK is a minimalistic markup format based on [Markdown][m].
+</span><span class='strong'>Markup languages have a long and boring history; we can 
+</span><span class='strong'>mention `man`, `TeX` or even `HTML` that now requires some 
+</span><span class='strong'>million lines of code to properly parse and display itself.
+</span><span class='strong'>The huge upside of `Markdown` is that it is simple and intuitive.
+</span><span class='strong'>The key downside is ambiguity and incompatibility of parsers.
+</span></p>
+<p><span class='strong'>MARK started as a subset of Markdown with a formal grammar,
+</span><span class='strong'>hence zero ambiguity. If two MARK parsers are incompatible,
+</span><span class='strong'>that is a bug in at least one of them. MARK is made to tolerate
+</span><span class='strong'>mishaps to some degree, such as merges of concurrent edits.
+</span></p>
+<p><span class='strong'>MARK parsing rules are made to be easily implemented with 
+</span><span class='strong'>regular expressions of any kind.
+</span><span class='strong'>
+</span></p>
+<h2><span class='strong'>Principles for the formal grammar
+</span></h2>
+<p><span class='strong'>
+</span><span class='strong'>There is a legendary unsolvable computer science problem:
+</span><span class='strong'>should we use spaces or tabs? The logic of MARK is to have 
+</span><span class='strong'>only one way to do something. So, can spaces replace tabs?
+</span><span class='strong'>Yes. Can tabs replace spaces? No. Hence, spaces!
+</span></p>
+<p><span class='strong'>That logic also applies to the MARK's way of minimizing 
+</span><span class='strong'>Markdown: there must be one format for headers, one format 
+</span><span class='strong'>for bullet lists, etc. The overlap between markup elements 
+</span><span class='strong'>must absolutely be minimized. For example, using `*</span><span>` both
+</span><span>for emphasis and lists is a no-no.
+</span></p>
+<p><span>To summarize that,
+</span><span>
+</span></p>
+<ol><li><p><span>Intuitive syntax,
+</span></p>
+</li><li><p><span>One way only,
+</span></p>
+</li><li><p><span>No ambiguity.
+</span></p>
+</li></ol>
+<p><span>
+</span></p>
+<h2><span>The formal grammar
+</span></h2>
+<p><span>
+</span><span>MARK formal grammar consists of two orthogonal parts that can
+</span><span>and should be parsed separately: block-level and inline. All
+</span><span>block-level formatting goes in the beginning of a line, four
+</span><span>characters per one level of nesting - be it 
+</span><span>
+</span></p>
+<ul><li><p><span>numbered lists ` 1. `,
+</span></p>
+</li><li><p><span>bulleted lists `  - `,
+</span></p>
+</li><li><p><span>block quotes ` >  `,
+</span></p>
+</li><li><p><span>code blocks `\`\`\`\``,
+</span></p>
+</li><li><p><span>headers (four levels ` #  ` ` ## ` `### ` `####`),
+</span></p>
+</li><li><p><span>hyperlinks `[a]:`,
+</span></p>
+</li><li><p><span>or suchlike.
+</span></p>
+</li></ul>
+<p><span>
+</span><span>Block level elements can allow for arbitrary nesting
+</span><span>(lists, block quotes), only allow for inline formatting 
+</span><span>inside them (headers) or no formatting at all (code, links).
+</span></p>
+<p><span>Inline elements are either one-piece or </span><span class='strong'>*bracket-like pairs*</span><span>.
+</span><span>Either way, the syntax of the element is defined by a regular 
+</span><span>expression. Bracket-matching algorithm is the same for all 
+</span><span>bracketed elements, be it emphasis, strong emphasis, inline 
+</span><span>code, or hyperlinks.
+</span><span>
+</span></p>
+<h2><span>CommonMark critique
+</span></h2>
+<p><span>
+</span><span>[CommonMark][c] was a notable effort to standardize Markdown.
+</span><span>After 10 years, the spec is still changing and there is no 
+</span><span>formal grammar, only a human-language description.
+</span><span>As the [CommonMark spec][c] says, 
+</span></p>
+<p><span> >  la la la
+</span></p>
+<p><span>That precedent-based intuitive syntax of Markdown is likely the problem here. 
+</span><span>If we implement a Markdown parser with neural nets, that approach might 
+</span><span>be OK. Except that another neural net might see things differently.
+</span><span>Instead, MARK is based on very clear formal rules that are easy
+</span><span>to understand, remember and implement in code.
+</span></p>
+<p><span>[c]: http://commonmark.org
+</span><span>[m]: fireball
+</span></p>
+</body></html>
