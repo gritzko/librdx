@@ -28,9 +28,9 @@ ok64 LEXonRuleName($cu8c tok, LEXstate *state) {
     if (**tok < 'A' || **tok > 'Z') return OK;
 
     a$strc(tmpl,
-           "action $s$s0 { state->mark0[$s$s] = p - state->doc[0]; }\n"
+           "action $s$s0 { lex->mark0[$s$s] = p - lex->text[0]; }\n"
            "action $s$s1 {\n"
-           "    tok[0] = state->doc[0]+state->mark0[$s$s];\n"
+           "    tok[0] = lex->text[0] + lex->mark0[$s$s];\n"
            "    tok[1] = p;\n"
            "    call($son$s, tok, state); \n"
            "}\n");

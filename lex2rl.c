@@ -19,8 +19,7 @@ pro(lex2rl, $u8c mod) {
     aBpad(u8, enmpad, KB);
     aBpad(u8, fnspad, KB * 4);
     LEXstate state = {
-        .cs = 0,
-        .tbc = 0,
+        .lex = {},
         .mod = mod,
         .syn = Bu8idle(synpad),
         .act = Bu8idle(actpad),
@@ -52,7 +51,7 @@ pro(lex2rl, $u8c mod) {
     aBpad(u8, syn, MB);
     call(FILEdrainall, Bu8idle(syn), fd);
 
-    $mv(state.text, Bu8cdata(syn));
+    $mv(state.lex.text, Bu8cdata(syn));
     call(LEXlexer, &state);
 
     call(FILEclose, fd);
@@ -70,7 +69,7 @@ pro(lex2rl, $u8c mod) {
     call(FILEfeed, hfd, Bu8cdata(hpad));
     call(FILEclose, hfd);
 
-    nedo($println(state.text));
+    nedo($println(state.lex.text));
 }
 
 int main(int argn, char **args) {
@@ -117,14 +116,16 @@ con char *ragel_template =
     "%%write data;\n"
     "\n"
     "pro($slexer, $sstate* state) {\n"
-    "    a$dup(u8c, text, state->text);\n"
+    "    LEXbase* lex = &(state->lex);\n"
+    "\n"
+    "    a$dup(u8c, text, lex->text);\n"
     "    sane($ok(text));\n"
     "\n"
-    "    int cs = state->cs;\n"
+    "    int cs = lex->cs;\n"
     "    int res = 0;\n"
     "    u8c *p = (u8c*) text[0];\n"
     "    u8c *pe = (u8c*) text[1];\n"
-    "    u8c *eof = state->tbc ? NULL : pe;\n"
+    "    u8c *eof = pe;\n"
     "    u8c *pb = p;\n"
     "\n"
     "    u32 sp = 2;\n"
@@ -135,14 +136,9 @@ con char *ragel_template =
     "\n"
     "    test(p==text[1], $sfail);\n"
     "\n"
-    "    if (state->tbc) {\n"
-    "        test(cs != $s_error, $sfail);\n"
-    "        state->cs = cs;\n"
-    "    } else {\n"
-    "        test(cs >= $s_first_final, $sfail);\n"
-    "    }\n"
+    "    test(cs >= $s_first_final, $sfail);\n"
     "\n"
     "    nedo(\n"
-    "        state->text[0] = p;\n"
+    "        lex->text[0] = p;\n"
     "    );\n"
     "}\n";

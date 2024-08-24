@@ -7,64 +7,76 @@ machine LEX;
 
 alphtype unsigned char;
 
-action LEXSpace0 { state->mark0[LEXSpace] = p - state->doc[0]; }
+action LEXSpace0 { lex->mark0[LEXSpace] = p - lex->text[0]; }
 action LEXSpace1 {
-    $cu8c tok = {state->doc[0]+state->mark0[LEXSpace], p};
+    tok[0] = lex->text[0] + lex->mark0[LEXSpace];
+    tok[1] = p;
     call(LEXonSpace, tok, state); 
 }
-action LEXName0 { state->mark0[LEXName] = p - state->doc[0]; }
+action LEXName0 { lex->mark0[LEXName] = p - lex->text[0]; }
 action LEXName1 {
-    $cu8c tok = {state->doc[0]+state->mark0[LEXName], p};
+    tok[0] = lex->text[0] + lex->mark0[LEXName];
+    tok[1] = p;
     call(LEXonName, tok, state); 
 }
-action LEXRep0 { state->mark0[LEXRep] = p - state->doc[0]; }
+action LEXRep0 { lex->mark0[LEXRep] = p - lex->text[0]; }
 action LEXRep1 {
-    $cu8c tok = {state->doc[0]+state->mark0[LEXRep], p};
+    tok[0] = lex->text[0] + lex->mark0[LEXRep];
+    tok[1] = p;
     call(LEXonRep, tok, state); 
 }
-action LEXOp0 { state->mark0[LEXOp] = p - state->doc[0]; }
+action LEXOp0 { lex->mark0[LEXOp] = p - lex->text[0]; }
 action LEXOp1 {
-    $cu8c tok = {state->doc[0]+state->mark0[LEXOp], p};
+    tok[0] = lex->text[0] + lex->mark0[LEXOp];
+    tok[1] = p;
     call(LEXonOp, tok, state); 
 }
-action LEXClass0 { state->mark0[LEXClass] = p - state->doc[0]; }
+action LEXClass0 { lex->mark0[LEXClass] = p - lex->text[0]; }
 action LEXClass1 {
-    $cu8c tok = {state->doc[0]+state->mark0[LEXClass], p};
+    tok[0] = lex->text[0] + lex->mark0[LEXClass];
+    tok[1] = p;
     call(LEXonClass, tok, state); 
 }
-action LEXString0 { state->mark0[LEXString] = p - state->doc[0]; }
+action LEXString0 { lex->mark0[LEXString] = p - lex->text[0]; }
 action LEXString1 {
-    $cu8c tok = {state->doc[0]+state->mark0[LEXString], p};
+    tok[0] = lex->text[0] + lex->mark0[LEXString];
+    tok[1] = p;
     call(LEXonString, tok, state); 
 }
-action LEXEntity0 { state->mark0[LEXEntity] = p - state->doc[0]; }
+action LEXEntity0 { lex->mark0[LEXEntity] = p - lex->text[0]; }
 action LEXEntity1 {
-    $cu8c tok = {state->doc[0]+state->mark0[LEXEntity], p};
+    tok[0] = lex->text[0] + lex->mark0[LEXEntity];
+    tok[1] = p;
     call(LEXonEntity, tok, state); 
 }
-action LEXExpr0 { state->mark0[LEXExpr] = p - state->doc[0]; }
+action LEXExpr0 { lex->mark0[LEXExpr] = p - lex->text[0]; }
 action LEXExpr1 {
-    $cu8c tok = {state->doc[0]+state->mark0[LEXExpr], p};
+    tok[0] = lex->text[0] + lex->mark0[LEXExpr];
+    tok[1] = p;
     call(LEXonExpr, tok, state); 
 }
-action LEXRuleName0 { state->mark0[LEXRuleName] = p - state->doc[0]; }
+action LEXRuleName0 { lex->mark0[LEXRuleName] = p - lex->text[0]; }
 action LEXRuleName1 {
-    $cu8c tok = {state->doc[0]+state->mark0[LEXRuleName], p};
+    tok[0] = lex->text[0] + lex->mark0[LEXRuleName];
+    tok[1] = p;
     call(LEXonRuleName, tok, state); 
 }
-action LEXEq0 { state->mark0[LEXEq] = p - state->doc[0]; }
+action LEXEq0 { lex->mark0[LEXEq] = p - lex->text[0]; }
 action LEXEq1 {
-    $cu8c tok = {state->doc[0]+state->mark0[LEXEq], p};
+    tok[0] = lex->text[0] + lex->mark0[LEXEq];
+    tok[1] = p;
     call(LEXonEq, tok, state); 
 }
-action LEXLine0 { state->mark0[LEXLine] = p - state->doc[0]; }
+action LEXLine0 { lex->mark0[LEXLine] = p - lex->text[0]; }
 action LEXLine1 {
-    $cu8c tok = {state->doc[0]+state->mark0[LEXLine], p};
+    tok[0] = lex->text[0] + lex->mark0[LEXLine];
+    tok[1] = p;
     call(LEXonLine, tok, state); 
 }
-action LEXRoot0 { state->mark0[LEXRoot] = p - state->doc[0]; }
+action LEXRoot0 { lex->mark0[LEXRoot] = p - lex->text[0]; }
 action LEXRoot1 {
-    $cu8c tok = {state->doc[0]+state->mark0[LEXRoot], p};
+    tok[0] = lex->text[0] + lex->mark0[LEXRoot];
+    tok[1] = p;
     call(LEXonRoot, tok, state); 
 }
 
@@ -100,14 +112,16 @@ main := LEXRoot;
 %%write data;
 
 pro(LEXlexer, LEXstate* state) {
-    a$dup(u8c, text, state->text);
+    LEXbase* lex = &(state->lex);
+
+    a$dup(u8c, text, lex->text);
     sane($ok(text));
 
-    int cs = state->cs;
+    int cs = lex->cs;
     int res = 0;
     u8c *p = (u8c*) text[0];
     u8c *pe = (u8c*) text[1];
-    u8c *eof = state->tbc ? NULL : pe;
+    u8c *eof = pe;
     u8c *pb = p;
 
     u32 sp = 2;
@@ -118,14 +132,9 @@ pro(LEXlexer, LEXstate* state) {
 
     test(p==text[1], LEXfail);
 
-    if (state->tbc) {
-        test(cs != LEX_error, LEXfail);
-        state->cs = cs;
-    } else {
-        test(cs >= LEX_first_final, LEXfail);
-    }
+    test(cs >= LEX_first_final, LEXfail);
 
     nedo(
-        state->text[0] = p;
+        lex->text[0] = p;
     );
 }
