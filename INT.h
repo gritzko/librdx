@@ -26,7 +26,7 @@ fun int i32cmp(const i32 *a, const i32 *b) {
     if (*a == *b) return 0;
     return *a < *b ? -1 : 1;
 }
-fun int i64cmp(const i16 *a, const i16 *b) {
+fun int i64cmp(const i64 *a, const i64 *b) {
     if (*a == *b) return 0;
     return *a < *b ? -1 : 1;
 }
@@ -82,7 +82,7 @@ fun int $u8cmp(u8 const *const *a, u8 const *const *b) { return $cmp(a, b); }
 #include "Bx.h"
 #undef X
 
-fun int u8c$cmp(u8$ const *a, u8$ const *b) {
+fun int u8c$cmp(u8c$ const *a, u8c$ const *b) {
     if (*a == *b) return 0;
     return *a < *b ? -1 : 1;
 }

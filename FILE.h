@@ -269,4 +269,11 @@ con u8 *const NL[2] = {_NL, _NL + 1};
 #define $print FILEout
 #define $println(s) FILEout(s), FILEout(NL)
 
+#define FILEfeedf(fd, fmt, ...)                  \
+    {                                            \
+        aBpad(u8, _pad, PAGESIZE);               \
+        $feedf(Bu8idle(_pad), fmt, __VA_ARGS__); \
+        FILEfeed(fd, Bu8cdata(_pad));            \
+    }
+
 #endif  // ABC_F_H

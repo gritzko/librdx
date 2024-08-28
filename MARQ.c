@@ -1,67 +1,76 @@
-#include "MARK2.h"
+#include "MARQ.h"
 
-ok64 MARK2onRef0($cu8c tok, MARK2state* state) { return OK; }
+#include <unistd.h>
 
-ok64 MARK2onRef1($cu8c tok, MARK2state* state) { return OK; }
+#include "$.h"
 
-ok64 MARK2onEm0($cu8c tok, MARK2state* state) { return OK; }
-
-ok64 MARK2onEm1($cu8c tok, MARK2state* state) { return OK; }
-
-ok64 MARK2onEm($cu8c tok, MARK2state* state) {
-    a$str(s, "```\n");
-    $print(s);
-    $print(tok);
-    $print(s);
-    size_t f = tok[0] - state->doc[0];
-    size_t t = tok[1] - state->doc[0];
-    for (size_t i = f; i < t; ++i) Bat(state->fmt, i) |= 1 << MARK2_EMPH;
-    return OK;
+pro(MARQrange, MARQfmt fmt, $cu8c tok, MARQstate* state) {
+    sane(state != nil && $ok(tok) && $within(tok, state->text));
+    size_t f = tok[0] - state->text[0];
+    size_t t = tok[1] - state->text[0];
+    for (size_t i = f; i < t; ++i) $at(state->fmt, i) |= 1 << fmt;
+    done;
 }
 
-ok64 MARK2onSt0($cu8c tok, MARK2state* state) {
-    size_t f = tok[0] - state->doc[0];
-    state->mark2[MARK2_STRONG] = f + 1;
-    return OK;
+pro(MARQopenbracket, MARQfmt fmt, $cu8c tok, MARQstate* state) {
+    sane(state != nil && $ok(tok) && $within(tok, state->text));
+    //$u8c tmpl = $u8str("MARQopenbracket '$s' at $u\n");
+    // FILEfeedf(STDOUT_FILENO, tmpl, tok, tok[0] - state->text[0]);
+    u8c$ text = state->text;
+    $u64 $b = {};
+    $u64str0((u64c**)$b, state->brackets);
+    test($len($b) < MARQ_MAX_OPEN_BRACKETS, OK);
+    size_t pos = tok[0] - text[0];
+    *$term($b) = O1join32(pos, fmt);
+    done;
 }
 
-ok64 MARK2onSt1($cu8c tok, MARK2state* state) {
-    size_t t = tok[0] - state->doc[0] + 2;
-    size_t f = state->mark2[MARK2_STRONG];
-    state->mark2[MARK2_STRONG] = 0;
-    for (size_t i = f; i < t; ++i) Bat(state->fmt, i) |= 1 << MARK2_STRONG;
-    return OK;
+pro(MARQclosebracket, MARQfmt fmt, $cu8c tok, MARQstate* state) {
+    sane(state != nil && $ok(tok) && $within(tok, state->text));
+    u8c$ text = state->text;
+    $u64 $b = {};
+    $u64str0((u64c**)$b, state->brackets);
+    a$findif(u64, p, $b, *p != 0 && O1high32(*p) == fmt);
+    test(*p != 0, OK);
+    size_t f = O1low32(*p) + 1;
+    size_t t = tok[1] - text[0];
+    for (size_t i = f; i < t; ++i) $at(state->fmt, i) |= 1 << fmt;
+    $at(state->fmt, f) |= 1 << MARQ_MARKUP;
+    $at(state->fmt, t - 1) |= 1 << MARQ_MARKUP;
+    $rm1p($b, p);
+    $term($b) = 0;
+    done;
 }
 
-ok64 MARK2onSt($cu8c tok, MARK2state* state) {
-    size_t f = tok[0] - state->doc[0];
-    size_t t = tok[1] - state->doc[0];
-    for (size_t i = f; i < t; ++i) Bat(state->fmt, i) |= MARK2_STRONG;
-    return OK;
-}
-ok64 MARK2onRoot($cu8c tok, MARK2state* state) { return OK; }
-
-fun ok64 _MARK2em1($cu8c text, $cu8c tok, MARK2state* state) {
-    printf("\nlen %lu f%lu t%lu\n", $len(tok), tok[0] - text[0],
-           tok[1] - text[0]);
-    for (u64 p = tok[0] - state->doc[0] + 1; p < tok[1] - state->doc[0]; ++p)
-        *Batp(state->fmt, p) |= MARK2_EMPH;
-    return OK;
+ok64 MARQonRef0($cu8c tok, MARQstate* state) {
+    return MARQopenbracket(MARQ_LINK, tok, state);
 }
 
-fun ok64 _MARK2em2($cu8c text, $cu8c tok, MARK2state* state) {
-    $print(text);
-    a$str(s, "em2: ");
-    $print(s);
-    $print(tok);
-    printf("\nlen %lu f%lu t%lu\n", $len(tok), tok[0] - text[0],
-           tok[1] - text[0]);
-    for (u64 p = tok[0] - state->doc[0] + 1; p < tok[1] - state->doc[0]; ++p)
-        *Batp(state->fmt, p) |= MARK2_EMPH;
-    return OK;
+ok64 MARQonRef1($cu8c tok, MARQstate* state) {
+    return MARQclosebracket(MARQ_LINK, tok, state);
 }
 
-fun ok64 _MARK2toemph($cu8c text, $cu8c tok, MARK2state* state) { return OK; }
-fun ok64 _MARK2emph($cu8c text, $cu8c tok, MARK2state* state) { return OK; }
-fun ok64 _MARK2inline($cu8c text, $cu8c tok, MARK2state* state) { return OK; }
-fun ok64 _MARK2root($cu8c text, $cu8c tok, MARK2state* state) { return OK; }
+ok64 MARQonEm0($cu8c tok, MARQstate* state) {
+    return MARQopenbracket(MARQ_EMPH, tok, state);
+}
+
+ok64 MARQonEm1($cu8c tok, MARQstate* state) {
+    return MARQclosebracket(MARQ_EMPH, tok, state);
+}
+
+ok64 MARQonEm($cu8c tok, MARQstate* state) {
+    return MARQrange(MARQ_EMPH, tok, state);
+}
+
+ok64 MARQonSt0($cu8c tok, MARQstate* state) {
+    return MARQopenbracket(MARQ_STRONG, tok, state);
+}
+
+ok64 MARQonSt1($cu8c tok, MARQstate* state) {
+    return MARQclosebracket(MARQ_STRONG, tok, state);
+}
+
+ok64 MARQonSt($cu8c tok, MARQstate* state) {
+    return MARQrange(MARQ_STRONG, tok, state);
+}
+ok64 MARQonRoot($cu8c tok, MARQstate* state) { return OK; }

@@ -24,6 +24,7 @@
 #define $empty(s) ($head(s) >= $term(s))
 #define $nospace(s, l) ($head(s) + (l) > $term(s))
 #define $ok(s) (s != nil && *s != nil && s[1] >= s[0])
+#define $within(n, h) (n[0] >= h[0] && n[1] <= h[1])
 
 #define $sliced(a) \
     { a, a + (sizeof(a) / sizeof(*a)) }
@@ -161,7 +162,7 @@ fun ok64 $feedf(u8 **into, u8 const *const *tmpl, ...) {
                 ++*p;
                 break;
             case 'u':
-                $printf(into, "%u", va_arg(ap, u32));  // TODO
+                $printf(into, "%lu", va_arg(ap, u64));  // TODO
                 ++*p;
                 break;
             case '$':
@@ -189,5 +190,29 @@ fun ok64 $feedf(u8 **into, u8 const *const *tmpl, ...) {
 
 #define zero(s) memset(&s, 0, sizeof(s))
 #define zerop(s) memset(s, 0, sizeof(*s))
+
+#define a$findif(T, p, s, cond)          \
+    T *p = s[0];                         \
+    {                                    \
+        while (p < s[1] && !(cond)) ++p; \
+    }
+
+#define $rm(s, off, len)                                                  \
+    {                                                                     \
+        memmove(s[0] + (off), s[0] + (off) + (len), (len) * sizeof(**s)); \
+        s[1] -= len;                                                      \
+    }
+
+#define $rm1(s, off)                                          \
+    {                                                         \
+        memmove(s[0] + (off), s[0] + (off) + 1, sizeof(**s)); \
+        s[1] -= 1;                                            \
+    }
+
+#define $rm1p(s, p)                                          \
+    {                                                        \
+        memmove(p, p + 1, ((u8c *)s[1]) - ((u8c *)(p + 1))); \
+        s[1] -= 1;                                           \
+    }
 
 #endif  // LIBRDX_$_H

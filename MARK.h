@@ -5,79 +5,41 @@
 
 #include "01.h"
 #include "INT.h"
+#include "MARQ.h"
 #include "OK.h"
 
 con ok64 MARKfail = 0xc2d96a51b296;
 con ok64 MARKnospace = 0x99e5d37cf251b296;
 #define MARKenum 0
-#define MARK2enum 16
 
 typedef enum {
-    MARK_H1 = '1',
-    MARK_H2 = '2',
-    MARK_H3 = '3',
-    MARK_H4 = '4',
-    MARK_HLINE = '~',
-    MARK_P = 'p',
-    MARK_COMA = ',',
-    MARK_INDENT = '_',
-    MARK_OLIST = '.',
-    MARK_ULIST = '-',
-    MARK_LIST = '*',
-    MARK_LINK = '[',
-    MARK_QUOTE = '>',
-} markdiv;
+    MARK_H1 = 1,
+    MARK_H2 = 2,
+    MARK_H3 = 3,
+    MARK_H4 = 4,
+    MARK_HLINE = 5,
+    MARK_CODE = 6,
+    MARK_INDENT = 7,
+    MARK_OLIST = 8,
+    MARK_ULIST = 9,
+    MARK_LINK = 10,
+    MARK_QUOTE = 11,
+} MARKdiv;
 
-con u8 MARK_BITS = 4;
-
-con u64 MARK_ALL_INDENTS = 0x2020202020202020;
-
-fun b8 MARKindents(u64 v, u8 tab) {
-    u64 expect = u64bytecap(MARK_ALL_INDENTS, tab);
-    return u64bytecap(v, tab) == expect;
-}
-
-// con u32 MARK_CLOSE = 1U << 31;
-con u32 NOT_DIV = 0x1U << 30;
-
-typedef u64 link64;
-
-bitpick(link64, pos, 0, 32);
-bitpick(link64, len, 32, 16);
-bitpick(link64, lit, 32 + 16, 8);
+extern char MARKdivascii[];
 
 typedef struct {
-    $u8c doc;
-    $u8c text;
-    int cs;
-    int tbc;
+    MARQstate marq;
 
-    size_t mark0[32];
-    size_t mark2[256];  // FIXME
+    LEXbase lex;
+    size_t _[32];
+
+    $u8 into;
+
+    u64 stack;
     u64 div;
-
-    Bu8cp lines;
-    Bu64 divs;
-    Bu8 fmt;
-    Bu64 links;
 } MARKstate;
 
-ok64 MARKstatealloc(MARKstate* state, $u8c text);
-ok64 MARKstatereset(MARKstate* state);
-ok64 MARKstatefree(MARKstate* state);
-
-fun u8c$ MARKline$(MARKstate const* state, u64 lno) {
-    return state->lines[0] + lno;
-}
-
-ok64 MARKparse(MARKstate* state);
-
 ok64 MARKlexer(MARKstate* state);
-
-ok64 MARK2lexer(MARKstate* state);
-
-ok64 MARKHTML($u8 into, MARKstate const* state);
-
-ok64 MARKansi($u8 into, MARKstate const* state);
 
 #endif

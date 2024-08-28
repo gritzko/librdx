@@ -1,26 +1,26 @@
 #include "PRO.h"
 #include "INT.h"
-#include "MARK2.h"
+#include "MARQ.h"
 
 enum {
-	MARK2Ref0 = MARK2enum+9,
-	MARK2Ref1 = MARK2enum+10,
-	MARK2Em0 = MARK2enum+11,
-	MARK2Em1 = MARK2enum+12,
-	MARK2Em = MARK2enum+13,
-	MARK2St0 = MARK2enum+14,
-	MARK2St1 = MARK2enum+15,
-	MARK2St = MARK2enum+16,
-	MARK2Root = MARK2enum+18,
+	MARQRef0 = MARQenum+9,
+	MARQRef1 = MARQenum+10,
+	MARQEm0 = MARQenum+11,
+	MARQEm1 = MARQenum+12,
+	MARQEm = MARQenum+13,
+	MARQSt0 = MARQenum+14,
+	MARQSt1 = MARQenum+15,
+	MARQSt = MARQenum+16,
+	MARQRoot = MARQenum+18,
 };
-ok64 MARK2onRef0 ($cu8c tok, MARK2state* state);
-ok64 MARK2onRef1 ($cu8c tok, MARK2state* state);
-ok64 MARK2onEm0 ($cu8c tok, MARK2state* state);
-ok64 MARK2onEm1 ($cu8c tok, MARK2state* state);
-ok64 MARK2onEm ($cu8c tok, MARK2state* state);
-ok64 MARK2onSt0 ($cu8c tok, MARK2state* state);
-ok64 MARK2onSt1 ($cu8c tok, MARK2state* state);
-ok64 MARK2onSt ($cu8c tok, MARK2state* state);
-ok64 MARK2onRoot ($cu8c tok, MARK2state* state);
+ok64 MARQonRef0 ($cu8c tok, MARQstate* state);
+ok64 MARQonRef1 ($cu8c tok, MARQstate* state);
+ok64 MARQonEm0 ($cu8c tok, MARQstate* state);
+ok64 MARQonEm1 ($cu8c tok, MARQstate* state);
+ok64 MARQonEm ($cu8c tok, MARQstate* state);
+ok64 MARQonSt0 ($cu8c tok, MARQstate* state);
+ok64 MARQonSt1 ($cu8c tok, MARQstate* state);
+ok64 MARQonSt ($cu8c tok, MARQstate* state);
+ok64 MARQonRoot ($cu8c tok, MARQstate* state);
 
 

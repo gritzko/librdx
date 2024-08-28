@@ -4,6 +4,8 @@
 #define T X(, )
 
 typedef T *const X(B, )[4];
+typedef T **X(, B);
+typedef T const **X(, cB);
 
 fun T *const *X(B, past)(X(B, ) buf) { return (X(, ) **)buf + 0; }
 fun T **X(B, data)(X(B, ) buf) { return (X(, ) **)buf + 1; }

@@ -117,4 +117,12 @@ fun void X(, swap)(T *a, T *b) {
     memcpy(b, &c, sizeof(T));
 }
 
+fun void X($, str0)(X($, c) s, T const *a) {
+    T zero = {};
+    s[0] = a;
+    size_t i = 0;
+    while (X(, cmp)((T const *)&zero, a + i) != 0) ++i;
+    s[1] = a + i;
+}
+
 #undef T

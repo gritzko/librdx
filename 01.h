@@ -195,16 +195,22 @@ fun h64 mix64(u64 a) {
 #define MB (1UL << 20)
 #define KB (1UL << 10)
 
-#define bitpick(T, N, OFF, LEN)                         \
-    fun T T##N(T val) {                                 \
-        T one = 1;                                      \
-        return (val >> (OFF)) & ((one << LEN) - one);   \
-    }                                                   \
-    fun T T##set##N(T val) {                            \
-        T one = 1;                                      \
-        T mask = ((one << (LEN)) - one) << (OFF);       \
-        return (val & ~mask) | ((val << (OFF)) & mask); \
-    }
+#define O1join32(lo, hi) (((u64)lo) | (((u64)hi) << 32))
+#define O1low32(lohi) (((u64)lohi) & 0xffffffff)
+#define O1high32(lohi) (((u64)lohi) >> 32)
+
+#define bitmask(l) ((1UL << l) - 1)
+#define bitpack(a, h, l) (((u64)(a) & bitmask(l)) << (h))
+#define bitpick(u, h, l) ((u >> h) & bitmask(l))
+#define bitpack4816(a, b) (bitpack(a, 0, 48) | bitpack(b, 48, 16))
+#define bitpick4816a(u) (u & 0xffffffffffffUL)
+#define bitpick4816b(u) (u >> 48)
+
+#define bitpack4888(a, b, c) \
+    (bitpack(a, 0, 48) | bitpack(b, 48, 8) | bitpack(c, 56, 8))
+#define bitpick4888a(u) bitpick(u, 0, 48)
+#define bitpick4888b(u) bitpick(u, 48, 8)
+#define bitpick4888c(u) bitpick(u, 56, 8)
 
 fun u8 u8bytelen(u8 u) { return u == 0 ? 0 : 1; }
 
@@ -228,10 +234,6 @@ fun u64 u64setbyte(u64 u, u8 b, u8 ndx) {
     u64 mask = 0xffUL << shift;
     u64 newval = ((u64)b) << shift;
     return (u & ~mask) | newval;
-}
-
-fun u64 u64bytecap(u64 v, u8 bytes) {
-    return v && (UINT64_MAX << (bytes << 3));
 }
 
 fun u64 u64lowbytes(u64 u, u8 keep) {

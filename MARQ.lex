@@ -7,14 +7,14 @@ wsp = ws | punkt;
 word = nonws +;
 words = word ( ws+ word )*;
 
-Ref0 = ws "[" nonws;
+Ref0 = wsp "[" nonws;
 Ref1 = nonws "][" alpha "]";
 
 Em0 = wsp "_" nonws;
 Em1 = nonws "_" wsp;
 Em = "_" (word ws+)* word? (nonws-"\\") :>> "_";
 
-St0 = ws "*" nonws;
+St0 = wsp "*" nonws;
 St1 = [^\t\r\n *] "*";
 St = "*" (word ws+)* word? (nonws-"\\") :>> "*";
 

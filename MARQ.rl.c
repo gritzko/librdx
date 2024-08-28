@@ -1,15 +1,15 @@
 
-#line 1 "MARK2.rl"
-#include "MARK2.rl.h"
+#line 1 "MARQ.rl"
+#include "MARQ.rl.h"
 
 
 
-#line 107 "MARK2.rl"
+#line 107 "MARQ.rl"
 
 
 
-#line 7 "MARK2.rl.c"
-static const char _MARK2_actions[] = {
+#line 7 "MARQ.rl.c"
+static const char _MARQ_actions[] = {
 	0, 1, 15, 2, 1, 15, 2, 3, 
 	15, 2, 5, 15, 2, 6, 2, 2, 
 	7, 15, 2, 9, 15, 2, 11, 15, 
@@ -58,7 +58,7 @@ static const char _MARK2_actions[] = {
 	6, 13, 1, 6, 8, 12, 2
 };
 
-static const short _MARK2_key_offsets[] = {
+static const short _MARQ_key_offsets[] = {
 	0, 15, 31, 47, 63, 79, 95, 112, 
 	134, 150, 167, 184, 201, 218, 235, 252, 
 	269, 286, 303, 321, 344, 361, 379, 394, 
@@ -69,7 +69,7 @@ static const short _MARK2_key_offsets[] = {
 	949
 };
 
-static const unsigned char _MARK2_trans_keys[] = {
+static const unsigned char _MARQ_trans_keys[] = {
 	13u, 32u, 42u, 63u, 95u, 9u, 10u, 33u, 
 	34u, 39u, 41u, 44u, 46u, 58u, 59u, 13u, 
 	32u, 42u, 63u, 93u, 95u, 9u, 10u, 33u, 
@@ -193,7 +193,7 @@ static const unsigned char _MARK2_trans_keys[] = {
 	39u, 41u, 44u, 46u, 58u, 59u, 0
 };
 
-static const char _MARK2_single_lengths[] = {
+static const char _MARQ_single_lengths[] = {
 	5, 6, 6, 6, 6, 6, 7, 6, 
 	6, 7, 7, 7, 7, 7, 7, 7, 
 	7, 7, 8, 7, 7, 8, 5, 7, 
@@ -204,7 +204,7 @@ static const char _MARK2_single_lengths[] = {
 	7
 };
 
-static const char _MARK2_range_lengths[] = {
+static const char _MARQ_range_lengths[] = {
 	5, 5, 5, 5, 5, 5, 5, 8, 
 	5, 5, 5, 5, 5, 5, 5, 5, 
 	5, 5, 5, 8, 5, 5, 5, 5, 
@@ -215,7 +215,7 @@ static const char _MARK2_range_lengths[] = {
 	5
 };
 
-static const short _MARK2_index_offsets[] = {
+static const short _MARQ_index_offsets[] = {
 	0, 11, 23, 35, 47, 59, 71, 84, 
 	99, 111, 124, 137, 150, 163, 176, 189, 
 	202, 215, 228, 242, 258, 271, 285, 296, 
@@ -226,7 +226,7 @@ static const short _MARK2_index_offsets[] = {
 	719
 };
 
-static const unsigned char _MARK2_indicies[] = {
+static const unsigned char _MARQ_indicies[] = {
 	1, 1, 3, 2, 4, 1, 2, 2, 
 	2, 2, 0, 6, 6, 8, 7, 9, 
 	10, 6, 7, 7, 7, 7, 5, 6, 
@@ -321,7 +321,7 @@ static const unsigned char _MARK2_indicies[] = {
 	106, 106, 106, 105, 0
 };
 
-static const char _MARK2_trans_targs[] = {
+static const char _MARQ_trans_targs[] = {
 	1, 2, 3, 5, 23, 1, 2, 3, 
 	4, 6, 10, 41, 50, 56, 44, 1, 
 	2, 3, 5, 6, 10, 5, 7, 8, 
@@ -348,7 +348,7 @@ static const char _MARK2_trans_targs[] = {
 	40, 36
 };
 
-static const short _MARK2_trans_actions[] = {
+static const short _MARQ_trans_actions[] = {
 	196, 191, 327, 82, 333, 58, 38, 106, 
 	12, 58, 141, 12, 58, 141, 141, 186, 
 	181, 315, 78, 186, 321, 12, 58, 58, 
@@ -375,7 +375,7 @@ static const short _MARK2_trans_actions[] = {
 	86, 201
 };
 
-static const short _MARK2_eof_actions[] = {
+static const short _MARQ_eof_actions[] = {
 	27, 1, 1, 1, 24, 1, 1, 1, 
 	1, 6, 1, 1, 1, 1, 21, 24, 
 	1, 1, 1, 1, 1, 6, 18, 1, 
@@ -386,38 +386,40 @@ static const short _MARK2_eof_actions[] = {
 	1
 };
 
-static const int MARK2_start = 0;
-static const int MARK2_first_final = 0;
-static const int MARK2_error = -1;
+static const int MARQ_start = 0;
+static const int MARQ_first_final = 0;
+static const int MARQ_error = -1;
 
-static const int MARK2_en_main = 0;
+static const int MARQ_en_main = 0;
 
 
-#line 110 "MARK2.rl"
+#line 110 "MARQ.rl"
 
-pro(MARK2lexer, MARK2state* state) {
+pro(MARQlexer, MARQstate* state) {
+
     a$dup(u8c, text, state->text);
     sane($ok(text));
 
-    int cs = state->cs;
+    int cs = 0;
     int res = 0;
     u8c *p = (u8c*) text[0];
     u8c *pe = (u8c*) text[1];
-    u8c *eof = state->tbc ? NULL : pe;
+    u8c *eof = pe;
     u8c *pb = p;
+    u64 mark0[64] = {};
 
     u32 sp = 2;
     $u8c tok = {p, p};
 
     
-#line 405 "MARK2.rl.c"
+#line 407 "MARQ.rl.c"
 	{
-	cs = MARK2_start;
+	cs = MARQ_start;
 	}
 
-#line 126 "MARK2.rl"
+#line 128 "MARQ.rl"
     
-#line 408 "MARK2.rl.c"
+#line 410 "MARQ.rl.c"
 	{
 	int _klen;
 	unsigned int _trans;
@@ -428,10 +430,10 @@ pro(MARK2lexer, MARK2state* state) {
 	if ( p == pe )
 		goto _test_eof;
 _resume:
-	_keys = _MARK2_trans_keys + _MARK2_key_offsets[cs];
-	_trans = _MARK2_index_offsets[cs];
+	_keys = _MARQ_trans_keys + _MARQ_key_offsets[cs];
+	_trans = _MARQ_index_offsets[cs];
 
-	_klen = _MARK2_single_lengths[cs];
+	_klen = _MARQ_single_lengths[cs];
 	if ( _klen > 0 ) {
 		const unsigned char *_lower = _keys;
 		const unsigned char *_mid;
@@ -454,7 +456,7 @@ _resume:
 		_trans += _klen;
 	}
 
-	_klen = _MARK2_range_lengths[cs];
+	_klen = _MARQ_range_lengths[cs];
 	if ( _klen > 0 ) {
 		const unsigned char *_lower = _keys;
 		const unsigned char *_mid;
@@ -477,107 +479,107 @@ _resume:
 	}
 
 _match:
-	_trans = _MARK2_indicies[_trans];
-	cs = _MARK2_trans_targs[_trans];
+	_trans = _MARQ_indicies[_trans];
+	cs = _MARQ_trans_targs[_trans];
 
-	if ( _MARK2_trans_actions[_trans] == 0 )
+	if ( _MARQ_trans_actions[_trans] == 0 )
 		goto _again;
 
-	_acts = _MARK2_actions + _MARK2_trans_actions[_trans];
+	_acts = _MARQ_actions + _MARQ_trans_actions[_trans];
 	_nacts = (unsigned int) *_acts++;
 	while ( _nacts-- > 0 )
 	{
 		switch ( *_acts++ )
 		{
 	case 0:
-#line 10 "MARK2.rl"
-	{ state->mark0[MARK2Ref0] = p - state->doc[0]; }
+#line 10 "MARQ.rl"
+	{ mark0[MARQRef0] = p - text[0]; }
 	break;
 	case 1:
-#line 11 "MARK2.rl"
+#line 11 "MARQ.rl"
 	{
-    tok[0] = state->doc[0]+state->mark0[MARK2Ref0];
+    tok[0] = text[0] + mark0[MARQRef0];
     tok[1] = p;
-    call(MARK2onRef0, tok, state); 
+    call(MARQonRef0, tok, state); 
 }
 	break;
 	case 2:
-#line 16 "MARK2.rl"
-	{ state->mark0[MARK2Ref1] = p - state->doc[0]; }
+#line 16 "MARQ.rl"
+	{ mark0[MARQRef1] = p - text[0]; }
 	break;
 	case 3:
-#line 17 "MARK2.rl"
+#line 17 "MARQ.rl"
 	{
-    tok[0] = state->doc[0]+state->mark0[MARK2Ref1];
+    tok[0] = text[0] + mark0[MARQRef1];
     tok[1] = p;
-    call(MARK2onRef1, tok, state); 
+    call(MARQonRef1, tok, state); 
 }
 	break;
 	case 4:
-#line 22 "MARK2.rl"
-	{ state->mark0[MARK2Em0] = p - state->doc[0]; }
+#line 22 "MARQ.rl"
+	{ mark0[MARQEm0] = p - text[0]; }
 	break;
 	case 5:
-#line 23 "MARK2.rl"
+#line 23 "MARQ.rl"
 	{
-    tok[0] = state->doc[0]+state->mark0[MARK2Em0];
+    tok[0] = text[0] + mark0[MARQEm0];
     tok[1] = p;
-    call(MARK2onEm0, tok, state); 
+    call(MARQonEm0, tok, state); 
 }
 	break;
 	case 6:
-#line 28 "MARK2.rl"
-	{ state->mark0[MARK2Em1] = p - state->doc[0]; }
+#line 28 "MARQ.rl"
+	{ mark0[MARQEm1] = p - text[0]; }
 	break;
 	case 7:
-#line 29 "MARK2.rl"
+#line 29 "MARQ.rl"
 	{
-    tok[0] = state->doc[0]+state->mark0[MARK2Em1];
+    tok[0] = text[0] + mark0[MARQEm1];
     tok[1] = p;
-    call(MARK2onEm1, tok, state); 
+    call(MARQonEm1, tok, state); 
 }
 	break;
 	case 8:
-#line 34 "MARK2.rl"
-	{ state->mark0[MARK2Em] = p - state->doc[0]; }
+#line 34 "MARQ.rl"
+	{ mark0[MARQEm] = p - text[0]; }
 	break;
 	case 9:
-#line 35 "MARK2.rl"
+#line 35 "MARQ.rl"
 	{
-    tok[0] = state->doc[0]+state->mark0[MARK2Em];
+    tok[0] = text[0] + mark0[MARQEm];
     tok[1] = p;
-    call(MARK2onEm, tok, state); 
+    call(MARQonEm, tok, state); 
 }
 	break;
 	case 10:
-#line 40 "MARK2.rl"
-	{ state->mark0[MARK2St0] = p - state->doc[0]; }
+#line 40 "MARQ.rl"
+	{ mark0[MARQSt0] = p - text[0]; }
 	break;
 	case 11:
-#line 41 "MARK2.rl"
+#line 41 "MARQ.rl"
 	{
-    tok[0] = state->doc[0]+state->mark0[MARK2St0];
+    tok[0] = text[0] + mark0[MARQSt0];
     tok[1] = p;
-    call(MARK2onSt0, tok, state); 
+    call(MARQonSt0, tok, state); 
 }
 	break;
 	case 12:
-#line 46 "MARK2.rl"
-	{ state->mark0[MARK2St1] = p - state->doc[0]; }
+#line 46 "MARQ.rl"
+	{ mark0[MARQSt1] = p - text[0]; }
 	break;
 	case 13:
-#line 47 "MARK2.rl"
+#line 47 "MARQ.rl"
 	{
-    tok[0] = state->doc[0]+state->mark0[MARK2St1];
+    tok[0] = text[0] + mark0[MARQSt1];
     tok[1] = p;
-    call(MARK2onSt1, tok, state); 
+    call(MARQonSt1, tok, state); 
 }
 	break;
 	case 14:
-#line 58 "MARK2.rl"
-	{ state->mark0[MARK2Root] = p - state->doc[0]; }
+#line 58 "MARQ.rl"
+	{ mark0[MARQRoot] = p - text[0]; }
 	break;
-#line 552 "MARK2.rl.c"
+#line 554 "MARQ.rl.c"
 		}
 	}
 
@@ -587,97 +589,92 @@ _again:
 	_test_eof: {}
 	if ( p == eof )
 	{
-	const char *__acts = _MARK2_actions + _MARK2_eof_actions[cs];
+	const char *__acts = _MARQ_actions + _MARQ_eof_actions[cs];
 	unsigned int __nacts = (unsigned int) *__acts++;
 	while ( __nacts-- > 0 ) {
 		switch ( *__acts++ ) {
 	case 1:
-#line 11 "MARK2.rl"
+#line 11 "MARQ.rl"
 	{
-    tok[0] = state->doc[0]+state->mark0[MARK2Ref0];
+    tok[0] = text[0] + mark0[MARQRef0];
     tok[1] = p;
-    call(MARK2onRef0, tok, state); 
+    call(MARQonRef0, tok, state); 
 }
 	break;
 	case 3:
-#line 17 "MARK2.rl"
+#line 17 "MARQ.rl"
 	{
-    tok[0] = state->doc[0]+state->mark0[MARK2Ref1];
+    tok[0] = text[0] + mark0[MARQRef1];
     tok[1] = p;
-    call(MARK2onRef1, tok, state); 
+    call(MARQonRef1, tok, state); 
 }
 	break;
 	case 5:
-#line 23 "MARK2.rl"
+#line 23 "MARQ.rl"
 	{
-    tok[0] = state->doc[0]+state->mark0[MARK2Em0];
+    tok[0] = text[0] + mark0[MARQEm0];
     tok[1] = p;
-    call(MARK2onEm0, tok, state); 
+    call(MARQonEm0, tok, state); 
 }
 	break;
 	case 7:
-#line 29 "MARK2.rl"
+#line 29 "MARQ.rl"
 	{
-    tok[0] = state->doc[0]+state->mark0[MARK2Em1];
+    tok[0] = text[0] + mark0[MARQEm1];
     tok[1] = p;
-    call(MARK2onEm1, tok, state); 
+    call(MARQonEm1, tok, state); 
 }
 	break;
 	case 9:
-#line 35 "MARK2.rl"
+#line 35 "MARQ.rl"
 	{
-    tok[0] = state->doc[0]+state->mark0[MARK2Em];
+    tok[0] = text[0] + mark0[MARQEm];
     tok[1] = p;
-    call(MARK2onEm, tok, state); 
+    call(MARQonEm, tok, state); 
 }
 	break;
 	case 11:
-#line 41 "MARK2.rl"
+#line 41 "MARQ.rl"
 	{
-    tok[0] = state->doc[0]+state->mark0[MARK2St0];
+    tok[0] = text[0] + mark0[MARQSt0];
     tok[1] = p;
-    call(MARK2onSt0, tok, state); 
+    call(MARQonSt0, tok, state); 
 }
 	break;
 	case 13:
-#line 47 "MARK2.rl"
+#line 47 "MARQ.rl"
 	{
-    tok[0] = state->doc[0]+state->mark0[MARK2St1];
+    tok[0] = text[0] + mark0[MARQSt1];
     tok[1] = p;
-    call(MARK2onSt1, tok, state); 
+    call(MARQonSt1, tok, state); 
 }
 	break;
 	case 14:
-#line 58 "MARK2.rl"
-	{ state->mark0[MARK2Root] = p - state->doc[0]; }
+#line 58 "MARQ.rl"
+	{ mark0[MARQRoot] = p - text[0]; }
 	break;
 	case 15:
-#line 59 "MARK2.rl"
+#line 59 "MARQ.rl"
 	{
-    tok[0] = state->doc[0]+state->mark0[MARK2Root];
+    tok[0] = text[0] + mark0[MARQRoot];
     tok[1] = p;
-    call(MARK2onRoot, tok, state); 
+    call(MARQonRoot, tok, state); 
 }
 	break;
-#line 624 "MARK2.rl.c"
+#line 626 "MARQ.rl.c"
 		}
 	}
 	}
 
 	}
 
-#line 127 "MARK2.rl"
+#line 129 "MARQ.rl"
 
-    test(p==text[1], MARK2fail);
+    test(p==text[1], MARQfail);
 
-    if (state->tbc) {
-        test(cs != MARK2_error, MARK2fail);
-        state->cs = cs;
-    } else {
-        test(cs >= MARK2_first_final, MARK2fail);
-    }
+    test(cs >= MARQ_first_final, MARQfail);
 
     nedo(
-        state->text[0] = p;
+        text[0] = p;
     );
 }

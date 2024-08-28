@@ -1,123 +1,125 @@
-#include "MARK2.rl.h"
+#include "MARQ.rl.h"
 
 
 %%{
 
-machine MARK2;
+machine MARQ;
 
 alphtype unsigned char;
 
-action MARK2Ref00 { state->mark0[MARK2Ref0] = p - state->doc[0]; }
-action MARK2Ref01 {
-    tok[0] = state->doc[0]+state->mark0[MARK2Ref0];
+action MARQRef00 { mark0[MARQRef0] = p - text[0]; }
+action MARQRef01 {
+    tok[0] = text[0] + mark0[MARQRef0];
     tok[1] = p;
-    call(MARK2onRef0, tok, state); 
+    call(MARQonRef0, tok, state); 
 }
-action MARK2Ref10 { state->mark0[MARK2Ref1] = p - state->doc[0]; }
-action MARK2Ref11 {
-    tok[0] = state->doc[0]+state->mark0[MARK2Ref1];
+action MARQRef10 { mark0[MARQRef1] = p - text[0]; }
+action MARQRef11 {
+    tok[0] = text[0] + mark0[MARQRef1];
     tok[1] = p;
-    call(MARK2onRef1, tok, state); 
+    call(MARQonRef1, tok, state); 
 }
-action MARK2Em00 { state->mark0[MARK2Em0] = p - state->doc[0]; }
-action MARK2Em01 {
-    tok[0] = state->doc[0]+state->mark0[MARK2Em0];
+action MARQEm00 { mark0[MARQEm0] = p - text[0]; }
+action MARQEm01 {
+    tok[0] = text[0] + mark0[MARQEm0];
     tok[1] = p;
-    call(MARK2onEm0, tok, state); 
+    call(MARQonEm0, tok, state); 
 }
-action MARK2Em10 { state->mark0[MARK2Em1] = p - state->doc[0]; }
-action MARK2Em11 {
-    tok[0] = state->doc[0]+state->mark0[MARK2Em1];
+action MARQEm10 { mark0[MARQEm1] = p - text[0]; }
+action MARQEm11 {
+    tok[0] = text[0] + mark0[MARQEm1];
     tok[1] = p;
-    call(MARK2onEm1, tok, state); 
+    call(MARQonEm1, tok, state); 
 }
-action MARK2Em0 { state->mark0[MARK2Em] = p - state->doc[0]; }
-action MARK2Em1 {
-    tok[0] = state->doc[0]+state->mark0[MARK2Em];
+action MARQEm0 { mark0[MARQEm] = p - text[0]; }
+action MARQEm1 {
+    tok[0] = text[0] + mark0[MARQEm];
     tok[1] = p;
-    call(MARK2onEm, tok, state); 
+    call(MARQonEm, tok, state); 
 }
-action MARK2St00 { state->mark0[MARK2St0] = p - state->doc[0]; }
-action MARK2St01 {
-    tok[0] = state->doc[0]+state->mark0[MARK2St0];
+action MARQSt00 { mark0[MARQSt0] = p - text[0]; }
+action MARQSt01 {
+    tok[0] = text[0] + mark0[MARQSt0];
     tok[1] = p;
-    call(MARK2onSt0, tok, state); 
+    call(MARQonSt0, tok, state); 
 }
-action MARK2St10 { state->mark0[MARK2St1] = p - state->doc[0]; }
-action MARK2St11 {
-    tok[0] = state->doc[0]+state->mark0[MARK2St1];
+action MARQSt10 { mark0[MARQSt1] = p - text[0]; }
+action MARQSt11 {
+    tok[0] = text[0] + mark0[MARQSt1];
     tok[1] = p;
-    call(MARK2onSt1, tok, state); 
+    call(MARQonSt1, tok, state); 
 }
-action MARK2St0 { state->mark0[MARK2St] = p - state->doc[0]; }
-action MARK2St1 {
-    tok[0] = state->doc[0]+state->mark0[MARK2St];
+action MARQSt0 { mark0[MARQSt] = p - text[0]; }
+action MARQSt1 {
+    tok[0] = text[0] + mark0[MARQSt];
     tok[1] = p;
-    call(MARK2onSt, tok, state); 
+    call(MARQonSt, tok, state); 
 }
-action MARK2Root0 { state->mark0[MARK2Root] = p - state->doc[0]; }
-action MARK2Root1 {
-    tok[0] = state->doc[0]+state->mark0[MARK2Root];
+action MARQRoot0 { mark0[MARQRoot] = p - text[0]; }
+action MARQRoot1 {
+    tok[0] = text[0] + mark0[MARQRoot];
     tok[1] = p;
-    call(MARK2onRoot, tok, state); 
+    call(MARQonRoot, tok, state); 
 }
 
-MARK2alpha  = (   [0-9A-Za-z] );
+MARQalpha  = (   [0-9A-Za-z] );
 
-MARK2ws  = (   [ \t\n\r] );
+MARQws  = (   [ \t\n\r] );
 
-MARK2any  = (   [0-0xff] );
+MARQany  = (   [0-0xff] );
 
-MARK2nonws  = (   [^ \t\n\r] );
+MARQnonws  = (   [^ \t\n\r] );
 
-MARK2punkt  = (   [,.;:!?\-"'()"] );
+MARQpunkt  = (   [,.;:!?\-"'()"] );
 
-MARK2wsp  = (   MARK2ws  |  MARK2punkt );
+MARQwsp  = (   MARQws  |  MARQpunkt );
 
-MARK2word  = (   MARK2nonws  + );
+MARQword  = (   MARQnonws  + );
 
-MARK2words  = (   MARK2word  (  MARK2ws+  MARK2word  )* );
-
-
-MARK2Ref0  = (   MARK2ws  "["  MARK2nonws )  >MARK2Ref00 %MARK2Ref01;
-
-MARK2Ref1  = (   MARK2nonws  "]["  MARK2alpha  "]" )  >MARK2Ref10 %MARK2Ref11;
+MARQwords  = (   MARQword  (  MARQws+  MARQword  )* );
 
 
-MARK2Em0  = (   MARK2wsp  "_"  MARK2nonws )  >MARK2Em00 %MARK2Em01;
+MARQRef0  = (   MARQwsp  "["  MARQnonws )  >MARQRef00 %MARQRef01;
 
-MARK2Em1  = (   MARK2nonws  "_"  MARK2wsp )  >MARK2Em10 %MARK2Em11;
-
-MARK2Em  = (   "_"  (MARK2word  MARK2ws+)*  MARK2word?  (MARK2nonws-"\\")  :>>  "_" )  >MARK2Em0 %MARK2Em1;
+MARQRef1  = (   MARQnonws  "]["  MARQalpha  "]" )  >MARQRef10 %MARQRef11;
 
 
-MARK2St0  = (   MARK2ws  "*"  MARK2nonws )  >MARK2St00 %MARK2St01;
+MARQEm0  = (   MARQwsp  "_"  MARQnonws )  >MARQEm00 %MARQEm01;
 
-MARK2St1  = (   [^\t\r\n *]  "*" )  >MARK2St10 %MARK2St11;
+MARQEm1  = (   MARQnonws  "_"  MARQwsp )  >MARQEm10 %MARQEm11;
 
-MARK2St  = (   "*"  (MARK2word  MARK2ws+)*  MARK2word?  (MARK2nonws-"\\")  :>>  "*" )  >MARK2St0 %MARK2St1;
+MARQEm  = (   "_"  (MARQword  MARQws+)*  MARQword?  (MARQnonws-"\\")  :>>  "_" )  >MARQEm0 %MARQEm1;
 
 
-MARK2inline  = (   MARK2words  |  MARK2Em0  |  MARK2Em1  |  MARK2Em  |  MARK2St0  |  MARK2St1  |  MARK2Ref0  |  MARK2Ref1 );
+MARQSt0  = (   MARQwsp  "*"  MARQnonws )  >MARQSt00 %MARQSt01;
 
-MARK2Root  = (   (MARK2ws*  MARK2inline)*  MARK2ws* )  >MARK2Root0 %MARK2Root1;
+MARQSt1  = (   [^\t\r\n *]  "*" )  >MARQSt10 %MARQSt11;
 
-main := MARK2Root;
+MARQSt  = (   "*"  (MARQword  MARQws+)*  MARQword?  (MARQnonws-"\\")  :>>  "*" )  >MARQSt0 %MARQSt1;
+
+
+MARQinline  = (   MARQwords  |  MARQEm0  |  MARQEm1  |  MARQEm  |  MARQSt0  |  MARQSt1  |  MARQRef0  |  MARQRef1 );
+
+MARQRoot  = (   (MARQws*  MARQinline)*  MARQws* )  >MARQRoot0 %MARQRoot1;
+
+main := MARQRoot;
 
 }%%
 
 %%write data;
 
-pro(MARK2lexer, MARK2state* state) {
+pro(MARQlexer, MARQstate* state) {
+
     a$dup(u8c, text, state->text);
     sane($ok(text));
 
-    int cs = state->cs;
+    int cs = 0;
     int res = 0;
     u8c *p = (u8c*) text[0];
     u8c *pe = (u8c*) text[1];
-    u8c *eof = state->tbc ? NULL : pe;
+    u8c *eof = pe;
     u8c *pb = p;
+    u64 mark0[64] = {};
 
     u32 sp = 2;
     $u8c tok = {p, p};
@@ -125,16 +127,11 @@ pro(MARK2lexer, MARK2state* state) {
     %% write init;
     %% write exec;
 
-    test(p==text[1], MARK2fail);
+    test(p==text[1], MARQfail);
 
-    if (state->tbc) {
-        test(cs != MARK2_error, MARK2fail);
-        state->cs = cs;
-    } else {
-        test(cs >= MARK2_first_final, MARK2fail);
-    }
+    test(cs >= MARQ_first_final, MARQfail);
 
     nedo(
-        state->text[0] = p;
+        text[0] = p;
     );
 }
