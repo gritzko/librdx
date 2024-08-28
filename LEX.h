@@ -9,17 +9,8 @@ con ok64 LEXnoroom = 0x31cf3db3ca1395;
 
 #define LEXenum 0
 
-// can zero this structure to restart the parser;
-// that includes the marks array, whatever its size is.
 typedef struct {
     $u8c text;
-    int cs;
-    u64 mark0[0];
-} LEXbase;
-
-typedef struct {
-    LEXbase lex;
-    u64 _[32];
 
     u8c$ mod;
 

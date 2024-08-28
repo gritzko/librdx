@@ -19,7 +19,6 @@ pro(lex2rl, $u8c mod) {
     aBpad(u8, enmpad, KB);
     aBpad(u8, fnspad, KB * 4);
     LEXstate state = {
-        .lex = {},
         .mod = mod,
         .syn = Bu8idle(synpad),
         .act = Bu8idle(actpad),
@@ -34,6 +33,14 @@ pro(lex2rl, $u8c mod) {
     int fd;
     call(FILEopen, &fd, Bu8cdata(name), O_RDONLY);
 
+    aBpad(u8, syn, MB);
+    call(FILEdrainall, Bu8idle(syn), fd);
+
+    $mv(state.text, Bu8cdata(syn));
+    call(LEXlexer, &state);
+
+    call(FILEclose, fd);
+
     aBpad(u8, hname, KB);
     $u8c $hnamet = $u8str("$s.rl.h");
     $feedf(Bu8idle(hname), $hnamet, mod);
@@ -47,15 +54,6 @@ pro(lex2rl, $u8c mod) {
 
     int rfd;
     call(FILEcreate, &rfd, Bu8cdata(rname));
-
-    aBpad(u8, syn, MB);
-    call(FILEdrainall, Bu8idle(syn), fd);
-
-    $mv(state.lex.text, Bu8cdata(syn));
-    call(LEXlexer, &state);
-
-    call(FILEclose, fd);
-
     aBpad(u8, rpad, MB);
     a$strc(rtmpl, ragel_template);
     $feedf(Bu8idle(rpad), rtmpl, mod, mod, Bu8cdata(actpad), Bu8cdata(synpad),
@@ -69,7 +67,7 @@ pro(lex2rl, $u8c mod) {
     call(FILEfeed, hfd, Bu8cdata(hpad));
     call(FILEclose, hfd);
 
-    nedo($println(state.lex.text));
+    nedo($println(state.text));
 }
 
 int main(int argn, char **args) {
@@ -116,17 +114,17 @@ con char *ragel_template =
     "%%write data;\n"
     "\n"
     "pro($slexer, $sstate* state) {\n"
-    "    LEXbase* lex = &(state->lex);\n"
     "\n"
-    "    a$dup(u8c, text, lex->text);\n"
+    "    a$dup(u8c, text, state->text);\n"
     "    sane($ok(text));\n"
     "\n"
-    "    int cs = lex->cs;\n"
+    "    int cs = 0;\n"
     "    int res = 0;\n"
     "    u8c *p = (u8c*) text[0];\n"
     "    u8c *pe = (u8c*) text[1];\n"
     "    u8c *eof = pe;\n"
     "    u8c *pb = p;\n"
+    "    u64 mark0[64] = {};\n"
     "\n"
     "    u32 sp = 2;\n"
     "    $$u8c tok = {p, p};\n"
@@ -139,6 +137,6 @@ con char *ragel_template =
     "    test(cs >= $s_first_final, $sfail);\n"
     "\n"
     "    nedo(\n"
-    "        lex->text[0] = p;\n"
+    "        text[0] = p;\n"
     "    );\n"
     "}\n";
