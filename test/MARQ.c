@@ -42,18 +42,33 @@ pro(MARQANSItest) {
 pro(MARQHTMLtest) {
     sane(1);
     MARQstate state = {};
-    aBpad(u8, into, 1024);
-    aBpad(u8, pfmt, PAGESIZE);
-    a$strc(mark, "some *bold* text\n");
-    $mv(state.text, mark);
-    $mv(state.fmt, Bu8idle(pfmt));
+#define MARQHTMLcases 2
+    $u8c QA[MARQHTMLcases][2] = {
+        {$u8str("some text\n"), $u8str("<span>some text\n</span>")},
+        {$u8str("some *bold* text\n"),
+         $u8str("<span>some </span>"
+                "<span class='mark strong'>*</span>"
+                "<span class='strong'>bold</span>"
+                "<span class='mark strong'>*</span>"
+                "<span> text\n</span>")},
+    };
+    for (int c = 0; c < MARQHTMLcases; ++c) {
+        aBpad(u8, into, 1024);
+        aBpad(u8, pfmt, PAGESIZE);
+        memset(pfmt[0], 0, PAGESIZE);
+        $mv(state.text, QA[c][0]);
+        $mv(state.fmt, Bu8idle(pfmt));
 
-    call(MARQlexer, &state);
+        call(MARQlexer, &state);
+        call(MARQHTML, Bu8idle(into), state.text, (u8c**)state.fmt);
 
-    testeqv(0, Bat(state.fmt, 4), "%d");
-    u8 strong = 1 << MARQ_STRONG;
-    testeqv(strong | (1 << MARQ_MARKUP), Bat(state.fmt, 5), "%d");
-    testeqv(strong, Bat(state.fmt, 7), "%d");
+        a$str(hline, "---\n");
+        $print(hline);
+        $print(Bu8cdata(into));
+        $print(hline);
+
+        test($eq(QA[c][1], Bu8cdata(into)), TESTfail);
+    }
     nedo($print(state.text););
 }
 

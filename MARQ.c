@@ -67,7 +67,7 @@ fun ok64 closespan($u8 $into) {
 }
 
 pro(MARQHTML, $u8 $into, $u8c $txt, $u8c $fmt) {
-    sane($ok($into) && $len($txt) == $len($fmt));
+    sane($ok($into) && $len($txt) <= $len($fmt));
     u8 prev = 0xff;
     u8cp fp = $fmt[0];
     $for(u8c, p, $txt) {
@@ -79,7 +79,7 @@ pro(MARQHTML, $u8 $into, $u8c $txt, $u8c $fmt) {
         call($u8feed1, $into, *p);  // todo segments
         ++fp;
     }
-    call(closespan, $into);
+    if (prev != 0xff) call(closespan, $into);
     done;
 }
 
