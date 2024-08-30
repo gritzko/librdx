@@ -32,8 +32,8 @@
 #define $off(s, o) ((s[0] + (o) < s[1]) ? (s[0] + (o)) : s[1])
 
 #define a$dup(T, n, s) T *n[2] = {(s)[0], (s)[1]}
-#define a$tail(t, n, s, off) \
-    $##t n = {(off) > $len(s) ? s[1] : s[0] + (off), s[1]};
+#define a$tail(T, n, s, off) \
+    $##T n = {(off) > $len(s) ? s[1] : s[0] + (off), s[1]};
 
 #define a$part(T, n, s, off, len) T *n[2] = {*s + off, *s + off + len};
 #define a$lpart(T, n, s, off) T *n[2] = {(s)[0], (s)[0] + off}
@@ -51,7 +51,7 @@
     }
 
 #define $mv(s1, s2) \
-    { s1[0] = s2[0], s1[1] = s2[1]; }
+    { (s1)[0] = (s2)[0], (s1)[1] = (s2)[1]; }
 
 // produce a subslice given an offset
 #define $mvnil(s1) \

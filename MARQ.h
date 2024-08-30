@@ -2,6 +2,7 @@
 #define ABC_MARQ_H
 
 #include "01.h"
+#include "ANSI.h"
 #include "FILE.h"
 #include "INT.h"
 #include "LEX.h"
@@ -18,6 +19,8 @@ typedef enum {
     MARQ_EMPH = 4,
 } MARQfmt;
 
+con u8 MARQesc[] = {WEAK, LIGHT_BLUE, UNDERLINE, BOLD, HIGHLIGHT};
+
 typedef u64 link64;
 
 #define MARQ_MAX_OPEN_BRACKETS 31
@@ -31,6 +34,8 @@ typedef struct {
 } MARQstate;
 
 ok64 MARQlexer(MARQstate* state);
+
+ok64 MARQANSI($u8 $into, $u8c txt, $u8c fmt);
 
 ok64 MARQHTML($u8 $into, $u8c txt, $u8c fmt);
 

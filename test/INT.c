@@ -1,10 +1,14 @@
 //
 // Created by gritzko on 5/11/24.
 //
+#include "INT.h"
+
 #include <assert.h>
 #include <stdio.h>
 
-#include "INT.h"
+#include "$.h"
+#include "FILE.h"
+#include "OK.h"
 #include "PRO.h"
 #include "TEST.h"
 
@@ -48,9 +52,20 @@ pro(Utest1) {
 
 pro(Utest2) { done; }
 
+pro(OKdec) {
+    sane(YES);
+    aBpad(u8, into, 64);
+    call(u64decfeed, Bu8idle(into), 12345UL);
+    $print(Bu8cdata(into));
+    a$str(str, "12345");
+    sane($eq(Bu8data(into), str));
+    done;
+}
+
 pro(Utest) {
     call(Utest1);
     call(Utest2);
+    call(OKdec);
     done;
 }
 

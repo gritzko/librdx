@@ -3,6 +3,40 @@
 #include <unistd.h>
 
 #include "$.h"
+#include "ANSI.h"
+
+pro(openesc, $u8 $into, u8 mask) {
+    sane($ok($into));
+    while (mask != 0) {
+        u8 low = ctz32(mask);
+        call(escfeed, $into, MARQesc[low]);
+        mask -= 1 << low;
+    }
+    done;
+}
+
+pro(closeesc, $u8 $into) {
+    sane($ok($into));
+    call(escfeed, $into, 0);
+    done;
+}
+
+pro(MARQANSI, $u8 $into, $u8c $txt, $u8c $fmt) {
+    sane($ok($into) && $len($txt) <= $len($fmt));
+    u8 prev = 0;
+    u8cp fp = $fmt[0];
+    $for(u8c, p, $txt) {
+        if (*fp != prev) {
+            if (prev != 0) call(closeesc, $into);
+            call(openesc, $into, *fp);
+            prev = *fp;
+        }
+        call($u8feed1, $into, *p);  // todo segments
+        ++fp;
+    }
+    if (prev != 0) call(closeesc, $into);
+    done;
+}
 
 pro(openspan, $u8 $into, u8 mask) {
     sane($ok($into));
@@ -37,13 +71,13 @@ pro(MARQHTML, $u8 $into, $u8c $txt, $u8c $fmt) {
     u8 prev = 0xff;
     u8cp fp = $fmt[0];
     $for(u8c, p, $txt) {
-        u8 cur = *fp;
-        if (cur != prev) {
+        if (*fp != prev) {
             if (prev != 0xff) call(closespan, $into);
-            call(openspan, $into, cur);
-            prev = cur;
+            call(openspan, $into, *fp);
+            prev = *fp;
         }
         call($u8feed1, $into, *p);  // todo segments
+        ++fp;
     }
     call(closespan, $into);
     done;

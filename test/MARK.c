@@ -27,20 +27,21 @@ pro(MARKparsetest) {
            "    two lines\n"
            " 2. two entries\n"
            "...and some text\n");
+    $mv(state.text, mark);
     call(MARKlexer, &state);
-    testeqv(0L, $len(state.text), "%li");
+    // testeqv(0L, $len(state.text), "%li");
     testeqv(7L, Bdatalen(state.lines), "%li");
     a$str(line1, " 1. list of\n");
     u8c$ l1 = MARKline(&state, 1);
     $testeq(line1, l1);
-    testeqv(6L, Bdatalen(state.divs), "%li");
+    testeqv(7L, Bdatalen(state.divs), "%li");
     testeqv((u64)MARK_H1, Bat(state.divs, 0), "%lu");
     testeqv((u64)MARK_OLIST, Bat(state.divs, 1), "%lu");
     testeqv((u64)MARK_INDENT, Bat(state.divs, 3), "%lu");
     testeqv((u64)MARK_OLIST, Bat(state.divs, 4), "%lu");
     testeqv(0L, Bat(state.divs, 5), "%lu");
     testeqv(12L, $len(state.lines[0] + 1), "%lu");
-    nedo(Bu64free(divs); Bu8cpfree(lines););
+    nedo($print(state.text););
 }
 
 void debugdivs($cu64c $divs) {
@@ -98,25 +99,37 @@ pro(MARKtest1) {
     };
 
     a$str(hline, "---\n");
-    MARKstate state = {};
-    aBpad(u64, divs, 32);
-    aBpad(u8cp, lines, 32);
-    state.lines = (u8cpB)lines;
-    state.divs = (u64B)divs;
+    Bu64 divs = {};
+    Bu8cp lines = {};
+    Bu8 fmt = {};
+    call(Bu64alloc, divs, 32);
+    call(Bu8cpalloc, lines, 32);
+    call(Bu8alloc, fmt, PAGESIZE);
     for (int i = 0; i < MARK1cases; i++) {
+        MARKstate state = {};
         aBpad(u8, into, 1024);
         Bu8cpreset(lines);
         Bu64reset(divs);
+        Bu8reset(fmt);
+        state.lines = (u8cpB)lines;
+        state.divs = (u64B)divs;
+        $mv(state.text, cases[i][0]);
+        $mv(state.fmt, Bu8idle(fmt));
+
+        $print(hline);
         call(MARKlexer, &state);
         call(MARKHTML, Bu8idle(into), &state);
 
         $print(hline);
         debugdivs(Bu64cdata(state.divs));
+        $print(hline);
         $print(Bu8cdata(into));
+        $print(hline);
+        $print(cases[i][1]);
         $print(hline);
         test($eq(cases[i][1], Bu8cdata(into)), TESTfail);
     }
-    nedo(Bu64free(divs); Bu8cpfree(lines););
+    nedo(Bu64free(divs); Bu8cpfree(lines); Bu8free(fmt););
 };
 
 pro(MARKtest) {

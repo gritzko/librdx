@@ -57,7 +57,7 @@ pro(lex2rl, $u8c mod) {
     aBpad(u8, rpad, MB);
     a$strc(rtmpl, ragel_template);
     $feedf(Bu8idle(rpad), rtmpl, mod, mod, Bu8cdata(actpad), Bu8cdata(synpad),
-           mod, mod, mod, mod, mod, mod, mod, mod, mod, mod, mod);
+           mod, mod, mod, mod, mod, mod, mod, mod, mod, mod);
     call(FILEfeed, rfd, Bu8cdata(rpad));
     call(FILEclose, rfd);
 
@@ -132,11 +132,9 @@ con char *ragel_template =
     "    %% write init;\n"
     "    %% write exec;\n"
     "\n"
-    "    test(p==text[1], $sfail);\n"
-    "\n"
-    "    test(cs >= $s_first_final, $sfail);\n"
-    "\n"
-    "    nedo(\n"
+    "    if (p!=text[1] || cs <= $s_first_final) {\n"
+    "        fail($sfail);\n"
     "        state->text[0] = p;\n"
-    "    );\n"
+    "    }\n"
+    "    done;\n"
     "}\n";

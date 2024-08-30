@@ -1,6 +1,7 @@
 #ifndef ABC_BITS_H
 #define ABC_BITS_H
 #include <stdint.h>
+#include <string.h>
 #include <unistd.h>
 
 #define fun static inline
@@ -260,5 +261,21 @@ fun u8 u128bytelen(u128 u) {
 #define unlikely(x) (x)
 #define likely(x) (x)
 #endif
+
+fun ok64 u64decfeed(u8 **dec, u64 x) {
+    u8 into[32];
+    u8 *e = into + 32;
+    u8 *to = e;
+    do {
+        u8 digit = x % 10;
+        *--to = '0' + digit;
+        x /= 10;
+    } while (x);
+    size_t sz = e - to;
+    if (dec[1] - dec[0] < sz) return $noroom;
+    memcpy(*dec, to, sz);
+    *dec += sz;
+    return OK;
+}
 
 #endif

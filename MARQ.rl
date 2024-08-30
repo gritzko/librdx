@@ -127,11 +127,9 @@ pro(MARQlexer, MARQstate* state) {
     %% write init;
     %% write exec;
 
-    test(p==text[1], MARQfail);
-
-    test(cs >= MARQ_first_final, MARQfail);
-
-    nedo(
-        text[0] = p;
-    );
+    if (p!=text[1] || cs <= MARQ_first_final) {
+        fail(MARQfail);
+        state->text[0] = p;
+    }
+    done;
 }
