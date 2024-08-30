@@ -29,17 +29,29 @@ typedef enum {
 extern char MARKdivascii[];
 
 typedef struct {
+    // The wiki-text to be parsed.
+    $u8c text;
+    // Inline markup parsing state
     MARQstate marq;
-
-    LEXbase lex;
-    size_t _[32];
-
-    $u8 into;
-
-    u64 stack;
-    u64 div;
+    $u8 fmt;
+    // Current line div stack.
+    u64 _div;
+    u64 _plen;
+    // Each one points to the first character of a line,
+    // likely one after '\n'. The last one is $term(text).
+    u8cpB lines;
+    // Line div stacks, indices match those of `lines`.
+    u64B divs;
 } MARKstate;
 
+fun u8c$ MARKline(MARKstate const* state, u64 ndx) {
+    return state->lines[0] + ndx;
+}
+
 ok64 MARKlexer(MARKstate* state);
+
+ok64 MARKHTML($u8 into, MARKstate const* state);
+
+ok64 MARKANSI($u8 into, MARKstate const* state);
 
 #endif

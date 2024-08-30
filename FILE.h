@@ -211,7 +211,7 @@ fun int flags2prot(int flags) {
     return prot;
 }
 
-fun pro(FILEmap, void$ buf, int fd, int mode, size_t size) {
+fun pro(FILEmap, Bvoid buf, int fd, int mode, size_t size) {
     test(buf != nil && *buf == nil && FILEok(fd), FILEbadarg);
     if (size == 0) {
         call(FILEsize, &size, fd);

@@ -4,6 +4,51 @@
 
 #include "$.h"
 
+pro(openspan, $u8 $into, u8 mask) {
+    sane($ok($into));
+    $cu8c OPEN0 = $u8str("<span>");
+    if (mask == 0) fwdcall($u8feed, $into, OPEN0);
+    $cu8c OPEN = $u8str("<span class='");
+    $cu8c END = $u8str("'>");
+    $cu8c CLASSES[] = {
+        $u8str("mark"),   $u8str("code"), $u8str("link"),
+        $u8str("strong"), $u8str("emph"),
+    };
+    call($u8feed, $into, OPEN);
+    b8 first = YES;
+    while (mask != 0) {
+        u8 low = ctz32(mask);
+        if (!first) call($u8feed1, $into, ' ');
+        call($u8feed, $into, CLASSES[low]);
+        mask -= 1 << low;
+        first = NO;
+    }
+    call($u8feed, $into, END);
+    done;
+}
+
+fun ok64 closespan($u8 $into) {
+    $cu8c CLOSE = $u8str("</span>");
+    return $u8feed($into, CLOSE);
+}
+
+pro(MARQHTML, $u8 $into, $u8c $txt, $u8c $fmt) {
+    sane($ok($into) && $len($txt) == $len($fmt));
+    u8 prev = 0xff;
+    u8cp fp = $fmt[0];
+    $for(u8c, p, $txt) {
+        u8 cur = *fp;
+        if (cur != prev) {
+            if (prev != 0xff) call(closespan, $into);
+            call(openspan, $into, cur);
+            prev = cur;
+        }
+        call($u8feed1, $into, *p);  // todo segments
+    }
+    call(closespan, $into);
+    done;
+}
+
 pro(MARQrange, MARQfmt fmt, $cu8c tok, MARQstate* state) {
     sane(state != nil && $ok(tok) && $within(tok, state->text));
     size_t f = tok[0] - state->text[0];

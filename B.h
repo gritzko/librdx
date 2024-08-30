@@ -30,6 +30,7 @@ enum {
 BTYPE(void);
 typedef void *const *void$;
 typedef void const *const *voidc$;
+typedef void *const *voidB;
 
 #define B(T, b) B##T b = {0, 0, 0, 0}
 
@@ -43,7 +44,7 @@ typedef void const *const *voidc$;
 #define $data(b) (b + 1)
 #define $idle(b) (b + 2)
 
-#define Blastp(b) (b[2] - 1)
+#define Blastp(b) ((b)[2] - 1)
 #define Blast(b) (*Blastp(b))
 
 #define Bi(b) *(b[2])
@@ -54,6 +55,7 @@ typedef void const *const *voidc$;
 #define Busylen(b) (b[2] - b[0])
 #define Busysize(b) ((u8 const *)b[2] - (u8 const *)b[0])
 #define Bdatalen(b) $len(Bdata(b))
+#define Bempty(b) $empty(Bdata(b))
 
 #define Bok(b) \
     (b != nil && b[0] != nil && b[0] <= b[1] && b[1] <= b[2] && b[2] <= b[3])

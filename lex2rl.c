@@ -137,6 +137,6 @@ con char *ragel_template =
     "    test(cs >= $s_first_final, $sfail);\n"
     "\n"
     "    nedo(\n"
-    "        text[0] = p;\n"
+    "        state->text[0] = p;\n"
     "    );\n"
     "}\n";

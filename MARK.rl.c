@@ -158,28 +158,30 @@ static const int MARK_en_main = 39;
 #line 150 "MARK.rl"
 
 pro(MARKlexer, MARKstate* state) {
+
     a$dup(u8c, text, state->text);
     sane($ok(text));
 
-    int cs = state->cs;
+    int cs = 0;
     int res = 0;
     u8c *p = (u8c*) text[0];
     u8c *pe = (u8c*) text[1];
-    u8c *eof = state->tbc ? NULL : pe;
+    u8c *eof = pe;
     u8c *pb = p;
+    u64 mark0[64] = {};
 
     u32 sp = 2;
     $u8c tok = {p, p};
 
     
-#line 167 "MARK.rl.c"
+#line 169 "MARK.rl.c"
 	{
 	cs = MARK_start;
 	}
 
-#line 166 "MARK.rl"
+#line 168 "MARK.rl"
     
-#line 170 "MARK.rl.c"
+#line 172 "MARK.rl.c"
 	{
 	int _klen;
 	unsigned int _trans;
@@ -252,153 +254,153 @@ _match:
 		{
 	case 0:
 #line 10 "MARK.rl"
-	{ state->mark0[MARKHLine] = p - state->doc[0]; }
+	{ mark0[MARKHLine] = p - text[0]; }
 	break;
 	case 1:
 #line 11 "MARK.rl"
 	{
-    tok[0] = state->doc[0]+state->mark0[MARKHLine];
+    tok[0] = text[0] + mark0[MARKHLine];
     tok[1] = p;
     call(MARKonHLine, tok, state); 
 }
 	break;
 	case 2:
 #line 16 "MARK.rl"
-	{ state->mark0[MARKIndent] = p - state->doc[0]; }
+	{ mark0[MARKIndent] = p - text[0]; }
 	break;
 	case 3:
 #line 17 "MARK.rl"
 	{
-    tok[0] = state->doc[0]+state->mark0[MARKIndent];
+    tok[0] = text[0] + mark0[MARKIndent];
     tok[1] = p;
     call(MARKonIndent, tok, state); 
 }
 	break;
 	case 4:
 #line 22 "MARK.rl"
-	{ state->mark0[MARKOList] = p - state->doc[0]; }
+	{ mark0[MARKOList] = p - text[0]; }
 	break;
 	case 5:
 #line 23 "MARK.rl"
 	{
-    tok[0] = state->doc[0]+state->mark0[MARKOList];
+    tok[0] = text[0] + mark0[MARKOList];
     tok[1] = p;
     call(MARKonOList, tok, state); 
 }
 	break;
 	case 6:
 #line 28 "MARK.rl"
-	{ state->mark0[MARKUList] = p - state->doc[0]; }
+	{ mark0[MARKUList] = p - text[0]; }
 	break;
 	case 7:
 #line 29 "MARK.rl"
 	{
-    tok[0] = state->doc[0]+state->mark0[MARKUList];
+    tok[0] = text[0] + mark0[MARKUList];
     tok[1] = p;
     call(MARKonUList, tok, state); 
 }
 	break;
 	case 8:
 #line 34 "MARK.rl"
-	{ state->mark0[MARKH1] = p - state->doc[0]; }
+	{ mark0[MARKH1] = p - text[0]; }
 	break;
 	case 9:
 #line 35 "MARK.rl"
 	{
-    tok[0] = state->doc[0]+state->mark0[MARKH1];
+    tok[0] = text[0] + mark0[MARKH1];
     tok[1] = p;
     call(MARKonH1, tok, state); 
 }
 	break;
 	case 10:
 #line 40 "MARK.rl"
-	{ state->mark0[MARKH2] = p - state->doc[0]; }
+	{ mark0[MARKH2] = p - text[0]; }
 	break;
 	case 11:
 #line 41 "MARK.rl"
 	{
-    tok[0] = state->doc[0]+state->mark0[MARKH2];
+    tok[0] = text[0] + mark0[MARKH2];
     tok[1] = p;
     call(MARKonH2, tok, state); 
 }
 	break;
 	case 12:
 #line 46 "MARK.rl"
-	{ state->mark0[MARKH3] = p - state->doc[0]; }
+	{ mark0[MARKH3] = p - text[0]; }
 	break;
 	case 13:
 #line 47 "MARK.rl"
 	{
-    tok[0] = state->doc[0]+state->mark0[MARKH3];
+    tok[0] = text[0] + mark0[MARKH3];
     tok[1] = p;
     call(MARKonH3, tok, state); 
 }
 	break;
 	case 14:
 #line 52 "MARK.rl"
-	{ state->mark0[MARKH4] = p - state->doc[0]; }
+	{ mark0[MARKH4] = p - text[0]; }
 	break;
 	case 15:
 #line 53 "MARK.rl"
 	{
-    tok[0] = state->doc[0]+state->mark0[MARKH4];
+    tok[0] = text[0] + mark0[MARKH4];
     tok[1] = p;
     call(MARKonH4, tok, state); 
 }
 	break;
 	case 16:
 #line 64 "MARK.rl"
-	{ state->mark0[MARKQuote] = p - state->doc[0]; }
+	{ mark0[MARKQuote] = p - text[0]; }
 	break;
 	case 17:
 #line 65 "MARK.rl"
 	{
-    tok[0] = state->doc[0]+state->mark0[MARKQuote];
+    tok[0] = text[0] + mark0[MARKQuote];
     tok[1] = p;
     call(MARKonQuote, tok, state); 
 }
 	break;
 	case 18:
 #line 70 "MARK.rl"
-	{ state->mark0[MARKLink] = p - state->doc[0]; }
+	{ mark0[MARKLink] = p - text[0]; }
 	break;
 	case 19:
 #line 71 "MARK.rl"
 	{
-    tok[0] = state->doc[0]+state->mark0[MARKLink];
+    tok[0] = text[0] + mark0[MARKLink];
     tok[1] = p;
     call(MARKonLink, tok, state); 
 }
 	break;
 	case 20:
 #line 76 "MARK.rl"
-	{ state->mark0[MARKDiv] = p - state->doc[0]; }
+	{ mark0[MARKDiv] = p - text[0]; }
 	break;
 	case 21:
 #line 77 "MARK.rl"
 	{
-    tok[0] = state->doc[0]+state->mark0[MARKDiv];
+    tok[0] = text[0] + mark0[MARKDiv];
     tok[1] = p;
     call(MARKonDiv, tok, state); 
 }
 	break;
 	case 22:
 #line 82 "MARK.rl"
-	{ state->mark0[MARKLine] = p - state->doc[0]; }
+	{ mark0[MARKLine] = p - text[0]; }
 	break;
 	case 23:
 #line 83 "MARK.rl"
 	{
-    tok[0] = state->doc[0]+state->mark0[MARKLine];
+    tok[0] = text[0] + mark0[MARKLine];
     tok[1] = p;
     call(MARKonLine, tok, state); 
 }
 	break;
 	case 24:
 #line 88 "MARK.rl"
-	{ state->mark0[MARKRoot] = p - state->doc[0]; }
+	{ mark0[MARKRoot] = p - text[0]; }
 	break;
-#line 363 "MARK.rl.c"
+#line 365 "MARK.rl.c"
 		}
 	}
 
@@ -415,42 +417,37 @@ _again:
 	case 23:
 #line 83 "MARK.rl"
 	{
-    tok[0] = state->doc[0]+state->mark0[MARKLine];
+    tok[0] = text[0] + mark0[MARKLine];
     tok[1] = p;
     call(MARKonLine, tok, state); 
 }
 	break;
 	case 24:
 #line 88 "MARK.rl"
-	{ state->mark0[MARKRoot] = p - state->doc[0]; }
+	{ mark0[MARKRoot] = p - text[0]; }
 	break;
 	case 25:
 #line 89 "MARK.rl"
 	{
-    tok[0] = state->doc[0]+state->mark0[MARKRoot];
+    tok[0] = text[0] + mark0[MARKRoot];
     tok[1] = p;
     call(MARKonRoot, tok, state); 
 }
 	break;
-#line 393 "MARK.rl.c"
+#line 395 "MARK.rl.c"
 		}
 	}
 	}
 
 	}
 
-#line 167 "MARK.rl"
+#line 169 "MARK.rl"
 
     test(p==text[1], MARKfail);
 
-    if (state->tbc) {
-        test(cs != MARK_error, MARKfail);
-        state->cs = cs;
-    } else {
-        test(cs >= MARK_first_final, MARKfail);
-    }
+    test(cs >= MARK_first_final, MARKfail);
 
     nedo(
-        state->text[0] = p;
+        text[0] = p;
     );
 }

@@ -8,7 +8,7 @@
 #include "FILE.h"
 #include "INT.h"
 #include "LEX.h"
-#include "MARK2.h"
+#include "MARK.h"
 #include "PRO.h"
 #include "TEST.h"
 
@@ -16,6 +16,10 @@ pro(MARKparsetest) {
     sane(YES);
     MARKstate state = {};
     aBpad(u8, into, 1024);
+    aBpad(u64, divs, 32);
+    aBpad(u8cp, lines, 32);
+    state.lines = (u8cpB)lines;
+    state.divs = (u64B)divs;
     a$strc(mark,
            "  # Header\n"
            " 1. list of\n"
@@ -23,12 +27,11 @@ pro(MARKparsetest) {
            "    two lines\n"
            " 2. two entries\n"
            "...and some text\n");
-    call(MARKstatealloc, &state, mark);
     call(MARKlexer, &state);
     testeqv(0L, $len(state.text), "%li");
     testeqv(7L, Bdatalen(state.lines), "%li");
     a$str(line1, " 1. list of\n");
-    u8c$ l1 = MARKline$(&state, 1);
+    u8c$ l1 = MARKline(&state, 1);
     $testeq(line1, l1);
     testeqv(6L, Bdatalen(state.divs), "%li");
     testeqv((u64)MARK_H1, Bat(state.divs, 0), "%lu");
@@ -37,18 +40,7 @@ pro(MARKparsetest) {
     testeqv((u64)MARK_OLIST, Bat(state.divs, 4), "%lu");
     testeqv(0L, Bat(state.divs, 5), "%lu");
     testeqv(12L, $len(state.lines[0] + 1), "%lu");
-    nedo(MARKstatefree(&state););
-}
-
-pro(MARKinlinetest) {
-    sane(1);
-    MARKstate state = {};
-    aBpad(u8, into, 1024);
-    a$strc(mark, "some *bold* text\n");
-    call(MARKstatealloc, &state, mark);
-    call(MARK2lexer, &state);
-    testeqv(1 << MARK2_STRONG, Bat(state.fmt, 7), "%d");
-    nedo($print(state.text); MARKstatefree(&state););
+    nedo(Bu64free(divs); Bu8cpfree(lines););
 }
 
 void debugdivs($cu64c $divs) {
@@ -107,10 +99,15 @@ pro(MARKtest1) {
 
     a$str(hline, "---\n");
     MARKstate state = {};
+    aBpad(u64, divs, 32);
+    aBpad(u8cp, lines, 32);
+    state.lines = (u8cpB)lines;
+    state.divs = (u64B)divs;
     for (int i = 0; i < MARK1cases; i++) {
         aBpad(u8, into, 1024);
-        call(MARKstatealloc, &state, cases[i][0]);
-        call(MARKparse, &state);
+        Bu8cpreset(lines);
+        Bu64reset(divs);
+        call(MARKlexer, &state);
         call(MARKHTML, Bu8idle(into), &state);
 
         $print(hline);
@@ -118,32 +115,14 @@ pro(MARKtest1) {
         $print(Bu8cdata(into));
         $print(hline);
         test($eq(cases[i][1], Bu8cdata(into)), TESTfail);
-
-        MARKstatefree(&state);
     }
-    nedo(MARKstatefree(&state););
+    nedo(Bu64free(divs); Bu8cpfree(lines););
 };
 
 pro(MARKtest) {
     call(MARKparsetest);
-    call(MARKinlinetest);
     call(MARKtest1);
     done;
 }
 
 TEST(MARKtest);
-
-/*  realloc loop (maybe)
-
- u32 len = roundup($len(state.text), PAGESIZE);
-do {
-    u32 l = len / 4;
-    Bu32reserve(state.lines, l);  // FIXME alloc/map
-    Bu32reserve(state.linefmts, l);
-    Bu64reserve(state.links, l / 4);
-    l = len / 8;
-    try(MARKlexer, &state);
-    $print(state.text);
-    $print(hline);
-} while (is(LEXnoroom));
-sure(OK);*/

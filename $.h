@@ -188,7 +188,7 @@ fun ok64 $feedf(u8 **into, u8 const *const *tmpl, ...) {
                 ($len(s) - (off) - (rm)) * sizeof(**(s))); \
     }
 
-#define zero(s) memset(&s, 0, sizeof(s))
+#define zero(s) memset(&(s), 0, sizeof(s))
 #define zerop(s) memset(s, 0, sizeof(*s))
 
 #define a$findif(T, p, s, cond)          \

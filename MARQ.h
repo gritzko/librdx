@@ -22,14 +22,7 @@ typedef u64 link64;
 
 #define MARQ_MAX_OPEN_BRACKETS 31
 
-typedef enum {
-    MARK_MODE_HTML,
-    MARK_MODE_ANSI,
-} MARKmode;
-
 typedef struct {
-    MARKmode mode;
-
     $u8c text;
     $u8 fmt;
 
@@ -38,4 +31,7 @@ typedef struct {
 } MARQstate;
 
 ok64 MARQlexer(MARQstate* state);
+
+ok64 MARQHTML($u8 $into, $u8c txt, $u8c fmt);
+
 #endif

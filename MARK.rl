@@ -7,87 +7,87 @@ machine MARK;
 
 alphtype unsigned char;
 
-action MARKHLine0 { state->mark0[MARKHLine] = p - state->doc[0]; }
+action MARKHLine0 { mark0[MARKHLine] = p - text[0]; }
 action MARKHLine1 {
-    tok[0] = state->doc[0]+state->mark0[MARKHLine];
+    tok[0] = text[0] + mark0[MARKHLine];
     tok[1] = p;
     call(MARKonHLine, tok, state); 
 }
-action MARKIndent0 { state->mark0[MARKIndent] = p - state->doc[0]; }
+action MARKIndent0 { mark0[MARKIndent] = p - text[0]; }
 action MARKIndent1 {
-    tok[0] = state->doc[0]+state->mark0[MARKIndent];
+    tok[0] = text[0] + mark0[MARKIndent];
     tok[1] = p;
     call(MARKonIndent, tok, state); 
 }
-action MARKOList0 { state->mark0[MARKOList] = p - state->doc[0]; }
+action MARKOList0 { mark0[MARKOList] = p - text[0]; }
 action MARKOList1 {
-    tok[0] = state->doc[0]+state->mark0[MARKOList];
+    tok[0] = text[0] + mark0[MARKOList];
     tok[1] = p;
     call(MARKonOList, tok, state); 
 }
-action MARKUList0 { state->mark0[MARKUList] = p - state->doc[0]; }
+action MARKUList0 { mark0[MARKUList] = p - text[0]; }
 action MARKUList1 {
-    tok[0] = state->doc[0]+state->mark0[MARKUList];
+    tok[0] = text[0] + mark0[MARKUList];
     tok[1] = p;
     call(MARKonUList, tok, state); 
 }
-action MARKH10 { state->mark0[MARKH1] = p - state->doc[0]; }
+action MARKH10 { mark0[MARKH1] = p - text[0]; }
 action MARKH11 {
-    tok[0] = state->doc[0]+state->mark0[MARKH1];
+    tok[0] = text[0] + mark0[MARKH1];
     tok[1] = p;
     call(MARKonH1, tok, state); 
 }
-action MARKH20 { state->mark0[MARKH2] = p - state->doc[0]; }
+action MARKH20 { mark0[MARKH2] = p - text[0]; }
 action MARKH21 {
-    tok[0] = state->doc[0]+state->mark0[MARKH2];
+    tok[0] = text[0] + mark0[MARKH2];
     tok[1] = p;
     call(MARKonH2, tok, state); 
 }
-action MARKH30 { state->mark0[MARKH3] = p - state->doc[0]; }
+action MARKH30 { mark0[MARKH3] = p - text[0]; }
 action MARKH31 {
-    tok[0] = state->doc[0]+state->mark0[MARKH3];
+    tok[0] = text[0] + mark0[MARKH3];
     tok[1] = p;
     call(MARKonH3, tok, state); 
 }
-action MARKH40 { state->mark0[MARKH4] = p - state->doc[0]; }
+action MARKH40 { mark0[MARKH4] = p - text[0]; }
 action MARKH41 {
-    tok[0] = state->doc[0]+state->mark0[MARKH4];
+    tok[0] = text[0] + mark0[MARKH4];
     tok[1] = p;
     call(MARKonH4, tok, state); 
 }
-action MARKH0 { state->mark0[MARKH] = p - state->doc[0]; }
+action MARKH0 { mark0[MARKH] = p - text[0]; }
 action MARKH1 {
-    tok[0] = state->doc[0]+state->mark0[MARKH];
+    tok[0] = text[0] + mark0[MARKH];
     tok[1] = p;
     call(MARKonH, tok, state); 
 }
-action MARKQuote0 { state->mark0[MARKQuote] = p - state->doc[0]; }
+action MARKQuote0 { mark0[MARKQuote] = p - text[0]; }
 action MARKQuote1 {
-    tok[0] = state->doc[0]+state->mark0[MARKQuote];
+    tok[0] = text[0] + mark0[MARKQuote];
     tok[1] = p;
     call(MARKonQuote, tok, state); 
 }
-action MARKLink0 { state->mark0[MARKLink] = p - state->doc[0]; }
+action MARKLink0 { mark0[MARKLink] = p - text[0]; }
 action MARKLink1 {
-    tok[0] = state->doc[0]+state->mark0[MARKLink];
+    tok[0] = text[0] + mark0[MARKLink];
     tok[1] = p;
     call(MARKonLink, tok, state); 
 }
-action MARKDiv0 { state->mark0[MARKDiv] = p - state->doc[0]; }
+action MARKDiv0 { mark0[MARKDiv] = p - text[0]; }
 action MARKDiv1 {
-    tok[0] = state->doc[0]+state->mark0[MARKDiv];
+    tok[0] = text[0] + mark0[MARKDiv];
     tok[1] = p;
     call(MARKonDiv, tok, state); 
 }
-action MARKLine0 { state->mark0[MARKLine] = p - state->doc[0]; }
+action MARKLine0 { mark0[MARKLine] = p - text[0]; }
 action MARKLine1 {
-    tok[0] = state->doc[0]+state->mark0[MARKLine];
+    tok[0] = text[0] + mark0[MARKLine];
     tok[1] = p;
     call(MARKonLine, tok, state); 
 }
-action MARKRoot0 { state->mark0[MARKRoot] = p - state->doc[0]; }
+action MARKRoot0 { mark0[MARKRoot] = p - text[0]; }
 action MARKRoot1 {
-    tok[0] = state->doc[0]+state->mark0[MARKRoot];
+    tok[0] = text[0] + mark0[MARKRoot];
     tok[1] = p;
     call(MARKonRoot, tok, state); 
 }
@@ -149,15 +149,17 @@ main := MARKRoot;
 %%write data;
 
 pro(MARKlexer, MARKstate* state) {
+
     a$dup(u8c, text, state->text);
     sane($ok(text));
 
-    int cs = state->cs;
+    int cs = 0;
     int res = 0;
     u8c *p = (u8c*) text[0];
     u8c *pe = (u8c*) text[1];
-    u8c *eof = state->tbc ? NULL : pe;
+    u8c *eof = pe;
     u8c *pb = p;
+    u64 mark0[64] = {};
 
     u32 sp = 2;
     $u8c tok = {p, p};
@@ -167,14 +169,9 @@ pro(MARKlexer, MARKstate* state) {
 
     test(p==text[1], MARKfail);
 
-    if (state->tbc) {
-        test(cs != MARK_error, MARKfail);
-        state->cs = cs;
-    } else {
-        test(cs >= MARK_first_final, MARKfail);
-    }
+    test(cs >= MARK_first_final, MARKfail);
 
     nedo(
-        state->text[0] = p;
+        text[0] = p;
     );
 }

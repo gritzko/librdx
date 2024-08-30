@@ -1,7 +1,7 @@
 #include "MARK.h"
 
 #include "01.h"
-#include "FILE.h"
+#include "INT.h"
 #include "MARQ.h"
 #include "PRO.h"
 
@@ -64,58 +64,6 @@ fun ok64 tagopen($u8 $into, u8 tag) { return $u8feed($into, DIVTAGS[tag][0]); }
 fun ok64 tagredo($u8 $into, u8 tag) { return $u8feed($into, DIVTAGS[tag][1]); }
 fun ok64 tagclose($u8 $into, u8 tag) { return $u8feed($into, DIVTAGS[tag][2]); }
 
-pro(openspan, $u8 $into, u8 mask) {
-    sane($ok($into));
-    $cu8c OPEN0 = $u8str("<span>");
-    if (mask == 0) fwdcall($u8feed, $into, OPEN0);
-    $cu8c OPEN = $u8str("<span class='");
-    $cu8c END = $u8str("'>");
-    $cu8c CLASSES[] = {
-        $u8str("mark"),   $u8str("code"), $u8str("link"),
-        $u8str("strong"), $u8str("emph"),
-    };
-    call($u8feed, $into, OPEN);
-    b8 first = YES;
-    while (mask != 0) {
-        u8 low = ctz32(mask);
-        if (!first) call($u8feed1, $into, ' ');
-        call($u8feed, $into, CLASSES[low]);
-        mask -= 1 << low;
-        first = NO;
-    }
-    call($u8feed, $into, END);
-    done;
-}
-
-fun ok64 closespan($u8 $into) {
-    $cu8c CLOSE = $u8str("</span>");
-    return $u8feed($into, CLOSE);
-}
-
-fun u64 alltabs(u8 depth) {
-    if (depth == 0) return 0;
-    con u64 taboid = 0x2020202020202020;
-    return taboid >> ((8 - depth) << 3);
-}
-
-pro(spanchain, MARKstate const* state) {
-    sane($ok($into));
-    u32 fmt = 0xffff;
-    a$dup(u8c, line, state->lines[0] + lndx);
-    line[0] += 4 * depth;
-    $for(u8c, p, line) {
-        u8 f = Bat(state->fmt, p - state->doc[0]);
-        if (f != fmt) {
-            if (fmt != 0xffff) call(closespan, $into);
-            call(openspan, $into, f);
-            fmt = f;
-        }
-        call($u8feed1, $into, *p);  // todo segments
-    }
-    call(closespan, $into);
-    done;
-}
-
 fun b8 pable(u64 stack) {
     u8 l = u64bytelen(stack);
     if (l == 0) return YES;
@@ -123,141 +71,96 @@ fun b8 pable(u64 stack) {
     return b == MARK_OLIST || b == MARK_ULIST || b == MARK_QUOTE;
 }
 
-pro(flushp, MARKstate* state) {
-    sane(1);
-    a$str(P0, "<p>");
-    a$str(P1, "</p>");
-    b8 hasp = pable(state->stack);
-    if (hasp) call($u8feed, state->into, P0);
-    call(spanchain, state);
-    if (hasp) call($u8feed, state->into, P1);
-    done;
+fun b8 MARKcontinues(u64 a, u64 b) {
+    u8 al = u64bytelen(a);
+    u8 bl = u64bytelen(b);
+    if (al != bl) return NO;
+    for (u8 i = 0; i < al; ++i) {
+        switch (u64byte(b, i)) {
+            case MARK_INDENT:
+                break;
+            case MARK_QUOTE:
+                if (u64byte(a, i) != MARK_QUOTE) return NO;
+                break;
+            default:
+                return NO;
+        }
+    }
+    return YES;
 }
 
 pro(MARKHTML, $u8 $into, MARKstate const* state) {
-    sane($ok($into));
+    sane($ok($into) && state != nil);
     u64 stack = 0;
-    u8 depth = 0;
-    b8 hasp = NO;
-    for (u64 l = 0; l < Bdatalen(state->divs); ++l) {
-        u64 div = Bat(state->divs, l);
-        u8 d = u64bytelen(div);
-        depth = u64bytelen(stack);
-        u64 nextdiv =
-            l + 1 < Bdatalen(state->divs) ? Bat(state->divs, l + 1) : 0;
-        u8 c = 0;
-        while (c < d && c < depth &&
-               (u64byte(div, c) == MARK_INDENT ||
-                (u64byte(stack, c) == MARK_QUOTE &&
-                 u64byte(div, c) == MARK_QUOTE)))
-            ++c;
-        printf("line [%lu] div %lu next %lu ?= alltabs %lu(dep %d) len %lu\n",
-               Bdatalen(state->divs), div, nextdiv, alltabs(depth), depth,
-               $len(state->lines[0] + l));
-        if (div == 0 && nextdiv == alltabs(depth) &&
-            $len(state->lines[0] + l) == 1 && hasp) {  // FIXME quotes
-            call(closep, $into);
-            call(openp, $into);
-            continue;
-        } else if (d == depth && c == d - 1 &&
-                   u64byte(stack, c) == u64byte(div, c)) {
-            if (hasp) {
-                hasp = NO;
-                call(closep, $into);
-            }
-            call(tagrefresh, $into, u64byte(stack, c));
-        } else {
-            while (depth > c) {
-                --depth;
-                if (hasp == YES) {
-                    hasp = NO;
-                    call(closep, $into);
+    u64 plen = 0;
+    $u64 divs;
+    $u8cp lines;
+    $mv(divs, Bu64data(state->divs));
+    $mv(lines, Bu8cpdata(state->lines));
+    $for(u64, div, divs) {
+        u64 d = *div;
+        u8 depth = u64bytelen(stack);
+        u8 newdepth = u64bytelen(d);
+        u8 keep = 0;
+        for (; keep < depth && keep < newdepth; ++keep) {
+            u8 n = u64byte(d, keep);
+            u8 x = u64byte(stack, keep);
+            if (n == MARK_INDENT) {
+                continue;
+            } else if (n == MARK_QUOTE) {
+                if (x == MARK_QUOTE) {
+                    continue;
+                } else {
+                    break;
                 }
-                call(tagclose, $into, u64byte(stack, depth));
-                stack = u64lowbytes(stack, depth);
-            }
-            while (c < d) {
-                u8 tag = u64byte(div, c);
-                if (hasp == YES) {
-                    hasp = NO;
-                    call(closep, $into);
-                }
-                call(tagopen, $into, tag);
-                stack = u64setbyte(stack, tag, depth);
-                ++depth;
-                ++c;
+            } else {
+                break;
             }
         }
-        if (pable(div) && !hasp) {
-            hasp = YES;
-            call(openp, $into);
+        if (keep < depth) {
+            $u8c ptxt = {*(*lines - plen), *(*lines + 1)};
+            $u8c pfmt;
+            call(MARQHTML, $into, ptxt, pfmt);
+            // maybe close p
+            for (u8 c = depth - 1; c >= keep; --c) {
+                call(tagopen, $into, u64byte(d, c));
+            }
+            stack = u64lowbytes(stack, keep);
+        } else if (keep == depth && u64topbyte(d) != MARK_INDENT) {
+            call(tagredo, $into, u64topbyte(d));
+        } else {  // maybe open things
+            for (u8 o = keep; o < newdepth; ++o) {
+                u8 b = u64byte(d, o);
+                call(tagclose, $into, b);
+                stack = u64setbyte(stack, b, o);
+            }
         }
-        call(spanchain, $into, l, depth, state);
-    }
-    if (hasp) {
-        call(closep, $into);
-        hasp = NO;
-    }
-    while (depth > 0) {
-        --depth;
-        call(tagclose, $into, u64byte(stack, depth));
+        ++*lines;
     }
     done;
 }
 
 fun ok64 pushdiv(MARKstate* state, u8 div) {
-    u8 l = u64bytelen(state->div);
+    u8 l = u64bytelen(state->_div);
     if (l < 8) {
-        state->div = u64setbyte(state->div, div, l);
+        state->_div = u64setbyte(state->_div, div, l);
     }
-    printf("pushdiv %c=%lu\n", div, state->div);
+    printf("pushdiv %c=%lu\n", div, state->_div);
     return OK;
 }
 
 ok64 MARKonHLine($cu8c tok, MARKstate* state) {
     return pushdiv(state, MARK_HLINE);
 }
-
 ok64 MARKonOList($cu8c tok, MARKstate* state) {
     return pushdiv(state, MARK_OLIST);
 }
-
 ok64 MARKonUList($cu8c tok, MARKstate* state) {
     return pushdiv(state, MARK_ULIST);
 }
-
-ok64 MARKonLink($cu8c tok, MARK2state* state) { return OK; }
-
-ok64 MARKonRoot($cu8c tok, MARK2state* state) { return OK; }
-
-pro(MARKonDiv, $cu8c tok, MARKstate* state) {
-    sane(1);
-    done;
-}
-
-pro(MARKonLine, $cu8c tok, MARKstate* state) {
-    sane(1);
-    u8 predepth = u64bytelen(state->stack);
-    u8 depth = u64bytelen(state->div);
-    $u8c body = {tok[0] + depth * 4, tok[1]};
-    // close? refresh?
-    if (depth != predepth) {
-    }
-    state->ptxt;
-    state->plen;
-    state->div = 0;
-    state->div;
-    state->stack;
-    // here we realize p is over
-    switch (state->mode) {
-        case MARK_MODE_HTML:
-            break;
-        case MARK_MODE_ANSI:
-            break;
-    }
-    state->plen = 0;
-    done;
-}
+ok64 MARKonLink($cu8c tok, MARKstate* state) { return OK; }
+ok64 MARKonRoot($cu8c tok, MARKstate* state) { return OK; }
+ok64 MARKonDiv($cu8c tok, MARKstate* state) { return OK; }
 ok64 MARKonH1($cu8c tok, MARKstate* state) { return pushdiv(state, MARK_H1); }
 ok64 MARKonH2($cu8c tok, MARKstate* state) { return pushdiv(state, MARK_H2); }
 ok64 MARKonH3($cu8c tok, MARKstate* state) { return pushdiv(state, MARK_H3); }
@@ -267,4 +170,31 @@ ok64 MARKonIndent($cu8c tok, MARKstate* state) {
 }
 ok64 MARKonQuote($cu8c tok, MARKstate* state) {
     return pushdiv(state, MARK_QUOTE);
+}
+
+pro(MARKonLine, $cu8c tok, MARKstate* state) {
+    sane($ok(tok) && state != nil);
+    if (Bempty(state->divs)) {
+        state->_plen = 0;
+    } else if (MARKcontinues(Blast(state->divs), state->_div)) {
+        ++state->_plen;
+    } else {  // a block just ended
+        zero(state->marq);
+        u8c* tb = state->text[0];
+        u8* fb = state->fmt[0];
+        size_t start = Bdatalen(state->divs) - state->_plen - 1;
+        size_t boff = Bat(state->lines, start) - tb;
+        size_t eoff = tok[0] - tb;
+        state->marq.text[0] = tb + boff;
+        state->marq.text[1] = tb + eoff;
+        state->marq.fmt[0] = fb + boff;
+        state->marq.fmt[1] = fb + eoff;
+        call(MARQlexer, &state->marq);
+        state->_plen = 0;
+    }
+    call(Bu64feed1, state->divs, state->_div);
+    call(Bu8cpfeed1, state->lines, tok[0]);
+    if (tok[1] == state->text[1]) call(Bu8cpfeed1, state->lines, tok[1]);
+    state->_div = 0;
+    done;
 }

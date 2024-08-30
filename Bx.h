@@ -46,8 +46,6 @@ fun ok64 X(B, alloc)(X(B, ) buf, size_t len) {
 
 fun ok64 X(B, free)(X(B, ) buf) { return Bfree((void **)buf); }
 
-// fun ok64 X(B, rewind)(X(B, ) buf) { buf[1] = buf[2] = buf[0]; }
-
 fun ok64 X(B, reserve)(X(B, ) buf, size_t len) {
     return Breserve((void *const *)buf, len * sizeof(T));
 }
@@ -82,6 +80,11 @@ fun ok64 X(B, feed$)(X(B, ) buf, X($c, c) from) {
     return OK;
 }
 
+fun void X(B, reset)(X(B, ) buf) {
+    T **b = (T **)buf;
+    b[1] = b[0];
+    b[2] = b[0];
+}
 fun void X(B, rewind)(X(B, ) buf, size_t past, size_t data) {
     T **b = (T **)buf;
     if (past > Blen(buf)) past = Blen(buf);
@@ -90,7 +93,7 @@ fun void X(B, rewind)(X(B, ) buf, size_t past, size_t data) {
     b[2] = b[0] + past + data;
 }
 
-fun void X(B, reset)(X(B, ) buf) { X(B, rewind)(buf, 0, 0); }
+// fun void X(B, reset)(X(B, ) buf) { X(B, rewind)(buf, 0, 0); }
 
 fun ok64 X(B, pop)(X(B, ) buf) {
     if (buf[2] <= buf[1]) return Bnodata;

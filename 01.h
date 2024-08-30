@@ -229,6 +229,12 @@ fun u8 u64bytelen(u64 u) {
 fun u8 u64byte(u64 u, u8 b) { return u >> (b << 3); }
 fun u8 u64getbyte(u64 u, u8 b) { return u64byte(u, b); }
 
+fun u8 u64topbyte(u64 u) {
+    u8 l = u64bytelen(u);
+    if (l == 0) return 0;
+    return u64byte(u, l - 1);
+}
+
 fun u64 u64setbyte(u64 u, u8 b, u8 ndx) {
     u8 shift = ndx << 3;
     u64 mask = 0xffUL << shift;
