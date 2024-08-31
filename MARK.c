@@ -1,6 +1,7 @@
 #include "MARK.h"
 
 #include "01.h"
+#include "B.h"
 #include "INT.h"
 #include "MARQ.h"
 #include "PRO.h"
@@ -134,8 +135,8 @@ pro(eatline, $u8c line, $u8c dline, u64* room) {
     MARK_QUOTE = 11,
 */
 $u8c MARKdivcanon[] = {
-    $u8str("    "), $u8str("  # "), $u8str(" ## "), $u8str("### "),
-    $u8str("####"), $u8str("~~~~"), $u8str("````"), $u8str("    "),
+    $u8str(",,,,"), $u8str("  # "), $u8str(" ## "), $u8str("### "),
+    $u8str("####"), $u8str("~~~~"), $u8str("````"), $u8str("____"),
     $u8str("00. "), $u8str("  - "), $u8str("[ ]:"), $u8str("  > "),
 };
 
@@ -143,13 +144,26 @@ pro(feedbullet, $u8 $into, u64 stack, b8 head) {
     sane($ok($into));
     u8 depth = u64bytelen(stack);
     test($len($into) >= depth * 4, MARKnoroom);
-    if (depth == 0) skip;
     for (u8 d = 0; d < depth; ++d) {
         u8 b = u64byte(stack, d);
         test(b < MARK_END, MARKbadrec);
         b8 indent = !(head && d + 1 == depth) && (b != MARK_QUOTE);
-        call($u8feed, $into, MARKdivcanon[indent ? 0 : d]);
+        if (head && d + 1 == depth || b == MARK_QUOTE) {
+            call($u8feed, $into, MARKdivcanon[b]);
+        } else {
+            call($u8feed, $into, MARKdivcanon[0]);
+        }
     }
+    done;
+}
+
+fun pro(MARKlinetext, $u8c name, u64 lno, MARKstate const* state) {
+    sane(state != nil);
+    $mv(name, state->lines[0] + lno);
+    u64 div = Bat(state->divs, lno);
+    u8 depth = u64bytelen(div);
+    test($len(name) >= depth * 4, MARKmiss);
+    name[0] += depth * 4;
     done;
 }
 
@@ -159,10 +173,11 @@ pro(MARKANSIdiv, $u8 $into, u64 lfrom, u64 ltill, u64 stack, u32 width,
     u64 depth = u64bytelen(stack);
     test(width > depth * 4, MARKnoroom);
     u64 lno = lfrom;
-    u8c$ line = MARKline(state, lno);
+    $u8c line = {};
+    b8 head = YES;
+    call(MARKlinetext, line, lno, state);
     while (!$empty(line)) {
         $u8c wrap = {};
-        b8 head = YES;
         u64 room = width - depth * 4;
         call(eatline, line, wrap, &room);
         call(feedbullet, $into, stack, head);
@@ -175,7 +190,7 @@ pro(MARKANSIdiv, $u8 $into, u64 lfrom, u64 ltill, u64 stack, u32 width,
         call($u8feed1, $into, '\n');
         if ($empty(line) && lno + 1 < ltill) {
             ++lno;
-            line = MARKline(state, lno);
+            call(MARKlinetext, line, lno, state);
             // TODO if empty (gap)
         }
     }
@@ -189,9 +204,15 @@ pro(MARKANSI, $u8 $into, u32 width, MARKstate const* state) {
     u64 divlen = 0;
     u64 spent = 0;
     b8 hadgap = NO;
-    u64 stack = 0;
     size_t llen = $len(divs) - 1;
-    for (u64 lno = 0; lno < llen; ++lno) {
+    u64$ ps = Bu64data(state->ps);
+    for (u64 p = 0; p + 1 < $len(ps); ++p) {
+        u64 from = Bat(ps, p);
+        u64 till = Bat(ps, p + 1);
+        u64 div = $at(divs, from);
+        call(MARKANSIdiv, $into, from, till, div, width, state);
+    }
+    /*for (u64 lno = 0; lno < llen; ++lno) {
         u64 div = $at(divs, lno);
         u8c$ line = MARKline(state, lno);
         if (samediv(stack, div)) {
@@ -208,7 +229,7 @@ pro(MARKANSI, $u8 $into, u32 width, MARKstate const* state) {
     }
     if (divlen > 0) {
         call(MARKANSIdiv, $into, llen - divlen, llen, stack, width, state);
-    }
+    }*/
     done;
 }
 
@@ -340,6 +361,10 @@ ok64 MARKonIndent($cu8c tok, MARKstate* state) {
 }
 ok64 MARKonQuote($cu8c tok, MARKstate* state) {
     return pushdiv(state, MARK_QUOTE);
+}
+
+ok64 MARKonCode($cu8c tok, MARKstate* state) {
+    return pushdiv(state, MARK_CODE);
 }
 
 pro(MARKonLine, $cu8c tok, MARKstate* state) {

@@ -13,10 +13,11 @@ enum {
 	MARKH4 = MARKenum+9,
 	MARKH = MARKenum+10,
 	MARKQuote = MARKenum+11,
-	MARKLink = MARKenum+13,
-	MARKDiv = MARKenum+16,
-	MARKLine = MARKenum+17,
-	MARKRoot = MARKenum+18,
+	MARKCode = MARKenum+12,
+	MARKLink = MARKenum+14,
+	MARKDiv = MARKenum+17,
+	MARKLine = MARKenum+18,
+	MARKRoot = MARKenum+19,
 };
 ok64 MARKonHLine ($cu8c tok, MARKstate* state);
 ok64 MARKonIndent ($cu8c tok, MARKstate* state);
@@ -28,6 +29,7 @@ ok64 MARKonH3 ($cu8c tok, MARKstate* state);
 ok64 MARKonH4 ($cu8c tok, MARKstate* state);
 ok64 MARKonH ($cu8c tok, MARKstate* state);
 ok64 MARKonQuote ($cu8c tok, MARKstate* state);
+ok64 MARKonCode ($cu8c tok, MARKstate* state);
 ok64 MARKonLink ($cu8c tok, MARKstate* state);
 ok64 MARKonDiv ($cu8c tok, MARKstate* state);
 ok64 MARKonLine ($cu8c tok, MARKstate* state);

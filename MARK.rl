@@ -67,6 +67,12 @@ action MARKQuote1 {
     tok[1] = p;
     call(MARKonQuote, tok, state); 
 }
+action MARKCode0 { mark0[MARKCode] = p - text[0]; }
+action MARKCode1 {
+    tok[0] = text[0] + mark0[MARKCode];
+    tok[1] = p;
+    call(MARKonCode, tok, state); 
+}
 action MARKLink0 { mark0[MARKLink] = p - text[0]; }
 action MARKLink1 {
     tok[0] = text[0] + mark0[MARKLink];
@@ -125,6 +131,9 @@ MARKH  = (   MARKH1  |  MARKH2  |  MARKH3  |  MARKH4 )  >MARKH0 %MARKH1;
 MARKQuote  = (   ">   "  |  " >  "  |  "  > "  |  "   >" )  >MARKQuote0 %MARKQuote1;
 
 
+MARKCode  = (   "````"  |  "``` " )  >MARKCode0 %MARKCode1;
+
+
 MARKlndx  = (   [0-9A-Za-z] );
 
 MARKLink  = (   "["  MARKlndx  "]:" )  >MARKLink0 %MARKLink1;
@@ -132,7 +141,7 @@ MARKLink  = (   "["  MARKlndx  "]:" )  >MARKLink0 %MARKLink1;
 
 MARKnest  = (   MARKIndent  |  MARKQuote );
 
-MARKterm  = (   MARKHLine  |  MARKH1  |  MARKH2  |  MARKH3  |  MARKH4  |  MARKLink  |  MARKOList  |  MARKUList );
+MARKterm  = (   MARKHLine  |  MARKH1  |  MARKH2  |  MARKH3  |  MARKH4  |  MARKLink  |  MARKOList  |  MARKUList  |  MARKCode );
 
 MARKDiv  = (   MARKnest*  MARKterm? )  >MARKDiv0 %MARKDiv1;
 
