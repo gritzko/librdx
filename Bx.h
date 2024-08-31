@@ -80,24 +80,61 @@ fun ok64 X(B, feed$)(X(B, ) buf, X($c, c) from) {
     return OK;
 }
 
+fun ok64 X(B, pop)(X(B, ) buf) {
+    if (buf[2] <= buf[1]) return Bnodata;
+    --*X(B, idle)(buf);
+    return OK;
+}
+
+fun ok64 X(B, mark)(X(B, ) const buf, range64 *range) {
+    range->from = buf[1] - buf[0];
+    range->till = buf[2] - buf[0];
+    return OK;
+}
+
 fun void X(B, reset)(X(B, ) buf) {
     T **b = (T **)buf;
     b[1] = b[0];
     b[2] = b[0];
 }
-fun void X(B, rewind)(X(B, ) buf, size_t past, size_t data) {
+fun ok64 X(B, rewind)(X(B, ) buf, range64 range) {
+    size_t len = $len(buf);
+    if (range.till < range.from || range.till > len) return $miss;
     T **b = (T **)buf;
-    if (past > Blen(buf)) past = Blen(buf);
-    if (past + data > Blen(buf)) data = Blen(buf) - past;
-    b[1] = b[0] + past;
-    b[2] = b[0] + past + data;
+    b[1] = b[0] + range.from;
+    b[2] = b[0] + range.till;
+    return OK;
 }
 
 // fun void X(B, reset)(X(B, ) buf) { X(B, rewind)(buf, 0, 0); }
 
-fun ok64 X(B, pop)(X(B, ) buf) {
-    if (buf[2] <= buf[1]) return Bnodata;
-    --*X(B, idle)(buf);
+fun ok64 X(B, mark$)(X(B, ) const buf, X($, ) slice, range64 *range) {
+    if (!Bwithin(buf, slice)) return Bmiss;
+    range->from = slice[0] - buf[0];
+    range->till = slice[1] - buf[0];
+    return OK;
+}
+
+fun ok64 X($, mark)(X($, c) const host, X($, c) const slice, range64 *range) {
+    if (!$within(host, slice)) return $miss;
+    range->from = slice[0] - host[0];
+    range->till = slice[1] - host[0];
+    return OK;
+}
+
+fun ok64 X($, rewind)(X($c, c) host, X($, c) slice, range64 range) {
+    size_t len = $len(host);
+    if (range.till < range.from || range.till > len) return $miss;
+    slice[0] = host[0] + range.from;
+    slice[1] = host[0] + range.till;
+    return OK;
+}
+
+fun ok64 X(B, rewind$)(X(B, ) buf, X($, ) slice, range64 range) {
+    size_t len = Blen(buf);
+    if (range.till < range.from || range.till > len) return Bmiss;
+    slice[0] = buf[0] + range.from;
+    slice[1] = buf[0] + range.till;
     return OK;
 }
 

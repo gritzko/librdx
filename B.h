@@ -17,6 +17,7 @@ con ok64 Bnotalloc = 0x27cf0c25e33c8b;
 con ok64 Bnoroom = 0x31cf3db3c8b;
 con ok64 Bnodata = 0x25e25a33c8b;
 con ok64 Bbadarg = 0x2bda5a2598b;
+con ok64 Bmiss = 0x37dedc4b;
 
 enum {
     B_NONE = 0,
@@ -68,6 +69,8 @@ typedef void *const *voidB;
 
 #define Bzero(buf) memset(buf[0], 0, ((void *)buf[3]) - ((void *)buf[0]))
 
+#define Bwithin(b, s) (s[0] >= b[0] && s[1] <= b[3])
+
 fun void _Brebase(Bvoid buf, void *newhead, size_t newlen) {
     size_t data = buf[1] - buf[0];
     if (data > newlen) data = newlen;
@@ -118,7 +121,7 @@ fun ok64 Bfree(Bvoid buf) {
     }
 
 #define Breset(b) \
-    { Brewind(b, 0, 0); }
+    { b[1] = b[2] = b[0]; }
 
 #define aB(T, n) T *n[4] = {0, 0, 0, 0};
 
@@ -129,8 +132,8 @@ fun ok64 Bfree(Bvoid buf) {
     { --buf[2]; }
 
 typedef struct {
-    u32 from;
-    u32 till;
+    u64 from;
+    u64 till;
 } range64;
 
 #endif

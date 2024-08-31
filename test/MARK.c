@@ -17,9 +17,11 @@ pro(MARKparsetest) {
     MARKstate state = {};
     aBpad(u8, into, 1024);
     aBpad(u64, divs, 32);
+    aBpad(u64, blocks, 32);
     aBpad(u8cp, lines, 32);
     state.lines = (u8cpB)lines;
     state.divs = (u64B)divs;
+    state.ps = (u64B)blocks;
     a$strc(mark,
            "  # Header\n"
            " 1. list of\n"
@@ -52,7 +54,46 @@ void debugdivs($cu64c $divs) {
     }
 }
 
-pro(MARKtest1) {
+pro(MARKANSItest) {
+    sane(1);
+#define MARKANSIcases 2
+#define CLR "[0m"
+#define MRK "[2m"
+#define BLD "[1m"
+    $u8c QA[MARKANSIcases][2] = {
+        {$u8str("some text\n"), $u8str("some\ntext\n")},
+        {$u8str("some *bold* text\n"),
+         $u8str("some\n" MRK BLD "*" CLR BLD "bold" CLR MRK BLD "*" CLR
+                "\ntext\n")},
+    };
+    for (int c = 0; c < MARKANSIcases; ++c) {
+        MARKstate state = {};
+        aBpad(u8, lines, 16);
+        aBpad(u64, divs, 16);
+        aBpad(u8, fmt, 256);
+        aBpad(u8, into, 256);
+        aBpad(u64, blocks, 256);
+        state.lines = (u8cpB)lines;
+        state.divs = (u64B)divs;
+        state.ps = (u64B)blocks;
+        $mv(state.text, QA[c][0]);
+        $mv(state.fmt, Bu8idle(fmt));
+        Bzero(fmt);
+
+        call(MARKlexer, &state);
+        call(MARKMARQ, &state);
+        call(MARKANSI, Bu8idle(into), 8, &state);
+
+        a$str(hline, "---\n");
+        $print(hline);
+        $print(Bu8cdata(into));
+        $print(hline);
+        test($eq(QA[c][1], Bu8cdata(into)), TESTfail);
+    }
+    done;
+}
+
+pro(MARKHTMLtest) {
     sane(YES);
 #define MARK1cases 8
     $u8c cases[MARK1cases][2] = {
@@ -98,24 +139,28 @@ pro(MARKtest1) {
 
     };
 
-    a$str(hline, "---\n");
     Bu64 divs = {};
+    Bu64 blocks = {};
     Bu8cp lines = {};
     Bu8 fmt = {};
     call(Bu64alloc, divs, 32);
     call(Bu8cpalloc, lines, 32);
     call(Bu8alloc, fmt, PAGESIZE);
+    call(Bu64alloc, blocks, 32);
     for (int i = 0; i < MARK1cases; i++) {
         MARKstate state = {};
         aBpad(u8, into, 1024);
         Bu8cpreset(lines);
         Bu64reset(divs);
+        Bu64reset(blocks);
         Bu8reset(fmt);
         state.lines = (u8cpB)lines;
         state.divs = (u64B)divs;
+        state.ps = (u64B)blocks;
         $mv(state.text, cases[i][0]);
         $mv(state.fmt, Bu8idle(fmt));
 
+        a$str(hline, "---\n");
         $print(hline);
         call(MARKlexer, &state);
         call(MARKHTML, Bu8idle(into), &state);
@@ -129,12 +174,13 @@ pro(MARKtest1) {
         $print(hline);
         test($eq(cases[i][1], Bu8cdata(into)), TESTfail);
     }
-    nedo(Bu64free(divs); Bu8cpfree(lines); Bu8free(fmt););
+    nedo(Bu64free(blocks); Bu64free(divs); Bu8cpfree(lines); Bu8free(fmt););
 };
 
 pro(MARKtest) {
     call(MARKparsetest);
-    call(MARKtest1);
+    call(MARKANSItest);
+    call(MARKHTMLtest);
     done;
 }
 

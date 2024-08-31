@@ -29,11 +29,6 @@ pro(MARQANSItest) {
         call(MARQlexer, &state);
         call(MARQANSI, Bu8idle(into), state.text, (u8c**)state.fmt);
 
-        a$str(hline, "---\n");
-        $print(hline);
-        $print(Bu8cdata(into));
-        $print(hline);
-
         test($eq(QA[c][1], Bu8cdata(into)), TESTfail);
     }
     nedo($print(state.text););
@@ -55,17 +50,12 @@ pro(MARQHTMLtest) {
     for (int c = 0; c < MARQHTMLcases; ++c) {
         aBpad(u8, into, 1024);
         aBpad(u8, pfmt, PAGESIZE);
-        memset(pfmt[0], 0, PAGESIZE);
+        Bzero(pfmt);
         $mv(state.text, QA[c][0]);
         $mv(state.fmt, Bu8idle(pfmt));
 
         call(MARQlexer, &state);
         call(MARQHTML, Bu8idle(into), state.text, (u8c**)state.fmt);
-
-        a$str(hline, "---\n");
-        $print(hline);
-        $print(Bu8cdata(into));
-        $print(hline);
 
         test($eq(QA[c][1], Bu8cdata(into)), TESTfail);
     }

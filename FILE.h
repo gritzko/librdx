@@ -221,6 +221,7 @@ fun pro(FILEmap, Bvoid buf, int fd, int mode, size_t size) {
     uint8_t **b = (uint8_t **)buf;
     b[0] = b[1] = b[2] = b[3] = map;
     b[3] += size;
+    if (mode & PROT_READ) b[2] += size;
     done;
 }
 // new_size==0 to use de-facto file data

@@ -9,7 +9,8 @@
 #include "OK.h"
 
 con ok64 MARKfail = 0xc2d96a51b296;
-con ok64 MARKnospace = 0x99e5d37cf251b296;
+con ok64 MARKnoroom = 0xc73cf6cf251b296;
+con ok64 MARKbadrec = 0x9e9da896651b296;
 #define MARKenum 0
 
 typedef enum {
@@ -24,15 +25,16 @@ typedef enum {
     MARK_ULIST = 9,
     MARK_LINK = 10,
     MARK_QUOTE = 11,
+    MARK_END = 12,
 } MARKdiv;
 
 extern char MARKdivascii[];
+extern $u8c MARKdivcanon[];
 
 typedef struct {
     // The wiki-text to be parsed.
     $u8c text;
-    // Inline markup parsing state
-    MARQstate marq;
+    // Inline formatting
     $u8 fmt;
     // Current line div stack.
     u64 _div;
@@ -42,6 +44,7 @@ typedef struct {
     u8cpB lines;
     // Line div stacks, indices match those of `lines`.
     u64B divs;
+    u64B ps;
 } MARKstate;
 
 fun u8c$ MARKline(MARKstate const* state, u64 ndx) {
@@ -50,8 +53,10 @@ fun u8c$ MARKline(MARKstate const* state, u64 ndx) {
 
 ok64 MARKlexer(MARKstate* state);
 
+ok64 MARKMARQ(MARKstate* state);
+
 ok64 MARKHTML($u8 into, MARKstate const* state);
 
-ok64 MARKANSI($u8 into, MARKstate const* state);
+ok64 MARKANSI($u8 into, u32 width, MARKstate const* state);
 
 #endif

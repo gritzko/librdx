@@ -21,7 +21,7 @@ pro(closeesc, $u8 $into) {
     done;
 }
 
-pro(MARQANSI, $u8 $into, $u8c $txt, $u8c $fmt) {
+pro(MARQANSI, $u8 $into, $u8c const $txt, $u8c const $fmt) {
     sane($ok($into) && $len($txt) <= $len($fmt));
     u8 prev = 0;
     u8cp fp = $fmt[0];
@@ -84,7 +84,7 @@ pro(MARQHTML, $u8 $into, $u8c $txt, $u8c $fmt) {
 }
 
 pro(MARQrange, MARQfmt fmt, $cu8c tok, MARQstate* state) {
-    sane(state != nil && $ok(tok) && $within(tok, state->text));
+    sane(state != nil && $ok(tok) && $within(state->text, tok));
     size_t f = tok[0] - state->text[0];
     size_t t = tok[1] - state->text[0];
     for (size_t i = f; i < t; ++i) $at(state->fmt, i) |= 1 << fmt;
@@ -92,7 +92,7 @@ pro(MARQrange, MARQfmt fmt, $cu8c tok, MARQstate* state) {
 }
 
 pro(MARQopenbracket, MARQfmt fmt, $cu8c tok, MARQstate* state) {
-    sane(state != nil && $ok(tok) && $within(tok, state->text));
+    sane(state != nil && $ok(tok) && $within(state->text, tok));
     //$u8c tmpl = $u8str("MARQopenbracket '$s' at $u\n");
     // FILEfeedf(STDOUT_FILENO, tmpl, tok, tok[0] - state->text[0]);
     u8c$ text = state->text;
@@ -105,7 +105,7 @@ pro(MARQopenbracket, MARQfmt fmt, $cu8c tok, MARQstate* state) {
 }
 
 pro(MARQclosebracket, MARQfmt fmt, $cu8c tok, MARQstate* state) {
-    sane(state != nil && $ok(tok) && $within(tok, state->text));
+    sane(state != nil && $ok(tok) && $within(state->text, tok));
     u8c$ text = state->text;
     $u64 $b = {};
     $u64str0((u64c**)$b, state->brackets);

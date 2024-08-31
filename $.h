@@ -14,6 +14,8 @@
 
 #include "01.h"
 
+con ok64 $miss = 0x37dedc7f;
+
 #define $head(s) ((s)[0])
 #define $term(s) ((s)[1])
 #define $last(s) ((s)[1] - 1)
@@ -24,7 +26,7 @@
 #define $empty(s) ($head(s) >= $term(s))
 #define $nospace(s, l) ($head(s) + (l) > $term(s))
 #define $ok(s) (s != nil && *s != nil && s[1] >= s[0])
-#define $within(n, h) (n[0] >= h[0] && n[1] <= h[1])
+#define $within(h, n) (n[0] >= h[0] && n[1] <= h[1])
 
 #define $sliced(a) \
     { a, a + (sizeof(a) / sizeof(*a)) }

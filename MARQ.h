@@ -17,6 +17,7 @@ typedef enum {
     MARQ_LINK = 2,
     MARQ_STRONG = 3,
     MARQ_EMPH = 4,
+    MARQ_MAX_FMT = 5,
 } MARQfmt;
 
 con u8 MARQesc[] = {WEAK, LIGHT_BLUE, UNDERLINE, BOLD, HIGHLIGHT};
@@ -35,7 +36,7 @@ typedef struct {
 
 ok64 MARQlexer(MARQstate* state);
 
-ok64 MARQANSI($u8 $into, $u8c txt, $u8c fmt);
+ok64 MARQANSI($u8 $into, $u8c const txt, $u8c const fmt);
 
 ok64 MARQHTML($u8 $into, $u8c txt, $u8c fmt);
 
