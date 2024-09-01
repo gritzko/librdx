@@ -116,8 +116,8 @@ pro(MARQclosebracket, MARQfmt fmt, $cu8c tok, MARQstate* state) {
     for (size_t i = f; i < t; ++i) $at(state->fmt, i) |= 1 << fmt;
     $at(state->fmt, f) |= 1 << MARQ_MARKUP;
     $at(state->fmt, t - 1) |= 1 << MARQ_MARKUP;
-    $rm1p($b, p);
-    $term($b) = 0;
+    $rm1p($b, p);    // FIXME this is a minefield
+    *$term($b) = 0;  // FIXME this one is too (term is p!!!)
     done;
 }
 

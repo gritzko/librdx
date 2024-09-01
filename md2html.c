@@ -50,9 +50,7 @@ pro(md2html, $u8c mod) {
     state.divs = (u64B)divs;
     state.lines = (u8cpB)lines;
     $mv(state.text, Bu8cdata(text));
-    $mv(state.marq.text, Bu8cdata(text));
     $mv(state.fmt, Bu8idle(fmt));
-    $mv(state.marq.fmt, Bu8idle(fmt));
 
     call(MARKlexer, &state);
 
