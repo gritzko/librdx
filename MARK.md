@@ -1,4 +1,4 @@
-#   MARK: deterministic Markdown dialect
+#   MARK: deterministic *Markdown* dialect
 
 The MARK is a minimalistic markup format based on [Markdown][m].
 Markup languages have a long and boring history; we can 

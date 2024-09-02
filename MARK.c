@@ -73,6 +73,9 @@ fun b8 pable(u64 stack) {
     return b == MARK_OLIST || b == MARK_ULIST || b == MARK_QUOTE;
 }
 
+a$strc(P0, "<p>");
+a$strc(P1, "</p>\n");
+
 fun b8 samediv(u64 stack, u64 div) {
     u8 al = u64bytelen(stack);
     u8 bl = u64bytelen(div);
@@ -209,6 +212,7 @@ pro(MARKANSIdiv, $u8 $into, u64 lfrom, u64 ltill, u64 stack, u32 width,
         call($u8mark, state->text, wrap, &mark);
         call($u8rewind, (u8c**)state->fmt, wfmt, mark);
         call(MARQANSI, $into, wrap, wfmt);
+        nled = NO;
         if (!$empty(line)) {
             call($u8feed1, $into, '\n');
             room = width - depth * 4;
@@ -217,11 +221,18 @@ pro(MARKANSIdiv, $u8 $into, u64 lfrom, u64 ltill, u64 stack, u32 width,
         } else if (lno + 1 < ltill) {
             ++lno;
             call(MARKlinetext, line, lno, state);
-            // TODO if empty (gap)
-            nled = NO;
-            if (room) {
-                --room;
-                call($u8feed1, $into, ' ');
+            if ($len(line) == 1) {
+                call($u8feed1, $into, '\n');
+                room = width - depth * 4;
+                call(feedbullet, $into, stack, NO, list);
+                nled = YES;
+
+            } else {
+                nled = NO;
+                if (room) {
+                    --room;
+                    call($u8feed1, $into, ' ');
+                }
             }
         }
     }
@@ -280,37 +291,27 @@ pro(MARKMARQ, MARKstate* state) {
     done;
 }
 
-pro(htmlp, $u8 $into, u64 line, u64 len, u8 depth, MARKstate const* state) {
-    sane($ok($into) && state != nil && line + len <= $len(state->lines));
-    u8c* text0 = state->text[0];
-    u8c* fmt0 = state->fmt[0];
-    for (u64 l = line; l < line + len; ++l) {
-        u8c$ line = MARKline(state, l);
-        a$str(haha, ">>>");
-        $print(haha);
-        $print(line);
-        line[0] += depth * 4;
-        size_t f = line[0] - text0;
-        size_t t = line[1] - text0;
-        $u8c fmt = {fmt0 + f, fmt0 + t};
-        call(MARQHTML, $into, line, fmt);
-    }
-    done;
-}
-
-pro(MARKHTMLp, $u8 $into, u64 from, u64 till, u8 depth,
+pro(MARKHTMLp, $u8 $into, u64 from, u64 till, u64 stack,
     MARKstate const* state) {
     sane($ok($into) && state != nil && till <= Bdatalen(state->lines));
+    u8 depth = u64bytelen(stack);
     u8c* text0 = state->text[0];
     u8c* fmt0 = state->fmt[0];
+    if (pable(stack)) call($u8feed, $into, P0);
     for (u64 l = from; l < till; ++l) {
         $u8c line = {};
         call(MARKlinetext, line, l, state);
+        if ($len(line) == 1) {
+            call($u8feed, $into, P1);
+            call($u8feed, $into, P0);
+            continue;
+        }
         size_t f = line[0] - text0;  // TODO mark
         size_t t = line[1] - text0;
         $u8c fmt = {fmt0 + f, fmt0 + t};
         call(MARQHTML, $into, line, fmt);
     }
+    if (pable(stack)) call($u8feed, $into, P1);
     done;
 }
 
@@ -359,62 +360,14 @@ pro(MARKHTML, $u8 $into, MARKstate const* state) {
             ++sd;
         }
 
-        call(MARKHTMLp, $into, from, till, div, state);
+        call(MARKHTMLp, $into, from, till, stack, state);
     }
-    done;
-}
 
-pro(MARKHTMLold, $u8 $into, MARKstate const* state) {
-    sane($ok($into) && state != nil);
-    u64 stack = 0;
-    u64 plen = 0;
-    $u64 divs;
-    $u8cp lines;
-    $mv(divs, Bu64data(state->divs));
-    $mv(lines, Bu8cpdata(state->lines));
-    $for(u64, div, divs) {
-        u64 d = *div;
-        u8 depth = u64bytelen(stack);
-        u8 newdepth = u64bytelen(d);
-        u8 keep = 0;
-        for (; keep < depth && keep < newdepth; ++keep) {
-            u8 n = u64byte(d, keep);
-            u8 x = u64byte(stack, keep);
-            if (n == MARK_INDENT) {
-                continue;
-            } else if (n == MARK_QUOTE) {
-                if (x == MARK_QUOTE) {
-                    continue;
-                } else {
-                    break;
-                }
-            } else {
-                break;
-            }
-        }
-        if (keep < depth) {
-            size_t at = div - *divs;
-            call(htmlp, $into, at - state->_plen - 1, state->_plen + 1, depth,
-                 state);
-            // maybe close p
-            for (u8 c = depth - 1; c >= keep; --c) {
-                call(tagopen, $into, u64byte(d, c));
-            }
-            stack = u64lowbytes(stack, keep);
-        } else if (keep == depth && u64topbyte(d) != MARK_INDENT && d != 0) {
-            call(tagredo, $into, u64topbyte(d));
-        } else {  // maybe open things
-            for (u8 o = keep; o < newdepth; ++o) {
-                u8 b = u64byte(d, o);
-                call(tagclose, $into, b);
-                stack = u64setbyte(stack, b, o);
-            }
-        }
-        ++*lines;
+    u8 sd = u64bytelen(stack);
+    while (sd > 0) {
+        --sd;
+        call(tagclose, $into, u64byte(stack, sd));
     }
-    u8 depth = u64bytelen(stack);
-    size_t at = $len(Bdata(state->lines));  // FIXME
-    call(htmlp, $into, at - state->_plen - 1, state->_plen + 1, depth, state);
     done;
 }
 

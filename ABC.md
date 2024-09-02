@@ -1,6 +1,5 @@
 #   Algebraic Bricklaying C
 
-ABC is an experimental C dialect focused on handling complexity *in different ways*.
 The archetypical approach to handling complexity is *layering of abstractions*.
 That is good, to some degree, but, as the saying goes, 
  >  You can solve any problem by adding a layer of abstraction,
@@ -8,6 +7,8 @@ That is good, to some degree, but, as the saying goes,
 As a stack of abstractions grows, it inevitably becomes a shaky pile.
 Eventually, we are left wondering whether all that makes any sense.
 
+
+ABC is an experimental C dialect focused on handling complexity _in different ways_.
 ABC goal is to make things:
  1. simple,
  2. durable,
@@ -28,28 +29,24 @@ Instead of "more features", 80/20. How many `ls` flags do you remember by heart?
 Those are the real ones!
 
 ABC is greatly influenced by go, kernel C and JPL C.
+ABC sees C++ and Rust as ways to evolve C that earned us a lot of experience, hard.
 
-##  Abstraction stacking
+##  Why C 
 
-While such languages as C++ and Rust evolve C by stacking
-layers of abstraction, ABC rejects stacking altogether. 
+One of ABC objectives is durability. 
+Instead of making an experimental language that will rot in 5 years, we focus narrowly on C.
+C is our Latin, it will not go away anytime soon (if ever). 
 
-##  The mission
+The Linux kernel is a civilizational megaproject and is uses C. 
+Same with Windows and MacOS kernels and much of the library tier (SSL, JPEG, what's not). 
 
-ABC constructs 
-do not stack, they line up.
+Finally, ABC must be fit for the purpose of creating low-level system utilities. 
+Hence, no GC, no runtime and no feature creep. 
 
-ABC is durable. Instead of making an experimental language that
-will rot in 5 years, we focus narrowly on C. C is our Latin, it
-will not go away anytime soon. The Linux kernel is a civilizational
-megaproject, is uses C. Same with Windows and MacOS kernels. 
-
-Finally, ABC is fit for the purpose: creating low-level system
-utilities. No GC. No feature creep. We do work from here to
-there, we have no opinion about higher layers of the stack.
 
 ##  The ABC method
 
+ABC constructs 
 It is all about pointers and file descriptors.
 That is a great "hourglass waist" on par with the IP protocol.
 One world above, another below, a narrow API between them.
@@ -59,6 +56,9 @@ the right flags. ABC encourages the use of *slices* and other
 *star types*: buffers, iterators and so on. Those are all
 pointers under the hood.
 
+due to abstraction piling
+While such languages as C++ and Rust evolve C by stacking
+layers of abstraction, ABC rejects stacking, for the most part. 
 ABC avoids stacking of constructs, encapsulation and suchlike.
 In C++, `std::vector<char>` is all different from `std::string`,
 different from `char*`. We can't discourage that enough!

@@ -58,7 +58,7 @@ pro(MARKANSItest) {
     sane(1);
 #define MARKANSIcases 2
 #define CLR "[0m"
-#define MRK "[2m"
+#define MRK "[90m"
 #define BLD "[1m"
     $u8c QA[MARKANSIcases][2] = {
         {$u8str("some text\n"), $u8str("some\ntext\n")},
@@ -84,6 +84,7 @@ pro(MARKANSItest) {
         call(MARKMARQ, &state);
         call(MARKANSI, Bu8idle(into), 8, &state);
 
+        debugdivs(Bu64cdata(state.divs));
         a$str(hline, "---\n");
         $print(hline);
         $print(Bu8cdata(into));
@@ -126,12 +127,16 @@ pro(MARKHTMLtest) {
                 "<p><span>buy things\n</span></p>\n")},
 
         {$u8str("Hello *world*!\n"),
-         $u8str("<p><span>Hello </span><span class='"
-                "strong'>*world*</span><span>!\n</span></p>\n")},
+         $u8str("<p><span>Hello </span><span class='mark strong'>*</span><span "
+                "class='strong'>world</span><span class='mark "
+                "strong'>*</span><span>!\n"
+                "</span></p>\n")},
 
         {$u8str("#   Hello *world*!\n"),
-         $u8str("<h1><span>Hello </span><span class='"
-                "strong'>*world*</span><span>!\n</span></h1>\n")},
+         $u8str("<h1><span>Hello </span><span class='mark "
+                "strong'>*</span><span class='strong'>world</span><span "
+                "class='mark strong'>*</span><span>!\n"
+                "</span></h1>\n")},
 
         {$u8str("Hello _beautiful world_!\n"),
          $u8str("<p><span>Hello </span><span class='emph'>_beautiful "
@@ -154,6 +159,7 @@ pro(MARKHTMLtest) {
         Bu64reset(divs);
         Bu64reset(blocks);
         Bu8reset(fmt);
+        Bzero(fmt);
         state.lines = (u8cpB)lines;
         state.divs = (u64B)divs;
         state.ps = (u64B)blocks;
@@ -163,6 +169,7 @@ pro(MARKHTMLtest) {
         a$str(hline, "---\n");
         $print(hline);
         call(MARKlexer, &state);
+        call(MARKMARQ, &state);
         call(MARKHTML, Bu8idle(into), &state);
 
         $print(hline);

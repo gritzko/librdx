@@ -15,10 +15,14 @@ pro(MARQANSItest) {
     sane(1);
     MARQstate state = {};
 #define MARQANSIcases 2
+#define CLR "[0m"
+#define MRK "[90m"
+#define BLD "[1m"
     $u8c QA[MARQANSIcases][2] = {
         {$u8str("some text\n"), $u8str("some text\n")},
         {$u8str("some *bold* text\n"),
-         $u8str("some [2m[1m*[0m[1mbold[0m[2m[1m*[0m text\n")},
+         $u8str("some " MRK BLD "*" CLR BLD "bold" CLR MRK BLD "*" CLR
+                " text\n")},
     };
     for (int c = 0; c < MARQANSIcases; ++c) {
         aBpad(u8, into, 1024);
