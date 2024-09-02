@@ -37,6 +37,12 @@ action MARQEm1 {
     tok[1] = p;
     call(MARQonEm, tok, state); 
 }
+action MARQCode010 { mark0[MARQCode01] = p - text[0]; }
+action MARQCode011 {
+    tok[0] = text[0] + mark0[MARQCode01];
+    tok[1] = p;
+    call(MARQonCode01, tok, state); 
+}
 action MARQSt00 { mark0[MARQSt0] = p - text[0]; }
 action MARQSt01 {
     tok[0] = text[0] + mark0[MARQSt0];
@@ -91,6 +97,9 @@ MARQEm1  = (   MARQnonws  "_"  MARQwsp )  >MARQEm10 %MARQEm11;
 MARQEm  = (   "_"  (MARQword  MARQws+)*  MARQword?  (MARQnonws-"\\")  :>>  "_" )  >MARQEm0 %MARQEm1;
 
 
+MARQCode01  = (   [^\\]  "`" )  >MARQCode010 %MARQCode011;
+
+
 MARQSt0  = (   MARQwsp  "*"  MARQnonws )  >MARQSt00 %MARQSt01;
 
 MARQSt1  = (   [^\t\r\n *]  "*" )  >MARQSt10 %MARQSt11;
@@ -98,7 +107,7 @@ MARQSt1  = (   [^\t\r\n *]  "*" )  >MARQSt10 %MARQSt11;
 MARQSt  = (   "*"  (MARQword  MARQws+)*  MARQword?  (MARQnonws-"\\")  :>>  "*" )  >MARQSt0 %MARQSt1;
 
 
-MARQinline  = (   MARQwords  |  MARQEm0  |  MARQEm1  |  MARQEm  |  MARQSt0  |  MARQSt1  |  MARQRef0  |  MARQRef1 );
+MARQinline  = (   MARQwords  |  MARQEm0  |  MARQEm1  |  MARQEm  |  MARQSt0  |  MARQSt1  |  MARQRef0  |  MARQRef1  |  MARQCode01 );
 
 MARQRoot  = (   (MARQws*  MARQinline)*  MARQws* )  >MARQRoot0 %MARQRoot1;
 
@@ -127,7 +136,7 @@ pro(MARQlexer, MARQstate* state) {
     %% write init;
     %% write exec;
 
-    if (p!=text[1] || cs <= MARQ_first_final) {
+    if (p!=text[1] || cs < MARQ_first_final) {
         fail(MARQfail);
         state->text[0] = p;
     }

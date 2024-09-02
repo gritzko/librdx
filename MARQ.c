@@ -141,6 +141,28 @@ ok64 MARQonEm($cu8c tok, MARQstate* state) {
     return MARQrange(MARQ_EMPH, tok, state);
 }
 
+pro(MARQonCode01, $cu8c tok, MARQstate* state) {
+    sane(state != nil && $ok(tok) && $within(state->text, tok));
+    u8c$ text = state->text;
+    printf("CODE %lu\n", tok[1] - text[0]);
+    $u64 $b = {};
+    $u64str0((u64c**)$b, state->brackets);
+    a$findif(u64, p, $b, *p != 0 && O1high32(*p) == MARQ_CODE);
+    if (*p == 0) {
+        size_t pos = tok[0] - text[0];
+        *$term($b) = O1join32(pos, MARQ_CODE);
+        skip;
+    }
+    size_t f = O1low32(*p);
+    size_t t = tok[1] - text[0];
+    for (size_t i = f; i < t; ++i) $at(state->fmt, i) |= 1 << MARQ_CODE;
+    $at(state->fmt, f) |= 1 << MARQ_MARKUP;
+    $at(state->fmt, t - 1) |= 1 << MARQ_MARKUP;
+    $rm1p($b, p);    // FIXME this is a minefield
+    *$term($b) = 0;  // FIXME this one is too (term is p!!!)
+    done;
+}
+
 ok64 MARQonSt0($cu8c tok, MARQstate* state) {
     return MARQopenbracket(MARQ_STRONG, tok, state);
 }

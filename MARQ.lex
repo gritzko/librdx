@@ -14,9 +14,11 @@ Em0 = wsp "_" nonws;
 Em1 = nonws "_" wsp;
 Em = "_" (word ws+)* word? (nonws-"\\") :>> "_";
 
+Code01 = [^\\] "`";
+
 St0 = wsp "*" nonws;
 St1 = [^\t\r\n *] "*";
 St = "*" (word ws+)* word? (nonws-"\\") :>> "*";
 
-inline = words | Em0 | Em1 | Em | St0 | St1 | Ref0 | Ref1;
+inline = words | Em0 | Em1 | Em | St0 | St1 | Ref0 | Ref1 | Code01;
 Root = (ws* inline)* ws*;

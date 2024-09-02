@@ -43,12 +43,15 @@ pro(md2html, $u8c mod) {
     call(MMAPu8cpopen, lines, Blen(text));
     Bu64 divs = {};
     call(MMAPu64open, divs, Blen(text));
+    Bu64 ps = {};
+    call(MMAPu64open, ps, Blen(text));
     Bu8 into = {};
     call(MMAPu8open, into, roundup(Blen(text) * 8, PAGESIZE));
 
     MARKstate state = {};
     state.divs = (u64B)divs;
     state.lines = (u8cpB)lines;
+    state.ps = (u64B)ps;
     $mv(state.text, Bu8cdata(text));
     $mv(state.fmt, Bu8idle(fmt));
 

@@ -20,7 +20,7 @@ typedef enum {
     MARQ_MAX_FMT = 5,
 } MARQfmt;
 
-con u8 MARQesc[] = {WEAK, LIGHT_BLUE, UNDERLINE, BOLD, HIGHLIGHT};
+con u8 MARQesc[] = {WEAK, DARK_GREEN, UNDERLINE, BOLD, HIGHLIGHT};
 
 typedef u64 link64;
 
