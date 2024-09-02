@@ -4,6 +4,7 @@
 #include "B.h"
 #include "INT.h"
 #include "MARQ.h"
+#include "OK.h"
 #include "PRO.h"
 
 char MARKdivascii[] = " 1234~`_.-[>";
@@ -135,8 +136,8 @@ pro(eatline, $u8c line, $u8c dline, u64* room) {
     MARK_QUOTE = 11,
 */
 $u8c MARKdivcanon[] = {
-    $u8str(",,,,"), $u8str("  # "), $u8str(" ## "), $u8str("### "),
-    $u8str("####"), $u8str("~~~~"), $u8str("````"), $u8str("____"),
+    $u8str("    "), $u8str("  # "), $u8str(" ## "), $u8str("### "),
+    $u8str("####"), $u8str("~~~~"), $u8str("````"), $u8str("    "),
     $u8str("00. "), $u8str("  - "), $u8str("[ ]:"), $u8str("  > "),
 };
 
@@ -179,13 +180,13 @@ pro(feedbullet, $u8 $into, u64 stack, b8 head, u16 list) {
     done;
 }
 
-fun pro(MARKlinetext, $u8c name, u64 lno, MARKstate const* state) {
+fun pro(MARKlinetext, $u8c text, u64 lno, MARKstate const* state) {
     sane(state != nil);
-    $mv(name, state->lines[0] + lno);
+    $mv(text, state->lines[0] + lno);
     u64 div = Bat(state->divs, lno);
     u8 depth = u64bytelen(div);
-    test($len(name) >= depth * 4, MARKmiss);
-    name[0] += depth * 4;
+    test($len(text) >= depth * 4, MARKmiss);
+    text[0] += depth * 4;
     done;
 }
 
@@ -297,7 +298,73 @@ pro(htmlp, $u8 $into, u64 line, u64 len, u8 depth, MARKstate const* state) {
     done;
 }
 
+pro(MARKHTMLp, $u8 $into, u64 from, u64 till, u8 depth,
+    MARKstate const* state) {
+    sane($ok($into) && state != nil && till <= Bdatalen(state->lines));
+    u8c* text0 = state->text[0];
+    u8c* fmt0 = state->fmt[0];
+    for (u64 l = from; l < till; ++l) {
+        $u8c line = {};
+        call(MARKlinetext, line, l, state);
+        size_t f = line[0] - text0;  // TODO mark
+        size_t t = line[1] - text0;
+        $u8c fmt = {fmt0 + f, fmt0 + t};
+        call(MARQHTML, $into, line, fmt);
+    }
+    done;
+}
+
+fun u8 samedepth(u64 stack, u64 div) {
+    u8 sd = u64bytelen(stack);
+    u8 depth = u64bytelen(div);
+    u8 d = sd > depth ? depth : sd;
+    while (d > 0 && !samediv(u64lowbytes(stack, d), u64lowbytes(div, d))) --d;
+    return d;
+}
+
 pro(MARKHTML, $u8 $into, MARKstate const* state) {
+    sane($ok($into) && state != nil && !Bempty(state->divs));
+    u64$ divs = Bu64data(state->divs);
+    u8cp$ lines = Bu8cpdata(state->lines);
+    test($len(divs) == $len(lines), FAILsanity);
+    u64 stack = 0;
+    u64$ ps = Bu64data(state->ps);
+    for (u64 p = 0; p + 1 < $len(ps); ++p) {
+        u64 from = Bat(ps, p);
+        u64 till = Bat(ps, p + 1);
+        u64 div = $at(divs, from);
+        u8 sd = u64bytelen(stack);
+        u8 depth = u64bytelen(div);
+        u8 keep = samedepth(stack, div);
+
+        while (sd > keep + 1) {
+            --sd;
+            call(tagclose, $into, u64byte(stack, sd));
+            stack = u64setbyte(stack, 0, sd);
+        }
+
+        if (sd == keep + 1 && depth == keep + 1 &&
+            u64byte(div, keep) == u64byte(stack, keep)) {
+            call(tagredo, $into, u64byte(stack, keep));
+        } else if (sd == keep + 1) {
+            --sd;
+            call(tagclose, $into, u64byte(stack, sd));
+            stack = u64setbyte(stack, 0, sd);
+        }
+
+        while (depth > sd) {
+            u8 b = u64byte(div, sd);
+            call(tagopen, $into, b);
+            stack = u64setbyte(stack, b, sd);
+            ++sd;
+        }
+
+        call(MARKHTMLp, $into, from, till, div, state);
+    }
+    done;
+}
+
+pro(MARKHTMLold, $u8 $into, MARKstate const* state) {
     sane($ok($into) && state != nil);
     u64 stack = 0;
     u64 plen = 0;

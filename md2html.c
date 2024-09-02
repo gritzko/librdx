@@ -56,7 +56,7 @@ pro(md2html, $u8c mod) {
     $mv(state.fmt, Bu8idle(fmt));
 
     call(MARKlexer, &state);
-
+    call(MARKMARQ, &state);
     call(MARKHTML, Bu8idle(into), &state);
 
     int hfd = 0;
@@ -66,9 +66,9 @@ pro(md2html, $u8c mod) {
     call(FILEfeedall, hfd, Bu8cdata(into));
     call(FILEfeedall, hfd, footer_template);
 
-    nedo($println(state.text); FILEclose(hfd), FILEclose(fd);
-         MMAPu8close(fmt), MMAPu8close(into), MMAPu8cpclose(lines),
-         MMAPu64close(divs););
+    nedo(FILEclose(hfd), FILEclose(fd); MMAPu8close(fmt), MMAPu8close(into),
+                                        MMAPu8cpclose(lines),
+                                        MMAPu64close(divs););
 }
 
 int main(int argn, char **args) {

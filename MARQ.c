@@ -125,8 +125,14 @@ ok64 MARQonRef0($cu8c tok, MARQstate* state) {
     return MARQopenbracket(MARQ_LINK, tok, state);
 }
 
-ok64 MARQonRef1($cu8c tok, MARQstate* state) {
-    return MARQclosebracket(MARQ_LINK, tok, state);
+pro(MARQonRef1, $cu8c tok, MARQstate* state) {
+    sane(state != nil);
+    call(MARQclosebracket, MARQ_LINK, tok, state);
+    size_t off = tok[1] - state->text[0];
+    $at(state->fmt, off - 2) |= 1 << MARQ_MARKUP;
+    $at(state->fmt, off - 3) |= 1 << MARQ_MARKUP;
+    $at(state->fmt, off - 4) |= 1 << MARQ_MARKUP;
+    done;
 }
 
 ok64 MARQonEm0($cu8c tok, MARQstate* state) {
