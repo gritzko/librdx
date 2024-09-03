@@ -15,6 +15,14 @@ ABC goal is to make things:
  2. durable,
  3. fit for the purpose.
 
+There is a good mathematical explanation for the ABC approach.
+Code complexity can be good or bad. 
+Good complexity is combining existing code to produce new useful behavior.
+Bad complexity is unexpected bug/feature interaction.
+Both things are combinatorial in nature.
+What ABC pushes for is maximising good and minimising bad combinatorics.
+
+How?
 Code constructs should be like bricks: small, predictable and arbitrarily composable.
 In a way that you can put them in place correctly, then leave them alone for the next 100 years.
 
