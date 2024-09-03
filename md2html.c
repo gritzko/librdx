@@ -34,41 +34,41 @@ pro(md2html, $u8c mod) {
     a$strf(name, 1024, "$s.md", mod);
     int fd = 0;
     call(FILEopen, &fd, Bu8cdata(name), O_RDONLY);
-    Bu8 text = {};
-    call(FILEmap, (void **)text, fd, PROT_READ, 0);
+    Bu8 txtbuf = {};
+    call(FILEmap, (void **)txtbuf, fd, PROT_READ, 0);
 
-    Bu8 fmt = {};
-    call(MMAPu8open, fmt, Blen(text));
-    Bu8cp lines = {};
-    call(MMAPu8cpopen, lines, Blen(text));
-    Bu64 divs = {};
-    call(MMAPu64open, divs, Blen(text));
-    Bu64 ps = {};
-    call(MMAPu64open, ps, Blen(text));
-    Bu8 into = {};
-    call(MMAPu8open, into, roundup(Blen(text) * 8, PAGESIZE));
+    Bu8 fmtbuf = {};
+    call(MMAPu8open, fmtbuf, Blen(txtbuf));
+    Bu8cp linebuf = {};
+    call(MMAPu8cpopen, linebuf, Blen(txtbuf));
+    Bu64 divbuf = {};
+    call(MMAPu64open, divbuf, Blen(txtbuf));
+    Bu64 pbuf = {};
+    call(MMAPu64open, pbuf, Blen(txtbuf));
+    Bu8 intobuf = {};
+    call(MMAPu8open, intobuf, roundup(Blen(txtbuf) * 8, PAGESIZE));
 
     MARKstate state = {};
-    state.divs = (u64B)divs;
-    state.lines = (u8cpB)lines;
-    state.ps = (u64B)ps;
-    $mv(state.text, Bu8cdata(text));
-    $mv(state.fmt, Bu8idle(fmt));
+    state.divB = (u64B)divbuf;
+    state.lineB = (u8cpB)linebuf;
+    state.pB = (u64B)pbuf;
+    $mv(state.text, Bu8cdata(txtbuf));
+    $mv(state.fmt, Bu8idle(fmtbuf));
 
     call(MARKlexer, &state);
     call(MARKMARQ, &state);
-    call(MARKHTML, Bu8idle(into), &state);
+    call(MARKHTML, Bu8idle(intobuf), &state);
 
     int hfd = 0;
     a$strf(htmlname, 1024, "$s.html", mod);
     call(FILEcreate, &hfd, Bu8cdata(htmlname));
     call(FILEfeedall, hfd, header_template);
-    call(FILEfeedall, hfd, Bu8cdata(into));
+    call(FILEfeedall, hfd, Bu8cdata(intobuf));
     call(FILEfeedall, hfd, footer_template);
 
-    nedo(FILEclose(hfd), FILEclose(fd); MMAPu8close(fmt), MMAPu8close(into),
-                                        MMAPu8cpclose(lines),
-                                        MMAPu64close(divs););
+    nedo(FILEclose(hfd), FILEclose(fd);
+         MMAPu8close(fmtbuf), MMAPu8close(intobuf), MMAPu8cpclose(linebuf),
+         MMAPu64close(divbuf););
 }
 
 int main(int argn, char **args) {

@@ -7,7 +7,6 @@ That is good, to some degree, but, as the saying goes,
 As a stack of abstractions grows, it inevitably becomes a shaky pile.
 Eventually, we are left wondering whether all that makes any sense.
 
-
 ABC is an experimental C dialect focused on handling complexity _in different ways_.
 ABC goal is to make things:
  1. simple,
@@ -22,12 +21,6 @@ ABC strives for
   - orthogonality and
   - minimalism.
 
-Instead of encapsulation and versioning, well-specified formats and behavior.
-Once the code is complete, it is complete, over.
-Instead of layering, composability. Don't pile, line'em up!
-Instead of "more features", 80/20. How many `ls` flags do you remember by heart?
-Those are the real ones!
-
 ABC is greatly influenced by go, kernel C and JPL C.
 ABC sees C++ and Rust as ways to evolve C that earned us a lot of experience, hard.
 
@@ -41,73 +34,123 @@ The Linux kernel is a civilizational megaproject and is uses C.
 Same with Windows and MacOS kernels and much of the library tier (SSL, JPEG, what's not). 
 
 Finally, ABC must be fit for the purpose of creating low-level system utilities. 
-Hence, no GC, no runtime and no feature creep. 
-
+Hence, no GC, no runtime and no feature creep. C. 
 
 ##  The ABC method
 
-ABC constructs 
-It is all about pointers and file descriptors.
-That is a great "hourglass waist" on par with the IP protocol.
+Instead of encapsulation and versioning, well-specified formats and behavior.
+Once the code is complete, it is complete, over.
+Instead of layering, composability. Don't pile'em, line'em up!
+Instead of "more features", 80/20. How many `ls` flags do you remember by heart?
+Those are the real ones!
+ABC constructs must be *orthogonal and composable*.
+When you bring a banana, you don't drag in a monkey and half the jungle.
+
+At the bottom, it is all about pointers, file descriptors and syscalls.
+That is a great "hourglass waist" of systems programming, same as the IP protocol for the networks.
+It separates the underworld of devices, firmwares and drivers from the upper world of applications.
 One world above, another below, a narrow API between them.
-Still, ABC discourages the manual use of pointers and any pointer 
-arithmetics. There are accessors which do bounds-checking with
-the right flags. ABC encourages the use of *slices* and other
-*star types*: buffers, iterators and so on. Those are all
-pointers under the hood.
 
-due to abstraction piling
-While such languages as C++ and Rust evolve C by stacking
-layers of abstraction, ABC rejects stacking, for the most part. 
+Still, ABC discourages the manual use of pointers and any pointer arithmetics. 
+There are standard accessors which do bounds-checking if built with the right flags.
+ABC encourages the use of *slices* and other *star types*: buffers, iterators and so on.
+Those are all pointers under the hood, but the usage patterns are predefined.
+
 ABC avoids stacking of constructs, encapsulation and suchlike.
-In C++, `std::vector<char>` is all different from `std::string`,
-different from `char*`. We can't discourage that enough!
-Some higher-level languages make a file descriptor different 
-from a socket descriptor. That is abstraction stacking, we 
-do not want that.
+Once you deal with a file or a network socket, you always have that `int fd` in your hands.
+You may use one or the other IO buffering or serialization system on top of syscalls.
+Still, there is no encapsulation as it prevents composition. 
+In C++, you can't `printf` to `std::ostream`, right?
+In C++, `std::vector<char>` is all different from `std::string`,different from `char*`. 
+All that despite the obvious fact it is exactly the same thing under the hood.
+We can't discourage that enough!
 
-ABC constructs must be *orthogonal and composable*!!! When you 
-bring a banana, you don't drag in a monkey and half the jungle.
+Constructs must be simple, practical, and most importantly composable.
+They must not build their own entirely separate universe.
+One fitness metric for an ABC module is how many other modules it can be seamlessly used with.
+*Seamless* means the absence of any specific adaptors; 
+ideally, modules *don't know a thing* about each other
+That is like UNIX toolbox taken to the extreme: minimalist composable single-purpose tools.
+Tools must have well-specified *unchanging* behavior.
+Do one thing, do it well, and once you did it, it is done, that's it.
 
-MUJI
-doing just that, doing it well, not consuming any attention
-building its own universe
+##  ABC type system
 
+ABC sees three main categories of data types:
 
-minimalist one-purpose tools with well-specified unchanging behavior
-UNIX toolbox
-
-depending on the order of calls 
-don't know about each other
-
-### ABC type system
-
-ABC type system recommends:
-
- 1. Entry types with *fixed bit layout*, e.g. `u64` or
-    `uuid128`. These are trivially serializable.
- 2. Handler types that may contain pointers, e.g. `line`.
- 3. Star types, which are all pointers, e.g. `u8**`.
+ 1. *Record* types with a *fixed bit layout*, e.g. `u64` or `uuid128`.
+    These are our most basic "bricks".
+ 2. Star types, which are all pointers, e.g. a byte slice `u8**` aka `$u8`.
     Star types are like "Go slices taken to the extreme".
-    Buffers are the most important ones, they own the memory.
-    Slices and other star-types reference memory. 
+    Buffers are the most important ones, they *own* the memory.
+    Slices and others *reference* memory. 
+    Note that we only call it a "star type" if it contains _record_ types,
+    so the bit layout is specified.
+ 3. _Other_ types that may contain pointers or have unspecified layouts.
+    These are your dirty underwear. 
+    They should not appear in APIs.
 
-ABC prefers ring buffers and arena allocation.
-The use of the heap is discouraged. Separate small allocations
-are discouraged.
-More on that in the [B document][B].
+Overall, ABC type system recommends well-specified bit layouts and solid containers (buffers).
+No pointer-chasing, no tree nodes sprayed over the heap!
+Transparent serialization comes as a free bonus.
+Messy structs are OK as long as you keep them private.
 
+### ABC memory management
+
+Overall, ABC discourages the use of `malloc`/`free`.
+One reason is their complex bookkeeping the other one is the unlimited potential for very subtle failures.
+Similarly, it highly discourages rug-pulling deep-in-the-call-stack reallocations STL is (in)famous for.
+ABC prefers ring buffers, arena allocation and pre-calculated memory limits.
+More on that in the [B][B] and [MMAP][M] module docs.
+
+### Error handling
+
+ABC uses the `Status` pattern seen in many C and C++ codebases.
+All routines that can fail (_procedures_) should return an `ok64` error code (0 for OK).
+`ok64` has a human-readable Base64 representation.
+The [PRO][P] module defines macros and routines for `ok64`-based wary calls, stack traces and suchlike.
+Routines that can not fail (_functions_) return whatever value they return.
+````
+    pro(MODoutput, int fd) {
+        sane(fd >= 0);
+        aBpad(u8, outbuf, 1024);
+        // ...write things to the buf
+        call(FILEfeed, fd, Bu8data(outbuf));
+        done;
+    }
+````
+
+### ABC (de)serialization
+
+Record and star types are trivially serializable.
+Those can be file-mmapped and used that way (highly encouraged, see the [FILE][F] module).
+The main shortcoming is their fixed bit-length.
+For variable-length objects, there is a pretty standard-looking type-length-value (TLV) serialization.
+See the [TLV][T] module.
+For holding variable-length object in the RAM, the arena pattern is preferred, see [AREN][A].
+For integer compression (aka varints), see the [ZINT][Z] module.
+
+### Containers
+
+ABC containers are buffers, i.e. the API user has access to the raw bits.
+That is made for extreme composability.
+There is no problem sending your hashmap over the network or file-mmapping it.
+See [HEAP][H] for a non-trivial but simple container example.
+
+Note that ABC containers never do down-the-call-stack reallocations.
+That is considered rug-pulling behavior as the caller may still hold pointers to the old range.
+Instead, they may return `XYZnospace` errors.
+See the [B][B] module doc for the discussion on that.
+
+[S]: ./$.md 
+[A]: ./AREN.md
 [B]: ./B.md
-
-### The modules
-
- 1. [$](S.md) slices and everything related,
- 2. [B](B.md) buffers and everything related,
- 3. [PRO](PRO.md) defines macros for ABC *procedures*.
- 4. [INT](INT.md) u8..u64, i8..i64,
- 5. [HEAP](HEAP.md) is the most basic container, a binary heap.
- 6. [TLV](TLV.md) type-length-value serialization,
- 7. ...
-
+[F]: ./FILE.md
+[I]: ./INT.md
+[H]: ./HEAP.md
+[M]: ./MMAP.md
+[P]: ./PRO.md
+[T]: ./TLV.md
+[Z]: ./ZINT.md
 
 

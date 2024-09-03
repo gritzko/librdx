@@ -150,7 +150,6 @@ ok64 MARQonEm($cu8c tok, MARQstate* state) {
 pro(MARQonCode01, $cu8c tok, MARQstate* state) {
     sane(state != nil && $ok(tok) && $within(state->text, tok));
     u8c$ text = state->text;
-    printf("CODE %lu\n", tok[1] - text[0]);
     $u64 $b = {};
     $u64str0((u64c**)$b, state->brackets);
     a$findif(u64, p, $b, *p != 0 && O1high32(*p) == MARQ_CODE);

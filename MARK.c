@@ -185,8 +185,8 @@ pro(feedbullet, $u8 $into, u64 stack, b8 head, u16 list) {
 
 fun pro(MARKlinetext, $u8c text, u64 lno, MARKstate const* state) {
     sane(state != nil);
-    $mv(text, state->lines[0] + lno);
-    u64 div = Bat(state->divs, lno);
+    $mv(text, state->lineB[0] + lno);
+    u64 div = Bat(state->divB, lno);
     u8 depth = u64bytelen(div);
     test($len(text) >= depth * 4, MARKmiss);
     text[0] += depth * 4;
@@ -241,15 +241,15 @@ pro(MARKANSIdiv, $u8 $into, u64 lfrom, u64 ltill, u64 stack, u32 width,
 }
 
 pro(MARKANSI, $u8 $into, u32 width, MARKstate const* state) {
-    sane($ok($into) && state != nil && !Bempty(state->divs));
-    u64$ divs = Bu64data(state->divs);
-    u8cp$ lines = Bu8cpdata(state->lines);
+    sane($ok($into) && state != nil && !Bempty(state->divB));
+    u64$ divs = Bu64data(state->divB);
+    u8cp$ lines = Bu8cpdata(state->lineB);
     u64 lists = 0;
     u64 divlen = 0;
     b8 hadgap = NO;
     size_t llen = $len(divs) - 1;
     u64 olddiv = 0xff;
-    u64$ ps = Bu64data(state->ps);
+    u64$ ps = Bu64data(state->pB);
     for (u64 p = 0; p + 1 < $len(ps); ++p) {
         u64 from = Bat(ps, p);
         u64 till = Bat(ps, p + 1);
@@ -270,8 +270,8 @@ pro(MARKMARQdiv, u64 from, u64 till, MARKstate* state) {
     MARQstate marq = {};
     u8c* tb = state->text[0];
     u8* fb = state->fmt[0];
-    size_t boff = Bat(state->lines, from) - tb;
-    size_t eoff = Bat(state->lines, till) - tb;
+    size_t boff = Bat(state->lineB, from) - tb;
+    size_t eoff = Bat(state->lineB, till) - tb;
     marq.text[0] = tb + boff;
     marq.text[1] = tb + eoff;
     marq.fmt[0] = fb + boff;
@@ -281,10 +281,10 @@ pro(MARKMARQdiv, u64 from, u64 till, MARKstate* state) {
 }
 
 pro(MARKMARQ, MARKstate* state) {
-    sane(state != nil && !Bempty(state->divs));
-    u64$ divs = Bu64data(state->divs);
-    u8cp$ lines = Bu8cpdata(state->lines);
-    u64$ blocks = Bu64data(state->ps);
+    sane(state != nil && !Bempty(state->divB));
+    u64$ divs = Bu64data(state->divB);
+    u8cp$ lines = Bu8cpdata(state->lineB);
+    u64$ blocks = Bu64data(state->pB);
     for (u64 b = 0; b + 1 < $len(blocks); ++b) {
         call(MARKMARQdiv, $at(blocks, b), $at(blocks, b + 1), state);
     }
@@ -293,7 +293,7 @@ pro(MARKMARQ, MARKstate* state) {
 
 pro(MARKHTMLp, $u8 $into, u64 from, u64 till, u64 stack,
     MARKstate const* state) {
-    sane($ok($into) && state != nil && till <= Bdatalen(state->lines));
+    sane($ok($into) && state != nil && till <= Bdatalen(state->lineB));
     u8 depth = u64bytelen(stack);
     u8c* text0 = state->text[0];
     u8c* fmt0 = state->fmt[0];
@@ -324,12 +324,12 @@ fun u8 samedepth(u64 stack, u64 div) {
 }
 
 pro(MARKHTML, $u8 $into, MARKstate const* state) {
-    sane($ok($into) && state != nil && !Bempty(state->divs));
-    u64$ divs = Bu64data(state->divs);
-    u8cp$ lines = Bu8cpdata(state->lines);
+    sane($ok($into) && state != nil && !Bempty(state->divB));
+    u64$ divs = Bu64data(state->divB);
+    u8cp$ lines = Bu8cpdata(state->lineB);
     test($len(divs) == $len(lines), FAILsanity);
     u64 stack = 0;
-    u64$ ps = Bu64data(state->ps);
+    u64$ ps = Bu64data(state->pB);
     for (u64 p = 0; p + 1 < $len(ps); ++p) {
         u64 from = Bat(ps, p);
         u64 till = Bat(ps, p + 1);
@@ -412,16 +412,16 @@ ok64 MARKonCode($cu8c tok, MARKstate* state) {
 pro(MARKonLine, $cu8c tok, MARKstate* state) {
     sane($ok(tok) && state != nil);
     b8 end = tok[1] == state->text[1];
-    if (Bempty(state->ps) ||
-        !samediv(Blast(state->divs), state->_div)) {  // FIXME gaps
-        call(Bu64feed1, state->ps, Bdatalen(state->lines));
+    if (Bempty(state->pB) ||
+        !samediv(Blast(state->divB), state->_div)) {  // FIXME gaps
+        call(Bu64feed1, state->pB, Bdatalen(state->lineB));
     }
-    call(Bu64feed1, state->divs, state->_div);
-    call(Bu8cpfeed1, state->lines, tok[0]);
+    call(Bu64feed1, state->divB, state->_div);
+    call(Bu8cpfeed1, state->lineB, tok[0]);
     if (tok[1] == state->text[1]) {
-        call(Bu64feed1, state->ps, Bdatalen(state->lines));
-        call(Bu8cpfeed1, state->lines, tok[1]);
-        call(Bu64feed1, state->divs, 0);
+        call(Bu64feed1, state->pB, Bdatalen(state->lineB));
+        call(Bu8cpfeed1, state->lineB, tok[1]);
+        call(Bu64feed1, state->divB, 0);
     }
     state->_div = 0;
     done;
