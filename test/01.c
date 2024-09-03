@@ -11,15 +11,16 @@
 #include "TEST.h"
 
 pro(BITStest1) {
+    sane(1);
     u64 a = 0xaabbccdd11223344;
     u64 b = flip64(a);
-    sane(b == 0x44332211ddccbbaa);
+    testeq(b, 0x44332211ddccbbaa);
     u32 c = 0xaabbccdd;
-    sane(flip32(c) == 0xddccbbaa);
+    testeq(flip32(c), 0xddccbbaa);
 
     u64 t7 = 128;
-    sane(ctz64(t7) == 7);
-    sane(clz64(t7) == 56);
+    testeq(ctz64(t7), 7);
+    testeq(clz64(t7), 56);
     done;
 }
 
@@ -45,6 +46,7 @@ pro(BITSstr) {
 }
 
 pro(BITStest) {
+    sane(1);
     call(BITStest1);
     call(BITSbytelen);
     call(BITSstr);

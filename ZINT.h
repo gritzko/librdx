@@ -117,6 +117,7 @@ fun ok64 ZINTdrainu64(u64* n, $u8c from) {
 // ZipUint64Pair packs a pair of uint64 into a byte string.
 // The smaller the ints, the shorter the string
 fun pro(ZINTu128feed, $u8 into, u128 const* a) {
+    sane($ok(into) && a != nil);
     test($size(into) >= sizeof(u64) * 2, ZINTnoroom);
     u64 big = a->_64[0];
     u64 lil = a->_64[1];
@@ -155,6 +156,7 @@ fun pro(ZINTu128feed, $u8 into, u128 const* a) {
 }
 
 fun pro(ZINTu128drain, u128* a, $u8c from) {
+    sane($ok(from) && a != nil);
     u32 len = $len(from);
     u64* big = &(a->_64[0]);
     u64* lil = &(a->_64[1]);

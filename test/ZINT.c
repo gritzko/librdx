@@ -1,4 +1,6 @@
 
+#include "ZINT.h"
+
 #include <assert.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -6,9 +8,9 @@
 
 #include "$.h"
 #include "TEST.h"
-#include "ZINT.h"
 
 pro(ZINTtest1) {
+    sane(1);
     i64 i[] = {
         -126446, 65536, 0, INT64_MAX, INT64_MIN, -1, 1,
     };
@@ -23,6 +25,7 @@ pro(ZINTtest1) {
 }
 
 pro(ZINTtest2) {
+    sane(1);
     i64 i[] = {
         0,          0,
 
@@ -65,6 +68,7 @@ pro(ZINTtest2) {
 }
 
 pro(ZINTtest) {
+    sane(1);
     call(ZINTtest1);
     call(ZINTtest2);
     done;

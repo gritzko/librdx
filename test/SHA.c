@@ -1,12 +1,14 @@
+#include "SHA.h"
+
 #include <assert.h>
 #include <stdio.h>
 #include <unistd.h>
 
 #include "HEX.h"
-#include "SHA.h"
 #include "TEST.h"
 
 pro(SHAtest1) {
+    sane(1);
     $u8c value1 = $u8str("Good morning!\n");
     $u8c value2 = $u8str("Hello world!\n");
     $u8c hex1 = $u8str(
@@ -18,7 +20,7 @@ pro(SHAtest1) {
     SHAsum(&hash1, value1);
     aBpad(u8, hex1b, 64);
     call(HEXsha256put, Bu8idle(hex1b), &hash1);
-    sane($eq(hex1, Bu8cdata(hex1b)));
+    testeq(YES, $eq(hex1, Bu8cdata(hex1b)));
 
     sha256 hash2;
     aBpad(u8, hex2b, 64);
@@ -28,12 +30,13 @@ pro(SHAtest1) {
     SHAclose(&state, &hash2);
     $u8c hs2 = $sliced(hash2.data);
     HEXput(Bu8idle(hex2b), hs2);
-    sane($eq(Bu8data(hex2b), hex2));
+    testeq(YES, $eq(Bu8data(hex2b), hex2));
 
     done;
 }
 
 pro(SHAtest) {
+    sane(1);
     call(SHAtest1);
     done;
 }

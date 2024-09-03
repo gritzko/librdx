@@ -22,22 +22,15 @@ con ok64 faileq = 0xd69c2d96a;
 #define PROindent (_pro_indent + 32 - (_pro_depth & 31))
 #define PROind (_pro_indent + 32 - (__depth & 31))
 
-#define pro(name, ...)                      \
-    ok64 name(__VA_ARGS__) {                \
-        trace("%s>%s\n", PROindent, #name); \
-        u8 __depth = _pro_depth;            \
-        _pro_depth++;                       \
-        ok64 __ = 0;
+#define pro(name, ...) ok64 name(__VA_ARGS__)
 
 #define done              \
-    }                     \
     _over:                \
     _pro_depth = __depth; \
     return __;
 
 #define nedo(...)           \
     _over: { __VA_ARGS__; } \
-    }                       \
     _pro_depth = __depth;   \
     return __;
 
@@ -64,7 +57,11 @@ con ok64 faileq = 0xd69c2d96a;
 #define testc(c, f) \
     if (!(c)) failc(f);
 
-#define sane(c) \
+#define sane(c)                            \
+    trace("%s>%s\n", PROindent, __func__); \
+    u8 __depth = _pro_depth;               \
+    _pro_depth++;                          \
+    ok64 __ = 0;                           \
     if (!(c)) fail(FAILsanity);
 
 #define try(f, ...) \

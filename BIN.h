@@ -199,6 +199,7 @@ fun int bin64cmp(bin64 const *a, bin64 const *b) {
 #undef X
 
 fun pro(BINpeaks, $bin64 bins, size_t len) {
+    sane($ok(bins));
     // 00101 -> 001000, 000011
     while (len) {
         u64 l = ctz64(len);
@@ -212,6 +213,7 @@ fun pro(BINpeaks, $bin64 bins, size_t len) {
 }
 
 fun pro(BINpath, $bin64 bins, size_t len, bin64 b) {
+    sane($ok(bins));
     while (bin64term(b) < len) {
         bin64 sibling = bin64sibling(b);
         call($bin64feed1, bins, sibling);

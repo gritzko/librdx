@@ -11,7 +11,7 @@ con ok64 MMAPbadarg = 0xaf696896664a596;
 con ok64 MMAPfail = 0xc2d96a64a596;
 
 fun pro(MMAPopen, Bvoid buf, size_t size) {
-    if (buf == nil || *buf != nil || size == 0) return MMAPbadarg;
+    sane(!(buf == nil || *buf != nil || size == 0));
     uint8_t *p = (uint8_t *)mmap(NULL, size, PROT_READ | PROT_WRITE,
                                  MAP_SHARED | MAP_ANON, -1, 0);
     testc(p != MAP_FAILED, Bmapfail);
@@ -29,7 +29,7 @@ fun ok64 MMAPclose(Bvoid buf) {
 }
 
 fun pro(MMAPresize, Bvoid buf, size_t new_size) {
-    test(!Bnil(buf) && new_size > 0, MMAPbadarg);
+    sane(!Bnil(buf) && new_size > 0);
     size_t old_size = Bsize(buf);
 #ifdef MREMAP_MAYMOVE
     u8 *new_mem = (u8 *)mremap(buf[0], Bsize(buf), new_size, MREMAP_MAYMOVE);

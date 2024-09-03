@@ -56,6 +56,7 @@ fun int linetypebodycmp(line const* a, line const* b) {
     linec n = {.id = {0, 0}, .body = NULL, .rest = s, .type = 0}
 
 fun pro(LINEdrain, line* l) {
+    sane(l != nil);
     u8 t = 0, tt = 0;
     u32 hlen = 0, blen = 0;
     u32 thlen = 0, tblen = 0;
@@ -77,6 +78,7 @@ fun pro(LINEdrain, line* l) {
 }
 
 fun pro(LINEfeed, line* in, line const* a) {
+    sane(in != nil && a != nil);
     aBpad(u8, pad, 16);
     u8$ idin = Bu8idle(pad);
     u8c$ idis = Bu8cdata(pad);
@@ -100,7 +102,7 @@ typedef ok64 linemergefn(line* into, $cline from);
 #define LINEmaxmergelen 64
 
 fun pro(LINEpush, Bline into, $u8c rest, linecmpfn cmp) {
-    test($len(rest) > 0, LINEnodata);
+    sane($len(rest) > 0);
     aLINE(l, rest);
     call(LINEdrain, &l);
     call(HEAPlinepush, into, &l, cmp);
@@ -108,7 +110,7 @@ fun pro(LINEpush, Bline into, $u8c rest, linecmpfn cmp) {
 }
 
 fun pro(LINEmerge, line* into, $line from, linecmpfn cmp, linemergefn merge) {
-    test($len(from) <= LINEmaxmergelen, LINElimit);
+    sane($len(from) <= LINEmaxmergelen);
     aBpad(line, pad, LINEmaxmergelen);
     line$ idle = Blineidle(pad);
     line$ merges = Blinedata(pad);

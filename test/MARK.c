@@ -176,6 +176,7 @@ pro(MARKHTMLtest) {
 };
 
 pro(MARKtest) {
+    sane(1);
     call(MARKparsetest);
     call(MARKANSItest);
     call(MARKHTMLtest);

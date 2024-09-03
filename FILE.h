@@ -54,7 +54,7 @@ con size_t FILEmaxpathlen = 1024;
     }
 
 fun pro(FILEcreate, int *fd, const path name) {
-    test(fd != nil && $ok(name), FILEbadarg);
+    sane(fd != nil && $ok(name));
     aFILEpath(p, name);
     *fd = open(p, O_CREAT | O_RDWR | O_TRUNC, S_IRUSR | S_IWUSR);
     testc(*fd >= 0, FILEnoopen);
@@ -62,7 +62,7 @@ fun pro(FILEcreate, int *fd, const path name) {
 }
 
 fun pro(FILEopen, int *fd, const path name, int flags) {
-    test(fd != nil && $ok(name), FILEbadarg);
+    sane(fd != nil && $ok(name));
     aFILEpath(p, name);
     *fd = open(p, flags);
     testc(*fd >= 0, FILEnoopen);
@@ -70,19 +70,19 @@ fun pro(FILEopen, int *fd, const path name, int flags) {
 }
 
 fun pro(FILEsync, int fd) {
-    test(FILEok(fd), FILEbadarg);
+    sane(FILEok(fd));
     testc(fsync(fd) == 0, FILEnosync);
     done;
 }
 
 fun pro(FILEclose, int fd) {
-    test(FILEok(fd), FILEbadarg);
+    sane(FILEok(fd));
     testc(0 == close(fd), FILEnoclse);
     done;
 }
 
 fun pro(FILEstat, struct stat *ret, const path name) {
-    test(ret != nil && $ok(name), FILEbadarg);
+    sane(ret != nil && $ok(name));
     aFILEpath(p, name);
     int rc = stat(p, ret);
     // on(ENOENT) fail(FILEnofind);
@@ -91,7 +91,7 @@ fun pro(FILEstat, struct stat *ret, const path name) {
 }
 
 fun pro(FILEsize, size_t *size, int fd) {
-    test(size != nil && FILEok(fd), FILEbadarg);
+    sane(size != nil && FILEok(fd));
     struct stat sb = {};
     testc(0 == fstat(fd, &sb), FILEnostat);
     *size = sb.st_size;
@@ -99,7 +99,7 @@ fun pro(FILEsize, size_t *size, int fd) {
 }
 
 fun pro(FILEisdir, const path name) {
-    test($ok(name), FILEbadarg);
+    sane($ok(name));
     struct stat sb = {};
     call(FILEstat, &sb, name);
     test(sb.st_mode == S_IFDIR, FILEwrong);
@@ -107,7 +107,7 @@ fun pro(FILEisdir, const path name) {
 }
 
 fun pro(FILEresize, int fd, size_t new_size) {
-    test(FILEok(fd), FILEbadarg);
+    sane(FILEok(fd));
     testc(0 == ftruncate(fd, new_size), FILEnoresz);
     // FIXME sync the dir data (another msync?)
     done;
@@ -192,6 +192,7 @@ fun int unlink_cb(const char *fname, const struct stat *sb, int typeflag,
 }
 
 fun pro(FILErmrf, path const name) {
+    sane($ok(name));
     aFILEpath(p, name);
     int rc = nftw(p, unlink_cb, 64, FTW_DEPTH | FTW_PHYS);
     testc(rc == 0, FILEfail);
@@ -199,6 +200,7 @@ fun pro(FILErmrf, path const name) {
 }
 
 fun pro(FILEunlink, path const name) {
+    sane($ok(name));
     aFILEpath(p, name);
     int rc = unlink(p);
     testc(rc == 0, FILEfail);
@@ -212,7 +214,7 @@ fun int flags2prot(int flags) {
 }
 
 fun pro(FILEmap, Bvoid buf, int fd, int mode, size_t size) {
-    test(buf != nil && *buf == nil && FILEok(fd), FILEbadarg);
+    sane(buf != nil && *buf == nil && FILEok(fd));
     if (size == 0) {
         call(FILEsize, &size, fd);
     }
@@ -226,7 +228,7 @@ fun pro(FILEmap, Bvoid buf, int fd, int mode, size_t size) {
 }
 // new_size==0 to use de-facto file data
 fun pro(FILEremap, void$ buf, int fd, size_t new_size) {
-    test(buf != nil && *buf != nil, FILEbadarg);
+    sane(buf != nil && *buf != nil);
     if (new_size == 0) {
         call(FILEsize, &new_size, fd);
     } else {
@@ -243,7 +245,7 @@ fun pro(FILEremap, void$ buf, int fd, size_t new_size) {
 }
 
 fun pro(FILEunmap, void$ buf) {
-    test(buf != nil && *buf != nil, FILEbadarg);
+    sane(buf != nil && *buf != nil);
     testc(0 == munmap(*buf, Bsize(buf)), FILEfail);
     _Brebase(buf, nil, 0);
     done;

@@ -41,7 +41,10 @@ fun ok64 TLVprobe(u8* t, u32* hlen, u32* blen, $u8c data) {
     return (*hlen + *blen) <= $len(data) ? OK : TLVnodata;
 }
 
-pro(TLVdrain, u8* t, $u8c value, $u8c from) { done; }
+pro(TLVdrain, u8* t, $u8c value, $u8c from) {
+    sane(1);
+    done;
+}
 
 fun ok64 TLVpick(u8* type, $u8c value, $cu8c tlv, size_t offset) {
     a$tail(u8c, keytlv, tlv, offset);
@@ -91,6 +94,7 @@ fun void TLVtinyhead($u8 into, u8 type, u32 len) {
 }
 
 fun pro(TLVtinyput, $u8 into, u8 type, $u8c value) {
+    sane($ok(into) && $ok(value));
     test($len(into) >= $len(value) + 1, TLVnospace);  // todo
     TLVtinyhead(into, type, $len(value));
     $u8copy(into, value);
@@ -151,6 +155,9 @@ fun pro(TLVfeedkv, $u8 tlv, u8c type, $u8c key, $u8c val) {
     done;
 }
 
-fun pro(TLVdrainkv, u8* type, $u8 key, $u8 val, $u8c tlv) { done; }
+fun pro(TLVdrainkv, u8* type, $u8 key, $u8 val, $u8c tlv) {
+    sane(1);
+    done;
+}
 
 #endif

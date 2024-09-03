@@ -67,6 +67,7 @@ pro(MARQHTMLtest) {
 }
 
 pro(MARQtest) {
+    sane(1);
     call(MARQANSItest);
     call(MARQHTMLtest);
     done;

@@ -1,11 +1,12 @@
 //
 // Created by gritzko on 5/11/24.
 //
+#include "LIST.h"
+
 #include <assert.h>
 #include <stdio.h>
 
 #include "INT.h"
-#include "LIST.h"
 #include "PRO.h"
 #include "TEST.h"
 
@@ -23,6 +24,7 @@ fun int entry128cmp(entry128 const *a, entry128 const *b) {
 #undef X
 
 pro(LISTtest1) {
+    sane(1);
     aBpad(entry128, list, 1024);
     entry128 codes[3] = {
         {.value = LISTnoroom}, {.value = LISTnodata}, {.value = LISTbadndx}};
@@ -30,15 +32,16 @@ pro(LISTtest1) {
     call(LISTentry128insert, list, codes + 2, 0);
     call(LISTentry128insert, list, codes + 1, 0);
     u32 i = 0;
-    sane(LISTentry128at(list, i)->value == codes[0].value);
+    testeq(LISTentry128at(list, i)->value, codes[0].value);
     i = LISTentry128next(list, i);
-    sane(LISTentry128at(list, i)->value == codes[1].value);
+    testeq(LISTentry128at(list, i)->value, codes[1].value);
     i = LISTentry128next(list, i);
-    sane(LISTentry128at(list, i)->value == codes[2].value);
+    testeq(LISTentry128at(list, i)->value, codes[2].value);
     done;
 }
 
 pro(LISTtest) {
+    sane(1);
     call(LISTtest1);
     done;
 }

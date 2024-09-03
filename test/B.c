@@ -7,13 +7,18 @@
 #include "TEST.h"
 
 pro(fail_test) {
+    sane(1);
     fail(badarg);
     done;
 }
 
-pro(Bmap_test) { done; }
+pro(Bmap_test) {
+    sane(1);
+    done;
+}
 
 pro(B$_test) {
+    sane(1);
     aBpad(u8cp, slices, 8);
     $u8c hello = $u8str("Hello");
     Bu8cpfeed2(slices, hello[0], hello[1]);
@@ -32,6 +37,7 @@ pro(Bndx_test) {
 }
 
 pro(Breserve_test) {
+    sane(1);
     Bu8 buf = {};
     call(Bu8alloc, buf, 1024);
     for (int i = 0; i < (1 << 20); i++) {
@@ -44,6 +50,7 @@ pro(Breserve_test) {
 }
 
 pro(Btest) {
+    sane(1);
     call(Bmap_test);
     call(B$_test);
     call(Bndx_test);

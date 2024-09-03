@@ -13,17 +13,20 @@
 #include "TEST.h"
 
 pro(print, int c) {
+    sane(1);
     printf("%c", c);
     done;
 }
 
 /** A simple true/false checker function */
 pro(check, int a, int b) {
+    sane(1);
     if (a != b) fail(FAIL);
     nedo(fprintf(stderr, "res: %lx\n", __));
 }
 
 pro(Utest1) {
+    sane(1);
     u8 array[] = {1, 2, 3, 4};
     $u8 slice = $sliced(array);
     $eat(slice) { printf("%i\n", **slice); }
@@ -50,7 +53,10 @@ pro(Utest1) {
     done;
 }
 
-pro(Utest2) { done; }
+pro(Utest2) {
+    sane(1);
+    done;
+}
 
 pro(OKdec) {
     sane(YES);
@@ -58,11 +64,12 @@ pro(OKdec) {
     call(u64decfeed, Bu8idle(into), 12345UL);
     $print(Bu8cdata(into));
     a$str(str, "12345");
-    sane($eq(Bu8data(into), str));
+    testeq(YES, $eq(Bu8data(into), str));
     done;
 }
 
 pro(Utest) {
+    sane(1);
     call(Utest1);
     call(Utest2);
     call(OKdec);

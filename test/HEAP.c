@@ -1,12 +1,13 @@
+#include "INT.h"
 #include "PRO.h"
 #include "TEST.h"
-#include "INT.h"
 
 #define X(M, name) M##u32##name
 #include "HEAPx.h"
 #undef X
 
 pro(HEAPtest1) {
+    sane(1);
     aBpad(u32, pad, 32);
     u32$ heap = Bu32data(pad);
     // Pushes one entry into the heap buffer
@@ -19,12 +20,13 @@ pro(HEAPtest1) {
     call(HEAPu32pop, &one, pad, u32cmp);
     call(HEAPu32pop, &two, pad, u32cmp);
     call(HEAPu32pop, &three, pad, u32cmp);
-    sane(one == 1);
-    sane(two == 2);
-    sane(three == 3);
+    testeq(one, 1);
+    testeq(two, 2);
+    testeq(three, 3);
     done;
 }
 pro(HEAPtest) {
+    sane(1);
     call(HEAPtest1);
     done;
 }
