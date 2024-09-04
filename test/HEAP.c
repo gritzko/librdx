@@ -2,12 +2,14 @@
 #include "PRO.h"
 #include "TEST.h"
 
+// Instantiate the HEAP template for u32
 #define X(M, name) M##u32##name
 #include "HEAPx.h"
 #undef X
 
 pro(HEAPtest1) {
     sane(1);
+    // Make a buffer on the stack
     aBpad(u32, pad, 32);
     u32$ heap = Bu32data(pad);
     // Pushes one entry into the heap buffer

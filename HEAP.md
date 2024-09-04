@@ -7,5 +7,5 @@ work.
 It is also a good example on how to create data structure 
 templates in ABC. The technique is borrowed from the Linux 
 kernel. For the API and usage examples please see
-`HEAPtest.c` and `HEAPfuzz.c`. That is general rule with ABC:
+`test/HEAP.c` and `fuzz/HEAP.c`. That is general rule with ABC:
 tests are the docs.

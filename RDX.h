@@ -9,7 +9,7 @@
 con ok64 RDXnospace = 0xa67974df3ca135b;
 
 typedef enum {
-    FLoat = 'F',
+    Float = 'F',
     Integer = 'I',
     Reference = 'R',
     String = 'S',

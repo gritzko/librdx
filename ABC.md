@@ -112,6 +112,7 @@ One reason is their complex bookkeeping the other one is the unlimited potential
 Similarly, it highly discourages rug-pulling deep-in-the-call-stack reallocations STL is (in)famous for.
 ABC prefers ring buffers, arena allocation and pre-calculated memory limits.
 More on that in the [B][B] and [MMAP][M] module docs.
+A good minimal example of working with ABC slices is the [HEX][X] module.
 
 ### Error handling
 
@@ -154,17 +155,32 @@ Only the immediate _owner_ of the buffer can memory-manage it.
 Typically, the owner is the procedure or a structure at the root of the call tree.
 See the [B][B] module doc for the discussion on that.
 
+### Parsers
+
+ABC has [Ragel][c] integration in the [LEX][L] module.
+The module itself is an example of using the API.
+[LEX][L] generates most of its own code from a grammar, see `LEX.lex` and `lex2rl`.
+Ragel is an excellent O(N) *lexer* for text formats;
+parsers can be implemented on top of that.
+[MARK][K] and [MARQ][Q] modules implement a strict dialect of Markdown, 
+which is also a good example of using LEX APIs.
+
 [S]: ./$.md 
 [A]: ./AREN.md
 [B]: ./B.md
 [F]: ./FILE.md
 [I]: ./INT.md
 [H]: ./HEAP.md
+[K]: ./MARK.md
+[L]: ./LEX.md
 [M]: ./MMAP.md
 [P]: ./PRO.md
+[Q]: ./MARQ.md
 [T]: ./TLV.md
+[X]: ./HEX.md
 [Z]: ./ZINT.md
 
+[c]: http://colm.net
 [f]: https://en.wikipedia.org/wiki/Fundamental_theorem_of_software_engineering
 [j]: https://yurichev.com/mirrors/C/JPL_Coding_Standard_C.pdf
 [m]: https://www.qualys.com/2024/07/01/cve-2024-6387/regresshion.txt 
