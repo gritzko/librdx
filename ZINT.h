@@ -95,20 +95,25 @@ fun ok64 ZINTu64drain(u64* n, $u8c from) {
     switch ($len(from)) {
         case 0:
             *n = 0;
+            return OK;
         case 1:
             $u8drain8((u8*)n, from);
+            return OK;
         case 2:
             $u8drain16((u16*)n, from);
+            return OK;
         case 3:
             return ZINTbadrec;
         case 4:
             $u8drain32((u32*)n, from);
+            return OK;
         case 5:
         case 6:
         case 7:
             return ZINTbadrec;
         case 8:
             $u8drain64(n, from);
+            return OK;
         default:
             return ZINTbadrec;
     }

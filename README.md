@@ -1,5 +1,7 @@
-#   LibRDX: Replicated Data interchange format
+#   LibRDX: Replicated Data eXchange format
 
-low-level system library implemented in ABC C.
+A low-level [RDX][X] system library implemented in [ABC C][A].
 
-[a]: ./ABC.md
+[A]: ./ABC.md
+[X]: ./RDX.md
+[c]: http://github.com/drpcorg/chotki/rdx

@@ -10,6 +10,7 @@ con ok64 TLVbadtype = 0xa74f78a2599f55d;
 con ok64 TLVnospace = 0xa67974df3c9f55d;
 con ok64 TLVoverflo = 0xcf0ab6a7acdf55d;
 con ok64 TLVbadcall = 0xc30967a2599f55d;
+con ok64 TLVbadarg = 0x2bda5a2599f55d;
 
 const u8 TLVaa = 0x20;
 
@@ -144,11 +145,13 @@ fun pro(TLVclose, Bu8 tlv, u8 type, TLVstack stack) {
 }
 
 fun pro(TLVfeedkv, $u8 tlv, u8c type, $u8c key, $cu8c val) {
-    sane($ok(tlv) && $ok(key) && $ok(val) && $len(key) <= 0xff);
-    u64 blen = $len(key) + $len(val);
+    sane($ok(tlv) && $ok(key) && $ok(val));
+    size_t keylen = $len(key);
+    test(keylen < 0x100, TLVbadarg);
+    u64 blen = keylen + $len(val);
     test($len(tlv) >= blen + 1 + 4 + 1, TLVnospace);
     TLVhead(tlv, type, blen + 1);
-    **tlv = $len(key);
+    **tlv = keylen;
     ++*tlv;
     $feed(tlv, key);
     $feed(tlv, val);

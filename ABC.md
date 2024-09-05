@@ -91,7 +91,7 @@ ABC sees three main categories of data types:
  1. *Record types* with a fixed bit layout, e.g. `u64` or `uuid128`.
     These are our most basic "bricks".
  2. *Star types*, which are all pointers, e.g. a byte slice `u8**` aka `$u8`.
-    Star types are like Go slices but taken to the extreme".
+    Star types are like Go slices but taken to the extreme.
     Buffers are the most important ones, they *own* the memory.
     Slices and others *reference* memory. 
     Note that we only call it a "star type" if it contains _record_ types,

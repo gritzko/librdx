@@ -31,40 +31,48 @@ fun pro(RDX1merge, $u8 into, $u8cp from) {
 #define RDXSmerge RDX1merge
 #define RDXTmerge RDX1merge
 
+fun pro(RDX1dtlv, $u8 dtlv, $cu8c oldtlv, u8 type, u128* clock, $cu8c newbits) {
+    sane($ok(oldtlv) && clock != nil);
+    a$dup(u8c, oldtlv2, oldtlv);
+    u8 t = 0;
+    u128 id = {};
+    $u8c value = {};
+    call(RDXdrain, &t, &id, value, oldtlv2);
+    RDXtock(clock, id);
+    RDXtick(clock);
+    call(RDXfeed, dtlv, type, *clock, newbits);
+    done;
+}
+
 fun pro(RDXFtlv2c, RDXfloat* c, id128* id, $cu8c tlv) {
-    sane(c != nil && $ok(tlv));
-    u8 t;
-    $u8c value;
+    sane(c != nil && id != nil && $ok(tlv));
+    u8 t = 0;
+    $u8c value = {};
     a$dup(u8c, dup, tlv);
     call(RDXdrain, &t, id, value, dup);
-    u64 val;
-    call(ZINTu64drain, &val, value);
-    val = flip64(val);
-    *c = *(RDXfloat*)&val;
+    u64 bits = 0;
+    call(ZINTu64drain, &bits, value);
+    *(u64*)c = flip64(bits);
     done;
 }
 
 fun pro(RDXFc2tlv, $u8 tlv, RDXfloat c, u128 time) {
     sane($ok(tlv));
-    u64 u;
-    *(RDXfloat*)&u = c;
+    u64 bits = 0;
+    *(RDXfloat*)&bits = c;
     aBpad(u8, pad, 8);
-    ZINTu64feed(Bu8idle(pad), flip64(u));
+    ZINTu64feed(Bu8idle(pad), flip64(bits));
     call(RDXfeed, tlv, RDX_FLOAT, time, Bu8cdata(pad));
     done;
 }
 
-fun pro(RDXFdtlv, $u8 dtlv, $cu8c tlv, RDXfloat c, u128* clock) {
-    // FIXME RDX1dtlv
-    sane($ok(tlv) && clock != nil);
-    a$dup(u8c, dup, tlv);
-    u8 t = 0;
-    u128 id = {};
-    $u8c value = {};
-    call(RDXdrain, &t, &id, value, dup);
-    RDXtock(clock, id);
-    RDXtick(clock);
-    call(RDXFc2tlv, dtlv, c, *clock);
+fun pro(RDXFdtlv, $u8 dtlv, $cu8c oldtlv, RDXfloat c, u128* clock) {
+    sane($ok(oldtlv) && clock != nil);
+    u64 bits;
+    *(RDXfloat*)&bits = c;
+    aBpad(u8, pad, 8);
+    ZINTu64feed(Bu8idle(pad), flip64(bits));
+    call(RDX1dtlv, dtlv, oldtlv, RDX_FLOAT, clock, Bu8cdata(pad));
     done;
 }
 

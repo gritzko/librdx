@@ -23,16 +23,19 @@ con ok64 faileq = 0xd69c2d96a;
 
 #define pro(name, ...) ok64 name(__VA_ARGS__)
 
+// Procedure return with no finalizations.
 #define done              \
     _over:                \
     _pro_depth = __depth; \
     return __;
 
+// Procedure return with finalizations.
 #define nedo(...)           \
     _over: { __VA_ARGS__; } \
     _pro_depth = __depth;   \
     return __;
 
+// Procedure fails, skip to finalizations.
 #define fail(code)                                                          \
     {                                                                       \
         __ = (code);                                                        \
@@ -40,6 +43,7 @@ con ok64 faileq = 0xd69c2d96a;
         goto _over;                                                         \
     }
 
+// Skip to procedure return.
 #define skip goto _over;
 
 #define failc(code)                                                       \
@@ -56,6 +60,7 @@ con ok64 faileq = 0xd69c2d96a;
 #define testc(c, f) \
     if (!(c)) failc(f);
 
+// Mandatory sanity checks; might be disabled in Release mode.
 #define sane(c)                            \
     trace("%s>%s\n", PROindent, __func__); \
     u8 __depth = _pro_depth;               \

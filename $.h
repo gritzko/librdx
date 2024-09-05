@@ -170,6 +170,10 @@ fun ok64 $feedf(u8 **into, u8 const *const *tmpl, ...) {
                 $printf(into, "%lu", va_arg(ap, u64));  // TODO
                 ++*p;
                 break;
+            case 'f':
+                $printf(into, "%lf", va_arg(ap, double));
+                ++*p;
+                break;
             case '$':
                 if ($len(into) < 2) return $noroom;
                 **into = '$';
