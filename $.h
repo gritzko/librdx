@@ -71,10 +71,12 @@ con ok64 $miss = 0x37dedc7f;
 
 #define $shift(s) (*(s[0]++))
 
-#define $for(T, n, s) for (T *n = s[0]; n + 1 <= s[1]; ++n)
+#define $for(T, n, s) for (T *n = s[0]; (n + 1) <= s[1]; ++n)
+#define $for$(T, n, s) for (T n = s[0]; (n + 2) <= s[1]; n += 2)
 #define $rof(T, n, s) for (T *n = s[1] - 1; n >= s[0]; --n)
 
 #define $eat(s) for (; s[0] < s[1]; s[0]++)
+#define $eat2(s) for (; s[0] < s[1]; s[0] += 2)
 
 #define $reverse(s)                                                    \
     {                                                                  \
@@ -102,10 +104,11 @@ typedef int (*fncmp)(const void *, const void *);
         ++*s;        \
     }
 
-#define $feed(into, from)                          \
-    {                                              \
-        $copy(into, from);                         \
-        *(uint8_t **)into += $minsize(into, from); \
+#define $feed(into, from)                 \
+    {                                     \
+        size_t sz = $minsize(into, from); \
+        memcpy(*into, *from, sz);         \
+        *(uint8_t **)into += sz;          \
     }
 
 #define $drain(into, from)                         \

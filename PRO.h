@@ -6,7 +6,6 @@
 #include <stdio.h>
 
 #include "OK.h"
-#include "trace.h"
 
 extern uint8_t _pro_depth;
 
@@ -125,5 +124,11 @@ con ok64 faileq = 0xd69c2d96a;
             fail(faileq)                                                      \
         }                                                                     \
     }
+
+#ifndef ABC_NOTRACE
+#define trace(...) fprintf(stderr, __VA_ARGS__)
+#else
+#define trace(...) ;
+#endif
 
 #endif

@@ -14,8 +14,8 @@ The conventions:
     (as a pointer, standard C).
  4. Slices are consumed, unless we imply the parameter
     must be consumed fully. Then, it is untouched.
-    Either way, that is signalled through the slice 
-    type, e.g.
+    Either way, that is signalled through the const-ness
+    of the slice type, e.g.
       - `$cu8c` untouched -- not consumed, not changed,
       - `$u8c` consumed, content unchanged,
       - `$cu8` not consumed, content changed,

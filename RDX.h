@@ -2,29 +2,31 @@
 #define LIBRDX_RDX_H
 
 #include "$.h"
+#include "01.h"
 #include "B.h"
-#include "LINE.h"
+#include "INT.h"
+#include "TLV.h"
 #include "ZINT.h"
 
 con ok64 RDXnospace = 0xa67974df3ca135b;
+con ok64 RDXbad = 0xa259a135b;
 
 typedef enum {
-    Float = 'F',
-    Integer = 'I',
-    Reference = 'R',
-    String = 'S',
-    Term = 'T',
-    Eulerian = 'E',
-    Linear = 'L',
-    Mapping = 'M',
+    RDX_FLOAT = 'F',
+    RDX_INT = 'I',
+    RDX_REF = 'R',
+    RDX_STRING = 'S',
+    RDX_TERM = 'T',
+    RDX_NAT = 'N',
+    RDX_Z = 'Z',
+    RDX_SET = 'E',
+    RDX_LINEAR = 'L',
+    RDX_MAP = 'M',
 } RDXtype;
 
 typedef int64_t RDXint;
 typedef double RDXfloat;
-typedef struct {
-    u64 src;
-    int64_t seq;
-} id128;
+typedef u128 id128;
 typedef id128 RDXref;
 typedef $u8c RDXstring;
 typedef $u8c RDXterm;
@@ -33,115 +35,28 @@ typedef $u8 rdx$;
 
 typedef ok64 RDXmergefn($u8 into, $u8cp from);
 
-fun pro(RDXmerge1, line* into, $cline from) {
-    test($len(from) > 0, OK);
-    linec* top = *from;
-    $for(linec, p, from) {
-        $u8c val = {};
-        a$dup(u8c, body, p->body);
-        call(TLVtake, 'T', val, body);  // todo errors
-        u128 id = {};
-        call(ZINTu128drain, &id, val);
-        if (u128cmp(&top->id, &id) < 0) top = p;
-    }
-    call(LINEfeed, into, top);
-    done;
+#define id128cmp u128cmp
+#define aRDXid(n, time, src) id128 n = {._64 = {src, time}};
+#define RDXtime(t) ((t)._64[1])
+#define RDXsrc(t) ((t)._64[0])
+
+fun u64 RDXtick(u128* clock) { return ++RDXtime(*clock); }
+fun u64 RDXtock(u128* clock, u128 see) {
+    if (RDXtime(*clock) < RDXtime(see)) RDXtime(*clock) = RDXtime(see);
+    return RDXtime(*clock);
 }
 
-fun ok64 RDXmergeF(line* into, $cline from) { return RDXmerge1(into, from); }
-fun ok64 RDXmergeI(line* into, $cline from) { return RDXmerge1(into, from); }
-fun ok64 RDXmergeR(line* into, $cline from) { return RDXmerge1(into, from); }
-fun ok64 RDXmergeS(line* into, $cline from) { return RDXmerge1(into, from); }
-fun ok64 RDXmergeT(line* into, $cline from) { return RDXmerge1(into, from); }
-
-fun pro(RDXmergeE, line* into, $line from) {
-    aBpad(line, sets, LINEmaxmergelen);
-    $for(line, p, from) {
-        aLINE(next, p->body);
-        call(Blinefeed1, sets, next);
-    }
-    // FIXME header
-    call(LINEmerge, into, Blinedata(sets), &linebodycmp, &RDXmerge1);
-    // call(LINEfeed)
-    done;
+fun pro(RDXfeed, $u8 tlv, u8 t, id128 id, $cu8c value) {
+    aBpad(u8, idpad, 16);
+    ZINTu128feed(Bu8idle(idpad), id);
+    return TLVfeedkv(tlv, t, Bu8cdata(idpad), value);
 }
 
-fun ok64 RDXmergeN(line* into, $line from) {
-    return LINEmerge(into, from, &lineidhicmp, &RDXmerge1);
+fun ok64 RDXdrain(u8* t, id128* id, $u8c value, $u8c tlv) {
+    $u8c idbody = {};
+    ok64 o = TLVdrainkv(t, idbody, value, tlv);
+    if (likely(o == OK)) o = ZINTu128drain(id, idbody);
+    return o;  // TODO untouched on error
 }
-
-fun ok64 RDXmergeZ(line* into, $line from) {
-    return LINEmerge(into, from, &lineidhicmp, &RDXmerge1);
-}
-
-fun ok64 _Mmerge(line* into, $cline from) {
-    // todo both
-    return OK;
-}
-
-fun ok64 RDXmergeM(line* into, $line from) {
-    return LINEmerge(into, from, &linebodycmp, &_Mmerge);
-}
-
-fun pro(RDXmerge, Bu8 into, $u8c$ from) {
-    aBpad(line, lines, LINEmaxmergelen);
-    line$ f = Blinedata(lines);
-    u8 type;
-    $for(u8c$, p, from) {
-        aLINE(l, *p);  // rest?!!
-        Blinefeedp(lines, &l);
-    }
-    aLINE(inl, Bu8cidle(into));
-    switch (type) {
-        case 'F':
-        case 'I':
-        case 'R':
-        case 'S':
-        case 'T':
-            call(RDXmerge1, &inl, f);
-    }
-    done;
-}
-
-//-----------
-//
-
-fun ok64 RDXfeedid($u8 into, RDXref id) {
-    return ZINTu128feed(into, ZINTzigzag(id.seq), id.src);
-}
-
-ok64 RDXfeedF($u8 into, RDXref id, RDXfloat val);
-ok64 RDXfeedI($u8 into, RDXref id, RDXint val);
-ok64 RDXfeedR($u8 into, RDXref id, RDXref val);
-ok64 RDXfeedS($u8 into, RDXref id, RDXstring val) {
-    aBpad(u8, tmp, 16);
-    RDXfeedid(Bu8idle(tmp), id);
-    u8c** idb = Bu8cdata(tmp);
-    u32 len = $len(idb) + $len(val) + 1;
-    if ($len(idb) > 9) ++len;
-    if (len > $len(into)) return RDXnospace;
-    TLVhead(into, String, len);
-    TLVtinyhead(into, 'T', $len(idb));
-    $u8feed(into, idb);
-    $u8feed(into, val);
-    return OK;
-}
-ok64 RDXfeedT($u8 into, RDXref id, RDXterm val);
-
-ok64 RDXdrainF(RDXref* id, RDXfloat* val, $u8c from);
-ok64 RDXdrainI(RDXref* id, RDXint* val, $u8c from);
-ok64 RDXdrainR(RDXref* id, RDXref* val, $u8c from);
-fun pro(RDXdrainS, RDXref* id, RDXstring val, $u8c from) {
-    $u8c body = {}, idb = {};
-    call(TLVtake, String, body, from);
-    call(TLVtake, 'T', idb, body);
-    call(RDXdrainid, id, idb);
-    $mv(val, body);
-    done;
-}
-ok64 RDXdrainT(RDXref* id, RDXterm val, $u8c from);
-
-ok64 RDXpush(Brdx$ heap, rdx$ it, rdx$cmpfn fn);
-ok64 RDXpop(rdx$ next, Brdx$ heap, rdx$cmpfn fn);
 
 #endif

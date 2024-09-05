@@ -83,7 +83,7 @@ fun pro(LINEfeed, line* in, line const* a) {
     u8$ idin = Bu8idle(pad);
     u8c$ idis = Bu8cdata(pad);
     u128 x = u128xor(in->id, a->id);
-    ZINTu128feed(idin, &x);
+    ZINTu128feed(idin, x);
     size_t len = $len(a->body) + $len(idis) + ($len(idis) > 9 ? 2 : 1);
     u8$ into = (u8**)in->rest;
     test($len(into) >= len + 5, LINEnoroom);

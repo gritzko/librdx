@@ -1,5 +1,6 @@
-#include "TEST.h"
 #include "ZINT.h"
+
+#include "TEST.h"
 
 fuzz(u64, ZINTfuzz) {
     if ($len(input) & 1) --input[1];
@@ -12,7 +13,7 @@ fuzz(u64, ZINTfuzz) {
         aBpad(u8, pad, 16);
         u8$ into = Bu8idle(pad);
         u8c$ data = Bu8cdata(pad);
-        ZINTu128feed(into, &a);
+        ZINTfeedu128(into, &a);
         u128 b = {};
         ZINTu128drain(&b, data);
         sane(0 == u128cmp(&a, &b));

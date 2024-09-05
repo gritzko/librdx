@@ -17,7 +17,8 @@ fun int TLVtiny(u8 t) { return t >= '0' && t <= '9'; }
 fun int TLVlong(u8 t) { return t >= 'A' && t <= 'Z'; }
 fun int TLVshort(u8 t) { return t >= 'a' && t <= 'z'; }
 
-fun ok64 TLVprobe(u8* t, u32* hlen, u32* blen, $u8c data) {
+fun ok64 TLVprobe(u8* t, u32* hlen, u32* blen,
+                  $u8c data) {  // FIXME tiny on request, inline short
     if ($empty(data)) return TLVnodata;
     if (TLVtiny(**data)) {
         *t = '0';
@@ -37,7 +38,6 @@ fun ok64 TLVprobe(u8* t, u32* hlen, u32* blen, $u8c data) {
     } else {
         return TLVbadrec;
     }
-    // trace("%sTLVprobe: %u %u\n", PROindent, *hlen, *blen);
     return (*hlen + *blen) <= $len(data) ? OK : TLVnodata;
 }
 
@@ -77,7 +77,7 @@ fun void TLVhead($u8 into, u8 type, u32 len) {
     }
 }
 
-fun pro(TLVput, $u8 into, u8 type, $u8c value) {
+fun pro(TLVfeed, $u8 into, u8 type, $u8c value) {
     sane(TLVlong(type) && into != NULL && value != NULL);
     u32 len = $len(value);
     test($len(into) >= len + 5, TLVnospace);
@@ -93,7 +93,7 @@ fun void TLVtinyhead($u8 into, u8 type, u32 len) {
     ++*into;
 }
 
-fun pro(TLVtinyput, $u8 into, u8 type, $u8c value) {
+fun pro(TLVtinyfeed, $u8 into, u8 type, $u8c value) {
     sane($ok(into) && $ok(value));
     test($len(into) >= $len(value) + 1, TLVnospace);  // todo
     TLVtinyhead(into, type, $len(value));
@@ -143,7 +143,7 @@ fun pro(TLVclose, Bu8 tlv, u8 type, TLVstack stack) {
     done;
 }
 
-fun pro(TLVfeedkv, $u8 tlv, u8c type, $u8c key, $u8c val) {
+fun pro(TLVfeedkv, $u8 tlv, u8c type, $u8c key, $cu8c val) {
     sane($ok(tlv) && $ok(key) && $ok(val) && $len(key) <= 0xff);
     u64 blen = $len(key) + $len(val);
     test($len(tlv) >= blen + 1 + 4 + 1, TLVnospace);
@@ -155,8 +155,17 @@ fun pro(TLVfeedkv, $u8 tlv, u8c type, $u8c key, $u8c val) {
     done;
 }
 
-fun pro(TLVdrainkv, u8* type, $u8 key, $u8 val, $u8c tlv) {
-    sane(1);
+fun pro(TLVdrainkv, u8* type, $u8c key, $u8c val, $u8c tlv) {
+    sane(type != nil && key != nil && val != nil && $ok(tlv));
+    u32 hlen = 0, blen = 0;
+    call(TLVprobe, type, &hlen, &blen, tlv);
+    $u8c body = {tlv[0] + hlen, tlv[0] + hlen + blen};
+    test($len(body) > 0 && $len(body) >= **body, TLVbadrec);
+    key[0] = body[0] + 1;
+    key[1] = key[0] + **body;
+    val[0] = key[1];
+    val[1] = body[1];
+    tlv[0] = body[1];
     done;
 }
 

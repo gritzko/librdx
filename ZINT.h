@@ -39,27 +39,27 @@ fun void $u8drain64(u64* into, $u8 from) {
 }
 #else
 fun void $u8drain16(u16* into, $u8c from) {
-    *into = *(u16*)*from;
+    memcpy(into, *from, 2);
     *from += sizeof(u16);
 }
 fun void $u8feed16($u8 into, u16 const* what) {
-    *(u16*)*into = *what;
+    memcpy(*into, what, 2);
     *into += sizeof(u16);
 }
 fun void $u8drain32(u32* into, $u8c from) {
-    *into = *(u32*)*from;
+    memcpy(into, *from, 4);
     *from += sizeof(u32);
 }
 fun void $u8feed32($u8 into, u32 const* what) {
-    *(u32*)*into = *what;
+    memcpy(*into, what, 4);
     *into += sizeof(u32);
 }
 fun void $u8drain64(u64* into, $u8c from) {
-    *into = *(u64*)*from;
+    memcpy(into, *from, 8);
     *from += sizeof(u64);
 }
 fun void $u8feed64($u8 into, u64 const* what) {
-    *(u64*)*into = *what;
+    memcpy(*into, what, 8);
     *into += sizeof(u64);
 }
 #endif
@@ -79,7 +79,7 @@ fun u32 ZINTlen(u64 n) {
     return 8;
 }
 
-fun void ZINTfeedu64($u8 into, u64 n) {
+fun void ZINTu64feed($u8 into, u64 n) {
     if (n <= B1) {
         if (n != 0) $u8feed8(into, (u8*)&n);
     } else if (n <= B2) {
@@ -91,7 +91,7 @@ fun void ZINTfeedu64($u8 into, u64 n) {
     }
 }
 
-fun ok64 ZINTdrainu64(u64* n, $u8c from) {
+fun ok64 ZINTu64drain(u64* n, $u8c from) {
     switch ($len(from)) {
         case 0:
             *n = 0;
@@ -116,11 +116,11 @@ fun ok64 ZINTdrainu64(u64* n, $u8c from) {
 
 // ZipUint64Pair packs a pair of uint64 into a byte string.
 // The smaller the ints, the shorter the string
-fun pro(ZINTu128feed, $u8 into, u128 const* a) {
-    sane($ok(into) && a != nil);
+fun pro(ZINTu128feed, $u8 into, u128 a) {
+    sane($ok(into));
     test($size(into) >= sizeof(u64) * 2, ZINTnoroom);
-    u64 big = a->_64[0];
-    u64 lil = a->_64[1];
+    u64 big = a._64[0];
+    u64 lil = a._64[1];
     if (lil <= B1) {
         if (big <= B1) {
             if (big != 0 || lil != 0) $u8feed8(into, (u8*)&big);

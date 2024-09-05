@@ -6,9 +6,15 @@
 #include <assert.h>
 
 #include "PRO.h"
-#include "trace.h"
 
 con ok64 TESTfail = 0xc2d96a75c39d;
+con ok64 TESTfaileq = 0xd69c2d96a75c39d;
+
+#define want(cond) \
+    if (!(cond)) fail(TESTfail);
+
+#define same(a, b) \
+    if ((a) != (b)) fail(TESTfaileq);
 
 #define TEST(f)                                                          \
     uint8_t _pro_depth = 0;                                              \

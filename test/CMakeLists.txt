@@ -67,11 +67,6 @@ target_link_options(FILEtest PRIVATE ${TEST_LDD_FLAGS})
 target_compile_options(FILEtest PRIVATE ${TEST_CXX_FLAGS})
 add_test(NAME FILEtest COMMAND FILEtest)
 
-#add_executable(RDXtest RDX.c)
-#target_link_options(RDXtest PRIVATE ${TEST_LDD_FLAGS})
-#target_compile_options(RDXtest PRIVATE ${TEST_CXX_FLAGS})
-#add_test(NAME RDXtest COMMAND RDXtest)
-
 add_executable(SHAtest SHA.c)
 target_link_libraries(SHAtest sodium)
 target_link_options(SHAtest PRIVATE ${TEST_LDD_FLAGS})
@@ -99,3 +94,9 @@ add_executable(MARKtest MARK.c ../MARK.c ../MARQ.c ../MARK.rl.c ../MARQ.rl.c)
 target_link_options(MARKtest PRIVATE ${TEST_LDD_FLAGS})
 target_compile_options(MARKtest PRIVATE ${TEST_CXX_FLAGS})
 add_test(NAME MARKtest COMMAND MARKtest)
+
+add_executable(RDXtest RDX.c)
+target_link_options(RDXtest PRIVATE ${TEST_LDD_FLAGS})
+target_compile_options(RDXtest PRIVATE ${TEST_CXX_FLAGS})
+add_test(NAME RDXtest COMMAND RDXtest)
+
