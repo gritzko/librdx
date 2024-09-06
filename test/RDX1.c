@@ -5,6 +5,7 @@
 
 #include "B.h"
 #include "FILE.h"
+#include "INT.h"
 #include "PRO.h"
 #include "RDX.h"
 #include "TEST.h"
@@ -91,11 +92,38 @@ pro(RDXRtest) {
     done;
 }
 
+pro(RDXStest) {
+    sane(1);
+#define RDXSlen 3
+    $u8c inputs[RDXRlen] = {$u8str(""), $u8str("a"), $u8str("abcdef")};
+    for (int i = 0; i < RDXRlen; ++i) {
+        u8c$ c = inputs[i];
+        aRDXid(id, i, i);
+        aBpad(u8, tlv, 64);
+        call(RDXSc2tlv, Bu8idle(tlv), c, id);
+        id128 id2 = {};
+        $u8c c2 = {};
+        call(RDXStlv2c, c2, &id2, Bu8cdata(tlv));
+        want($eq(c, c2));
+        same(RDXtime(id), RDXtime(id2));
+        same(RDXsrc(id), RDXsrc(id2));
+        same($empty(c) ? 3 : $len(c) + 3 + 2, Bdatalen(tlv));
+        $u8c txt = {};
+        id128 id3 = {};
+        call(RDXStlv2txt, txt, &id3, Bu8cdata(tlv));
+        aBpad(u8, tlv2, 32);
+        call(RDXStxt2tlv, Bu8idle(tlv2), txt, id3);
+        $testeq(Bu8cdata(tlv), Bu8cdata(tlv2));
+    }
+    done;
+}
+
 pro(RDX1test) {
     sane(1);
     call(RDXFtest);
     call(RDXItest);
     call(RDXRtest);
+    call(RDXStest);
     done;
 }
 

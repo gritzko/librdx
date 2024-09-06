@@ -203,4 +203,46 @@ fun pro(RDXRtlv2txt, $u8 txt, id128* time, $cu8c tlv) {
     done;
 }
 
+// S
+
+fun pro(RDXStlv2c, u8c$ str, id128* id, $cu8c tlv) {
+    sane(str != nil && id != nil && $ok(tlv));
+    a$dup(u8c, dup, tlv);
+    u8 t = 0;
+    call(RDXdrain, &t, id, str, dup);
+    done;
+}
+
+fun pro(RDXSc2tlv, $u8 tlv, $cu8c c, u128 time) {
+    sane($ok(tlv));
+    call(RDXfeed, tlv, RDX_STRING, time, c);
+    done;
+}
+
+fun pro(RDXSdtlv, $u8 dtlv, $cu8c oldtlv, $cu8c c, u128* clock) {
+    sane($ok(oldtlv) && clock != nil);
+    call(RDX1dtlv, dtlv, oldtlv, RDX_STRING, clock, c);
+    done;
+}
+
+fun pro(RDXStxt2tlv, $u8 tlv, $cu8c txt, id128 time) {
+    sane($ok(tlv) && $ok(txt));
+    call(RDXSc2tlv, tlv, txt, time);
+    done;
+}
+
+fun pro(RDXStlv2txt, u8c$ txt, id128* time, $cu8c tlv) {
+    sane(txt != nil && $ok(tlv) && time != nil);
+    call(RDXStlv2c, txt, time, tlv);
+    done;
+}
+
+// T
+
+#define RDXTtlv2c RDXStlv2c
+#define RDXTc2tlv RDXSc2tlv
+#define RDXTdtlv RDXSdtlv
+#define RDXTtxt2tlv RDXStxt2tlv
+#define RDXTtlv2txt RDXStlv2txt
+
 #endif
