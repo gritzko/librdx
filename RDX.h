@@ -4,6 +4,7 @@
 #include "$.h"
 #include "01.h"
 #include "B.h"
+#include "HEX.h"
 #include "INT.h"
 #include "TLV.h"
 #include "ZINT.h"
@@ -57,6 +58,32 @@ fun ok64 RDXdrain(u8* t, id128* id, $u8c value, $u8c tlv) {
     ok64 o = TLVdrainkv(t, idbody, value, tlv);
     if (likely(o == OK)) o = ZINTu128drain(id, idbody);
     return o;  // TODO untouched on error
+}
+
+$u8c ID128DELIM = $u8str("-");
+
+fun ok64 RDXid128feed($u8 txt, id128 id) {
+    u8* p = *txt;
+    ok64 o = u64hexfeed(txt, RDXtime(id));
+    if ($len(txt) <= 1) o = RDXnospace;
+    if (o == OK) {
+        $feed1(txt, **ID128DELIM);
+        o = u64hexfeed(txt, RDXsrc(id));
+    }
+    if (o != OK) *txt = p;
+    return o;
+}
+
+fun ok64 RDXid128drain(id128* id, $cu8c txt) {
+    u8c* p = $u8find(txt, *ID128DELIM);
+    if (p == nil) return RDXbad;
+    $u8c time = {txt[0], p};
+    $u8c src = {p + 1, txt[1]};
+    id128 res = {};
+    ok64 o = u64hexdrain(&RDXtime(res), time);
+    if (o == OK) o = u64hexdrain(&RDXsrc(res), src);
+    if (o == OK) *id = res;
+    return o;
 }
 
 #endif

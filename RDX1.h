@@ -47,6 +47,8 @@ fun pro(RDX1dtlv, $u8 dtlv, $cu8c oldtlv, u8 type, u128* clock, $cu8c newbits) {
     done;
 }
 
+// F
+
 fun pro(RDXFtlv2c, RDXfloat* c, id128* id, $cu8c tlv) {
     sane(c != nil && id != nil && $ok(tlv));
     u8 t = 0;
@@ -102,6 +104,8 @@ fun pro(RDXFtlv2txt, $u8 txt, id128* time, $cu8c tlv) {
     done;
 }
 
+// I
+
 fun pro(RDXItlv2c, RDXint* c, id128* id, $cu8c tlv) {
     sane(c != nil && id != nil && $ok(tlv));
     u8 t = 0;
@@ -154,5 +158,7 @@ fun pro(RDXItlv2txt, $u8 txt, id128* time, $cu8c tlv) {
     call($u8feed, txt, $res);
     done;
 }
+
+// R
 
 #endif

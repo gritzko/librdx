@@ -47,7 +47,7 @@ pro(Utest1) {
     $u8 abc = $cut(Bu8past(buf), 0, 3);
     assert($len(abc) == 3);
     u8 three = 3;
-    u8 *c = $u8find(Bu8past(buf), &three);
+    u8c *c = $u8find(Bu8cpast(buf), &three);
     assert(c - buf[0] == 3);
     Bu8free(buf);
     done;

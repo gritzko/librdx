@@ -11,7 +11,7 @@ fun T *const *X(B, past)(X(B, ) buf) { return (X(, ) **)buf + 0; }
 fun T **X(B, data)(X(B, ) buf) { return (X(, ) **)buf + 1; }
 fun T **X(B, idle)(X(B, ) buf) { return (X(, ) **)buf + 2; }
 
-fun T const *const *X(B, cpast)(X(, c$) buf) {
+fun T const *const *X(B, cpast)(X(B, ) buf) {
     return (T const *const *)buf + 0;
 }
 fun T const **X(B, cdata)(X(B, ) buf) { return (T const **)buf + 1; }
