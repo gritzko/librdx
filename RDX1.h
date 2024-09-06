@@ -123,7 +123,7 @@ fun pro(RDXIc2tlv, $u8 tlv, RDXint c, u128 time) {
     u64 bits = ZINTzigzag(c);
     aBpad(u8, pad, 8);
     ZINTu64feed(Bu8idle(pad), bits);
-    call(RDXfeed, tlv, RDX_FLOAT, time, Bu8cdata(pad));
+    call(RDXfeed, tlv, RDX_INT, time, Bu8cdata(pad));
     done;
 }
 
@@ -160,5 +160,47 @@ fun pro(RDXItlv2txt, $u8 txt, id128* time, $cu8c tlv) {
 }
 
 // R
+
+fun pro(RDXRtlv2c, RDXref* c, id128* id, $cu8c tlv) {
+    sane(c != nil && id != nil && $ok(tlv));
+    u8 t = 0;
+    $u8c value = {};
+    a$dup(u8c, dup, tlv);
+    call(RDXdrain, &t, id, value, dup);
+    call(ZINTu128drain, c, value);
+    done;
+}
+
+fun pro(RDXRc2tlv, $u8 tlv, RDXref c, u128 time) {
+    sane($ok(tlv));
+    aBpad(u8, pad, 16);
+    ZINTu128feed(Bu8idle(pad), c);
+    call(RDXfeed, tlv, RDX_REF, time, Bu8cdata(pad));
+    done;
+}
+
+fun pro(RDXRdtlv, $u8 dtlv, $cu8c oldtlv, RDXref c, u128* clock) {
+    sane($ok(oldtlv) && clock != nil);
+    aBpad(u8, pad, 16);
+    ZINTu128feed(Bu8idle(pad), c);
+    call(RDX1dtlv, dtlv, oldtlv, RDX_REF, clock, Bu8cdata(pad));
+    done;
+}
+
+fun pro(RDXRtxt2tlv, $u8 tlv, $cu8c txt, id128 time) {
+    sane($ok(tlv) && $ok(txt));
+    id128 id = {};
+    call(RDXid128drain, &id, txt);
+    call(RDXRc2tlv, tlv, id, time);
+    done;
+}
+
+fun pro(RDXRtlv2txt, $u8 txt, id128* time, $cu8c tlv) {
+    sane($ok(txt) && $ok(tlv) && time != nil);
+    RDXref v = {};
+    call(RDXRtlv2c, &v, time, tlv);
+    call(RDXid128feed, txt, v);
+    done;
+}
 
 #endif
