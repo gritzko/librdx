@@ -1,7 +1,10 @@
 #ifndef ABC_RDX1_H
 #define ABC_RDX1_H
+#include <stdio.h>
+
 #include "01.h"
 #include "RDX.h"
+#include "ZINT.h"
 #define RYU_OPTIMIZE_SIZE
 #include "ryu/ryu.h"
 
@@ -94,6 +97,59 @@ fun pro(RDXFtlv2txt, $u8 txt, id128* time, $cu8c tlv) {
     call(RDXFtlv2c, &v, time, tlv);
     u8 res[32];
     int len = d2s_buffered_n(v, (char*)res);
+    $u8c $res = {res, res + len};
+    call($u8feed, txt, $res);
+    done;
+}
+
+fun pro(RDXItlv2c, RDXint* c, id128* id, $cu8c tlv) {
+    sane(c != nil && id != nil && $ok(tlv));
+    u8 t = 0;
+    $u8c value = {};
+    a$dup(u8c, dup, tlv);
+    call(RDXdrain, &t, id, value, dup);
+    u64 bits = 0;
+    call(ZINTu64drain, &bits, value);
+    *c = ZINTzagzig(bits);
+    done;
+}
+
+fun pro(RDXIc2tlv, $u8 tlv, RDXint c, u128 time) {
+    sane($ok(tlv));
+    u64 bits = ZINTzigzag(c);
+    aBpad(u8, pad, 8);
+    ZINTu64feed(Bu8idle(pad), bits);
+    call(RDXfeed, tlv, RDX_FLOAT, time, Bu8cdata(pad));
+    done;
+}
+
+fun pro(RDXIdtlv, $u8 dtlv, $cu8c oldtlv, RDXint c, u128* clock) {
+    sane($ok(oldtlv) && clock != nil);
+    u64 bits = ZINTzigzag(c);
+    aBpad(u8, pad, 8);
+    ZINTu64feed(Bu8idle(pad), bits);
+    call(RDX1dtlv, dtlv, oldtlv, RDX_INT, clock, Bu8cdata(pad));
+    done;
+}
+
+fun pro(RDXItxt2tlv, $u8 tlv, $cu8c txt, id128 time) {
+    sane($ok(tlv) && $ok(txt));
+    size_t tl = $len(txt);
+    test(tl < 32, RDXbad);
+    u8 str[32];
+    memcpy(str, *txt, tl);
+    str[tl] = 0;
+    i64 i = strtol((char*)str, nil, 10);
+    call(RDXIc2tlv, tlv, i, time);
+    done;
+}
+
+fun pro(RDXItlv2txt, $u8 txt, id128* time, $cu8c tlv) {
+    sane($ok(txt) && $ok(tlv) && time != nil);
+    RDXint v = 0;
+    call(RDXItlv2c, &v, time, tlv);
+    u8 res[32];
+    int len = sprintf((char*)res, "%li", v);
     $u8c $res = {res, res + len};
     call($u8feed, txt, $res);
     done;
