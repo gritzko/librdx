@@ -21,6 +21,21 @@ typedef uint16_t u16;
 typedef uint32_t u32;
 typedef uint64_t u64;
 
+typedef u8 const u8c;
+typedef u16 const u16c;
+typedef u32 const u32c;
+typedef u64 const u64c;
+
+typedef u8 *u8p;
+typedef u16 *u16p;
+typedef u32 *u32p;
+typedef u64 *u64p;
+
+typedef u8 const *u8cp;
+typedef u16 const *u16cp;
+typedef u32 const *u32cp;
+typedef u64 const *u64cp;
+
 typedef int8_t i8;
 typedef int16_t i16;
 typedef int32_t i32;

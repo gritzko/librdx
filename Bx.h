@@ -6,6 +6,7 @@
 typedef T *const X(B, )[4];
 typedef T **X(, B);
 typedef T const **X(, cB);
+typedef X($, ) * X(B$, )[4];
 
 fun T *const *X(B, past)(X(B, ) buf) { return (X(, ) **)buf + 0; }
 fun T **X(B, data)(X(B, ) buf) { return (X(, ) **)buf + 1; }
@@ -70,7 +71,9 @@ fun ok64 X(B, feed2)(X(B, ) buf, T a, T b) {
     return OK;
 }
 
-fun ok64 X(B, feed1)(X(B, ) buf, T one) { return X(B, feedp)(buf, &one); }
+fun ok64 X(B, feed1)(X(B, ) buf, T one) {
+    return X(B, feedp)(buf, (T const *)&one);
+}
 
 fun ok64 X(B, feed$)(X(B, ) buf, X($c, c) from) {
     T **into = X(B, idle)(buf);

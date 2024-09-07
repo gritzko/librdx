@@ -9,8 +9,6 @@
 #define T X(, )
 
 typedef T const X(, c);
-
-typedef T *X(, p);
 typedef T const *X(, cp);
 
 typedef T *X($, )[2];
@@ -21,6 +19,8 @@ typedef T const *const X($c, c)[2];
 typedef T **X(, $);
 typedef T const **X(, c$);
 typedef T const *const *X(, $cc);
+
+typedef X($, ) * X($$, )[2];
 
 typedef int (*X(, cmpfn))(const X(, ) *, const X(, ) *);
 
@@ -55,16 +55,16 @@ fun void X(, mv)(T *into, T const *from) { memcpy(into, from, sizeof(T)); }
 
 fun ok64 X($, feed1)(X($, ) into, T what) {
     if ($empty(into)) return $noroom;
-    X(, mv)(*into, &what);
+    X(, mv)(*into, (T const *)&what);
     ++*into;
     return OK;
 }
 
 fun ok64 X($, feed2)(X($, ) into, T a, T b) {
     if ($len(into) < 2) return $noroom;
-    X(, mv)(*into, &a);
+    X(, mv)(*into, (T const *)&a);
     ++*into;
-    X(, mv)(*into, &b);
+    X(, mv)(*into, (T const *)&b);
     ++*into;
     return OK;
 }

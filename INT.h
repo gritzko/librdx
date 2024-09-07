@@ -82,12 +82,12 @@ fun int $u8cmp(u8 const *const *a, u8 const *const *b) { return $cmp(a, b); }
 #include "Bx.h"
 #undef X
 
-fun int u8c$cmp(u8c$ const *a, u8c$ const *b) {
+fun int $u8ccmp($u8c const *a, $u8c const *b) {
     if (*a == *b) return 0;
     return *a < *b ? -1 : 1;
 }
 
-#define X(M, name) M##u8c$##name
+#define X(M, name) M##$u8c##name
 #include "Bx.h"
 #undef X
 

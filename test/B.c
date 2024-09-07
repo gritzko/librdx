@@ -49,12 +49,22 @@ pro(Breserve_test) {
     done;
 }
 
+pro(B$test) {
+    sane(1);
+    /*    aBpad(u8, pad, 1024);
+        $u8feed2(Bu8idle(pad), 12, 34);
+        aBpad($u8, $pad, 32);
+        $feed(B$u8idle($pad), pad[1]);*/
+    done;
+}
+
 pro(Btest) {
     sane(1);
     call(Bmap_test);
     call(B$_test);
     call(Bndx_test);
     call(Breserve_test);
+    call(B$test);
     done;
 }
 
