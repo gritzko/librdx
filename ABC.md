@@ -40,7 +40,7 @@ One of ABC objectives is durability.
 Instead of making an experimental language that will rot in 5 years, we focus narrowly on C.
 C is our Latin, it will not go away anytime soon (if ever). 
 
-The Linux kernel is a civilizational megaproject and is uses C. 
+The Linux kernel is a civilizational megaproject and it uses C. 
 Same with Windows and MacOS kernels and much of the library tier (SSL, JPEG, what's not). 
 
 Finally, ABC must be fit for the purpose of creating low-level system utilities. 
@@ -79,7 +79,7 @@ Constructs must be simple, practical, and most importantly: composable.
 They must not build their own entirely separate universe.
 One fitness metric for an ABC module is how many other modules it can be seamlessly used with.
 *Seamless* means the absence of any specific adaptors; 
-ideally, modules *don't know a thing* about each other
+ideally, modules *don't know a thing* about each other!
 That is like UNIX toolbox taken to the extreme: minimalist composable single-purpose tools.
 Those tools must have well-specified and *unchanging* behavior.
 Do one thing, do it well, and once you did it, it is done, that's it.
@@ -95,7 +95,7 @@ ABC sees three main categories of data types:
     Buffers are the most important ones, they *own* the memory.
     Slices and others *reference* memory. 
     Note that we only call it a "star type" if it contains _record_ types,
-    so the bit layout is specified.
+    so the overall bit layout is specified.
  3. *Other types* that may contain pointers or have unspecified layouts.
     These are your dirty underwear. 
     They should not appear in APIs.

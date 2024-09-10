@@ -117,6 +117,9 @@ pro(eatline, $u8c line, $u8c dline, u64* room) {
     //    last = p;
     //    lastroom = *room - len;
     // }
+    if (last == *line) {
+        last = line[1];  // screw it
+    }
     dline[0] = line[0];
     dline[1] = last;
     line[0] = last;

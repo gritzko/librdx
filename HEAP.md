@@ -2,7 +2,7 @@
 
 A binary heap is a surprisingly simple and useful data 
 structure. It perfectly fits the way ABC slices and buffers 
-work. 
+work. See `HEAPx.h` for the implementation. 
 
 It is also a good example on how to create data structure 
 templates in ABC. The technique is borrowed from the Linux 

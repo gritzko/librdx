@@ -3,6 +3,13 @@
 
 #include "INT.h"
 
+#define align32(s)                       \
+    {                                    \
+        size_t rem = ((size_t)s[0]) & 3; \
+        rem = (4 - rem) & 3;             \
+        s[0] += rem;                     \
+    }
+
 #define align64(s)                       \
     {                                    \
         size_t rem = ((size_t)s[0]) & 7; \
@@ -11,7 +18,7 @@
     }
 
 #define a32(n, val, arena)   \
-    align64(arena);          \
+    align32(arena);          \
     u32* n = (u32*)arena[0]; \
     *n = val;                \
     arena[0] += 4;
@@ -29,11 +36,13 @@
     arena[0] += sizeof(T);
 
 #define afed(n, feed, s, ...) \
+    align64(s);               \
     $u8 n = {s[0], nil};      \
     feed(s, __VA_ARGS__);     \
     n[1] = s[0];
 
 #define afedc(n, feed, s, ...) \
+    align64(s);                \
     $u8c n = {s[0], nil};      \
     feed(s, __VA_ARGS__);      \
     n[1] = s[0];

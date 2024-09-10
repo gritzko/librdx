@@ -50,5 +50,8 @@ fun ok64 X(HEAP, push)(X(B, ) buf, T const *v, X(, cmpfn) fn) {
 }
 
 fun ok64 X(HEAP, push1)(X(B, ) buf, T v, X(, cmpfn) fn) {
-    return X(HEAP, push)(buf, &v, fn);
+    ok64 o = X(B, feed1)(buf, v);
+    if (o != OK) return o;
+    X(HEAP, up)(X(B, data)(buf), fn);
+    return OK;
 }

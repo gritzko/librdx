@@ -32,14 +32,16 @@ typedef id128 RDXref;
 typedef $u8c RDXstring;
 typedef $u8c RDXterm;
 
-typedef $u8 rdx$;
-
-typedef ok64 RDXmergefn($u8 into, $u8cp from);
-
 #define id128cmp u128cmp
 #define aRDXid(n, time, src) id128 n = {._64 = {src, time}};
 #define RDXtime(t) ((t)._64[1])
 #define RDXsrc(t) ((t)._64[0])
+
+#define X(M, name) M##$u8c##name
+#include "HEAPx.h"
+#undef X
+
+typedef ok64 rdxnext(u8c$ next, $u8c input);
 
 fun u64 RDXtick(u128* clock) { return ++RDXtime(*clock); }
 fun u64 RDXtock(u128* clock, u128 see) {
