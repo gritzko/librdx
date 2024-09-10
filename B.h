@@ -65,7 +65,13 @@ typedef void *const *voidB;
 
 #define aBpad(T, n, l) \
     T _##n[(l)];       \
-    B##T n = {_##n, _##n, _##n, _##n + (l)}
+    B##T n = {_##n, _##n, _##n, _##n + (l)};
+
+#define aBpads(T, n, l)                           \
+    T _##n[(l)];                                  \
+    B##T n##buf = {_##n, _##n, _##n, _##n + (l)}; \
+    T##$ n##idle = B##T##idle(n##buf);            \
+    T##$ n##data = B##T##data(n##buf);
 
 #define Bzero(buf) memset(buf[0], 0, ((void *)buf[3]) - ((void *)buf[0]))
 

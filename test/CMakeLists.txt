@@ -79,6 +79,18 @@ target_link_options(ZINTtest PRIVATE ${TEST_LDD_FLAGS})
 target_compile_options(ZINTtest PRIVATE ${TEST_CXX_FLAGS})
 add_test(NAME ZINTtest COMMAND ZINTtest)
 
+add_executable(ARENtest AREN.c)
+target_link_libraries(ARENtest)
+target_link_options(ARENtest PRIVATE ${TEST_LDD_FLAGS})
+target_compile_options(ARENtest PRIVATE ${TEST_CXX_FLAGS})
+add_test(NAME ARENtest COMMAND ARENtest)
+
+add_executable(UTF8test UTF8.c ../UTF8.c)
+target_link_libraries(UTF8test)
+target_link_options(UTF8test PRIVATE ${TEST_LDD_FLAGS})
+target_compile_options(UTF8test PRIVATE ${TEST_CXX_FLAGS})
+add_test(NAME UTF8test COMMAND UTF8test)
+
 add_executable(LINEtest LINE.c)
 target_link_libraries(LINEtest)
 target_link_options(LINEtest PRIVATE ${TEST_LDD_FLAGS})

@@ -7,63 +7,6 @@
 con ok64 ZINTnoroom = 0xc73cf6cf27574a3;
 con ok64 ZINTbadrec = 0x9e9da89667574a3;
 
-fun void $u8drain8(u8* into, $u8c from) {
-    *into = **from;
-    *from += sizeof(u8);
-}
-fun void $u8feed8($u8 into, u8 const* what) {
-    **into = *what;
-    *into += sizeof(u8);
-}
-
-#ifdef ABC_ALIGN
-fun void $u8drain16(u16* into, $u8 from) {
-    *into = **from;
-    ++*from;
-    *into |= u16(**from) << 8;
-    ++*from;
-}
-fun void $u8drain32(u32* into, $u8 from) {
-    u16 lo = 0, hi = 0;
-    $u8drain16(&lo, from);
-    $u8drain16(&hi, from);
-    *into = lo;
-    *into |= u32(hi) << 16;
-}
-fun void $u8drain64(u64* into, $u8 from) {
-    u32 lo = 0, hi = 0;
-    $u8drain32(&lo, from);
-    $u8drain32(&hi, from);
-    *into = lo;
-    *into |= u64(hi) << 32;
-}
-#else
-fun void $u8drain16(u16* into, $u8c from) {
-    memcpy(into, *from, 2);
-    *from += sizeof(u16);
-}
-fun void $u8feed16($u8 into, u16 const* what) {
-    memcpy(*into, what, 2);
-    *into += sizeof(u16);
-}
-fun void $u8drain32(u32* into, $u8c from) {
-    memcpy(into, *from, 4);
-    *from += sizeof(u32);
-}
-fun void $u8feed32($u8 into, u32 const* what) {
-    memcpy(*into, what, 4);
-    *into += sizeof(u32);
-}
-fun void $u8drain64(u64* into, $u8c from) {
-    memcpy(into, *from, 8);
-    *from += sizeof(u64);
-}
-fun void $u8feed64($u8 into, u64 const* what) {
-    memcpy(*into, what, 8);
-    *into += sizeof(u64);
-}
-#endif
-
 con u64 B1 = 0xff;
 con u64 B2 = 0xffff;
 con u64 B4 = 0xffffffff;
