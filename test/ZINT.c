@@ -14,7 +14,7 @@ pro(ZINTtest1) {
     i64 i[] = {
         -126446, 65536, 0, INT64_MAX, INT64_MIN, -1, 1,
     };
-    $i64 is = $sliced(i);
+    a$(i64, is, i);
     $eat(is) {
         u64 u = ZINTzigzag(**is);
         i64 i2 = ZINTzagzig(u);
@@ -49,7 +49,7 @@ pro(ZINTtest2) {
 
         1,          1,
     };
-    $i64 tozip = $sliced(i);
+    a$(i64, tozip, i);
     $eat(tozip) {
         u128 a;
         a._64[0] = **tozip;

@@ -67,11 +67,11 @@ typedef void *const *voidB;
     T _##n[(l)];       \
     B##T n = {_##n, _##n, _##n, _##n + (l)};
 
-#define aBpads(T, n, l)                           \
+#define aBcpad(T, n, l)                           \
     T _##n[(l)];                                  \
     B##T n##buf = {_##n, _##n, _##n, _##n + (l)}; \
     T##$ n##idle = B##T##idle(n##buf);            \
-    T##$ n##data = B##T##data(n##buf);
+    T##c##$ n##data = B##T##cdata(n##buf);
 
 #define Bzero(buf) memset(buf[0], 0, ((void *)buf[3]) - ((void *)buf[0]))
 
@@ -126,10 +126,15 @@ fun ok64 Bfree(Bvoid buf) {
         b[2] = b[0] + past + data;      \
     }
 
-#define Breset(b) \
-    { b[1] = b[2] = b[0]; }
+#define Breset(buf)          \
+    {                        \
+        u8 **b = (u8 **)buf; \
+        b[1] = b[2] = b[0];  \
+    }
 
 #define aB(T, n) T *n[4] = {0, 0, 0, 0};
+
+#define aB$(T, n, buf, from, till) T *n[2] = {buf[0] + from, buf[0] + till};
 
 #define Batp(buf, ndx) (buf[0] + ndx)
 #define Bat(buf, ndx) (buf[0][ndx])

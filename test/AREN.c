@@ -13,7 +13,7 @@ typedef struct {
 
 pro(ARENtest1) {
     sane(1);
-    aBpads(u8, arena, PAGESIZE);
+    aBcpad(u8, arena, PAGESIZE);
     $u8c abc = $u8str("abcdefg");
 
     afed(str, $u8feed, arenaidle, abc);  // 7

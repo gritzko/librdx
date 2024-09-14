@@ -28,7 +28,7 @@ pro(SHAtest1) {
     SHAopen(&state);
     SHAfeed(&state, value2);
     SHAclose(&state, &hash2);
-    $u8c hs2 = $sliced(hash2.data);
+    a$(u8c, hs2, hash2.data);
     HEXput(Bu8idle(hex2b), hs2);
     testeq(YES, $eq(Bu8data(hex2b), hex2));
 

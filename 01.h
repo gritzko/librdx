@@ -77,6 +77,10 @@ typedef w512 u512;
 #define PAGESIZE (1 << 12)
 #endif
 
+// size_t, 6 bytes; two upper bytes are free for reuse
+typedef u64 pos48;
+fun u16 pos48hi16(pos48 u) { return u >> 48; }
+
 #define max(a, b) ((a) > (b) ? (a) : (b))
 #define min(a, b) ((a) < (b) ? (a) : (b))
 

@@ -28,7 +28,7 @@ pro(check, int a, int b) {
 pro(Utest1) {
     sane(1);
     u8 array[] = {1, 2, 3, 4};
-    $u8 slice = $sliced(array);
+    a$(u8, slice, array);
     $eat(slice) { printf("%i\n", **slice); }
     Bu8 buf = {};
     Bu8alloc(buf, 32);

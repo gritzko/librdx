@@ -28,14 +28,16 @@ con ok64 $miss = 0x37dedc7f;
 #define $ok(s) (s != nil && *s != nil && s[1] >= s[0])
 #define $within(h, n) (n[0] >= h[0] && n[1] <= h[1])
 
-#define $sliced(a) \
-    { a, a + (sizeof(a) / sizeof(*a)) }
+#define a$(T, n, a) T *n[2] = {(a), (a) + (sizeof(a) / sizeof(T))};
 
 #define $off(s, o) ((s[0] + (o) < s[1]) ? (s[0] + (o)) : s[1])
 
 #define a$dup(T, n, s) T *n[2] = {(s)[0], (s)[1]}
+
 #define a$tail(T, n, s, off) \
     $##T n = {(off) > $len(s) ? s[1] : s[0] + (off), s[1]};
+#define a$head(T, n, s, l) \
+    T *n[2] = {s[0], ((l) > $len(s) ? s[1] : (s[0] + l))};
 
 #define a$part(T, n, s, off, len) T *n[2] = {*s + off, *s + off + len};
 #define a$lpart(T, n, s, off) T *n[2] = {(s)[0], (s)[0] + off}

@@ -14,6 +14,8 @@ con ok64 TLVbadarg = 0x2bda5a2599f55d;
 
 const u8 TLVaa = 0x20;
 
+#define TLV_TINY_TYPE '0'
+
 fun int TLVtiny(u8 t) { return t >= '0' && t <= '9'; }
 fun int TLVlong(u8 t) { return t >= 'A' && t <= 'Z'; }
 fun int TLVshort(u8 t) { return t >= 'a' && t <= 'z'; }
@@ -22,7 +24,7 @@ fun ok64 TLVprobe(u8* t, u32* hlen, u32* blen,
                   $u8c data) {  // FIXME tiny on request, inline short
     if ($empty(data)) return TLVnodata;
     if (TLVtiny(**data)) {
-        *t = '0';
+        *t = TLV_TINY_TYPE;
         *hlen = 1;
         *blen = **data - '0';
     } else if (TLVshort(**data)) {
@@ -42,8 +44,13 @@ fun ok64 TLVprobe(u8* t, u32* hlen, u32* blen,
     return (*hlen + *blen) <= $len(data) ? OK : TLVnodata;
 }
 
-pro(TLVdrain, u8* t, $u8c value, $u8c from) {
-    sane(1);
+pro(TLVdrain, u8* t, u8c$ value, $u8c from) {
+    sane(t != nil && value != nil && $ok(from));
+    u32 hlen = 0, blen = 0;
+    call(TLVprobe, t, &hlen, &blen, from);
+    value[0] = from[0] + hlen;
+    value[1] = value[0] + blen;
+    from[0] += hlen + blen;
     done;
 }
 
@@ -88,18 +95,18 @@ fun pro(TLVfeed, $u8 into, u8 type, $u8c value) {
     done;
 }
 
-fun void TLVtinyhead($u8 into, u8 type, u32 len) {
-    if (len > 9) return TLVhead(into, type, len);
-    **into = '0' + len;
-    ++*into;
-}
-
 fun pro(TLVtinyfeed, $u8 into, u8 type, $u8c value) {
     sane($ok(into) && $ok(value));
-    test($len(into) >= $len(value) + 1, TLVnospace);  // todo
-    TLVtinyhead(into, type, $len(value));
+    size_t len = $len(value);
+    test($len(into) >= len + 5, TLVnospace);  // todo
+    if (len > 9) {
+        TLVhead(into, type, len);
+    } else {
+        **into = '0' + len;
+        ++*into;
+    }
     $u8copy(into, value);
-    *into += $len(value);
+    *into += len;
     done;
 }
 

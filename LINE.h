@@ -88,8 +88,7 @@ fun pro(LINEfeed, line* in, line const* a) {
     u8$ into = (u8**)in->rest;
     test($len(into) >= len + 5, LINEnoroom);
     TLVhead(into, a->type, len);
-    TLVtinyhead(into, 'T', $len(idis));  // todo micro
-    $u8feed(into, idis);
+    TLVtinyfeed(into, 'T', idis);
     in->body[0] = into[0];
     $u8feed(into, a->body);
     in->body[1] = into[0];
