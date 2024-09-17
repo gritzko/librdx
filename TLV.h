@@ -1,7 +1,9 @@
 #ifndef LIBRDX_TLV_H
 #define LIBRDX_TLV_H
 #include "$.h"
+#include "01.h"
 #include "INT.h"
+#include "OK.h"
 #include "PRO.h"
 
 con ok64 TLVbadrec = 0x27a76a2599f55d;
@@ -12,7 +14,7 @@ con ok64 TLVoverflo = 0xcf0ab6a7acdf55d;
 con ok64 TLVbadcall = 0xc30967a2599f55d;
 con ok64 TLVbadarg = 0x2bda5a2599f55d;
 
-const u8 TLVaa = 0x20;
+#define TLVaa 0x20
 
 #define TLV_TINY_TYPE '0'
 
@@ -44,7 +46,7 @@ fun ok64 TLVprobe(u8* t, u32* hlen, u32* blen,
     return (*hlen + *blen) <= $len(data) ? OK : TLVnodata;
 }
 
-pro(TLVdrain, u8* t, u8c$ value, $u8c from) {
+fun pro(TLVdrain, u8* t, u8c$ value, $u8c from) {
     sane(t != nil && value != nil && $ok(from));
     u32 hlen = 0, blen = 0;
     call(TLVprobe, t, &hlen, &blen, from);
@@ -54,12 +56,18 @@ pro(TLVdrain, u8* t, u8c$ value, $u8c from) {
     done;
 }
 
+fun pro(TLVdrain$, u8c$ rec, $u8c from) {
+    sane(rec != nil && $ok(from));
+    fail(notimplyet);
+    done;
+}
+
 fun ok64 TLVpick(u8* type, $u8c value, $cu8c tlv, size_t offset) {
     a$tail(u8c, keytlv, tlv, offset);
     return TLVdrain(type, value, keytlv);
 }
 
-pro(TLVtake, u8 t, $u8c value, $u8c from) {
+fun pro(TLVtake, u8 t, $u8c value, $u8c from) {
     sane(value != NULL && from != NULL);
     u32 hlen = 0;
     u32 blen = 0;

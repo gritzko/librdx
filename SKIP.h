@@ -14,8 +14,10 @@ con ok64 SKIPnodata = 0x978968cf265251c;
 con ok64 SKIPtoofar = 0xda5ab3cf865251c;
 con ok64 SKIPbof = 0x2ace665251c;
 con ok64 SKIPnone = 0xa72cf265251c;
+con ok64 SKIPnoroom = 0xc73cf6cf265251c;
 
-#define SKIP_NONE 0xffff
+#define SKIP_MASK 0xffff
+#define SKIP_TERM_LEN 3
 #define SKIP_TLV_TYPE 'Z'
 
 typedef $u8ccmpfn SKIPcmpfn;
@@ -44,35 +46,11 @@ fun size_t SKIPpos(SKIPs const* skips, u8 height) {
     return (was << skips->gap) + skips->off[height];
 }
 
-fun ok64 SKIPfeed(Bu8 buf, SKIPs* k) {
-    size_t pos = Busylen(buf);
-    size_t was = k->pos >> k->gap;
-    size_t now = pos >> k->gap;
-    if (was == now) return OK;
-    u8 height = ctz64(now);
-    if (now != was + 1) {
-        u8 topflip = 63 - clz64(now ^ was);
-        for (u8 h = 0; h < topflip; ++h) k->off[h] = SKIP_NONE;
-    }
-    u8 len = height + 1;
-    size_t sz = sizeof(u16) * len;
-    $u8c w = {};
-    w[0] = (u8c*)k->off;
-    w[1] = w[0] + sz;
-    ok64 o = TLVtinyfeed(Bu8idle(buf), SKIP_TLV_TYPE, w);
-    if (o != OK) return o;
-    u64 mask = (1 << k->gap) - 1;
-    u16 myoff = pos & mask;
-    for (u8 h = 0; h <= height; ++h) k->off[h] = myoff;
-    k->pos = pos;
-    if (len > k->len) k->len = len;
-    k->tlvlen = Busylen(buf) - pos;
-    return o;
-}
+ok64 SKIPfeed(Bu8 buf, SKIPs* k);
 
 fun ok64 SKIPdrain(SKIPs* hop, Bu8 buf, size_t pos) {
     if (pos == 0) return SKIPbof;
-    aB$(u8c, sub, buf, pos, Busylen(buf));
+    aB$(u8c, sub, buf, pos, Bdatalen(buf));
     $u16c w = {};
     u8 t = 0;
     size_t l = $len(sub);
@@ -90,7 +68,7 @@ fun ok64 SKIPdrain(SKIPs* hop, Bu8 buf, size_t pos) {
 
 fun ok64 SKIPhop(SKIPs* hop, Bu8 buf, SKIPs const* k, u8 height) {
     if (height >= k->len) return SKIPtoofar;
-    if (k->off[height] == SKIP_NONE) return SKIPnone;
+    if (k->off[height] == SKIP_MASK) return SKIPnone;
     size_t now = k->pos >> k->gap;
     hop->pos = SKIPpos(k, height);
     hop->gap = k->gap;
@@ -98,11 +76,22 @@ fun ok64 SKIPhop(SKIPs* hop, Bu8 buf, SKIPs const* k, u8 height) {
 }
 
 fun ok64 SKIPmayfeed(Bu8 buf, SKIPs* skips) {
-    size_t pos = Busylen(buf);
+    size_t pos = Bdatalen(buf);
     size_t was = skips->pos >> skips->gap;
     size_t now = pos >> skips->gap;
     if (now == was) return OK;
     return SKIPfeed(buf, skips);
+}
+
+fun ok64 SKIPterm(Bu8 buf, SKIPs const* k) {
+    u8$ idle = (u8$)Bidle(buf);
+    if (SKIP_TERM_LEN > $len(idle)) return SKIPnoroom;
+    if ((Bdatalen(buf) & ~SKIP_MASK) != (k->pos & ~SKIP_MASK)) return SKIPnone;
+    size_t off = k->pos & SKIP_MASK;
+    idle[0][0] = '2';
+    idle[0][1] = off;
+    idle[0][2] = off >> 8;
+    return OK;
 }
 
 #define SKIPcall(buf, skips, feed, ...)    \
@@ -110,12 +99,23 @@ fun ok64 SKIPmayfeed(Bu8 buf, SKIPs* skips) {
     ++(skips)->ndx;                        \
     call(SKIPmayfeed, buf, (skips));
 
+ok64 SKIPload(SKIPs* k, Bu8 buf);
+
 // Finds the interval containing the first record >= x.
 ok64 SKIPfind(u8c$ gap, Bu8 buf, $u8c x, SKIPcmpfn cmp);
-ok64 SKIPTLVfind(u8c$ rec, Bu8 buf, $u8c x, SKIPcmpfn cmp) {
-    // get the gap
-    // iterate the gap
-    return notimplyet;
+
+fun ok64 SKIPTLVfind(u8c$ rec, Bu8 buf, $u8c x, SKIPcmpfn cmp) {
+    $u8c gap = {};
+    ok64 o = SKIPfind(gap, buf, x, cmp);
+    if (o != OK) return o;
+    $u8c r = {};
+    while (!$empty(gap) && OK == (o = TLVdrain$(r, gap))) {
+        if (cmp((const $u8c*)&x, &r) <= 0) {
+            $mv(rec, r);
+            return OK;
+        }
+    }
+    return SKIPnone;
 }
 
 #endif  // ABC_SKIP_H

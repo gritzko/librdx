@@ -32,7 +32,7 @@ pro(SKIP0) {
 pro(SKIPcheck, Bu8 buf, Bu8 checked, SKIPs const* k) {
     sane(1);
     for (int h = k->len - 1; h >= 0; --h) {
-        if (k->off[h] == SKIP_NONE) continue;
+        if (k->off[h] == SKIP_MASK) continue;
         SKIPs hop = {};
         ok64 o = SKIPhop(&hop, buf, k, h);
         if (o != OK) {
