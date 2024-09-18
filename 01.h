@@ -59,6 +59,9 @@ typedef u8 bl0E[0x4000];
 typedef u8 bl0F[0x8000];
 typedef u8 bl10[0x10000];
 
+typedef u8 const *$u8c[2];
+typedef u8 const *const $cu8c[2];
+
 // boolean, strictly 0 or 1
 typedef uint8_t b8;
 con b8 NO = 0;

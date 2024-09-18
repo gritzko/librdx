@@ -36,10 +36,28 @@ pro(FILEtest2) {
     done;
 }
 
+pro(FILE3) {
+    sane(1);
+    a$str(path, "/tmp/FILE3.txt");
+    Bu8 buf = {};
+    call(FILEmapre, (voidB)buf, path, PAGESIZE);
+    Breset(buf);
+    call($u8feed, Bu8idle(buf), path);
+    call(FILEunmap, (voidB)buf);
+    Bu8 buf2 = {};
+    call(FILEmapro, (voidB)buf2, path);
+    aB$(u8c, path2, buf2, 0, $len(path));
+    $testeq(path, path2);
+    call(FILEunmap, (voidB)buf2);
+    // nedo(FILEunlink(path));
+    done;
+}
+
 pro(FILEtest) {
     sane(1);
     call(FILEtest1);
     call(FILEtest2);
+    call(FILE3);
     done;
 }
 

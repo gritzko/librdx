@@ -68,10 +68,14 @@ con ok64 faileq = 0xd69c2d96a;
     ok64 __ = 0;                           \
     if (!(c)) fail(FAILsanity);
 
-#define try(f, ...) \
-    { __ = (f(__VA_ARGS__)); }
+#define otry(f, ...) __ = (f(__VA_ARGS__))
 
-#define on(f) if (__ == (f))
+#define ofix(f) if (__ == (f) && OK == (__ = OK))
+
+#define orly if (__ == OK)
+
+#define ocry \
+    if (__ != OK) fail(__);
 
 #define is(f) (__ == f)
 
