@@ -94,7 +94,8 @@ fun int $u8ccmp($u8c const *a, $u8c const *b) {
 #define $u8raw(v) \
     { (u8 *)&(v), (u8 *)(&v) + sizeof(v) }
 
-#define a$raw(n, v) $u8c n = {(u8 *)&(v), (u8 *)(&v) + sizeof(v)}
+#define a$raw(n, v) $u8 n = {(u8 *)&(v), (u8 *)(&v) + sizeof(v)}
+#define a$rawc(n, v) $u8c n = {(u8 *)&(v), (u8 *)(&v) + sizeof(v)}
 
 #define $u8str(c) \
     { (u8 *)c, (u8 *)c + strlen(c) }

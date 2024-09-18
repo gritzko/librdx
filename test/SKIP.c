@@ -1,6 +1,7 @@
 
 #include "SKIP.h"
 
+#include <stdint.h>
 #include <unistd.h>
 
 #include "01.h"
@@ -12,23 +13,30 @@
 #include "TEST.h"
 
 #define X(M, name) M##bl04##name
+#define SKIPoff_t u8
+#include "SKIPx.h"
+#undef X
+
+// Avg skip record: 2 entries, 4+1 bytes,
+// OVerhead 1% => gap 1<<9=512
+#define X(M, name) M##bl09##name
 #include "SKIPx.h"
 #undef X
 
 pro(SKIP0) {
     sane(1);
-    SKIPs skips = {};
+    SKIPbl09 skips = {};
     testeq(0, SKIPbl09pos(&skips, 0));
     testeq(0, SKIPbl09pos(&skips, 1));
     testeq(0, SKIPbl09pos(&skips, 2));
-    SKIPs skips2 = {.pos = 1025};
+    SKIPbl09 skips2 = {.pos = 1025};
     testeq(512, SKIPbl09pos(&skips2, 0));
     testeq(0, SKIPbl09pos(&skips2, 1));
-    SKIPs skips4 = {.pos = 2049, .off = {23}};
+    SKIPbl09 skips4 = {.pos = 2049, .off = {23}};
     testeq(1024 + 512 + 23, SKIPbl09pos(&skips4, 0));
     testeq(1024, SKIPbl09pos(&skips4, 1));
     testeq(0, SKIPbl09pos(&skips4, 2));
-    SKIPs skips5 = {.pos = 2048 + 512 + 1};
+    SKIPbl09 skips5 = {.pos = 2048 + 512 + 1};
     skips5.off[1] = 9;
     testeq(2048, SKIPbl09pos(&skips5, 0));
     testeq(1024 + 9, SKIPbl09pos(&skips5, 1));
@@ -36,11 +44,11 @@ pro(SKIP0) {
     done;
 }
 
-pro(SKIPcheck, Bu8 buf, Bu8 checked, SKIPs const* k) {
+pro(SKIPcheck, Bu8 buf, Bu8 checked, SKIPbl04 const* k) {
     sane(1);
     for (int h = k->len - 1; h >= 0; --h) {
-        if (k->off[h] == SKIP_MASK) continue;
-        SKIPs hop = {};
+        if (k->off[h] == 0xff) continue;
+        SKIPbl04 hop = {};
         ok64 o = SKIPbl04hop(&hop, buf, k, h);
         if (o != OK) {
             if (o == SKIPbof) continue;
@@ -57,14 +65,14 @@ pro(SKIP1) {
     sane(1);
     aBcpad(u8, pad, MB);
     aBcpad(u8, check, MB);
-    SKIPs k = {};
+    SKIPbl04 k = {};
     for (u64 u = 0; u < MB / 16; ++u) {
         $u8feed64(padidle, &u);
         call(SKIPbl04mayfeed, padbuf, &k);
     }
     // aBcpad(u8, hex, PAGESIZE * 2);
     // HEXfeedall(hexidle, paddata);
-    SKIPs k2 = {};
+    SKIPbl04 k2 = {};
     call(SKIPbl04drain, &k2, padbuf, k.pos);
     call(SKIPcheck, padbuf, checkbuf, &k2);
     done;
@@ -79,7 +87,7 @@ pro(SKIP2) {
     aBcpad(u8, check, SKIP2LEN);
     call(FILEmapre, (voidB)padbuf, path, SKIP2LEN);
     COMBinit(padbuf);
-    SKIPs k = {};
+    SKIPbl04 k = {};
     for (u64 i = 0; i < 8; ++i) {
         for (u64 u = 0; u < SKIP2LEN / 16; ++u) {
             $u8feed64(padidle, &u);
@@ -98,7 +106,7 @@ pro(SKIP2) {
         zero(k);
         call(SKIPbl04load, &k, padbuf);
     }
-    SKIPs k2 = {};
+    SKIPbl04 k2 = {};
     call(SKIPbl04drain, &k2, padbuf, k.pos);
     call(SKIPcheck, padbuf, checkbuf, &k2);
     call(FILEunlink, path);

@@ -36,6 +36,8 @@ con ok64 $miss = 0x37dedc7f;
 
 #define a$tail(T, n, s, off) \
     $##T n = {(off) > $len(s) ? s[1] : s[0] + (off), s[1]};
+#define a$last(T, n, s, len) \
+    $##T n = {(len) > $len(s) ? s[0] : s[1] - (len), s[1]};
 #define a$head(T, n, s, l) \
     T *n[2] = {s[0], ((l) > $len(s) ? s[1] : (s[0] + l))};
 

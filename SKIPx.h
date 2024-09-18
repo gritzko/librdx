@@ -1,23 +1,41 @@
+#include <stdint.h>
+
+#include "INT.h"
 #include "SKIP.h"
 #define T X(, )
 #define GAP ctz64(sizeof(T))
 
-fun u8 X(SKIP, height)(size_t pos, SKIPs const* skips) {
+#ifndef SKIPoff_t
+#define SKIPoff_t u16
+#endif
+
+#define SKIP_TERM_LEN (1 + sizeof(SKIPoff_t))
+#define SKIP_TERM_LIT ('0' + sizeof(SKIPoff_t))
+
+typedef struct {
+    // The last skip record.
+    u64 pos;
+    u8 len;
+    u8 tlvlen;
+    SKIPoff_t off[40];
+} X(SKIP, );
+
+fun u8 X(SKIP, height)(size_t pos, X(SKIP, ) const* skips) {
     size_t now = pos >> GAP;
     return ctz64(now);
 }
 
-fun size_t X(SKIP, pos)(SKIPs const* skips, u8 height) {
+fun size_t X(SKIP, pos)(X(SKIP, ) const* skips, u8 height) {
     size_t now = skips->pos >> GAP;
     size_t step = 1 << height;
     if (step >= now) return 0;
     size_t was = (now - step) & ~(step - 1);
     size_t off = skips->off[height];
-    assert(off != SKIP_MASK);
+    assert(off != (SKIPoff_t)UINT64_MAX);
     return (was << GAP) + off;
 }
 
-fun pro(X(SKIP, feed), Bu8 buf, SKIPs* k) {
+fun pro(X(SKIP, feed), Bu8 buf, X(SKIP, ) * k) {
     sane(Bok(buf) && k != nil);
     size_t pos = Bdatalen(buf);
     size_t was = k->pos >> GAP;
@@ -26,17 +44,17 @@ fun pro(X(SKIP, feed), Bu8 buf, SKIPs* k) {
     u8 height = ctz64(now);
     if (now != was + 1) {
         u8 topflip = 63 - clz64(now ^ was);
-        for (u8 h = 0; h < topflip; ++h) k->off[h] = SKIP_MASK;
+        for (u8 h = 0; h < topflip; ++h) k->off[h] = (SKIPoff_t)UINT64_MAX;
     }
     u8 len = height + 1;
     if (len > k->len) len = k->len;
-    size_t sz = sizeof(u16) * len;
+    size_t sz = sizeof(SKIPoff_t) * len;
     $u8c w = {};
     w[0] = (u8c*)k->off;
     w[1] = w[0] + sz;
     call(TLVtinyfeed, Bu8idle(buf), SKIP_TLV_TYPE, w);
     u64 mask = (1 << GAP) - 1;
-    u16 myoff = pos & mask;
+    SKIPoff_t myoff = pos & mask;
     for (u8 h = 0; h <= height; ++h) k->off[h] = myoff;
     k->pos = pos;
     if (height + 1 > k->len) k->len = height + 1;
@@ -44,30 +62,31 @@ fun pro(X(SKIP, feed), Bu8 buf, SKIPs* k) {
     done;
 }
 
-fun ok64 X(SKIP, drain)(SKIPs* hop, Bu8 buf, size_t pos);
+fun ok64 X(SKIP, drain)(X(SKIP, ) * hop, Bu8 buf, size_t pos);
 
 // k->gap must be set
-fun pro(X(SKIP, load), SKIPs* k, Bu8 buf) {
+fun pro(X(SKIP, load), X(SKIP, ) * k, Bu8 buf) {
     sane(k != nil && Bok(buf));
     u8c$ data = Bu8cdata(buf);
     test($len(data) >= SKIP_TERM_LEN, SKIPbad);
-    u8c* term[2] = {data[1] - SKIP_TERM_LEN, data[1]};
-    // TODO a$tail
-    test(**term == '2', SKIPbad);
-    size_t off = term[0][2];
-    off <<= 8;
-    off |= term[0][1];
+    a$last(u8c, term, data, SKIP_TERM_LEN);
+    u8 lit = 0;
+    $u8drain8(&lit, term);
+    test(lit == SKIP_TERM_LIT, SKIPbad);
+    SKIPoff_t off = 0;
+    a$raw(bits, off);
+    $u8drain(bits, term);
     test($len(data) >= SKIP_TERM_LEN + off, SKIPbad);
     size_t pos = $len(data) - SKIP_TERM_LEN - off;
     size_t mask = (1 << GAP) - 1;
     while (pos != 0) {
-        SKIPs hop = {};
+        X(SKIP, ) hop = {};
         call(X(SKIP, drain), &hop, buf, pos);
         while (k->len < hop.len) {
             k->off[k->len] = pos & mask;
             ++k->len;
         }
-        if (hop.off[hop.len - 1] == SKIP_MASK) break;  // TODO
+        if (hop.off[hop.len - 1] == (SKIPoff_t)UINT64_MAX) break;  // TODO
         pos = X(SKIP, pos)(&hop, hop.len - 1);
         if (pos > hop.pos) {
             fprintf(stderr, "POS %lx->%lx(%i)\n", hop.pos, pos, hop.len - 1);
@@ -77,19 +96,18 @@ fun pro(X(SKIP, load), SKIPs* k, Bu8 buf) {
     done;
 }
 
-fun ok64 X(SKIP, drain)(SKIPs* hop, Bu8 buf, size_t pos) {
+fun ok64 X(SKIP, drain)(X(SKIP, ) * hop, Bu8 buf, size_t pos) {
     if (pos == 0) return SKIPbof;
     a$dup(u8c, sub, Bdata(buf));
     if (pos > $len(sub)) return SKIPmiss;
     sub[0] += pos;
-    $u16c w = {};
+    SKIPoff_t const* w[2] = {};
     u8 t = 0;
     size_t l = $len(sub);
     ok64 o = TLVdrain(&t, (u8c$)w, sub);
     if (o != OK) return o;
-    a$(u16, into, hop->off);
-    if ((t != TLV_TINY_TYPE && t != SKIP_TLV_TYPE) || ($size(w) & 1))
-        return SKIPbad;
+    a$(SKIPoff_t, into, hop->off);
+    if ((t != TLV_TINY_TYPE && t != SKIP_TLV_TYPE)) return SKIPbad;
     $copy(into, w);
     hop->len = $len(w);
     hop->pos = pos;
@@ -97,25 +115,25 @@ fun ok64 X(SKIP, drain)(SKIPs* hop, Bu8 buf, size_t pos) {
     return OK;
 }
 
-fun ok64 X(SKIP, hop)(SKIPs* hop, Bu8 buf, SKIPs const* k, u8 height) {
+fun ok64 X(SKIP, hop)(X(SKIP, ) * hop, Bu8 buf, X(SKIP, ) const* k, u8 height) {
     if (height >= k->len) return SKIPtoofar;
-    if (k->off[height] == SKIP_MASK) return SKIPnone;
+    if (k->off[height] == (SKIPoff_t)UINT64_MAX) return SKIPnone;
     size_t now = k->pos >> GAP;
     hop->pos = X(SKIP, pos)(k, height);
     return X(SKIP, drain)(hop, buf, hop->pos);
 }
 
-fun ok64 X(SKIP, term)(Bu8 buf, SKIPs const* k) {
+fun ok64 X(SKIP, term)(Bu8 buf, X(SKIP, ) const* k) {
     u8$ idle = (u8$)Bidle(buf);
     if (SKIP_TERM_LEN > $len(idle)) return SKIPnoroom;
-    size_t off = Bdatalen(buf) - k->pos;
-    size_t mask = (1 << GAP) - 1;
-    if (off > mask) return SKIPbad;
-    $u8feed3(idle, '2', off, off >> 8);
+    SKIPoff_t off = Bdatalen(buf) - k->pos;
+    a$rawc(bits, off);
+    $u8feed1(idle, SKIP_TERM_LIT);
+    $u8feed(idle, bits);
     return OK;
 }
 
-fun ok64 X(SKIP, mayfeed)(Bu8 buf, SKIPs* skips) {
+fun ok64 X(SKIP, mayfeed)(Bu8 buf, X(SKIP, ) * skips) {
     size_t pos = Bdatalen(buf);
     size_t was = skips->pos >> GAP;
     size_t now = pos >> GAP;
@@ -123,14 +141,14 @@ fun ok64 X(SKIP, mayfeed)(Bu8 buf, SKIPs* skips) {
     return X(SKIP, feed)(buf, skips);
 }
 
-ok64 X(SKIP, load)(SKIPs* k, Bu8 buf);
+ok64 X(SKIP, load)(X(SKIP, ) * k, Bu8 buf);
 
 fun pro(X(SKIP, find), u8c$ gap, Bu8 buf, $u8c x, SKIPcmpfn cmp) {
     sane(gap != nil && Bok(buf) && $ok(x) && cmp != nil);
-    SKIPs k = {};
+    X(SKIP, ) k = {};
     call(X(SKIP, load), &k, buf);
     for (int h = k.len - 1; h >= 0; --h) {
-        SKIPs hop = {};
+        X(SKIP, ) hop = {};
         call(X(SKIP, hop), &hop, buf, &k, h);
         aB$(u8c, sub, buf, hop.pos + hop.tlvlen, k.pos);
         if (cmp((const $u8c*)&x, &sub) <= 0) {
@@ -139,7 +157,7 @@ fun pro(X(SKIP, find), u8c$ gap, Bu8 buf, $u8c x, SKIPcmpfn cmp) {
             continue;
         }
     }
-    SKIPs prev = {};
+    X(SKIP, ) prev = {};
     call(X(SKIP, hop), &prev, buf, &k, 0);
     gap[0] = buf[0] + prev.pos + prev.tlvlen;
     gap[1] = buf[0] + k.pos;
@@ -159,3 +177,5 @@ fun ok64 X(SKIPTLV, find)(u8c$ rec, Bu8 buf, $u8c x, SKIPcmpfn cmp) {
     }
     return SKIPnone;
 }
+
+#undef SKIPoff_t

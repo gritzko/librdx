@@ -49,6 +49,14 @@ fun ok64 X($, feed)(X($, ) into, X($c, c) from) {
     return OK;
 }
 
+fun ok64 X($, drain)(X($, ) into, X($, c) from) {
+    size_t len = $len(into) < $len(from) ? $len(into) : $len(from);
+    memcpy(*into, *from, len * sizeof(T));
+    *into += len;
+    *from += len;
+    return OK;
+}
+
 fun void X($, move)(X($, ) into, X($, c) from) { $drain(into, from); }
 
 fun void X(, mv)(T *into, T const *from) { memcpy(into, from, sizeof(T)); }
