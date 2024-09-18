@@ -62,10 +62,6 @@ pro(SKIP1) {
     }
     // aBcpad(u8, hex, PAGESIZE * 2);
     // HEXfeedall(hexidle, paddata);
-    a$str(sep, "---------------\n");
-    FILEout(sep);
-    FILEout(paddata);
-    FILEout(sep);
     SKIPs k2 = {};
     call(SKIPbl04drain, &k2, padbuf, k.pos);
     call(SKIPcheck, padbuf, checkbuf, &k2);
@@ -74,7 +70,9 @@ pro(SKIP1) {
 
 pro(SKIP2) {
     sane(1);
-    $u8c path = $u8str("/tmp/SKIP.test");
+    $u8c path = $u8str("/tmp/SKIP2.txt");
+    aB(u8, s);
+    // call(FILEmapre, sbuf, path);
     int fd = 0;
     call(FILEcreate, &fd, path);
     Bu8 padbuf = {};

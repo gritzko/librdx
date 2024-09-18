@@ -74,6 +74,11 @@ typedef void *const *voidB;
     T##$ n##idle = B##T##idle(n##buf);            \
     T##c##$ n##data = B##T##cdata(n##buf);
 
+#define aB(T, name)                 \
+    T *name##buf[4];                \
+    T **name##data = name##buf + 1; \
+    T **name##idle = name##buf + 2;
+
 #define Bzero(buf) memset(buf[0], 0, ((void *)buf[3]) - ((void *)buf[0]))
 
 #define Bwithin(b, s) (s[0] >= b[0] && s[1] <= b[3])
@@ -132,8 +137,6 @@ fun ok64 Bfree(Bvoid buf) {
         u8 **b = (u8 **)buf; \
         b[1] = b[2] = b[0];  \
     }
-
-#define aB(T, n) T *n[4] = {0, 0, 0, 0};
 
 #define aB$(T, n, buf, from, till) T *n[2] = {buf[0] + from, buf[0] + till};
 

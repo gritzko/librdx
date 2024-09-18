@@ -23,16 +23,16 @@ pro(FILEtest2) {
     call(FILEcreate, &fd, path);
     call(FILEresize, fd, 4096);
     aB(u8, map);
-    call(FILEmap, (void$)map, fd, PROT_READ | PROT_WRITE, 0);
-    testeq(Bsize(map), 4096);
-    Bat(map, 42) = 1;
-    call(Bunfmap, map);
-    call(Bfmap, map, fd, PROT_READ | PROT_WRITE, 0);
+    call(FILEmap, (void$)mapbuf, fd, PROT_READ | PROT_WRITE, 0);
+    testeq(Bsize(mapbuf), 4096);
+    Bat(mapbuf, 42) = 1;
+    call(Bunfmap, mapbuf);
+    call(Bfmap, mapbuf, fd, PROT_READ | PROT_WRITE, 0);
     call(FILEclose, fd);
-    testeq(Blen(map), 4096);
-    testeq(Bat(map, 41), 0);
-    testeq(Bat(map, 42), 1);
-    call(Bunfmap, map);
+    testeq(Blen(mapbuf), 4096);
+    testeq(Bat(mapbuf, 41), 0);
+    testeq(Bat(mapbuf, 42), 1);
+    call(Bunfmap, mapbuf);
     done;
 }
 
