@@ -33,6 +33,9 @@ pro(BITSbytelen) {
     testeq(5, u64bytelen(0x1122334455));
     testeq(6, u64bytelen(0x12233445566));
     testeq(0, u64bytelen(0x0));
+
+    testeq(4096, sizeof(bl0C));
+    testeq(65536, sizeof(bl10));
     done;
 }
 

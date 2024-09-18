@@ -41,6 +41,24 @@ typedef int16_t i16;
 typedef int32_t i32;
 typedef int64_t i64;
 
+typedef u8 bl00[1];
+typedef u8 bl01[2];
+typedef u8 bl02[4];
+typedef u8 bl03[8];
+typedef u8 bl04[0x10];
+typedef u8 bl05[0x20];
+typedef u8 bl06[0x40];
+typedef u8 bl07[0x80];
+typedef u8 bl08[0x100];
+typedef u8 bl09[0x200];
+typedef u8 bl0A[0x400];
+typedef u8 bl0B[0x800];
+typedef u8 bl0C[0x1000];
+typedef u8 bl0D[0x2000];
+typedef u8 bl0E[0x4000];
+typedef u8 bl0F[0x8000];
+typedef u8 bl10[0x10000];
+
 // boolean, strictly 0 or 1
 typedef uint8_t b8;
 con b8 NO = 0;
