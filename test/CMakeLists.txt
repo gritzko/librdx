@@ -113,7 +113,7 @@ target_link_options(MARKtest PRIVATE ${TEST_LDD_FLAGS})
 target_compile_options(MARKtest PRIVATE ${TEST_CXX_FLAGS})
 add_test(NAME MARKtest COMMAND MARKtest)
 
-add_executable(SKIPtest SKIP.c ../SKIP.c)
+add_executable(SKIPtest SKIP.c)
 target_link_libraries(SKIPtest)
 target_link_options(SKIPtest PRIVATE ${TEST_LDD_FLAGS})
 target_compile_options(SKIPtest PRIVATE ${TEST_CXX_FLAGS})
