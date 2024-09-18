@@ -1,3 +1,4 @@
+#include "SKIP.h"
 #define T X(, )
 #define GAP ctz64(sizeof(T))
 
@@ -11,7 +12,9 @@ fun size_t X(SKIP, pos)(SKIPs const* skips, u8 height) {
     size_t step = 1 << height;
     if (step >= now) return 0;
     size_t was = (now - step) & ~(step - 1);
-    return (was << GAP) + skips->off[height];
+    size_t off = skips->off[height];
+    assert(off != SKIP_MASK);
+    return (was << GAP) + off;
 }
 
 fun pro(X(SKIP, feed), Bu8 buf, SKIPs* k) {
@@ -26,6 +29,7 @@ fun pro(X(SKIP, feed), Bu8 buf, SKIPs* k) {
         for (u8 h = 0; h < topflip; ++h) k->off[h] = SKIP_MASK;
     }
     u8 len = height + 1;
+    if (len > k->len) len = k->len;
     size_t sz = sizeof(u16) * len;
     $u8c w = {};
     w[0] = (u8c*)k->off;
@@ -35,7 +39,7 @@ fun pro(X(SKIP, feed), Bu8 buf, SKIPs* k) {
     u16 myoff = pos & mask;
     for (u8 h = 0; h <= height; ++h) k->off[h] = myoff;
     k->pos = pos;
-    if (len > k->len) k->len = len;
+    if (height + 1 > k->len) k->len = height + 1;
     k->tlvlen = Bdatalen(buf) - pos;
     done;
 }
@@ -45,20 +49,29 @@ fun ok64 X(SKIP, drain)(SKIPs* hop, Bu8 buf, size_t pos);
 // k->gap must be set
 fun pro(X(SKIP, load), SKIPs* k, Bu8 buf) {
     sane(k != nil && Bok(buf));
-    u8c$ idle = Bu8cidle(buf);
-    test($len(idle) >= SKIP_TERM_LEN && **idle == '2', SKIPbad);
-    u16 off = idle[0][2];
+    u8c$ data = Bu8cdata(buf);
+    test($len(data) >= SKIP_TERM_LEN, SKIPbad);
+    u8c* term[2] = {data[1] - SKIP_TERM_LEN, data[1]};
+    // TODO a$tail
+    test(**term == '2', SKIPbad);
+    size_t off = term[0][2];
     off <<= 8;
-    off |= idle[0][1];
-    size_t pos = (Bdatalen(buf) & ~SKIP_MASK) | off;
+    off |= term[0][1];
+    test($len(data) >= SKIP_TERM_LEN + off, SKIPbad);
+    size_t pos = $len(data) - SKIP_TERM_LEN - off;
+    size_t mask = (1 << GAP) - 1;
     while (pos != 0) {
         SKIPs hop = {};
         call(X(SKIP, drain), &hop, buf, pos);
         while (k->len < hop.len) {
-            k->off[k->len] = pos & ~SKIP_MASK;
+            k->off[k->len] = pos & mask;
             ++k->len;
         }
-        size_t pos = X(SKIP, pos)(&hop, hop.len - 1);
+        if (hop.off[hop.len - 1] == SKIP_MASK) break;  // TODO
+        pos = X(SKIP, pos)(&hop, hop.len - 1);
+        if (pos > hop.pos) {
+            fprintf(stderr, "POS %lx->%lx(%i)\n", hop.pos, pos, hop.len - 1);
+        }
     }
     k->pos = pos;
     done;
@@ -66,7 +79,9 @@ fun pro(X(SKIP, load), SKIPs* k, Bu8 buf) {
 
 fun ok64 X(SKIP, drain)(SKIPs* hop, Bu8 buf, size_t pos) {
     if (pos == 0) return SKIPbof;
-    aB$(u8c, sub, buf, pos, Bdatalen(buf));
+    a$dup(u8c, sub, Bdata(buf));
+    if (pos > $len(sub)) return SKIPmiss;
+    sub[0] += pos;
     $u16c w = {};
     u8 t = 0;
     size_t l = $len(sub);
@@ -93,11 +108,10 @@ fun ok64 X(SKIP, hop)(SKIPs* hop, Bu8 buf, SKIPs const* k, u8 height) {
 fun ok64 X(SKIP, term)(Bu8 buf, SKIPs const* k) {
     u8$ idle = (u8$)Bidle(buf);
     if (SKIP_TERM_LEN > $len(idle)) return SKIPnoroom;
-    if ((Bdatalen(buf) & ~SKIP_MASK) != (k->pos & ~SKIP_MASK)) return SKIPnone;
-    size_t off = k->pos & SKIP_MASK;
-    idle[0][0] = '2';
-    idle[0][1] = off;
-    idle[0][2] = off >> 8;
+    size_t off = Bdatalen(buf) - k->pos;
+    size_t mask = (1 << GAP) - 1;
+    if (off > mask) return SKIPbad;
+    $u8feed3(idle, '2', off, off >> 8);
     return OK;
 }
 
@@ -105,7 +119,7 @@ fun ok64 X(SKIP, mayfeed)(Bu8 buf, SKIPs* skips) {
     size_t pos = Bdatalen(buf);
     size_t was = skips->pos >> GAP;
     size_t now = pos >> GAP;
-    if (now == was) X(SKIP, term)(buf, skips);
+    if (now == was) return OK;  // X(SKIP, term)(buf, skips);
     return X(SKIP, feed)(buf, skips);
 }
 

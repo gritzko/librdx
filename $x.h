@@ -69,6 +69,16 @@ fun ok64 X($, feed2)(X($, ) into, T a, T b) {
     return OK;
 }
 
+fun ok64 X($, feed3)(X($, ) into, T a, T b, T c) {
+    if ($len(into) < 3) return $noroom;
+    X(, mv)(*into, (T const *)&a);
+    ++*into;
+    X(, mv)(*into, (T const *)&b);
+    ++*into;
+    X(, mv)(*into, (T const *)&c);
+    ++*into;
+    return OK;
+}
 fun ok64 X($, feedp)(X($, ) into, T const *what) {
     if ($empty(into)) return $noroom;
     X(, mv)(*into, what);

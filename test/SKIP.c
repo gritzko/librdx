@@ -5,8 +5,10 @@
 
 #include "01.h"
 #include "B.h"
+#include "COMB.h"
 #include "FILE.h"
 #include "HEX.h"
+#include "PRO.h"
 #include "TEST.h"
 
 #define X(M, name) M##bl04##name
@@ -43,8 +45,8 @@ pro(SKIPcheck, Bu8 buf, Bu8 checked, SKIPs const* k) {
         if (o != OK) {
             if (o == SKIPbof) continue;
             fail(o);
-        } else if (Bat(checked, hop.pos) == 0) {
-            Bat(checked, hop.pos) = 1;
+        } else if (!Bitat(checked, hop.pos)) {
+            Bitset(checked, hop.pos);
             call(SKIPcheck, buf, checked, &hop);
         }
     }
@@ -69,33 +71,36 @@ pro(SKIP1) {
 }
 
 pro(SKIP2) {
+#define SKIP2LEN (1 << 14)
     sane(1);
     $u8c path = $u8str("/tmp/SKIP2.txt");
-    aB(u8, s);
-    // call(FILEmapre, sbuf, path);
-    int fd = 0;
-    call(FILEcreate, &fd, path);
-    Bu8 padbuf = {};
-    u8$ padidle = Bu8idle(padbuf);
-    call(FILEmap, (void**)padbuf, fd, PROT_READ | PROT_WRITE, 0);
-    call(FILEclose, fd);
-    aBcpad(u8, check, MB);
+    FILEunlink(path);
+    aB(u8, pad);
+    aBcpad(u8, check, SKIP2LEN);
+    call(FILEmapre, (voidB)padbuf, path, SKIP2LEN);
+    COMBinit(padbuf);
     SKIPs k = {};
     for (u64 i = 0; i < 8; ++i) {
-        for (u64 u = 0; u < MB / 16 / 8; ++u) {
+        for (u64 u = 0; u < SKIP2LEN / 16; ++u) {
             $u8feed64(padidle, &u);
             call(SKIPbl04mayfeed, padbuf, &k);
         }
-        call(FILEresize, fd, Busysize(padbuf) + SKIP_TERM_LEN);
-        call(FILEclose, fd);
+        call(SKIPbl04term, padbuf, &k);
+        size_t ds = Bdatalen(padbuf);
+        size_t bs = Busysize(padbuf);
+        COMBsave(padbuf);
+        call(FILEunmap, (voidB)padbuf);
+        call(FILEmapre, (voidB)padbuf, path, SKIP2LEN * (i + 2));
+        COMBload(padbuf);
+        testeq(ds, Bdatalen(padbuf));
+        testeq(bs, Busysize(padbuf));
+        testeq(SKIP2LEN * (i + 2), Bsize(padbuf));
         zero(k);
-        // TODO term comb trim close open
         call(SKIPbl04load, &k, padbuf);
     }
     SKIPs k2 = {};
     call(SKIPbl04drain, &k2, padbuf, k.pos);
     call(SKIPcheck, padbuf, checkbuf, &k2);
-    call(FILEclose, fd);
     call(FILEunlink, path);
     done;
 }
@@ -104,7 +109,7 @@ pro(SKIPtest) {
     sane(1);
     call(SKIP0);
     call(SKIP1);
-    // call(SKIP2);
+    call(SKIP2);
     done;
 }
 
