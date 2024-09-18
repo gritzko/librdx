@@ -31,7 +31,7 @@ fun size_t X(SKIP, pos)(X(SKIP, ) const* skips, u8 height) {
     if (step >= now) return 0;
     size_t was = (now - step) & ~(step - 1);
     size_t off = skips->off[height];
-    assert(off != (SKIPoff_t)UINT64_MAX);
+    assert(off != (SKIPoff_t)u64max);
     return (was << GAP) + off;
 }
 
@@ -44,7 +44,7 @@ fun pro(X(SKIP, feed), Bu8 buf, X(SKIP, ) * k) {
     u8 height = ctz64(now);
     if (now != was + 1) {
         u8 topflip = 63 - clz64(now ^ was);
-        for (u8 h = 0; h < topflip; ++h) k->off[h] = (SKIPoff_t)UINT64_MAX;
+        for (u8 h = 0; h < topflip; ++h) k->off[h] = (SKIPoff_t)u64max;
     }
     u8 len = height + 1;
     if (len > k->len) len = k->len;
@@ -86,7 +86,7 @@ fun pro(X(SKIP, load), X(SKIP, ) * k, Bu8 buf) {
             k->off[k->len] = pos & mask;
             ++k->len;
         }
-        if (hop.off[hop.len - 1] == (SKIPoff_t)UINT64_MAX) break;  // TODO
+        if (hop.off[hop.len - 1] == (SKIPoff_t)u64max) break;  // TODO
         pos = X(SKIP, pos)(&hop, hop.len - 1);
         if (pos > hop.pos) {
             fprintf(stderr, "POS %lx->%lx(%i)\n", hop.pos, pos, hop.len - 1);
@@ -117,7 +117,7 @@ fun ok64 X(SKIP, drain)(X(SKIP, ) * hop, Bu8 buf, size_t pos) {
 
 fun ok64 X(SKIP, hop)(X(SKIP, ) * hop, Bu8 buf, X(SKIP, ) const* k, u8 height) {
     if (height >= k->len) return SKIPtoofar;
-    if (k->off[height] == (SKIPoff_t)UINT64_MAX) return SKIPnone;
+    if (k->off[height] == (SKIPoff_t)u64max) return SKIPnone;
     size_t now = k->pos >> GAP;
     hop->pos = X(SKIP, pos)(k, height);
     return X(SKIP, drain)(hop, buf, hop->pos);

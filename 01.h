@@ -236,6 +236,11 @@ fun h64 mix64(u64 a) {
 #define MB (1UL << 20)
 #define KB (1UL << 10)
 
+#define u8max 0xff
+#define u16max 0xffff
+#define u32max 0xffffffff
+#define u64max 0xffffffffffffffffUL
+
 #define O1join32(lo, hi) (((u64)lo) | (((u64)hi) << 32))
 #define O1low32(lohi) (((u64)lohi) & 0xffffffff)
 #define O1high32(lohi) (((u64)lohi) >> 32)
