@@ -22,6 +22,12 @@ fun int TLVtiny(u8 t) { return t >= '0' && t <= '9'; }
 fun int TLVlong(u8 t) { return t >= 'A' && t <= 'Z'; }
 fun int TLVshort(u8 t) { return t >= 'a' && t <= 'z'; }
 
+fun u32 TLVlen(size_t len) { return len <= 0xff ? 2 + len : 5 + len; }
+fun u32 TLVtinylen(size_t len) {
+    if (len <= 9) return len + 1;
+    return TLVlen(len);
+}
+
 fun ok64 TLVprobe(u8* t, u32* hlen, u32* blen,
                   $u8c data) {  // FIXME tiny on request, inline short
     if ($empty(data)) return TLVnodata;

@@ -18,6 +18,4 @@ con ok64 SKIPnoroom = 0xc73cf6cf265251c;
 
 #define SKIP_TLV_TYPE 'Z'
 
-typedef $u8ccmpfn SKIPcmpfn;
-
 #endif  // ABC_SKIP_H

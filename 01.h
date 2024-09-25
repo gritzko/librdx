@@ -15,6 +15,7 @@ typedef void *$[2];
 typedef void *const $c[2];
 typedef void const *$_c[2];
 typedef void const *const $cc[2];
+typedef void const *const *cc$;
 
 typedef uint8_t u8;
 typedef uint16_t u16;
@@ -188,17 +189,17 @@ fun u32 rotl32(u32 val, uint8_t len) {
     return (val << len) | (val >> (32U - len));
 }
 
-fun int is_power_of_2(u64 w) { return 0 == ((w - 1U) & w); }
+fun b8 u64is2power(u64 w) { return 0 == ((w - 1U) & w); }
 
 fun u64 round_power_of_2(u64 a) {
-    if (is_power_of_2(a)) return a;
+    if (u64is2power(a)) return a;
     int p = clz64(a);
     return 1UL << (64 - p);
 }
 
 fun u8 upper_log_2(u64 val) {
     u8 pow = 64 - clz64(val);
-    if (!is_power_of_2(val)) ++pow;
+    if (!u64is2power(val)) ++pow;
     return pow;
 }
 

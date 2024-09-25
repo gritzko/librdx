@@ -13,7 +13,7 @@
 #include "TEST.h"
 
 #define X(M, name) M##bl04##name
-#define SKIPoff_t u8
+#define offX u8
 #include "SKIPx.h"
 #undef X
 
@@ -36,22 +36,22 @@ pro(SKIP0) {
     testeq(1024 + 512 + 23, SKIPbl09pos(&skips4, 0));
     testeq(1024, SKIPbl09pos(&skips4, 1));
     testeq(0, SKIPbl09pos(&skips4, 2));
-    SKIPbl09 skips5 = {.pos = 2048 + 512 + 1};
-    skips5.off[1] = 9;
-    testeq(2048, SKIPbl09pos(&skips5, 0));
-    testeq(1024 + 9, SKIPbl09pos(&skips5, 1));
-    testeq(0, SKIPbl09pos(&skips5, 2));
+    SKIPbl09 skips5 = {.pos = 2048 + 512 + 1, .off = {9, 9, 9}};
+    testeq(2048 + 9, SKIPbl09pos(&skips5, 0));
+    testeq(2048 + 9, SKIPbl09pos(&skips5, 1));
+    testeq(2048 + 9, SKIPbl09pos(&skips5, 2));
+    testeqv(2, SKIPbl09top(1025), "%i");
     done;
 }
 
 pro(SKIPcheck, Bu8 buf, Bu8 checked, SKIPbl04 const* k) {
     sane(1);
-    for (int h = k->len - 1; h >= 0; --h) {
+    for (int h = SKIPbl04len(k->pos) - 1; h >= 0; --h) {
         if (k->off[h] == 0xff) continue;
         SKIPbl04 hop = {};
         ok64 o = SKIPbl04hop(&hop, buf, k, h);
         if (o != OK) {
-            if (o == SKIPbof) continue;
+            if (o == SKIPnone) continue;
             fail(o);
         } else if (!Bitat(checked, hop.pos)) {
             Bitset(checked, hop.pos);
@@ -72,14 +72,16 @@ pro(SKIP1) {
     }
     // aBcpad(u8, hex, PAGESIZE * 2);
     // HEXfeedall(hexidle, paddata);
+    call(SKIPbl04term, padbuf, &k);
     SKIPbl04 k2 = {};
-    call(SKIPbl04drain, &k2, padbuf, k.pos);
+    // call(SKIPbl04drain, &k2, padbuf, k.pos);
+    call(SKIPbl04load, &k2, padbuf);
     call(SKIPcheck, padbuf, checkbuf, &k2);
     done;
 }
 
 pro(SKIP2) {
-#define SKIP2LEN (1 << 14)
+#define SKIP2LEN (1 << 20)
     sane(1);
     $u8c path = $u8str("/tmp/SKIP2.txt");
     FILEunlink(path);
@@ -106,10 +108,42 @@ pro(SKIP2) {
         zero(k);
         call(SKIPbl04load, &k, padbuf);
     }
-    SKIPbl04 k2 = {};
-    call(SKIPbl04drain, &k2, padbuf, k.pos);
+    SKIPbl04 k2 = k;
+    // call(SKIPbl04drain, &k2, padbuf, k.pos);
     call(SKIPcheck, padbuf, checkbuf, &k2);
     call(FILEunlink, path);
+    done;
+}
+
+fun int cmp($cc a, $cc b) {
+    u64* aa = (u64*)*a;
+    u64* bb = (u64*)*b;
+    return u64cmp(aa, bb);
+}
+
+pro(SKIP3) {
+    sane(1);
+    aBcpad(u8, pad, MB);
+    aBcpad(u8, check, MB);
+    SKIPbl04 k = {};
+    for (u64 u = 0; u < MB / 16; ++u) {
+        $u8feed64(padidle, &u);
+        call(SKIPbl04mayfeed, padbuf, &k);
+    }
+    call(SKIPbl04term, padbuf, &k);
+    for (u64 u = 0; u < MB / 16; ++u) {
+        $u8c gap = {};
+        a$rawc(raw, u);
+        call(SKIPbl04find, gap, padbuf, raw, cmp);
+        // size_t l = $len(gap);
+        // testeq(0, l & 7);
+        u64c* head = *gap;
+        want(*head <= u && u - *head < 4);
+        /*u64 head = 0;
+        $u8drain64(&head, gap);
+        fprintf(stderr, "%lu IN %lu+%lu?\n", u, head, l);
+        want(head <= u && head + l > u);*/
+    }
     done;
 }
 
@@ -118,6 +152,7 @@ pro(SKIPtest) {
     call(SKIP0);
     call(SKIP1);
     call(SKIP2);
+    call(SKIP3);
     done;
 }
 

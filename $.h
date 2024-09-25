@@ -132,6 +132,8 @@ fun int $memcmp($cc a, $cc b) {
     return ret;
 }
 
+typedef int (*$cmpfn)($cc a, $cc b);
+
 #define $cmp(a, b) $memcmp((void const *const *)(a), (void const *const *)b)
 
 #define $eq(a, b) (0 == $cmp(a, b))

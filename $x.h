@@ -36,6 +36,27 @@ fun T const *X($, find)(X($c, c) haystack, T const *needle) {
     return NULL;
 }
 
+fun ok64 X($, tail)(X($, c) into, X($c, c) from, size_t off) {
+    if ($len(from) < off) return $miss;
+    into[0] = from[0] + off;
+    into[1] = from[1];
+    return OK;
+}
+
+fun ok64 X($, last)(X($, c) into, X($c, c) from, size_t len) {
+    if ($len(from) < len) return $miss;
+    into[0] = from[1] - len;
+    into[1] = from[1];
+    return OK;
+}
+
+fun ok64 X($, part)(X($, c) into, X($c, c) orig, size_t from, size_t till) {
+    if ($len(orig) < till || from > till) return $miss;
+    into[0] = orig[0] + from;
+    into[1] = orig[0] + till;
+    return OK;
+}
+
 fun size_t X($, copy)(X($c, ) into, X($c, c) from) {
     size_t l = $minlen(into, from);
     memcpy((void *)*into, (void *)*from, l * sizeof(T));
