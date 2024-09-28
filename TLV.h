@@ -29,7 +29,7 @@ fun u32 TLVtinylen(size_t len) {
 }
 
 fun ok64 TLVprobe(u8* t, u32* hlen, u32* blen,
-                  $u8c data) {  // FIXME tiny on request, inline short
+                  $cu8c data) {  // FIXME tiny on request, inline short
     if ($empty(data)) return TLVnodata;
     if (TLVtiny(**data)) {
         *t = TLV_TINY_TYPE;
@@ -64,7 +64,12 @@ fun pro(TLVdrain, u8* t, u8c$ value, $u8c from) {
 
 fun pro(TLVdrain$, u8c$ rec, $u8c from) {
     sane(rec != nil && $ok(from));
-    fail(notimplyet);
+    u32 hlen = 0, blen = 0;
+    u8 t = 0;
+    call(TLVprobe, &t, &hlen, &blen, from);
+    rec[0] = from[0];
+    rec[1] = from[0] + hlen + blen;
+    from[0] += hlen + blen;
     done;
 }
 

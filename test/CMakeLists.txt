@@ -103,6 +103,12 @@ target_link_options(LINEtest PRIVATE ${TEST_LDD_FLAGS})
 target_compile_options(LINEtest PRIVATE ${TEST_CXX_FLAGS})
 add_test(NAME LINEtest COMMAND LINEtest)
 
+add_executable(LSMtest LSM.c)
+target_link_libraries(LSMtest)
+target_link_options(LSMtest PRIVATE ${TEST_LDD_FLAGS})
+target_compile_options(LSMtest PRIVATE ${TEST_CXX_FLAGS})
+add_test(NAME LSMtest COMMAND LSMtest)
+
 add_executable(MARQtest MARQ.c ../MARQ.c ../MARQ.rl.c)
 target_link_options(MARQtest PRIVATE ${TEST_LDD_FLAGS})
 target_compile_options(MARQtest PRIVATE ${TEST_CXX_FLAGS})

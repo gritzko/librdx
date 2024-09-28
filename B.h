@@ -68,6 +68,12 @@ typedef void *const *voidB;
     T _##n[(l)];       \
     B##T n = {_##n, _##n, _##n, _##n + (l)};
 
+#define aBpad2(T, n, l)                           \
+    T _##n[(l)];                                  \
+    B##T n##buf = {_##n, _##n, _##n, _##n + (l)}; \
+    T##$ n##idle = B##T##idle(n##buf);            \
+    T##$ n##data = B##T##data(n##buf);
+
 #define aBcpad(T, n, l)                           \
     T _##n[(l)];                                  \
     B##T n##buf = {_##n, _##n, _##n, _##n + (l)}; \
