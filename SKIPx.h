@@ -22,7 +22,10 @@ typedef struct {
     // The last skip record.
     u64 pos;
     offX off[40];
-} X(SKIP, );
+} X(SKIP, tab);
+
+typedef X(SKIP, tab) X(SKIP, rtab);
+typedef X(SKIP, tab) X(SKIP, wtab);
 
 fun size_t X(SKIP, blk)(size_t pos) { return pos >> ctz64(sizeof(T)); }
 fun u8 X(SKIP, hi)(size_t pos) { return ctz64(X(SKIP, blk)(pos)); }
@@ -33,17 +36,17 @@ fun u32 X(SKIP, tlvlen)(size_t pos) {
     return TLVtinylen(X(SKIP, len)(pos) * sizeof(offX));
 }
 
-fun size_t X(SKIP, pos)(X(SKIP, ) const* skips, u8 hi) {
-    size_t pos = skips->pos;
+fun size_t X(SKIP, pos)(X(SKIP, rtab) const* k, u8 hi) {
+    size_t pos = k->pos;
     if (pos == 0 || hi > X(SKIP, top)(pos)) return 0;
     size_t mask = (1 << hi) - 1;
     size_t was = (X(SKIP, blk)(pos) - 1) & ~mask;
-    size_t off = skips->off[hi];
+    size_t off = k->off[hi];
     if (off == SKIP_NONE) return 0;
     return (was << SKIP_BLK_HI) + off;
 }
 
-fun pro(X(SKIP, feed), Bu8 buf, X(SKIP, ) * k) {
+fun pro(X(SKIP, feed), Bu8 buf, X(SKIP, wtab) * k) {
     sane(Bok(buf) && k != nil);
     size_t pos = Bdatalen(buf);
     size_t last = k->pos;
@@ -76,7 +79,7 @@ fun pro(X(SKIP, feed), Bu8 buf, X(SKIP, ) * k) {
     }
  * */
 
-fun pro(X(SKIP, drain), X(SKIP, ) * hop, Bu8 buf, size_t pos) {
+fun pro(X(SKIP, drain), X(SKIP, rtab) * hop, Bu8 buf, size_t pos) {
     sane(hop != nil && Bok(buf) && pos > 0);
     a$(offX, into, hop->off);
     $u8c data = {};
@@ -92,7 +95,7 @@ fun pro(X(SKIP, drain), X(SKIP, ) * hop, Bu8 buf, size_t pos) {
     done;
 }
 
-fun pro(X(SKIP, term), Bu8 buf, X(SKIP, ) const* k) {
+fun pro(X(SKIP, term), Bu8 buf, X(SKIP, wtab) * k) {
     sane(Bok(buf) && k != nil && k->pos < Bdatalen(buf));
     u8$ idle = (u8$)Bidle(buf);
     size_t pos = Bdatalen(buf);
@@ -105,46 +108,78 @@ fun pro(X(SKIP, term), Bu8 buf, X(SKIP, ) const* k) {
     done;
 }
 
-fun pro(X(SKIP, load), X(SKIP, ) * k, Bu8 buf) {
+fun pro(X(SKIP, flip), X(SKIP, rtab) * r, X(SKIP, wtab) const* w, Bu8 buf) {
+    sane(r != nil && w != nil && Bok(buf));
+    *r = *w;
+    X(SKIP, rtab) l = {};
+    call(X(SKIP, drain), &l, buf, w->pos);
+    for (u8 h = 0; h < X(SKIP, len)(w->pos); ++h) r->off[h] = l.off[h];
+    done;
+}
+
+fun size_t X(_SKIP, termlen)(size_t len) {
+    u8 top = X(SKIP, top)(len);  // FIXME 0
+    size_t termlen = top * sizeof(offX) + 2;
+    u8 top2 = X(SKIP, top)(len - termlen);
+    if (top2 != top) {
+        termlen = top2 * sizeof(offX) + 2;
+    }
+    return termlen;
+}
+
+fun pro(X(SKIP, load), X(SKIP, wtab) * k, Bu8 buf) {
     sane(k != nil && Bok(buf));
     size_t len = Bdatalen(buf);
-    size_t termlen = X(SKIP, top)(len) * sizeof(offX) + 2;
+    size_t termlen = X(_SKIP, termlen)(len);
     a$last(u8c, term, Bdata(buf), termlen);
     u8 t = 0;
     $u8c saved = {};
     call(TLVdrain, &t, saved, term);
     test(t == SKIP_TLV_TYPE, SKIPbad);
-    k->pos = (len - termlen + sizeof(T)) & ~SKIP_BLK_MASK;
     u8* offs[2] = {(u8*)k->off, (u8*)(k->off + X(SKIP, top)(len))};
     $copy(offs, saved);
+    k->pos = ((len - termlen) & ~SKIP_BLK_MASK) + k->off[0];
     done;
 }
 
-fun ok64 X(SKIP, hop)(X(SKIP, ) * hop, Bu8 buf, X(SKIP, ) const* k, u8 hi) {
+fun pro(X(SKIP, trim), X(SKIP, wtab) * k, Bu8 buf) {
+    sane(k != nil && Bok(buf));
+    call(X(SKIP, load), k, buf);
+    size_t len = Bdatalen(buf);
+    size_t termlen = X(_SKIP, termlen)(len);
+    u8** b = (u8**)buf;
+    b[2] -= termlen;
+    done;
+}
+
+fun ok64 X(SKIP, hop)(X(SKIP, rtab) * hop, Bu8 buf, X(SKIP, rtab) const* k,
+                      u8 hi) {
     size_t pos = X(SKIP, pos)(k, hi);
     if (pos == 0) return SKIPnone;
     return X(SKIP, drain)(hop, buf, pos);
 }
 
-fun ok64 X(SKIP, mayfeed)(Bu8 buf, X(SKIP, ) * skips) {
+fun ok64 X(SKIP, mayfeed)(Bu8 buf, X(SKIP, wtab) * skips) {
     size_t pos = Bdatalen(buf);
     if (X(SKIP, blk)(pos) == X(SKIP, blk)(skips->pos)) return OK;
     return X(SKIP, feed)(buf, skips);
 }
 
-ok64 X(SKIP, load)(X(SKIP, ) * k, Bu8 buf);
+ok64 X(SKIP, load)(X(SKIP, wtab) * k, Bu8 buf);
 
 fun pro(X(SKIP, find), u8c$ gap, Bu8 buf, $u8c x, $cmpfn cmp) {
     sane(gap != nil && Bok(buf) && $ok(x) && cmp != nil);
-    X(SKIP, ) k = {};
-    call(X(SKIP, load), &k, buf);
+    X(SKIP, wtab) w = {};
+    call(X(SKIP, load), &w, buf);
+    X(SKIP, rtab) k = {};
+    call(X(SKIP, flip), &k, &w, buf);
     for (int h = X(SKIP, top)(k.pos) - 1; h >= 0; --h) {
         size_t pos = X(SKIP, pos)(&k, h);
         if (pos == 0) continue;
-        X(SKIP, ) hop = {};
+        X(SKIP, rtab) hop = {};
         call(X(SKIP, hop), &hop, buf, &k, h);
         aB$(u8c, sub, buf, hop.pos + X(SKIP, tlvlen)(hop.pos), k.pos);
-        if (cmp((void$)x, (void$)sub) < 0) {
+        if (cmp((cc$)x, (cc$)sub) < 0) {
             k = hop;
             h = X(SKIP, len)(pos);
             continue;
@@ -152,7 +187,7 @@ fun pro(X(SKIP, find), u8c$ gap, Bu8 buf, $u8c x, $cmpfn cmp) {
     }
     size_t pos = X(SKIP, pos)(&k, 0);
     if (pos > 0) {
-        X(SKIP, ) prev = {};
+        X(SKIP, rtab) prev = {};
         call(X(SKIP, hop), &prev, buf, &k, 0);  // FIXME ff
         pos += X(SKIP, tlvlen)(pos);
     }
@@ -167,7 +202,7 @@ fun ok64 X(SKIPTLV, find)(u8c$ rec, Bu8 buf, $u8c x, $cmpfn cmp) {
     if (o != OK) return o;
     $u8c r = {};
     while (!$empty(gap) && OK == (o = TLVdrain$(r, gap))) {
-        if (cmp(x, r) <= 0) {
+        if (cmp((cc$)x, (cc$)r) <= 0) {
             $mv(rec, r);
             return OK;
         }

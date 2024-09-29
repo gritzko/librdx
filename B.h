@@ -81,7 +81,7 @@ typedef void *const *voidB;
     T##c##$ n##data = B##T##cdata(n##buf);
 
 #define aB(T, name)                 \
-    T *name##buf[4];                \
+    T *name##buf[4] = {};           \
     T **name##data = name##buf + 1; \
     T **name##idle = name##buf + 2;
 

@@ -23,20 +23,23 @@
 #include "SKIPx.h"
 #undef X
 
+#define SCALE MB
+//(KB * 128)
+
 pro(SKIP0) {
     sane(1);
-    SKIPbl09 skips = {};
+    SKIPbl09wtab skips = {};
     testeq(0, SKIPbl09pos(&skips, 0));
     testeq(0, SKIPbl09pos(&skips, 1));
     testeq(0, SKIPbl09pos(&skips, 2));
-    SKIPbl09 skips2 = {.pos = 1025};
+    SKIPbl09wtab skips2 = {.pos = 1025};
     testeq(512, SKIPbl09pos(&skips2, 0));
     testeq(0, SKIPbl09pos(&skips2, 1));
-    SKIPbl09 skips4 = {.pos = 2049, .off = {23}};
+    SKIPbl09wtab skips4 = {.pos = 2049, .off = {23}};
     testeq(1024 + 512 + 23, SKIPbl09pos(&skips4, 0));
     testeq(1024, SKIPbl09pos(&skips4, 1));
     testeq(0, SKIPbl09pos(&skips4, 2));
-    SKIPbl09 skips5 = {.pos = 2048 + 512 + 1, .off = {9, 9, 9}};
+    SKIPbl09wtab skips5 = {.pos = 2048 + 512 + 1, .off = {9, 9, 9}};
     testeq(2048 + 9, SKIPbl09pos(&skips5, 0));
     testeq(2048 + 9, SKIPbl09pos(&skips5, 1));
     testeq(2048 + 9, SKIPbl09pos(&skips5, 2));
@@ -44,11 +47,11 @@ pro(SKIP0) {
     done;
 }
 
-pro(SKIPcheck, Bu8 buf, Bu8 checked, SKIPbl04 const* k) {
+pro(SKIPcheck, Bu8 buf, Bu8 checked, SKIPbl04rtab const* k) {
     sane(1);
     for (int h = SKIPbl04len(k->pos) - 1; h >= 0; --h) {
         if (k->off[h] == 0xff) continue;
-        SKIPbl04 hop = {};
+        SKIPbl04rtab hop = {};
         ok64 o = SKIPbl04hop(&hop, buf, k, h);
         if (o != OK) {
             if (o == SKIPnone) continue;
@@ -63,20 +66,23 @@ pro(SKIPcheck, Bu8 buf, Bu8 checked, SKIPbl04 const* k) {
 
 pro(SKIP1) {
     sane(1);
-    aBcpad(u8, pad, MB);
-    aBcpad(u8, check, MB);
-    SKIPbl04 k = {};
-    for (u64 u = 0; u < MB / 16; ++u) {
+    aBcpad(u8, pad, SCALE);
+    aBcpad(u8, check, SCALE);
+    Bzero(checkbuf);
+    SKIPbl04wtab k = {};
+    for (u64 u = 0; u < SCALE / 16; ++u) {
         $u8feed64(padidle, &u);
         call(SKIPbl04mayfeed, padbuf, &k);
     }
     // aBcpad(u8, hex, PAGESIZE * 2);
     // HEXfeedall(hexidle, paddata);
     call(SKIPbl04term, padbuf, &k);
-    SKIPbl04 k2 = {};
+    SKIPbl04wtab k2 = {};
     // call(SKIPbl04drain, &k2, padbuf, k.pos);
     call(SKIPbl04load, &k2, padbuf);
-    call(SKIPcheck, padbuf, checkbuf, &k2);
+    SKIPbl04rtab r = {};
+    call(SKIPbl04flip, &r, &k2, padbuf);
+    call(SKIPcheck, padbuf, checkbuf, &r);
     done;
 }
 
@@ -87,9 +93,10 @@ pro(SKIP2) {
     FILEunlink(path);
     aB(u8, pad);
     aBcpad(u8, check, SKIP2LEN);
+    Bzero(checkbuf);
     call(FILEmapre, (voidB)padbuf, path, SKIP2LEN);
     COMBinit(padbuf);
-    SKIPbl04 k = {};
+    SKIPbl04wtab k = {};
     for (u64 i = 0; i < 8; ++i) {
         for (u64 u = 0; u < SKIP2LEN / 16; ++u) {
             $u8feed64(padidle, &u);
@@ -106,11 +113,11 @@ pro(SKIP2) {
         testeq(bs, Busysize(padbuf));
         testeq(SKIP2LEN * (i + 2), Bsize(padbuf));
         zero(k);
-        call(SKIPbl04load, &k, padbuf);
+        call(SKIPbl04trim, &k, padbuf);
     }
-    SKIPbl04 k2 = k;
-    // call(SKIPbl04drain, &k2, padbuf, k.pos);
-    call(SKIPcheck, padbuf, checkbuf, &k2);
+    SKIPbl04rtab r = {};
+    call(SKIPbl04flip, &r, &k, padbuf);
+    call(SKIPcheck, padbuf, checkbuf, &r);
     call(FILEunlink, path);
     done;
 }
@@ -123,21 +130,21 @@ fun int cmp($cc a, $cc b) {
 
 pro(SKIP3) {
     sane(1);
-    aBcpad(u8, pad, MB);
-    aBcpad(u8, check, MB);
-    SKIPbl04 k = {};
-    for (u64 u = 0; u < MB / 16; ++u) {
+    aBcpad(u8, pad, SCALE);
+    aBcpad(u8, check, SCALE);
+    SKIPbl04wtab k = {};
+    for (u64 u = 0; u < SCALE / 16; ++u) {
         $u8feed64(padidle, &u);
         call(SKIPbl04mayfeed, padbuf, &k);
     }
     call(SKIPbl04term, padbuf, &k);
-    for (u64 u = 0; u < MB / 16; ++u) {
+    for (u64 u = 0; u < SCALE / 16; ++u) {
         $u8c gap = {};
         a$rawc(raw, u);
         call(SKIPbl04find, gap, padbuf, raw, cmp);
         // size_t l = $len(gap);
         // testeq(0, l & 7);
-        u64c* head = *gap;
+        u64c* head = (u64c*)*gap;
         want(*head <= u && u - *head < 4);
         /*u64 head = 0;
         $u8drain64(&head, gap);
