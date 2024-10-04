@@ -42,6 +42,11 @@ target_link_options(HEAPtest PRIVATE ${TEST_LDD_FLAGS})
 target_compile_options(HEAPtest PRIVATE ${TEST_CXX_FLAGS})
 add_test(NAME HEAPtest COMMAND HEAPtest)
 
+add_executable(HASHtest HASH.c)
+target_link_options(HASHtest PRIVATE ${TEST_LDD_FLAGS})
+target_compile_options(HASHtest PRIVATE ${TEST_CXX_FLAGS})
+add_test(NAME HASHtest COMMAND HASHtest)
+
 add_executable(TLVtest TLV.c)
 target_link_options(TLVtest PRIVATE ${TEST_LDD_FLAGS})
 target_compile_options(TLVtest PRIVATE ${TEST_CXX_FLAGS})
