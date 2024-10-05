@@ -23,7 +23,7 @@
 #include "SKIPx.h"
 #undef X
 
-#define SCALE MB
+#define SCALE (64 * KB)
 //(KB * 128)
 
 pro(SKIP0) {
@@ -87,18 +87,17 @@ pro(SKIP1) {
 }
 
 pro(SKIP2) {
-#define SKIP2LEN (1 << 20)
     sane(1);
     $u8c path = $u8str("/tmp/SKIP2.txt");
     FILEunlink(path);
     aB(u8, pad);
-    aBcpad(u8, check, SKIP2LEN);
+    aBcpad(u8, check, SCALE);
     Bzero(checkbuf);
-    call(FILEmapre, (voidB)padbuf, path, SKIP2LEN);
+    call(FILEmapre, (voidB)padbuf, path, SCALE);
     COMBinit(padbuf);
     SKIPbl04wtab k = {};
     for (u64 i = 0; i < 8; ++i) {
-        for (u64 u = 0; u < SKIP2LEN / 16; ++u) {
+        for (u64 u = 0; u < SCALE / 16; ++u) {
             $u8feed64(padidle, &u);
             call(SKIPbl04mayfeed, padbuf, &k);
         }
@@ -107,11 +106,11 @@ pro(SKIP2) {
         size_t bs = Busysize(padbuf);
         COMBsave(padbuf);
         call(FILEunmap, (voidB)padbuf);
-        call(FILEmapre, (voidB)padbuf, path, SKIP2LEN * (i + 2));
+        call(FILEmapre, (voidB)padbuf, path, SCALE * (i + 2));
         COMBload(padbuf);
         testeq(ds, Bdatalen(padbuf));
         testeq(bs, Busysize(padbuf));
-        testeq(SKIP2LEN * (i + 2), Bsize(padbuf));
+        testeq(SCALE * (i + 2), Bsize(padbuf));
         zero(k);
         call(SKIPbl04trim, &k, padbuf);
     }

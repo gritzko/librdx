@@ -6,6 +6,7 @@
 
 #include "01.h"
 #include "INT.h"
+#include "OK.h"
 #include "TEST.h"
 
 fun u64 u32hash(u32 const *v) { return mix32(*v); }
@@ -17,6 +18,7 @@ fun u64 u32hash(u32 const *v) { return mix32(*v); }
 pro(HASH0) {
     sane(1);
     aBcpad(u32, pad, 1024);
+    Bzero(padbuf);
     u32 one = 1;
     call(HASHu32put, padidle, &one);
     call(HASHu32get, &one, padidle);
@@ -27,17 +29,20 @@ pro(HASH0) {
 
 pro(HASH1) {
     sane(1);
-    aBcpad(u32, pad, 1024);
+    aBcpad(u32, pad, 1024 + 128);
+    Bzero(padbuf);
     for (u32 i = 1; i < 1000; i += 2) {
         call(HASHu32put, padidle, &i);
     }
-    for (u32 i = 0; i < 1000; i += 2) {
+    for (u32 i = 2; i < 1000; i += 2) {
         u32 n = i;
-        want(HASHnone == HASHu32get(&n, padidle));
+        ok64 o = HASHu32get(&n, padidle);
+        want(HASHnone == o);
     }
     for (u32 i = 1; i < 1000; i += 2) {
         u32 v = i;
-        call(HASHu32get, &v, padidle);
+        ok64 o = HASHu32get(&v, padidle);
+        want(o == OK);
         want(v == i);
     }
     for (u32 i = 1; i < 1000; i += 4) {

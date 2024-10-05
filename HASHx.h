@@ -6,23 +6,24 @@
 typedef X(, ) T;
 
 #ifndef lineX
-// CHAINLEN is the maximum chain scan length (cell displacement)
-#define lineX 8
+// the maximum scan length (cell displacement)
+#define lineX 16
 #endif
 
 fun pro(X(HASH, scan), size_t *ndx, X($, ) data, T const *rec) {
-    sane($ok(data) && ndx != nil);
-    T zero = {};
     const size_t mask = lineX - 1;
+    sane($ok(data) && ndx != nil && 0 == ($len(data) & mask));
+    T zero = {};
     size_t off = *ndx & mask;
     size_t base = *ndx & ~mask;
+    size_t x;
     for (size_t i = off + 1; i < off + lineX; ++i) {
-        size_t x = base + (i & mask);
+        x = base + (i & mask);
         if (X(, cmp)(*data + x, &zero) == 0) fail(HASHnone);
         if (X(, cmp)(*data + x, rec) == 0) skip;
     }
     fail(HASHnoroom);
-    done;
+    nedo(*ndx = x);
 }
 
 // OK, HASHnone, HASHnoroom
