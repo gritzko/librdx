@@ -13,15 +13,15 @@ pro(HEAPtest1) {
     aBpad(u32, pad, 32);
     u32$ heap = Bu32data(pad);
     // Pushes one entry into the heap buffer
-    call(HEAPu32push1, pad, 3, u32cmp);
-    call(HEAPu32push1, pad, 2, u32cmp);
-    call(HEAPu32push1, pad, 1, u32cmp);
+    call(HEAPu32push1, pad, 3);
+    call(HEAPu32push1, pad, 2);
+    call(HEAPu32push1, pad, 1);
     u32 one, two, three;
     // Retrieves the least entry.
     // May also use **pad to read one.
-    call(HEAPu32pop, &one, pad, u32cmp);
-    call(HEAPu32pop, &two, pad, u32cmp);
-    call(HEAPu32pop, &three, pad, u32cmp);
+    call(HEAPu32pop, &one, pad);
+    call(HEAPu32pop, &two, pad);
+    call(HEAPu32pop, &three, pad);
     testeq(one, 1);
     testeq(two, 2);
     testeq(three, 3);

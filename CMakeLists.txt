@@ -31,4 +31,6 @@ add_executable(mark mark.c LEX.rl.c LEX.c MARK.rl.c MARK.c MARQ.rl.c MARQ.c)
 
 add_subdirectory(test)
 
+add_subdirectory(bench EXCLUDE_FROM_ALL)
+
 add_subdirectory(fuzz EXCLUDE_FROM_ALL)

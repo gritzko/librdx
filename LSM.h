@@ -25,7 +25,7 @@ fun pro(LSMmore, B$u8c lsm, $u8c x, $u8cmpfn cmp) {
     // call($$u8cfeed1, B$u8cidle(lsm), x);
     memcpy(lsm[2], x, sizeof($u8c));
     B$u8cidle(lsm)[0]++;
-    HEAP$u8cup(B$u8cdata(lsm), cmp);
+    HEAP$u8cupf(B$u8cdata(lsm), cmp);
     done;
 }
 
@@ -43,7 +43,7 @@ fun pro(LSMnext, $u8 into, B$u8c lsm, $u8cmpfn cmp, LSMmerger mrg) {
             --$term(from);
             if ($empty(from)) break;
         }
-        HEAP$u8cdown(from, cmp);
+        HEAP$u8cdownf(from, cmp);
     } while (0 == cmp($head(from), &next));
 
     if ($len(indata) == 1) {

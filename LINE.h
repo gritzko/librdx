@@ -104,7 +104,7 @@ fun pro(LINEpush, Bline into, $u8c rest, linecmpfn cmp) {
     sane($len(rest) > 0);
     aLINE(l, rest);
     call(LINEdrain, &l);
-    call(HEAPlinepush, into, &l, cmp);
+    call(HEAPlinepushf, into, &l, cmp);
     done;
 }
 
@@ -117,7 +117,7 @@ fun pro(LINEmerge, line* into, $line from, linecmpfn cmp, linemergefn merge) {
         $linefeedp(idle, *(linec$)from);
         lineswap($head(from), $last(from));
         --$term(from);
-        HEAPlinedown(from, cmp);
+        HEAPlinedownf(from, cmp);
     } while (!$empty(from) && 0 == cmp(*pad, *from));
     if ($len(merges) == 1) {
         call(LINEfeed, into, *merges);
@@ -129,7 +129,7 @@ fun pro(LINEmerge, line* into, $line from, linecmpfn cmp, linemergefn merge) {
         if (o == OK) {
             linemv($term(from), *merges);
             ++$term(from);
-            HEAPlineup(from, cmp);
+            HEAPlineupf(from, cmp);
         }
         ++*merges;
     }

@@ -12,6 +12,7 @@
 fun int u8cmp(const u8 *a, const u8 *b) { return (int)*a - (int)*b; }
 fun int u16cmp(const u16 *a, const u16 *b) { return (int)*a - (int)*b; }
 fun int u32cmp(const u32 *a, const u32 *b) {
+    // return (i64)*a - (i64)*b;
     if (*a == *b) return 0;
     return *a < *b ? -1 : 1;
 }

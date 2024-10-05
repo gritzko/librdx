@@ -90,11 +90,11 @@ typedef void *const *voidB;
 #define Bwithin(b, s) (s[0] >= b[0] && s[1] <= b[3])
 
 fun void _Brebase(Bvoid buf, void *newhead, size_t newlen) {
-    size_t data = buf[1] - buf[0];
-    if (data > newlen) data = newlen;
-    size_t idle = buf[2] - buf[0];
-    if (idle > newlen) idle = newlen;
     u8 **b = (u8 **)buf;
+    size_t data = b[1] - b[0];
+    if (data > newlen) data = newlen;
+    size_t idle = b[2] - b[0];
+    if (idle > newlen) idle = newlen;
     b[0] = (u8 *)newhead;
     b[1] = b[0] + data;
     b[2] = b[0] + idle;
