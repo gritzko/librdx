@@ -6,7 +6,11 @@ ok64 LEXonName($cu8c tok, LEXstate *state) {
 }
 ok64 LEXonOp($cu8c tok, LEXstate *state) { return $u8feed(state->syn, tok); }
 ok64 LEXonClass($cu8c tok, LEXstate *state) { return $u8feed(state->syn, tok); }
+ok64 LEXonRange($cu8c tok, LEXstate *state) { return $u8feed(state->syn, tok); }
 ok64 LEXonString($cu8c tok, LEXstate *state) {
+    return $u8feed(state->syn, tok);
+}
+ok64 LEXonQString($cu8c tok, LEXstate *state) {
     return $u8feed(state->syn, tok);
 }
 ok64 LEXonSpace($cu8c tok, LEXstate *state) { return $u8feed(state->syn, tok); }

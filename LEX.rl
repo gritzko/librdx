@@ -37,11 +37,23 @@ action LEXClass1 {
     tok[1] = p;
     call(LEXonClass, tok, state); 
 }
+action LEXRange0 { mark0[LEXRange] = p - text[0]; }
+action LEXRange1 {
+    tok[0] = text[0] + mark0[LEXRange];
+    tok[1] = p;
+    call(LEXonRange, tok, state); 
+}
 action LEXString0 { mark0[LEXString] = p - text[0]; }
 action LEXString1 {
     tok[0] = text[0] + mark0[LEXString];
     tok[1] = p;
     call(LEXonString, tok, state); 
+}
+action LEXQString0 { mark0[LEXQString] = p - text[0]; }
+action LEXQString1 {
+    tok[0] = text[0] + mark0[LEXQString];
+    tok[1] = p;
+    call(LEXonQString, tok, state); 
 }
 action LEXEntity0 { mark0[LEXEntity] = p - text[0]; }
 action LEXEntity1 {
@@ -82,17 +94,25 @@ action LEXRoot1 {
 
 LEXSpace  = (   [ \t\r\n]   )  >LEXSpace0 %LEXSpace1;
 
+LEXhex  = (   "0x"  [0-9a-f]+ );
+
+LEXdec  = (   [0-9]+ );
+
 LEXName  = (   [A-Za-z_]  [A-Z0-9a-z_]**   )  >LEXName0 %LEXName1;
 
 LEXRep  = (   "{"  [0-9]*  (","  [0-9]*)?  "}"  -  "{}" )  >LEXRep0 %LEXRep1;
 
-LEXOp  = (   LEXSpace  |  [()+*\-?><:|]  |  LEXRep )  >LEXOp0 %LEXOp1;
+LEXOp  = (   LEXSpace  |  [()+*\-?><:|\.]  |  LEXRep )  >LEXOp0 %LEXOp1;
 
 LEXClass  = (   "["  ([^\]]|"\\]")*  "]"   )  >LEXClass0 %LEXClass1;
 
+LEXRange  = (   "("  (LEXhex|LEXdec)  ".."  (LEXhex|LEXdec)  ")" )  >LEXRange0 %LEXRange1;
+
 LEXString  = (   "\""  ([^"]|"\\\"")*  "\""   )  >LEXString0 %LEXString1;
 
-LEXEntity  = (   LEXClass  |  LEXName  |  LEXString   )  >LEXEntity0 %LEXEntity1;
+LEXQString  = (   "\'"  ([^']|"\\\'")*  "\'"   )  >LEXQString0 %LEXQString1;
+
+LEXEntity  = (   LEXClass  |  LEXName  |  LEXString  |  LEXQString  |  LEXRange )  >LEXEntity0 %LEXEntity1;
 
 LEXExpr  = (   (LEXOp+  LEXEntity)*  LEXOp*   )  >LEXExpr0 %LEXExpr1;
 
@@ -130,11 +150,9 @@ pro(LEXlexer, LEXstate* state) {
     %% write init;
     %% write exec;
 
-    test(p==text[1], LEXfail);
-
-    test(cs >= LEX_first_final, LEXfail);
-
-    nedo(
-        text[0] = p;
-    );
+    if (p!=text[1] || cs < LEX_first_final) {
+        state->text[0] = p;
+        fail(LEXfail);
+    }
+    done;
 }
