@@ -130,6 +130,11 @@ target_link_options(SKIPtest PRIVATE ${TEST_LDD_FLAGS})
 target_compile_options(SKIPtest PRIVATE ${TEST_CXX_FLAGS})
 add_test(NAME SKIPtest COMMAND SKIPtest)
 
+add_executable(JSONtest JSON.c ../JSON.c ../JSON.rl.c)
+target_link_options(JSONtest PRIVATE ${TEST_LDD_FLAGS})
+target_compile_options(JSONtest PRIVATE ${TEST_CXX_FLAGS})
+add_test(NAME JSONtest COMMAND JSONtest)
+
 add_executable(RDXtest RDX.c)
 target_link_options(RDXtest PRIVATE ${TEST_LDD_FLAGS})
 target_compile_options(RDXtest PRIVATE ${TEST_CXX_FLAGS})

@@ -183,6 +183,7 @@ fun void $u8feed64($u8 into, u64 const *what) {
 #endif
 
 fun b8 Bitat(Bu8 buf, size_t ndx) {
+    // FIXME bounds
     return ((buf[0][ndx >> 3]) >> (ndx & 7)) & 1;
 }
 

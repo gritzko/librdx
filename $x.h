@@ -149,6 +149,11 @@ fun size_t X($, prefix)(X($, c) common, X($c, c) a, X($c, c) b) {
     return l;
 }
 
+fun size_t X($, offset)(X($c, c) outer, X($c, c) inner) {
+    assert(outer[0] <= inner[0] && outer[1] >= inner[1]);
+    return inner[0] - outer[0];
+}
+
 fun void X(, swap)(T *a, T *b) {
     T c;
     memcpy(&c, a, sizeof(T));

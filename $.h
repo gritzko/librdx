@@ -22,6 +22,8 @@ con ok64 $miss = 0x37dedc7f;
 #define $len(s) ($term(s) - $head(s))
 #define $size(s) (((uint8_t *)$term(s)) - ((uint8_t *)$head(s)))
 #define $at(s, n) (*($head(s) + (n)))
+#define $in(s, p) (p - s[0])
+#define $in$(s, ins) (ins[0] - s[0])
 
 #define $empty(s) ($head(s) >= $term(s))
 #define $nospace(s, l) ($head(s) + (l) > $term(s))

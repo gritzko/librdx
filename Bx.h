@@ -32,10 +32,17 @@ fun T const *const *X(Bc, cidle)(X(B, ) buf) {
     return (T const *const *)buf + 2;
 }
 
-fun T *X(B, at)(X(B, ) buf, size_t ndx) {
-    // todo range checks
-    return buf[1] + ndx;
+fun T *X(B, atp)(X(B, ) buf, size_t ndx) {
+    T *p = buf[0] + ndx;
+    assert(p < buf[3]);
+    return p;
 }
+
+/*fun T X(B, at)(X(B, ) buf, size_t ndx) {
+    T *p = buf[0] + ndx;
+    assert(p < buf[3]);
+    return *p;
+}*/
 
 fun ok64 X(B, alloc)(X(B, ) buf, size_t len) {
     size_t sz = len * sizeof(T);
@@ -50,7 +57,7 @@ fun ok64 X(B, free)(X(B, ) buf) { return Bfree((void **)buf); }
 fun ok64 X(B, reserve)(X(B, ) buf, size_t len) {
     return Breserve((void *const *)buf, len * sizeof(T));
 }
-
+/*
 fun ok64 X(B, feedp)(X(B, ) buf, T const *one) {
     ok64 re = X(B, reserve)(buf, 1);
     if (re != OK) return re;
@@ -59,10 +66,14 @@ fun ok64 X(B, feedp)(X(B, ) buf, T const *one) {
     ++*idle;
     return OK;
 }
+*/
+fun ok64 X(B, feedp)(X(B, ) buf, T const *one) {
+    return X($, feedp)(X(B, idle)(buf), one);
+}
 
 fun ok64 X(B, feed2)(X(B, ) buf, T a, T b) {
-    ok64 re = X(B, reserve)(buf, 2);
-    if (re != OK) return re;
+    // ok64 re = X(B, reserve)(buf, 2);
+    // f (re != OK) return re;
     T **idle = X(B, idle)(buf);
     memcpy(*idle, &a, sizeof(T));
     ++*idle;
@@ -72,7 +83,7 @@ fun ok64 X(B, feed2)(X(B, ) buf, T a, T b) {
 }
 
 fun ok64 X(B, feed1)(X(B, ) buf, T one) {
-    return X(B, feedp)(buf, (T const *)&one);
+    return X($, feed1)(X(B, idle)(buf), one);
 }
 
 fun ok64 X(B, feed$)(X(B, ) buf, X($c, c) from) {
