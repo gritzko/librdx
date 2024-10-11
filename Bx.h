@@ -75,6 +75,7 @@ fun ok64 X(B, feed2)(X(B, ) buf, T a, T b) {
     // ok64 re = X(B, reserve)(buf, 2);
     // f (re != OK) return re;
     T **idle = X(B, idle)(buf);
+    if ($len(idle) < 2) return Bnoroom;
     memcpy(*idle, &a, sizeof(T));
     ++*idle;
     memcpy(*idle, &b, sizeof(T));

@@ -32,11 +32,11 @@ pro(LISTtest1) {
     call(LISTentry128insert, list, codes + 2, 0);
     call(LISTentry128insert, list, codes + 1, 0);
     u32 i = 0;
-    testeq(LISTentry128at(list, i)->value, codes[0].value);
+    testeq(LISTentry128atp(list, i)->value, codes[0].value);
     i = LISTentry128next(list, i);
-    testeq(LISTentry128at(list, i)->value, codes[1].value);
+    testeq(LISTentry128atp(list, i)->value, codes[1].value);
     i = LISTentry128next(list, i);
-    testeq(LISTentry128at(list, i)->value, codes[2].value);
+    testeq(LISTentry128atp(list, i)->value, codes[2].value);
     done;
 }
 

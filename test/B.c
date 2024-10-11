@@ -42,7 +42,7 @@ pro(Breserve_test) {
     call(Bu8alloc, buf, 1024);
     for (int i = 0; i < (1 << 20); i++) {
         otry(Bu8feed2, buf, '1', '2');
-        ofix(noroom) call(Bu8reserve, buf, 1024);
+        ofix(Bnoroom) call(Bu8reserve, buf, 1024);
         ocry;
     }
     call(Bu8free, buf);

@@ -2,10 +2,10 @@
 
 #define T X(, )
 
-fun T* X(LIST, at)(X(B, ) list, u32 ndx) { return X(B, at)(list, ndx); }
+fun T* X(LIST, atp)(X(B, ) list, u32 ndx) { return X(B, atp)(list, ndx); }
 
 fun u32 X(LIST, next)(X(B, ) list, u32 ndx) {
-    return X(B, at)(list, ndx)->_list.next;
+    return X(B, atp)(list, ndx)->_list.next;
 }
 
 fun ok64 X(LIST, insert)(X(B, ) list, T const* entry, u32 prev) {
@@ -14,10 +14,10 @@ fun ok64 X(LIST, insert)(X(B, ) list, T const* entry, u32 prev) {
     if (len < prev) return LISTbadndx;
     ok64 o = X(B, feedp)(list, entry);
     if (o != OK) return o;
-    u32 next = X(B, at)(list, prev)->_list.next;
-    X(B, at)(list, len)->_list.next = next;
-    X(B, at)(list, len)->_list.prev = prev;
-    X(B, at)(list, prev)->_list.next = len;
-    X(B, at)(list, next)->_list.prev = len;
+    u32 next = X(B, atp)(list, prev)->_list.next;
+    X(B, atp)(list, len)->_list.next = next;
+    X(B, atp)(list, len)->_list.prev = prev;
+    X(B, atp)(list, prev)->_list.next = len;
+    X(B, atp)(list, next)->_list.prev = len;
     return OK;
 }
