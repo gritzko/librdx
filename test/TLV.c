@@ -58,25 +58,25 @@ pro(TLVtest2) {
 pro(TLVtest3) {
     sane(1);
     aBpad(u8, pad, 1024);
-    TLVstack stack = {};
+    aBpad(u32, stack, 8);
 
-    call(TLVopen, pad, 'A', stack);
+    call(TLVopen, pad, 'A', Bu32push(stack));
     $u8c aaa = $u8str("aaa");
 
-    call(TLVopen, pad, 'B', stack);
+    call(TLVopen, pad, 'B', Bu32push(stack));
     $u8c bbb = $u8str("bbbb");
 
-    call(TLVopen, pad, 'C', stack);
+    call(TLVopen, pad, 'C', Bu32push(stack));
     $u8c ccc = $u8str("ccccc");
 
     $u8feed(Bu8idle(pad), ccc);
-    call(TLVclose, pad, 'C', stack);
+    call(TLVclose, pad, 'C', Bu32pop(stack));
 
     $u8feed(Bu8idle(pad), bbb);
-    call(TLVclose, pad, 'B', stack);
+    call(TLVclose, pad, 'B', Bu32pop(stack));
 
     $u8feed(Bu8idle(pad), aaa);
-    call(TLVclose, pad, 'A', stack);
+    call(TLVclose, pad, 'A', Bu32pop(stack));
 
     //$print(Bcu8cdata(pad));
 

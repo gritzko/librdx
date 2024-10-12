@@ -149,8 +149,8 @@ fun ok64 Bfree(Bvoid buf) {
 #define Batp(buf, ndx) (buf[0] + ndx)
 #define Bat(buf, ndx) (buf[0][ndx])
 
-#define Bpop(buf) \
-    { --buf[2]; }
+#define Bpush(buf) (buf[2]++)
+#define Bpop(buf) (--buf[2])
 
 typedef struct {
     u64 from;

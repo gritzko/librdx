@@ -95,12 +95,6 @@ fun ok64 X(B, feed$)(X(B, ) buf, X($c, c) from) {
     return OK;
 }
 
-fun ok64 X(B, pop)(X(B, ) buf) {
-    if (buf[2] <= buf[1]) return Bnodata;
-    --*X(B, idle)(buf);
-    return OK;
-}
-
 fun ok64 X(B, mark)(X(B, ) const buf, range64 *range) {
     range->from = buf[1] - buf[0];
     range->till = buf[2] - buf[0];
@@ -151,6 +145,18 @@ fun ok64 X(B, rewind$)(X(B, ) buf, X($, ) slice, range64 range) {
     slice[0] = buf[0] + range.from;
     slice[1] = buf[0] + range.till;
     return OK;
+}
+
+fun T *X(B, push)(X(B, ) buf) {
+    assert(buf[2] < buf[3]);
+    T **b = (T **)buf;
+    return b[2]++;
+}
+
+fun const T *X(B, pop)(X(B, ) buf) {
+    assert(buf[2] > buf[1]);
+    T const **b = (T const **)buf;
+    return --b[2];
 }
 
 #undef T

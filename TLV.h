@@ -132,24 +132,22 @@ fun pro(TLVtinyfeed, $u8 into, u8 type, $u8c value) {
 #define TLVmaxnest 15
 typedef u32 TLVstack[TLVmaxnest + 1];
 
-fun pro(TLVopen, Bu8 tlv, u8 type, TLVstack stack) {
+fun pro(TLVopen, Bu8 tlv, u8 type, u32* stack) {
     sane(tlv != NULL && stack != NULL && TLVlong(type));
     u8** into = Bu8idle(tlv);
     test($len(into) >= 5, TLVnospace);
     u32 pos = $len(Bpast(tlv)) + $len(Bdata(tlv));
-    test(*stack < TLVmaxnest, TLVoverflo);
-    ++*stack;
-    stack[*stack] = pos;
+    *stack = pos;
     **into = type;
     ++*into;
     put32(into, 0);
     done;
 }
 
-fun pro(TLVclose, Bu8 tlv, u8 type, TLVstack stack) {
-    sane(tlv != NULL && TLVlong(type) && *stack > 0 && *stack <= TLVmaxnest);
-    u32 pos = stack[*stack];
-    --*stack;
+fun pro(TLVclose, Bu8 tlv, u8 type, const u32* stack) {
+    sane(tlv != NULL && TLVlong(type) && stack != nil &&
+         *stack < Bdatalen(tlv));
+    u32 pos = *stack;
     test(pos >= $len(Bpast(tlv)), TLVbadcall);
     u32 curpos = $len(Bpast(tlv)) + $len(Bdata(tlv));
     test(curpos >= pos + 5, TLVbadcall);
