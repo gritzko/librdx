@@ -13,6 +13,7 @@ con ok64 TLVnospace = 0xa67974df3c9f55d;
 con ok64 TLVoverflo = 0xcf0ab6a7acdf55d;
 con ok64 TLVbadcall = 0xc30967a2599f55d;
 con ok64 TLVbadarg = 0x2bda5a2599f55d;
+con ok64 TLVbadkv = 0xeafa2599f55d;
 
 #define TLVaa 0x20
 
@@ -187,7 +188,7 @@ fun pro(TLVdrainkv, u8* type, $u8c key, $u8c val, $u8c tlv) {
     u32 hlen = 0, blen = 0;
     call(TLVprobe, type, &hlen, &blen, tlv);
     $u8c body = {tlv[0] + hlen, tlv[0] + hlen + blen};
-    test($len(body) > 0 && $len(body) >= **body, TLVbadrec);
+    test($len(body) > 0 && $len(body) >= **body, TLVbadkv);
     key[0] = body[0] + 1;
     key[1] = key[0] + **body;
     val[0] = key[1];

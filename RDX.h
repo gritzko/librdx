@@ -62,7 +62,7 @@ fun ok64 RDXdrain(u8* t, id128* id, $u8c value, $u8c tlv) {
     return o;  // TODO untouched on error
 }
 
-$u8c ID128DELIM = $u8str("-");
+static $u8c ID128DELIM = $u8str("-");
 
 fun ok64 RDXid128feed($u8 txt, id128 id) {
     u8* p = *txt;

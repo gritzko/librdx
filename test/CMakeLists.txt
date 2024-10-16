@@ -145,3 +145,8 @@ target_link_options(RDX1test PRIVATE ${TEST_LDD_FLAGS})
 target_compile_options(RDX1test PRIVATE ${TEST_CXX_FLAGS})
 add_test(NAME RDX1test COMMAND RDX1test)
 
+add_executable(RDXJtest RDXJ.c ../RDXJ.rl.c ../RDXJ.c ../ryu/d2s.c)
+target_link_options(RDXJtest PRIVATE ${TEST_LDD_FLAGS})
+target_compile_options(RDXJtest PRIVATE ${TEST_CXX_FLAGS})
+add_test(NAME RDXJtest COMMAND RDXJtest)
+

@@ -93,10 +93,11 @@ fun pro(RDXFtxt2tlv, $u8 tlv, $cu8c txt, id128 time) {
     done;
 }
 
-fun pro(RDXFtlv2txt, $u8 txt, id128* time, $cu8c tlv) {
-    sane($ok(txt) && $ok(tlv) && time != nil);
+fun pro(RDXFtlv2txt, $u8 txt, $cu8c tlv) {
+    sane($ok(txt) && $ok(tlv));
+    u128 time;
     RDXfloat v;
-    call(RDXFtlv2c, &v, time, tlv);
+    call(RDXFtlv2c, &v, &time, tlv);
     u8 res[32];
     int len = d2s_buffered_n(v, (char*)res);
     $u8c $res = {res, res + len};
@@ -148,10 +149,11 @@ fun pro(RDXItxt2tlv, $u8 tlv, $cu8c txt, id128 time) {
     done;
 }
 
-fun pro(RDXItlv2txt, $u8 txt, id128* time, $cu8c tlv) {
-    sane($ok(txt) && $ok(tlv) && time != nil);
+fun pro(RDXItlv2txt, $u8 txt, $cu8c tlv) {
+    sane($ok(txt) && $ok(tlv));
     RDXint v = 0;
-    call(RDXItlv2c, &v, time, tlv);
+    id128 time = {};
+    call(RDXItlv2c, &v, &time, tlv);
     u8 res[32];
     int len = sprintf((char*)res, "%li", v);
     $u8c $res = {res, res + len};
@@ -195,10 +197,11 @@ fun pro(RDXRtxt2tlv, $u8 tlv, $cu8c txt, id128 time) {
     done;
 }
 
-fun pro(RDXRtlv2txt, $u8 txt, id128* time, $cu8c tlv) {
-    sane($ok(txt) && $ok(tlv) && time != nil);
+fun pro(RDXRtlv2txt, $u8 txt, $cu8c tlv) {
+    sane($ok(txt) && $ok(tlv));
+    id128 time;
     RDXref v = {};
-    call(RDXRtlv2c, &v, time, tlv);
+    call(RDXRtlv2c, &v, &time, tlv);
     call(RDXid128feed, txt, v);
     done;
 }
@@ -226,14 +229,22 @@ fun pro(RDXSdtlv, $u8 dtlv, $cu8c oldtlv, $cu8c c, u128* clock) {
 }
 
 fun pro(RDXStxt2tlv, $u8 tlv, $cu8c txt, id128 time) {
-    sane($ok(tlv) && $ok(txt));
-    call(RDXSc2tlv, tlv, txt, time);
+    sane($ok(tlv) && $ok(txt) && $len(txt) >= 2 && **txt == '"' &&
+         *$last(txt) == '"');
+    $u8c t = {txt[0] + 1, txt[1] - 1};
+    call(RDXSc2tlv, tlv, t, time);  // FIXME escapes
     done;
 }
 
-fun pro(RDXStlv2txt, u8c$ txt, id128* time, $cu8c tlv) {
-    sane(txt != nil && $ok(tlv) && time != nil);
-    call(RDXStlv2c, txt, time, tlv);
+fun pro(RDXStlv2txt, $u8 txt, $cu8c tlv) {
+    // FIXME escapes
+    sane(txt != nil && $ok(tlv));
+    id128 time = {};
+    $u8c t = {};
+    call(RDXStlv2c, t, &time, tlv);
+    call($u8feed1, txt, '"');
+    call($u8feed, txt, t);
+    call($u8feed1, txt, '"');
     done;
 }
 
