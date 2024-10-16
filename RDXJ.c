@@ -31,6 +31,7 @@ ok64 RDXJonFIRST($cu8c tok, RDXJstate* state) {
     call(TLVfeedkv, Bu8idle(state->tlv), state->lit, iddata,
          Bu8cdata(state->pad));
     Breset(state->pad);
+    zero(state->id);
     done;
 }
 
@@ -149,6 +150,13 @@ ok64 RDXJonColon($cu8c tok, RDXJstate* state) {
     done;
 }
 
+ok64 RDXJonStamp($cu8c tok, RDXJstate* state) {
+    sane($ok(tok) && $len(tok) >= 2 && **tok == '@' && state != nil);
+    $u8c id = {tok[0] + 1, tok[1]};
+    call(RDXid128drain, &state->id, id);
+    done;
+}
+
 ok64 RDXJonRDXJ($cu8c tok, RDXJstate* state) { return OK; }
 
 ok64 RDXJonRoot($cu8c tok, RDXJstate* state) { return OK; }
@@ -158,27 +166,42 @@ ok64 RDXJonHexEsc($cu8c tok, RDXJstate* state) { return OK; }
 ok64 RDXJonTerm($cu8c tok, RDXJstate* state) { return OK; }
 ok64 RDXJonOpenVector($cu8c tok, RDXJstate* state) { return OK; }
 ok64 RDXJonCloseVector($cu8c tok, RDXJstate* state) { return OK; }
-ok64 RDXJonStamp($cu8c tok, RDXJstate* state) { return OK; }
+
+fun b8 id128empty(id128 id) { return id._64[0] == 0 && id._64[1] == 0; }
+
+fun ok64 RDXJfeedstamp($u8 rdxj, id128 stamp) {
+    if (id128empty(stamp)) return OK;
+    // call($u8feed2, rdxj, ' ', '@');
+    if ($len(rdxj) < 2) return RDXnospace;
+    $u8feed1(rdxj, '@');
+    return RDXid128feed(rdxj, stamp);
+}
 
 pro(RDXJfromTLV, $u8 rdxj, $u8c tlv) {
     sane($ok(rdxj) && $ok(tlv));
     u8 lit;
     $u8c value;
-    $u8c id;
+    $u8c idz;
+    id128 id = {};
     a$dup(u8c, tlv2, tlv);
-    call(TLVdrainkv, &lit, id, value, tlv);
+    call(TLVdrainkv, &lit, idz, value, tlv);
+    call(ZINTu128drain, &id, idz);
     switch (lit) {
         case RDX_INT:
             call(RDXItlv2txt, rdxj, tlv2);
+            call(RDXJfeedstamp, rdxj, id);
             break;
         case RDX_FLOAT:
             call(RDXFtlv2txt, rdxj, tlv2);
+            call(RDXJfeedstamp, rdxj, id);
             break;
         case RDX_REF:
             call(RDXRtlv2txt, rdxj, tlv2);
+            call(RDXJfeedstamp, rdxj, id);
             break;
         case RDX_STRING:
             call(RDXStlv2txt, rdxj, tlv2);
+            call(RDXJfeedstamp, rdxj, id);
             break;
         case RDX_LINEAR:
             call($u8feed1, rdxj, '[');

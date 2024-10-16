@@ -149,7 +149,7 @@ RDXJFloat  = (   (  [\-]?  (  [0]  |  [1-9]  [0-9]*  )
 
                         ([eE]  [\-+]?  [0-9]+  )?  )  -  RDXJInt )  >RDXJFloat0 %RDXJFloat1;
 
-RDXJRef  = (   RDXJid128 )  >RDXJRef0 %RDXJRef1;
+RDXJRef  = (   RDXJid128  -  RDXJFloat )  >RDXJRef0 %RDXJRef1;
 
 RDXJString  = (   ["]  RDXJutf8esc  ["] )  >RDXJString0 %RDXJString1;
 
