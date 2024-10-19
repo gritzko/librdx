@@ -3,12 +3,16 @@
 
 #include <unistd.h>
 
+#include "01.h"
 #include "B.h"
 #include "FILE.h"
 #include "INT.h"
 #include "PRO.h"
 #include "RDX.h"
+#include "RDX1.h"
+#include "RDXJ.h"
 #include "TEST.h"
+
 pro(RDXFtest) {
     sane(1);
 #define RDXFlen 3
@@ -117,13 +121,40 @@ pro(RDXStest) {
     done;
 }
 
+pro(RDX1) {
+    sane(1);
+    B(u8, testbuf);
+    u8c** path = STD_ARGS[1] + 2;
+    // a$str(path, "RDX1.rdx");
+    call(FILEmapro, (voidB)testbuf, path);
+    fprintf(stdout, "OK\n");
+    $print(Bu8cdata(testbuf));
+    aBcpad(u8, tlv, PAGESIZE);
+    aBcpad(u64, stack, 1024);
+    aBcpad(u8, pad, PAGESIZE);  // FIXME
+    RDXJstate state = {
+        .text = $dup(Bu8cdata(testbuf)),
+        .tlv = (u8B)tlvbuf,
+        .stack = (u64B)stackbuf,
+        .pad = (u8B)padbuf,
+    };
+    call(Bu64feed1, state.stack, 0);
+    call(RDXJlexer, &state);
+    aBcpad(u8, rdxj, PAGESIZE);
+    call(RDXJfromTLV, rdxjidle, tlvdata);
+    $print(rdxjdata);
+    call(FILEunmap, (voidB)testbuf);
+    done;
+}
+
 pro(RDX1test) {
     sane(1);
     call(RDXFtest);
     call(RDXItest);
     call(RDXRtest);
     call(RDXStest);
+    call(RDX1);
     done;
 }
 
-TEST(RDX1test);
+MAIN(RDX1test);

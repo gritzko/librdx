@@ -140,4 +140,30 @@ con ok64 faileq = 0xd69c2d96a;
 #define trace(...) ;
 #endif
 
+extern u8c *_STD_ARGS[];
+extern u8c **STD_ARGS[];
+
+fun void _parse_args(int argn, char **args) {
+    for (int i = 0; i < argn; ++i) {
+        u8c *s[2] = $u8str(args[i]);
+        _STD_ARGS[i * 2] = s[0];
+        _STD_ARGS[i * 2 + 1] = s[1];
+    }
+    STD_ARGS[0] = STD_ARGS[1] = _STD_ARGS;
+    STD_ARGS[2] = STD_ARGS[3] = _STD_ARGS + argn * 2;
+}
+
+#define MAIN(f)                                                          \
+    uint8_t _pro_depth = 0;                                              \
+    u8c *_STD_ARGS[64] = {};                                             \
+    u8c **STD_ARGS[4] = {};                                              \
+    int main(int argn, char **args) {                                    \
+        _parse_args(argn, args);                                         \
+        ok64 ret = f();                                                  \
+        if (ret != OK)                                                   \
+            trace("%s<%s at %s:%i\n", PROindent, ok64str(ret), __func__, \
+                  __LINE__);                                             \
+        return ret;                                                      \
+    }
+
 #endif

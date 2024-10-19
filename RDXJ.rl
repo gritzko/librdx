@@ -186,10 +186,10 @@ RDXJdelimiter  = (   RDXJOpenObject  |  RDXJCloseObject  |
                         RDXJComma  |  RDXJColon );
 
 
-RDXJFIRST  = (   (  RDXJFloat  |  RDXJInt  |  RDXJRef  |  RDXJString  |  RDXJTerm  )  RDXJws*  RDXJStamp? )  >RDXJFIRST0 %RDXJFIRST1;
+RDXJFIRST  = (   (  RDXJFloat  |  RDXJInt  |  RDXJRef  |  RDXJString  |  RDXJTerm  )  (RDXJws*  RDXJStamp)?  RDXJws* )  >RDXJFIRST0 %RDXJFIRST1;
 
 
-RDXJRoot  = (   RDXJws*  (  RDXJFIRST?  (  RDXJws*  RDXJdelimiter  RDXJws*  RDXJFIRST?  )*  )  RDXJws* )  >RDXJRoot0 %RDXJRoot1;
+RDXJRoot  = (   RDXJws*  (  RDXJFIRST?  (  RDXJdelimiter  RDXJws*  RDXJFIRST?  )*  )   )  >RDXJRoot0 %RDXJRoot1;
 
 main := RDXJRoot;
 

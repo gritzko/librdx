@@ -34,6 +34,6 @@ delimiter = OpenObject | CloseObject |
             OpenVector | CloseVector |
             Comma | Colon;
 
-FIRST = ( Float | Int | Ref | String | Term ) ws* Stamp?;
+FIRST = ( Float | Int | Ref | String | Term ) (ws* Stamp)? ws*;
 
-Root = ws* ( FIRST? ( ws* delimiter ws* FIRST? )* ) ws*;
+Root = ws* ( FIRST? ( delimiter ws* FIRST? )* ) ;

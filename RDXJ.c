@@ -100,6 +100,13 @@ ok64 RDXJonRef($cu8c tok, RDXJstate* state) {
     done;
 }
 
+ok64 RDXJonTerm($cu8c tok, RDXJstate* state) {
+    sane($ok(tok) && state != nil && !Bempty(state->stack));
+    call($u8feed, Bu8idle(state->pad), tok);
+    state->lit = RDX_TERM;
+    done;
+}
+
 ok64 RDXJonOpenObject($cu8c tok, RDXJstate* state) {
     return RDXJonOpen(tok, state, RDX_MAP);
 }
@@ -124,6 +131,7 @@ ok64 RDXJonComma($cu8c tok, RDXJstate* state) {
         case RDX_SET:
         case RDX_NAT:
         case RDX_Z:
+        case 'A':  // FIXME ROOT
             test((prnt->toks & 1) == 1, RDXJbad);
             break;
         case RDX_MAP:
@@ -163,7 +171,6 @@ ok64 RDXJonRoot($cu8c tok, RDXJstate* state) { return OK; }
 
 ok64 RDXJonEsc($cu8c tok, RDXJstate* state) { return OK; }
 ok64 RDXJonHexEsc($cu8c tok, RDXJstate* state) { return OK; }
-ok64 RDXJonTerm($cu8c tok, RDXJstate* state) { return OK; }
 ok64 RDXJonOpenVector($cu8c tok, RDXJstate* state) { return OK; }
 ok64 RDXJonCloseVector($cu8c tok, RDXJstate* state) { return OK; }
 

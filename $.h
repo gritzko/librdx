@@ -35,6 +35,8 @@ con ok64 $miss = 0x37dedc7f;
 #define $off(s, o) ((s[0] + (o) < s[1]) ? (s[0] + (o)) : s[1])
 
 #define a$dup(T, n, s) T *n[2] = {(s)[0], (s)[1]}
+#define $dup(s) \
+    { s[0], s[1] }
 
 #define a$tail(T, n, s, off) \
     $##T n = {(off) > $len(s) ? s[1] : s[0] + (off), s[1]};
