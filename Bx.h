@@ -106,6 +106,7 @@ fun void X(B, reset)(X(B, ) buf) {
     b[1] = b[0];
     b[2] = b[0];
 }
+
 fun ok64 X(B, rewind)(X(B, ) buf, range64 range) {
     size_t len = $len(buf);
     if (range.till < range.from || range.till > len) return $miss;

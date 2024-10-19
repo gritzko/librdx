@@ -2,10 +2,10 @@ ws = [\r\n\t ];
 hex = [0-9a-fA-F];
 
 cp = (0x20..0xff) - ["\\];
-UTF8 = cp+;
-Esc = "\\" ["\\/bfnrt];
-HexEsc =  "\\u" hex{4};
-utf8esc = UTF8 | Esc | HexEsc;
+utf8 = cp+;
+esc = [\\] ["\\/bfnrt];
+hexEsc =  "\\u" hex{4};
+utf8esc = utf8 | esc | hexEsc;
 
 id128 = [0-9a-fA-F]+ "-" [0-9a-fA-F]+;
 
@@ -14,7 +14,7 @@ Float = ( [\-]? ( [0] | [1-9] [0-9]* )
             ("." [0-9]+)?
             ([eE] [\-+]? [0-9]+ )? ) - Int;
 Ref = id128 - Float;
-String = ["] utf8esc ["];
+String = ["] utf8esc* ["];
 Term = [a-zA-Z] [a-zA-Z0-9_]*;
 
 OpenObject = "{";

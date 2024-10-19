@@ -6,7 +6,6 @@
 #include "OK.h"
 #include "PRO.h"
 #include "RDX.h"
-#include "RDX1.h"
 #include "RDXJ.rl.h"
 #include "ZINT.h"
 
@@ -59,13 +58,11 @@ ok64 RDXJonClose($cu8c tok, RDXJstate* state, int node) {
 
 // particularities
 //
-ok64 RDXJonUTF8($cu8c tok, RDXJstate* state) {
-    return $u8feed(Bu8idle(state->pad), tok);
-}
-
+//
 ok64 RDXJonString($cu8c tok, RDXJstate* state) {
     sane($ok(tok) && state != nil && !Bempty(state->stack));
-    // TODO state->lit state->pad
+    $u8c tok2 = {tok[0] + 1, tok[1] - 1};
+    call(RDXJfeedSesc, Bu8idle(state->pad), tok2);
     state->lit = RDX_STRING;
     done;
 }
@@ -169,8 +166,6 @@ ok64 RDXJonRDXJ($cu8c tok, RDXJstate* state) { return OK; }
 
 ok64 RDXJonRoot($cu8c tok, RDXJstate* state) { return OK; }
 
-ok64 RDXJonEsc($cu8c tok, RDXJstate* state) { return OK; }
-ok64 RDXJonHexEsc($cu8c tok, RDXJstate* state) { return OK; }
 ok64 RDXJonOpenVector($cu8c tok, RDXJstate* state) { return OK; }
 ok64 RDXJonCloseVector($cu8c tok, RDXJstate* state) { return OK; }
 
@@ -184,7 +179,7 @@ fun ok64 RDXJfeedstamp($u8 rdxj, id128 stamp) {
     return RDXid128feed(rdxj, stamp);
 }
 
-pro(RDXJfromTLV, $u8 rdxj, $u8c tlv) {
+pro(RDXJdrain, $u8 rdxj, $u8c tlv) {
     sane($ok(rdxj) && $ok(tlv));
     u8 lit;
     $u8c value;
@@ -207,13 +202,13 @@ pro(RDXJfromTLV, $u8 rdxj, $u8c tlv) {
             call(RDXJfeedstamp, rdxj, id);
             break;
         case RDX_STRING:
-            call(RDXStlv2txt, rdxj, tlv2);
+            call(RDXJdrainS, rdxj, tlv2);
             call(RDXJfeedstamp, rdxj, id);
             break;
         case RDX_LINEAR:
             call($u8feed1, rdxj, '[');
             while (!$empty(value)) {
-                call(RDXJfromTLV, rdxj, value);
+                call(RDXJdrain, rdxj, value);
                 if (!$empty(value)) call($u8feed1, rdxj, ',');
             }
             call($u8feed1, rdxj, ']');
@@ -223,7 +218,7 @@ pro(RDXJfromTLV, $u8 rdxj, $u8c tlv) {
             int i = 0;
             u8 sgn[2] = {':', ','};
             while (!$empty(value)) {
-                call(RDXJfromTLV, rdxj, value);
+                call(RDXJdrain, rdxj, value);
                 if (!$empty(value)) call($u8feed1, rdxj, sgn[i & 1]);
                 ++i;
             }

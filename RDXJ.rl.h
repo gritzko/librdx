@@ -3,9 +3,6 @@
 #include "RDXJ.h"
 
 enum {
-	RDXJUTF8 = RDXJenum+4,
-	RDXJEsc = RDXJenum+5,
-	RDXJHexEsc = RDXJenum+6,
 	RDXJInt = RDXJenum+9,
 	RDXJFloat = RDXJenum+10,
 	RDXJRef = RDXJenum+11,
@@ -23,9 +20,6 @@ enum {
 	RDXJFIRST = RDXJenum+24,
 	RDXJRoot = RDXJenum+25,
 };
-ok64 RDXJonUTF8 ($cu8c tok, RDXJstate* state);
-ok64 RDXJonEsc ($cu8c tok, RDXJstate* state);
-ok64 RDXJonHexEsc ($cu8c tok, RDXJstate* state);
 ok64 RDXJonInt ($cu8c tok, RDXJstate* state);
 ok64 RDXJonFloat ($cu8c tok, RDXJstate* state);
 ok64 RDXJonRef ($cu8c tok, RDXJstate* state);

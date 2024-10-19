@@ -7,24 +7,6 @@ machine RDXJ;
 
 alphtype unsigned char;
 
-action RDXJUTF80 { mark0[RDXJUTF8] = p - text[0]; }
-action RDXJUTF81 {
-    tok[0] = text[0] + mark0[RDXJUTF8];
-    tok[1] = p;
-    call(RDXJonUTF8, tok, state); 
-}
-action RDXJEsc0 { mark0[RDXJEsc] = p - text[0]; }
-action RDXJEsc1 {
-    tok[0] = text[0] + mark0[RDXJEsc];
-    tok[1] = p;
-    call(RDXJonEsc, tok, state); 
-}
-action RDXJHexEsc0 { mark0[RDXJHexEsc] = p - text[0]; }
-action RDXJHexEsc1 {
-    tok[0] = text[0] + mark0[RDXJHexEsc];
-    tok[1] = p;
-    call(RDXJonHexEsc, tok, state); 
-}
 action RDXJInt0 { mark0[RDXJInt] = p - text[0]; }
 action RDXJInt1 {
     tok[0] = text[0] + mark0[RDXJInt];
@@ -129,13 +111,13 @@ RDXJhex  = (   [0-9a-fA-F] );
 
 RDXJcp  = (   (0x20..0xff)  -  ["\\] );
 
-RDXJUTF8  = (   RDXJcp+ )  >RDXJUTF80 %RDXJUTF81;
+RDXJutf8  = (   RDXJcp+ );
 
-RDXJEsc  = (   "\\"  ["\\/bfnrt] )  >RDXJEsc0 %RDXJEsc1;
+RDXJesc  = (   [\\]  ["\\/bfnrt] );
 
-RDXJHexEsc  = (     "\\u"  RDXJhex{4} )  >RDXJHexEsc0 %RDXJHexEsc1;
+RDXJhexEsc  = (     "\\u"  RDXJhex{4} );
 
-RDXJutf8esc  = (   RDXJUTF8  |  RDXJEsc  |  RDXJHexEsc );
+RDXJutf8esc  = (   RDXJutf8  |  RDXJesc  |  RDXJhexEsc );
 
 
 RDXJid128  = (   [0-9a-fA-F]+  "-"  [0-9a-fA-F]+ );
@@ -151,7 +133,7 @@ RDXJFloat  = (   (  [\-]?  (  [0]  |  [1-9]  [0-9]*  )
 
 RDXJRef  = (   RDXJid128  -  RDXJFloat )  >RDXJRef0 %RDXJRef1;
 
-RDXJString  = (   ["]  RDXJutf8esc  ["] )  >RDXJString0 %RDXJString1;
+RDXJString  = (   ["]  RDXJutf8esc*  ["] )  >RDXJString0 %RDXJString1;
 
 RDXJTerm  = (   [a-zA-Z]  [a-zA-Z0-9_]* )  >RDXJTerm0 %RDXJTerm1;
 

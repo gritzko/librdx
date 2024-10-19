@@ -22,7 +22,8 @@ fun u32 ZINTlen(u64 n) {
     return 8;
 }
 
-fun void ZINTu64feed($u8 into, u64 n) {
+fun ok64 ZINTu64feed($u8 into, u64 n) {
+    if ($len(into) < 8) return ZINTnoroom;
     if (n <= B1) {
         if (n != 0) $u8feed8(into, (u8*)&n);
     } else if (n <= B2) {
@@ -32,6 +33,7 @@ fun void ZINTu64feed($u8 into, u64 n) {
     } else {
         $u8feed64(into, &n);
     }
+    return OK;
 }
 
 fun ok64 ZINTu64drain(u64* n, $u8c from) {

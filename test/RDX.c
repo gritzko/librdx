@@ -4,7 +4,7 @@
 #include <unistd.h>
 
 #include "B.h"
-#include "RDX.h"
+#include "RDXJ.h"
 #include "TEST.h"
 
 pro(RDXtest1) {

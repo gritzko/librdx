@@ -6,7 +6,7 @@
 
 pro(RDXtest1) {
     sane(1);
-#define LEN1 8
+#define LEN1 9
     $u8c inputs[LEN1] = {
         $u8str("123"),
         $u8str("1.2345E2"),
@@ -16,6 +16,7 @@ pro(RDXtest1) {
         $u8str("{1:2,ab-3:4.5E0}"),
         $u8str("123@ab-45"),
         $u8str("[1@ab-12,1.23E0@cd-34,\"str\"@ef-56,ab-123@78-90]"),
+        $u8str("\"line\\n\\tmore\\n\""),
     };
 
     for (int i = 0; i < LEN1; ++i) {
@@ -34,7 +35,7 @@ pro(RDXtest1) {
 
         call(RDXJlexer, &state);
 
-        call(RDXJfromTLV, rdxj2idle, tlvdata);
+        call(RDXJdrain, rdxj2idle, tlvdata);
 
         FILEerr(rdxj2data);
         $testeq(inputs[i], rdxj2data);

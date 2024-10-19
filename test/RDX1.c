@@ -9,7 +9,7 @@
 #include "INT.h"
 #include "PRO.h"
 #include "RDX.h"
-#include "RDX1.h"
+#include "RDXC.h"
 #include "RDXJ.h"
 #include "TEST.h"
 
@@ -21,10 +21,10 @@ pro(RDXFtest) {
         RDXfloat c = inputs[i];
         aRDXid(id, i, i);
         aBpad(u8, tlv, 64);
-        call(RDXFc2tlv, Bu8idle(tlv), c, id);
+        call(RDXCfeedF, Bu8idle(tlv), c, id);
         RDXfloat c2 = 0;
         id128 id2 = {};
-        call(RDXFtlv2c, &c2, &id2, Bu8cdata(tlv));
+        call(RDXCdrainF, &c2, &id2, Bu8cdata(tlv));
         printf("%lf %lf\n", c, c2);
         same(c, c2);
         same(RDXtime(id), RDXtime(id2));
@@ -49,10 +49,10 @@ pro(RDXItest) {
         RDXint c = inputs[i];
         aRDXid(id, i, i);
         aBpad(u8, tlv, 64);
-        call(RDXIc2tlv, Bu8idle(tlv), c, id);
+        call(RDXCfeedI, Bu8idle(tlv), c, id);
         RDXint c2 = 0;
         id128 id2 = {};
-        call(RDXItlv2c, &c2, &id2, Bu8cdata(tlv));
+        call(RDXCdrainI, &c2, &id2, Bu8cdata(tlv));
         printf("%li %li\n", c, c2);
         same(c, c2);
         same(RDXtime(id), RDXtime(id2));
@@ -77,10 +77,10 @@ pro(RDXRtest) {
         aRDXid(c, inputs[i][0], inputs[i][1]);
         aRDXid(id, i, i);
         aBpad(u8, tlv, 64);
-        call(RDXRc2tlv, Bu8idle(tlv), c, id);
+        call(RDXCfeedR, Bu8idle(tlv), c, id);
         RDXref c2 = {};
         id128 id2 = {};
-        call(RDXRtlv2c, &c2, &id2, Bu8cdata(tlv));
+        call(RDXCdrainR, &c2, &id2, Bu8cdata(tlv));
         want(id128cmp(&c, &c2) == 0);
         same(RDXtime(id), RDXtime(id2));
         same(RDXsrc(id), RDXsrc(id2));
@@ -104,18 +104,20 @@ pro(RDXStest) {
         u8c$ c = inputs[i];
         aRDXid(id, i, i);
         aBpad(u8, tlv, 64);
-        call(RDXSc2tlv, Bu8idle(tlv), c, id);
+        call(RDXCfeedS, Bu8idle(tlv), c, id);
         id128 id2 = {};
         $u8c c2 = {};
-        call(RDXStlv2c, c2, &id2, Bu8cdata(tlv));
+        call(RDXCdrainS, c2, Bu8cdata(tlv), &id2);
         want($eq(c, c2));
         same(RDXtime(id), RDXtime(id2));
         same(RDXsrc(id), RDXsrc(id2));
         same($empty(c) ? 3 : $len(c) + 3 + 2, Bdatalen(tlv));
         aBcpad(u8, txt, 32);
-        call(RDXStlv2txt, txtidle, Bu8cdata(tlv));
+        id128 id3;
+        $u8c text = {};
+        call(RDXCdrainS, text, Bu8cdata(tlv), &id3);
         aBcpad(u8, tlv2, 32);
-        call(RDXStxt2tlv, tlv2idle, txtdata, id);
+        call(RDXCfeedS, tlv2idle, text, id);
         $testeq(Bu8cdata(tlv), tlv2data);
     }
     done;
@@ -141,8 +143,26 @@ pro(RDX1) {
     call(Bu64feed1, state.stack, 0);
     call(RDXJlexer, &state);
     aBcpad(u8, rdxj, PAGESIZE);
-    call(RDXJfromTLV, rdxjidle, tlvdata);
-    $print(rdxjdata);
+    call(RDXJdrain, rdxjidle, tlvdata);
+
+    a$dup(u8c, inputs, rdxjdata);
+    aBpad2($u8c, ins, 64);
+    while (!$empty(inputs)) {
+        u8 lit;
+        $u8c rec = {};
+        call(RDXdrain$, &lit, rec, inputs);
+        if (lit != RDX_TERM) {
+            $$u8cfeed1(insidle, rec);
+            continue;
+        }
+        $u8c correct = $dup(Blast(insbuf));
+        B$u8cpop(insbuf);
+        aBcpad(u8, merged, PAGESIZE);
+        call(RDX1merge, mergedidle, insdata);
+        $testeq(correct, mergeddata);
+        Breset(insbuf);
+    }
+
     call(FILEunmap, (voidB)testbuf);
     done;
 }
