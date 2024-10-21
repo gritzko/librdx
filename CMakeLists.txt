@@ -22,6 +22,67 @@ set(TEST_LDD_FLAGS "-g")
 set(BENCH_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -v")
 set(BENCH_LDD_FLAGS benchmark::benchmark)
 
+list(APPEND RDX_HEADERS 
+$.h
+$x.h
+01.h
+ABC.h
+ANSI.h
+AREN.h
+B.h
+BIN.h
+Bx.h
+FILE.h
+HASH.h
+HASHx.h
+HEAPx.h
+HEX.h
+HEXx.h
+INT.h
+INTx.h
+JSON.h
+JSON.rl.h
+LEX.h
+LEX.rl.h
+LSM.h
+MARK.h
+MARK.rl.h
+MARQ.h
+MARQ.rl.h
+MMAP.h
+OK.h
+PRO.h
+RDX.h
+RDXC.h
+RDXJ.h
+RDXJ.rl.h
+RDXY.h
+SHA.h
+SKIP.h
+SKIPx.h
+TEST.h
+TLV.h
+UTF8.h
+ZINT.h
+)
+
+list(APPEND RDX_SOURCES 
+JSON.c
+JSON.rl.c
+LEX.c
+LEX.rl.c
+MARK.c
+MARK.rl.c
+MARQ.c
+MARQ.rl.c
+RDXJ.c
+RDXJ.rl.c
+UTF8.c
+)
+
+add_library(rdx STATIC ${RDX_HEADERS} ${RDX_SOURCES})
+#target_link_libraries(rdx sodium)
+
 add_executable(ron64 ron64.c)
 
 add_executable(lex2rl lex2rl.c LEX.rl.c LEX.c)
