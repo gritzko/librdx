@@ -181,10 +181,25 @@ fun int64_t ZINTzagzig(u64 u) {
     return (int64_t)(half ^ mask);
 }
 
+fun ok64 ZINTi64feed($u8 into, i64 const* n) {
+    return ZINTu64feed(into, ZINTzigzag(*n));
+}
+fun ok64 ZINTi64drain(i64* n, $u8c from) {
+    u64 u;
+    ok64 o = ZINTu64drain(&u, from);
+    if (o == OK) *n = ZINTzagzig(u);
+    return o;
+}
+
 typedef double f64;
 
 fun u64 ZINTf64bits(f64 val) { return *(u64*)&val; }
 
 fun f64 ZINTf64from(u64 bits) { return *(f64*)&bits; }
+
+fun ok64 ZINTf64feed($u8 into, f64 const* n) {
+    return ZINTu64feed(into, *(u64*)n);
+}
+fun ok64 ZINTf64drain(f64* n, $u8c from) { return ZINTu64drain((u64*)n, from); }
 
 #endif
