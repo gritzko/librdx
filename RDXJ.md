@@ -24,6 +24,8 @@ RDX types come in two groups: `FIRST` and `PLEX`.
 *x-Ples* are short fixed-order collections: tuples, triples, quadruples, and so on.
 These are `1:2` or `"Alice":"Bob":"Carol"`.
 The only way to edit a tuple is to replace an element.
+A tuple can optionally be enclosed in angled brackets.
+That is only necessary if we nest tuples, e.g. `"Corned Beef" : <0.5:kg> : <3.45:EUR>`.
 
 *Linear* collections are essentially arrays. 
 As with x-ples, the relative order of elements gets preserved on copy, conversion or merge.

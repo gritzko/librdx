@@ -2,7 +2,7 @@
 
 Our goal here is to create a format and a library for data
 replication using state-of-the-art Replicated Data Types.
-Replicated Data eXchange format ([RDX][j]) is like protobuf,
+Replicated Data eXchange format RDX is like protobuf,
 but CRDT. Apart from [RPC][p] applications, one can use it for
 data storage, distributed and asynchronous data exchange and in
 other similar applications. RDX fully supports local-first,
@@ -10,143 +10,208 @@ offline-first and peer-to-peer replication, with no central
 server required, as any two *replicas* can merge their data. By
 installing RDX data types as merge operators in an LSM database
 (leveldb, RocksDB, pebble, Cassandra, etc) one can effectively
-have a CRDT database (which [Chotki](./ARCHITECTURE.md) basically is).
+have a CRDT database (which [Chotki][c] basically is).
 
-We will implement *unified* CRDTs able to synchronize using
+RDX employs *unified* CRDTs able to synchronize using
 operations, full states or deltas. Types may imply [causal
 consistency][x] of updates in matters of performance, but their
 correctness does not depend on that. RDX data types are fully
 commutative, associative and idempotent. Hence, immune to
 reordering or duplication of updates.
 
-The default syncing protocol (not described here) generally
-relies on [version vectors][v]. Do not confuse that with [vector
-clocks][r] used by Amazon Dynamo and similar systems. While
-there are strong parallels, inner workings of VV and VC are not
-identical.
-
 ##  Data types
 
-Our objects can have fields of the following CRDT types. Each
-type is named by a letter. 
+RDX has five primitive types (aka `FIRST`):
 
- 1. last-write-wins variables (`I` for int64, `S` for string, `F`
-    is float64, and `R` is [id64](./id.go#12))
- 2. counters, `N` increment-only uint64 and `Z` two-way int64
- 3. maps (M), like key-value maps, where keys and values are `FIRST`
- 4. sets (E), contain arbitrary `FIRST` elements
- 5. arrays (L) of arbitrary `FIRST` elements
- 6. version vectors (V)
- 7. codegen
+ 1. Float: 64 bit IEEE known as `double` in most languages,
+ 2. Integer: `int64_t` little-endian, two's complement,
+ 3. Reference: 128-bit identifier, a Lamport time stamp,
+ 4. String: UTF-8,
+ 5. Term: `true`, `null` or suchlike.
 
-The format and the merge rules are as follows.
+On top of that, there are four `PLEX` types which allow for 
+arbitrary nesting:
+
+ 1. x-Ples (tuples, triples, quadruples, etc),
+ 2. Linear collections (i.e. arrays),
+ 3. Eulerian collections (sets, maps), and 
+ 4. multipleXed collections (counters, version vectors).
+
+The primary RDX form is the binary type-length-value (TLV)
+format explained here. For explanatory purposes we will also 
+use the "JSON-ish" [JRDX][j] text format specified elsewhere.
+
+To specify data types fully, we describe each type's bitwise 
+format, its ordering and merge rules and all the edit operations 
+supported by it.
 
 ### `FIRST` Float, Integer, Reference, String, Term
 
-The last-write-wins register is the simplest data type to
+The last-write-wins register is the simplest CRDT data type to
 implement. For each LWW field, we only need the latest "winner"
-op containing the logical timestamp and the value per se. A
-logical timestamp is a pair `{rev, src}` where `rev` is the
-revision number and `src` is the id of the author. For example,
-let's see how a bare (no TLV envelope) `I` int64 `-11` would
-look like, assuming it is the 4th revision of the register
-autored by replica #5. The TLV would look like: `32 08 05 15`
-(hex) where `0x15` is a [zig-zag][g] encoded and zipped `-11`,
-while `32 08 05` is a tiny [ToyTLV](../protocol/tlv.go) record for a zipped pair
-of ints, 4 (signed, zig-zagged, so `08`) and 5 (unsigned, so
-`05`). If we add a ToyTLV envelope, that becomes `69 04 32 08 05
-15` (type of record `I`, length 4, then the bare part).
+value containing the logical timestamp and the value per se.
 
-String `S` values are simply UTF-8 strings. Int64 `I`, float64
-`F` and id64 `R` values get compressed using [`zip_int`](./zipint.go)
-routines. Overlong encodings are forbidden both for strings and
+A logical timestamp is a pair `{rev, src}` where `rev` is the
+revision number and `src` is the id of the author. Each part is 
+limited to 64 bits (uint64_t, little-endian). Another name 
+for this construct is "Lamport timestamp". 
+
+Now, let's see how a bare (no TLV envelope) `I` int64 -11
+would look like, assuming it is the 4th revision of the register
+authored by replica #5. The integer value would look like 
+`15` (hex). Here, the number -11 is [zig-zag][g] encoded and 
+reduced (zipped) to its only one meaningful byte, 21 or 0x15.
+The TLV of the timestamp would look like `02 08 05` which
+is a length-prefixed record containing a zipped pair
+of ints, 4 (signed, zig-zagged, so `08`) and 5 (unsigned, so `05`). 
+
+The resulting TLV would look like `69 04 02 08 05 15`, where
+
+ 1. `69` is `i`, the record type Integer (T of TLV),
+ 2. `04` is the length (L of TLV),
+ 3. `02 08 05` is the timestamp, as explained above, and
+ 4. `15` is the value itself.
+
+TLV records for all five `FIRST` types follow this format.
+What differs is the type byte and value serialization.
+
+String type is `S`, while values are simply UTF-8 strings. 
+Term `T` is also a string except it is restricted to Base64.
+'F' float records compact the value by byte-flipping and 
+zipping it, so round floats like `0.0` or `0.25` take one 
+byte (see `zip_int`/`ZINT` routines).
+`R` reference values are timestamps, so packed as a zip-pair 
+of a signed and unsigned integers.
+
+Overlong encodings are forbidden both for strings and
 for zip-ints! 
-
-`T` ops have a timestamp, but no value. That is the equivalent
-of a `nil` or `void` value. Those are used as placeholders in
-various cases.
 
 The text representation for `FIRST` types is as follows:
 
- 1. `F` the e-notation, JSON-like
- 2. `I` signed integer notation,
- 3. `R` 5-8-3 hex notation (e.g. `c187-3a62-12`)
- 4. `S` double-quoted JSON-like, e.g. "Sarah O\'Connor"
- 5. `T` null
+ 1. `F` the standard e-notation, e.g. `12.34E+5`,
+ 2. `I` signed integer notation, e.g. `-123`,
+ 3. `R` 5-8-3 hex notation, e.g. `c187-3a62-12`,
+ 4. `S` double-quoted JSON-like, e.g. `"Sarah O'Connor"`,
+ 5. `T` unquoted Base64 string `[0-9a-zA-Z_~]`.
 
-Merge rules for LWW are straighforward:
+The only operation on a LWW register is to overwrite the value.
+The new value should have a higher revision number.
 
- 1. higher revision wins
- 2. in case of a tie, higher value wins (like bytes.Compare())
- 3. in case of a tie, who cares, but higher replica id wins
+The ordering rules are necessary for two reasons. First, to 
+order `FIRST` values within a container type, e.g. keys in a map.
+Second, if two competing values have the same revision number,
+the tie is resolved using the value-order.
+The `FIRST` *value-order* is as follows:
 
-### `NZ` Counters
+ 1. for values of differing types, order alphabetically 
+    (`F`, `I`, `R`, `S`, `T`),
+ 2. for values of the same type:
+     1. `F` compare values numerically,
+     2. `I` also numerically,
+     3. `R` order by the value, then by the author,
+     4. `S` alphanumeric, as in `strcmp(3)`,
+     5. `T` alphanumeric.
 
-`N` are increment-only counters. Their TLV state is a sequence
-of `T` records containing zipped uint64 pairs {val,src}, the
-counter value and source replica id. As the counter is inc-only,
-we may use the value itself as a revision number. The merge
-operator is per-replica `max`, as later versions are greater.
-The native value is the sum of all replica values (sum of
-contributions).
+Merge rules for LWW are straightforward:
 
-`Z` are two-way counters (inc/dec). Their TLV format is a
-sequence of `I` records each having `{rev,src}` metadata as
-described in the `FIRST` section. One record corresponds to one
-source, per-source merge rules are same as LWW. The native value
-is the sum of all `I` values.
+ 1. higher revision wins (*revision-order*),
+ 2. in case of a tie, use the *value-order* (higher wins),
+ 3. in case of a tie, use the *author-order* (higher replica id wins),
+ 4. in case of a tie, we look at the same value on both sides.
 
-### `E` Eulerian
+ This cascade of tie resolution we call the *LWW-order*.
 
-Generic sets containing any `FIRST` elements. The TLV format is
-a sequence of enveloped FIRST records. It can contain records
-with negative revision numbers. Those are tombstones (deleted
+### `PLEX` x-Ples, Linear, Eulerian and multipleXed collections
+
+Collection types allow for arbitrary nesting and bundling of 
+`FIRST` values and other collections.
+
+#### Ples 
+
+*x-Ples* are short fixed-order collections: tuples, triples, quadruples, and so on.
+Those can look like `1:2`, a tuple of integers.
+The corresponding TLV coding is `70 09 00 69 02 00 02 69 02 00 04` assuming zero 
+timestamps on the tuple and each of the integers.
+A triple of stings would look like `"Alice":"Bob":"Carol"` in J-RDX.
+In TLV, that would be `70 16 73 06 00 41 6c 69 63 65 73 04 00 42 6f 62 ...`.
+Again, all timestamps are zero.
+
+The only way to edit a tuple is to replace an element.
+The types may not match, e.g. we can replace `I` with `S`.
+The new version should have a higher revision number.
+
+Merge rules for a tuple are simple as each element has a fixed spot.
+We compare two versions of a tuple element by element.
+For each spot, we do an LWW comparison to determine the winner.
+The result is the merged tuple.
+
+Note that for `FIRST` types we compare two versions to pick the winner,
+while for `PLEX` types we recur into the collection to merge it.
+
+When we value-compare two tuples, the value order is defined by their first elements only.
+That way, the first element serves as a *key* for the tuple, e.g. 
+`{fist_name:"Sarah", last_name:"Connor"}` is correct.
+The order of `P` tuples in a `E` set is defined by their first element, a `T` key.
+
+#### Linear
+
+*Linear* collections are essentially arrays. 
+As with x-ples, the relative order of elements gets preserved on copy, conversion or merge.
+But differently from x-ples, arrays can have elements inserted or removed.
+We can edit `[1, 3, 4, 5]` to become `[1, 2, 3, 4]`.
+So the order is preserved, but not fixed.
+
+The TLV format is a `L` record containing a sequence of `FIRST` or `PLEX` records.
+The order of the sequence is a *weave*, i.e. ops go in the same
+order as they appear(ed) in the resulting array. Deleted ops 
+change to tombstones, as their id flips to negative.
+
+The underlying CRDT algorithm is the Causal Tree.
+It is also known as Replicated Growable Array and under other names.
+That means, each edit mentions explicitly the id of the location it applies to.
+The merging procedure follows the tree-traversal logic. Any
+change to an array must have a form of *subtrees*, each one
+arranged in the same weave order, each one prepended with a `T`
+op specifying its attachment point in the edited tree.
+The particulars of this algorithm are described separately.
+
+#### Eulerian
+
+*Eulerian* collections are sets, maps and suchlike.
+The order of their elements is not preserved.
+Simply put, they always go sorted: `{"A", "B", "C"}`.
+Set elements can be inserted, removed or replaced.
+
+It can contain records with negative revision numbers. 
+Those are tombstones (deleted
 entries). For example, `I{4,5}-11` from the `FIRST` example
 would go as `69 04 32 08 05 15`. Then, if replica #3 would want
 to remove that entry, it will issue a tombstone op `I{-5,3}-11`
 or `69 04 32 09 03 15`. Here, the version number changes from
 `08` to `09` or 4 to -5, the author changes to 3.
 
-Within a set, the ops are sorted in the *value order*. Namely,
-if the type differs, they go in the alphabetical order (`F`,
-`I`, `R`, `S`, `T`). If the type is the same, they go in the
-ascending order, as per `strcmp` or `bytes.Compare`. That way,
-merging multiple versions of a set only requires one parallel
-pass of those, no additional allocation or sorting, very much
-like [mergesort][m] works.
+Merging two versions of a set only requires one parallel
+pass of those. That is very similar to a merge sort algorithm.
+At each step, if the value-order of elements is the same (equal),
+the merge algorithm recurs into the element. If elements differ,
+the lesser one is included into the resulting collection.
 
-The text representation of a set is like `{1,2,3}` where 
-`1,2,3` are `FIRST` elements of the set.
+#### multipleXed
 
-### `M` Mapping
+*Multiplexed* collections are version vectors or counters.
+In such a collection, each author's contribution is kept separately.
+There is at most one contribution from each author: `(40@a1ec-3, 20@b0b-1)`.
+Those can be added or updated.
 
-Generic maps, mapping any `FIRST` value to any other `FIRST`
-value. The TLV format is a sequence of enveloped key-value op
-pairs. Any update should also contain the affected key-value
-pairs. Deleted entries might have `T` values (the key is
-present, the value is null) or the key might have a negative
-revision (no such key present).
-
-Pairs are sorted in the value-order of their keys. When merging
-two pairs having an identical value of their keys, both the key
-and the value ops are merged according to the LWW rules. As with
-`E` sets, this only requires one parallel pass of the versions.
-
-The text representation for a map is like `{4:null, "key":"value"}`
+The TLV representation is an `X` record containing `FIRST` and/or `PLEX`
+element records.
 
 ### `L` Linear
 
 Generic arrays store any `FIRST` elements. Internally, `L` are
 Causal Trees (also known as Replicated Growable Arrays, RGAs).
-The TLV format is a sequence of enveloped FIRST ops. The
-order of the sequence is a *weave*, i.e. ops go in the same
-order as they appear(ed) in the resulting array. Deleted ops 
-change to tombstones, same as E.
+The TLV format is a sequence of enveloped FIRST ops. 
 
-The merging procedure follows the tree-traversal logic. Any
-change to an array must have a form of *subtrees*, each one
-arranged in the same weave order, each one prepended with a `T`
-op specifying its attachment point in the edited tree.
 
 Deletions look like `T` ops with negative revision numbers. As
 an example, suppose we have an array authored by #3 `I{1,3}1
@@ -155,70 +220,6 @@ first entry. Then, it issues a patch `T{1,3}T{-4,4}` that merges
 to produce `I{1,3}1 T{-4,4} I{2,3}2 I{3,3}3` or `[2,3]`.
 
 The text representation for an array is like `[1,2,3]`
-
-### `V` Version vector
-
-[Version vector][v] is a way to track dataset versions in a
-causally ordered system. It is a vector of `seq` numbers, where
-each `seq` is the version of the state as seen by each
-respective replica. Alternatively, that is a map `{src: seq}`,
-where `src` is the replica `id`. It is assumed, that we received
-updates from replica `src` all the way up to `seq`.
-
-Bare TLV for a version vector is a sequence of `V` records (yes,
-`V` nested in `V`) each containing one id64 as a zipped seq-src
-pair (see ZipUint64Pair). The sequence is sorted in the
-ascenting order of record bytes, like `bytes.Compare()`.
-
-The merge algorithm for version vectors is simple: take the
-maximum `seq` for each `src`. Note that `seq=0` is distinct from
-having no record.
-
-##  Data type implementation
-
-To fully implement an RDT one has to implement these 10
-functions. The function name starts with the type name letter,
-here we imply `I` last-write-wins int64.
-
-````go
-    // Xvalid verifies validity of a bare TLV record.
-    // Any other function may assume the input is valid.
-    func Ivalid(tlv []byte) bool 
-
-
-    // Xstring converts a TLV representation into a string.
-    func Istring(tlv []byte) (txt string) 
-
-    // Xparse converts a string back into bare TLV.
-    // Must round-trip with Xstring.
-    func Iparse(txt string) (tlv []byte) 
-
-
-    // Xtlv converts the native type into a TLV, zero metadata.
-    func Itlv(i int64) (tlv []byte)
-
-    // Xnative converts TLV into the native value.
-    // Must round-trip with Xtlv.
-    func Inative(tlv []byte) int64
-
-
-    // Xdelta produces a TLV value that, once merged with
-    // the old TLV value using Xmerge, will produce the new
-    // native value using Xnative. Returns nil if none needed.
-    // This function we need to *save changes* from a native
-    // object/struct into RDX.
-    func Idelta(tlv []byte, new_val int64) (tlv_delta []byte) 
-
-    // Xmerge CRDT-merges several bare TLV values into the
-    // resulting one. For example, given two I records
-    // {3,8}15 and {4,1}44 will return {4,1}44 as version 4 is
-    // newer than version 3.
-    func Imerge(tlvs [][]byte) (tlv []byte) 
-
-    // Xdiff produces a TLV delta given a TLV value and a
-    // version vector of suspected changes (may skip this).
-    func Idiff(tlv []byte, vvdiff VV) (tlv []byte)
-````
 
 ##  Serialization format
 
@@ -277,8 +278,10 @@ Revisions are serialized as tiny `ZipIntUint64Pair`s.
 [x]: https://en.wikipedia.org/wiki/Causal_consistency
 [v]: https://en.wikipedia.org/wiki/Version_vector
 [r]: https://www.educative.io/answers/how-are-vector-clocks-used-in-dynamo
-[j]: https://en.wikipedia.org/wiki/RDX
+[d]: https://en.wikipedia.org/wiki/RDX
 [p]: https://en.wikipedia.org/wiki/Remote_procedure_call
 [g]: https://protobuf.dev/programming-guides/encoding/
 [b]: https://en.wikipedia.org/wiki/LEB128
 [m]: https://en.wikipedia.org/wiki/Merge_sort
+[c]: https://github.com/drpcorg/chotki
+[j]: ./JRDX.md
