@@ -1,11 +1,9 @@
 #include "LSM.h"
 
-#include <assert.h>
-#include <stdio.h>
 #include <unistd.h>
 
 #include "B.h"
-#include "FILE.h"
+#include "LSM.h"
 #include "OK.h"
 #include "TEST.h"
 #include "TLV.h"
@@ -52,12 +50,14 @@ pro(LSM0) {
     for (int i = 0; i < 5; ++i)
         call(TLVfeedkv, pad2idle, 'K', kv2[i][0], kv2[i][1]);
 
-    aBcpad($u8c, lsm, 4);
-    call(LSMmore, lsmbuf, pad1data, alpha);
-    call(LSMmore, lsmbuf, pad2data, alpha);
+    aBpad2($u8c, lsm, 4);
+    call(HEAP$u8cpushf, lsmbuf, ($u8c*)pad1data, alpha);
+    call(HEAP$u8cpushf, lsmbuf, ($u8c*)pad2data, alpha);
+
+    call(LSMsort, lsmdata, alpha);
 
     aBcpad(u8, txt, 1024);
-    call(LSMmerge, txtidle, lsmbuf, alpha, latest);
+    call(LSMmerge, txtidle, lsmdata, alpha, latest);
 
     a$dup(u8c, res, txtdata);
     u8 n = '0';

@@ -38,9 +38,9 @@ typedef $u8c RDXterm;
 #define RDXtime(t) ((t)._64[1])
 #define RDXsrc(t) ((t)._64[0])
 
-#define X(M, name) M##$u8c##name
-#include "HEAPx.h"
-#undef X
+// #define X(M, name) M##$u8c##name
+// #include "HEAPx.h"
+// #undef X
 
 typedef ok64 rdxnext(u8c$ next, $u8c input);
 

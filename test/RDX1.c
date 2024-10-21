@@ -1,6 +1,3 @@
-
-#include "RDX1.h"
-
 #include <unistd.h>
 
 #include "01.h"
@@ -11,6 +8,7 @@
 #include "RDX.h"
 #include "RDXC.h"
 #include "RDXJ.h"
+#include "RDXY.h"
 #include "TEST.h"
 
 pro(RDXFtest) {
@@ -158,7 +156,7 @@ pro(RDX1) {
         $u8c correct = $dup(Blast(insbuf));
         B$u8cpop(insbuf);
         aBcpad(u8, merged, PAGESIZE);
-        call(RDX1merge, mergedidle, insdata);
+        call(RDXYmergeFIRST, mergedidle, insdata);
         $testeq(correct, mergeddata);
         Breset(insbuf);
     }

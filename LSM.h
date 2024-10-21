@@ -25,26 +25,25 @@ fun pro(LSMmore, B$u8c lsm, $u8c x, $u8cmpfn cmp) {
     // call($$u8cfeed1, B$u8cidle(lsm), x);
     memcpy(lsm[2], x, sizeof($u8c));
     B$u8cidle(lsm)[0]++;
-    HEAP$u8cupf(B$u8cdata(lsm), cmp);
+    HEAP$u8cupf(lsm, cmp);
     done;
 }
 
-fun pro(LSMnext, $u8 into, B$u8c lsm, $u8cmpfn cmp, LSMmerger mrg) {
+fun pro(LSMnext, $u8 into, $$u8c lsm, $u8cmpfn cmp, LSMmerger mrg) {
     sane($ok(into) && Bok(lsm) && cmp != nil && mrg != nil);
     $u8c next = {};
     aBpad2($u8c, in, 64);
-    $u8c$ from = B$u8cdata(lsm);
 
     do {
-        call(TLVdrain$, next, **from);
+        call(TLVdrain$, next, **lsm);
         call($$u8cfeedp, inidle, &next);
-        if ($empty(**from)) {
-            $u8cswap($head(from), $last(from));
-            --$term(from);
-            if ($empty(from)) break;
+        if ($empty(**lsm)) {
+            $u8cswap($head(lsm), $last(lsm));
+            --$term(lsm);
+            if ($empty(lsm)) break;
         }
-        HEAP$u8cdownf(from, cmp);
-    } while (0 == cmp($head(from), &next));
+        HEAP$u8cdownf(lsm, cmp);
+    } while (0 == cmp($head(lsm), &next));
 
     if ($len(indata) == 1) {
         call($u8feed, into, next);
@@ -54,9 +53,15 @@ fun pro(LSMnext, $u8 into, B$u8c lsm, $u8cmpfn cmp, LSMmerger mrg) {
     done;
 }
 
-fun ok64 LSMmerge($u8 into, B$u8c lsm, $u8cmpfn cmp, LSMmerger mrg) {
-    ok64 o = OK;
-    while (o == OK && !$empty(B$u8cdata(lsm))) {
+fun ok64 LSMsort($$u8c lsm, $u8cmpfn cmp) {
+    $sort(lsm, cmp);
+    return OK;
+}
+
+fun ok64 LSMmerge($u8 into, $$u8c lsm, $u8cmpfn cmp, LSMmerger mrg) {
+    ok64 o = LSMsort(lsm, cmp);
+    if (o != OK) return o;
+    while (o == OK && !$empty(lsm)) {
         o = LSMnext(into, lsm, cmp, mrg);
     }
     return o;
