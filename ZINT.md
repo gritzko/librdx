@@ -11,7 +11,7 @@ If the flag is 1, there is one more byte; flag 0 means it is the last byte.
 ABC is TLV-centric, so there is no need for LEB128.
 Normally, the length is already mentioned in the TLV header.
 
-  - `ZINTu64feed/drain` packs an integer skipping the leading zero bytes,
+  - `ZINTu64feed/drain` packs an integer skipping the upper zero bytes,
   - `ZINTu128feed/drain` packs a pair of ints, each one taking 1,2,4 or 8 bytes,
   - `ZINTi64feed/drain` packs a signed integer using the zig-zag coding,
   - `ZINTf64feed/drain` packs a float (integers and binary fractions pack well).
