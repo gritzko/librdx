@@ -4,11 +4,18 @@ RDX is a format and a library for data replication using state-of-the-art Replic
 Replicated Data eXchange format RDX is like [protobuf][g], but CRDT. 
 RDX can be used for data storage, distributed and asynchronous data exchange and in other applications. RDX fully supports local-first, offline-first and peer-to-peer replication.
 No central server is required, as RDX supports versioning.
-That way, any two *replicas* can merge their changes.
+That way, any two *replicas* can merge their changes, like `git` does.
 RDX data types can serve as merge operators in an LSM database (leveldb, RocksDB, pebble, Cassandras).
 That way, one can effectively have a CRDT database for free (which [Chotki][c] basically is).
 
-RDX employs *unified* CRDTs able to synchronize with 
+RDX has a binary/[TLV][t] and a text/[JSON-like][j] variants.
+
+The difference from [Automerge][a] JSON CRDT is the change of direction:
+
+  * Automerge adapted CRDTs to implement "mergeable JSON", while
+  * RDX retrofitted JSON and LSM semantics to make them fit CRDT.
+
+RDX employs *unified* CRDTs able to synchronize using 
 
  1. operations and op logs,
  2. full states or
@@ -19,11 +26,10 @@ Still, their correctness does not depend on that.
 RDX data types are fully commutative, associative and idempotent.
 Hence, RDX is fully immune to reordering or duplication of updates.
 
-RDX has a binary/TLV and a text/JSON-like variants.
 
 ##  Data types
 
-RDX has five primitive `FIRST` types:
+RDX has five "primitive" `FIRST` types:
 
  1. Float: 64 bit IEEE float known as `double` in most languages,
  2. Integer: `int64_t` little-endian, two's complement,
@@ -31,12 +37,12 @@ RDX has five primitive `FIRST` types:
  4. String: UTF-8,
  5. Term: `true`, `null` and suchlike.
 
-On top of that, there are four `PLEX` types which allow for 
+On top of that, there are four `PLEX` "bracket" types which allow for 
 arbitrary nesting:
 
- 1. x-Ples (tuples, triples, quadruples, etc),
- 2. Linear collections (i.e. arrays),
- 3. Eulerian collections (sets, maps), and 
+ 1. x-Ples (tuples: doubles, triples, quadruples, etc),
+ 2. Linear collections (arrays, editable texts),
+ 3. Eulerian collections (ordered sets, maps), and 
  4. multipleXed collections (counters, version vectors).
 
 The primary RDX format is the binary type-length-value (TLV) one explained here.
@@ -50,6 +56,7 @@ To specify data types fully, we describe each type's
  3. edit operations supported, and
  4. merge rules.
 
+
 ### `FIRST` Float, Integer, Reference, String, Term
 
 A last-write-wins register is the simplest CRDT data type to implement.
@@ -59,17 +66,24 @@ An RDX element of any type has a logical timestamp attached.
 So, picking the latest revision is straightforward.
 
 A logical timestamp, also known as Lamport timestamp, is a pair `rev, src`, where
-  * `rev` is the revision number (in our case, 64 bits, signed),
+  * `rev` is the revision number (in our case, 64 bits, unsigned),
   * `src` is the id of the author (64 bits, unsigned).
 
-The revision number can be negative for *tombstones*, i.e. deleted elements.
+The least significant bit of the revision number is used as a *tombstone* flag.
+As in many MVCC and distributed systems, deleted elements can stay around.
+To signal the element is no longer effective, its revision number becomes odd.
+Any normal revision numbers are even, 0 being the default value.
+Naturally, revision numbers must increase monotonically.
+Other than that, RDX does not prescribe any particular logical clock algorithm.
 
 Now, let's see how an  `I` register would look like in TLV.
-Suppose, the `int64` value is -11 and it is the 4th revision authored by replica #5. 
+RDX uses the [ToyTLV][t] format to serialize all data.
+Every element is a ToyTLV key-value record, revision id being the "key".
+Suppose, the `int64` value is -11 and it is revision 4 authored by replica #5. 
 
  1. `I` values are [zig-zag][g] coded, so -11 becomes 21 or `15` in hex,
- 2. the timestamp is a pair 4,5, but the revision is zig-zag coded, so `08 05`,
- 3. as a ToyTLV key-value record, that becomes `69 04 02 08 05 15`,
+ 2. the timestamp is a pair 4,5, so `04 05`,
+ 3. as a ToyTLV key-value record, that becomes `69 04 02 04 05 15`,
     where `69` or "i" is the record type, `04` is the record length
     and `02` is the key/timestamp length, value length thus being 4-1-2=1.
 
@@ -83,6 +97,7 @@ What differs is the record type and value serialization.
   * `S` string records payloads are simply raw UTF-8 strings; 
   * `T` payloads are Base64 strings.
 
+`PLEX` types use the same [TLKV][t] format, value being all their nested elements.
 Overlong encodings are forbidden both for UTF-8 strings and for zip-ints.
 There must be only one correct way to serialize a value.
 
@@ -123,10 +138,10 @@ Merge rules for LWW are straightforward:
 
 Collection types allow for arbitrary bundling and nesting of `FIRST` values and other collections.
 
-#### Ples 
+#### x-Ples 
 
-*x-Ples* are short fixed-order collections: tuples, triples, quadruples, and so on.
-Those can be as simple as `1:2`, a tuple of integers.
+*Tuples* are short fixed-order collections: couples, triples, quadruples, and so on.
+Those can be as simple as `1:2`, a couple of integers.
 The corresponding TLV coding is `70 09 00 69 02 00 02 69 02 00 04` assuming zero 
 timestamps on the tuple and each of the integers.
 A triple of stings would look like `"Alice":"Bob":"Carol"` in J-RDX.
@@ -161,15 +176,15 @@ The revision id of the key is always the same as the one of the tuple.
 
 The merge rules for a tuple are simple as each element has a fixed spot.
 We compare two versions of a tuple element by element.
-For each spot, if both versions are `PLEX` elements of a matching type and id, we recur inside it.
+For each spot, if both versions are `PLEX` elements of a matching type and id, we recurse inside it.
 Otherwise, we do an LWW order comparison to determine the winner.
 The result is the merged tuple.
 
 As an object of a merge, a tuple behaves like other `PLEX` types.
-If the other version is also a tuple with the same revision id, the merge recurs into both.
+If the other version is also a tuple with the same revision id, the merge recurses into both.
 In other cases, it is treated same as `FIRST` types, based on the LWW order.
 
-#### Linear
+### Linear
 
 *Linear* collections are essentially arrays. 
 As with x-ples, the relative order of elements gets preserved on edit, conversion or merge.
@@ -204,15 +219,15 @@ and specifying its attachment point in the edited tree.
 The particulars of this algorithm are described separately.
 
 As an object of a merge, `L` behaves as other `PLEX` types.
-If merged with a version of itself, the algorithm recurs (CT CRDT).
+If merged with a version of itself, the algorithm recurses (CT CRDT).
 Otherwise, it is treated according to the LWW merge rules. 
 
-#### Eulerian
+### Eulerian
 
 *Eulerian* collections are sets, maps and suchlike.
 The order of their elements is not preserved.
 Simply put, they always go sorted: `{"A", "B", "C"}`.
-A map is a set containing tuples.
+A map is a set containing key-value couples.
 
 #### Ordering
 
@@ -227,11 +242,11 @@ Elements of a set use the value order.
 
 Set elements can be inserted, removed or replaced.
 
-Removal is done by a tombstone, a record with a negative revision number. 
-For example, `-11@5-8` from the `FIRST` example would go as `69 04 02 08 05 15`.
+Removal is done by a tombstone, a record with an odd revision number. 
+For example, `-11@5-4` from the `FIRST` example would go as `69 04 02 04 05 15`.
 Then, if replica #3 would want to remove that entry, it will issue a tombstone.
-That would be `-11@3-9` or `69 04 02 09 03 15`.
-Here, the version number changes from `08` to `09` or 4 to -5, the author changes to 3.
+That would be `-11@3-5` or `69 04 02 05 03 15`.
+Here, the version number changes from `04` to `05`, the author changes to 3.
 The tombstone will take the place of the original element in the set.
 
 Replacement is done by adding an element that is equal in the value-order,
@@ -243,10 +258,10 @@ Or it can be removed by `remarks @b0b-1` (a tombstone).
 
 #### Merging
 
-Merging two versions of a set is very similar to the merge sort algorithm.
-It only requires one parallel pass of both.
+Merging two versions of a set is very similar to the [merge sort][m] algorithm.
+It only requires one parallel pass of both collections.
 At each step, if the value-order of elements is the same (equal),
-the merge algorithm recurs into the elements. If elements differ,
+the merge algorithm recurses into the elements. If elements differ,
 the lesser one is included into the resulting collection and the 
 respective iterator is advanced.
 
@@ -275,30 +290,19 @@ Edits are done according to the type's rules.
 
 #### Merging
 
-A parallel pass.
-Same as in `E`, but in the author order.
+`X` merge is done by a parallel pass.
+Same as in `E`, but in the author id order.
 
 Elements get merged normally.
-For non-matching types, LWW-order.
-Otherwise, according to the type's rules.
+For non-matching types, LWW-order determines the winner.
+Otherwise, the merge is done according to the type's rules.
 
-##  Serialization
-
-We use the [ToyTLV][t] format for enveloping/nesting all data.
-That is a bare-bones type-length-value format with zero semantics.
-What we put into ToyTLV envelopes is integers, ids, strings, or floats.
-Strings are UTF-8, no surprises.
-Floats are taken as raw bits and treated same as integers. 
-References and logical timestamps get stored as a compressed pair of integers.
-Differently from [protobuf][g] and others, integers are not [LEB128][b] coded. 
-To unify things, RDX uses [ZipInt][z] routines for efficient TLV varints.
-
-
+[a]: http://google.com/?q=automerge
 [b]: https://en.wikipedia.org/wiki/LEB128
 [c]: https://github.com/drpcorg/chotki
 [d]: https://en.wikipedia.org/wiki/RDX
 [g]: https://protobuf.dev/programming-guides/encoding/
-[j]: ./JRDX.md
+[j]: ./RDXJ.md
 [m]: https://en.wikipedia.org/wiki/Merge_sort
 [p]: https://en.wikipedia.org/wiki/Remote_procedure_call
 [r]: https://www.educative.io/answers/how-are-vector-clocks-used-in-dynamo
