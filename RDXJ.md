@@ -1,13 +1,14 @@
-  # J-RDX text format (RDX-jsonish)
+  # RDX-J text format (RDX-jsonish)
 
-J-RDX is a human-readable variant of RDX.
+RDX-J is a human-readable variant of RDX, the Replicated Data eXchange format.
 The [binary RDX][r] variant is [TLV-based][t].
-J-RDX is a superset of [JSON][j] that anyone familiar with JSON can easily read.
-But, J-RDX has somewhat deeper foundations than JSON.
-Naturally, there is 1:1 mapping between TLV-RDX and J-RDX.
+RDX-J is a superset of [JSON][j] that anyone familiar with JSON can easily read.
+Naturally, there is 1:1 mapping between RDX-TLV and RDX-J.
 
-RDX types come in two groups: `FIRST` and `PLEX`.
+RDX-J has somewhat deeper foundations than JSON.
+It has a formal mutation semantics, i.e. edits, merges and deltas.
 
+RDX element types come in two groups: `FIRST` and `PLEX`.
 `FIRST` types are basic atomic building blocks: 
  1. Float `12.34E+5` (64-bit),
  2. Integer `123` (64-bit signed),
@@ -21,15 +22,15 @@ RDX types come in two groups: `FIRST` and `PLEX`.
  3. Eulerian `{false, true}` and
  4. multipleXed `(1@b0b-0, 2@a1ec-3)` collections.
 
-*x-Ples* are short fixed-order collections: tuples, triples, quadruples, and so on.
+*x-Ples* or *tuples* are short fixed-order collections: couples, triples, quadruples, and so on.
 These are `1:2` or `"Alice":"Bob":"Carol"`.
 The only way to edit a tuple is to replace an element.
 A tuple can optionally be enclosed in angled brackets.
 That is only necessary if we nest tuples, e.g. `"Corned Beef" : <0.5:kg> : <3.45:EUR>`.
 
 *Linear* collections are essentially arrays. 
-As with x-ples, the relative order of elements gets preserved on copy, conversion or merge.
-But differently from x-ples, arrays can have elements inserted or removed.
+As with tuples, the relative order of elements gets preserved on copy, conversion or merge.
+But differently from tuples, arrays can have elements inserted or removed.
 We can edit `[1, 3, 4, 5]` to become `[1, 2, 3, 4]`.
 So the order is preserved, but not fixed.
 
@@ -38,10 +39,15 @@ The order of their elements is not preserved.
 Simply put, they always go sorted: `{"A", "B", "C"}`.
 Set elements can be inserted, removed or replaced.
 
-*Multiplexed* collections are version vectors or counters.
+*Multiplexed* collections are version vectors, counters and suchlike.
 In such a collection, each author's contribution is kept separately.
-There is at most one contribution from each author: `(40@a1ec-3, 20@b0b-1)`.
-Those can be added or updated.
+There is at most one element contributed by each author: `(20@b0b-1, 40@a1ec-3)`.
+Elements can be inserted or updated by the respective author.
+
+Note the `@` notation.
+Every RDX element, `FIRST` or `PLEX`, has a revision id attached.
+A revision id is a 128-bit logical time stamp, same as `R`.
+The author identifier takes 64 bits, another 64 is the revision number ("time").
 
  ## Nesting
 
@@ -54,17 +60,21 @@ Sets can host tuples or arrays and vice-versa:
 `{absent:["Bob","Carol"], present:["Alex"]}`, 
 `[{name:"Alex",age:32}, {name:"Bob",age:40}]` and so on.
 
-As you may see, any JSON document is a valid J-RDX.
-Except maybe for revision-related `R` and `M`, J-RDX primitives are same as JSON has or even simpler.
-The trick is, they combine better.
+As you may see, any JSON document is a valid RDX-J.
+Except maybe for revision-related `R` and `X`, RDX-J constructs are same as JSON has or even simpler.
+The trick is, they combine better!
 
  ## Revisioning
 
 Note that each `FIRST` or `PLEX` element *can* be `@` stamped with a 128-bit revision id.
-RDX is a versioned data format, so every element is versioned too, e.g. `(40@a1ec-3, 20@b0b-1)`.
+RDX is a versioned data format, so every element is versioned too, e.g. `(20@b0b-1, 40@a1ec-3)`.
 In the example above, `a1ec` made three edits to the counter contributing 40. 
 `b0b` made one contributing 20. 
 That resulted in the counter value of 60.
+Now suppose we merge that with `(25@b0b-2, 32@a1ec-2)`
+The first version of the counter has a newer version from `a1ec`.
+The other version has newer data from `b0b`.
+The result would be `(25@b0b-2, 40@a1ec-3)` and the counter value is now 65.
 
 We can merge versions of an RDX object or produce a patch for any two of them.
 Revision control is the main feature of RDX.
