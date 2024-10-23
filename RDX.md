@@ -1,10 +1,10 @@
 #   Replicated Data eXchange (RDX CRDT) library
 
-RDX is a format and a library for data replication using state-of-the-art Replicated Data Types.
-Replicated Data eXchange format RDX is like [protobuf][g], but CRDT. 
+RDX is a format for data versioning and replication using state-of-the-art Replicated Data Types.
+Replicated Data eXchange format is like [JSON][j], but CRDT. 
 RDX can be used for data storage, distributed and asynchronous data exchange and in other applications. RDX fully supports local-first, offline-first and peer-to-peer replication.
-No central server is required, as RDX supports versioning.
-That way, any two *replicas* can merge their changes, like `git` does.
+No central server is required, as RDX supports versioning, diff/patch and merges.
+Yes, any two *replicas* can merge their changes, like `git` does.
 RDX data types can serve as merge operators in an LSM database (leveldb, RocksDB, pebble, Cassandras).
 That way, one can effectively have a CRDT database for free (which [Chotki][c] basically is).
 

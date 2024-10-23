@@ -67,14 +67,14 @@ The trick is, they combine better!
  ## Revisioning
 
 Note that each `FIRST` or `PLEX` element *can* be `@` stamped with a 128-bit revision id.
-RDX is a versioned data format, so every element is versioned too, e.g. `(20@b0b-1, 40@a1ec-3)`.
-In the example above, `a1ec` made three edits to the counter contributing 40. 
-`b0b` made one contributing 20. 
+RDX is a versioned data format, so every element is versioned too, e.g. `(20@b0b-2, 40@a1ec-6)`.
+In the example above, `a1ec` made four additions to the counter contributing 40. 
+`b0b` made two contributing 20. 
 That resulted in the counter value of 60.
-Now suppose we merge that with `(25@b0b-2, 32@a1ec-2)`
+Now suppose we merge that with `(25@b0b-4, 32@a1ec-4)`
 The first version of the counter has a newer version from `a1ec`.
 The other version has newer data from `b0b`.
-The result would be `(25@b0b-2, 40@a1ec-3)` and the counter value is now 65.
+The result would be `(25@b0b-4, 40@a1ec-6)` and the counter value is now 65.
 
 We can merge versions of an RDX object or produce a patch for any two of them.
 Revision control is the main feature of RDX.
