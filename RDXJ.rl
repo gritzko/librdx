@@ -37,47 +37,59 @@ action RDXJTerm1 {
     tok[1] = p;
     call(RDXJonTerm, tok, state); 
 }
-action RDXJOpenObject0 { mark0[RDXJOpenObject] = p - text[0]; }
-action RDXJOpenObject1 {
-    tok[0] = text[0] + mark0[RDXJOpenObject];
-    tok[1] = p;
-    call(RDXJonOpenObject, tok, state); 
-}
-action RDXJCloseObject0 { mark0[RDXJCloseObject] = p - text[0]; }
-action RDXJCloseObject1 {
-    tok[0] = text[0] + mark0[RDXJCloseObject];
-    tok[1] = p;
-    call(RDXJonCloseObject, tok, state); 
-}
-action RDXJOpenArray0 { mark0[RDXJOpenArray] = p - text[0]; }
-action RDXJOpenArray1 {
-    tok[0] = text[0] + mark0[RDXJOpenArray];
-    tok[1] = p;
-    call(RDXJonOpenArray, tok, state); 
-}
-action RDXJCloseArray0 { mark0[RDXJCloseArray] = p - text[0]; }
-action RDXJCloseArray1 {
-    tok[0] = text[0] + mark0[RDXJCloseArray];
-    tok[1] = p;
-    call(RDXJonCloseArray, tok, state); 
-}
-action RDXJOpenVector0 { mark0[RDXJOpenVector] = p - text[0]; }
-action RDXJOpenVector1 {
-    tok[0] = text[0] + mark0[RDXJOpenVector];
-    tok[1] = p;
-    call(RDXJonOpenVector, tok, state); 
-}
-action RDXJCloseVector0 { mark0[RDXJCloseVector] = p - text[0]; }
-action RDXJCloseVector1 {
-    tok[0] = text[0] + mark0[RDXJCloseVector];
-    tok[1] = p;
-    call(RDXJonCloseVector, tok, state); 
-}
 action RDXJStamp0 { mark0[RDXJStamp] = p - text[0]; }
 action RDXJStamp1 {
     tok[0] = text[0] + mark0[RDXJStamp];
     tok[1] = p;
     call(RDXJonStamp, tok, state); 
+}
+action RDXJOpenP0 { mark0[RDXJOpenP] = p - text[0]; }
+action RDXJOpenP1 {
+    tok[0] = text[0] + mark0[RDXJOpenP];
+    tok[1] = p;
+    call(RDXJonOpenP, tok, state); 
+}
+action RDXJCloseP0 { mark0[RDXJCloseP] = p - text[0]; }
+action RDXJCloseP1 {
+    tok[0] = text[0] + mark0[RDXJCloseP];
+    tok[1] = p;
+    call(RDXJonCloseP, tok, state); 
+}
+action RDXJOpenL0 { mark0[RDXJOpenL] = p - text[0]; }
+action RDXJOpenL1 {
+    tok[0] = text[0] + mark0[RDXJOpenL];
+    tok[1] = p;
+    call(RDXJonOpenL, tok, state); 
+}
+action RDXJCloseL0 { mark0[RDXJCloseL] = p - text[0]; }
+action RDXJCloseL1 {
+    tok[0] = text[0] + mark0[RDXJCloseL];
+    tok[1] = p;
+    call(RDXJonCloseL, tok, state); 
+}
+action RDXJOpenE0 { mark0[RDXJOpenE] = p - text[0]; }
+action RDXJOpenE1 {
+    tok[0] = text[0] + mark0[RDXJOpenE];
+    tok[1] = p;
+    call(RDXJonOpenE, tok, state); 
+}
+action RDXJCloseE0 { mark0[RDXJCloseE] = p - text[0]; }
+action RDXJCloseE1 {
+    tok[0] = text[0] + mark0[RDXJCloseE];
+    tok[1] = p;
+    call(RDXJonCloseE, tok, state); 
+}
+action RDXJOpenX0 { mark0[RDXJOpenX] = p - text[0]; }
+action RDXJOpenX1 {
+    tok[0] = text[0] + mark0[RDXJOpenX];
+    tok[1] = p;
+    call(RDXJonOpenX, tok, state); 
+}
+action RDXJCloseX0 { mark0[RDXJCloseX] = p - text[0]; }
+action RDXJCloseX1 {
+    tok[0] = text[0] + mark0[RDXJCloseX];
+    tok[1] = p;
+    call(RDXJonCloseX, tok, state); 
 }
 action RDXJComma0 { mark0[RDXJComma] = p - text[0]; }
 action RDXJComma1 {
@@ -90,6 +102,24 @@ action RDXJColon1 {
     tok[0] = text[0] + mark0[RDXJColon];
     tok[1] = p;
     call(RDXJonColon, tok, state); 
+}
+action RDXJOpen0 { mark0[RDXJOpen] = p - text[0]; }
+action RDXJOpen1 {
+    tok[0] = text[0] + mark0[RDXJOpen];
+    tok[1] = p;
+    call(RDXJonOpen, tok, state); 
+}
+action RDXJClose0 { mark0[RDXJClose] = p - text[0]; }
+action RDXJClose1 {
+    tok[0] = text[0] + mark0[RDXJClose];
+    tok[1] = p;
+    call(RDXJonClose, tok, state); 
+}
+action RDXJInter0 { mark0[RDXJInter] = p - text[0]; }
+action RDXJInter1 {
+    tok[0] = text[0] + mark0[RDXJInter];
+    tok[1] = p;
+    call(RDXJonInter, tok, state); 
 }
 action RDXJFIRST0 { mark0[RDXJFIRST] = p - text[0]; }
 action RDXJFIRST1 {
@@ -135,23 +165,27 @@ RDXJRef  = (   RDXJid128  -  RDXJFloat )  >RDXJRef0 %RDXJRef1;
 
 RDXJString  = (   ["]  RDXJutf8esc*  ["] )  >RDXJString0 %RDXJString1;
 
-RDXJTerm  = (   [a-zA-Z]  [a-zA-Z0-9_]* )  >RDXJTerm0 %RDXJTerm1;
-
-
-RDXJOpenObject  = (   "{" )  >RDXJOpenObject0 %RDXJOpenObject1;
-
-RDXJCloseObject  = (   "}" )  >RDXJCloseObject0 %RDXJCloseObject1;
-
-RDXJOpenArray  = (   "[" )  >RDXJOpenArray0 %RDXJOpenArray1;
-
-RDXJCloseArray  = (   "]" )  >RDXJCloseArray0 %RDXJCloseArray1;
-
-RDXJOpenVector  = (   "(" )  >RDXJOpenVector0 %RDXJOpenVector1;
-
-RDXJCloseVector  = (   ")" )  >RDXJCloseVector0 %RDXJCloseVector1;
+RDXJTerm  = (   [a-zA-Z0-9_~]+  -RDXJInt  -RDXJFloat )  >RDXJTerm0 %RDXJTerm1;
 
 
 RDXJStamp  = (   "@"  RDXJid128 )  >RDXJStamp0 %RDXJStamp1;
+
+
+RDXJOpenP  = (   "<" )  >RDXJOpenP0 %RDXJOpenP1;
+
+RDXJCloseP  = (   ">" )  >RDXJCloseP0 %RDXJCloseP1;
+
+RDXJOpenL  = (   "[" )  >RDXJOpenL0 %RDXJOpenL1;
+
+RDXJCloseL  = (   "]" )  >RDXJCloseL0 %RDXJCloseL1;
+
+RDXJOpenE  = (   "{" )  >RDXJOpenE0 %RDXJOpenE1;
+
+RDXJCloseE  = (   "}" )  >RDXJCloseE0 %RDXJCloseE1;
+
+RDXJOpenX  = (   "(" )  >RDXJOpenX0 %RDXJOpenX1;
+
+RDXJCloseX  = (   ")" )  >RDXJCloseX0 %RDXJCloseX1;
 
 
 RDXJComma  = (   "," )  >RDXJComma0 %RDXJComma1;
@@ -159,19 +193,20 @@ RDXJComma  = (   "," )  >RDXJComma0 %RDXJComma1;
 RDXJColon  = (   ":" )  >RDXJColon0 %RDXJColon1;
 
 
-RDXJdelimiter  = (   RDXJOpenObject  |  RDXJCloseObject  |
+RDXJOpen  = (   (RDXJOpenP  |  RDXJOpenL  |  RDXJOpenE  |  RDXJOpenX)  RDXJws*  (RDXJStamp  RDXJws*)? )  >RDXJOpen0 %RDXJOpen1;
 
-                        RDXJOpenArray  |  RDXJCloseArray  |
+RDXJClose  = (   (RDXJCloseP  |  RDXJCloseL  |  RDXJCloseE  |  RDXJCloseX)  RDXJws* )  >RDXJClose0 %RDXJClose1;
 
-                        RDXJOpenVector  |  RDXJCloseVector  |
+RDXJInter  = (   (RDXJComma  |  RDXJColon)  RDXJws* )  >RDXJInter0 %RDXJInter1;
 
-                        RDXJComma  |  RDXJColon );
+
+RDXJdelim  = (   RDXJOpen  |  RDXJClose  |  RDXJInter );
 
 
 RDXJFIRST  = (   (  RDXJFloat  |  RDXJInt  |  RDXJRef  |  RDXJString  |  RDXJTerm  )  (RDXJws*  RDXJStamp)?  RDXJws* )  >RDXJFIRST0 %RDXJFIRST1;
 
 
-RDXJRoot  = (   RDXJws*  (  RDXJFIRST?  (  RDXJdelimiter  RDXJws*  RDXJFIRST?  )*  )   )  >RDXJRoot0 %RDXJRoot1;
+RDXJRoot  = (   RDXJws*  (  RDXJFIRST?  (  RDXJdelim  RDXJFIRST?  )*  )   )  >RDXJRoot0 %RDXJRoot1;
 
 main := RDXJRoot;
 
@@ -199,8 +234,7 @@ pro(RDXJlexer, RDXJstate* state) {
     %% write exec;
 
     if (p!=text[1] || cs < RDXJ_first_final) {
-        state->text[0] = p;
         fail(RDXJfail);
     }
-    done;
+    nedo(state->text[0] = p;);
 }

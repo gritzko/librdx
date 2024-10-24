@@ -8,32 +8,42 @@ enum {
 	RDXJRef = RDXJenum+11,
 	RDXJString = RDXJenum+12,
 	RDXJTerm = RDXJenum+13,
-	RDXJOpenObject = RDXJenum+14,
-	RDXJCloseObject = RDXJenum+15,
-	RDXJOpenArray = RDXJenum+16,
-	RDXJCloseArray = RDXJenum+17,
-	RDXJOpenVector = RDXJenum+18,
-	RDXJCloseVector = RDXJenum+19,
-	RDXJStamp = RDXJenum+20,
-	RDXJComma = RDXJenum+21,
-	RDXJColon = RDXJenum+22,
-	RDXJFIRST = RDXJenum+24,
-	RDXJRoot = RDXJenum+25,
+	RDXJStamp = RDXJenum+14,
+	RDXJOpenP = RDXJenum+15,
+	RDXJCloseP = RDXJenum+16,
+	RDXJOpenL = RDXJenum+17,
+	RDXJCloseL = RDXJenum+18,
+	RDXJOpenE = RDXJenum+19,
+	RDXJCloseE = RDXJenum+20,
+	RDXJOpenX = RDXJenum+21,
+	RDXJCloseX = RDXJenum+22,
+	RDXJComma = RDXJenum+23,
+	RDXJColon = RDXJenum+24,
+	RDXJOpen = RDXJenum+25,
+	RDXJClose = RDXJenum+26,
+	RDXJInter = RDXJenum+27,
+	RDXJFIRST = RDXJenum+29,
+	RDXJRoot = RDXJenum+30,
 };
 ok64 RDXJonInt ($cu8c tok, RDXJstate* state);
 ok64 RDXJonFloat ($cu8c tok, RDXJstate* state);
 ok64 RDXJonRef ($cu8c tok, RDXJstate* state);
 ok64 RDXJonString ($cu8c tok, RDXJstate* state);
 ok64 RDXJonTerm ($cu8c tok, RDXJstate* state);
-ok64 RDXJonOpenObject ($cu8c tok, RDXJstate* state);
-ok64 RDXJonCloseObject ($cu8c tok, RDXJstate* state);
-ok64 RDXJonOpenArray ($cu8c tok, RDXJstate* state);
-ok64 RDXJonCloseArray ($cu8c tok, RDXJstate* state);
-ok64 RDXJonOpenVector ($cu8c tok, RDXJstate* state);
-ok64 RDXJonCloseVector ($cu8c tok, RDXJstate* state);
 ok64 RDXJonStamp ($cu8c tok, RDXJstate* state);
+ok64 RDXJonOpenP ($cu8c tok, RDXJstate* state);
+ok64 RDXJonCloseP ($cu8c tok, RDXJstate* state);
+ok64 RDXJonOpenL ($cu8c tok, RDXJstate* state);
+ok64 RDXJonCloseL ($cu8c tok, RDXJstate* state);
+ok64 RDXJonOpenE ($cu8c tok, RDXJstate* state);
+ok64 RDXJonCloseE ($cu8c tok, RDXJstate* state);
+ok64 RDXJonOpenX ($cu8c tok, RDXJstate* state);
+ok64 RDXJonCloseX ($cu8c tok, RDXJstate* state);
 ok64 RDXJonComma ($cu8c tok, RDXJstate* state);
 ok64 RDXJonColon ($cu8c tok, RDXJstate* state);
+ok64 RDXJonOpen ($cu8c tok, RDXJstate* state);
+ok64 RDXJonClose ($cu8c tok, RDXJstate* state);
+ok64 RDXJonInter ($cu8c tok, RDXJstate* state);
 ok64 RDXJonFIRST ($cu8c tok, RDXJstate* state);
 ok64 RDXJonRoot ($cu8c tok, RDXJstate* state);
 

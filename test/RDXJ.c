@@ -2,11 +2,12 @@
 
 #include "B.h"
 #include "FILE.h"
+#include "PRO.h"
 #include "TEST.h"
 
 pro(RDXtest1) {
     sane(1);
-#define LEN1 9
+#define LEN1 12
     $u8c inputs[LEN1] = {
         $u8str("123"),
         $u8str("1.2345E2"),
@@ -17,6 +18,9 @@ pro(RDXtest1) {
         $u8str("123@ab-45"),
         $u8str("[1@ab-12,1.23E0@cd-34,\"str\"@ef-56,ab-123@78-90]"),
         $u8str("\"line\\n\\tmore\\n\""),
+        $u8str("nested:<tuple>"),
+        $u8str("(~@b0b-1,~@a1ec-2)"),
+        $u8str("[1:2:3]"),
     };
 
     for (int i = 0; i < LEN1; ++i) {
@@ -25,19 +29,23 @@ pro(RDXtest1) {
         aBcpad(u8, tlv, PAGESIZE);
         aBcpad(u8, rdxj2, PAGESIZE);
 
-        RDXJstate state = {.text = {inputs[i][0], inputs[i][1]},
-                           .tlv = (u8B)tlvbuf,
-                           .stack = (u64B)stackbuf,
-                           .pad = (u8B)padbuf,
-                           .id = {}};
+        $u8c text = $dup(inputs[i]);
+        ok64 o = RDXJdrain(tlvidle, text);
 
-        call(Bu64feed1, state.stack, 0);
+        if (o != OK) {
+            $print(text);
+            fail(o);
+        }
 
-        call(RDXJlexer, &state);
+        o = RDXJfeed(rdxj2idle, tlvdata);
 
-        call(RDXJdrain, rdxj2idle, tlvdata);
+        if (o == OK && 0 != $cmp(inputs[i], rdxj2data)) o = faileq;
 
-        FILEerr(rdxj2data);
+        if (o != OK) {
+            $print(rdxj2data);
+            fail(o);
+        }
+
         $testeq(inputs[i], rdxj2data);
     }
     done;

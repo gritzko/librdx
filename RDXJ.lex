@@ -15,25 +15,28 @@ Float = ( [\-]? ( [0] | [1-9] [0-9]* )
             ([eE] [\-+]? [0-9]+ )? ) - Int;
 Ref = id128 - Float;
 String = ["] utf8esc* ["];
-Term = [a-zA-Z] [a-zA-Z0-9_]*;
-
-OpenObject = "{";
-CloseObject = "}";
-OpenArray = "[";
-CloseArray = "]";
-OpenVector = "(";
-CloseVector = ")";
+Term = [a-zA-Z0-9_~]+ -Int -Float;
 
 Stamp = "@" id128;
+
+OpenP = "<";
+CloseP = ">";
+OpenL = "[";
+CloseL = "]";
+OpenE = "{";
+CloseE = "}";
+OpenX = "(";
+CloseX = ")";
 
 Comma = ",";
 Colon = ":";
 
-delimiter = OpenObject | CloseObject |
-            OpenArray | CloseArray |
-            OpenVector | CloseVector |
-            Comma | Colon;
+Open = (OpenP | OpenL | OpenE | OpenX) ws* (Stamp ws*)?;
+Close = (CloseP | CloseL | CloseE | CloseX) ws*;
+Inter = (Comma | Colon) ws*;
+
+delim = Open | Close | Inter;
 
 FIRST = ( Float | Int | Ref | String | Term ) (ws* Stamp)? ws*;
 
-Root = ws* ( FIRST? ( delimiter ws* FIRST? )* ) ;
+Root = ws* ( FIRST? ( delim FIRST? )* ) ;

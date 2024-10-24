@@ -150,3 +150,8 @@ target_link_options(RDXJtest PRIVATE ${TEST_LDD_FLAGS})
 target_compile_options(RDXJtest PRIVATE ${TEST_CXX_FLAGS})
 add_test(NAME RDXJtest COMMAND RDXJtest)
 
+#add_executable(RDXZtest RDXZ.c ../RDXJ.rl.c ../RDXJ.c ../ryu/d2s.c)
+#target_link_options(RDXZtest PRIVATE ${TEST_LDD_FLAGS})
+#target_compile_options(RDXZtest PRIVATE ${TEST_CXX_FLAGS})
+#add_test(NAME RDXZtest COMMAND RDXZtest ${CMAKE_SOURCE_DIR}/test/RDXZ.rdx)
+

@@ -134,11 +134,9 @@ pro(RDX1) {
     aBcpad(u8, pad, PAGESIZE);  // FIXME
     RDXJstate state = {
         .text = $dup(Bu8cdata(testbuf)),
-        .tlv = (u8B)tlvbuf,
-        .stack = (u64B)stackbuf,
-        .pad = (u8B)padbuf,
+        .tlv = $dup(tlvidle),
+        .nest = 1,
     };
-    call(Bu64feed1, state.stack, 0);
     call(RDXJlexer, &state);
     aBcpad(u8, rdxj, PAGESIZE);
     call(RDXJdrain, rdxjidle, tlvdata);

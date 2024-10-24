@@ -47,6 +47,8 @@ fun int u8cpcmp(u8 const *const *a, u8 const *const *b) {
 
 fun int $u8cmp(u8 const *const *a, u8 const *const *b) { return $cmp(a, b); }
 
+fun int $u8cz($cu8c a, $cu8c b) { return $cmp(a, b); }
+
 #define X(M, name) M##u8##name
 #include "Bx.h"
 #undef X

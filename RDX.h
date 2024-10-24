@@ -13,17 +13,18 @@
 con ok64 RDXnospace = 0xa67974df3ca135b;
 con ok64 RDXbad = 0xa259a135b;
 
+#define RDX_MAX_NEST 64
+
 typedef enum {
     RDX_FLOAT = 'F',
     RDX_INT = 'I',
     RDX_REF = 'R',
     RDX_STRING = 'S',
     RDX_TERM = 'T',
-    RDX_NAT = 'N',
-    RDX_Z = 'Z',
-    RDX_SET = 'E',
+    RDX_TUPLE = 'P',
     RDX_LINEAR = 'L',
-    RDX_MAP = 'M',
+    RDX_EULER = 'E',
+    RDX_MULTIX = 'X',
 } RDXtype;
 
 typedef int64_t RDXint;

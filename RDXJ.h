@@ -13,18 +13,21 @@ con ok64 RDXJbad = 0x289664e135b;
 con ok64 RDXJfail = 0xc2d96a4e135b;
 
 typedef struct {
-    u32 tlvpos;
-    u32 toks : 27, node : 5;
-} rdx64;
+    u32* l;
+    u32 toks;
+    u8 lit;
+} RDXJnest;
 
 typedef struct {
     $u8c text;
-    u8B tlv;
-    u64B stack;
+    $u8 tlv;
+
+    RDXJnest stack[RDX_MAX_NEST];
+    u32 nest;
 
     u8 lit;
     u128 id;
-    u8B pad;
+    $u8c val;
 } RDXJstate;
 
 fun ok64 RDXid128feed($u8 txt, id128 id) {
@@ -211,35 +214,6 @@ fun pro(RDXJdrainSesc, $u8 txt, $u8c tlv) {
     done;
 }
 
-fun pro(RDXJfeedS, $u8 tlv, $cu8c txt, id128 time) {
-    sane($ok(tlv) && $ok(txt) && $len(txt) >= 2 && *$head(txt) == '"' &&
-         *$last(txt) == '"');
-    $u8c txt2 = {txt[0] + 1, txt[1] - 1};
-    a$dup(u8, into, tlv);
-    aBcpad(u8, id, 16);
-    call(ZINTu128feed, ididle, time);
-    aBcpad(u8, pad, 255);
-    $u8feed1(padidle, $len(iddata));
-    $u8feed(padidle, iddata);
-    a$dup(u8c, keydata, paddata);
-    ok64 o = RDXJfeedSesc(padidle, txt2);
-    if (o == OK) {
-        call(TLVfeed, tlv, RDX_STRING, paddata);
-    } else if (o == RDXnospace) {
-        call($u8feed1, tlv, RDX_STRING);
-        u32* len = (u32*)*tlv;
-        *tlv += sizeof(u32);
-        u32 oldlen = $len(tlv);
-        call($u8feed, tlv, keydata);
-        $mv(txt2, txt);
-        call(RDXJfeedSesc, tlv, txt2);
-        *len = oldlen - $len(tlv);  // TODO nicer
-    } else {
-        fail(o);
-    }
-    done;
-}
-
 fun pro(RDXJdrainS, $u8 txt, $u8c tlv) {
     sane($ok(txt) && $ok(tlv));
     call($u8feed1, txt, '"');
@@ -250,8 +224,20 @@ fun pro(RDXJdrainS, $u8 txt, $u8c tlv) {
 
 ok64 RDXJlexer(RDXJstate* state);
 
-fun ok64 RDXJfeed($u8 tlv, $u8c rdxj) { return notimplyet; }
+fun ok64 RDXJdrain($u8 tlv, $u8c rdxj) {
+    aBcpad(u64, stack, RDX_MAX_NEST);
+    RDXJstate state = {
+        .tlv = $dup(tlv),
+        .text = $dup(rdxj),
+        .nest = 1,
+    };
+    ok64 o = RDXJlexer(&state);
+    $mv(tlv, state.tlv);
+    $mv(rdxj, state.text);
+    return o;
+}
 
-ok64 RDXJdrain($u8 rdxj, $u8c tlv);
+ok64 _RDXJfeed($u8 rdxj, $u8c tlv, u8 prnt);
+fun ok64 RDXJfeed($u8 rdxj, $u8c tlv) { return _RDXJfeed(rdxj, tlv, 0); }
 
 #endif
