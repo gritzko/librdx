@@ -55,34 +55,42 @@ pro(TLVtest2) {
     done;
 }
 
+fun int u32pcmp(u32p const *a, u32p const *b) {
+    if (*a == *b) return 0;
+    return *a < *b ? -1 : 1;
+}
+
+#define X(M, name) M##u32p##name
+#include "Bx.h"
+#undef X
+
 pro(TLVtest3) {
     sane(1);
-    aBpad(u8, pad, 1024);
-    aBpad(u32, stack, 8);
+    aBcpad(u8, pad, 1024);
+    aBpad(u32p, stack, 8);
 
-    call(TLVopen, pad, 'A', Bu32push(stack));
+    call(TLVopen, padidle, 'A', Bu32ppush(stack));
     $u8c aaa = $u8str("aaa");
 
-    call(TLVopen, pad, 'B', Bu32push(stack));
+    call(TLVopen, padidle, 'B', Bu32ppush(stack));
     $u8c bbb = $u8str("bbbb");
 
-    call(TLVopen, pad, 'C', Bu32push(stack));
+    call(TLVopen, padidle, 'C', Bu32ppush(stack));
     $u8c ccc = $u8str("ccccc");
 
-    $u8feed(Bu8idle(pad), ccc);
-    call(TLVclose, pad, 'C', Bu32pop(stack));
+    $u8feed(padidle, ccc);
+    call(TLVclose, padidle, 'C', Bu32ppop(stack));
 
-    $u8feed(Bu8idle(pad), bbb);
-    call(TLVclose, pad, 'B', Bu32pop(stack));
+    $u8feed(padidle, bbb);
+    call(TLVclose, padidle, 'B', Bu32ppop(stack));
 
-    $u8feed(Bu8idle(pad), aaa);
-    call(TLVclose, pad, 'A', Bu32pop(stack));
+    $u8feed(padidle, aaa);
+    call(TLVclose, padidle, 'A', Bu32ppop(stack));
 
-    //$print(Bcu8cdata(pad));
+    $println(paddata);
 
-    u8 const **alla = Bu8cdata(pad);
     $u8c ina = {}, inb = {}, inc = {};
-    call(TLVtake, 'A', ina, alla);
+    call(TLVtake, 'A', ina, paddata);
     call(TLVtake, 'B', inb, ina);
     call(TLVtake, 'C', inc, inb);
 

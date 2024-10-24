@@ -16,7 +16,7 @@ con ok64 TLVbadarg = 0x2bda5a2599f55d;
 con ok64 TLVbadkv = 0xeafa2599f55d;
 
 #define TLVaa 0x20
-
+#define TLV_MAX_LEN (1 << 30)
 #define TLV_TINY_TYPE '0'
 
 fun int TLVtiny(u8 t) { return t >= '0' && t <= '9'; }
@@ -130,41 +130,37 @@ fun pro(TLVtinyfeed, $u8 into, u8 type, $u8c value) {
     done;
 }
 
-#define TLVmaxnest 15
-typedef u32 TLVstack[TLVmaxnest + 1];
-
-fun pro(TLVopen, Bu8 tlv, u8 type, u32* stack) {
-    sane(tlv != NULL && stack != NULL && TLVlong(type));
-    u8** into = Bu8idle(tlv);
-    test($len(into) >= 5, TLVnospace);
-    u32 pos = $len(Bpast(tlv)) + $len(Bdata(tlv));
-    *stack = pos;
-    **into = type;
-    ++*into;
-    put32(into, 0);
+/** Open a TLV header for a record of unknown length.
+ *  The buffer must be stable during the whole write;
+ *  no shifts, no reallocs, no remaps. */
+fun pro(TLVopen, $u8 tlv, u8 type, u32** len) {
+    sane($ok(tlv) && len != nil && TLVlong(type));
+    test($len(tlv) >= 5, TLVnospace);
+    **tlv = type;
+    ++*tlv;
+    *len = (u32*)*tlv;
+    u32 zero = 0;
+    $u8feed32(tlv, &zero);
     done;
 }
 
-fun pro(TLVclose, Bu8 tlv, u8 type, const u32* stack) {
-    sane(tlv != NULL && TLVlong(type) && stack != nil &&
-         *stack < Bdatalen(tlv));
-    u32 pos = *stack;
-    test(pos >= $len(Bpast(tlv)), TLVbadcall);
-    u32 curpos = $len(Bpast(tlv)) + $len(Bdata(tlv));
-    test(curpos >= pos + 5, TLVbadcall);
-    u8* p = tlv[0] + pos;
-    test(*p == type, TLVbadcall);
-    u32 len = curpos - pos - 5;
-    if (len >= 0x40) {
-        $u8 l = {p + 1, tlv[3]};
-        put32(l, len);
+fun pro(TLVclose, $u8 tlv, u8 type, u32* const* len) {
+    sane($ok(tlv) && TLVlong(type) && len != nil && *len != nil &&
+         (u8*)*len < *tlv && *(*((u8**)len) - 1) == type);
+    size_t d = *tlv - (u8*)*len;
+    test(d <= TLV_MAX_LEN && d >= 4, TLVbadrec);
+    d -= 4;
+    if (d > 0xff) {
+        **len = d;
     } else {
+        u8* p = *(u8**)len - 1;
         *p += TLVaa;
         ++p;
-        *p = len;
+        *p = d;
         ++p;
-        memmove(p, p + 3, len);
-        *Bu8idle(tlv) -= 3;
+        con size_t shift = sizeof(u32) - sizeof(u8);
+        memmove(p, p + shift, d);
+        *tlv -= shift;
     }
     done;
 }

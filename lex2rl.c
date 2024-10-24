@@ -134,8 +134,7 @@ con char *ragel_template =
     "    %% write exec;\n"
     "\n"
     "    if (p!=text[1] || cs < $s_first_final) {\n"
-    "        state->text[0] = p;\n"
     "        fail($sfail);\n"
     "    }\n"
-    "    done;\n"
+    "    nedo(state->text[0] = p;);\n"
     "}\n";
