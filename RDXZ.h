@@ -51,18 +51,16 @@ fun int RDXZvalue($u8c const* a, $u8c const* b) {
     $u8c bb = $dup(*b);
     if ($empty(aa) || $empty(bb)) {
         if (!$empty(bb)) return -1;
-        if (!$empty(aa)) return 0;
+        if (!$empty(aa)) return 1;
         return 0;
     }
     ok64 oa = TLVdrainkv(&ta, keya, vala, aa);
-    while (ta == RDX_TUPLE) {
-        $mv(aa, vala);
-        oa = TLVdrainkv(&ta, keya, vala, aa);
+    if (ta == RDX_TUPLE) {
+        return RDXZvalue(&vala, b);
     }
     ok64 ob = TLVdrainkv(&tb, keyb, valb, bb);
     while (tb == RDX_TUPLE) {
-        $mv(bb, valb);
-        ob = TLVdrainkv(&tb, keyb, valb, bb);
+        return RDXZvalue(a, &valb);
     }
     if (ta != tb) {
         b8 fa = RDXisFIRST(ta);

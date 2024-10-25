@@ -2,6 +2,7 @@
 
 #include <unistd.h>
 
+#include "$.h"
 #include "01.h"
 #include "B.h"
 #include "FILE.h"
@@ -9,9 +10,7 @@
 #include "OK.h"
 #include "PRO.h"
 #include "RDX.h"
-#include "RDXC.h"
 #include "RDXJ.h"
-#include "RDXY.h"
 #include "TEST.h"
 
 pro(RDXZtestvalue) {
@@ -31,15 +30,16 @@ pro(RDXZtestvalue) {
     }
     aBcpad($u8c, elem, 64);
     a$dup(u8c, tlv, tlvdata);
-
-    $u8c prev = {};
-    call(TLVdrain$, prev, tlv);
     while (!$empty(tlv)) {
-        $u8c rec = {};
-        call(TLVdrain$, rec, tlv);
-        int z = RDXZvalue(&prev, &rec);
-        test(z < 0, FAILsanity);
-        $mv(prev, rec);
+        $u8c prev = {};
+        call(TLVdrain$, prev, tlv);
+        a$dup(u8c, rest, tlv);
+        while (!$empty(rest)) {
+            $u8c rec = {};
+            call(TLVdrain$, rec, rest);
+            int z = RDXZvalue(&prev, &rec);
+            test(z < 0, FAILsanity);
+        }
     }
 
     nedo(FILEunmap((voidB)testbuf));
