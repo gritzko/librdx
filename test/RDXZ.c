@@ -30,14 +30,21 @@ pro(RDXZtestvalue) {
     }
     aBcpad($u8c, elem, 64);
     a$dup(u8c, tlv, tlvdata);
+    int i = 0, j = 0;
     while (!$empty(tlv)) {
         $u8c prev = {};
         call(TLVdrain$, prev, tlv);
+        ++i;
+        j = i;
         a$dup(u8c, rest, tlv);
         while (!$empty(rest)) {
             $u8c rec = {};
             call(TLVdrain$, rec, rest);
+            ++j;
             int z = RDXZvalue(&prev, &rec);
+            if (z >= 0) {
+                printf("OPA\n");
+            }
             test(z < 0, FAILsanity);
         }
     }

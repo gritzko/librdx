@@ -119,6 +119,7 @@ ok64 RDXJonOpen($cu8c tok, RDXJstate* state) {
     call(ZINTu128feed, ididle, state->id);
     call($u8feed1, state->tlv, $len(iddata));
     call($u8feed, state->tlv, iddata);
+    zero(state->id);
     done;
 }
 
