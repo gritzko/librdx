@@ -112,6 +112,7 @@ ok64 RDXJonOpen($cu8c tok, RDXJstate* state) {
     ++prnt->toks;
     RDXJnest* child = state->stack + state->nest;
     ++state->nest;
+    test(RDXisPLEX(state->lit), FAILsanity);
     child->lit = state->lit;
     call(TLVopen, state->tlv, state->lit, &child->l);
     aBcpad(u8, id, 64);

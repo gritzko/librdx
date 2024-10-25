@@ -39,4 +39,4 @@ delim = Open | Close | Inter;
 
 FIRST = ( Float | Int | Ref | String | Term ) (ws* Stamp)? ws*;
 
-Root = ws* ( FIRST? ( delim FIRST? )* ) ;
+Root = ws* ( FIRST? ( delim <: FIRST? )* ) ;

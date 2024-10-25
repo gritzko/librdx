@@ -206,7 +206,7 @@ RDXJdelim  = (   RDXJOpen  |  RDXJClose  |  RDXJInter );
 RDXJFIRST  = (   (  RDXJFloat  |  RDXJInt  |  RDXJRef  |  RDXJString  |  RDXJTerm  )  (RDXJws*  RDXJStamp)?  RDXJws* )  >RDXJFIRST0 %RDXJFIRST1;
 
 
-RDXJRoot  = (   RDXJws*  (  RDXJFIRST?  (  RDXJdelim  RDXJFIRST?  )*  )   )  >RDXJRoot0 %RDXJRoot1;
+RDXJRoot  = (   RDXJws*  (  RDXJFIRST?  (  RDXJdelim  <:  RDXJFIRST?  )*  )   )  >RDXJRoot0 %RDXJRoot1;
 
 main := RDXJRoot;
 

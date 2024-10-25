@@ -39,6 +39,11 @@ typedef $u8c RDXterm;
 #define RDXtime(t) ((t)._64[1])
 #define RDXsrc(t) ((t)._64[0])
 
+fun b8 RDXisFIRST(u8 l) {
+    return l == 'F' || l == 'I' || l == 'R' || l == 'S' || l == 'T';
+}
+fun b8 RDXisPLEX(u8 l) { return l == 'P' || l == 'L' || l == 'E' || l == 'X'; }
+
 // #define X(M, name) M##$u8c##name
 // #include "HEAPx.h"
 // #undef X

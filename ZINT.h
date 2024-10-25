@@ -198,9 +198,15 @@ fun u64 ZINTf64bits(f64 val) { return *(u64*)&val; }
 fun f64 ZINTf64from(u64 bits) { return *(f64*)&bits; }
 
 fun ok64 ZINTf64feed($u8 into, f64 const* n) {
-    return ZINTu64feed(into, *(u64*)n);
+    u64 bits = flip64(*(u64 const*)n);
+    return ZINTu64feed(into, bits);
 }
-fun ok64 ZINTf64drain(f64* n, $u8c from) { return ZINTu64drain((u64*)n, from); }
+fun ok64 ZINTf64drain(f64* n, $u8c from) {
+    u64 bits = 0;
+    ok64 o = ZINTu64drain(&bits, from);
+    if (o == OK) *(u64*)n = flip64(bits);
+    return o;
+}
 
 fun int ZINTu128z($cu8c a, $cu8c b) {
     $u8c aa = $dup(a);
