@@ -251,7 +251,11 @@ ok64 RDXJonStamp($cu8c tok, RDXJstate* state) {
 
 pro(RDXJonRoot, $cu8c tok, RDXJstate* state) {
     sane($ok(tok) && state != nil);
-    while (state->nest > 1) call(RDXJonClose, tok, state);
+    if (state->nest == 2 && state->stack[1].lit == RDX_TUPLE) {
+        state->lit = RDX_TUPLE;
+        call(RDXJonClose, tok, state);
+    }
+    test(state->nest == 1, RDXbad);
     done;
 }
 
@@ -304,20 +308,29 @@ pro(_RDXJfeed, $u8 rdxj, $u8c tlv, u8 parent) {
             break;
         case RDX_LINEAR:
             call($u8feed1, rdxj, '[');
+            call(RDXJfeedstamp, rdxj, id);
             while (!$empty(value)) {
                 call(_RDXJfeed, rdxj, value, RDX_LINEAR);
                 if (!$empty(value)) call($u8feed1, rdxj, ',');
             }
             call($u8feed1, rdxj, ']');
             break;
-        case RDX_TUPLE:
-            if (parent == RDX_TUPLE) call($u8feed1, rdxj, '<');
+        case RDX_TUPLE: {
+            b8 brackets = (parent == RDX_TUPLE || !id128empty(id));
+            if (brackets) {
+                call($u8feed1, rdxj, '<');
+                if (!id128empty(id)) {
+                    call(RDXJfeedstamp, rdxj, id);
+                    call($u8feed1, rdxj, ' ');
+                }
+            }
             while (!$empty(value)) {
                 call(_RDXJfeed, rdxj, value, RDX_TUPLE);
                 if (!$empty(value)) call($u8feed1, rdxj, ':');
             }
-            if (parent == RDX_TUPLE) call($u8feed1, rdxj, '>');
+            if (brackets) call($u8feed1, rdxj, '>');
             break;
+        }
         case RDX_EULER:
             call($u8feed1, rdxj, '{');
             while (!$empty(value)) {
