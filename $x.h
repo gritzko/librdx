@@ -30,6 +30,12 @@ fun T *X($, bsearch)(T const *p, X($c, ) data) {
     return (T *)$bsearch(p, data, X(, cmp));
 }
 
+#ifndef ABC_X_$
+fun T X($, at)(X($, ) s, size_t pos) { return s[0][pos]; }
+#endif
+
+fun T *X($, atp)(X($, ) s, size_t pos) { return s[0] + pos; }
+
 fun T const *X($, find)(X($c, c) haystack, T const *needle) {
     for (T const *p = haystack[0]; p < haystack[1]; p++)
         if (memcmp(p, needle, sizeof(T)) == 0) return p;

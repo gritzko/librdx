@@ -5,6 +5,8 @@
 #include "PRO.h"
 #include "TLV.h"
 
+#define LSM_MAX_INPUTS 64
+
 con ok64 LSMeof = 0xab3a56715;
 con ok64 LSMbad = 0xa25996715;
 con ok64 LSMnodata = 0x25e25a33c96715;
@@ -32,7 +34,7 @@ fun pro(LSMmore, B$u8c lsm, $u8c x, $u8cmpfn cmp) {
 fun pro(LSMnext, $u8 into, $$u8c lsm, $u8cmpfn cmp, LSMmerger mrg) {
     sane($ok(into) && Bok(lsm) && cmp != nil && mrg != nil);
     $u8c next = {};
-    aBpad2($u8c, in, 64);
+    aBpad2($u8c, in, LSM_MAX_INPUTS);
 
     do {
         call(TLVdrain$, next, **lsm);
