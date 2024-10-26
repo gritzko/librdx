@@ -65,8 +65,8 @@ typedef u8 const *const $cu8c[2];
 
 // boolean, strictly 0 or 1
 typedef uint8_t b8;
-con b8 NO = 0;
-con b8 YES = 1;
+#define NO 0
+#define YES 1
 
 fun int b8ok(b8 b) { return (b & ~1) == 0; }
 
