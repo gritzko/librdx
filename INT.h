@@ -91,7 +91,9 @@ fun int $u8ccmp($u8c const *a, $u8c const *b) {
 }
 
 #define X(M, name) M##$u8c##name
+#define ABC_X_$
 #include "Bx.h"
+#undef ABC_X_$
 #undef X
 
 #define $u8raw(v) \

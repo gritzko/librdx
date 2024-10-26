@@ -84,7 +84,11 @@ fun void X(, mv)(T *into, T const *from) { memcpy(into, from, sizeof(T)); }
 
 fun ok64 X($, feed1)(X($, ) into, T what) {
     if ($empty(into)) return $noroom;
+#ifndef ABC_X_$
     X(, mv)(*into, (T const *)&what);
+#else
+    memcpy(*into, what, sizeof(T));
+#endif
     ++*into;
     return OK;
 }

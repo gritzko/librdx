@@ -74,6 +74,8 @@ con ok64 faileq = 0xd69c2d96a;
 
 #define orly if (__ == OK)
 
+#define oops if (__ != OK)
+
 #define ocry \
     if (__ != OK) fail(__);
 
@@ -114,7 +116,7 @@ con ok64 faileq = 0xd69c2d96a;
 #define testeq(a, b)               \
     {                              \
         if (!likely((a) == (b))) { \
-            fail(faileq)           \
+            fail(faileq);          \
         }                          \
     }
 
