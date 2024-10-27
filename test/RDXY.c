@@ -48,12 +48,12 @@ pro(RDXY1) {
 
         call(RDXY, residle, elemdata);
 
-        // if (!$eq(correct, resdata)) {
-        aBcpad(u8, out, PAGESIZE);
-        call(RDXJfeed, outidle, resdata);
-        $println(outdata);
-        //    fail(faileq);
-        //}
+        if (!$eq(correct, resdata)) {
+            aBcpad(u8, out, PAGESIZE);
+            call(RDXJfeed, outidle, resdata);
+            $println(outdata);
+            fail(faileq);
+        }
     }
 
     nedo(FILEunmap((voidB)rdxjbuf));
