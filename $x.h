@@ -24,6 +24,8 @@ typedef X($, ) * X($$, )[2];
 
 typedef int (*X(, cmpfn))(const X(, ) *, const X(, ) *);
 
+typedef b8 (*X(, isfn))(const X(, ) *);
+
 fun void X($, sort)(X($c, ) data) { $sort(data, X(, cmp)); }
 
 fun T *X($, bsearch)(T const *p, X($c, ) data) {
@@ -169,6 +171,16 @@ fun void X(, swap)(T *a, T *b) {
     memcpy(&c, a, sizeof(T));
     memcpy(a, b, sizeof(T));
     memcpy(b, &c, sizeof(T));
+}
+
+fun void X($, purge)(X($, ) s, X(, isfn) f) {
+    for (int i = 0; i < $len(s); ++i) {
+        T *p = X($, atp)(s, i);
+        if (f(p)) {
+            X(, swap)(p, $last(s));
+            --$term(s);
+        }
+    }
 }
 
 fun void X($, str0)(X($, c) s, T const *a) {

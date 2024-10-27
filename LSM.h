@@ -55,9 +55,13 @@ fun pro(LSMnext, $u8 into, $$u8c lsm, $u8cmpfn cmp, LSMmerger mrg) {
     done;
 }
 
-fun ok64 LSMsort($$u8c lsm, $u8cmpfn cmp) {
+fun b8 $u8cempty($u8c const* s) { return $empty(*s); }
+
+fun pro(LSMsort, $$u8c lsm, $u8cmpfn cmp) {
+    sane($ok(lsm) && cmp != nil);
+    $$u8cpurge(lsm, &$u8cempty);
     $sort(lsm, cmp);
-    return OK;
+    done;
 }
 
 fun ok64 LSMmerge($u8 into, $$u8c lsm, $u8cmpfn cmp, LSMmerger mrg) {
