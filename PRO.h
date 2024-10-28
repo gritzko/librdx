@@ -136,10 +136,12 @@ con ok64 faileq = 0xd69c2d96a;
         }                                                                     \
     }
 
-#ifndef ABC_NOTRACE
-#define trace(...) fprintf(stderr, __VA_ARGS__)
-#else
+#ifdef ABC_NOTRACE
 #define trace(...) ;
+#elifdef NDEBUG
+#define trace(...) ;
+#else
+#define trace(...) fprintf(stderr, __VA_ARGS__)
 #endif
 
 extern $u8c _STD_ARGS[];
