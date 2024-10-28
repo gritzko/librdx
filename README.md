@@ -24,7 +24,7 @@ Second, its basic constructs are neatly orthogonal and *arbitrarily composable*.
 For example, `{"a":"map"}` is not a primitive, it is `{"a","set"}` `"of":"tuples"`.
 Tuples `"can":"be":"standalone"`, or they `<"can":"nest">:<"in":"other">:"tuples"` or `[{"any"}, <"other":"containers">]`.
 
-RDX has a text variant, [RDX-Jsonish][J] which is as readable as JSON.
+RDX has a text variant [RDX-JDR][J] "JSON Done Right".
 There is also a binary variant [RDX-TLV][X] which is the most straightforward [Type-Length-Value][L].
 Variants correspond 1:1.
 

@@ -1,11 +1,11 @@
-  # RDX-J text format (RDX-jsonish)
+  # RDX-JDR format or "JSON done right"
 
-RDX-J is a human-readable variant of RDX, the Replicated Data eXchange format.
+RDX-JDR is a human-readable variant of RDX, the Replicated Data eXchange format.
 The [binary RDX][r] variant is [TLV-based][t].
-RDX-J is a superset of [JSON][j] that anyone familiar with JSON can easily read.
-Naturally, there is 1:1 mapping between RDX-TLV and RDX-J.
+RDX-JDR is a superset of [JSON][j] that anyone familiar with JSON can easily read.
+Naturally, there is 1:1 mapping between RDX-TLV and RDX-JDR.
 
-RDX-J has somewhat deeper foundations than JSON.
+RDX-JDR has somewhat deeper foundations than JSON.
 It has a formal mutation semantics, i.e. edits, merges and deltas.
 
 RDX element types come in two groups: `FIRST` and `PLEX`.
@@ -60,8 +60,8 @@ Sets can host tuples or arrays and vice-versa:
 `{absent:["Bob","Carol"], present:["Alex"]}`, 
 `[{name:"Alex",age:32}, {name:"Bob",age:40}]` and so on.
 
-As you may see, any JSON document is a valid RDX-J.
-Except maybe for revision-related `R` and `X`, RDX-J constructs are same as JSON has or even simpler.
+As you may see, any JSON document is a valid RDX-JDR.
+Except maybe for revision-related `R` and `X`, RDX-JDR constructs are same as JSON has or even simpler.
 The trick is, they combine better!
 
  ## Revisioning

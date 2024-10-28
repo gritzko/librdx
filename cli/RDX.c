@@ -41,6 +41,7 @@ pro(RDXcli) {
     call(B$u8cmap, ins, RDXY_MAX_INPUTS);
 
     a$str(CMD_J, "j");
+    a$str(CMD_JDR, "jdr");
     a$str(CMD_Y, "y");
     a$str(CMD_TLV, "tlv");
     a$str(CMD_MERGE, "merge");
@@ -56,13 +57,14 @@ pro(RDXcli) {
             a$dup($u8c, in, B$u8cdata(ins));
             $eat(in) call(RDXJdrain, Bu8idle(output), **in);
         }
-    } else if ($eq($arg(1), CMD_J)) {
+    } else if ($eq($arg(1), CMD_J) || $eq($arg(1), CMD_JDR)) {
         if ($arglen < 3) {
             call(RDXeatstd);
             call(RDXJfeed, Bu8idle(output), Bu8cdata(input));
         } else {
             call(RDXeatargs);
             a$dup($u8c, in, B$u8cdata(ins));
+            call(RDXJfeed, Bu8idle(output), **in);
             ++*in;
             $eat(in) {
                 call($u8feed2, Bu8idle(output), ',', '\n');
