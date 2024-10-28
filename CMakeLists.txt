@@ -87,8 +87,8 @@ add_executable(ron64 ron64.c)
 
 add_executable(lex2rl lex2rl.c LEX.rl.c LEX.c)
 
-add_executable(md2html md2html.c LEX.rl.c LEX.c MARK.rl.c MARK.c MARQ.rl.c MARQ.c)
-add_executable(mark mark.c LEX.rl.c LEX.c MARK.rl.c MARK.c MARQ.rl.c MARQ.c)
+add_executable(mark2html mark2html.c LEX.rl.c LEX.c MARK.rl.c MARK.c MARQ.rl.c MARQ.c)
+add_executable(mork mork.c LEX.rl.c LEX.c MARK.rl.c MARK.c MARQ.rl.c MARQ.c)
 
 add_subdirectory(test)
 
