@@ -14,7 +14,7 @@ RDX is the greatest-common-denominator data format.
 Systems should be able to import/export data from/to RDX,
 be it the entire state or separate patches.
 
-RDX has a formal *mutation semantics".
+RDX has a formal *mutation semantics*.
 In other words, the [spec][X] says exactly what the result should be if we merge A and B.
 
 RDX is a very algebraic data format on the inside.

@@ -154,4 +154,5 @@ add_executable(RDXYtest RDXY.c ../RDXJ.rl.c ../RDXJ.c ../ryu/d2s.c)
 target_link_options(RDXYtest PRIVATE ${TEST_LDD_FLAGS})
 target_compile_options(RDXYtest PRIVATE ${TEST_CXX_FLAGS})
 add_test(NAME RDXYtest COMMAND RDXYtest ${CMAKE_SOURCE_DIR}/test/RDXY.rdx)
+add_test(NAME RDXYtestE COMMAND RDXYtest ${CMAKE_SOURCE_DIR}/test/RDXY.E.rdx)
 
