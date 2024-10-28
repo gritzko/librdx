@@ -22,8 +22,7 @@ fun b8 is_tilda($u8c data) {
 pro(RDXY1) {
     sane(1);
     aB(u8c, rdxj);
-    u8c** path = STD_ARGS[1] + 2;
-    // a$str(path, "RDXZ.rdx");
+    a$rg(path, 1);
     call(FILEmapro, (voidB)rdxjbuf, path);
     $print(rdxjdata);
     aBcpad(u8, tlv, PAGESIZE);

@@ -142,23 +142,30 @@ con ok64 faileq = 0xd69c2d96a;
 #define trace(...) ;
 #endif
 
-extern u8c *_STD_ARGS[];
-extern u8c **STD_ARGS[];
+extern $u8c _STD_ARGS[];
+extern $u8c *STD_ARGS[];
 
 fun void _parse_args(int argn, char **args) {
     for (int i = 0; i < argn; ++i) {
         u8c *s[2] = $u8str(args[i]);
-        _STD_ARGS[i * 2] = s[0];
-        _STD_ARGS[i * 2 + 1] = s[1];
+        memcpy(_STD_ARGS + i, s, sizeof($u8c));
     }
     STD_ARGS[0] = STD_ARGS[1] = _STD_ARGS;
-    STD_ARGS[2] = STD_ARGS[3] = _STD_ARGS + argn * 2;
+    STD_ARGS[2] = STD_ARGS[3] = _STD_ARGS + argn;
 }
+
+#define $arglen $len(B$u8cdata(STD_ARGS))
+
+#define $arg(i) (*$$u8catp(B$u8cdata(STD_ARGS), i))
+
+#define a$rg(name, i) \
+    $u8c name = {};   \
+    $mv(name, *$$u8catp(B$u8cdata(STD_ARGS), i));
 
 #define MAIN(f)                                                          \
     uint8_t _pro_depth = 0;                                              \
-    u8c *_STD_ARGS[64] = {};                                             \
-    u8c **STD_ARGS[4] = {};                                              \
+    $u8c _STD_ARGS[64] = {};                                             \
+    $u8c *STD_ARGS[4] = {};                                              \
     int main(int argn, char **args) {                                    \
         _parse_args(argn, args);                                         \
         ok64 ret = f();                                                  \

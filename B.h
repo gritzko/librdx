@@ -19,13 +19,6 @@ con ok64 Bnodata = 0x25e25a33c8b;
 con ok64 Bbadarg = 0x2bda5a2598b;
 con ok64 Bmiss = 0x37dedc4b;
 
-enum {
-    B_NONE = 0,
-    B_MMAP = 1,
-    B_FMAP = 2,
-    B_MALLOC = 3,
-};
-
 #define BTYPE(T) typedef T *const B##T[4];
 
 BTYPE(void);

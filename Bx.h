@@ -1,5 +1,8 @@
+#include <sys/mman.h>
+
 #include "$x.h"
 #include "B.h"
+#include "OK.h"
 
 #define T X(, )
 
@@ -158,6 +161,27 @@ fun const T *X(B, pop)(X(B, ) buf) {
     assert(buf[2] > buf[1]);
     T const **b = (T const **)buf;
     return --b[2];
+}
+
+fun ok64 X(B, map)(X(B, ) buf, size_t len) {
+    size_t size = len * sizeof(T);
+    T *map = (T *)mmap(NULL, size, PROT_READ | PROT_WRITE,
+                       MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+    if (map == MAP_FAILED) {
+        return Bmapfail;
+    }
+    T **b = (T **)buf;
+    b[0] = b[1] = b[2] = b[3] = map;
+    b[3] += len;
+    return OK;
+}
+
+fun ok64 X(B, unmap)(X(B, ) buf) {
+    if (unlikely(buf == nil || *buf == nil)) return FAILsanity;
+    if (-1 == munmap(buf[0], Bsize(buf))) return Bmapfail;
+    void **b = (void **)buf;
+    b[0] = b[1] = b[2] = b[3] = nil;
+    return OK;
 }
 
 #undef T

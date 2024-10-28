@@ -238,6 +238,14 @@ fun ok64 RDXJdrain($u8 tlv, $u8c rdxj) {
 }
 
 ok64 _RDXJfeed($u8 rdxj, $u8c tlv, u8 prnt);
-fun ok64 RDXJfeed($u8 rdxj, $u8c tlv) { return _RDXJfeed(rdxj, tlv, 0); }
+
+fun pro(RDXJfeed, $u8 rdxj, $u8c tlv) {
+    sane($ok(rdxj) && $ok(tlv));
+    do {
+        call(_RDXJfeed, rdxj, tlv, 0);
+        if (!$empty(tlv)) call($u8feed2, rdxj, ',', '\n');
+    } while (!$empty(tlv));
+    done;
+}
 
 #endif

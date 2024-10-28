@@ -8,6 +8,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS on)
 include(CTest)
 
 #find_package(sodium CONFIG)
+include_directories(. ryu)
 
 option(WITH_ASAN "build with ASAN" OFF)
 if (WITH_ASAN)
@@ -78,17 +79,13 @@ MARQ.rl.c
 RDXJ.c
 RDXJ.rl.c
 UTF8.c
+ryu/d2s.c
 )
 
-add_library(rdx STATIC ${RDX_HEADERS} ${RDX_SOURCES})
+add_library(librdx STATIC ${RDX_HEADERS} ${RDX_SOURCES})
 #target_link_libraries(rdx sodium)
 
-add_executable(ron64 ron64.c)
-
-add_executable(lex2rl lex2rl.c LEX.rl.c LEX.c)
-
-add_executable(mark2html mark2html.c LEX.rl.c LEX.c MARK.rl.c MARK.c MARQ.rl.c MARQ.c)
-add_executable(mork mork.c LEX.rl.c LEX.c MARK.rl.c MARK.c MARQ.rl.c MARQ.c)
+add_subdirectory(cli)
 
 add_subdirectory(test)
 

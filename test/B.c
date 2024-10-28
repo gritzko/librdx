@@ -14,6 +14,11 @@ pro(fail_test) {
 
 pro(Bmap_test) {
     sane(1);
+    Bu8 buf = {};
+    call(Bu8map, buf, 1024);
+    Bat(buf, 100) = 100;
+    testeq(Bat(buf, 100), 100);
+    call(Bu8unmap, buf);
     done;
 }
 

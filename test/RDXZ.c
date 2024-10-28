@@ -16,7 +16,7 @@
 pro(RDXZtestvalue) {
     sane(1);
     B(u8, testbuf);
-    u8c** path = STD_ARGS[1] + 2;
+    a$rg(path, 1);
     // a$str(path, "RDXZ.rdx");
     call(FILEmapro, (voidB)testbuf, path);
     $print(Bu8cdata(testbuf));
