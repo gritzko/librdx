@@ -32,7 +32,7 @@ fun pro(LSMmore, B$u8c lsm, $u8c x, $u8cmpfn cmp) {
 }
 
 fun pro(LSMnext, $u8 into, $$u8c lsm, $u8cmpfn cmp, LSMmerger mrg) {
-    sane($ok(into) && Bok(lsm) && cmp != nil && mrg != nil);
+    sane($ok(into) && $ok(lsm) && cmp != nil && mrg != nil);
     $u8c next = {};
     aBpad2($u8c, in, LSM_MAX_INPUTS);
 

@@ -1,7 +1,11 @@
+#include <fcntl.h>
+#include <unistd.h>
+
 #include "$.h"
 #include "FILE.h"
 #include "INT.h"
 #include "OK.h"
+#include "PRO.h"
 #include "RDXJ.h"
 #include "RDXY.h"
 
@@ -9,20 +13,45 @@ u8 *input[4] = {};
 u8 *output[4] = {};
 $u8c *ins[4] = {};
 
-fun pro(TLVsplit, $$u8c idle, $u8c data) {
+fun pro(TLVsplit, $$u8c idle, $cu8c data) {
     sane($ok(idle) && $ok(data));
-    while (!$empty(data)) {
+    a$dup(u8c, d, data);
+    while (!$empty(d)) {
         $u8c next = {};
-        call(TLVdrain$, next, data);
+        call(TLVdrain$, next, d);
         call($$u8cfeed1, idle, next);
     }
     done;
 }
 
-fun ok64 RDXeatstd() { return FILEdrainall(Bu8idle(input), STDIN_FILENO); }
+pro(RDXeatfile, int fd, b8 jdr) {
+    sane(fd > FILE_CLOSED);
+    if (jdr) {
+        call(FILEdrainall, Bu8idle(output), fd);
+        call(RDXJdrain, Bu8idle(input), Bu8cdata(output));
+        Breset(output);
+    } else {
+        call(FILEdrainall, Bu8idle(input), fd);
+    }
+    call(TLVsplit, B$u8cidle(ins), Bu8cdata(input));
+    done;
+}
 
-pro(RDXeatargs) {
+pro(RDXeatargs, b8 jdr) {
     sane(1);
+    if ($arglen < 3) {
+        call(RDXeatfile, STDIN_FILENO, jdr);
+        skip;
+    }
+    a$str(jext, ".rdxj");
+    for (int i = 2; i < $arglen; ++i) {
+        int fd = FILE_CLOSED;
+        call(FILEopen, &fd, $arg(i), O_RDONLY);
+        a$last(u8c, ext, $arg(i), 5);
+        b8 rdxj = $eq(ext, jext);
+        call(RDXeatfile, fd, jdr || rdxj);
+        call(FILEclose, fd);
+    }
     done;
 }
 
@@ -47,38 +76,23 @@ pro(RDXcli) {
     a$str(CMD_MERGE, "merge");
     a$str(ERR_CMD, "Command not recognized\n");
 
-    call(RDXeatargs);
-
     if ($arglen == 1 || $eq($arg(1), CMD_TLV)) {
-        if ($arglen < 3) {
-            call(RDXeatstd);
-            call(RDXJdrain, Bu8idle(output), Bu8cdata(input));
-        } else {
-            a$dup($u8c, in, B$u8cdata(ins));
-            $eat(in) call(RDXJdrain, Bu8idle(output), **in);
-        }
+        call(RDXeatargs, YES);
+        a$dup($u8c, in, B$u8cdata(ins));
+        $eat(in) call($u8feed, Bu8idle(output), **in);
     } else if ($eq($arg(1), CMD_J) || $eq($arg(1), CMD_JDR)) {
-        if ($arglen < 3) {
-            call(RDXeatstd);
-            call(RDXJfeed, Bu8idle(output), Bu8cdata(input));
-        } else {
-            call(RDXeatargs);
-            a$dup($u8c, in, B$u8cdata(ins));
+        call(RDXeatargs, NO);
+        a$dup($u8c, in, B$u8cdata(ins));
+        call(RDXJfeed, Bu8idle(output), **in);
+        ++*in;
+        $eat(in) {
+            call($u8feed2, Bu8idle(output), ',', '\n');
             call(RDXJfeed, Bu8idle(output), **in);
-            ++*in;
-            $eat(in) {
-                call($u8feed2, Bu8idle(output), ',', '\n');
-                call(RDXJfeed, Bu8idle(output), **in);
-            }
         }
+        call($u8feed1, Bu8idle(output), '\n');
     } else if ($eq($arg(1), CMD_Y) || $eq($arg(1), CMD_MERGE)) {
-        if ($arglen < 3) {
-            call(RDXeatstd);
-            call(TLVsplit, B$u8cidle(ins), Bu8cdata(input));
-            call(RDXY, Bu8idle(output), B$u8cdata(ins));
-        } else {
-            fail(notimplyet);
-        }
+        call(RDXeatargs, NO);
+        call(RDXY, Bu8idle(output), B$u8cdata(ins));
     } else {
         FILEerr(ERR_CMD);
     }
