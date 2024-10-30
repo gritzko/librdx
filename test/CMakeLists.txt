@@ -156,4 +156,5 @@ target_compile_options(RDXYtest PRIVATE ${TEST_CXX_FLAGS})
 add_test(NAME RDXYtestFIRST COMMAND RDXYtest ${CMAKE_SOURCE_DIR}/test/RDXY.FIRST.rdxj)
 add_test(NAME RDXYtestP COMMAND RDXYtest ${CMAKE_SOURCE_DIR}/test/RDXY.P.rdxj)
 add_test(NAME RDXYtestE COMMAND RDXYtest ${CMAKE_SOURCE_DIR}/test/RDXY.E.rdxj)
+add_test(NAME RDXYtestX COMMAND RDXYtest ${CMAKE_SOURCE_DIR}/test/RDXY.X.rdxj)
 
