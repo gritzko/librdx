@@ -31,12 +31,25 @@ ok64 RDXJonString($cu8c tok, RDXJstate* state) {
     return OK;
 }
 
+#define I64_MAX INT64_MAX
+#define I64_MIN INT64_MIN
+#define I64_MIN_ABS (1 + 0x7fffffffffffffffUL)
+
 pro(_RDXJfeedI, RDXJstate* state) {
     sane(state != nil);
-    // TODO neg
+    a$dup(u8c, dec, state->val);
     u64 x;
-    call(u64decdrain, &x, state->val);
-    i64 y = x;
+    i64 y;
+    if (**dec == '-') {
+        ++*dec;
+        call(u64decdrain, &x, dec);
+        test(x <= I64_MIN_ABS, RDXJbad);
+        y = -x;
+    } else {
+        call(u64decdrain, &x, dec);
+        test(x <= I64_MAX, RDXJbad);
+        y = x;
+    }
     u64 bits = ZINTzigzag(y);
     aBcpad(u8, i, 8);
     aBcpad(u8, id, 16);
@@ -154,22 +167,21 @@ ok64 RDXJonFIRST($cu8c tok, RDXJstate* state) {
     }
 
     ++prnt->toks;
-    ok64 o = OK;
     switch (state->lit) {
         case RDX_FLOAT:
-            o = _RDXJfeedF(state);
+            call(_RDXJfeedF, state);
             break;
         case RDX_INT:
-            o = _RDXJfeedI(state);
+            call(_RDXJfeedI, state);
             break;
         case RDX_REF:
-            o = _RDXJfeedR(state);
+            call(_RDXJfeedR, state);
             break;
         case RDX_STRING:
-            o = _RDXJfeedS(state);
+            call(_RDXJfeedS, state);
             break;
         case RDX_TERM:
-            o = _RDXJfeedT(state);
+            call(_RDXJfeedT, state);
             break;
     }
     zero(state->val);

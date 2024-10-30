@@ -7,11 +7,12 @@
 
 pro(RDXtest1) {
     sane(1);
-#define LEN1 14
+#define LEN1 16
     $u8c inputs[LEN1] = {
         $u8str("123"),
         $u8str("1.2345E2"),
         $u8str("ab-123"),
+        $u8str("ab-123:0e"),
         $u8str("\"string\""),
         $u8str("[1,2,3]"),
         $u8str("{1:2,ab-3:4.5E0}"),
@@ -20,6 +21,7 @@ pro(RDXtest1) {
         $u8str("\"line\\n\\tmore\\n\""),
         $u8str("nested:<tuple>"),
         $u8str("(~@b0b-1,~@a1ec-2)"),
+        $u8str("(-1@b0b-1,2345@2e)"),
         $u8str("[1:2:3]"),
         $u8str("<@b0b-1 4:5:6>"),
         $u8str("7:8@b0b-1:9"),

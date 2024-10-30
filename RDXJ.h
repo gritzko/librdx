@@ -48,7 +48,7 @@ fun ok64 RDXid128drain(id128* id, $cu8c txt) {
     u8c* p = $u8find(t, *ID128DELIM);
     ok64 o = OK;
     id128 res = {};
-    if (p == nil) {
+    if (p == nil) {  // FIXME not INT
         o = u64hexdrain(&RDXtime(res), t);
     } else {
         $u8c src = {t[0], p};
@@ -121,6 +121,7 @@ fun pro(RDXRtlv2txt, $u8 txt, $cu8c tlv) {
     id128 time;
     RDXref v = {};
     call(RDXCdrainR, &v, &time, tlv);
+    if (RDXsrc(v) == 0) call($u8feed1, txt, '0');
     call(RDXid128feed, txt, v);
     done;
 }
