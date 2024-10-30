@@ -46,7 +46,7 @@ arbitrary nesting:
  4. multipleXed collections (counters, version vectors).
 
 The primary RDX format is the binary type-length-value (TLV) one explained here.
-The "JSON-ish" [J-RDX][j] text format is specified elsewhere.
+The "JSON done right" [RDX-JDR][j] text format is specified elsewhere.
 We will use it too, for explanatory purposes.
 
 To specify data types fully, we describe each type's

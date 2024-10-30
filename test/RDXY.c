@@ -24,7 +24,6 @@ pro(RDXY1) {
     aB(u8c, rdxj);
     a$rg(path, 1);
     call(FILEmapro, (voidB)rdxjbuf, path);
-    $print(rdxjdata);
     aBcpad(u8, tlv, PAGESIZE);
     aBcpad(u64, stack, 1024);
     aBcpad(u8, pad, PAGESIZE);
@@ -50,6 +49,8 @@ pro(RDXY1) {
         if (!$eq(correct, resdata)) {
             aBcpad(u8, out, PAGESIZE);
             call(RDXJfeed, outidle, resdata);
+            $u8feed2(outidle, '<', '>');
+            call(RDXJfeed, outidle, correct);
             $println(outdata);
             fail(faileq);
         }

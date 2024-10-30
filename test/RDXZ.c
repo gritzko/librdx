@@ -43,7 +43,7 @@ pro(RDXZtestvalue) {
             ++j;
             int z = RDXZvalue(&prev, &rec);
             if (z >= 0) {
-                printf("OPA\n");
+                printf("OPA %i!=%i\n", i, j);
             }
             test(z < 0, FAILsanity);
         }

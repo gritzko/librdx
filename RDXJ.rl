@@ -150,7 +150,7 @@ RDXJhexEsc  = (     "\\u"  RDXJhex{4} );
 RDXJutf8esc  = (   RDXJutf8  |  RDXJesc  |  RDXJhexEsc );
 
 
-RDXJid128  = (   [0-9a-fA-F]+  "-"  [0-9a-fA-F]+ );
+RDXJid128  = (   [0-9a-fA-F]+  ("-"  [0-9a-fA-F]+)? );
 
 
 RDXJInt  = (   [\-]?  (  [0]  |  [1-9]  [0-9]*  ) )  >RDXJInt0 %RDXJInt1;
@@ -161,7 +161,7 @@ RDXJFloat  = (   (  [\-]?  (  [0]  |  [1-9]  [0-9]*  )
 
                         ([eE]  [\-+]?  [0-9]+  )?  )  -  RDXJInt )  >RDXJFloat0 %RDXJFloat1;
 
-RDXJRef  = (   RDXJid128  -  RDXJFloat )  >RDXJRef0 %RDXJRef1;
+RDXJRef  = (   RDXJid128  -RDXJFloat  -RDXJInt )  >RDXJRef0 %RDXJRef1;
 
 RDXJString  = (   ["]  RDXJutf8esc*  ["] )  >RDXJString0 %RDXJString1;
 
