@@ -18,7 +18,7 @@ RDX has a formal *mutation semantics*.
 In other words, the [spec][X] says exactly what the result should be if we merge A and B.
 
 RDX is a very algebraic data format on the inside.
-First, it employs [CRDTs][T], Commutative Replicated Data Types.
+First, it employs [CRDTs][T], Conflict-free Replicated Data Types.
 That means, any two versions of an object can *merge deterministically*.
 Second, its basic constructs are neatly orthogonal and *arbitrarily composable*.
 For example, `{"a":"map"}` is not a primitive, it is `{"a","set"}` `"of":"tuples"`.
