@@ -27,6 +27,7 @@ pro(MARQANSItest) {
     for (int c = 0; c < MARQANSIcases; ++c) {
         aBpad(u8, into, 1024);
         aBpad(u8, pfmt, PAGESIZE);
+        Bzero(pfmt);
         $mv(state.text, QA[c][0]);
         $mv(state.fmt, Bu8idle(pfmt));
 

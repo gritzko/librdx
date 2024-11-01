@@ -3,7 +3,7 @@
 
 #include "INT.h"
 
-con int JSONenum = 0;  // TODO
+#define JSONenum 0
 
 con ok64 JSONbad = 0x289665d8713;
 con ok64 JSONfail = 0xc2d96a5d8713;

@@ -7,7 +7,7 @@
 #define RYU_OPTIMIZE_SIZE
 #include "ryu/ryu.h"
 
-con int RDXJenum = 0;
+#define RDXJenum 0
 
 con ok64 RDXJbad = 0x289664e135b;
 con ok64 RDXJfail = 0xc2d96a4e135b;
