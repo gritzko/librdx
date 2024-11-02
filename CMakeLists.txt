@@ -7,7 +7,9 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS on)
 
 include(CTest)
 
-#find_package(sodium CONFIG)
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/.github")
+find_package(sodium REQUIRED)
+
 include_directories(. ryu)
 
 option(WITH_ASAN "build with ASAN" OFF)

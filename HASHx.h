@@ -13,13 +13,14 @@ typedef X(, ) T;
 fun pro(X(HASH, scan), size_t *ndx, X($, ) data, T const *rec) {
     const size_t mask = lineX - 1;
     sane($ok(data) && ndx != nil && 0 == ($len(data) & mask));
-    T zero = {};
+    T zz;
+    zero(zz);
     size_t off = *ndx & mask;
     size_t base = *ndx & ~mask;
     size_t x;
     for (size_t i = off + 1; i < off + lineX; ++i) {
         x = base + (i & mask);
-        if (X(, cmp)(*data + x, &zero) == 0) fail(HASHnone);
+        if (X(, cmp)(*data + x, &zz) == 0) fail(HASHnone);
         if (X(, cmp)(*data + x, rec) == 0) skip;
     }
     fail(HASHnoroom);
@@ -31,8 +32,9 @@ fun ok64 X(HASH, find)(size_t *ndx, X($, ) data, T const *rec) {
     u64 hash = X(, hash)(rec);
     *ndx = hash % $len(data);
     if (X(, cmp)(rec, *data + *ndx) == 0) return OK;
-    const T zero = {};
-    if (X(, cmp)(&zero, *data + *ndx) == 0) return HASHnone;
+    T zz;
+    zero(zz);
+    if (X(, cmp)(&zz, *data + *ndx) == 0) return HASHnone;
     return X(HASH, scan)(ndx, data, rec);
 }
 
@@ -54,14 +56,15 @@ fun ok64 X(HASH, put)(X($, ) data, T const *rec) {
 
 fun pro(X(HASH, shift), X($, ) data, size_t ndx) {
     sane($ok(data) && ndx < $len(data));
-    T zero = {};
+    T zz;
+    zero(zz);
     const size_t mask = lineX - 1;
     size_t off = ndx & mask;
     size_t base = ndx & ~mask;
     u64 fit = 0;
     for (size_t i = off + 1; i < off + lineX; ++i) {
         size_t x = base + (i & mask);  // FIXME all pow 2?
-        if (X(, cmp)(*data + x, &zero) == 0) {
+        if (X(, cmp)(*data + x, &zz) == 0) {
             break;
         }
         size_t nom = X(, hash)(*data + x) % $len(data);

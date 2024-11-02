@@ -1,6 +1,6 @@
 #ifndef LIBRDX_SHA_H
 #define LIBRDX_SHA_H
-#include <sodium/crypto_hash_sha256.h>
+#include <sodium.h>
 
 #include "INT.h"
 

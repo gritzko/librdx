@@ -184,7 +184,8 @@ fun void X($, purge)(X($, ) s, X(, isfn) f) {
 }
 
 fun void X($, str0)(X($, c) s, T const *a) {
-    T zero = {};
+    T zero;
+    memset(&zero, 0, sizeof(T));
     s[0] = a;
     size_t i = 0;
     while (X(, cmp)((T const *)&zero, a + i) != 0) ++i;
