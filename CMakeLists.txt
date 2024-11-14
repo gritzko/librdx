@@ -67,6 +67,8 @@ TEST.h
 TLV.h
 UTF8.h
 ZINT.h
+URI.h
+HTTP.h
 )
 
 list(APPEND RDX_SOURCES 
@@ -76,6 +78,10 @@ LEX.c
 LEX.rl.c
 MARK.c
 MARK.rl.c
+URI.rl.c
+URI.c
+HTTP.rl.c
+HTTP.c
 MARQ.c
 MARQ.rl.c
 RDXJ.c

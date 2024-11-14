@@ -106,7 +106,7 @@ LEXOp  = (   LEXSpace  |  [()+*\-?><:|\.]  |  LEXRep )  >LEXOp0 %LEXOp1;
 
 LEXClass  = (   "["  ([^\]]|"\\]")*  "]"   )  >LEXClass0 %LEXClass1;
 
-LEXRange  = (   "("  (LEXhex|LEXdec)  ".."  (LEXhex|LEXdec)  ")" )  >LEXRange0 %LEXRange1;
+LEXRange  = (   "("  (LEXhex|LEXdec)  ".."  (LEXhex|LEXdec)  |  (LEXhex|LEXdec)  ")" )  >LEXRange0 %LEXRange1;
 
 LEXString  = (   "\""  ([^"]|"\\\"")*  "\""   )  >LEXString0 %LEXString1;
 
@@ -151,8 +151,7 @@ pro(LEXlexer, LEXstate* state) {
     %% write exec;
 
     if (p!=text[1] || cs < LEX_first_final) {
-        state->text[0] = p;
         fail(LEXfail);
     }
-    done;
+    nedo(state->text[0] = p;);
 }

@@ -140,6 +140,11 @@ target_link_options(URItest PRIVATE ${TEST_LDD_FLAGS})
 target_compile_options(URItest PRIVATE ${TEST_CXX_FLAGS})
 add_test(NAME URItest COMMAND URItest)
 
+add_executable(HTTPtest HTTP.c ../HTTP.rl.c ../HTTP.c)
+target_link_options(HTTPtest PRIVATE ${TEST_LDD_FLAGS})
+target_compile_options(HTTPtest PRIVATE ${TEST_CXX_FLAGS})
+add_test(NAME HTTPtest COMMAND HTTPtest)
+
 add_executable(RDXtest RDX.c)
 target_link_options(RDXtest PRIVATE ${TEST_LDD_FLAGS})
 target_compile_options(RDXtest PRIVATE ${TEST_CXX_FLAGS})
