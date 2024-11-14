@@ -135,6 +135,11 @@ target_link_options(JSONtest PRIVATE ${TEST_LDD_FLAGS})
 target_compile_options(JSONtest PRIVATE ${TEST_CXX_FLAGS})
 add_test(NAME JSONtest COMMAND JSONtest)
 
+add_executable(URItest URI.c ../URI.rl.c ../URI.c)
+target_link_options(URItest PRIVATE ${TEST_LDD_FLAGS})
+target_compile_options(URItest PRIVATE ${TEST_CXX_FLAGS})
+add_test(NAME URItest COMMAND URItest)
+
 add_executable(RDXtest RDX.c)
 target_link_options(RDXtest PRIVATE ${TEST_LDD_FLAGS})
 target_compile_options(RDXtest PRIVATE ${TEST_CXX_FLAGS})
