@@ -3,7 +3,9 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <sys/mman.h>
+#include <sys/uio.h>
 #include <unistd.h>
 
 #include "01.h"
@@ -146,6 +148,41 @@ fun ok64 FILEfeed(int fd, u8 const **data) {
     return OK;
 }
 
+#include "INT.h"
+
+fun int FILE2iovec(struct iovec *io, $$u8c datav) {
+    int l = 0;
+    while (l < $len(datav) && l < IOV_MAX) {
+        u8c$ data = $at(datav, l);
+        io[l].iov_base = (void *)data[0];
+        io[l].iov_len = $len(data);
+        ++l;
+    }
+    return l;
+}
+
+fun void $$u8cdrained($$u8c datav, size_t re) {
+    while (re > 0 && !$empty(datav)) {
+        u8c$ data = $at(datav, 0);
+        if (re < $len(data)) {
+            data[0] += re;
+            re = 0;
+        } else {
+            re -= $len(data);
+            ++datav[0];
+        }
+    }
+}
+
+fun ok64 FILEfeedv(int fd, $$u8c datav) {
+    struct iovec io[IOV_MAX];
+    int l = FILE2iovec(io, datav);
+    ssize_t re = writev(fd, io, l);
+    if (re <= 0) return FILEfail;
+    $$u8cdrained(datav, re);
+    return OK;
+}
+
 fun ok64 FILEfeedall(int fd, uint8_t const *const *data) {
     if (!FILEok(fd) || !$ok(data)) return FILEbadarg;
     a$dup(u8 const, d, data);
@@ -163,6 +200,15 @@ fun ok64 FILEdrain(u8 **into, int fd) {
         return FILEfail;  // TODO
     }
     *into += ret;
+    return OK;
+}
+
+fun ok64 FILEdrainv($$u8 datav, int fd) {
+    struct iovec io[IOV_MAX];
+    int l = FILE2iovec(io, ($u8c$)datav);
+    ssize_t re = readv(fd, io, l);
+    if (re <= 0) return FILEfail;
+    $$u8cdrained(($u8c$)datav, re);
     return OK;
 }
 

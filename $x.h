@@ -4,6 +4,7 @@
 
 #include "$.h"
 #include "B.h"
+#include "OK.h"
 #include "PRO.h"
 
 #define T X(, )
@@ -18,6 +19,8 @@ typedef T const *const X($c, c)[2];
 
 typedef T **X(, $);
 typedef T const **X(, c$);
+typedef T *const *X(, $c);
+typedef T const *const *X(, c$c);
 typedef T const *const *X(, $cc);
 
 typedef X($, ) * X($$, )[2];
@@ -71,6 +74,26 @@ fun size_t X($, copy)(X($c, ) into, X($c, c) from) {
     return l;
 }
 
+fun ok64 X($, alloc)(X($, ) what, size_t len) {
+    T *m = (T *)malloc(len * sizeof(T));
+    if (m == nil) return noroom;
+    what[0] = m;
+    what[1] = m + len;
+    return OK;
+}
+
+fun ok64 X($, dup)(X($, ) copy, X($, c) orig) {
+    ok64 o = X($, alloc)(copy, $len(orig));
+    if (o != OK) return o;
+    memcpy(*copy, *orig, $size(orig));
+    return OK;
+}
+
+fun ok64 X($, free)(X($, ) what) {
+    free(what[0]);
+    return OK;
+}
+
 fun ok64 X($, feed)(X($, ) into, X($c, c) from) {
     if (unlikely(!$ok(from) || !$ok(into))) return $badarg;
     if ($size(from) > $size(into)) return $noroom;
@@ -101,6 +124,16 @@ fun ok64 X($, feed1)(X($, ) into, T what) {
     return OK;
 }
 
+fun ok64 X($, drain1)(T *into, X($, ) from) {
+    if ($empty(from)) return $nodata;
+#ifndef ABC_X_$
+    X(, mv)(into, *from);
+#else
+    memcpy(into, *from, sizeof(T));
+#endif
+    ++*from;
+    return OK;
+}
 fun ok64 X($, feed2)(X($, ) into, T a, T b) {
     if ($len(into) < 2) return $noroom;
     X(, mv)(*into, (T const *)&a);
@@ -112,12 +145,9 @@ fun ok64 X($, feed2)(X($, ) into, T a, T b) {
 
 fun ok64 X($, feed3)(X($, ) into, T a, T b, T c) {
     if ($len(into) < 3) return $noroom;
-    X(, mv)(*into, (T const *)&a);
-    ++*into;
-    X(, mv)(*into, (T const *)&b);
-    ++*into;
-    X(, mv)(*into, (T const *)&c);
-    ++*into;
+    X($, feed1)(into, a);
+    X($, feed1)(into, b);
+    X($, feed1)(into, c);
     return OK;
 }
 fun ok64 X($, feedp)(X($, ) into, T const *what) {

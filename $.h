@@ -15,6 +15,7 @@
 #include "01.h"
 
 con ok64 $miss = 0x37dedc7f;
+con ok64 $nodata = 0x25e25a33cbf;
 
 #define $head(s) ((s)[0])
 #define $term(s) ((s)[1])
@@ -150,7 +151,7 @@ typedef int (*$cmpfn)($cc a, $cc b);
 
 #define a$str(n, s)        \
     char const *__##n = s; \
-    u8 const *const n[2] = {(u8 *)__##n, (u8 *)__##n + strlen(__##n)};
+    u8 const *n[2] = {(u8 *)__##n, (u8 *)__##n + strlen(__##n)};
 
 #define a$strc(n, c) u8 const *n[2] = {(u8c *)(c), (u8c *)((c) + strlen(c))}
 

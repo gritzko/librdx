@@ -11,9 +11,15 @@ typedef T **X(, B);
 typedef T const **X(, cB);
 typedef X($, ) * X(B$, )[4];
 
-fun T *const *X(B, past)(X(B, ) buf) { return (X(, ) **)buf + 0; }
-fun T **X(B, data)(X(B, ) buf) { return (X(, ) **)buf + 1; }
-fun T **X(B, idle)(X(B, ) buf) { return (X(, ) **)buf + 2; }
+fun T *const *X(B, past)(X(B, ) buf) { return (T **)buf + 0; }
+fun T const *const *X(B, pastc)(X(B, ) buf) {
+    return (T const *const *)buf + 0;
+}
+fun T **X(B, data)(X(B, ) buf) { return (T **)buf + 1; }
+fun T **X(B, idle)(X(B, ) buf) { return (T **)buf + 2; }
+
+fun b8 X(B, hasroom)(X(B, ) buf) { return !$empty(X(B, idle)(buf)); }
+fun b8 X(B, hasdata)(X(B, ) buf) { return !$empty(X(B, data)(buf)); }
 
 fun T const *const *X(B, cpast)(X(B, ) buf) {
     return (T const *const *)buf + 0;
@@ -111,7 +117,7 @@ fun void X(B, reset)(X(B, ) buf) {
 }
 
 fun ok64 X(B, rewind)(X(B, ) buf, range64 range) {
-    size_t len = $len(buf);
+    size_t len = Blen(buf);
     if (range.till < range.from || range.till > len) return $miss;
     T **b = (T **)buf;
     b[1] = b[0] + range.from;

@@ -117,10 +117,12 @@ fun ok64 Breserve(Bvoid b, size_t sz) {
     return Brealloc(b, roundup(Busysize(b) + sz, 256));
 }
 
+#define Bnilify(buf) memset((void **)buf, 0, sizeof(Bvoid));
+
 fun ok64 Bfree(Bvoid buf) {
     if (Bnil(buf)) return Bisnil;
     free(buf[0]);
-    memset((void **)buf, 0, sizeof(Bvoid));
+    Bnilify(buf);
     return OK;
 }
 

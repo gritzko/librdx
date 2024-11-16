@@ -145,6 +145,11 @@ target_link_options(HTTPtest PRIVATE ${TEST_LDD_FLAGS})
 target_compile_options(HTTPtest PRIVATE ${TEST_CXX_FLAGS})
 add_test(NAME HTTPtest COMMAND HTTPtest)
 
+add_executable(UDPtest UDP.c)
+target_link_options(UDPtest PRIVATE ${TEST_LDD_FLAGS})
+target_compile_options(UDPtest PRIVATE ${TEST_CXX_FLAGS})
+add_test(NAME UDPtest COMMAND UDPtest)
+
 add_executable(RDXtest RDX.c)
 target_link_options(RDXtest PRIVATE ${TEST_LDD_FLAGS})
 target_compile_options(RDXtest PRIVATE ${TEST_CXX_FLAGS})

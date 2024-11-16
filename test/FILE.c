@@ -1,5 +1,7 @@
 #include "FILE.h"
 
+#include <stdlib.h>
+
 #include "INT.h"
 #include "PRO.h"
 #include "TEST.h"
@@ -53,11 +55,32 @@ pro(FILE3) {
     done;
 }
 
+pro(FILEtest4) {
+    sane(1);
+    a$str(path, "/tmp/FILEtest4.txt");
+    a$str(one, "Hello");
+    a$str(two, " beautiful");
+    a$str(three, " world!");
+    aBpad2($u8c, queue, 4);
+    call($$u8cfeed3, queueidle, one, two, three);
+    int fd;
+    call(FILEcreate, &fd, path);
+    call(FILEfeedv, fd, queuedata);
+    want($empty(queuedata));
+    aBpad2(u8, back, 64);
+    testeq(0, lseek(fd, 0, SEEK_SET));
+    call(FILEdrainall, backidle, fd);
+    a$str(correct, "Hello beautiful world!");
+    $testeq(correct, backdata);
+    done;
+}
+
 pro(FILEtest) {
     sane(1);
     call(FILEtest1);
     call(FILEtest2);
     call(FILE3);
+    call(FILEtest4);
     done;
 }
 

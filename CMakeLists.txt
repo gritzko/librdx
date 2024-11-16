@@ -68,6 +68,8 @@ TLV.h
 UTF8.h
 ZINT.h
 URI.h
+NET.h
+UDP.h
 HTTP.h
 )
 
