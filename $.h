@@ -23,6 +23,7 @@ con ok64 $nodata = 0x25e25a33cbf;
 #define $len(s) ($term(s) - $head(s))
 #define $size(s) (((uint8_t *)$term(s)) - ((uint8_t *)$head(s)))
 #define $at(s, n) (*($head(s) + (n)))
+#define $atp(s, n) (($head(s) + (n)))
 #define $in(s, p) (p - s[0])
 #define $in$(s, ins) (ins[0] - s[0])
 
