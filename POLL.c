@@ -8,6 +8,7 @@
 #include "FILE.h"
 
 int POLLlen(POLLstate state) {
+    if (state[0].fn == nil) return 0;
     int b = 0, e = POLL_MAX_FILES;
     while (b + 1 < e) {
         int m = (b + e) >> 1;

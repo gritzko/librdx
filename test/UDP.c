@@ -20,11 +20,12 @@ pro(UDPtest1) {
     call(UDPconnect, &cfd, addr);
 
     a$str(bubu, "BuBu");
-    call(FILEfeed, cfd, bubu);
+    call(FILEfeedall, cfd, bubu);
 
     aBpad2(u8, read, 128);
     aNETraw(sndaddr);
     call(UDPdrain, readidle, sndaddr, fd);
+    $testeq(bubu, readdata);
 
     call(UDPclose, fd);
     done;

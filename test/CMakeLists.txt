@@ -155,6 +155,11 @@ target_link_options(TCPtest PRIVATE ${TEST_LDD_FLAGS})
 target_compile_options(TCPtest PRIVATE ${TEST_CXX_FLAGS})
 add_test(NAME TCPtest COMMAND TCPtest)
 
+add_executable(POLLtest POLL.c ../POLL.c)
+target_link_options(POLLtest PRIVATE ${TEST_LDD_FLAGS})
+target_compile_options(POLLtest PRIVATE ${TEST_CXX_FLAGS})
+add_test(NAME POLLtest COMMAND POLLtest)
+
 add_executable(RDXtest RDX.c)
 target_link_options(RDXtest PRIVATE ${TEST_LDD_FLAGS})
 target_compile_options(RDXtest PRIVATE ${TEST_CXX_FLAGS})

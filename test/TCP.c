@@ -17,13 +17,6 @@ void garble($u8 data) {
     }
 }
 
-fun int NETrandomport() {
-    int ret = 10000;
-    ret += (int)(time(nil) % 10000);
-    ret += 10 * (getpid() % 1000);
-    return ret;
-}
-
 pro(TCPtest1) {
     sane(1);
 
@@ -43,11 +36,12 @@ pro(TCPtest1) {
     call(TCPaccept, &sfd, caddr, fd);
 
     a$str(bubu, "BuBu");
-    call(FILEfeed, cfd, bubu);
+    call(FILEfeedall, cfd, bubu);
 
     aBpad2(u8, read, 128);
     aNETraw(sndaddr);
     call(FILEdrain, readidle, sfd);
+    $testeq(bubu, readdata);
 
     call(TCPclose, fd);
     call(TCPclose, cfd);

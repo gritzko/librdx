@@ -115,6 +115,7 @@ fun ok64 UDPdrain($u8 into, NETaddr addr, int fd) {
     if (nread == -1) return UDPfail;
     range64 range = {0, len};
     Bu8rewind(addr, range);
+    *into += nread;
     return OK;
 }
 

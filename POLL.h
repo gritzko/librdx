@@ -20,7 +20,7 @@ typedef ok64 (*POLLfunT)(struct POLLstate* state);
 
 typedef ok64 (*POLLfunI)(struct POLLctl* ctl);
 
-typedef struct {
+struct POLLctl {
     B$u8c writes;
     Bu8 readbuf;
     Bu8 writebuf;
@@ -28,11 +28,12 @@ typedef struct {
     ok64 o;
     POLLfunI fn;
     int fd;
-} POLLctl;
+};
+typedef struct POLLctl POLLctl;
 
 typedef POLLctl POLLstate[POLL_MAX_FILES];
 
-POLLctl* POLLfind(POLLstate state, int fd) {
+fun POLLctl* POLLfind(POLLstate state, int fd) {
     for (int i = 0; i < POLL_MAX_FILES && state[i].fn != nil; ++i)
         if (state[i].fd == fd) return state + i;
     return nil;
