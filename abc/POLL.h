@@ -1,6 +1,7 @@
 #ifndef ABC_POLL_H
 #define ABC_POLL_H
 
+#include <limits.h>
 #include <poll.h>
 
 #include "INT.h"

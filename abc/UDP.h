@@ -29,10 +29,6 @@ fun pro(UDPbind, int *fd, NETaddr addr) {
     hints.ai_family = AF_UNSPEC;    /* Allow IPv4 or IPv6 */
     hints.ai_socktype = SOCK_DGRAM; /* Datagram socket */
     hints.ai_flags = AI_PASSIVE;    /* For wildcard IP address */
-    hints.ai_protocol = 0;          /* Any protocol */
-    hints.ai_canonname = NULL;
-    hints.ai_addr = NULL;
-    hints.ai_next = NULL;
 
     s = getaddrinfo($len(host) > 1 ? (const char *)*host : nil,
                     $len(port) > 1 ? (const char *)*port : nil, &hints,
@@ -75,15 +71,13 @@ fun ok64 UDPconnect(int *fd, NETaddr addr) {
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_UNSPEC;    /* Allow IPv4 or IPv6 */
     hints.ai_socktype = SOCK_DGRAM; /* Datagram socket */
-    hints.ai_flags = 0;
-    hints.ai_protocol = 0; /* Any protocol */
 
     u8$c host = NEThost(addr);
     u8$ port = NETport(addr);
-    if ($len(host) > 0 && *$last(host) != 0) return NETbadaddr;
+    if ($len(host) == 0 || *$last(host) != 0) return NETbadaddr;
     if ($len(port) > 0 && *$last(port) != 0) return NETbadaddr;
 
-    s = getaddrinfo($len(host) > 1 ? (const char *)*host : nil,
+    s = getaddrinfo((const char *)*host,
                     $len(port) > 1 ? (const char *)*port : nil, &hints,
                     &result);
     if (s != 0) {

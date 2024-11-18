@@ -79,10 +79,10 @@ fun ok64 TCPconnect(int *fd, NETaddr addr) {
 
     u8$c host = NEThost(addr);
     u8$ port = NETport(addr);
-    if ($len(host) > 0 && *$last(host) != 0) return NETbadaddr;
+    if ($len(host) == 0 || *$last(host) != 0) return NETbadaddr;
     if ($len(port) > 0 && *$last(port) != 0) return NETbadaddr;
 
-    s = getaddrinfo($len(host) > 1 ? (const char *)*host : nil,
+    s = getaddrinfo((const char *)*host,
                     $len(port) > 1 ? (const char *)*port : nil, &hints,
                     &result);
     if (s != 0) {
