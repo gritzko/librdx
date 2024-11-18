@@ -19,10 +19,13 @@ typedef Bu8 NETaddr;
 #define NETraw(a) Bu8data(a)
 #define NETport(a) Bu8data(a)
 
+#define NETmaxhost (256-32-2)
+#define NETmaxserv (32)
+
 #define aNETraw(name) aBpad(u8, name, 128);
 
 #define aNETaddr(name, host, port)            \
-    aBpad(u8, name, NI_MAXHOST + NI_MAXSERV); \
+    aBpad(u8, name, NETmaxhost + NETmaxserv); \
     {                                         \
         int hl = strlen(host) + 1;            \
         int pl = strlen(port) + 1;            \
@@ -33,10 +36,10 @@ typedef Bu8 NETaddr;
     }
 
 fun ok64 NETinfo(NETaddr text, NETaddr raw) {
-    char host[NI_MAXHOST], service[NI_MAXSERV];
+    char host[NETmaxhost], service[NETmaxserv];
     u8$ addr = NETraw(raw);
     int s = getnameinfo((struct sockaddr *)addr[0], $len(addr), host,
-                        NI_MAXHOST, service, NI_MAXSERV, NI_NUMERICSERV);
+                        NETmaxhost, service, NETmaxserv, NI_NUMERICSERV);
     if (s != 0) {
         trace("getnameinfo: %s\n", gai_strerror(s));
         return NETbadaddr;

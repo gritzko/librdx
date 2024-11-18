@@ -8,7 +8,10 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS on)
 include(CTest)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}")
-find_package(sodium REQUIRED)
+find_library(sodium 
+	NAMES sodium 
+	HINTs /usr /usr/local 
+	REQUIRED)
 
 option(WITH_ASAN "build with ASAN" OFF)
 if (WITH_ASAN)
@@ -18,6 +21,7 @@ if (WITH_ASAN)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${ASAN_FLAGS}")
 endif ()
 
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D_XOPEN_SOURCE=600")
 set(TEST_CXX_FLAGS "-g")
 set(TEST_LDD_FLAGS "-g")
 set(BENCH_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -v")
