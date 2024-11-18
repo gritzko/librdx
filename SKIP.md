@@ -1,13 +1,16 @@
   # SKIP log
 
-This module turns any binary stream into a skiplog. 
 A skiplog is an append-only log where payload entries are interleaved with backward-pointing skiplist entries.
 That way, one can skip to any record in the log in a logarithmic number of hops.
-It is assumed that there is a monotonous metric defined on the records.
-For example, records can be timestamped (syslog), sorted (LSM) or numbered (WAL).
+The overhead of the skiplist is negligible thanks to some smart optimizations.
+
+So, we can write a log normally, then we can search in that log, fast.
+For example, records can be timestamped (syslog), sorted (LSM) or numbered (WAL);
+a skiplist can use any such monotonous metric.
 There could be multiple such metrics at the same time, no biggie.
-Or there can be none.
-Then, we can search for valid record start positions without rescanning the entire log.
+Or there can be none, in case we only need valid record offsets.
+No need to rescan the log, no need for a separate database or index.
+
 
  ## The skiplist
 
