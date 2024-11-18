@@ -1,13 +1,6 @@
 #ifndef LIBRDX_FILE_H
 #define LIBRDX_FILE_H
 
-#include <errno.h>
-#include <fcntl.h>
-#include <limits.h>
-#include <sys/mman.h>
-#include <sys/uio.h>
-#include <unistd.h>
-
 #include "01.h"
 #include "B.h"
 #include "OK.h"
@@ -17,6 +10,12 @@
 #define _XOPEN_SOURCE 500
 #endif
 #define __USE_XOPEN_EXTENDED 1
+
+#include <errno.h>
+#include <fcntl.h>
+#include <limits.h>
+#include <sys/uio.h>
+#include <unistd.h>
 
 #include "ftw.h"
 
@@ -39,6 +38,18 @@ con ok64 FILEbad = 0x2896639548f;
 
 #define FILEbad(fd) (fd < 0)
 #define FILEok(fd) (fd >= 0)
+
+#ifdef IOV_MAX
+#define FILEmaxiov IOV_MAX
+#elif defined __IOV_MAX
+#define FILEmaxiov __IOV_MAX
+#else
+#define FILEmaxiov 1024
+#endif
+
+#ifndef MAP_FILE
+#define MAP_FILE 0
+#endif
 
 typedef u8 const *path[2];
 
@@ -152,7 +163,7 @@ fun ok64 FILEfeed(int fd, u8 const **data) {
 
 fun int FILE2iovec(struct iovec *io, $$u8c datav) {
     int l = 0;
-    while (l < $len(datav) && l < IOV_MAX) {
+    while (l < $len(datav) && l < FILEmaxiov) {
         u8c$ data = $at(datav, l);
         io[l].iov_base = (void *)data[0];
         io[l].iov_len = $len(data);
@@ -175,7 +186,7 @@ fun void $$u8cdrained($$u8c datav, size_t re) {
 }
 
 fun ok64 FILEfeedv(int fd, $$u8c datav) {
-    struct iovec io[IOV_MAX];
+    struct iovec io[FILEmaxiov];
     int l = FILE2iovec(io, datav);
     ssize_t re = writev(fd, io, l);
     if (re <= 0) return FILEfail;
@@ -204,7 +215,7 @@ fun ok64 FILEdrain(u8 **into, int fd) {
 }
 
 fun ok64 FILEdrainv($$u8 datav, int fd) {
-    struct iovec io[IOV_MAX];
+    struct iovec io[FILEmaxiov];
     int l = FILE2iovec(io, ($u8c$)datav);
     ssize_t re = readv(fd, io, l);
     if (re <= 0) return FILEfail;

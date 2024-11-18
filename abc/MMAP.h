@@ -4,9 +4,6 @@
 #include "B.h"
 #include "PRO.h"
 
-#define _GNU_SOURCE
-#include <sys/mman.h>
-
 con ok64 MMAPbadarg = 0xaf696896664a596;
 con ok64 MMAPfail = 0xc2d96a64a596;
 
