@@ -543,8 +543,9 @@ _again:
 
 #line 221 "HTTP.rl"
 
+    state->text[0] = p;
     if (p!=text[1] || cs < HTTP_first_final) {
-        fail(HTTPfail);
+        return HTTPfail;
     }
-    nedo(state->text[0] = p;);
+    done;
 }

@@ -14,6 +14,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
+#include <sys/mman.h>
 #include <sys/uio.h>
 #include <unistd.h>
 
@@ -318,16 +319,23 @@ fun pro(FILEmapro, voidB buf, $cu8c path) {
     int fd = FILE_CLOSED;
     size_t size = 0;
     call(FILEopen, &fd, path, O_RDONLY);
-    call(FILEsize, &size, fd);
+    ok64 o = FILEsize(&size, fd);
+    if (o != OK) {
+        FILEclose(fd);
+        fail(o);
+    }
     u8 *new_mem =
         (u8 *)mmap(NULL, size, PROT_READ, MAP_FILE | MAP_SHARED, fd, 0);
-    testc(new_mem != MAP_FAILED, FILEfail);
+    if (new_mem == MAP_FAILED) {
+        FILEclose(fd);
+        fail(FILEfail);
+    }
     void **b = (void **)buf;
     b[0] = new_mem;
     b[3] = b[0] + size;
     b[1] = b[0];
     b[2] = b[3];
-    nedo(FILEclose(fd));
+    return OK;
 }
 
 // Mamory-map a file for writing; use the provided size.
@@ -339,15 +347,15 @@ fun pro(FILEmapre, voidB buf, $cu8c path, size_t new_size) {
     size_t file_size = 0;
     size_t size = 0;
     struct stat st = {};
-    otry(FILEstat, &st, path);
-    orly {
+    ok64 o = FILEstat(&st, path);
+    if (o == OK) {
         call(FILEopen, &fd, path, O_RDWR);
         file_size = st.st_size;
-    }
-    else ofix(FILEnone) {
+    } else if (o == FILEnone) {
         call(FILEcreate, &fd, path);
+    } else {
+        fail(o);
     }
-    else ocry;
     if (new_size == 0) {
         size = file_size;
     } else if (new_size > 0) {
@@ -356,7 +364,7 @@ fun pro(FILEmapre, voidB buf, $cu8c path, size_t new_size) {
         size = roundup(file_size * 5 / 4, PAGESIZE);
     }
     if (file_size != size) {
-        call(FILEresize, fd, size);
+        callsafe(FILEresize(fd, size), FILEclose(fd));
     }
     u8 *new_mem = (u8 *)mmap(NULL, size, PROT_READ | PROT_WRITE,
                              MAP_FILE | MAP_SHARED, fd, 0);
@@ -366,7 +374,8 @@ fun pro(FILEmapre, voidB buf, $cu8c path, size_t new_size) {
     b[3] = b[0] + size;
     b[1] = b[0];
     b[2] = b[3];
-    nedo(FILEclose(fd));
+    FILEclose(fd);
+    done;
 }
 
 // Mamory-map a file for in-place writing.

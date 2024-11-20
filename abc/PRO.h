@@ -19,54 +19,73 @@ con ok64 badarg = 0xaf6968966;
 con ok64 faileq = 0xd69c2d96a;
 
 #define PROindent (_pro_indent + 32 - (_pro_depth & 31))
-#define PROind (_pro_indent + 32 - (__depth & 31))
 
 #define pro(name, ...) ok64 name(__VA_ARGS__)
 
-// Procedure return with no finalizations.
-#define done              \
-    _over:                \
-    _pro_depth = __depth; \
-    return __;
+// Mandatory sanity checks; might be disabled in Release mode.
+#define sane(c)                            \
+    trace("%s>%s\n", PROindent, __func__); \
+    if (!(c)) return FAILsanity;           \
+    ok64 __ = OK;
 
-// Procedure return with finalizations.
-#define nedo(...)           \
-    _over: { __VA_ARGS__; } \
-    _pro_depth = __depth;   \
-    return __;
+#define call(f, ...)                                                    \
+    {                                                                   \
+        u8 __depth = _pro_depth++;                                      \
+        __ = (f(__VA_ARGS__));                                          \
+        _pro_depth = __depth;                                           \
+        if (__ != OK) {                                                 \
+            trace("%s<%s at %s:%i\n", PROindent, ok64str(__), __func__, \
+                  __LINE__);                                            \
+            return __;                                                  \
+        }                                                               \
+    }
+
+#define callsafe(fcall, ffail)                                          \
+    {                                                                   \
+        u8 __depth = _pro_depth++;                                      \
+        __ = (fcall);                                                   \
+        _pro_depth = __depth;                                           \
+        if (__ != OK) {                                                 \
+            trace("%s<%s at %s:%i\n", PROindent, ok64str(__), __func__, \
+                  __LINE__);                                            \
+            ffail;                                                      \
+            return __;                                                  \
+        }                                                               \
+    }
+
+// Procedure return with no finalizations.
+#define done return OK;
 
 // Procedure fails, skip to finalizations.
-#define fail(code)                                                          \
-    {                                                                       \
-        __ = (code);                                                        \
-        trace("%s<%s at %s:%i\n", PROind, ok64str(__), __func__, __LINE__); \
-        goto _over;                                                         \
+#define fail(code)                                                    \
+    {                                                                 \
+        trace("%s<%s at %s:%i\n", PROindent, ok64str(code), __func__, \
+              __LINE__);                                              \
+        return (code);                                                \
     }
 
 // Skip to procedure return.
-#define skip goto _over;
+#define skip return OK;
 
-#define failc(code)                                                       \
-    {                                                                     \
-        __ = (code);                                                      \
-        trace("%s<%s errno %i %s at %s:%i\n", PROind, ok64str(__), errno, \
-              strerror(errno), __func__, __LINE__);                       \
-        goto _over;                                                       \
+#define failc(code)                                                            \
+    {                                                                          \
+        trace("%s<%s errno %i %s at %s:%i\n", PROindent, ok64str(code), errno, \
+              strerror(errno), __func__, __LINE__);                            \
+        return (code);                                                         \
     }
 
 #define test(c, f) \
     if (!(c)) fail(f);
 
+#define testsafe(c, f, cleanup) \
+    if (!(c)) {                 \
+        __ = f;                 \
+        cleanup;                \
+        fail(__);               \
+    }
+
 #define testc(c, f) \
     if (!(c)) failc(f);
-
-// Mandatory sanity checks; might be disabled in Release mode.
-#define sane(c)                            \
-    trace("%s>%s\n", PROindent, __func__); \
-    u8 __depth = _pro_depth;               \
-    _pro_depth++;                          \
-    ok64 __ = 0;                           \
-    if (!(c)) fail(FAILsanity);
 
 #define otry(f, ...) __ = (f(__VA_ARGS__))
 
@@ -76,40 +95,23 @@ con ok64 faileq = 0xd69c2d96a;
 
 #define oops if (__ != OK)
 
-#define ocry \
-    if (__ != OK) fail(__);
+#define ocry(...)    \
+    if (__ != OK) {  \
+        __VA_ARGS__; \
+        fail(__);    \
+    }
 
 #define is(f) (__ == f)
 
 #define sure(f) \
     if (__ != f) fail(__);
 
-#define call(f, ...)                                                 \
-    {                                                                \
-        __ = (f(__VA_ARGS__));                                       \
-        if (__ != OK) {                                              \
-            trace("%s<%s at %s:%i\n", PROind, ok64str(__), __func__, \
-                  __LINE__);                                         \
-            goto _over;                                              \
-        }                                                            \
-    }
-
-#define fwdcall(f, ...)                                              \
-    {                                                                \
-        __ = (f(__VA_ARGS__));                                       \
-        if (__ != OK) {                                              \
-            trace("%s<%s at %s:%i\n", PROind, ok64str(__), __func__, \
-                  __LINE__);                                         \
-        }                                                            \
-        goto _over;                                                  \
-    }
-
 #define mute(f, o)            \
     {                         \
-        __ = (f);             \
+        ok64 __ = (f);        \
         if (__ == o) __ = OK; \
         if (__ != OK) {       \
-            goto _over;       \
+            fail(__);         \
         }                     \
     }
 
@@ -120,13 +122,13 @@ con ok64 faileq = 0xd69c2d96a;
         }                          \
     }
 
-#define testeqv(a, b, fmt)                                                  \
-    {                                                                       \
-        if (!likely((a) == (b))) {                                          \
-            fprintf(stderr, "%sNot equal: " fmt " <> " fmt "\n", PROind, a, \
-                    b);                                                     \
-            fail(faileq)                                                    \
-        }                                                                   \
+#define testeqv(a, b, fmt)                                                     \
+    {                                                                          \
+        if (!likely((a) == (b))) {                                             \
+            fprintf(stderr, "%sNot equal: " fmt " <> " fmt "\n", PROindent, a, \
+                    b);                                                        \
+            fail(faileq)                                                       \
+        }                                                                      \
     }
 
 #define $testeq(a, b)                                                         \

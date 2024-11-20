@@ -36,6 +36,7 @@ pro(POLLtest1) {
     POLLstate state = {};
     a$str(cname, "client");
     a$str(sname, "server");
+
     call(POLLadd, state, cfd, cname, funIcount);
     call(POLLadd, state, scfd, sname, funIcount);
 
@@ -46,6 +47,9 @@ pro(POLLtest1) {
     while (count < 100) {
         call(POLLonce, state, 10);
     }
+
+    call(POLLdel, state, cfd, OK);
+    call(POLLdel, state, scfd, OK);
 
     call(TCPclose, cfd);
     call(TCPclose, scfd);

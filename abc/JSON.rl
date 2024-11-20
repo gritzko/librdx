@@ -79,9 +79,6 @@ JSONws  = (   [\r\n\t ] );
 JSONhex  = (   [0-9a-fA-F] );
 
 
-JSONLiteral  = (   "true"  |  "false"  |  "null" )  >JSONLiteral0 %JSONLiteral1;
-
-
 JSONsafeCP  = (   (0x20..0xff)  -  ["\\] );
 
 JSONesc  = (   "\\"  ["\\/bfnrt] );
@@ -89,6 +86,9 @@ JSONesc  = (   "\\"  ["\\/bfnrt] );
 JSONuEsc  = (     "\\u"  JSONhex{4} );
 
 JSONcp  = (   JSONsafeCP  |  JSONesc  |  JSONuEsc );
+
+
+JSONLiteral  = (   "true"  |  "false"  |  "null" )  >JSONLiteral0 %JSONLiteral1;
 
 
 JSONString  = (   ["]  JSONcp*  ["] )  >JSONString0 %JSONString1;
@@ -155,9 +155,9 @@ pro(JSONlexer, JSONstate* state) {
     %% write init;
     %% write exec;
 
+    state->text[0] = p;
     if (p!=text[1] || cs < JSON_first_final) {
-        state->text[0] = p;
-        fail(JSONfail);
+        return JSONfail;
     }
     done;
 }

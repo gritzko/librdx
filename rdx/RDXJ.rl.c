@@ -1168,8 +1168,9 @@ _again:
 
 #line 235 "RDXJ.rl"
 
+    state->text[0] = p;
     if (p!=text[1] || cs < RDXJ_first_final) {
-        fail(RDXJfail);
+        return RDXJfail;
     }
-    nedo(state->text[0] = p;);
+    done;
 }

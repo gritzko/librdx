@@ -82,9 +82,15 @@ pro(mark, $u8c mod) {
 
     call(FILEfeedall, STDOUT_FILENO, Bu8cdata(intobuf));
 
-    nedo(FILEclose(fd); MMAPu8close(fmtbuf), MMAPu8close(intobuf),
-                        MMAPu8cpclose(linebuf), MMAPu64close(divbuf),
-                        MMAPu64close(pbuf));
+    // FIXME defer
+    FILEclose(fd);
+    MMAPu8close(fmtbuf);
+    MMAPu8close(intobuf);
+    MMAPu8cpclose(linebuf);
+    MMAPu64close(divbuf);
+    MMAPu64close(pbuf);
+
+    return OK;
 }
 
 int main(int argn, char **args) {

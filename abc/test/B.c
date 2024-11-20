@@ -38,7 +38,8 @@ pro(Bndx_test) {
         call(Bu64feed1, buf, i);
         sane(Blast(buf) == i);
     }
-    nedo(Bu64free(buf));
+    Bu64free(buf);
+    done;
 }
 
 pro(Breserve_test) {
@@ -48,7 +49,7 @@ pro(Breserve_test) {
     for (int i = 0; i < (1 << 20); i++) {
         otry(Bu8feed2, buf, '1', '2');
         ofix(Bnoroom) call(Bu8reserve, buf, 1024);
-        ocry;
+        ocry();
     }
     call(Bu8free, buf);
     done;

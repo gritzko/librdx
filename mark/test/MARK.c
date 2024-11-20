@@ -3,12 +3,12 @@
 
 #include <unistd.h>
 
+#include "MARK.h"
 #include "abc/$.h"
 #include "abc/01.h"
 #include "abc/FILE.h"
 #include "abc/INT.h"
 #include "abc/LEX.h"
-#include "MARK.h"
 #include "abc/PRO.h"
 #include "abc/TEST.h"
 
@@ -43,7 +43,7 @@ pro(MARKparsetest) {
     testeqv((u64)MARK_OLIST, Bat(state.divB, 4), "%lu");
     testeqv(0L, Bat(state.divB, 5), "%lu");
     testeqv(12L, $len(state.lineB[0] + 1), "%lu");
-    nedo($print(state.text););
+    done;
 }
 
 void debugdivs($cu64c $divs) {
@@ -152,7 +152,8 @@ pro(MARKHTMLtest) {
     call(Bu8cpalloc, lines, 32);
     call(Bu8alloc, fmt, PAGESIZE);
     call(Bu64alloc, blocks, 32);
-    for (int i = 0; i < MARK1cases; i++) {
+    ok64 o = OK;
+    for (int i = 0; o == OK && i < MARK1cases; i++) {
         MARKstate state = {};
         aBpad(u8, into, 1024);
         Bu8cpreset(lines);
@@ -166,13 +167,17 @@ pro(MARKHTMLtest) {
         $mv(state.text, cases[i][0]);
         $mv(state.fmt, Bu8idle(fmt));
 
-        call(MARKlexer, &state);
-        call(MARKMARQ, &state);
-        call(MARKHTML, Bu8idle(into), &state);
+        callsafe(MARKlexer(&state), break);
+        callsafe(MARKMARQ(&state), break);
+        callsafe(MARKHTML(Bu8idle(into), &state), break);
 
-        test($eq(cases[i][1], Bu8cdata(into)), TESTfail);
+        testsafe($eq(cases[i][1], Bu8cdata(into)), TESTfail, break);
     }
-    nedo(Bu64free(blocks); Bu64free(divs); Bu8cpfree(lines); Bu8free(fmt););
+    Bu64free(blocks);
+    Bu64free(divs);
+    Bu8cpfree(lines);
+    Bu8free(fmt);
+    return o;
 };
 
 pro(MARKtest) {

@@ -45,6 +45,9 @@ pro(POLLlisten, POLLstate state, int fd, $u8c name, POLLfunI fi) {
     ctl->fd = fd;
     $u8dup((u8**)ctl->name, name);
     ctl->fn = fi;
+    Bu8free(ctl->readbuf);
+    Bu8free(ctl->writebuf);
+    B$u8cfree(ctl->writes);
     Bnilify(ctl->readbuf);
     Bnilify(ctl->writebuf);
     Bnilify(ctl->writes);
@@ -57,8 +60,10 @@ pro(POLLdelctl, POLLstate state, POLLctl* ctl, ok64 o) {
     Bu8free(ctl->writebuf);
     B$u8cfree(ctl->writes);
     $u8free((u8**)ctl->name);
-    zerop(ctl);
-    // TODO shuffle
+    int len = POLLlen(state);
+    POLLctl* last = state + len - 1;
+    memcpy(ctl, last, sizeof(POLLctl));
+    zerop(last);
     done;
 }
 

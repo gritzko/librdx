@@ -2,6 +2,8 @@
 
 #include <unistd.h>
 
+#include "RDX.h"
+#include "RDXJ.h"
 #include "abc/$.h"
 #include "abc/01.h"
 #include "abc/B.h"
@@ -9,17 +11,10 @@
 #include "abc/INT.h"
 #include "abc/OK.h"
 #include "abc/PRO.h"
-#include "RDX.h"
-#include "RDXJ.h"
 #include "abc/TEST.h"
 
-pro(RDXZtestvalue) {
+pro(RDXZtestvalue, Bu8 testbuf) {
     sane(1);
-    B(u8, testbuf);
-    a$rg(path, 1);
-    // a$str(path, "RDXZ.rdx");
-    call(FILEmapro, (voidB)testbuf, path);
-    $print(Bu8cdata(testbuf));
     aBcpad(u8, tlv, PAGESIZE);
     aBcpad(u64, stack, 1024);
     aBcpad(u8, pad, PAGESIZE);
@@ -48,14 +43,19 @@ pro(RDXZtestvalue) {
             test(z < 0, FAILsanity);
         }
     }
-
-    nedo(FILEunmap((voidB)testbuf));
+    done;
 }
 
 pro(RDXZtest) {
     sane(1);
-    call(RDXZtestvalue);
-    done;
+    B(u8, testbuf);
+    a$rg(path, 1);
+    // a$str(path, "RDXZ.rdx");
+    call(FILEmapro, (voidB)testbuf, path);
+    $print(Bu8cdata(testbuf));
+    ok64 o = RDXZtestvalue(testbuf);
+    FILEunmap((voidB)testbuf);
+    return o;
 }
 
 MAIN(RDXZtest);

@@ -1,9 +1,9 @@
-#include "PRO.h"
-#include "INT.h"
+#include "abc/INT.h"
+#include "abc/PRO.h"
 #include "JSON.h"
 
 enum {
-	JSONLiteral = JSONenum+3,
+	JSONLiteral = JSONenum+7,
 	JSONString = JSONenum+8,
 	JSONNumber = JSONenum+9,
 	JSONOpenObject = JSONenum+10,

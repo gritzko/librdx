@@ -22,7 +22,8 @@ pro(print, int c) {
 pro(check, int a, int b) {
     sane(1);
     if (a != b) fail(FAIL);
-    nedo(fprintf(stderr, "res: %lx\n", __));
+    // nedo(fprintf(stderr, "res: %lx\n", __));
+    done;
 }
 
 pro(Utest1) {

@@ -219,8 +219,9 @@ pro(HTTPlexer, HTTPstate* state) {
     %% write init;
     %% write exec;
 
+    state->text[0] = p;
     if (p!=text[1] || cs < HTTP_first_final) {
-        fail(HTTPfail);
+        return HTTPfail;
     }
-    nedo(state->text[0] = p;);
+    done;
 }

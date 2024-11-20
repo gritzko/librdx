@@ -41,7 +41,7 @@ pro(MARQANSI, $u8 $into, $u8c const $txt, $u8c const $fmt) {
 pro(openspan, $u8 $into, u8 mask) {
     sane($ok($into));
     $cu8c OPEN0 = $u8str("<span>");
-    if (mask == 0) fwdcall($u8feed, $into, OPEN0);
+    if (mask == 0) return $u8feed($into, OPEN0);
     $cu8c OPEN = $u8str("<span class='");
     $cu8c END = $u8str("'>");
     $cu8c CLASSES[] = {

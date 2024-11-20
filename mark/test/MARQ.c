@@ -36,7 +36,7 @@ pro(MARQANSItest) {
 
         test($eq(QA[c][1], Bu8cdata(into)), TESTfail);
     }
-    nedo($print(state.text););
+    done;
 }
 
 pro(MARQHTMLtest) {
@@ -64,7 +64,7 @@ pro(MARQHTMLtest) {
 
         test($eq(QA[c][1], Bu8cdata(into)), TESTfail);
     }
-    nedo($print(state.text););
+    done;
 }
 
 pro(MARQtest) {

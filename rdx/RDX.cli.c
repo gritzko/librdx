@@ -60,13 +60,8 @@ pro(RDXj) {
     done;
 }
 
-pro(RDXcli) {
-    sane(1);
-
-    call(Bu8map, output, 1UL << 32);
-    call(Bu8map, input, 1UL << 32);
-    call(B$u8cmap, ins, RDXY_MAX_INPUTS);
-
+pro(_RDXcli, u8B output, u8B input, $u8cB ins) {
+    sane(Bok(output) && Bok(input) && Bok(ins));
     a$str(CMD_J, "j");
     a$str(CMD_JDR, "jdr");
     a$str(CMD_Y, "y");
@@ -96,8 +91,22 @@ pro(RDXcli) {
     }
 
     call(FILEfeedall, STDOUT_FILENO, Bu8cdata(output));
+    done;
+}
 
-    nedo(Bu8unmap(input), Bu8unmap(output), B$u8cunmap(ins));
+pro(RDXcli) {
+    sane(1);
+    call(Bu8map, output, 1UL << 32);
+    call(Bu8map, input, 1UL << 32);
+    call(B$u8cmap, ins, RDXY_MAX_INPUTS);
+
+    ok64 o = _RDXcli(output, input, ins);
+
+    Bu8unmap(input);
+    Bu8unmap(output);
+    B$u8cunmap(ins);
+
+    return o;
 }
 
 MAIN(RDXcli);

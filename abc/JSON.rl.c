@@ -563,9 +563,9 @@ _again:
 
 #line 157 "JSON.rl"
 
+    state->text[0] = p;
     if (p!=text[1] || cs < JSON_first_final) {
-        state->text[0] = p;
-        fail(JSONfail);
+        return JSONfail;
     }
     done;
 }

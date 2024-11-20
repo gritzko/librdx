@@ -66,9 +66,14 @@ pro(md2html, $u8c mod) {
     call(FILEfeedall, hfd, Bu8cdata(intobuf));
     call(FILEfeedall, hfd, footer_template);
 
-    nedo(FILEclose(hfd), FILEclose(fd);
-         MMAPu8close(fmtbuf), MMAPu8close(intobuf), MMAPu8cpclose(linebuf),
-         MMAPu64close(divbuf););
+    // FIXME defer!!!
+    FILEclose(hfd);
+    FILEclose(fd);
+    MMAPu8close(fmtbuf);
+    MMAPu8close(intobuf);
+    MMAPu8cpclose(linebuf);
+    MMAPu64close(divbuf);
+    return OK;
 }
 
 int main(int argn, char **args) {

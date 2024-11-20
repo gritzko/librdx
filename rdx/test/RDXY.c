@@ -2,6 +2,8 @@
 
 #include <unistd.h>
 
+#include "RDXJ.h"
+#include "RDXZ.h"
 #include "abc/$.h"
 #include "abc/01.h"
 #include "abc/B.h"
@@ -9,8 +11,6 @@
 #include "abc/INT.h"
 #include "abc/OK.h"
 #include "abc/PRO.h"
-#include "RDXJ.h"
-#include "RDXZ.h"
 #include "abc/TEST.h"
 
 fun b8 is_tilda($u8c data) {
@@ -27,9 +27,11 @@ pro(RDXY1) {
     aBcpad(u8, tlv, PAGESIZE);
     aBcpad(u64, stack, 1024);
     aBcpad(u8, pad, PAGESIZE);
-    otry(RDXJdrain, tlvidle, rdxjdata);
-    oops $print(rdxjdata);
-    ocry;
+    ok64 o = RDXJdrain(tlvidle, rdxjdata);
+    if (o != OK) {
+        $print(rdxjdata);
+        fail(o);
+    }
     a$dup(u8c, tlv, tlvdata);
     int i = 0, j = 0;
     while (!$empty(tlv)) {
@@ -56,7 +58,8 @@ pro(RDXY1) {
         }
     }
 
-    nedo(FILEunmap((voidB)rdxjbuf));
+    FILEunmap((voidB)rdxjbuf);
+    done;
 }
 
 pro(RDXYtest) {

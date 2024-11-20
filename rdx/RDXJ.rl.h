@@ -1,5 +1,5 @@
-#include "abc/PRO.h"
 #include "abc/INT.h"
+#include "abc/PRO.h"
 #include "RDXJ.h"
 
 enum {

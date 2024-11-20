@@ -69,7 +69,7 @@ pro(lex2rl, $u8c mod) {
     call(FILEfeed, hfd, Bu8cdata(hpad));
     call(FILEclose, hfd);
 
-    nedo($println(state.text));
+    done;
 }
 
 int main(int argn, char **args) {
@@ -134,8 +134,9 @@ con char *ragel_template =
     "    %% write init;\n"
     "    %% write exec;\n"
     "\n"
+    "    state->text[0] = p;\n"
     "    if (p!=text[1] || cs < $s_first_final) {\n"
-    "        fail($sfail);\n"
+    "        return $sfail;\n"
     "    }\n"
-    "    nedo(state->text[0] = p;);\n"
+    "    done;\n"
     "}\n";

@@ -24,7 +24,8 @@ fun pro(X(HASH, scan), size_t *ndx, X($, ) data, T const *rec) {
         if (X(, cmp)(*data + x, rec) == 0) skip;
     }
     fail(HASHnoroom);
-    nedo(*ndx = x);
+    *ndx = x;
+    done;
 }
 
 // OK, HASHnone, HASHnoroom

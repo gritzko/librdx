@@ -1053,8 +1053,9 @@ _again:
 
 #line 205 "URI.rl"
 
+    state->text[0] = p;
     if (p!=text[1] || cs < URI_first_final) {
-        fail(URIfail);
+        return URIfail;
     }
-    nedo(state->text[0] = p;);
+    done;
 }

@@ -150,8 +150,9 @@ pro(LEXlexer, LEXstate* state) {
     %% write init;
     %% write exec;
 
+    state->text[0] = p;
     if (p!=text[1] || cs < LEX_first_final) {
-        fail(LEXfail);
+        return LEXfail;
     }
-    nedo(state->text[0] = p;);
+    done;
 }
