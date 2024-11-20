@@ -85,10 +85,7 @@ fun int $u8cz($cu8c a, $cu8c b) { return $cmp(a, b); }
 #include "Bx.h"
 #undef X
 
-fun int $u8ccmp($u8c const *a, $u8c const *b) {
-    if (*a == *b) return 0;
-    return *a < *b ? -1 : 1;
-}
+fun int $u8ccmp($u8c const *a, $u8c const *b) { return $cmp(*a, *b); }
 
 #define X(M, name) M##$u8c##name
 #define ABC_X_$
