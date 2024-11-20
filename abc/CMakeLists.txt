@@ -7,6 +7,8 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS on)
 
 include(CTest)
 
+include_directories(.. .)
+
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}")
 find_library(sodium 
 	NAMES sodium 
@@ -52,6 +54,8 @@ MMAP.h
 OK.h
 PRO.h
 SHA.h
+SKIP.h
+SKIPx.h
 TEST.h
 TLV.h
 UTF8.h

@@ -16,11 +16,13 @@ con ok64 RDXbad = 0xa259a135b;
 #define RDX_MAX_NEST 64
 
 typedef enum {
+    // primitive types
     RDX_FLOAT = 'F',
     RDX_INT = 'I',
     RDX_REF = 'R',
     RDX_STRING = 'S',
     RDX_TERM = 'T',
+    // collection types
     RDX_TUPLE = 'P',
     RDX_LINEAR = 'L',
     RDX_EULER = 'E',

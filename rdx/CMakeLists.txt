@@ -29,8 +29,6 @@ RDXC.h
 RDXJ.h
 RDXJ.rl.h
 RDXY.h
-SKIP.h
-SKIPx.h
 )
 
 list(APPEND RDX_SOURCES 
