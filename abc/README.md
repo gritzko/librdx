@@ -73,6 +73,7 @@ Still, there is no encapsulation as it prevents composition.
 In C++, you can't `printf` to `std::ostream`, right?
 In C++, `std::vector<char>` is all different from `std::string`,which in turn is different from `char*`. 
 All that despite the obvious fact it is exactly the same thing under the hood.
+Rust has the same issues.
 We can't discourage that enough!
 
 Constructs must be simple, practical, and most importantly: composable.
@@ -82,6 +83,7 @@ One fitness metric for an ABC module is how many other modules it can be seamles
 ideally, modules *don't know a thing* about each other!
 That is like UNIX toolbox taken to the extreme: minimalist composable single-purpose tools.
 Those tools must have well-specified and *unchanging* behavior.
+A hammer is a hammer, a nail is a nail.
 Do one thing, do it well, and once you did it, it is done, that's it.
 
 ##  ABC type system
@@ -122,12 +124,15 @@ All routines that can fail (_procedures_) should return an `ok64` error code (0 
 The [PRO][P] module defines macros and routines for `ok64`-based wary calls, stack traces and suchlike.
 Routines that can not fail (_functions_) return whatever value they return.
 ````
-    pro(MODoutput, int fd) {
-        sane(fd >= 0);
-        aBpad(u8, outbuf, 1024);
-        // ...write things to the buf
-        call(FILEfeed, fd, Bu8data(outbuf));
-        done;
+    pro(MODoutput, int fd) {        // procedure declaration macro
+        sane(fd >= 0);    // a mandatory sanity check of arguments
+        aBpad(u8, outbuf, 1024);   // make a small buffer on-stack
+        a$str(text, "Hello world!");  // make a const string slice
+        $u8feed(Bidle(outbuf), text); // add the string to the buf
+        call(FILEfeed, fd, Bu8data(outbuf));  // write to the file
+          // if the call() fails we skip the rest of the procedure
+        if (!Bempty(outbuf)) fail(MODfail);   // can fail manually
+        done;   // return, alternatively: nedo(finalize_things());
     }
 ````
 
@@ -150,7 +155,7 @@ See [HEAP][H] for a non-trivial but simple container example.
 
 Note that ABC containers never do down-the-call-stack reallocations.
 That is considered rug-pulling behavior as the caller may still hold pointers to the old range.
-Instead, they may return `XYZnospace` errors.
+Instead, they may return `XYZnoroom` errors.
 Only the immediate _owner_ of the buffer can memory-manage it.
 Typically, the owner is the procedure or a structure at the root of the call tree.
 See the [B][B] module doc for the discussion on that.
@@ -161,9 +166,7 @@ ABC has [Ragel][c] integration in the [LEX][L] module.
 The module itself is an example of using the API.
 [LEX][L] generates most of its own code from a grammar, see `LEX.lex` and `lex2rl`.
 Ragel is an excellent O(N) *lexer* for text formats;
-parsers can be implemented on top of that.
-[MARK][K] and [MARQ][Q] modules implement a strict dialect of Markdown, 
-which is also a good example of using LEX APIs.
+parsers can be implemented on top of that, see e.g. the [URI][U] module.
 
 [S]: ./$.md 
 [A]: ./AREN.md
@@ -175,8 +178,8 @@ which is also a good example of using LEX APIs.
 [L]: ./LEX.md
 [M]: ./MMAP.md
 [P]: ./PRO.md
-[Q]: ./MARQ.md
 [T]: ./TLV.md
+[U]: ./URI.md
 [X]: ./HEX.md
 [Z]: ./ZINT.md
 
