@@ -10,7 +10,9 @@
 #define T X(, )
 
 typedef T const X(, c);
+#ifndef ABC_X_$
 typedef T const *X(, cp);
+#endif
 
 typedef T *X($, )[2];
 typedef T *const X($c, )[2];
@@ -85,25 +87,26 @@ fun ok64 X($, alloc)(X($, ) what, size_t len) {
 fun ok64 X($, dup)(X($, ) copy, X($, c) orig) {
     ok64 o = X($, alloc)(copy, $len(orig));
     if (o != OK) return o;
-    memcpy(*copy, *orig, $size(orig));
+    memcpy((void *)*copy, (void *)*orig, $size(orig));
     return OK;
 }
 
 fun ok64 X($, free)(X($, ) what) {
-    free(what[0]);
+    free((void *)what[0]);
     return OK;
 }
 
-fun ok64 X($, feed)(X($, ) into, X($c, c) from) {
+fun ok64 X($, feed)(X($, ) into, X($c, c) from) {  // TODO naming
     if (unlikely(!$ok(from) || !$ok(into))) return $badarg;
     if ($size(from) > $size(into)) return $noroom;
-    $feed(into, from);
+    memcpy((void *)*into, (void *)*from, $size(from));
+    *into += $len(from);
     return OK;
 }
 
 fun ok64 X($, drain)(X($, ) into, X($, c) from) {
     size_t len = $len(into) < $len(from) ? $len(into) : $len(from);
-    memcpy(*into, *from, len * sizeof(T));
+    memcpy((void *)*into, (void *)*from, len * sizeof(T));
     *into += len;
     *from += len;
     return OK;
@@ -111,14 +114,14 @@ fun ok64 X($, drain)(X($, ) into, X($, c) from) {
 
 fun void X($, move)(X($, ) into, X($, c) from) { $drain(into, from); }
 
-fun void X(, mv)(T *into, T const *from) { memcpy(into, from, sizeof(T)); }
+fun void X(, mv)(T *into, T const *from) { Ocopy(into, from); }
 
 fun ok64 X($, feed1)(X($, ) into, T what) {
     if ($empty(into)) return $noroom;
 #ifndef ABC_X_$
     X(, mv)(*into, (T const *)&what);
 #else
-    memcpy(*into, what, sizeof(T));
+    memcpy((void *)*into, (void *)what, sizeof(T));
 #endif
     ++*into;
     return OK;
@@ -129,7 +132,7 @@ fun ok64 X($, drain1)(T *into, X($, ) from) {
 #ifndef ABC_X_$
     X(, mv)(into, *from);
 #else
-    memcpy(into, *from, sizeof(T));
+    Ocopy(into, *from);
 #endif
     ++*from;
     return OK;
@@ -198,9 +201,9 @@ fun size_t X($, offset)(X($c, c) outer, X($c, c) inner) {
 
 fun void X(, swap)(T *a, T *b) {
     T c;
-    memcpy(&c, a, sizeof(T));
-    memcpy(a, b, sizeof(T));
-    memcpy(b, &c, sizeof(T));
+    Ocopy(&c, a);
+    Ocopy(a, b);
+    Ocopy(b, &c);
 }
 
 fun void X($, purge)(X($, ) s, X(, isfn) f) {
@@ -214,11 +217,11 @@ fun void X($, purge)(X($, ) s, X(, isfn) f) {
 }
 
 fun void X($, str0)(X($, c) s, T const *a) {
-    T zero;
-    memset(&zero, 0, sizeof(T));
+    T v0;
+    zero(v0);
     s[0] = a;
     size_t i = 0;
-    while (X(, cmp)((T const *)&zero, a + i) != 0) ++i;
+    while (X(, cmp)((T const *)&v0, a + i) != 0) ++i;
     s[1] = a + i;
 }
 

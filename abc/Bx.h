@@ -55,7 +55,7 @@ fun ok64 X(B, alloc)(X(B, ) buf, size_t len) {
     size_t sz = len * sizeof(T);
     ok64 o = Balloc((void **)buf, sz);
     if (o != OK) return o;
-    memset(*buf, 0, sz);
+    memset((void *)*buf, 0, sz);
     return OK;
 }
 
@@ -83,9 +83,9 @@ fun ok64 X(B, feed2)(X(B, ) buf, T a, T b) {
     // f (re != OK) return re;
     T **idle = X(B, idle)(buf);
     if ($len(idle) < 2) return Bnoroom;
-    memcpy(*idle, &a, sizeof(T));
+    memcpy((void *)*idle, &a, sizeof(T));
     ++*idle;
-    memcpy(*idle, &b, sizeof(T));
+    memcpy((void *)*idle, &b, sizeof(T));
     ++*idle;
     return OK;
 }
@@ -182,7 +182,7 @@ fun ok64 X(B, map)(X(B, ) buf, size_t len) {
 
 fun ok64 X(B, unmap)(X(B, ) buf) {
     if (unlikely(buf == nil || *buf == nil)) return FAILsanity;
-    if (-1 == munmap(buf[0], Bsize(buf))) return Bmapfail;
+    if (-1 == munmap((void *)buf[0], Bsize(buf))) return Bmapfail;
     void **b = (void **)buf;
     b[0] = b[1] = b[2] = b[3] = nil;
     return OK;

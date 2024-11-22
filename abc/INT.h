@@ -8,8 +8,8 @@
 #include <stdint.h>
 
 #include "B.h"
+#include "BUF.h"
 
-fun int u8cmp(const u8 *a, const u8 *b) { return (int)*a - (int)*b; }
 fun int u16cmp(const u16 *a, const u16 *b) { return (int)*a - (int)*b; }
 fun int u32cmp(const u32 *a, const u32 *b) {
     // return (i64)*a - (i64)*b;
@@ -40,23 +40,6 @@ fun int u128cmp(u128 const *a, u128 const *b) {
     return ret;
 }
 
-fun int u8cpcmp(u8 const *const *a, u8 const *const *b) {
-    if (*a == *b) return 0;
-    return *a < *b ? -1 : 1;
-}
-
-fun int $u8cmp(u8 const *const *a, u8 const *const *b) { return $cmp(a, b); }
-
-fun int $u8cz($cu8c a, $cu8c b) { return $cmp(a, b); }
-
-#define X(M, name) M##u8##name
-#include "Bx.h"
-#undef X
-
-#define X(M, name) M##u8cp##name
-#include "Bx.h"
-#undef X
-
 #define X(M, name) M##u16##name
 #include "Bx.h"
 #undef X
@@ -85,20 +68,6 @@ fun int $u8cz($cu8c a, $cu8c b) { return $cmp(a, b); }
 #include "Bx.h"
 #undef X
 
-fun int $u8ccmp($u8c const *a, $u8c const *b) { return $cmp(*a, *b); }
-
-#define X(M, name) M##$u8c##name
-#define ABC_X_$
-#include "Bx.h"
-#undef ABC_X_$
-#undef X
-
-#define $u8raw(v) \
-    { (u8 *)&(v), (u8 *)(&v) + sizeof(v) }
-
-#define a$raw(n, v) $u8 n = {(u8 *)&(v), (u8 *)(&v) + sizeof(v)}
-#define a$rawc(n, v) $u8c n = {(u8 *)&(v), (u8 *)(&v) + sizeof(v)}
-
 #define Bprintf(buf, fmt, ...)           \
     {                                    \
         u8 **into = Bidle(buf);          \
@@ -123,74 +92,84 @@ fun u128 u128xor(u128 a, u128 b) {
     return x;
 }
 
-fun void $u8drain8(u8 *into, $u8c from) {
+fun ok64 $u8drain8(u8 *into, $u8c from) {
+    if ($empty(from)) return $nodata;
     *into = **from;
     *from += sizeof(u8);
+    return OK;
 }
-fun void $u8feed8($u8 into, u8 const *what) {
+
+fun ok64 $u8feed8($u8 into, u8 const *what) {
+    if ($empty(into)) return $noroom;
     **into = *what;
     *into += sizeof(u8);
+    return OK;
 }
 
 #ifdef ABC_ALIGN
-fun void $u8drain16(u16 *into, $u8 from) {
+fun ok64 $u8drain16(u16 *into, $u8 from) {
+    if ($size(from) < sizeof(u16)) return $nodata;
     *into = **from;
     ++*from;
     *into |= u16(**from) << 8;
     ++*from;
+    return OK;
 }
-fun void $u8drain32(u32 *into, $u8 from) {
+fun ok64 $u8drain32(u32 *into, $u8 from) {
+    if ($size(from) < sizeof(u32)) return $nodata;
     u16 lo = 0, hi = 0;
     $u8drain16(&lo, from);
     $u8drain16(&hi, from);
     *into = lo;
     *into |= u32(hi) << 16;
+    return OK;
 }
-fun void $u8drain64(u64 *into, $u8 from) {
+fun ok64 $u8drain64(u64 *into, $u8 from) {
+    if ($size(from) < sizeof(u64)) return $nodata;
     u32 lo = 0, hi = 0;
     $u8drain32(&lo, from);
     $u8drain32(&hi, from);
     *into = lo;
     *into |= u64(hi) << 32;
+    return OK;
 }
 #else
-fun void $u8drain16(u16 *into, $u8c from) {
-    memcpy(into, *from, 2);
+fun ok64 $u8drain16(u16 *into, $u8c from) {
+    if ($len(from) < sizeof(u16)) return $nodata;
+    memcpy(into, *from, sizeof(u16));
     *from += sizeof(u16);
+    return OK;
 }
-fun void $u8feed16($u8 into, u16 const *what) {
+fun ok64 $u8feed16($u8 into, u16 const *what) {
+    if ($len(into) < sizeof(u16)) return $noroom;
     memcpy(*into, what, 2);
     *into += sizeof(u16);
+    return OK;
 }
-fun void $u8drain32(u32 *into, $u8c from) {
-    memcpy(into, *from, 4);
+fun ok64 $u8drain32(u32 *into, $u8c from) {
+    if ($len(from) < sizeof(u32)) return $nodata;
+    memcpy(into, *from, sizeof(u32));
     *from += sizeof(u32);
+    return OK;
 }
-fun void $u8feed32($u8 into, u32 const *what) {
+fun ok64 $u8feed32($u8 into, u32 const *what) {
+    if ($len(into) < sizeof(u32)) return $noroom;
     memcpy(*into, what, 4);
     *into += sizeof(u32);
+    return OK;
 }
-fun void $u8drain64(u64 *into, $u8c from) {
-    memcpy(into, *from, 8);
+fun ok64 $u8drain64(u64 *into, $u8c from) {
+    if ($len(from) < sizeof(u64)) return $nodata;
+    memcpy(into, *from, sizeof(u64));
     *from += sizeof(u64);
+    return OK;
 }
-fun void $u8feed64($u8 into, u64 const *what) {
+fun ok64 $u8feed64($u8 into, u64 const *what) {
+    if ($len(into) < sizeof(u64)) return $noroom;
     memcpy(*into, what, 8);
     *into += sizeof(u64);
+    return OK;
 }
 #endif
-
-fun b8 Bitat(Bu8 buf, size_t ndx) {
-    // FIXME bounds
-    return ((buf[0][ndx >> 3]) >> (ndx & 7)) & 1;
-}
-
-fun b8 Bitset(Bu8 buf, size_t ndx) {
-    return (buf[0][ndx >> 3]) |= 1 << (ndx & 7);
-}
-
-fun b8 Bitunset(Bu8 buf, size_t ndx) {
-    return (buf[0][ndx >> 3]) &= ~(1 << (ndx & 7));
-}
 
 #endif  // ABC_INT_H

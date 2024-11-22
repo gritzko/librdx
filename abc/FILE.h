@@ -40,6 +40,14 @@ con ok64 FILEbad = 0x2896639548f;
 #define FILEbad(fd) (fd < 0)
 #define FILEok(fd) (fd >= 0)
 
+/*
+typedef int *FILE;
+
+#define aFILE(name)            \
+    int _##name = FILE_CLOSED; \
+    FILE name = &_##name;
+*/
+
 #ifdef IOV_MAX
 #define FILEmaxiov IOV_MAX
 #elif defined __IOV_MAX

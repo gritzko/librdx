@@ -51,7 +51,7 @@ pro(RDXY1) {
         if (!$eq(correct, resdata)) {
             aBcpad(u8, out, PAGESIZE);
             call(RDXJfeed, outidle, resdata);
-            $u8feed2(outidle, '<', '>');
+            $u8feed2(outidle, '!', '=');
             call(RDXJfeed, outidle, correct);
             $println(outdata);
             fail(faileq);

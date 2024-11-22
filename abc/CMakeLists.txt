@@ -38,6 +38,7 @@ AREN.h
 B.h
 BIN.h
 Bx.h
+BUF.h
 FILE.h
 HASH.h
 HASHx.h

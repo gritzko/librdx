@@ -100,13 +100,14 @@ con ok64 $nodata = 0x25e25a33cbf;
     }
 
 typedef int (*fncmp)(const void *, const void *);
-#define $sort(s, cmp) qsort(s[0], $len(s), sizeof(**s), (fncmp)cmp)
+#define $sort(s, cmp) qsort((void *)s[0], $len(s), sizeof(**s), (fncmp)cmp)
 #define $bsearch(p, s, cmp) bsearch(p, s[0], $len(s), sizeof(**s), (fncmp)cmp)
 
 #define $minlen(a, b) ($len(a) > $len(b) ? $len(b) : $len(a))
 #define $minsize(a, b) ($size(a) > $size(b) ? $size(b) : $size(a))
 
-#define $copy(into, from) memcpy(*into, *from, $minsize(into, from))
+#define $copy(into, from) \
+    memcpy((void *)*into, (void *)*from, $minsize(into, from))
 
 #define $feed1(s, v) \
     {                \
@@ -209,8 +210,8 @@ fun ok64 $feedf(u8 **into, u8 const *const *tmpl, ...) {
                 ($len(s) - (off) - (rm)) * sizeof(**(s))); \
     }
 
-#define zero(s) memset(&(s), 0, sizeof(s))
-#define zerop(s) memset(s, 0, sizeof(*s))
+#define zero(s) memset((void *)&(s), 0, sizeof(s))
+#define zerop(s) memset((void *)s, 0, sizeof(*s))
 
 #define a$findif(T, p, s, cond)          \
     T *p = s[0];                         \

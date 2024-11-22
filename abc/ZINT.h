@@ -37,10 +37,10 @@ fun ok64 ZINTu64feed($u8 into, u64 n) {
 }
 
 fun ok64 ZINTu64drain(u64* n, $cu8c zip) {
+    *n = 0;
     a$dup(u8c, from, zip);
     switch ($len(from)) {
         case 0:
-            *n = 0;
             return OK;
         case 1:
             $u8drain8((u8*)n, from);

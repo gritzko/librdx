@@ -230,6 +230,10 @@ fun h64 mix64(u64 a) {
     return mix2 * PRIME2;
 }
 
+#define Ocopy(a, b)                   \
+    assert(sizeof(*a) == sizeof(*b)); \
+    memcpy((void *)(a), (void *)(b), sizeof(*a));
+
 #define XB (1UL << 60)
 #define PB (1UL << 50)
 #define TB (1UL << 40)

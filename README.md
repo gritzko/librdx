@@ -8,12 +8,12 @@ This repo contains the C RDX universe:
 
   - the [ABC C dialect][A], aka Algebraic Bricklaying C,
   - the [RDX format][R] per se, binary and text varieties,
-  - a generic [RDX syncing client/server][Z],
+  - a generic [RDX syncing store][B],
   - an RDX based [revision control system][Z], and
   - a [handbook][B] of basic use cases for the new users.
 
 [A]: ./abc/README.md
 [R]: ./rdx/README.md
-[Z]: ./zync/README.md
+[B]: ./brix/README.md
 [F]: ./fork/README.md
 [B]: ./book/README.md
