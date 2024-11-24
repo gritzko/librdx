@@ -208,7 +208,7 @@ fun size_t X($, offset)(X($c, c) outer, X($c, c) inner) {
 }
 
 fun void X(, swap)(T *a, T *b) {
-    T c;
+    u8 c[sizeof(T)];
     Ocopy(&c, a);
     Ocopy(a, b);
     Ocopy(b, &c);
@@ -225,8 +225,7 @@ fun void X($, purge)(X($, ) s, X(, isfn) f) {
 }
 
 fun void X($, str0)(X($, c) s, T const *a) {
-    T v0;
-    zero(v0);
+    u8 v0[sizeof(T)] = {};
     s[0] = a;
     size_t i = 0;
     while (X(, cmp)((T const *)&v0, a + i) != 0) ++i;

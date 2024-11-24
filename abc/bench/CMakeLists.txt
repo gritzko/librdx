@@ -12,6 +12,10 @@ set(BENCH_LDD_FLAGS benchmark::benchmark)
 include_directories(..)
 #find_package(sodium CONFIG)
 
-add_executable(HEAPbench EXCLUDE_FROM_ALL HEAP.cpp)
+add_executable(HEAPbench HEAP.cpp)
 target_compile_options(HEAPbench PRIVATE ${BENCH_CXX_FLAGS})
 target_link_libraries(HEAPbench PRIVATE ${BENCH_LDD_FLAGS})
+
+add_executable(SORTbench SORT.cpp ../SORT.c)
+target_compile_options(SORTbench PRIVATE ${BENCH_CXX_FLAGS})
+target_link_libraries(SORTbench PRIVATE ${BENCH_LDD_FLAGS})
