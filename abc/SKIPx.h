@@ -72,13 +72,6 @@ fun pro(X(SKIP, feed), Bu8 buf, X(SKIP, wtab) * k) {
     done;
 }
 
-/*
-    for (u8 j = 0; j < X(SKIP, len)(pos); ++j) {
-        fprintf(stderr, "SKIP feed %i off %i pos %lx\n", j, k->off[j],
-                X(SKIP, pos)(k, j));
-    }
- * */
-
 fun pro(X(SKIP, drain), X(SKIP, rtab) * hop, Bu8 buf, size_t pos) {
     sane(hop != nil && Bok(buf) && pos > 0);
     a$(offX, into, hop->off);

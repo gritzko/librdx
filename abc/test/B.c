@@ -64,6 +64,12 @@ pro(B$test) {
     done;
 }
 
+pro(BBtest) {
+    sane(1);
+    aBpad(Bu8, buff, 4);
+    testeq(sizeof(Bat(buff, 0)), sizeof(Bvoid));
+    done;
+}
 pro(Btest) {
     sane(1);
     call(Bmap_test);
@@ -71,6 +77,7 @@ pro(Btest) {
     call(Bndx_test);
     call(Breserve_test);
     call(B$test);
+    call(BBtest);
     done;
 }
 

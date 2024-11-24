@@ -55,14 +55,14 @@ fun ok64 X($, tail)(X($, c) into, X($c, c) from, size_t off) {
     into[1] = from[1];
     return OK;
 }
-
+/*
 fun ok64 X($, last)(X($, c) into, X($c, c) from, size_t len) {
     if ($len(from) < len) return $miss;
     into[0] = from[1] - len;
     into[1] = from[1];
     return OK;
 }
-
+*/
 fun ok64 X($, part)(X($, c) into, X($c, c) orig, size_t from, size_t till) {
     if ($len(orig) < till || from > till) return $miss;
     into[0] = orig[0] + from;
@@ -104,11 +104,27 @@ fun ok64 X($, feed)(X($, ) into, X($c, c) from) {  // TODO naming
     return OK;
 }
 
+fun ok64 X($, feedall)(X($, ) into, X($c, c) from) {
+    if (unlikely(!$ok(from) || !$ok(into))) return $badarg;
+    if ($size(from) > $size(into)) return $noroom;
+    memcpy((void *)*into, (void *)*from, $size(from));
+    *into += $len(from);
+    return OK;
+}
+
 fun ok64 X($, drain)(X($, ) into, X($, c) from) {
     size_t len = $len(into) < $len(from) ? $len(into) : $len(from);
     memcpy((void *)*into, (void *)*from, len * sizeof(T));
     *into += len;
     *from += len;
+    return OK;
+}
+
+fun ok64 X($, take)(X(, c$) prefix, X($, c) from, size_t len) {
+    if ($len(from) < len) return $nodata;
+    prefix[0] = from[0];
+    from[0] += len;
+    prefix[1] = from[0];
     return OK;
 }
 
@@ -162,14 +178,6 @@ fun ok64 X($, feedp)(X($, ) into, T const *what) {
 fun void X($, drop)(X($, ) into, T const *from) {
     X(, mv)(*into, from);
     ++*into;
-}
-
-fun ok64 X($, take)(X($, c) prefix, X($, c) body, size_t len) {
-    if (len > $len(body)) return $noroom;
-    prefix[0] = body[0];
-    prefix[1] = body[0] + len;
-    body[0] += len;
-    return OK;
 }
 
 fun ok64 X($, drainn)(X($, ) into, X($, c) from, size_t len) {

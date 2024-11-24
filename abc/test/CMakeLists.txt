@@ -62,6 +62,11 @@ target_link_options(BINtest PRIVATE ${TEST_LDD_FLAGS})
 target_compile_options(BINtest PRIVATE ${TEST_CXX_FLAGS})
 add_test(NAME BINtest COMMAND BINtest)
 
+add_executable(SORTtest SORT.c ../SORT.c)
+target_link_options(SORTtest PRIVATE ${TEST_LDD_FLAGS})
+target_compile_options(SORTtest PRIVATE ${TEST_CXX_FLAGS})
+add_test(NAME SORTtest COMMAND SORTtest)
+
 add_executable(MMAPtest MMAP.c)
 target_link_options(MMAPtest PRIVATE ${TEST_LDD_FLAGS})
 target_compile_options(MMAPtest PRIVATE ${TEST_CXX_FLAGS})

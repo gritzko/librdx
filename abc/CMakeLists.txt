@@ -57,6 +57,7 @@ PRO.h
 SHA.h
 SKIP.h
 SKIPx.h
+SORT.h
 TEST.h
 TLV.h
 UTF8.h
@@ -72,6 +73,7 @@ JSON.c
 JSON.rl.c
 LEX.c
 LEX.rl.c
+SORT.c
 URI.rl.c
 URI.c
 HTTP.rl.c
