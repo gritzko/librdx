@@ -1,9 +1,9 @@
 #ifndef ABC_RDXJ_H
 #define ABC_RDXJ_H
-#include "abc/INT.h"
-#include "abc/OK.h"
 #include "RDX.h"
 #include "RDXC.h"
+#include "abc/INT.h"
+#include "abc/OK.h"
 #define RYU_OPTIMIZE_SIZE
 #include "ryu/ryu.h"
 
@@ -234,8 +234,8 @@ ok64 RDXJlexer(RDXJstate* state);
 fun ok64 RDXJdrain($u8 tlv, $u8c rdxj) {
     aBcpad(u64, stack, RDX_MAX_NEST);
     RDXJstate state = {
-        .tlv = $dup(tlv),
         .text = $dup(rdxj),
+        .tlv = $dup(tlv),
         .nest = 1,
     };
     ok64 o = RDXJlexer(&state);
