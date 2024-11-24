@@ -45,10 +45,10 @@ target_link_libraries(rdx librdx)
 
 add_subdirectory(test)
 
-if (WITH_BENCH)
-add_subdirectory(bench EXCLUDE_FROM_ALL)
-endif()
-
-if (WITH_FUZZ)
-add_subdirectory(fuzz EXCLUDE_FROM_ALL)
-endif()
+#if (WITH_BENCH)
+#add_subdirectory(bench EXCLUDE_FROM_ALL)
+#endif()
+#
+#if (WITH_FUZZ)
+#add_subdirectory(fuzz EXCLUDE_FROM_ALL)
+#endif()

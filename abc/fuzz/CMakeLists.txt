@@ -19,6 +19,10 @@ add_executable(ZINT ZINT.c)
 target_link_options(ZINT PRIVATE ${FUZZ_LDD_FLAGS})
 target_compile_options(ZINT PRIVATE ${FUZZ_CXX_FLAGS})
 
+add_executable(SORT SORT.c ../SORT.c)
+target_link_options(SORT PRIVATE ${FUZZ_LDD_FLAGS})
+target_compile_options(SORT PRIVATE ${FUZZ_CXX_FLAGS})
+
 #add_executable(SST SST.c)
 #target_link_options(SST PRIVATE ${FUZZ_LDD_FLAGS})
 #target_compile_options(SST PRIVATE ${FUZZ_CXX_FLAGS})

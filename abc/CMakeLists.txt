@@ -93,9 +93,9 @@ target_link_libraries(lex libabc)
 add_subdirectory(test)
 
 if (WITH_BENCH)
-add_subdirectory(bench EXCLUDE_FROM_ALL)
+add_subdirectory(bench)
 endif()
 
 if (WITH_FUZZ)
-add_subdirectory(fuzz EXCLUDE_FROM_ALL)
+add_subdirectory(fuzz)
 endif()
