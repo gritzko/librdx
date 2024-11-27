@@ -76,7 +76,7 @@ fun pro(RDXYmergeS, $u8 into, $$u8c from) {
     $mv(res, **from);
     ++*from;
     $eat(from) {
-        if ($cmp(res, from) < 0) {
+        if ($u8ccmp(&res, &**from) < 0) {
             $mv(res, **from);
         }
     }
