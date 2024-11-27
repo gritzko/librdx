@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(librdx C)
+project(librdx C CXX)
 
 set(CMAKE_C_STANDARD 23)
 
@@ -14,6 +14,10 @@ set(FUZZ_LDD_FLAGS ${CMAKE_LDD_FLAGS} $<$<C_COMPILER_ID:Clang>:-fsanitize=fuzzer
 add_executable(HEAP HEAP.c)
 target_link_options(HEAP PRIVATE ${FUZZ_LDD_FLAGS})
 target_compile_options(HEAP PRIVATE ${FUZZ_CXX_FLAGS})
+
+add_executable(HASHfuzz HASH.cpp)
+target_link_options(HASHfuzz PRIVATE ${FUZZ_LDD_FLAGS})
+target_compile_options(HASHfuzz PRIVATE ${FUZZ_CXX_FLAGS})
 
 add_executable(ZINT ZINT.c)
 target_link_options(ZINT PRIVATE ${FUZZ_LDD_FLAGS})

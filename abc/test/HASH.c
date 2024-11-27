@@ -6,12 +6,17 @@
 
 #include "01.h"
 #include "INT.h"
+#include "KV.h"
 #include "OK.h"
 #include "TEST.h"
 
 fun u64 u32hash(u32 const *v) { return mix32(*v); }
 
 #define X(M, name) M##u32##name
+#include "HASHx.h"
+#undef X
+
+#define X(M, name) M##kv32##name
 #include "HASHx.h"
 #undef X
 
@@ -60,10 +65,40 @@ pro(HASH1) {
     done;
 }
 
+pro(HASH3) {
+    sane(1);
+    Bkv32 dictbuf = {};
+    Bkv32alloc(dictbuf, 1024);
+    kv32$ dict = Bkv32idle(dictbuf);
+
+    kv32 a = {.key = 6220, .val = 2};
+    call(HASHkv32put, dict, &a);
+    kv32 b = {.key = 22, .val = 3};
+    call(HASHkv32put, dict, &b);
+
+    kv32 a2 = {.key = 6220};
+    kv32 b2 = {.key = 22};
+    call(HASHkv32get, &a2, dict);
+    call(HASHkv32get, &b2, dict);
+    testeq(a2.val, 2);
+    testeq(b2.val, 3);
+
+    call(HASHkv32del, dict, &b);
+
+    a.val = 0;
+    call(HASHkv32get, &a, dict);
+    testeq(a.val, 2);
+    mute(HASHkv32get(&b, dict), HASHnone);
+
+    Bkv32free(dictbuf);
+    done;
+}
+
 pro(HASH) {
     sane(1);
     call(HASH0);
     call(HASH1);
+    call(HASH3);
     done;
 }
 
