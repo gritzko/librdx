@@ -232,4 +232,10 @@ fun void X($, str0)(X($, c) s, T const *a) {
     s[1] = a + i;
 }
 
+static const u8 X(, zero)[sizeof(T)] = {};
+
+fun b8 X($, is0)(X($, ) s, size_t ndx) {
+    return X(, cmp)((T const *)X(, zero), X($, atp)(s, ndx)) == 0;
+}
+
 #undef T

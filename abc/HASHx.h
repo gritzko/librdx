@@ -1,6 +1,8 @@
 //
 // (c) Victor Grishchenko, 2020-2024
 //
+#include "$.h"
+#include "01.h"
 #include "HASH.h"
 
 #define T X(, )
@@ -10,16 +12,15 @@
 #define lineX 16
 #endif
 
+#define MASK (lineX - 1)
+
 fun pro(X(HASH, scan), size_t *ndx, X($, ) data, T const *rec) {
-    const size_t mask = lineX - 1;
-    sane($ok(data) && ndx != nil && 0 == ($len(data) & mask));
-    T zz;
-    zero(zz);
-    size_t off = (*ndx) & mask;
-    size_t base = (*ndx) & ~mask;
+    sane($ok(data) && ndx != nil && 0 == ($len(data) & MASK));
+    size_t off = (*ndx) & MASK;
+    size_t base = (*ndx) & ~MASK;
     for (size_t i = off + 1; i < off + lineX; ++i) {
-        *ndx = base + (i & mask);
-        if (X(, cmp)(*data + *ndx, &zz) == 0) return HASHnone;
+        *ndx = base + (i & MASK);
+        if (X($, is0)(data, *ndx) == 0) return HASHnone;
         if (X(, cmp)(*data + *ndx, rec) == 0) return OK;
     }
     return HASHnoroom;
@@ -29,44 +30,67 @@ fun pro(X(HASH, scan), size_t *ndx, X($, ) data, T const *rec) {
 fun ok64 X(HASH, find)(size_t *ndx, X($, ) data, T const *rec) {
     u64 hash = X(, hash)(rec);
     *ndx = hash % $len(data);
-    if (X(, cmp)(rec, *data + *ndx) == 0) return OK;
-    T zz;
-    zero(zz);
-    if (X(, cmp)(&zz, *data + *ndx) == 0) return HASHnone;
+    if (X(, cmp)(rec, $atp(data, *ndx)) == 0) return OK;
+    if (X($, is0)(data, *ndx)) return HASHnone;
     return X(HASH, scan)(ndx, data, rec);
 }
 
-fun ok64 X(HASH, get)(T *rec, X($, ) data) {
-    size_t ndx = 0;
-    ok64 o = X(HASH, find)(&ndx, data, rec);
-    if (o == OK) {
-        *rec = data[0][ndx];
-    } else if (o == HASHnoroom) {
-        o = HASHnone;
+fun ok64 X(HASH, _get)(T *rec, X($, ) data, size_t ndx) {
+    size_t off = ndx & MASK;
+    size_t base = ndx & ~MASK;
+    for (size_t i = (off + 1) & MASK; i != off; i = (i + 1) & MASK) {
+        ndx = base + i;
+        if (X(, cmp)(rec, $atp(data, ndx)) == 0) {
+            *rec = $at(data, ndx);
+            return OK;
+        }
+        if (X($, is0)(data, ndx)) return HASHnone;
     }
-    return o;
+    return HASHnone;
+}
+
+fun ok64 X(HASH, get)(T *rec, X($, ) data) {
+    u64 hash = X(, hash)(rec);
+    size_t ndx = hash % $len(data);
+    if (X($, is0)(data, ndx)) return HASHnone;
+    if (X(, cmp)(rec, $atp(data, ndx)) == 0) {
+        *rec = $at(data, ndx);  // TODO mv
+        return OK;
+    }
+    return X(HASH, _get)(rec, data, ndx);
+}
+
+fun ok64 X(HASH, _put)(T const *rec, X($, ) data, size_t hash) {
+    size_t ndx = hash % $len(data);
+    size_t off = ndx & MASK;
+    size_t base = ndx & ~MASK;
+    for (size_t i = (off + 1) & MASK; i != off; i = (i + 1) & MASK) {
+        ndx = base + i;
+        if (X($, is0)(data, ndx) || X(, cmp)(rec, $atp(data, ndx)) == 0) {
+            X(, mv)($atp(data, ndx), rec);
+            return OK;
+        }
+    }
+    return HASHnoroom;
 }
 
 fun ok64 X(HASH, put)(X($, ) data, T const *rec) {
-    size_t ndx = 0;
-    ok64 o = X(HASH, find)(&ndx, data, rec);
-    if (o == OK || o == HASHnone) {
-        data[0][ndx] = *rec;
-        o = OK;
+    u64 hash = X(, hash)(rec);
+    size_t ndx = hash % $len(data);
+    if (X($, is0)(data, ndx) || X(, cmp)(rec, $atp(data, ndx)) == 0) {
+        X(, mv)($atp(data, ndx), rec);
+        return OK;
     }
-    return o;
+    return X(HASH, _put)(rec, data, hash);
 }
 
 fun pro(X(HASH, shift), X($, ) data, size_t ndx) {
     sane($ok(data) && ndx < $len(data));
-    T zz;
-    zero(zz);
-    const size_t mask = lineX - 1;
-    size_t off = ndx & mask;
-    size_t base = ndx & ~mask;
+    size_t off = ndx & MASK;
+    size_t base = ndx & ~MASK;
     for (size_t i = off + 1; i < off + lineX; ++i) {
-        size_t x = base + (i & mask);  // all pow 2
-        if (X(, cmp)(*data + x, &zz) == 0) {
+        size_t x = base + (i & MASK);  // all pow 2
+        if (X($, is0)(data, x)) {
             break;
         }
         size_t nom = X(, hash)(*data + x) % $len(data);
@@ -87,4 +111,6 @@ fun ok64 X(HASH, del)(X($, ) data, T const *rec) {
     return X(HASH, shift)(data, ndx);
 }
 
+#undef MASK
+#undef lineX
 #undef T
