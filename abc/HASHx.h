@@ -7,20 +7,23 @@
 
 #define T X(, )
 
-#ifndef lineX
-// the maximum scan length (cell displacement)
-#define lineX 16
+#ifndef ABC_HASH_LINE
+#define ABC_HASH_LINE 16
 #endif
 
-#define MASK (lineX - 1)
+#ifndef ABC_HASH_CONVERGE
+#define ABC_HASH_CONVERGE 0
+#endif
+
+#define MASK (ABC_HASH_LINE - 1)
 
 fun pro(X(HASH, scan), size_t *ndx, X($, ) data, T const *rec) {
     sane($ok(data) && ndx != nil && 0 == ($len(data) & MASK));
     size_t off = (*ndx) & MASK;
     size_t base = (*ndx) & ~MASK;
-    for (size_t i = off + 1; i < off + lineX; ++i) {
+    for (size_t i = off + 1; i < off + ABC_HASH_LINE; ++i) {
         *ndx = base + (i & MASK);
-        if (X($, is0)(data, *ndx) == 0) return HASHnone;
+        if (X($, is0)(data, *ndx)) return HASHnone;
         if (X(, cmp)(*data + *ndx, rec) == 0) return OK;
     }
     return HASHnoroom;
@@ -61,15 +64,19 @@ fun ok64 X(HASH, get)(T *rec, X($, ) data) {
 }
 
 fun ok64 X(HASH, _put)(T const *rec, X($, ) data, size_t hash) {
-    size_t ndx = hash % $len(data);
-    size_t off = ndx & MASK;
-    size_t base = ndx & ~MASK;
-    for (size_t i = (off + 1) & MASK; i != off; i = (i + 1) & MASK) {
-        ndx = base + i;
+    T r;
+    X(, mv)(&r, rec);
+    size_t fit = hash % $len(data);
+    size_t off = fit & MASK;
+    size_t base = fit & ~MASK;
+    for (size_t i = 0; i < ABC_HASH_LINE; ++i) {
+        size_t ndx = base + ((off + i) & MASK);
         if (X($, is0)(data, ndx) || X(, cmp)(rec, $atp(data, ndx)) == 0) {
-            X(, mv)($atp(data, ndx), rec);
+            X(, mv)($atp(data, ndx), &r);
             return OK;
         }
+        u64 hash2 = X(, hash)($atp(data, ndx));
+        if (ABC_HASH_CONVERGE && hash2 > hash) X(, swap)(&r, $atp(data, ndx));
     }
     return HASHnoroom;
 }
@@ -88,7 +95,7 @@ fun pro(X(HASH, shift), X($, ) data, size_t ndx) {
     sane($ok(data) && ndx < $len(data));
     size_t off = ndx & MASK;
     size_t base = ndx & ~MASK;
-    for (size_t i = off + 1; i < off + lineX; ++i) {
+    for (size_t i = off + 1; i < off + ABC_HASH_LINE; ++i) {
         size_t x = base + (i & MASK);  // all pow 2
         if (X($, is0)(data, x)) {
             break;
@@ -112,5 +119,5 @@ fun ok64 X(HASH, del)(X($, ) data, T const *rec) {
 }
 
 #undef MASK
-#undef lineX
+#undef ABC_HASH_LINE
 #undef T

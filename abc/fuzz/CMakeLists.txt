@@ -19,6 +19,10 @@ add_executable(HASHfuzz HASH.cpp)
 target_link_options(HASHfuzz PRIVATE ${FUZZ_LDD_FLAGS})
 target_compile_options(HASHfuzz PRIVATE ${FUZZ_CXX_FLAGS})
 
+add_executable(HASHdfuzz HASHd.c)
+target_link_options(HASHdfuzz PRIVATE ${FUZZ_LDD_FLAGS})
+target_compile_options(HASHdfuzz PRIVATE ${FUZZ_CXX_FLAGS})
+
 add_executable(ZINT ZINT.c)
 target_link_options(ZINT PRIVATE ${FUZZ_LDD_FLAGS})
 target_compile_options(ZINT PRIVATE ${FUZZ_CXX_FLAGS})

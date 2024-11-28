@@ -13,6 +13,7 @@
 fun u64 u32hash(u32 const *v) { return mix32(*v); }
 
 #define X(M, name) M##u32##name
+#define ABC_HASH_CONVERGE 1
 #include "HASHx.h"
 #undef X
 
@@ -94,11 +95,90 @@ pro(HASH3) {
     done;
 }
 
+#define LENd 24
+
+pro(HASHd) {
+    sane(1);
+    Bu32 dictbuf = {};
+    Bu32alloc(dictbuf, 16);
+    u32$ dict = Bu32data(dictbuf);
+    void **b = (void **)dictbuf;
+    b[2] = b[3];
+    Bu32 copybuf = {};
+    Bu32alloc(copybuf, 16);
+
+    i32 ins[LENd] = {1,  2,  3,  4,   -4, 5,   -5, 5,   6,  7,  8,  9,
+                     10, 11, 12, -12, 12, -12, 13, -13, 14, 15, 15, 15};
+
+    for (int i = 0; i < LENd; ++i) {
+        if (ins[i] > 0) {
+            u32 rec = ins[i];
+            HASHu32put(dict, &rec);
+        } else {
+            u32 rec = -ins[i];
+            HASHu32del(dict, &rec);
+        }
+    }
+    $u32feedall(Bu32idle(copybuf), Bu32cdata(dictbuf));
+
+    for (int j = 0; j < 1000; ++j) {
+        Bzero(dictbuf);
+        int p = rand() % (LENd - 1);
+        if (ins[p] != -ins[p + 1]) i32swap(ins + p, ins + p + 1);
+        for (int i = 0; i < LENd; ++i) {
+            if (ins[i] > 0) {
+                u32 rec = ins[i];
+                HASHu32put(dict, &rec);
+            } else {
+                u32 rec = -ins[i];
+                HASHu32del(dict, &rec);
+            }
+        }
+        if (!$eq(Bu32data(dictbuf), Bu32data(copybuf))) {
+            fprintf(stderr, "INS\t");
+            for (int i = 0; i < LENd; ++i) fprintf(stderr, "%i\t", ins[i]);
+            fprintf(stderr, "\n");
+            fprintf(stderr, "COPY\t");
+            for (int i = 0; i < 16; ++i)
+                fprintf(stderr, "%i\t", Bat(copybuf, i));
+            fprintf(stderr, "\n");
+            fprintf(stderr, "DICT\t");
+            for (int i = 0; i < 16; ++i)
+                fprintf(stderr, "%i\t", Bat(dictbuf, i));
+            fprintf(stderr, "\n");
+            fprintf(stderr, "FIT\n");
+            for (u32 u = 0; u < 16; ++u)
+                fprintf(stderr, "%u\t%lu\n", u, u32hash(&u) % 16);
+
+            Bzero(dictbuf);
+            for (int i = 0; i < LENd; ++i) {
+                if (ins[i] > 0) {
+                    u32 rec = ins[i];
+                    HASHu32put(dict, &rec);
+                } else {
+                    u32 rec = -ins[i];
+                    HASHu32del(dict, &rec);
+                }
+                fprintf(stderr, "#%i\t", i);
+                for (int i = 0; i < 16; ++i)
+                    fprintf(stderr, "%i\t", Bat(dictbuf, i));
+                fprintf(stderr, "\n");
+            }
+        }
+        $testeq(Bu32data(dictbuf), Bu32data(copybuf));
+    }
+
+    Bu32free(dictbuf);
+    Bu32free(copybuf);
+    done;
+}
+
 pro(HASH) {
     sane(1);
     call(HASH0);
     call(HASH1);
     call(HASH3);
+    call(HASHd);
     done;
 }
 
