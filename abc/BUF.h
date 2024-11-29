@@ -47,16 +47,24 @@ fun int Bu8cmp(Bu8 const *a, Bu8 const *b) {
 #define a$rawc(n, v) $u8c n = {(u8 *)&(v), (u8 *)(&v) + sizeof(v)}
 
 fun b8 Bitat(Bu8 buf, size_t ndx) {
-    // FIXME bounds
-    return ((buf[0][ndx >> 3]) >> (ndx & 7)) & 1;
+    size_t thebyte = ndx >> 3;
+    size_t thebit = ndx & 7;
+    must(thebyte < Bsize(buf));
+    return (Bat(buf, thebyte) >> thebit) & 1;
 }
 
-fun b8 Bitset(Bu8 buf, size_t ndx) {
-    return (buf[0][ndx >> 3]) |= 1 << (ndx & 7);
+fun void Bitset(Bu8 buf, size_t ndx) {
+    size_t thebyte = ndx >> 3;
+    size_t thebit = ndx & 7;
+    must(thebyte < Bsize(buf));
+    Bat(buf, thebyte) |= 1 << thebit;
 }
 
-fun b8 Bitunset(Bu8 buf, size_t ndx) {
-    return (buf[0][ndx >> 3]) &= ~(1 << (ndx & 7));
+fun void Bitunset(Bu8 buf, size_t ndx) {
+    size_t thebyte = ndx >> 3;
+    size_t thebit = ndx & 7;
+    must(thebyte < Bsize(buf));
+    Bat(buf, thebyte) |= ~(1 << thebit);
 }
 
 #endif
