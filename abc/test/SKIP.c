@@ -28,18 +28,18 @@
 
 pro(SKIP0) {
     sane(1);
-    SKIPbl09wtab skips = {};
+    SKIPbl09tab skips = {};
     testeq(0, SKIPbl09pos(&skips, 0));
     testeq(0, SKIPbl09pos(&skips, 1));
     testeq(0, SKIPbl09pos(&skips, 2));
-    SKIPbl09wtab skips2 = {.pos = 1025};
+    SKIPbl09tab skips2 = {.pos = 1025};
     testeq(512, SKIPbl09pos(&skips2, 0));
     testeq(0, SKIPbl09pos(&skips2, 1));
-    SKIPbl09wtab skips4 = {.pos = 2049, .off = {23}};
+    SKIPbl09tab skips4 = {.pos = 2049, .off = {23}};
     testeq(1024 + 512 + 23, SKIPbl09pos(&skips4, 0));
     testeq(1024, SKIPbl09pos(&skips4, 1));
     testeq(0, SKIPbl09pos(&skips4, 2));
-    SKIPbl09wtab skips5 = {.pos = 2048 + 512 + 1, .off = {9, 9, 9}};
+    SKIPbl09tab skips5 = {.pos = 2048 + 512 + 1, .off = {9, 9, 9}};
     testeq(2048 + 9, SKIPbl09pos(&skips5, 0));
     testeq(2048 + 9, SKIPbl09pos(&skips5, 1));
     testeq(2048 + 9, SKIPbl09pos(&skips5, 2));
@@ -47,11 +47,13 @@ pro(SKIP0) {
     done;
 }
 
-pro(SKIPcheck, Bu8 buf, Bu8 checked, SKIPbl04rtab const* k) {
+pro(SKIPcheck, Bu8 buf, Bu8 checked, SKIPbl04tab const* k) {
     sane(1);
     for (int h = SKIPbl04len(k->pos) - 1; h >= 0; --h) {
         if (k->off[h] == 0xff) continue;
-        SKIPbl04rtab hop = {};
+        size_t pp = SKIPbl04pos(k, h);
+        if (pp == 0) continue;
+        SKIPbl04tab hop = {};
         ok64 o = SKIPbl04hop(&hop, buf, k, h);
         if (o != OK) {
             if (o == SKIPnone) continue;
@@ -66,23 +68,21 @@ pro(SKIPcheck, Bu8 buf, Bu8 checked, SKIPbl04rtab const* k) {
 
 pro(SKIP1) {
     sane(1);
+    aBcpad(u8, check, SCALE / 8);
     aBcpad(u8, pad, SCALE);
-    aBcpad(u8, check, SCALE);
     Bzero(checkbuf);
-    SKIPbl04wtab k = {};
+    SKIPbl04tab k = {};
     for (u64 u = 0; u < SCALE / 16; ++u) {
-        $u8feed64(padidle, &u);
+        call($u8feed64, padidle, &u);
         call(SKIPbl04mayfeed, padbuf, &k);
     }
     // aBcpad(u8, hex, PAGESIZE * 2);
     // HEXfeedall(hexidle, paddata);
     call(SKIPbl04term, padbuf, &k);
-    SKIPbl04wtab k2 = {};
+    SKIPbl04tab k2 = {};
     // call(SKIPbl04drain, &k2, padbuf, k.pos);
     call(SKIPbl04load, &k2, padbuf);
-    SKIPbl04rtab r = {};
-    call(SKIPbl04flip, &r, &k2, padbuf);
-    call(SKIPcheck, padbuf, checkbuf, &r);
+    call(SKIPcheck, padbuf, checkbuf, &k2);
     done;
 }
 
@@ -92,13 +92,12 @@ pro(SKIP2) {
     FILEunlink(path);
     aB(u8, pad);
     aBcpad(u8, check, SCALE);
-    Bzero(checkbuf);
     call(FILEmapre, (voidB)padbuf, path, SCALE);
     COMBinit(padbuf);
-    SKIPbl04wtab k = {};
+    SKIPbl04tab k = {};
     for (u64 i = 0; i < 8; ++i) {
         for (u64 u = 0; u < SCALE / 16; ++u) {
-            $u8feed64(padidle, &u);
+            call($u8feed64, padidle, &u);
             call(SKIPbl04mayfeed, padbuf, &k);
         }
         call(SKIPbl04term, padbuf, &k);
@@ -113,10 +112,9 @@ pro(SKIP2) {
         testeq(SCALE * (i + 2), Bsize(padbuf));
         zero(k);
         call(SKIPbl04trim, &k, padbuf);
+        Bzero(checkbuf);
+        call(SKIPcheck, padbuf, checkbuf, &k);
     }
-    SKIPbl04rtab r = {};
-    call(SKIPbl04flip, &r, &k, padbuf);
-    call(SKIPcheck, padbuf, checkbuf, &r);
     call(FILEunlink, path);
     done;
 }
@@ -131,7 +129,7 @@ pro(SKIP3) {
     sane(1);
     aBcpad(u8, pad, SCALE);
     aBcpad(u8, check, SCALE);
-    SKIPbl04wtab k = {};
+    SKIPbl04tab k = {};
     for (u64 u = 0; u < SCALE / 16; ++u) {
         $u8feed64(padidle, &u);
         call(SKIPbl04mayfeed, padbuf, &k);

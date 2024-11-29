@@ -7,7 +7,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS on)
 
 include(CTest)
 
-include_directories(. ryu)
+include_directories(.)
 
 option(WITH_ASAN "build with ASAN" OFF)
 if (WITH_ASAN)

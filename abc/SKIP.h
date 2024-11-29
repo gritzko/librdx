@@ -16,6 +16,7 @@ con ok64 SKIPbof = 0x2ace665251c;
 con ok64 SKIPnone = 0xa72cf265251c;
 con ok64 SKIPnoroom = 0xc73cf6cf265251c;
 
-#define SKIP_TLV_TYPE 'Z'
+#define SKIP_TLV_TYPE 'K'
+#define SKIP_TLV_TERM_TYPE 'I'
 
 #endif  // ABC_SKIP_H

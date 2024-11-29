@@ -80,7 +80,7 @@ typedef void *const *voidB;
     T **name##data = name##buf + 1; \
     T **name##idle = name##buf + 2;
 
-#define Bzero(buf) memset(buf[0], 0, ((void *)buf[3]) - ((void *)buf[0]))
+#define Bzero(buf) memset(buf[0], 0, Bsize(buf))
 
 #define Bwithin(b, s) (s[0] >= b[0] && s[1] <= b[3])
 
