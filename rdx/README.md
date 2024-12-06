@@ -30,7 +30,7 @@ Variants correspond 1:1.
 
 `librdx` is a low-level [RDX][X] system library implemented in [ABC C][A].
 
-[A]: ./ABC.md
+[A]: ../abc/ABC.md
 [X]: ./RDX.md
 [J]: ./RDXJ.md
 [c]: http://github.com/drpcorg/chotki/rdx

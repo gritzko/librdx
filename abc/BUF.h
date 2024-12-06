@@ -1,6 +1,8 @@
 #ifndef ABC_BUF_H
 #define ABC_BUF_H
 
+#include "$.h"
+#include "01.h"
 #include "B.h"
 
 fun int u8cmp(const u8 *a, const u8 *b) { return (int)*a - (int)*b; }
@@ -65,6 +67,54 @@ fun void Bitunset(Bu8 buf, size_t ndx) {
     size_t thebit = ndx & 7;
     must(thebyte < Bsize(buf));
     Bat(buf, thebyte) |= ~(1 << thebit);
+}
+
+#define a$$pad(n, l, ll)                                \
+    u8 _##n[(l)];                                       \
+    Bu8 n##buf = {_##n, _##n, _##n, _##n + (l)};        \
+    u8$ n##idle = Bu8idle(n##buf);                      \
+    u8$ n##data = Bu8data(n##buf);                      \
+    $u8c _$##n[(l)];                                    \
+    B$u8c n##$buf = {_$##n, _$##n, _$##n, _$##n + (l)}; \
+    $u8c$ n##$idle = B$u8cidle(n##$buf);                \
+    $u8c$ n##$data = B$u8cdata(n##$buf);
+
+#define $$call(fn, n, ...)              \
+    {                                   \
+        $u8c _s = {n##idle[0]};         \
+        call(fn, n##idle, __VA_ARGS__); \
+        _s[1] = n##idle[0];             \
+        call($$u8cfeed1, n##$idle, _s); \
+    }
+
+con ok64 Badtemplte = 0xa78c34c69e2894b;
+
+fun ok64 $$feedf($u8 into, $u8c tmpl, $$u8c args) {
+    a$dup(u8c, t, tmpl);
+    ok64 o = OK;
+    while (!$empty(t) && o == OK) {
+        if (**t != '$') {
+            o = $u8feed1(into, **t);
+            ++*t;
+            continue;
+        }
+        ++*t;
+        if ($empty(t)) return Badtemplte;
+        if (**t < '1' || **t > '9') return Badtemplte;
+        int n = **t - '1';
+        ++*t;
+        if (n >= $len(args)) return Bnodata;
+        o = $u8feedall(into, $at(args, n));
+    }
+    return $empty(t) ? OK : Bnoroom;
+}
+
+fun ok64 $u8feedstr($u8 into, const char *str) {
+    int l = strlen(str);
+    if ($len(into) < l) return $noroom;
+    memcpy(*into, str, l);
+    *into += l;
+    return OK;
 }
 
 #endif

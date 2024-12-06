@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include <unistd.h>
 
+#include "01.h"
+#include "BUF.h"
 #include "INT.h"
 #include "PRO.h"
 #include "TEST.h"
@@ -57,10 +59,15 @@ pro(Breserve_test) {
 
 pro(B$test) {
     sane(1);
-    /*    aBpad(u8, pad, 1024);
-        $u8feed2(Bu8idle(pad), 12, 34);
-        aBpad($u8, $pad, 32);
-        $feed(B$u8idle($pad), pad[1]);*/
+    a$$pad(pad, 128, 8);
+    $$call($u8feedstr, pad, "one");
+    $$call(u64decfeed, pad, 2);
+    $$call($u8feedstr, pad, "three");
+    a$str(templ, "First $1, then $2, then $3!");
+    a$str(correct, "First one, then 2, then three!");
+    aBpad2(u8, res, 128);
+    $$feedf(residle, templ, pad$data);
+    $testeq(correct, resdata);
     done;
 }
 
