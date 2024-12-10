@@ -1,8 +1,10 @@
+#include "BUF.h"
 #include "LEX.rl.h"
 
 ok64 LEXonName($cu8c tok, LEXstate *state) {
-    $u8feed(state->syn, state->mod);
-    return $u8feed(state->syn, tok);
+    ok64 o = $u8feed(state->syn, state->mod);
+    if (o == OK) o = $u8feed(state->syn, tok);
+    return o;
 }
 ok64 LEXonOp($cu8c tok, LEXstate *state) { return $u8feed(state->syn, tok); }
 ok64 LEXonClass($cu8c tok, LEXstate *state) { return $u8feed(state->syn, tok); }
@@ -24,7 +26,8 @@ ok64 LEXonEq($cu8c tok, LEXstate *state) {
     return $u8feed(state->syn, t);
 }
 
-ok64 LEXonRuleName($cu8c tok, LEXstate *state) {
+pro(LEXonRuleName, $cu8c tok, LEXstate *state) {
+    sane($ok(tok) && state != nil);
     $set(state->cur, tok);
     u8c$ mod = state->mod;
     state->ruleno++;
@@ -45,7 +48,8 @@ ok64 LEXonRuleName($cu8c tok, LEXstate *state) {
 
     a$strc(fnstmpl, "ok64 $son$s ($$cu8c tok, $sstate* state);\n");
     $feedf(state->fns, fnstmpl, mod, tok, mod);
-    return OK;
+
+    done;
 }
 ok64 LEXonLine($cu8c tok, LEXstate *state) {
     size_t l = (4 + $len(tok) + 2) * 2 + 4;

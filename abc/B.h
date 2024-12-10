@@ -141,6 +141,13 @@ fun ok64 Bfree(Bvoid buf) {
         b[1] = b[2] = b[0];  \
     }
 
+#define Breset1(buf)         \
+    {                        \
+        u8 **b = (u8 **)buf; \
+        b[1] = b[0];         \
+        b[2] = b[3];         \
+    }
+
 #define aB$(T, n, buf, from, till) T *n[2] = {buf[0] + from, buf[0] + till};
 
 #define Batp(buf, ndx) (buf[0] + ndx)

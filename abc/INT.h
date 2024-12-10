@@ -52,6 +52,10 @@ fun int u128cmp(u128 const *a, u128 const *b) {
 #include "Bx.h"
 #undef X
 
+#define X(M, name) M##u128##name
+#include "Bx.h"
+#undef X
+
 #define X(M, name) M##i8##name
 #include "Bx.h"
 #undef X

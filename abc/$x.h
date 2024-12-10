@@ -33,8 +33,25 @@ typedef b8 (*X(, isfn))(const X(, ) *);
 
 fun void X($, sort)(X($c, ) data) { $sort(data, X(, cmp)); }
 
-fun T *X($, bsearch)(T const *p, X($c, ) data) {
+fun T *X($, bsearch)(T const *p, X($c, c) data) {
     return (T *)$bsearch(p, data, X(, cmp));
+}
+
+// Find the first entry >= needle or $term if none TODO test
+fun T const *X($, findge)(X($c, c) haystack, T const *needle) {
+    size_t b = 0, e = $len(haystack);
+    if (e == 0) return haystack[1];
+    while (e > b + 1) {
+        size_t m = (b + e) >> 1;
+        int c = X(, cmp)($atp(haystack, m), needle);
+        if (c < 0) {
+            b = m;
+        } else {
+            e = m;
+        }
+    }
+    int c = X(, cmp)($atp(haystack, b), needle);
+    return $atp(haystack, c < 0 ? e : b);
 }
 
 #ifndef ABC_X_$

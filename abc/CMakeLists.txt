@@ -69,6 +69,7 @@ HTTP.h
 )
 
 list(APPEND ABC_SOURCES 
+CT.c
 JSON.c
 JSON.rl.c
 LEX.c

@@ -31,7 +31,7 @@ con ok64 faileq = 0xd69c2d96a;
 #define call(f, ...)                                                    \
     {                                                                   \
         u8 __depth = _pro_depth++;                                      \
-        __ = (f(__VA_ARGS__));                                          \
+        ok64 __ = (f(__VA_ARGS__));                                     \
         _pro_depth = __depth;                                           \
         if (__ != OK) {                                                 \
             trace("%s<%s at %s:%i\n", PROindent, ok64str(__), __func__, \
