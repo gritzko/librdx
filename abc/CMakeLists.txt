@@ -50,7 +50,6 @@ INTx.h
 JSON.h
 JSON.rl.h
 LEX.h
-LEX.rl.h
 MMAP.h
 OK.h
 PRO.h

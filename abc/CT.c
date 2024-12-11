@@ -46,11 +46,29 @@ ok64 CTsplice(Bu8 ct, u64 var) {
     return OK;
 }
 
+ok64 CTsplicemany(Bu8 ct, u64 var, b8 some) {
+    mark128 mark = {.pos = $len(CTdata(ct))};
+    call(CTaddmark, ct, &mark);
+    ok64 o = some ? CTnone : OK;
+    for (u32 i = $len(CTlog(ct)); i > 0; --i) {
+        mark128* m = CTmark(ct, i);
+        if (m->var == var && m->ins == 0) {
+            m->ins = $len(CTlog(ct));
+            o = OK;
+        }
+    }
+    return o;
+}
+
 // $1 $var ${var}
 ok64 CTscanvar(ok64* var, $u8c input) {
-    sane(**input == '$' && var != nil);
+    sane(**input == '$' && $len(input) > 1 && var != nil);
     u8c* p = input[0];
     ++p;
+    if (*p == '$') {
+        ++input[0];
+        return CTnone;
+    }
     b8 bracket = (*p == '{');
     if (bracket) ++p;
     $u8c name = {p};
@@ -64,7 +82,7 @@ ok64 CTscanvar(ok64* var, $u8c input) {
     }
     test($len(name) > 0 && $len(name) <= 10, CTbad);
     OKscan(var, name);
-    input[0] = name[1];
+    input[0] = p;
     done;
 }
 

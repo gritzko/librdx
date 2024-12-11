@@ -17,6 +17,10 @@ ok64 CTinsert(Bu8 ct, ok64 var);
 
 ok64 CTsplice(Bu8 ct, ok64 var);
 
+ok64 CTsplicemany(Bu8 ct, ok64 var, b8 some);
+fun ok64 CTspliceall(Bu8 ct, ok64 var) { return CTsplicemany(ct, var, YES); }
+fun ok64 CTspliceany(Bu8 ct, ok64 var) { return CTsplicemany(ct, var, NO); }
+
 ok64 CTfeed(Bu8 ct, $u8c insert);
 
 ok64 CTrender($u8 into, Bu8 ct);

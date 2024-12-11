@@ -1,4 +1,42 @@
-#include "LEX.rl.h"
+#include "abc/INT.h"
+#include "abc/PRO.h"
+#include "LEX.h"
+
+// action indices for the parser
+#define LEXenum 0
+enum {
+	LEXSpace = LEXenum+1,
+	LEXName = LEXenum+6,
+	LEXRep = LEXenum+7,
+	LEXOp = LEXenum+8,
+	LEXClass = LEXenum+9,
+	LEXRange = LEXenum+10,
+	LEXString = LEXenum+11,
+	LEXQString = LEXenum+12,
+	LEXEntity = LEXenum+13,
+	LEXExpr = LEXenum+14,
+	LEXRuleName = LEXenum+15,
+	LEXEq = LEXenum+16,
+	LEXLine = LEXenum+17,
+	LEXRoot = LEXenum+18,
+};
+
+// user functions (callbacks) for the parser
+ok64 LEXonSpace ($cu8c tok, LEXstate* state);
+ok64 LEXonName ($cu8c tok, LEXstate* state);
+ok64 LEXonRep ($cu8c tok, LEXstate* state);
+ok64 LEXonOp ($cu8c tok, LEXstate* state);
+ok64 LEXonClass ($cu8c tok, LEXstate* state);
+ok64 LEXonRange ($cu8c tok, LEXstate* state);
+ok64 LEXonString ($cu8c tok, LEXstate* state);
+ok64 LEXonQString ($cu8c tok, LEXstate* state);
+ok64 LEXonEntity ($cu8c tok, LEXstate* state);
+ok64 LEXonExpr ($cu8c tok, LEXstate* state);
+ok64 LEXonRuleName ($cu8c tok, LEXstate* state);
+ok64 LEXonEq ($cu8c tok, LEXstate* state);
+ok64 LEXonLine ($cu8c tok, LEXstate* state);
+ok64 LEXonRoot ($cu8c tok, LEXstate* state);
+
 
 
 %%{
@@ -7,6 +45,7 @@ machine LEX;
 
 alphtype unsigned char;
 
+# ragel actions
 action LEXSpace0 { mark0[LEXSpace] = p - text[0]; }
 action LEXSpace1 {
     tok[0] = text[0] + mark0[LEXSpace];
@@ -92,38 +131,25 @@ action LEXRoot1 {
     call(LEXonRoot, tok, state); 
 }
 
-LEXSpace  = (   [ \t\r\n]   )  >LEXSpace0 %LEXSpace1;
-
-LEXhex  = (   "0x"  [0-9a-f]+ );
-
-LEXdec  = (   [0-9]+ );
-
-LEXName  = (   [A-Za-z_]  [A-Z0-9a-z_]**   )  >LEXName0 %LEXName1;
-
-LEXRep  = (   "{"  [0-9]*  (","  [0-9]*)?  "}"  -  "{}" )  >LEXRep0 %LEXRep1;
-
-LEXOp  = (   LEXSpace  |  [()+*\-?><:|\.]  |  LEXRep )  >LEXOp0 %LEXOp1;
-
-LEXClass  = (   "["  ([^\]]|"\\]")*  "]"   )  >LEXClass0 %LEXClass1;
-
-LEXRange  = (   "("  (LEXhex|LEXdec)  ".."  (LEXhex|LEXdec)  |  (LEXhex|LEXdec)  ")" )  >LEXRange0 %LEXRange1;
-
-LEXString  = (   "\""  ([^"]|"\\\"")*  "\""   )  >LEXString0 %LEXString1;
-
-LEXQString  = (   "\'"  ([^']|"\\\'")*  "\'"   )  >LEXQString0 %LEXQString1;
-
-LEXEntity  = (   LEXClass  |  LEXName  |  LEXString  |  LEXQString  |  LEXRange )  >LEXEntity0 %LEXEntity1;
-
-LEXExpr  = (   (LEXOp+  LEXEntity)*  LEXOp*   )  >LEXExpr0 %LEXExpr1;
-
-LEXRuleName  = (   LEXName   )  >LEXRuleName0 %LEXRuleName1;
-
-LEXEq  = (   LEXSpace*  "=" )  >LEXEq0 %LEXEq1;
-
-LEXLine  = (   LEXSpace*  LEXRuleName  LEXEq  LEXExpr  ";"   )  >LEXLine0 %LEXLine1;
-
-LEXRoot  = (   LEXLine*  LEXSpace*   )  >LEXRoot0 %LEXRoot1;
-
+# ragel grammar rules
+LEXSpace = (   [ \t\r\n]   )  >LEXSpace0 %LEXSpace1;
+LEXws = (   [ \t\r\n]   ); # no ws callback
+LEXhex = (   "0x"  [0-9a-f]+ ); # no hex callback
+LEXdec = (   [0-9]+ ); # no dec callback
+LEXword = (     [A-Za-z_]  [A-Z0-9a-z_]** ); # no word callback
+LEXName = (   LEXword )  >LEXName0 %LEXName1;
+LEXRep = (   "{"  [0-9]*  (","  [0-9]*)?  "}"  -  "{}" )  >LEXRep0 %LEXRep1;
+LEXOp = (   LEXSpace  |  [()+*\-?><:|\.]  |  LEXRep )  >LEXOp0 %LEXOp1;
+LEXClass = (   "["  ([^\]]|"\\]")*  "]"   )  >LEXClass0 %LEXClass1;
+LEXRange = (   "("  (LEXhex|LEXdec)  ".."  (LEXhex|LEXdec)  |  (LEXhex|LEXdec)  ")" )  >LEXRange0 %LEXRange1;
+LEXString = (   "\""  ([^"]|"\\\"")*  "\""   )  >LEXString0 %LEXString1;
+LEXQString = (   "\'"  ([^']|"\\\'")*  "\'"   )  >LEXQString0 %LEXQString1;
+LEXEntity = (   LEXClass  |  LEXName  |  LEXString  |  LEXQString  |  LEXRange )  >LEXEntity0 %LEXEntity1;
+LEXExpr = (   (LEXOp+  LEXEntity)*  LEXOp*   )  >LEXExpr0 %LEXExpr1;
+LEXRuleName = (   LEXword )  >LEXRuleName0 %LEXRuleName1;
+LEXEq = (   LEXws*  "=" )  >LEXEq0 %LEXEq1;
+LEXLine = (   LEXws*  LEXRuleName  LEXEq  LEXExpr  ";"   )  >LEXLine0 %LEXLine1;
+LEXRoot = (   LEXLine*  LEXws*   )  >LEXRoot0 %LEXRoot1;
 
 main := LEXRoot;
 
@@ -131,6 +157,7 @@ main := LEXRoot;
 
 %%write data;
 
+// the public API function
 pro(LEXlexer, LEXstate* state) {
 
     a$dup(u8c, text, state->text);

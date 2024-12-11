@@ -2,10 +2,9 @@
 
 #include <fcntl.h>
 #include <stdio.h>
-#include <string.h>
 
+#include "CT.h"
 #include "FILE.h"
-#include "INT.h"
 
 a$strc(ext, ".lex");
 
@@ -14,63 +13,7 @@ con char *header_template;
 
 ABC_INIT;
 
-pro(lex2rl, $u8c mod) {
-    sane($ok(mod));
-    aBpad(u8, synpad, KB * 4);
-    aBpad(u8, actpad, KB * 4);
-    aBpad(u8, enmpad, KB);
-    aBpad(u8, fnspad, KB * 4);
-    LEXstate state = {
-        .mod = mod,
-        .syn = Bu8idle(synpad),
-        .act = Bu8idle(actpad),
-        .enm = Bu8idle(enmpad),
-        .fns = Bu8idle(fnspad),
-    };
-
-    aBpad(u8, name, KB);
-    $u8c $namet = $u8str("$s.lex");
-    $feedf(Bu8idle(name), $namet, mod);
-
-    int fd;
-    call(FILEopen, &fd, Bu8cdata(name), O_RDONLY);
-
-    aBpad(u8, syn, MB);
-    call(FILEdrainall, Bu8idle(syn), fd);
-
-    $mv(state.text, Bu8cdata(syn));
-    call(LEXlexer, &state);
-
-    call(FILEclose, fd);
-
-    aBpad(u8, hname, KB);
-    $u8c $hnamet = $u8str("$s.rl.h");
-    $feedf(Bu8idle(hname), $hnamet, mod);
-
-    int hfd;
-    call(FILEcreate, &hfd, Bu8cdata(hname));
-
-    aBpad(u8, rname, KB);
-    $u8c $rnamet = $u8str("$s.rl");
-    $feedf(Bu8idle(rname), $rnamet, mod);
-
-    int rfd;
-    call(FILEcreate, &rfd, Bu8cdata(rname));
-    aBpad(u8, rpad, MB);
-    a$strc(rtmpl, ragel_template);
-    $feedf(Bu8idle(rpad), rtmpl, mod, mod, Bu8cdata(actpad), Bu8cdata(synpad),
-           mod, mod, mod, mod, mod, mod, mod, mod, mod, mod);
-    call(FILEfeed, rfd, Bu8cdata(rpad));
-    call(FILEclose, rfd);
-
-    aBpad(u8, hpad, MB);
-    a$strc(htmpl, header_template);
-    $feedf(Bu8idle(hpad), htmpl, mod, Bu8cdata(enmpad), Bu8cdata(fnspad));
-    call(FILEfeed, hfd, Bu8cdata(hpad));
-    call(FILEclose, hfd);
-
-    done;
-}
+ok64 lex2rl($u8c mod);
 
 int main(int argn, char **args) {
     if (argn != 2) {
@@ -84,59 +27,3 @@ int main(int argn, char **args) {
 
     return o;
 }
-
-con char *header_template =
-    "#include \"abc/INT.h\"\n"
-    "#include \"abc/PRO.h\"\n"
-    "#include \"$s.h\"\n"
-    "\n"
-    "enum {\n"
-    "$s"
-    "};\n"
-    "$s\n"  // FUNCTIONS
-    "\n";
-
-con char *ragel_template =
-    "#include \"$s.rl.h\"\n"
-    "\n"
-    "\n"
-    "%%{\n"
-    "\n"
-    "machine $s;\n"
-    "\n"
-    "alphtype unsigned char;\n"
-    "\n"
-    "$s"  // ACTIONS
-    "\n"
-    "$s"  // SYNTAX
-    "main := $sRoot;\n"
-    "\n"
-    "}%%\n"
-    "\n"
-    "%%write data;\n"
-    "\n"
-    "pro($slexer, $sstate* state) {\n"
-    "\n"
-    "    a$dup(u8c, text, state->text);\n"
-    "    sane($ok(text));\n"
-    "\n"
-    "    int cs = 0;\n"
-    "    int res = 0;\n"
-    "    u8c *p = (u8c*) text[0];\n"
-    "    u8c *pe = (u8c*) text[1];\n"
-    "    u8c *eof = pe;\n"
-    "    u8c *pb = p;\n"
-    "    u64 mark0[64] = {};\n"
-    "\n"
-    "    u32 sp = 2;\n"
-    "    $$u8c tok = {p, p};\n"
-    "\n"
-    "    %% write init;\n"
-    "    %% write exec;\n"
-    "\n"
-    "    state->text[0] = p;\n"
-    "    if (p!=text[1] || cs < $s_first_final) {\n"
-    "        return $sfail;\n"
-    "    }\n"
-    "    done;\n"
-    "}\n";

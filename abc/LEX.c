@@ -1,68 +1,225 @@
+#include "LEX.h"
+
+#include <unistd.h>
+
+#include "01.h"
 #include "BUF.h"
-#include "LEX.rl.h"
+#include "CT.h"
+#include "FILE.h"
+
+#define LEX_TEMPL_ACTION 0
+#define LEX_TEMPL_ENUM 1
+#define LEX_TEMPL_FN 2
+#define LEX_TEMPL_ACT 3
+#define LEX_TEMPL_PUBACTNL 4
+#define LEX_TEMPL_ACTNL 5
+#define LEX_TEMPL_FILE 6
+
+const u8c *LEX_TEMPL[LEX_TEMPL_LANG_LEN][LEX_TEMPL_LEN][2] = {
+    {
+        $u8str("action $mod${act}0 { mark0[$mod$act] = p - text[0]; }\n"
+               "action $mod${act}1 {\n"
+               "    tok[0] = text[0] + mark0[$mod$act];\n"
+               "    tok[1] = p;\n"
+               "    call(${mod}on$act, tok, state); \n"
+               "}\n"),
+        $u8str("\t$mod$act = ${mod}enum+$actno,\n"),
+        $u8str("ok64 ${mod}on$act ($$cu8c tok, ${mod}state* state);\n"),
+        $u8str("$mod$act = ( "),
+        $u8str(" )  >$mod${act}0 %$mod${act}1;\n"),
+        $u8str(" ); # no $act callback\n"),
+        $u8str("#include \"abc/INT.h\"\n"
+               "#include \"abc/PRO.h\"\n"
+               "#include \"$mod.h\"\n"
+               "\n"
+               "// action indices for the parser\n"
+               "#define ${mod}enum 0\n"
+               "enum {\n"
+               "$ENUM"
+               "};\n"
+               "\n"
+               "// user functions (callbacks) for the parser\n"
+               "$FN\n"
+               "\n"
+               "\n"
+               "%%{\n"
+               "\n"
+               "machine $mod;\n"
+               "\n"
+               "alphtype unsigned char;\n"
+               "\n"
+               "# ragel actions\n"
+               "$ACTIONS"
+               "\n"
+               "# ragel grammar rules\n"
+               "$RULES"
+               "\n"
+               "main := ${mod}Root;\n"
+               "\n"
+               "}%%\n"
+               "\n"
+               "%%write data;\n"
+               "\n"
+               "// the public API function\n"
+               "pro(${mod}lexer, ${mod}state* state) {\n"
+               "\n"
+               "    a$$dup(u8c, text, state->text);\n"
+               "    sane($$ok(text));\n"
+               "\n"
+               "    int cs = 0;\n"
+               "    int res = 0;\n"
+               "    u8c *p = (u8c*) text[0];\n"
+               "    u8c *pe = (u8c*) text[1];\n"
+               "    u8c *eof = pe;\n"
+               "    u8c *pb = p;\n"
+               "    u64 mark0[64] = {};\n"
+               "\n"
+               "    $$u8c tok = {p, p};\n"
+               "\n"
+               "    %% write init;\n"
+               "    %% write exec;\n"
+               "\n"
+               "    state->text[0] = p;\n"
+               "    if (p!=text[1] || cs < ${mod}_first_final) {\n"
+               "        return ${mod}fail;\n"
+               "    }\n"
+               "    done;\n"
+               "}\n"),
+    },
+    {},
+};
+
+con ok64 LEX$ACTIONS = 0x1c5d849d30a;
+con ok64 LEX$ENUM = 0x59e5ce;
+con ok64 LEX$FN = 0x5cf;
+con ok64 LEX$RULES = 0x1c39579b;
+
+con ok64 LEX$mod = 0x28cf1;
+con ok64 LEX$act = 0x389e5;
+con ok64 LEX$actno = 0x33cb89e5;
 
 ok64 LEXonName($cu8c tok, LEXstate *state) {
-    ok64 o = $u8feed(state->syn, state->mod);
-    if (o == OK) o = $u8feed(state->syn, tok);
+    ok64 o = $u8feed(CTidle(state->ct), state->mod);
+    if (o == OK) o = $u8feed(CTidle(state->ct), tok);
     return o;
 }
-ok64 LEXonOp($cu8c tok, LEXstate *state) { return $u8feed(state->syn, tok); }
-ok64 LEXonClass($cu8c tok, LEXstate *state) { return $u8feed(state->syn, tok); }
-ok64 LEXonRange($cu8c tok, LEXstate *state) { return $u8feed(state->syn, tok); }
+ok64 LEXonOp($cu8c tok, LEXstate *state) {
+    return $u8feed(CTidle(state->ct), tok);
+}
+ok64 LEXonClass($cu8c tok, LEXstate *state) {
+    return $u8feed(CTidle(state->ct), tok);
+}
+ok64 LEXonRange($cu8c tok, LEXstate *state) {
+    return $u8feed(CTidle(state->ct), tok);
+}
 ok64 LEXonString($cu8c tok, LEXstate *state) {
-    return $u8feed(state->syn, tok);
+    return $u8feed(CTidle(state->ct), tok);
 }
 ok64 LEXonQString($cu8c tok, LEXstate *state) {
-    return $u8feed(state->syn, tok);
+    return $u8feed(CTidle(state->ct), tok);
 }
-ok64 LEXonSpace($cu8c tok, LEXstate *state) { return $u8feed(state->syn, tok); }
+ok64 LEXonSpace($cu8c tok, LEXstate *state) {
+    // return $u8feed(CTidle(state->ct), tok);
+    return $u8feed1(CTidle(state->ct), ' ');
+}
 
-ok64 LEXonEntity($cu8c tok, LEXstate *state) { return OK; }
-ok64 LEXonExpr($cu8c tok, LEXstate *state) { return OK; }
-ok64 LEXonRep($cu8c tok, LEXstate *state) { return OK; }
+ok64 LEXonEntity($cu8c tok, LEXstate *state) { done; }
+ok64 LEXonExpr($cu8c tok, LEXstate *state) { done; }
+ok64 LEXonRep($cu8c tok, LEXstate *state) { done; }
 
 ok64 LEXonEq($cu8c tok, LEXstate *state) {
-    a$strc(t, " = ( ");
-    return $u8feed(state->syn, t);
+    u8c$ tmpl = LEX_TEMPL[state->lang][LEX_TEMPL_ACT];
+    call(CTsplice, state->ct, LEX$RULES);
+    return CTfeed(state->ct, tmpl);
 }
 
 pro(LEXonRuleName, $cu8c tok, LEXstate *state) {
     sane($ok(tok) && state != nil);
     $set(state->cur, tok);
-    u8c$ mod = state->mod;
     state->ruleno++;
 
-    if (**tok < 'A' || **tok > 'Z') return OK;
+    if (**tok < 'A' || **tok > 'Z') done;
 
-    a$strc(tmpl,
-           "action $s$s0 { mark0[$s$s] = p - text[0]; }\n"
-           "action $s$s1 {\n"
-           "    tok[0] = text[0] + mark0[$s$s];\n"
-           "    tok[1] = p;\n"
-           "    call($son$s, tok, state); \n"
-           "}\n");
-    $feedf(state->act, tmpl, mod, tok, mod, tok, mod, tok, mod, tok, mod, tok);
+    u8B ct = (u8B)state->ct;
 
-    a$strc(enmtmpl, "\t$s$s = $senum+$u,\n");
-    $feedf(state->enm, enmtmpl, mod, tok, mod, state->ruleno);
+    u8c$ tmpl = LEX_TEMPL[state->lang][LEX_TEMPL_ACTION];
+    call(CTsplice, ct, LEX$ACTIONS);
+    call(CTfeed, ct, tmpl);
 
-    a$strc(fnstmpl, "ok64 $son$s ($$cu8c tok, $sstate* state);\n");
-    $feedf(state->fns, fnstmpl, mod, tok, mod);
+    u8c$ enmtmpl = LEX_TEMPL[state->lang][LEX_TEMPL_ENUM];
+    call(CTsplice, ct, LEX$ENUM);
+    call(CTfeed, ct, enmtmpl);
+    call(CTsplice, ct, LEX$actno);
+    call(u64decfeed, CTidle(ct), state->ruleno);
+
+    u8c$ fntmpl = LEX_TEMPL[state->lang][LEX_TEMPL_FN];
+    call(CTsplice, ct, LEX$FN);
+    call(CTfeed, ct, fntmpl);
 
     done;
 }
+
 ok64 LEXonLine($cu8c tok, LEXstate *state) {
-    size_t l = (4 + $len(tok) + 2) * 2 + 4;
-    if ($len(state->syn) < l) return LEXnoroom;
-    u8c$ mod = state->mod;
+    u8B ct = (u8B)state->ct;
     u8c$ cur = state->cur;
+
+    u8c$ fntmpl;
     if (**cur >= 'A' && **cur <= 'Z') {
-        a$strc(tmpl, " )  >$s$s0 %$s$s1;\n");
-        $feedf(state->syn, tmpl, mod, cur, mod, cur);
+        fntmpl = LEX_TEMPL[state->lang][LEX_TEMPL_PUBACTNL];
     } else {
-        $u8feed2(state->syn, ' ', ')');
-        $u8feed2(state->syn, ';', '\n');
+        fntmpl = LEX_TEMPL[state->lang][LEX_TEMPL_ACTNL];
     }
-    return OK;
+    call(CTfeed, ct, fntmpl);
+
+    call(CTspliceany, ct, LEX$act);
+    call($u8feed, CTidle(ct), cur);
+
+    done;
 }
-ok64 LEXonRoot($cu8c tok, LEXstate *state) { return OK; }
+
+ok64 LEXonRoot($cu8c tok, LEXstate *state) {
+    u8B ct = (u8B)state->ct;
+    call(CTspliceall, ct, LEX$mod);
+    call($u8feed, CTidle(ct), state->mod);
+    done;
+}
+
+pro(lex2rl, $u8c mod) {
+    sane($ok(mod));
+
+    aBcpad(u8, name, KB);
+    aBcpad(u8, lex, KB << 8);
+    $u8c $namet = $u8str("$s.lex");
+    $feedf(nameidle, $namet, mod);
+    int fd;
+    call(FILEopen, &fd, namedata, O_RDONLY);
+    call(FILEdrainall, lexidle, fd);
+    call(FILEclose, fd);
+
+    aBcpad(u8, ct, MB);
+    CTreset(ctbuf);
+    int lang = LEX_TEMPL_C;
+
+    LEXstate state = {
+        .lang = lang,
+        .ct = (u8B)ctbuf,
+        .mod = mod,
+    };
+    $mv(state.text, lexdata);
+
+    call(CTfeed, ctbuf, LEX_TEMPL[lang][LEX_TEMPL_FILE]);
+
+    aBcpad(u8, rl, MB);
+    call(LEXlexer, &state);
+    call(CTrender, rlidle, ctbuf);
+
+    aBcpad(u8, rlname, KB);
+    $u8c $rnamet = $u8str("$s.rl");
+    $feedf(rlnameidle, $rnamet, mod);
+    int rfd;
+    call(FILEcreate, &rfd, rlnamedata);
+    call(FILEfeedall, rfd, rldata);
+    call(FILEclose, rfd);
+
+    done;
+}
