@@ -51,6 +51,7 @@ JSON.h
 JSON.rl.h
 LEX.h
 MMAP.h
+NEST.h
 OK.h
 PRO.h
 SHA.h
@@ -68,7 +69,7 @@ HTTP.h
 )
 
 list(APPEND ABC_SOURCES 
-CT.c
+    NEST.c
 JSON.c
 JSON.rl.c
 LEX.c

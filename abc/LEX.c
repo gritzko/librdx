@@ -4,8 +4,8 @@
 
 #include "01.h"
 #include "BUF.h"
-#include "CT.h"
 #include "FILE.h"
+#include "NEST.h"
 #include "PRO.h"
 
 #define LEX_TEMPL_ACTION 0
@@ -162,28 +162,28 @@ con ok64 LEX$act = 0x389e5;
 con ok64 LEX$actno = 0x33cb89e5;
 
 ok64 LEXonName($cu8c tok, LEXstate *state) {
-    ok64 o = $u8feed(CTidle(state->ct), state->mod);
-    if (o == OK) o = $u8feed(CTidle(state->ct), tok);
+    ok64 o = $u8feed(NESTidle(state->ct), state->mod);
+    if (o == OK) o = $u8feed(NESTidle(state->ct), tok);
     return o;
 }
 ok64 LEXonOp($cu8c tok, LEXstate *state) {
-    return $u8feed(CTidle(state->ct), tok);
+    return $u8feed(NESTidle(state->ct), tok);
 }
 ok64 LEXonClass($cu8c tok, LEXstate *state) {
-    return $u8feed(CTidle(state->ct), tok);
+    return $u8feed(NESTidle(state->ct), tok);
 }
 ok64 LEXonRange($cu8c tok, LEXstate *state) {
-    return $u8feed(CTidle(state->ct), tok);
+    return $u8feed(NESTidle(state->ct), tok);
 }
 ok64 LEXonString($cu8c tok, LEXstate *state) {
-    return $u8feed(CTidle(state->ct), tok);
+    return $u8feed(NESTidle(state->ct), tok);
 }
 ok64 LEXonQString($cu8c tok, LEXstate *state) {
-    return $u8feed(CTidle(state->ct), tok);
+    return $u8feed(NESTidle(state->ct), tok);
 }
 ok64 LEXonSpace($cu8c tok, LEXstate *state) {
-    // return $u8feed(CTidle(state->ct), tok);
-    return $u8feed1(CTidle(state->ct), ' ');
+    // return $u8feed(NESTidle(state->ct), tok);
+    return $u8feed1(NESTidle(state->ct), ' ');
 }
 
 ok64 LEXonEntity($cu8c tok, LEXstate *state) { done; }
@@ -192,8 +192,8 @@ ok64 LEXonRep($cu8c tok, LEXstate *state) { done; }
 
 ok64 LEXonEq($cu8c tok, LEXstate *state) {
     u8c$ tmpl = LEX_TEMPL[state->lang][LEX_TEMPL_ACT];
-    call(CTsplice, state->ct, LEX$RULES);
-    return CTfeed(state->ct, tmpl);
+    call(NESTsplice, state->ct, LEX$RULES);
+    return NESTfeed(state->ct, tmpl);
 }
 
 pro(LEXonRuleName, $cu8c tok, LEXstate *state) {
@@ -206,18 +206,18 @@ pro(LEXonRuleName, $cu8c tok, LEXstate *state) {
     u8B ct = (u8B)state->ct;
 
     u8c$ tmpl = LEX_TEMPL[state->lang][LEX_TEMPL_ACTION];
-    call(CTsplice, ct, LEX$ACTIONS);
-    call(CTfeed, ct, tmpl);
+    call(NESTsplice, ct, LEX$ACTIONS);
+    call(NESTfeed, ct, tmpl);
 
     u8c$ enmtmpl = LEX_TEMPL[state->lang][LEX_TEMPL_ENUM];
-    call(CTsplice, ct, LEX$ENUM);
-    call(CTfeed, ct, enmtmpl);
-    call(CTsplice, ct, LEX$actno);
-    call(u64decfeed, CTidle(ct), state->ruleno);
+    call(NESTsplice, ct, LEX$ENUM);
+    call(NESTfeed, ct, enmtmpl);
+    call(NESTsplice, ct, LEX$actno);
+    call(u64decfeed, NESTidle(ct), state->ruleno);
 
     u8c$ fntmpl = LEX_TEMPL[state->lang][LEX_TEMPL_FN];
-    call(CTsplice, ct, LEX$FN);
-    call(CTfeed, ct, fntmpl);
+    call(NESTsplice, ct, LEX$FN);
+    call(NESTfeed, ct, fntmpl);
 
     done;
 }
@@ -232,18 +232,18 @@ ok64 LEXonLine($cu8c tok, LEXstate *state) {
     } else {
         fntmpl = LEX_TEMPL[state->lang][LEX_TEMPL_ACTNL];
     }
-    call(CTfeed, ct, fntmpl);
+    call(NESTfeed, ct, fntmpl);
 
-    call(CTspliceany, ct, LEX$act);
-    call($u8feed, CTidle(ct), cur);
+    call(NESTspliceany, ct, LEX$act);
+    call($u8feed, NESTidle(ct), cur);
 
     done;
 }
 
 ok64 LEXonRoot($cu8c tok, LEXstate *state) {
     u8B ct = (u8B)state->ct;
-    call(CTspliceall, ct, LEX$mod);
-    call($u8feed, CTidle(ct), state->mod);
+    call(NESTspliceall, ct, LEX$mod);
+    call($u8feed, NESTidle(ct), state->mod);
     done;
 }
 
@@ -260,7 +260,7 @@ pro(lex2rl, $u8c mod, $u8c lang) {
     call(FILEclose, fd);
 
     aBcpad(u8, ct, MB);
-    CTreset(ctbuf);
+    NESTreset(ctbuf);
     int nlang = 0;
     if (!$empty(lang)) {
         while (nlang < LEX_TEMPL_LANG_LEN) {
@@ -277,11 +277,11 @@ pro(lex2rl, $u8c mod, $u8c lang) {
     };
     $mv(state.text, lexdata);
 
-    call(CTfeed, ctbuf, LEX_TEMPL[nlang][LEX_TEMPL_FILE]);
+    call(NESTfeed, ctbuf, LEX_TEMPL[nlang][LEX_TEMPL_FILE]);
 
     aBcpad(u8, rl, MB);
     call(LEXlexer, &state);
-    call(CTrender, rlidle, ctbuf);
+    call(NESTrender, rlidle, ctbuf);
 
     aBcpad(u8, rlname, KB);
     $u8c $rnamet = $u8str("$s.$s.rl");
