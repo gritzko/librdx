@@ -396,8 +396,8 @@ fun pro(FILEmaprw, voidB buf, $u8c path) {
 // TODO Trims the idle part
 fun pro(FILEunmap, voidB buf) {
     sane(Bok(buf));
-    testc(-1 != munmap(buf[0], Blen(buf)), FILEfail);
-    void **b = (void **)buf;
+    u8c **b = (u8c **)buf;
+    testc(-1 != munmap(buf[0], Blen(b)), FILEfail);
     b[0] = b[1] = b[2] = b[3] = nil;
     done;
 }
