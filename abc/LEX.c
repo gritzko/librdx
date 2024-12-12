@@ -6,6 +6,7 @@
 #include "BUF.h"
 #include "CT.h"
 #include "FILE.h"
+#include "PRO.h"
 
 #define LEX_TEMPL_ACTION 0
 #define LEX_TEMPL_ENUM 1
@@ -14,6 +15,7 @@
 #define LEX_TEMPL_PUBACTNL 4
 #define LEX_TEMPL_ACTNL 5
 #define LEX_TEMPL_FILE 6
+#define LEX_TEMPL_L 7
 
 const u8c *LEX_TEMPL[LEX_TEMPL_LANG_LEN][LEX_TEMPL_LEN][2] = {
     {
@@ -67,11 +69,9 @@ const u8c *LEX_TEMPL[LEX_TEMPL_LANG_LEN][LEX_TEMPL_LEN][2] = {
                "    sane($$ok(text));\n"
                "\n"
                "    int cs = 0;\n"
-               "    int res = 0;\n"
                "    u8c *p = (u8c*) text[0];\n"
                "    u8c *pe = (u8c*) text[1];\n"
                "    u8c *eof = pe;\n"
-               "    u8c *pb = p;\n"
                "    u64 mark0[64] = {};\n"
                "\n"
                "    $$u8c tok = {p, p};\n"
@@ -85,8 +85,71 @@ const u8c *LEX_TEMPL[LEX_TEMPL_LANG_LEN][LEX_TEMPL_LEN][2] = {
                "    }\n"
                "    done;\n"
                "}\n"),
+        $u8str("c"),
     },
-    {},
+    {
+        $u8str("action $mod${act}0 { mark0[$mod$act] = p; }\n"
+               "action $mod${act}1 {\n"
+               "    err = ${mod}on$act(data[mark0[$mod$act] : p], state); \n"
+               "    if err!=nil {\n"
+               "        fbreak;\n"
+               "    }\n"
+               "}\n"),
+        $u8str("\t$mod$act = ${mod}enum+$actno\n"),
+        $u8str("// func ${mod}on$act (tok []byte, state *${mod}state) error\n"),
+        $u8str("$mod$act = ( "),
+        $u8str(" )  >$mod${act}0 %$mod${act}1;\n"),
+        $u8str(" ); # no $act callback\n"),
+        $u8str("package main\n"
+               "import \"errors\""
+               "\n"
+               "// action indices for the parser\n"
+               "\n"
+               "const ("
+               "${mod}enum = 0\n"
+               "$ENUM"
+               ")\n"
+               "\n"
+               "// user functions (callbacks) for the parser\n"
+               "$FN\n"
+               "\n"
+               "\n"
+               "%%{\n"
+               "\n"
+               "machine $mod;\n"
+               "\n"
+               "alphtype byte;\n"
+               "\n"
+               "# ragel actions\n"
+               "$ACTIONS"
+               "\n"
+               "# ragel grammar rules\n"
+               "$RULES"
+               "\n"
+               "main := ${mod}Root;\n"
+               "\n"
+               "}%%\n"
+               "\n"
+               "%%write data;\n"
+               "\n"
+               "// the public API function\n"
+               "func ${mod}lexer (state *${mod}state) (err error) {\n"
+               "\n"
+               "    data := state.text\n"
+               "    var mark0 [64]int\n"
+               "    cs, p, pe, eof := 0, 0, len(data), len(data)\n"
+               "\n"
+               "    %% write init;\n"
+               "    %% write exec;\n"
+               "\n"
+               "    if (p!=len(data) || cs < ${mod}_first_final) {\n"
+               "        state.text = state.text[p:];\n"
+               "        return errors.New(\"${mod} bad syntax\")\n"
+               "    }\n"
+               "    return nil;\n"
+               "}\n"),
+        $u8str("go"),
+    },
 };
 
 con ok64 LEX$ACTIONS = 0x1c5d849d30a;
@@ -184,7 +247,7 @@ ok64 LEXonRoot($cu8c tok, LEXstate *state) {
     done;
 }
 
-pro(lex2rl, $u8c mod) {
+pro(lex2rl, $u8c mod, $u8c lang) {
     sane($ok(mod));
 
     aBcpad(u8, name, KB);
@@ -198,24 +261,31 @@ pro(lex2rl, $u8c mod) {
 
     aBcpad(u8, ct, MB);
     CTreset(ctbuf);
-    int lang = LEX_TEMPL_C;
+    int nlang = 0;
+    if (!$empty(lang)) {
+        while (nlang < LEX_TEMPL_LANG_LEN) {
+            if ($eq(lang, LEX_TEMPL[nlang][LEX_TEMPL_L])) break;
+            ++nlang;
+        }
+        if (nlang == LEX_TEMPL_LANG_LEN) fail(badarg);
+    }
 
     LEXstate state = {
-        .lang = lang,
+        .lang = nlang,
         .ct = (u8B)ctbuf,
         .mod = mod,
     };
     $mv(state.text, lexdata);
 
-    call(CTfeed, ctbuf, LEX_TEMPL[lang][LEX_TEMPL_FILE]);
+    call(CTfeed, ctbuf, LEX_TEMPL[nlang][LEX_TEMPL_FILE]);
 
     aBcpad(u8, rl, MB);
     call(LEXlexer, &state);
     call(CTrender, rlidle, ctbuf);
 
     aBcpad(u8, rlname, KB);
-    $u8c $rnamet = $u8str("$s.rl");
-    $feedf(rlnameidle, $rnamet, mod);
+    $u8c $rnamet = $u8str("$s.$s.rl");
+    $feedf(rlnameidle, $rnamet, mod, LEX_TEMPL[nlang][LEX_TEMPL_L]);
     int rfd;
     call(FILEcreate, &rfd, rlnamedata);
     call(FILEfeedall, rfd, rldata);
