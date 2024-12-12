@@ -20,7 +20,7 @@ string substitution is a modest one and [ABC][A] commandments tell us that
 the code should be small, simple, orthogonal and arbitrarily composable 
 with the rest of ABC.
 
-Long story short, it takes 150 lines to implement a basic templating
+Long story short, it takes [150 lines][n] to implement a basic templating
 engine on top of a plain ABC byte buffer. NEST stands for "nested templates". 
 Yes, differently from PHP, bash and others, a variable can be substituted 
 for a template that will be recursively subjected to further substitutions.
@@ -60,3 +60,4 @@ API is rather basic:
 [L]: ./LEX.md
 [A]: ./README.md
 [c]: ./LEX.c
+[n]: ./NEST.c

@@ -1,3 +1,3 @@
   # URI parsing
 
-The Ragel grammar implements RFC 3986 with some level of success.
+This Ragel parser implements the RFC 3986 grammar.
