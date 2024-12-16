@@ -28,11 +28,17 @@ pro(POLLadd, POLLstate state, int fd, $u8c name, POLLfunI fi) {
     POLLctl* ctl = state + l;
     ctl->o = OK;
     ctl->fd = fd;
-    $u8dup((u8**)ctl->name, name);
     ctl->fn = fi;
-    call(Bu8alloc, ctl->readbuf, PAGESIZE);
-    call(Bu8alloc, ctl->writebuf, PAGESIZE);
-    call(B$u8calloc, ctl->writes, 64);
+    try($u8dup, (u8**)ctl->name, name);
+    then try(Bu8alloc, ctl->readbuf, PAGESIZE);
+    then try(Bu8alloc, ctl->writebuf, PAGESIZE);
+    then try(B$u8calloc, ctl->writes, 64);
+    oops {
+        Bu8free(ctl->readbuf);
+        Bu8free(ctl->writebuf);
+        $u8free(ctl->name);
+        B$u8cfree(ctl->writes);
+    }
     done;
 }
 
@@ -48,9 +54,6 @@ pro(POLLlisten, POLLstate state, int fd, $u8c name, POLLfunI fi) {
     Bu8free(ctl->readbuf);
     Bu8free(ctl->writebuf);
     B$u8cfree(ctl->writes);
-    Bnilify(ctl->readbuf);
-    Bnilify(ctl->writebuf);
-    Bnilify(ctl->writes);
     done;
 }
 
@@ -59,7 +62,7 @@ pro(POLLdelctl, POLLstate state, POLLctl* ctl, ok64 o) {
     Bu8free(ctl->readbuf);
     Bu8free(ctl->writebuf);
     B$u8cfree(ctl->writes);
-    $u8free((u8**)ctl->name);
+    $u8free(ctl->name);
     int len = POLLlen(state);
     POLLctl* last = state + len - 1;
     memcpy(ctl, last, sizeof(POLLctl));

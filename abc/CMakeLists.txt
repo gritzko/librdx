@@ -69,16 +69,20 @@ HTTP.h
 )
 
 list(APPEND ABC_SOURCES 
-    NEST.c
+NEST.c
+FILE.c
 JSON.c
 JSON.rl.c
 LEX.c
 LEX.rl.c
+MMAP.c
 SORT.c
 URI.rl.c
 URI.c
 HTTP.rl.c
 HTTP.c
+TCP.c
+UDP.c
 UTF8.c
 )
 

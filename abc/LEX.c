@@ -95,7 +95,7 @@ const u8c *LEX_TEMPL[LEX_TEMPL_LANG_LEN][LEX_TEMPL_LEN][2] = {
                "        fbreak;\n"
                "    }\n"
                "}\n"),
-        $u8str("\t$mod$act = ${mod}enum+$actno\n"),
+        $u8str("    $mod$act = ${mod}enum+$actno\n"),
         $u8str("// func ${mod}on$act (tok []byte, state *${mod}state) error\n"),
         $u8str("$mod$act = ( "),
         $u8str(" )  >$mod${act}0 %$mod${act}1;\n"),
@@ -186,14 +186,16 @@ ok64 LEXonSpace($cu8c tok, LEXstate *state) {
     return $u8feed1(NESTidle(state->ct), ' ');
 }
 
-ok64 LEXonEntity($cu8c tok, LEXstate *state) { done; }
-ok64 LEXonExpr($cu8c tok, LEXstate *state) { done; }
-ok64 LEXonRep($cu8c tok, LEXstate *state) { done; }
+ok64 LEXonEntity($cu8c tok, LEXstate *state) { return OK; }
+ok64 LEXonExpr($cu8c tok, LEXstate *state) { return OK; }
+ok64 LEXonRep($cu8c tok, LEXstate *state) { return OK; }
 
 ok64 LEXonEq($cu8c tok, LEXstate *state) {
+    sane($ok(tok) && state != nil);
     u8c$ tmpl = LEX_TEMPL[state->lang][LEX_TEMPL_ACT];
-    call(NESTsplice, state->ct, LEX$RULES);
-    return NESTfeed(state->ct, tmpl);
+    try(NESTsplice, state->ct, LEX$RULES);
+    then try(NESTfeed, state->ct, tmpl);
+    done;
 }
 
 pro(LEXonRuleName, $cu8c tok, LEXstate *state) {
@@ -223,6 +225,7 @@ pro(LEXonRuleName, $cu8c tok, LEXstate *state) {
 }
 
 ok64 LEXonLine($cu8c tok, LEXstate *state) {
+    sane($ok(tok) && state != nil);
     u8B ct = (u8B)state->ct;
     u8c$ cur = state->cur;
 
@@ -232,18 +235,19 @@ ok64 LEXonLine($cu8c tok, LEXstate *state) {
     } else {
         fntmpl = LEX_TEMPL[state->lang][LEX_TEMPL_ACTNL];
     }
-    call(NESTfeed, ct, fntmpl);
 
-    call(NESTspliceany, ct, LEX$act);
-    call($u8feed, NESTidle(ct), cur);
+    try(NESTfeed, ct, fntmpl);
+    then try(NESTspliceany, ct, LEX$act);
+    then try($u8feed, NESTidle(ct), cur);
 
     done;
 }
 
 ok64 LEXonRoot($cu8c tok, LEXstate *state) {
+    sane($ok(tok) && state != nil);
     u8B ct = (u8B)state->ct;
-    call(NESTspliceall, ct, LEX$mod);
-    call($u8feed, NESTidle(ct), state->mod);
+    try(NESTspliceall, ct, LEX$mod);
+    then try($u8feed, NESTidle(ct), state->mod);
     done;
 }
 
@@ -257,7 +261,7 @@ pro(lex2rl, $u8c mod, $u8c lang) {
     int fd;
     call(FILEopen, &fd, namedata, O_RDONLY);
     call(FILEdrainall, lexidle, fd);
-    call(FILEclose, fd);
+    call(FILEclose, &fd);
 
     aBcpad(u8, ct, MB);
     NESTreset(ctbuf);
@@ -289,7 +293,7 @@ pro(lex2rl, $u8c mod, $u8c lang) {
     int rfd;
     call(FILEcreate, &rfd, rlnamedata);
     call(FILEfeedall, rfd, rldata);
-    call(FILEclose, rfd);
+    call(FILEclose, &rfd);
 
     done;
 }

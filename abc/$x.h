@@ -3,9 +3,9 @@
 #include <string.h>
 
 #include "$.h"
+#include "01.h"
 #include "B.h"
 #include "OK.h"
-#include "PRO.h"
 
 #define T X(, )
 
@@ -108,8 +108,10 @@ fun ok64 X($, dup)(X($, ) copy, X($, c) orig) {
     return OK;
 }
 
-fun ok64 X($, free)(X($, ) what) {
+fun ok64 X($, free)(X($, c) what) {
+    if (what[0] == nil) return $badarg;
     free((void *)what[0]);
+    what[0] = what[1] = nil;
     return OK;
 }
 

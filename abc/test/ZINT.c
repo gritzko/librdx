@@ -1,12 +1,11 @@
 
 #include "ZINT.h"
 
-#include <assert.h>
 #include <stdint.h>
-#include <stdio.h>
 #include <unistd.h>
 
 #include "$.h"
+#include "PRO.h"
 #include "TEST.h"
 
 pro(ZINTtest1) {

@@ -2,7 +2,7 @@
 #define LIBRDX_FILE_H
 
 #include "01.h"
-#include "B.h"
+#include "BUF.h"
 #include "OK.h"
 #include "PRO.h"
 
@@ -56,6 +56,8 @@ typedef int *FILE;
 #define FILEmaxiov 1024
 #endif
 
+#define FILE_CLOSED -1
+
 #ifndef MAP_FILE
 #define MAP_FILE 0
 #endif
@@ -82,83 +84,21 @@ con size_t FILEmaxpathlen = 1024;
         n[sz] = 0;                             \
     }
 
-fun pro(FILEcreate, int *fd, const path name) {
-    sane(fd != nil && $ok(name));
-    aFILEpath(p, name);
-    *fd = open(p, O_CREAT | O_RDWR | O_TRUNC, S_IRUSR | S_IWUSR);
-    testc(*fd >= 0, FILEnoopen);
-    done;
-}
+ok64 FILEcreate(int *fd, const path name);
 
-fun pro(FILEopen, int *fd, const path name, int flags) {
-    sane(fd != nil && $ok(name));
-    aFILEpath(p, name);
-    *fd = open(p, flags);
-    testc(*fd >= 0, FILEnoopen);
-    done;
-}
+ok64 FILEopen(int *fd, const path name, int flags);
 
-fun pro(FILEsync, int fd) {
-    sane(FILEok(fd));
-    testc(fsync(fd) == 0, FILEnosync);
-    done;
-}
+ok64 FILEsync(int const *fd);
 
-fun pro(FILEclose, int fd) {
-    sane(FILEok(fd));
-    testc(0 == close(fd), FILEnoclse);
-    done;
-}
+ok64 FILEclose(int *fd);
 
-fun pro(FILEstat, struct stat *ret, const path name) {
-    sane(ret != nil && $ok(name));
-    aFILEpath(p, name);
-    int rc = stat(p, ret);
-    if (rc == 0) skip;
-    switch (errno) {
-        case ENOENT:
-            fail(FILEnone);
-        case EACCES:
-            fail(FILEaccess);
-        case ENOTDIR:
-            fail(FILEbad);
-        case ELOOP:
-            fail(FILEloop);
-        case ENAMETOOLONG:
-            fail(FILEname);
-        default:
-            fail(FILEfail);
-    }
-    testc(rc == 0, FILEnostat);
-    done;
-}
+ok64 FILEstat(struct stat *ret, const path name);
 
-fun pro(FILEsize, size_t *size, int fd) {
-    sane(size != nil && FILEok(fd));
-    struct stat sb = {};
-    testc(0 == fstat(fd, &sb), FILEnostat);
-    *size = sb.st_size;
-    done;
-}
+ok64 FILEsize(size_t *size, int const *fd);
 
-fun pro(FILEisdir, const path name) {
-    sane($ok(name));
-    struct stat sb = {};
-    call(FILEstat, &sb, name);
-    test(sb.st_mode == S_IFDIR, FILEwrong);
-    done;
-}
+ok64 FILEisdir(const path name);
 
-fun pro(FILEresize, int fd, size_t new_size) {
-    sane(FILEok(fd));
-    testc(0 == ftruncate(fd, new_size), FILEnoresz);
-    // FIXME sync the dir data (another msync?)
-    done;
-}
-
-fun ok64 FILEmaptrim(Bvoid buf, int fd) {
-    return FILEresize(fd, Busysize(buf));
-}
+ok64 FILEresize(int const *fd, size_t new_size);
 
 // Drains the data to the file; if the slice is non empty on return, see errno!
 fun ok64 FILEfeed(int fd, u8 const **data) {
@@ -167,8 +107,6 @@ fun ok64 FILEfeed(int fd, u8 const **data) {
     *data += re;
     return OK;
 }
-
-#include "INT.h"
 
 fun int FILE2iovec(struct iovec *io, $$u8c datav) {
     int l = 0;
@@ -277,18 +215,7 @@ fun proc Fpread(int fd, path into, size_t offset) {
 }
 */
 
-fun int unlink_cb(const char *fname, const struct stat *sb, int typeflag,
-                  struct FTW *ftwbuf) {
-    return remove(fname);
-}
-
-fun pro(FILErmrf, path const name) {
-    sane($ok(name));
-    aFILEpath(p, name);
-    int rc = nftw(p, unlink_cb, 64, FTW_DEPTH | FTW_PHYS);
-    testc(rc == 0, FILEfail);
-    done;
-}
+ok64 FILErmrf(path const name);
 
 fun pro(FILEunlink, path const name) {
     sane($ok(name));
@@ -304,125 +231,54 @@ fun int flags2prot(int flags) {
     return prot;
 }
 
-fun pro(FILEmap, Bvoid buf, int fd, int mode, size_t size) {
-    sane(buf != nil && *buf == nil && FILEok(fd));
-    if (size == 0) {
-        call(FILEsize, &size, fd);
-    }
-    u8 *map = (u8 *)mmap(NULL, size, mode, MAP_FILE | MAP_SHARED, fd, 0);
-    testc(map != MAP_FAILED, FILEfail);
-    uint8_t **b = (uint8_t **)buf;
-    b[0] = b[1] = b[2] = b[3] = map;
-    b[3] += size;
-    if (mode & PROT_READ) b[2] += size;
-    done;
-}
-
-#define FILE_CLOSED -1
-#define FILE_SIZE_125 -125
+ok64 FILEmap(Bu8 buf, int const *fd, int mode);
 
 // Memory-map a file for reading.
-fun pro(FILEmapro, voidB buf, $cu8c path) {
-    sane(buf != nil && *buf == nil && $ok(path));
-    int fd = FILE_CLOSED;
-    size_t size = 0;
-    call(FILEopen, &fd, path, O_RDONLY);
-    ok64 o = FILEsize(&size, fd);
-    if (o != OK) {
-        FILEclose(fd);
-        fail(o);
-    }
-    u8 *new_mem =
-        (u8 *)mmap(NULL, size, PROT_READ, MAP_FILE | MAP_SHARED, fd, 0);
-    if (new_mem == MAP_FAILED) {
-        FILEclose(fd);
-        fail(FILEfail);
-    }
-    void **b = (void **)buf;
-    b[0] = new_mem;
-    b[3] = b[0] + size;
-    b[1] = b[0];
-    b[2] = b[3];
-    return OK;
+fun ok64 FILEmapro(Bu8 buf, int *fd, $cu8c path) {
+    if (buf == nil || Bok(buf) || !$ok(path) || fd == nil) return FILEbadarg;
+    ok64 o = FILEopen(fd, path, O_RDONLY);
+    if (o == OK) o = FILEmap(buf, fd, PROT_READ);
+    if (o != OK) FILEclose(fd);
+    return o;
 }
 
-// Mamory-map a file for writing; use the provided size.
-// If the buffer is non-nil, unmaps that first.
-// See special values of new_size, e.g. FILE_SIZE_125
-fun pro(FILEmapre, voidB buf, $cu8c path, size_t new_size) {
-    sane(buf != nil && *buf == nil && $ok(path));
-    int fd = FILE_CLOSED;
-    size_t file_size = 0;
-    size_t size = 0;
-    struct stat st = {};
-    ok64 o = FILEstat(&st, path);
-    if (o == OK) {
-        call(FILEopen, &fd, path, O_RDWR);
-        file_size = st.st_size;
-    } else if (o == FILEnone) {
-        call(FILEcreate, &fd, path);
-    } else {
-        fail(o);
-    }
-    if (new_size == 0) {
-        size = file_size;
-    } else if (new_size > 0) {
-        size = new_size;
-    } else if (new_size == FILE_SIZE_125) {
-        size = roundup(file_size * 5 / 4, PAGESIZE);
-    }
-    if (file_size != size) {
-        callsafe(FILEresize(fd, size), FILEclose(fd));
-    }
-    u8 *new_mem = (u8 *)mmap(NULL, size, PROT_READ | PROT_WRITE,
-                             MAP_FILE | MAP_SHARED, fd, 0);
-    testc(new_mem != MAP_FAILED, FILEfail);
-    void **b = (void **)buf;
-    b[0] = new_mem;
-    b[3] = b[0] + size;
-    b[1] = b[0];
-    b[2] = b[3];
-    FILEclose(fd);
-    done;
+// Memory-map a file for reading and writing.
+fun ok64 FILEmaprw(Bu8 buf, int *fd, $cu8c path) {
+    if (buf == nil || Bok(buf) || !$ok(path) || fd == nil) return FILEbadarg;
+    ok64 o = FILEopen(fd, path, O_RDWR);
+    if (o == OK) o = FILEmap(buf, fd, PROT_READ | PROT_WRITE);
+    if (o != OK) FILEclose(fd);
+    return o;
 }
 
-// Mamory-map a file for in-place writing.
-fun pro(FILEmaprw, voidB buf, $u8c path) {
-    sane(buf != nil && *buf == nil && $ok(path));
-    call(FILEmapre, buf, path, 0);
-    done;
+// Memory-map a file for reading and writing.
+fun ok64 FILEmapnew(Bu8 buf, int *fd, $cu8c path, size_t size) {
+    if (buf == nil || Bok(buf) || !$ok(path) || fd == nil) return FILEbadarg;
+    ok64 o = FILEcreate(fd, path);
+    if (o == OK) o = FILEresize(fd, size);
+    if (o == OK) o = FILEmap(buf, fd, PROT_READ | PROT_WRITE);
+    if (o != OK) FILEclose(fd);
+    return o;
 }
+
 // Unmaps the buffer.
-// TODO Trims the idle part
-fun pro(FILEunmap, voidB buf) {
-    sane(Bok(buf));
-    u8c **b = (u8c **)buf;
-    testc(-1 != munmap(buf[0], Blen(b)), FILEfail);
-    b[0] = b[1] = b[2] = b[3] = nil;
-    done;
+ok64 FILEunmap(Bu8 buf);
+
+// Resize the file and update the mapping.
+fun ok64 FILEremap(Bu8 buf, int const *fd, size_t new_size) {
+    if (!Bok(buf) || fd == nil) return FILEbadarg;
+    ok64 o = FILEunmap(buf);
+    if (o == OK) o = FILEresize(fd, new_size);
+    if (o == OK) o = FILEmap(buf, fd, PROT_WRITE | PROT_READ);
+    // TODO mremap()
+    return o;
 }
 
-// new_size==0 to use de-facto file data
-fun pro(FILEremap, voidB buf, int fd, size_t new_size) {
-    sane(buf != nil && *buf != nil);
-    if (new_size == 0) {
-        call(FILEsize, &new_size, fd);
-    } else {
-        test(new_size > Bsize(buf), OK);  // TODO shrink
-        call(FILEresize, fd, new_size);
-    }
-    int rc = munmap(*buf, Bsize(buf));
-    testc(0 == rc, FILEfail);
-    u8 *new_mem = (u8 *)mmap(NULL, new_size, PROT_READ | PROT_WRITE,
-                             MAP_FILE | MAP_SHARED, fd, 0);
-    testc(new_mem != MAP_FAILED, FILEfail);
-    _Brebase(buf, new_mem, new_size);
-    done;
+// Extend the mapped file by 1/4
+fun ok64 FILEremap125(Bu8 buf, int const *fd) {
+    size_t new_size = roundup(Bsize(buf) * 5 / 4, PAGESIZE);
+    return FILEremap(buf, fd, new_size);
 }
-
-#define Bfmap(buf, fd, prot, len) \
-    FILEmap((void$)buf, fd, prot, len * sizeof(**buf))
-#define Bunfmap(buf) FILEunmap((void$)buf)
 
 fun ok64 FILEout(u8 const *const *txt) {
     a$dup(u8 const, dup, txt);

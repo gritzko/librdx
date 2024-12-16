@@ -55,35 +55,34 @@ pro(mark, $u8c mod) {
     int fd = 0;
     call(FILEopen, &fd, mod, O_RDONLY);
     Bu8 text = {};
-    call(FILEmap, (void **)text, fd, PROT_READ, 0);
+    call(FILEmap, text, &fd, PROT_READ);
 
     Bu8 fmtbuf = {};
-    call(MMAPu8open, fmtbuf, Blen(text));
     Bu8cp linebuf = {};
-    call(MMAPu8cpopen, linebuf, Blen(text));
     Bu64 divbuf = {};
-    call(MMAPu64open, divbuf, Blen(text));
     Bu64 pbuf = {};
-    call(MMAPu64open, pbuf, Blen(text));
     Bu8 intobuf = {};
-    call(MMAPu8open, intobuf, roundup(Blen(text) * 8, PAGESIZE));
+    then try(MMAPu8open, fmtbuf, Blen(text));
+    then try(MMAPu8cpopen, linebuf, Blen(text));
+    then try(MMAPu64open, divbuf, Blen(text));
+    then try(MMAPu64open, pbuf, Blen(text));
+    then try(MMAPu8open, intobuf, roundup(Blen(text) * 8, PAGESIZE));
 
-    MARKstate state = {};
-    state.divB = (u64B)divbuf;
-    state.lineB = (u8cpB)linebuf;
-    state.pB = (u64B)pbuf;
-    $mv(state.text, Bu8cdata(text));
-    $mv(state.fmt, Bu8idle(fmtbuf));
+    then {
+        MARKstate state = {};
+        state.divB = (u64B)divbuf;
+        state.lineB = (u8cpB)linebuf;
+        state.pB = (u64B)pbuf;
+        $mv(state.text, Bu8cdata(text));
+        $mv(state.fmt, Bu8idle(fmtbuf));
 
-    call(MARKlexer, &state);
-    debug(&state);
-    call(MARKMARQ, &state);
-    call(MARKANSI, Bu8idle(intobuf), 64, &state);
+        try(MARKlexer, &state);
+        then try(MARKMARQ, &state);
+        then try(MARKANSI, Bu8idle(intobuf), 64, &state);
+        then try(FILEfeedall, STDOUT_FILENO, Bu8cdata(intobuf));
+    }
 
-    call(FILEfeedall, STDOUT_FILENO, Bu8cdata(intobuf));
-
-    // FIXME defer
-    FILEclose(fd);
+    FILEclose(&fd);
     MMAPu8close(fmtbuf);
     MMAPu8close(intobuf);
     MMAPu8cpclose(linebuf);

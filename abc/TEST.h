@@ -5,6 +5,7 @@
 
 #include <assert.h>
 
+#include "OK.h"
 #include "PRO.h"
 
 con ok64 TESTfail = 0xc2d96a75c39d;

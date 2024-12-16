@@ -1,8 +1,7 @@
 #ifndef ABC_ANSI_H
 #define ABC_ANSI_H
 
-#include "INT.h"
-#include "PRO.h"
+#include "BUF.h"
 
 typedef enum {
     BOLD = 1,

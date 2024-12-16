@@ -35,7 +35,7 @@ pro(md2html, $u8c mod) {
     int fd = 0;
     call(FILEopen, &fd, Bu8cdata(name), O_RDONLY);
     Bu8 txtbuf = {};
-    call(FILEmap, (void **)txtbuf, fd, PROT_READ, 0);
+    call(FILEmap, txtbuf, &fd, PROT_READ);
 
     Bu8 fmtbuf = {};
     call(MMAPu8open, fmtbuf, Blen(txtbuf));
@@ -67,8 +67,8 @@ pro(md2html, $u8c mod) {
     call(FILEfeedall, hfd, footer_template);
 
     // FIXME defer!!!
-    FILEclose(hfd);
-    FILEclose(fd);
+    FILEclose(&hfd);
+    FILEclose(&fd);
     MMAPu8close(fmtbuf);
     MMAPu8close(intobuf);
     MMAPu8cpclose(linebuf);

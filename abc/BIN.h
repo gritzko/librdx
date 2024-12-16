@@ -7,7 +7,6 @@
 
 #include "$.h"
 #include "01.h"
-#include "PRO.h"
 
 /**
  * Numbering for (aligned) logarithmical bins.
@@ -198,28 +197,28 @@ fun int bin64cmp(bin64 const *a, bin64 const *b) {
 #include "Bx.h"
 #undef X
 
-fun pro(BINpeaks, $bin64 bins, size_t len) {
-    sane($ok(bins));
+fun ok64 BINpeaks($bin64 bins, size_t len) {
     // 00101 -> 001000, 000011
-    while (len) {
+    ok64 o = OK;
+    while (len && o == OK) {
         u64 l = ctz64(len);
         u64 zeros = (1UL << (l + 1)) - 1;
         u64 ones = (1UL << l) - 1;
         len &= ~zeros;
         u64 bin = (len << 1) | ones;
-        call($bin64feed1, bins, bin);
+        o = $bin64feed1(bins, bin);
     }
-    done;
+    return o;
 }
 
-fun pro(BINpath, $bin64 bins, size_t len, bin64 b) {
-    sane($ok(bins));
-    while (bin64term(b) < len) {
+fun ok64 BINpath($bin64 bins, size_t len, bin64 b) {
+    ok64 o = OK;
+    while (bin64term(b) < len && o == OK) {
         bin64 sibling = bin64sibling(b);
-        call($bin64feed1, bins, sibling);
+        o = $bin64feed1(bins, sibling);
         b = bin64parent(b);
     }
-    done;
+    return o;
 }
 
 #endif  // RON_BINS_HPP

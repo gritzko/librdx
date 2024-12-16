@@ -18,9 +18,11 @@ ok64 NESTinsert(Bu8 ct, ok64 var);
 ok64 NESTsplice(Bu8 ct, ok64 var);
 
 ok64 NESTsplicemany(Bu8 ct, ok64 var, b8 some);
+
 fun ok64 NESTspliceall(Bu8 ct, ok64 var) {
     return NESTsplicemany(ct, var, YES);
 }
+
 fun ok64 NESTspliceany(Bu8 ct, ok64 var) { return NESTsplicemany(ct, var, NO); }
 
 ok64 NESTfeed(Bu8 ct, $u8c insert);

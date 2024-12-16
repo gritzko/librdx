@@ -3,6 +3,8 @@
 #include <fcntl.h>
 #include <stdio.h>
 
+#include "PRO.h"
+
 a$strc(ext, ".lex");
 
 con char *ragel_template;

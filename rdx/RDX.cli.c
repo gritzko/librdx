@@ -48,7 +48,7 @@ pro(RDXeatargs, b8 jdr) {
         a$last(u8c, ext, $arg(i), 5);
         b8 rdxj = $eq(ext, jext);
         call(RDXeatfile, fd, jdr || rdxj);
-        call(FILEclose, fd);
+        call(FILEclose, &fd);
     }
     done;
 }

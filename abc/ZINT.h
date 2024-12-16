@@ -2,7 +2,7 @@
 #define LIBRDX_ZINT_H
 
 #include "INT.h"
-#include "PRO.h"
+#include "OK.h"
 
 con ok64 ZINTnoroom = 0xc73cf6cf27574a3;
 con ok64 ZINTbadrec = 0x9e9da89667574a3;
@@ -67,9 +67,8 @@ fun ok64 ZINTu64drain(u64* n, $cu8c zip) {
 
 // ZipUint64Pair packs a pair of uint64 into a byte string.
 // The smaller the ints, the shorter the string
-fun pro(ZINTu128feed, $u8 into, u128 a) {
-    sane($ok(into));
-    test($size(into) >= sizeof(u64) * 2, ZINTnoroom);
+fun ok64 ZINTu128feed($u8 into, u128 a) {
+    if (!$ok(into) || $size(into) < sizeof(u64) * 2) return ZINTnoroom;
     u64 big = a._64[0];
     u64 lil = a._64[1];
     if (lil <= B1) {
@@ -103,11 +102,10 @@ fun pro(ZINTu128feed, $u8 into, u128 a) {
         $u8feed64(into, &big);
         $u8feed64(into, &lil);
     }
-    done;
+    return OK;
 }
 
-fun pro(ZINTu128drain, u128* a, $u8c from) {
-    sane($ok(from) && a != nil);
+fun ok64 ZINTu128drain(u128* a, $u8c from) {
     u32 len = $len(from);
     u64* big = &(a->_64[0]);
     u64* lil = &(a->_64[1]);
@@ -171,7 +169,7 @@ fun pro(ZINTu128drain, u128* a, $u8c from) {
         default:
             return ZINTbadrec;
     }
-    done;
+    return OK;
 }
 
 fun u64 ZINTzigzag(int64_t i) { return (u64)(i * 2) ^ (u64)(i >> 63); }

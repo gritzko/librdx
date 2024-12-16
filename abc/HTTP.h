@@ -1,8 +1,7 @@
 #ifndef ABC_HTTP_H
 #define ABC_HTTP_H
 
-#include "INT.h"
-#include "PRO.h"
+#include "BUF.h"
 
 con ok64 HTTPfail = 0xc2d96a65d751;
 con ok64 HTTPnone = 0xa72cf265d751;

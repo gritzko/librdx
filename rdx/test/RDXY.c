@@ -21,15 +21,16 @@ fun b8 is_tilda($u8c data) {
 
 pro(RDXY1) {
     sane(1);
-    aB(u8c, rdxj);
+    aB(u8, rdxj);
     a$rg(path, 1);
-    call(FILEmapro, (voidB)rdxjbuf, path);
     aBcpad(u8, tlv, PAGESIZE);
+    int fd = FILE_CLOSED;
+    call(FILEmapro, rdxjbuf, &fd, path);
     aBcpad(u64, stack, 1024);
     aBcpad(u8, pad, PAGESIZE);
-    ok64 o = RDXJdrain(tlvidle, rdxjdata);
+    ok64 o = RDXJdrain(tlvidle, rdxjcdata);
     if (o != OK) {
-        $print(rdxjdata);
+        $print(rdxjcdata);
         fail(o);
     }
     a$dup(u8c, tlv, tlvdata);
@@ -58,7 +59,7 @@ pro(RDXY1) {
         }
     }
 
-    FILEunmap((voidB)rdxjbuf);
+    FILEunmap(rdxjbuf);
     done;
 }
 

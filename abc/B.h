@@ -75,9 +75,10 @@ typedef void *const *voidB;
     T##$ n##idle = B##T##idle(n##buf);            \
     T##c##$ n##data = B##T##cdata(n##buf);
 
-#define aB(T, name)                 \
-    T *name##buf[4] = {};           \
-    T **name##data = name##buf + 1; \
+#define aB(T, name)                                    \
+    T *name##buf[4] = {};                              \
+    T **name##data = name##buf + 1;                    \
+    T const **name##cdata = (T const **)name##buf + 1; \
     T **name##idle = name##buf + 2;
 
 #define Bzero(buf) memset(buf[0], 0, Bsize(buf))

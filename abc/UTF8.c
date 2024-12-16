@@ -3,6 +3,8 @@
 //
 #include "UTF8.h"
 
+#include "PRO.h"
+
 pro(_UTF8feed1, $u8 into, u32 cp) {
     sane($ok(into));
     if (cp < 0x800) {

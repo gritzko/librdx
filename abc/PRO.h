@@ -15,9 +15,6 @@ extern uint8_t _pro_depth;
 con char *_pro_indent =
     "\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t";
 
-con ok64 badarg = 0xaf6968966;
-con ok64 faileq = 0xd69c2d96a;
-
 #define PROindent (_pro_indent + 32 - (_pro_depth & 31))
 
 #define pro(name, ...) ok64 name(__VA_ARGS__)
@@ -31,7 +28,7 @@ con ok64 faileq = 0xd69c2d96a;
 #define call(f, ...)                                                    \
     {                                                                   \
         u8 __depth = _pro_depth++;                                      \
-        ok64 __ = (f(__VA_ARGS__));                                     \
+        __ = (f(__VA_ARGS__));                                          \
         _pro_depth = __depth;                                           \
         if (__ != OK) {                                                 \
             trace("%s<%s at %s:%i\n", PROindent, ok64str(__), __func__, \
@@ -39,6 +36,23 @@ con ok64 faileq = 0xd69c2d96a;
             return __;                                                  \
         }                                                               \
     }
+
+#define try(f, ...)                                                     \
+    {                                                                   \
+        u8 __depth = _pro_depth++;                                      \
+        __ = (f(__VA_ARGS__));                                          \
+        _pro_depth = __depth;                                           \
+        if (__ != OK) {                                                 \
+            trace("%s<%s at %s:%i\n", PROindent, ok64str(__), __func__, \
+                  __LINE__);                                            \
+        }                                                               \
+    }
+
+#define then if (__ == OK)
+
+#define nedo if (__ != OK)
+
+#define on(status) if (__ == status)
 
 #define callsafe(fcall, ffail)                                          \
     {                                                                   \
@@ -54,7 +68,7 @@ con ok64 faileq = 0xd69c2d96a;
     }
 
 // Procedure return with no finalizations.
-#define done return OK;
+#define done return __;
 
 // Procedure fails, skip to finalizations.
 #define fail(code)                                                    \

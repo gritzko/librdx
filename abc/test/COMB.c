@@ -1,11 +1,11 @@
 
 #include "COMB.h"
 
-#include <stdio.h>
 #include <unistd.h>
 
 #include "$.h"
-#include "INT.h"
+#include "BUF.h"
+#include "PRO.h"
 #include "TEST.h"
 
 pro(COMBtest1) {

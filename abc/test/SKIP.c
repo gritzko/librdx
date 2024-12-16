@@ -92,7 +92,8 @@ pro(SKIP2) {
     FILEunlink(path);
     aB(u8, pad);
     aBcpad(u8, check, SCALE);
-    call(FILEmapre, (voidB)padbuf, path, SCALE);
+    int fd = FILE_CLOSED;
+    call(FILEmapnew, padbuf, &fd, path, SCALE);
     COMBinit(padbuf);
     SKIPbl04tab k = {};
     for (u64 i = 0; i < 8; ++i) {
@@ -104,8 +105,7 @@ pro(SKIP2) {
         size_t ds = Bdatalen(padbuf);
         size_t bs = Busysize(padbuf);
         COMBsave(padbuf);
-        call(FILEunmap, (voidB)padbuf);
-        call(FILEmapre, (voidB)padbuf, path, SCALE * (i + 2));
+        call(FILEremap, padbuf, &fd, SCALE * (i + 2));
         COMBload(padbuf);
         testeq(ds, Bdatalen(padbuf));
         testeq(bs, Busysize(padbuf));

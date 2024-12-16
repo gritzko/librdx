@@ -1,5 +1,7 @@
 #include "NEST.h"
 
+#include "PRO.h"
+
 typedef struct {
     u64 var;
     u32 pos;
@@ -37,27 +39,30 @@ fun u32 NESTfind(Bu8 ct, u64 var) {
 }
 
 ok64 NESTsplice(Bu8 ct, u64 var) {
+    sane(Bok(ct));
     u32 at = NESTfind(ct, var);
     if (at == 0) return NESTnone;
     mark128 mark = {.pos = $len(NESTdata(ct))};
     call(NESTaddmark, ct, &mark);
     while (NESTmark(ct, at)->ins != 0) at = NESTmark(ct, at)->ins;
     NESTmark(ct, at)->ins = $len(NESTlog(ct));
-    return OK;
+    done;
 }
 
 ok64 NESTsplicemany(Bu8 ct, u64 var, b8 some) {
+    sane(Bok(ct));
     mark128 mark = {.pos = $len(NESTdata(ct))};
     call(NESTaddmark, ct, &mark);
-    ok64 o = some ? NESTnone : OK;
+    int found = 0;
     for (u32 i = $len(NESTlog(ct)); i > 0; --i) {
         mark128* m = NESTmark(ct, i);
         if (m->var == var && m->ins == 0) {
             m->ins = $len(NESTlog(ct));
-            o = OK;
+            ++found;
         }
     }
-    return o;
+    if (!found) fail(NESTnone);
+    done;
 }
 
 // $1 $var ${var}
@@ -87,6 +92,7 @@ ok64 NESTscanvar(ok64* var, $u8c input) {
 }
 
 ok64 NESTfeed(Bu8 ct, $u8c insert) {
+    sane(Bok(ct) && $ok(insert));
     u8$ idle = NESTidle(ct);
     u8c$ data = NESTdata(ct);
     if ($len(idle) < $len(insert)) return NESTnoroom;
@@ -104,10 +110,11 @@ ok64 NESTfeed(Bu8 ct, $u8c insert) {
             call(NESTaddvar, ct, var);
         }
     }
-    return OK;
+    done;
 }
 
 ok64 NESTrendertree($u8 into, Bu8 ct, u32 ndx) {
+    sane(Bok(ct) && $ok(into));
     u8c$ data = NESTdata(ct);
     mark128 zero = {};
     do {
@@ -134,8 +141,10 @@ ok64 NESTrendertree($u8 into, Bu8 ct, u32 ndx) {
 }
 
 ok64 NESTrender($u8 into, Bu8 ct) {
+    sane($ok(into) && Bok(ct));
     u32 from = 0;
     mark128 mark = {.pos = $len(NESTdata(ct))};
-    call(NESTaddmark, ct, &mark);
-    return NESTrendertree(into, ct, 0);
+    try(NESTaddmark, ct, &mark);
+    then try(NESTrendertree, into, ct, 0);
+    done;
 }

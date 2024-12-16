@@ -2,7 +2,6 @@
 #define ABC_LEX_H
 
 #include "INT.h"
-#include "PRO.h"
 
 con ok64 LEXfail = 0x30b65aa1395;
 con ok64 LEXnoroom = 0x31cf3db3ca1395;

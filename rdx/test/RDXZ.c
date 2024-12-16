@@ -51,10 +51,12 @@ pro(RDXZtest) {
     B(u8, testbuf);
     a$rg(path, 1);
     // a$str(path, "RDXZ.rdx");
-    call(FILEmapro, (voidB)testbuf, path);
+    int fd = FILE_CLOSED;
+    call(FILEmapro, testbuf, &fd, path);
     $print(Bu8cdata(testbuf));
     ok64 o = RDXZtestvalue(testbuf);
-    FILEunmap((voidB)testbuf);
+    FILEunmap(testbuf);
+    FILEclose(&fd);
     return o;
 }
 
