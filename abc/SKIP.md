@@ -1,4 +1,4 @@
-  # SKIP log
+#   SKIP log
 
 A skiplog is an append-only log where payload entries are interleaved with backward-pointing skiplist entries.
 That way, one can skip to any record in the log in a logarithmic number of hops.
@@ -12,7 +12,7 @@ Or there can be none, in case we only need valid record offsets.
 No need to rescan the log, no need for a separate database or index.
 
 
- ## The skiplist
+##  The skiplist
 
 SKIP tries to insert a skiplist entry into every `2**g` byte segment.
 With such "road sign" records at regular intervals, we can do a binary-search,
@@ -29,7 +29,7 @@ Also, it does not store the log position or the offset to the entry;
 that would take 4- or 8-byte offsets.
 It only stores the offset within the byte segment, so 1 or 2 bytes is enough.
 
- ## The ABC way
+##  The ABC way
 
 Note that SKIP implies nothing specific about entry format or semantics.
 It can be mixed with any record formats and any monotonous metrics.

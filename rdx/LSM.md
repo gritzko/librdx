@@ -1,4 +1,4 @@
-  # LSM: log-structured merge tree
+#   LSM: log-structured merge tree
 
 The module implements the most basic log-structured merge tree store primitives.
 An LSM-tree is the most common database structure after the B-tree.
@@ -10,5 +10,5 @@ The key LSM algorithm is the chunk merge, working very much like a merge sort.
 The `LSMnext/LSMmerge` routines implement exactly that: merge by a heap of iterators.
 The contents of the chunks are supposed to be sorted [ToyTLV][T] key-value records.
 
-[T]: ./TLV.md
+[T]: ../abc/TLV.md
 [i]: https://www.databass.dev

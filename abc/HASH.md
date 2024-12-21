@@ -1,4 +1,4 @@
-  # HASH
+#   HASH container
 
 The module implements a very basic open-addressed hash table.
 The template expects a record type with `Xcmp` and `Xhash` functions defined.

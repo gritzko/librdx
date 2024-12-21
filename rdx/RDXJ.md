@@ -1,4 +1,4 @@
-  # RDX-JDR format or "JSON done right"
+#   RDX-JDR format or "JSON done right"
 
 RDX-JDR is a human-readable variant of RDX, the Replicated Data eXchange format.
 The [binary RDX][r] variant is [TLV-based][t].
@@ -26,7 +26,7 @@ RDX element types come in two groups: `FIRST` and `PLEX`.
 These are `1:2` or `"Alice":"Bob":"Carol"`.
 The only way to edit a tuple is to replace an element.
 A tuple can optionally be enclosed in angled brackets.
-That is only necessary if we nest tuples, e.g. `"Corned Beef" : <0.5:kg> : <3.45:EUR>`.
+That is only necessary if we nest tuples, e.g. `"Corned Beef" : <0.25:kg> : <3.45:EUR>`.
 
 *Linear* collections are essentially arrays. 
 As with tuples, the relative order of elements gets preserved on copy, conversion or merge.
@@ -49,7 +49,7 @@ Every RDX element, `FIRST` or `PLEX`, has a revision id attached.
 A revision id is a 128-bit logical time stamp, same as `R`.
 The author identifier takes 64 bits, another 64 is the revision number ("time").
 
- ## Nesting
+##  Nesting
 
 The power of `PLEX` elements is the ability to nest them arbitrarily.
 For example, a map is an Eulerian collection of tuples:
@@ -64,7 +64,7 @@ As you may see, any JSON document is a valid RDX-JDR.
 Except maybe for revision-related `R` and `X`, RDX-JDR constructs are same as JSON has or even simpler.
 The trick is, they combine better!
 
- ## Revisioning
+##  Revisioning
 
 Note that each `FIRST` or `PLEX` element *can* be `@` stamped with a 128-bit revision id.
 RDX is a versioned data format, so every element is versioned too, e.g. `(20@b0b-2, 40@a1ec-6)`.
@@ -81,4 +81,4 @@ Revision control is the main feature of RDX.
 
 [j]: http://json.org
 [r]: ./RDX.md
-[t]: ./TLV.md
+[t]: ../abc/TLV.md

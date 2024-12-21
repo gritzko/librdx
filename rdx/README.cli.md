@@ -1,6 +1,6 @@
-  # RDX Command Line Utilities
+#   RDX Command Line Utilities
 
- ## rdx
+##  rdx
 
 A toolbox utility; converts between RDX-TLV and RDX-JDR, merges, produces patches.
 A pipeline invocation of J-to-TLV, merge and TLV-to-JDR respectively:

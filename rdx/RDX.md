@@ -1,4 +1,4 @@
-#   Replicated Data eXchange (RDX CRDT) library
+#   Replicated Data eXchange (RDX CRDT)
 
 RDX is a format for data versioning and replication using state-of-the-art Replicated Data Types.
 RDX can be used for data storage, distributed and asynchronous data exchange and in other applications. 
@@ -306,7 +306,7 @@ Otherwise, the merge is done according to the type's rules.
 [m]: https://en.wikipedia.org/wiki/Merge_sort
 [p]: https://en.wikipedia.org/wiki/Remote_procedure_call
 [r]: https://www.educative.io/answers/how-are-vector-clocks-used-in-dynamo
-[t]: ./TLV.md
+[t]: ../abc/TLV.md
 [v]: https://en.wikipedia.org/wiki/Version_vector
 [x]: https://en.wikipedia.org/wiki/Causal_consistency
-[z]: ./ZINT.md
+[z]: ../abc/ZINT.md

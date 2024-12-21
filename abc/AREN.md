@@ -1,4 +1,4 @@
-  # ARENa allocation
+#   ARENa allocation
 
 Arena is a stack-like allocator. 
 In the ABC system, the use of `malloc/free` is discouraged.

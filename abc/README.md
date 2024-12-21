@@ -62,7 +62,7 @@ It separates the underworld of devices, firmwares and drivers from the upper wor
 One world above, another below, a narrow API between them.
 
 Still, ABC discourages the manual use of pointers and any pointer arithmetics. 
-ABC encourages the use of *slices* and other *star types*: buffers, iterators and so on.
+ABC encourages the use of [slices][S] and other *star types*: [buffers][B], [cursors][C] and so on.
 Those are all pointers under the hood, but the usage patterns are predefined.
 There are standard accessors which do bounds-checking if built with the right flags.
 
@@ -171,6 +171,7 @@ parsers can be implemented on top of that, see e.g. the [URI][U] module.
 [S]: ./$.md 
 [A]: ./AREN.md
 [B]: ./B.md
+[C]: ./C.md
 [F]: ./FILE.md
 [I]: ./INT.md
 [H]: ./HEAP.md

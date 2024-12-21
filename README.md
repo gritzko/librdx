@@ -1,4 +1,4 @@
-  # Syncing in RDX
+#   Syncing in RDX
 
 The [Replicated Data eXchange][R] format for easy consistent syncing.
 Here, "consistent" means lots of algebra, starting with Conflict-free Replicated Data Types ([CRDTs][C]).

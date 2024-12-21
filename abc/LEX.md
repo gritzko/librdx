@@ -1,4 +1,4 @@
-   # LEX
+#   LEX lexers/tokenizers
 
 LEX is essentially a boilerplate generator for [Ragel][r].
 Ragel is an immensely useful and highly performant parser generator for regular languages.

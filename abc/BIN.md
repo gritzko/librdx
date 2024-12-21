@@ -1,4 +1,4 @@
-  # BIN: logarithmic bins (aka flat trees)
+#   BIN: logarithmic bins / flat trees
 
 BIN.h implements a logarithmic bin layout to pack your binary tree into a flat buffer.
 The layout looks like this:
@@ -32,7 +32,7 @@ There is a bunch of implementations of the same scheme by M.Buus and [friends][d
 [B]: ./B.md
 [D]: ./HASH.md
 [H]: ./HEAP.md
-[L]: ./LSM.md
+[L]: ../rdx/LSM.md
 [x]: http://research.swtch.com/tlog
 [d]: https://github.com/mafintosh/flat-tree
 [r]: https://datatracker.ietf.org/doc/rfc7574

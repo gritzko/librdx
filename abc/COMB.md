@@ -1,4 +1,4 @@
-  # COMB common buffer
+#   COMB common buffer
 
 Sometimes, a buffer has to be shared between processes
 or its progress must be saved.
