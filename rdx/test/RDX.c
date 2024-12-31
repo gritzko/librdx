@@ -4,7 +4,7 @@
 #include <unistd.h>
 
 #include "abc/B.h"
-#include "RDXJ.h"
+#include "JDR.h"
 #include "abc/TEST.h"
 
 pro(RDXtest1) {

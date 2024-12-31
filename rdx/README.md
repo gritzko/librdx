@@ -32,7 +32,7 @@ Variants correspond 1:1.
 
 [A]: ../abc/
 [X]: ./RDX.md
-[J]: ./RDXJ.md
+[J]: ./JDR.md
 [c]: http://github.com/drpcorg/chotki/rdx
 [p]: https://en.wikipedia.org/wiki/Remote_procedure_call
 [T]: http://en.wikipedia.org/wiki/CRDT

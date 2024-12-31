@@ -1,4 +1,4 @@
-#include "RDXJ.h"
+#include "JDR.h"
 
 #include "abc/B.h"
 #include "abc/FILE.h"
@@ -34,14 +34,14 @@ pro(RDXtest1) {
         aBcpad(u8, rdxj2, PAGESIZE);
 
         $u8c text = $dup(inputs[i]);
-        ok64 o = RDXJdrain(tlvidle, text);
+        ok64 o = JDRdrain(tlvidle, text);
 
         if (o != OK) {
             $print(text);
             fail(o);
         }
 
-        o = RDXJfeed(rdxj2idle, tlvdata);
+        o = JDRfeed(rdxj2idle, tlvdata);
 
         if (o == OK && 0 != $cmp(inputs[i], rdxj2data)) o = faileq;
 

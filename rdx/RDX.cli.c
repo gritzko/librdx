@@ -1,7 +1,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#include "RDXJ.h"
+#include "JDR.h"
 #include "RDXY.h"
 #include "abc/$.h"
 #include "abc/FILE.h"
@@ -26,7 +26,7 @@ pro(RDXeatfile, int fd, b8 jdr) {
     sane(fd > FILE_CLOSED);
     if (jdr) {
         call(FILEdrainall, Bu8idle(output), fd);
-        call(RDXJdrain, Bu8idle(input), Bu8cdata(output));
+        call(JDRdrain, Bu8idle(input), Bu8cdata(output));
         Breset(output);
     } else {
         call(FILEdrainall, Bu8idle(input), fd);
@@ -76,11 +76,11 @@ pro(_RDXcli, u8B output, u8B input, $u8cB ins) {
     } else if ($eq($arg(1), CMD_J) || $eq($arg(1), CMD_JDR)) {
         call(RDXeatargs, NO);
         a$dup($u8c, in, B$u8cdata(ins));
-        call(RDXJfeed, Bu8idle(output), **in);
+        call(JDRfeed, Bu8idle(output), **in);
         ++*in;
         $eat(in) {
             call($u8feed2, Bu8idle(output), ',', '\n');
-            call(RDXJfeed, Bu8idle(output), **in);
+            call(JDRfeed, Bu8idle(output), **in);
         }
         call($u8feed1, Bu8idle(output), '\n');
     } else if ($eq($arg(1), CMD_Y) || $eq($arg(1), CMD_MERGE)) {

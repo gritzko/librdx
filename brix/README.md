@@ -37,7 +37,7 @@ BRIX is specifically an architecture for massive data synchronization at the edg
 BRIX is based on the Log-Structured Merge Tree architecture, which underlies
 the most immense databases created at Big Tech companies. LSM is inherently based
 on the *merge* operation. [RDX][r] CRDT merge is way more powerful than LWW merge 
-you normally see in likes of Cassandra, Scylla, and others. Still, in terms of 
+you normally see in likes of Cassandra, BigTable, and others. Still, in terms of 
 computational complexity, it is the same: O(n) single-pass merge-sort-like algo.
 The basic building block of LSM (the "brick") is an SST file. A BRIX SST file is 
 more like a git object: hashed, signed, cryptographically referenced.

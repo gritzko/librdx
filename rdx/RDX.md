@@ -302,7 +302,7 @@ Otherwise, the merge is done according to the type's rules.
 [c]: https://github.com/drpcorg/chotki
 [d]: https://en.wikipedia.org/wiki/RDX
 [g]: https://protobuf.dev/programming-guides/encoding/
-[j]: ./RDXJ.md
+[j]: ./JDR.md
 [m]: https://en.wikipedia.org/wiki/Merge_sort
 [p]: https://en.wikipedia.org/wiki/Remote_procedure_call
 [r]: https://www.educative.io/answers/how-are-vector-clocks-used-in-dynamo

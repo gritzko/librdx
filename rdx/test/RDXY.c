@@ -2,7 +2,7 @@
 
 #include <unistd.h>
 
-#include "RDXJ.h"
+#include "JDR.h"
 #include "RDXZ.h"
 #include "abc/$.h"
 #include "abc/01.h"
@@ -28,7 +28,7 @@ pro(RDXY1) {
     call(FILEmapro, rdxjbuf, &fd, path);
     aBcpad(u64, stack, 1024);
     aBcpad(u8, pad, PAGESIZE);
-    ok64 o = RDXJdrain(tlvidle, rdxjcdata);
+    ok64 o = JDRdrain(tlvidle, rdxjcdata);
     if (o != OK) {
         $print(rdxjcdata);
         fail(o);
@@ -51,9 +51,9 @@ pro(RDXY1) {
 
         if (!$eq(correct, resdata)) {
             aBcpad(u8, out, PAGESIZE);
-            call(RDXJfeed, outidle, resdata);
+            call(JDRfeed, outidle, resdata);
             $u8feed2(outidle, '!', '=');
-            call(RDXJfeed, outidle, correct);
+            call(JDRfeed, outidle, correct);
             $println(outdata);
             fail(faileq);
         }

@@ -61,7 +61,7 @@ pro($test2) {
 
     for (i32 i = 0; i < $len(data); i++) {
         want($at(data, i) == i);
-        i32* p = $i32bsearch(&i, data);
+        i32* p = $i32bsearch(&i, (i32c$)data);
         want(p - *data == i);
     }
 

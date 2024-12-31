@@ -6,12 +6,12 @@ ToyTLV is the most basic TLV implementation one can make.
 The baseline ToyTLV record is like:
 
  1. The record type as a letter `[A-Z]` (one byte),
- 2. the length as a 32-bit little-endian number (4 bytes),
+ 2. the payload length as a 32-bit little-endian number (4 bytes),
  3. followed by the payload/value of the specified length.
 
-There are additionally 2 grades of header compaction.
-Small records use one byte for the length, their record type letter is lowercased.
-Tiny records only spend one byte for the length `[0-9]` assuming the type is clear from the context.
+As a size optimization, *short* records should use one byte for the length. 
+Their record type letter is lowercased then.
+Using the uppercase form for 0..255 byte records counts as "overlong encoding".
 
 ToyTLV does not define any semantics (ints are no different from strings, etc).
 It is an *enveloping* format only.

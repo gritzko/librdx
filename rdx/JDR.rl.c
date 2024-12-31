@@ -1,15 +1,15 @@
 
-#line 1 "RDXJ.rl"
-#include "RDXJ.rl.h"
+#line 1 "JDR.rl"
+#include "JDR.rl.h"
 
 
 
-#line 213 "RDXJ.rl"
+#line 213 "JDR.rl"
 
 
 
-#line 7 "RDXJ.rl.c"
-static const char _RDXJ_actions[] = {
+#line 7 "JDR.rl.c"
+static const char _JDR_actions[] = {
 	0, 1, 1, 1, 3, 1, 5, 1, 
 	7, 1, 9, 1, 10, 1, 11, 1, 
 	13, 1, 15, 1, 17, 1, 19, 1, 
@@ -230,7 +230,7 @@ static const char _RDXJ_actions[] = {
 	8
 };
 
-static const short _RDXJ_key_offsets[] = {
+static const short _JDR_key_offsets[] = {
 	0, 0, 4, 7, 9, 15, 21, 27, 
 	33, 39, 41, 47, 51, 60, 66, 72, 
 	78, 84, 113, 142, 157, 172, 202, 232, 
@@ -240,7 +240,7 @@ static const short _RDXJ_key_offsets[] = {
 	894, 911, 932, 960
 };
 
-static const unsigned char _RDXJ_trans_keys[] = {
+static const unsigned char _JDR_trans_keys[] = {
 	34u, 92u, 0u, 31u, 48u, 49u, 57u, 48u, 
 	57u, 48u, 57u, 65u, 70u, 97u, 102u, 48u, 
 	57u, 65u, 70u, 97u, 102u, 48u, 57u, 65u, 
@@ -366,7 +366,7 @@ static const unsigned char _RDXJ_trans_keys[] = {
 	9u, 10u, 48u, 57u, 0
 };
 
-static const char _RDXJ_single_lengths[] = {
+static const char _JDR_single_lengths[] = {
 	0, 2, 1, 0, 0, 0, 0, 0, 
 	0, 0, 0, 2, 9, 0, 0, 0, 
 	0, 17, 17, 13, 13, 18, 18, 17, 
@@ -376,7 +376,7 @@ static const char _RDXJ_single_lengths[] = {
 	13, 13, 16, 16
 };
 
-static const char _RDXJ_range_lengths[] = {
+static const char _JDR_range_lengths[] = {
 	0, 1, 1, 1, 3, 3, 3, 3, 
 	3, 1, 3, 1, 0, 3, 3, 3, 
 	3, 6, 6, 1, 1, 6, 6, 6, 
@@ -386,7 +386,7 @@ static const char _RDXJ_range_lengths[] = {
 	2, 4, 6, 2
 };
 
-static const short _RDXJ_index_offsets[] = {
+static const short _JDR_index_offsets[] = {
 	0, 0, 4, 7, 9, 13, 17, 21, 
 	25, 29, 31, 35, 39, 49, 53, 57, 
 	61, 65, 89, 113, 128, 143, 168, 193, 
@@ -396,7 +396,7 @@ static const short _RDXJ_index_offsets[] = {
 	752, 768, 786, 809
 };
 
-static const char _RDXJ_trans_targs[] = {
+static const char _JDR_trans_targs[] = {
 	19, 12, 0, 1, 27, 51, 0, 28, 
 	0, 31, 31, 31, 0, 36, 36, 36, 
 	0, 39, 39, 39, 0, 45, 45, 45, 
@@ -503,7 +503,7 @@ static const char _RDXJ_trans_targs[] = {
 	44, 20, 51, 0, 0
 };
 
-static const short _RDXJ_trans_actions[] = {
+static const short _JDR_trans_actions[] = {
 	0, 0, 0, 0, 0, 0, 0, 0, 
 	0, 0, 0, 0, 0, 0, 0, 0, 
 	0, 0, 0, 0, 0, 0, 0, 0, 
@@ -610,7 +610,7 @@ static const short _RDXJ_trans_actions[] = {
 	462, 1, 0, 0, 0
 };
 
-static const short _RDXJ_eof_actions[] = {
+static const short _JDR_eof_actions[] = {
 	0, 0, 0, 0, 0, 0, 0, 0, 
 	0, 0, 0, 0, 0, 0, 0, 0, 
 	0, 117, 37, 136, 114, 176, 81, 180, 
@@ -620,16 +620,16 @@ static const short _RDXJ_eof_actions[] = {
 	124, 124, 124, 120
 };
 
-static const int RDXJ_start = 17;
-static const int RDXJ_first_final = 17;
-static const int RDXJ_error = 0;
+static const int JDR_start = 17;
+static const int JDR_first_final = 17;
+static const int JDR_error = 0;
 
-static const int RDXJ_en_main = 17;
+static const int JDR_en_main = 17;
 
 
-#line 216 "RDXJ.rl"
+#line 216 "JDR.rl"
 
-pro(RDXJlexer, RDXJstate* state) {
+pro(JDRlexer, JDRstate* state) {
 
     a$dup(u8c, text, state->text);
     sane($ok(text));
@@ -646,14 +646,14 @@ pro(RDXJlexer, RDXJstate* state) {
     $u8c tok = {p, p};
 
     
-#line 641 "RDXJ.rl.c"
+#line 641 "JDR.rl.c"
 	{
-	cs = RDXJ_start;
+	cs = JDR_start;
 	}
 
-#line 234 "RDXJ.rl"
+#line 234 "JDR.rl"
     
-#line 644 "RDXJ.rl.c"
+#line 644 "JDR.rl.c"
 	{
 	int _klen;
 	unsigned int _trans;
@@ -666,10 +666,10 @@ pro(RDXJlexer, RDXJstate* state) {
 	if ( cs == 0 )
 		goto _out;
 _resume:
-	_keys = _RDXJ_trans_keys + _RDXJ_key_offsets[cs];
-	_trans = _RDXJ_index_offsets[cs];
+	_keys = _JDR_trans_keys + _JDR_key_offsets[cs];
+	_trans = _JDR_index_offsets[cs];
 
-	_klen = _RDXJ_single_lengths[cs];
+	_klen = _JDR_single_lengths[cs];
 	if ( _klen > 0 ) {
 		const unsigned char *_lower = _keys;
 		const unsigned char *_mid;
@@ -692,7 +692,7 @@ _resume:
 		_trans += _klen;
 	}
 
-	_klen = _RDXJ_range_lengths[cs];
+	_klen = _JDR_range_lengths[cs];
 	if ( _klen > 0 ) {
 		const unsigned char *_lower = _keys;
 		const unsigned char *_mid;
@@ -715,262 +715,262 @@ _resume:
 	}
 
 _match:
-	cs = _RDXJ_trans_targs[_trans];
+	cs = _JDR_trans_targs[_trans];
 
-	if ( _RDXJ_trans_actions[_trans] == 0 )
+	if ( _JDR_trans_actions[_trans] == 0 )
 		goto _again;
 
-	_acts = _RDXJ_actions + _RDXJ_trans_actions[_trans];
+	_acts = _JDR_actions + _JDR_trans_actions[_trans];
 	_nacts = (unsigned int) *_acts++;
 	while ( _nacts-- > 0 )
 	{
 		switch ( *_acts++ )
 		{
 	case 0:
-#line 10 "RDXJ.rl"
-	{ mark0[RDXJInt] = p - text[0]; }
+#line 10 "JDR.rl"
+	{ mark0[JDRInt] = p - text[0]; }
 	break;
 	case 1:
-#line 11 "RDXJ.rl"
+#line 11 "JDR.rl"
 	{
-    tok[0] = text[0] + mark0[RDXJInt];
+    tok[0] = text[0] + mark0[JDRInt];
     tok[1] = p;
-    call(RDXJonInt, tok, state); 
+    call(JDRonInt, tok, state); 
 }
 	break;
 	case 2:
-#line 16 "RDXJ.rl"
-	{ mark0[RDXJFloat] = p - text[0]; }
+#line 16 "JDR.rl"
+	{ mark0[JDRFloat] = p - text[0]; }
 	break;
 	case 3:
-#line 17 "RDXJ.rl"
+#line 17 "JDR.rl"
 	{
-    tok[0] = text[0] + mark0[RDXJFloat];
+    tok[0] = text[0] + mark0[JDRFloat];
     tok[1] = p;
-    call(RDXJonFloat, tok, state); 
+    call(JDRonFloat, tok, state); 
 }
 	break;
 	case 4:
-#line 22 "RDXJ.rl"
-	{ mark0[RDXJRef] = p - text[0]; }
+#line 22 "JDR.rl"
+	{ mark0[JDRRef] = p - text[0]; }
 	break;
 	case 5:
-#line 23 "RDXJ.rl"
+#line 23 "JDR.rl"
 	{
-    tok[0] = text[0] + mark0[RDXJRef];
+    tok[0] = text[0] + mark0[JDRRef];
     tok[1] = p;
-    call(RDXJonRef, tok, state); 
+    call(JDRonRef, tok, state); 
 }
 	break;
 	case 6:
-#line 28 "RDXJ.rl"
-	{ mark0[RDXJString] = p - text[0]; }
+#line 28 "JDR.rl"
+	{ mark0[JDRString] = p - text[0]; }
 	break;
 	case 7:
-#line 29 "RDXJ.rl"
+#line 29 "JDR.rl"
 	{
-    tok[0] = text[0] + mark0[RDXJString];
+    tok[0] = text[0] + mark0[JDRString];
     tok[1] = p;
-    call(RDXJonString, tok, state); 
+    call(JDRonString, tok, state); 
 }
 	break;
 	case 8:
-#line 34 "RDXJ.rl"
-	{ mark0[RDXJTerm] = p - text[0]; }
+#line 34 "JDR.rl"
+	{ mark0[JDRTerm] = p - text[0]; }
 	break;
 	case 9:
-#line 35 "RDXJ.rl"
+#line 35 "JDR.rl"
 	{
-    tok[0] = text[0] + mark0[RDXJTerm];
+    tok[0] = text[0] + mark0[JDRTerm];
     tok[1] = p;
-    call(RDXJonTerm, tok, state); 
+    call(JDRonTerm, tok, state); 
 }
 	break;
 	case 10:
-#line 40 "RDXJ.rl"
-	{ mark0[RDXJStamp] = p - text[0]; }
+#line 40 "JDR.rl"
+	{ mark0[JDRStamp] = p - text[0]; }
 	break;
 	case 11:
-#line 41 "RDXJ.rl"
+#line 41 "JDR.rl"
 	{
-    tok[0] = text[0] + mark0[RDXJStamp];
+    tok[0] = text[0] + mark0[JDRStamp];
     tok[1] = p;
-    call(RDXJonStamp, tok, state); 
+    call(JDRonStamp, tok, state); 
 }
 	break;
 	case 12:
-#line 46 "RDXJ.rl"
-	{ mark0[RDXJOpenP] = p - text[0]; }
+#line 46 "JDR.rl"
+	{ mark0[JDROpenP] = p - text[0]; }
 	break;
 	case 13:
-#line 47 "RDXJ.rl"
+#line 47 "JDR.rl"
 	{
-    tok[0] = text[0] + mark0[RDXJOpenP];
+    tok[0] = text[0] + mark0[JDROpenP];
     tok[1] = p;
-    call(RDXJonOpenP, tok, state); 
+    call(JDRonOpenP, tok, state); 
 }
 	break;
 	case 14:
-#line 52 "RDXJ.rl"
-	{ mark0[RDXJCloseP] = p - text[0]; }
+#line 52 "JDR.rl"
+	{ mark0[JDRCloseP] = p - text[0]; }
 	break;
 	case 15:
-#line 53 "RDXJ.rl"
+#line 53 "JDR.rl"
 	{
-    tok[0] = text[0] + mark0[RDXJCloseP];
+    tok[0] = text[0] + mark0[JDRCloseP];
     tok[1] = p;
-    call(RDXJonCloseP, tok, state); 
+    call(JDRonCloseP, tok, state); 
 }
 	break;
 	case 16:
-#line 58 "RDXJ.rl"
-	{ mark0[RDXJOpenL] = p - text[0]; }
+#line 58 "JDR.rl"
+	{ mark0[JDROpenL] = p - text[0]; }
 	break;
 	case 17:
-#line 59 "RDXJ.rl"
+#line 59 "JDR.rl"
 	{
-    tok[0] = text[0] + mark0[RDXJOpenL];
+    tok[0] = text[0] + mark0[JDROpenL];
     tok[1] = p;
-    call(RDXJonOpenL, tok, state); 
+    call(JDRonOpenL, tok, state); 
 }
 	break;
 	case 18:
-#line 64 "RDXJ.rl"
-	{ mark0[RDXJCloseL] = p - text[0]; }
+#line 64 "JDR.rl"
+	{ mark0[JDRCloseL] = p - text[0]; }
 	break;
 	case 19:
-#line 65 "RDXJ.rl"
+#line 65 "JDR.rl"
 	{
-    tok[0] = text[0] + mark0[RDXJCloseL];
+    tok[0] = text[0] + mark0[JDRCloseL];
     tok[1] = p;
-    call(RDXJonCloseL, tok, state); 
+    call(JDRonCloseL, tok, state); 
 }
 	break;
 	case 20:
-#line 70 "RDXJ.rl"
-	{ mark0[RDXJOpenE] = p - text[0]; }
+#line 70 "JDR.rl"
+	{ mark0[JDROpenE] = p - text[0]; }
 	break;
 	case 21:
-#line 71 "RDXJ.rl"
+#line 71 "JDR.rl"
 	{
-    tok[0] = text[0] + mark0[RDXJOpenE];
+    tok[0] = text[0] + mark0[JDROpenE];
     tok[1] = p;
-    call(RDXJonOpenE, tok, state); 
+    call(JDRonOpenE, tok, state); 
 }
 	break;
 	case 22:
-#line 76 "RDXJ.rl"
-	{ mark0[RDXJCloseE] = p - text[0]; }
+#line 76 "JDR.rl"
+	{ mark0[JDRCloseE] = p - text[0]; }
 	break;
 	case 23:
-#line 77 "RDXJ.rl"
+#line 77 "JDR.rl"
 	{
-    tok[0] = text[0] + mark0[RDXJCloseE];
+    tok[0] = text[0] + mark0[JDRCloseE];
     tok[1] = p;
-    call(RDXJonCloseE, tok, state); 
+    call(JDRonCloseE, tok, state); 
 }
 	break;
 	case 24:
-#line 82 "RDXJ.rl"
-	{ mark0[RDXJOpenX] = p - text[0]; }
+#line 82 "JDR.rl"
+	{ mark0[JDROpenX] = p - text[0]; }
 	break;
 	case 25:
-#line 83 "RDXJ.rl"
+#line 83 "JDR.rl"
 	{
-    tok[0] = text[0] + mark0[RDXJOpenX];
+    tok[0] = text[0] + mark0[JDROpenX];
     tok[1] = p;
-    call(RDXJonOpenX, tok, state); 
+    call(JDRonOpenX, tok, state); 
 }
 	break;
 	case 26:
-#line 88 "RDXJ.rl"
-	{ mark0[RDXJCloseX] = p - text[0]; }
+#line 88 "JDR.rl"
+	{ mark0[JDRCloseX] = p - text[0]; }
 	break;
 	case 27:
-#line 89 "RDXJ.rl"
+#line 89 "JDR.rl"
 	{
-    tok[0] = text[0] + mark0[RDXJCloseX];
+    tok[0] = text[0] + mark0[JDRCloseX];
     tok[1] = p;
-    call(RDXJonCloseX, tok, state); 
+    call(JDRonCloseX, tok, state); 
 }
 	break;
 	case 28:
-#line 94 "RDXJ.rl"
-	{ mark0[RDXJComma] = p - text[0]; }
+#line 94 "JDR.rl"
+	{ mark0[JDRComma] = p - text[0]; }
 	break;
 	case 29:
-#line 95 "RDXJ.rl"
+#line 95 "JDR.rl"
 	{
-    tok[0] = text[0] + mark0[RDXJComma];
+    tok[0] = text[0] + mark0[JDRComma];
     tok[1] = p;
-    call(RDXJonComma, tok, state); 
+    call(JDRonComma, tok, state); 
 }
 	break;
 	case 30:
-#line 100 "RDXJ.rl"
-	{ mark0[RDXJColon] = p - text[0]; }
+#line 100 "JDR.rl"
+	{ mark0[JDRColon] = p - text[0]; }
 	break;
 	case 31:
-#line 101 "RDXJ.rl"
+#line 101 "JDR.rl"
 	{
-    tok[0] = text[0] + mark0[RDXJColon];
+    tok[0] = text[0] + mark0[JDRColon];
     tok[1] = p;
-    call(RDXJonColon, tok, state); 
+    call(JDRonColon, tok, state); 
 }
 	break;
 	case 32:
-#line 106 "RDXJ.rl"
-	{ mark0[RDXJOpen] = p - text[0]; }
+#line 106 "JDR.rl"
+	{ mark0[JDROpen] = p - text[0]; }
 	break;
 	case 33:
-#line 107 "RDXJ.rl"
+#line 107 "JDR.rl"
 	{
-    tok[0] = text[0] + mark0[RDXJOpen];
+    tok[0] = text[0] + mark0[JDROpen];
     tok[1] = p;
-    call(RDXJonOpen, tok, state); 
+    call(JDRonOpen, tok, state); 
 }
 	break;
 	case 34:
-#line 112 "RDXJ.rl"
-	{ mark0[RDXJClose] = p - text[0]; }
+#line 112 "JDR.rl"
+	{ mark0[JDRClose] = p - text[0]; }
 	break;
 	case 35:
-#line 113 "RDXJ.rl"
+#line 113 "JDR.rl"
 	{
-    tok[0] = text[0] + mark0[RDXJClose];
+    tok[0] = text[0] + mark0[JDRClose];
     tok[1] = p;
-    call(RDXJonClose, tok, state); 
+    call(JDRonClose, tok, state); 
 }
 	break;
 	case 36:
-#line 118 "RDXJ.rl"
-	{ mark0[RDXJInter] = p - text[0]; }
+#line 118 "JDR.rl"
+	{ mark0[JDRInter] = p - text[0]; }
 	break;
 	case 37:
-#line 119 "RDXJ.rl"
+#line 119 "JDR.rl"
 	{
-    tok[0] = text[0] + mark0[RDXJInter];
+    tok[0] = text[0] + mark0[JDRInter];
     tok[1] = p;
-    call(RDXJonInter, tok, state); 
+    call(JDRonInter, tok, state); 
 }
 	break;
 	case 38:
-#line 124 "RDXJ.rl"
-	{ mark0[RDXJFIRST] = p - text[0]; }
+#line 124 "JDR.rl"
+	{ mark0[JDRFIRST] = p - text[0]; }
 	break;
 	case 39:
-#line 125 "RDXJ.rl"
+#line 125 "JDR.rl"
 	{
-    tok[0] = text[0] + mark0[RDXJFIRST];
+    tok[0] = text[0] + mark0[JDRFIRST];
     tok[1] = p;
-    call(RDXJonFIRST, tok, state); 
+    call(JDRonFIRST, tok, state); 
 }
 	break;
 	case 40:
-#line 130 "RDXJ.rl"
-	{ mark0[RDXJRoot] = p - text[0]; }
+#line 130 "JDR.rl"
+	{ mark0[JDRRoot] = p - text[0]; }
 	break;
-#line 919 "RDXJ.rl.c"
+#line 919 "JDR.rl.c"
 		}
 	}
 
@@ -982,183 +982,183 @@ _again:
 	_test_eof: {}
 	if ( p == eof )
 	{
-	const char *__acts = _RDXJ_actions + _RDXJ_eof_actions[cs];
+	const char *__acts = _JDR_actions + _JDR_eof_actions[cs];
 	unsigned int __nacts = (unsigned int) *__acts++;
 	while ( __nacts-- > 0 ) {
 		switch ( *__acts++ ) {
 	case 1:
-#line 11 "RDXJ.rl"
+#line 11 "JDR.rl"
 	{
-    tok[0] = text[0] + mark0[RDXJInt];
+    tok[0] = text[0] + mark0[JDRInt];
     tok[1] = p;
-    call(RDXJonInt, tok, state); 
+    call(JDRonInt, tok, state); 
 }
 	break;
 	case 3:
-#line 17 "RDXJ.rl"
+#line 17 "JDR.rl"
 	{
-    tok[0] = text[0] + mark0[RDXJFloat];
+    tok[0] = text[0] + mark0[JDRFloat];
     tok[1] = p;
-    call(RDXJonFloat, tok, state); 
+    call(JDRonFloat, tok, state); 
 }
 	break;
 	case 5:
-#line 23 "RDXJ.rl"
+#line 23 "JDR.rl"
 	{
-    tok[0] = text[0] + mark0[RDXJRef];
+    tok[0] = text[0] + mark0[JDRRef];
     tok[1] = p;
-    call(RDXJonRef, tok, state); 
+    call(JDRonRef, tok, state); 
 }
 	break;
 	case 7:
-#line 29 "RDXJ.rl"
+#line 29 "JDR.rl"
 	{
-    tok[0] = text[0] + mark0[RDXJString];
+    tok[0] = text[0] + mark0[JDRString];
     tok[1] = p;
-    call(RDXJonString, tok, state); 
+    call(JDRonString, tok, state); 
 }
 	break;
 	case 9:
-#line 35 "RDXJ.rl"
+#line 35 "JDR.rl"
 	{
-    tok[0] = text[0] + mark0[RDXJTerm];
+    tok[0] = text[0] + mark0[JDRTerm];
     tok[1] = p;
-    call(RDXJonTerm, tok, state); 
+    call(JDRonTerm, tok, state); 
 }
 	break;
 	case 11:
-#line 41 "RDXJ.rl"
+#line 41 "JDR.rl"
 	{
-    tok[0] = text[0] + mark0[RDXJStamp];
+    tok[0] = text[0] + mark0[JDRStamp];
     tok[1] = p;
-    call(RDXJonStamp, tok, state); 
+    call(JDRonStamp, tok, state); 
 }
 	break;
 	case 13:
-#line 47 "RDXJ.rl"
+#line 47 "JDR.rl"
 	{
-    tok[0] = text[0] + mark0[RDXJOpenP];
+    tok[0] = text[0] + mark0[JDROpenP];
     tok[1] = p;
-    call(RDXJonOpenP, tok, state); 
+    call(JDRonOpenP, tok, state); 
 }
 	break;
 	case 15:
-#line 53 "RDXJ.rl"
+#line 53 "JDR.rl"
 	{
-    tok[0] = text[0] + mark0[RDXJCloseP];
+    tok[0] = text[0] + mark0[JDRCloseP];
     tok[1] = p;
-    call(RDXJonCloseP, tok, state); 
+    call(JDRonCloseP, tok, state); 
 }
 	break;
 	case 17:
-#line 59 "RDXJ.rl"
+#line 59 "JDR.rl"
 	{
-    tok[0] = text[0] + mark0[RDXJOpenL];
+    tok[0] = text[0] + mark0[JDROpenL];
     tok[1] = p;
-    call(RDXJonOpenL, tok, state); 
+    call(JDRonOpenL, tok, state); 
 }
 	break;
 	case 19:
-#line 65 "RDXJ.rl"
+#line 65 "JDR.rl"
 	{
-    tok[0] = text[0] + mark0[RDXJCloseL];
+    tok[0] = text[0] + mark0[JDRCloseL];
     tok[1] = p;
-    call(RDXJonCloseL, tok, state); 
+    call(JDRonCloseL, tok, state); 
 }
 	break;
 	case 21:
-#line 71 "RDXJ.rl"
+#line 71 "JDR.rl"
 	{
-    tok[0] = text[0] + mark0[RDXJOpenE];
+    tok[0] = text[0] + mark0[JDROpenE];
     tok[1] = p;
-    call(RDXJonOpenE, tok, state); 
+    call(JDRonOpenE, tok, state); 
 }
 	break;
 	case 23:
-#line 77 "RDXJ.rl"
+#line 77 "JDR.rl"
 	{
-    tok[0] = text[0] + mark0[RDXJCloseE];
+    tok[0] = text[0] + mark0[JDRCloseE];
     tok[1] = p;
-    call(RDXJonCloseE, tok, state); 
+    call(JDRonCloseE, tok, state); 
 }
 	break;
 	case 25:
-#line 83 "RDXJ.rl"
+#line 83 "JDR.rl"
 	{
-    tok[0] = text[0] + mark0[RDXJOpenX];
+    tok[0] = text[0] + mark0[JDROpenX];
     tok[1] = p;
-    call(RDXJonOpenX, tok, state); 
+    call(JDRonOpenX, tok, state); 
 }
 	break;
 	case 27:
-#line 89 "RDXJ.rl"
+#line 89 "JDR.rl"
 	{
-    tok[0] = text[0] + mark0[RDXJCloseX];
+    tok[0] = text[0] + mark0[JDRCloseX];
     tok[1] = p;
-    call(RDXJonCloseX, tok, state); 
+    call(JDRonCloseX, tok, state); 
 }
 	break;
 	case 29:
-#line 95 "RDXJ.rl"
+#line 95 "JDR.rl"
 	{
-    tok[0] = text[0] + mark0[RDXJComma];
+    tok[0] = text[0] + mark0[JDRComma];
     tok[1] = p;
-    call(RDXJonComma, tok, state); 
+    call(JDRonComma, tok, state); 
 }
 	break;
 	case 31:
-#line 101 "RDXJ.rl"
+#line 101 "JDR.rl"
 	{
-    tok[0] = text[0] + mark0[RDXJColon];
+    tok[0] = text[0] + mark0[JDRColon];
     tok[1] = p;
-    call(RDXJonColon, tok, state); 
+    call(JDRonColon, tok, state); 
 }
 	break;
 	case 33:
-#line 107 "RDXJ.rl"
+#line 107 "JDR.rl"
 	{
-    tok[0] = text[0] + mark0[RDXJOpen];
+    tok[0] = text[0] + mark0[JDROpen];
     tok[1] = p;
-    call(RDXJonOpen, tok, state); 
+    call(JDRonOpen, tok, state); 
 }
 	break;
 	case 35:
-#line 113 "RDXJ.rl"
+#line 113 "JDR.rl"
 	{
-    tok[0] = text[0] + mark0[RDXJClose];
+    tok[0] = text[0] + mark0[JDRClose];
     tok[1] = p;
-    call(RDXJonClose, tok, state); 
+    call(JDRonClose, tok, state); 
 }
 	break;
 	case 37:
-#line 119 "RDXJ.rl"
+#line 119 "JDR.rl"
 	{
-    tok[0] = text[0] + mark0[RDXJInter];
+    tok[0] = text[0] + mark0[JDRInter];
     tok[1] = p;
-    call(RDXJonInter, tok, state); 
+    call(JDRonInter, tok, state); 
 }
 	break;
 	case 39:
-#line 125 "RDXJ.rl"
+#line 125 "JDR.rl"
 	{
-    tok[0] = text[0] + mark0[RDXJFIRST];
+    tok[0] = text[0] + mark0[JDRFIRST];
     tok[1] = p;
-    call(RDXJonFIRST, tok, state); 
+    call(JDRonFIRST, tok, state); 
 }
 	break;
 	case 40:
-#line 130 "RDXJ.rl"
-	{ mark0[RDXJRoot] = p - text[0]; }
+#line 130 "JDR.rl"
+	{ mark0[JDRRoot] = p - text[0]; }
 	break;
 	case 41:
-#line 131 "RDXJ.rl"
+#line 131 "JDR.rl"
 	{
-    tok[0] = text[0] + mark0[RDXJRoot];
+    tok[0] = text[0] + mark0[JDRRoot];
     tok[1] = p;
-    call(RDXJonRoot, tok, state); 
+    call(JDRonRoot, tok, state); 
 }
 	break;
-#line 1084 "RDXJ.rl.c"
+#line 1084 "JDR.rl.c"
 		}
 	}
 	}
@@ -1166,11 +1166,11 @@ _again:
 	_out: {}
 	}
 
-#line 235 "RDXJ.rl"
+#line 235 "JDR.rl"
 
     state->text[0] = p;
-    if (p!=text[1] || cs < RDXJ_first_final) {
-        return RDXJfail;
+    if (p!=text[1] || cs < JDR_first_final) {
+        return JDRfail;
     }
     done;
 }

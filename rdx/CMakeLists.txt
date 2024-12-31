@@ -26,14 +26,14 @@ list(APPEND RDX_HEADERS
 LSM.h
 RDX.h
 RDXC.h
-RDXJ.h
-RDXJ.rl.h
+JDR.h
+JDR.rl.h
 RDXY.h
 )
 
 list(APPEND RDX_SOURCES 
-RDXJ.c
-RDXJ.rl.c
+JDR.c
+JDR.rl.c
 ryu/d2s.c
 )
 

@@ -7,7 +7,7 @@
 #include "abc/PRO.h"
 #include "RDX.h"
 #include "RDXC.h"
-#include "RDXJ.h"
+#include "JDR.h"
 #include "RDXY.h"
 #include "abc/TEST.h"
 
@@ -132,14 +132,14 @@ pro(RDX1) {
     aBcpad(u8, tlv, PAGESIZE);
     aBcpad(u64, stack, 1024);
     aBcpad(u8, pad, PAGESIZE);  // FIXME
-    RDXJstate state = {
+    JDRstate state = {
         .text = $dup(Bu8cdata(testbuf)),
         .tlv = $dup(tlvidle),
         .nest = 1,
     };
-    call(RDXJlexer, &state);
+    call(JDRlexer, &state);
     aBcpad(u8, rdxj, PAGESIZE);
-    call(RDXJdrain, rdxjidle, tlvdata);
+    call(JDRdrain, rdxjidle, tlvdata);
 
     a$dup(u8c, inputs, rdxjdata);
     aBpad2($u8c, ins, 64);
