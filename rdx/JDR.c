@@ -3,12 +3,13 @@
 
 #include <stdint.h>
 
+#include "JDR.rl.h"
+#include "RDX.h"
 #include "abc/01.h"
 #include "abc/B.h"
 #include "abc/OK.h"
 #include "abc/PRO.h"
-#include "RDX.h"
-#include "JDR.rl.h"
+#include "abc/UTF8.h"
 #include "abc/ZINT.h"
 
 pro(_JDRfeedS, JDRstate* state) {
@@ -28,6 +29,13 @@ ok64 JDRonString($cu8c tok, JDRstate* state) {
     state->lit = RDX_STRING;
     state->val[0] = tok[0] + 1;
     state->val[1] = tok[1] - 1;
+    return OK;
+}
+
+ok64 JDRonMLString($cu8c tok, JDRstate* state) {
+    state->lit = RDX_STRING;
+    state->val[0] = tok[0] + 3;
+    state->val[1] = tok[1] - 3;
     return OK;
 }
 

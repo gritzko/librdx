@@ -55,9 +55,20 @@ pro(RDXtest1) {
     done;
 }
 
+pro(RDXtest2) {
+    sane(1);
+    $u8c ml = $u8str("```multi\nline\n\nstring\n```");
+    a$dup(u8c, dup, ml);
+    aBcpad(u8, tlv, PAGESIZE);
+    call(JDRdrain, tlvidle, dup);
+    testeq($len(tlvdata), $len(ml) - 6 + 3);
+    done;
+}
+
 pro(RDXtest) {
     sane(1);
     call(RDXtest1);
+    call(RDXtest2);
     done;
 }
 

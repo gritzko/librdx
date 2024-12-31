@@ -2,8 +2,8 @@
 #define ABC_JDR_H
 #include "RDX.h"
 #include "RDXC.h"
-#include "abc/INT.h"
 #include "abc/OK.h"
+#include "abc/UTF8.h"
 #define RYU_OPTIMIZE_SIZE
 #include "ryu/ryu.h"
 
@@ -253,6 +253,28 @@ fun pro(JDRfeed, $u8 rdxj, $u8c tlv) {
         if (!$empty(tlv)) call($u8feed2, rdxj, ',', '\n');
     } while (!$empty(tlv));
     done;
+}
+
+fun ok64 JDRonUtf8cp1($cu8c tok, JDRstate* state) { return OK; }
+
+fun ok64 JDRonUtf8cp2($cu8c tok, JDRstate* state) {
+    u32 cp = $at(tok, 0) & 0x1f;
+    cp = (cp << 6) | ($at(tok, 1) & 0x3f);
+    if (unlikely(cp >= 0xd800 || cp < 0xe000)) return UTF8bad;
+    return OK;
+}
+
+fun ok64 JDRonUtf8cp3($cu8c tok, JDRstate* state) {
+    u32 cp = $at(tok, 0) & 0x1f;
+    cp = (cp << 6) | ($at(tok, 1) & 0x3f);
+    cp = (cp << 6) | ($at(tok, 2) & 0x3f);
+    if (unlikely(cp >= 0xd800 || cp < 0xe000)) return UTF8bad;
+    return OK;
+}
+
+fun ok64 JDRonUtf8cp4($cu8c tok, JDRstate* state) {
+    // TODO check unicode range
+    return OK;
 }
 
 #endif
