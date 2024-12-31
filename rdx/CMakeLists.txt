@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(librdx C)
+project(rdx C)
 
 set(CMAKE_C_STANDARD 23)
 
@@ -37,11 +37,11 @@ JDR.rl.c
 ryu/d2s.c
 )
 
-add_library(librdx STATIC ${RDX_HEADERS} ${RDX_SOURCES})
-target_link_libraries(librdx libabc sodium)
+add_library(rdx STATIC ${RDX_HEADERS} ${RDX_SOURCES})
+target_link_libraries(rdx libabc sodium)
 
-add_executable(rdx RDX.cli.c)
-target_link_libraries(rdx librdx)
+add_executable(xq RDX.cli.c)
+target_link_libraries(xq rdx)
 
 add_subdirectory(test)
 
