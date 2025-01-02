@@ -86,14 +86,14 @@ UDP.c
 UTF8.c
 )
 
-add_library(libabc STATIC ${ABC_HEADERS} ${ABC_SOURCES})
-target_link_libraries(libabc sodium)
+add_library(abc STATIC ${ABC_HEADERS} ${ABC_SOURCES})
+target_link_libraries(abc sodium)
 
 add_executable(ok64 OK.cli.c)
-target_link_libraries(ok64 libabc)
+target_link_libraries(ok64 abc)
 
 add_executable(lex LEX.cli.c)
-target_link_libraries(lex libabc)
+target_link_libraries(lex abc)
 
 add_subdirectory(test)
 

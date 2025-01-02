@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(libmark C)
+project(mark C)
 
 set(CMAKE_C_STANDARD 23)
 
@@ -36,14 +36,14 @@ MARQ.c
 MARQ.rl.c
 )
 
-add_library(libmark STATIC ${MARK_HEADERS} ${MARK_SOURCES})
-target_link_libraries(libmark libabc)
+add_library(mark STATIC ${MARK_HEADERS} ${MARK_SOURCES})
+target_link_libraries(mark abc)
 
 add_executable(mark2html MARKhtml.cli.c)
-target_link_libraries(mark2html libmark)
+target_link_libraries(mark2html mark)
 
-add_executable(mark MARK.cli.c)
-target_link_libraries(mark libmark)
+add_executable(mrk MARK.cli.c)
+target_link_libraries(mrk mark)
 
 add_subdirectory(test)
 

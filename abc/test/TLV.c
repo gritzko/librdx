@@ -67,25 +67,26 @@ fun int u32pcmp(u32p const *a, u32p const *b) {
 pro(TLVtest3) {
     sane(1);
     aBcpad(u8, pad, 1024);
-    aBpad(u32p, stack, 8);
+    aBcpad(u32p, stack, 8);
+    u32pB stack = (u32pB)stackbuf;
 
-    call(TLVopen, padidle, 'A', Bu32ppush(stack));
+    call(TLVopen, padidle, 'A', Bpush(stack));
     $u8c aaa = $u8str("aaa");
 
-    call(TLVopen, padidle, 'B', Bu32ppush(stack));
+    call(TLVopen, padidle, 'B', Bpush(stack));
     $u8c bbb = $u8str("bbbb");
 
-    call(TLVopen, padidle, 'C', Bu32ppush(stack));
+    call(TLVopen, padidle, 'C', Bpush(stack));
     $u8c ccc = $u8str("ccccc");
 
     $u8feed(padidle, ccc);
-    call(TLVclose, padidle, 'C', Bu32ppop(stack));
+    call(TLVclose, padidle, 'C', Bpop(stack));
 
     $u8feed(padidle, bbb);
-    call(TLVclose, padidle, 'B', Bu32ppop(stack));
+    call(TLVclose, padidle, 'B', Bpop(stack));
 
     $u8feed(padidle, aaa);
-    call(TLVclose, padidle, 'A', Bu32ppop(stack));
+    call(TLVclose, padidle, 'A', Bpop(stack));
 
     $println(paddata);
 

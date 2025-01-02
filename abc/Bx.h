@@ -155,16 +155,18 @@ fun ok64 X(B, rewind$)(X(B, ) buf, X($, ) slice, range64 range) {
     return OK;
 }
 
-fun T *X(B, push)(X(B, ) buf) {
-    assert(buf[2] < buf[3]);
-    T **b = (T **)buf;
-    return b[2]++;
+fun ok64 X(B, push)(X(B, ) buf, const T *val) { return X(B, feedp)(buf, val); }
+
+fun T const *X(B, top)(X(B, ) buf) {
+    assert(buf[2] > buf[1]);
+    return buf[2] - 1;
 }
 
-fun const T *X(B, pop)(X(B, ) buf) {
-    assert(buf[2] > buf[1]);
+fun ok64 X(B, pop)(X(B, ) buf) {
+    if (buf[2] <= buf[1]) return Bnodata;
     T const **b = (T const **)buf;
-    return --b[2];
+    --b[2];
+    return OK;
 }
 
 fun ok64 X(B, map)(X(B, ) buf, size_t len) {

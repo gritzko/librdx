@@ -117,4 +117,11 @@ fun ok64 $u8feedstr($u8 into, const char *str) {
     return OK;
 }
 
+fun ok64 $u8feedn($u8 into, u8c *what, size_t n) {
+    if (unlikely($len(into) < n)) return $noroom;
+    memcpy(*into, what, n);
+    *into += n;
+    return OK;
+}
+
 #endif

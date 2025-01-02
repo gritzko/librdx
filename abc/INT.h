@@ -40,6 +40,20 @@ fun int u128cmp(u128 const *a, u128 const *b) {
     return ret;
 }
 
+fun int u256cmp(u256 const *a, u256 const *b) {
+    int ret = u64cmp(&a->_64[3], &b->_64[3]);
+    if (ret == 0) {
+        ret = u64cmp(&a->_64[2], &b->_64[2]);
+        if (ret == 0) {
+            ret = u64cmp(&a->_64[1], &b->_64[1]);
+            if (ret == 0) {
+                ret = u64cmp(&a->_64[0], &b->_64[0]);
+            }
+        }
+    }
+    return ret;
+}
+
 #define X(M, name) M##u16##name
 #include "Bx.h"
 #undef X
@@ -69,6 +83,10 @@ fun int u128cmp(u128 const *a, u128 const *b) {
 #undef X
 
 #define X(M, name) M##i64##name
+#include "Bx.h"
+#undef X
+
+#define X(M, name) M##u256##name
 #include "Bx.h"
 #undef X
 
@@ -175,5 +193,8 @@ fun ok64 $u8feed64($u8 into, u64 const *what) {
     return OK;
 }
 #endif
+
+fun u8 u64bit(u64 u, u32 ndx) { return 1 & (u >> ndx); }
+fun u8 u128bit(u128 u, u32 ndx) { return 1 & (u._64[ndx >> 6] >> (ndx & 63)); }
 
 #endif  // ABC_INT_H

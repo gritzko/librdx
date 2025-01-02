@@ -24,6 +24,7 @@ set(BENCH_LDD_FLAGS benchmark::benchmark)
 
 list(APPEND RDX_HEADERS 
 LSM.h
+VLT.h
 RDX.h
 RDXC.h
 JDR.h
@@ -32,13 +33,14 @@ RDXY.h
 )
 
 list(APPEND RDX_SOURCES 
+VLT.c
 JDR.c
 JDR.rl.c
 ryu/d2s.c
 )
 
 add_library(rdx STATIC ${RDX_HEADERS} ${RDX_SOURCES})
-target_link_libraries(rdx libabc sodium)
+target_link_libraries(rdx abc sodium)
 
 add_executable(xq RDX.cli.c)
 target_link_libraries(xq rdx)
