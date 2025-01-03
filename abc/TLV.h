@@ -9,7 +9,7 @@
 con ok64 TLVbadrec = 0x27a76a2599f55d;
 con ok64 TLVnodata = 0x25e25a33c9f55d;
 con ok64 TLVbadtype = 0xa74f78a2599f55d;
-con ok64 TLVnospace = 0xa67974df3c9f55d;
+con ok64 TLVnoroom = 0x31cf3db3c9f55d;
 con ok64 TLVoverflo = 0xcf0ab6a7acdf55d;
 con ok64 TLVbadcall = 0xc30967a2599f55d;
 con ok64 TLVbadarg = 0x2bda5a2599f55d;
@@ -108,7 +108,7 @@ fun void TLVhead($u8 into, u8 type, u32 len) {
 fun pro(TLVfeed, $u8 into, u8 type, $u8c value) {
     sane(TLVlong(type) && into != NULL && value != NULL);
     u32 len = $len(value);
-    test($len(into) >= len + 5, TLVnospace);
+    test($len(into) >= len + 5, TLVnoroom);
     TLVhead(into, type, len);
     $u8copy(into, value);
     *into += len;
@@ -118,7 +118,7 @@ fun pro(TLVfeed, $u8 into, u8 type, $u8c value) {
 fun pro(TLVtinyfeed, $u8 into, u8 type, $u8c value) {
     sane($ok(into) && $ok(value));
     size_t len = $len(value);
-    test($len(into) >= len + 5, TLVnospace);  // todo
+    test($len(into) >= len + 5, TLVnoroom);  // todo
     if (len > 9) {
         TLVhead(into, type, len);
     } else {
@@ -135,12 +135,31 @@ fun pro(TLVtinyfeed, $u8 into, u8 type, $u8c value) {
  *  no shifts, no reallocs, no remaps. */
 fun pro(TLVopen, $u8 tlv, u8 type, u32** len) {
     sane($ok(tlv) && len != nil && TLVlong(type));
-    test($len(tlv) >= 5, TLVnospace);
+    test($len(tlv) >= 5, TLVnoroom);
     **tlv = type;
     ++*tlv;
     *len = (u32*)*tlv;
     u32 zero = 0;
     $u8feed32(tlv, &zero);
+    done;
+}
+
+fun ok64 TLVopenshort($u8 tlv, u8 type, u8** bookmark) {
+    sane($ok(tlv) && bookmark != nil);
+    test($len(tlv) >= 2, TLVnoroom);
+    **tlv = type | TLVaa;
+    ++*tlv;
+    *bookmark = *tlv;
+    **tlv = 0;
+    ++*tlv;
+    done;
+}
+
+fun ok64 TLVcloseshort($u8 tlv, u8 type, u8* const* bookmark) {
+    sane($ok(tlv) && bookmark != nil && *bookmark < *tlv);
+    size_t len = *tlv - *bookmark;
+    test(len <= 0xff, TLVbadrec);
+    **bookmark = (u8)len;
     done;
 }
 
@@ -170,7 +189,7 @@ fun pro(TLVfeedkv, $u8 tlv, u8c type, $u8c key, $cu8c val) {
     size_t keylen = $len(key);
     test(keylen < 0x100, TLVbadarg);
     u64 blen = keylen + $len(val);
-    test($len(tlv) >= blen + 1 + 4 + 1, TLVnospace);
+    test($len(tlv) >= blen + 1 + 4 + 1, TLVnoroom);
     TLVhead(tlv, type, blen + 1);
     **tlv = keylen;
     ++*tlv;
