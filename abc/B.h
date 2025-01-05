@@ -21,6 +21,9 @@ con ok64 Bnodata = 0x25e25a33c8b;
 con ok64 Bbadarg = 0x2bda5a2598b;
 con ok64 Bmiss = 0x37dedc4b;
 
+#define B_MAX_LEN_BITS 48
+#define B_MAX_LEN (1UL << B_MAX_LEN_BITS)
+
 #define BTYPE(T) typedef T *const B##T[4];
 
 BTYPE(void);
@@ -156,6 +159,7 @@ fun ok64 Bfree(Bvoid buf) {
 
 #define Bpush(buf) (buf[2]++)
 #define Bpop(buf) (--buf[2])
+#define Btop(buf) (buf[2] - 1)
 
 typedef struct {
     u64 from;

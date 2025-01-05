@@ -5,61 +5,53 @@
 #include "abc/B.h"
 #include "abc/INT.h"
 #include "abc/TLV.h"
-#include "abc/ZINT.h"
 
 con ok64 VLTbad = 0xa2599d55f;
 con ok64 VLTnoroom = 0x31cf3db3c9d55f;
+con ok64 VLTbadnest = 0xe37a72a2599d55f;
 
-typedef struct {
-    u64 pos;
-    // u8 rec[24];
-    u8 key[32 - 8 - 2];
-    u8 lit;
-    u8 keylen;
-} backmark;
-
-fun ok64 VLTopen(Bu8 buf, Bu256 stack, u64 lit) {
-    backmark mark = {
-        .pos = Busylen(buf),
-        .lit = lit,
-    };
-    return Bu256feedp(stack, (u256*)&mark);
+fun ok64 VLTopen(Bu8 buf, Bu64 stack, u64 lit) {
+    u64 mark = Busylen(buf) | (lit << B_MAX_LEN_BITS);
+    return Bu64feed1(stack, mark);
 }
 
-fun ok64 VLTsetid(Bu8 vlt, Bu256 stack, $cu8c id) {
-    sane(Bok(vlt) && Bok(stack) && !Bempty(stack));
-    backmark* mark = (backmark*)Bu256top(stack);
-    if (mark->keylen != 0) return VLTbad;
-    memcpy(mark->key, id[0], $len(id));
-    mark->keylen = $len(id);  // FIXME
-    return OK;
+fun ok64 VLTreopen(Bu8 buf, Bu64 stack, u64 lit) {
+    u64 pos = *(stack[2]);
+    if (pos == 0) return VLTbadnest;
+    pos &= B_MAX_LEN - 1;
+    u64 mark = pos | (lit << B_MAX_LEN_BITS);
+    return Bu64feedp(stack, &mark);
 }
 
-fun ok64 VLTclose(Bu8 vlt, Bu256 stack, u64 lit) {
+fun u8 VLTtop(Bu64 stack) {
+    if (Bempty(stack)) return 0;
+    return *Bu64top(stack) >> B_MAX_LEN_BITS;
+}
+
+fun ok64 VLTclose(Bu8 vlt, Bu64 stack, u64 lit) {
     u8$ into = Bu8idle(vlt);
-    backmark* mark = (backmark*)Bu256top(stack);
-    if ($len(into) < mark->keylen + 1 + 4 + 1) return VLTnoroom;
-    memcpy(*into, mark->key, mark->keylen);
-    into[0] += mark->keylen;
-    **into = mark->keylen;
-    ++*into;
-    size_t blen = Bdatalen(vlt) - mark->pos;
+    u64 pos = *Bu64top(stack) & (B_MAX_LEN - 1);
+    u8 toplit = VLTtop(stack);
+    if (lit != 0 && lit != toplit) return VLTbadnest;
+    if (Busylen(vlt) < pos) return VLTbad;
+    size_t blen = Busylen(vlt) - pos;
     if (blen < 0x100) {
         **into = blen;
         ++*into;
-        **into = lit | TLVaa;
+        **into = toplit | TLVaa;
         ++*into;
     } else {
-        *(u32*)*into = (u32)blen;
+        *(u32*)*into = (u32)blen;  // TODO feed
         *into += sizeof(u32);
-        **into = lit & ~TLVaa;
+        **into = toplit & ~TLVaa;
         ++*into;
     }
+    Bu64pop(stack);
     return OK;
 }
 
-ok64 VLTreverse(Bu8 vlt, u64 deep);
+ok64 VLTreverseTLKV(Bu8 vlt, u64 deep);
 
-ok64 VLTfeedTLV($u8 tlv, $u8c vlt, u64 deep);
+ok64 VLTfeedTLKV($u8 tlv, $u8c vlt, u64 deep);
 
 #endif
