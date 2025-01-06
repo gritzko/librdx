@@ -34,7 +34,7 @@ add_executable(JDRtest JDR.c)
 target_link_options(JDRtest PRIVATE ${TEST_LDD_FLAGS})
 target_compile_options(JDRtest PRIVATE ${TEST_CXX_FLAGS})
 target_link_libraries(JDRtest abc rdx)
-add_test(NAME JDRtest COMMAND JDRtest)
+add_test(NAME JDRtest COMMAND JDRtest ${CMAKE_CURRENT_SOURCE_DIR}/jdr.eq.jdr)
 
 add_executable(RDXZtest RDXZ.c)
 target_link_options(RDXZtest PRIVATE ${TEST_LDD_FLAGS})

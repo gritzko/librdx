@@ -3,9 +3,23 @@
 #include <stdint.h>
 #include <unistd.h>
 
-#include "abc/B.h"
 #include "JDR.h"
+#include "abc/B.h"
 #include "abc/TEST.h"
+
+pro(RDXtest0) {
+    sane(1);
+    want(RDXisPLEX('P'));
+    want(RDXisPLEX('p'));
+    want(!RDXisPLEX('*'));
+    want(!RDXisPLEX('f'));
+    want(RDXisFIRST('f'));
+    want(RDXisFIRST('F'));
+    want(RDXisFIRST('t'));
+    want(RDXisFIRST('T'));
+    want(!RDXisFIRST('P'));
+    done;
+}
 
 pro(RDXtest1) {
     sane(1);
@@ -44,6 +58,7 @@ pro(RDXid128test) {
 
 pro(RDXtest) {
     sane(1);
+    call(RDXtest0);
     call(RDXtest1);
     call(RDXid128test);
     done;

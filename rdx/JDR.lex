@@ -1,4 +1,5 @@
-ws = [\r\n\t ];
+NL = "\n";
+ws = [\r\t ] | NL;
 hex = [0-9a-fA-F];
 
 utf8cont =  (0x80..0xbf);
@@ -18,7 +19,7 @@ esc = [\\] ["\\/bfnrt];
 hexEsc =  "\\u" hex{4};
 utf8esc = (utf8cp - ["\\\r\n]) | esc | hexEsc;
 
-id128 = [0-9a-fA-F]+ ("-" [0-9a-fA-F]+)?;
+id128 = [0-9a-fA-F]+ "-" [0-9a-fA-F]+;
 
 Int = [\-]? ( [0] | [1-9] [0-9]* );
 Float = ( [\-]? ( [0] | [1-9] [0-9]* )
@@ -26,7 +27,7 @@ Float = ( [\-]? ( [0] | [1-9] [0-9]* )
             ([eE] [\-+]? [0-9]+ )? ) - Int;
 Ref = id128 -Float -Int;
 String = ["] utf8esc* ["];
-MLString = "```" (utf8cp - [`])* "```";
+MLString = "`" (utf8cp - [`])* "`";
 Term = [a-zA-Z0-9_~]+ -Int -Float;
 
 Stamp = "@" id128;
@@ -43,12 +44,12 @@ CloseX = ")";
 Comma = ",";
 Colon = ":";
 
-Open = (OpenP | OpenL | OpenE | OpenX) ws* (Stamp ws*)?;
-Close = (CloseP | CloseL | CloseE | CloseX) ws*;
+Open = (OpenP | OpenL | OpenE | OpenX) ws*;
+Close = (CloseP | CloseL | CloseE | CloseX) ws* (Stamp ws*)?;
 Inter = (Comma | Colon) ws*;
 
 delim = Open | Close | Inter;
 
 FIRST = ( Float | Int | Ref | String | MLString | Term ) (ws* Stamp)? ws*;
 
-Root = ws* ( FIRST? ( delim <: FIRST? )* ) ;
+Root = ( ws | FIRST | delim )** ;

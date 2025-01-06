@@ -48,6 +48,10 @@ fun int Bu8cmp(Bu8 const *a, Bu8 const *b) {
 #define a$raw(n, v) $u8 n = {(u8 *)&(v), (u8 *)(&v) + sizeof(v)}
 #define a$rawc(n, v) $u8c n = {(u8 *)&(v), (u8 *)(&v) + sizeof(v)}
 
+#define a$u8c(n, ...)            \
+    u8c __##n[] = {__VA_ARGS__}; \
+    $u8c n = {__##n, __##n + sizeof(__##n)};
+
 fun b8 Bitat(Bu8 buf, size_t ndx) {
     size_t thebyte = ndx >> 3;
     size_t thebit = ndx & 7;
@@ -120,6 +124,13 @@ fun ok64 $u8feedstr($u8 into, const char *str) {
 fun ok64 $u8feedn($u8 into, u8c *what, size_t n) {
     if (unlikely($len(into) < n)) return $noroom;
     memcpy(*into, what, n);
+    *into += n;
+    return OK;
+}
+
+fun ok64 $u8feedcn($u8 into, u8 what, size_t n) {
+    if ($len(into) < n) return Bnoroom;
+    memset(*into, what, n);
     *into += n;
     return OK;
 }

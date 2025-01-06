@@ -79,6 +79,10 @@ ok64 VLTfeedTLKV($u8 tlv, $u8c vlt, u64 deep) {
             fail(TLVbadkv);
         }
         u8 klen = *(e - 1 - llen - 1);
+        if (klen + 1 > tlvlen) {
+            trace("hoba\n");
+        }
+        test(klen + 1 <= tlvlen, VLTbadkey);
         hlen = 1 + llen + 1 + klen;
         blen = tlvlen - klen - 1;
         test($len(tlv) >= hlen + blen, VLTbad);

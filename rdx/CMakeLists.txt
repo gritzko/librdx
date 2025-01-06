@@ -28,7 +28,6 @@ VLT.h
 RDX.h
 RDXC.h
 JDR.h
-JDR.rl.h
 RDXY.h
 )
 

@@ -132,6 +132,28 @@ fun ok64 Bfree(Bvoid buf) {
     return OK;
 }
 
+#define Bump(b, l)                      \
+    {                                   \
+        u8 **bb = (u8 **)b;             \
+        size_t bytes = l * sizeof(**b); \
+        if (bb[2] + bytes > bb[3])      \
+            bb[2] = bb[3];              \
+        else                            \
+            bb[2] += bytes;             \
+    }
+
+#define Back(b)             \
+    {                       \
+        u8 **bb = (u8 **)b; \
+        bb[2] = bb[1];      \
+    }
+
+#define Backpast(b)         \
+    {                       \
+        u8 **bb = (u8 **)b; \
+        bb[1] = bb[0];      \
+    }
+
 #define Brewind(b, past, data)          \
     {                                   \
         assert(past + data <= Blen(b)); \

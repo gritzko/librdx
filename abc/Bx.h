@@ -16,6 +16,9 @@ fun T const *const *X(B, pastc)(X(B, ) buf) {
 fun T **X(B, data)(X(B, ) buf) { return (T **)buf + 1; }
 fun T **X(B, idle)(X(B, ) buf) { return (T **)buf + 2; }
 
+fun T **X(B, $1)(X(B, ) buf) { return (T **)buf + 1; }
+fun T **X(B, $2)(X(B, ) buf) { return (T **)buf + 2; }
+
 fun b8 X(B, hasroom)(X(B, ) buf) { return !$empty(X(B, idle)(buf)); }
 fun b8 X(B, hasdata)(X(B, ) buf) { return !$empty(X(B, data)(buf)); }
 

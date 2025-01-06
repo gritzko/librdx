@@ -13,7 +13,7 @@
 con ok64 RDXnospace = 0xa67974df3ca135b;
 con ok64 RDXbad = 0xa259a135b;
 
-#define RDX_MAX_NEST 64
+#define RDX_MAX_NEST 256
 
 typedef enum {
     // primitive types
@@ -29,6 +29,9 @@ typedef enum {
     RDX_MULTIX = 'X',
 } RDXtype;
 
+con u64 RDX_PLEX_BITS = (1 << (RDX_TUPLE - 'A')) | (1 << (RDX_LINEAR - 'A')) |
+                        (1 << (RDX_EULER - 'A')) | (1 << (RDX_MULTIX - 'A'));
+
 typedef int64_t RDXint;
 typedef double RDXfloat;
 typedef u128 id128;
@@ -41,10 +44,18 @@ typedef $u8c RDXterm;
 #define RDXtime(t) ((t)._64[1])
 #define RDXsrc(t) ((t)._64[0])
 
+fun b8 id128empty(id128 id) { return id._64[0] == 0 && id._64[1] == 0; }
+
 fun b8 RDXisFIRST(u8 l) {
-    return l == 'F' || l == 'I' || l == 'R' || l == 'S' || l == 'T';
+    l &= ~TLVaa;
+    return l == RDX_FLOAT || l == RDX_INT || l == RDX_REF || l == RDX_STRING ||
+           l == RDX_TERM;
 }
-fun b8 RDXisPLEX(u8 l) { return l == 'P' || l == 'L' || l == 'E' || l == 'X'; }
+fun b8 RDXisPLEX(u8 l) {
+    l &= ~TLVaa;
+    return l == RDX_TUPLE || l == RDX_LINEAR || l == RDX_EULER ||
+           l == RDX_MULTIX;
+}
 
 // #define X(M, name) M##$u8c##name
 // #include "abc/HEAPx.h"

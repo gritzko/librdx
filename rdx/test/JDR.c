@@ -1,11 +1,12 @@
 #include "JDR.h"
 
+#include "UNIT.h"
 #include "abc/B.h"
 #include "abc/FILE.h"
 #include "abc/PRO.h"
 #include "abc/TEST.h"
 
-pro(RDXtest1) {
+pro(JDRtest1) {
     sane(1);
 #define LEN1 16
     $u8c inputs[LEN1] = {
@@ -55,7 +56,7 @@ pro(RDXtest1) {
     done;
 }
 
-pro(RDXtest2) {
+pro(JDRtest2) {
     sane(1);
     $u8c ml = $u8str("```multi\nline\n\nstring\n```");
     a$dup(u8c, dup, ml);
@@ -65,11 +66,38 @@ pro(RDXtest2) {
     done;
 }
 
-pro(RDXtest) {
+ok64 eqfn($cu8c cases) {
+    $u8c rec0, rec;
+    a$dup(u8c, c, cases);
+    ok64 o = TLVdrain$(rec0, c);
+    while (!$empty(c) && o == OK) {
+        o = TLVdrain$(rec, c);
+        if (o == OK && !$eq(rec0, rec)) {
+            UNITfail(rec0, rec);
+            o = FAILeq;
+        } else {
+            // fprintf(stderr, "match\n");
+        }
+    }
+    return o;
+}
+
+pro(JDRtest3) {
     sane(1);
-    call(RDXtest1);
-    call(RDXtest2);
+    a$rg(path, 1);
+    Bu8 rdxjbuf = {};
+    int fd = FILE_CLOSED;
+    call(FILEmapro, rdxjbuf, &fd, path);
+    call(UNITdrain, rdxjbuf, eqfn);
     done;
 }
 
-TEST(RDXtest);
+pro(JDRtest) {
+    sane(1);
+    // call(JDRtest1);
+    // call(JDRtest2);
+    call(JDRtest3);
+    done;
+}
+
+MAIN(JDRtest);

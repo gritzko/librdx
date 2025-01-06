@@ -19,6 +19,7 @@ con ok64 OKbadtext = 0x18526968e29f38;
 con ok64 noroom = 0xc73cf6cf2;
 con ok64 badarg = 0xaf6968966;
 con ok64 faileq = 0xd69c2d96a;
+con ok64 FAILeq = 0xd6955228f;
 
 con char *_base_ron64 =
     "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz~";

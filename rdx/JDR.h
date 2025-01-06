@@ -2,6 +2,9 @@
 #define ABC_JDR_H
 #include "RDX.h"
 #include "RDXC.h"
+#include "VLT.h"
+#include "abc/01.h"
+#include "abc/FILE.h"
 #include "abc/OK.h"
 #include "abc/UTF8.h"
 #define RYU_OPTIMIZE_SIZE
@@ -11,23 +14,19 @@
 
 con ok64 JDRbad = 0x289664e135b;
 con ok64 JDRfail = 0xc2d96a4e135b;
-
-typedef struct {
-    u32* l;
-    u32 toks;
-    u8 lit;
-} JDRnest;
+con ok64 JDRbadint = 0x38cada2599b353;
+con ok64 JDRbadnest = 0xe37a72a2599b353;
 
 typedef struct {
     $u8c text;
-    $u8 tlv;
+    u8B vlt;
 
-    JDRnest stack[RDX_MAX_NEST];
-    u32 nest;
+    u64B stack;
 
-    u8 lit;
-    u128 id;
-    $u8c val;
+    u32 line;
+    u32 col;
+
+    u8 pre;
 } JDRstate;
 
 fun ok64 RDXid128feed($u8 txt, id128 id) {
@@ -126,100 +125,9 @@ fun pro(RDXRtlv2txt, $u8 txt, $cu8c tlv) {
     done;
 }
 
-fun ok64 JDRfeedSesc($u8 tlv, $u8c txt) {
-    while (!$empty(txt) && !$empty(tlv)) {
-        if (**txt != '\\') {
-            **tlv = **txt;
-            ++*tlv;
-            ++*txt;
-            continue;
-        }
-        ++*txt;
-        if ($empty(txt)) return JDRbad;
-        switch (**txt) {
-            case 't':
-                **tlv = '\t';
-                break;
-            case 'r':
-                **tlv = '\r';
-                break;
-            case 'n':
-                **tlv = '\n';
-                break;
-            case 'b':
-                **tlv = '\b';
-                break;
-            case 'f':
-                **tlv = '\f';
-                break;
-            case '0':
-                **tlv = 0;
-                break;
-            case '\\':
-                **tlv = '\\';
-                break;
-            case '/':
-                **tlv = '/';
-                break;
-            case '"':
-                **tlv = '"';
-                break;
-            case 'u':
-                return notimplyet;
-            default:
-                return JDRbad;
-        }
-        ++*tlv;
-        ++*txt;
-    }
-    if (!$empty(txt)) return RDXnospace;
-    return OK;
-}
+ok64 JDRfeedSesc($u8 tlv, $u8c txt);
 
-fun pro(JDRdrainSesc, $u8 txt, $u8c tlv) {
-    sane($ok(txt) && $ok(tlv));
-    if ($len(txt) < $len(tlv)) return RDXnospace;
-    u8 t = 0;
-    $u8c key = {};
-    $u8c val = {};
-    call(TLVdrainkv, &t, key, val, tlv);
-    while (!$empty(val) && !$empty(txt)) {
-        switch (**val) {
-            case '\t':
-                call($u8feed2, txt, '\\', 't');
-                break;
-            case '\r':
-                call($u8feed2, txt, '\\', 'r');
-                break;
-            case '\n':
-                call($u8feed2, txt, '\\', 'n');
-                break;
-            case '\b':
-                call($u8feed2, txt, '\\', 'b');
-                break;
-            case '\f':
-                call($u8feed2, txt, '\\', 'f');
-                break;
-            case '\\':
-                call($u8feed2, txt, '\\', '\\');
-                break;
-            case '/':
-                call($u8feed2, txt, '\\', '/');
-                break;
-            case '"':
-                call($u8feed2, txt, '\\', '"');
-                break;
-            case 0:
-                call($u8feed2, txt, '\\', '0');
-                break;
-                // TODO \u etc
-            default:
-                $u8feed1(txt, **val);
-        }
-        ++*val;
-    }
-    done;
-}
+ok64 JDRdrainSesc($u8 txt, $u8c tlv);
 
 fun pro(JDRdrainS, $u8 txt, $u8c tlv) {
     sane($ok(txt) && $ok(tlv));
@@ -233,48 +141,57 @@ ok64 JDRlexer(JDRstate* state);
 
 fun ok64 JDRdrain($u8 tlv, $u8c rdxj) {
     aBcpad(u64, stack, RDX_MAX_NEST);
+    Bu8 vlt = {};
     JDRstate state = {
         .text = $dup(rdxj),
-        .tlv = $dup(tlv),
-        .nest = 1,
+        .stack = (u64B)stackbuf,
     };
-    ok64 o = JDRlexer(&state);
-    $mv(tlv, state.tlv);
+    ok64 o = Bu8alloc(vlt, roundup($len(tlv), PAGESIZE));
+    state.vlt = (u8B)vlt;
+    if (o != OK) return o;
+    o = JDRlexer(&state);
+    // TODO line, col, err msg
+    int fd = FILE_CLOSED;
+    a$strc(_fn, "_rdx.vlt");
+    FILEcreate(&fd, _fn);
+    FILEfeedall(fd, Bu8cdata(state.vlt));
+    FILEclose(&fd);
+    a$dup(u8c, tlv0, tlv);
+    if (o == OK) o = VLTfeedTLKV(tlv, Bu8cdata(state.vlt), RDX_PLEX_BITS);
+    Bu8free(state.vlt);
+    a$strc(_fn2, "_rdx.tlv");
+    FILEcreate(&fd, _fn2);
+    tlv0[1] = tlv[0];
+    FILEfeedall(fd, tlv0);
+    FILEclose(&fd);
     $mv(rdxj, state.text);
     return o;
 }
 
-ok64 _JDRfeed($u8 rdxj, $u8c tlv, u8 prnt);
+ok64 JDRfeed1($u8 rdxj, $u8c tlv, u64 style);
 
 fun pro(JDRfeed, $u8 rdxj, $u8c tlv) {
     sane($ok(rdxj) && $ok(tlv));
     do {
-        call(_JDRfeed, rdxj, tlv, 0);
+        call(JDRfeed1, rdxj, tlv, 0);
         if (!$empty(tlv)) call($u8feed2, rdxj, ',', '\n');
     } while (!$empty(tlv));
     done;
 }
 
-fun ok64 JDRonUtf8cp1($cu8c tok, JDRstate* state) { return OK; }
+enum {
+    StyleStampSpace = 1 << 8,
+    StyleStamps = 1 << 9,
+    StyleCommaNL = 1 << 10,
+    StyleTopCommaNL = 1 << 11,
+    StyleIndentTab = 1 << 12,
+    StyleIndentSpace4 = 1 << 13,
+    StyleTrailingComma = 1 << 14,
+    StyleBracketTuples = 1 << 15,
+    StyleSkipComma = 1 << 16,
+};
 
-fun ok64 JDRonUtf8cp2($cu8c tok, JDRstate* state) {
-    u32 cp = $at(tok, 0) & 0x1f;
-    cp = (cp << 6) | ($at(tok, 1) & 0x3f);
-    if (unlikely(cp >= 0xd800 || cp < 0xe000)) return UTF8bad;
-    return OK;
-}
-
-fun ok64 JDRonUtf8cp3($cu8c tok, JDRstate* state) {
-    u32 cp = $at(tok, 0) & 0x1f;
-    cp = (cp << 6) | ($at(tok, 1) & 0x3f);
-    cp = (cp << 6) | ($at(tok, 2) & 0x3f);
-    if (unlikely(cp >= 0xd800 || cp < 0xe000)) return UTF8bad;
-    return OK;
-}
-
-fun ok64 JDRonUtf8cp4($cu8c tok, JDRstate* state) {
-    // TODO check unicode range
-    return OK;
-}
+static const int StyleCommaSpacers =
+    StyleCommaNL | StyleIndentSpace4 | StyleIndentTab;
 
 #endif

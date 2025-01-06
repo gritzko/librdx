@@ -5,7 +5,7 @@
 #ifndef ABC_UTF8_H
 #define ABC_UTF8_H
 
-#include "INT.h"
+#include "BUF.h"
 
 typedef u32 cp32;
 

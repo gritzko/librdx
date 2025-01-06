@@ -23,7 +23,10 @@ const u8c *LEX_TEMPL[LEX_TEMPL_LANG_LEN][LEX_TEMPL_LEN][2] = {
                "action $mod${act}1 {\n"
                "    tok[0] = text[0] + mark0[$mod$act];\n"
                "    tok[1] = p;\n"
-               "    call(${mod}on$act, tok, state); \n"
+               "    o = ${mod}on$act(tok, state); \n"
+               "    if (o!=OK) {\n"
+               "        fbreak;\n"
+               "    }\n"
                "}\n"),
         $u8str("\t$mod$act = ${mod}enum+$actno,\n"),
         $u8str("ok64 ${mod}on$act ($$cu8c tok, ${mod}state* state);\n"),
@@ -73,6 +76,7 @@ const u8c *LEX_TEMPL[LEX_TEMPL_LANG_LEN][LEX_TEMPL_LEN][2] = {
                "    u8c *pe = (u8c*) text[1];\n"
                "    u8c *eof = pe;\n"
                "    u64 mark0[64] = {};\n"
+               "    ok64 o = OK;\n"
                "\n"
                "    $$u8c tok = {p, p};\n"
                "\n"
@@ -80,10 +84,10 @@ const u8c *LEX_TEMPL[LEX_TEMPL_LANG_LEN][LEX_TEMPL_LEN][2] = {
                "    %% write exec;\n"
                "\n"
                "    state->text[0] = p;\n"
-               "    if (p!=text[1] || cs < ${mod}_first_final) {\n"
+               "    if (p!=text[1] || cs < ${mod}_first_final || o!=OK) {\n"
                "        return ${mod}fail;\n"
                "    }\n"
-               "    done;\n"
+               "    return o;\n"
                "}\n"),
         $u8str("c"),
     },

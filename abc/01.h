@@ -340,6 +340,6 @@ fun ok64 u64decdrain(u64 *x, u8c *const *dec) {
 }
 
 #define $u8str(c) \
-    { (u8 *)c, (u8 *)c + strlen(c) }
+    { (u8 *)(c), (u8 *)(c) + strlen(c) }
 
 #endif
