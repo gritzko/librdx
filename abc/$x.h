@@ -147,7 +147,11 @@ fun ok64 X($, take)(X(, c$) prefix, X($, c) from, size_t len) {
     return OK;
 }
 
-fun void X($, move)(X($, ) into, X($, c) from) { $drain(into, from); }
+fun ok64 X($, move)(X($, ) into, X($, c) from) {
+    if ($len(into) < $len(from)) return $noroom;
+    memmove((void *)*into, (void *)*from, $size(from));
+    return OK;
+}
 
 fun void X(, mv)(T *into, T const *from) { Ocopy(into, from); }
 

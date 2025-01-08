@@ -35,6 +35,7 @@ list(APPEND RDX_SOURCES
 VLT.c
 JDR.c
 JDR.rl.c
+LSM.c
 ryu/d2s.c
 )
 

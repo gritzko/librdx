@@ -17,6 +17,7 @@ set(TEST_LDD_FLAGS "-g")
 add_executable(LSMtest LSM.c)
 target_link_options(LSMtest PRIVATE ${TEST_LDD_FLAGS})
 target_compile_options(LSMtest PRIVATE ${TEST_CXX_FLAGS})
+target_link_libraries(LSMtest abc rdx)
 add_test(NAME LSMtest COMMAND LSMtest)
 
 add_executable(VLTtest VLT.c)

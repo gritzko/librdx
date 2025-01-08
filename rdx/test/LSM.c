@@ -3,6 +3,7 @@
 #include <unistd.h>
 
 #include "abc/B.h"
+#include "abc/FILE.h"
 #include "abc/OK.h"
 #include "abc/TEST.h"
 #include "abc/TLV.h"
@@ -72,9 +73,38 @@ pro(LSM0) {
     done;
 }
 
+fun ok64 nomerge($u8 into, $$u8c from) { return $u8feedall(into, **from); }
+
 pro(LSM1) {
     sane(1);
-    // TODO make it fuzz-ready
+    $u8c kv1[6][2] = {
+        {$u8str("A"), $u8str("1")},  //
+        {$u8str("C"), $u8str("3")},  //
+        {$u8str("B"), $u8str("2")},  //
+        {$u8str("D"), $u8str("4")},  //
+        {$u8str("E"), $u8str("5")},  //
+        {$u8str("B"), $u8str("2")},  //
+    };
+    aBcpad(u8, pad1, 1024);
+    aBpad2($u8c, padpad, 8);
+    aBcpad(u8, pad2, 1024);
+    Bzero(pad1buf);
+    Bzero(padpadbuf);
+    Bzero(pad2buf);
+    for (int i = 0; i < 6; ++i)
+        call(TLVfeedkv, pad1idle, 'K', kv1[i][0], kv1[i][1]);
+    call($$u8cfeed1, padpadidle, pad1data);
+    call(LSMmergehard, pad2idle, padpaddata, alpha, nomerge);
+    int c = 'A';
+    while (!$empty(pad2data)) {
+        u8 ta;
+        $u8c keya;
+        $u8c vala;
+        call(TLVdrainkv, &ta, keya, vala, pad2data);
+        //$println(keya);
+        want(**keya == c);
+        ++c;
+    }
     done;
 }
 
