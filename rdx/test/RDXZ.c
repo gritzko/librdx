@@ -2,13 +2,11 @@
 
 #include <unistd.h>
 
-#include "RDX.h"
 #include "JDR.h"
-#include "abc/$.h"
-#include "abc/01.h"
+#include "RDX.h"
+#include "UNIT.h"
 #include "abc/B.h"
 #include "abc/FILE.h"
-#include "abc/INT.h"
 #include "abc/OK.h"
 #include "abc/PRO.h"
 #include "abc/TEST.h"
@@ -46,18 +44,43 @@ pro(RDXZtestvalue, Bu8 testbuf) {
     done;
 }
 
-pro(RDXZtest) {
-    sane(1);
-    B(u8, testbuf);
-    a$rg(path, 1);
-    // a$str(path, "RDXZ.rdx");
-    int fd = FILE_CLOSED;
-    call(FILEmapro, testbuf, &fd, path);
-    $print(Bu8cdata(testbuf));
-    ok64 o = RDXZtestvalue(testbuf);
-    FILEunmap(testbuf);
-    FILEclose(&fd);
+static $u8c$ zcasesdata;
+static $u8c$ zcasesidle;
+
+con ok64 FAILz = 0x3e55228f;
+
+ok64 zfn($cu8c cases) {
+    a$dup(u8c, c, cases);
+    ok64 o = OK;
+    while (!$empty(c) && o == OK) {
+        $u8c rec;
+        o = TLVdrain$(rec, c);
+        if (o != OK) break;
+        for ($u8cc* p = $head(zcasesdata); p < $term(zcasesdata); ++p) {
+            int z = RDXZvalue(p, &rec);
+            if (z >= 0) {
+                UNITfail(*p, rec);
+                o = FAILz;
+            }
+        }
+        $$u8cfeedp(zcasesidle, &rec);
+    }
     return o;
+}
+
+pro(RDXZtest) {
+    aBpad($u8c, zcases, 256);
+    zcasesidle = B$u8c$2(zcases);
+    zcasesdata = B$u8c$1(zcases);
+    sane(1);
+    a$rg(path, 1);
+    Bu8 rdxjbuf = {};
+    int fd = FILE_CLOSED;
+    call(FILEmapro, rdxjbuf, &fd, path);
+    call(UNITdrain, rdxjbuf, zfn);
+    call(FILEunmap, rdxjbuf);
+    call(FILEclose, &fd);
+    done;
 }
 
 MAIN(RDXZtest);

@@ -44,7 +44,8 @@ fun ok64 UNITsafefeed($u8 into, $cu8c bin) {
     return OK;
 }
 
-fun ok64 HEXdump($u8 into, $u8c bin) {
+fun ok64 HEXdump($u8 into, $u8cc b) {
+    a$dup(u8c, bin, b);
     while (!$empty(bin) && $len(into) >= 16 + 32 + 16 + 2) {
         a$dup(u8c, chunk, bin);
         if ($len(chunk) > 16) {
@@ -146,7 +147,7 @@ ok64 UNITdrain(Bu8 tests, UNITfn fn) {
     return o;
 }
 
-fun ok64 UNITfail($u8c correct, $u8c fact) {
+fun ok64 UNITfail($u8cc correct, $u8cc fact) {
     aBpad2(u8, pad, PAGESIZE);
     a$strc(expstr, "\nEXPECTED:\n");
     a$strc(factstr, "\nFACT:\n");

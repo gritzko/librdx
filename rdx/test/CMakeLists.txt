@@ -41,7 +41,7 @@ add_executable(RDXZtest RDXZ.c)
 target_link_options(RDXZtest PRIVATE ${TEST_LDD_FLAGS})
 target_compile_options(RDXZtest PRIVATE ${TEST_CXX_FLAGS})
 target_link_libraries(RDXZtest abc rdx)
-add_test(NAME RDXZtest COMMAND RDXZtest ${CMAKE_CURRENT_SOURCE_DIR}/RDXZ.rdxj)
+add_test(NAME RDXZtest COMMAND RDXZtest ${CMAKE_CURRENT_SOURCE_DIR}/z.jdr)
 
 add_executable(RDXYtest RDXY.c)
 target_link_options(RDXYtest PRIVATE ${TEST_LDD_FLAGS})

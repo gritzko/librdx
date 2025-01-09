@@ -29,6 +29,7 @@ RDX.h
 RDXC.h
 JDR.h
 RDXY.h
+RDXZ.h
 )
 
 list(APPEND RDX_SOURCES 
