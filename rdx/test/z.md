@@ -1,4 +1,4 @@
-```
+`` `
 This file tests the value-order of RDX elements.
 That is the order Eulerian containers use; it is also used as a fallback in other orders.
 ```
@@ -68,4 +68,4 @@ Eulerian collections: by their id.
     ( @b0b-0 1@a1ec-1, 2@b0b-1 ),
     (@b0b-1 ~@b0b-2, ~@a1ec-3 ),
     (@a1ec-1 ~@b0b-3, ~@a1ec-3 ),
-
+````
