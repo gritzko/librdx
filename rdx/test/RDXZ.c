@@ -50,6 +50,7 @@ static $u8c$ zcasesidle;
 con ok64 FAILz = 0x3e55228f;
 
 ok64 zfn($cu8c cases) {
+    sane($ok(cases));
     a$dup(u8c, c, cases);
     ok64 o = OK;
     while (!$empty(c) && o == OK) {
@@ -57,6 +58,11 @@ ok64 zfn($cu8c cases) {
         o = TLVdrain$(rec, c);
         if (o != OK) break;
         for ($u8cc* p = $head(zcasesdata); p < $term(zcasesdata); ++p) {
+            int self = RDXZvalue(p, p);
+            if (self != 0) {
+                UNITfail(*p, *p);
+                o = FAILz;
+            }
             int z = RDXZvalue(p, &rec);
             if (z >= 0) {
                 UNITfail(*p, rec);

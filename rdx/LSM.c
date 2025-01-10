@@ -26,6 +26,32 @@ ok64 LSMnext($u8 into, $$u8c lsm, $u8cZfn cmp, $u8cYfn mrg) {
     done;
 }
 
+ok64 LSMsort($u8 into, $u8c input, $u8cZfn cmp, $u8cYfn mrg) {
+    sane($ok(into) && $ok(input) && $len(into) >= $len(input) && cmp != nil &&
+         mrg != nil);
+    aBpad2($u8c, runs, LSM_MAX_INPUTS);
+    $u8c run;
+    call(TLVdrain$, run, input);
+    a$dup(u8c, last, run);
+    while (!$empty(input)) {
+        $u8c rec;
+        call(TLVdrain$, rec, input);
+        int z = cmp(&last, &rec);
+        if (z >= 0) {
+            call(B$u8cpush, runsbuf, &run);
+            $mv(run, rec);
+        } else {
+            run[1] = rec[1];
+        }
+        $mv(last, rec);
+    }
+    call(B$u8cpush, runsbuf, &run);
+    // FIXME happy path
+
+    call(LSMmerge, into, runsdata, cmp, mrg);
+    done;
+}
+
 ok64 LSMmergehard($u8 into, $$u8c inputs, $u8cZfn cmp, $u8cYfn mrg) {
     sane($ok(into) && $ok(inputs) && cmp != nil && mrg != nil);
     aBpad2($u8c, lsm, LSM_MAX_INPUTS);

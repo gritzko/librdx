@@ -3,15 +3,13 @@
 #include <unistd.h>
 
 #include "JDR.h"
-#include "RDXZ.h"
+#include "UNIT.h"
 #include "abc/$.h"
 #include "abc/01.h"
 #include "abc/B.h"
 #include "abc/FILE.h"
-#include "abc/INT.h"
 #include "abc/OK.h"
 #include "abc/PRO.h"
-#include "abc/TEST.h"
 
 fun b8 is_tilda($u8c data) {
     u8 _tilda[] = {'t', 2, 0, '~'};
@@ -19,22 +17,9 @@ fun b8 is_tilda($u8c data) {
     return $eq(data, tilda);
 }
 
-pro(RDXY1) {
-    sane(1);
-    aB(u8, rdxj);
-    a$rg(path, 1);
-    aBcpad(u8, tlv, PAGESIZE);
-    int fd = FILE_CLOSED;
-    call(FILEmapro, rdxjbuf, &fd, path);
-    aBcpad(u64, stack, 1024);
-    aBcpad(u8, pad, PAGESIZE);
-    ok64 o = JDRdrain(tlvidle, rdxjcdata);
-    if (o != OK) {
-        $print(rdxjcdata);
-        fail(o);
-    }
-    a$dup(u8c, tlv, tlvdata);
-    int i = 0, j = 0;
+ok64 yfn($cu8c cases) {
+    sane($ok(cases));
+    a$dup(u8c, tlv, cases);
     while (!$empty(tlv)) {
         $u8c in = {};
         aBpad2($u8c, elem, 64);
@@ -50,22 +35,29 @@ pro(RDXY1) {
         call(RDXY, residle, elemdata);
 
         if (!$eq(correct, resdata)) {
-            aBcpad(u8, out, PAGESIZE);
-            call(JDRfeed, outidle, resdata);
-            $u8feed2(outidle, '!', '=');
-            call(JDRfeed, outidle, correct);
-            $println(outdata);
-            fail(faileq);
+            UNITfail(correct, resdata);
+            fail(FAILeq);
         }
     }
+    done;
+}
 
-    FILEunmap(rdxjbuf);
+pro(RDXY2) {
+    aBpad($u8c, zcases, 256);
+    sane(1);
+    a$rg(path, 1);
+    Bu8 rdxjbuf = {};
+    int fd = FILE_CLOSED;
+    call(FILEmapro, rdxjbuf, &fd, path);
+    call(UNITdrain, rdxjbuf, yfn);
+    call(FILEunmap, rdxjbuf);
+    call(FILEclose, &fd);
     done;
 }
 
 pro(RDXYtest) {
     sane(1);
-    call(RDXY1);
+    call(RDXY2);
     done;
 }
 

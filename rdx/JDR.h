@@ -2,7 +2,6 @@
 #define ABC_JDR_H
 #include "RDX.h"
 #include "RDXC.h"
-#include "VLT.h"
 #include "abc/01.h"
 #include "abc/FILE.h"
 #include "abc/OK.h"
@@ -16,16 +15,18 @@ con ok64 JDRbad = 0x289664e135b;
 con ok64 JDRfail = 0xc2d96a4e135b;
 con ok64 JDRbadint = 0x38cada2599b353;
 con ok64 JDRbadnest = 0xe37a72a2599b353;
+con ok64 JDRnoroom = 0x31cf3db3c9b353;
 
 typedef struct {
-    $u8c text;
-    u8B vlt;
+    u8c$ text;
+    u8$ tlv;
 
-    u64B stack;
+    u8pB stack;
 
     u32 line;
     u32 col;
 
+    $u8c val;
     u8 pre;
 } JDRstate;
 
@@ -140,32 +141,22 @@ fun pro(JDRdrainS, $u8 txt, $u8c tlv) {
 ok64 JDRlexer(JDRstate* state);
 
 fun ok64 JDRdrain($u8 tlv, $u8c rdxj) {
-    aBcpad(u64, stack, RDX_MAX_NEST);
-    Bu8 vlt = {};
-    JDRstate state = {
-        .text = $dup(rdxj),
-        .stack = (u64B)stackbuf,
-    };
-    ok64 o = Bu8alloc(vlt, roundup($len(tlv), PAGESIZE));
-    state.vlt = (u8B)vlt;
-    if (o != OK) return o;
-    o = JDRlexer(&state);
-    // TODO line, col, err msg
-    int fd = FILE_CLOSED;
-    a$strc(_fn, "_rdx.vlt");
-    FILEcreate(&fd, _fn);
-    FILEfeedall(fd, Bu8cdata(state.vlt));
-    FILEclose(&fd);
+    sane($ok(tlv) && $ok(rdxj));
+    aBcpad(u8p, stack, RDX_MAX_NEST);
     a$dup(u8c, tlv0, tlv);
-    if (o == OK) o = VLTfeedTLKV(tlv, Bu8cdata(state.vlt), RDX_PLEX_BITS);
-    Bu8free(state.vlt);
+    JDRstate state = {
+        .text = rdxj,
+        .stack = (u8pB)stackbuf,
+        .tlv = tlv,
+    };
+    call(JDRlexer, &state);
+    int fd = FILE_CLOSED;
     a$strc(_fn2, "_rdx.tlv");
     FILEcreate(&fd, _fn2);
     tlv0[1] = tlv[0];
     FILEfeedall(fd, tlv0);
     FILEclose(&fd);
-    $mv(rdxj, state.text);
-    return o;
+    done;
 }
 
 ok64 JDRfeed1($u8 rdxj, $u8c tlv, u64 style);

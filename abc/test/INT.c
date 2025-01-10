@@ -56,6 +56,10 @@ pro(Utest1) {
 
 pro(Utest2) {
     sane(1);
+    a$str(dec, "-123");
+    i64 i;
+    call(i64decdrain, &i, dec);
+    testeq(i, -123);
     done;
 }
 

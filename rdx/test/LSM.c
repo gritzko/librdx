@@ -54,8 +54,6 @@ pro(LSM0) {
     call(HEAP$u8cpushf, lsmbuf, ($u8c*)pad1data, alpha);
     call(HEAP$u8cpushf, lsmbuf, ($u8c*)pad2data, alpha);
 
-    call(LSMsort, lsmdata, alpha);
-
     aBcpad(u8, txt, 1024);
     call(LSMmerge, txtidle, lsmdata, alpha, latest);
 
@@ -86,15 +84,12 @@ pro(LSM1) {
         {$u8str("B"), $u8str("2")},  //
     };
     aBcpad(u8, pad1, 1024);
-    aBpad2($u8c, padpad, 8);
     aBcpad(u8, pad2, 1024);
     Bzero(pad1buf);
-    Bzero(padpadbuf);
     Bzero(pad2buf);
     for (int i = 0; i < 6; ++i)
         call(TLVfeedkv, pad1idle, 'K', kv1[i][0], kv1[i][1]);
-    call($$u8cfeed1, padpadidle, pad1data);
-    call(LSMmergehard, pad2idle, padpaddata, alpha, nomerge);
+    call(LSMsort, pad2idle, pad1data, alpha, nomerge);
     int c = 'A';
     while (!$empty(pad2data)) {
         u8 ta;

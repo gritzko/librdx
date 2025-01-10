@@ -2,6 +2,7 @@
 #define LIBRDX_TLV_H
 #include "$.h"
 #include "01.h"
+#include "B.h"
 #include "INT.h"
 #include "OK.h"
 #include "PRO.h"
@@ -14,9 +15,10 @@ con ok64 TLVoverflo = 0xcf0ab6a7acdf55d;
 con ok64 TLVbadcall = 0xc30967a2599f55d;
 con ok64 TLVbadarg = 0x2bda5a2599f55d;
 con ok64 TLVbadkv = 0xeafa2599f55d;
+con ok64 TLVtoolong = 0xaf2cf0cf3e1f55d;
 
 #define TLVaa 0x20
-#define TLV_MAX_LEN (1 << 30)
+#define TLV_MAX_LEN ((1 << 30) - 1)
 #define TLV_TINY_TYPE '0'
 
 fun int TLVtiny(u8 t) { return t >= '0' && t <= '9'; }
@@ -132,7 +134,8 @@ fun pro(TLVtinyfeed, $u8 into, u8 type, $u8c value) {
 
 /** Open a TLV header for a record of unknown length.
  *  The buffer must be stable during the whole write;
- *  no shifts, no reallocs, no remaps. */
+ *  no shifts, no reallocs, no remaps.
+ * @deprecated */
 fun pro(TLVopen, $u8 tlv, u8 type, u32** len) {
     sane($ok(tlv) && len != nil && TLVlong(type));
     test($len(tlv) >= 5, TLVnoroom);
@@ -144,25 +147,16 @@ fun pro(TLVopen, $u8 tlv, u8 type, u32** len) {
     done;
 }
 
-fun ok64 TLVopenshort($u8 tlv, u8 type, u8** bookmark) {
-    sane($ok(tlv) && bookmark != nil);
-    test($len(tlv) >= 2, TLVnoroom);
-    **tlv = type | TLVaa;
-    ++*tlv;
-    *bookmark = *tlv;
-    **tlv = 0;
-    ++*tlv;
-    done;
-}
+/** Open a TLV header for a yet-unwritten (short) record. */
+ok64 TLVopenshort($u8 tlv, u8 type, Bu8p stack);
 
-fun ok64 TLVcloseshort($u8 tlv, u8 type, u8* const* bookmark) {
-    sane($ok(tlv) && bookmark != nil && *bookmark < *tlv);
-    size_t len = *tlv - *bookmark;
-    test(len <= 0xff, TLVbadrec);
-    **bookmark = (u8)len;
-    done;
-}
+/** Open a TLV header for a yet-unwritten (long) record. */
+ok64 TLVopenlong($u8 tlv, u8 type, Bu8p stack);
 
+/** Finalize the header once the record is complete. */
+ok64 TLVcloseany($u8 tlv, u8 type, Bu8p stack);
+
+// @deprecated
 fun pro(TLVclose, $u8 tlv, u8 type, u32* const* len) {
     sane($ok(tlv) && TLVlong(type) && len != nil && *len != nil &&
          (u8*)*len < *tlv && *(*((u8**)len) - 1) == type);

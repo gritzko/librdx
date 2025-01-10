@@ -19,18 +19,19 @@ esc = [\\] ["\\/bfnrt];
 hexEsc =  "\\u" hex{4};
 utf8esc = (utf8cp - ["\\\r\n]) | esc | hexEsc;
 
-id128 = [0-9a-fA-F]+ "-" [0-9a-fA-F]+;
+id128 = [0-9a-fA-F]+ ("-" [0-9a-fA-F]+)?;
 
 Int = [\-]? ( [0] | [1-9] [0-9]* );
 Float = ( [\-]? ( [0] | [1-9] [0-9]* )
             ("." [0-9]+)?
             ([eE] [\-+]? [0-9]+ )? ) - Int;
-Ref = id128 -Float -Int;
+Term = [a-zA-Z0-9_~]+ -Int -Float;
+Ref = id128 -Float -Int -Term;
 String = ["] utf8esc* ["];
 MLString = "`" (utf8cp - [`])* "`";
-Term = [a-zA-Z0-9_~]+ -Int -Float;
 
 Stamp = "@" id128;
+NoStamp = "";
 
 OpenP = "<";
 CloseP = ">";
@@ -44,12 +45,12 @@ CloseX = ")";
 Comma = ",";
 Colon = ":";
 
-Open = (OpenP | OpenL | OpenE | OpenX) ws*;
-Close = (CloseP | CloseL | CloseE | CloseX) ws* (Stamp ws*)?;
+Open = (OpenP | OpenL | OpenE | OpenX) ws* (Stamp ws* | NoStamp);
+Close = (CloseP | CloseL | CloseE | CloseX) ws*;
 Inter = (Comma | Colon) ws*;
 
 delim = Open | Close | Inter;
 
-FIRST = ( Float | Int | Ref | String | MLString | Term ) (ws* Stamp)? ws*;
+FIRST = ( Float | Int | Ref | String | MLString | Term ) ws* ( Stamp ws* | NoStamp);
 
 Root = ( ws | FIRST | delim )** ;

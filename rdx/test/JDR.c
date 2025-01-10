@@ -4,7 +4,6 @@
 #include "abc/B.h"
 #include "abc/FILE.h"
 #include "abc/PRO.h"
-#include "abc/TEST.h"
 
 pro(JDRtest1) {
     sane(1);
@@ -89,6 +88,8 @@ pro(JDRtest3) {
     int fd = FILE_CLOSED;
     call(FILEmapro, rdxjbuf, &fd, path);
     call(UNITdrain, rdxjbuf, eqfn);
+    call(FILEunmap, rdxjbuf);
+    call(FILEclose, &fd);
     done;
 }
 

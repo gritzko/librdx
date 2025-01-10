@@ -10,6 +10,12 @@
 #include "B.h"
 #include "BUF.h"
 
+con ok64 INTbad = 0xa2599d5d2;
+
+#define I64_MAX INT64_MAX
+#define I64_MIN INT64_MIN
+#define I64_MIN_ABS 0x8000000000000000
+
 fun int u16cmp(const u16 *a, const u16 *b) { return (int)*a - (int)*b; }
 fun int u32cmp(const u32 *a, const u32 *b) {
     // return (i64)*a - (i64)*b;
@@ -196,5 +202,7 @@ fun ok64 $u8feed64($u8 into, u64 const *what) {
 
 fun u8 u64bit(u64 u, u32 ndx) { return 1 & (u >> ndx); }
 fun u8 u128bit(u128 u, u32 ndx) { return 1 & (u._64[ndx >> 6] >> (ndx & 63)); }
+
+ok64 i64decdrain(i64 *i, $u8c tok);
 
 #endif  // ABC_INT_H

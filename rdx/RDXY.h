@@ -152,31 +152,31 @@ fun pro(RDXY, $u8 into, $$u8c inputs) {
     call($u8feed, into, iddata);
 
     switch (maxt) {
-        case 'F':
+        case RDX_FLOAT:
             call(RDXYmergeF, into, baresdata);
             break;
-        case 'I':
+        case RDX_INT:
             call(RDXYmergeI, into, baresdata);
             break;
-        case 'R':
+        case RDX_REF:
             call(RDXYmergeR, into, baresdata);
             break;
-        case 'S':
+        case RDX_STRING:
             call(RDXYmergeS, into, baresdata);
             break;
-        case 'T':
+        case RDX_TERM:
             call(RDXYmergeT, into, baresdata);
             break;
-        case 'P':
+        case RDX_TUPLE:
             call(RDXYmergeP, into, baresdata);
             break;
-        case 'L':
+        case RDX_LINEAR:
             call(RDXYmergeL, into, baresdata);
             break;
-        case 'E':
+        case RDX_EULER:
             call(RDXYmergeE, into, baresdata);
             break;
-        case 'X':
+        case RDX_MULTIX:
             call(RDXYmergeX, into, baresdata);
             break;
         default:

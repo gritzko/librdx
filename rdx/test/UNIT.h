@@ -45,6 +45,7 @@ fun ok64 UNITsafefeed($u8 into, $cu8c bin) {
 }
 
 fun ok64 HEXdump($u8 into, $u8cc b) {
+    sane($ok(into) && $ok(b));
     a$dup(u8c, bin, b);
     while (!$empty(bin) && $len(into) >= 16 + 32 + 16 + 2) {
         a$dup(u8c, chunk, bin);
@@ -84,9 +85,9 @@ ok64 UNITdrain(Bu8 tests, UNITfn fn) {
     a$dup(u8c, cases, Bu8$1(rdx));
     aBcpad(u8, msg, PAGESIZE);
     int cs = 0;
+    $u8c caserdx = {};
     while (o == OK && !$empty(cases)) {
-        $u8c rec;
-        $u8c caserdx;
+        $u8c rec = {};
         o = TLVdrain$(rec, cases);
         if (o != OK) break;
         switch (cs) {
@@ -138,7 +139,7 @@ ok64 UNITdrain(Bu8 tests, UNITfn fn) {
                     escfeed(msgidle, 0);
                     UNITdump(msgidle, caserdx);
                 }
-                FILEfeedall(STDERR_FILENO, msgdata);
+                FILEfeedall(STDOUT_FILENO, msgdata);
                 Breset(msgbuf);
                 break;
         }
@@ -164,7 +165,7 @@ fun ok64 UNITfail($u8cc correct, $u8cc fact) {
     $u8feed1(padidle, '\n');
     HEXdump(padidle, fact);
     Backpast(padbuf);
-    return FILEfeed(STDERR_FILENO, Bu8cdata(padbuf));
+    return FILEfeed(STDOUT_FILENO, Bu8cdata(padbuf));
 }
 
 #endif

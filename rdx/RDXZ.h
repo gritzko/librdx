@@ -1,6 +1,7 @@
 #ifndef ABC_RDX_Z
 #define ABC_RDX_Z
 #include "RDX.h"
+#include "abc/$.h"
 
 fun int _RDXZlit(u8 const* a, u8 const* b) {
     b8 ap = RDXisPLEX(*a);
@@ -61,10 +62,13 @@ fun int RDXZvalue($u8c const* a, $u8c const* b) {
     $u8c vala = {}, valb = {};
     $u8c aa = $dup(*a);
     $u8c bb = $dup(*b);
-    if ($empty(aa) || $empty(bb)) {
-        if (!$empty(bb)) return -1;
-        if (!$empty(aa)) return 1;
-        return 0;
+    if ($empty(aa)) {
+        a$u8c(RDX_EMPTY_TUPLE, RDX_TUPLE | TLVaa, 1, 0);
+        if ($empty(bb) || $eq(bb, RDX_EMPTY_TUPLE)) return 0;
+        return -1;
+    }
+    if ($empty(bb)) {
+        return 1;
     }
     ok64 oa = TLVdrainkv(&ta, keya, vala, aa);
     if (ta == RDX_TUPLE) {

@@ -24,7 +24,6 @@ set(BENCH_LDD_FLAGS benchmark::benchmark)
 
 list(APPEND RDX_HEADERS 
 LSM.h
-VLT.h
 RDX.h
 RDXC.h
 JDR.h
@@ -33,7 +32,6 @@ RDXZ.h
 )
 
 list(APPEND RDX_SOURCES 
-VLT.c
 JDR.c
 JDR.rl.c
 LSM.c

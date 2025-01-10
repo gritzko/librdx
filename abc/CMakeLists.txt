@@ -71,6 +71,7 @@ HTTP.h
 list(APPEND ABC_SOURCES 
 NEST.c
 FILE.c
+INT.c
 JSON.c
 JSON.rl.c
 LEX.c
@@ -82,6 +83,7 @@ URI.c
 HTTP.rl.c
 HTTP.c
 TCP.c
+TLV.c
 UDP.c
 UTF8.c
 )

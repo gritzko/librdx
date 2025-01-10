@@ -12,26 +12,27 @@ enum {
 	JDRUtf8cp4 = JDRenum+12,
 	JDRInt = JDRenum+18,
 	JDRFloat = JDRenum+19,
-	JDRRef = JDRenum+20,
-	JDRString = JDRenum+21,
-	JDRMLString = JDRenum+22,
-	JDRTerm = JDRenum+23,
+	JDRTerm = JDRenum+20,
+	JDRRef = JDRenum+21,
+	JDRString = JDRenum+22,
+	JDRMLString = JDRenum+23,
 	JDRStamp = JDRenum+24,
-	JDROpenP = JDRenum+25,
-	JDRCloseP = JDRenum+26,
-	JDROpenL = JDRenum+27,
-	JDRCloseL = JDRenum+28,
-	JDROpenE = JDRenum+29,
-	JDRCloseE = JDRenum+30,
-	JDROpenX = JDRenum+31,
-	JDRCloseX = JDRenum+32,
-	JDRComma = JDRenum+33,
-	JDRColon = JDRenum+34,
-	JDROpen = JDRenum+35,
-	JDRClose = JDRenum+36,
-	JDRInter = JDRenum+37,
-	JDRFIRST = JDRenum+39,
-	JDRRoot = JDRenum+40,
+	JDRNoStamp = JDRenum+25,
+	JDROpenP = JDRenum+26,
+	JDRCloseP = JDRenum+27,
+	JDROpenL = JDRenum+28,
+	JDRCloseL = JDRenum+29,
+	JDROpenE = JDRenum+30,
+	JDRCloseE = JDRenum+31,
+	JDROpenX = JDRenum+32,
+	JDRCloseX = JDRenum+33,
+	JDRComma = JDRenum+34,
+	JDRColon = JDRenum+35,
+	JDROpen = JDRenum+36,
+	JDRClose = JDRenum+37,
+	JDRInter = JDRenum+38,
+	JDRFIRST = JDRenum+40,
+	JDRRoot = JDRenum+41,
 };
 
 // user functions (callbacks) for the parser
@@ -42,11 +43,12 @@ ok64 JDRonUtf8cp3 ($cu8c tok, JDRstate* state);
 ok64 JDRonUtf8cp4 ($cu8c tok, JDRstate* state);
 ok64 JDRonInt ($cu8c tok, JDRstate* state);
 ok64 JDRonFloat ($cu8c tok, JDRstate* state);
+ok64 JDRonTerm ($cu8c tok, JDRstate* state);
 ok64 JDRonRef ($cu8c tok, JDRstate* state);
 ok64 JDRonString ($cu8c tok, JDRstate* state);
 ok64 JDRonMLString ($cu8c tok, JDRstate* state);
-ok64 JDRonTerm ($cu8c tok, JDRstate* state);
 ok64 JDRonStamp ($cu8c tok, JDRstate* state);
+ok64 JDRonNoStamp ($cu8c tok, JDRstate* state);
 ok64 JDRonOpenP ($cu8c tok, JDRstate* state);
 ok64 JDRonCloseP ($cu8c tok, JDRstate* state);
 ok64 JDRonOpenL ($cu8c tok, JDRstate* state);
@@ -135,6 +137,15 @@ action JDRFloat1 {
         fbreak;
     }
 }
+action JDRTerm0 { mark0[JDRTerm] = p - text[0]; }
+action JDRTerm1 {
+    tok[0] = text[0] + mark0[JDRTerm];
+    tok[1] = p;
+    o = JDRonTerm(tok, state); 
+    if (o!=OK) {
+        fbreak;
+    }
+}
 action JDRRef0 { mark0[JDRRef] = p - text[0]; }
 action JDRRef1 {
     tok[0] = text[0] + mark0[JDRRef];
@@ -162,20 +173,20 @@ action JDRMLString1 {
         fbreak;
     }
 }
-action JDRTerm0 { mark0[JDRTerm] = p - text[0]; }
-action JDRTerm1 {
-    tok[0] = text[0] + mark0[JDRTerm];
-    tok[1] = p;
-    o = JDRonTerm(tok, state); 
-    if (o!=OK) {
-        fbreak;
-    }
-}
 action JDRStamp0 { mark0[JDRStamp] = p - text[0]; }
 action JDRStamp1 {
     tok[0] = text[0] + mark0[JDRStamp];
     tok[1] = p;
     o = JDRonStamp(tok, state); 
+    if (o!=OK) {
+        fbreak;
+    }
+}
+action JDRNoStamp0 { mark0[JDRNoStamp] = p - text[0]; }
+action JDRNoStamp1 {
+    tok[0] = text[0] + mark0[JDRNoStamp];
+    tok[1] = p;
+    o = JDRonNoStamp(tok, state); 
     if (o!=OK) {
         fbreak;
     }
@@ -333,16 +344,17 @@ JDRutf8cp = (   JDRUtf8cp1  |  JDRUtf8cp2  |  JDRUtf8cp3  |  JDRUtf8cp4 ); # no 
 JDResc = (   [\\]  ["\\/bfnrt] ); # no esc callback
 JDRhexEsc = (     "\\u"  JDRhex{4} ); # no hexEsc callback
 JDRutf8esc = (   (JDRutf8cp  -  ["\\\r\n])  |  JDResc  |  JDRhexEsc ); # no utf8esc callback
-JDRid128 = (   [0-9a-fA-F]+  "-"  [0-9a-fA-F]+ ); # no id128 callback
+JDRid128 = (   [0-9a-fA-F]+  ("-"  [0-9a-fA-F]+)? ); # no id128 callback
 JDRInt = (   [\-]?  (  [0]  |  [1-9]  [0-9]*  ) )  >JDRInt0 %JDRInt1;
 JDRFloat = (   (  [\-]?  (  [0]  |  [1-9]  [0-9]*  ) 
                         ("."  [0-9]+)? 
                         ([eE]  [\-+]?  [0-9]+  )?  )  -  JDRInt )  >JDRFloat0 %JDRFloat1;
-JDRRef = (   JDRid128  -JDRFloat  -JDRInt )  >JDRRef0 %JDRRef1;
+JDRTerm = (   [a-zA-Z0-9_~]+  -JDRInt  -JDRFloat )  >JDRTerm0 %JDRTerm1;
+JDRRef = (   JDRid128  -JDRFloat  -JDRInt  -JDRTerm )  >JDRRef0 %JDRRef1;
 JDRString = (   ["]  JDRutf8esc*  ["] )  >JDRString0 %JDRString1;
 JDRMLString = (   "`"  (JDRutf8cp  -  [`])*  "`" )  >JDRMLString0 %JDRMLString1;
-JDRTerm = (   [a-zA-Z0-9_~]+  -JDRInt  -JDRFloat )  >JDRTerm0 %JDRTerm1;
 JDRStamp = (   "@"  JDRid128 )  >JDRStamp0 %JDRStamp1;
+JDRNoStamp = (   "" )  >JDRNoStamp0 %JDRNoStamp1;
 JDROpenP = (   "<" )  >JDROpenP0 %JDROpenP1;
 JDRCloseP = (   ">" )  >JDRCloseP0 %JDRCloseP1;
 JDROpenL = (   "[" )  >JDROpenL0 %JDROpenL1;
@@ -353,11 +365,11 @@ JDROpenX = (   "(" )  >JDROpenX0 %JDROpenX1;
 JDRCloseX = (   ")" )  >JDRCloseX0 %JDRCloseX1;
 JDRComma = (   "," )  >JDRComma0 %JDRComma1;
 JDRColon = (   ":" )  >JDRColon0 %JDRColon1;
-JDROpen = (   (JDROpenP  |  JDROpenL  |  JDROpenE  |  JDROpenX)  JDRws* )  >JDROpen0 %JDROpen1;
-JDRClose = (   (JDRCloseP  |  JDRCloseL  |  JDRCloseE  |  JDRCloseX)  JDRws*  (JDRStamp  JDRws*)? )  >JDRClose0 %JDRClose1;
+JDROpen = (   (JDROpenP  |  JDROpenL  |  JDROpenE  |  JDROpenX)  JDRws*  (JDRStamp  JDRws*  |  JDRNoStamp) )  >JDROpen0 %JDROpen1;
+JDRClose = (   (JDRCloseP  |  JDRCloseL  |  JDRCloseE  |  JDRCloseX)  JDRws* )  >JDRClose0 %JDRClose1;
 JDRInter = (   (JDRComma  |  JDRColon)  JDRws* )  >JDRInter0 %JDRInter1;
 JDRdelim = (   JDROpen  |  JDRClose  |  JDRInter ); # no delim callback
-JDRFIRST = (   (  JDRFloat  |  JDRInt  |  JDRRef  |  JDRString  |  JDRMLString  |  JDRTerm  )  (JDRws*  JDRStamp)?  JDRws* )  >JDRFIRST0 %JDRFIRST1;
+JDRFIRST = (   (  JDRFloat  |  JDRInt  |  JDRRef  |  JDRString  |  JDRMLString  |  JDRTerm  )  JDRws*  (  JDRStamp  JDRws*  |  JDRNoStamp) )  >JDRFIRST0 %JDRFIRST1;
 JDRRoot = (   (  JDRws  |  JDRFIRST  |  JDRdelim  )**   )  >JDRRoot0 %JDRRoot1;
 
 main := JDRRoot;

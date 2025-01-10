@@ -34,22 +34,16 @@ ok64 LSMnext($u8 into, $$u8c lsm, $u8cZfn cmp, $u8cYfn mrg);
 
 fun b8 $u8cempty($u8c const* s) { return $empty(*s); }
 
-fun pro(LSMsort, $$u8c lsm, $u8cZfn cmp) {
-    sane($ok(lsm) && cmp != nil);
+fun ok64 LSMmerge($u8 into, $$u8c lsm, $u8cZfn cmp, $u8cYfn mrg) {
     $$u8cpurge(lsm, &$u8cempty);
     $sort(lsm, cmp);
-    done;
-}
-
-fun ok64 LSMmerge($u8 into, $$u8c lsm, $u8cZfn cmp, $u8cYfn mrg) {
-    ok64 o = LSMsort(lsm, cmp);
-    if (o != OK) return o;
+    ok64 o = OK;
     while (o == OK && !$empty(lsm)) {
         o = LSMnext(into, lsm, cmp, mrg);
     }
     return o;
 }
 
-ok64 LSMmergehard($u8 into, $$u8c inputs, $u8cZfn cmp, $u8cYfn mrg);
+ok64 LSMsort($u8 into, $u8c input, $u8cZfn cmp, $u8cYfn mrg);
 
 #endif

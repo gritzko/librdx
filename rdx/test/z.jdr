@@ -53,19 +53,19 @@ Terms: same as strings.
 Eulerian collections: by their id.
 ```
     { 1, 2, 3,  },
-    { 1, 2, 3 } @e-1,
-    { } @e-2,
+    { @e-1 1, 2, 3 },
+    { @e-2 },
 ```
 ...that applies to arrays as well...
 ```
     [ 1, 2, 3 ],
-    [ 2, 3, 4, 5 ] @a-1,
-    [ 1,2,3 ] @a-23,
+    [ @a-1 2, 3, 4, 5 ],
+    [ @a-2 3 1,2,3 ],
 ```
 ...as well as to multiplexed collections.
 ```
     ( 1@a1ec-1, 2@b0b-1 ),
-    ( 1@a1ec-1, 2@b0b-1 ) @b0b-0,
-    ( ~@b0b-2, ~@a1ec-3 )@b0b-1,
-    ( ~@b0b-3, ~@a1ec-3 )@a1ec-1,
+    ( @b0b-0 1@a1ec-1, 2@b0b-1 ),
+    (@b0b-1 ~@b0b-2, ~@a1ec-3 ),
+    (@a1ec-1 ~@b0b-3, ~@a1ec-3 ),
 

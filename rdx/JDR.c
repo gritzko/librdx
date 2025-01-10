@@ -1,13 +1,14 @@
 
 #include "JDR.h"
 
-#include <stdint.h>
-
+#include "LSM.h"
 #include "RDX.h"
-#include "VLT.h"
+#include "RDXY.h"
+#include "RDXZ.h"
 #include "abc/01.h"
 #include "abc/B.h"
 #include "abc/BUF.h"
+#include "abc/INT.h"
 #include "abc/OK.h"
 #include "abc/PRO.h"
 #include "abc/TLV.h"
@@ -20,131 +21,137 @@
 
 #define JDRaa (0x20UL << B_MAX_LEN_BITS)
 
-ok64 JDRclose(u8 lit, JDRstate* state) {
-    if (0 == (JDRaa & *Btop(state->stack))) $u8feed1(Bu8idle(state->vlt), 0);
-    return VLTclose(state->vlt, state->stack, lit);
-}
-
-a$u8c(VLT_EMPTY_TUPLE, 0, 1, 'p');
+a$u8c(TLV_EMPTY_TUPLE, 'p', 1, 0);
 
 fun ok64 JDRfeedempty(JDRstate* state) {
     state->pre = RDX_TUPLE;
-    return $u8feed(Bu8idle(state->vlt), VLT_EMPTY_TUPLE);
+    return $u8feedall(state->tlv, TLV_EMPTY_TUPLE);
 }
 
 fun ok64 JDRcloseinline(JDRstate* state) {
     sane(1);
     if (state->pre == ':') call(JDRfeedempty, state);
-    call(VLTrename, state->vlt, state->stack, RDX_TUPLE_INLINE, RDX_TUPLE);
+    **Bu8ptop(state->stack) = RDX_TUPLE;
     state->pre = RDX_TUPLE_INLINE;
-    call(JDRclose, RDX_TUPLE, state);
+    call(TLVcloseany, state->tlv, RDX_TUPLE, state->stack);
     done;
 }
 
-ok64 JDRonFIRST0(JDRstate* state, u8 lit) {
-    if (!Bempty(state->stack) && VLTtop(state->stack) == RDX_TUPLE_INLINE &&
+ok64 JDRonFIRST0($cu8c tok, JDRstate* state, u8 lit) {
+    sane(state != nil);
+    if (!Bempty(state->stack) && **Bu8ptop(state->stack) == RDX_TUPLE_INLINE &&
         state->pre != ':') {
-        ok64 o = JDRcloseinline(state);
-        if (o != OK) return o;
+        call(JDRcloseinline, state);
     }
-    return VLTopen(state->vlt, state->stack, lit);
+    call(TLVopenshort, state->tlv, lit, state->stack);
+    $mv(state->val, tok);
+    done;
 }
 
 ok64 JDRonFloat($cu8c tok, JDRstate* state) {
-    ok64 o = JDRonFIRST0(state, RDX_FLOAT);
-    if (o == OK) {
-        u8c* e = 0;
-        double d = strtod((const char*)*tok, (char**)&e);
-        o = ZINTf64feed(Bu8idle(state->vlt), &d);
-    }
-    return o;
+    return JDRonFIRST0(tok, state, RDX_FLOAT);
 }
 
-#define I64_MAX INT64_MAX
-#define I64_MIN INT64_MIN
-#define I64_MIN_ABS 0x8000000000000000
-
 ok64 JDRonInt($cu8c tok, JDRstate* state) {
-    sane($ok(tok) && state != nil);
-    call(JDRonFIRST0, state, RDX_INT);
-    a$dup(u8c, dec, tok);
-    if (**tok == '-' || **tok == '+') ++*dec;
-    u64 x;
-    call(u64decdrain, &x, dec);
-    u64 lim = INT64_MAX;
-    i64 y;
-    if (**tok == '-') {
-        test(x <= I64_MIN_ABS, JDRbadint);
-        y = -x;
-        lim = I64_MIN_ABS;
-    } else {
-        test(x <= I64_MAX, JDRbadint);
-        y = x;
-    }
-    test(x <= lim, JDRbadint);
-    return ZINTi64feed(Bu8idle(state->vlt), &y);
+    return JDRonFIRST0(tok, state, RDX_INT);
 }
 
 ok64 JDRonRef($cu8c tok, JDRstate* state) {
-    sane($ok(tok) && state != nil);
-    call(JDRonFIRST0, state, RDX_REF);
-    id128 bits = {};
-    call(RDXid128drain, &bits, tok);
-    call(ZINTu128feed, Bu8idle(state->vlt), bits);
-    done;
+    return JDRonFIRST0(tok, state, RDX_REF);
 }
 
 ok64 JDRonString($cu8c tok, JDRstate* state) {
-    sane($ok(tok) && state != nil);
-    call(JDRonFIRST0, state, RDX_STRING);
     $u8c str = {tok[0] + 1, tok[1] - 1};
-    call(JDRfeedSesc, Bu8idle(state->vlt), str);
-    done;
+    return JDRonFIRST0(str, state, RDX_STRING);
 }
 
 ok64 JDRonMLString($cu8c tok, JDRstate* state) {
-    sane($ok(tok) && state != nil);
-    call(JDRonFIRST0, state, RDX_STRING);
     $u8c str = {tok[0] + 1, tok[1] - 1};
-    call($u8feed, Bu8idle(state->vlt), str);
-    done;
+    return JDRonFIRST0(str, state, RDX_STRING);
 }
 
 ok64 JDRonTerm($cu8c tok, JDRstate* state) {
+    return JDRonFIRST0(tok, state, RDX_TERM);
+}
+
+ok64 JDRonNoStamp($cu8c tok, JDRstate* state) {
     sane($ok(tok) && state != nil);
-    call(JDRonFIRST0, state, RDX_TERM);
-    call($u8feed, Bu8idle(state->vlt), tok);
-    done;
+    return $u8feed1(state->tlv, 0);
 }
 
 ok64 JDRonStamp($cu8c tok, JDRstate* state) {
     sane($ok(tok) && $len(tok) >= 2 && **tok == '@' && state != nil);
-    *Btop(state->stack) |= JDRaa;
     $u8c idstr = {tok[0] + 1, tok[1]};
     id128 id = {};
-    u64 l = Busylen(state->vlt);
     call(RDXid128drain, &id, idstr);
-    call(ZINTu128feed, Bu8idle(state->vlt), id);
-    call($u8feed1, Bu8idle(state->vlt), Busylen(state->vlt) - l);
+    u8* p = $head(state->tlv);
+    call($u8feed1, state->tlv, 0);
+    call(ZINTu128feed, state->tlv, id);
+    *p = $head(state->tlv) - p - 1;
     done;
 }
 
 ok64 JDRonFIRST($cu8c tok, JDRstate* state) {
+    sane(state != nil && $ok(tok) && !Bempty(state->stack));
+    u8 lit = **Bu8ptop(state->stack) & ~TLVaa;
+    switch (lit) {
+        case RDX_FLOAT: {
+            u8c* e = 0;
+            double d = strtod((const char*)state->val[0], (char**)&e);
+            call(ZINTf64feed, state->tlv, &d);
+            break;
+        }
+        case RDX_INT: {
+            i64 i;
+            call(i64decdrain, &i, state->val);
+            call(ZINTi64feed, state->tlv, &i);
+            break;
+        }
+        case RDX_REF: {
+            id128 bits = {};
+            call(RDXid128drain, &bits, state->val);
+            call(ZINTu128feed, state->tlv, bits);
+            break;
+        }
+        case RDX_STRING: {
+            if (**tok == '"') {
+                call(JDRfeedSesc, state->tlv, state->val);
+            } else if (**tok == '`') {
+                call($u8feed, state->tlv, state->val);
+            } else {
+                fail(FAILsanity);
+            }
+            break;
+        }
+        case RDX_TERM: {
+            call($u8feed, state->tlv, state->val);
+            break;
+        }
+        default:
+            fail(FAILsanity);
+    }
+    call(TLVcloseany, state->tlv, lit, state->stack);
     state->pre = '1';
-    return JDRclose(0, state);
+    done;
+}
+
+fun u8 JDRtop(Bu8p stack) {
+    if (Bempty(stack)) return 0;
+    return **Bu8ptop(stack);
 }
 
 ok64 JDRonPLEX0(u8 lit, JDRstate* state) {
     sane(state != nil);
-    if (VLTtop(state->stack) == RDX_TUPLE_INLINE && state->pre != ':')
+    if (JDRtop(state->stack) == RDX_TUPLE_INLINE && state->pre != ':')
         call(JDRcloseinline, state);
     state->pre = 0;
-    return VLTopen(state->vlt, state->stack, lit);
+    call(TLVopenlong, state->tlv, lit, state->stack);
+    done;
 }
 
 ok64 JDRonPLEX1(u8 lit, JDRstate* state) {
     sane(state != nil && RDXisPLEX(lit));
-    if (VLTtop(state->stack) == RDX_TUPLE_INLINE) {
+    if (**Bu8ptop(state->stack) == RDX_TUPLE_INLINE) {
         call(JDRcloseinline, state);
     } else if (state->pre == ',' || (lit != RDX_TUPLE && state->pre == 0)) {
         call(JDRfeedempty, state);
@@ -187,28 +194,87 @@ ok64 JDRonCloseX($cu8c tok, JDRstate* state) {
 
 ok64 JDRonOpen($cu8c tok, JDRstate* state) { return OK; }
 
+fun b8 JDRisP1(JDRstate* state) {
+    u8p start = *Bu8ptop(state->stack);
+    if (*start != RDX_TUPLE) return NO;
+    $u8c inner = {start + 1 + 4 + 1 + start[5], state->tlv[0]}, rec;
+    if ($empty(inner)) return NO;
+    TLVdrain$(rec, inner);
+    return $empty(inner);
+}
+
+ok64 JDRsort(JDRstate* state, $u8cZfn cmp, $u8cYfn mrg) {
+    sane(state != nil);
+    u8p start = *Bu8ptop(state->stack) + 1 + 4;
+    start += *start + 1;
+    $u8c body = {start, state->tlv[0]};
+    u8p mark = state->tlv[0];
+    call(LSMsort, state->tlv, body, cmp, mrg);
+    $u8c from = {mark, state->tlv[0]};
+    $u8c into = {start, start + $len(from)};
+    $u8move((u8$)into, from);
+    state->tlv[0] = start + $len(from);
+    done;
+}
+
 ok64 JDRonClose($cu8c tok, JDRstate* state) {
     sane(state != nil);
     u8 lit = state->pre;
+    test(JDRtop(state->stack) == lit, FAILsanity);
     if (!RDXisPLEX(lit)) fail(FAILsanity);
-    if (VLTis1(state->stack) && VLTtop(state->stack) == RDX_TUPLE) {
-        Bu64pop(state->stack);
+    if (lit == RDX_TUPLE && JDRisP1(state)) {
+        u8p start = *Bu8ptop(state->stack);
+        $u8c from = {start + 1 + 4 + 1, state->tlv[0]};
+        $u8 into = {start, state->tlv[0] - 4 - 1 - 1};
+        $u8move(into, from);
+        state->tlv[0] -= 4 + 1 + 1;
+        Bu8ppop(state->stack);
+    } else if (lit == RDX_EULER) {
+        call(JDRsort, state, RDXZvalue, RDXY);
+        call(TLVcloseany, state->tlv, lit, state->stack);
+    } else if (lit == RDX_MULTIX) {
+        call(JDRsort, state, RDXZauthor, RDXY);
+        call(TLVcloseany, state->tlv, lit, state->stack);
     } else {
-        call(JDRclose, lit, state);
+        call(TLVcloseany, state->tlv, lit, state->stack);
+    }
+    done;
+}
+
+ok64 JDRinsertU(JDRstate* state) {
+    sane(state != nil);
+    if (state->pre == 0 || state->pre == ',') {
+        call(TLVopenlong, state->tlv, RDX_TUPLE_INLINE, state->stack);
+        call($u8feed1, state->tlv, 0);
+        call(JDRfeedempty, state);
+    } else {
+        u8p start = *$term(Bu8pdata(state->stack));
+        $u8c rec = {start, state->tlv[0]}, key, body;
+        test($len(state->tlv) > 1 + 4 + 1 + 1 + $len(rec), JDRnoroom);
+        u8 lit;
+        call(TLVdrainkv, &lit, key, body, rec);
+        test($empty(rec), FAILsanity);
+        u8p safe0 = state->tlv[0] + 1 + 4 + 1 + 1;
+        $u8 safekey = {safe0, safe0 + $len(key)};
+        $u8 safebody = {safe0 + $len(key), safe0 + $len(key) + $len(body)};
+        $u8move(safekey, key);
+        $u8move(safebody, body);
+        state->tlv[0] = start;
+        call(TLVopenlong, state->tlv, RDX_TUPLE_INLINE, state->stack);
+        call($u8feed1, state->tlv, $len(key));
+        call($u8feedall, state->tlv, (u8c$)safekey);
+        --safebody[0];
+        **safebody = 0;
+        call(TLVfeed, state->tlv, lit, (u8c$)safebody);
     }
     done;
 }
 
 ok64 JDRonColon($cu8c tok, JDRstate* state) {
+    // FIXME  <1:2>
     sane($ok(tok) && state != nil);
-    u8 top = VLTtop(state->stack);
-    if (top != RDX_TUPLE_INLINE) {
-        if (state->pre == 0 || state->pre == ',') {
-            call(VLTopen, state->vlt, state->stack, RDX_TUPLE_INLINE);
-            call(JDRfeedempty, state);
-        } else {
-            call(VLTreopen, state->vlt, state->stack, RDX_TUPLE_INLINE);
-        }
+    if (JDRtop(state->stack) != RDX_TUPLE_INLINE) {
+        call(JDRinsertU, state);
     } else if (state->pre == 0 || state->pre == ':') {
         call(JDRfeedempty, state);
     }
@@ -218,8 +284,7 @@ ok64 JDRonColon($cu8c tok, JDRstate* state) {
 
 ok64 JDRonComma($cu8c tok, JDRstate* state) {
     sane($ok(tok) && state != nil);
-    u8 top = VLTtop(state->stack);
-    if (top == RDX_TUPLE_INLINE) {
+    if (!Bempty(state->stack) && **Bu8ptop(state->stack) == RDX_TUPLE_INLINE) {
         call(JDRcloseinline, state);
     }
     if (state->pre == 0 || state->pre == ',') {
@@ -231,7 +296,8 @@ ok64 JDRonComma($cu8c tok, JDRstate* state) {
 
 pro(JDRonRoot, $cu8c tok, JDRstate* state) {
     sane($ok(tok) && state != nil);
-    if (VLTtop(state->stack) == RDX_TUPLE_INLINE) call(JDRcloseinline, state);
+    if (!Bempty(state->stack) && **Bu8ptop(state->stack) == RDX_TUPLE_INLINE)
+        call(JDRcloseinline, state);
     done;
 }
 
@@ -326,42 +392,6 @@ ok64 JDRfeedSesc($u8 tlv, $u8c txt) {
 
 ok64 JDRdrainSesc($u8 txt, $u8c tlv);
 // . . . . . . . w r i t e r . . . . . . .
-
-a$strc(Tabs,
-       "\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t"
-       "\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t"
-       "\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t"
-       "\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t"
-       "\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t"
-       "\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t"
-       "\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t"
-       "\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t"
-       "\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t"
-       "\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t"
-       "\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t"
-       "\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t"
-       "\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t"
-       "\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t"
-       "\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t"
-       "\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t");
-
-a$strc(Spaces,
-       "                                "
-       "                                "
-       "                                "
-       "                                "
-       "                                "
-       "                                "
-       "                                "
-       "                                "
-       "                                "
-       "                                "
-       "                                "
-       "                                "
-       "                                "
-       "                                "
-       "                                "
-       "                                ");
 
 fun ok64 JDRfeedstamp($u8 rdxj, id128 stamp) {
     if (id128empty(stamp)) return OK;

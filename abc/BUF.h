@@ -12,11 +12,20 @@ fun int u8cpcmp(u8 const *const *a, u8 const *const *b) {
     return *a < *b ? -1 : 1;
 }
 
+fun int u8pcmp(u8 *const *a, u8 *const *b) {
+    if (*a == *b) return 0;
+    return *a < *b ? -1 : 1;
+}
+
 fun int $u8cmp(u8 const *const *a, u8 const *const *b) { return $cmp(a, b); }
 
 fun int $u8cz($cu8c a, $cu8c b) { return $cmp(a, b); }
 
 #define X(M, name) M##u8##name
+#include "Bx.h"
+#undef X
+
+#define X(M, name) M##u8p##name
 #include "Bx.h"
 #undef X
 

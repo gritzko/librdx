@@ -6,6 +6,7 @@
 
 #include "FILE.h"
 #include "INT.h"
+#include "PRO.h"
 #include "TEST.h"
 
 pro(TLVtest1) {
@@ -102,11 +103,26 @@ pro(TLVtest3) {
     done;
 }
 
+ok64 TLVtest4() {
+    sane(1);
+    aBpad2(u8, pad, PAGESIZE);
+    aBpad(u8p, stack, 16);
+    u8 correct[] = {'a', 4, 't', 'e', 's', 't'};
+    a$(u8c, cor, correct);
+    $u8c text = {cor[0] + 2, cor[1]};
+    call(TLVopenlong, padidle, 'A', stack);
+    call($u8feedall, padidle, text);
+    call(TLVcloseany, padidle, 'A', stack);
+    $testeq(cor, paddata);
+    done;
+}
+
 pro(TLVtest) {
     sane(1);
     call(TLVtest1);
     call(TLVtest2);
     call(TLVtest3);
+    call(TLVtest4);
     done;
 }
 
