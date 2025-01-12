@@ -21,9 +21,10 @@ con ok64 TESTfaileq = 0xd69c2d96a75c39d;
     uint8_t _pro_depth = 0;                                              \
     int main(int argn, char **args) {                                    \
         ok64 ret = f();                                                  \
-        if (ret != OK)                                                   \
+        if (ret != OK) {                                                 \
             trace("%s<%s at %s:%i\n", PROindent, ok64str(ret), __func__, \
                   __LINE__);                                             \
+        }                                                                \
         return ret;                                                      \
     }
 

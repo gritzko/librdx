@@ -117,7 +117,7 @@ fun ok64 X($, free)(X($, c) what) {
 
 fun ok64 X($, feed)(X($, ) into, X($c, c) from) {  // TODO naming
     if (unlikely(!$ok(from) || !$ok(into))) return $badarg;
-    if ($size(from) > $size(into)) return $noroom;
+    if (unlikely($size(from) > $size(into))) return $noroom;
     memcpy((void *)*into, (void *)*from, $size(from));
     *into += $len(from);
     return OK;
@@ -125,7 +125,7 @@ fun ok64 X($, feed)(X($, ) into, X($c, c) from) {  // TODO naming
 
 fun ok64 X($, feedall)(X($, ) into, X($c, c) from) {
     if (unlikely(!$ok(from) || !$ok(into))) return $badarg;
-    if ($size(from) > $size(into)) return $noroom;
+    if (unlikely($size(from) > $size(into))) return $noroom;
     memcpy((void *)*into, (void *)*from, $size(from));
     *into += $len(from);
     return OK;

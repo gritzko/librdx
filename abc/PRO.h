@@ -20,10 +20,14 @@ con char *_pro_indent =
 #define pro(name, ...) ok64 name(__VA_ARGS__)
 
 // Mandatory sanity checks; might be disabled in Release mode.
+#ifndef ABC_INSANE
 #define sane(c)                            \
     trace("%s>%s\n", PROindent, __func__); \
     if (!(c)) return FAILsanity;           \
     ok64 __ = OK;
+#else
+#define sane(c) ok64 __ = OK;
+#endif
 
 #define call(f, ...)                                                    \
     {                                                                   \

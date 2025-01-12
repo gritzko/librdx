@@ -207,13 +207,9 @@ ok64 JDRsort(JDRstate* state, $u8cZfn cmp, $u8cYfn mrg) {
     sane(state != nil);
     u8p start = *Bu8ptop(state->stack) + 1 + 4;
     start += *start + 1;
-    $u8c body = {start, state->tlv[0]};
-    u8p mark = state->tlv[0];
-    call(LSMsort, state->tlv, body, cmp, mrg);
-    $u8c from = {mark, state->tlv[0]};
-    $u8c into = {start, start + $len(from)};
-    $u8move((u8$)into, from);
-    state->tlv[0] = start + $len(from);
+    $u8 body = {start, state->tlv[0]};
+    call(LSMsort, body, cmp, mrg, state->tlv);
+    state->tlv[0] = body[1];
     done;
 }
 

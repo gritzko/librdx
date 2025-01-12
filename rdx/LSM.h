@@ -44,6 +44,10 @@ fun ok64 LSMmerge($u8 into, $$u8c lsm, $u8cZfn cmp, $u8cYfn mrg) {
     return o;
 }
 
-ok64 LSMsort($u8 into, $u8c input, $u8cZfn cmp, $u8cYfn mrg);
+// Almost in-place merge sort of TLV records.
+// May not be the best way to sort things in the general case,
+// as it implies the data goes roughly in order.
+// The scratch space must not be less than the sorted slice.
+ok64 LSMsort($u8 data, $u8cZfn cmp, $u8cYfn mrg, $u8 tmp);
 
 #endif

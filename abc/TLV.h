@@ -34,15 +34,15 @@ fun u32 TLVtinylen(size_t len) {
 fun ok64 TLVprobe(u8* t, u32* hlen, u32* blen,
                   $cu8c data) {  // FIXME tiny on request, inline short
     if ($empty(data)) return TLVnodata;
-    if (TLVtiny(**data)) {
-        *t = TLV_TINY_TYPE;
-        *hlen = 1;
-        *blen = **data - '0';
-    } else if (TLVshort(**data)) {
+    if (TLVshort(**data)) {
         if ($len(data) < 2) return TLVnodata;
         *t = **data - TLVaa;
         *hlen = 2;
         *blen = (*data)[1];
+    } else if (TLVtiny(**data)) {
+        *t = TLV_TINY_TYPE;
+        *hlen = 1;
+        *blen = **data - '0';
     } else if (TLVlong(**data)) {
         if ($len(data) < 5) return TLVnodata;
         *t = **data;

@@ -7,6 +7,7 @@
 #include "abc/OK.h"
 #include "abc/TEST.h"
 #include "abc/TLV.h"
+#include "abc/ZINT.h"
 
 fun int alpha($cu8c* a, $cu8c* b) {
     a$dup(u8c, aa, *a);
@@ -83,19 +84,17 @@ pro(LSM1) {
         {$u8str("E"), $u8str("5")},  //
         {$u8str("B"), $u8str("2")},  //
     };
-    aBcpad(u8, pad1, 1024);
-    aBcpad(u8, pad2, 1024);
-    Bzero(pad1buf);
-    Bzero(pad2buf);
+    aBpad2(u8, pad, 1024);
+    Bzero(padbuf);
     for (int i = 0; i < 6; ++i)
-        call(TLVfeedkv, pad1idle, 'K', kv1[i][0], kv1[i][1]);
-    call(LSMsort, pad2idle, pad1data, alpha, nomerge);
+        call(TLVfeedkv, padidle, 'K', kv1[i][0], kv1[i][1]);
+    call(LSMsort, paddata, alpha, nomerge, padidle);
     int c = 'A';
-    while (!$empty(pad2data)) {
+    while (!$empty(paddata)) {
         u8 ta;
         $u8c keya;
         $u8c vala;
-        call(TLVdrainkv, &ta, keya, vala, pad2data);
+        call(TLVdrainkv, &ta, keya, vala, Bu8cdata(padbuf));
         //$println(keya);
         want(**keya == c);
         ++c;
@@ -103,10 +102,49 @@ pro(LSM1) {
     done;
 }
 
+fun int ZINTz($cu8c* a, $cu8c* b) {
+    a$dup(u8c, aa, *a);
+    a$dup(u8c, bb, *b);
+    $u8c vala, valb;
+    u8 ta, tb;
+    TLVdrain(&ta, vala, aa);
+    TLVdrain(&tb, valb, bb);
+    u64 au, bu;
+    ZINTu64drain(&au, vala);
+    ZINTu64drain(&bu, valb);
+    return u64cmp(&au, &bu);
+}
+
+ok64 LSM1000000() {
+    sane(1);
+#define LEN (1 << 16)
+    aB(u8, mil);
+    call(Bu8alloc, milbuf, LEN * 16 * 2);
+    aBpad(u8p, stack, 8);
+    for (u64 i = 0; i < LEN; ++i) {
+        call(TLVopenshort, milidle, 'I', stack);
+        call(ZINTu64feed, milidle, i ^ 13);
+        call(TLVcloseany, milidle, 'I', stack);
+    }
+    call(LSMsort, mildata, ZINTz, nomerge, milidle);
+    for (u64 i = 0; i < LEN; ++i) {
+        u8 t = 0;
+        $u8c zint = {};
+        call(TLVdrain, &t, zint, Bu8cdata(milbuf));
+        want(t == 'I');
+        u64 u = 0;
+        call(ZINTu64drain, &u, zint);
+        want(u == i);
+    }
+    call(Bu8free, milbuf);
+    done;
+}
+
 pro(LSMtest) {
     sane(1);
     call(LSM0);
     call(LSM1);
+    call(LSM1000000);
     done;
 }
 
