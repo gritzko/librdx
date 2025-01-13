@@ -96,8 +96,17 @@ ok64 JDRonFIRST($cu8c tok, JDRstate* state) {
     u8 lit = **Bu8ptop(state->stack) & ~TLVaa;
     switch (lit) {
         case RDX_FLOAT: {
-            u8c* e = 0;
-            double d = strtod((const char*)state->val[0], (char**)&e);
+            double d = 0;
+            if (state->text[1] == state->val[1]) {
+                size_t tl = $len(state->val);
+                test(tl < 32, RDXbad);
+                u8 str[32];
+                memcpy(str, *state->val, tl);
+                str[tl] = 0;
+                d = strtod((char*)str, nil);
+            } else {
+                d = strtod((char*)state->val[0], nil);
+            }
             call(ZINTf64feed, state->tlv, &d);
             break;
         }
