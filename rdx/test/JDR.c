@@ -7,7 +7,7 @@
 
 pro(JDRtest1) {
     sane(1);
-#define LEN1 16
+#define LEN1 17
     $u8c inputs[LEN1] = {
         $u8str("123"),
         $u8str("1.2345E2"),
@@ -19,12 +19,14 @@ pro(JDRtest1) {
         $u8str("123@ab-45"),
         $u8str("[1@ab-12,1.23E0@cd-34,\"str\"@ef-56,ab-123@78-90]"),
         $u8str("\"line\\n\\tmore\\n\""),
-        $u8str("nested:<tuple>"),
+        $u8str("<nested,tu:ple>"),
         $u8str("(~@b0b-1,~@a1ec-2)"),
-        $u8str("(-1@b0b-1,2345@2e)"),
+        $u8str("(2345@2e,-1@b0b-1)"),
         $u8str("[1:2:3]"),
         $u8str("<@b0b-1 4:5:6>"),
         $u8str("7:8@b0b-1:9"),
+        $u8str("<@3 <,>>"),
+        //$u8str("::::::::::::::::::::::::::::::::"),
     };
 
     for (int i = 0; i < LEN1; ++i) {
@@ -46,7 +48,8 @@ pro(JDRtest1) {
         if (o == OK && 0 != $cmp(inputs[i], rdxj2data)) o = faileq;
 
         if (o != OK) {
-            $print(rdxj2data);
+            $println(inputs[i]);
+            $println(rdxj2data);
             fail(o);
         }
 
@@ -57,11 +60,11 @@ pro(JDRtest1) {
 
 pro(JDRtest2) {
     sane(1);
-    $u8c ml = $u8str("```multi\nline\n\nstring\n```");
+    $u8c ml = $u8str("`multi\nline\n\nstring\n`");
     a$dup(u8c, dup, ml);
     aBcpad(u8, tlv, PAGESIZE);
     call(JDRdrain, tlvidle, dup);
-    testeq($len(tlvdata), $len(ml) - 6 + 3);
+    testeq($len(tlvdata), $len(ml) - 2 + 3);
     done;
 }
 
@@ -95,8 +98,8 @@ pro(JDRtest3) {
 
 pro(JDRtest) {
     sane(1);
-    // call(JDRtest1);
-    // call(JDRtest2);
+    call(JDRtest1);
+    call(JDRtest2);
     call(JDRtest3);
     done;
 }

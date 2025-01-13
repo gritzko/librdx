@@ -17,7 +17,7 @@
 
 #define MASK (ABC_HASH_LINE - 1)
 
-fun pro(X(HASH, scan), size_t *ndx, X($, ) data, T const *rec) {
+fun ok64 X(HASH, scan)(size_t *ndx, X($, ) data, T const *rec) {
     sane($ok(data) && ndx != nil && 0 == ($len(data) & MASK));
     size_t off = (*ndx) & MASK;
     size_t base = (*ndx) & ~MASK;
@@ -91,7 +91,7 @@ fun ok64 X(HASH, put)(X($, ) data, T const *rec) {
     return X(HASH, _put)(rec, data, hash);
 }
 
-fun pro(X(HASH, shift), X($, ) data, size_t ndx) {
+fun ok64 X(HASH, shift)(X($, ) data, size_t ndx) {
     sane($ok(data) && ndx < $len(data));
     size_t off = ndx & MASK;
     size_t base = ndx & ~MASK;

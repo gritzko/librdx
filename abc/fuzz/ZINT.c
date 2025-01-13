@@ -3,6 +3,7 @@
 #include "TEST.h"
 
 fuzz(u64, ZINTfuzz) {
+    sane(1);
     if ($len(input) & 1) --input[1];
     a$dup(u64c, tozip, input);
     $eat(tozip) {

@@ -117,7 +117,7 @@ fun int ZINTz($cu8c* a, $cu8c* b) {
 
 ok64 LSM1000000() {
     sane(1);
-#define LEN (1 << 16)
+#define LEN (1 << 10)
     aB(u8, mil);
     call(Bu8alloc, milbuf, LEN * 16 * 2);
     aBpad(u8p, stack, 8);

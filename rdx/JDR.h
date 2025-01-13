@@ -150,12 +150,6 @@ fun ok64 JDRdrain($u8 tlv, $u8c rdxj) {
         .tlv = tlv,
     };
     call(JDRlexer, &state);
-    int fd = FILE_CLOSED;
-    a$strc(_fn2, "_rdx.tlv");
-    FILEcreate(&fd, _fn2);
-    tlv0[1] = tlv[0];
-    FILEfeedall(fd, tlv0);
-    FILEclose(&fd);
     done;
 }
 

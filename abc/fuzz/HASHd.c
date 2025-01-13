@@ -3,6 +3,7 @@
 //
 #include "INT.h"
 #include "KV.h"
+#include "PRO.h"
 
 fun u64 u32hash(u32 const *v) { return mix32(*v); }
 
@@ -55,5 +56,6 @@ int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
     Bu32free(dictbuf);
     Bu32free(copybuf);
     free(ins);
-    done;
+
+    return 0;
 }

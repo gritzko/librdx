@@ -38,5 +38,5 @@ con ok64 TESTfaileq = 0xd69c2d96a75c39d;
         assert(o == OK);                                           \
         return 0;                                                  \
     }                                                              \
-    pro(n, $##T##c input)
+    ok64 n($##T##c input)
 #endif

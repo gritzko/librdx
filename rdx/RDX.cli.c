@@ -4,8 +4,8 @@
 #include "JDR.h"
 #include "RDXY.h"
 #include "abc/$.h"
+#include "abc/BUF.h"
 #include "abc/FILE.h"
-#include "abc/INT.h"
 
 u8 *input[4] = {};
 u8 *output[4] = {};

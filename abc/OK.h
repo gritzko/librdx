@@ -69,6 +69,8 @@ fun ok64 OKprint(ok64 o, uint8_t **into) {
     return o ? OKnoroom : OK;
 }
 
+fun ok64 ok64feed(u8 **into, ok64 val) { return OKprint(val, into); }
+
 fun ok64 OKscan(ok64 *o, uint8_t const **from) {
     ok64 res = 0;
     int shift = 0;

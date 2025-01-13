@@ -151,6 +151,7 @@ ok64 JDRonPLEX0(u8 lit, JDRstate* state) {
 
 ok64 JDRonPLEX1(u8 lit, JDRstate* state) {
     sane(state != nil && RDXisPLEX(lit));
+    if (Bempty(state->stack)) return JDRbadnest;
     if (**Bu8ptop(state->stack) == RDX_TUPLE_INLINE) {
         call(JDRcloseinline, state);
     } else if (state->pre == ',' || (lit != RDX_TUPLE && state->pre == 0)) {
@@ -194,9 +195,10 @@ ok64 JDRonCloseX($cu8c tok, JDRstate* state) {
 
 ok64 JDRonOpen($cu8c tok, JDRstate* state) { return OK; }
 
-fun b8 JDRisP1(JDRstate* state) {
+fun b8 JDRisPmoot(JDRstate* state) {
     u8p start = *Bu8ptop(state->stack);
     if (*start != RDX_TUPLE) return NO;
+    if (start[5] != 0) return NO;
     $u8c inner = {start + 1 + 4 + 1 + start[5], state->tlv[0]}, rec;
     if ($empty(inner)) return NO;
     TLVdrain$(rec, inner);
@@ -218,8 +220,8 @@ ok64 JDRonClose($cu8c tok, JDRstate* state) {
     u8 lit = state->pre;
     test(JDRtop(state->stack) == lit, FAILsanity);
     if (!RDXisPLEX(lit)) fail(FAILsanity);
-    if (lit == RDX_TUPLE && JDRisP1(state)) {
-        u8p start = *Bu8ptop(state->stack);
+    u8p start = *Bu8ptop(state->stack);
+    if (lit == RDX_TUPLE && JDRisPmoot(state)) {
         $u8c from = {start + 1 + 4 + 1, state->tlv[0]};
         $u8 into = {start, state->tlv[0] - 4 - 1 - 1};
         $u8move(into, from);
@@ -294,6 +296,7 @@ pro(JDRonRoot, $cu8c tok, JDRstate* state) {
     sane($ok(tok) && state != nil);
     if (!Bempty(state->stack) && **Bu8ptop(state->stack) == RDX_TUPLE_INLINE)
         call(JDRcloseinline, state);
+    test(Bempty(state->stack), JDRbadnest);
     done;
 }
 
@@ -389,12 +392,15 @@ ok64 JDRfeedSesc($u8 tlv, $u8c txt) {
 ok64 JDRdrainSesc($u8 txt, $u8c tlv);
 // . . . . . . . w r i t e r . . . . . . .
 
-fun ok64 JDRfeedstamp($u8 rdxj, id128 stamp) {
+fun ok64 JDRfeedstamp($u8 rdxj, id128 stamp, b8 pad) {
+    sane($ok(rdxj));
     if (id128empty(stamp)) return OK;
     // call($u8feed2, rdxj, ' ', '@');
     if ($len(rdxj) < 2) return RDXnospace;
     $u8feed1(rdxj, '@');
-    return RDXid128feed(rdxj, stamp);
+    call(RDXid128feed, rdxj, stamp);
+    if (pad) $u8feed1(rdxj, ' ');
+    done;
 }
 
 fun ok64 JDRindent($u8 rdxj, u64 style) {
@@ -431,6 +437,18 @@ fun ok64 JDRfeedlist($u8 rdxj, $u8c tlv, u64 style) {
     done;
 }
 
+ok64 JDRisPU($cu8c body) {
+    sane($ok(body));
+    a$dup(u8c, b, body);
+    while (!$empty(b)) {
+        u8 t = 0;
+        $u8c val = {};
+        call(TLVdrain, &t, val, b);
+        if (RDXisPLEX(t)) return FAIL;
+    }
+    done;
+}
+
 ok64 JDRfeed1($u8 rdxj, $u8c tlv, u64 style) {
     sane($ok(rdxj) && $ok(tlv));
     u8 lit;
@@ -443,57 +461,60 @@ ok64 JDRfeed1($u8 rdxj, $u8c tlv, u64 style) {
     switch (lit) {
         case RDX_INT:
             call(RDXItlv2txt, rdxj, tlv2);
-            call(JDRfeedstamp, rdxj, id);
+            call(JDRfeedstamp, rdxj, id, 0);
             break;
         case RDX_FLOAT:
             call(RDXFtlv2txt, rdxj, tlv2);
-            call(JDRfeedstamp, rdxj, id);
+            call(JDRfeedstamp, rdxj, id, 0);
             break;
         case RDX_REF:
             call(RDXRtlv2txt, rdxj, tlv2);
-            call(JDRfeedstamp, rdxj, id);
+            call(JDRfeedstamp, rdxj, id, 0);
             break;
         case RDX_STRING:
             call($u8feed1, rdxj, '"');
             call(JDRdrainSesc, rdxj, tlv2);
             call($u8feed1, rdxj, '"');
-            call(JDRfeedstamp, rdxj, id);
+            call(JDRfeedstamp, rdxj, id, 0);
             break;
         case RDX_TERM:
             call($u8feed, rdxj, value);
-            call(JDRfeedstamp, rdxj, id);
+            call(JDRfeedstamp, rdxj, id, 0);
             break;
         case RDX_LINEAR:
             call($u8feed1, rdxj, '[');
+            call(JDRfeedstamp, rdxj, id, !$empty(value));
             call(JDRfeedlist, rdxj, value, style + 1);
             call($u8feed1, rdxj, ']');
-            call(JDRfeedstamp, rdxj, id);
             break;
         case RDX_TUPLE: {
             b8 brackets = 1;  //(parent == RDX_TUPLE || !id128empty(id));
-            if (brackets) {
+            if ((style & StyleBracketTuples) || OK != JDRisPU(value) ||
+                !id128empty(id)) {
                 call($u8feed1, rdxj, '<');
+                call(JDRfeedstamp, rdxj, id, !$empty(value));
                 call(JDRfeedlist, rdxj, value, style + 1);
                 call($u8feed1, rdxj, '>');
-                call(JDRfeedstamp, rdxj, id);
+            } else {
+                while (!$empty(value)) {
+                    call(JDRfeed1, rdxj, value,
+                         (style | StyleBracketTuples) + 1);
+                    if (!$empty(value)) call($u8feed1, rdxj, ':');
+                }
             }
-            /*while (!$empty(value)) {
-                call(_JDRfeed, rdxj, value, RDX_TUPLE);
-                if (!$empty(value)) call($u8feed1, rdxj, RDX_TUPLE_INLINE);
-            }*/
             break;
         }
         case RDX_EULER:
             call($u8feed1, rdxj, '{');
+            call(JDRfeedstamp, rdxj, id, !$empty(value));
             call(JDRfeedlist, rdxj, value, style + 1);
             call($u8feed1, rdxj, '}');
-            call(JDRfeedstamp, rdxj, id);
             break;
         case RDX_MULTIX:
             call($u8feed1, rdxj, '(');
+            call(JDRfeedstamp, rdxj, id, !$empty(value));
             call(JDRfeedlist, rdxj, value, style + 1);
             call($u8feed1, rdxj, ')');
-            call(JDRfeedstamp, rdxj, id);
             break;
     }
     done;
