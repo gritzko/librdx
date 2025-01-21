@@ -7,6 +7,7 @@
 
 #include <stdint.h>
 
+#include "01.h"
 #include "B.h"
 #include "BUF.h"
 
@@ -58,6 +59,14 @@ fun int u256cmp(u256 const *a, u256 const *b) {
         }
     }
     return ret;
+}
+
+fun int u512cmp(u512 const *a, u512 const *b) {
+    for (int i = 7; i >= 0; --i) {
+        if (a->_64[i] == b->_64[i]) continue;
+        return a->_64[i] < b->_64[i] ? -1 : 1;
+    }
+    return 0;
 }
 
 #define X(M, name) M##u16##name

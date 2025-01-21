@@ -97,15 +97,15 @@ ok64 JDRonFIRST($cu8c tok, JDRstate* state) {
     switch (lit) {
         case RDX_FLOAT: {
             double d = 0;
-            if (state->text[1] == state->val[1]) {
+            if ($term(state->text) == $term(state->val)) {
                 size_t tl = $len(state->val);
-                test(tl < 32, RDXbad);
+                test(tl < 32, JDRbadF);
                 u8 str[32];
-                memcpy(str, *state->val, tl);
+                memcpy(str, $head(state->val), tl);
                 str[tl] = 0;
                 d = strtod((char*)str, nil);
             } else {
-                d = strtod((char*)state->val[0], nil);
+                d = strtod((char*)$head(state->val), nil);
             }
             call(ZINTf64feed, state->tlv, &d);
             break;
@@ -348,7 +348,7 @@ ok64 JDRfeedSesc($u8 tlv, $u8c txt) {
             continue;
         }
         ++*txt;
-        if ($empty(txt)) return JDRbad;
+        if ($empty(txt)) return JDRbadS;
         switch (**txt) {
             case 't':
                 **tlv = '\t';
@@ -389,7 +389,7 @@ ok64 JDRfeedSesc($u8 tlv, $u8c txt) {
                 break;
             }
             default:
-                return JDRbad;
+                return JDRbadS;
         }
         ++*tlv;
         ++*txt;

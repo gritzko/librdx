@@ -13,7 +13,11 @@
 
 con ok64 JDRbad = 0x289664e135b;
 con ok64 JDRfail = 0xc2d96a4e135b;
-con ok64 JDRbadint = 0x38cada2599b353;
+con ok64 JDRbadF = 0xfa2599b353;
+con ok64 JDRbadI = 0x12a2599b353;
+con ok64 JDRbadR = 0x1ba2599b353;
+con ok64 JDRbadS = 0x1ca2599b353;
+con ok64 JDRbadT = 0x1da2599b353;
 con ok64 JDRbadnest = 0xe37a72a2599b353;
 con ok64 JDRnoroom = 0x31cf3db3c9b353;
 
