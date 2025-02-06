@@ -47,6 +47,7 @@ HEX.h
 HEXx.h
 INT.h
 INTx.h
+LSM.h
 JSON.h
 JSON.rl.h
 LEX.h
@@ -76,6 +77,7 @@ JSON.c
 JSON.rl.c
 LEX.c
 LEX.rl.c
+LSM.c
 MMAP.c
 SORT.c
 URI.rl.c

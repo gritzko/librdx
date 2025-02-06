@@ -23,7 +23,6 @@ set(BENCH_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -v")
 set(BENCH_LDD_FLAGS benchmark::benchmark)
 
 list(APPEND RDX_HEADERS 
-LSM.h
 RDX.h
 RDXC.h
 JDR.h
@@ -34,7 +33,6 @@ RDXZ.h
 list(APPEND RDX_SOURCES 
 JDR.c
 JDR.rl.c
-LSM.c
 ryu/d2s.c
 )
 

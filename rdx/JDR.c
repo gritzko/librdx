@@ -1,7 +1,6 @@
 
 #include "JDR.h"
 
-#include "LSM.h"
 #include "RDX.h"
 #include "RDXY.h"
 #include "RDXZ.h"
@@ -9,6 +8,7 @@
 #include "abc/B.h"
 #include "abc/BUF.h"
 #include "abc/INT.h"
+#include "abc/LSM.h"
 #include "abc/OK.h"
 #include "abc/PRO.h"
 #include "abc/TLV.h"

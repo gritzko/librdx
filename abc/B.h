@@ -53,6 +53,7 @@ typedef void *const *voidB;
 #define Bsize(b) ((u8 *)(b[3]) - (u8 *)(b[0]))
 #define Busylen(b) (b[2] - b[0])
 #define Busysize(b) ((u8 const *)b[2] - (u8 const *)b[0])
+#define Bpastlen(b) $len(Bpast(b))
 #define Bdatalen(b) $len(Bdata(b))
 #define Bidlelen(b) $len(Bidle(b))
 #define Bempty(b) $empty(Bdata(b))

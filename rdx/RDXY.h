@@ -1,10 +1,10 @@
 #ifndef ABC_RDXY_H
 #define ABC_RDXY_H
-#include "LSM.h"
 #include "RDX.h"
 #include "RDXZ.h"
 #include "abc/01.h"
 #include "abc/B.h"
+#include "abc/LSM.h"
 #include "abc/OK.h"
 #include "abc/TLV.h"
 #include "abc/ZINT.h"

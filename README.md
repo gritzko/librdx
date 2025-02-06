@@ -4,7 +4,7 @@ The [Replicated Data eXchange][R] format for easy consistent syncing.
 Here, "consistent" means lots of algebra, starting with Conflict-free Replicated Data Types ([CRDTs][C]).
 When RDX replicas sync, they sync precisely to the last bit and they do it very fast!
 
-This repo contains the C RDX universe:
+This repo contains an RDX implementation in C:
 
   - the [ABC C dialect][A], aka Algebraic Bricklaying C,
   - the [RDX format][R] per se, binary and text varieties,

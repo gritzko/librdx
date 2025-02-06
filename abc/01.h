@@ -68,6 +68,11 @@ typedef uint8_t b8;
 #define NO 0
 #define YES 1
 
+#define u8bits 8
+#define u16bits 16
+#define u32bits 32
+#define u64bits 64
+
 fun int b8ok(b8 b) { return (b & ~1) == 0; }
 
 typedef uint64_t ok64;
