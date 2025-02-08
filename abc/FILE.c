@@ -1,5 +1,7 @@
 #include "FILE.h"
 
+#include <sys/mman.h>
+
 ok64 FILEisdir(const path name) {
     sane($ok(name));
     struct stat sb = {};
@@ -97,7 +99,7 @@ ok64 FILEmap(Bu8 buf, int const *fd, int mode) {
     uint8_t **b = (uint8_t **)buf;
     b[0] = b[1] = b[2] = b[3] = map;
     b[3] += size;
-    if (mode & PROT_READ) b[2] += size;
+    if (0 == (mode & PROT_WRITE)) b[2] += size;
     done;
 }
 

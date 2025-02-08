@@ -56,6 +56,8 @@ fun int Bu8cmp(Bu8 const *a, Bu8 const *b) {
 
 #define a$raw(n, v) $u8 n = {(u8 *)&(v), (u8 *)(&v) + sizeof(v)}
 #define a$rawc(n, v) $u8c n = {(u8 *)&(v), (u8 *)(&v) + sizeof(v)}
+#define a$rawp(n, p) $u8 n = {(u8 *)(p), (u8 *)(p) + sizeof(*p)}
+#define a$rawcp(n, p) $u8c n = {(u8 const *)(p), (u8 const *)(p) + sizeof(*p)}
 
 #define a$u8c(n, ...)            \
     u8c __##n[] = {__VA_ARGS__}; \

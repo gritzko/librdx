@@ -143,6 +143,12 @@ target_link_options(SKIPtest PRIVATE ${TEST_LDD_FLAGS})
 target_compile_options(SKIPtest PRIVATE ${TEST_CXX_FLAGS})
 add_test(NAME SKIPtest COMMAND SKIPtest)
 
+add_executable(SSTtest SST.c)
+target_link_options(SSTtest PRIVATE ${TEST_LDD_FLAGS})
+target_compile_options(SSTtest PRIVATE ${TEST_CXX_FLAGS})
+target_link_libraries(SSTtest abc rdx)
+add_test(NAME SSTtest COMMAND SSTtest)
+
 add_executable(LSMtest LSM.c)
 target_link_options(LSMtest PRIVATE ${TEST_LDD_FLAGS})
 target_compile_options(LSMtest PRIVATE ${TEST_CXX_FLAGS})
