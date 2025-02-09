@@ -6,14 +6,14 @@
 ok64 TLVopenshort($u8 tlv, u8 type, Bu8p stack) {
     sane($ok(tlv) && Bok(stack) && TLVlong(type));
     call(Bu8ppush, stack, &$head(tlv));
-    call($u8feed2, tlv, type | TLVaa, 0);
+    call($u8feed2, tlv, type | TLVaA, 0);
     done;
 }
 
 ok64 TLVopenlong($u8 tlv, u8 type, Bu8p stack) {
     sane($ok(tlv) && Bok(stack) && TLVlong(type));
     call(Bu8ppush, stack, &$head(tlv));
-    u8 head[] = {type & ~TLVaa, 0, 0, 0, 0};
+    u8 head[] = {type & ~TLVaA, 0, 0, 0, 0};
     a$(u8c, h, head);
     call($u8feedall, tlv, h);
     done;
@@ -32,7 +32,7 @@ ok64 TLVcloseany($u8 tlv, u8 type, Bu8p stack) {
             $u8 into = {start + 1 + 1, tlv[0] - 4 + 1};
             $u8move(into, from);
             tlv[0] -= 4 - 1;
-            *start |= TLVaa;
+            *start |= TLVaA;
             *(start + 1) = (u8)len;
         } else {
             *(u32*)(start + 1) = len;
@@ -46,7 +46,7 @@ ok64 TLVcloseany($u8 tlv, u8 type, Bu8p stack) {
             $u8 into = {start + 1 + 4, tlv[0] + 4 - 1};
             $u8move(into, from);
             tlv[0] += 4 - 1;
-            *start &= ~TLVaa;
+            *start &= ~TLVaA;
             *(u32*)(start + 1) = len;
         } else {
             *(start + 1) = (u8)len;

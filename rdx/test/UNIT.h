@@ -92,12 +92,12 @@ ok64 UNITdrain(Bu8 tests, UNITfn fn) {
         if (o != OK) break;
         switch (cs) {
             case 0:
-                if ((~TLVaa & **rec) == RDX_STRING && $len(rec) == 3) {
+                if ((~TLVaA & **rec) == RDX_STRING && $len(rec) == 3) {
                     cs = 1;
                 }
                 break;
             case 1:
-                if ((~TLVaa & **rec) == RDX_STRING && $len(rec) > 3) {
+                if ((~TLVaA & **rec) == RDX_STRING && $len(rec) > 3) {
                     cs = 2;
                     $u8c key, body = {};
                     u8 t;
@@ -110,7 +110,7 @@ ok64 UNITdrain(Bu8 tests, UNITfn fn) {
                 }
                 break;
             case 2:
-                if ((~TLVaa & **rec) == RDX_STRING && $len(rec) == 3) {
+                if ((~TLVaA & **rec) == RDX_STRING && $len(rec) == 3) {
                     cs = 3;
                     caserdx[0] = rec[1];
                 } else {
@@ -118,7 +118,7 @@ ok64 UNITdrain(Bu8 tests, UNITfn fn) {
                 }
                 break;
             case 3:
-                if ((~TLVaa & **rec) == RDX_STRING && $len(rec) == 3) {
+                if ((~TLVaA & **rec) == RDX_STRING && $len(rec) == 3) {
                     caserdx[1] = rec[0];
                     cs = 1;
                     o = fn(caserdx);

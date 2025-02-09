@@ -29,7 +29,7 @@ fun u8 X(SKIP, len)(size_t pos) { return X(SKIP, hi)(pos) + 1; }  // TODO
 fun u8 X(SKIP, top)(size_t pos) { return 64 - clz64(X(SKIP, blk)(pos)); }
 fun T X(SKIP, off)(size_t pos) { return pos & SKIP_BLK_MASK; }
 fun u32 X(SKIP, tlvlen)(size_t pos) {
-    return TLVtinylen(X(SKIP, len)(pos) * sizeof(T));
+    return TLVlen(X(SKIP, len)(pos) * sizeof(T));
 }
 
 fun size_t X(SKIP, pos)(X(SKIP, tab) const* k, u8 hi) {
@@ -67,7 +67,7 @@ fun pro(X(SKIP, feed), Bu8 buf, X(SKIP, tab) * k) {
     $u8c w = {(u8c*)(k->off), (u8c*)(k->off + X(SKIP, len)(pos))};
     must($ok(w));
     must($ok(Bu8idle(buf)));
-    call(TLVtinyfeed, Bu8idle(buf), SKIP_TLV_TYPE, w);
+    call(TLVfeed, Bu8idle(buf), SKIP_TLV_TYPE, w);
 
     k->pos = pos;
 
@@ -210,7 +210,7 @@ fun pro(X(SKIP, find), u8c$ range, Bu8 hay, $u8c needle, $cmpfn cmp) {
             break;
         }
     }
-    aB$(u8c, sub, hay, from, k.pos);
+    aB$(u8c, sub, hay, from, Busylen(hay));
     $mv(range, sub);
     done;
 }
@@ -221,8 +221,7 @@ fun ok64 X(SKIP, findTLV)(u8c$ rec, Bu8 buf, $u8c x, $cmpfn cmp) {
     if (o != OK) return o;
     $u8c r = {};
     while (!$empty(gap) && OK == (o = TLVdrain$(r, gap))) {
-        if ((**r >= '0' && **r <= '9') || (**r & ~TLVaa) == SKIP_TLV_TYPE)
-            continue;
+        if ((**r & ~TLVaA) == SKIP_TLV_TYPE) continue;
         if (cmp((cc$)x, (cc$)r) <= 0) {
             $mv(rec, r);
             return OK;

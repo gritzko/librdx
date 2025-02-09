@@ -45,10 +45,12 @@ fun ok64 X(SST, feedkv)(X(SST, ) sst, SSTab* tab, $u8c rec) {
 }
 
 fun int X(SST, cmp)($cc needle, $cc sub) {
-    u8 t;
-    $u8c k, v;
+    Key* nk = (Key*)*needle;
+    u8 t = 0;
+    $u8c k = {}, v = {};
     TLVdrainkv(&t, k, v, (u8c**)sub);
-    return $memcmp(needle, (void**)k);
+    Key* vk = (Key*)*k;
+    return X(, cmp)(nk, vk);
 }
 
 fun ok64 X(SST, locate)(u8c$ rest, X(SST, ) sst, Key const* key) {
@@ -57,6 +59,10 @@ fun ok64 X(SST, locate)(u8c$ rest, X(SST, ) sst, Key const* key) {
 }
 
 fun ok64 X(SST, next)(u8* t, Key* key, u8c$ val, $u8c rest) {
+    if (!$empty(rest) && (**rest & ~TLVaA) == SKIP_TLV_TYPE) {
+        $u8c rec;
+        TLVdrain$(rec, rest);
+    }
     a$rawp(keyraw, key);
     $u8c k = {};
     ok64 o = TLVdrainkv(t, k, val, rest);

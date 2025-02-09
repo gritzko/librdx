@@ -17,7 +17,7 @@ con ok64 TLVbadarg = 0x2bda5a2599f55d;
 con ok64 TLVbadkv = 0xeafa2599f55d;
 con ok64 TLVtoolong = 0xaf2cf0cf3e1f55d;
 
-#define TLVaa 0x20
+#define TLVaA 0x20
 #define TLV_MAX_LEN ((1 << 30) - 1)
 #define TLV_TINY_TYPE '0'
 
@@ -36,7 +36,7 @@ fun ok64 TLVprobe(u8* t, u32* hlen, u32* blen,
     if ($empty(data)) return TLVnodata;
     if (TLVshort(**data)) {
         if ($len(data) < 2) return TLVnodata;
-        *t = **data - TLVaa;
+        *t = **data - TLVaA;
         *hlen = 2;
         *blen = (*data)[1];
     } else if (TLVtiny(**data)) {
@@ -96,7 +96,7 @@ fun pro(TLVtake, u8 t, $u8c value, $u8c from) {
 
 fun void TLVhead($u8 into, u8 type, u32 len) {
     if (len <= 0xff) {
-        **into = type + TLVaa;
+        **into = type + TLVaA;
         ++*into;
         **into = len;
         ++*into;
@@ -167,7 +167,7 @@ fun pro(TLVclose, $u8 tlv, u8 type, u32* const* len) {
         **len = d;
     } else {
         u8* p = *(u8**)len - 1;
-        *p += TLVaa;
+        *p += TLVaA;
         ++p;
         *p = d;
         ++p;

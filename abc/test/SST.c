@@ -43,12 +43,12 @@ con ok64 SrcAlice = 0x299edc0a;
 
 pro(SST0) {
     sane(1);
-#define ITER 100
+#define ITER 100000
     Bu8 sst = {};
     int fd = FILE_CLOSED;
     a$strc(path, "/tmp/SST0.sst");
     SSTab tab = {};
-    call(SSTu128create, sst, &fd, path, roundup(ITER * 16, PAGESIZE));
+    call(SSTu128create, sst, &fd, path, roundup(ITER * 32, PAGESIZE));
     for (u64 n = 0; n < ITER; ++n) {
         u128 id = {SrcAlice, n};
         a$rawc(val, n);
@@ -57,9 +57,8 @@ pro(SST0) {
     call(SSTu128closenew, sst, &fd, &tab);
     for (u64 n = 0; n < ITER; ++n) {
         u128 id = {SrcAlice, n};
-        $u8c val, fact;
-        u8 t;
-        fprintf(stderr, "??? %lu\n", n);
+        $u8c val = {}, fact = {};
+        u8 t = 0;
         call(SSTu128get, &t, val, sst, &id);
         want(t == 'E');
         a$rawc(nval, n);

@@ -47,12 +47,12 @@ typedef $u8c RDXterm;
 fun b8 id128empty(id128 id) { return id._64[0] == 0 && id._64[1] == 0; }
 
 fun b8 RDXisFIRST(u8 l) {
-    l &= ~TLVaa;
+    l &= ~TLVaA;
     return l == RDX_FLOAT || l == RDX_INT || l == RDX_REF || l == RDX_STRING ||
            l == RDX_TERM;
 }
 fun b8 RDXisPLEX(u8 l) {
-    l &= ~TLVaa;
+    l &= ~TLVaA;
     return l == RDX_TUPLE || l == RDX_LINEAR || l == RDX_EULER ||
            l == RDX_MULTIX;
 }
@@ -86,7 +86,7 @@ fun ok64 RDXdrain$(u8* t, $u8c rec, $u8c rdx) {
     ok64 o = TLVdrain$(rec, rdx);
     if (unlikely(o != OK)) return o;
     *t = **rec;
-    if (*t >= 'a' && *t <= 'z') *t -= TLVaa;
+    if (*t >= 'a' && *t <= 'z') *t -= TLVaA;
     return OK;
 }
 

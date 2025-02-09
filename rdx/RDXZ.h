@@ -63,7 +63,7 @@ fun int RDXZvalue($u8c const* a, $u8c const* b) {
     $u8c aa = $dup(*a);
     $u8c bb = $dup(*b);
     if ($empty(aa)) {
-        a$u8c(RDX_EMPTY_TUPLE, RDX_TUPLE | TLVaa, 1, 0);
+        a$u8c(RDX_EMPTY_TUPLE, RDX_TUPLE | TLVaA, 1, 0);
         if ($empty(bb) || $eq(bb, RDX_EMPTY_TUPLE)) return 0;
         return -1;
     }

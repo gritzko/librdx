@@ -93,7 +93,7 @@ ok64 JDRonStamp($cu8c tok, JDRstate* state) {
 
 ok64 JDRonFIRST($cu8c tok, JDRstate* state) {
     sane(state != nil && $ok(tok) && !Bempty(state->stack));
-    u8 lit = **Bu8ptop(state->stack) & ~TLVaa;
+    u8 lit = **Bu8ptop(state->stack) & ~TLVaA;
     switch (lit) {
         case RDX_FLOAT: {
             double d = 0;
