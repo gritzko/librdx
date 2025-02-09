@@ -72,6 +72,13 @@ fun ok64 X($, tail)(X($, c) into, X($c, c) from, size_t off) {
     into[1] = from[1];
     return OK;
 }
+
+fun ok64 X($, retract)(X($, ) from, size_t len) {
+    if ($len(from) < len) return $miss;
+    from[1] -= len;
+    return OK;
+}
+
 /*
 fun ok64 X($, last)(X($, c) into, X($c, c) from, size_t len) {
     if ($len(from) < len) return $miss;

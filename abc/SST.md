@@ -26,9 +26,15 @@ ABC SST file:
     |...............................|
     +-------------------------------+
 ````
-Key prefix compression works within one skip log block
-(the repeated prefix is omitted).
-Entry TLV types may vary.
+Entry TLV types may vary. The 'K' type is reserved for 
+skiplog entries. The digit in the magic bytes denotes
+the key size, e.g. `SST4` is 16 byte keys.
+
+The implied structure of the key is u64, id128, sha256 or
+something like that. For that reason, prefix compression
+is not implemented: the resulting complexity is not worth
+it. That kind of gains are best harvested by page-level
+DEFLATE or something like that.
 
 ABC SST files are deterministic, i.e. files containing 
 the same set of entries must be bitwise identical.

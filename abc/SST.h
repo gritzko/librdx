@@ -5,11 +5,9 @@
 
 #include "B.h"
 #include "LSM.h"
+#include "OK.h"
 #include "abc/FILE.h"
 #include "abc/SKIP.h"
-
-static const u32 SSTmagic =
-    (u32)'S' | ((u32)'S' << 8) | ((u32)'T' << 16) | ((u32)'0' << 24);
 
 #define SSTab SKIPu8tab
 #define SST Bu8

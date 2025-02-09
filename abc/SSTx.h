@@ -10,8 +10,19 @@
 typedef Bu8 X(SST, );
 typedef X(, ) Key;
 
+static const u32 X(SST, magic) = (u32)'S' | ((u32)'S' << 8) | ((u32)'T' << 16) |
+                                 ((u32)('0' + (63 - clz64(sizeof(Key)))) << 24);
+
 fun ok64 X(SST, create)(X(SST, ) sst, int* fd, $u8c path, size_t size) {
-    return FILEmapnew(sst, fd, path, size);
+    if (size < sizeof(SSTheader)) return SSTbadhead;
+    ok64 o = FILEmapnew(sst, fd, path, size);
+    if (o == OK) {
+        u8** s = (u8**)sst;
+        s[1] += sizeof(SSTheader);
+        s[2] = s[1];
+        ((SSTheader*)*sst)->magic = X(SST, magic);
+    }
+    return o;
 }
 
 fun ok64 X(SST, open)(X(SST, ) sst, $u8c path) {
@@ -19,11 +30,11 @@ fun ok64 X(SST, open)(X(SST, ) sst, $u8c path) {
     ok64 o = FILEmapro(sst, &fd, path);
     if (o != OK) return o;
     SSTheader const* head = (SSTheader const*)sst[0];
-    if (Blen(sst) < sizeof(SSTheader) || head->magic != SSTmagic ||
-        Blen(sst) < head->metalen + head->datalen + sizeof(SSTheader))
+    if (Blen(sst) < sizeof(SSTheader) || head->magic != X(SST, magic) ||
+        Blen(sst) < head->metalen + head->datalen)
         return SSTbadhead;
     u8** s = (u8**)sst;
-    s[1] = s[0] + sizeof(SSTheader) + head->metalen;
+    s[1] = s[0] + head->metalen;
     s[2] = s[1] + head->datalen;
     return FILEclose(&fd);
 }
@@ -94,9 +105,13 @@ ok64 X(SST, merge)(X(SST, ) into, BBu8 inputs, $u8cYfn y);
 
 fun ok64 X(SST, closenew)(X(SST, ) sst, int* fd, SSTab* tab) {
     sane(Bok(sst) && fd != nil && *fd != FILE_CLOSED && tab != nil);
-    call(SKIPu8term, sst, tab);
+    call(SKIPu8finish, sst, tab);
     call(FILEresize, fd, Busysize(sst));
+    SSTheader* head = (SSTheader*)*sst;
+    head->metalen = Bpastlen(sst);
+    head->datalen = Bdatalen(sst);
     call(FILEclose, fd);
+    call(FILEunmap, sst);
     done;
 }
 

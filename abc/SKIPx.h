@@ -81,45 +81,32 @@ fun pro(X(SKIP, drain), X(SKIP, tab) * hop, Bu8 buf, size_t pos) {
     $u8c w = {};
     u8 t = 0;
     call(TLVdrain, &t, w, data);
-    test(t == TLV_TINY_TYPE || t == SKIP_TLV_TYPE, SKIPbad);
-    test(X(SKIP, len)(pos) * sizeof(T) == $len(w), SKIPbad);
+    test(t == SKIP_TLV_TYPE, SKIPbad);
+    test(X(SKIP, len)(pos) * sizeof(T) <= $len(w) &&
+             X(SKIP, top)(pos) * sizeof(T) >= $len(w),
+         SKIPbad);
     $copy(into, w);
     hop->pos = pos;
 
     done;
 }
 
-fun pro(X(SKIP, term), Bu8 buf, X(SKIP, tab) * k) {
+fun pro(X(SKIP, finish), Bu8 buf, X(SKIP, tab) * k) {
     sane(Bok(buf) && k != nil && k->pos < Bdatalen(buf));
-    u8$ idle = (u8$)Bidle(buf);
     size_t pos = Bdatalen(buf);
     if (X(SKIP, blk)(pos) != X(SKIP, blk)(k->pos)) {
-        call(X(SKIP, feed), buf, k);  // TODO ...
-        done;
+        call(X(SKIP, feed), buf, k);
     }
-    u64 tl = X(SKIP, tlvlen)(k->pos);
-    $u8 tail = {buf[0] + k->pos, buf[2]};
-    test($len(tail) >= tl, SKIPmiss);
-    $u8c data1 = {tail[0] + tl, tail[1]};
-    $u8c skip1 = {tail[0], tail[0] + tl};
-    $u8 data2 = {tail[0], tail[1] - tl};
-    $u8 skip2 = {tail[1] - tl, tail[1]};
-    aBcpad(u8, tmp, 64);
-    $u8feedall(tmpidle, skip1);
-    $u8move(data2, data1);
-    $u8move(skip2, tmpdata);
-    // FIXME update k
+    $u8c lastk = {};
+    a$tail(u8, tail, Bu8data(buf), k->pos);
+    a$dup(u8c, rest, tail);
+    call(TLVdrain$, lastk, rest);
+    call($u8move, tail, rest);
+    call($u8retract, Bu8data(buf), $len(lastk));
+    a$raw(w, k->off);
+    a$head(u8c, wl, w, X(SKIP, top)(pos));
+    call(TLVfeed, Bu8idle(buf), SKIP_TLV_TYPE, wl);
     done;
-}
-
-fun size_t X(_SKIP, termlen)(size_t len) {
-    u8 top = X(SKIP, top)(len);  // FIXME 0
-    size_t termlen = top * sizeof(T) + 2;
-    u8 top2 = X(SKIP, top)(len - termlen);
-    if (top2 != top) {
-        termlen = top2 * sizeof(T) + 2;
-    }
-    return termlen;
 }
 
 fun pro(X(SKIP, load), X(SKIP, tab) * k, Bu8 buf) {
@@ -128,18 +115,17 @@ fun pro(X(SKIP, load), X(SKIP, tab) * k, Bu8 buf) {
     size_t len = Bdatalen(buf);
     if (X(SKIP, blk)(len) == 0) done;
 
-    u64 termlen = X(SKIP, tlvlen)(len) * sizeof(T);
+    memset(k->off, 0xff, sizeof(k->off));
+
+    u64 termlen = 2 + X(SKIP, top)(len) * sizeof(T);
     u64 len2 = len - termlen;
-    u64 termlen2 = X(SKIP, tlvlen)(len2) * sizeof(T);
+    u64 top = X(SKIP, top)(len2);
+    u64 termlen2 = 2 + top * sizeof(T);
     len2 = len - termlen2;
-
     call(X(SKIP, drain), k, buf, len2);
-
-    u8 l = X(SKIP, len)(len2);
-    u8 top = X(SKIP, top)(len2);
+    u8 l = termlen2 / sizeof(T) - 2;
 
     X(SKIP, tab) pre = *k;
-    for (u8 i = l; i < top; ++i) pre.off[i] = SKIP_NONE;
 
     while (l < top) {
         u8 hi = X(SKIP, hi)(pre.pos);
@@ -190,15 +176,15 @@ ok64 X(SKIP, load)(X(SKIP, tab) * k, Bu8 buf);
 fun pro(X(SKIP, find), u8c$ range, Bu8 hay, $u8c needle, $cmpfn cmp) {
     sane(range != nil && Bok(hay) && $ok(needle) && cmp != nil);
     X(SKIP, tab) k = {};
-    call(X(SKIP, load), &k, hay);  // FIXME pass
-    u64 from = Bpastlen(hay);
+    call(X(SKIP, load), &k, hay);
+    u64 from = 0;
     for (int h = X(SKIP, top)(k.pos) - 1; h >= 0; --h) {
         size_t pos = X(SKIP, pos)(&k, h);
         if (from >= pos) continue;  // been there
         X(SKIP, tab) hop = {};
         call(X(SKIP, hop), &hop, hay, &k, h);
         u64 b = hop.pos + X(SKIP, tlvlen)(hop.pos);
-        aB$(u8c, sub, hay, b, k.pos);
+        a$tail(u8c, sub, Bu8data(hay), b);
         int c = cmp((cc$)needle, (cc$)sub);
         if (c < 0) {
             k = hop;
@@ -210,7 +196,7 @@ fun pro(X(SKIP, find), u8c$ range, Bu8 hay, $u8c needle, $cmpfn cmp) {
             break;
         }
     }
-    aB$(u8c, sub, hay, from, Busylen(hay));
+    a$tail(u8c, sub, Bu8data(hay), from);
     $mv(range, sub);
     done;
 }

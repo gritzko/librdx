@@ -71,7 +71,7 @@ pro(SKIP1) {
     }
     // aBcpad(u8, hex, PAGESIZE * 2);
     // HEXfeedall(hexidle, paddata);
-    call(SKIPu8term, padbuf, &k);
+    call(SKIPu8finish, padbuf, &k);
     SKIPu8tab k2 = {};
     // call(SKIPu8drain, &k2, padbuf, k.pos);
     call(SKIPu8load, &k2, padbuf);
@@ -94,7 +94,7 @@ pro(SKIP2) {
             call($u8feed64, padidle, &u);
             call(SKIPu8mayfeed, padbuf, &k);
         }
-        call(SKIPu8term, padbuf, &k);
+        call(SKIPu8finish, padbuf, &k);
         size_t ds = Bdatalen(padbuf);
         size_t bs = Busysize(padbuf);
         COMBsave(padbuf);
@@ -127,7 +127,7 @@ pro(SKIP3) {
         $u8feed64(padidle, &u);
         call(SKIPu8mayfeed, padbuf, &k);
     }
-    call(SKIPu8term, padbuf, &k);
+    call(SKIPu8finish, padbuf, &k);
     for (u64 u = 0; u < SCALE / 16; ++u) {
         $u8c gap = {};
         a$rawc(raw, u);
@@ -159,7 +159,7 @@ pro(SKIP4) {
         call(TLVfeed, padidle, 'I', raw);
         call(SKIPu8mayfeed, padbuf, &k);
     }
-    call(SKIPu8term, padbuf, &k);
+    call(SKIPu8finish, padbuf, &k);
     for (u64 u = 0; u < SCALE / 16; ++u) {
         u8 t = 0;
         $u8c gap = {}, val = {};
@@ -177,6 +177,7 @@ pro(SKIP4) {
     }
     done;
 }
+
 pro(SKIPtest) {
     sane(1);
     call(SKIP0);

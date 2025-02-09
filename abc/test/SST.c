@@ -55,6 +55,7 @@ pro(SST0) {
         call(SSTu128feed, sst, &tab, 'E', &id, val);
     }
     call(SSTu128closenew, sst, &fd, &tab);
+    call(SSTu128open, sst, path);
     for (u64 n = 0; n < ITER; ++n) {
         u128 id = {SrcAlice, n};
         $u8c val = {}, fact = {};
