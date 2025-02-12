@@ -31,6 +31,8 @@ typedef int (*X(, cmpfn))(const X(, ) *, const X(, ) *);
 
 typedef b8 (*X(, isfn))(const X(, ) *);
 
+fun size_t X($, len)(X($c, ) data) { return data[1] - data[0]; }
+
 fun void X($, sort)(X($c, ) data) { $sort(data, X(, cmp)); }
 
 fun T *X($, bsearch)(T const *p, X($c, c) data) {
@@ -73,7 +75,7 @@ fun ok64 X($, tail)(X($, c) into, X($c, c) from, size_t off) {
     return OK;
 }
 
-fun ok64 X($, retract)(X($, ) from, size_t len) {
+fun ok64 X($, retract)(X($, c) from, size_t len) {
     if ($len(from) < len) return $miss;
     from[1] -= len;
     return OK;

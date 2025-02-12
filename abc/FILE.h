@@ -215,6 +215,14 @@ fun proc Fpread(int fd, path into, size_t offset) {
 }
 */
 
+fun ok64 FILEmakedir(path const name) {
+    sane($ok(name));
+    aFILEpath(p, name);
+    int rc = mkdir(p, S_IRWXU);
+    testc(rc == 0, FILEfail);
+    done;
+}
+
 ok64 FILErmrf(path const name);
 
 fun pro(FILEunlink, path const name) {

@@ -12,6 +12,9 @@ typedef u512 edsec512;
 typedef u256 edpub256;
 typedef u512 edsig512;
 
+#define edpub256cmp u256cmp
+#define edsig512cmp u512cmp
+
 con ok64 NACLbad = 0x2896654c297;
 con ok64 NACLfail = 0xc2d96a54c297;
 con ok64 NACLfail0 = 0xc2d96a54c297;

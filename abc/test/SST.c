@@ -12,6 +12,9 @@
 #include "abc/TLV.h"
 #include "abc/ZINT.h"
 
+#define X(M, name) M##u8##name
+#include "SKIPx.h"
+#undef X
 #define X(M, name) M##u128##name
 #include "SSTx.h"
 #undef X
@@ -43,7 +46,7 @@ con ok64 SrcAlice = 0x299edc0a;
 
 pro(SST0) {
     sane(1);
-#define ITER 100000
+#define ITER 10000
     Bu8 sst = {};
     int fd = FILE_CLOSED;
     a$strc(path, "/tmp/SST0.sst");

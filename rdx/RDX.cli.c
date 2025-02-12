@@ -94,7 +94,7 @@ pro(_RDXcli, u8B output, u8B input, $u8cB ins) {
     done;
 }
 
-pro(RDXcli) {
+ok64 RDXcli() {
     sane(1);
     call(Bu8map, output, 1UL << 32);
     call(Bu8map, input, 1UL << 32);

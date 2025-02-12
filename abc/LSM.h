@@ -1,5 +1,5 @@
-#ifndef ABC_LINE_H
-#define ABC_LINE_H
+#ifndef ABC_LSM_H
+#define ABC_LSM_H
 #include "abc/BUF.h"
 #include "abc/OK.h"
 #include "abc/PRO.h"

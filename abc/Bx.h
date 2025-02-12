@@ -48,6 +48,11 @@ fun T *X(B, atp)(X(B, ) buf, size_t ndx) {
     return p;
 }
 
+fun T *X(B, last)(X(B, ) buf) {
+    size_t len = buf[2] - buf[0];
+    return X(B, atp)(buf, len - 1);
+}
+
 /*fun T X(B, at)(X(B, ) buf, size_t ndx) {
     T *p = buf[0] + ndx;
     assert(p < buf[3]);

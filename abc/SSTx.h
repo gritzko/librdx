@@ -1,11 +1,5 @@
-#include <fcntl.h>
 
-#include "B.h"
-#include "LSM.h"
 #include "SST.h"
-#include "TLV.h"
-#include "abc/FILE.h"
-#include "abc/SKIP.h"
 
 typedef Bu8 X(SST, );
 typedef X(, ) Key;
@@ -99,9 +93,6 @@ fun ok64 X(SST, get)(u8* t, u8c$ val, X(SST, ) sst, Key const* key) {
     }
     return o;
 }
-
-ok64 X(SST, mget)($u8 into, BBu8 inputs, Key const* key, $u8cYfn y);
-ok64 X(SST, merge)(X(SST, ) into, BBu8 inputs, $u8cYfn y);
 
 fun ok64 X(SST, closenew)(X(SST, ) sst, int* fd, SSTab* tab) {
     sane(Bok(sst) && fd != nil && *fd != FILE_CLOSED && tab != nil);

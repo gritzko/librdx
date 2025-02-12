@@ -3,14 +3,13 @@
 
 #include <fcntl.h>
 
-#include "B.h"
-#include "LSM.h"
+#include "BUF.h"
 #include "OK.h"
+#include "TLV.h"
 #include "abc/FILE.h"
 #include "abc/SKIP.h"
 
 #define SSTab SKIPu8tab
-#define SST Bu8
 
 con ok64 SSTnodata = 0x25e25a33c9d71c;
 con ok64 SSTnoroom = 0x31cf3db3c9d71c;
@@ -25,9 +24,5 @@ typedef struct {
     u32 metalen;
     u64 datalen;
 } SSTheader;
-
-#define X(M, name) M##u8##name
-#include "SKIPx.h"
-#undef X
 
 #endif
