@@ -63,6 +63,14 @@ fun int Bu8cmp(Bu8 const *a, Bu8 const *b) {
     u8c __##n[] = {__VA_ARGS__}; \
     $u8c n = {__##n, __##n + sizeof(__##n)};
 
+#define an$u8(n, l, ...)         \
+    u8 __##n[l] = {__VA_ARGS__}; \
+    $u8 n = {__##n, __##n + sizeof(__##n)};
+
+#define an$u8c(n, l, ...)         \
+    u8c __##n[l] = {__VA_ARGS__}; \
+    $u8c n = {__##n, __##n + sizeof(__##n)};
+
 fun b8 Bitat(Bu8 buf, size_t ndx) {
     size_t thebyte = ndx >> 3;
     size_t thebit = ndx & 7;

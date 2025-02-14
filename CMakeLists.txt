@@ -32,6 +32,6 @@ set(BENCH_LDD_FLAGS benchmark::benchmark)
 
 add_subdirectory(abc)
 add_subdirectory(rdx)
-add_subdirectory(brix)
+#add_subdirectory(brix)
 add_subdirectory(mark)
 #add_subdirectory(cli)

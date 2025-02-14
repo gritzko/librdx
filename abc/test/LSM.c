@@ -122,9 +122,9 @@ ok64 LSM1000000() {
     call(Bu8alloc, milbuf, LEN * 16 * 2);
     aBpad(u8p, stack, 8);
     for (u64 i = 0; i < LEN; ++i) {
-        call(TLVopenshort, milidle, 'I', stack);
+        call(TLVinitshort, milidle, 'I', stack);
         call(ZINTu64feed, milidle, i ^ 13);
-        call(TLVcloseany, milidle, 'I', stack);
+        call(TLVendany, milidle, 'I', stack);
     }
     call(LSMsort, mildata, ZINTz, nomerge, milidle);
     for (u64 i = 0; i < LEN; ++i) {

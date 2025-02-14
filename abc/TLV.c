@@ -3,14 +3,14 @@
 #include "OK.h"
 #include "PRO.h"
 
-ok64 TLVopenshort($u8 tlv, u8 type, Bu8p stack) {
+ok64 TLVinitshort($u8 tlv, u8 type, Bu8p stack) {
     sane($ok(tlv) && Bok(stack) && TLVlong(type));
     call(Bu8ppush, stack, &$head(tlv));
     call($u8feed2, tlv, type | TLVaA, 0);
     done;
 }
 
-ok64 TLVopenlong($u8 tlv, u8 type, Bu8p stack) {
+ok64 TLVinitlong($u8 tlv, u8 type, Bu8p stack) {
     sane($ok(tlv) && Bok(stack) && TLVlong(type));
     call(Bu8ppush, stack, &$head(tlv));
     u8 head[] = {type & ~TLVaA, 0, 0, 0, 0};
@@ -19,7 +19,7 @@ ok64 TLVopenlong($u8 tlv, u8 type, Bu8p stack) {
     done;
 }
 
-ok64 TLVcloseany($u8 tlv, u8 type, Bu8p stack) {
+ok64 TLVendany($u8 tlv, u8 type, Bu8p stack) {
     sane($ok(tlv) && Bok(stack) && !Bempty(stack) &&
          *Btop(stack) + 2 <= $head(tlv));
     u8* start = *Btop(stack);

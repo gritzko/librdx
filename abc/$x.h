@@ -35,6 +35,8 @@ fun size_t X($, len)(X($c, ) data) { return data[1] - data[0]; }
 
 fun void X($, sort)(X($c, ) data) { $sort(data, X(, cmp)); }
 
+fun void X($, sortfn)(X($c, ) data, X(, cmpfn) fn) { $sort(data, fn); }
+
 fun T *X($, bsearch)(T const *p, X($c, c) data) {
     return (T *)$bsearch(p, data, X(, cmp));
 }
@@ -78,6 +80,12 @@ fun ok64 X($, tail)(X($, c) into, X($c, c) from, size_t off) {
 fun ok64 X($, retract)(X($, c) from, size_t len) {
     if ($len(from) < len) return $miss;
     from[1] -= len;
+    return OK;
+}
+
+fun ok64 X($, sup)(X($, c) full, X($, c) consumed) {
+    if (unlikely(full[1] != consumed[1] || full[0] > consumed[0])) return $miss;
+    full[1] = consumed[0];
     return OK;
 }
 

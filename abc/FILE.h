@@ -37,7 +37,6 @@ con ok64 FILEloop = 0xd33cf039548f;
 con ok64 FILEname = 0xa7197239548f;
 con ok64 FILEbad = 0x2896639548f;
 
-#define FILEbad(fd) (fd < 0)
 #define FILEok(fd) (fd >= 0)
 
 /*

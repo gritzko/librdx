@@ -149,7 +149,7 @@ typedef int (*$cmpfn)($cc a, $cc b);
 #define $printf(into, fmt, ...)                                         \
     {                                                                   \
         int l = snprintf((char *)*into, $size(into), fmt, __VA_ARGS__); \
-        *into += min($size(into), l);                                   \
+        *into += $size(into) < l ? $size(into) : l;                     \
     }
 
 #define a$str(n, s)          \

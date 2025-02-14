@@ -148,13 +148,13 @@ fun pro(TLVopen, $u8 tlv, u8 type, u32** len) {
 }
 
 /** Open a TLV header for a yet-unwritten (short) record. */
-ok64 TLVopenshort($u8 tlv, u8 type, Bu8p stack);
+ok64 TLVinitshort($u8 tlv, u8 type, Bu8p stack);
 
 /** Open a TLV header for a yet-unwritten (long) record. */
-ok64 TLVopenlong($u8 tlv, u8 type, Bu8p stack);
+ok64 TLVinitlong($u8 tlv, u8 type, Bu8p stack);
 
 /** Finalize the header once the record is complete. */
-ok64 TLVcloseany($u8 tlv, u8 type, Bu8p stack);
+ok64 TLVendany($u8 tlv, u8 type, Bu8p stack);
 
 // @deprecated
 fun pro(TLVclose, $u8 tlv, u8 type, u32* const* len) {

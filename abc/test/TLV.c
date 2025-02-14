@@ -110,9 +110,9 @@ ok64 TLVtest4() {
     u8 correct[] = {'a', 4, 't', 'e', 's', 't'};
     a$(u8c, cor, correct);
     $u8c text = {cor[0] + 2, cor[1]};
-    call(TLVopenlong, padidle, 'A', stack);
+    call(TLVinitlong, padidle, 'A', stack);
     call($u8feedall, padidle, text);
-    call(TLVcloseany, padidle, 'A', stack);
+    call(TLVendany, padidle, 'A', stack);
     $testeq(cor, paddata);
     done;
 }

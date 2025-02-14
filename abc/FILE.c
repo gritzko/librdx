@@ -63,7 +63,7 @@ ok64 FILEstat(struct stat *ret, const path name) {
 }
 
 ok64 FILEsize(size_t *size, int const *fd) {
-    sane(size != nil && FILEok(fd));
+    sane(size != nil && FILEok(*fd));
     struct stat sb = {};
     testc(0 == fstat(*fd, &sb), FILEnostat);
     *size = sb.st_size;
@@ -71,7 +71,7 @@ ok64 FILEsize(size_t *size, int const *fd) {
 }
 
 ok64 FILEresize(int const *fd, size_t new_size) {
-    sane(FILEok(fd));
+    sane(FILEok(*fd));
     testc(0 == ftruncate(*fd, new_size), FILEnoresz);
     // FIXME sync the dir data (another msync?)
     done;
@@ -91,7 +91,7 @@ ok64 FILErmrf(path const name) {
 }
 
 ok64 FILEmap(Bu8 buf, int const *fd, int mode) {
-    sane(buf != nil && *buf == nil && FILEok(fd));
+    sane(buf != nil && *buf == nil && FILEok(*fd));
     size_t size;
     call(FILEsize, &size, fd);
     u8 *map = (u8 *)mmap(NULL, size, mode, MAP_FILE | MAP_SHARED, *fd, 0);

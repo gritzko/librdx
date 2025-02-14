@@ -51,13 +51,13 @@ pro(SST0) {
     int fd = FILE_CLOSED;
     a$strc(path, "/tmp/SST0.sst");
     SSTab tab = {};
-    call(SSTu128create, sst, &fd, path, roundup(ITER * 32, PAGESIZE));
+    call(SSTu128init, sst, &fd, path, roundup(ITER * 32, PAGESIZE));
     for (u64 n = 0; n < ITER; ++n) {
         u128 id = {SrcAlice, n};
         a$rawc(val, n);
         call(SSTu128feed, sst, &tab, 'E', &id, val);
     }
-    call(SSTu128closenew, sst, &fd, &tab);
+    call(SSTu128end, sst, &fd, &tab);
     call(SSTu128open, sst, path);
     for (u64 n = 0; n < ITER; ++n) {
         u128 id = {SrcAlice, n};

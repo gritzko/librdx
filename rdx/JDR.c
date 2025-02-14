@@ -33,7 +33,7 @@ fun ok64 JDRcloseinline(JDRstate* state) {
     if (state->pre == ':') call(JDRfeedempty, state);
     **Bu8ptop(state->stack) = RDX_TUPLE;
     state->pre = RDX_TUPLE_INLINE;
-    call(TLVcloseany, state->tlv, RDX_TUPLE, state->stack);
+    call(TLVendany, state->tlv, RDX_TUPLE, state->stack);
     done;
 }
 
@@ -43,7 +43,7 @@ ok64 JDRonFIRST0($cu8c tok, JDRstate* state, u8 lit) {
         state->pre != ':') {
         call(JDRcloseinline, state);
     }
-    call(TLVopenshort, state->tlv, lit, state->stack);
+    call(TLVinitshort, state->tlv, lit, state->stack);
     $mv(state->val, tok);
     done;
 }
@@ -139,7 +139,7 @@ ok64 JDRonFIRST($cu8c tok, JDRstate* state) {
         default:
             fail(FAILsanity);
     }
-    call(TLVcloseany, state->tlv, lit, state->stack);
+    call(TLVendany, state->tlv, lit, state->stack);
     state->pre = '1';
     done;
 }
@@ -154,7 +154,7 @@ ok64 JDRonPLEX0(u8 lit, JDRstate* state) {
     if (JDRtop(state->stack) == RDX_TUPLE_INLINE && state->pre != ':')
         call(JDRcloseinline, state);
     state->pre = 0;
-    call(TLVopenlong, state->tlv, lit, state->stack);
+    call(TLVinitlong, state->tlv, lit, state->stack);
     done;
 }
 
@@ -238,12 +238,12 @@ ok64 JDRonClose($cu8c tok, JDRstate* state) {
         Bu8ppop(state->stack);
     } else if (lit == RDX_EULER) {
         call(JDRsort, state, RDXZvalue, RDXY);
-        call(TLVcloseany, state->tlv, lit, state->stack);
+        call(TLVendany, state->tlv, lit, state->stack);
     } else if (lit == RDX_MULTIX) {
         call(JDRsort, state, RDXZauthor, RDXY);
-        call(TLVcloseany, state->tlv, lit, state->stack);
+        call(TLVendany, state->tlv, lit, state->stack);
     } else {
-        call(TLVcloseany, state->tlv, lit, state->stack);
+        call(TLVendany, state->tlv, lit, state->stack);
     }
     done;
 }
@@ -251,7 +251,7 @@ ok64 JDRonClose($cu8c tok, JDRstate* state) {
 ok64 JDRinsertU(JDRstate* state) {
     sane(state != nil);
     if (state->pre == 0 || state->pre == ',') {
-        call(TLVopenlong, state->tlv, RDX_TUPLE_INLINE, state->stack);
+        call(TLVinitlong, state->tlv, RDX_TUPLE_INLINE, state->stack);
         call($u8feed1, state->tlv, 0);
         call(JDRfeedempty, state);
     } else {
@@ -267,7 +267,7 @@ ok64 JDRinsertU(JDRstate* state) {
         $u8move(safekey, key);
         $u8move(safebody, body);
         state->tlv[0] = start;
-        call(TLVopenlong, state->tlv, RDX_TUPLE_INLINE, state->stack);
+        call(TLVinitlong, state->tlv, RDX_TUPLE_INLINE, state->stack);
         call($u8feed1, state->tlv, $len(key));
         call($u8feedall, state->tlv, (u8c$)safekey);
         --safebody[0];

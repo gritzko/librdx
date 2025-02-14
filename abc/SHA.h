@@ -8,6 +8,11 @@ typedef struct {
     u8 data[crypto_hash_sha256_BYTES];
 } sha256;
 
+fun b8 sha256empty(sha256 const* sha) {
+    u64c* w = (u64c*)sha->data;
+    return (w[0] | w[1] | w[2] | w[3]) == 0;
+}
+
 typedef crypto_hash_sha256_state SHAstate;
 
 fun void SHAsum(sha256* hash, $cu8c from) {
