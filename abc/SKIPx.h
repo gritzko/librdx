@@ -94,15 +94,14 @@ fun pro(X(SKIP, drain), X(SKIP, tab) * hop, Bu8 buf, size_t pos) {
 fun pro(X(SKIP, finish), Bu8 buf, X(SKIP, tab) * k) {
     sane(Bok(buf) && k != nil && k->pos < Bdatalen(buf));
     size_t pos = Bdatalen(buf);
-    if (X(SKIP, blk)(pos) != X(SKIP, blk)(k->pos)) {
-        call(X(SKIP, feed), buf, k);
+    if (k->pos != 0 && X(SKIP, blk)(pos) == X(SKIP, blk)(k->pos)) {
+        $u8c lastk = {};
+        a$tail(u8, tail, Bu8data(buf), k->pos);
+        a$dup(u8c, rest, tail);
+        call(TLVdrain$, lastk, rest);
+        call($u8move, tail, rest);
+        call($u8retract, Bu8cdata(buf), $len(lastk));
     }
-    $u8c lastk = {};
-    a$tail(u8, tail, Bu8data(buf), k->pos);
-    a$dup(u8c, rest, tail);
-    call(TLVdrain$, lastk, rest);
-    call($u8move, tail, rest);
-    call($u8retract, Bu8cdata(buf), $len(lastk));
     a$raw(w, k->off);
     a$head(u8c, wl, w, X(SKIP, top)(pos));
     call(TLVfeed, Bu8idle(buf), SKIP_TLV_TYPE, wl);

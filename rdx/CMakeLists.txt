@@ -32,6 +32,7 @@ RDXZ.h
 
 list(APPEND RDX_SOURCES 
 JDR.c
+RDX.c
 JDR.rl.c
 ryu/d2s.c
 )

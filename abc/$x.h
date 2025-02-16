@@ -83,7 +83,13 @@ fun ok64 X($, retract)(X($, c) from, size_t len) {
     return OK;
 }
 
-fun ok64 X($, sup)(X($, c) full, X($, c) consumed) {
+fun ok64 X($, sup)(X($, ) full, X($, ) consumed) {
+    if (unlikely(full[1] != consumed[1] || full[0] > consumed[0])) return $miss;
+    full[1] = consumed[0];
+    return OK;
+}
+
+fun ok64 X($, csup)(X($, c) full, X($, c) consumed) {
     if (unlikely(full[1] != consumed[1] || full[0] > consumed[0])) return $miss;
     full[1] = consumed[0];
     return OK;

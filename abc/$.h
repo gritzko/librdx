@@ -27,6 +27,7 @@ con ok64 $none = 0x29cb3cbf;
 #define $atp(s, n) (($head(s) + (n)))
 #define $in(s, p) (p - s[0])
 #define $in$(s, ins) (ins[0] - s[0])
+#define $nil(s) (s[0] == NULL && s[1] == NULL)
 
 #define $empty(s) ($head(s) >= $term(s))
 #define $nospace(s, l) ($head(s) + (l) > $term(s))
@@ -213,6 +214,11 @@ fun ok64 $feedf(u8 **into, u8 const *const *tmpl, ...) {
 
 #define zero(s) memset((void *)&(s), 0, sizeof(s))
 #define zerop(s) memset((void *)s, 0, sizeof(*s))
+#define $zero(s)     \
+    {                \
+        s[0] = NULL; \
+        s[1] = NULL; \
+    }
 
 #define a$findif(T, p, s, cond)          \
     T *p = s[0];                         \

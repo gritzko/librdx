@@ -2,6 +2,8 @@
 
 #include <sys/mman.h>
 
+#include "OK.h"
+
 ok64 FILEisdir(const path name) {
     sane($ok(name));
     struct stat sb = {};
@@ -74,6 +76,14 @@ ok64 FILEresize(int const *fd, size_t new_size) {
     sane(FILEok(*fd));
     testc(0 == ftruncate(*fd, new_size), FILEnoresz);
     // FIXME sync the dir data (another msync?)
+    done;
+}
+
+ok64 FILErename(const path oldname, const path newname) {
+    sane($ok(oldname) && $ok(newname));
+    aFILEpath(old, oldname);
+    aFILEpath(neu, newname);
+    testc(0 == rename(old, neu), FILEfail);
     done;
 }
 

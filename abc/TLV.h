@@ -179,7 +179,7 @@ fun pro(TLVclose, $u8 tlv, u8 type, u32* const* len) {
 }
 
 fun pro(TLVfeedkv, $u8 tlv, u8c type, $u8c key, $cu8c val) {
-    sane($ok(tlv) && $ok(key) && $ok(val));
+    sane($ok(tlv) && $ok(key) && ($empty(val) || $ok(val)));
     size_t keylen = $len(key);
     test(keylen < 0x100, TLVbadarg);
     u64 blen = keylen + $len(val);

@@ -99,6 +99,8 @@ ok64 FILEisdir(const path name);
 
 ok64 FILEresize(int const *fd, size_t new_size);
 
+ok64 FILErename(const path oldname, const path newname);
+
 // Drains the data to the file; if the slice is non empty on return, see errno!
 fun ok64 FILEfeed(int fd, u8 const **data) {
     ssize_t re = write(fd, *data, $size(data));

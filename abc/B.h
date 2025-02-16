@@ -85,6 +85,8 @@ typedef void *const *voidB;
     T const **name##cdata = (T const **)name##buf + 1; \
     T **name##idle = name##buf + 2;
 
+#define aBusy(T, name, buf) T *name[2] = {buf[0], buf[2]};
+
 #define Bzero(buf) memset(buf[0], 0, Bsize(buf))
 
 #define Bwithin(b, s) (s[0] >= b[0] && s[1] <= b[3])
