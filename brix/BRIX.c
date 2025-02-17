@@ -104,15 +104,15 @@ fun ok64 BRIXresetpad(BRIX* brix) {
     return OK;
 }
 
-ok64 _BRIXget(u8c$ into, BRIX const* brix, u8 rdt, id128 key) {
+ok64 _BRIXgetkv(u8c$ into, BRIX const* brix, u8 rdt, id128 key) {
     sane($nil(into) && brix != nil && (TLVlong(rdt) || rdt == 0));
     aBpad2($u8c, ins, LSM_MAX_INPUTS);
     Bu8$ ssts = BBu8$1(brix->store);
     for (Bu8* p = $head(ssts); p < $term(ssts); ++p) {
         u8 t = rdt;
-        $u8c val = {};
-        ok64 o = SSTu128get(&t, val, *p, &key);
-        if (o == OK) $$u8cfeed1(insidle, val);
+        $u8c rec = {};
+        ok64 o = SSTu128getkv(rec, *p, t, &key);
+        if (o == OK) $$u8cfeed1(insidle, rec);
     }
     if ($len(insdata) == 1) {
         $mv(into, *$head(insdata));
@@ -131,7 +131,7 @@ ok64 _BRIXget(u8c$ into, BRIX const* brix, u8 rdt, id128 key) {
 
 ok64 BRIXget(u8c$ into, BRIX const* brix, u8 rdt, id128 key) {
     BRIXresetpad((BRIX*)brix);
-    return _BRIXget(into, brix, rdt, key);
+    return _BRIXgetkv(into, brix, rdt, key);
 }
 
 ok64 BRIXinitdeps(SSTu128 sst, BRIX* brix) {
@@ -171,13 +171,10 @@ ok64 BRIXflatfeed($u8 into, $u8c rdx) {
     aBcpad(u8p, stack, 1);
     u8 rdt;
     $u8c key, val;
-    u128 id = {};
-    a$rawc(idraw, id);
     call(TLVdrainkv, &rdt, key, val, rdx);
-    call(ZINTu128drain, &id, key);
     call(TLVinitlong, into, rdt, stackbuf);  // TODO adapt
-    call($u8feed1, into, $len(idraw));
-    call($u8feedall, into, idraw);
+    call($u8feed1, into, $len(key));
+    call($u8feedall, into, key);
     while (!$empty(val)) {
         u8 t;
         $u8c k, v;
@@ -216,21 +213,27 @@ ok64 _BRIXpatch(h60* let, BRIX* brix, $u8c rdx, B$u8c heap) {
     }
 
     call(SSTu128end, sst, &fd, &tab);
-    aBusy(u8c, hashed, sst);
+    // aBusy(u8c, hashed, sst); strange compiler glitch?
+    $u8c hashed = {};
+    hashed[0] = sst[0];
+    hashed[1] = sst[2];
     sha256 sha = {};
     SHAsum(&sha, hashed);
+    call(SSTu128close, sst);
     aBcpad(u8, sha, FILEmaxpathlen);
-    call(BRIKfeedpath, shaidle, brix, BRIXhashlet(&sha));
+    *let = BRIXhashlet(&sha);
+    call(BRIKfeedpath, shaidle, brix, *let);
     call(FILErename, tmpdata, shadata);
+    call(BRIKfeedpath, shaidle, brix, *let);
 
     done;
 }
 
-ok64 BRIXpatch(h60* sha, BRIX* brix, $u8c rdx) {
+ok64 BRIXpatch(h60* hashlet, BRIX* brix, $u8c rdx) {
     B$u8c heap = {};
     ok64 o = B$u8calloc(heap, BRIX_MAX_SST0_ENTRIES);
     if (o != OK) return o;
-    o = _BRIXpatch(sha, brix, rdx, heap);
+    o = _BRIXpatch(hashlet, brix, rdx, heap);
     B$u8cfree(heap);
     return o;
 }

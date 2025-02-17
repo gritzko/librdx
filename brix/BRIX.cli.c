@@ -24,10 +24,12 @@ enum {
     BRIXcmdsee,
     BRIXcmdshow,
     BRIXcmddump,
+    BRIXcmdget,
     BRIXcmdlen,
 };
 $u8c BRIX_CMDS[] = {
-    $u8str(""), $u8str("init"), $u8str("see"), $u8str("show"), $u8str("dump"),
+    $u8str(""),     $u8str("init"), $u8str("see"),
+    $u8str("show"), $u8str("dump"), $u8str("get"),
 };
 
 ok64 BRIXdoinit(h60* let, BRIX* brix, $$u8c args) {
@@ -76,6 +78,31 @@ ok64 BRIXdosee(h60* let, BRIX* brix, $$u8c args) {
     done;
 }
 
+ok64 BRIXdoget(h60* let, BRIX* brix, $$u8c args) {
+    sane(1);
+    while (!$empty(args)) {
+        u8c$ a = **args;
+        ++*args;
+        if ($empty(a)) {
+            continue;
+        }
+
+        if (**a == '@') {
+            ++*a;
+            id128 id = {};
+            call(RDXid128drain, &id, a);
+            aBcpad(u8, tmp, PAGESIZE);
+            $u8c got = {};
+            call(BRIXget, got, brix, 0, id);
+            call(FILEfeedall, STDOUT_FILENO, got);
+            continue;
+        } else {
+            fail(notimplyet);
+        }
+    }
+
+    done;
+}
 ok64 BRIXdoshow(h60* let, BRIX* brix, $$u8c args) {
     sane(1);
     while (!$empty(args)) {
@@ -166,6 +193,8 @@ ok64 BRIXobject() {
             return BRIXdoshow(&res, &brix, args);
         case BRIXcmddump:
             return BRIXdodump(&res, &brix, args);
+        case BRIXcmdget:
+            return BRIXdoget(&res, &brix, args);
         default:
             fail(notimplyet);
     }

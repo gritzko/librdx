@@ -114,6 +114,34 @@ fun ok64 X(SST, next)(u8* t, Key* key, u8c$ val, $u8c rest) {
     return OK;
 }
 
+fun ok64 X(SST, getkv)(u8c$ rec, X(SST, ) sst, u8 type, Key const* key) {
+    $u8c rest = {};
+    ok64 o = X(SST, locate)(rest, sst, type, key);
+    while (o == OK) {
+        u8 t = 0;
+        Key k = {};
+        $u8c v;
+        a$dup(u8c, dup, rest);
+        o = X(SST, next)(&t, &k, v, rest);
+        if (o != OK) break;
+        int z = X(, cmp)(&k, key);
+        if (z < 0) {
+            continue;
+        } else if (z == 0) {
+            if (type != 0 && type != t) {
+                continue;
+            }
+            $u8csup(dup, rest);
+            $mv(rec, dup);
+            break;
+        } else {
+            o = SSTnone;
+            break;
+        }
+    }
+    return o;
+}
+
 // Get a record by its type, id. Set type to 0 if insignificant.
 fun ok64 X(SST, get)(u8* type, u8c$ val, X(SST, ) sst, Key const* key) {
     $u8c rest = {};
