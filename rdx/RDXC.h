@@ -58,7 +58,7 @@ fun pro(RDXCdrainR, RDXref* c, id128* id, $cu8c tlv) {
 fun pro(RDXCfeedR, $u8 tlv, RDXref c, u128 time) {
     sane($ok(tlv));
     aBpad(u8, pad, 16);
-    ZINTu128feed(Bu8idle(pad), c);
+    ZINTu128feed(Bu8idle(pad), &c);
     call(RDXfeed, tlv, RDX_REF, time, Bu8cdata(pad));
     done;
 }

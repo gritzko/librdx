@@ -87,7 +87,7 @@ ok64 JDRonStamp($cu8c tok, JDRstate* state) {
     call(RDXid128drain, &id, idstr);
     u8* p = $head(state->tlv);
     call($u8feed1, state->tlv, 0);
-    call(ZINTu128feed, state->tlv, id);
+    call(ZINTu128feed, state->tlv, &id);
     *p = $head(state->tlv) - p - 1;
     done;
 }
@@ -120,7 +120,7 @@ ok64 JDRonFIRST($cu8c tok, JDRstate* state) {
         case RDX_REF: {
             id128 bits = {};
             call(RDXid128drain, &bits, state->val);
-            call(ZINTu128feed, state->tlv, bits);
+            call(ZINTu128feed, state->tlv, &bits);
             break;
         }
         case RDX_STRING: {

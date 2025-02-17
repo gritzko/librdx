@@ -14,6 +14,9 @@ con ok64 BRIXnone = 0xa72cf28526cb;
 // a 60 bit hashlet is expected to be unique *within a repo*
 typedef u64 h60;
 
+#define u128pack ZINTu128feed
+#define u128unpack ZINTu128drain
+
 #define X(M, name) M##kv64##name
 #define ABC_HASH_CONVERGE 1
 #include "abc/HASHx.h"

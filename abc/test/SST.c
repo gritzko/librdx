@@ -12,6 +12,9 @@
 #include "abc/TLV.h"
 #include "abc/ZINT.h"
 
+#define u128pack ZINTu128feed
+#define u128unpack ZINTu128drain
+
 #define X(M, name) M##u8##name
 #include "SKIPx.h"
 #undef X

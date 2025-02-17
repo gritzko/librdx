@@ -39,26 +39,29 @@ fun ok64 X(SST, hasindex)(X(SST, ) sst) { return Bidlelen(sst) != 0; }
 
 fun ok64 X(SST, feed)(X(SST, ) sst, SSTab* tab, u8 type, Key const* key,
                       $u8c value) {
-    a$rawcp(raw, key);
-    ok64 o = TLVfeedkv(Bu8idle(sst), type, raw, value);
+    aBcpad(u8, raw, sizeof(Key));
+    X(, pack)(rawidle, key);
+    ok64 o = TLVfeedkv(Bu8idle(sst), type, rawdata, value);
     if (o == OK) o = SKIPu8mayfeed(sst, tab);
     return o;
 }
 
 fun ok64 X(SST, initshort)(X(SST, ) sst, u8 type, Key const* key, Bu8p stack) {
     u8$ into = Bu8idle(sst);
-    a$rawcp(raw, key);
+    aBcpad(u8, raw, sizeof(Key));
+    X(, pack)(rawidle, key);
     TLVinitshort(into, type, stack);
     $u8feed1(into, sizeof(Key));
-    return $u8feedall(into, raw);
+    return $u8feedall(into, rawdata);
 }
 
 fun ok64 X(SST, initlong)(X(SST, ) sst, u8 type, Key const* key, Bu8p stack) {
     u8$ into = Bu8idle(sst);
-    a$rawcp(raw, key);
+    aBcpad(u8, raw, sizeof(Key));
+    X(, pack)(rawidle, key);
     TLVinitlong(Bu8idle(sst), type, stack);
     $u8feed1(into, sizeof(Key));
-    return $u8feedall(into, raw);
+    return $u8feedall(into, rawdata);
 }
 
 fun ok64 X(SST, endany)(X(SST, ) sst, u8 type, SSTab* tab, Bu8p stack) {
@@ -80,18 +83,23 @@ fun int X(SST, cmp)($cc a, $cc b) {
     a$dup(u8c, bb, b);  // TODO fast and robust
     TLVdrainkv(&ta, ka, va, aa);
     TLVdrainkv(&tb, kb, vb, bb);
-    int z = X(, cmp)((Key*)*ka, (Key*)*kb);
+    Key keya = {}, keyb = {};
+    X(, unpack)(&keya, ka);
+    X(, unpack)(&keyb, kb);
+    int z = X(, cmp)(&keya, &keyb);
     if (z == 0) z = u8cmp(&ta, &tb);
     return z;
 }
 
 fun ok64 X(SST, locate)(u8c$ rest, X(SST, ) sst, u8 type, Key const* key) {
     u8 t = (type ? type : 'A') | TLVaA;
-    an$u8(needle, sizeof(Key) + 3, t, sizeof(Key) + 1, sizeof(Key));
-    a$rawcp(keyraw, key);
-    a$tail(u8, into, needle, 3);
-    $u8move(into, keyraw);
-    return SKIPu8find(rest, sst, (u8c**)needle, X(SST, cmp));
+    aBcpad(u8, raw, sizeof(Key) + 3);
+    $u8feed1(rawidle, t);
+    $u8feed2(rawidle, 0, 0);
+    X(, pack)(rawidle, key);
+    *Bu8atp(rawbuf, 1) = $len(rawdata) - 2;
+    *Bu8atp(rawbuf, 2) = $len(rawdata) - 3;
+    return SKIPu8find(rest, sst, rawdata, X(SST, cmp));
 }
 
 fun ok64 X(SST, next)(u8* t, Key* key, u8c$ val, $u8c rest) {
@@ -99,13 +107,10 @@ fun ok64 X(SST, next)(u8* t, Key* key, u8c$ val, $u8c rest) {
         $u8c rec;
         TLVdrain$(rec, rest);
     }
-    a$rawp(keyraw, key);
     $u8c k = {};
     ok64 o = TLVdrainkv(t, k, val, rest);
+    if (o == OK) o = X(, unpack)(key, k);
     if (o != OK) return o;
-    if ($len(k) > sizeof(Key)) return SSTbadrec;
-    keyraw[0] += sizeof(Key) - $len(k);
-    $copy(keyraw, k);
     return OK;
 }
 

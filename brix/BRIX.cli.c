@@ -89,16 +89,13 @@ ok64 BRIXdoshow(h60* let, BRIX* brix, $$u8c args) {
             ++*a;
             id128 id = {};
             call(RDXid128drain, &id, a);
-            fail(notimplyet);
+            aBcpad(u8, tmp, PAGESIZE);
+            call(BRIXproduce, tmpidle, brix, 0, id);
+            call(FILEfeedall, STDOUT_FILENO, tmpdata);
             continue;
+        } else {
+            fail(notimplyet);
         }
-
-        Bu8 rdx = {};
-        int fd = FILE_CLOSED;
-        call(FILEmapro, rdx, &fd, a);
-        call(FILEclose, &fd);
-        call(BRIXpatch, let, brix, Bu8cdata(rdx));
-        call(FILEunmap, rdx);
     }
 
     done;

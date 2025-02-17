@@ -147,7 +147,7 @@ fun pro(RDXY, $u8 into, $$u8c inputs) {
     u32* len = nil;
     call(TLVopen, into, maxt, &len);
     aBcpad(u8, id, 16);
-    ZINTu128feed(ididle, maxid);
+    ZINTu128feed(ididle, &maxid);
     call($u8feed1, into, $len(iddata));
     call($u8feed, into, iddata);
 

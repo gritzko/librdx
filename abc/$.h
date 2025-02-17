@@ -27,7 +27,7 @@ con ok64 $none = 0x29cb3cbf;
 #define $atp(s, n) (($head(s) + (n)))
 #define $in(s, p) (p - s[0])
 #define $in$(s, ins) (ins[0] - s[0])
-#define $nil(s) (s[0] == NULL && s[1] == NULL)
+#define $nil(s) (s != NULL && s[0] == NULL && s[1] == NULL)
 
 #define $empty(s) ($head(s) >= $term(s))
 #define $nospace(s, l) ($head(s) + (l) > $term(s))

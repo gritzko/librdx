@@ -10,6 +10,7 @@
 #include "abc/SHA.h"
 #include "abc/SST.h"
 #include "abc/TLV.h"
+#include "abc/ZINT.h"
 #include "rdx/RDX.h"
 #include "rdx/RDXY.h"
 #include "rdx/RDXZ.h"
@@ -104,7 +105,7 @@ fun ok64 BRIXresetpad(BRIX* brix) {
 }
 
 ok64 _BRIXget(u8c$ into, BRIX const* brix, u8 rdt, id128 key) {
-    sane($ok(into) && brix != nil && TLVlong(rdt));
+    sane($nil(into) && brix != nil && (TLVlong(rdt) || rdt == 0));
     aBpad2($u8c, ins, LSM_MAX_INPUTS);
     Bu8$ ssts = BBu8$1(brix->store);
     for (Bu8* p = $head(ssts); p < $term(ssts); ++p) {
@@ -170,20 +171,21 @@ ok64 BRIXflatfeed($u8 into, $u8c rdx) {
     aBcpad(u8p, stack, 1);
     u8 rdt;
     $u8c key, val;
+    u128 id = {};
+    a$rawc(idraw, id);
     call(TLVdrainkv, &rdt, key, val, rdx);
+    call(ZINTu128drain, &id, key);
     call(TLVinitlong, into, rdt, stackbuf);  // TODO adapt
-    call($u8feed1, into, $len(key));
-    call($u8feedall, into, key);
+    call($u8feed1, into, $len(idraw));
+    call($u8feedall, into, idraw);
     while (!$empty(val)) {
-        if (RDXisPLEX(**val)) {
-            u8 t;
-            $u8c k, v;
-            call(TLVdrainkv, &t, k, v, val);
+        u8 t;
+        $u8c k, v;
+        call(TLVdrainkv, &t, k, v, val);
+        if (RDXisPLEX(t)) {
             call(TLVfeedkv, into, t, k, empty);
         } else {
-            $u8c rec;
-            call(TLVdrain$, rec, val);
-            call($u8feed, into, rec);
+            call(TLVfeedkv, into, t, k, v);
         }
     }
     call(TLVendany, into, rdt, stackbuf);

@@ -67,10 +67,10 @@ fun ok64 ZINTu64drain(u64* n, $cu8c zip) {
 
 // ZipUint64Pair packs a pair of uint64 into a byte string.
 // The smaller the ints, the shorter the string
-fun ok64 ZINTu128feed($u8 into, u128 a) {
+fun ok64 ZINTu128feed($u8 into, u128c* a) {
     if (!$ok(into) || $size(into) < sizeof(u64) * 2) return ZINTnoroom;
-    u64 big = a._64[0];
-    u64 lil = a._64[1];
+    u64 big = a->_64[0];
+    u64 lil = a->_64[1];
     if (lil <= B1) {
         if (big <= B1) {
             if (big != 0 || lil != 0) $u8feed8(into, (u8*)&big);
