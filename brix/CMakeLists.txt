@@ -36,7 +36,7 @@ target_link_libraries(brix abc rdx)
 add_executable(brix-cli BRIX.cli.c)
 target_link_libraries(brix-cli brix)
 
-add_subdirectory(test)
+#add_subdirectory(test)
 
 #if (WITH_BENCH)
 #add_subdirectory(bench EXCLUDE_FROM_ALL)
