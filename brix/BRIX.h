@@ -11,6 +11,9 @@ con ok64 BRIXnone = 0xa72cf28526cb;
 #define BRIX_MAX_SST0_SIZE (1 << 30)
 #define BRIX_MAX_SST0_ENTRIES (1 << 20)
 
+// a 60 bit hashlet is expected to be unique *within a repo*
+typedef u64 h60;
+
 #define X(M, name) M##kv64##name
 #define ABC_HASH_CONVERGE 1
 #include "abc/HASHx.h"
@@ -68,13 +71,13 @@ ok64 BRIXinit(BRIX* brix, $u8c path);
 // open the repo
 ok64 BRIXopen(BRIX* brix, $u8c path);
 // add an SST to the stack, including dependencies
-ok64 BRIXpush(BRIX* brix, sha256c* head);
+ok64 BRIXpush(BRIX* brix, h60 head);
 ok64 BRIXpushrev(BRIX* brix, id128 head);
 // add SSTs to the stack, including dependencies
-fun ok64 BRIXpushall(BRIX* brix, $sha256 heads) {
+fun ok64 BRIXpushall(BRIX* brix, $u64 heads) {
     ok64 o = OK;
-    for (sha256c* p = $head(heads); o == OK && p < $term(heads); ++p)
-        o = BRIXpush(brix, p);
+    for (h60* p = $head(heads); o == OK && p < $term(heads); ++p)
+        o = BRIXpush(brix, *p);
     return o;
 }
 // len of the stack
@@ -93,14 +96,18 @@ ok64 BRIXproduce($u8 into, BRIX const* brix, u8 rdt, id128 key);
 ok64 BRIXproduce2(int fd, BRIX const* brix, u8 rdt, id128 key);
 
 // add an RDX patch on top of the current head(s)
-ok64 BRIXpatch(sha256* sha, BRIX* brix, $u8c rdx);
+ok64 BRIXpatch(h60* let, BRIX* brix, $u8c rdx);
 // merge the heads
-ok64 BRIXmerge(sha256* sha, BRIX* brix, $sha256c shas);
+ok64 BRIXmerge(h60* let, BRIX* brix, $sha256c shas);
 // compacts the stack, maybe
 ok64 BRIXpack(BRIX* brix);
 // compacts the stack to the specified length
 ok64 BRIXpackto(BRIX* brix, size_t len);
 // close the repo
 ok64 BRIXclose(BRIX* brix);
+
+fun h60 BRIXhashlet(sha256c* sha) { return ((1UL << 60) - 1) & *(h60*)sha; }
+
+fun ok64 BRIXfeedh60($u8 into, h60 let) { return $u8feedok64(into, let); }
 
 #endif

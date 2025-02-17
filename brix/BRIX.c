@@ -8,6 +8,7 @@
 #include "abc/LSM.h"
 #include "abc/OK.h"
 #include "abc/SHA.h"
+#include "abc/SST.h"
 #include "abc/TLV.h"
 #include "rdx/RDX.h"
 #include "rdx/RDXY.h"
@@ -27,6 +28,14 @@ ok64 _BRIXpath(BRIX* brix, $u8c path) {
     call($u8feed1, homeidle, '/');
     call($u8feed, homeidle, BRIXdir);
     call($u8feed1, homeidle, '/');
+    done;
+}
+
+ok64 BRIKfeedpath($u8 into, BRIX const* brix, h60 let) {
+    sane($ok(into) && brix != nil);
+    call($u8feedall, into, Bu8c$1(brix->home));
+    call(BRIXfeedh60, into, let);
+    call($u8feedall, into, BRIKext);
     done;
 }
 
@@ -78,19 +87,12 @@ ok64 BRIXclose(BRIX* brix) {
     done;
 }
 
-ok64 BRIXpush(BRIX* brix, sha256c* head) {
-    sane(BRIXok(brix) && head != nil);
-    u8c** fn = Bu8cdata(brix->home);
-    u8** fi = Bu8idle(brix->home);
-    size_t dl = $len(fn);
-    call(HEXsha256put, fi, head);
-    call($u8feed, fi, BRIKext);
-    int fd = FILE_CLOSED;
-    a$dup(u8c, fnn, fn);
-    $u8retract(fn, dl);
+ok64 BRIXpush(BRIX* brix, h60 let) {
+    sane(BRIXok(brix));
+    aBcpad(u8, brik, FILEmaxpathlen);
+    call(BRIKfeedpath, brikidle, brix, let);
     Bu8 buf = {};
-    call(FILEmapro, buf, &fd, fnn);
-    call(FILEclose, &fd);
+    call(SSTu128open, buf, brikdata);
     call(BBu8feed1, brix->store, buf);
     done;
 }
@@ -188,8 +190,8 @@ ok64 BRIXflatfeed($u8 into, $u8c rdx) {
     done;
 }
 
-ok64 _BRIXpatch(sha256* sha, BRIX* brix, $u8c rdx, B$u8c heap) {
-    sane(sha != nil && BRIXok(brix) && $ok(rdx));
+ok64 _BRIXpatch(h60* let, BRIX* brix, $u8c rdx, B$u8c heap) {
+    sane(BRIXok(brix) && $ok(rdx));
     aBcpad(u8p, stack, RDX_MAX_NEST);
 
     u64 roughlen = 0;
@@ -211,19 +213,18 @@ ok64 _BRIXpatch(sha256* sha, BRIX* brix, $u8c rdx, B$u8c heap) {
         call(BRIXflatfeed, Bu8idle(sst), pop);
     }
 
-    aBusy(u8c, hashed, sst);
-    SHAsum(sha, hashed);
-    aBcpad(u8, sha, FILEmaxpathlen);
-    call($u8feedall, shaidle, Bu8c$1(brix->home));
-    call(HEXsha256put, shaidle, sha);
-    call($u8feedall, shaidle, BRIKext);
     call(SSTu128end, sst, &fd, &tab);
+    aBusy(u8c, hashed, sst);
+    sha256 sha = {};
+    SHAsum(&sha, hashed);
+    aBcpad(u8, sha, FILEmaxpathlen);
+    call(BRIKfeedpath, shaidle, brix, BRIXhashlet(&sha));
     call(FILErename, tmpdata, shadata);
 
     done;
 }
 
-ok64 BRIXpatch(sha256* sha, BRIX* brix, $u8c rdx) {
+ok64 BRIXpatch(h60* sha, BRIX* brix, $u8c rdx) {
     B$u8c heap = {};
     ok64 o = B$u8calloc(heap, BRIX_MAX_SST0_ENTRIES);
     if (o != OK) return o;

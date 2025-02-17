@@ -7,8 +7,11 @@ A verb is just that, a verb.
 An object can be a branch, a version, an object or a file.
 For example, `brix @mybranch show #myobject`
 
-##  `brix init [path]`
-
-Creates a new empty repo.
-
-## `brix fork @newbranch`
+ 1. `brix [path] init` creates a new empty repo.
+ 2. `brix [path] [heads] see file.rdx`
+ 3. `see [heads]`
+ 4. `show [ids]`
+ 5. `diff`
+ 6. `delta`
+ 7. `sync`
+ 8. `fork`

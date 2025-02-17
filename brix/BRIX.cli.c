@@ -1,6 +1,11 @@
 #include "BRIX.h"
 
+#include <unistd.h>
+
+#include "abc/$.h"
 #include "abc/FILE.h"
+#include "abc/HEX.h"
+#include "abc/OK.h"
 #include "abc/PRO.h"
 #include "abc/SHA.h"
 #include "rdx/JDR.h"
@@ -13,129 +18,168 @@ enum {
     BRIXargpath = 1 << 3,
 };
 
-typedef struct {
-    id128 version;
-    id128 object;
-    sha256 sst;
-    $u8c path;
-} BRIXarg;
-
-fun u8 BRIXargbits(BRIXarg const* args) {
-    u8 ret = 0;
-    if (!id128empty(args->version)) ret |= BRIXargver;
-    if (!id128empty(args->object)) ret |= BRIXargobj;
-    if (!sha256empty(&args->sst)) ret |= BRIXargsst;
-    if (!$empty(args->path)) ret |= BRIXargpath;
-    return ret;
-}
-
 enum {
     BRIXcmdnone,
     BRIXcmdinit,
     BRIXcmdsee,
+    BRIXcmdshow,
+    BRIXcmddump,
     BRIXcmdlen,
 };
 $u8c BRIX_CMDS[] = {
-    $u8str(""),
-    $u8str("init"),
-    $u8str("see"),
+    $u8str(""), $u8str("init"), $u8str("see"), $u8str("show"), $u8str("dump"),
 };
 
-BRIX brix = {};
-
-ok64 BRIXparseCLI(BRIXarg* subj, int* verb, BRIXarg* obj) {
+ok64 BRIXdoinit(h60* let, BRIX* brix, $$u8c args) {
     sane(1);
-    BRIXarg* n = subj;
-    int i = 1;
-    while (i < $arglen) {
-        a$rg(a, i);
-        if ($empty(a)) fail(badarg);
-        if (**a == '#') {
+    a$strc(path, ".");
+    if (!$empty(args)) $mv(path, **args);
+    call(BRIXinit, brix, path);
+    done;
+}
+
+// @branch see @version
+// see file.rdx
+ok64 BRIXdosee(h60* let, BRIX* brix, $$u8c args) {
+    sane(1);
+    while (!$empty(args)) {
+        u8c$ a = **args;
+        ++*args;
+        if ($empty(a)) {
+            continue;
+        }
+
+        if (**a == '@') {
             ++*a;
-            call(RDXid128drain, &n->object, a);
+            id128 id = {};
+            call(RDXid128drain, &id, a);
+            fail(notimplyet);
+            continue;
+        }
+
+        sha256 hash = {};
+        a$raw(raw, hash);
+        ok64 ho = HEXdrain(raw, a);
+        if (ho == OK) {  // hash
+            fail(notimplyet);
+            continue;
+        }
+
+        Bu8 rdx = {};
+        int fd = FILE_CLOSED;
+        call(FILEmapro, rdx, &fd, a);
+        call(FILEclose, &fd);
+        call(BRIXpatch, let, brix, Bu8cdata(rdx));
+        call(FILEunmap, rdx);
+    }
+
+    done;
+}
+
+ok64 BRIXdoshow(h60* let, BRIX* brix, $$u8c args) {
+    sane(1);
+    while (!$empty(args)) {
+        u8c$ a = **args;
+        ++*args;
+        if ($empty(a)) {
+            continue;
+        }
+
+        if (**a == '@') {
+            ++*a;
+            id128 id = {};
+            call(RDXid128drain, &id, a);
+            fail(notimplyet);
+            continue;
+        }
+
+        Bu8 rdx = {};
+        int fd = FILE_CLOSED;
+        call(FILEmapro, rdx, &fd, a);
+        call(FILEclose, &fd);
+        call(BRIXpatch, let, brix, Bu8cdata(rdx));
+        call(FILEunmap, rdx);
+    }
+
+    done;
+}
+
+ok64 BRIXdodump(h60* let, BRIX* brix, $$u8c args) {
+    sane(1);
+    Breset(brix->pad);
+    a$dup(Bu8, chunks, BBu8data(brix->store));
+    while (!$empty(chunks)) {
+        u8B chunk = (u8B) * --(chunks[1]);
+        a$dup(u8c, rdx, Bu8c$1(chunk));
+        call(JDRfeed, Bu8idle(brix->pad), rdx);
+        // TODO piecemeal
+    }
+    call(FILEfeed, STDOUT_FILENO, Bu8c$1(brix->pad));
+    done;
+}
+
+ok64 BRIXobject() {
+    sane(1);
+    BRIX brix = {};
+    $u8c$ args = B$u8cdata(STD_ARGS);
+    ++*args;  // program
+    h60 res = {};
+    a$strc(path, ".");
+    if (!$empty(args) && !$empty(**args) &&
+        (****args == '.' || ****args == '/')) {
+        $mv(path, **args);
+        ++*args;
+    }
+    int verb = 0;
+
+    call(BRIXopen, &brix, path);
+
+    while (!$empty(args)) {
+        u8c$ a = **args;
+        ++*args;
+        if ($empty(a)) {
+            ;
         } else if (**a == '@') {
             ++*a;
-            call(RDXid128drain, &n->version, a);
-        } else if (n == subj) {
+            id128 id = {};
+            call(RDXid128drain, &id, a);
+            call(BRIXpushrev, &brix, id);
+        } else {  // verb? hash?
             int v = 1;
             while (v < BRIXcmdlen && !$eq(BRIX_CMDS[v], a)) ++v;
             if (v < BRIXcmdlen) {
-                *verb = v;
-                n = obj;
-            } else {
-                $mv(n->path, a);
+                verb = v;
+                break;
             }
-        } else {
-            $mv(n->path, a);
+            h60 hashlet = {};
+            a$raw(raw, hashlet);
+            call($u8drainok64, &hashlet, a);
+            call(BRIXpush, &brix, hashlet);
         }
-        ++i;
     }
-    done;
-}
 
-ok64 BRIXdoinit(BRIXarg const* subj, BRIXarg const* obj) {
-    sane(1);
-    a$strc(path, ".");
-    if (!$empty(obj->path)) $mv(path, obj->path);
-    call(BRIXinit, &brix, path);
-    done;
-}
-
-ok64 BRIXdosee(sha256* sha, BRIXarg const* subj, BRIXarg const* obj) {
-    sane(1);
-    u8 sb = BRIXargbits(subj);
-    u8 ob = BRIXargbits(obj);
-    u8 b = (sb << 4) | ob;
-    switch (b) {
-        case 0x8:   // see file.rdx
-        case 0x18:  // @branch see file.jdr
-        {
-            Bu8 rdx = {};
-            int fd = FILE_CLOSED;
-            call(FILEmapro, rdx, &fd, obj->path);
-            if (sb) {
-                call(BRIXpushrev, &brix, subj->version);
-            }
-            call(BRIXpatch, sha, &brix, Bu8cdata(rdx));
-            call(FILEclose, &fd);
-            call(FILEunmap, rdx);
-            break;
-        }
-        case 0x11: {  // @branch see @other
-            break;
-        }
-        default:
-            fail(notimplyet);
-    }
-    done;
-}
-
-ok64 BRIXcli() {
-    sane(1);
-    BRIXarg subj = {};  // TODO
-    int verb = 0;
-    BRIXarg obj = {};
-    sha256 res = {};
-    a$strc(path, ".");
-    call(BRIXparseCLI, &subj, &verb, &obj);
-    if (verb != BRIXcmdinit) {
-        call(BRIXopen, &brix, path);
-    }
     switch (verb) {
         case BRIXcmdnone:  // subject
             break;
         case BRIXcmdinit:
-            return BRIXdoinit(&subj, &obj);
+            return BRIXdoinit(&res, &brix, args);
         case BRIXcmdsee:
-            return BRIXdosee(&res, &subj, &obj);
+            return BRIXdosee(&res, &brix, args);
+        case BRIXcmdshow:
+            return BRIXdoshow(&res, &brix, args);
+        case BRIXcmddump:
+            return BRIXdodump(&res, &brix, args);
         default:
             fail(notimplyet);
     }
-    if (!sha256empty(&res)) {
-        // TODO print
+
+    if (res != 0) {
+        aBcpad(u8, hash, 16);
+        BRIXfeedh60(hashidle, res);
+        $println(hashdata);
     }
     call(BRIXclose, &brix);
     done;
 }
 
-MAIN(BRIXcli);
+MAIN(BRIXobject);

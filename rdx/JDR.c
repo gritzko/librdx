@@ -11,6 +11,7 @@
 #include "abc/LSM.h"
 #include "abc/OK.h"
 #include "abc/PRO.h"
+#include "abc/SKIP.h"
 #include "abc/TLV.h"
 #include "abc/UTF8.h"
 #include "abc/ZINT.h"
@@ -524,6 +525,8 @@ ok64 JDRfeed1($u8 rdxj, $u8c tlv, u64 style) {
             call(JDRfeedstamp, rdxj, id, !$empty(value));
             call(JDRfeedlist, rdxj, value, style + 1);
             call($u8feed1, rdxj, ')');
+            break;
+        case SKIP_TLV_TYPE:
             break;
     }
     done;

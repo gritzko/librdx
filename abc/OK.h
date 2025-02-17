@@ -84,6 +84,8 @@ fun ok64 OKscan(ok64 *o, uint8_t const **from) {
     return OK;
 }
 
+fun ok64 $u8drainok64(ok64 *o, u8c **from) { return OKscan(o, from); }
+
 fun const char *ok64str(ok64 o) {
     char *tmp[2] = {_ok64_tmp, _ok64_tmp + sizeof(_ok64_tmp)};
     OKprint(o, (uint8_t **)tmp);

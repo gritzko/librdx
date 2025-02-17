@@ -144,7 +144,6 @@ fun ok64 X(SST, end)(X(SST, ) sst, int* fd, SSTab* tab) {
     head->metalen = Bpastlen(sst);
     head->datalen = Bdatalen(sst);
     call(FILEclose, fd);
-    call(FILEunmap, sst);
     done;
 }
 
