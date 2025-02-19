@@ -38,11 +38,11 @@ fun ok64 RDXid128feed($u8 txt, id128 id) {
     if (unlikely($len(txt) < 3)) return RDXnoroom;
     a$dup(u8, t, txt);
     ok64 o = OK;
-    if (RDXsrc(id)) {
-        o = RONfeed64(t, RDXsrc(id));
+    if (id128src(id)) {
+        o = RONfeed64(t, id128src(id));
         if (o == OK) o = $u8feed1(t, **ID128DELIM);
     }
-    if (o == OK) o = RONfeed64(t, RDXtime(id));
+    if (o == OK) o = RONfeed64(t, id128time(id));
     if (o == OK) $mv(txt, t);
     return o;
 }
@@ -53,12 +53,12 @@ fun ok64 RDXid128drain(id128* id, $cu8c txt) {
     ok64 o = OK;
     id128 res = {};
     if (p == nil) {  // FIXME not INT
-        o = RONdrain64(&RDXtime(res), t);
+        o = RONdrain64(&id128time(res), t);
     } else {
         $u8c src = {t[0], p};
         $u8c time = {p + 1, t[1]};
-        o = RONdrain64(&RDXtime(res), time);
-        if (o == OK) o = RONdrain64(&RDXsrc(res), src);
+        o = RONdrain64(&id128time(res), time);
+        if (o == OK) o = RONdrain64(&id128src(res), src);
     }
     if (o == OK) *id = res;
     return o;
@@ -125,7 +125,7 @@ fun pro(RDXRtlv2txt, $u8 txt, $cu8c tlv) {
     id128 time;
     RDXref v = {};
     call(RDXCdrainR, &v, &time, tlv);
-    if (RDXsrc(v) == 0) call($u8feed1, txt, '0');
+    if (id128src(v) == 0) call($u8feed1, txt, '0');
     call(RDXid128feed, txt, v);
     done;
 }

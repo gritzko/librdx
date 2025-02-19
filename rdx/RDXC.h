@@ -45,7 +45,7 @@ fun pro(RDXCfeedI, $u8 tlv, RDXint c, u128 time) {
     done;
 }
 
-fun pro(RDXCdrainR, RDXref* c, id128* id, $cu8c tlv) {
+fun ok64 RDXCdrainR(RDXref* c, id128* id, $cu8c tlv) {
     sane(c != nil && id != nil && $ok(tlv));
     u8 t = 0;
     $u8c value = {};

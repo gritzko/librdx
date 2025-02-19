@@ -41,8 +41,9 @@ typedef $u8c RDXterm;
 
 #define id128cmp u128cmp
 #define aRDXid(n, time, src) id128 n = {._64 = {src, time}};
-#define RDXtime(t) ((t)._64[1])
-#define RDXsrc(t) ((t)._64[0])
+#define id128src(t) ((t)._64[0])
+#define id128time(t) ((t)._64[1])
+#define id128seq(t) ((t)._64[1])
 
 fun b8 id128empty(id128 id) { return id._64[0] == 0 && id._64[1] == 0; }
 
@@ -63,10 +64,10 @@ fun b8 RDXisPLEX(u8 l) {
 
 typedef ok64 rdxnext(u8c$ next, $u8c input);
 
-fun u64 RDXtick(u128* clock) { return ++RDXtime(*clock); }
+fun u64 RDXtick(u128* clock) { return ++id128time(*clock); }
 fun u64 RDXtock(u128* clock, u128 see) {
-    if (RDXtime(*clock) < RDXtime(see)) RDXtime(*clock) = RDXtime(see);
-    return RDXtime(*clock);
+    if (id128time(*clock) < id128time(see)) id128time(*clock) = id128time(see);
+    return id128time(*clock);
 }
 
 fun pro(RDXfeed, $u8 tlv, u8 t, id128 id, $cu8c value) {

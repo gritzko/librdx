@@ -25,8 +25,8 @@ pro(RDXFtest) {
         call(RDXCdrainF, &c2, &id2, Bu8cdata(tlv));
         printf("%lf %lf\n", c, c2);
         same(c, c2);
-        same(RDXtime(id), RDXtime(id2));
-        same(RDXsrc(id), RDXsrc(id2));
+        same(id128time(id), id128time(id2));
+        same(id128src(id), RDXsrc(id2));
         aBpad(u8, txt, 32);
         call(RDXFtlv2txt, Bu8idle(txt), Bu8cdata(tlv));
         a$str(str, "text RDX: $s\n");
@@ -53,8 +53,8 @@ pro(RDXItest) {
         call(RDXCdrainI, &c2, &id2, Bu8cdata(tlv));
         printf("%li %li\n", c, c2);
         same(c, c2);
-        same(RDXtime(id), RDXtime(id2));
-        same(RDXsrc(id), RDXsrc(id2));
+        same(id128time(id), id128time(id2));
+        same(id128src(id), RDXsrc(id2));
         aBpad(u8, txt, 32);
         call(RDXItlv2txt, Bu8idle(txt), Bu8cdata(tlv));
         a$str(str, "text RDX: $s\n");
@@ -80,8 +80,8 @@ pro(RDXRtest) {
         id128 id2 = {};
         call(RDXCdrainR, &c2, &id2, Bu8cdata(tlv));
         want(id128cmp(&c, &c2) == 0);
-        same(RDXtime(id), RDXtime(id2));
-        same(RDXsrc(id), RDXsrc(id2));
+        same(id128time(id), id128time(id2));
+        same(id128src(id), RDXsrc(id2));
         aBpad(u8, txt, 64);
         call(RDXRtlv2txt, Bu8idle(txt), Bu8cdata(tlv));
         a$str(str, "text RDX: $s\n");
@@ -107,8 +107,8 @@ pro(RDXStest) {
         $u8c c2 = {};
         call(RDXCdrainS, c2, Bu8cdata(tlv), &id2);
         want($eq(c, c2));
-        same(RDXtime(id), RDXtime(id2));
-        same(RDXsrc(id), RDXsrc(id2));
+        same(id128time(id), id128time(id2));
+        same(id128src(id), RDXsrc(id2));
         same($empty(c) ? 3 : $len(c) + 3 + 2, Bdatalen(tlv));
         aBcpad(u8, txt, 32);
         id128 id3;
