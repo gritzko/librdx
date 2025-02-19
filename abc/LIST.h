@@ -7,10 +7,10 @@
 
 #include "$.h"
 
-con ok64 LISTnoroom = 0xc73cf6cf275c495;
-con ok64 LISTnodata = 0x978968cf275c495;
-con ok64 LISTend = 0x28ca975c495;
-con ok64 LISTbadndx = 0xf28ca896675c495;
+con ok64 LISTnoroom = 0x55271dcb3db3cf1;
+con ok64 LISTnodata = 0x55271dcb3a25e25;
+con ok64 LISTend = 0x1549c769ca8;
+con ok64 LISTbadndx = 0x55271d9a5a32a3c;
 
 typedef struct {
     u32 prev, next;

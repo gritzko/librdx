@@ -8,11 +8,11 @@
 
 #define POLL_MAX_FILES 1024
 
-con ok64 POLLfail = 0xc2d96a555619;
-con ok64 POLLnone = 0xa72cf2555619;
-con ok64 POLLnoroom = 0xc73cf6cf2555619;
-con ok64 POLLnodata = 0x978968cf2555619;
-con ok64 POLLaccept = 0xe34a679e5555619;
+con ok64 POLLfail = 0x658555aa5b70;
+con ok64 POLLnone = 0x658555cb3ca9;
+con ok64 POLLnoroom = 0x658555cb3db3cf1;
+con ok64 POLLnodata = 0x658555cb3a25e25;
+con ok64 POLLaccept = 0x6585559679e9d38;
 
 struct POLLstate;
 struct POLLctl;

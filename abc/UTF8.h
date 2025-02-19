@@ -17,9 +17,9 @@ con u8 UTF8LEAD4 = 128 | 64 | 32 | 16;
 con u32 MAX_UNICODE_CODEPOINT = 0x10FFFF;
 con u8 MAX_UTF8_SIZE = 4;
 
-con ok64 UTF8nodata = 0x978968cf220f75e;
-con ok64 UTF8noroom = 0xc73cf6cf220f75e;
-con ok64 UTF8bad = 0x2896620f75e;
+con ok64 UTF8nodata = 0x79d3c8cb3a25e25;
+con ok64 UTF8noroom = 0x79d3c8cb3db3cf1;
+con ok64 UTF8bad = 0x1e74f226968;
 
 ok64 _UTF8feed1($u8 into, u32 cp);
 

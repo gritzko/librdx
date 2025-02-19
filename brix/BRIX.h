@@ -6,7 +6,7 @@
 #include "abc/SHA.h"
 #include "rdx/RDX.h"
 
-con ok64 BRIXnone = 0xa72cf28526cb;
+con ok64 BRIXnone = 0x2db4a1cb3ca9;
 
 #define BRIX_MAX_SST0_SIZE (1 << 30)
 #define BRIX_MAX_SST0_ENTRIES (1 << 20)
@@ -111,6 +111,6 @@ ok64 BRIXclose(BRIX* brix);
 
 fun h60 BRIXhashlet(sha256c* sha) { return ((1UL << 60) - 1) & *(h60*)sha; }
 
-fun ok64 BRIXfeedh60($u8 into, h60 let) { return $u8feedok64(into, let); }
+fun ok64 BRIXfeedh60($u8 into, h60 let) { return RONfeed64(into, let); }
 
 #endif

@@ -11,15 +11,15 @@
 
 #define JDRenum 0
 
-con ok64 JDRbad = 0x289664e135b;
-con ok64 JDRfail = 0xc2d96a4e135b;
-con ok64 JDRbadF = 0xfa2599b353;
-con ok64 JDRbadI = 0x12a2599b353;
-con ok64 JDRbadR = 0x1ba2599b353;
-con ok64 JDRbadS = 0x1ca2599b353;
-con ok64 JDRbadT = 0x1da2599b353;
-con ok64 JDRbadnest = 0xe37a72a2599b353;
-con ok64 JDRnoroom = 0x31cf3db3c9b353;
+con ok64 JDRbad = 0x4cd6e6968;
+con ok64 JDRfail = 0x1335baa5b70;
+con ok64 JDRbadF = 0x1335b9a5a0f;
+con ok64 JDRbadI = 0x1335b9a5a12;
+con ok64 JDRbadR = 0x1335b9a5a1b;
+con ok64 JDRbadS = 0x1335b9a5a1c;
+con ok64 JDRbadT = 0x1335b9a5a1d;
+con ok64 JDRbadnest = 0x4cd6e6968ca9df8;
+con ok64 JDRnoroom = 0x1335bcb3db3cf1;
 
 typedef struct {
     u8c$ text;
@@ -35,14 +35,14 @@ typedef struct {
 } JDRstate;
 
 fun ok64 RDXid128feed($u8 txt, id128 id) {
-    if (unlikely($len(txt) < 3)) return RDXnospace;
+    if (unlikely($len(txt) < 3)) return RDXnoroom;
     a$dup(u8, t, txt);
     ok64 o = OK;
     if (RDXsrc(id)) {
-        o = u64hexfeed(t, RDXsrc(id));
+        o = RONfeed64(t, RDXsrc(id));
         if (o == OK) o = $u8feed1(t, **ID128DELIM);
     }
-    if (o == OK) o = u64hexfeed(t, RDXtime(id));
+    if (o == OK) o = RONfeed64(t, RDXtime(id));
     if (o == OK) $mv(txt, t);
     return o;
 }
@@ -53,12 +53,12 @@ fun ok64 RDXid128drain(id128* id, $cu8c txt) {
     ok64 o = OK;
     id128 res = {};
     if (p == nil) {  // FIXME not INT
-        o = u64hexdrain(&RDXtime(res), t);
+        o = RONdrain64(&RDXtime(res), t);
     } else {
         $u8c src = {t[0], p};
         $u8c time = {p + 1, t[1]};
-        ok64 o = u64hexdrain(&RDXtime(res), time);
-        if (o == OK) o = u64hexdrain(&RDXsrc(res), src);
+        o = RONdrain64(&RDXtime(res), time);
+        if (o == OK) o = RONdrain64(&RDXsrc(res), src);
     }
     if (o == OK) *id = res;
     return o;

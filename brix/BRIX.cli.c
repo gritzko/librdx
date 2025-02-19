@@ -177,7 +177,7 @@ ok64 BRIXobject() {
             }
             h60 hashlet = {};
             a$raw(raw, hashlet);
-            call($u8drainok64, &hashlet, a);
+            call(RONdrain64, &hashlet, a);
             call(BRIXpush, &brix, hashlet);
         }
     }

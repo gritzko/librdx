@@ -5,10 +5,10 @@
 
 #define Y_MAX_INPUTS 64
 
-con ok64 Yeof = 0xab3a62;
-con ok64 Ybad = 0xa259a2;
-con ok64 Ynodata = 0x25e25a33ca2;
-con ok64 Ynoroom = 0x31cf3db3ca2;
+con ok64 Yeof = 0x8a9cea;
+con ok64 Ybad = 0x8a6968;
+con ok64 Ynodata = 0x22cb3a25e25;
+con ok64 Ynoroom = 0x22cb3db3cf1;
 
 #define X(M, name) M##$u8c##name
 #include "abc/HEAPx.h"

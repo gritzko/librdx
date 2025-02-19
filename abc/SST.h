@@ -11,12 +11,12 @@
 
 #define SSTab SKIPu8tab
 
-con ok64 SSTnodata = 0x25e25a33c9d71c;
-con ok64 SSTnoroom = 0x31cf3db3c9d71c;
-con ok64 SSTbadhead = 0xa25a6ca2599d71c;
-con ok64 SSTbadrec = 0x27a76a2599d71c;
-con ok64 SSTbad = 0xa2599d71c;
-con ok64 SSTnone = 0x29cb3c9d71c;
+con ok64 SSTnodata = 0x1c71dcb3a25e25;
+con ok64 SSTnoroom = 0x1c71dcb3db3cf1;
+con ok64 SSTbadhead = 0x71c766968b29968;
+con ok64 SSTbadrec = 0x1c71d9a5a36a67;
+con ok64 SSTbad = 0x71c766968;
+con ok64 SSTnone = 0x1c71dcb3ca9;
 
 // Header: SST0 (predata) data // 16 bytes
 typedef struct {

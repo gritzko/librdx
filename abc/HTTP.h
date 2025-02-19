@@ -3,8 +3,8 @@
 
 #include "BUF.h"
 
-con ok64 HTTPfail = 0xc2d96a65d751;
-con ok64 HTTPnone = 0xa72cf265d751;
+con ok64 HTTPfail = 0x45d759aa5b70;
+con ok64 HTTPnone = 0x45d759cb3ca9;
 
 #define HTTPenum 0
 

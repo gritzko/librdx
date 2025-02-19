@@ -22,20 +22,20 @@
 
 con ok64 FILEagain = 0xf4953a5ae5b72;
 con ok64 FILEerror = 0xf4953a9db6cf6;
-con ok64 FILEbadarg = 0xaf696896639548f;
-con ok64 FILEfail = 0xc2d96a39548f;
-con ok64 FILEnosync = 0x9f2f77cf239548f;
-con ok64 FILEnoopen = 0xca9d33cf239548f;
-con ok64 FILEnoclse = 0xa77c27cf239548f;
-con ok64 FILEnostat = 0xe25e37cf239548f;
-con ok64 FILEwrong = 0x2bcb3dbb39548f;
-con ok64 FILEnoresz = 0xfb7a76cf239548f;
-con ok64 FILEend = 0x28ca939548f;
-con ok64 FILEnone = 0xa72cf239548f;
-con ok64 FILEaccess = 0xdf7a679e539548f;
-con ok64 FILEloop = 0xd33cf039548f;
-con ok64 FILEname = 0xa7197239548f;
-con ok64 FILEbad = 0x2896639548f;
+con ok64 FILEbadarg = 0x3d254e9a5a25dab;
+con ok64 FILEfail = 0x3d254eaa5b70;
+con ok64 FILEnosync = 0x3d254ecb3dfdca7;
+con ok64 FILEnoopen = 0x3d254ecb3cf4a72;
+con ok64 FILEnoclse = 0x3d254ecb39f0de9;
+con ok64 FILEnostat = 0x3d254ecb3df8978;
+con ok64 FILEwrong = 0xf4953bbdb3cab;
+con ok64 FILEnoresz = 0x3d254ecb3da9dfe;
+con ok64 FILEend = 0xf4953a9ca8;
+con ok64 FILEnone = 0x3d254ecb3ca9;
+con ok64 FILEaccess = 0x3d254e9679e9df7;
+con ok64 FILEloop = 0x3d254ec33cf4;
+con ok64 FILEname = 0x3d254eca5c69;
+con ok64 FILEbad = 0xf4953a6968;
 
 #define FILEok(fd) (fd >= 0)
 

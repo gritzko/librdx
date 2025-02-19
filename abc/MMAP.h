@@ -3,8 +3,8 @@
 #include "01.h"
 #include "B.h"
 
-con ok64 MMAPbadarg = 0xaf696896664a596;
-con ok64 MMAPfail = 0xc2d96a64a596;
+con ok64 MMAPbadarg = 0x5962999a5a25dab;
+con ok64 MMAPfail = 0x596299aa5b70;
 
 ok64 MMAPopen(Bvoid buf, size_t size);
 

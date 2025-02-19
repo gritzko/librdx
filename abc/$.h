@@ -14,10 +14,6 @@
 
 #include "01.h"
 
-con ok64 $miss = 0x37dedc7f;
-con ok64 $nodata = 0x25e25a33cbf;
-con ok64 $none = 0x29cb3cbf;
-
 #define $head(s) ((s)[0])
 #define $term(s) ((s)[1])
 #define $last(s) ((s)[1] - 1)

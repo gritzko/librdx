@@ -1,7 +1,7 @@
 
 #include "NET.h"
 
-con ok64 UDPfail = 0x30b65a9935e;
+con ok64 UDPfail = 0x1e359aa5b70;
 
 #define a$c(name, s, len)          \
     char name[len] = {0};          \

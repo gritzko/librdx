@@ -3,7 +3,7 @@
 
 #include "BUF.h"
 
-con ok64 URIfail = 0x30b65a926de;
+con ok64 URIfail = 0x1e6d2aa5b70;
 
 #define URIenum 0
 

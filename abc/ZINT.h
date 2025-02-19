@@ -4,8 +4,8 @@
 #include "INT.h"
 #include "OK.h"
 
-con ok64 ZINTnoroom = 0xc73cf6cf27574a3;
-con ok64 ZINTbadrec = 0x9e9da89667574a3;
+con ok64 ZINTnoroom = 0x8d25ddcb3db3cf1;
+con ok64 ZINTbadrec = 0x8d25dd9a5a36a67;
 
 con u64 B1 = 0xff;
 con u64 B2 = 0xffff;

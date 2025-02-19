@@ -5,8 +5,8 @@
 
 #define JSONenum 0
 
-con ok64 JSONbad = 0x289665d8713;
-con ok64 JSONfail = 0xc2d96a5d8713;
+con ok64 JSONbad = 0x137185e6968;
+con ok64 JSONfail = 0x4dc617aa5b70;
 
 typedef enum {
     JSON_NODE_ROOT = 0,

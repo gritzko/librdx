@@ -395,7 +395,7 @@ ok64 JDRfeedSesc($u8 tlv, $u8c txt) {
         ++*tlv;
         ++*txt;
     }
-    if (!$empty(txt)) return RDXnospace;
+    if (!$empty(txt)) return RDXnoroom;
     return OK;
 }
 
@@ -406,7 +406,7 @@ fun ok64 JDRfeedstamp($u8 rdxj, id128 stamp, b8 pad) {
     sane($ok(rdxj));
     if (id128empty(stamp)) return OK;
     // call($u8feed2, rdxj, ' ', '@');
-    if ($len(rdxj) < 2) return RDXnospace;
+    if ($len(rdxj) < 2) return RDXnoroom;
     $u8feed1(rdxj, '@');
     call(RDXid128feed, rdxj, stamp);
     if (pad) $u8feed1(rdxj, ' ');
@@ -534,7 +534,7 @@ ok64 JDRfeed1($u8 rdxj, $u8c tlv, u64 style) {
 
 pro(JDRdrainSesc, $u8 txt, $u8c tlv) {
     sane($ok(txt) && $ok(tlv));
-    if ($len(txt) < $len(tlv)) return RDXnospace;
+    if ($len(txt) < $len(tlv)) return RDXnoroom;
     u8 t = 0;
     $u8c key = {};
     $u8c val = {};

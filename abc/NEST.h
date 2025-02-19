@@ -8,10 +8,10 @@
 #define NESTdata(b) ((u8c**)b + 0)
 #define NESTdatac(b) ((u8c**)b + 0)
 
-con ok64 NESTnoroom = 0xc73cf6cf275c397;
-con ok64 NESTnodata = 0x978968cf275c397;
-con ok64 NESTbad = 0x2896675c397;
-con ok64 NESTnone = 0xa72cf275c397;
+con ok64 NESTnoroom = 0x5ce71dcb3db3cf1;
+con ok64 NESTnodata = 0x5ce71dcb3a25e25;
+con ok64 NESTbad = 0x1739c766968;
+con ok64 NESTnone = 0x5ce71dcb3ca9;
 
 ok64 NESTinsert(Bu8 ct, ok64 var);
 

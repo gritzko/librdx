@@ -10,7 +10,7 @@ pro(NESTtest1) {
     sane(1);
     aBpad(u8, ct, 128);
     NESTreset(ct);
-    con ok64 mood = 0xa33cf1;
+    con ok64 mood = 0xc73ce8;
     a$strc(templ, "Hello $mood world!");
     call(NESTfeed, ct, templ);
     call(NESTsplice, ct, mood);

@@ -1,10 +1,10 @@
 #ifndef ABC_LEX_H
 #define ABC_LEX_H
 
-#include "INT.h"
+#include "BUF.h"
 
-con ok64 LEXfail = 0x30b65aa1395;
-con ok64 LEXnoroom = 0x31cf3db3ca1395;
+con ok64 LEXfail = 0x153a1aa5b70;
+con ok64 LEXnoroom = 0x153a1cb3db3cf1;
 
 #define LEXenum 0
 

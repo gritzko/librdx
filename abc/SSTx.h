@@ -83,7 +83,7 @@ fun int X(SST, cmp)($cc a, $cc b) {
     a$dup(u8c, bb, b);  // TODO fast and robust
     TLVdrainkv(&ta, ka, va, aa);
     TLVdrainkv(&tb, kb, vb, bb);
-    Key keya = {}, keyb = {};
+    Key keya = X(, max), keyb = X(, max);
     X(, unpack)(&keya, ka);
     X(, unpack)(&keyb, kb);
     int z = X(, cmp)(&keya, &keyb);

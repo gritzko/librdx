@@ -80,8 +80,11 @@ typedef uint64_t ok64;
 #define OK 0
 #define FAIL 0xffffffffffffffffUL
 
-con ok64 $noroom = 0x31cf3db3cbf;
-con ok64 $badarg = 0x2bda5a259bf;
+con ok64 $miss = 0x3fc6ddf7;
+con ok64 $nodata = 0x3fcb3a25e25;
+con ok64 $none = 0x3fcb3ca9;
+con ok64 $noroom = 0x3fcb3db3cf1;
+con ok64 $badarg = 0x3f9a5a25dab;
 
 #define nil NULL
 #define WORDS(k)        \
@@ -254,6 +257,7 @@ fun h64 mix64(u64 a) {
 #define u16max 0xffff
 #define u32max 0xffffffff
 #define u64max 0xffffffffffffffffUL
+con u128 u128max = {u64max, u64max};
 
 #define O1join32(lo, hi) (((u64)lo) | (((u64)hi) << 32))
 #define O1low32(lohi) (((u64)lohi) & 0xffffffff)

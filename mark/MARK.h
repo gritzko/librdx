@@ -3,15 +3,15 @@
 
 #include <stdint.h>
 
+#include "MARQ.h"
 #include "abc/01.h"
 #include "abc/INT.h"
-#include "MARQ.h"
 #include "abc/OK.h"
 
-con ok64 MARKfail = 0xc2d96a51b296;
-con ok64 MARKnoroom = 0xc73cf6cf251b296;
-con ok64 MARKbadrec = 0x9e9da896651b296;
-con ok64 MARKmiss = 0xdf7b7151b296;
+con ok64 MARKfail = 0x58a6d4aa5b70;
+con ok64 MARKnoroom = 0x58a6d4cb3db3cf1;
+con ok64 MARKbadrec = 0x58a6d49a5a36a67;
+con ok64 MARKmiss = 0x58a6d4c6ddf7;
 #define MARKenum 0
 
 typedef enum {

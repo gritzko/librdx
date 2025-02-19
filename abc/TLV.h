@@ -7,15 +7,15 @@
 #include "OK.h"
 #include "PRO.h"
 
-con ok64 TLVbadrec = 0x27a76a2599f55d;
-con ok64 TLVnodata = 0x25e25a33c9f55d;
-con ok64 TLVbadtype = 0xa74f78a2599f55d;
-con ok64 TLVnoroom = 0x31cf3db3c9f55d;
-con ok64 TLVoverflo = 0xcf0ab6a7acdf55d;
-con ok64 TLVbadcall = 0xc30967a2599f55d;
-con ok64 TLVbadarg = 0x2bda5a2599f55d;
-con ok64 TLVbadkv = 0xeafa2599f55d;
-con ok64 TLVtoolong = 0xaf2cf0cf3e1f55d;
+con ok64 TLVbadrec = 0x1d55f9a5a36a67;
+con ok64 TLVnodata = 0x1d55fcb3a25e25;
+con ok64 TLVbadtype = 0x7557e6968e3dd29;
+con ok64 TLVnoroom = 0x1d55fcb3db3cf1;
+con ok64 TLVoverflo = 0x7557f3ea9daac33;
+con ok64 TLVbadcall = 0x7557e69689e5c30;
+con ok64 TLVbadarg = 0x1d55f9a5a25dab;
+con ok64 TLVbadkv = 0x7557e6968bfa;
+con ok64 TLVtoolong = 0x7557f8cf3c33cab;
 
 #define TLVaA 0x20
 #define TLV_MAX_LEN ((1 << 30) - 1)

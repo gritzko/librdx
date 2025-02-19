@@ -10,8 +10,8 @@
 #include "abc/TLV.h"
 #include "abc/ZINT.h"
 
-con ok64 RDXnospace = 0xa67974df3ca135b;
-con ok64 RDXbad = 0xa259a135b;
+con ok64 RDXnoroom = 0x1b361cb3db3cf1;
+con ok64 RDXbad = 0x6cd866968;
 
 #define RDX_MAX_NEST 256
 

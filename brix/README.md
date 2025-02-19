@@ -2,7 +2,7 @@
 
 BRIX employs the [Replicated Data eXchange][R] format to build an embeddable
 syncable document store with branching and other interesting features.
-The internal format is [JSON-like][J], mapped to key-value store.
+The internal format is [JSON-like][J], mapped to a key-value store.
 
 Usage examples: [brix CLI tool][C].
 

@@ -1,6 +1,7 @@
 NL = "\n";
 ws = [\r\t ] | NL;
-hex = [0-9a-fA-F];
+hex = [0-9a-fA-Z];
+ron64 = [0-9A-Za-z_~];
 
 utf8cont =  (0x80..0xbf);
 utf8lead1 = (0x00..0x7f);
@@ -19,13 +20,13 @@ esc = [\\] ["\\/bfnrt];
 hexEsc =  "\\u" hex{4};
 utf8esc = (utf8cp - ["\\\r\n]) | esc | hexEsc;
 
-id128 = [0-9a-fA-F]+ ("-" [0-9a-fA-F]+)?;
+id128 = ron64+ ("-" ron64+)?;
 
 Int = [\-]? ( [0] | [1-9] [0-9]* );
 Float = ( [\-]? ( [0] | [1-9] [0-9]* )
             ("." [0-9]+)?
             ([eE] [\-+]? [0-9]+ )? ) - Int;
-Term = [a-zA-Z0-9_~]+ -Int -Float;
+Term = ron64+ -Int -Float;
 Ref = id128 -Float -Int -Term;
 String = ["] utf8esc* ["];
 MLString = "`" (utf8cp - [`])* "`";

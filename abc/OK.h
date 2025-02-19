@@ -12,14 +12,14 @@ typedef ok64 ok;
 #define OK 0
 #define FAIL 0xffffffffffffffffUL
 
-con ok64 FAILsanity = 0xf78b7297755228f;
-con ok64 notimplyet = 0xe29f70d31b78cf2;
+con ok64 FAILsanity = 0x3ca495de5cade3d;
+con ok64 notimplyet = 0xcb3e2dc74c3da78;
 con ok64 OKnoroom = 0x614cb3db3cf1;
 con ok64 OKbadtext = 0x18526968e29f38;
-con ok64 noroom = 0xc73cf6cf2;
-con ok64 badarg = 0xaf6968966;
-con ok64 faileq = 0xd69c2d96a;
-con ok64 FAILeq = 0xd6955228f;
+con ok64 noroom = 0xcb3db3cf1;
+con ok64 badarg = 0x9a5a25dab;
+con ok64 faileq = 0xaa5b70a75;
+con ok64 FAILeq = 0x3ca495a75;
 
 con char *_base_ron64 =
     "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz~";
@@ -52,6 +52,20 @@ con u8 BASEron64rev[256] = {
 // todo thread local
 static char _ok64_tmp[16];
 
+fun ok64 RONfeed64(u8 **into, ok64 val) {
+    u8 tmp[11];
+    u8 *e = tmp + 11, *t = e;
+    do {
+        *--t = _base_ron64[val & 63];
+        val >>= 6;
+    } while (val);
+    size_t l = e - t;
+    if ($len(into) < l) return $noroom;
+    memcpy(*into, t, l);
+    *into += l;
+    return OK;
+}
+
 fun ok64 OKprint(ok64 o, uint8_t **into) {
     if (o == 0) {
         if (into[1] < into[0] + 2) return OKnoroom;
@@ -60,31 +74,27 @@ fun ok64 OKprint(ok64 o, uint8_t **into) {
         **into = 'K';
         ++*into;
         return OK;
+    } else {
+        return RONfeed64(into, o);
     }
-    while (o && !$empty(into)) {
-        **into = _base_ron64[o & 63];
-        o >>= 6;
-        ++*into;
-    }
-    return o ? OKnoroom : OK;
 }
 
-fun ok64 $u8feedok64(u8 **into, ok64 val) { return OKprint(val, into); }
-
-fun ok64 OKscan(ok64 *o, uint8_t const **from) {
+fun ok64 RONdrain64(ok64 *o, u8c **from) {
     ok64 res = 0;
-    int shift = 0;
     for (uint8_t const *p = from[0]; p < from[1]; ++p) {
         uint64_t v = BASEron64rev[*p];
         if (v == 0xff) return OKbadtext;
-        res |= v << shift;
-        shift += 6;
+        res = (res << 6) | v;
     }
     *o = res;
     return OK;
 }
 
-fun ok64 $u8drainok64(ok64 *o, u8c **from) { return OKscan(o, from); }
+fun ok64 OKscan(ok64 *o, uint8_t const **from) {
+    ok64 oo = RONdrain64(o, from);
+    if (oo == OK && *o == 0x518) *o = 0;
+    return oo;
+}
 
 fun const char *ok64str(ok64 o) {
     char *tmp[2] = {_ok64_tmp, _ok64_tmp + sizeof(_ok64_tmp)};
@@ -96,8 +106,9 @@ fun const char *ok64str(ok64 o) {
 fun const char *okstr(ok64 o) { return ok64str(o); }
 
 fun int ok64is(ok64 val, ok64 root) {
-    return val == root || (val >> 6) == root || (val >> 12) == root ||
-           (val >> 18) == root || (val >> 24) == root;
+    u8 bits = 64 - clz64(root);
+    u64 mask = (1UL << bits) - 1;
+    return (val & mask) == root;
 }
 
 fun ok64 errnok() {
