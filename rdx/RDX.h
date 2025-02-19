@@ -93,6 +93,8 @@ fun ok64 RDXdrain$(u8* t, $u8c rec, $u8c rdx) {
 
 ok64 RDXflatfeed($u8 into, $u8c rdx);
 
+ok64 RDXallFIRST($cu8c rdx);
+
 static $u8c ID128DELIM = $u8str("-");
 
 #endif

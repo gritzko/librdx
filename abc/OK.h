@@ -12,6 +12,7 @@ typedef ok64 ok;
 #define OK 0
 #define FAIL 0xffffffffffffffffUL
 
+con ok64 OKnot = 0x18532cf8;
 con ok64 FAILsanity = 0x3ca495de5cade3d;
 con ok64 notimplyet = 0xcb3e2dc74c3da78;
 con ok64 OKnoroom = 0x614cb3db3cf1;

@@ -27,15 +27,16 @@ pro(RDXtest1) {
     u8** into = Bu8idle(pad);
     $u8c hello = $u8str("Hello");
     aRDXid(id, 1, 2);
-    call(RDXfeed, into, 'A', id, hello);
+    call(RDXfeed, into, RDX_STRING, id, hello);
     same(10, $len(Bu8data(pad)));
+    call(RDXallFIRST, Bu8c$1(pad));
 
     u8 const** from = Bu8cdata(pad);
     u8 t;
     id128 reid = {};
     $u8c rehello = {};
     call(RDXdrain, &t, &reid, rehello, from);
-    same('A', t);
+    same(RDX_STRING, t);
     same(0, $cmp(hello, rehello));
     same(0, id128cmp(&id, &reid));
     done;
