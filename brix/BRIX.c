@@ -62,6 +62,7 @@ ok64 BRIXinit(BRIX* brix, $u8c path) {
 ok64 BRIXopen(BRIX* brix, $u8c path) {
     sane(brix != nil && Bnil(brix->store));
     call(BBu8alloc, brix->store, LSM_MAX_INPUTS);
+    call(Bsha256alloc, brix->ids, LSM_MAX_INPUTS);
     call(_BRIXpath, brix, path);
 
     u8c** homedata = Bu8cdata(brix->home);
@@ -82,6 +83,7 @@ ok64 BRIXopen(BRIX* brix, $u8c path) {
 ok64 BRIXclose(BRIX* brix) {
     sane(BRIXok(brix));
     if (Bok(brix->store)) call(BBu8free, brix->store);
+    if (Bok(brix->store)) call(Bsha256free, brix->ids);
     if (Bok(brix->index)) call(FILEunmap, (u8**)brix->index);
     if (Bok(brix->home)) call(Bu8free, brix->home);
     if (Bok(brix->pad)) call(Bu8unmap, brix->pad);
@@ -147,8 +149,9 @@ ok64 BRIXinitdeps(SSTu128 sst, BRIX* brix) {
     done;
 }
 
-ok64 BRIXenlist(B$u8c heap, u64* roughlen, $u8c rdx) {
-    sane(Bok(heap) && $ok(rdx));
+ok64 BRIXenlist(B$u8c heap, u64* roughlen, $cu8c allrdx) {
+    sane(Bok(heap) && $ok(allrdx));
+    a$dup(u8c, rdx, allrdx);
     while (!$empty(rdx)) {
         $u8c rec = {};
         call(TLVdrain$, rec, rdx);
@@ -165,7 +168,7 @@ ok64 BRIXenlist(B$u8c heap, u64* roughlen, $u8c rdx) {
     done;
 }
 
-ok64 BRIXflatfeed($u8 into, $u8c rdx) {
+ok64 BRIXflatfeed($u8 into, id128* clock, $u8c rdx) {
     sane($ok(into) && $ok(rdx) && RDXisPLEX(**rdx));
     $u8c empty = {};
     aBcpad(u8p, stack, 1);
@@ -209,7 +212,7 @@ ok64 _BRIXpatch(h60* let, BRIX* brix, $u8c rdx, B$u8c heap) {
     while (!Bempty(heap)) {
         $u8c pop = {};
         call(HEAP$u8cpop, &pop, heap);
-        call(BRIXflatfeed, Bu8idle(sst), pop);
+        call(BRIXflatfeed, Bu8idle(sst), nil, pop);
     }
 
     call(SSTu128end, sst, &fd, &tab);
@@ -268,4 +271,23 @@ ok64 BRIXproduceimpl($u8 into, BRIX const* brix, u8 rdt, id128 key,
 ok64 BRIXproduce($u8 into, BRIX const* brix, u8 rdt, id128 key) {
     aBcpad(u8p, stack, RDX_MAX_NEST);
     return BRIXproduceimpl(into, brix, rdt, key, stackbuf);
+}
+
+ok64 BRIXfromRDX($u8 brix, id128* clock, $u8c rdx) {
+    sane($ok(brix) && clock != nil && $ok(rdx));
+
+    B$u8c heap = {};
+    call(B$u8calloc, heap, BRIX_MAX_SST0_ENTRIES);
+
+    u64 roughlen = 0;
+    ok64 o = BRIXenlist(heap, &roughlen, rdx);
+
+    while (!B$u8cempty(heap) && o == OK) {
+        $u8c pop = {};
+        HEAP$u8cpop(&pop, heap);
+        o = BRIXflatfeed(brix, clock, pop);
+    }
+    B$u8cfree(heap);
+
+    return o;
 }

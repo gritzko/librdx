@@ -48,6 +48,7 @@ fun T const *const *X(Bc, cdata)(X(B, ) buf) {
 fun T const *const *X(Bc, cidle)(X(B, ) buf) {
     return (T const *const *)buf + 2;
 }
+fun b8 X(B, empty)(X(B, ) buf) { return buf[2] == buf[1]; }
 
 fun T *X(B, atp)(X(B, ) buf, size_t ndx) {
     T *p = buf[0] + ndx;

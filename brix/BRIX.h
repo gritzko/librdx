@@ -7,9 +7,16 @@
 #include "rdx/RDX.h"
 
 con ok64 BRIXnone = 0x2db4a1cb3ca9;
+con ok64 BRIXbadarg = 0x2db4a19a5a25dab;
+con ok64 BRIXnoverb = 0x2db4a1cb3ea9da6;
+con ok64 BRIXnotime = 0x2db4a1cb3e2dc69;
 
 #define BRIX_MAX_SST0_SIZE (1 << 30)
 #define BRIX_MAX_SST0_ENTRIES (1 << 20)
+
+enum {
+    BRIX_BRANCH_HEAD = 1UL << 60,
+};
 
 // a 60 bit hashlet is expected to be unique *within a repo*
 typedef u64 h60;
@@ -59,6 +66,8 @@ typedef struct {
     Bu8 home;
     // Open bricks, a buffer of buffers (mmaped SSTs)
     BBu8 store;
+    Bsha256 ids;
+    id128 clock;
     // Repo index
     Bkv64 index;
     Bedpub256 keys;
@@ -112,5 +121,7 @@ ok64 BRIXclose(BRIX* brix);
 fun h60 BRIXhashlet(sha256c* sha) { return ((1UL << 60) - 1) & *(h60*)sha; }
 
 fun ok64 BRIXfeedh60($u8 into, h60 let) { return RONfeed64(into, let); }
+
+ok64 BRIXfromRDX($u8 brix, id128* clock, $u8c rdx);
 
 #endif

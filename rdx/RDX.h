@@ -12,6 +12,7 @@
 
 con ok64 RDXnoroom = 0x1b361cb3db3cf1;
 con ok64 RDXbad = 0x6cd866968;
+con ok64 RDXwrong = 0x6cd87bdb3cab;
 
 #define RDX_MAX_NEST 256
 
@@ -46,7 +47,7 @@ typedef $u8c RDXterm;
 #define id128seq(t) ((t)._64[1])
 
 fun b8 id128empty(id128 id) { return id._64[0] == 0 && id._64[1] == 0; }
-
+fun u8 RDXrdt($u8c rdx) { return $empty(rdx) ? 0 : TLVup(**rdx); }
 fun b8 RDXisFIRST(u8 l) {
     l &= ~TLVaA;
     return l == RDX_FLOAT || l == RDX_INT || l == RDX_REF || l == RDX_STRING ||

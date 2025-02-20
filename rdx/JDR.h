@@ -124,7 +124,8 @@ fun pro(RDXRtlv2txt, $u8 txt, $cu8c tlv) {
     sane($ok(txt) && $ok(tlv));
     id128 time;
     RDXref v = {};
-    call(RDXCdrainR, &v, &time, tlv);
+    a$dup(u8c, dup, tlv);
+    call(RDXCdrainR, &v, &time, dup);
     if (id128src(v) == 0) call($u8feed1, txt, '0');
     call(RDXid128feed, txt, v);
     done;

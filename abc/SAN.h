@@ -9,6 +9,9 @@
 
 #undef done
 #undef sane
+#undef nedo
+#undef then
+#undef try
 #undef pro
 #undef fun
 #undef con

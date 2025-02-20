@@ -45,12 +45,11 @@ fun pro(RDXCfeedI, $u8 tlv, RDXint c, u128 time) {
     done;
 }
 
-fun ok64 RDXCdrainR(RDXref* c, id128* id, $cu8c tlv) {
-    sane(c != nil && id != nil && $ok(tlv));
+fun ok64 RDXCdrainR(RDXref* c, id128* id, $u8c rdx) {
+    sane(c != nil && id != nil && $ok(rdx));
     u8 t = 0;
     $u8c value = {};
-    a$dup(u8c, dup, tlv);
-    call(RDXdrain, &t, id, value, dup);
+    call(RDXdrain, &t, id, value, rdx);
     call(ZINTu128drain, c, value);
     done;
 }
@@ -63,12 +62,10 @@ fun pro(RDXCfeedR, $u8 tlv, RDXref c, u128 time) {
     done;
 }
 
-fun pro(RDXCdrainS, u8c$ str, $cu8c tlv, id128* id) {
-    sane(str != nil && id != nil && $ok(tlv));
-    a$dup(u8c, dup, tlv);
+fun ok64 RDXCdrainS(u8c$ str, id128* id, $u8c rdx) {
     u8 t = 0;
-    call(RDXdrain, &t, id, str, dup);
-    done;
+    ok64 o = RDXdrain(&t, id, str, rdx);
+    return t == RDX_STRING ? o : RDXwrong;
 }
 
 fun pro(RDXCfeedS, $u8 tlv, $cu8c c, u128 time) {

@@ -24,6 +24,7 @@ con ok64 TLVtoolong = 0x7557f8cf3c33cab;
 fun int TLVtiny(u8 t) { return t >= '0' && t <= '9'; }
 fun int TLVlong(u8 t) { return t >= 'A' && t <= 'Z'; }
 fun int TLVshort(u8 t) { return t >= 'a' && t <= 'z'; }
+fun u8 TLVup(u8 t) { return t & ~TLVaA; }
 
 fun u32 TLVlen(size_t len) { return len <= 0xff ? 2 + len : 5 + len; }
 fun u32 TLVtinylen(size_t len) {

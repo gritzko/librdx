@@ -1,14 +1,14 @@
 #include <unistd.h>
 
+#include "JDR.h"
+#include "RDX.h"
+#include "RDXC.h"
+#include "RDXY.h"
 #include "abc/01.h"
 #include "abc/B.h"
 #include "abc/FILE.h"
 #include "abc/INT.h"
 #include "abc/PRO.h"
-#include "RDX.h"
-#include "RDXC.h"
-#include "JDR.h"
-#include "RDXY.h"
 #include "abc/TEST.h"
 
 pro(RDXFtest) {
@@ -26,7 +26,7 @@ pro(RDXFtest) {
         printf("%lf %lf\n", c, c2);
         same(c, c2);
         same(id128time(id), id128time(id2));
-        same(id128src(id), RDXsrc(id2));
+        same(id128src(id), id128src(id2));
         aBpad(u8, txt, 32);
         call(RDXFtlv2txt, Bu8idle(txt), Bu8cdata(tlv));
         a$str(str, "text RDX: $s\n");
@@ -54,7 +54,7 @@ pro(RDXItest) {
         printf("%li %li\n", c, c2);
         same(c, c2);
         same(id128time(id), id128time(id2));
-        same(id128src(id), RDXsrc(id2));
+        same(id128src(id), id128src(id2));
         aBpad(u8, txt, 32);
         call(RDXItlv2txt, Bu8idle(txt), Bu8cdata(tlv));
         a$str(str, "text RDX: $s\n");
@@ -81,7 +81,7 @@ pro(RDXRtest) {
         call(RDXCdrainR, &c2, &id2, Bu8cdata(tlv));
         want(id128cmp(&c, &c2) == 0);
         same(id128time(id), id128time(id2));
-        same(id128src(id), RDXsrc(id2));
+        same(id128src(id), id128src(id2));
         aBpad(u8, txt, 64);
         call(RDXRtlv2txt, Bu8idle(txt), Bu8cdata(tlv));
         a$str(str, "text RDX: $s\n");
@@ -108,7 +108,7 @@ pro(RDXStest) {
         call(RDXCdrainS, c2, Bu8cdata(tlv), &id2);
         want($eq(c, c2));
         same(id128time(id), id128time(id2));
-        same(id128src(id), RDXsrc(id2));
+        same(id128src(id), id128src(id2));
         same($empty(c) ? 3 : $len(c) + 3 + 2, Bdatalen(tlv));
         aBcpad(u8, txt, 32);
         id128 id3;

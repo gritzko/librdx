@@ -7,237 +7,328 @@
 #include "abc/B.h"
 #include "abc/FILE.h"
 #include "abc/HEX.h"
+#include "abc/LSM.h"
 #include "abc/OK.h"
 #include "abc/PRO.h"
 #include "abc/SHA.h"
+#include "abc/SST.h"
 #include "abc/TLV.h"
 #include "rdx/JDR.h"
 #include "rdx/RDX.h"
 #include "rdx/RDXC.h"
+#include "rdx/RDXY.h"
+#include "rdx/RDXZ.h"
 
-enum {
-    BRIXargver = 1 << 0,
-    BRIXargobj = 1 << 1,
-    BRIXargsst = 1 << 2,
-    BRIXargpath = 1 << 3,
-};
-
-enum {
-    BRIXcmdnone,
-    BRIXcmdinit,
-    BRIXcmdsee,
-    BRIXcmdshow,
-    BRIXcmddump,
-    BRIXcmdget,
-    BRIXcmdlen,
-};
-
-$u8c BRIX_CMDS[] = {
-    $u8str(""),     $u8str("init"), $u8str("see"),
-    $u8str("show"), $u8str("dump"), $u8str("get"),
-};
-
-con ok64 BRIXbadverb = 0xb6d2866968ea9da6;
-
-ok64 JDRdrain$($u8 into, $$u8c jdr) {
+ok64 JDRdrainargs($u8 into, $$u8c jdr) {
     a$dup($u8c, j, jdr);
     id128 id128zero = {};
     while (!$empty(j)) {
         a$dup(u8, dup, into);
-        u8c$ next = **j;
-        ++*j;
+        a$dup(u8c, next, **j);
         ok64 o = JDRdrain(into, next);
         if (ok64is(o, noroom)) return o;
         if (o != OK) {
             $mv(into, dup);
-            o = RDXfeed(into, RDX_STRING, id128zero, next);
+            o = RDXfeed(into, RDX_STRING, id128zero, **j);
             if (o != OK) return o;
         }
+        ++*j;
     }
     return OK;
 }
 
-ok64 BRIXdoinit(h60* let, BRIX* brix, $$u8c args) {
-    sane(1);
+extern $u8c BRIKtmp;
+ok64 BRIKfeedpath($u8 into, BRIX const* brix, h60 let);
+ok64 BRIKhash(sha256* hash, SSTu128 sst);
+
+// ...........................
+
+// [x] init
+// [x] init "path"
+ok64 BRIX_init(BRIX* brix, id128 id, ok64 sub, $u8c args) {
+    sane($ok(args));
     a$strc(path, ".");
-    if (!$empty(args)) $mv(path, **args);
+    if (1) {
+        id128 id = {};
+        call(RDXCdrainS, path, &id, args);
+    }
     call(BRIXinit, brix, path);
     done;
 }
 
-// @branch see @version
-// see file.rdx
-ok64 BRIXdosee(h60* let, BRIX* brix, $$u8c args) {
-    sane(1);
-    while (!$empty(args)) {
-        u8c$ a = **args;
-        ++*args;
-        if ($empty(a)) {
-            continue;
-        }
-
-        if (**a == '@') {
-            ++*a;
-            id128 id = {};
-            call(RDXid128drain, &id, a);
-            fail(notimplyet);
-            continue;
-        }
-
-        sha256 hash = {};
-        a$raw(raw, hash);
-        ok64 ho = HEXdrain(raw, a);
-        if (ho == OK) {  // hash
-            fail(notimplyet);
-            continue;
-        }
-
-        Bu8 rdx = {};
-        int fd = FILE_CLOSED;
-        call(FILEmapro, rdx, &fd, a);
-        call(FILEclose, &fd);
-        call(BRIXpatch, let, brix, Bu8cdata(rdx));
-        call(FILEunmap, rdx);
-    }
-
+ok64 BRIKhash(sha256* hash, SSTu128 sst) {
+    sane(hash != nil && Bok(sst));
+    // aBusy(u8c, hashed, sst); strange compiler glitch?
+    $u8c hashed = {};
+    hashed[0] = sst[0];
+    hashed[1] = sst[2];
+    SHAsum(hash, hashed);
     done;
 }
 
-ok64 BRIXdoget(h60* let, BRIX* brix, $u8c args) {
-    sane(1);
-    while (!$empty(args)) {
-        $u8c arg;
-        call(TLVdrain$, arg, args);
-        u8 rdt = **arg & ~TLVaA;
-        switch (rdt) {
-            case RDX_REF: {
-                id128 id = {}, v = {};
-                call(RDXCdrainR, &id, &v, arg);
-                $u8c got = {};
-                call(BRIXget, got, brix, 0, id);
-                call(FILEfeedall, STDOUT_FILENO, got);
-                break;
-            }
-            default:
-                fail(notimplyet);
-        }
+con ok64 b0b = 0x26026;
+
+static const u32 rdxmagic =
+    (u32)'S' | ((u32)'S' << 8) | ((u32)'T' << 16) | ((u32)'x' << 24);
+
+// [ ] add  (stdin)
+// [x] add "file.rdx"
+// [ ] add:jdr "file.jdr"
+// [ ] add:txt "file.txt"
+ok64 BRIX_add(BRIX* brix, id128 id, ok64 sub, $u8c args) {
+    sane($ok(args));
+    $u8c path = {};
+    id128 _;
+    aRDXid(clock, 0, b0b);
+    if (RDXrdt(args) == RDX_STRING) {
+        call(RDXCdrainS, path, &_, args);
     }
 
+    int fd = FILE_CLOSED;
+    Bu8 rdx = {};
+    SSTu128 tmp = {};
+    SSTheader head = {.magic = rdxmagic, .metalen = sizeof(head)};
+    a$rawc(rawhead, head);
+
+    call(FILEmapro, rdx, &fd, path);
+
+    then try(Bu8map, tmp, roundup(Busylen(rdx) * 2, PAGESIZE));
+    then try($u8feed, Bu8idle(tmp), rawhead);
+    then Bu8eatdata(tmp);
+    // TODO !!! stamping
+    then try(BRIXfromRDX, Bu8idle(tmp), &clock, Bu8cdata(rdx));
+    sha256 hash = {};
+    BRIKhash(&hash, tmp);
+    then try(BBu8feed1, brix->store, tmp);  // at this point, becomes effective
+    then try(Bsha256feed1, brix->ids, hash);
+
+    FILEunmap(rdx);
+    FILEclose(&fd);
+    nedo Bu8unmap(tmp);
     done;
 }
-ok64 BRIXdoshow(h60* let, BRIX* brix, $$u8c args) {
-    sane(1);
-    while (!$empty(args)) {
-        u8c$ a = **args;
-        ++*args;
-        if ($empty(a)) {
-            continue;
-        }
 
-        if (**a == '@') {
-            ++*a;
-            id128 id = {};
-            call(RDXid128drain, &id, a);
-            aBcpad(u8, tmp, PAGESIZE);
-            call(BRIXproduce, tmpidle, brix, 0, id);
-            call(FILEfeedall, STDOUT_FILENO, tmpdata);
-            continue;
+// [x] get b0b-101
+// [ ] get b0b-101:field:123
+// [ ] get:all b0b-101
+// [ ] get:txt b0b-101
+// [ ] get:jdr b0b-101
+// [ ] get:dir b0b-44
+ok64 BRIX_get(BRIX* brix, id128 id, ok64 sub, $u8c args) {
+    sane(1);
+    $u8c rec = {};
+    if (!id128empty(id)) {
+        call(BRIXget, rec, brix, 0, id);
+        call(FILEfeed, STDOUT_FILENO, rec);
+    }
+    while (1 && RDXrdt(args) != RDX_TERM) {
+        u8 rdt = RDXrdt(args);
+        if (rdt == RDX_REF) {
+            id128 ref, _;
+            call(RDXCdrainR, &ref, &_, args);
+            call(BRIXget, rec, brix, 0, ref);
+            call(FILEfeed, STDOUT_FILENO, rec);
         } else {
             fail(notimplyet);
         }
     }
-
     done;
 }
 
-ok64 BRIXdodump(h60* let, BRIX* brix, $$u8c args) {
+// [ ] seal
+ok64 BRIX_seal(BRIX* brix, id128 id, ok64 sub, $u8c args) {
     sane(1);
-    Breset(brix->pad);
-    a$dup(Bu8, chunks, BBu8data(brix->store));
-    while (!$empty(chunks)) {
-        u8B chunk = (u8B) * --(chunks[1]);
-        a$dup(u8c, rdx, Bu8c$1(chunk));
-        call(JDRfeed, Bu8idle(brix->pad), rdx);
-        // TODO piecemeal
+    test(Bdatalen(brix->store) > 0, BRIXnone);
+
+    aBcpad($u8c, ins, LSM_MAX_INPUTS);
+    aBpad2(sha256, deps, LSM_MAX_INPUTS);
+
+    sha256 base = {};
+    if (Bpastlen(brix->store) > 0) {
+        base = Blast(Bpast(brix->ids));
     }
-    call(FILEfeed, STDOUT_FILENO, Bu8c$1(brix->pad));
+    Bsha256feed1(depsbuf, base);
+    Bsha256eat1(depsbuf);
+    Bsha256feed$(depsidle, Bsha256cdata(brix->ids));
+    $sha256sort(depsdata);
+
+    a$dup(Bu8, news, BBu8data(brix->store));
+    $eat(news) B$u8cfeed1(insbuf, Bu8cdata(**news));
+
+    SSTu128 sst = {};
+    int fd = FILE_CLOSED;
+    aBcpad(u8, tmp, FILEmaxpathlen);
+    call($u8feedall, tmpidle, Bu8c$1(brix->home));
+    call($u8feedall, tmpidle, BRIKtmp);
+    size_t sumsz = PAGESIZE;
+    a$dup($u8c, ins, B$u8cdata(insbuf));
+    $eat(ins) sumsz += $size(**ins);
+    call(SSTu128init, sst, &fd, tmpdata, sumsz);
+    SKIPu8tab tab = {};
+
+    call(LSMmerge, Bu8idle(sst), B$u8cdata(insbuf), RDXZrevision, RDXY);
+
+    call(SSTu128end, sst, &fd, &tab);
+    sha256 sha = {};
+    call(BRIKhash, &sha, sst);
+    call(SSTu128close, sst);
+    aBcpad(u8, sha, FILEmaxpathlen);
+    h60 let = BRIXhashlet(&sha);
+    call(BRIKfeedpath, shaidle, brix, let);
+    call(FILErename, tmpdata, shadata);
+    call(BRIKfeedpath, shaidle, brix, let);
+
     done;
 }
 
-ok64 BRIXobject() {
+// [ ] merge Branch
+// [ ] merge Branch-seq
+// [ ] merge Hash1e7
+// [ ] merge:branch Branch
+// [ ] merge:version Branch-seq
+// [ ] merge:sst Hash1e7
+// [ ] merge:sst "./path/file.sst"
+ok64 BRIX_merge(BRIX* brix, id128 id, ok64 sub, $u8c args) {
+    sane(1);
+    done;
+}
+
+// [ ] open Branch
+// [ ] open:branch Branch
+// [ ] open Branch-101
+// [ ] open:version Branch-101
+// [ ] open Hash1e7
+// [ ] open:sst Hash1e7
+ok64 BRIX_open(BRIX* brix, id128 id, ok64 sub, $u8c args) {
+    sane(1);
+    done;
+}
+
+// [ ] fork
+// [ ] fork NewBranch
+ok64 BRIX_fork(BRIX* brix, id128 id, ok64 sub, $u8c args) {
+    sane(1);
+    kv64B idx = (kv64B)brix->index;
+    u64 name = (random()) & u60max;
+    u64 head = 0;
+    if (1 && TLVup(**args) == RDX_REF) {
+    }
+    kv64 headrec = {name | BRIX_BRANCH_HEAD, head};
+    call(HASHkv64put, idx, &headrec);
+    done;
+}
+
+// [x] list
+// [x] list:sst
+// [ ] list:rdx
+// [ ] list:jdr
+// [ ] list:head
+ok64 BRIX_list(BRIX* brix, id128 id, ok64 sub, $u8c args) {
+    sane(1);
+    con ok64 sst = 0x37df8;
+    if (sub == 0 || sub == sst) {
+        aBcpad(u8, out, LSM_MAX_INPUTS * sizeof(sha256) * 3);
+        a$strc(line, "...head...\n");
+        for (sha256c* p = brix->ids[0]; p < brix->ids[2]; ++p) {
+            if (p == brix->ids[1]) {
+                call($u8feed, outidle, line);
+            }
+            a$rawcp(raw, p);
+            call(RONfeed64, outidle, BRIXhashlet(p));
+            call($u8feed1, outidle, '\t');
+            call(HEXfeed, outidle, raw);
+            call($u8feed1, outidle, '\n');
+        }
+        call(FILEfeedall, STDOUT_FILENO, outdata);
+    } else {
+        fail(BRIXbadarg);
+    }
+    /*
+        Breset(brix->pad);
+        a$dup(Bu8, chunks, BBu8data(brix->store));
+        while (!$empty(chunks)) {
+            u8B chunk = (u8B) * --(chunks[1]);
+            a$dup(u8c, rdx, Bu8c$1(chunk));
+            call(JDRfeed, Bu8idle(brix->pad), rdx);
+            // TODO piecemeal
+        }
+        call(FILEfeed, STDOUT_FILENO, Bu8c$1(brix->pad));
+        */
+    done;
+}
+
+typedef ok64 (*cmdfn)(BRIX* brix, id128 id, ok64 sub, $u8c args);
+
+typedef struct {
+    $u8c name;
+    cmdfn fn;
+} cmd_t;
+
+cmd_t COMMANDS[] = {
+    {$u8str("init"), BRIX_init},    //
+    {$u8str("open"), BRIX_open},    //
+    {$u8str("merge"), BRIX_merge},  //
+    {$u8str("add"), BRIX_add},      //
+    {$u8str("commit"), BRIX_seal},  //
+    {$u8str("seal"), BRIX_seal},    //
+    {$u8str("fork"), BRIX_fork},    //
+    {$u8str("get"), BRIX_get},      //
+    {$u8str("list"), BRIX_list},    //
+    {$u8str(""), nil},
+};
+
+ok64 BRIXcli() {
     sane(1);
     BRIX brix = {};
-    $u8c$ args = B$u8cdata(STD_ARGS);
-    ++*args;  // program
-    h60 res = {};
+    a$dup($u8c, stdargs, B$u8cdata(STD_ARGS));
+    ++*stdargs;  // program name
+    aBcpad(u8, cmds, PAGESIZE);
+    call(JDRdrainargs, cmdsidle, stdargs);
+    u8c$ cmds = cmdsdata;
     a$strc(path, ".");
-    if (!$empty(args) && !$empty(**args) &&
-        (****args == '.' || ****args == '/')) {
-        $mv(path, **args);
-        ++*args;
+
+    if (!$empty(cmds) && TLVup(**cmds) == RDX_STRING) {
+        id128 id = {};
+        call(RDXCdrainS, path, &id, cmds);
     }
-    int verb = 0;
 
-    call(BRIXopen, &brix, path);
-
-    while (!$empty(args)) {
-        u8c$ a = **args;
-        ++*args;
-        if ($empty(a)) {
-            ;
-        } else if (**a == '@') {
-            ++*a;
-            id128 id = {};
-            call(RDXid128drain, &id, a);
-            if (id128src(id) == 0) {  // @branch
-                u64swap(id._64, id._64 + 1);
+    while (!$empty(cmds)) {
+        u8 t = 0;
+        id128 id = {};
+        $u8c val = {};
+        $u8c verb = {};
+        u64 sub = 0;
+        call(RDXdrain, &t, &id, val, cmds);
+        if (t == RDX_TUPLE) {
+            id128 _;
+            test(!$empty(val), BRIXbadarg);
+            call(RDXdrain, &t, &_, verb, val);
+            test(t == RDX_TERM, BRIXnoverb);
+            if (!$empty(val)) {
+                $u8c s = {};
+                call(RDXdrain, &t, &_, s, val);
+                test(t == RDX_TERM, BRIXbadarg);
+                call(RONdrain64, &sub, s);
             }
-            call(BRIXpushrev, &brix, id);
-        } else if (**a == '*') {
-            ++*a;
-            h60 hashlet = {};
-            a$raw(raw, hashlet);
-            call(RONdrain64, &hashlet, a);
-            call(BRIXpush, &brix, hashlet);
+        } else if (t == RDX_TERM) {
+            $mv(verb, val);
         } else {
-            int v = 1;
-            while (v < BRIXcmdlen && !$eq(BRIX_CMDS[v], a)) ++v;
-            if (v < BRIXcmdlen) {
-                verb = v;
-                break;
-            }
-            if (v == BRIXcmdlen) fail(BRIXbadverb);
+            fail(BRIXnoverb);
         }
-    }
+        int v = 0;
+        while (!$eq(COMMANDS[v].name, verb)) {
+            ++v;
+            test(!$empty(COMMANDS[v].name), BRIXnoverb);
+        }
+        if (v != 0 && Bempty(brix.home)) {
+            call(BRIXopen, &brix, path);
+        }
 
-    a$dup($u8c, args2, args);
-    aBcpad(u8, rdx, PAGESIZE);
-    call(JDRdrain$, rdxidle, args2);
-
-    switch (verb) {
-        case BRIXcmdnone:  // subject
-            break;
-        case BRIXcmdinit:
-            return BRIXdoinit(&res, &brix, args);
-        case BRIXcmdsee:
-            return BRIXdosee(&res, &brix, args);
-        case BRIXcmdshow:
-            return BRIXdoshow(&res, &brix, args);
-        case BRIXcmddump:
-            return BRIXdodump(&res, &brix, args);
-        case BRIXcmdget:
-            return BRIXdoget(&res, &brix, rdxdata);
-        default:
-            fail(notimplyet);
+        call(COMMANDS[v].fn, &brix, id, sub, cmds);
     }
+    test($empty(cmds), BRIXbadarg);
 
-    if (res != 0) {
-        aBcpad(u8, hash, 16);
-        BRIXfeedh60(hashidle, res);
-        $println(hashdata);
-    }
-    call(BRIXclose, &brix);
     done;
 }
 
-MAIN(BRIXobject);
+MAIN(BRIXcli);

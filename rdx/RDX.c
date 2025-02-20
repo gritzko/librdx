@@ -8,7 +8,7 @@ ok64 RDXallFIRST($cu8c rdx) {
     while (!$empty(r)) {
         $u8c next;
         call(TLVdrain$, next, r);
-        if (!RDXisFIRST(**next)) fail(OKnot);
+        if (!RDXisFIRST(**next)) fail(FAIL);
     }
     done;
 }
