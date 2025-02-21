@@ -41,8 +41,8 @@ ok64 BRIKfeedpath($u8 into, BRIX const* brix, h60 let) {
 }
 
 ok64 BRIXinit(BRIX* brix, $u8c path) {
-    sane(brix != nil && !Bok(brix->store) && $ok(path));
-    call(BBu8alloc, brix->store, LSM_MAX_INPUTS);
+    sane(brix != nil && !Bok(brix->ssts) && $ok(path));
+    call(BBu8alloc, brix->ssts, LSM_MAX_INPUTS);
     call(_BRIXpath, brix, path);
     u8c** homedata = Bu8cdata(brix->home);
     call(FILEmakedir, homedata);
@@ -60,9 +60,9 @@ ok64 BRIXinit(BRIX* brix, $u8c path) {
 }
 
 ok64 BRIXopen(BRIX* brix, $u8c path) {
-    sane(brix != nil && Bnil(brix->store));
-    call(BBu8alloc, brix->store, LSM_MAX_INPUTS);
-    call(Bsha256alloc, brix->ids, LSM_MAX_INPUTS);
+    sane(brix != nil && Bnil(brix->ssts));
+    call(BBu8alloc, brix->ssts, LSM_MAX_INPUTS);
+    call(Bu64alloc, brix->ids, LSM_MAX_INPUTS);
     call(_BRIXpath, brix, path);
 
     u8c** homedata = Bu8cdata(brix->home);
@@ -82,8 +82,8 @@ ok64 BRIXopen(BRIX* brix, $u8c path) {
 
 ok64 BRIXclose(BRIX* brix) {
     sane(BRIXok(brix));
-    if (Bok(brix->store)) call(BBu8free, brix->store);
-    if (Bok(brix->store)) call(Bsha256free, brix->ids);
+    if (Bok(brix->ssts)) call(BBu8free, brix->ssts);
+    if (Bok(brix->ids)) call(Bu64free, brix->ids);
     if (Bok(brix->index)) call(FILEunmap, (u8**)brix->index);
     if (Bok(brix->home)) call(Bu8free, brix->home);
     if (Bok(brix->pad)) call(Bu8unmap, brix->pad);
@@ -96,7 +96,7 @@ ok64 BRIXpush(BRIX* brix, h60 let) {
     call(BRIKfeedpath, brikidle, brix, let);
     Bu8 buf = {};
     call(SSTu128open, buf, brikdata);
-    call(BBu8feed1, brix->store, buf);
+    call(BBu8feed1, brix->ssts, buf);
     done;
 }
 
@@ -109,8 +109,7 @@ fun ok64 BRIXresetpad(BRIX* brix) {
 ok64 _BRIXgetkv(u8c$ into, BRIX const* brix, u8 rdt, id128 key) {
     sane($nil(into) && brix != nil && (TLVlong(rdt) || rdt == 0));
     aBpad2($u8c, ins, LSM_MAX_INPUTS);
-    Bu8$ ssts = BBu8$1(brix->store);
-    for (Bu8* p = $head(ssts); p < $term(ssts); ++p) {
+    for (Bu8* p = brix->ssts[0]; p < brix->ssts[2]; ++p) {
         u8 t = rdt;
         $u8c rec = {};
         ok64 o = SSTu128getkv(rec, *p, t, &key);
@@ -138,7 +137,7 @@ ok64 BRIXget(u8c$ into, BRIX const* brix, u8 rdt, id128 key) {
 
 ok64 BRIXinitdeps(SSTu128 sst, BRIX* brix) {
     sane(Bok(sst) && BRIXok(brix));
-    if (Bempty(brix->store)) {
+    if (Bempty(brix->ssts)) {
         sha256 sha = {};
         a$rawc(sharaw, sha);
         call($u8feedall, Bu8$2(sst), sharaw);

@@ -65,8 +65,8 @@ typedef struct {
     // The home dir path, including .brix/
     Bu8 home;
     // Open bricks, a buffer of buffers (mmaped SSTs)
-    BBu8 store;
-    Bsha256 ids;
+    BBu8 ssts;
+    Bu64 ids;
     id128 clock;
     // Repo index
     Bkv64 index;
@@ -76,7 +76,7 @@ typedef struct {
     Bu8 pad;
 } BRIX;
 
-fun b8 BRIXok(BRIX const* brix) { return brix != nil && Bok(brix->store); }
+fun b8 BRIXok(BRIX const* brix) { return brix != nil && Bok(brix->ssts); }
 
 // init a repo
 ok64 BRIXinit(BRIX* brix, $u8c path);
@@ -93,7 +93,7 @@ fun ok64 BRIXpushall(BRIX* brix, $u64 heads) {
     return o;
 }
 // len of the stack
-fun size_t BRIXlen(BRIX const* brix) { return Bdatalen(brix->store); }
+fun size_t BRIXlen(BRIX const* brix) { return Bdatalen(brix->ssts); }
 // pop one SST from the stack
 ok64 BRIXpop(BRIX* brix);
 // pop SSTs from the stack

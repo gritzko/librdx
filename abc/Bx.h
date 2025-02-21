@@ -21,8 +21,8 @@ fun T **X(B, $2)(X(B, ) buf) { return (T **)buf + 2; }
 fun T const **X(B, c$1)(X(B, ) buf) { return (T const **)buf + 1; }
 fun T const **X(B, c$2)(X(B, ) buf) { return (T const **)buf + 2; }
 
-fun void X(B, eat1)(X(B, ) buf) { ((T **)buf)[1] = buf[2]; }
-fun void X(B, eat2)(X(B, ) buf) { ((T **)buf)[2] = buf[3]; }
+fun void X(B, eat$1)(X(B, ) buf) { ((T **)buf)[1] = buf[2]; }
+fun void X(B, eat$2)(X(B, ) buf) { ((T **)buf)[2] = buf[3]; }
 fun void X(B, eatdata)(X(B, ) buf) { ((T **)buf)[1] = buf[2]; }
 fun void X(B, eatidle)(X(B, ) buf) { ((T **)buf)[2] = buf[3]; }
 

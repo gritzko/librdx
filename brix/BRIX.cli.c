@@ -99,8 +99,9 @@ ok64 BRIX_add(BRIX* brix, id128 id, ok64 sub, $u8c args) {
     then try(BRIXfromRDX, Bu8idle(tmp), &clock, Bu8cdata(rdx));
     sha256 hash = {};
     BRIKhash(&hash, tmp);
-    then try(BBu8feed1, brix->store, tmp);  // at this point, becomes effective
-    then try(Bsha256feed1, brix->ids, hash);
+    then try(BBu8feed1, brix->ssts, tmp);  // at this point, becomes effective
+    then try(Bu64feed1, brix->ids, BRIXhashlet(&hash));
+    // TODO hash
 
     FILEunmap(rdx);
     FILEclose(&fd);
@@ -121,7 +122,7 @@ ok64 BRIX_get(BRIX* brix, id128 id, ok64 sub, $u8c args) {
         call(BRIXget, rec, brix, 0, id);
         call(FILEfeed, STDOUT_FILENO, rec);
     }
-    while (1 && RDXrdt(args) != RDX_TERM) {
+    while (!$empty(args) && RDXrdt(args) != RDX_TERM) {
         u8 rdt = RDXrdt(args);
         if (rdt == RDX_REF) {
             id128 ref, _;
@@ -138,21 +139,22 @@ ok64 BRIX_get(BRIX* brix, id128 id, ok64 sub, $u8c args) {
 // [ ] seal
 ok64 BRIX_seal(BRIX* brix, id128 id, ok64 sub, $u8c args) {
     sane(1);
-    test(Bdatalen(brix->store) > 0, BRIXnone);
+    test(Bdatalen(brix->ssts) > 0, BRIXnone);
 
     aBcpad($u8c, ins, LSM_MAX_INPUTS);
     aBpad2(sha256, deps, LSM_MAX_INPUTS);
 
-    sha256 base = {};
-    if (Bpastlen(brix->store) > 0) {
+    u64 base = {};
+    if (Bpastlen(brix->ssts) > 0) {
         base = Blast(Bpast(brix->ids));
     }
-    Bsha256feed1(depsbuf, base);
-    Bsha256eat1(depsbuf);
-    Bsha256feed$(depsidle, Bsha256cdata(brix->ids));
+    sha256 dummy = {};  // FIXME
+    Bsha256feed1(depsbuf, dummy);
+    Bsha256eatdata(depsbuf);
+    // FIXME Bsha256feed$(depsidle, Bsha256cdata(brix->ids));
     $sha256sort(depsdata);
 
-    a$dup(Bu8, news, BBu8data(brix->store));
+    a$dup(Bu8, news, BBu8data(brix->ssts));
     $eat(news) B$u8cfeed1(insbuf, Bu8cdata(**news));
 
     SSTu128 sst = {};
@@ -193,6 +195,8 @@ ok64 BRIX_merge(BRIX* brix, id128 id, ok64 sub, $u8c args) {
     done;
 }
 
+ok64 BRIKfeedpath($u8 into, BRIX const* brix, h60 let);
+
 // [ ] open Branch
 // [ ] open:branch Branch
 // [ ] open Branch-101
@@ -201,6 +205,34 @@ ok64 BRIX_merge(BRIX* brix, id128 id, ok64 sub, $u8c args) {
 // [ ] open:sst Hash1e7
 ok64 BRIX_open(BRIX* brix, id128 id, ok64 sub, $u8c args) {
     sane(1);
+    while (Busylen(brix->ssts)) {
+        Bu8* last = Blastp(brix->ssts);
+        Bu8unmap(*last);
+        BBu8pop(brix->ssts);
+        Bu64pop(brix->ids);
+    }
+
+    con ok64 sst = 0x37df8;
+    if (sub == 0 || sub == sst) {
+        $u8c s = {};
+        id128 _;
+        u8 t;
+        u64 hashlet = 0;
+        call(RDXdrain, &t, &_, s, args);
+        test(t == RDX_TERM, BRIXbadarg);
+        call(RONdrain64, &hashlet, s);
+        SSTu128 sst = {};
+        aBcpad(u8, path, FILEmaxpathlen);
+        call(BRIKfeedpath, pathidle, brix, hashlet);
+        call(SSTu128open, sst, pathdata);
+        call(BBu8feed1, brix->ssts, sst);
+        call(Bu64feed1, brix->ids, hashlet);
+
+        BBu8eatdata(brix->ssts);
+        Bu64eatdata(brix->ids);
+    } else {
+        fail(notimplyet);
+    }
     done;
 }
 
@@ -229,14 +261,14 @@ ok64 BRIX_list(BRIX* brix, id128 id, ok64 sub, $u8c args) {
     if (sub == 0 || sub == sst) {
         aBcpad(u8, out, LSM_MAX_INPUTS * sizeof(sha256) * 3);
         a$strc(line, "...head...\n");
-        for (sha256c* p = brix->ids[0]; p < brix->ids[2]; ++p) {
+        for (u64* p = brix->ids[0]; p < brix->ids[2]; ++p) {
             if (p == brix->ids[1]) {
                 call($u8feed, outidle, line);
             }
             a$rawcp(raw, p);
-            call(RONfeed64, outidle, BRIXhashlet(p));
+            call(RONfeed64, outidle, *p);
             call($u8feed1, outidle, '\t');
-            call(HEXfeed, outidle, raw);
+            // TODO call(HEXfeed, outidle, raw);
             call($u8feed1, outidle, '\n');
         }
         call(FILEfeedall, STDOUT_FILENO, outdata);

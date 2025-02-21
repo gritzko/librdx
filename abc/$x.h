@@ -64,6 +64,17 @@ fun T X($, at)(X($, ) s, size_t pos) { return s[0][pos]; }
 
 fun T *X($, atp)(X($, ) s, size_t pos) { return s[0] + pos; }
 
+fun ok64 X($, eat1)(X($, ) s) {
+    if (s[0] >= s[1]) return $nodata;
+    ++s[0];
+    return OK;
+}
+
+fun ok64 X($, eatall)(X($, ) s) {
+    s[0] = s[1];
+    return OK;
+}
+
 fun T const *X($, find)(X($c, c) haystack, T const *needle) {
     for (T const *p = haystack[0]; p < haystack[1]; p++)
         if (memcmp(p, needle, sizeof(T)) == 0) return p;
