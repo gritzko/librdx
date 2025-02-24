@@ -43,6 +43,7 @@ ok64 JDRdrainargs($u8 into, $$u8c jdr) {
 
 con ok64 SUBsst = 0x37df8;
 con ok64 b0b = 0x26026;
+con ok64 SUBdeps = 0xa29d37;
 
 ok64 BRIKfeedpath($u8 into, BRIX const* brix, h60 let);
 ok64 BRIKhash(sha256* hash, SSTu128 sst);
@@ -198,26 +199,35 @@ ok64 BRIX_open(BRIX* brix, id128 id, ok64 sub, $u8c args) {
 }
 
 // [x] list
-// [x] list:sst
-// [ ] list:rdx
-// [ ] list:jdr
-// [ ] list:head
+// [ ] list:deps
 ok64 BRIX_list(BRIX* brix, id128 id, ok64 sub, $u8c args) {
     sane(1);
-    con ok64 sst = 0x37df8;
-    if (sub == 0 || sub == sst) {
-        aBcpad(u8, out, LSM_MAX_INPUTS * sizeof(sha256) * 3);
-        a$strc(line, "...head...\n");
+    if (sub == 0 || sub == SUBsst || sub == SUBdeps) {
+        aBcpad(u8, out, LSM_MAX_INPUTS * sizeof(sha256) * 2 * 8);  // TODO
         aBusy(sha256, shas, brix->shas);
         sha256c* head = nil;
         sha256$c opened = Bsha256past(brix->shas);
         if (!$empty(opened)) head = $sha256last(opened);
-        $eat(shas) {
-            a$rawcp(raw, *shas);
-            u8 flag = (*shas == head) ? '*' : ' ';
+        for (int i = 0; i < $len(shas); ++i) {
+            sha256c* p = $atp(shas, i);
+            a$rawcp(raw, p);
+            u8 flag = (p == head) ? '*' : ' ';
             call($u8feed1, outidle, flag);
             call(HEXfeed, outidle, raw);
             call($u8feed1, outidle, '\n');
+            if (sub == SUBdeps) {
+                SSTu128* sst = Batp(brix->ssts, i);
+                $sha256c deps = {};
+                call(SSTu128meta, *sst, nil, (u8c$)deps);
+                u8 flag = '>';
+                $eat(deps) {
+                    a$rawcp(depraw, *deps);
+                    call($u8feed2, outidle, '\t', flag);
+                    call(HEXfeed, outidle, depraw);
+                    call($u8feed1, outidle, '\n');
+                    flag = ' ';
+                }
+            }
         }
         call(FILEfeedall, STDOUT_FILENO, outdata);
     } else {
