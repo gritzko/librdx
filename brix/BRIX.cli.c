@@ -63,24 +63,25 @@ ok64 BRIX_add(BRIX* brix, id128 id, ok64 sub, $u8c args) {
         fail(notimplyet);
     }
 
-    Bu8 rdx = {};
-    SSTu128 tmp = {};
-    SSTheader head = {.magic = rdxmagic, .metalen = sizeof(head)};
-    a$rawc(rawhead, head);
+    done;
+}
 
+ok64 BRIX_patch(BRIX* brix, id128 id, ok64 sub, $u8c args) {
+    sane($ok(args));
+
+    test(RDXrdt(args) == RDX_STRING, BRIXbadarg);
+    $u8c path = {};
+    id128 _;
+    call(RDXCdrainS, path, &_, args);
+
+    Bu8 rdx = {};
     call(FILEmapro, rdx, path);
 
-    then try(Bu8map, tmp, roundup(Busylen(rdx) * 2, PAGESIZE));
-    then try($u8feed, Bu8idle(tmp), rawhead);
-    then Bu8eatdata(tmp);
-    then try(BRIXfromRDX, Bu8idle(tmp), &clock, Bu8cdata(rdx));
-    sha256 hash = {};
-    BRIKhash(&hash, tmp);
-    then try(BBu8feed1, brix->ssts, tmp);  // at this point, becomes effective
-    then try(Bsha256feedp, brix->shas, &hash);
+    sha256 sha = {};
+    try(BRIXaddpatch, &sha, brix, Bu8cdata(rdx));
 
     FILEunmap(rdx);
-    nedo Bu8unmap(tmp);
+
     done;
 }
 
@@ -201,10 +202,11 @@ ok64 BRIX_list(BRIX* brix, id128 id, ok64 sub, $u8c args) {
         a$strc(line, "...head...\n");
         aBusy(sha256, shas, brix->shas);
         sha256c* head = nil;
-        if (!$empty(Bpast(brix->shas))) head = Blastp(brix->shas);
+        sha256$c opened = Bsha256past(brix->shas);
+        if (!$empty(opened)) head = $sha256last(opened);
         $eat(shas) {
             a$rawcp(raw, *shas);
-            u8 flag = *shas == head ? '*' : ' ';
+            u8 flag = (*shas == head) ? '*' : ' ';
             call($u8feed1, outidle, flag);
             call(HEXfeed, outidle, raw);
             call($u8feed1, outidle, '\n');
@@ -213,17 +215,6 @@ ok64 BRIX_list(BRIX* brix, id128 id, ok64 sub, $u8c args) {
     } else {
         fail(BRIXbadarg);
     }
-    /*
-        Breset(brix->pad);
-        a$dup(Bu8, chunks, BBu8data(brix->store));
-        while (!$empty(chunks)) {
-            u8B chunk = (u8B) * --(chunks[1]);
-            a$dup(u8c, rdx, Bu8c$1(chunk));
-            call(JDRfeed, Bu8idle(brix->pad), rdx);
-            // TODO piecemeal
-        }
-        call(FILEfeed, STDOUT_FILENO, Bu8c$1(brix->pad));
-        */
     done;
 }
 
@@ -238,6 +229,7 @@ cmd_t COMMANDS[] = {
     {$u8str("open"), BRIX_open},    //
     {$u8str("merge"), BRIX_merge},  //
     {$u8str("add"), BRIX_add},      //
+    {$u8str("patch"), BRIX_patch},  //
     {$u8str("get"), BRIX_get},      //
     {$u8str("list"), BRIX_list},    //
     {$u8str(""), nil},

@@ -96,9 +96,6 @@ fun ok64 BRIXaddall(BRIX* brix, $csha256c heads) {
     return o;
 }
 
-// add an RDX patch on top of the current stack
-ok64 BRIXaddpatch(h60* let, BRIX* brix, $u8c rdx);
-
 // length of the stack
 fun size_t BRIXlen(BRIX const* brix) { return Bdatalen(brix->ssts); }
 
@@ -129,10 +126,12 @@ ok64 BRIXgetc(u8c$ rec, BRIX const* brix, u8c rdt, id128 key);
 // the references, e.g. `{@rec-1 1 2 [@rec-3] }` rec-1 refers to rec-3
 // as an element. if `[@rec-3 "one" "two"]` then the combined result is
 // `{@rec-1 1 2 [@rec-3 "one" "two"] }`
-ok64 BRIXreget(u8c$ rec, BRIX const* brix, u8c rdt, id128 key);
+ok64 BRIXreget($u8 into, BRIX const* brix, u8c rdt, id128 key);
 
-// Strips an RDX document (as produced by BRIXreget) into BRIX key-value form.
-ok64 BRIXfromRDX($u8 brix, id128* clock, $u8c rdx);
+// Converts a nested RDX document (as produced by BRIXreget) into BRIX
+// key-value form.
+// Makes a *patch* SST for it (no deps), puts it on the stack.
+ok64 BRIXaddpatch(sha256* sha, BRIX* brix, $u8c rdx);
 
 ok64 BRIXfind(sha256* sha, BRIX const* brix, $u8c part);
 

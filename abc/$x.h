@@ -33,6 +33,16 @@ typedef b8 (*X(, isfn))(const X(, ) *);
 
 fun size_t X($, len)(X($c, ) data) { return data[1] - data[0]; }
 
+fun T *X($, last)(X($c, ) data) {
+    assert(!$empty(data));
+    return data[1] - 1;
+}
+
+fun T const *X($, lastc)(X($c, c) data) {
+    assert(!$empty(data));
+    return data[1] - 1;
+}
+
 fun void X($, sort)(X($c, ) data) { $sort(data, X(, cmp)); }
 
 fun void X($, sortfn)(X($c, ) data, X(, cmpfn) fn) { $sort(data, fn); }

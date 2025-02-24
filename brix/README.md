@@ -22,7 +22,7 @@ the entire stack of files. Then, you are free to add more files
 on top of that (patches, merges, and so on). Merges affect the top
 of the stack, i.e. you merge top `k` files into one.
 
-All BRIX SST files are stored in the `./.rdx` directory by default.
+All BRIX SST files are stored in the `./.rdx/brix` directory by default.
 
 ##  `brix` the CLI tool
 
