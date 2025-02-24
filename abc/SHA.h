@@ -33,6 +33,10 @@ fun int sha256cmp(sha256 const* a, sha256 const* b) {
     return memcmp(a, b, sizeof(sha256));
 }
 
+fun int sha256eq(sha256 const* a, sha256 const* b) {
+    return memcmp(a, b, sizeof(sha256)) == 0;
+}
+
 #define X(M, n) M##sha256##n
 #include "Bx.h"
 #include "HEXx.h"

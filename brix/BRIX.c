@@ -2,6 +2,7 @@
 
 #include <fcntl.h>
 
+#include "abc/01.h"
 #include "abc/B.h"
 #include "abc/BUF.h"
 #include "abc/FILE.h"
@@ -11,103 +12,195 @@
 #include "abc/SST.h"
 #include "abc/TLV.h"
 #include "abc/ZINT.h"
+#include "dirent.h"
 #include "rdx/RDX.h"
 #include "rdx/RDXY.h"
 #include "rdx/RDXZ.h"
 
-a$strc(BRIKtmp, ".tmp");
+a$strc(BRIKtmp, ".tmp.brik");
 a$strc(BRIKext, ".brik");
-a$strc(BRIXdir, ".brix");
-a$strc(BRIXindex, "INDEX");
 
-ok64 _BRIXpath(BRIX* brix, $u8c path) {
-    sane(brix != nil && $ok(path));
-    call(Bu8alloc, brix->home, $len(path) + 128);
-    u8** homeidle = Bu8idle(brix->home);
-    u8c** homedata = Bu8cdata(brix->home);
-    call($u8feed, homeidle, path);
-    call($u8feed1, homeidle, '/');
-    call($u8feed, homeidle, BRIXdir);
-    call($u8feed1, homeidle, '/');
-    done;
+fun ok64 BRIKhead(BRIX const* brix, SSTheader const** head, sha256c$ shas,
+                  u32 ndx) {
+    if (ndx >= Busylen(brix->shas)) return BRIXmiss;
+    return SSTu128meta(Bat(brix->ssts, 0), head, (u8c$)shas);
 }
 
-ok64 BRIKfeedpath($u8 into, BRIX const* brix, h60 let) {
-    sane($ok(into) && brix != nil);
-    call($u8feedall, into, Bu8c$1(brix->home));
-    call(BRIXfeedh60, into, let);
+ok64 BRIKfilename($u8 into, BRIX const* brix, sha256c* sha) {
+    sane($ok(into) && brix != nil && sha != nil);
+    a$rawcp(raw, sha);
+    call(HEXfeedall, into, raw);
     call($u8feedall, into, BRIKext);
     done;
 }
 
-ok64 BRIXinit(BRIX* brix, $u8c path) {
+ok64 BRIKpath($u8 into, BRIX const* brix, sha256c* sha) {
+    sane($ok(into) && brix != nil);
+    call($u8feedall, into, brix->home);
+    call($u8feed1, into, '/');
+    call(BRIKfilename, into, brix, sha);
+    done;
+}
+
+ok64 BRIXopenrepo(BRIX* brix, $u8c path) {
     sane(brix != nil && !Bok(brix->ssts) && $ok(path));
+    call(FILEisdir, path);
     call(BBu8alloc, brix->ssts, LSM_MAX_INPUTS);
-    call(_BRIXpath, brix, path);
-    u8c** homedata = Bu8cdata(brix->home);
-    call(FILEmakedir, homedata);
-    a$dup(u8c, olddata, homedata);
-    int fd = FILE_CLOSED;
-
-    call($u8feed, Bu8$2(brix->home), BRIXindex);
-    call(FILEmapnew, (u8**)brix->index, &fd, homedata, PAGESIZE);
-    call(FILEclose, &fd);
-    $mv(homedata, olddata);
-
+    call(Bsha256alloc, brix->shas, LSM_MAX_INPUTS);
+    Bu8 pb = {};
+    call(Bu8alloc, pb, $len(path));
+    $u8feed(Bu8$2(pb), path);
+    $mv(brix->home, Bu8$1(pb));
     call(Bu8map, brix->pad, GB);
-
     done;
 }
 
-ok64 BRIXopen(BRIX* brix, $u8c path) {
-    sane(brix != nil && Bnil(brix->ssts));
-    call(BBu8alloc, brix->ssts, LSM_MAX_INPUTS);
-    call(Bu64alloc, brix->ids, LSM_MAX_INPUTS);
-    call(_BRIXpath, brix, path);
-
-    u8c** homedata = Bu8cdata(brix->home);
-    u64 dl = $len(homedata);
+// add an SST to the stack, including *missing* dependencies
+ok64 BRIXadd(BRIX* brix, sha256c* sha) {
+    sane(BRIXok(brix) && sha != nil);
+    aBcpad(u8, fn, FILEmaxpathlen);
+    call(BRIKpath, fnidle, brix, sha);
+    SSTu128 sst = {};
     int fd = FILE_CLOSED;
-
-    a$dup(u8c, old, homedata);
-    call($u8feed, Bu8$2(brix->home), BRIXindex);
-    call(FILEmapro, (u8**)brix->index, &fd, homedata);
-    call(FILEclose, &fd);
-    $mv(homedata, old);
-
-    call(Bu8map, brix->pad, GB);
-
+    call(SSTu128open, sst, fndata);
+    $sha256c deps = {};
+    call(SSTu128meta, sst, nil, (u8c**)deps);
+    test($sha256ok(deps), BRIXbad);
+    if (!$empty(deps)) {
+        ok64 o = BRIXhave(brix, $head(deps));
+        if (o != OK) call(BRIXadd, brix, $head(deps));
+    }
+    call(BBu8feed1, brix->ssts, sst);
+    call(Bsha256feedp, brix->shas, sha);
     done;
 }
 
-ok64 BRIXclose(BRIX* brix) {
+// close everything previously open, then
+// add an SST to the stack, including its dependencies.
+ok64 BRIXopen(BRIX* brix, sha256c* sha) {
+    sane(BRIXok(brix) && sha != nil);
+    call(BRIXcloseall, brix);
+    call(BRIXadd, brix, sha);
+    BBu8eatdata(brix->ssts);
+    Bsha256eatdata(brix->shas);
+    done;
+}
+
+ok64 BRIXcloserepo(BRIX* brix) {
     sane(BRIXok(brix));
+    call(BRIXcloseall, brix);
     if (Bok(brix->ssts)) call(BBu8free, brix->ssts);
-    if (Bok(brix->ids)) call(Bu64free, brix->ids);
-    if (Bok(brix->index)) call(FILEunmap, (u8**)brix->index);
-    if (Bok(brix->home)) call(Bu8free, brix->home);
+    if (Bok(brix->shas)) call(Bsha256free, brix->shas);
+    if ($ok(brix->home)) $u8free(brix->home);
     if (Bok(brix->pad)) call(Bu8unmap, brix->pad);
     done;
 }
 
-ok64 BRIXpush(BRIX* brix, h60 let) {
+// @return OK, BRIXnone
+ok64 BRIXhave(BRIX const* brix, sha256c* id) {
+    sane(BRIXok(brix) && id != nil);
+    aBusy(sha256c, shas, brix->shas);
+    $eat(shas) if (sha256eq(*shas, id)) return OK;
+    aBusy(SSTu128, ssts, brix->ssts);
+    $eat(ssts) {
+        $sha256c deps = {};
+        call(SSTu128meta, **ssts, nil, (u8c**)deps);
+        $eat(shas) if (sha256eq(*shas, id)) return OK;
+    }
+    // TODO a recurring version, one day
+    fail(BRIXnone);
+}
+
+// add an RDX patch on top of the current stack
+ok64 BRIXaddpatch(h60* let, BRIX* brix, $u8c rdx);
+
+// close the added SSTs
+ok64 BRIXcloseadded(BRIX* brix) {
     sane(BRIXok(brix));
-    aBcpad(u8, brik, FILEmaxpathlen);
-    call(BRIKfeedpath, brikidle, brix, let);
-    Bu8 buf = {};
-    call(SSTu128open, buf, brikdata);
-    call(BBu8feed1, brix->ssts, buf);
+    a$dup(Bu8, added, BBu8data(brix->ssts));
+    $eat(added) SSTu128close(**added);
+    $zero(Bsha256data(brix->shas));
+    BBu8resetdata(brix->ssts);
+    Bsha256resetdata(brix->shas);
     done;
 }
 
-fun ok64 BRIXresetpad(BRIX* brix) {
-    Breset(brix->pad);
-    // TODO if got too big: remap?!
-    return OK;
+// close all SSTs
+ok64 BRIXcloseall(BRIX* brix) {
+    sane(BRIXok(brix));
+    aBusy(Bu8, ssts, brix->ssts);
+    $eat(ssts) SSTu128close(**ssts);
+    Breset(brix->ssts);
+    Breset(brix->shas);
+    Bzero(brix->shas);
+    done;
 }
 
-ok64 _BRIXgetkv(u8c$ into, BRIX const* brix, u8 rdt, id128 key) {
-    sane($nil(into) && brix != nil && (TLVlong(rdt) || rdt == 0));
+ok64 BRIKhash(sha256* hash, SSTu128 sst) {
+    sane(hash != nil && Bok(sst));
+    // aBusy(u8c, hashed, sst); strange compiler glitch?
+    $u8c hashed = {};
+    hashed[0] = sst[0];
+    hashed[1] = sst[2];
+    SHAsum(hash, hashed);
+    done;
+}
+
+// Merge the added SSTs, so the newly formed SST replaces them.
+ok64 BRIXmerge(sha256* newsha, BRIX* brix, $sha256c shas) {
+    sane(newsha != nil && BRIXok(brix) && $ok(shas));
+    test(Bdatalen(brix->ssts) > 0, BRIXnone);
+
+    aBpad2($u8c, ins, LSM_MAX_INPUTS);
+    aBpad2(sha256, deps, LSM_MAX_INPUTS);
+
+    sha256 base = {};
+    if (Bpastlen(brix->ssts) > 0) {
+        base = Blast(Bpast(brix->shas));
+    }
+    Bsha256feed1(depsbuf, base);
+    Bsha256eatdata(depsbuf);
+    call(Bsha256feed$, depsidle, Bsha256cdata(brix->shas));
+    $sha256sort(depsdata);
+    Bsha256resetpast(depsbuf);
+
+    a$dup(Bu8, news, BBu8data(brix->ssts));  // FIXME heap
+    $eat(news) B$u8cfeed1(insbuf, Bu8cdata(**news));
+
+    SSTu128 sst = {};
+    int fd = FILE_CLOSED;
+    aBcpad(u8, tmp, FILEmaxpathlen);
+    call($u8feedall, tmpidle, brix->home);
+    call($u8feedall, tmpidle, BRIKtmp);
+    size_t sumsz = PAGESIZE;
+    a$dup($u8c, ins, insdata);
+    $eat(ins) sumsz += $size(**ins);
+    sumsz = roundup(sumsz + PAGESIZE + $size(depsdata), PAGESIZE);
+    call(SSTu128init, sst, &fd, tmpdata, sumsz);
+    call(Bu8feed$, sst, (u8c$)depsdata);
+    Bu8eatdata(sst);
+    SKIPu8tab tab = {};
+
+    // FIXME skip
+    call(LSMmerge, Bu8idle(sst), insdata, RDXZrevision, RDXY);
+
+    call(SSTu128end, sst, &fd, &tab);
+    sha256 sha = {};
+    call(BRIKhash, &sha, sst);
+    call(SSTu128close, sst);
+
+    aBcpad(u8, path, FILEmaxpathlen);
+    call(BRIKpath, pathidle, brix, &sha);
+    call(FILErename, tmpdata, pathdata);
+
+    call(BRIXcloseadded, brix);
+    call(BRIXopen, brix, &sha);
+
+    done;
+}
+
+ok64 BRIXget($u8 rec, BRIX const* brix, u8 rdt, id128 key) {
+    sane(rec != nil && brix != nil && (TLVlong(rdt) || rdt == 0));
     aBpad2($u8c, ins, LSM_MAX_INPUTS);
     for (Bu8* p = brix->ssts[0]; p < brix->ssts[2]; ++p) {
         u8 t = rdt;
@@ -116,37 +209,52 @@ ok64 _BRIXgetkv(u8c$ into, BRIX const* brix, u8 rdt, id128 key) {
         if (o == OK) $$u8cfeed1(insidle, rec);
     }
     if ($len(insdata) == 1) {
-        $mv(into, *$head(insdata));
+        call($u8feedall, rec, *$head(insdata));
     } else if ($empty(insdata)) {
-        $zero(into);
+        fail(BRIXnone);
+    } else {
+        call(RDXY, rec, insdata);
+    }
+    done;
+}
+
+ok64 _BRIXgetc(u8c$ rec, BRIX const* brix, u8 rdt, id128 key) {
+    sane($nil(rec) && brix != nil && (TLVlong(rdt) || rdt == 0));
+    aBpad2($u8c, ins, LSM_MAX_INPUTS);
+    for (Bu8* p = brix->ssts[0]; p < brix->ssts[2]; ++p) {
+        u8 t = rdt;
+        $u8c rec = {};
+        ok64 o = SSTu128getkv(rec, *p, t, &key);
+        if (o == OK) $$u8cfeed1(insidle, rec);
+    }
+    if ($len(insdata) == 1) {
+        $mv(rec, *$head(insdata));
+    } else if ($empty(insdata)) {
         fail(BRIXnone);
     } else {
         u8$ idle = Bu8idle(brix->pad);
         a$dup(u8, tmp, idle);
         call(RDXY, idle, insdata);
         $u8sup(tmp, idle);
-        $mv(into, tmp);
+        $mv(rec, tmp);
     }
     done;
 }
 
-ok64 BRIXget(u8c$ into, BRIX const* brix, u8 rdt, id128 key) {
-    BRIXresetpad((BRIX*)brix);
-    return _BRIXgetkv(into, brix, rdt, key);
+// Get a record (TLKV, ZINT u128 key, RDX body).
+ok64 BRIXgetc(u8c$ rec, BRIX const* brix, u8c rdt, id128 key) {
+    Breset(brix->pad);
+    return _BRIXgetc(rec, brix, rdt, key);
 }
 
-ok64 BRIXinitdeps(SSTu128 sst, BRIX* brix) {
-    sane(Bok(sst) && BRIXok(brix));
-    if (Bempty(brix->ssts)) {
-        sha256 sha = {};
-        a$rawc(sharaw, sha);
-        call($u8feedall, Bu8$2(sst), sharaw);
-        Bu8eatdata(sst);
-    } else {
-        fail(notimplyet);
-    }
-    done;
-}
+// Same as BRIXget, but recursively produces a document following all
+// the references, e.g. `{@rec-1 1 2 [@rec-3] }` rec-1 refers to rec-3
+// as an element. if `[@rec-3 "one" "two"]` then the combined result is
+// `{@rec-1 1 2 [@rec-3 "one" "two"] }`
+ok64 BRIXreget(u8c$ rec, BRIX const* brix, u8c rdt, id128 key);
+
+// Strips an RDX document (as produced by BRIXreget) into BRIX key-value form.
+ok64 BRIXfromRDX($u8 brix, id128* clock, $u8c rdx);
 
 ok64 BRIXenlist(B$u8c heap, u64* roughlen, $cu8c allrdx) {
     sane(Bok(heap) && $ok(allrdx));
@@ -191,6 +299,7 @@ ok64 BRIXflatfeed($u8 into, id128* clock, $u8c rdx) {
     done;
 }
 
+/*
 ok64 _BRIXpatch(h60* let, BRIX* brix, $u8c rdx, B$u8c heap) {
     sane(BRIXok(brix) && $ok(rdx));
     aBcpad(u8p, stack, RDX_MAX_NEST);
@@ -201,12 +310,12 @@ ok64 _BRIXpatch(h60* let, BRIX* brix, $u8c rdx, B$u8c heap) {
     SSTu128 sst = {};
     int fd = FILE_CLOSED;
     aBcpad(u8, tmp, FILEmaxpathlen);
-    call($u8feedall, tmpidle, Bu8c$1(brix->home));
+    call($u8feedall, tmpidle, brix->home);
     call($u8feedall, tmpidle, BRIKtmp);
     size_t size = roundup(roughlen + PAGESIZE, PAGESIZE);
     SKIPu8tab tab = {};
     call(SSTu128init, sst, &fd, tmpdata, size);
-    call(BRIXinitdeps, sst, brix);
+    // call(BRIXinitdeps, sst, brix);
 
     while (!Bempty(heap)) {
         $u8c pop = {};
@@ -223,10 +332,8 @@ ok64 _BRIXpatch(h60* let, BRIX* brix, $u8c rdx, B$u8c heap) {
     SHAsum(&sha, hashed);
     call(SSTu128close, sst);
     aBcpad(u8, sha, FILEmaxpathlen);
-    *let = BRIXhashlet(&sha);
-    call(BRIKfeedpath, shaidle, brix, *let);
+    call(BRIKpath, shaidle, brix, &sha);
     call(FILErename, tmpdata, shadata);
-    call(BRIKfeedpath, shaidle, brix, *let);
 
     done;
 }
@@ -239,14 +346,13 @@ ok64 BRIXpatch(h60* hashlet, BRIX* brix, $u8c rdx) {
     B$u8cfree(heap);
     return o;
 }
-
-ok64 BRIXpushrev(BRIX* brix, id128 head) { return notimplyet; }
+*/
 
 ok64 BRIXproduceimpl($u8 into, BRIX const* brix, u8 rdt, id128 key,
                      Bu8p stack) {
     sane($ok(into) && BRIXok(brix));
     $u8c got = {};
-    call(BRIXget, got, brix, rdt, key);
+    call(BRIXgetc, got, brix, rdt, key);
     if (rdt == 0) rdt = **got & ~TLVaA;
     $u8c body = {};
     call(TLVinitlong, into, rdt, stack);
@@ -289,4 +395,28 @@ ok64 BRIXfromRDX($u8 brix, id128* clock, $u8c rdx) {
     B$u8cfree(heap);
 
     return o;
+}
+
+ok64 BRIXfind(sha256* sha, BRIX const* brix, $u8c part) {
+    sane($ok(part) && BRIXok(brix) && sha != nil &&
+         $len(part) <= sizeof(sha256) * 2);
+    DIR* d = opendir((char*)*brix->home);
+    testc(d != NULL, BRIXnone);
+    for (struct dirent* de = readdir(d); de != NULL; de = readdir(d)) {
+        a$strc(name, de->d_name);
+        if ($len(name) != $len(BRIKext) + sizeof(sha256) * 2) continue;
+        a$last(u8c, factext, name, $len(BRIKext));
+        a$head(u8c, factsha, name, sizeof(sha256) * 2);
+        if (!$eq(factext, BRIKext)) continue;
+        u8 ndx = 0;
+        while (ndx < $len(part) && $at(part, ndx) == $at(name, ndx)) ++ndx;
+        if (ndx == $len(part)) {
+            closedir(d);
+            a$rawp(raw, sha);
+            call(HEXdrain, raw, factsha);
+            done;
+        }
+    }
+    closedir(d);
+    fail(BRIXnone);
 }

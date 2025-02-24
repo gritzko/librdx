@@ -135,6 +135,10 @@ fun ok64 X($, alloc)(X($, ) what, size_t len) {
     return OK;
 }
 
+fun b8 X($, ok)(X($, c) orig) {
+    return $ok(orig) && $size(orig) % sizeof(T) == 0;
+}
+
 fun ok64 X($, dup)(X($, ) copy, X($, c) orig) {
     ok64 o = X($, alloc)(copy, $len(orig));
     if (o != OK) return o;

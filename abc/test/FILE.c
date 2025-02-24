@@ -48,8 +48,7 @@ pro(FILE3) {
     call($u8feed, Bu8idle(buf), path);
     call(FILEunmap, buf);
     Bu8 buf2 = {};
-    int fd2 = FILE_CLOSED;
-    call(FILEmapro, buf2, &fd2, path);
+    call(FILEmapro, buf2, path);
     aB$(u8c, path2, buf2, 0, $len(path));
     $testeq(path, path2);
     call(FILEunmap, buf2);

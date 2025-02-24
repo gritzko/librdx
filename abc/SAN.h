@@ -7,11 +7,14 @@
 // Regular ABC functions have such cryptic and formal names that I
 // can't believe they will ever clash with anything -- gritzko
 
+#undef call
 #undef done
 #undef sane
 #undef nedo
 #undef then
+#undef fail
 #undef try
+#undef nil
 #undef pro
 #undef fun
 #undef con

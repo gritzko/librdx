@@ -40,8 +40,9 @@ ryu/d2s.c
 add_library(rdx STATIC ${RDX_HEADERS} ${RDX_SOURCES})
 target_link_libraries(rdx abc sodium)
 
-add_executable(xq RDX.cli.c)
-target_link_libraries(xq rdx)
+add_executable(rdx-cli RDX.cli.c)
+set_target_properties(rdx-cli PROPERTIES OUTPUT_NAME rdx)
+target_link_libraries(rdx-cli rdx)
 
 add_subdirectory(test)
 

@@ -4,12 +4,15 @@
 #include "abc/KV.h"
 #include "abc/NACL.h"
 #include "abc/SHA.h"
+#include "abc/SST.h"
 #include "rdx/RDX.h"
 
 con ok64 BRIXnone = 0x2db4a1cb3ca9;
 con ok64 BRIXbadarg = 0x2db4a19a5a25dab;
 con ok64 BRIXnoverb = 0x2db4a1cb3ea9da6;
 con ok64 BRIXnotime = 0x2db4a1cb3e2dc69;
+con ok64 BRIXmiss = 0x2db4a1c6ddf7;
+con ok64 BRIXbad = 0xb6d2866968;
 
 #define BRIX_MAX_SST0_SIZE (1 << 30)
 #define BRIX_MAX_SST0_ENTRIES (1 << 20)
@@ -51,77 +54,86 @@ extern $u8c BRIXindex;
 
 /** BRIX repo structure:
 
-  - `.brix/e3a57c59...91e7c7f77.brik`
-  - `.brix/INDEX`
-  - `.brix/TAGS`
-  - `.brix/KEYS`
-  - `.brix/SIGS`
+  - `.rdx/e3a57c59...91e7c7f77.brik`
 
   The struct is not thread safe as all the storage is memory-mapped,
   hence can be shared between processes. For multi-thread use, use
   locks or something.
 */
 typedef struct {
-    // The home dir path, including .brix/
-    Bu8 home;
+    // The path where the bricks are
+    $u8c home;
     // Open bricks, a buffer of buffers (mmaped SSTs)
     BBu8 ssts;
-    Bu64 ids;
-    id128 clock;
-    // Repo index
-    Bkv64 index;
-    Bedpub256 keys;
-    Bedsig512 sigs;
+    // Brick hashes
+    Bsha256 shas;
     // Scratch pad;
     Bu8 pad;
 } BRIX;
 
-fun b8 BRIXok(BRIX const* brix) { return brix != nil && Bok(brix->ssts); }
+fun b8 BRIXok(BRIX const* brix) {
+    return brix != nil && Bok(brix->ssts) && $ok(brix->home);
+}
 
-// init a repo
-ok64 BRIXinit(BRIX* brix, $u8c path);
-// open the repo
-ok64 BRIXopen(BRIX* brix, $u8c path);
-// add an SST to the stack, including dependencies
-ok64 BRIXpush(BRIX* brix, h60 head);
-ok64 BRIXpushrev(BRIX* brix, id128 head);
+// close everything previously open, then
+// add an SST to the stack, including its dependencies.
+ok64 BRIXopenrepo(BRIX* brix, $u8c path);
+
+// open an SST file, including all dependencies (close everything first)
+ok64 BRIXopen(BRIX* brix, sha256c* sha);
+
+// add an SST to the stack, including *missing* dependencies
+ok64 BRIXadd(BRIX* brix, sha256c* sha);
+
+// @return OK, BRIXnone
+ok64 BRIXhave(BRIX const* brix, sha256c* id);
+
 // add SSTs to the stack, including dependencies
-fun ok64 BRIXpushall(BRIX* brix, $u64 heads) {
+fun ok64 BRIXaddall(BRIX* brix, $csha256c heads) {
     ok64 o = OK;
-    for (h60* p = $head(heads); o == OK && p < $term(heads); ++p)
-        o = BRIXpush(brix, *p);
+    a$dup(sha256c, dup, heads);
+    while (!$empty(dup) && o == OK) o = BRIXadd(brix, $next(dup));
     return o;
 }
-// len of the stack
+
+// add an RDX patch on top of the current stack
+ok64 BRIXaddpatch(h60* let, BRIX* brix, $u8c rdx);
+
+// length of the stack
 fun size_t BRIXlen(BRIX const* brix) { return Bdatalen(brix->ssts); }
-// pop one SST from the stack
-ok64 BRIXpop(BRIX* brix);
-// pop SSTs from the stack
-ok64 BRIXpopto(BRIX* brix, size_t len);
+
+// close the added SSTs
+ok64 BRIXcloseadded(BRIX* brix);
+
+// close all SSTs
+ok64 BRIXcloseall(BRIX* brix);
+
+// close the repo
+ok64 BRIXcloserepo(BRIX* brix);
+
+// Merge the added SSTs, so the newly formed SST replaces them.
+ok64 BRIXmerge(sha256* newsha, BRIX* brix, $sha256c shas);
 
 // Get a record (TLKV, ZINT u128 key, RDX body).
-// `rdt` the expected RDX type; 0 for any
-// `rec` will point to the SST record or to the tmp pad if merge was necessary.
-ok64 BRIXget(u8c$ rec, BRIX const* brix, u8 rdt, id128 key);
-// Produce the current version of an RDX document
-ok64 BRIXproduce($u8 into, BRIX const* brix, u8 rdt, id128 key);
-ok64 BRIXproduce2(int fd, BRIX const* brix, u8 rdt, id128 key);
+//   - `rdt` the expected RDX type; 0 for any
+//   - `rec` used for output;
+ok64 BRIXget($u8 rec, BRIX const* brix, u8c rdt, id128 key);
 
-// add an RDX patch on top of the current head(s)
-ok64 BRIXpatch(h60* let, BRIX* brix, $u8c rdx);
-// merge the heads
-ok64 BRIXmerge(h60* let, BRIX* brix, $sha256c shas);
-// compacts the stack, maybe
-ok64 BRIXpack(BRIX* brix);
-// compacts the stack to the specified length
-ok64 BRIXpackto(BRIX* brix, size_t len);
-// close the repo
-ok64 BRIXclose(BRIX* brix);
+// Get a record (TLKV, ZINT u128 key, RDX body).
+//   - `rdt` the expected RDX type; 0 for any
+//   -  `rec` will point to the original SST record or
+//      to the tmp pad if any merging was necessary.
+ok64 BRIXgetc(u8c$ rec, BRIX const* brix, u8c rdt, id128 key);
 
-fun h60 BRIXhashlet(sha256c* sha) { return ((1UL << 60) - 1) & *(h60*)sha; }
+// Same as BRIXget, but recursively produces a document following all
+// the references, e.g. `{@rec-1 1 2 [@rec-3] }` rec-1 refers to rec-3
+// as an element. if `[@rec-3 "one" "two"]` then the combined result is
+// `{@rec-1 1 2 [@rec-3 "one" "two"] }`
+ok64 BRIXreget(u8c$ rec, BRIX const* brix, u8c rdt, id128 key);
 
-fun ok64 BRIXfeedh60($u8 into, h60 let) { return RONfeed64(into, let); }
-
+// Strips an RDX document (as produced by BRIXreget) into BRIX key-value form.
 ok64 BRIXfromRDX($u8 brix, id128* clock, $u8c rdx);
+
+ok64 BRIXfind(sha256* sha, BRIX const* brix, $u8c part);
 
 #endif

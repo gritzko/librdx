@@ -22,18 +22,19 @@ set(TEST_LDD_FLAGS "-g")
 set(BENCH_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -v")
 set(BENCH_LDD_FLAGS benchmark::benchmark)
 
-list(APPEND MARK_HEADERS 
+list(APPEND BRIX_HEADERS 
   BRIX.h
 )
 
-list(APPEND MARK_SOURCES 
+list(APPEND BRIX_SOURCES 
   BRIX.c
 )
 
-add_library(brix STATIC ${MARK_HEADERS} ${MARK_SOURCES})
+add_library(brix STATIC ${BRIX_HEADERS} ${BRIX_SOURCES})
 target_link_libraries(brix abc rdx)
 
 add_executable(brix-cli BRIX.cli.c)
+set_target_properties(brix-cli PROPERTIES OUTPUT_NAME brix)
 target_link_libraries(brix-cli brix)
 
 #add_subdirectory(test)

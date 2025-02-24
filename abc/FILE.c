@@ -8,7 +8,7 @@ ok64 FILEisdir(const path name) {
     sane($ok(name));
     struct stat sb = {};
     call(FILEstat, &sb, name);
-    test(sb.st_mode == S_IFDIR, FILEwrong);
+    test(sb.st_mode & S_IFDIR, FILEwrong);
     done;
 }
 
@@ -37,6 +37,14 @@ ok64 FILEopen(int *fd, const path name, int flags) {
     sane(fd != nil && $ok(name));
     aFILEpath(p, name);
     *fd = open(p, flags);
+    testc(*fd >= 0, FILEnoopen);
+    done;
+}
+
+ok64 FILEopenat(int *fd, int const *dirfd, const path name, int flags) {
+    sane(fd != nil && $ok(name) && FILEok(*dirfd));
+    aFILEpath(p, name);
+    *fd = openat(*dirfd, p, flags);
     testc(*fd >= 0, FILEnoopen);
     done;
 }

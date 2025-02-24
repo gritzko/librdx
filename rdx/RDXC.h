@@ -74,4 +74,10 @@ fun pro(RDXCfeedS, $u8 tlv, $cu8c c, u128 time) {
     done;
 }
 
+fun ok64 RDXCdrainT(u8c$ str, id128* id, $u8c rdx) {
+    u8 t = 0;
+    ok64 o = RDXdrain(&t, id, str, rdx);
+    return t == RDX_TERM ? o : RDXwrong;
+}
+
 #endif

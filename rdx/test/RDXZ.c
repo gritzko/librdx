@@ -81,11 +81,9 @@ pro(RDXZtest) {
     sane(1);
     a$rg(path, 1);
     Bu8 rdxjbuf = {};
-    int fd = FILE_CLOSED;
-    call(FILEmapro, rdxjbuf, &fd, path);
+    call(FILEmapro, rdxjbuf, path);
     call(UNITdrain, rdxjbuf, zfn);
     call(FILEunmap, rdxjbuf);
-    call(FILEclose, &fd);
     done;
 }
 

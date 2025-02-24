@@ -26,6 +26,9 @@ fun void X(B, eat$2)(X(B, ) buf) { ((T **)buf)[2] = buf[3]; }
 fun void X(B, eatdata)(X(B, ) buf) { ((T **)buf)[1] = buf[2]; }
 fun void X(B, eatidle)(X(B, ) buf) { ((T **)buf)[2] = buf[3]; }
 
+fun void X(B, resetpast)(X(B, ) buf) { ((T **)buf)[1] = buf[0]; }
+fun void X(B, resetdata)(X(B, ) buf) { ((T **)buf)[2] = buf[1]; }
+
 fun b8 X(B, hasroom)(X(B, ) buf) { return !$empty(X(B, idle)(buf)); }
 fun b8 X(B, hasdata)(X(B, ) buf) { return !$empty(X(B, data)(buf)); }
 

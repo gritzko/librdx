@@ -86,6 +86,7 @@ con size_t FILEmaxpathlen = 1024;
 ok64 FILEcreate(int *fd, const path name);
 
 ok64 FILEopen(int *fd, const path name, int flags);
+ok64 FILEopenat(int *fd, int const *dirfd, const path name, int flags);
 
 ok64 FILEsync(int const *fd);
 
@@ -243,11 +244,16 @@ fun int flags2prot(int flags) {
 ok64 FILEmap(Bu8 buf, int const *fd, int mode);
 
 // Memory-map a file for reading.
-fun ok64 FILEmapro(Bu8 buf, int *fd, $cu8c path) {
-    if (buf == nil || Bok(buf) || !$ok(path) || fd == nil) return FILEbadarg;
-    ok64 o = FILEopen(fd, path, O_RDONLY);
-    if (o == OK) o = FILEmap(buf, fd, PROT_READ);
-    if (o != OK) FILEclose(fd);
+fun ok64 FILEmapro2(Bu8 buf, int *fd) { return FILEmap(buf, fd, PROT_READ); }
+
+fun ok64 FILEmapro(Bu8 buf, $cu8c path) {
+    if (buf == nil || Bok(buf) || !$ok(path)) return FILEbadarg;
+    int fd = FILE_CLOSED;
+    ok64 o = FILEopen(&fd, path, O_RDONLY);
+    if (o == OK) {
+        o = FILEmap(buf, &fd, PROT_READ);
+        FILEclose(&fd);
+    }
     return o;
 }
 
