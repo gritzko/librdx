@@ -7,8 +7,9 @@
 
 pro(JDRtest1) {
     sane(1);
-#define LEN1 17
+#define LEN1 18
     $u8c inputs[LEN1] = {
+        $u8str("{@b0b-1}"),
         $u8str("123"),
         $u8str("1.2345E2"),
         $u8str("ab-123"),

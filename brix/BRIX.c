@@ -253,8 +253,7 @@ ok64 _BRIXreget($u8 into, BRIX const* brix, u8 rdt, id128 key, Bu8p stack) {
     u8 t = 0;
     $u8c k = {}, v = {}, body = {};
     call(TLVdrainkv, &t, k, body, got);
-    if (rdt == 0) rdt = TLVup(**got);
-    call(TLVinitlong, into, rdt, stack);
+    call(TLVinitlong, into, t, stack);
     call($u8feed1, into, $len(k));
     call($u8feedall, into, k);
     while (!$empty(body)) {
@@ -266,7 +265,7 @@ ok64 _BRIXreget($u8 into, BRIX const* brix, u8 rdt, id128 key, Bu8p stack) {
         call(TLVdrainkv, &erdt, ekey, eval, body);
         if (RDXisPLEX(erdt) && !$empty(ekey)) {
             call(ZINTu128drain, &eid, ekey);
-            if (id128src(eid) == 0) {
+            if (id128src(eid) != 0) {
                 call(_BRIXreget, into, brix, erdt, eid, stack);
                 continue;
             }
@@ -282,12 +281,23 @@ ok64 _BRIXreget($u8 into, BRIX const* brix, u8 rdt, id128 key, Bu8p stack) {
 // the references, e.g. `{@rec-1 1 2 [@rec-3] }` rec-1 refers to rec-3
 // as an element. if `[@rec-3 "one" "two"]` then the combined result is
 // `{@rec-1 1 2 [@rec-3 "one" "two"] }`
-ok64 BRIXreget($u8 rec, BRIX const* brix, u8c rdt, id128 key) {
-    sane($ok(rec) && BRIXok(brix));
+ok64 BRIXreget($u8 into, BRIX const* brix, u8c rdt, id128 key) {
+    sane($ok(into) && BRIXok(brix));
     Breset(brix->pad);
     aBcpad(u8p, nest, RDX_MAX_NEST);
-    call(_BRIXreget, rec, brix, rdt, key, nestbuf);
+    call(_BRIXreget, into, brix, rdt, key, nestbuf);
     done;
+}
+
+ok64 BRIXisentry($cu8c rdx) {
+    if ($empty(rdx) || !RDXisPLEX(**rdx)) return BRIXnone;
+    u128 id = {};
+    u8 t = 0;
+    $u8c val = {};
+    a$dup(u8c, dup, rdx);
+    ok64 o = RDXdrain(&t, &id, val, dup);
+    if (o == OK && id128src(id) == 0) o = BRIXnone;
+    return o;
 }
 
 ok64 BRIXenlist(B$u8c heap, u64* roughlen, $cu8c allrdx) {
@@ -298,7 +308,9 @@ ok64 BRIXenlist(B$u8c heap, u64* roughlen, $cu8c allrdx) {
         call(TLVdrain$, rec, rdx);
         *roughlen += $len(rec);
         if (RDXisPLEX(**rec)) {
-            call(HEAP$u8cpushf, heap, &rec, RDXZrevision);
+            if (BRIXisentry(rec) == OK) {
+                call(HEAP$u8cpushf, heap, &rec, RDXZrevision);
+            }
             $u8c id, val;
             u8 rdt;
             call(TLVdrainkv, &rdt, id, val, rec);
@@ -320,22 +332,12 @@ ok64 BRIXflatfeed($u8 into, $u8c rdx) {
     call($u8feed1, into, $len(key));
     call($u8feedall, into, key);
     while (!$empty(body)) {
-        u8 erdt = 0;
-        $u8c ekey = {}, ebody = {};
-        a$dup(u8c, bb, body);
-        call(TLVdrainkv, &erdt, ekey, ebody, body);
-        if (RDXisPLEX(erdt)) {
-            id128 id = {};
-            a$dup(u8c, kk, ekey);
-            call(ZINTu128drain, &id, kk);
-            if (id128src(id) == 0) {
-                $u8csup(bb, body);
-                call(BRIXflatfeed, into, bb);
-            } else {
-                call(TLVfeedkv, into, erdt, ekey, empty);
-            }
+        $u8c e = {};
+        call(TLVdrain$, e, body);
+        if (BRIXisentry(e) == OK) {
+            call(BRIXflatfeed, into, e);
         } else {
-            call(TLVfeedkv, into, erdt, ekey, ebody);
+            call($u8feedall, into, e);
         }
     }
     call(TLVendany, into, rdt, stackbuf);

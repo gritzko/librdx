@@ -164,7 +164,8 @@ ok64 JDRonPLEX1(u8 lit, JDRstate* state) {
     if (Bempty(state->stack)) return JDRbadnest;
     if (**Bu8ptop(state->stack) == RDX_TUPLE_INLINE) {
         call(JDRcloseinline, state);
-    } else if (state->pre == ',' || (lit != RDX_TUPLE && state->pre == 0)) {
+    } else if (state->pre == ',') {
+        // || (lit != RDX_TUPLE && state->pre == 0)) {
         call(JDRfeedempty, state);
     }
     state->pre = lit;

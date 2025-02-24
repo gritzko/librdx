@@ -105,6 +105,25 @@ ok64 BRIX_get(BRIX* brix, id128 id, ok64 sub, $u8c args) {
     done;
 }
 
+ok64 BRIX_reget(BRIX* brix, id128 id, ok64 sub, $u8c args) {
+    sane(1);
+    Bu8 gig = {};
+    call(Bu8map, gig, GB);  // TODO pump
+    while (!$empty(args) && RDXrdt(args) != RDX_TERM) {
+        u8 rdt = RDXrdt(args);
+        if (rdt == RDX_REF) {
+            id128 ref, _;
+            call(RDXCdrainR, &ref, &_, args);
+            call(BRIXreget, Bu8idle(gig), brix, 0, ref);
+            call(FILEfeedall, STDOUT_FILENO, Bu8cdata(gig));
+        } else {
+            fail(notimplyet);
+        }
+    }
+    Bu8unmap(gig);
+    done;
+}
+
 /*
 // [ ] seal
 ok64 BRIX_seal(BRIX* brix, id128 id, ok64 sub, $u8c args) {
@@ -249,6 +268,7 @@ cmd_t COMMANDS[] = {
     {$u8str("add"), BRIX_add},      //
     {$u8str("patch"), BRIX_patch},  //
     {$u8str("get"), BRIX_get},      //
+    {$u8str("reget"), BRIX_reget},  //
     {$u8str("list"), BRIX_list},    //
     {$u8str(""), nil},
 };
