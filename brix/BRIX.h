@@ -109,7 +109,7 @@ ok64 BRIXcloseall(BRIX* brix);
 ok64 BRIXcloserepo(BRIX* brix);
 
 // Merge the added SSTs, so the newly formed SST replaces them.
-ok64 BRIXmerge(sha256* newsha, BRIX* brix, $sha256c shas);
+ok64 BRIXmerge(sha256* newsha, BRIX* brix);
 
 // Get a record (TLKV, ZINT u128 key, RDX body).
 //   - `rdt` the expected RDX type; 0 for any

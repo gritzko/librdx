@@ -144,20 +144,21 @@ ok64 BRIKhash(sha256* hash, SSTu128 sst) {
 }
 
 // Merge the added SSTs, so the newly formed SST replaces them.
-ok64 BRIXmerge(sha256* newsha, BRIX* brix, $sha256c shas) {
-    sane(newsha != nil && BRIXok(brix) && $ok(shas));
+ok64 BRIXmerge(sha256* newsha, BRIX* brix) {
+    sane(newsha != nil && BRIXok(brix));
     test(Bdatalen(brix->ssts) > 0, BRIXnone);
 
     aBpad2($u8c, ins, LSM_MAX_INPUTS);
     aBpad2(sha256, deps, LSM_MAX_INPUTS);
 
     sha256 base = {};
-    if (Bpastlen(brix->ssts) > 0) {
-        base = Blast(Bpast(brix->shas));
+    sha256$c opened = Bsha256past(brix->shas);
+    if (!$empty(opened)) {
+        base = *$sha256last(opened);
     }
     Bsha256feed1(depsbuf, base);
     Bsha256eatdata(depsbuf);
-    call(Bsha256feed$, depsidle, Bsha256cdata(brix->shas));
+    call($sha256feed, Bsha256idle(depsbuf), Bsha256cdata(brix->shas));
     $sha256sort(depsdata);
     Bsha256resetpast(depsbuf);
 
@@ -192,6 +193,7 @@ ok64 BRIXmerge(sha256* newsha, BRIX* brix, $sha256c shas) {
 
     call(BRIXcloseadded, brix);
     call(BRIXopen, brix, &sha);
+    *newsha = sha;
 
     done;
 }

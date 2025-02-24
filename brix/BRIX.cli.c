@@ -154,6 +154,14 @@ ok64 BRIX_seal(BRIX* brix, id128 id, ok64 sub, $u8c args) {
 
 ok64 BRIX_merge(BRIX* brix, id128 id, ok64 sub, $u8c args) {
     sane(1);
+    sha256 sha = {};
+    call(BRIXmerge, &sha, brix);
+
+    aBcpad(u8, out, 128);
+    a$rawc(raw, sha);
+    call(HEXfeed, outidle, raw);
+    call($u8feed1, outidle, '\n');
+    call(FILEfeedall, STDOUT_FILENO, outdata);
     done;
 }
 
