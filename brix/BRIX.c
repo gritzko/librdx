@@ -162,8 +162,8 @@ ok64 BRIXmerge(sha256* newsha, BRIX* brix) {
     $sha256sort(depsdata);
     Bsha256resetpast(depsbuf);
 
-    a$dup(Bu8, news, BBu8data(brix->ssts));  // FIXME heap
-    $eat(news) B$u8cfeed1(insbuf, Bu8cdata(**news));
+    a$dup(Bu8, news, BBu8data(brix->ssts));
+    $eat(news) HEAP$u8cpush1f(insbuf, Bu8cdata(**news), RDXZrevision);
 
     SSTu128 sst = {};
     int fd = FILE_CLOSED;
@@ -177,10 +177,13 @@ ok64 BRIXmerge(sha256* newsha, BRIX* brix) {
     call(SSTu128init, sst, &fd, tmpdata, sumsz);
     call(Bu8feed$, sst, (u8c$)depsdata);
     Bu8eatdata(sst);
-    SKIPu8tab tab = {};
 
-    // FIXME skip
-    call(LSMmerge, Bu8idle(sst), insdata, RDXZrevision, RDXY);
+    SKIPu8tab tab = {};
+    u8$ sstinto = Bu8idle(sst);
+    while (!$empty(insdata)) {
+        call(LSMnext, sstinto, insdata, RDXZrevision, RDXY);
+        call(SKIPu8mayfeed, sstinto, &tab);
+    }
 
     call(SSTu128end, sst, &fd, &tab);
     sha256 sha = {};
