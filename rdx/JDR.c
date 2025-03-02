@@ -7,6 +7,7 @@
 #include "abc/01.h"
 #include "abc/B.h"
 #include "abc/BUF.h"
+#include "abc/FILE.h"
 #include "abc/INT.h"
 #include "abc/LSM.h"
 #include "abc/OK.h"
@@ -206,16 +207,6 @@ ok64 JDRonCloseX($cu8c tok, JDRstate* state) {
 
 ok64 JDRonOpen($cu8c tok, JDRstate* state) { return OK; }
 
-fun b8 JDRisPmoot(JDRstate* state) {
-    u8p start = *Bu8ptop(state->stack);
-    if (*start != RDX_TUPLE) return NO;
-    if (start[5] != 0) return NO;
-    $u8c inner = {start + 1 + 4 + 1 + start[5], state->tlv[0]}, rec;
-    if ($empty(inner)) return NO;
-    TLVdrain$(rec, inner);
-    return $empty(inner);
-}
-
 ok64 JDRsort(JDRstate* state, $u8cZfn cmp, $u8cYfn mrg) {
     sane(state != nil);
     u8p start = *Bu8ptop(state->stack) + 1 + 4;
@@ -232,13 +223,7 @@ ok64 JDRonClose($cu8c tok, JDRstate* state) {
     test(JDRtop(state->stack) == lit, FAILsanity);
     if (!RDXisPLEX(lit)) fail(FAILsanity);
     u8p start = *Bu8ptop(state->stack);
-    if (lit == RDX_TUPLE && JDRisPmoot(state)) {
-        $u8c from = {start + 1 + 4 + 1, state->tlv[0]};
-        $u8 into = {start, state->tlv[0] - 4 - 1 - 1};
-        $u8move(into, from);
-        state->tlv[0] -= 4 + 1 + 1;
-        Bu8ppop(state->stack);
-    } else if (lit == RDX_EULER) {
+    if (lit == RDX_EULER) {
         call(JDRsort, state, RDXZvalue, RDXY);
         call(TLVendany, state->tlv, lit, state->stack);
     } else if (lit == RDX_MULTIX) {

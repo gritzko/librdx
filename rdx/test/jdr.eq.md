@@ -36,7 +36,7 @@ Within a string, newlines can be escaped in two ways, or non escaped in multilin
 ```
 Terms are any Base64 strings with formal structure: true, false, null, hashes, UUIDs, dates, etc.
 ```
-SHA1~d066c56e1a298f76a14829c3c5d88734562a5c5d,
+SHAe3a57c595a8da081ee6f18d368eaa543ffe85cb8035d8ff0a42084491e7c7f77
 
 
 ```
@@ -46,10 +46,7 @@ There are two notations for the tuples: the generic bracketed one and the compac
 ```
 1:2:3,
 <1,2,3>,
-```A tuple of one is the element itself```,
-<"one">,
-"one",
-<<<"one">>>,
+
 ```
 An empty tuple is effectively the "null" value.
 ```
@@ -77,7 +74,7 @@ Any duplicate keys will be merged.
 ```
 { , 1, 2:3, 4:5},
 {<> 4:5 2:3 1},
-{<> <1> 2:2 2:3 <4,5>},
+{<> 1 2:2 2:3 <4,5>},
 { ,,,, 1, 2:3, 4:5},
 
 

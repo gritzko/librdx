@@ -312,8 +312,8 @@ ok64 BRIXcli() {
             fail(BRIXnoverb);
         }
         int v = 0;
-        while (!$eq(COMMANDS[v].name, verb)) ++v;
-        test(!$empty(COMMANDS[v].name), BRIXnoverb);
+        while (!$eq(COMMANDS[v].name, verb) && COMMANDS[v].fn != nil) ++v;
+        test(COMMANDS[v].fn != nil, BRIXnoverb);
         if (v != 0 && !BRIXok(&brix)) {
             call(BRIXopenrepo, &brix, path);
         }

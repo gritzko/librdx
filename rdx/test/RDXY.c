@@ -22,7 +22,7 @@ ok64 yfn($cu8c cases) {
     a$dup(u8c, tlv, cases);
     while (!$empty(tlv)) {
         $u8c in = {};
-        aBpad2($u8c, elem, 64);
+        aBpad2($u8c, elem, PAGESIZE);
         $u8c correct = {};
         aBcpad(u8, res, PAGESIZE);
         call(TLVdrain$, in, tlv);
@@ -43,7 +43,7 @@ ok64 yfn($cu8c cases) {
 }
 
 pro(RDXY2) {
-    aBpad($u8c, zcases, 256);
+    aBpad($u8c, zcases, PAGESIZE);
     sane(1);
     a$rg(path, 1);
     Bu8 rdxjbuf = {};

@@ -73,9 +73,11 @@ fun ok64 UNITdump($u8 into, $u8c rdx) {
 
 ok64 UNITdrain(Bu8 tests, UNITfn fn) {
     Bu8 rdx = {};
-    Bu8alloc(rdx, Bdatalen(tests) * 2);
+    size_t dl = Bdatalen(tests);
+    Bu8alloc(rdx, roundup(Bdatalen(tests) * 2, PAGESIZE));
     a$dup(u8c, jdr, Bu8data(tests));
     ok64 o = JDRdrain(Bu8$2(rdx), jdr);
+    size_t rl = Bdatalen(rdx);
     if (o != OK) {
         if ($len(jdr) > 64) jdr[1] = jdr[0] + 64;
         a$str(msg, "JDR parse failed: ");
