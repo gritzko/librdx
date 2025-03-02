@@ -26,7 +26,7 @@ list(APPEND RDX_HEADERS
 RDX.h
 RDXC.h
 JDR.h
-RDXY.h
+Y.h
 RDXZ.h
 )
 

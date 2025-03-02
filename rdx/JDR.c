@@ -2,7 +2,7 @@
 #include "JDR.h"
 
 #include "RDX.h"
-#include "RDXY.h"
+#include "Y.h"
 #include "RDXZ.h"
 #include "abc/01.h"
 #include "abc/B.h"
@@ -224,10 +224,10 @@ ok64 JDRonClose($cu8c tok, JDRstate* state) {
     if (!RDXisPLEX(lit)) fail(FAILsanity);
     u8p start = *Bu8ptop(state->stack);
     if (lit == RDX_EULER) {
-        call(JDRsort, state, RDXZvalue, RDXY);
+        call(JDRsort, state, RDXZvalue, Y);
         call(TLVendany, state->tlv, lit, state->stack);
     } else if (lit == RDX_MULTIX) {
-        call(JDRsort, state, RDXZauthor, RDXY);
+        call(JDRsort, state, RDXZauthor, Y);
         call(TLVendany, state->tlv, lit, state->stack);
     } else {
         call(TLVendany, state->tlv, lit, state->stack);

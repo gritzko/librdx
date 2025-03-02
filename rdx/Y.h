@@ -1,5 +1,5 @@
-#ifndef ABC_RDXY_H
-#define ABC_RDXY_H
+#ifndef ABC_Y_H
+#define ABC_Y_H
 #include "RDX.h"
 #include "RDXZ.h"
 #include "abc/01.h"
@@ -9,11 +9,11 @@
 #include "abc/TLV.h"
 #include "abc/ZINT.h"
 
-#define RDXY_MAX_INPUTS LSM_MAX_INPUTS
+#define Y_MAX_INPUTS LSM_MAX_INPUTS
 
-fun ok64 RDXY($u8 into, $$u8c from);
+fun ok64 Y($u8 into, $$u8c from);
 
-fun pro(RDXYmergeF, $u8 into, $$u8c from) {
+fun pro(YmergeF, $u8 into, $$u8c from) {
     sane($ok(into) && $ok(from) && !$empty(from));
     double max = 0;
     $u8c res = {};
@@ -32,7 +32,7 @@ fun pro(RDXYmergeF, $u8 into, $$u8c from) {
     done;
 }
 
-fun pro(RDXYmergeI, $u8 into, $$u8c from) {
+fun pro(YmergeI, $u8 into, $$u8c from) {
     sane($ok(into) && $ok(from) && !$empty(from));
     RDXint max = 0;
     $u8c res = {};
@@ -51,7 +51,7 @@ fun pro(RDXYmergeI, $u8 into, $$u8c from) {
     done;
 }
 
-fun pro(RDXYmergeR, $u8 into, $$u8c from) {
+fun pro(YmergeR, $u8 into, $$u8c from) {
     sane($ok(into) && $ok(from) && !$empty(from));
     RDXref max = {};
     $u8c res = {};
@@ -70,7 +70,7 @@ fun pro(RDXYmergeR, $u8 into, $$u8c from) {
     done;
 }
 
-fun pro(RDXYmergeS, $u8 into, $$u8c from) {
+fun pro(YmergeS, $u8 into, $$u8c from) {
     sane($ok(into) && $ok(from) && !$empty(from));
     $u8c res = {};
     $mv(res, **from);
@@ -84,13 +84,13 @@ fun pro(RDXYmergeS, $u8 into, $$u8c from) {
     done;
 }
 
-fun ok64 RDXYmergeT($u8 into, $$u8c from) { return RDXYmergeS(into, from); }
+fun ok64 YmergeT($u8 into, $$u8c from) { return YmergeS(into, from); }
 
-fun pro(RDXYmergeP, $u8 into, $$u8c bare) {
+fun pro(YmergeP, $u8 into, $$u8c bare) {
     sane($ok(into) && $ok(bare));
 
     while (1) {
-        aBpad2($u8c, yputs, RDXY_MAX_INPUTS);
+        aBpad2($u8c, yputs, Y_MAX_INPUTS);
         for (size_t i = 0; i < $len(bare); ++i) {
             u8c$ n = (u8c$)$$u8catp(bare, i);
             if ($empty(n)) continue;
@@ -99,13 +99,13 @@ fun pro(RDXYmergeP, $u8 into, $$u8c bare) {
             $$u8cfeed1(yputsidle, rec);
         }
         if ($empty(yputsdata)) break;
-        call(RDXY, into, yputsdata);
+        call(Y, into, yputsdata);
     }
 
     done;
 }
 
-fun pro(RDXYmergeL, $u8 into, $$u8c from) {
+fun pro(YmergeL, $u8 into, $$u8c from) {
     sane($ok(into) && $ok(from));
     // TODO injects
     // TODO step wise
@@ -113,17 +113,17 @@ fun pro(RDXYmergeL, $u8 into, $$u8c from) {
     done;
 }
 
-fun pro(RDXYmergeE, $u8 into, $$u8c bare) {
-    return LSMmerge(into, bare, RDXZvalue, RDXY);
+fun pro(YmergeE, $u8 into, $$u8c bare) {
+    return LSMmerge(into, bare, RDXZvalue, Y);
 }
 
-fun ok64 RDXYmergeX($u8 into, $$u8c bare) {
-    return LSMmerge(into, bare, RDXZauthor, RDXY);
+fun ok64 YmergeX($u8 into, $$u8c bare) {
+    return LSMmerge(into, bare, RDXZauthor, Y);
 }
 
-fun pro(RDXY, $u8 into, $$u8c inputs) {
+fun pro(Y, $u8 into, $$u8c inputs) {
     sane($ok(into) && $ok(inputs));
-    aBpad2($u8c, bares, RDXY_MAX_INPUTS);
+    aBpad2($u8c, bares, Y_MAX_INPUTS);
     a$dup($u8c, ins, inputs);
     u8 maxt = 0;
     u128 maxid = {};
@@ -153,31 +153,31 @@ fun pro(RDXY, $u8 into, $$u8c inputs) {
 
     switch (maxt) {
         case RDX_FLOAT:
-            call(RDXYmergeF, into, baresdata);
+            call(YmergeF, into, baresdata);
             break;
         case RDX_INT:
-            call(RDXYmergeI, into, baresdata);
+            call(YmergeI, into, baresdata);
             break;
         case RDX_REF:
-            call(RDXYmergeR, into, baresdata);
+            call(YmergeR, into, baresdata);
             break;
         case RDX_STRING:
-            call(RDXYmergeS, into, baresdata);
+            call(YmergeS, into, baresdata);
             break;
         case RDX_TERM:
-            call(RDXYmergeT, into, baresdata);
+            call(YmergeT, into, baresdata);
             break;
         case RDX_TUPLE:
-            call(RDXYmergeP, into, baresdata);
+            call(YmergeP, into, baresdata);
             break;
         case RDX_LINEAR:
-            call(RDXYmergeL, into, baresdata);
+            call(YmergeL, into, baresdata);
             break;
         case RDX_EULER:
-            call(RDXYmergeE, into, baresdata);
+            call(YmergeE, into, baresdata);
             break;
         case RDX_MULTIX:
-            call(RDXYmergeX, into, baresdata);
+            call(YmergeX, into, baresdata);
             break;
         default:
             fail(RDXbad);

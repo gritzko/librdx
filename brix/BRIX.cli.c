@@ -16,7 +16,7 @@
 #include "rdx/JDR.h"
 #include "rdx/RDX.h"
 #include "rdx/RDXC.h"
-#include "rdx/RDXY.h"
+#include "rdx/Y.h"
 #include "rdx/RDXZ.h"
 
 a$strc(BRIXhome, ".rdx/brix");
@@ -157,7 +157,7 @@ ok64 BRIX_seal(BRIX* brix, id128 id, ok64 sub, $u8c args) {
     call(SSTu128init, sst, &fd, tmpdata, sumsz);
     SKIPu8tab tab = {};
 
-    call(LSMmerge, Bu8idle(sst), B$u8cdata(insbuf), RDXZrevision, RDXY);
+    call(LSMmerge, Bu8idle(sst), B$u8cdata(insbuf), RDXZrevision, Y);
 
     call(SSTu128end, sst, &fd, &tab);
     sha256 sha = {};

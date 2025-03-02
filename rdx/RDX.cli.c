@@ -2,7 +2,7 @@
 #include <unistd.h>
 
 #include "JDR.h"
-#include "RDXY.h"
+#include "Y.h"
 #include "abc/$.h"
 #include "abc/BUF.h"
 #include "abc/FILE.h"
@@ -85,7 +85,7 @@ pro(_RDXcli, u8B output, u8B input, $u8cB ins) {
         call($u8feed1, Bu8idle(output), '\n');
     } else if ($eq($arg(1), CMD_Y) || $eq($arg(1), CMD_MERGE)) {
         call(RDXeatargs, NO);
-        call(RDXY, Bu8idle(output), B$u8cdata(ins));
+        call(Y, Bu8idle(output), B$u8cdata(ins));
     } else {
         FILEerr(ERR_CMD);
     }
@@ -98,7 +98,7 @@ ok64 RDXcli() {
     sane(1);
     call(Bu8map, output, 1UL << 32);
     call(Bu8map, input, 1UL << 32);
-    call(B$u8cmap, ins, RDXY_MAX_INPUTS);
+    call(B$u8cmap, ins, Y_MAX_INPUTS);
 
     ok64 o = _RDXcli(output, input, ins);
 

@@ -6,7 +6,7 @@
 #include "RDX.h"
 #include "abc/ZINT.h"
 
-fun pro(RDXYmergeFIRST, $u8 into, $$u8c from) {
+fun pro(YmergeFIRST, $u8 into, $$u8c from) {
     sane($ok(into) && $ok(from));
     u128 max = {};
     $u8c rec = {};

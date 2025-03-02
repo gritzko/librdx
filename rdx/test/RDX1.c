@@ -3,7 +3,7 @@
 #include "JDR.h"
 #include "RDX.h"
 #include "RDXC.h"
-#include "RDXY.h"
+#include "Y.h"
 #include "abc/01.h"
 #include "abc/B.h"
 #include "abc/FILE.h"
@@ -154,7 +154,7 @@ pro(RDX1) {
         $u8c correct = $dup(Blast(insbuf));
         B$u8cpop(insbuf);
         aBcpad(u8, merged, PAGESIZE);
-        call(RDXYmergeFIRST, mergedidle, insdata);
+        call(YmergeFIRST, mergedidle, insdata);
         $testeq(correct, mergeddata);
         Breset(insbuf);
     }

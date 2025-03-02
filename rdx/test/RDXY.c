@@ -1,4 +1,4 @@
-#include "RDXY.h"
+#include "Y.h"
 
 #include <unistd.h>
 
@@ -32,7 +32,7 @@ ok64 yfn($cu8c cases) {
         } while (!is_tilda(in));
         call(TLVdrain$, correct, tlv);
 
-        call(RDXY, residle, elemdata);
+        call(Y, residle, elemdata);
 
         if (!$eq(correct, resdata)) {
             UNITfail(correct, resdata);
@@ -42,7 +42,7 @@ ok64 yfn($cu8c cases) {
     done;
 }
 
-pro(RDXY2) {
+pro(Y2) {
     aBpad($u8c, zcases, PAGESIZE);
     sane(1);
     a$rg(path, 1);
@@ -53,10 +53,10 @@ pro(RDXY2) {
     done;
 }
 
-pro(RDXYtest) {
+pro(Ytest) {
     sane(1);
-    call(RDXY2);
+    call(Y2);
     done;
 }
 
-MAIN(RDXYtest);
+MAIN(Ytest);

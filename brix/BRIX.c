@@ -14,7 +14,7 @@
 #include "abc/ZINT.h"
 #include "dirent.h"
 #include "rdx/RDX.h"
-#include "rdx/RDXY.h"
+#include "rdx/Y.h"
 #include "rdx/RDXZ.h"
 
 a$strc(BRIKtmp, ".tmp.brik");
@@ -181,7 +181,7 @@ ok64 BRIXmerge(sha256* newsha, BRIX* brix) {
     SKIPu8tab tab = {};
     u8$ sstinto = Bu8idle(sst);
     while (!$empty(insdata)) {
-        call(LSMnext, sstinto, insdata, RDXZrevision, RDXY);
+        call(LSMnext, sstinto, insdata, RDXZrevision, Y);
         call(SKIPu8mayfeed, sstinto, &tab);
     }
 
@@ -215,7 +215,7 @@ ok64 BRIXget($u8 rec, BRIX const* brix, u8 rdt, id128 key) {
     } else if ($empty(insdata)) {
         fail(BRIXnone);
     } else {
-        call(RDXY, rec, insdata);
+        call(Y, rec, insdata);
     }
     done;
 }
@@ -236,7 +236,7 @@ ok64 _BRIXgetc(u8c$ rec, BRIX const* brix, u8 rdt, id128 key) {
     } else {
         u8$ idle = Bu8idle(brix->pad);
         a$dup(u8, tmp, idle);
-        call(RDXY, idle, insdata);
+        call(Y, idle, insdata);
         $u8sup(tmp, idle);
         $mv(rec, tmp);
     }
