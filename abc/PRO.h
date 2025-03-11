@@ -156,14 +156,10 @@ con char *_pro_indent =
         }                                                                     \
     }
 
-#ifdef ABC_NOTRACE
-#define trace(...) ;
-#else
-#ifdef NDEBUG
-#define trace(...) ;
-#else
+#ifdef ABC_TRACE
 #define trace(...) fprintf(stderr, __VA_ARGS__)
-#endif
+#else
+#define trace(...) ;
 #endif
 
 extern $u8c _STD_ARGS[];
