@@ -2,8 +2,8 @@
 #include "JDR.h"
 
 #include "RDX.h"
-#include "Y.h"
 #include "RDXZ.h"
+#include "Y.h"
 #include "abc/01.h"
 #include "abc/B.h"
 #include "abc/BUF.h"
@@ -436,12 +436,15 @@ fun ok64 JDRfeedlist($u8 rdxj, $u8c tlv, u64 style) {
 ok64 JDRisPU($cu8c body) {
     sane($ok(body));
     a$dup(u8c, b, body);
+    size_t n = 0;
     while (!$empty(b)) {
         u8 t = 0;
         $u8c val = {};
         call(TLVdrain, &t, val, b);
         if (RDXisPLEX(t)) return FAIL;
+        ++n;
     }
+    if (n < 2) return FAIL;
     done;
 }
 

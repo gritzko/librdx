@@ -1,7 +1,7 @@
 #   Algebraic Bricklaying C
 
 The archetypical approach to handling complexity is *layering of abstractions*.
-That is good, to some degree, but, as the saying goes, 
+That is good, to some degree, but, as the saying goes,
 
  >  You can solve any problem by introducing an extra level of indirection
  >  (except for too many levels of indirection - [FToSE][f])
@@ -16,7 +16,7 @@ ABC goal is to make things:
  3. fit for the purpose.
 
 There is a good mathematical explanation for the ABC approach.
-Code complexity can be good or bad. 
+Code complexity can be good or bad.
 Good complexity is combining existing code to produce new useful behavior.
 Bad complexity is unexpected bug/feature interaction.
 Both things are combinatorial in nature.
@@ -34,17 +34,17 @@ ABC strives for
 ABC is greatly influenced by go, kernel C and [Jet Propulsion Lab C][j].
 ABC sees C++ and Rust as ways to evolve C that earned us a lot of experience, hard.
 
-##  Why C 
+##  Why C
 
-One of ABC objectives is durability. 
+One of ABC objectives is durability.
 Instead of making an experimental language that will rot in 5 years, we focus narrowly on C.
-C is our Latin, it will not go away anytime soon (if ever). 
+C is our Latin, it will not go away anytime soon (if ever).
 
-The Linux kernel is a civilizational megaproject and it uses C. 
-Same with Windows and MacOS kernels and much of the library tier (SSL, JPEG, what's not). 
+The Linux kernel is a civilizational megaproject and it uses C.
+Same with Windows and MacOS kernels and much of the library tier (SSL, JPEG, what's not).
 
-Finally, ABC must be fit for the purpose of creating low-level system utilities. 
-Hence, no GC, no runtime and no feature creep. C. 
+Finally, ABC must be fit for the purpose of creating low-level system utilities.
+Hence, no GC, no runtime and no feature creep. C.
 
 ##  The ABC method
 
@@ -61,7 +61,7 @@ That is a great "hourglass waist" of systems programming, same as the IP protoco
 It separates the underworld of devices, firmwares and drivers from the upper world of applications.
 One world above, another below, a narrow API between them.
 
-Still, ABC discourages the manual use of pointers and any pointer arithmetics. 
+Still, ABC discourages the manual use of pointers and any pointer arithmetics.
 ABC encourages the use of [slices][S] and other *star types*: [buffers][B], [cursors][C] and so on.
 Those are all pointers under the hood, but the usage patterns are predefined.
 There are standard accessors which do bounds-checking if built with the right flags.
@@ -69,9 +69,9 @@ There are standard accessors which do bounds-checking if built with the right fl
 ABC avoids stacking of constructs, encapsulation and suchlike.
 Once you deal with a file or a network socket, you always have that `int fd` in your hands.
 You may use one or the other IO buffering or serialization system on top of syscalls.
-Still, there is no encapsulation as it prevents composition. 
+Still, there is no encapsulation as it prevents composition.
 In C++, you can't `printf` to `std::ostream`, right?
-In C++, `std::vector<char>` is all different from `std::string`,which in turn is different from `char*`. 
+In C++, `std::vector<char>` is all different from `std::string`,which in turn is different from `char*`.
 All that despite the obvious fact it is exactly the same thing under the hood.
 Rust has the same issues.
 We can't discourage that enough!
@@ -79,7 +79,7 @@ We can't discourage that enough!
 Constructs must be simple, practical, and most importantly: composable.
 They must not build their own entirely separate universe.
 One fitness metric for an ABC module is how many other modules it can be seamlessly used with.
-*Seamless* means the absence of any specific adaptors; 
+*Seamless* means the absence of any specific adaptors;
 ideally, modules *don't know a thing* about each other!
 That is like UNIX toolbox taken to the extreme: minimalist composable single-purpose tools.
 Those tools must have well-specified and *unchanging* behavior.
@@ -95,11 +95,11 @@ ABC sees three main categories of data types:
  2. *Star types*, which are all pointers, e.g. a byte slice `u8**` aka `$u8`.
     Star types are like Go slices but taken to the extreme.
     Buffers are the most important ones, they *own* the memory.
-    Slices and others *reference* memory. 
+    Slices and others *reference* memory.
     Note that we only call it a "star type" if it contains _record_ types,
     so the overall bit layout is specified.
  3. *Other types* that may contain pointers or have unspecified layouts.
-    These are your dirty underwear. 
+    These are your dirty underwear.
     They should not appear in APIs.
 
 Overall, ABC type system recommends well-specified bit layouts and solid containers (buffers).
@@ -168,7 +168,7 @@ The module itself is an example of using the API.
 Ragel is an excellent O(N) *lexer* for text formats;
 parsers can be implemented on top of that, see e.g. the [URI][U] module.
 
-[S]: ./$.md 
+[S]: ./$.md
 [A]: ./AREN.md
 [B]: ./B.md
 [C]: ./C.md
@@ -187,4 +187,4 @@ parsers can be implemented on top of that, see e.g. the [URI][U] module.
 [c]: http://colm.net
 [f]: https://en.wikipedia.org/wiki/Fundamental_theorem_of_software_engineering
 [j]: https://yurichev.com/mirrors/C/JPL_Coding_Standard_C.pdf
-[m]: https://www.qualys.com/2024/07/01/cve-2024-6387/regresshion.txt 
+[m]: https://www.qualys.com/2024/07/01/cve-2024-6387/regresshion.txt

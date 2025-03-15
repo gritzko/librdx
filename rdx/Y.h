@@ -13,7 +13,7 @@
 
 fun ok64 Y($u8 into, $$u8c from);
 
-fun pro(YmergeF, $u8 into, $$u8c from) {
+fun ok64 YmergeF($u8 into, $$u8c from) {
     sane($ok(into) && $ok(from) && !$empty(from));
     double max = 0;
     $u8c res = {};
@@ -32,7 +32,7 @@ fun pro(YmergeF, $u8 into, $$u8c from) {
     done;
 }
 
-fun pro(YmergeI, $u8 into, $$u8c from) {
+fun ok64 YmergeI($u8 into, $$u8c from) {
     sane($ok(into) && $ok(from) && !$empty(from));
     RDXint max = 0;
     $u8c res = {};
@@ -51,7 +51,7 @@ fun pro(YmergeI, $u8 into, $$u8c from) {
     done;
 }
 
-fun pro(YmergeR, $u8 into, $$u8c from) {
+fun ok64 YmergeR($u8 into, $$u8c from) {
     sane($ok(into) && $ok(from) && !$empty(from));
     RDXref max = {};
     $u8c res = {};
@@ -70,7 +70,7 @@ fun pro(YmergeR, $u8 into, $$u8c from) {
     done;
 }
 
-fun pro(YmergeS, $u8 into, $$u8c from) {
+fun ok64 YmergeS($u8 into, $$u8c from) {
     sane($ok(into) && $ok(from) && !$empty(from));
     $u8c res = {};
     $mv(res, **from);
@@ -86,7 +86,7 @@ fun pro(YmergeS, $u8 into, $$u8c from) {
 
 fun ok64 YmergeT($u8 into, $$u8c from) { return YmergeS(into, from); }
 
-fun pro(YmergeP, $u8 into, $$u8c bare) {
+fun ok64 YmergeP($u8 into, $$u8c bare) {
     sane($ok(into) && $ok(bare));
 
     while (1) {
@@ -105,7 +105,7 @@ fun pro(YmergeP, $u8 into, $$u8c bare) {
     done;
 }
 
-fun pro(YmergeL, $u8 into, $$u8c from) {
+fun ok64 YmergeL($u8 into, $$u8c from) {
     sane($ok(into) && $ok(from));
     // TODO injects
     // TODO step wise
@@ -113,7 +113,7 @@ fun pro(YmergeL, $u8 into, $$u8c from) {
     done;
 }
 
-fun pro(YmergeE, $u8 into, $$u8c bare) {
+fun ok64 YmergeE($u8 into, $$u8c bare) {
     return LSMmerge(into, bare, RDXZvalue, Y);
 }
 
@@ -121,7 +121,7 @@ fun ok64 YmergeX($u8 into, $$u8c bare) {
     return LSMmerge(into, bare, RDXZauthor, Y);
 }
 
-fun pro(Y, $u8 into, $$u8c inputs) {
+fun ok64 Y($u8 into, $$u8c inputs) {
     sane($ok(into) && $ok(inputs));
     aBpad2($u8c, bares, Y_MAX_INPUTS);
     a$dup($u8c, ins, inputs);
@@ -133,7 +133,12 @@ fun pro(Y, $u8 into, $$u8c inputs) {
         $u8c bare = {};
         call(RDXdrain, &t, &id, bare, **ins);
         int z = id128cmp(&maxid, &id);
-        if (z == 0) z = RDXZlit(&maxt, &t);
+        if (z == 0) {
+            z = RDXZlit(&maxt, &t);
+            if (z == 0 && t == RDX_TUPLE && $len(baresdata) > 0) {
+                z = RDXZvalue($atp(baresdata, 0), &bare);
+            }
+        }
         if (z < 0) {
             maxid = id;
             maxt = t;

@@ -9,14 +9,14 @@ RDX-JDR has somewhat deeper foundations than JSON.
 It has a formal mutation semantics, i.e. edits, merges and deltas.
 
 RDX element types come in two groups: `FIRST` and `PLEX`.
-`FIRST` types are basic atomic building blocks: 
+`FIRST` types are basic atomic building blocks:
  1. Float `12.34E+5` (64-bit),
  2. Integer `123` (64-bit signed),
  3. Reference `b0b-37e2` (128-bit ids in hex),
  4. String `"Hello world!"` (UTF-8), and
  5. Term, e.g. `true`.
 
-`PLEX` types allow for composition and nesting: 
+`PLEX` types allow for composition and nesting:
  1. x-Ples `1:2`,
  2. Linear `["a", "b", "c"]`,
  3. Eulerian `{false, true}` and
@@ -28,7 +28,7 @@ The only way to edit a tuple is to replace an element.
 A tuple can optionally be enclosed in angled brackets.
 That is only necessary if we nest tuples, e.g. `"Corned Beef" : <0.25:kg> : <3.45:EUR>`.
 
-*Linear* collections are essentially arrays. 
+*Linear* collections are essentially arrays.
 As with tuples, the relative order of elements gets preserved on copy, conversion or merge.
 But differently from tuples, arrays can have elements inserted or removed.
 We can edit `[1, 3, 4, 5]` to become `[1, 2, 3, 4]`.
@@ -57,7 +57,7 @@ For example, a map is an Eulerian collection of tuples:
 Yep, a map is not a primitive!
 
 Sets can host tuples or arrays and vice-versa:
-`{absent:["Bob","Carol"], present:["Alex"]}`, 
+`{absent:["Bob","Carol"], present:["Alex"]}`,
 `[{name:"Alex",age:32}, {name:"Bob",age:40}]` and so on.
 
 As you may see, any JSON document is a valid RDX-JDR.
@@ -68,8 +68,8 @@ The trick is, they combine better!
 
 Note that each `FIRST` or `PLEX` element *can* be `@` stamped with a 128-bit revision id.
 RDX is a versioned data format, so every element is versioned too, e.g. `(20@b0b-2, 40@a1ec-6)`.
-In the example above, `a1ec` made four additions to the counter contributing 40. 
-`b0b` made two contributing 20. 
+In the example above, `a1ec` made four additions to the counter contributing 40.
+`b0b` made two contributing 20.
 That resulted in the counter value of 60.
 Now suppose we merge that with `(25@b0b-4, 32@a1ec-4)`
 The first version of the counter has a newer version from `a1ec`.

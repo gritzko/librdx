@@ -1,4 +1,22 @@
 `` `
+Here we test various syntactic constructs of JDR;
+all JDR snippets of each block get parsed to identical RDX.
+
+RDX types can be primitive (FIRST types):
+
+ 1. Float
+ 2. Integer
+ 3. Reference
+ 4. String
+ 5. Term
+
+...and container (PLEX) types.
+
+ 1. (tu, cou, tri, quadru)Ples
+ 2. Linear collections
+ 3. Eulerian sets
+ 4. multipleXed collections (counters, version vectors)
+
 Floats are normal 64bit ISO floats with all the normal quirks.
 ```
 12.3,
@@ -9,7 +27,7 @@ Floats are normal 64bit ISO floats with all the normal quirks.
 
 
 ```
-Integers are signed 64-bit, no surprises. 
+Integers are signed 64-bit, no surprises.
 ```
 -9223372036854775808,
 
@@ -86,3 +104,24 @@ Any entries by the same contributor get merged.
 (1@a1ece-1, 2@b0b-2),
 ( 1@b0b-1 1@a1ece-1 2@b0b-2),
 ````
+
+
+```
+Any element can be annotated with its revision number.
+```
+1@2
+1@0-2
+
+```
+PLEX elements can have an identity (i.e. object id).
+```
+{@Bobs-set 1 2 3}
+{@Bobs-set 1 1 3 2}
+
+```
+In case an element has an identity and a revision number,
+it get wrapped into a tuple envelope; odd revision number
+on the envelope denotes a tombstone.
+```
+<@1 [@deleted-array]>
+<@0-1 [@deleted-array]>

@@ -1,6 +1,6 @@
 #include "JDR.h"
 
-#include "UNIT.h"
+#include "../UNIT.h"
 #include "abc/B.h"
 #include "abc/FILE.h"
 #include "abc/PRO.h"
@@ -26,7 +26,7 @@ pro(JDRtest1) {
         $u8str("[1:2:3]"),
         $u8str("<@b0b-1 4:5:6>"),
         $u8str("7:8@b0b-1:9"),
-        $u8str("<@3 <,>>"),
+        $u8str("<@3 <<>,<>>>"),
         //$u8str("5.2,0.3 1.23 1.2"),
         //$u8str("::::::::::::::::::::::::::::::::"),
     };

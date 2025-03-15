@@ -11,35 +11,15 @@
 #include "abc/OK.h"
 #include "abc/PRO.h"
 #include "abc/SHA.h"
-#include "abc/SST.h"
 #include "abc/TLV.h"
 #include "rdx/JDR.h"
 #include "rdx/RDX.h"
 #include "rdx/RDXC.h"
-#include "rdx/Y.h"
 #include "rdx/RDXZ.h"
+#include "rdx/UNIT.h"
+#include "rdx/Y.h"
 
 a$strc(BRIXhome, ".rdx/brix");
-
-ok64 JDRdrainargs($u8 into, $$u8c jdr) {
-    a$dup($u8c, j, jdr);
-    id128 id128zero = {};
-    while (!$empty(j)) {
-        a$dup(u8, dup, into);
-        a$dup(u8c, next, **j);
-        ok64 o = JDRdrain(into, next);
-        if (ok64is(o, noroom)) return o;
-        if (o != OK) {
-            $mv(into, dup);
-            a$dup(u8c, str, **j);
-            while (!$empty(str) && *$last(str) == ',') $u8retract(str, 1);
-            o = RDXfeed(into, RDX_STRING, id128zero, str);
-            if (o != OK) return o;
-        }
-        ++*j;
-    }
-    return OK;
-}
 
 con ok64 SUBsst = 0x37df8;
 con ok64 b0b = 0x26026;

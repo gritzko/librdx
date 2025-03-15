@@ -25,7 +25,7 @@ That way, the scanning stage will not trigger any additional disk reads, normall
 
 One may wonder, how a skiplog entry can be 5 bytes "on average".
 First, SKIP is a logarithmic skiplist, so 1/2 entries contain 1 offset, 1/4 have 2 and so on.
-Also, it does not store the log position or the offset to the entry; 
+Also, it does not store the log position or the offset to the entry;
 that would take 4- or 8-byte offsets.
 It only stores the offset within the byte segment, so 1 or 2 bytes is enough.
 

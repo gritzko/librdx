@@ -59,6 +59,11 @@ fun T *X(B, atp)(X(B, ) buf, size_t ndx) {
     return p;
 }
 
+fun void X(B, eat)(X(B, ) buf) {
+    T const **b = (T const **)buf;
+    b[1] = b[2];
+}
+
 fun T *X(B, last)(X(B, ) buf) {
     size_t len = buf[2] - buf[0];
     return X(B, atp)(buf, len - 1);

@@ -2,14 +2,14 @@
 
 TLV is the most widely used approach to constructing binary protocols.
 Protobuf is TLV under the hood, as well as many others.
-ToyTLV is the most basic TLV implementation one can make. 
+ToyTLV is the most basic TLV implementation one can make.
 The baseline ToyTLV record is like:
 
  1. The record type as a letter `[A-Z]` (one byte),
  2. the payload length as a 32-bit little-endian number (4 bytes),
  3. followed by the payload/value of the specified length.
 
-As a size optimization, *short* records should use one byte for the length. 
+As a size optimization, *short* records should use one byte for the length.
 Their record type letter is lowercased then.
 Using the uppercase form for 0..255 byte records counts as "overlong encoding".
 

@@ -1,6 +1,6 @@
 #   ARENa allocation
 
-Arena is a stack-like allocator. 
+Arena is a stack-like allocator.
 In the ABC system, the use of `malloc/free` is discouraged.
 For larger chunks of RAM, one can use [MMAP][M] (almost)directly.
 For smaller pieces, there is stack.

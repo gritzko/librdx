@@ -12,7 +12,7 @@ ABC *functions* are
  2. can fail,
  3. return `ok64`.
 
-You can write and invoke ABC procedures without using PRO 
+You can write and invoke ABC procedures without using PRO
 macros. You may not use this convention at all. As every
 ABC component, this one is orthogonal and optional.
 

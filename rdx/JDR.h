@@ -20,6 +20,7 @@ con ok64 JDRbadS = 0x1335b9a5a1c;
 con ok64 JDRbadT = 0x1335b9a5a1d;
 con ok64 JDRbadnest = 0x4cd6e6968ca9df8;
 con ok64 JDRnoroom = 0x1335bcb3db3cf1;
+con ok64 JDRsyntax = 0x1335bdfdcb897c;
 
 typedef struct {
     u8c$ text;
@@ -64,7 +65,7 @@ fun ok64 RDXid128drain(id128* id, $cu8c txt) {
     return o;
 }
 
-fun pro(RDXFtxt2tlv, $u8 tlv, $cu8c txt, id128 time) {
+fun ok64 RDXFtxt2tlv($u8 tlv, $cu8c txt, id128 time) {
     sane($ok(tlv) && $ok(txt));
     size_t tl = $len(txt);
     test(tl < 32, RDXbad);
@@ -76,7 +77,7 @@ fun pro(RDXFtxt2tlv, $u8 tlv, $cu8c txt, id128 time) {
     done;
 }
 
-fun pro(RDXFtlv2txt, $u8 txt, $cu8c tlv) {
+fun ok64 RDXFtlv2txt($u8 txt, $cu8c tlv) {
     sane($ok(txt) && $ok(tlv));
     u128 time;
     RDXfloat v;
@@ -88,7 +89,7 @@ fun pro(RDXFtlv2txt, $u8 txt, $cu8c tlv) {
     done;
 }
 
-fun pro(RDXItxt2tlv, $u8 tlv, $cu8c txt, id128 time) {
+fun ok64 RDXItxt2tlv($u8 tlv, $cu8c txt, id128 time) {
     sane($ok(tlv) && $ok(txt));
     size_t tl = $len(txt);
     test(tl < 32, RDXbad);
@@ -100,7 +101,7 @@ fun pro(RDXItxt2tlv, $u8 tlv, $cu8c txt, id128 time) {
     done;
 }
 
-fun pro(RDXItlv2txt, $u8 txt, $cu8c tlv) {
+fun ok64 RDXItlv2txt($u8 txt, $cu8c tlv) {
     sane($ok(txt) && $ok(tlv));
     RDXint v = 0;
     id128 time = {};
@@ -112,7 +113,7 @@ fun pro(RDXItlv2txt, $u8 txt, $cu8c tlv) {
     done;
 }
 
-fun pro(RDXRtxt2tlv, $u8 tlv, $cu8c txt, id128 time) {
+fun ok64 RDXRtxt2tlv($u8 tlv, $cu8c txt, id128 time) {
     sane($ok(tlv) && $ok(txt));
     id128 id = {};
     call(RDXid128drain, &id, txt);
@@ -120,7 +121,7 @@ fun pro(RDXRtxt2tlv, $u8 tlv, $cu8c txt, id128 time) {
     done;
 }
 
-fun pro(RDXRtlv2txt, $u8 txt, $cu8c tlv) {
+fun ok64 RDXRtlv2txt($u8 txt, $cu8c tlv) {
     sane($ok(txt) && $ok(tlv));
     id128 time;
     RDXref v = {};
@@ -135,7 +136,7 @@ ok64 JDRfeedSesc($u8 tlv, $u8c txt);
 
 ok64 JDRdrainSesc($u8 txt, $u8c tlv);
 
-fun pro(JDRdrainS, $u8 txt, $u8c tlv) {
+fun ok64 JDRdrainS($u8 txt, $u8c tlv) {
     sane($ok(txt) && $ok(tlv));
     call($u8feed1, txt, '"');
     call(JDRdrainSesc, txt, tlv);
@@ -145,12 +146,38 @@ fun pro(JDRdrainS, $u8 txt, $u8c tlv) {
 
 ok64 JDRlexer(JDRstate* state);
 
-fun ok64 JDRdrain($u8 tlv, $u8c rdxj) {
-    sane($ok(tlv) && $ok(rdxj));
+fun ok64 JDRparse($u8 tlv, $u8 errmsg, $u8c jdr) {
     aBcpad(u8p, stack, RDX_MAX_NEST);
-    a$dup(u8c, tlv0, tlv);
+    a$dup(u8c, j, jdr);
     JDRstate state = {
-        .text = rdxj,
+        .text = j,
+        .stack = (u8pB)stackbuf,
+        .tlv = tlv,
+    };
+    ok64 o = JDRlexer(&state);
+    if (o != OK) {
+        size_t off = j[0] - jdr[0];
+        $printf(errmsg, "%s at %ld:%ld\n", okstr(o), (size_t)state.line + 1,
+                off - state.col);
+        u8cp p = *j;
+        $u8c line = {p, p};
+        while (line[0] > jdr[0] && $len(line) < 32 && *(line[0] - 1) != '\n')
+            --line[0];
+        size_t n = $len(line);
+        while (line[1] < jdr[1] && $len(line) < 64 && *(line[1]) != '\n')
+            ++line[1];
+        $u8feed(errmsg, line);
+        $u8feedcn(errmsg, ' ', n);
+        $u8feed2(errmsg, '^', '\n');
+    }
+    return o;
+}
+
+fun ok64 JDRdrain($u8 tlv, $u8c jdr) {
+    sane($ok(tlv) && $ok(jdr));
+    aBcpad(u8p, stack, RDX_MAX_NEST);
+    JDRstate state = {
+        .text = jdr,
         .stack = (u8pB)stackbuf,
         .tlv = tlv,
     };
@@ -158,13 +185,13 @@ fun ok64 JDRdrain($u8 tlv, $u8c rdxj) {
     done;
 }
 
-ok64 JDRfeed1($u8 rdxj, $u8c tlv, u64 style);
+ok64 JDRfeed1($u8 jdr, $u8c tlv, u64 style);
 
-fun pro(JDRfeed, $u8 rdxj, $u8c tlv) {
-    sane($ok(rdxj) && $ok(tlv));
+fun ok64 JDRfeed($u8 jdr, $u8c tlv) {
+    sane($ok(jdr) && $ok(tlv));
     do {
-        call(JDRfeed1, rdxj, tlv, 0);
-        if (!$empty(tlv)) call($u8feed2, rdxj, ',', '\n');
+        call(JDRfeed1, jdr, tlv, 0);
+        if (!$empty(tlv)) call($u8feed2, jdr, ',', '\n');
     } while (!$empty(tlv));
     done;
 }

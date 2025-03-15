@@ -1,7 +1,7 @@
 #   Replicated Data eXchange (RDX CRDT)
 
 RDX is a format for data versioning and replication using state-of-the-art Replicated Data Types.
-RDX can be used for data storage, distributed and asynchronous data exchange and in other applications. 
+RDX can be used for data storage, distributed and asynchronous data exchange and in other applications.
 RDX supports versioning, diff/patch and merges (commutative, associative, idempotent).
 No central server is required, as RDX fully supports local-first, offline-first and peer-to-peer replication.
 Yes, any two *replicas* can merge their changes, like `git` does.
@@ -15,11 +15,11 @@ The difference from [Automerge][a] JSON CRDT is the change of direction:
   * Automerge adapted CRDTs to implement "mergeable JSON", while
   * RDX retrofitted JSON and LSM semantics to make them fit CRDT.
 
-RDX employs *unified* CRDTs able to synchronize using 
+RDX employs *unified* CRDTs able to synchronize using
 
  1. operations and op logs,
  2. full states or
- 3. deltas (patches). 
+ 3. deltas (patches).
 
 RDX types may imply [causal consistency][x] of updates in matters of performance.
 Still, their correctness does not depend on that.
@@ -37,12 +37,12 @@ RDX has five "primitive" `FIRST` types:
  4. String: UTF-8,
  5. Term: `true`, `null` and suchlike.
 
-On top of that, there are four `PLEX` "bracket" types which allow for 
+On top of that, there are four `PLEX` "bracket" types which allow for
 arbitrary nesting:
 
  1. x-Ples (tuples: doubles, triples, quadruples, etc),
  2. Linear collections (arrays, editable texts),
- 3. Eulerian collections (ordered sets, maps), and 
+ 3. Eulerian collections (ordered sets, maps), and
  4. multipleXed collections (counters, version vectors).
 
 The primary RDX format is the binary type-length-value (TLV) one explained here.
@@ -79,7 +79,7 @@ Other than that, RDX does not prescribe any particular logical clock algorithm.
 Now, let's see how an  `I` register would look like in TLV.
 RDX uses the [ToyTLV][t] format to serialize all data.
 Every element is a ToyTLV key-value record, revision id being the "key".
-Suppose, the `int64` value is -11 and it is revision 4 authored by replica #5. 
+Suppose, the `int64` value is -11 and it is revision 4 authored by replica #5.
 
  1. `I` values are [zig-zag][g] coded, so -11 becomes 21 or `15` in hex,
  2. the timestamp is a pair 4,5, so `04 05`,
@@ -94,7 +94,7 @@ What differs is the record type and value serialization.
   * `F` float records [zip][z] the value bits, so round floats like `0.0` or `0.25` take one byte;
   * `I` integer payloads are zig-zaged and zipped, as shown above;
   * `R` reference record payloads are timestamps pair-zipped as shown above;
-  * `S` string records payloads are simply raw UTF-8 strings; 
+  * `S` string records payloads are simply raw UTF-8 strings;
   * `T` payloads are Base64 strings.
 
 `PLEX` types use the same [TLKV][t] format, value being all their nested elements.
@@ -108,7 +108,7 @@ First, to order `FIRST` values within a container type, e.g. keys in a map.
 Second, to resolve a tie when two competing versions have the same revision number.
 The `FIRST` *value-order* is as follows:
 
- 1. for values of differing types, use the type-alphabetical order 
+ 1. for values of differing types, use the type-alphabetical order
     (`F`, `I`, `R`, `S`, `T`),
  2. for values of the same type:
      1. `F` compare values numerically,
@@ -138,11 +138,11 @@ Merge rules for LWW are straightforward:
 
 Collection types allow for arbitrary bundling and nesting of `FIRST` values and other collections.
 
-#### x-Ples 
+#### x-Ples
 
 *Tuples* are short fixed-order collections: couples, triples, quadruples, and so on.
 Those can be as simple as `1:2`, a couple of integers.
-The corresponding TLV coding is `70 09 00 69 02 00 02 69 02 00 04` assuming zero 
+The corresponding TLV coding is `70 09 00 69 02 00 02 69 02 00 04` assuming zero
 timestamps on the tuple and each of the integers.
 A triple of stings would look like `"Alice":"Bob":"Carol"` in J-RDX.
 In TLV, that would be `70 16 73 06 00 41 6c 69 63 65 73 04 00 42 6f 62 73 06 00 43 61 72 6f 6c`.
@@ -153,7 +153,7 @@ Like all other `PLEX` types, the TLV is a key-value record containing TLV key-va
 #### Ordering
 
 When we value-compare two tuples, the value order is defined by their first elements only.
-That way, the first element serves as a *key* for the tuple. 
+That way, the first element serves as a *key* for the tuple.
 For example, `{fist_name:"Sarah", last_name:"Connor"}` is correct,
 as the order of `P` tuples in a `E` set is defined by their first element, a `T` key.
 
@@ -186,7 +186,7 @@ In other cases, it is treated same as `FIRST` types, based on the LWW order.
 
 ### Linear
 
-*Linear* collections are essentially arrays. 
+*Linear* collections are essentially arrays.
 As with x-ples, the relative order of elements gets preserved on edit, conversion or merge.
 But differently from x-ples, arrays can have elements inserted or removed.
 For example, we can edit `[1, 3, 4, 5]` to become `[1, 2, 3, 4]`.
@@ -212,7 +212,7 @@ Insertions and removals are supported, often generalized as a *splice* operation
 When merging two versions of the same `L` collection, the algorithm is Causal Tree CRDT.
 It is also known as Replicated Growable Array and under other names.
 That means, each edit mentions explicitly the id of the location it applies to.
-The merging procedure follows the tree-traversal logic. 
+The merging procedure follows the tree-traversal logic.
 Any change to an array must have a form of *subtrees*.
 Each subtree is arranged in the same weave order,
 and specifying its attachment point in the edited tree.
@@ -220,7 +220,7 @@ The particulars of this algorithm are described separately.
 
 As an object of a merge, `L` behaves as other `PLEX` types.
 If merged with a version of itself, the algorithm recurses (CT CRDT).
-Otherwise, it is treated according to the LWW merge rules. 
+Otherwise, it is treated according to the LWW merge rules.
 
 ### Eulerian
 
@@ -231,7 +231,7 @@ A map is a set containing key-value couples.
 
 #### Ordering
 
-As an element, a set obeys the default `PLEX` ordering: 
+As an element, a set obeys the default `PLEX` ordering:
 
  1. type-alphabetical,
  2. in case of a tie, revision-order.
@@ -242,7 +242,7 @@ Elements of a set use the value order.
 
 Set elements can be inserted, removed or replaced.
 
-Removal is done by a tombstone, a record with an odd revision number. 
+Removal is done by a tombstone, a record with an odd revision number.
 For example, `-11@5-4` from the `FIRST` example would go as `69 04 02 04 05 15`.
 Then, if replica #3 would want to remove that entry, it will issue a tombstone.
 That would be `-11@3-5` or `69 04 02 05 03 15`.
@@ -250,7 +250,7 @@ Here, the version number changes from `04` to `05`, the author changes to 3.
 The tombstone will take the place of the original element in the set.
 
 Replacement is done by adding an element that is equal in the value-order,
-but is higher in the revision order. 
+but is higher in the revision order.
 
 Consider a set element `remarks:"need recheck"`.
 It may be replaced by `remarks@b0b-2: none`.
@@ -262,7 +262,7 @@ Merging two versions of a set is very similar to the [merge sort][m] algorithm.
 It only requires one parallel pass of both collections.
 At each step, if the value-order of elements is the same (equal),
 the merge algorithm recurses into the elements. If elements differ,
-the lesser one is included into the resulting collection and the 
+the lesser one is included into the resulting collection and the
 respective iterator is advanced.
 
 ### multipleXed
@@ -277,7 +277,7 @@ element records.
 
 #### Ordering
 
-As an element, the standard `PLEX` ordering, type-alphabetical then revision order. 
+As an element, the standard `PLEX` ordering, type-alphabetical then revision order.
 
 `X` elements go in the author order (ascending).
 

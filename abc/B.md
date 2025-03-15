@@ -33,23 +33,23 @@ The reasons are many.
 
   - First, such data structures carry a lot of pointer overhead,
     as typically every node has to point at other node(s).
-    If your payload is 64 bits and a pointer is 64 bits and you 
+    If your payload is 64 bits and a pointer is 64 bits and you
     need two of those... you get the idea.
   - Second, `malloc/free` requires pretty complicated bookkeeping, which
     a regular developer rarely sees, except in benchmarks.
   - Third, once your data is sprayed all over the heap, you have no locality.
-  - Finally, suppose you want to save or checksum your data. 
-    Picking your data structure out of a (manure) heap would be 
-    a complicated process. It is not generic. 
+  - Finally, suppose you want to save or checksum your data.
+    Picking your data structure out of a (manure) heap would be
+    a complicated process. It is not generic.
 
-Meanwhile, all the solid-buffer-based data structures have no 
+Meanwhile, all the solid-buffer-based data structures have no
 such limitations. Memory allocation happens once (optimistically)
 or a logarithmic number of times (worst case). There are no pointers.
 All the data stays in one block, very cache-friendly.
-Finally, a buffer is always a buffer, so one can checksum or save it 
+Finally, a buffer is always a buffer, so one can checksum or save it
 to disk by a generic routine.
 
-For concrete examples of the approach see flat [BIN][B] tree, binary [HEAP][H], 
+For concrete examples of the approach see flat [BIN][B] tree, binary [HEAP][H],
 [LSM][L] iterator heap or [HASH][D] set. Also, [NEST][N] is an example
 of using a buffer differently than the past-data-idle scheme.
 

@@ -21,7 +21,7 @@ Integers are like floats.
     -3,
     -2,
     1,
-    2, 
+    2,
     3 @b0b-1,
 ```
 Again, a tuple is ordered the same as its key.

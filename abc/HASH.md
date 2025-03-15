@@ -14,4 +14,4 @@ Macro parameters:
     operations, if only the resulting "API state" is the same.
     Operations that commute can arrive in any order!
     For example, "put 1, put 2, remove 1, put 3" and "put 3, put 2" would
-    result in the same bit-state of the *buffer*. 
+    result in the same bit-state of the *buffer*.

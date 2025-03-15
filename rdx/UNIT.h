@@ -76,13 +76,14 @@ ok64 UNITdrain(Bu8 tests, UNITfn fn) {
     size_t dl = Bdatalen(tests);
     Bu8alloc(rdx, roundup(Bdatalen(tests) * 2, PAGESIZE));
     a$dup(u8c, jdr, Bu8data(tests));
-    ok64 o = JDRdrain(Bu8$2(rdx), jdr);
+    // ok64 o = JDRdrain(Bu8$2(rdx), jdr);
+    aBcpad(u8, err, 128);
+    ok64 o = JDRparse(Bu8$2(rdx), erridle, jdr);
     size_t rl = Bdatalen(rdx);
     if (o != OK) {
-        if ($len(jdr) > 64) jdr[1] = jdr[0] + 64;
         a$str(msg, "JDR parse failed: ");
         FILEfeedall(STDERR_FILENO, msg);
-        FILEfeedall(STDERR_FILENO, jdr);
+        FILEfeedall(STDERR_FILENO, errdata);
     }
     a$dup(u8c, cases, Bu8$1(rdx));
     aBcpad(u8, msg, PAGESIZE);
@@ -168,6 +169,26 @@ fun ok64 UNITfail($u8cc correct, $u8cc fact) {
     HEXdump(padidle, fact);
     Backpast(padbuf);
     return FILEfeed(STDOUT_FILENO, Bu8cdata(padbuf));
+}
+
+fun ok64 JDRdrainargs($u8 into, $$u8c jdr) {
+    a$dup($u8c, j, jdr);
+    id128 id128zero = {};
+    while (!$empty(j)) {
+        a$dup(u8, dup, into);
+        a$dup(u8c, next, **j);
+        ok64 o = JDRdrain(into, next);
+        if (ok64is(o, noroom)) return o;
+        if (o != OK) {
+            $mv(into, dup);
+            a$dup(u8c, str, **j);
+            while (!$empty(str) && *$last(str) == ',') $u8retract(str, 1);
+            o = RDXfeed(into, RDX_STRING, id128zero, str);
+            if (o != OK) return o;
+        }
+        ++*j;
+    }
+    return OK;
 }
 
 #endif

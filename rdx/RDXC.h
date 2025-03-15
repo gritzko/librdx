@@ -64,6 +64,8 @@ fun pro(RDXCfeedR, $u8 tlv, RDXref c, u128 time) {
 
 fun ok64 RDXCdrainS(u8c$ str, id128* id, $u8c rdx) {
     u8 t = 0;
+    id128 _;
+    if (id == nil) id = &_;
     ok64 o = RDXdrain(&t, id, str, rdx);
     return t == RDX_STRING ? o : RDXwrong;
 }

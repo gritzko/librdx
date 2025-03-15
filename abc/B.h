@@ -157,6 +157,12 @@ fun ok64 Bfree(Bvoid buf) {
         bb[1] = bb[0];      \
     }
 
+#define Beat(b)              \
+    {                        \
+        u8c **v = (u8c **)b; \
+        v[1] = v[2];         \
+    }
+
 #define Brewind(b, past, data)          \
     {                                   \
         assert(past + data <= Blen(b)); \

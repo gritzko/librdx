@@ -40,6 +40,7 @@ typedef id128 RDXref;
 typedef $u8c RDXstring;
 typedef $u8c RDXterm;
 
+// FIXME big: seq, lil: src
 #define id128cmp u128cmp
 #define aRDXid(n, time, src) id128 n = {._64 = {src, time}};
 #define id128src(t) ((t)._64[0])
