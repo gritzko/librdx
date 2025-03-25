@@ -33,14 +33,15 @@ So, here are the insights, if you care to listen.
 That is self-evident when you do an orderly construction, like
 putting a brick on a brick. For example, I first developed a
 JDR parser, then I wrote a small JDR based test framework
-(very handy), then I was able to test merge rules systematically,
-using all the norms of literate programming: put the spec and
-tests side by side. Then, I was able to build LSM/SST store
-logic using all of the above.
+(very handy), then I was able to test RDX merge rules systematically,
+using all the norms of literate programming. I put the spec and
+tests side by side, so tests are explained and the spec is always
+tested in the most direct way. Then, I was able to build the
+LSM/SST store logic using all of the above.
 
 That brick-on-a-brick approach requires some skill, and it is
 rational and incremental. The tricky part is some dependency
-loops sometimes being hidden in plain sight. For example,
+loops often being hidden in plain sight. For example,
 the parser uses merge and ordering rules to normalize the inputs:
 if a map mentions the same key twice, these entries get merged.
 The bottom "brick" relies on the top "brick"!
@@ -49,23 +50,24 @@ This effect is best explained in "Reflections on Trusting Trust".
 Long story short, you need a compiler to compile your compiler.
 And that has non-trivial consequences.
 The most breathtaking experience of this kind was using a parser
-generator to generate a parser for its own eBNF rules.
+generator to generate its own parser for its own eBNF rules.
 That code sort of spiraled itself into existence, feature by feature.
 
 <img align=left width="30%" src="../img/reptiles.jpg"/>
 The most exciting part of it all is seeing how *an idea becomes
-a plan and a plan becomes working code*.
+a plan and a plan becomes working code* (and the working code
+amends the plan).
 `librdx` had plenty of such rollercoaster stories and the topmost one
 is RDX tuples. What is a tuple? That is several elements slapped
 together. Should not be too complicated!
 But, tuples have so many uses in RDX.
-An ordinary tuple is something like `1:2`.
+An ordinary tuple is something like `1:2`, two numbers.
 Tuples turn sets into maps, i.e. `{1 2}` is a set and `{1:"one" 2:"two"}` is a map.
 An empty tuple is a something-but-nothing value, the most nullish null ever.
 A tuple of one can be a "tombstone", a placeholder for deleted data,
-which a necessary construct in distributed systems.
+which is a necessary construct in distributed systems.
 Tuples can express relational records and that is absolutely fundamental:
-`73456:"Alice":8:"Wonderland"`.
+`73456:"Alice Wonderland":"Carol, Lewis"`.
 A tuple is a construct that stitches so many things together.
 
 In general, parts of the system interact. For N constructs, the number of
@@ -81,7 +83,7 @@ with some compiler optimisation, bang!
 
 But then, eventually, you get to the stage when everything works smoothly together.
 Half a year later, you don't remember how it works just because it always works.
-It is live!
+All fits, it's live!
 
 <img align=right width="30%" src="../img/order_and_chaos.jpg"/>
 *A good system orders itself*.
@@ -97,20 +99,20 @@ That kind of crystallisation is a powerful ability.
 There are rules and policies that define the right place for each piece.
 Not too many rules, so you can remember, but just enough.
 
+There have been some rules that worked like a "comb for the code".
+For example: "a buffer (4 pointers) owns the memory; a slice (two pointers) does not".
+This one helped to fix an impeding chaos in function signatures and memory management.
+
 `librdx` employs a rather special (I say "algebraic") function naming convention. 
-Names like `$$u8cfeed1()` may look scary at first but
-once you get the system, the order emerges:
+Names like `$$u8cfeed1()` may look scary at first but once you get the system, the order emerges:
 "feed a byte slice into a slice of byte slices".
 Then, `HEAP$u8cpushf()` reads naturally as
 "push a byte slice into a heap of slices, as ordered by the function".
-The convention replaces the C++ type system and name mangling.
-Is is definitely different from the typical C method naming convention
-(C has no "methods" but you likely understand what I mean).
-Once you want to invoke a function, you spell it according to the convention.
-If that does not work, then something is wrong.
-Either something was named in violation of the convention
-or the function is not written yet, but you can understand how it must work, just from the name.
-Fix those things and tadam!
+Method naming is sort of a pain point in C (cause yes, C has no methods).
+So, that convention replaces the C++ type system and name mangling.
+Once the convention was in place, not only the naming,
+but also the general code organisation improved.
+
 Good rules build the system.
 
 <img align=left width="30%" src="../img/sky_water.jpg"/>
@@ -118,8 +120,8 @@ Good rules build the system.
 Or, "divide, define, derive".
 It is a good practice to focus on the key parameter that affects
 everything else, and let the other tunables be derived from that.
-In other words, focus on the bottleneck, focus on the choke point.
-Separate fundamentally different things as early as possible.
+In other words, focus on the bottleneck,
+separate fundamentally different things as early as possible.
 
 One relevant story is probably the skip list template, `SKIPu8feed()` and friends.
 `librdx` uses C templates extensively, which C in theory does not even have.
