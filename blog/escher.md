@@ -1,5 +1,6 @@
 #   Escher's art and computer science
 
+<img align=right width="50%" src="../img/drawing_hands.jpg"/>
 While on a small vacation in the Hague I had a blissful chance
 to visit the Escher's museum. It is now hosted in an actual
 royal palace which many Europeans may find surprisingly modest.
@@ -28,7 +29,6 @@ to it for so long.
 
 So, here are the insights, if you care to listen.
 
-<img align=right width="30%" src="../img/drawing_hands.jpg"/>
 "Drawing hands": *develop tools using the tools you developed*.
 That is self-evident when you do an orderly construction, like
 putting a brick on a brick. For example, I first developed a
@@ -46,14 +46,16 @@ the parser uses merge and ordering rules to normalize the inputs:
 if a map mentions the same key twice, these entries get merged.
 The bottom "brick" relies on the top "brick"!
 
-This effect is best explained in "Reflections on Trusting Trust".
+This effect is best explained in ["Reflections on Trusting Trust"][T].
 Long story short, you need a compiler to compile your compiler.
 And that has non-trivial consequences.
 The most breathtaking experience of this kind was using a parser
 generator to generate its own parser for its own eBNF rules.
 That code sort of spiraled itself into existence, feature by feature.
 
-<img align=left width="30%" src="../img/reptiles.jpg"/>
+[T]: https://www.cs.cmu.edu/~rdriley/487/papers/Thompson_1984_ReflectionsonTrustingTrust.pdf
+
+<img align=left width="50%" src="../img/reptiles.jpg"/>
 The most exciting part of it all is seeing how *an idea becomes
 a plan and a plan becomes working code* (and the working code
 amends the plan).
@@ -67,7 +69,7 @@ An empty tuple is a something-but-nothing value, the most nullish null ever.
 A tuple of one can be a "tombstone", a placeholder for deleted data,
 which is a necessary construct in distributed systems.
 Tuples can express relational records and that is absolutely fundamental:
-`73456:"Alice Wonderland":"Carol, Lewis"`.
+`73456:"Alice in Wonderland":"Carol, Lewis"`.
 A tuple is a construct that stitches so many things together.
 
 In general, parts of the system interact. For N constructs, the number of
@@ -85,7 +87,7 @@ But then, eventually, you get to the stage when everything works smoothly togeth
 Half a year later, you don't remember how it works just because it always works.
 All fits, it's live!
 
-<img align=right width="30%" src="../img/order_and_chaos.jpg"/>
+<img align=right width="50%" src="../img/order_and_chaos.jpg"/>
 *A good system orders itself*.
 That might as well be a fundamental property of living matter:
 consume some random inputs, produce order and beauty.
@@ -115,7 +117,7 @@ but also the general code organisation improved.
 
 Good rules build the system.
 
-<img align=left width="30%" src="../img/sky_water.jpg"/>
+<img align=left width="50%" src="../img/sky_water.jpg"/>
 *Separate the defining features from meaningful from unimportant.
 Or, "divide, define, derive".
 It is a good practice to focus on the key parameter that affects
