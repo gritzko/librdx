@@ -1,16 +1,19 @@
 #include "LSM.h"
 
+#include "SKIP.h"
 #include "abc/$.h"
 #include "abc/OK.h"
 #include "abc/TLV.h"
 
 ok64 LSMnext($u8 into, $$u8c lsm, $u8cZfn cmp, $u8cYfn mrg) {
     sane($ok(into) && $ok(lsm) && cmp != nil && mrg != nil);
-    $u8c next = {};
+    $u8c next = {}, _;
     aBpad2($u8c, in, LSM_MAX_INPUTS);
 
     do {
         call(TLVdrain$, next, **lsm);
+        while (!$empty(**lsm) && (~TLVaA & ****lsm) == SKIP_TLV_TYPE)
+            call(TLVdrain$, _, **lsm);
         call($$u8cfeedp, inidle, &next);
         if ($empty(**lsm)) {
             $u8cswap($head(lsm), $last(lsm));

@@ -24,6 +24,7 @@ a$strc(BRIXhome, ".rdx/brix");
 con ok64 SUBsst = 0x37df8;
 con ok64 b0b = 0x26026;
 con ok64 SUBdeps = 0xa29d37;
+con ok64 SUBjdr = 0x2ea36;
 
 ok64 BRIKfeedpath($u8 into, BRIX const* brix, h60 let);
 ok64 BRIKhash(sha256* hash, SSTu128 sst);
@@ -37,13 +38,19 @@ ok64 BRIX_add(BRIX* brix, id128 id, ok64 sub, $u8c args) {
     sane($ok(args));
     $u8c path = {};
     id128 _;
+    sha256 sha = {};
     aRDXid(clock, 0, b0b);
     if (RDXrdt(args) == RDX_STRING) {
         call(RDXCdrainS, path, &_, args);
+        fail(notimplyet);
+    } else if (RDXrdt(args) == RDX_TERM) {
+        call(RDXCdrainT, path, &_, args);
+        call(BRIXfind, &sha, brix, path);
     } else {
         fail(notimplyet);
     }
 
+    call(BRIXadd, brix, &sha);
     done;
 }
 
@@ -67,6 +74,7 @@ ok64 BRIX_patch(BRIX* brix, id128 id, ok64 sub, $u8c args) {
 }
 
 // [x] get b0b-101
+// [x] get:jdr b0b-101
 // [ ] get b0b-101:field:123
 ok64 BRIX_get(BRIX* brix, id128 id, ok64 sub, $u8c args) {
     sane(1);
@@ -77,6 +85,11 @@ ok64 BRIX_get(BRIX* brix, id128 id, ok64 sub, $u8c args) {
             $u8c rec = {};
             call(RDXCdrainR, &ref, &_, args);
             call(BRIXgetc, rec, brix, 0, ref);
+            if (sub == SUBjdr) {
+                Beat(brix->pad);
+                call(JDRfeed, Bu8idle(brix->pad), rec);
+                $mv(rec, Bu8data(brix->pad));
+            }
             call(FILEfeed, STDOUT_FILENO, rec);
         } else {
             fail(notimplyet);

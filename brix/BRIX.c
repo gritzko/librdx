@@ -14,8 +14,8 @@
 #include "abc/ZINT.h"
 #include "dirent.h"
 #include "rdx/RDX.h"
-#include "rdx/Y.h"
 #include "rdx/RDXZ.h"
+#include "rdx/Y.h"
 
 a$strc(BRIKtmp, ".tmp.brik");
 a$strc(BRIKext, ".brik");
@@ -66,7 +66,7 @@ ok64 BRIXadd(BRIX* brix, sha256c* sha) {
     $sha256c deps = {};
     call(SSTu128meta, sst, nil, (u8c**)deps);
     test($sha256ok(deps), BRIXbad);
-    if (!$empty(deps)) {
+    if (!$empty(deps) && !sha256empty($head(deps))) {  // TODO
         ok64 o = BRIXhave(brix, $head(deps));
         if (o != OK) call(BRIXadd, brix, $head(deps));
     }
@@ -182,7 +182,7 @@ ok64 BRIXmerge(sha256* newsha, BRIX* brix) {
     u8$ sstinto = Bu8idle(sst);
     while (!$empty(insdata)) {
         call(LSMnext, sstinto, insdata, RDXZrevision, Y);
-        call(SKIPu8mayfeed, sstinto, &tab);
+        call(SKIPu8mayfeed, sst, &tab);
     }
 
     call(SSTu128end, sst, &fd, &tab);

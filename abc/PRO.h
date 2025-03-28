@@ -189,9 +189,11 @@ fun void _parse_args(int argn, char **args) {
     int main(int argn, char **args) {                                    \
         _parse_args(argn, args);                                         \
         ok64 ret = f();                                                  \
-        if (ret != OK)                                                   \
+        if (ret != OK) {                                                 \
             trace("%s<%s at %s:%i\n", PROindent, ok64str(ret), __func__, \
                   __LINE__);                                             \
+            fprintf(stderr, "Error: %s\n", ok64str(ret));                \
+        }                                                                \
         return ret;                                                      \
     }
 
