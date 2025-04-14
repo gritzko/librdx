@@ -33,8 +33,7 @@ typedef void *const *voidB;
 
 #define B(T, b) B##T b = {0, 0, 0, 0}
 
-#define Bbusy(b) \
-    { b[0], b[2] }
+#define Bbusy(b) {b[0], b[2]}
 
 #define Bpast(b) (b + 0)
 #define Bdata(b) (b + 1)
@@ -61,7 +60,16 @@ typedef void *const *voidB;
 #define Bok(b) \
     (b != nil && b[0] != nil && b[0] <= b[1] && b[1] <= b[2] && b[2] <= b[3])
 #define Bnil(b) (b == nil || b[0] == nil)
+#define Bvoid(b) (b != nil && b[0] == nil)
 #define Bhasroom(b) (b[2] < b[3])
+#define Bmv(b1, b2)           \
+    {                         \
+        u8 **b = (u8 **)(b1); \
+        b[0] = (b2)[0];       \
+        b[1] = (b2)[1];       \
+        b[2] = (b2)[2];       \
+        b[3] = (b2)[3];       \
+    }
 
 #define aBpad(T, n, l) \
     T _##n[(l)];       \
@@ -87,7 +95,7 @@ typedef void *const *voidB;
 
 #define aBusy(T, name, buf) T *name[2] = {buf[0], buf[2]};
 
-#define Bzero(buf) memset(buf[0], 0, Bsize(buf))
+#define Bzero(buf) memset((u8 *)buf[0], 0, Bsize(buf))
 
 #define Bwithin(b, s) (s[0] >= b[0] && s[1] <= b[3])
 

@@ -17,8 +17,8 @@
 
 typedef ok64 (*UNITfn)($cu8c rdx);
 
-a$strc(UNITokmsg, "\tOK\n");
-a$strc(UNITfailmsg, "\tFAIL\n");
+extern $u8c UNITokmsg;
+extern $u8c UNITfailmsg;
 
 fun ok64 HEXfeedsep($u8 hex, $u8c bin, u8 sep) {
     while (!$empty(bin) && $len(hex) >= 3) {
@@ -71,7 +71,7 @@ fun ok64 UNITdump($u8 into, $u8c rdx) {
     return OK;
 }
 
-ok64 UNITdrain(Bu8 tests, UNITfn fn) {
+fun ok64 UNITdrain(Bu8 tests, UNITfn fn) {
     Bu8 rdx = {};
     size_t dl = Bdatalen(tests);
     Bu8alloc(rdx, roundup(Bdatalen(tests) * 2, PAGESIZE));
@@ -169,26 +169,6 @@ fun ok64 UNITfail($u8cc correct, $u8cc fact) {
     HEXdump(padidle, fact);
     Backpast(padbuf);
     return FILEfeed(STDOUT_FILENO, Bu8cdata(padbuf));
-}
-
-fun ok64 JDRdrainargs($u8 into, $$u8c jdr) {
-    a$dup($u8c, j, jdr);
-    id128 id128zero = {};
-    while (!$empty(j)) {
-        a$dup(u8, dup, into);
-        a$dup(u8c, next, **j);
-        ok64 o = JDRdrain(into, next);
-        if (ok64is(o, noroom)) return o;
-        if (o != OK) {
-            $mv(into, dup);
-            a$dup(u8c, str, **j);
-            while (!$empty(str) && *$last(str) == ',') $u8retract(str, 1);
-            o = RDXfeed(into, RDX_STRING, id128zero, str);
-            if (o != OK) return o;
-        }
-        ++*j;
-    }
-    return OK;
 }
 
 #endif

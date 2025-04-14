@@ -7,7 +7,6 @@
 #include "abc/01.h"
 #include "abc/B.h"
 #include "abc/BUF.h"
-#include "abc/FILE.h"
 #include "abc/INT.h"
 #include "abc/LSM.h"
 #include "abc/OK.h"
@@ -521,13 +520,8 @@ ok64 JDRfeed1($u8 rdxj, $u8c tlv, u64 style) {
     done;
 }
 
-pro(JDRdrainSesc, $u8 txt, $u8c tlv) {
-    sane($ok(txt) && $ok(tlv));
-    if ($len(txt) < $len(tlv)) return RDXnoroom;
-    u8 t = 0;
-    $u8c key = {};
-    $u8c val = {};
-    call(TLVdrainkv, &t, key, val, tlv);
+ok64 JDResc($u8 txt, $u8c val) {
+    sane($ok(txt) && $ok(val));
     while (!$empty(val) && !$empty(txt)) {
         switch (**val) {
             case '\t':
@@ -563,5 +557,16 @@ pro(JDRdrainSesc, $u8 txt, $u8c tlv) {
         }
         ++*val;
     }
+    done;
+}
+
+pro(JDRdrainSesc, $u8 txt, $u8c tlv) {
+    sane($ok(txt) && $ok(tlv));
+    if ($len(txt) < $len(tlv)) return RDXnoroom;
+    u8 t = 0;
+    $u8c key = {};
+    $u8c val = {};
+    call(TLVdrainkv, &t, key, val, tlv);
+    call(JDResc, txt, val);
     done;
 }

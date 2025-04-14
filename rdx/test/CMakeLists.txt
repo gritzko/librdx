@@ -25,6 +25,12 @@ target_compile_options(JDRtest PRIVATE ${TEST_CXX_FLAGS})
 target_link_libraries(JDRtest abc rdx)
 add_test(NAME JDRtest COMMAND JDRtest ${CMAKE_CURRENT_SOURCE_DIR}/jdr.eq.md)
 
+add_executable(CLItest CLI.c)
+target_link_options(CLItest PRIVATE ${TEST_LDD_FLAGS})
+target_compile_options(CLItest PRIVATE ${TEST_CXX_FLAGS})
+target_link_libraries(CLItest abc rdx)
+add_test(NAME CLItest COMMAND CLItest)
+
 add_executable(RDXZtest RDXZ.c)
 target_link_options(RDXZtest PRIVATE ${TEST_LDD_FLAGS})
 target_compile_options(RDXZtest PRIVATE ${TEST_CXX_FLAGS})

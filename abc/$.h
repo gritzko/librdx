@@ -35,8 +35,7 @@
 #define $off(s, o) ((s[0] + (o) < s[1]) ? (s[0] + (o)) : s[1])
 
 #define a$dup(T, n, s) T *n[2] = {(s)[0], (s)[1]}
-#define $dup(s) \
-    { (s)[0], (s)[1] }
+#define $dup(s) {(s)[0], (s)[1]}
 
 #define a$tail(T, n, s, off) \
     $##T n = {(off) > $len(s) ? s[1] : s[0] + (off), s[1]};
@@ -60,19 +59,21 @@
         ++*s;                       \
     }
 
-#define $mv(s1, s2) \
-    { (s1)[0] = (s2)[0], (s1)[1] = (s2)[1]; }
+#define $mv(s1, s2)                           \
+    {                                         \
+        (s1)[0] = (s2)[0], (s1)[1] = (s2)[1]; \
+    }
 
 // produce a subslice given an offset
-#define $mvnil(s1) \
-    { s1[0] = nil, s1[1] = nil; }
+#define $mvnil(s1)                \
+    {                             \
+        s1[0] = nil, s1[1] = nil; \
+    }
 
-#define $sub(s, o) \
-    { $off(s, o), s[1] }
+#define $sub(s, o) {$off(s, o), s[1]}
 
 /** produce a subslice given offset and length */
-#define $cut(s, o, l) \
-    { $off(s, o), $off(s, o + l) }
+#define $cut(s, o, l) {$off(s, o), $off(s, o + l)}
 
 #define $trim2(s, v) \
     if ($len(s) > 0 && *$last(s) == v) --s[1];
@@ -106,6 +107,11 @@ typedef int (*fncmp)(const void *, const void *);
 
 #define $copy(into, from) \
     memcpy((void *)*into, (void *)*from, $minsize(into, from))
+
+#define $fed(s) \
+    {           \
+        ++*s;   \
+    }
 
 #define $feed1(s, v) \
     {                \

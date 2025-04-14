@@ -2,13 +2,12 @@
 #define ABC_RDX_C
 #include "RDX.h"
 
-fun pro(RDXCdrainF, RDXfloat* c, id128* id, $cu8c tlv) {
+fun pro(RDXCdrainF, RDXfloat* c, id128* id, $u8c tlv) {
     sane(c != nil && id != nil && $ok(tlv));
     u8 t = 0;
     $u8c value = {};
     u64 bits = 0;
-    a$dup(u8c, dup, tlv);
-    call(RDXdrain, &t, id, value, dup);
+    call(RDXdrain, &t, id, value, tlv);
     test(t == RDX_FLOAT, RDXbad);
     call(ZINTu64drain, &bits, value);
     *(u64*)c = flip64(bits);
@@ -24,13 +23,12 @@ fun pro(RDXCfeedF, $u8 tlv, RDXfloat c, u128 time) {
     done;
 }
 
-fun pro(RDXCdrainI, RDXint* c, id128* id, $cu8c tlv) {
+fun pro(RDXCdrainI, RDXint* c, id128* id, $u8c tlv) {
     sane(c != nil && id != nil && $ok(tlv));
     u8 t = 0;
     u64 bits = 0;
     $u8c value = {};
-    a$dup(u8c, dup, tlv);
-    call(RDXdrain, &t, id, value, dup);
+    call(RDXdrain, &t, id, value, tlv);
     call(ZINTu64drain, &bits, value);
     *c = ZINTzagzig(bits);
     done;

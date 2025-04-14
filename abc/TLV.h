@@ -207,4 +207,16 @@ fun pro(TLVdrainkv, u8* type, $u8c key, $u8c val, $u8c tlv) {
     done;
 }
 
+fun ok64 TLVvalid($cu8c tlv, $cu8c lits) {
+    sane($ok(tlv) && $ok(lits));
+    a$dup(u8c, dup, tlv);
+    while (!$empty(dup)) {
+        u8 t = 0;
+        $u8c _ = {};
+        call(TLVdrain, &t, _, dup);
+        if (!$empty(lits) && $u8find(lits, &t) == nil) fail(TLVbadrec);
+    }
+    done;
+}
+
 #endif

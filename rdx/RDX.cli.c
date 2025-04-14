@@ -1,21 +1,26 @@
 #include "RDX.h"
 
 #include <fcntl.h>
+#include <limits.h>
 #include <unistd.h>
 
+#include "CLI.h"
 #include "JDR.h"
 #include "RDXC.h"
 #include "UNIT.h"
 #include "Y.h"
 #include "abc/$.h"
+#include "abc/01.h"
 #include "abc/BUF.h"
 #include "abc/FILE.h"
+#include "abc/LSM.h"
 #include "abc/OK.h"
+#include "abc/PRO.h"
+#include "abc/TLV.h"
 
 con ok64 RDXbadverb = 0x6cd866968ea9da6;
 
-u8* tmp[4] = {};
-$u8c* ins[4] = {};
+b8 JDR_OUT = 0;
 
 fun ok64 TLVsplit($$u8c idle, $cu8c data) {
     sane($ok(idle) && $ok(data));
@@ -39,99 +44,43 @@ fun ok64 RDXtry($cu8c data) {
     return o;
 }
 
-pro(RDXeatfile, int fd) {
-    sane(fd > FILE_CLOSED);
-    Bu8 buf = {};
-    call(FILEmapro2, buf, &fd);
-    ok64 jdr = RDXtry(Bu8cdata(buf));
-    if (jdr == OK) {
-        call(TLVsplit, B$u8cidle(ins), Bu8cdata(buf));
-    } else {
-        aBcpad(u8, err, 128);
-        try(JDRparse, Bu8idle(tmp), erridle, Bu8cdata(buf));
-        nedo {
-            FILEfeed(STDERR_FILENO, errdata);
-            done;
-        }
-        call(TLVsplit, B$u8cidle(ins), Bu8cdata(tmp));
-        Beat(tmp);
+ok64 RDX_merge(void* ctx, $u8c args) {
+    sane($ok(args));
+    aBcpad(Bu8, b, LSM_MAX_INPUTS);
+    aBcpad($u8c, in, LSM_MAX_INPUTS);
+    Bzero(bbuf);
+    Bzero(inbuf);
+
+    call(RDXingestall, bbuf, args);
+    size_t total = 0;
+    $for(Bu8, b, BBu8cdata(bbuf)) {
+        $$u8cfeed1(inidle, Bu8cdata(*b));
+        total += Bdatalen(*b);
     }
+
+    u8** resbuf = (u8**)ctx;
+    call(Bu8map, resbuf, roundup(total * 2, PAGESIZE));
+    // call(Y, Bu8idle(resbuf), B$u8cdata(inbuf));
+    call(Y, Bu8idle(resbuf), B$u8cdata(inbuf));
+
+    $for(Bu8, b, BBu8cdata(bbuf)) Bu8unmap(*b);
     done;
 }
 
-pro(RDXeatfiles, $u8c args) {
-    sane(1);
-    if (!Bempty(ins)) {
-    } else if ($empty(args) || TLVup(**args) != RDX_STRING) {
-        call(RDXeatfile, STDIN_FILENO);
-    }
-    while (!$empty(args) && TLVup(**args) == RDX_STRING) {
-        $u8c str = {};
-        id128 id = {};
-        RDXCdrainS(str, &id, args);
-        int fd = FILE_CLOSED;
-        call(FILEopen, &fd, str, O_RDONLY);
-        call(RDXeatfile, fd);
-        call(FILEclose, &fd);
-    }
-    done;
-}
+ok64 RDX_cat(void* ctx, $u8c args) {
+    sane(ctx != nil && $ok(args));
+    aBcpad(Bu8, b, LSM_MAX_INPUTS);
+    Bzero(bbuf);
+    u8** resbuf = (u8**)ctx;
 
-pro(RDX_print, $u8c args) {
-    sane(1);
-    Beat(tmp);
-    a$dup($u8c, in, B$u8cdata(ins));
-    u8$ idle = Bu8idle(tmp);
-    call(JDRfeed, idle, **in);
-    ++*in;
-    $eat(in) {
-        call($u8feed2, idle, ',', '\n');
-        call(JDRfeed, idle, **in);
-    }
-    call($u8feed1, idle, '\n');
+    call(RDXingestall, bbuf, args);
+    size_t total = 0;
+    $for(Bu8, b, BBu8cdata(bbuf)) total += Bdatalen(*b);
 
-    int fd = STDOUT_FILENO;
-    if (TLVup(**args) == RDX_STRING) {
-        $u8c str = {};
-        RDXCdrainS(str, nil, args);
-        call(FILEcreate, &fd, str);
-    }
-    call(FILEfeedall, fd, Bu8cdata(tmp));
-    if (fd != STDOUT_FILENO) FILEclose(&fd);
-    done;
-}
+    call(Bu8map, resbuf, roundup(total * 2, PAGESIZE));
+    $eat(bdata) call($u8feedall, Bu8idle(resbuf), Bu8cdata(**bdata));
 
-ok64 RDX_parse($u8c args) {
-    sane(1);
-    call(RDXeatfiles, args);
-    done;
-}
-
-ok64 RDX_write($u8c args) {
-    sane(1);
-    u8 t = 0;
-    id128 id = {};
-    $u8c val = {};
-    u64 sub = 0;
-    call(RDXdrain, &t, &id, val, args);
-    test(t == RDX_STRING, badarg);
-    int fd = FILE_CLOSED;
-    call(FILEcreate, &fd, val);
-    $eat(B$u8cdata(ins)) call(FILEfeedall, fd, *ins[1]);
-    call(FILEclose, &fd);
-    Breset(ins);
-    done;
-}
-
-ok64 RDX_merge($u8c args) {
-    sane(1);
-    call(RDXeatfiles, args);
-    Beat(tmp);
-    u8$ idle = Bu8idle(tmp);
-    call(Y, idle, B$u8cdata(ins));
-    Breset(ins);
-    call($$u8cfeed1, B$u8cidle(ins), Bu8cdata(tmp));
-    Beat(tmp);
+    $for(Bu8, b, BBu8cdata(bbuf)) Bu8unmap(*b);
     done;
 }
 
@@ -166,103 +115,72 @@ ok64 yfn($cu8c cases) {
     done;
 }
 
-ok64 RDX_test($u8c args) {
+ok64 RDX_test(void* ctx, $u8c args) {
     sane(1);
-    while (!$empty(args) && TLVup(**args) == RDX_STRING) {
-        $u8c path = {};
-        call(RDXCdrainS, path, nil, args);
-        Bu8 rdxjbuf = {};
-        call(FILEmapro, rdxjbuf, path);
-        call(UNITdrain, rdxjbuf, yfn);
-        call(FILEunmap, rdxjbuf);
+    while (!$empty(args)) {
+        Bu8 test = {};
+        u8 t = 0;
+        $u8c val = {};
+        id128 _;
+        call(RDXdrain, &t, &_, val, args);
+        test(t == RDX_STRING || t == RDX_TERM, badarg);
+        call(RDXingest, test, val);  // TODO .rdx .jdr
+        call(UNITdrain, test, yfn);
+        call(Bu8unmap, test);
     }
     done;
 }
 
-ok64 RDX_clean($u8c args) {
+ok64 RDX_delta(void* ctx, $u8c args) {
     sane(1);
     // call(FILEmapro, (voidB)rdxjbuf, path);
     // call(FILEunmap, rdxjbuf);
     done;
 }
 
-ok64 RDX_diff($u8c args) {
-    sane(1);
-    // call(FILEmapro, (voidB)rdxjbuf, path);
-    // call(FILEunmap, rdxjbuf);
-    done;
-}
-
-typedef ok64 (*cmdfn)($u8c args);
-
-typedef struct {
-    $u8c name;
-    cmdfn fn;
-} cmd_t;
-
-cmd_t COMMANDS[] = {
-    {$u8str("print"), RDX_print},  //
-    {$u8str("j"), RDX_print},      //
-    {$u8str("parse"), RDX_parse},  //
-    {$u8str("p"), RDX_parse},      //
-    {$u8str("write"), RDX_write},  //
-    {$u8str("w"), RDX_write},      //
-    {$u8str("test"), RDX_test},    //
-    {$u8str("t"), RDX_test},       //
-    {$u8str("merge"), RDX_merge},  //
-    {$u8str("y"), RDX_merge},      //
-    {$u8str("diff"), RDX_diff},    //
-    {$u8str("d"), RDX_diff},       //
-    {$u8str("clean"), RDX_clean},  //
-    {$u8str("c"), RDX_clean},      //
-    {$u8str(""), nil},
+// parse, test, print
+// -[ ] 1GB stdin?!!  expando?!  Bu8remap()
+// -[ ] 3way?
+CLIcmd COMMANDS[] = {
+    {$u8str("cat"), RDX_cat,
+     $u8str("testA.rdx testB.jdr -- parse/print RDX data")},  //
+    {$u8str("test"), RDX_test,
+     $u8str("testA.rdx testB.jdr -- run RDX test script(s)")},  //
+    {$u8str("merge"), RDX_merge,
+     $u8str("fileA.jdr fileB.rdx -- merge RDX file(s)")},  //
+    {$u8str("delta"), RDX_delta,
+     $u8str("old.rdx new.rdx     -- produce an RDX delta")},  //
+    {$u8str(""), nil, $u8str("")},
 };
 
 ok64 RDXcli() {
     sane(1);
-    a$dup($u8c, stdargs, B$u8cdata(STD_ARGS));
-    ++*stdargs;  // program name
-    aBcpad(u8, cmds, PAGESIZE);
-    call(JDRdrainargs, cmdsidle, stdargs);
-    u8c$ cmds = cmdsdata;
 
-    call(Bu8map, tmp, 1UL << 32);
-    call(B$u8calloc, ins, Y_MAX_INPUTS * 8);
-
-    while (!$empty(cmds)) {
-        u8 t = 0;
-        id128 id = {};
-        $u8c val = {};
-        $u8c verb = {};
-        u64 sub = 0;
-        call(RDXdrain, &t, &id, val, cmds);
-        if (t == RDX_TUPLE) {
-            id128 _;
-            test(!$empty(val), badarg);
-            call(RDXdrain, &t, &_, verb, val);
-            test(t == RDX_TERM, RDXbadverb);
-            if (!$empty(val)) {
-                $u8c s = {};
-                call(RDXdrain, &t, &_, s, val);
-                test(t == RDX_TERM, badarg);
-                call(RONdrain64, &sub, s);
-            }
-        } else if (t == RDX_TERM) {
-            $mv(verb, val);
-        } else {
-            fail(RDXbadverb);
-        }
-        int v = 0;
-        while (!$eq(COMMANDS[v].name, verb) && COMMANDS[v].fn != nil) ++v;
-        test(COMMANDS[v].fn != nil, RDXbadverb);
-
-        call(COMMANDS[v].fn, cmds);
+    if (!$empty(Bdata(STD_ARGS))) {
+        u8c$ fn = $at(B$u8cdata(STD_ARGS), 0);
+        a$last(u8c, nm, fn, 3);
+        a$strc(jdr, "jdr");
+        if ($eq(nm, jdr)) JDR_OUT = 1;
     }
-    test($empty(cmds), badarg);
 
-    Bu8unmap(tmp);
-    B$u8cfree(ins);
+    Bu8 resbuf = {};
 
+    try(CLI, COMMANDS, (void*)resbuf);
+    nedo fprintf(stderr, "Error: %s\n", ok64str(__));
+
+    then if (!Bu8empty(resbuf)) {
+        if (JDR_OUT) {
+            Bu8 jdrbuf = {};
+            call(Bu8map, jdrbuf, roundup(Bdatalen(resbuf) * 2, PAGESIZE));
+            call(JDRfeed, Bu8idle(jdrbuf), Bu8cdata(resbuf));
+            call($u8feed1, Bu8idle(jdrbuf), '\n');
+            Bu8unmap(resbuf);
+            Bmv(resbuf, jdrbuf);
+        }
+        call(FILEfeedall, STDOUT_FILENO, Bu8cdata(resbuf));
+    }
+
+    Bu8unmap(resbuf);
     done;
 }
 

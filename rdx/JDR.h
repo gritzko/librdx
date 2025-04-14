@@ -81,7 +81,8 @@ fun ok64 RDXFtlv2txt($u8 txt, $cu8c tlv) {
     sane($ok(txt) && $ok(tlv));
     u128 time;
     RDXfloat v;
-    call(RDXCdrainF, &v, &time, tlv);
+    a$dup(u8c, dup, tlv);
+    call(RDXCdrainF, &v, &time, dup);
     u8 res[32];
     int len = d2s_buffered_n(v, (char*)res);
     $u8c $res = {res, res + len};
@@ -105,7 +106,8 @@ fun ok64 RDXItlv2txt($u8 txt, $cu8c tlv) {
     sane($ok(txt) && $ok(tlv));
     RDXint v = 0;
     id128 time = {};
-    call(RDXCdrainI, &v, &time, tlv);
+    a$dup(u8c, dup, tlv);
+    call(RDXCdrainI, &v, &time, dup);
     u8 res[32];
     int len = sprintf((char*)res, "%li", v);
     $u8c $res = {res, res + len};
@@ -131,6 +133,8 @@ fun ok64 RDXRtlv2txt($u8 txt, $cu8c tlv) {
     call(RDXid128feed, txt, v);
     done;
 }
+
+ok64 JDResc($u8 txt, $u8c val);
 
 ok64 JDRfeedSesc($u8 tlv, $u8c txt);
 

@@ -238,6 +238,10 @@ fun h64 mix64(u64 a) {
     return mix2 * PRIME2;
 }
 
+fun h64 mix128(u128 a){
+  return mix64(mix64(a._64[0]) ^ a._64[1]);
+}
+
 #ifndef ABC_INSANE
 #define Ocopy(a, b)                   \
     assert(sizeof(*a) == sizeof(*b)); \

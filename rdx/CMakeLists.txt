@@ -29,6 +29,7 @@ JDR.h
 Y.h
 RDXZ.h
 UNIT.h
+CLI.h
 )
 
 list(APPEND RDX_SOURCES 
@@ -36,6 +37,7 @@ JDR.c
 RDX.c
 JDR.rl.c
 ryu/d2s.c
+CLI.c
 )
 
 add_library(rdx STATIC ${RDX_HEADERS} ${RDX_SOURCES})

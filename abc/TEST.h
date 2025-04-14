@@ -24,6 +24,7 @@ con ok64 TESTfaileq = 0x74e71daa5b70a75;
         if (ret != OK) {                                                 \
             trace("%s<%s at %s:%i\n", PROindent, ok64str(ret), __func__, \
                   __LINE__);                                             \
+            fprintf(stderr, "Error: %s\n", ok64str(ret));                \
         }                                                                \
         return ret;                                                      \
     }
