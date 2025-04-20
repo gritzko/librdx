@@ -32,7 +32,7 @@ fun ok64 latest($u8 into, $$u8c from) {
     return OK;
 }
 
-pro(LSM0) {
+ok64 LSM0() {
     sane(1);
     $u8c kv1[5][2] = {
         {$u8str("Four"), $u8str("1")},  {$u8str("One"), $u8str("2")},
@@ -74,7 +74,7 @@ pro(LSM0) {
 
 fun ok64 nomerge($u8 into, $$u8c from) { return $u8feedall(into, **from); }
 
-pro(LSM1) {
+ok64 LSM1() {
     sane(1);
     $u8c kv1[6][2] = {
         {$u8str("A"), $u8str("1")},  //
@@ -140,7 +140,7 @@ ok64 LSM1000000() {
     done;
 }
 
-pro(LSMtest) {
+ok64 LSMtest() {
     sane(1);
     call(LSM0);
     call(LSM1);

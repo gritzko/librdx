@@ -8,13 +8,13 @@
 #include "PRO.h"
 #include "TEST.h"
 
-pro(fail_test) {
+ok64 fail_test() {
     sane(1);
     fail(badarg);
     done;
 }
 
-pro(Bmap_test) {
+ok64 Bmap_test() {
     sane(1);
     Bu8 buf = {};
     call(Bu8map, buf, 1024);
@@ -24,7 +24,7 @@ pro(Bmap_test) {
     done;
 }
 
-pro(B$_test) {
+ok64 B$_test() {
     sane(1);
     aBpad(u8cp, slices, 8);
     $u8c hello = $u8str("Hello");
@@ -32,7 +32,7 @@ pro(B$_test) {
     done;
 }
 
-pro(Bndx_test) {
+ok64 Bndx_test() {
     sane(YES);
     Bu64 buf = {};
     Bu64alloc(buf, 1024);
@@ -44,7 +44,7 @@ pro(Bndx_test) {
     done;
 }
 
-pro(Breserve_test) {
+ok64 Breserve_test() {
     sane(1);
     Bu8 buf = {};
     call(Bu8alloc, buf, 1024);
@@ -57,7 +57,7 @@ pro(Breserve_test) {
     done;
 }
 
-pro(B$test) {
+ok64 B$test() {
     sane(1);
     a$$pad(pad, 128, 8);
     $$call($u8feedstr, pad, "one");
@@ -71,13 +71,13 @@ pro(B$test) {
     done;
 }
 
-pro(BBtest) {
+ok64 BBtest() {
     sane(1);
     aBpad(Bu8, buff, 4);
     testeq(sizeof(Bat(buff, 0)), sizeof(Bvoid));
     done;
 }
-pro(Btest) {
+ok64 Btest() {
     sane(1);
     call(Bmap_test);
     call(B$_test);

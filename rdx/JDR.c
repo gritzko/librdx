@@ -287,7 +287,7 @@ ok64 JDRonComma($cu8c tok, JDRstate* state) {
     done;
 }
 
-pro(JDRonRoot, $cu8c tok, JDRstate* state) {
+ok64 JDRonRoot($cu8c tok, JDRstate* state) {
     sane($ok(tok) && state != nil);
     if (!Bempty(state->stack) && **Bu8ptop(state->stack) == RDX_TUPLE_INLINE)
         call(JDRcloseinline, state);
@@ -560,7 +560,7 @@ ok64 JDResc($u8 txt, $u8c val) {
     done;
 }
 
-pro(JDRdrainSesc, $u8 txt, $u8c tlv) {
+ok64 JDRdrainSesc($u8 txt, $u8c tlv) {
     sane($ok(txt) && $ok(tlv));
     if ($len(txt) < $len(tlv)) return RDXnoroom;
     u8 t = 0;

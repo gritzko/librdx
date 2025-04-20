@@ -7,7 +7,7 @@
 #include "HEX.h"
 #include "TEST.h"
 
-pro(SHAtest1) {
+ok64 SHAtest1() {
     sane(1);
     $u8c value1 = $u8str("Good morning!\n");
     $u8c value2 = $u8str("Hello world!\n");
@@ -35,7 +35,7 @@ pro(SHAtest1) {
     done;
 }
 
-pro(SHAtest) {
+ok64 SHAtest() {
     sane(1);
     call(SHAtest1);
     done;

@@ -1231,7 +1231,7 @@ static const int LEX_en_main = 247;
 #line 159 "LEX.rl"
 
 // the public API function
-pro(LEXlexer, LEXstate* state) {
+ok64 LEXlexer(LEXstate* state) {
 
     a$dup(u8c, text, state->text);
     sane($ok(text));

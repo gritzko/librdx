@@ -41,7 +41,7 @@ ok64 yfn($cu8c cases) {
     done;
 }
 
-pro(Y2) {
+ok64 Y2() {
     aBpad($u8c, zcases, PAGESIZE);
     sane(1);
     a$rg(path, 1);
@@ -52,7 +52,7 @@ pro(Y2) {
     done;
 }
 
-pro(Ytest) {
+ok64 Ytest() {
     sane(1);
     call(Y2);
     done;

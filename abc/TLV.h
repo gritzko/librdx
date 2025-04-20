@@ -56,7 +56,7 @@ fun ok64 TLVprobe(u8* t, u32* hlen, u32* blen,
     return (*hlen + *blen) <= $len(data) ? OK : TLVnodata;
 }
 
-fun pro(TLVdrain, u8* t, u8c$ value, $u8c from) {
+fun ok64 TLVdrain(u8* t, u8c$ value, $u8c from) {
     sane(t != nil && value != nil && $ok(from));
     u32 hlen = 0, blen = 0;
     call(TLVprobe, t, &hlen, &blen, from);
@@ -66,7 +66,7 @@ fun pro(TLVdrain, u8* t, u8c$ value, $u8c from) {
     done;
 }
 
-fun pro(TLVdrain$, u8c$ rec, $u8c from) {
+fun ok64 TLVdrain$(u8c$ rec, $u8c from) {
     sane(rec != nil && $ok(from));
     u32 hlen = 0, blen = 0;
     u8 t = 0;
@@ -82,7 +82,7 @@ fun ok64 TLVpick(u8* type, $u8c value, $cu8c tlv, size_t offset) {
     return TLVdrain(type, value, keytlv);
 }
 
-fun pro(TLVtake, u8 t, $u8c value, $u8c from) {
+fun ok64 TLVtake(u8 t, $u8c value, $u8c from) {
     sane(value != NULL && from != NULL);
     u32 hlen = 0;
     u32 blen = 0;
@@ -108,7 +108,7 @@ fun void TLVhead($u8 into, u8 type, u32 len) {
     }
 }
 
-fun pro(TLVfeed, $u8 into, u8 type, $u8c value) {
+fun ok64 TLVfeed($u8 into, u8 type, $u8c value) {
     sane(TLVlong(type) && into != NULL && value != NULL);
     u32 len = $len(value);
     test($len(into) >= len + 5, TLVnoroom);
@@ -118,7 +118,7 @@ fun pro(TLVfeed, $u8 into, u8 type, $u8c value) {
     done;
 }
 
-fun pro(TLVtinyfeed, $u8 into, u8 type, $u8c value) {
+fun ok64 TLVtinyfeed($u8 into, u8 type, $u8c value) {
     sane($ok(into) && $ok(value));
     size_t len = $len(value);
     test($len(into) >= len + 5, TLVnoroom);  // todo
@@ -137,7 +137,7 @@ fun pro(TLVtinyfeed, $u8 into, u8 type, $u8c value) {
  *  The buffer must be stable during the whole write;
  *  no shifts, no reallocs, no remaps.
  * @deprecated */
-fun pro(TLVopen, $u8 tlv, u8 type, u32** len) {
+fun ok64 TLVopen($u8 tlv, u8 type, u32** len) {
     sane($ok(tlv) && len != nil && TLVlong(type));
     test($len(tlv) >= 5, TLVnoroom);
     **tlv = type;
@@ -158,7 +158,7 @@ ok64 TLVinitlong($u8 tlv, u8 type, Bu8p stack);
 ok64 TLVendany($u8 tlv, u8 type, Bu8p stack);
 
 // @deprecated
-fun pro(TLVclose, $u8 tlv, u8 type, u32* const* len) {
+fun ok64 TLVclose($u8 tlv, u8 type, u32* const* len) {
     sane($ok(tlv) && TLVlong(type) && len != nil && *len != nil &&
          (u8*)*len < *tlv && *(*((u8**)len) - 1) == type);
     size_t d = *tlv - (u8*)*len;
@@ -179,7 +179,7 @@ fun pro(TLVclose, $u8 tlv, u8 type, u32* const* len) {
     done;
 }
 
-fun pro(TLVfeedkv, $u8 tlv, u8c type, $u8c key, $cu8c val) {
+fun ok64 TLVfeedkv($u8 tlv, u8c type, $u8c key, $cu8c val) {
     sane($ok(tlv) && $ok(key) && ($empty(val) || $ok(val)));
     size_t keylen = $len(key);
     test(keylen < 0x100, TLVbadarg);
@@ -193,7 +193,7 @@ fun pro(TLVfeedkv, $u8 tlv, u8c type, $u8c key, $cu8c val) {
     done;
 }
 
-fun pro(TLVdrainkv, u8* type, $u8c key, $u8c val, $u8c tlv) {
+fun ok64 TLVdrainkv(u8* type, $u8c key, $u8c val, $u8c tlv) {
     sane(type != nil && key != nil && val != nil && $ok(tlv));
     u32 hlen = 0, blen = 0;
     call(TLVprobe, type, &hlen, &blen, tlv);

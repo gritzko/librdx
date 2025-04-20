@@ -11,7 +11,7 @@
 #include "abc/PRO.h"
 #include "abc/TEST.h"
 
-pro(RDXZtestvalue, Bu8 testbuf) {
+ok64 RDXZtestvalue(Bu8 testbuf) {
     sane(1);
     aBcpad(u8, tlv, PAGESIZE);
     aBcpad(u64, stack, 1024);
@@ -74,7 +74,7 @@ ok64 zfn($cu8c cases) {
     return o;
 }
 
-pro(RDXZtest) {
+ok64 RDXZtest() {
     aBpad($u8c, zcases, 256);
     zcasesidle = B$u8c$2(zcases);
     zcasesdata = B$u8c$1(zcases);

@@ -50,7 +50,7 @@ void debug(MARKstate *state) {
     $u8c __##name = $u8str(tmpl);    \
     $feedf(Bu8idle(name), __##name, __VA_ARGS__);
 
-pro(mark, $u8c mod) {
+ok64 mark($u8c mod) {
     sane($ok(mod) && !$empty(mod) && $len(mod) <= 1000);
     int fd = 0;
     call(FILEopen, &fd, mod, O_RDONLY);

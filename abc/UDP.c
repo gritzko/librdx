@@ -2,7 +2,7 @@
 
 #include "PRO.h"
 
-pro(UDPbind, int *fd, NETaddr addr) {
+ok64 UDPbind(int *fd, NETaddr addr) {
     sane(fd != nil && Bok(addr));
     int s, sfd;
     socklen_t peer_addrlen;

@@ -5,7 +5,7 @@
 #include "abc/FILE.h"
 #include "abc/PRO.h"
 
-pro(JDRtest1) {
+ok64 JDRtest1() {
     sane(1);
 #define LEN1 18
     $u8c inputs[LEN1] = {
@@ -60,7 +60,7 @@ pro(JDRtest1) {
     done;
 }
 
-pro(JDRtest2) {
+ok64 JDRtest2() {
     sane(1);
     $u8c ml = $u8str("`multi\nline\n\nstring\n`");
     a$dup(u8c, dup, ml);
@@ -86,7 +86,7 @@ ok64 eqfn($cu8c cases) {
     return o;
 }
 
-pro(JDRtest3) {
+ok64 JDRtest3() {
     sane(1);
     a$rg(path, 1);
     Bu8 rdxjbuf = {};
@@ -96,7 +96,7 @@ pro(JDRtest3) {
     done;
 }
 
-pro(JDRtest) {
+ok64 JDRtest() {
     sane(1);
     call(JDRtest1);
     call(JDRtest2);

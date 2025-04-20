@@ -287,7 +287,7 @@ static const int MARQ_en_main = 0;
 
 #line 119 "MARQ.rl"
 
-pro(MARQlexer, MARQstate *state) {
+ok64 MARQlexer(MARQstate *state) {
     a$dup(u8c, text, state->text);
     sane($ok(text));
 

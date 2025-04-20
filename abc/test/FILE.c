@@ -6,7 +6,7 @@
 #include "PRO.h"
 #include "TEST.h"
 
-pro(FILEtest1) {
+ok64 FILEtest1() {
     sane(1);
     $u8c path = $u8str("/tmp/test1.txt");
     $u8c text = $u8str("Hello world!\n");
@@ -18,7 +18,7 @@ pro(FILEtest1) {
     done;
 }
 
-pro(FILEtest2) {
+ok64 FILEtest2() {
     sane(1);
     $u8c path = $u8str("/tmp/testA.txt");
     int fd = 0;
@@ -38,7 +38,7 @@ pro(FILEtest2) {
     done;
 }
 
-pro(FILE3) {
+ok64 FILE3() {
     sane(1);
     a$str(path, "/tmp/FILE3.txt");
     Bu8 buf = {};
@@ -56,7 +56,7 @@ pro(FILE3) {
     done;
 }
 
-pro(FILEtest4) {
+ok64 FILEtest4() {
     sane(1);
     a$str(path, "/tmp/FILEtest4.txt");
     a$str(one, "Hello");
@@ -76,7 +76,7 @@ pro(FILEtest4) {
     done;
 }
 
-pro(FILEtest) {
+ok64 FILEtest() {
     sane(1);
     call(FILEtest1);
     call(FILEtest2);

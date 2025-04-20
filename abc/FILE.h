@@ -227,7 +227,7 @@ fun ok64 FILEmakedir(path const name) {
 
 ok64 FILErmrf(path const name);
 
-fun pro(FILEunlink, path const name) {
+fun ok64 FILEunlink(path const name) {
     sane($ok(name));
     aFILEpath(p, name);
     int rc = unlink(p);

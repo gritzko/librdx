@@ -20,7 +20,7 @@ ok64 funIcount(POLLctl* ctl) {
     return POLLfeed(ctl, $n);
 }
 
-pro(POLLtest1) {
+ok64 POLLtest1() {
     sane(1);
     char port[16];
     sprintf(port, "%d", NETrandomport());
@@ -57,7 +57,7 @@ pro(POLLtest1) {
     done;
 }
 
-pro(POLLtest) {
+ok64 POLLtest() {
     sane(1);
     call(POLLtest1);
     done;

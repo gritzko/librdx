@@ -6,7 +6,7 @@
 #include "RDX.h"
 #include "abc/ZINT.h"
 
-fun pro(YmergeFIRST, $u8 into, $$u8c from) {
+ok64 YmergeFIRST($u8 into, $$u8c from) {
     sane($ok(into) && $ok(from));
     u128 max = {};
     $u8c rec = {};
@@ -32,7 +32,7 @@ fun pro(YmergeFIRST, $u8 into, $$u8c from) {
 #define RDXSmerge RDX1merge
 #define RDXTmerge RDX1merge
 
-fun pro(RDX1dtlv, $u8 dtlv, $cu8c oldtlv, u8 type, u128* clock, $cu8c newbits) {
+ok64 RDX1dtlv($u8 dtlv, $cu8c oldtlv, u8 type, u128* clock, $cu8c newbits) {
     sane($ok(oldtlv) && clock != nil);
     a$dup(u8c, oldtlv2, oldtlv);
     u8 t = 0;
@@ -47,7 +47,7 @@ fun pro(RDX1dtlv, $u8 dtlv, $cu8c oldtlv, u8 type, u128* clock, $cu8c newbits) {
 
 // F
 
-fun pro(RDXFdtlv, $u8 dtlv, $cu8c oldtlv, RDXfloat c, u128* clock) {
+ok64 RDXFdtlv($u8 dtlv, $cu8c oldtlv, RDXfloat c, u128* clock) {
     sane($ok(oldtlv) && clock != nil);
     u64 bits;
     *(RDXfloat*)&bits = c;
@@ -59,7 +59,7 @@ fun pro(RDXFdtlv, $u8 dtlv, $cu8c oldtlv, RDXfloat c, u128* clock) {
 
 // I
 
-fun pro(RDXIdtlv, $u8 dtlv, $cu8c oldtlv, RDXint c, u128* clock) {
+ok64 RDXIdtlv($u8 dtlv, $cu8c oldtlv, RDXint c, u128* clock) {
     sane($ok(oldtlv) && clock != nil);
     u64 bits = ZINTzigzag(c);
     aBpad(u8, pad, 8);
@@ -70,7 +70,7 @@ fun pro(RDXIdtlv, $u8 dtlv, $cu8c oldtlv, RDXint c, u128* clock) {
 
 // R
 
-fun pro(RDXRdtlv, $u8 dtlv, $cu8c oldtlv, RDXref c, u128* clock) {
+ok64 RDXRdtlv($u8 dtlv, $cu8c oldtlv, RDXref c, u128* clock) {
     sane($ok(oldtlv) && clock != nil);
     aBpad(u8, pad, 16);
     ZINTu128feed(Bu8idle(pad), c);
@@ -80,7 +80,7 @@ fun pro(RDXRdtlv, $u8 dtlv, $cu8c oldtlv, RDXref c, u128* clock) {
 
 // S
 
-fun pro(RDXSdtlv, $u8 dtlv, $cu8c oldtlv, $cu8c c, u128* clock) {
+ok64 RDXSdtlv($u8 dtlv, $cu8c oldtlv, $cu8c c, u128* clock) {
     sane($ok(oldtlv) && clock != nil);
     call(RDX1dtlv, dtlv, oldtlv, RDX_STRING, clock, c);
     done;

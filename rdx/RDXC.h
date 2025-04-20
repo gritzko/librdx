@@ -2,7 +2,7 @@
 #define ABC_RDX_C
 #include "RDX.h"
 
-fun pro(RDXCdrainF, RDXfloat* c, id128* id, $u8c tlv) {
+fun ok64 RDXCdrainF(RDXfloat* c, id128* id, $u8c tlv) {
     sane(c != nil && id != nil && $ok(tlv));
     u8 t = 0;
     $u8c value = {};
@@ -14,7 +14,7 @@ fun pro(RDXCdrainF, RDXfloat* c, id128* id, $u8c tlv) {
     done;
 }
 
-fun pro(RDXCfeedF, $u8 tlv, RDXfloat c, u128 time) {
+fun ok64 RDXCfeedF($u8 tlv, RDXfloat c, u128 time) {
     sane($ok(tlv));
     u64 bits = *(u64*)&c;
     aBpad(u8, pad, 8);
@@ -23,7 +23,7 @@ fun pro(RDXCfeedF, $u8 tlv, RDXfloat c, u128 time) {
     done;
 }
 
-fun pro(RDXCdrainI, RDXint* c, id128* id, $u8c tlv) {
+fun ok64 RDXCdrainI(RDXint* c, id128* id, $u8c tlv) {
     sane(c != nil && id != nil && $ok(tlv));
     u8 t = 0;
     u64 bits = 0;
@@ -34,7 +34,7 @@ fun pro(RDXCdrainI, RDXint* c, id128* id, $u8c tlv) {
     done;
 }
 
-fun pro(RDXCfeedI, $u8 tlv, RDXint c, u128 time) {
+fun ok64 RDXCfeedI($u8 tlv, RDXint c, u128 time) {
     sane($ok(tlv));
     aBpad(u8, pad, 8);
     u64 bits = ZINTzigzag(c);
@@ -52,7 +52,7 @@ fun ok64 RDXCdrainR(RDXref* c, id128* id, $u8c rdx) {
     done;
 }
 
-fun pro(RDXCfeedR, $u8 tlv, RDXref c, u128 time) {
+fun ok64 RDXCfeedR($u8 tlv, RDXref c, u128 time) {
     sane($ok(tlv));
     aBpad(u8, pad, 16);
     ZINTu128feed(Bu8idle(pad), &c);
@@ -68,7 +68,7 @@ fun ok64 RDXCdrainS(u8c$ str, id128* id, $u8c rdx) {
     return t == RDX_STRING ? o : RDXwrong;
 }
 
-fun pro(RDXCfeedS, $u8 tlv, $cu8c c, u128 time) {
+fun ok64 RDXCfeedS($u8 tlv, $cu8c c, u128 time) {
     sane($ok(tlv));
     call(RDXfeed, tlv, RDX_STRING, time, c);
     done;

@@ -42,7 +42,7 @@ fun size_t X(SKIP, pos)(X(SKIP, tab) const* k, u8 hi) {
     return (was << SKIP_BLK_HI) + off;
 }
 
-fun pro(X(SKIP, feed), Bu8 buf, X(SKIP, tab) * k) {
+fun ok64 X(SKIP, feed)(Bu8 buf, X(SKIP, tab) * k) {
     sane(Bok(buf) && k != nil);
     size_t pos = Bdatalen(buf);
     size_t last = k->pos;
@@ -74,7 +74,7 @@ fun pro(X(SKIP, feed), Bu8 buf, X(SKIP, tab) * k) {
     done;
 }
 
-fun pro(X(SKIP, drain), X(SKIP, tab) * hop, Bu8 buf, size_t pos) {
+fun ok64 X(SKIP, drain)(X(SKIP, tab) * hop, Bu8 buf, size_t pos) {
     sane(hop != nil && Bok(buf) && pos > 0);
     a$(T, into, hop->off);
     a$tail(u8c, data, Bu8cdata(buf), pos);
@@ -91,7 +91,7 @@ fun pro(X(SKIP, drain), X(SKIP, tab) * hop, Bu8 buf, size_t pos) {
     done;
 }
 
-fun pro(X(SKIP, finish), Bu8 buf, X(SKIP, tab) * k) {
+fun ok64 X(SKIP, finish)(Bu8 buf, X(SKIP, tab) * k) {
     sane(Bok(buf) && k != nil && k->pos < Bdatalen(buf));
     size_t pos = Bdatalen(buf);
     if (k->pos != 0 && X(SKIP, blk)(pos) == X(SKIP, blk)(k->pos)) {
@@ -108,7 +108,7 @@ fun pro(X(SKIP, finish), Bu8 buf, X(SKIP, tab) * k) {
     done;
 }
 
-fun pro(X(SKIP, load), X(SKIP, tab) * k, Bu8 buf) {
+fun ok64 X(SKIP, load)(X(SKIP, tab) * k, Bu8 buf) {
     sane(k != nil && Bok(buf));
     zerop(k);
     size_t len = Bdatalen(buf);
@@ -172,7 +172,7 @@ fun ok64 X(SKIP, mayfeed)(Bu8 buf, X(SKIP, tab) * skips) {
 
 ok64 X(SKIP, load)(X(SKIP, tab) * k, Bu8 buf);
 
-fun pro(X(SKIP, find), u8c$ range, Bu8 hay, $u8c needle, $cmpfn cmp) {
+fun ok64 X(SKIP, find)(u8c$ range, Bu8 hay, $u8c needle, $cmpfn cmp) {
     sane(range != nil && Bok(hay) && $ok(needle) && cmp != nil);
     X(SKIP, tab) k = {};
     call(X(SKIP, load), &k, hay);

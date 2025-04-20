@@ -6,7 +6,7 @@
 #include "PRO.h"
 #include "TEST.h"
 
-pro(NESTtest1) {
+ok64 NESTtest1() {
     sane(1);
     aBpad(u8, ct, 128);
     NESTreset(ct);
@@ -25,7 +25,7 @@ pro(NESTtest1) {
     done;
 }
 
-pro(NESTtest2) {
+ok64 NESTtest2() {
     sane(1);
     aBpad(u8, ct, 128);
     NESTreset(ct);
@@ -44,7 +44,7 @@ pro(NESTtest2) {
     done;
 }
 
-pro(NESTtest) {
+ok64 NESTtest() {
     sane(1);
     call(NESTtest1);
     call(NESTtest2);

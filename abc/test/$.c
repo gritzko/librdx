@@ -8,7 +8,7 @@
 #include "INT.h"
 #include "TEST.h"
 
-pro($test1) {
+ok64 $test1() {
     sane(1);
     aBpad(i32, pad, 4);
     i32 a1 = 1;
@@ -39,7 +39,7 @@ pro($test1) {
     done;
 }
 
-pro($test2) {
+ok64 $test2() {
     sane(1);
     aBpad(i32, pad, 8);
     i32$ into = Bi32idle(pad);
@@ -68,7 +68,7 @@ pro($test2) {
     done;
 }
 
-pro($test) {
+ok64 $test() {
     sane(1);
     call($test1);
     call($test2);

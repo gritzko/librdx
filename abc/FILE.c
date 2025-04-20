@@ -18,7 +18,7 @@ ok64 FILEsync(int const *fd) {
     done;
 }
 
-pro(FILEclose, int *fd) {
+ok64 FILEclose(int *fd) {
     sane(FILEok(*fd));
     testc(0 == close(*fd), FILEnoclse);
     *fd = FILE_CLOSED;

@@ -9,7 +9,7 @@
 #include "PRO.h"
 #include "TEST.h"
 
-pro(TLVtest1) {
+ok64 TLVtest1() {
     sane(1);
     aBpad(u8, pad, 64);
     $u8c str1 = $u8str("Hello");
@@ -31,7 +31,7 @@ pro(TLVtest1) {
     done;
 }
 
-pro(TLVtest2) {
+ok64 TLVtest2() {
     sane(1);
     aBpad(u8, pad, 256);
     u8 **init = Bu8idle(pad);
@@ -65,7 +65,7 @@ fun int u32pcmp(u32p const *a, u32p const *b) {
 #include "Bx.h"
 #undef X
 
-pro(TLVtest3) {
+ok64 TLVtest3() {
     sane(1);
     aBcpad(u8, pad, 1024);
     aBcpad(u32p, stack, 8);
@@ -117,7 +117,7 @@ ok64 TLVtest4() {
     done;
 }
 
-pro(TLVtest) {
+ok64 TLVtest() {
     sane(1);
     call(TLVtest1);
     call(TLVtest2);

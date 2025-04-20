@@ -10,7 +10,7 @@
 #include "INT.h"
 #include "TEST.h"
 
-pro(UTF8test1) {
+ok64 UTF8test1() {
     sane(1);
     $u8c abc = $u8str("abc");
     u32 a, b, c;
@@ -23,7 +23,7 @@ pro(UTF8test1) {
     done;
 }
 
-pro(UTF8test) {
+ok64 UTF8test() {
     sane(1);
     call(UTF8test1);
     done;

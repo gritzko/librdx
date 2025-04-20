@@ -96,7 +96,7 @@ fun b8 samediv(u64 stack, u64 div) {
 
 fun b8 u8ws(u8 c) { return c == ' ' || c == '\t' || c == '\n' || c == '\r'; }
 
-pro(eatline, $u8c line, $u8c dline, u64* room) {
+ok64 eatline($u8c line, $u8c dline, u64* room) {
     sane($ok(line));
     b8 wasws = NO;
     u64 len = 0;
@@ -147,7 +147,7 @@ $u8c MARKdivcanon[] = {
     $u8str("00. "), $u8str("  - "), $u8str("[ ]:"), $u8str("  > "),
 };
 
-pro(feedlistbullet, $u8 $into, u16 list) {
+ok64 feedlistbullet($u8 $into, u16 list) {
     sane(1);
     test($len($into) >= 4, MARKnoroom);
     if (list < 10) {
@@ -167,7 +167,7 @@ pro(feedlistbullet, $u8 $into, u16 list) {
     done;
 }
 
-pro(feedbullet, $u8 $into, u64 stack, b8 head, u16 list) {
+ok64 feedbullet($u8 $into, u64 stack, b8 head, u16 list) {
     sane($ok($into));
     u8 depth = u64bytelen(stack);
     test($len($into) >= depth * 4, MARKnoroom);
@@ -186,7 +186,7 @@ pro(feedbullet, $u8 $into, u64 stack, b8 head, u16 list) {
     done;
 }
 
-fun pro(MARKlinetext, $u8c text, u64 lno, MARKstate const* state) {
+ok64 MARKlinetext($u8c text, u64 lno, MARKstate const* state) {
     sane(state != nil);
     $mv(text, state->lineB[0] + lno);
     u64 div = Bat(state->divB, lno);
@@ -196,7 +196,7 @@ fun pro(MARKlinetext, $u8c text, u64 lno, MARKstate const* state) {
     done;
 }
 
-pro(MARKANSIdiv, $u8 $into, u64 lfrom, u64 ltill, u64 stack, u32 width,
+ok64 MARKANSIdiv($u8 $into, u64 lfrom, u64 ltill, u64 stack, u32 width,
     u16 list, MARKstate const* state) {
     sane($ok($into) && state != nil);
     u64 depth = u64bytelen(stack);
@@ -243,7 +243,7 @@ pro(MARKANSIdiv, $u8 $into, u64 lfrom, u64 ltill, u64 stack, u32 width,
     done;
 }
 
-pro(MARKANSI, $u8 $into, u32 width, MARKstate const* state) {
+ok64 MARKANSI($u8 $into, u32 width, MARKstate const* state) {
     sane($ok($into) && state != nil && !Bempty(state->divB));
     u64$ divs = Bu64data(state->divB);
     u8cp$ lines = Bu8cpdata(state->lineB);
@@ -268,7 +268,7 @@ pro(MARKANSI, $u8 $into, u32 width, MARKstate const* state) {
     done;
 }
 
-pro(MARKMARQdiv, u64 from, u64 till, MARKstate* state) {
+ok64 MARKMARQdiv(u64 from, u64 till, MARKstate* state) {
     sane(1);
     MARQstate marq = {};
     u8c* tb = state->text[0];
@@ -283,7 +283,7 @@ pro(MARKMARQdiv, u64 from, u64 till, MARKstate* state) {
     done;
 }
 
-pro(MARKMARQ, MARKstate* state) {
+ok64 MARKMARQ(MARKstate* state) {
     sane(state != nil && !Bempty(state->divB));
     u64$ divs = Bu64data(state->divB);
     u8cp$ lines = Bu8cpdata(state->lineB);
@@ -294,7 +294,7 @@ pro(MARKMARQ, MARKstate* state) {
     done;
 }
 
-pro(MARKHTMLp, $u8 $into, u64 from, u64 till, u64 stack,
+ok64 MARKHTMLp($u8 $into, u64 from, u64 till, u64 stack,
     MARKstate const* state) {
     sane($ok($into) && state != nil && till <= Bdatalen(state->lineB));
     u8 depth = u64bytelen(stack);
@@ -326,7 +326,7 @@ fun u8 samedepth(u64 stack, u64 div) {
     return d;
 }
 
-pro(MARKHTML, $u8 $into, MARKstate const* state) {
+ok64 MARKHTML($u8 $into, MARKstate const* state) {
     sane($ok($into) && state != nil && !Bempty(state->divB));
     u64$ divs = Bu64data(state->divB);
     u8cp$ lines = Bu8cpdata(state->lineB);
@@ -412,7 +412,7 @@ ok64 MARKonCode($cu8c tok, MARKstate* state) {
     return pushdiv(state, MARK_CODE);
 }
 
-pro(MARKonLine, $cu8c tok, MARKstate* state) {
+ok64 MARKonLine($cu8c tok, MARKstate* state) {
     sane($ok(tok) && state != nil);
     b8 end = tok[1] == state->text[1];
     if (Bempty(state->pB) ||

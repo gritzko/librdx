@@ -5,7 +5,7 @@
 
 #include "PRO.h"
 
-pro(_UTF8feed1, $u8 into, u32 cp) {
+ok64 _UTF8feed1($u8 into, u32 cp) {
     sane($ok(into));
     if (cp < 0x800) {
         test($len(into) >= 2, UTF8noroom);
@@ -28,7 +28,7 @@ pro(_UTF8feed1, $u8 into, u32 cp) {
     done;
 }
 
-pro(_UTF8drain1, u32 *cp, $u8c data) {
+ok64 _UTF8drain1(u32 *cp, $u8c data) {
     sane($ok(data) && cp != nil);
     const u8 *utf8 = *data;
     unsigned char byte = utf8[0];

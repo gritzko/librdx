@@ -21,7 +21,7 @@ int POLLlen(POLLstate state) {
     return e;
 }
 
-pro(POLLadd, POLLstate state, int fd, $u8c name, POLLfunI fi) {
+ok64 POLLadd(POLLstate state, int fd, $u8c name, POLLfunI fi) {
     sane(state != nil && fd >= 0);
     int l = POLLlen(state);
     test(l < POLL_MAX_FILES, POLLnoroom);
@@ -42,7 +42,7 @@ pro(POLLadd, POLLstate state, int fd, $u8c name, POLLfunI fi) {
     done;
 }
 
-pro(POLLlisten, POLLstate state, int fd, $u8c name, POLLfunI fi) {
+ok64 POLLlisten(POLLstate state, int fd, $u8c name, POLLfunI fi) {
     sane(state != nil && fd >= 0);
     int l = POLLlen(state);
     test(l < POLL_MAX_FILES, POLLnoroom);
@@ -57,7 +57,7 @@ pro(POLLlisten, POLLstate state, int fd, $u8c name, POLLfunI fi) {
     done;
 }
 
-pro(POLLdelctl, POLLstate state, POLLctl* ctl, ok64 o) {
+ok64 POLLdelctl(POLLstate state, POLLctl* ctl, ok64 o) {
     sane(state != nil && ctl != nil && ctl->fd >= 0);
     Bu8free(ctl->readbuf);
     Bu8free(ctl->writebuf);
@@ -70,7 +70,7 @@ pro(POLLdelctl, POLLstate state, POLLctl* ctl, ok64 o) {
     done;
 }
 
-pro(POLLread, POLLctl* ctl) {
+ok64 POLLread(POLLctl* ctl) {
     sane(ctl != nil && ctl->fn != nil);
     call(FILEdrain, Bu8idle(ctl->readbuf), ctl->fd);
     call((*ctl->fn), (struct POLLctl*)ctl);
@@ -78,7 +78,7 @@ pro(POLLread, POLLctl* ctl) {
     done;
 }
 
-pro(POLLwrite, POLLctl* ctl) {
+ok64 POLLwrite(POLLctl* ctl) {
     sane(ctl != nil && ctl->fn != nil);
     call(FILEfeedv, ctl->fd, B$u8cdata(ctl->writes));
     if (Bdatalen(ctl->writes) == 0) {
@@ -88,7 +88,7 @@ pro(POLLwrite, POLLctl* ctl) {
     done;
 }
 
-pro(POLLaccpt, POLLstate state, POLLctl* ctl) {
+ok64 POLLaccpt(POLLstate state, POLLctl* ctl) {
     sane(ctl != nil && ctl->fn != nil);
     u8 addr[64];
     socklen_t len = 64;
@@ -102,7 +102,7 @@ pro(POLLaccpt, POLLstate state, POLLctl* ctl) {
 
 static const int POLLOOPS = ~(POLLIN | POLLOUT);
 
-pro(POLLonce, POLLstate state, size_t ms) {
+ok64 POLLonce(POLLstate state, size_t ms) {
     sane(1);
     struct pollfd fds[POLL_MAX_FILES];
     int l = 0;

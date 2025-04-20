@@ -21,7 +21,7 @@ typedef int (*$u8cZfn)($cu8c* a, $cu8c* b);
 
 typedef B$u8c LSM;
 
-fun pro(LSMmore, B$u8c lsm, $u8c x, $u8cZfn cmp) {
+fun ok64 LSMmore(B$u8c lsm, $u8c x, $u8cZfn cmp) {
     sane(Bok(lsm) && $ok(x) && cmp != nil);
     // call($$u8cfeed1, B$u8cidle(lsm), x);
     memcpy(lsm[2], x, sizeof($u8c));

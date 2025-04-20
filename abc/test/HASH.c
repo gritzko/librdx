@@ -21,7 +21,7 @@ fun u64 u32hash(u32 const *v) { return mix32(*v); }
 #include "HASHx.h"
 #undef X
 
-pro(HASH0) {
+ok64 HASH0() {
     sane(1);
     aBcpad(u32, pad, 1024);
     Bzero(padbuf);
@@ -33,7 +33,7 @@ pro(HASH0) {
     done;
 }
 
-pro(HASH1) {
+ok64 HASH1() {
     sane(1);
     aBcpad(u32, pad, 1024 + 128);
     Bzero(padbuf);
@@ -66,7 +66,7 @@ pro(HASH1) {
     done;
 }
 
-pro(HASH3) {
+ok64 HASH3() {
     sane(1);
     Bkv32 dictbuf = {};
     Bkv32alloc(dictbuf, 1024);
@@ -97,7 +97,7 @@ pro(HASH3) {
 
 #define LENd 24
 
-pro(HASHd) {
+ok64 HASHd() {
     sane(1);
     Bu32 dictbuf = {};
     Bu32alloc(dictbuf, 16);
@@ -173,7 +173,7 @@ pro(HASHd) {
     done;
 }
 
-pro(HASH) {
+ok64 HASH() {
     sane(1);
     call(HASH0);
     call(HASH1);

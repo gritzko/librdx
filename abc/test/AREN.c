@@ -11,7 +11,7 @@ typedef struct {
     u64 key, val;
 } kv64;
 
-pro(ARENtest1) {
+ok64 ARENtest1() {
     sane(1);
     aBcpad(u8, arena, PAGESIZE);
     $u8c abc = $u8str("abcdefg");
@@ -45,7 +45,7 @@ pro(ARENtest1) {
     done;
 }
 
-pro(ARENtest) {
+ok64 ARENtest() {
     sane(1);
     call(ARENtest1);
     done;

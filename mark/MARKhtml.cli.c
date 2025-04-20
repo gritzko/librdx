@@ -29,7 +29,7 @@ ABC_INIT;
     $u8c __##name = $u8str(tmpl);    \
     $feedf(Bu8idle(name), __##name, __VA_ARGS__);
 
-pro(md2html, $u8c mod) {
+ok64 md2html($u8c mod) {
     sane($ok(mod) && !$empty(mod) && $len(mod) <= 1000);
     a$strf(name, 1024, "$s.md", mod);
     int fd = 0;

@@ -12,7 +12,7 @@
 #include "abc/PRO.h"
 #include "abc/TEST.h"
 
-pro(MARKparsetest) {
+ok64 MARKparsetest() {
     sane(YES);
     MARKstate state = {};
     aBpad(u8, into, 1024);
@@ -54,7 +54,7 @@ void debugdivs($cu64c $divs) {
     }
 }
 
-pro(MARKANSItest) {
+ok64 MARKANSItest() {
     sane(1);
 #define MARKANSIcases 2
 #define CLR "[0m"
@@ -94,7 +94,7 @@ pro(MARKANSItest) {
     done;
 }
 
-pro(MARKHTMLtest) {
+ok64 MARKHTMLtest() {
     sane(YES);
 #define MARK1cases 8
     $u8c cases[MARK1cases][2] = {
@@ -180,7 +180,7 @@ pro(MARKHTMLtest) {
     return o;
 };
 
-pro(MARKtest) {
+ok64 MARKtest() {
     sane(1);
     call(MARKparsetest);
     call(MARKANSItest);

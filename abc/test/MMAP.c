@@ -4,7 +4,7 @@
 #include "PRO.h"
 #include "TEST.h"
 
-pro(MMAPtest1) {
+ok64 MMAPtest1() {
     sane(1);
     Bu8 buf8 = {};
     call(MMAPopen, (void$)buf8, 4096);
@@ -37,7 +37,7 @@ pro(MMAPtest1) {
     done;
 }
 
-pro(MMAPtest) {
+ok64 MMAPtest() {
     sane(1);
     call(MMAPtest1);
     done;

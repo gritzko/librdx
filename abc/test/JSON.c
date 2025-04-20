@@ -3,7 +3,7 @@
 #include "B.h"
 #include "TEST.h"
 
-pro(RDXtest1) {
+ok64 RDXtest1() {
     sane(1);
     a$str(json, "{\"a\":1,\"b\":[2]}");
     aBcpad(u64, pad, 1024);
@@ -28,7 +28,7 @@ pro(RDXtest1) {
     done;
 }
 
-pro(RDXtest) {
+ok64 RDXtest() {
     sane(1);
     call(RDXtest1);
     done;

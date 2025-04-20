@@ -17,7 +17,7 @@ void garble($u8 data) {
     }
 }
 
-pro(TCPtest1) {
+ok64 TCPtest1() {
     sane(1);
 
     char port[16];
@@ -49,7 +49,7 @@ pro(TCPtest1) {
     done;
 }
 
-pro(TCPtest) {
+ok64 TCPtest() {
     sane(1);
     call(TCPtest1);
     done;

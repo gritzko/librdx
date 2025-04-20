@@ -8,7 +8,7 @@
 #include "PRO.h"
 #include "TEST.h"
 
-pro(UDPtest1) {
+ok64 UDPtest1() {
     sane(1);
 
     aNETaddr(addr, "127.0.0.1", "1234");
@@ -31,7 +31,7 @@ pro(UDPtest1) {
     done;
 }
 
-pro(UDPtest) {
+ok64 UDPtest() {
     sane(1);
     call(UDPtest1);
     done;

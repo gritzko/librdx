@@ -227,7 +227,7 @@ static const int JSON_en_main = 20;
 
 #line 138 "JSON.rl"
 
-pro(JSONlexer, JSONstate* state) {
+ok64 JSONlexer(JSONstate* state) {
 
     a$dup(u8c, text, state->text);
     sane($ok(text));

@@ -11,7 +11,7 @@
 #include "abc/PRO.h"
 #include "abc/TEST.h"
 
-pro(RDXFtest) {
+ok64 RDXFtest() {
     sane(1);
 #define RDXFlen 3
     RDXfloat inputs[RDXFlen] = {0, 12345.6789, 1.2e+20};
@@ -39,7 +39,7 @@ pro(RDXFtest) {
     done;
 }
 
-pro(RDXItest) {
+ok64 RDXItest() {
     sane(1);
 #define RDXFlen 3
     RDXint inputs[RDXFlen] = {0, 12345, INT64_MIN};
@@ -67,7 +67,7 @@ pro(RDXItest) {
     done;
 }
 
-pro(RDXRtest) {
+ok64 RDXRtest() {
     sane(1);
 #define RDXRlen 3
     u64 inputs[RDXRlen][2] = {{0, 0}, {100, 200}, {UINT64_MAX, UINT64_MAX}};
@@ -94,7 +94,7 @@ pro(RDXRtest) {
     done;
 }
 
-pro(RDXStest) {
+ok64 RDXStest() {
     sane(1);
 #define RDXSlen 3
     $u8c inputs[RDXRlen] = {$u8str(""), $u8str("a"), $u8str("abcdef")};
@@ -121,7 +121,7 @@ pro(RDXStest) {
     done;
 }
 
-pro(RDX1) {
+ok64 RDX1() {
     sane(1);
     B(u8, testbuf);
     u8c** path = STD_ARGS[1] + 2;
@@ -163,7 +163,7 @@ pro(RDX1) {
     done;
 }
 
-pro(RDX1test) {
+ok64 RDX1test() {
     sane(1);
     call(RDXFtest);
     call(RDXItest);

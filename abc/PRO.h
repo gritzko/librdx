@@ -17,8 +17,6 @@ static const char *_pro_indent =
 
 #define PROindent (_pro_indent + 32 - (_pro_depth & 31))
 
-#define pro(name, ...) ok64 name(__VA_ARGS__)
-
 // Mandatory sanity checks; might be disabled in Release mode.
 #ifndef ABC_INSANE
 #define sane(c)                            \

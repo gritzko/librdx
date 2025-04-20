@@ -7,7 +7,7 @@
 #include "HEAPx.h"
 #undef X
 
-pro(HEAPtest1) {
+ok64 HEAPtest1() {
     sane(1);
     // Make a buffer on the stack
     aBpad(u32, pad, 32);
@@ -27,7 +27,7 @@ pro(HEAPtest1) {
     testeq(three, 3);
     done;
 }
-pro(HEAPtest) {
+ok64 HEAPtest() {
     sane(1);
     call(HEAPtest1);
     done;

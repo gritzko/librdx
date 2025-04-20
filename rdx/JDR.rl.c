@@ -565,7 +565,7 @@ static const int JDR_en_main = 38;
 #line 381 "JDR.c.rl"
 
 // the public API function
-pro(JDRlexer, JDRstate* state) {
+ok64 JDRlexer(JDRstate* state) {
     a$dup(u8c, text, state->text);
     sane($ok(text));
 

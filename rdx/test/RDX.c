@@ -7,7 +7,7 @@
 #include "abc/B.h"
 #include "abc/TEST.h"
 
-pro(RDXtest0) {
+ok64 RDXtest0() {
     sane(1);
     want(RDXisPLEX('P'));
     want(RDXisPLEX('p'));
@@ -21,7 +21,7 @@ pro(RDXtest0) {
     done;
 }
 
-pro(RDXtest1) {
+ok64 RDXtest1() {
     sane(1);
     aBpad(u8, pad, 0x1000);
     u8** into = Bu8idle(pad);
@@ -42,7 +42,7 @@ pro(RDXtest1) {
     done;
 }
 
-pro(RDXid128test) {
+ok64 RDXid128test() {
     sane(1);
 #define RDXIDINLEN 3
     u64 inputs[RDXIDINLEN][2] = {{0, 0}, {100, 200}, {UINT64_MAX, UINT64_MAX}};
@@ -57,7 +57,7 @@ pro(RDXid128test) {
     done;
 }
 
-pro(RDXtest) {
+ok64 RDXtest() {
     sane(1);
     call(RDXtest0);
     call(RDXtest1);

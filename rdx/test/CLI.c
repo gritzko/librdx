@@ -9,7 +9,7 @@
 $u8c _STD_ARGS[64] = {};
 $u8c* STD_ARGS[4] = {};
 
-pro(CLItest) {
+ok64 CLItest() {
     sane(1);
     aBcpad(u8, pad, PAGESIZE);
     char* args1[] = {"cmd", "12", "do:", "./something"};

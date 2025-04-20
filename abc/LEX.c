@@ -202,7 +202,7 @@ ok64 LEXonEq($cu8c tok, LEXstate *state) {
     done;
 }
 
-pro(LEXonRuleName, $cu8c tok, LEXstate *state) {
+ok64 LEXonRuleName($cu8c tok, LEXstate *state) {
     sane($ok(tok) && state != nil);
     $set(state->cur, tok);
     state->ruleno++;
@@ -255,7 +255,7 @@ ok64 LEXonRoot($cu8c tok, LEXstate *state) {
     done;
 }
 
-pro(lex2rl, $u8c mod, $u8c lang) {
+ok64 lex2rl($u8c mod, $u8c lang) {
     sane($ok(mod));
 
     aBcpad(u8, name, KB);

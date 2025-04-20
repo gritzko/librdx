@@ -8,7 +8,7 @@
 #include "OK.h"
 #include "TEST.h"
 
-pro(LINEtest1) {
+ok64 LINEtest1() {
     sane(1);
 #define LC_1 3
     line lines[LC_1] = {
@@ -31,7 +31,7 @@ pro(LINEtest1) {
     done;
 }
 
-pro(LINEtest2) {
+ok64 LINEtest2() {
     sane(1);
 #define LC_2 4
     line lines[LC_2] = {
@@ -73,7 +73,7 @@ fun ok64 srcmerge(line *into, $cline from) {
     return LINEfeed(into, max);
 }
 
-pro(LINEtest3) {
+ok64 LINEtest3() {
     sane(1);
 #define LC_31 4
     line lines1[LC_31] = {
@@ -125,7 +125,7 @@ pro(LINEtest3) {
     done;
 }
 
-pro(LINEtest) {
+ok64 LINEtest() {
     sane(1);
     call(LINEtest1);
     call(LINEtest2);

@@ -7,7 +7,7 @@
 #include "PRO.h"
 #include "TEST.h"
 
-pro(URItest1) {
+ok64 URItest1() {
     sane(1);
 #define LEN1 5
     $u8c inputs[LEN1] = {
@@ -26,7 +26,7 @@ pro(URItest1) {
     done;
 }
 
-pro(URItest2) {
+ok64 URItest2() {
     sane(1);
     a$str(uri, "http://myserver:123/path?query#fragment");
     a$str(scheme, "http");
@@ -48,7 +48,7 @@ pro(URItest2) {
     done;
 }
 
-pro(URItest) {
+ok64 URItest() {
     sane(1);
     call(URItest1);
     call(URItest2);

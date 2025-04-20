@@ -23,7 +23,7 @@ fun int entry128cmp(entry128 const *a, entry128 const *b) {
 #include "LISTx.h"
 #undef X
 
-pro(LISTtest1) {
+ok64 LISTtest1() {
     sane(1);
     aBpad(entry128, list, 1024);
     entry128 codes[3] = {
@@ -40,7 +40,7 @@ pro(LISTtest1) {
     done;
 }
 
-pro(LISTtest) {
+ok64 LISTtest() {
     sane(1);
     call(LISTtest1);
     done;

@@ -30,8 +30,9 @@ typedef enum {
     RDX_MULTIX = 'X',
 } RDXtype;
 
-static const u64 RDX_PLEX_BITS = (1 << (RDX_TUPLE - 'A')) | (1 << (RDX_LINEAR - 'A')) |
-                        (1 << (RDX_EULER - 'A')) | (1 << (RDX_MULTIX - 'A'));
+static const u64 RDX_PLEX_BITS =
+    (1 << (RDX_TUPLE - 'A')) | (1 << (RDX_LINEAR - 'A')) |
+    (1 << (RDX_EULER - 'A')) | (1 << (RDX_MULTIX - 'A'));
 
 typedef int64_t RDXint;
 typedef double RDXfloat;
@@ -72,7 +73,7 @@ fun u64 RDXtock(u128* clock, u128 see) {
     return id128time(*clock);
 }
 
-fun pro(RDXfeed, $u8 tlv, u8 t, id128 id, $cu8c value) {
+fun ok64 RDXfeed($u8 tlv, u8 t, id128 id, $cu8c value) {
     aBpad(u8, idpad, 16);
     ZINTu128feed(Bu8idle(idpad), &id);
     return TLVfeedkv(tlv, t, Bu8cdata(idpad), value);

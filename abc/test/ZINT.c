@@ -8,7 +8,7 @@
 #include "PRO.h"
 #include "TEST.h"
 
-pro(ZINTtest1) {
+ok64 ZINTtest1() {
     sane(1);
     i64 i[] = {
         -126446, 65536, 0, INT64_MAX, INT64_MIN, -1, 1,
@@ -23,7 +23,7 @@ pro(ZINTtest1) {
     done;
 }
 
-pro(ZINTtest2) {
+ok64 ZINTtest2() {
     sane(1);
     i64 i[] = {
         0,          0,
@@ -66,7 +66,7 @@ pro(ZINTtest2) {
     done;
 }
 
-pro(ZINTtest) {
+ok64 ZINTtest() {
     sane(1);
     call(ZINTtest1);
     call(ZINTtest2);

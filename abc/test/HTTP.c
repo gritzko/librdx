@@ -5,7 +5,7 @@
 #include "TEST.h"
 #include "URI.h"
 
-pro(HTTPtest1) {
+ok64 HTTPtest1() {
     sane(1);
     a$str(
         req,
@@ -85,7 +85,7 @@ pro(HTTPtest1) {
     done;
 }
 
-pro(HTTPtest) {
+ok64 HTTPtest() {
     sane(1);
     call(HTTPtest1);
     done;

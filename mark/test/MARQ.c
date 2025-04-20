@@ -11,7 +11,7 @@
 #include "abc/PRO.h"
 #include "abc/TEST.h"
 
-pro(MARQANSItest) {
+ok64 MARQANSItest() {
     sane(1);
     MARQstate state = {};
 #define MARQANSIcases 2
@@ -39,7 +39,7 @@ pro(MARQANSItest) {
     done;
 }
 
-pro(MARQHTMLtest) {
+ok64 MARQHTMLtest() {
     sane(1);
     MARQstate state = {};
 #define MARQHTMLcases 2
@@ -67,7 +67,7 @@ pro(MARQHTMLtest) {
     done;
 }
 
-pro(MARQtest) {
+ok64 MARQtest() {
     sane(1);
     call(MARQANSItest);
     call(MARQHTMLtest);

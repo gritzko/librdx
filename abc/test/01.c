@@ -10,7 +10,7 @@
 #include "PRO.h"
 #include "TEST.h"
 
-pro(BITStest1) {
+ok64 BITStest1() {
     sane(1);
     u64 a = 0xaabbccdd11223344;
     u64 b = flip64(a);
@@ -24,7 +24,7 @@ pro(BITStest1) {
     done;
 }
 
-pro(BITSbytelen) {
+ok64 BITSbytelen() {
     sane(YES);
     testeq(2, u32bytelen(0x111));
     testeq(2, u32bytelen(0x1111));
@@ -39,7 +39,7 @@ pro(BITSbytelen) {
     done;
 }
 
-pro(BITSstr) {
+ok64 BITSstr() {
     sane(YES);
     const char* badarg = okstr($badarg);
     testeq(0, strcmp(badarg, "~badarg"));
@@ -48,7 +48,7 @@ pro(BITSstr) {
     done;
 }
 
-pro(BITStest) {
+ok64 BITStest() {
     sane(1);
     call(BITStest1);
     call(BITSbytelen);
