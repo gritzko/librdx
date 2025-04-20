@@ -3,7 +3,7 @@
 
 #include "NET.h"
 
-con ok64 TCPfail = 0x1d319aa5b70;
+static const ok64 TCPfail = 0x1d319aa5b70;
 
 ok64 TCPbind(int *fd, NETaddr addr);
 

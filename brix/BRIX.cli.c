@@ -21,10 +21,10 @@
 
 a$strc(BRIXhome, ".rdx/brix");
 
-con ok64 SUBsst = 0x37df8;
-con ok64 b0b = 0x26026;
-con ok64 SUBdeps = 0xa29d37;
-con ok64 SUBjdr = 0x2ea36;
+static const ok64 SUBsst = 0x37df8;
+static const ok64 b0b = 0x26026;
+static const ok64 SUBdeps = 0xa29d37;
+static const ok64 SUBjdr = 0x2ea36;
 
 ok64 BRIKfeedpath($u8 into, BRIX const* brix, h60 let);
 ok64 BRIKhash(sha256* hash, SSTu128 sst);

@@ -3,9 +3,9 @@
 #include "RDX.h"
 #include "UNIT.h"
 
-con ok64 CLIbadarg = 0xc5529a5a25dab;
-con ok64 CLInoverb = 0xc552cb3ea9da6;
-con ok64 CLIunknown = 0x3154b9cafcb3ef2;
+static const ok64 CLIbadarg = 0xc5529a5a25dab;
+static const ok64 CLInoverb = 0xc552cb3ea9da6;
+static const ok64 CLIunknown = 0x3154b9cafcb3ef2;
 
 extern u8c* RDXlits[];
 

@@ -18,7 +18,7 @@
 #include "abc/PRO.h"
 #include "abc/TLV.h"
 
-con ok64 RDXbadverb = 0x6cd866968ea9da6;
+static const ok64 RDXbadverb = 0x6cd866968ea9da6;
 
 b8 JDR_OUT = 0;
 

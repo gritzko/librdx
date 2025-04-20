@@ -7,8 +7,8 @@
 
 a$strc(ext, ".lex");
 
-con char *ragel_template;
-con char *header_template;
+static const char *ragel_template;
+static const char *header_template;
 
 ABC_INIT;
 

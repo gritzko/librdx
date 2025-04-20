@@ -15,9 +15,9 @@ typedef u512 edsig512;
 #define edpub256cmp u256cmp
 #define edsig512cmp u512cmp
 
-con ok64 NACLbad = 0x1728c566968;
-con ok64 NACLfail = 0x5ca315aa5b70;
-con ok64 NACLfail0 = 0x1728c56a96dc00;
+static const ok64 NACLbad = 0x1728c566968;
+static const ok64 NACLfail = 0x5ca315aa5b70;
+static const ok64 NACLfail0 = 0x1728c56a96dc00;
 
 fun ok64 NACLed25519create(edpub256 *publicKey, edsec512 *secretKey) {
     int ret = crypto_sign_ed25519_keypair((u8 *)publicKey, (u8 *)secretKey);

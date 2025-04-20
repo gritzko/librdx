@@ -8,8 +8,8 @@
 #include "OK.h"
 #include "PRO.h"
 
-con ok64 TESTfail = 0x74e71daa5b70;
-con ok64 TESTfaileq = 0x74e71daa5b70a75;
+static const ok64 TESTfail = 0x74e71daa5b70;
+static const ok64 TESTfaileq = 0x74e71daa5b70a75;
 
 #define want(cond) \
     if (!(cond)) fail(TESTfail);

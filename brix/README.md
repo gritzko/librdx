@@ -1,7 +1,7 @@
 #   BRIX: an RDX LSM syncable store
 
 BRIX employs the [Replicated Data eXchange][R] format to build
-an embeddable syncable document store with branching versioning,
+an embeddable syncable document store with branching, versioning,
 and other interesting features. Its internal format is RDX,
 which is [JSON-like][J], but stored as key-value records.
 It is up to the user to gauge the granularity of that mapping.

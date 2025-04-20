@@ -4,9 +4,9 @@
 #include "INT.h"
 #include "OK.h"
 
-con ok64 HEXnoroom = 0x113a1cb3db3cf1;
-con ok64 HEXnodata = 0x113a1cb3a25e25;
-con ok64 HEXbad = 0x44e866968;
+static const ok64 HEXnoroom = 0x113a1cb3db3cf1;
+static const ok64 HEXnodata = 0x113a1cb3a25e25;
+static const ok64 HEXbad = 0x44e866968;
 
 static $u8 BASE16 = $u8str("0123456789abcdef");
 

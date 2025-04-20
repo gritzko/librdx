@@ -7,12 +7,12 @@
 #include "abc/SST.h"
 #include "rdx/RDX.h"
 
-con ok64 BRIXnone = 0x2db4a1cb3ca9;
-con ok64 BRIXbadarg = 0x2db4a19a5a25dab;
-con ok64 BRIXnoverb = 0x2db4a1cb3ea9da6;
-con ok64 BRIXnotime = 0x2db4a1cb3e2dc69;
-con ok64 BRIXmiss = 0x2db4a1c6ddf7;
-con ok64 BRIXbad = 0xb6d2866968;
+static const ok64 BRIXnone = 0x2db4a1cb3ca9;
+static const ok64 BRIXbadarg = 0x2db4a19a5a25dab;
+static const ok64 BRIXnoverb = 0x2db4a1cb3ea9da6;
+static const ok64 BRIXnotime = 0x2db4a1cb3e2dc69;
+static const ok64 BRIXmiss = 0x2db4a1c6ddf7;
+static const ok64 BRIXbad = 0xb6d2866968;
 
 #define BRIX_MAX_SST0_SIZE (1 << 30)
 #define BRIX_MAX_SST0_ENTRIES (1 << 20)

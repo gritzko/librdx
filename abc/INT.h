@@ -11,7 +11,7 @@
 #include "B.h"
 #include "BUF.h"
 
-con ok64 INTbad = 0x497766968;
+static const ok64 INTbad = 0x497766968;
 
 #define I64_MAX INT64_MAX
 #define I64_MIN INT64_MIN

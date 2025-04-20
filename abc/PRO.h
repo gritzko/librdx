@@ -12,7 +12,7 @@ extern uint8_t _pro_depth;
 // use this with every int main() {...}
 #define ABC_INIT uint8_t _pro_depth = 0;
 
-con char *_pro_indent =
+static const char *_pro_indent =
     "\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t";
 
 #define PROindent (_pro_indent + 32 - (_pro_depth & 31))

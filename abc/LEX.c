@@ -156,14 +156,14 @@ const u8c *LEX_TEMPL[LEX_TEMPL_LANG_LEN][LEX_TEMPL_LEN][2] = {
     },
 };
 
-con ok64 LEX$ACTIONS = 0x1c5d849d30a;
-con ok64 LEX$ENUM = 0x59e5ce;
-con ok64 LEX$FN = 0x5cf;
-con ok64 LEX$RULES = 0x1c39579b;
+static const ok64 LEX$ACTIONS = 0x1c5d849d30a;
+static const ok64 LEX$ENUM = 0x59e5ce;
+static const ok64 LEX$FN = 0x5cf;
+static const ok64 LEX$RULES = 0x1c39579b;
 
-con ok64 LEX$mod = 0x28cf1;
-con ok64 LEX$act = 0x389e5;
-con ok64 LEX$actno = 0x33cb89e5;
+static const ok64 LEX$mod = 0x28cf1;
+static const ok64 LEX$act = 0x389e5;
+static const ok64 LEX$actno = 0x33cb89e5;
 
 ok64 LEXonName($cu8c tok, LEXstate *state) {
     ok64 o = $u8feed(NESTidle(state->ct), state->mod);

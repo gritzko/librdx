@@ -6,7 +6,6 @@
 
 #define fun static inline
 #define funi static __always_inline
-#define con static const
 #define record typedef struct
 
 #define must(c) assert(c)
@@ -80,11 +79,11 @@ typedef uint64_t ok64;
 #define OK 0
 #define FAIL 0xffffffffffffffffUL
 
-con ok64 $miss = 0x3fc6ddf7;
-con ok64 $nodata = 0x3fcb3a25e25;
-con ok64 $none = 0x3fcb3ca9;
-con ok64 $noroom = 0x3fcb3db3cf1;
-con ok64 $badarg = 0x3f9a5a25dab;
+static const ok64 $miss = 0x3fc6ddf7;
+static const ok64 $nodata = 0x3fcb3a25e25;
+static const ok64 $none = 0x3fcb3ca9;
+static const ok64 $noroom = 0x3fcb3db3cf1;
+static const ok64 $badarg = 0x3f9a5a25dab;
 
 #define nil NULL
 #define WORDS(k)        \
@@ -222,11 +221,11 @@ fun u64 roundup(u64 val, u64 page) {
     return val;
 }
 
-con u64 PRIME1 = 11400714785074694791ULL;
-con u64 PRIME2 = 14029467366897019727ULL;
-con u64 PRIME3 = 1609587929392839161ULL;
-con u64 PRIME4 = 9650029242287828579ULL;
-con u64 PRIME5 = 2870177450012600261ULL;
+static const u64 PRIME1 = 11400714785074694791ULL;
+static const u64 PRIME2 = 14029467366897019727ULL;
+static const u64 PRIME3 = 1609587929392839161ULL;
+static const u64 PRIME4 = 9650029242287828579ULL;
+static const u64 PRIME5 = 2870177450012600261ULL;
 
 typedef uint64_t h64;
 
@@ -238,9 +237,7 @@ fun h64 mix64(u64 a) {
     return mix2 * PRIME2;
 }
 
-fun h64 mix128(u128 a){
-  return mix64(mix64(a._64[0]) ^ a._64[1]);
-}
+fun h64 mix128(u128 a) { return mix64(mix64(a._64[0]) ^ a._64[1]); }
 
 #ifndef ABC_INSANE
 #define Ocopy(a, b)                   \
@@ -261,7 +258,7 @@ fun h64 mix128(u128 a){
 #define u16max 0xffff
 #define u32max 0xffffffff
 #define u64max 0xffffffffffffffffUL
-con u128 u128max = {u64max, u64max};
+static const u128 u128max = {u64max, u64max};
 
 #define O1join32(lo, hi) (((u64)lo) | (((u64)hi) << 32))
 #define O1low32(lohi) (((u64)lohi) & 0xffffffff)
@@ -356,7 +353,6 @@ fun ok64 u64decdrain(u64 *x, u8c *const *dec) {
     return OK;
 }
 
-#define $u8str(c) \
-    { (u8 *)(c), (u8 *)(c) + strlen(c) }
+#define $u8str(c) {(u8 *)(c), (u8 *)(c) + strlen(c)}
 
 #endif

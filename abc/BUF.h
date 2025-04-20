@@ -110,7 +110,7 @@ fun void Bitunset(Bu8 buf, size_t ndx) {
         call($$u8cfeed1, n##$idle, _s); \
     }
 
-con ok64 Badtemplte = 0x2e5a38a71d30e29;
+static const ok64 Badtemplte = 0x2e5a38a71d30e29;
 
 fun ok64 $$feedf($u8 into, $u8c tmpl, $$u8c args) {
     a$dup(u8c, t, tmpl);

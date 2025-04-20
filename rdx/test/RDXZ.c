@@ -47,7 +47,7 @@ pro(RDXZtestvalue, Bu8 testbuf) {
 static $u8c$ zcasesdata;
 static $u8c$ zcasesidle;
 
-con ok64 FAILz = 0x3e55228f;
+static const ok64 FAILz = 0x3e55228f;
 
 ok64 zfn($cu8c cases) {
     sane($ok(cases));

@@ -20,22 +20,22 @@
 
 #include "ftw.h"
 
-con ok64 FILEagain = 0xf4953a5ae5b72;
-con ok64 FILEerror = 0xf4953a9db6cf6;
-con ok64 FILEbadarg = 0x3d254e9a5a25dab;
-con ok64 FILEfail = 0x3d254eaa5b70;
-con ok64 FILEnosync = 0x3d254ecb3dfdca7;
-con ok64 FILEnoopen = 0x3d254ecb3cf4a72;
-con ok64 FILEnoclse = 0x3d254ecb39f0de9;
-con ok64 FILEnostat = 0x3d254ecb3df8978;
-con ok64 FILEwrong = 0xf4953bbdb3cab;
-con ok64 FILEnoresz = 0x3d254ecb3da9dfe;
-con ok64 FILEend = 0xf4953a9ca8;
-con ok64 FILEnone = 0x3d254ecb3ca9;
-con ok64 FILEaccess = 0x3d254e9679e9df7;
-con ok64 FILEloop = 0x3d254ec33cf4;
-con ok64 FILEname = 0x3d254eca5c69;
-con ok64 FILEbad = 0xf4953a6968;
+static const ok64 FILEagain = 0xf4953a5ae5b72;
+static const ok64 FILEerror = 0xf4953a9db6cf6;
+static const ok64 FILEbadarg = 0x3d254e9a5a25dab;
+static const ok64 FILEfail = 0x3d254eaa5b70;
+static const ok64 FILEnosync = 0x3d254ecb3dfdca7;
+static const ok64 FILEnoopen = 0x3d254ecb3cf4a72;
+static const ok64 FILEnoclse = 0x3d254ecb39f0de9;
+static const ok64 FILEnostat = 0x3d254ecb3df8978;
+static const ok64 FILEwrong = 0xf4953bbdb3cab;
+static const ok64 FILEnoresz = 0x3d254ecb3da9dfe;
+static const ok64 FILEend = 0xf4953a9ca8;
+static const ok64 FILEnone = 0x3d254ecb3ca9;
+static const ok64 FILEaccess = 0x3d254e9679e9df7;
+static const ok64 FILEloop = 0x3d254ec33cf4;
+static const ok64 FILEname = 0x3d254eca5c69;
+static const ok64 FILEbad = 0xf4953a6968;
 
 #define FILEok(fd) (fd >= 0)
 
@@ -72,7 +72,7 @@ fun ok64 FILEerrno() {
     }
 }
 
-con size_t FILEmaxpathlen = 1024;
+static const size_t FILEmaxpathlen = 1024;
 
 #define aFILEpath(n, p)                        \
     char n[1024];                              \
@@ -306,7 +306,7 @@ fun ok64 FILEerr(u8 const *const *txt) {
 }
 
 static u8 _NL[2] = {'\n', 0};
-con u8 *const NL[2] = {_NL, _NL + 1};
+static const u8 *const NL[2] = {_NL, _NL + 1};
 
 // todo buffered print
 #define $print FILEout

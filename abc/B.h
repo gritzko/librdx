@@ -10,16 +10,16 @@
 #include "01.h"
 #include "OK.h"
 
-con ok64 Bmapfail = 0x2f1974aa5b70;
-con ok64 Bnotnull = 0x2f2cf8cb9c30;
-con ok64 Bisnil = 0x2eddf2b70;
-con ok64 Bnotmap = 0xbcb3e31974;
-con ok64 Ballocfail = 0x2e5c30ce7aa5b70;
-con ok64 Bnotalloc = 0xbcb3e25c30ce7;
-con ok64 Bnoroom = 0xbcb3db3cf1;
-con ok64 Bnodata = 0xbcb3a25e25;
-con ok64 Bbadarg = 0xb9a5a25dab;
-con ok64 Bmiss = 0xbc6ddf7;
+static const ok64 Bmapfail = 0x2f1974aa5b70;
+static const ok64 Bnotnull = 0x2f2cf8cb9c30;
+static const ok64 Bisnil = 0x2eddf2b70;
+static const ok64 Bnotmap = 0xbcb3e31974;
+static const ok64 Ballocfail = 0x2e5c30ce7aa5b70;
+static const ok64 Bnotalloc = 0xbcb3e25c30ce7;
+static const ok64 Bnoroom = 0xbcb3db3cf1;
+static const ok64 Bnodata = 0xbcb3a25e25;
+static const ok64 Bbadarg = 0xb9a5a25dab;
+static const ok64 Bmiss = 0xbc6ddf7;
 
 #define B_MAX_LEN_BITS 48
 #define B_MAX_LEN (1UL << B_MAX_LEN_BITS)

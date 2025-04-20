@@ -6,10 +6,10 @@
 
 #define LSM_MAX_INPUTS 64
 
-con ok64 LSMeof = 0xab3a56715;
-con ok64 LSMbad = 0xa25996715;
-con ok64 LSMnodata = 0x25e25a33c96715;
-con ok64 LSMnoroom = 0x31cf3db3c96715;
+static const ok64 LSMeof = 0xab3a56715;
+static const ok64 LSMbad = 0xa25996715;
+static const ok64 LSMnodata = 0x25e25a33c96715;
+static const ok64 LSMnoroom = 0x31cf3db3c96715;
 
 typedef ok64 (*$u8cXfn)(u8c$ next, $u8c rest);
 typedef ok64 (*$u8cYfn)($u8 into, $$u8c from);

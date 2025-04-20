@@ -13,10 +13,10 @@ pro(fail_test) {
     done;
 }
 
-con ok64 Xbadarg = 0x219a5a25dab;
-con ok64 XYbadarg = 0x8629a5a25dab;
-con ok64 XYZbadarg = 0x218a39a5a25dab;
-con ok64 XYZAbadarg = 0x8628ca9a5a25dab;
+static const ok64 Xbadarg = 0x219a5a25dab;
+static const ok64 XYbadarg = 0x8629a5a25dab;
+static const ok64 XYZbadarg = 0x218a39a5a25dab;
+static const ok64 XYZAbadarg = 0x8628ca9a5a25dab;
 
 pro(PROis) {
     sane(1);

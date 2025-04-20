@@ -4,13 +4,13 @@
 #include "INT.h"
 #include "OK.h"
 
-con ok64 ZINTnoroom = 0x8d25ddcb3db3cf1;
-con ok64 ZINTbadrec = 0x8d25dd9a5a36a67;
+static const ok64 ZINTnoroom = 0x8d25ddcb3db3cf1;
+static const ok64 ZINTbadrec = 0x8d25dd9a5a36a67;
 
-con u64 B1 = 0xff;
-con u64 B2 = 0xffff;
-con u64 B4 = 0xffffffff;
-con u64 B8 = 0xffffffffffffffff;
+static const u64 B1 = 0xff;
+static const u64 B2 = 0xffff;
+static const u64 B4 = 0xffffffff;
+static const u64 B8 = 0xffffffffffffffff;
 
 fun u32 ZINTlen(u64 n) {
     if (n <= 0xff) {

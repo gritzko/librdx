@@ -9,17 +9,17 @@
 
 typedef u32 cp32;
 
-con u8 UTF8CONT = 128;
-con u8 UTF8LEAD2 = 128 | 64;
-con u8 UTF8LEAD3 = 128 | 64 | 32;
-con u8 UTF8LEAD4 = 128 | 64 | 32 | 16;
+static const u8 UTF8CONT = 128;
+static const u8 UTF8LEAD2 = 128 | 64;
+static const u8 UTF8LEAD3 = 128 | 64 | 32;
+static const u8 UTF8LEAD4 = 128 | 64 | 32 | 16;
 
-con u32 MAX_UNICODE_CODEPOINT = 0x10FFFF;
-con u8 MAX_UTF8_SIZE = 4;
+static const u32 MAX_UNICODE_CODEPOINT = 0x10FFFF;
+static const u8 MAX_UTF8_SIZE = 4;
 
-con ok64 UTF8nodata = 0x79d3c8cb3a25e25;
-con ok64 UTF8noroom = 0x79d3c8cb3db3cf1;
-con ok64 UTF8bad = 0x1e74f226968;
+static const ok64 UTF8nodata = 0x79d3c8cb3a25e25;
+static const ok64 UTF8noroom = 0x79d3c8cb3db3cf1;
+static const ok64 UTF8bad = 0x1e74f226968;
 
 ok64 _UTF8feed1($u8 into, u32 cp);
 

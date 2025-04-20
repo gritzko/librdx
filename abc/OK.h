@@ -15,19 +15,19 @@ typedef ok64 ok;
 typedef u64 u60;
 #define u60max ((1UL << 60) - 1)
 
-con ok64 FAILsanity = 0x3ca495de5cade3d;
-con ok64 notimplyet = 0xcb3e2dc74c3da78;
-con ok64 OKnoroom = 0x614cb3db3cf1;
-con ok64 OKbadtext = 0x18526968e29f38;
-con ok64 noroom = 0xcb3db3cf1;
-con ok64 badarg = 0x9a5a25dab;
-con ok64 faileq = 0xaa5b70a75;
-con ok64 FAILeq = 0x3ca495a75;
+static const ok64 FAILsanity = 0x3ca495de5cade3d;
+static const ok64 notimplyet = 0xcb3e2dc74c3da78;
+static const ok64 OKnoroom = 0x614cb3db3cf1;
+static const ok64 OKbadtext = 0x18526968e29f38;
+static const ok64 noroom = 0xcb3db3cf1;
+static const ok64 badarg = 0x9a5a25dab;
+static const ok64 faileq = 0xaa5b70a75;
+static const ok64 FAILeq = 0x3ca495a75;
 
-con char *_base_ron64 =
+static const char *_base_ron64 =
     "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz~";
 
-con u8 BASEron64rev[256] = {
+static const u8 BASEron64rev[256] = {
     0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
     0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
     0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,

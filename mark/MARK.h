@@ -8,10 +8,10 @@
 #include "abc/INT.h"
 #include "abc/OK.h"
 
-con ok64 MARKfail = 0x58a6d4aa5b70;
-con ok64 MARKnoroom = 0x58a6d4cb3db3cf1;
-con ok64 MARKbadrec = 0x58a6d49a5a36a67;
-con ok64 MARKmiss = 0x58a6d4c6ddf7;
+static const ok64 MARKfail = 0x58a6d4aa5b70;
+static const ok64 MARKnoroom = 0x58a6d4cb3db3cf1;
+static const ok64 MARKbadrec = 0x58a6d49a5a36a67;
+static const ok64 MARKmiss = 0x58a6d4c6ddf7;
 #define MARKenum 0
 
 typedef enum {

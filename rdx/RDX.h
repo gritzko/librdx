@@ -10,9 +10,9 @@
 #include "abc/TLV.h"
 #include "abc/ZINT.h"
 
-con ok64 RDXnoroom = 0x1b361cb3db3cf1;
-con ok64 RDXbad = 0x6cd866968;
-con ok64 RDXwrong = 0x6cd87bdb3cab;
+static const ok64 RDXnoroom = 0x1b361cb3db3cf1;
+static const ok64 RDXbad = 0x6cd866968;
+static const ok64 RDXwrong = 0x6cd87bdb3cab;
 
 #define RDX_MAX_NEST 256
 
@@ -30,7 +30,7 @@ typedef enum {
     RDX_MULTIX = 'X',
 } RDXtype;
 
-con u64 RDX_PLEX_BITS = (1 << (RDX_TUPLE - 'A')) | (1 << (RDX_LINEAR - 'A')) |
+static const u64 RDX_PLEX_BITS = (1 << (RDX_TUPLE - 'A')) | (1 << (RDX_LINEAR - 'A')) |
                         (1 << (RDX_EULER - 'A')) | (1 << (RDX_MULTIX - 'A'));
 
 typedef int64_t RDXint;

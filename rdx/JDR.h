@@ -11,16 +11,16 @@
 
 #define JDRenum 0
 
-con ok64 JDRbad = 0x4cd6e6968;
-con ok64 JDRfail = 0x1335baa5b70;
-con ok64 JDRbadF = 0x1335b9a5a0f;
-con ok64 JDRbadI = 0x1335b9a5a12;
-con ok64 JDRbadR = 0x1335b9a5a1b;
-con ok64 JDRbadS = 0x1335b9a5a1c;
-con ok64 JDRbadT = 0x1335b9a5a1d;
-con ok64 JDRbadnest = 0x4cd6e6968ca9df8;
-con ok64 JDRnoroom = 0x1335bcb3db3cf1;
-con ok64 JDRsyntax = 0x1335bdfdcb897c;
+static const ok64 JDRbad = 0x4cd6e6968;
+static const ok64 JDRfail = 0x1335baa5b70;
+static const ok64 JDRbadF = 0x1335b9a5a0f;
+static const ok64 JDRbadI = 0x1335b9a5a12;
+static const ok64 JDRbadR = 0x1335b9a5a1b;
+static const ok64 JDRbadS = 0x1335b9a5a1c;
+static const ok64 JDRbadT = 0x1335b9a5a1d;
+static const ok64 JDRbadnest = 0x4cd6e6968ca9df8;
+static const ok64 JDRnoroom = 0x1335bcb3db3cf1;
+static const ok64 JDRsyntax = 0x1335bdfdcb897c;
 
 typedef struct {
     u8c$ text;

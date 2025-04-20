@@ -11,8 +11,8 @@
 
 #include "INT.h"
 
-con ok64 NETbadaddr = 0x5ce766968968a36;
-con ok64 NETnospace = 0x5ce772cf7d259e9;
+static const ok64 NETbadaddr = 0x5ce766968968a36;
+static const ok64 NETnospace = 0x5ce772cf7d259e9;
 
 typedef Bu8 NETaddr;
 #define NEThost(a) Bu8past(a)

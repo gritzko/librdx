@@ -100,7 +100,7 @@ pro(POLLaccpt, POLLstate state, POLLctl* ctl) {
     done;
 }
 
-con int POLLOOPS = ~(POLLIN | POLLOUT);
+static const int POLLOOPS = ~(POLLIN | POLLOUT);
 
 pro(POLLonce, POLLstate state, size_t ms) {
     sane(1);

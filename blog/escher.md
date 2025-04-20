@@ -69,7 +69,7 @@ An empty tuple is a something-but-nothing value, the most nullish null ever.
 A tuple of one can be a "tombstone", a placeholder for deleted data,
 which is a necessary construct in distributed systems.
 Tuples can express relational records and that is absolutely fundamental:
-`73456:"Alice in Wonderland":"Carol, Lewis"`.
+`73456:"Alice in Wonderland":"Carroll, Lewis"`.
 A tuple is a construct that stitches so many things together.
 
 In general, parts of the system interact. For N constructs, the number of
@@ -102,7 +102,7 @@ There are rules and policies that define the right place for each piece.
 Not too many rules, so you can remember, but just enough.
 
 There have been some rules that worked like a "comb for the code".
-For example: "a buffer (4 pointers) owns the memory; a slice (two pointers) does not".
+For example: "a buffer (4 pointers) owns the memory; a slice (two pointers) borrows".
 This one helped to fix an impeding chaos in function signatures and memory management.
 
 `librdx` employs a rather special (I say "algebraic") function naming convention. 
@@ -111,14 +111,14 @@ Names like `$$u8cfeed1()` may look scary at first but once you get the system, t
 Then, `HEAP$u8cpushf()` reads naturally as
 "push a byte slice into a heap of slices, as ordered by the function".
 Method naming is sort of a pain point in C (cause yes, C has no methods).
-So, that convention replaces the C++ type system and name mangling.
+So, that convention replaces the C++ type system and name [mangling][m].
 Once the convention was in place, not only the naming,
 but also the general code organisation improved.
 
 Good rules build the system.
 
 <img align=left width="50%" src="../img/sky_water.jpg"/>
-*Separate the defining features from meaningful from unimportant.
+*Separate the defining features from meaningful from unimportant*.
 Or, "divide, define, derive".
 It is a good practice to focus on the key parameter that affects
 everything else, and let the other tunables be derived from that.
@@ -158,3 +158,4 @@ that an expert developer would never get into and for a guru it will never occur
 The best way to convey that experience is probably a *koan*.
 Or Escher.
 
+[m]: https://www.ibm.com/docs/en/i/7.4.0?topic=linkage-name-mangling-c-only

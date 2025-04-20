@@ -7,7 +7,7 @@
 #include "abc/INT.h"
 #include "abc/LEX.h"
 
-con ok64 MARQfail = 0x58a6daaa5b70;
+static const ok64 MARQfail = 0x58a6daaa5b70;
 #define MARQenum 16
 
 // max 8 bits
@@ -20,7 +20,7 @@ typedef enum {
     MARQ_MAX_FMT = 5,
 } MARQfmt;
 
-con u8 MARQesc[] = {GRAY, DARK_GREEN, UNDERLINE, BOLD, HIGHLIGHT};
+static const u8 MARQesc[] = {GRAY, DARK_GREEN, UNDERLINE, BOLD, HIGHLIGHT};
 
 typedef u64 link64;
 

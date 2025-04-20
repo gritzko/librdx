@@ -7,15 +7,15 @@
 #include "OK.h"
 #include "PRO.h"
 
-con ok64 TLVbadrec = 0x1d55f9a5a36a67;
-con ok64 TLVnodata = 0x1d55fcb3a25e25;
-con ok64 TLVbadtype = 0x7557e6968e3dd29;
-con ok64 TLVnoroom = 0x1d55fcb3db3cf1;
-con ok64 TLVoverflo = 0x7557f3ea9daac33;
-con ok64 TLVbadcall = 0x7557e69689e5c30;
-con ok64 TLVbadarg = 0x1d55f9a5a25dab;
-con ok64 TLVbadkv = 0x7557e6968bfa;
-con ok64 TLVtoolong = 0x7557f8cf3c33cab;
+static const ok64 TLVbadrec = 0x1d55f9a5a36a67;
+static const ok64 TLVnodata = 0x1d55fcb3a25e25;
+static const ok64 TLVbadtype = 0x7557e6968e3dd29;
+static const ok64 TLVnoroom = 0x1d55fcb3db3cf1;
+static const ok64 TLVoverflo = 0x7557f3ea9daac33;
+static const ok64 TLVbadcall = 0x7557e69689e5c30;
+static const ok64 TLVbadarg = 0x1d55f9a5a25dab;
+static const ok64 TLVbadkv = 0x7557e6968bfa;
+static const ok64 TLVtoolong = 0x7557f8cf3c33cab;
 
 #define TLVaA 0x20
 #define TLV_MAX_LEN ((1 << 30) - 1)
@@ -172,7 +172,7 @@ fun pro(TLVclose, $u8 tlv, u8 type, u32* const* len) {
         ++p;
         *p = d;
         ++p;
-        con size_t shift = sizeof(u32) - sizeof(u8);
+        const size_t shift = sizeof(u32) - sizeof(u8);
         memmove(p, p + shift, d);
         *tlv -= shift;
     }

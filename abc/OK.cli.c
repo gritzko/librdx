@@ -1,8 +1,9 @@
+#include "OK.h"
+
 #include <assert.h>
 #include <stdio.h>
 #include <unistd.h>
 
-#include "OK.h"
 #include "INT.h"
 
 int main(int argn, char** args) {
@@ -11,7 +12,7 @@ int main(int argn, char** args) {
         //$reverse(str);
         u64 num = 0;
         OKscan(&num, str);
-        printf("con ok64 %s\t= 0x%lx;\n", args[i], num);
+        printf("static const ok64 %s\t= 0x%lx;\n", args[i], num);
     }
     return 0;
 }
