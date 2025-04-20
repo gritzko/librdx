@@ -9,7 +9,6 @@
 #include "RDXC.h"
 #include "UNIT.h"
 #include "Y.h"
-#include "abc/$.h"
 #include "abc/01.h"
 #include "abc/BUF.h"
 #include "abc/FILE.h"

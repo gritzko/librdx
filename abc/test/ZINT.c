@@ -4,8 +4,8 @@
 #include <stdint.h>
 #include <unistd.h>
 
-#include "$.h"
 #include "PRO.h"
+#include "S.h"
 #include "TEST.h"
 
 ok64 ZINTtest1() {

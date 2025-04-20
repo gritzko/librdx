@@ -1,10 +1,10 @@
 #ifndef ABC_SKIP_H
 #define ABC_SKIP_H
 
-#include "abc/$.h"
 #include "abc/01.h"
 #include "abc/B.h"
 #include "abc/OK.h"
+#include "abc/S.h"
 #include "abc/TLV.h"
 
 static const ok64 SKIPnotyet = 0x714499cb3e3da78;

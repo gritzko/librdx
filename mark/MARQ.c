@@ -2,10 +2,9 @@
 
 #include <unistd.h>
 
-#include "abc/$.h"
 #include "abc/ANSI.h"
 
-ok64 openesc( $u8 $into, u8 mask) {
+ok64 openesc($u8 $into, u8 mask) {
     sane($ok($into));
     while (mask != 0) {
         u8 low = ctz32(mask);
@@ -15,13 +14,13 @@ ok64 openesc( $u8 $into, u8 mask) {
     done;
 }
 
-ok64 closeesc( $u8 $into) {
+ok64 closeesc($u8 $into) {
     sane($ok($into));
     call(escfeed, $into, 0);
     done;
 }
 
-ok64 MARQANSI( $u8 $into, $u8c const $txt, $u8c const $fmt) {
+ok64 MARQANSI($u8 $into, $u8c const $txt, $u8c const $fmt) {
     sane($ok($into) && $len($txt) <= $len($fmt));
     u8 prev = 0;
     u8cp fp = $fmt[0];
@@ -38,7 +37,7 @@ ok64 MARQANSI( $u8 $into, $u8c const $txt, $u8c const $fmt) {
     done;
 }
 
-ok64 openspan( $u8 $into, u8 mask) {
+ok64 openspan($u8 $into, u8 mask) {
     sane($ok($into));
     $cu8c OPEN0 = $u8str("<span>");
     if (mask == 0) return $u8feed($into, OPEN0);
@@ -66,7 +65,7 @@ fun ok64 closespan($u8 $into) {
     return $u8feed($into, CLOSE);
 }
 
-ok64 MARQHTML( $u8 $into, $u8c $txt, $u8c $fmt) {
+ok64 MARQHTML($u8 $into, $u8c $txt, $u8c $fmt) {
     sane($ok($into) && $len($txt) <= $len($fmt));
     u8 prev = 0xff;
     u8cp fp = $fmt[0];
@@ -83,7 +82,7 @@ ok64 MARQHTML( $u8 $into, $u8c $txt, $u8c $fmt) {
     done;
 }
 
-ok64 MARQrange( MARQfmt fmt, $cu8c tok, MARQstate* state) {
+ok64 MARQrange(MARQfmt fmt, $cu8c tok, MARQstate* state) {
     sane(state != nil && $ok(tok) && $within(state->text, tok));
     size_t f = tok[0] - state->text[0];
     size_t t = tok[1] - state->text[0];
@@ -91,7 +90,7 @@ ok64 MARQrange( MARQfmt fmt, $cu8c tok, MARQstate* state) {
     done;
 }
 
-ok64 MARQopenbracket( MARQfmt fmt, $cu8c tok, MARQstate* state) {
+ok64 MARQopenbracket(MARQfmt fmt, $cu8c tok, MARQstate* state) {
     sane(state != nil && $ok(tok) && $within(state->text, tok));
     //$u8c tmpl = $u8str("MARQopenbracket '$s' at $u\n");
     // FILEfeedf(STDOUT_FILENO, tmpl, tok, tok[0] - state->text[0]);
@@ -104,7 +103,7 @@ ok64 MARQopenbracket( MARQfmt fmt, $cu8c tok, MARQstate* state) {
     done;
 }
 
-ok64 MARQclosebracket( MARQfmt fmt, $cu8c tok, MARQstate* state) {
+ok64 MARQclosebracket(MARQfmt fmt, $cu8c tok, MARQstate* state) {
     sane(state != nil && $ok(tok) && $within(state->text, tok));
     u8c$ text = state->text;
     $u64 $b = {};
@@ -125,7 +124,7 @@ ok64 MARQonRef0($cu8c tok, MARQstate* state) {
     return MARQopenbracket(MARQ_LINK, tok, state);
 }
 
-ok64 MARQonRef1( $cu8c tok, MARQstate* state) {
+ok64 MARQonRef1($cu8c tok, MARQstate* state) {
     sane(state != nil);
     call(MARQclosebracket, MARQ_LINK, tok, state);
     size_t off = tok[1] - state->text[0];
@@ -147,7 +146,7 @@ ok64 MARQonEm($cu8c tok, MARQstate* state) {
     return MARQrange(MARQ_EMPH, tok, state);
 }
 
-ok64 MARQonCode01( $cu8c tok, MARQstate* state) {
+ok64 MARQonCode01($cu8c tok, MARQstate* state) {
     sane(state != nil && $ok(tok) && $within(state->text, tok));
     u8c$ text = state->text;
     $u64 $b = {};

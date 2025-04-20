@@ -1,7 +1,7 @@
 #ifndef ABC_RDX_Z
 #define ABC_RDX_Z
 #include "RDX.h"
-#include "abc/$.h"
+#include "abc/S.h"
 
 fun int _RDXZlit(u8 const* a, u8 const* b) {
     b8 ap = RDXisPLEX(*a);

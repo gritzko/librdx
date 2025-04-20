@@ -1,9 +1,9 @@
 #ifndef ABC_BUF_H
 #define ABC_BUF_H
 
-#include "$.h"
 #include "01.h"
 #include "B.h"
+#include "S.h"
 
 fun int u8cmp(const u8 *a, const u8 *b) { return (int)*a - (int)*b; }
 
@@ -51,8 +51,7 @@ fun int Bu8cmp(Bu8 const *a, Bu8 const *b) {
 #undef ABC_X_$
 #undef X
 
-#define $u8raw(v) \
-    { (u8 *)&(v), (u8 *)(&v) + sizeof(v) }
+#define $u8raw(v) {(u8 *)&(v), (u8 *)(&v) + sizeof(v)}
 
 #define a$raw(n, v) $u8 n = {(u8 *)&(v), (u8 *)(&v) + sizeof(v)}
 #define a$rawc(n, v) $u8c n = {(u8 *)&(v), (u8 *)(&v) + sizeof(v)}

@@ -5,8 +5,8 @@
 #ifndef ABC_BINS_HPP
 #define ABC_BINS_HPP
 
-#include "$.h"
 #include "01.h"
+#include "S.h"
 
 /**
  * Numbering for (aligned) logarithmical bins.

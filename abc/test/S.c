@@ -1,5 +1,5 @@
 
-#include "$.h"
+#include "S.h"
 
 #include <assert.h>
 #include <stdio.h>

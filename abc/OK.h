@@ -3,8 +3,8 @@
 #include <errno.h>
 #include <stdint.h>
 
-#include "$.h"
 #include "01.h"
+#include "S.h"
 
 typedef uint64_t ok64;
 typedef ok64 ok;

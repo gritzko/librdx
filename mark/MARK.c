@@ -1,9 +1,9 @@
 #include "MARK.h"
 
+#include "MARQ.h"
 #include "abc/01.h"
 #include "abc/B.h"
 #include "abc/INT.h"
-#include "MARQ.h"
 #include "abc/OK.h"
 #include "abc/PRO.h"
 
@@ -197,7 +197,7 @@ ok64 MARKlinetext($u8c text, u64 lno, MARKstate const* state) {
 }
 
 ok64 MARKANSIdiv($u8 $into, u64 lfrom, u64 ltill, u64 stack, u32 width,
-    u16 list, MARKstate const* state) {
+                 u16 list, MARKstate const* state) {
     sane($ok($into) && state != nil);
     u64 depth = u64bytelen(stack);
     test(width > depth * 4, MARKnoroom);
@@ -295,7 +295,7 @@ ok64 MARKMARQ(MARKstate* state) {
 }
 
 ok64 MARKHTMLp($u8 $into, u64 from, u64 till, u64 stack,
-    MARKstate const* state) {
+               MARKstate const* state) {
     sane($ok($into) && state != nil && till <= Bdatalen(state->lineB));
     u8 depth = u64bytelen(stack);
     u8c* text0 = state->text[0];

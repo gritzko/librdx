@@ -3,12 +3,12 @@
 
 #include <unistd.h>
 
-#include "abc/$.h"
 #include "abc/01.h"
 #include "abc/FILE.h"
 #include "abc/INT.h"
 #include "abc/LEX.h"
 #include "abc/PRO.h"
+#include "abc/S.h"
 #include "abc/TEST.h"
 
 ok64 MARQANSItest() {

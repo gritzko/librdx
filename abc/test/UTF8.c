@@ -6,8 +6,8 @@
 #include <stdio.h>
 #include <unistd.h>
 
-#include "$.h"
 #include "INT.h"
+#include "S.h"
 #include "TEST.h"
 
 ok64 UTF8test1() {

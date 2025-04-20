@@ -2,8 +2,8 @@
 #define ABC_RDX1_H
 #include <stdio.h>
 
-#include "abc/01.h"
 #include "RDX.h"
+#include "abc/01.h"
 #include "abc/ZINT.h"
 
 ok64 YmergeFIRST($u8 into, $$u8c from) {

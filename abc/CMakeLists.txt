@@ -29,8 +29,8 @@ set(BENCH_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -v")
 set(BENCH_LDD_FLAGS benchmark::benchmark)
 
 list(APPEND ABC_HEADERS 
-$.h
-$x.h
+S.h
+Sx.h
 01.h
 ABC.h
 ANSI.h

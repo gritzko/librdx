@@ -1,11 +1,11 @@
 #ifndef LIBRDX_TLV_H
 #define LIBRDX_TLV_H
-#include "$.h"
 #include "01.h"
 #include "B.h"
 #include "INT.h"
 #include "OK.h"
 #include "PRO.h"
+#include "S.h"
 
 static const ok64 TLVbadrec = 0x1d55f9a5a36a67;
 static const ok64 TLVnodata = 0x1d55fcb3a25e25;

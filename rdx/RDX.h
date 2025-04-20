@@ -1,12 +1,12 @@
 #ifndef LIBRDX_RDX_H
 #define LIBRDX_RDX_H
 
-#include "abc/$.h"
 #include "abc/01.h"
 #include "abc/B.h"
 #include "abc/HEX.h"
 #include "abc/INT.h"
 #include "abc/OK.h"
+#include "abc/S.h"
 #include "abc/TLV.h"
 #include "abc/ZINT.h"
 

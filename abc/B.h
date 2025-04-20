@@ -6,9 +6,9 @@
 #include <stdlib.h>
 #include <sys/mman.h>
 
-#include "$.h"
 #include "01.h"
 #include "OK.h"
+#include "S.h"
 
 static const ok64 Bmapfail = 0x2f1974aa5b70;
 static const ok64 Bnotnull = 0x2f2cf8cb9c30;
