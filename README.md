@@ -9,8 +9,9 @@ This repo contains an RDX implementation in C:
   - the [ABC C dialect][A], aka Algebraic Bricklaying C,
   - the [RDX format][R] per se, binary and text varieties,
   - a generic [RDX syncing store][B],
-  - an RDX based [revision control system][F], and
-  - a [handbook][B] of basic use cases for the new users.
+  - an RDX based [revision control system][F],
+  - a [handbook][B] of basic use cases for the new users, and
+  - the project's [blog][l].
 
 [A]: ./abc/README.md
 [C]: http://crdt.tech
@@ -18,3 +19,4 @@ This repo contains an RDX implementation in C:
 [B]: ./brix/README.md
 [F]: ./fork/README.md
 [B]: ./book/README.md
+[l]: ./blog/README.md

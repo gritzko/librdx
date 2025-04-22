@@ -30,7 +30,7 @@ ok64 PROis() {
 
 ok64 pro_test() {
     sane(1);
-    mute(fail_test(), badarg);
+    mute(badarg, fail_test);
     call(PROis);
     done;
 }

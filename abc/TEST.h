@@ -19,6 +19,8 @@ static const ok64 TESTfaileq = 0x74e71daa5b70a75;
 
 #define TEST(f)                                                          \
     uint8_t _pro_depth = 0;                                              \
+    $u8c _STD_ARGS[64] = {};                                             \
+    $u8c *STD_ARGS[4] = {};                                              \
     int main(int argn, char **args) {                                    \
         ok64 ret = f();                                                  \
         if (ret != OK) {                                                 \

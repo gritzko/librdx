@@ -24,10 +24,12 @@ set(BENCH_LDD_FLAGS benchmark::benchmark)
 
 list(APPEND BRIX_HEADERS 
   BRIX.h
+  WAL.h
 )
 
 list(APPEND BRIX_SOURCES 
   BRIX.c
+  WAL.c
 )
 
 add_library(brix STATIC ${BRIX_HEADERS} ${BRIX_SOURCES})
@@ -37,7 +39,7 @@ add_executable(brix-cli BRIX.cli.c)
 set_target_properties(brix-cli PROPERTIES OUTPUT_NAME brix)
 target_link_libraries(brix-cli brix)
 
-#add_subdirectory(test)
+add_subdirectory(test)
 
 #if (WITH_BENCH)
 #add_subdirectory(bench EXCLUDE_FROM_ALL)

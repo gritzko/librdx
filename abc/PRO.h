@@ -122,13 +122,13 @@ static const char *_pro_indent =
 #define sure(f) \
     if (__ != f) fail(__);
 
-#define mute(f, o)            \
-    {                         \
-        ok64 __ = (f);        \
-        if (__ == o) __ = OK; \
-        if (__ != OK) {       \
-            fail(__);         \
-        }                     \
+#define mute(o, f, ...)             \
+    {                               \
+        ok64 __ = (f)(__VA_ARGS__); \
+        if (__ == o) __ = OK;       \
+        if (__ != OK) {             \
+            fail(__);               \
+        }                           \
     }
 
 #define testeq(a, b)               \

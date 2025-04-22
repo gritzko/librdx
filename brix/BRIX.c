@@ -143,6 +143,43 @@ ok64 BRIKhash(sha256* hash, SSTu128 sst) {
     done;
 }
 
+ok64 BRIKcreate(sha256* sha, $cu8c home, $sha256c deps, $$u8c inputs) {
+    sane(sha != nil && $ok(home) && $ok(deps) && $ok(inputs));
+    // TODO
+    SSTu128 sst = {};
+    int fd = FILE_CLOSED;
+    aBcpad(u8, tmp, FILEmaxpathlen);
+    call($u8feedall, tmpidle, home);
+    call($u8feedall, tmpidle, BRIKtmp);
+    size_t sumsz = PAGESIZE;
+    a$dup($u8c, ins, inputs);
+    $eat(ins) sumsz += $size(**ins);
+    sumsz = roundup(sumsz + PAGESIZE + $size(deps), PAGESIZE);
+    call(SSTu128init, sst, &fd, tmpdata, sumsz);
+    call(Bu8feed$, sst, (u8c$)deps);
+    Bu8eatdata(sst);
+
+    SKIPu8tab tab = {};
+    u8$ sstinto = Bu8idle(sst);
+    while (!$empty(inputs)) {
+        call(LSMnext, sstinto, inputs, RDXZrevision, Y);
+        call(SKIPu8mayfeed, sst, &tab);
+    }
+
+    call(SSTu128end, sst, &fd, &tab);
+    call(BRIKhash, sha, sst);
+    call(SSTu128close, sst);
+
+    aBcpad(u8, path, FILEmaxpathlen);
+    call($u8feedall, pathidle, home);
+    a$rawc(raw, *sha);
+    call(HEXfeedall, pathidle, raw);
+    call($u8feedall, pathidle, BRIKext);
+    call(FILErename, tmpdata, pathdata);
+
+    done;
+}
+
 // Merge the added SSTs, so the newly formed SST replaces them.
 ok64 BRIXmerge(sha256* newsha, BRIX* brix) {
     sane(newsha != nil && BRIXok(brix));
@@ -165,34 +202,8 @@ ok64 BRIXmerge(sha256* newsha, BRIX* brix) {
     a$dup(Bu8, news, BBu8data(brix->ssts));
     $eat(news) HEAP$u8cpush1f(insbuf, Bu8cdata(**news), RDXZrevision);
 
-    SSTu128 sst = {};
-    int fd = FILE_CLOSED;
-    aBcpad(u8, tmp, FILEmaxpathlen);
-    call($u8feedall, tmpidle, brix->home);
-    call($u8feedall, tmpidle, BRIKtmp);
-    size_t sumsz = PAGESIZE;
-    a$dup($u8c, ins, insdata);
-    $eat(ins) sumsz += $size(**ins);
-    sumsz = roundup(sumsz + PAGESIZE + $size(depsdata), PAGESIZE);
-    call(SSTu128init, sst, &fd, tmpdata, sumsz);
-    call(Bu8feed$, sst, (u8c$)depsdata);
-    Bu8eatdata(sst);
-
-    SKIPu8tab tab = {};
-    u8$ sstinto = Bu8idle(sst);
-    while (!$empty(insdata)) {
-        call(LSMnext, sstinto, insdata, RDXZrevision, Y);
-        call(SKIPu8mayfeed, sst, &tab);
-    }
-
-    call(SSTu128end, sst, &fd, &tab);
     sha256 sha = {};
-    call(BRIKhash, &sha, sst);
-    call(SSTu128close, sst);
-
-    aBcpad(u8, path, FILEmaxpathlen);
-    call(BRIKpath, pathidle, brix, &sha);
-    call(FILErename, tmpdata, pathdata);
+    call(BRIKcreate, &sha, brix->home, Bsha256cdata(depsbuf), insdata);
 
     call(BRIXcloseadded, brix);
     call(BRIXopen, brix, &sha);

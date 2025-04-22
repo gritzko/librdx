@@ -6,9 +6,6 @@
 #include "abc/TEST.h"
 #include "rdx/RDXC.h"
 
-$u8c _STD_ARGS[64] = {};
-$u8c* STD_ARGS[4] = {};
-
 ok64 CLItest() {
     sane(1);
     aBcpad(u8, pad, PAGESIZE);

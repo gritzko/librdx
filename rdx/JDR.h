@@ -215,4 +215,26 @@ enum {
 static const int StyleCommaSpacers =
     StyleCommaNL | StyleIndentSpace4 | StyleIndentTab;
 
+#define a$rdx(n, j, l)                             \
+    $u8c n = {};                                   \
+    u8 _##n[l];                                    \
+    {                                              \
+        $u8 rdx = {_##n, _##n + l};                \
+        $u8c jdr = {(u8c*)j, (u8c*)j + strlen(j)}; \
+        call(JDRdrain, rdx, jdr);                  \
+        n[0] = _##n;                               \
+        n[1] = rdx[0];                             \
+    }
+
+#define a$jdr(n, rdx, l)            \
+    $u8c n = {};                    \
+    u8 _##n[l];                     \
+    {                               \
+        $u8 jdr = {_##n, _##n + l}; \
+        a$dup(u8c, r, rdx);         \
+        call(JDRfeed, jdr, r);      \
+        n[0] = _##n;                \
+        n[1] = jdr[0];              \
+    }
+
 #endif

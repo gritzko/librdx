@@ -133,6 +133,8 @@ ok64 BRIXreget($u8 into, BRIX const* brix, u8c rdt, id128 key);
 // Makes a *patch* SST for it (no deps), puts it on the stack.
 ok64 BRIXaddpatch(sha256* sha, BRIX* brix, $u8c rdx);
 
+ok64 BRIKcreate(sha256* sha, $cu8c home, $sha256c deps, $$u8c inputs);
+
 ok64 BRIXfind(sha256* sha, BRIX const* brix, $u8c part);
 
 #endif

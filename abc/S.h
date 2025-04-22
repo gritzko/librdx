@@ -81,7 +81,6 @@
 #define $shift(s) (*(s[0]++))
 
 #define $for(T, n, s) for (T *n = s[0]; (n + 1) <= s[1]; ++n)
-#define $for$(T, n, s) for (T n = s[0]; (n + 2) <= s[1]; n += 2)
 #define $rof(T, n, s) for (T *n = s[1] - 1; n >= s[0]; --n)
 #define $next(s) ((*s)++)
 #define $eat(s) for (; s[0] < s[1]; s[0]++)

@@ -30,6 +30,8 @@ typedef enum {
     RDX_MULTIX = 'X',
 } RDXtype;
 
+extern u8c* RDXlits[];
+
 static const u64 RDX_PLEX_BITS =
     (1 << (RDX_TUPLE - 'A')) | (1 << (RDX_LINEAR - 'A')) |
     (1 << (RDX_EULER - 'A')) | (1 << (RDX_MULTIX - 'A'));
@@ -97,6 +99,13 @@ fun ok64 RDXdrain$(u8* t, $u8c rec, $u8c rdx) {
 ok64 RDXflatfeed($u8 into, $u8c rdx);
 
 ok64 RDXallFIRST($cu8c rdx);
+
+fun ok64 RDXid(id128* id, $cu8c rdx) {
+    a$dup(u8c, dup, rdx);
+    u8 t;
+    $u8c v = {};
+    return RDXdrain(&t, id, v, dup);
+}
 
 static $u8c ID128DELIM = $u8str("-");
 

@@ -74,6 +74,8 @@ fun ok64 FILEerrno() {
 
 static const size_t FILEmaxpathlen = 1024;
 
+#define FILEminlen 512
+
 #define aFILEpath(n, p)                        \
     char n[1024];                              \
     {                                          \

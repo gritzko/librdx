@@ -89,7 +89,7 @@ ok64 HASH3() {
     a.val = 0;
     call(HASHkv32get, &a, dict);
     testeq(a.val, 2);
-    mute(HASHkv32get(&b, dict), HASHnone);
+    mute(HASHnone, HASHkv32get, &b, dict);
 
     Bkv32free(dictbuf);
     done;
