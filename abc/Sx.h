@@ -75,8 +75,14 @@ fun T X($, at)(X($, ) s, size_t pos) { return s[0][pos]; }
 fun T *X($, atp)(X($, ) s, size_t pos) { return s[0] + pos; }
 
 fun ok64 X($, eat1)(X($, ) s) {
-    if (s[0] >= s[1]) return $nodata;
+    if (s[0] + 1 > s[1]) return $nodata;
     ++s[0];
+    return OK;
+}
+
+fun ok64 X($, eat)(X($, ) s, size_t len) {
+    if (s[0] + len > s[1]) return $nodata;
+    s[0] += len;
     return OK;
 }
 

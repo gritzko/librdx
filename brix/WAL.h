@@ -4,6 +4,7 @@
 #include "abc/SHA.h"
 #include "brix/BRIX.h"
 
+static const ok64 WALbad = 0x80a566968;
 static const ok64 WALbadlen = 0x202959a5a30a72;
 
 typedef struct {

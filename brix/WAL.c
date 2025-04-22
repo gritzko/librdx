@@ -28,7 +28,33 @@ ok64 WALcreate(WAL* wal, $u8c filename, u64 logsz) {
     done;
 }
 
-ok64 WALopen(WAL* wal, $u8c filename) {
+ok64 WALscan(WAL* wal) {
+    sane(WALok(wal) && $len(Bu8data(wal->log)) == 0);
+    u8c$ log = (u8c**)Bu8idle(wal->log);
+    u64 loglen = $len(log);
+    fly256$ idx = Bfly256data(wal->idx);
+    while (!$empty(log)) {
+        if (!RDXisFIRST(**log) && !RDXisPLEX(**log)) break;
+        u8 t = 0;
+        fly256 rec = {};
+        $u8c val = {};
+        u64 at = loglen - $len(log) + $len(WALmagic);
+        call(RDXdrain, &t, &rec.id, val, log);
+        mute(HASHnone, HASHfly256get, &rec, idx);
+        int i = 0;
+        while (i < 4 && rec.recs[i] != 0) ++i;
+        if (i < 4) {
+            rec.recs[i] = at;
+        } else {
+            zero(rec.recs);
+            rec.recs[0] = at;
+        }
+        call(HASHfly256put, idx, &rec);
+    }
+    done;
+}
+
+ok64 WALopen(WAL* wal, $u8c filename) {  // TODO ro
     sane(wal != nil && !WALok(wal));
     aBcpad(u8, wp, FILEmaxpathlen);
     int fd = FILE_CLOSED;
@@ -38,10 +64,13 @@ ok64 WALopen(WAL* wal, $u8c filename) {
     test(0 == (logsz & (FILEminlen - 1)), WALbadlen);
     call(FILEmap, wal->log, &fd, PROT_READ | PROT_WRITE);
     call(FILEclose, &fd);
+    Breset(wal->log);
+    call($u8eat, Bu8idle(wal->log), $len(WALmagic));
+    call($u8eat, Bu8data(wal->log), $len(WALmagic));
+    test($eq(Bu8past(wal->log), WALmagic), WALbad);
     call(Bfly256map, wal->idx, logsz);
     Bfly256eat$2(wal->idx);
-    // TODO magic
-    // BWAHAHA here we scan, fill idx, set DATA
+    call(WALscan, wal);
     done;
 }
 
@@ -49,6 +78,7 @@ ok64 WALadd1(WAL* wal, $u8c rdx) {
     sane(WALok(wal));
     u64 at = Busylen(wal->log);
     fly256$ idx = Bfly256data(wal->idx);
+    u8$ idle = Bu8idle(wal->log);
     fly256 rec = {};
     u8 t = **rdx & ~TLVaA;
     test(RDXisFIRST(t) || RDXisPLEX(t), RDXbad);
@@ -57,16 +87,17 @@ ok64 WALadd1(WAL* wal, $u8c rdx) {
     int i = 0;
     while (i < 4 && rec.recs[i] != 0) ++i;
     if (i < 4) {
-        call($u8feedall, Bu8idle(wal->log), rdx);
+        call($u8feedall, idle, rdx);
         rec.recs[i] = at;
     } else {
         aBpad2($u8c, ins, 5);
         call(WALget, insidle, wal, rec.id);
         u64 at = Busylen(wal->log);
         call($$u8cfeed1, insidle, rdx);
-        call(Y, Bu8idle(wal->log), insdata);
+        call(Y, idle, insdata);
         zero(rec.recs);
         rec.recs[0] = at;
+        if (!$empty(idle)) *$head(idle) = 0;
     }
     call(HASHfly256put, idx, &rec);
     done;
