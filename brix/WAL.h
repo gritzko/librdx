@@ -36,6 +36,7 @@ ok64 WALopen(WAL* wal, $u8c filename);
 
 // may return XYZnoroom if either the log or the index oferfill
 ok64 WALadd(WAL* wal, $u8c rdx);
+ok64 WALadd1(WAL* wal, $cu8c rdx);
 
 ok64 WALget($$u8c ins, WAL const* wal, id128 id);
 

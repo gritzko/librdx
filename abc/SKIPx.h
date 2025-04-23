@@ -92,7 +92,7 @@ fun ok64 X(SKIP, drain)(X(SKIP, tab) * hop, Bu8 buf, size_t pos) {
 }
 
 fun ok64 X(SKIP, finish)(Bu8 buf, X(SKIP, tab) * k) {
-    sane(Bok(buf) && k != nil && k->pos < Bdatalen(buf));
+    sane(Bok(buf) && k != nil && k->pos <= Bdatalen(buf));
     size_t pos = Bdatalen(buf);
     if (k->pos != 0 && X(SKIP, blk)(pos) == X(SKIP, blk)(k->pos)) {
         $u8c lastk = {};

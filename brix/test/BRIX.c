@@ -5,8 +5,10 @@
 #include "WAL.h"
 #include "abc/01.h"
 #include "abc/PRO.h"
+#include "abc/SHA.h"
 #include "abc/TEST.h"
 #include "rdx/JDR.h"
+#include "rdx/RDX.h"
 
 ok64 WALtest() {
     sane(1);
@@ -47,9 +49,36 @@ ok64 WALtest() {
     done;
 }
 
+ok64 WALtoBRIXtest() {
+    sane(1);
+    a$strc(home, "/tmp/");
+    a$strc(fn, "/tmp/wal");
+
+    WAL wal = {};
+    call(WALcreate, &wal, fn, PAGESIZE);
+    a$rdx(rdx, "{@bob-123 1:one 2:two}", PAGESIZE);
+    id128 id = {};
+    call(RDXid, &id, rdx);
+    call(WALadd1, &wal, rdx);
+    sha256 top = {}, fresh = {};
+    call(WAL2brick, &fresh, &top, &wal, home);
+    call(WALclose, &wal);
+
+    BRIX brix = {};
+    aBcpad(u8, res, 128);
+    call(BRIXopenrepo, &brix, home);
+    call(BRIXopen, &brix, &fresh);
+    call(BRIXget, residle, &brix, RDX_EULER, id);
+    call(BRIXcloserepo, &brix);
+    $testeq(rdx, resdata);
+
+    done;
+}
+
 ok64 BRIXtest() {
     sane(1);
     call(WALtest);
+    call(WALtoBRIXtest);
     done;
 }
 

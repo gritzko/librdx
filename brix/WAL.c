@@ -5,9 +5,11 @@
 #include "abc/01.h"
 #include "abc/BUF.h"
 #include "abc/FILE.h"
+#include "abc/INT.h"
 #include "abc/LSM.h"
 #include "abc/OK.h"
 #include "abc/SHA.h"
+#include "abc/SST.h"
 #include "abc/TLV.h"
 #include "rdx/RDX.h"
 #include "rdx/Y.h"
@@ -74,7 +76,7 @@ ok64 WALopen(WAL* wal, $u8c filename) {  // TODO ro
     done;
 }
 
-ok64 WALadd1(WAL* wal, $u8c rdx) {
+ok64 WALadd1(WAL* wal, $cu8c rdx) {
     sane(WALok(wal));
     u64 at = Busylen(wal->log);
     fly256$ idx = Bfly256data(wal->idx);
@@ -93,7 +95,8 @@ ok64 WALadd1(WAL* wal, $u8c rdx) {
         aBpad2($u8c, ins, 5);
         call(WALget, insidle, wal, rec.id);
         u64 at = Busylen(wal->log);
-        call($$u8cfeed1, insidle, rdx);
+        a$dup(u8c, dup, rdx);
+        call($$u8cfeed1, insidle, dup);
         call(Y, idle, insdata);
         zero(rec.recs);
         rec.recs[0] = at;
@@ -106,11 +109,13 @@ ok64 WALadd1(WAL* wal, $u8c rdx) {
 // may return XYZnoroom if either the log or the index overfill
 ok64 WALadd(WAL* wal, $u8c rdx) {
     sane(WALok(wal));
+    a$dup(u8c, dup, rdx);
     while (!$empty(rdx)) {
         $u8c next = {};
         u8 t = 0;
-        call(RDXdrain$, &t, next, rdx);
+        call(RDXdrain$, &t, next, dup);
         call(WALadd1, wal, next);
+        $mv(rdx, dup);
     }
     done;
 }
@@ -141,20 +146,44 @@ ok64 WALget1($u8 res, WAL const* wal, id128 id) {
     done;
 }
 
+a$strc(WALtmp, ".wal.brik");
+ok64 BRIKhash(sha256* hash, SSTu128 sst);
+
 ok64 WAL2brick(sha256* sha, sha256c* top, WAL* wal, $cu8c home) {
     sane(sha != nil && WALok(wal));
-    Bu8 brik = {};
-    $u8c path;  // TODO
-    int fd = FILE_CLOSED;
-    call(FILEcreate, &fd, path);
-    aBcpad(sha256, deps, LSM_MAX_INPUTS);
     aBpad2($u8c, ins, LSM_MAX_INPUTS);
-    // TODO sort
-    // TODO map
+    int fd = FILE_CLOSED;
     SSTu128 sst = {};
-    size_t sumsz = 0;
-    call(SSTu128init, sst, &fd, path, sumsz);
-    call(BRIKcreate, sha, home, depsdata, insdata);
+    aBcpad(u8, tmp, FILEmaxpathlen);
+    call($u8feedall, tmpidle, home);
+    call($u8feedall, tmpidle, WALtmp);
+    u64 sstlen = Bu8len(wal->log) + sizeof(sha256) + sizeof(SSTheader);
+    call(SSTu128init, sst, &fd, tmpdata, sstlen);
+    Bu128 ids = {};
+    call(Bu128map, ids, Bfly256len(wal->idx));
+    // TODO fails
+    a$rawcp(sharaw, sha);
+    call($u8feedall, Bu8idle(sst), sharaw);
+    Bu8eat$1(sst);
+    $for(fly256, f, Bfly256data(wal->idx)) if (!id128empty(f->id))
+        Bu128feed1(ids, f->id);
+    $u128sortfn(Bu128data(ids), id128cmp);
+    SKIPu8tab tab = {};
+    $for(id128, p, Bu128data(ids)) {
+        call(WALget1, Bu8idle(sst), wal, *p);
+        call(SKIPu8mayfeed, sst, &tab);
+    }
+    call(Bu128unmap, ids);
+    call(BRIKhash, sha, sst);
+    call(SSTu128end, sst, &fd, &tab);
+
+    aBcpad(u8, path, FILEmaxpathlen);
+    call($u8feedall, pathidle, home);
+    a$rawc(raw, *sha);
+    call(HEXfeedall, pathidle, raw);
+    call($u8feedall, pathidle, BRIKext);
+    call(FILErename, tmpdata, pathdata);
+
     done;
 }
 

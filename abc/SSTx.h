@@ -19,7 +19,7 @@ fun ok64 X(SST, meta)(X(SST, ) sst, SSTheader const** head, u8c$ meta) {
     return OK;
 }
 
-fun ok64 X(SST, init)(X(SST, ) sst, int* fd, $u8c path, size_t size) {
+fun ok64 X(SST, init)(X(SST, ) sst, int* fd, $cu8c path, size_t size) {
     if (size < sizeof(SSTheader)) return SSTbadhead;
     ok64 o = FILEmapnew(sst, fd, path, size);
     if (o == OK) {

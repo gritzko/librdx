@@ -219,11 +219,11 @@ static const int StyleCommaSpacers =
     $u8c n = {};                                   \
     u8 _##n[l];                                    \
     {                                              \
-        $u8 rdx = {_##n, _##n + l};                \
+        $u8 __rdx = {_##n, _##n + l};              \
         $u8c jdr = {(u8c*)j, (u8c*)j + strlen(j)}; \
-        call(JDRdrain, rdx, jdr);                  \
+        call(JDRdrain, __rdx, jdr);                \
         n[0] = _##n;                               \
-        n[1] = rdx[0];                             \
+        n[1] = __rdx[0];                           \
     }
 
 #define a$jdr(n, rdx, l)            \
