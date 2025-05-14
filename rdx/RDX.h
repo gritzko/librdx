@@ -16,6 +16,8 @@ static const ok64 RDXwrong = 0x6cd87bdb3cab;
 
 #define RDX_MAX_NEST 256
 
+extern $u8c RDXdir;
+
 typedef enum {
     // primitive types
     RDX_FLOAT = 'F',

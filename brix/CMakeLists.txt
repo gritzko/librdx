@@ -1,5 +1,4 @@
-cmake_minimum_required(VERSION 3.20)
-project(libbrix C)
+
 
 set(CMAKE_C_STANDARD 23)
 
@@ -38,6 +37,10 @@ target_link_libraries(brix abc rdx)
 add_executable(brix-cli BRIX.cli.c)
 set_target_properties(brix-cli PROPERTIES OUTPUT_NAME brix)
 target_link_libraries(brix-cli brix)
+
+add_executable(fly FLY.cli.c FLY.c)
+set_target_properties(fly PROPERTIES OUTPUT_NAME fly)
+target_link_libraries(fly brix)
 
 add_subdirectory(test)
 

@@ -28,11 +28,11 @@ typedef struct {
     Bfly256 idx;
 } WAL;
 
-#define WALok(wal) (wal != nil && Bok(wal->log) && Bok(wal->idx))
+#define WALok(wal) ((wal) != nil && Bok((wal)->log) && Bok((wal)->idx))
 
-ok64 WALcreate(WAL* wal, $u8c filename, u64 logsz);
+ok64 WALcreate(WAL* wal, $cu8c filename, u64 logsz);
 
-ok64 WALopen(WAL* wal, $u8c filename);
+ok64 WALopen(WAL* wal, $cu8c filename);
 
 // may return XYZnoroom if either the log or the index oferfill
 ok64 WALadd(WAL* wal, $u8c rdx);

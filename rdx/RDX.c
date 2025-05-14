@@ -2,6 +2,8 @@
 
 #include "abc/TLV.h"
 
+a$strc(RDXdir, ".rdx/");
+
 ok64 RDXallFIRST($cu8c rdx) {
     sane($ok(rdx));
     a$dup(u8c, r, rdx);

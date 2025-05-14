@@ -77,7 +77,7 @@ fun b8 BRIXok(BRIX const* brix) {
 
 // close everything previously open, then
 // add an SST to the stack, including its dependencies.
-ok64 BRIXopenrepo(BRIX* brix, $u8c path);
+ok64 BRIXopenrepo(BRIX* brix, $cu8c path);
 
 // open an SST file, including all dependencies (close everything first)
 ok64 BRIXopen(BRIX* brix, sha256c* sha);

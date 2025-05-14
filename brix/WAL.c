@@ -16,7 +16,7 @@
 
 a$strc(WALmagic, "RDXWAL00");
 
-ok64 WALcreate(WAL* wal, $u8c filename, u64 logsz) {
+ok64 WALcreate(WAL* wal, $cu8c filename, u64 logsz) {
     sane(wal != nil && !WALok(wal) && logsz <= (1UL << 32));
     aBcpad(u8, wp, FILEmaxpathlen);
     int fd = FILE_CLOSED;
@@ -56,7 +56,7 @@ ok64 WALscan(WAL* wal) {
     done;
 }
 
-ok64 WALopen(WAL* wal, $u8c filename) {  // TODO ro
+ok64 WALopen(WAL* wal, $cu8c filename) {  // TODO ro
     sane(wal != nil && !WALok(wal));
     aBcpad(u8, wp, FILEmaxpathlen);
     int fd = FILE_CLOSED;

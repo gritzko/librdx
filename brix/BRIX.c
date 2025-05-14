@@ -19,6 +19,7 @@
 
 a$strc(BRIKtmp, ".tmp.brik");
 a$strc(BRIKext, ".brik");
+a$strc(BRIXdir, ".rdx/brix/");
 
 fun ok64 BRIKhead(BRIX const* brix, SSTheader const** head, sha256c$ shas,
                   u32 ndx) {
@@ -42,7 +43,7 @@ ok64 BRIKpath($u8 into, BRIX const* brix, sha256c* sha) {
     done;
 }
 
-ok64 BRIXopenrepo(BRIX* brix, $u8c path) {
+ok64 BRIXopenrepo(BRIX* brix, $cu8c path) {
     sane(brix != nil && !Bok(brix->ssts) && $ok(path));
     call(FILEisdir, path);
     call(BBu8alloc, brix->ssts, LSM_MAX_INPUTS);
