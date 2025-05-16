@@ -63,16 +63,16 @@ All tuple elements can be *replaced* but the first one.
 There are two notations for the tuples: the generic bracketed one and the compact colon notation.
 ```
 1:2:3,
-<1,2,3>,
+(1,2,3),
 
 ```
 An empty tuple is effectively the "null" value.
 ```
-<,,>,
+(,,),
 ::,
-<<>,<>,<>>,
-<>:<>:<>,
-< <> <> <> >,
+((),(),()),
+():():(),
+( () () () ),
 
 
 ```
@@ -80,8 +80,8 @@ Linear collections are vectors/arrays of FIRST/PLEX elements.
 Differently from tuples, it is possible to *splice* a linear collection.
 ```
 [1, 2, 3,],
-[1,2,3,<>],
-[1 2 3 <>],
+[1,2,3,()],
+[1 2 3 ()],
 
 
 ```
@@ -91,8 +91,8 @@ In the JDR notation, sets may go unsorted.
 Any duplicate keys will be merged.
 ```
 { , 1, 2:3, 4:5},
-{<> 4:5 2:3 1},
-{<> 1 2:2 2:3 <4,5>},
+{() 4:5 2:3 1},
+{() 1 2:2 2:3 (4,5)},
 { ,,,, 1, 2:3, 4:5},
 
 
@@ -101,8 +101,8 @@ Multiplexed collections are counters, version vectors, etc.
 These are divided/sorted by the contributor.
 Any entries by the same contributor get merged.
 ```
-(1@a1ece-1, 2@b0b-2),
-( 1@b0b-1 1@a1ece-1 2@b0b-2),
+<1@a1ece-1, 2@b0b-2>,
+< 1@b0b-1 1@a1ece-1 2@b0b-2>,
 ````
 
 
@@ -123,5 +123,5 @@ In case an element has an identity and a revision number,
 it get wrapped into a tuple envelope; odd revision number
 on the envelope denotes a tombstone.
 ```
-<@1 [@deleted-array]>
-<@0-1 [@deleted-array]>
+(@1 [@deleted-array])
+(@0-1 [@deleted-array])

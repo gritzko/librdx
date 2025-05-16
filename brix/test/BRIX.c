@@ -19,10 +19,10 @@ ok64 WALtest() {
     char* inout[][2] = {
         {"{@bob-123 1:one}", "{@bob-123 1:one}"},                   //
         {"{@bob-123 2:two}", "{@bob-123 1:one 2:two}"},             // merge
-        {"{@bob-123 <@1 2>}", "{@bob-123 1:one <@1 2>}"},           // purge
-        {"{@bob-123 3:three}", "{@bob-123 1:one <@1 2> 3:three}"},  //
+        {"{@bob-123 (@1 2)}", "{@bob-123 1:one (@1 2)}"},           // purge
+        {"{@bob-123 3:three}", "{@bob-123 1:one (@1 2) 3:three}"},  //
         {"{@bob-123 4:four 5:five}",
-         "{@bob-123 1:one <@1 2> 3:three 4:four 5:five}"},  // wal merge
+         "{@bob-123 1:one (@1 2) 3:three 4:four 5:five}"},  // wal merge
         {"", ""},                                           //
     };
 

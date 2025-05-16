@@ -9,15 +9,15 @@ you can learn these rules too.
 First of all, an empty tuple is the RDX value for "nothing".
 As such, it can act as a tombstone or as a "null".
 ```
-<<> <>>
-<>:<>
+(() ())
+():()
     ~
-<<> <>>
+(() ())
 
 1:2:3
-1:<>:3
+1:():3
     ~
-1:<>:3
+1:():3
 
 ```
 Any element, including a tuple, can have a revision id attached.
@@ -65,10 +65,10 @@ it has an *identity* so it can be included by reference.
 When two distinct-identity PLEX elements are merged, it
 is one or the other, and the higher id wins.
 ```
-<@Alice-1st "Tweedledum" rattle:spoiled>
-<@Alice-2nd "Tweedledee">
+(@Alice-1st "Tweedledum" rattle:spoiled)
+(@Alice-2nd "Tweedledee")
         ~
-<@Alice-2nd "Tweedledee">
+(@Alice-2nd "Tweedledee")
 
 ```
 A tuple of one element, algebraically speaking, is the element
@@ -82,26 +82,26 @@ an element; it "lives" at a different address.
 
 ```
 1:2:3
-<@2 1>
+(@2 1)
     ~
-<@2 1>
+(@2 1)
 
 1:2:3
-<1>
-<@1>
+(1)
+(@1)
     ~
-<@1>
+(@1)
 
 {@Alice-seq name: "Alice"}
-<@sez {@Alice-seq}>
+(@sez {@Alice-seq})
     ~
-<@sez {@Alice-seq}>
+(@sez {@Alice-seq})
 
 {@Alice-1st name: "Tweedledum"}
-<@1st {@Alice-1st}>
-<@2nd {@Alice-2nd name: "Tweedledee"}>
+(@1st {@Alice-1st})
+(@2nd {@Alice-2nd name: "Tweedledee"})
     ~
-<@2nd {@Alice-2nd name: "Tweedledee"}>
+(@2nd {@Alice-2nd name: "Tweedledee"})
 
 ```
 Revision 0 (no revision, no envelope or no stamp on an envelope)
@@ -110,14 +110,14 @@ on "tombstones", i.e. placeholders for deleted elements.
 Even revision numbers express undeleted elements.
 ```
 "string to be deleted"
-<@1 "string to be deleted">
+(@1 "string to be deleted")
     ~
-<@1 "string to be deleted">
+(@1 "string to be deleted")
 
-<@1 "string to be undeleted">
-<@2 "string to be undeleted">
+(@1 "string to be undeleted")
+(@2 "string to be undeleted")
     ~
-<@2 "string to be undeleted">
+(@2 "string to be undeleted")
 
 ```
 The way tuples themselves are merged depends on their id.
@@ -128,10 +128,10 @@ This rule applies to other PLEX elements as well.
 
 So, for two distinct tuples, higher id wins:
 ```
-<@Alice-1st name:"Tweedledum" rattle:spoiled>
-<@Alice-2nd name:"Tweedledee">
+(@Alice-1st name:"Tweedledum" rattle:spoiled)
+(@Alice-2nd name:"Tweedledee")
     ~
-<@Alice-2nd name:"Tweedledee">
+(@Alice-2nd name:"Tweedledee")
 
 ```
 One very special detail about tuples: their first element can not
@@ -147,10 +147,10 @@ For two *variants* of a PLEX element (same id), nested elements
 will be merged, recursively. When merging specifically a tuple,
 elements in the same position get merged.
 ```
-<@1 {@Alice-1 "one":1 } >
-<@1 {@Alice-1 "two":2 } >
+(@1 {@Alice-1 "one":1 } )
+(@1 {@Alice-1 "two":2 } )
     ~
-<@1 {@Alice-1 "one":1 "two":2 } >
+(@1 {@Alice-1 "one":1 "two":2 } )
 
 1:1:3
 1:2:1
@@ -165,33 +165,33 @@ elements in the same position get merged.
 ```
 ...now recursively:
 ```
-1:<2,3>
-1:<1,4>
-1:<2,5>
+1:(2,3)
+1:(1,4)
+1:(2,5)
     ~
-1:<2,5>
+1:(2,5)
 
 ```
 For two different tuples (different id), the contents will not
 be merged: newer id just wins. Again, we may understand the id
 as an object id or as a version id, that does not matter.
 ```
-< one:1 >
-<@1 two:2 >
+( one:1 )
+(@1 two:2 )
 three:3
-<@2 four:4>
+(@2 four:4)
     ~
-<@2 four:4>
+(@2 four:4)
 
-<@1 <@Alice-3 1 2 3>>
-<@3 <@carol-4 four five>>
+(@1 (@Alice-3 1 2 3))
+(@3 (@carol-4 four five))
     ~
-<@3 <@carol-4 four five>>
+(@3 (@carol-4 four five))
 
-<@carol-1 one two>
-<@2 <@Alice-3 1 2 3>>
+(@carol-1 one two)
+(@2 (@Alice-3 1 2 3))
     ~
-<@2 <@Alice-3 1 2 3>>
+(@2 (@Alice-3 1 2 3))
 
 1@Bob-1:2
 1@Bob-1:2:3
@@ -212,11 +212,11 @@ opening bracket.
 1@Alice-2:2:3
 
 1 @1
-<@2 2, 2>
+(@2 2, 2)
     ~
-<@2 2, 2>
+(@2 2, 2)
 
-<@1 1, 2>
+(@1 1, 2)
 2@2
     ~
 2@2
@@ -226,7 +226,7 @@ opening bracket.
 special meaning, only the outer envelope counts.
 ```
 
-<@2 <@34 1 2 3 >>
-<@3 1 22 33>
+(@2 (@34 1 2 3 ))
+(@3 1 22 33)
     ~
-<@3 1 22 33>
+(@3 1 22 33)

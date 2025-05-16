@@ -173,11 +173,11 @@ ok64 JDRonPLEX1(u8 lit, JDRstate* state) {
 }
 
 ok64 JDRonOpenP($cu8c tok, JDRstate* state) {
-    return JDRonPLEX0(RDX_TUPLE, state);
+    return JDRonPLEX0(RDX_MULTIX, state);
 }
 
 ok64 JDRonCloseP($cu8c tok, JDRstate* state) {
-    return JDRonPLEX1(RDX_TUPLE, state);
+    return JDRonPLEX1(RDX_MULTIX, state);
 }
 
 ok64 JDRonOpenL($cu8c tok, JDRstate* state) {
@@ -197,11 +197,11 @@ ok64 JDRonCloseE($cu8c tok, JDRstate* state) {
 }
 
 ok64 JDRonOpenX($cu8c tok, JDRstate* state) {
-    return JDRonPLEX0(RDX_MULTIX, state);
+    return JDRonPLEX0(RDX_TUPLE, state);
 }
 
 ok64 JDRonCloseX($cu8c tok, JDRstate* state) {
-    return JDRonPLEX1(RDX_MULTIX, state);
+    return JDRonPLEX1(RDX_TUPLE, state);
 }
 
 ok64 JDRonOpen($cu8c tok, JDRstate* state) { return OK; }
@@ -489,10 +489,10 @@ ok64 JDRfeed1($u8 rdxj, $u8c tlv, u64 style) {
             b8 brackets = 1;  //(parent == RDX_TUPLE || !id128empty(id));
             if ((style & StyleBracketTuples) || OK != JDRisPU(value) ||
                 !id128empty(id)) {
-                call($u8feed1, rdxj, '<');
+                call($u8feed1, rdxj, '(');
                 call(JDRfeedstamp, rdxj, id, !$empty(value));
                 call(JDRfeedlist, rdxj, value, style + 1);
-                call($u8feed1, rdxj, '>');
+                call($u8feed1, rdxj, ')');
             } else {
                 while (!$empty(value)) {
                     call(JDRfeed1, rdxj, value,
@@ -509,10 +509,10 @@ ok64 JDRfeed1($u8 rdxj, $u8c tlv, u64 style) {
             call($u8feed1, rdxj, '}');
             break;
         case RDX_MULTIX:
-            call($u8feed1, rdxj, '(');
+            call($u8feed1, rdxj, '<');
             call(JDRfeedstamp, rdxj, id, !$empty(value));
             call(JDRfeedlist, rdxj, value, style + 1);
-            call($u8feed1, rdxj, ')');
+            call($u8feed1, rdxj, '>');
             break;
         case SKIP_TLV_TYPE:
             break;

@@ -8,7 +8,7 @@ An empty tuple is the leastest element.
 Other tuples get ordered according to their key element (i.e. the first one).
 A tuple of one element is the same thing as the element itself.
 ```
-    <>,
+    (),
 ```
 Floats get ordered numerically.
 ```
@@ -64,8 +64,8 @@ Eulerian collections: by their id.
 ```
 ...as well as to multiplexed collections.
 ```
-    ( 1@a1ec-1, 2@b0b-1 ),
-    ( @b0b-0 1@a1ec-1, 2@b0b-1 ),
-    (@b0b-1 ~@b0b-2, ~@a1ec-3 ),
-    (@a1ec-1 ~@b0b-3, ~@a1ec-3 ),
+    < 1@a1ec-1, 2@b0b-1 >,
+    < @b0b-0 1@a1ec-1, 2@b0b-1 >,
+    <@b0b-1 ~@b0b-2, ~@a1ec-3 >,
+    <@a1ec-1 ~@b0b-3, ~@a1ec-3 >,
 ````
