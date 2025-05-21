@@ -74,3 +74,6 @@ Sure it can, if:
 [B]: https://braid.org
 [d]: https://datatracker.ietf.org/doc/html/draft-toomim-httpbis-braid-http#section-2.1
 [s]: https://bsky.app
+
+## Replies
+- Michael Thumim replied at https://braid.org/post/response-to-gritzko
