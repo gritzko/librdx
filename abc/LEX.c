@@ -66,7 +66,7 @@ const u8c *LEX_TEMPL[LEX_TEMPL_LANG_LEN][LEX_TEMPL_LEN][2] = {
                "%%write data;\n"
                "\n"
                "// the public API function\n"
-               "pro(${mod}lexer, ${mod}state* state) {\n"
+               "ok64 ${mod}lexer(${mod}state* state) {\n"
                "\n"
                "    a$$dup(u8c, text, state->text);\n"
                "    sane($$ok(text));\n"
@@ -156,14 +156,14 @@ const u8c *LEX_TEMPL[LEX_TEMPL_LANG_LEN][LEX_TEMPL_LEN][2] = {
     },
 };
 
-static const ok64 LEX$ACTIONS = 0x1c5d849d30a;
-static const ok64 LEX$ENUM = 0x59e5ce;
-static const ok64 LEX$FN = 0x5cf;
-static const ok64 LEX$RULES = 0x1c39579b;
+static const ok64 LEX$RULES = 0x1b79539c;
+static const ok64 LEX$ACTIONS = 0xa31d4985dc;
+static const ok64 LEX$ENUM = 0x397796;
+static const ok64 LEX$FN = 0x3d7;
 
-static const ok64 LEX$mod = 0x28cf1;
-static const ok64 LEX$act = 0x389e5;
-static const ok64 LEX$actno = 0x33cb89e5;
+static const ok64 LEX$mod = 0x31ce8;
+static const ok64 LEX$act = 0x259f8;
+static const ok64 LEX$actno = 0x259f8cb3;
 
 ok64 LEXonName($cu8c tok, LEXstate *state) {
     ok64 o = $u8feed(NESTidle(state->ct), state->mod);
@@ -288,7 +288,11 @@ ok64 lex2rl($u8c mod, $u8c lang) {
     call(NESTfeed, ctbuf, LEX_TEMPL[nlang][LEX_TEMPL_FILE]);
 
     aBcpad(u8, rl, MB);
-    call(LEXlexer, &state);
+    try(LEXlexer, &state);
+    nedo {
+        FILEerr(state.text);
+        fail(__);
+    }
     call(NESTrender, rlidle, ctbuf);
 
     aBcpad(u8, rlname, KB);
