@@ -20,13 +20,13 @@ RDX element types come in two groups: `FIRST` and `PLEX`.
  1. x-Ples `1:2`,
  2. Linear `["a", "b", "c"]`,
  3. Eulerian `{false, true}` and
- 4. multipleXed `(1@b0b-0, 2@a1ec-3)` collections.
+ 4. multipleXed `<1@b0b-0, 2@a1ec-3>` collections.
 
 *x-Ples* or *tuples* are short fixed-order collections: couples, triples, quadruples, and so on.
 These are `1:2` or `"Alice":"Bob":"Carol"`.
 The only way to edit a tuple is to replace an element.
 A tuple can optionally be enclosed in angled brackets.
-That is only necessary if we nest tuples, e.g. `"Corned Beef" : <0.25:kg> : <3.45:EUR>`.
+That is only necessary if we nest tuples, e.g. `"Corned Beef" : (0.25 kg) : (3.45 EUR)`.
 
 *Linear* collections are essentially arrays.
 As with tuples, the relative order of elements gets preserved on copy, conversion or merge.
@@ -41,7 +41,7 @@ Set elements can be inserted, removed or replaced.
 
 *Multiplexed* collections are version vectors, counters and suchlike.
 In such a collection, each author's contribution is kept separately.
-There is at most one element contributed by each author: `(20@b0b-1, 40@a1ec-3)`.
+There is at most one element contributed by each author: `<20@b0b-1 40@a1ec-3>`.
 Elements can be inserted or updated by the respective author.
 
 Note the `@` notation.
@@ -71,10 +71,10 @@ RDX is a versioned data format, so every element is versioned too, e.g. `(20@b0b
 In the example above, `a1ec` made four additions to the counter contributing 40.
 `b0b` made two contributing 20.
 That resulted in the counter value of 60.
-Now suppose we merge that with `(25@b0b-4, 32@a1ec-4)`
+Now suppose we merge that with `<25@b0b-4, 32@a1ec-4>`
 The first version of the counter has a newer version from `a1ec`.
 The other version has newer data from `b0b`.
-The result would be `(25@b0b-4, 40@a1ec-6)` and the counter value is now 65.
+The result would be `<25@b0b-4, 40@a1ec-6>` and the counter value is now 65.
 
 We can merge versions of an RDX object or produce a patch for any two of them.
 Revision control is the main feature of RDX.

@@ -37,14 +37,13 @@ Using the same conventions, a CLI syntax should look like:
     ./rdx parse:"file.jdr"
 ````
 Here, we may need some CLI-specific *adaptations* as UNIX shell
-has its own punctuation. Needless to say, we can not use the 
-angle-bracket notation, like `./rdx <parse "file.jdr">`.
+has its own punctuation.
 To make autocompletion work we allow for unquoted strings:
 ````
     ./rdx parse: ./file.jdr
     ./rdx parse: file.jdr, merge, print
 ````
-...and that's about it.
+...we also have to escape many things, like `(` or `<`... and that's about it.
 
 In scripts we may need to use named parameters or variables
 The convention is to have them numbered `~1` or named `~name`.

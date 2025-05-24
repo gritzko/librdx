@@ -80,12 +80,16 @@
   font-family: "JetBrains Mono";
 }
 
+a {
+  color: #3235c1;
+}
+
 .markdown-body h1 {
-  border-bottom: 1px solid #08f;
+  border-bottom: 4px solid #3235c1;
 }
 
 .markdown-body h2 {
-  border-bottom: 1px dashed #08f;
+  border-bottom: 2px dotted #3235c1;
 }
 
 .markdown-body .highlight pre,
@@ -115,7 +119,7 @@
   font-size: 100%;
   background: none;
   background-color: #f5f5ff;
-  color: #35a;
+  color: #545693;
 } 
 .markdown-body pre code {
   color: black;

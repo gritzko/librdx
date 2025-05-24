@@ -6,9 +6,9 @@ It converts between RDX and JDR, merges, produces patches, and so on.
 For example, this pipeline invocation parses JDR into RDX, merges two
 versions and converts the result back into JDR.
 ````
-    $ echo "<1,2>,<1,1,3>" > 123.jdr
+    $ echo "1:2,1:1:3" > 123.jdr
     $ rdx parse 123.jdr, merge, print
-    <1,2,3>
+    1:2:3
 ````
 
 
@@ -51,7 +51,7 @@ it can only merge versions of one object.
     $ cat test2.jdr
     {3:4,4:5,"seven"}
     $ rdx merge test.jdr test2.jdr, print
-    {<@2-2 1:6>,3:4,4:5,"seven",eight}
+    {(@2-2 1:6),3:4,4:5,"seven",eight}
 ````
 
 
@@ -62,7 +62,7 @@ some amount of metadata: tombstones, revision numbers, ids.
 Stripping produces a clean JDR/JSON document with no metadata:
 ````
     $ rdx print doc.rdx
-    {"key": 123@4, <"dead key">}
+    {"key": 123@4, "dead key"@1}
     $ rdx strip doc.rdx, print
     {"key": 123}
 ````
