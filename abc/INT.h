@@ -17,15 +17,17 @@ static const ok64 INTbad = 0x497766968;
 #define I64_MIN INT64_MIN
 #define I64_MIN_ABS 0x8000000000000000
 
-fun int u16cmp(const u16 *a, const u16 *b) { return (int)*a - (int)*b; }
-fun int u32cmp(const u32 *a, const u32 *b) {
-    // return (i64)*a - (i64)*b;
-    if (*a == *b) return 0;
-    return *a < *b ? -1 : 1;
+fun z32 u16cmp(const u16 *a, const u16 *b) {
+    if (*a == *b) return z32eq;
+    return *a < *b ? z32lt : z32gt;
 }
-fun int u64cmp(const u64 *a, const u64 *b) {
-    if (*a == *b) return 0;
-    return *a < *b ? -1 : 1;
+fun z32 u32cmp(const u32 *a, const u32 *b) {
+    if (*a == *b) return z32eq;
+    return *a < *b ? z32lt : z32gt;
+}
+fun z32 u64cmp(const u64 *a, const u64 *b) {
+    if (*a == *b) return z32eq;
+    return *a < *b ? z32lt : z32gt;
 }
 
 fun int i8cmp(const i8 *a, const i8 *b) { return (int)*a - (int)*b; }

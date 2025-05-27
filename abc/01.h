@@ -67,6 +67,16 @@ typedef uint8_t b8;
 #define NO 0
 #define YES 1
 
+typedef int32_t z32;
+#define z32lt -1
+#define z32gt 1
+#define z32eq 0
+#define z32lx INT8_MIN
+#define z32gx INT8_MAX
+#define z32islt(x) (x < 0)
+#define z32isgt(x) (x > 0)
+#define z32iseq(x) (x == 0)
+
 #define u8bits 8
 #define u16bits 16
 #define u32bits 32

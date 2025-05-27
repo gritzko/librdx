@@ -105,10 +105,27 @@ fun ok64 YmergeP($u8 into, $$u8c bare) {
     done;
 }
 
+fun z32 RDXLorder($u8c const* a, $u8c const* b) {
+    a$dup(u8c, aa, (u8c**)a);
+    a$dup(u8c, bb, (u8c**)b);
+    u8 ta, tb;
+    id128 ida, idb;
+    $u8c vala, valb;
+    RDXdrain(&ta, &ida, vala, aa);
+    RDXdrain(&tb, &idb, valb, bb);
+    u64 seqa = id128seq(ida);
+    u64 seqb = id128seq(idb);
+    u64 oa = (seqa >> 6) & 0xfff;
+    u64 ob = (seqb >> 6) & 0xfff;
+    if (oa != ob) return u64cmp(&oa, &ob);
+    u64 la = seqa >> 18;
+    u64 lb = seqb >> 18;
+    return u64cmp(&lb, &la);
+}
+
 fun ok64 YmergeL($u8 into, $$u8c from) {
     sane($ok(into) && $ok(from));
-    // TODO injects
-    // TODO step wise
+    return LSMmerge(into, from, RDXLorder, Y);
     fail(notimplyet);
     done;
 }

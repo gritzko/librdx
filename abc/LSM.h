@@ -13,7 +13,7 @@ static const ok64 LSMnoroom = 0x31cf3db3c96715;
 
 typedef ok64 (*$u8cXfn)(u8c$ next, $u8c rest);
 typedef ok64 (*$u8cYfn)($u8 into, $$u8c from);
-typedef int (*$u8cZfn)($cu8c* a, $cu8c* b);
+typedef z32 (*$u8cZfn)($cu8c* a, $cu8c* b);
 
 #define X(M, name) M##$u8c##name
 #include "abc/HEAPx.h"

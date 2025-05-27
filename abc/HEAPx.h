@@ -3,7 +3,7 @@
 
 typedef T const X(, c);
 
-typedef int (*X(, cmpfn))(const X(, ) *, const X(, ) *);
+typedef z32 (*X(, Zfn))(const X(, ) *, const X(, ) *);
 
 fun void X(HEAP, up)(X($c, ) heap) {
     if ($len(heap) == 0) return;
@@ -56,7 +56,7 @@ fun ok64 X(HEAP, push1)(X(B, ) buf, T v) {
     return OK;
 }
 
-fun void X(HEAP, upf)(X($c, ) heap, X(, cmpfn) fn) {
+fun void X(HEAP, upf)(X($c, ) heap, X(, Zfn) fn) {
     if ($len(heap) == 0) return;
     size_t a = $len(heap) - 1;
     while (a) {
@@ -68,7 +68,7 @@ fun void X(HEAP, upf)(X($c, ) heap, X(, cmpfn) fn) {
     }
 }
 
-fun void X(HEAP, downf)(X($c, ) heap, X(, cmpfn) fn) {
+fun void X(HEAP, downf)(X($c, ) heap, X(, Zfn) fn) {
     size_t i = 0;
     size_t n = $len(heap);
     do {
@@ -83,7 +83,7 @@ fun void X(HEAP, downf)(X($c, ) heap, X(, cmpfn) fn) {
     } while (1);
 }
 
-fun ok64 X(HEAP, popf)(T *v, X(B, ) buf, X(, cmpfn) fn) {
+fun ok64 X(HEAP, popf)(T *v, X(B, ) buf, X(, Zfn) fn) {
     T **data = X(B, data)(buf);
     if ($empty(data)) return Bnodata;
     X(, mv)(v, $head(data));
@@ -93,14 +93,14 @@ fun ok64 X(HEAP, popf)(T *v, X(B, ) buf, X(, cmpfn) fn) {
     return OK;
 }
 
-fun ok64 X(HEAP, pushf)(X(B, ) buf, T const *v, X(, cmpfn) fn) {
+fun ok64 X(HEAP, pushf)(X(B, ) buf, T const *v, X(, Zfn) fn) {
     ok64 o = X(B, feedp)(buf, v);
     if (o != OK) return o;
     X(HEAP, upf)(X(B, data)(buf), fn);
     return OK;
 }
 
-fun ok64 X(HEAP, push1f)(X(B, ) buf, T v, X(, cmpfn) fn) {
+fun ok64 X(HEAP, push1f)(X(B, ) buf, T v, X(, Zfn) fn) {
     ok64 o = X(B, feed1)(buf, v);
     if (o != OK) return o;
     X(HEAP, upf)(X(B, data)(buf), fn);

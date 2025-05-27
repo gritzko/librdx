@@ -28,6 +28,7 @@ typedef T const *const *X(, $cc);
 typedef X($, ) * X($$, )[2];
 
 typedef int (*X(, cmpfn))(const X(, ) *, const X(, ) *);
+typedef z32 (*X(, Zfn))(const X(, ) *, const X(, ) *);
 
 typedef b8 (*X(, isfn))(const X(, ) *);
 

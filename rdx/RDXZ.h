@@ -3,19 +3,19 @@
 #include "RDX.h"
 #include "abc/S.h"
 
-fun int _RDXZlit(u8 const* a, u8 const* b) {
+fun z32 _RDXZlit(u8 const* a, u8 const* b) {
     b8 ap = RDXisPLEX(*a);
     b8 bp = RDXisPLEX(*b);
     if (ap == bp) return u8cmp(a, b);
     return bp ? -1 : 1;
 }
 
-fun int RDXZlit(u8 const* a, u8 const* b) {
+fun z32 RDXZlit(u8 const* a, u8 const* b) {
     if (*a == *b) return 0;
     return _RDXZlit(a, b);
 }
 
-fun int RDXZauthor($u8c const* a, $u8c const* b) {
+fun z32 RDXZauthor($u8c const* a, $u8c const* b) {
     u8 ta, tb;
     $u8c keya = {}, keyb = {};
     $u8c vala = {}, valb = {};
@@ -30,7 +30,7 @@ fun int RDXZauthor($u8c const* a, $u8c const* b) {
     return z;
 }
 
-fun int RDXZrevision($u8c const* a, $u8c const* b) {
+fun z32 RDXZrevision($u8c const* a, $u8c const* b) {
     u8 ta, tb;
     $u8c keya = {}, keyb = {};
     $u8c vala = {}, valb = {};
@@ -56,7 +56,7 @@ fun int RDXZrevision($u8c const* a, $u8c const* b) {
      4. `S` alphanumeric, as in `strcmp(3)`,
      5. `T` alphanumeric.
  **/
-fun int RDXZvalue($u8c const* a, $u8c const* b) {
+fun z32 RDXZvalue($u8c const* a, $u8c const* b) {
     u8 ta, tb;
     $u8c keya = {}, keyb = {};
     $u8c vala = {}, valb = {};

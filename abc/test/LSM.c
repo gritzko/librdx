@@ -9,14 +9,14 @@
 #include "abc/TLV.h"
 #include "abc/ZINT.h"
 
-fun int alpha($cu8c* a, $cu8c* b) {
+fun z32 alpha($cu8c* a, $cu8c* b) {
     a$dup(u8c, aa, *a);
     a$dup(u8c, bb, *b);
     u8 ta, tb;
     $u8c keya, keyb, vala, valb;
     TLVdrainkv(&ta, keya, vala, aa);
     TLVdrainkv(&tb, keyb, valb, bb);
-    int c = $cmp(keya, keyb);
+    z32 c = $cmp(keya, keyb);
     return c;
 }
 
@@ -102,7 +102,7 @@ ok64 LSM1() {
     done;
 }
 
-fun int ZINTz($cu8c* a, $cu8c* b) {
+fun z32 ZINTz($cu8c* a, $cu8c* b) {
     a$dup(u8c, aa, *a);
     a$dup(u8c, bb, *b);
     $u8c vala, valb;

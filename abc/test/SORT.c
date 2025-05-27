@@ -10,6 +10,12 @@
 
 ok64 SORT1() {
     sane(1);
+    u64 max = UINT64_MAX;
+    u64 min = 0;
+    testeq(u64cmp(&max, &min), z32gt);
+    testeq(u64cmp(&min, &max), z32lt);
+    testeq(u64cmp(&max, &max), z32eq);
+    testeq(u64cmp(&min, &min), z32eq);
     aBpad2(u64, ints, LEN1);
     aBpad2(u64, ints2, LEN1);
     aBpad2(u64, ints3, LEN1);
