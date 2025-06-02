@@ -173,11 +173,11 @@ ok64 JDRonPLEX1(u8 lit, JDRstate* state) {
 }
 
 ok64 JDRonOpenP($cu8c tok, JDRstate* state) {
-    return JDRonPLEX0(RDX_MULTIX, state);
+    return JDRonPLEX0(RDX_TUPLE, state);
 }
 
 ok64 JDRonCloseP($cu8c tok, JDRstate* state) {
-    return JDRonPLEX1(RDX_MULTIX, state);
+    return JDRonPLEX1(RDX_TUPLE, state);
 }
 
 ok64 JDRonOpenL($cu8c tok, JDRstate* state) {
@@ -197,17 +197,18 @@ ok64 JDRonCloseE($cu8c tok, JDRstate* state) {
 }
 
 ok64 JDRonOpenX($cu8c tok, JDRstate* state) {
-    return JDRonPLEX0(RDX_TUPLE, state);
+    return JDRonPLEX0(RDX_MULTIX, state);
 }
 
 ok64 JDRonCloseX($cu8c tok, JDRstate* state) {
-    return JDRonPLEX1(RDX_TUPLE, state);
+    return JDRonPLEX1(RDX_MULTIX, state);
 }
 
 ok64 JDRonOpen($cu8c tok, JDRstate* state) { return OK; }
 
 ok64 JDRsort(JDRstate* state, $u8cZfn cmp, $u8cYfn mrg) {
     sane(state != nil);
+    fprintf(stderr, "JDRsort\n");
     u8p start = *Bu8ptop(state->stack) + 1 + 4;
     start += *start + 1;
     $u8 body = {start, state->tlv[0]};
@@ -222,11 +223,12 @@ ok64 JDRonClose($cu8c tok, JDRstate* state) {
     test(JDRtop(state->stack) == lit, FAILsanity);
     if (!RDXisPLEX(lit)) fail(FAILsanity);
     u8p start = *Bu8ptop(state->stack);
+    fprintf(stderr, "JDRonCLose %c\n", lit);
     if (lit == RDX_EULER) {
-        call(JDRsort, state, RDXZvalue, Y);
+        call(JDRsort, state, Zeuler$, Yone);
         call(TLVendany, state->tlv, lit, state->stack);
     } else if (lit == RDX_MULTIX) {
-        call(JDRsort, state, RDXZauthor, Y);
+        call(JDRsort, state, Zmultix$, Yone);
         call(TLVendany, state->tlv, lit, state->stack);
     } else {
         call(TLVendany, state->tlv, lit, state->stack);

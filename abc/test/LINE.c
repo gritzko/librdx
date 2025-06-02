@@ -64,7 +64,7 @@ ok64 LINEtest2() {
 }
 
 // FIXME hi?
-int srccmp(linec *a, linec *b) { return u64cmp(&a->id._64[1], &b->id._64[1]); }
+int srccmp(linec *a, linec *b) { return u64z(&a->id._64[1], &b->id._64[1]); }
 fun ok64 srcmerge(line *into, $cline from) {
     line *max = from[0];
     for (line *p = from[0] + 1; p < from[1]; p++) {

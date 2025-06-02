@@ -214,7 +214,7 @@ fun int ZINTu128z($cu8c a, $cu8c b) {
     u128 bn = {};
     ZINTu128drain(&an, aa);
     ZINTu128drain(&bn, bb);
-    return u128cmp(&an, &bn);
+    return u128z(&an, &bn);
 }
 
 fun int ZINTi64z($cu8c a, $cu8c b) {
@@ -224,7 +224,7 @@ fun int ZINTi64z($cu8c a, $cu8c b) {
     i64 bn = 0;
     ZINTi64drain(&an, aa);
     ZINTi64drain(&bn, bb);
-    return i64cmp(&an, &bn);
+    return i64z(&an, &bn);
 }
 
 fun int f64z(f64 const* a, f64 const* b) {

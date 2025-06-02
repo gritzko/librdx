@@ -5,21 +5,22 @@
 #include "B.h"
 #include "S.h"
 
-fun int u8cmp(const u8 *a, const u8 *b) { return (int)*a - (int)*b; }
-
-fun int u8cpcmp(u8 const *const *a, u8 const *const *b) {
-    if (*a == *b) return 0;
-    return *a < *b ? -1 : 1;
+fun int u8z(const u8 *a, const u8 *b) {
+    if (*a == *b) return z32eq;
+    return *a < *b ? z32lt : z32gt;
 }
 
-fun int u8pcmp(u8 *const *a, u8 *const *b) {
-    if (*a == *b) return 0;
-    return *a < *b ? -1 : 1;
+fun int u8cpz(u8 const *const *a, u8 const *const *b) {
+    if (*a == *b) return z32eq;
+    return *a < *b ? z32lt : z32gt;
 }
 
-fun int $u8cmp(u8 const *const *a, u8 const *const *b) { return $cmp(a, b); }
+fun int u8pz(u8 *const *a, u8 *const *b) {
+    if (*a == *b) return z32eq;
+    return *a < *b ? z32lt : z32gt;
+}
 
-fun int $u8cz($cu8c a, $cu8c b) { return $cmp(a, b); }
+fun int $u8z(u8 const *const *a, u8 const *const *b) { return $cmp(a, b); }
 
 #define X(M, name) M##u8##name
 #include "Bx.h"
@@ -33,7 +34,7 @@ fun int $u8cz($cu8c a, $cu8c b) { return $cmp(a, b); }
 #include "Bx.h"
 #undef X
 
-fun int $u8ccmp($u8c const *a, $u8c const *b) { return $cmp(*a, *b); }
+fun z32 $u8cz($u8c const *a, $u8c const *b) { return $cmp(*a, *b); }
 
 #define X(M, name) M##$u8c##name
 #define ABC_X_$
@@ -41,8 +42,8 @@ fun int $u8ccmp($u8c const *a, $u8c const *b) { return $cmp(*a, *b); }
 #undef ABC_X_$
 #undef X
 
-fun int Bu8cmp(Bu8 const *a, Bu8 const *b) {
-    return u8cpcmp((u8cp *)((*a)[0]), (u8cp *)((*b)[0]));
+fun z32 Bu8z(Bu8 const *a, Bu8 const *b) {
+    return u8cpz((u8cp *)((*a)[0]), (u8cp *)((*b)[0]));
 }
 
 #define X(M, name) M##Bu8##name

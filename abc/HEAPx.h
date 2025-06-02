@@ -10,7 +10,7 @@ fun void X(HEAP, up)(X($c, ) heap) {
     size_t a = $len(heap) - 1;
     while (a) {
         size_t b = (a - 1) / 2;  // parent
-        int cmp = X(, cmp)(*heap + b, *heap + a);
+        int cmp = X(, z)(*heap + b, *heap + a);
         if (cmp <= 0) break;
         X(, swap)(*heap + a, *heap + b);
         a = b;
@@ -25,8 +25,8 @@ fun void X(HEAP, down)(X($c, ) heap) {
         if (left >= n || left < i) break;
         size_t j = left;
         size_t right = left + 1;
-        if (right < n && X(, cmp)(*heap + j, *heap + right) > 0) j = right;
-        if (X(, cmp)(*heap + i, *heap + j) <= 0) break;
+        if (right < n && X(, z)(*heap + j, *heap + right) > 0) j = right;
+        if (X(, z)(*heap + i, *heap + j) <= 0) break;
         X(, swap)(*heap + i, *heap + j);
         i = j;
     } while (1);

@@ -1,7 +1,7 @@
 #ifndef ABC_Y_H
 #define ABC_Y_H
 #include "RDX.h"
-#include "RDXZ.h"
+#include "Z.h"
 #include "abc/01.h"
 #include "abc/B.h"
 #include "abc/LSM.h"
@@ -11,7 +11,9 @@
 
 #define Y_MAX_INPUTS LSM_MAX_INPUTS
 
-fun ok64 Y($u8 into, $$u8c from);
+static const ok64 Ybadlit = 0x229a5a30b78;
+
+fun ok64 Yone($u8 into, $$u8c inputs);
 
 fun ok64 YmergeF($u8 into, $$u8c from) {
     sane($ok(into) && $ok(from) && !$empty(from));
@@ -46,6 +48,7 @@ fun ok64 YmergeI($u8 into, $$u8c from) {
             max = val;
             $mv(res, **from);
         }
+        fprintf(stderr, "YmergeI %li %li\n", val, max);
     }
     call($u8feed, into, res);
     done;
@@ -61,7 +64,7 @@ fun ok64 YmergeR($u8 into, $$u8c from) {
     $eat(from) {
         RDXref val;
         call(ZINTu128drain, &val, **from);
-        if (id128cmp(&max, &val) < 0) {
+        if (id128z(&max, &val) < 0) {
             max = val;
             $mv(res, **from);
         }
@@ -76,7 +79,7 @@ fun ok64 YmergeS($u8 into, $$u8c from) {
     $mv(res, **from);
     ++*from;
     $eat(from) {
-        if ($u8ccmp(&res, &**from) < 0) {
+        if ($u8cz(&res, &**from) < 0) {
             $mv(res, **from);
         }
     }
@@ -86,126 +89,110 @@ fun ok64 YmergeS($u8 into, $$u8c from) {
 
 fun ok64 YmergeT($u8 into, $$u8c from) { return YmergeS(into, from); }
 
-fun ok64 YmergeP($u8 into, $$u8c bare) {
-    sane($ok(into) && $ok(bare));
+fun ok64 YmergeP($u8 into, $$u8c bares) {
+    sane($ok(into) && $ok(bares));
+    aBpad2($u8c, y, Y_MAX_INPUTS);
 
-    while (1) {
-        aBpad2($u8c, yputs, Y_MAX_INPUTS);
-        for (size_t i = 0; i < $len(bare); ++i) {
-            u8c$ n = (u8c$)$$u8catp(bare, i);
-            if ($empty(n)) continue;
+    do {
+        Breset(ybuf);
+        RDX top = {};
+        a$dup($u8c, bare, bares);
+        $eat(bare) {
+            if ($empty(**bare)) continue;
             $u8c rec = {};
-            call(TLVdrain$, rec, n);
-            $$u8cfeed1(yputsidle, rec);
+            call(TLVdrain$, rec, **bare);
+            RDX next = {};
+            call(RDXparse$, &next, rec);
+            if ($empty(ydata)) {
+                $$u8cfeed1(yidle, rec);
+                top = next;
+                continue;
+            }
+            z32 z = Zlww(&top, &next);
+            if (z == z32lt) {
+                Breset(ybuf);
+                top = next;
+                $$u8cfeed1(yidle, rec);
+            } else if (z == z32eq && RDXisPLEX(top.lit)) {
+                $$u8cfeed1(yidle, rec);
+            }
         }
-        if ($empty(yputsdata)) break;
-        call(Y, into, yputsdata);
-    }
+        if ($len(ydata) == 1) {
+            $u8feedall(into, **ydata);
+        } else if ($len(ydata) > 1) {
+            call(Yone, into, ydata);
+        }
+    } while (!$empty(ydata));
 
     done;
 }
 
-fun z32 RDXLorder($u8c const* a, $u8c const* b) {
-    a$dup(u8c, aa, (u8c**)a);
-    a$dup(u8c, bb, (u8c**)b);
-    u8 ta, tb;
-    id128 ida, idb;
-    $u8c vala, valb;
-    RDXdrain(&ta, &ida, vala, aa);
-    RDXdrain(&tb, &idb, valb, bb);
-    u64 seqa = id128seq(ida);
-    u64 seqb = id128seq(idb);
-    u64 oa = (seqa >> 6) & 0xfff;
-    u64 ob = (seqb >> 6) & 0xfff;
-    if (oa != ob) return u64cmp(&oa, &ob);
-    u64 la = seqa >> 18;
-    u64 lb = seqb >> 18;
-    return u64cmp(&lb, &la);
-}
-
-fun ok64 YmergeL($u8 into, $$u8c from) {
-    sane($ok(into) && $ok(from));
-    return LSMmerge(into, from, RDXLorder, Y);
-    fail(notimplyet);
-    done;
+fun ok64 YmergeL($u8 into, $$u8c bares) {
+    return LSMmerge(into, bares, Zlinear$, Yone);
 }
 
 fun ok64 YmergeE($u8 into, $$u8c bare) {
-    return LSMmerge(into, bare, RDXZvalue, Y);
+    return LSMmerge(into, bare, Zeuler$, Yone);
 }
 
 fun ok64 YmergeX($u8 into, $$u8c bare) {
-    return LSMmerge(into, bare, RDXZauthor, Y);
+    return LSMmerge(into, bare, Zmultix$, Yone);
 }
 
-fun ok64 Y($u8 into, $$u8c inputs) {
+fun ok64 Yone($u8 into, $$u8c inputs) {
     sane($ok(into) && $ok(inputs));
-    aBpad2($u8c, bares, Y_MAX_INPUTS);
+    if ($empty(inputs)) done;
+    u8 lit = TLVup(****inputs);
+    $u8c key = {};  // TODO prettify
+    aBpad2($u8c, bare, Y_MAX_INPUTS);
     a$dup($u8c, ins, inputs);
-    u8 maxt = 0;
-    u128 maxid = {};
     $eat(ins) {
-        u8 t = 0;
-        id128 id = {};
+        u8 l = 0;
         $u8c bare = {};
-        call(RDXdrain, &t, &id, bare, **ins);
-        int z = id128cmp(&maxid, &id);
-        if (z == 0) {
-            z = RDXZlit(&maxt, &t);
-            if (z == 0 && t == RDX_TUPLE && $len(baresdata) > 0) {
-                z = RDXZvalue($atp(baresdata, 0), &bare);
-            }
+        call(TLVdrainkv, &l, key, bare, **ins);
+        if (lit != l) {
+            fprintf(stderr, "bad lit\n");
         }
-        if (z < 0) {
-            maxid = id;
-            maxt = t;
-            Breset(baresbuf);
-        }
-        if (z <= 0) {
-            call($$u8cfeed1, baresidle, bare);
-        }
+        test(lit == l, Ybadlit);
+        call($$u8cfeed1, bareidle, bare);
     }
-
     u32* len = nil;
-    call(TLVopen, into, maxt, &len);
-    aBcpad(u8, id, 16);
-    ZINTu128feed(ididle, &maxid);
-    call($u8feed1, into, $len(iddata));
-    call($u8feed, into, iddata);
-
-    switch (maxt) {
+    call(TLVopen, into, lit, &len);
+    call($u8feed1, into, $len(key));
+    call($u8feedall, into, key);  // FIXME WRONG
+    switch (lit) {
         case RDX_FLOAT:
-            call(YmergeF, into, baresdata);
+            call(YmergeF, into, baredata);
             break;
         case RDX_INT:
-            call(YmergeI, into, baresdata);
+            call(YmergeI, into, baredata);
             break;
         case RDX_REF:
-            call(YmergeR, into, baresdata);
+            call(YmergeR, into, baredata);
             break;
         case RDX_STRING:
-            call(YmergeS, into, baresdata);
+            call(YmergeS, into, baredata);
             break;
         case RDX_TERM:
-            call(YmergeT, into, baresdata);
+            call(YmergeT, into, baredata);
             break;
         case RDX_TUPLE:
-            call(YmergeP, into, baresdata);
+            call(YmergeP, into, baredata);
             break;
         case RDX_LINEAR:
-            call(YmergeL, into, baresdata);
+            call(LSMmerge, into, baredata, Zlinear$, Yone);
             break;
         case RDX_EULER:
-            call(YmergeE, into, baresdata);
+            call(LSMmerge, into, baredata, Zeuler$, Yone);
             break;
         case RDX_MULTIX:
-            call(YmergeX, into, baresdata);
+            call(LSMmerge, into, baredata, Zmultix$, Yone);
             break;
         default:
             fail(RDXbad);
     }
 
-    call(TLVclose, into, maxt, &len);
+    call(TLVclose, into, lit, &len);
     done;
 }
 

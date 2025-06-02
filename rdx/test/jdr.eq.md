@@ -90,9 +90,17 @@ To turn a set into a map, use tuples.
 In the JDR notation, sets may go unsorted.
 Any duplicate keys will be merged.
 ```
+{1 2 3}
+{2 3 1}
+{ 3 2 1}
+{1 2 1 3 2 3}
+
+```
+Note that a tuple gets ordered by its first element (the key).
+```
 { , 1, 2:3, 4:5},
 {() 4:5 2:3 1},
-{() 1 2:2 2:3 (4,5)},
+{() 1 2:3 (4,5)},
 { ,,,, 1, 2:3, 4:5},
 
 

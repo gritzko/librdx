@@ -46,7 +46,7 @@ typedef $u8c RDXstring;
 typedef $u8c RDXterm;
 
 // FIXME big: seq, lil: src
-#define id128cmp u128cmp
+#define id128z u128z
 #define aRDXid(n, time, src) id128 n = {._64 = {src, time}};
 #define id128src(t) ((t)._64[0])
 #define id128time(t) ((t)._64[1])
@@ -88,6 +88,25 @@ fun ok64 RDXdrain(u8* t, id128* id, $u8c value, $u8c tlv) {
     ok64 o = TLVdrainkv(t, idbody, value, tlv);
     if (likely(o == OK)) o = ZINTu128drain(id, idbody);
     return o;  // TODO untouched on error
+}
+
+typedef struct {
+    $u8c rdx;
+    u8 lit;
+    id128 id;
+    $u8c val;
+} RDX;
+
+fun ok64 RDXparse(RDX* p, $u8c rdx) {
+    p->rdx[0] = rdx[0];
+    ok64 ret = RDXdrain(&p->lit, &p->id, p->val, rdx);
+    p->rdx[1] = rdx[0];
+    return ret;
+}
+
+fun ok64 RDXparse$(RDX* p, $cu8c rdx) {
+    a$dupc(u8c, dup, rdx);
+    return RDXparse(p, dup);
 }
 
 fun ok64 RDXdrain$(u8* t, $u8c rec, $u8c rdx) {

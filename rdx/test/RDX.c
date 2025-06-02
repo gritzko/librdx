@@ -38,7 +38,7 @@ ok64 RDXtest1() {
     call(RDXdrain, &t, &reid, rehello, from);
     same(RDX_STRING, t);
     same(0, $cmp(hello, rehello));
-    same(0, id128cmp(&id, &reid));
+    same(0, id128z(&id, &reid));
     done;
 }
 
@@ -52,7 +52,7 @@ ok64 RDXid128test() {
         call(RDXid128feed, Bu8idle(hex), in);
         id128 in2 = {};
         call(RDXid128drain, &in2, Bu8cdata(hex));
-        want(0 == id128cmp(&in, &in2));
+        want(0 == id128z(&in, &in2));
     }
     done;
 }

@@ -6,7 +6,7 @@
 fun z32 _RDXZlit(u8 const* a, u8 const* b) {
     b8 ap = RDXisPLEX(*a);
     b8 bp = RDXisPLEX(*b);
-    if (ap == bp) return u8cmp(a, b);
+    if (ap == bp) return u8z(a, b);
     return bp ? -1 : 1;
 }
 
@@ -26,7 +26,7 @@ fun z32 RDXZauthor($u8c const* a, $u8c const* b) {
     u128 reva = {}, revb = {};
     ZINTu128drain(&reva, keya);
     ZINTu128drain(&revb, keyb);
-    int z = u64cmp(&reva._64[0], &revb._64[0]);
+    int z = u64z(&reva._64[0], &revb._64[0]);
     return z;
 }
 
@@ -41,8 +41,8 @@ fun z32 RDXZrevision($u8c const* a, $u8c const* b) {
     u128 reva = {}, revb = {};
     ZINTu128drain(&reva, keya);
     ZINTu128drain(&revb, keyb);
-    int z = u64cmp(&reva._64[1], &revb._64[1]);
-    if (z == 0) z = u64cmp(&reva._64[0], &revb._64[0]);
+    int z = u64z(&reva._64[1], &revb._64[1]);
+    if (z == 0) z = u64z(&reva._64[0], &revb._64[0]);
     return z;
 }
 
@@ -82,7 +82,7 @@ fun z32 RDXZvalue($u8c const* a, $u8c const* b) {
         b8 fa = RDXisFIRST(ta);
         b8 fb = RDXisFIRST(tb);
         if (fa != fb) return fa ? -1 : 1;
-        return u8cmp(&ta, &tb);
+        return u8z(&ta, &tb);
     }
     switch (ta) {
         case 'F':
@@ -92,9 +92,9 @@ fun z32 RDXZvalue($u8c const* a, $u8c const* b) {
         case 'R':
             return ZINTu128z(vala, valb);
         case 'S':
-            return $u8cz(vala, valb);
+            return $u8cz(&vala, &valb);
         case 'T':
-            return $u8cz(vala, valb);
+            return $u8cz(&vala, &valb);
         case 'P':
             return 0;  // FIXME 1st
         case 'L':
@@ -125,11 +125,11 @@ fun int RDXZlww($u8c const* a, $u8c const* b) {
     u128 reva = {}, revb = {};
     ZINTu128drain(&reva, keya);
     ZINTu128drain(&revb, keyb);
-    int z = u64cmp(&reva._64[1], &revb._64[1]);  // FIXME tuples
-    if (z == 0) {
+    int z = u64z(&reva._64[1], &revb._64[1]);  // FIXME tuples
+    if (z == z32eq) {
         z = RDXZvalue(a, b);
         if (z == 0) {
-            z = u64cmp(&reva._64[0], &revb._64[0]);
+            z = u64z(&reva._64[0], &revb._64[0]);
         }
     }
 

@@ -38,7 +38,7 @@ ok64 Utest1() {
     assert(Bd(buf) == 0);
     $reverse(Bu8data(buf));
     assert(Bd(buf) == 31);
-    $sort(Bu8data(buf), &u8cmp);
+    $sort(Bu8data(buf), &u8z);
     assert(Bd(buf) == 0);
     check(Bd(buf), 0);
     check(Bd(buf), 31);

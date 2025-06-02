@@ -25,24 +25,27 @@ Enveloping rules are standard for all PLEX collections <delete/undelete etc>.
     ~,
 <3@be-3, -4@a1e-4>,
 
-<3@be-3, -4@a1e-4>,
-<2@be-2, -3@a1e-3>,
+<3@be-3, -4@a1-4>,
+<2@be-2, -3@a1-3>,
     ~,
-<3@be-3, -4@a1e-4>,
+<3@be-3, -4@a1-4>,
 
-<1@be-1, -4@a1e-4>,
-<3@be-3, -3@a1e-3>,
+<1@be-1, -4@a-4>,
+<3@be-3, -3@a-3>,
     ~,
-<3@be-3, -4@a1e-4>,
+<3@be-3, -4@a-4>,
 
-<1@be-1, -4@a1e-4>,
-<3@be-3, -2@a1e-2>,
-<2@be-2, -3@a1e-3>,
-<1@be-1, -4@a1e-4>,
-<3@be-3, -2@a1e-2>,
-<2@be-2, -3@a1e-3>,
+```
+Right, higher version wins
+```
+<1@be-1, -4@alex-4>,
+<3@be-3, -2@alex-2>,
+<2@be-2, -3@alex-3>,
+<1@be-1, -4@alex-4>,
+<3@be-3, -2@alex-2>,
+<2@be-2, -3@alex-3>,
     ~,
-<3@be-3, -4@a1e-4>,
+<3@be-3, -4@alex-4>,
 
 ```
 Here we delete an element

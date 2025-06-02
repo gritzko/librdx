@@ -8,19 +8,21 @@ ok64 LSMnext($u8 into, $$u8c lsm, $u8cZfn cmp, $u8cYfn mrg) {
     sane($ok(into) && $ok(lsm) && cmp != nil && mrg != nil);
     $u8c next = {}, _;
     aBpad2($u8c, in, LSM_MAX_INPUTS);
+    z32 z = z32eq;
 
     do {
         call(TLVdrain$, next, **lsm);
+        if (z != z32eq) Breset(inbuf);
+        call($$u8cfeedp, inidle, &next);
         while (!$empty(**lsm) && (~TLVaA & ****lsm) == SKIP_TLV_TYPE)
             call(TLVdrain$, _, **lsm);
-        call($$u8cfeedp, inidle, &next);
         if ($empty(**lsm)) {
             $u8cswap($head(lsm), $last(lsm));
             --$term(lsm);
             if ($empty(lsm)) break;
         }
         HEAP$u8cdownf(lsm, cmp);
-    } while (0 == cmp($head(lsm), &next));
+    } while (z32lt < (z = cmp(*indata, $head(lsm))));
 
     if ($len(indata) == 1) {
         call($u8feed, into, next);

@@ -14,8 +14,8 @@ typedef struct {
 
 fun u64 fly256hash(fly256 const* v) { return mix128(v->id); }
 
-fun int fly256cmp(fly256 const* a, fly256 const* b) {
-    return id128cmp(&a->id, &b->id);
+fun z32 fly256z(fly256 const* a, fly256 const* b) {
+    return id128z(&a->id, &b->id);
 }
 
 #define X(M, name) M##fly256##name

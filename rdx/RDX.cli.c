@@ -60,7 +60,7 @@ ok64 RDX_merge(void* ctx, $u8c args) {
     u8** resbuf = (u8**)ctx;
     call(Bu8map, resbuf, roundup(total * 2, PAGESIZE));
     // call(Y, Bu8idle(resbuf), B$u8cdata(inbuf));
-    call(Y, Bu8idle(resbuf), B$u8cdata(inbuf));
+    call(Yone, Bu8idle(resbuf), B$u8cdata(inbuf));
 
     $for(Bu8, b, BBu8cdata(bbuf)) Bu8unmap(*b);
     done;
@@ -104,7 +104,7 @@ ok64 yfn($cu8c cases) {
         } while (!is_tilda(in));
         call(TLVdrain$, correct, tlv);
 
-        call(Y, residle, elemdata);
+        call(Yone, residle, elemdata);
 
         if (!$eq(correct, resdata)) {
             UNITfail(correct, resdata);

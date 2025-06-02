@@ -115,7 +115,7 @@ fun int cmp($cc a, $cc b) {
     u64* aa = (u64*)*a;
     u64* bb = (u64*)*b;
     fprintf(stderr, "\t%lu <> %lu\n", *aa, *bb);
-    return u64cmp(aa, bb);
+    return u64z(aa, bb);
 }
 
 ok64 SKIP3() {
@@ -146,7 +146,7 @@ fun int tlvcmp($cc a, $cc b) {
     }
     u64* aa = (u64*)(*a + 2);
     u64* bb = (u64*)(*b + 2);
-    return u64cmp(aa, bb);
+    return u64z(aa, bb);
 }
 
 ok64 SKIP4() {

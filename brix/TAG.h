@@ -1,8 +1,8 @@
 #ifndef BRIX_TAG_H
 #define BRIX_TAG_H
 
-#include "abc/NACL.h"
 #include "abc/KV.h"
+#include "abc/NACL.h"
 #include "rdx/RDX.h"
 
 // a tagged/signed version
@@ -14,12 +14,10 @@ typedef struct {
     edsig512 sig;
 } tag1024;
 
-fun u64 tag1024hash(tag1024 const *v) { 
-    return mix128(v->point); 
-}
+fun u64 tag1024hash(tag1024 const *v) { return mix128(v->point); }
 
-fun u64 tag1024cmp(tag1024 const *a, tag1024 const *b) { 
-    return u128cmp(&a->point, &b->point);
+fun u64 tag1024z(tag1024 const *a, tag1024 const *b) {
+    return u128z(&a->point, &b->point);
 }
 
 #define X(M, name) M##tag1024##name

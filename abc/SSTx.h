@@ -85,7 +85,7 @@ fun ok64 X(SST, feedkv)(X(SST, ) sst, SSTab* tab, $u8c rec) {
     return o;
 }
 
-fun int X(SST, cmp)($cc a, $cc b) {
+fun int X(SST, z)($cc a, $cc b) {
     u8 ta = 0, tb = 0;
     $u8c ka = {}, va = {}, kb = {}, vb = {};
     a$dup(u8c, aa, a);
@@ -95,8 +95,8 @@ fun int X(SST, cmp)($cc a, $cc b) {
     Key keya = X(, max), keyb = X(, max);
     X(, unpack)(&keya, ka);
     X(, unpack)(&keyb, kb);
-    int z = X(, cmp)(&keya, &keyb);
-    if (z == 0) z = u8cmp(&ta, &tb);
+    int z = X(, z)(&keya, &keyb);
+    if (z == 0) z = u8z(&ta, &tb);
     return z;
 }
 
@@ -108,7 +108,7 @@ fun ok64 X(SST, locate)(u8c$ rest, X(SST, ) sst, u8 type, Key const* key) {
     X(, pack)(rawidle, key);
     *Bu8atp(rawbuf, 1) = $len(rawdata) - 2;
     *Bu8atp(rawbuf, 2) = $len(rawdata) - 3;
-    return SKIPu8find(rest, sst, rawdata, X(SST, cmp));
+    return SKIPu8find(rest, sst, rawdata, X(SST, z));
 }
 
 fun ok64 X(SST, next)(u8* t, Key* key, u8c$ val, $u8c rest) {
@@ -133,7 +133,7 @@ fun ok64 X(SST, getkv)(u8c$ rec, X(SST, ) sst, u8 type, Key const* key) {
         a$dup(u8c, dup, rest);
         o = X(SST, next)(&t, &k, v, rest);
         if (o != OK) break;
-        int z = X(, cmp)(&k, key);
+        int z = X(, z)(&k, key);
         if (z < 0) {
             continue;
         } else if (z == 0) {
@@ -160,7 +160,7 @@ fun ok64 X(SST, get)(u8* type, u8c$ val, X(SST, ) sst, Key const* key) {
         u8 t = 0;
         o = X(SST, next)(&t, &k, val, rest);
         if (o != OK) break;
-        int z = X(, cmp)(&k, key);
+        int z = X(, z)(&k, key);
         if (z < 0) {
             continue;
         } else if (z == 0) {

@@ -12,8 +12,8 @@ typedef u512 edsec512;
 typedef u256 edpub256;
 typedef u512 edsig512;
 
-#define edpub256cmp u256cmp
-#define edsig512cmp u512cmp
+#define edpub256z u256z
+#define edsig512z u512z
 
 static const ok64 NACLbad = 0x1728c566968;
 static const ok64 NACLfail = 0x5ca315aa5b70;

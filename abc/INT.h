@@ -17,58 +17,64 @@ static const ok64 INTbad = 0x497766968;
 #define I64_MIN INT64_MIN
 #define I64_MIN_ABS 0x8000000000000000
 
-fun z32 u16cmp(const u16 *a, const u16 *b) {
+fun z32 u16z(const u16 *a, const u16 *b) {
     if (*a == *b) return z32eq;
     return *a < *b ? z32lt : z32gt;
 }
-fun z32 u32cmp(const u32 *a, const u32 *b) {
+fun z32 u32z(const u32 *a, const u32 *b) {
     if (*a == *b) return z32eq;
     return *a < *b ? z32lt : z32gt;
 }
-fun z32 u64cmp(const u64 *a, const u64 *b) {
+fun z32 u64z(const u64 *a, const u64 *b) {
     if (*a == *b) return z32eq;
     return *a < *b ? z32lt : z32gt;
 }
 
-fun int i8cmp(const i8 *a, const i8 *b) { return (int)*a - (int)*b; }
-fun int i16cmp(const i16 *a, const i16 *b) { return (int)*a - (int)*b; }
-fun int i32cmp(const i32 *a, const i32 *b) {
-    if (*a == *b) return 0;
-    return *a < *b ? -1 : 1;
+fun z32 i8z(const i8 *a, const i8 *b) {
+    if (*a == *b) return z32eq;
+    return *a < *b ? z32lt : z32gt;
 }
-fun int i64cmp(const i64 *a, const i64 *b) {
-    if (*a == *b) return 0;
-    return *a < *b ? -1 : 1;
+fun z32 i16z(const i16 *a, const i16 *b) {
+    if (*a == *b) return z32eq;
+    return *a < *b ? z32lt : z32gt;
+}
+fun z32 i32z(const i32 *a, const i32 *b) {
+    if (*a == *b) return z32eq;
+    return *a < *b ? z32lt : z32gt;
+}
+fun z32 i64z(const i64 *a, const i64 *b) {
+    if (*a == *b) return z32eq;
+    return *a < *b ? z32lt : z32gt;
 }
 
-fun int u128cmp(u128 const *a, u128 const *b) {
-    int ret = u64cmp(&a->_64[1], &b->_64[1]);
-    if (ret == 0) {
-        ret = u64cmp(&a->_64[0], &b->_64[0]);
+fun z32 u128z(u128 const *a, u128 const *b) {
+    z32 ret = u64z(&a->_64[1], &b->_64[1]);
+    if (ret == z32eq) {
+        ret = u64z(&a->_64[0], &b->_64[0]);
     }
     return ret;
 }
 
-fun int u256cmp(u256 const *a, u256 const *b) {
-    int ret = u64cmp(&a->_64[3], &b->_64[3]);
-    if (ret == 0) {
-        ret = u64cmp(&a->_64[2], &b->_64[2]);
-        if (ret == 0) {
-            ret = u64cmp(&a->_64[1], &b->_64[1]);
-            if (ret == 0) {
-                ret = u64cmp(&a->_64[0], &b->_64[0]);
+fun z32 u256z(u256 const *a, u256 const *b) {
+    z32 ret = u64z(&a->_64[3], &b->_64[3]);
+    if (ret == z32eq) {
+        ret = u64z(&a->_64[2], &b->_64[2]);
+        if (ret == z32eq) {
+            ret = u64z(&a->_64[1], &b->_64[1]);
+            if (ret == z32eq) {
+                ret = u64z(&a->_64[0], &b->_64[0]);
             }
         }
     }
     return ret;
 }
 
-fun int u512cmp(u512 const *a, u512 const *b) {
+fun z32 u512z(u512 const *a, u512 const *b) {
     for (int i = 7; i >= 0; --i) {
         if (a->_64[i] == b->_64[i]) continue;
-        return a->_64[i] < b->_64[i] ? -1 : 1;
+        return a->_64[i] < b->_64[i] ? z32lt : z32gt;
     }
-    return 0;
+    return z32eq;
 }
 
 #define X(M, name) M##u16##name

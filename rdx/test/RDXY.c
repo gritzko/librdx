@@ -30,7 +30,7 @@ ok64 yfn($cu8c cases) {
         } while (!is_tilda(in));
         call(TLVdrain$, correct, tlv);
 
-        call(Y, residle, elemdata);
+        call(YmergeP, residle, elemdata);
 
         if (!$eq(correct, resdata)) {
             UNITfail(correct, resdata);

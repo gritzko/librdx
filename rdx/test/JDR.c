@@ -41,17 +41,20 @@ ok64 JDRtest1() {
         ok64 o = JDRdrain(tlvidle, text);
 
         if (o != OK) {
-            $print(text);
+            FILEerr(text);
             fail(o);
         }
+        a$strc(nl, "\n");
+        FILEout(tlvdata);
+        FILEout(nl);
 
         o = JDRfeed(rdxj2idle, tlvdata);
 
         if (o == OK && 0 != $cmp(inputs[i], rdxj2data)) o = faileq;
 
         if (o != OK) {
-            $println(inputs[i]);
-            $println(rdxj2data);
+            FILEerr(inputs[i]);
+            FILEerr(rdxj2data);
             fail(o);
         }
 

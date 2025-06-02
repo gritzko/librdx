@@ -13,6 +13,10 @@ fun b8 sha256empty(sha256 const* sha) {
     return (w[0] | w[1] | w[2] | w[3]) == 0;
 }
 
+fun z32 sha256z(sha256 const* a, sha256 const* b) {
+    return 2 * memcmp(a->data, b->data, crypto_hash_sha256_BYTES);
+}
+
 typedef crypto_hash_sha256_state SHAstate;
 
 fun void SHAsum(sha256* hash, $cu8c from) {

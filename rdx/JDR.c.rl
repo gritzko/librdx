@@ -356,14 +356,14 @@ JDRString = (   ["]  JDRutf8esc*  ["] )  >JDRString0 %JDRString1;
 JDRMLString = (   "`"  (JDRutf8cp  -  [`])*  "`" )  >JDRMLString0 %JDRMLString1;
 JDRStamp = (   "@"  JDRid128 )  >JDRStamp0 %JDRStamp1;
 JDRNoStamp = (   "" )  >JDRNoStamp0 %JDRNoStamp1;
-JDROpenP = (   "<" )  >JDROpenP0 %JDROpenP1;
-JDRCloseP = (   ">" )  >JDRCloseP0 %JDRCloseP1;
+JDROpenP = (   "(" )  >JDROpenP0 %JDROpenP1;
+JDRCloseP = (   ")" )  >JDRCloseP0 %JDRCloseP1;
 JDROpenL = (   "[" )  >JDROpenL0 %JDROpenL1;
 JDRCloseL = (   "]" )  >JDRCloseL0 %JDRCloseL1;
 JDROpenE = (   "{" )  >JDROpenE0 %JDROpenE1;
 JDRCloseE = (   "}" )  >JDRCloseE0 %JDRCloseE1;
-JDROpenX = (   "(" )  >JDROpenX0 %JDROpenX1;
-JDRCloseX = (   ")" )  >JDRCloseX0 %JDRCloseX1;
+JDROpenX = (   "<" )  >JDROpenX0 %JDROpenX1;
+JDRCloseX = (   ">" )  >JDRCloseX0 %JDRCloseX1;
 JDRComma = (   "," )  >JDRComma0 %JDRComma1;
 JDRColon = (   ":" )  >JDRColon0 %JDRColon1;
 JDROpen = (   (JDROpenP  |  JDROpenL  |  JDROpenE  |  JDROpenX)  JDRws*  (JDRStamp  JDRws*  |  JDRNoStamp) )  >JDROpen0 %JDROpen1;
@@ -380,7 +380,7 @@ main := JDRRoot;
 %%write data;
 
 // the public API function
-pro(JDRlexer, JDRstate* state) {
+ok64 JDRlexer(JDRstate* state) {
 
     a$dup(u8c, text, state->text);
     sane($ok(text));

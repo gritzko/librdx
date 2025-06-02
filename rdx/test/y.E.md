@@ -16,6 +16,9 @@ That applies to no-id sets as well: they count as the same set.
     ~,
 {1},
 
+```
+...entries merge...
+```
 {1 3},
 {4 5},
     ~,
@@ -26,6 +29,9 @@ That applies to no-id sets as well: they count as the same set.
     ~,
 {1,3,4,5},
 
+```
+...tuple entries merge...
+```
 {1:2},
 {3:4},
 ~,
@@ -36,6 +42,9 @@ That applies to no-id sets as well: they count as the same set.
 ~,
 {1:2, 3:5, 4:5},
 
+```
+...nested sets merge...
+```
 {1:2, 3:{4,5}},
 {1:2, 3:6, 7:8},
 ~,

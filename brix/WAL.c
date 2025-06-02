@@ -97,7 +97,7 @@ ok64 WALadd1(WAL* wal, $cu8c rdx) {
         u64 at = Busylen(wal->log);
         a$dup(u8c, dup, rdx);
         call($$u8cfeed1, insidle, dup);
-        call(Y, idle, insdata);
+        call(Yone, idle, insdata);
         zero(rec.recs);
         rec.recs[0] = at;
         if (!$empty(idle)) *$head(idle) = 0;
@@ -142,7 +142,7 @@ ok64 WALget1($u8 res, WAL const* wal, id128 id) {
     /*size_t sz = 0;
     $for($cu8c, p, insdata) sz += $len(p);
     sz = roundup(sz, PAGESIZE);*/
-    call(Y, res, insdata);
+    call(Yone, res, insdata);
     done;
 }
 
@@ -167,7 +167,7 @@ ok64 WAL2brick(sha256* sha, sha256c* top, WAL* wal, $cu8c home) {
     Bu8eat$1(sst);
     $for(fly256, f, Bfly256data(wal->idx)) if (!id128empty(f->id))
         Bu128feed1(ids, f->id);
-    $u128sortfn(Bu128data(ids), id128cmp);
+    $u128sortfn(Bu128data(ids), id128z);
     SKIPu8tab tab = {};
     $for(id128, p, Bu128data(ids)) {
         call(WALget1, Bu8idle(sst), wal, *p);

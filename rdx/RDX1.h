@@ -16,7 +16,7 @@ ok64 YmergeFIRST($u8 into, $$u8c from) {
     $eat2(from) {
         u8c* p = **from;
         call(RDXdrain, &t, &id, value, *from);
-        if (u128cmp(&max, &id) < 0) {
+        if (u128z(&max, &id) < 0) {
             max = id;
             rec[0] = p;
             rec[1] = **from;

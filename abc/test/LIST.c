@@ -15,8 +15,8 @@ typedef struct {
     list64 _list;
 } entry128;
 
-fun int entry128cmp(entry128 const *a, entry128 const *b) {
-    return u64cmp(&a->value, &b->value);
+fun z32 entry128z(entry128 const *a, entry128 const *b) {
+    return u64z(&a->value, &b->value);
 }
 
 #define X(M, name) M##entry128##name

@@ -163,7 +163,7 @@ ok64 BRIKcreate(sha256* sha, $cu8c home, $sha256c deps, $$u8c inputs) {
     SKIPu8tab tab = {};
     u8$ sstinto = Bu8idle(sst);
     while (!$empty(inputs)) {
-        call(LSMnext, sstinto, inputs, RDXZrevision, Y);
+        call(LSMnext, sstinto, inputs, Zsst, Yone);
         call(SKIPu8mayfeed, sst, &tab);
     }
 
@@ -227,7 +227,7 @@ ok64 BRIXget($u8 rec, BRIX const* brix, u8 rdt, id128 key) {
     } else if ($empty(insdata)) {
         fail(BRIXnone);
     } else {
-        call(Y, rec, insdata);
+        call(Yone, rec, insdata);
     }
     done;
 }
@@ -248,7 +248,7 @@ ok64 _BRIXgetc(u8c$ rec, BRIX const* brix, u8 rdt, id128 key) {
     } else {
         u8$ idle = Bu8idle(brix->pad);
         a$dup(u8, tmp, idle);
-        call(Y, idle, insdata);
+        call(Yone, idle, insdata);
         $u8sup(tmp, idle);
         $mv(rec, tmp);
     }

@@ -40,15 +40,24 @@ ok64 FLY_open(void* ctx, $u8c args) {
     done;
 }
 
-ok64 FLY_close(void* ctx, $u8c args) {
-    sane(!$empty(args) && ctx != nil);
+ok64 FLY_put(void* ctx, $u8c args) {
+    sane($ok(args) && ctx != nil);
     FLY* fly = (FLY*)ctx;
+
+    done;
+}
+
+ok64 FLY_close(void* ctx, $u8c args) {
+    FLY* fly = (FLY*)ctx;
+    sane(!$empty(args) && fly != nil);
+    call(FLYclose, fly);
     done;
 }
 
 CLIcmd COMMANDS[] = {
     {$u8str("new"), FLY_new, $u8str("make a new FLY store")},  //
     {$u8str("open"), FLY_open, $u8str("open a FLY store")},    //
+    {$u8str("put"), FLY_put, $u8str("put a record")},          //
     {$u8str("close"), FLY_close, $u8str("close")},             //
     {$u8str(""), nil, nil},
 };

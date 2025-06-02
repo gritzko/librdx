@@ -183,7 +183,7 @@ fun bin64 bin64patch_next(u64 *len, u64 newlen) {
 
 fun bin64 bin64next(bin64 b) { return b + (bin64level_bits(b) + 1); }
 
-fun int bin64cmp(bin64 const *a, bin64 const *b) {
+fun int bin64z(bin64 const *a, bin64 const *b) {
     if (*a < *b) {
         return -1;
     } else if (*a > *b) {

@@ -24,7 +24,7 @@ fun ok64 X(HASH, scan)(size_t *ndx, X($, ) data, T const *rec) {
     for (size_t i = off + 1; i < off + ABC_HASH_LINE; ++i) {
         *ndx = base + (i & MASK);
         if (X($, is0)(data, *ndx)) return HASHnone;
-        if (X(, cmp)(*data + *ndx, rec) == 0) return OK;
+        if (X(, z)(*data + *ndx, rec) == 0) return OK;
     }
     return HASHnoroom;
 }
@@ -33,7 +33,7 @@ fun ok64 X(HASH, scan)(size_t *ndx, X($, ) data, T const *rec) {
 fun ok64 X(HASH, find)(size_t *ndx, X($, ) data, T const *rec) {
     u64 hash = X(, hash)(rec);
     *ndx = hash % $len(data);
-    if (X(, cmp)(rec, $atp(data, *ndx)) == 0) return OK;
+    if (X(, z)(rec, $atp(data, *ndx)) == 0) return OK;
     if (X($, is0)(data, *ndx)) return HASHnone;
     return X(HASH, scan)(ndx, data, rec);
 }
@@ -43,7 +43,7 @@ fun ok64 X(HASH, _get)(T *rec, X($, ) data, size_t ndx) {
     size_t base = ndx & ~MASK;
     for (size_t i = (off + 1) & MASK; i != off; i = (i + 1) & MASK) {
         ndx = base + i;
-        if (X(, cmp)(rec, $atp(data, ndx)) == 0) {
+        if (X(, z)(rec, $atp(data, ndx)) == 0) {
             *rec = $at(data, ndx);
             return OK;
         }
@@ -56,7 +56,7 @@ fun ok64 X(HASH, get)(T *rec, X($, ) data) {
     u64 hash = X(, hash)(rec);
     size_t ndx = hash % $len(data);
     if (X($, is0)(data, ndx)) return HASHnone;
-    if (X(, cmp)(rec, $atp(data, ndx)) == 0) {
+    if (X(, z)(rec, $atp(data, ndx)) == 0) {
         *rec = $at(data, ndx);  // TODO mv
         return OK;
     }
@@ -71,7 +71,7 @@ fun ok64 X(HASH, _put)(T const *rec, X($, ) data, size_t hash) {
     size_t base = fit & ~MASK;
     for (size_t i = 0; i < ABC_HASH_LINE; ++i) {
         size_t ndx = base + ((off + i) & MASK);
-        if (X($, is0)(data, ndx) || X(, cmp)(rec, $atp(data, ndx)) == 0) {
+        if (X($, is0)(data, ndx) || X(, z)(rec, $atp(data, ndx)) == 0) {
             X(, mv)($atp(data, ndx), &r);
             return OK;
         }
@@ -84,7 +84,7 @@ fun ok64 X(HASH, _put)(T const *rec, X($, ) data, size_t hash) {
 fun ok64 X(HASH, put)(X($, ) data, T const *rec) {
     u64 hash = X(, hash)(rec);
     size_t ndx = hash % $len(data);
-    if (X($, is0)(data, ndx) || X(, cmp)(rec, $atp(data, ndx)) == 0) {
+    if (X($, is0)(data, ndx) || X(, z)(rec, $atp(data, ndx)) == 0) {
         X(, mv)($atp(data, ndx), rec);
         return OK;
     }

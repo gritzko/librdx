@@ -35,6 +35,7 @@
 #define $off(s, o) ((s[0] + (o) < s[1]) ? (s[0] + (o)) : s[1])
 
 #define a$dup(T, n, s) T *n[2] = {(s)[0], (s)[1]}
+#define a$dupc(T, n, s) T *n[2] = {(T *)(s)[0], (T *)(s)[1]}
 #define $dup(s) {(s)[0], (s)[1]}
 
 #define a$tail(T, n, s, off) \
@@ -144,7 +145,8 @@ fun int $memcmp($cc a, $cc b) {
 
 typedef int (*$cmpfn)($cc a, $cc b);
 
-#define $cmp(a, b) $memcmp((void const *const *)(a), (void const *const *)b)
+#define $cmp(a, b) \
+    (2 * $memcmp((void const *const *)(a), (void const *const *)b))
 
 #define $eq(a, b) (0 == $cmp(a, b))
 

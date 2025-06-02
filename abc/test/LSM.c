@@ -112,7 +112,7 @@ fun z32 ZINTz($cu8c* a, $cu8c* b) {
     u64 au, bu;
     ZINTu64drain(&au, vala);
     ZINTu64drain(&bu, valb);
-    return u64cmp(&au, &bu);
+    return u64z(&au, &bu);
 }
 
 ok64 LSM1000000() {
