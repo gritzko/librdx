@@ -67,6 +67,7 @@ URI.h
 NET.h
 UDP.h
 HTTP.h
+PIOL.h
 )
 
 list(APPEND ABC_SOURCES 
@@ -88,6 +89,7 @@ TCP.c
 TLV.c
 UDP.c
 UTF8.c
+PIOL.c
 )
 
 add_library(abc STATIC ${ABC_HEADERS} ${ABC_SOURCES})
