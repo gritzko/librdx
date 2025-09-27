@@ -1,7 +1,7 @@
 #ifndef ABC_SKIP_H
 #define ABC_SKIP_H
 
-#include "abc/$.h"
+#include "abc/S.h"
 #include "abc/01.h"
 #include "abc/B.h"
 #include "abc/OK.h"

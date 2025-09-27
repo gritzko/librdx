@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "$.h"
+#include "S.h"
 #include "01.h"
 #include "B.h"
 #include "OK.h"

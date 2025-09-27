@@ -19,10 +19,10 @@ target_link_options(01test PRIVATE ${TEST_LDD_FLAGS})
 target_compile_options(01test PRIVATE ${TEST_CXX_FLAGS})
 add_test(NAME 01test COMMAND 01test)
 
-add_executable(Stest $.c)
+add_executable(Stest S.c)
 target_link_options(Stest PRIVATE ${TEST_LDD_FLAGS})
 target_compile_options(Stest PRIVATE ${TEST_CXX_FLAGS})
-add_test(NAME $test COMMAND Stest)
+add_test(NAME Stest COMMAND Stest)
 
 add_executable(Btest B.c)
 target_link_options(Btest PRIVATE ${TEST_LDD_FLAGS})

@@ -1,7 +1,7 @@
 #include "LSM.h"
 
 #include "SKIP.h"
-#include "abc/$.h"
+#include "abc/S.h"
 #include "abc/OK.h"
 #include "abc/TLV.h"
 

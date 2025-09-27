@@ -7,7 +7,7 @@
 #include "RDXC.h"
 #include "UNIT.h"
 #include "Y.h"
-#include "abc/$.h"
+#include "abc/S.h"
 #include "abc/BUF.h"
 #include "abc/FILE.h"
 #include "abc/OK.h"

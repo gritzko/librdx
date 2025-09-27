@@ -1,7 +1,7 @@
 //
 // (c) Victor Grishchenko, 2020-2024
 //
-#include "$.h"
+#include "S.h"
 #include "01.h"
 #include "HASH.h"
 

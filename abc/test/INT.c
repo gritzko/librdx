@@ -6,10 +6,10 @@
 #include <assert.h>
 #include <stdio.h>
 
-#include "$.h"
 #include "FILE.h"
 #include "OK.h"
 #include "PRO.h"
+#include "S.h"
 #include "TEST.h"
 
 pro(print, int c) {

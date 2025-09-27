@@ -1,7 +1,7 @@
 #ifndef LIBRDX_RDX_H
 #define LIBRDX_RDX_H
 
-#include "abc/$.h"
+#include "abc/S.h"
 #include "abc/01.h"
 #include "abc/B.h"
 #include "abc/HEX.h"

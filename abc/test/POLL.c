@@ -1,7 +1,6 @@
 #include "POLL.h"
 
 #include "FILE.h"
-#include "INT.h"
 #include "NET.h"
 #include "PRO.h"
 #include "TCP.h"

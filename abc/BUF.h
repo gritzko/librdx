@@ -1,7 +1,7 @@
 #ifndef ABC_BUF_H
 #define ABC_BUF_H
 
-#include "$.h"
+#include "S.h"
 #include "01.h"
 #include "B.h"
 

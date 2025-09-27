@@ -3,7 +3,7 @@
 
 #include <unistd.h>
 
-#include "$.h"
+#include "S.h"
 #include "BUF.h"
 #include "PRO.h"
 #include "TEST.h"

@@ -5,7 +5,7 @@
 #ifndef ABC_BINS_HPP
 #define ABC_BINS_HPP
 
-#include "$.h"
+#include "S.h"
 #include "01.h"
 
 /**

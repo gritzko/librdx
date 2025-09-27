@@ -6,7 +6,7 @@
 #include <stdio.h>
 #include <unistd.h>
 
-#include "$.h"
+#include "S.h"
 #include "INT.h"
 #include "TEST.h"
 
