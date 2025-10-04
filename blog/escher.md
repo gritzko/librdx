@@ -1,6 +1,6 @@
 #   Escher's art and computer science
 
-<img align=right width="50%" src="../img/drawing_hands.jpg"/>
+<img align=right width="50%" src="./img/drawing_hands.jpg"/>
 While on a small vacation in the Hague I had a blissful chance
 to visit the Escher's museum. It is now hosted in an actual
 royal palace which many Europeans may find surprisingly modest.
@@ -55,7 +55,7 @@ That code sort of spiraled itself into existence, feature by feature.
 
 [T]: https://www.cs.cmu.edu/~rdriley/487/papers/Thompson_1984_ReflectionsonTrustingTrust.pdf
 
-<img align=left width="50%" src="../img/reptiles.jpg"/>
+<img align=left width="50%" src="./img/reptiles.jpg"/>
 The most exciting part of it all is seeing how *an idea becomes
 a plan and a plan becomes working code* (and the working code
 amends the plan).
@@ -87,7 +87,7 @@ But then, eventually, you get to the stage when everything works smoothly togeth
 Half a year later, you don't remember how it works just because it always works.
 All fits, it's live!
 
-<img align=right width="50%" src="../img/order_and_chaos.jpg"/>
+<img align=right width="50%" src="./img/order_and_chaos.jpg"/>
 *A good system orders itself*.
 That might as well be a fundamental property of living matter:
 consume some random inputs, produce order and beauty.
@@ -117,7 +117,7 @@ but also the general code organisation improved.
 
 Good rules build the system.
 
-<img align=left width="50%" src="../img/sky_water.jpg"/>
+<img align=left width="50%" src="./img/sky_water.jpg"/>
 *Separate the defining features from meaningful from unimportant.
 Or, "divide, define, derive".
 It is a good practice to focus on the key parameter that affects
