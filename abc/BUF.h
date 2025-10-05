@@ -1,9 +1,9 @@
 #ifndef ABC_BUF_H
 #define ABC_BUF_H
 
-#include "S.h"
 #include "01.h"
 #include "B.h"
+#include "S.h"
 
 fun int u8cmp(const u8 *a, const u8 *b) { return (int)*a - (int)*b; }
 
@@ -19,7 +19,7 @@ fun int u8pcmp(u8 *const *a, u8 *const *b) {
 
 fun int $u8cmp(u8 const *const *a, u8 const *const *b) { return $cmp(a, b); }
 
-fun int $u8cz($cu8c a, $cu8c b) { return $cmp(a, b); }
+fun int $u8cZ($cu8c a, $cu8c b) { return $cmp(a, b); }
 
 #define X(M, name) M##u8##name
 #include "Bx.h"
@@ -34,6 +34,8 @@ fun int $u8cz($cu8c a, $cu8c b) { return $cmp(a, b); }
 #undef X
 
 fun int $u8ccmp($u8c const *a, $u8c const *b) { return $cmp(*a, *b); }
+
+typedef $u8c const *$u8ccp;
 
 #define X(M, name) M##$u8c##name
 #define ABC_X_$

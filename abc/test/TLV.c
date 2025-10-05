@@ -69,7 +69,7 @@ pro(TLVtest3) {
     sane(1);
     aBcpad(u8, pad, 1024);
     aBcpad(u32p, stack, 8);
-    u32pB stack = (u32pB)stackbuf;
+    u32pBp stack = (u32pBp)stackbuf;
 
     call(TLVopen, padidle, 'A', Bpush(stack));
     $u8c aaa = $u8str("aaa");

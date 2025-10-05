@@ -11,6 +11,7 @@
 
 typedef T const X(, c);
 #ifndef ABC_X_$
+typedef T *X(, p);
 typedef T const *X(, cp);
 #endif
 
@@ -18,6 +19,17 @@ typedef T *X($, )[2];
 typedef T *const X($c, )[2];
 typedef T const *X($, c)[2];
 typedef T const *const X($c, c)[2];
+
+typedef T *X(, s)[2];
+typedef T *const X(, sc)[2];
+typedef T const *X(, cs)[2];
+typedef T const *const X(, csc)[2];
+typedef T **X(, sp);
+typedef T *const *X(, spc);
+typedef T const **X(, csp);
+typedef T const *const *X(, cspc);
+typedef X(, s) * X(, ss)[2];
+typedef X(, cs) * X(, css)[2];
 
 typedef T **X(, $);
 typedef T const **X(, c$);
@@ -28,7 +40,10 @@ typedef T const *const *X(, $cc);
 typedef X($, ) * X($$, )[2];
 
 typedef int (*X(, cmpfn))(const X(, ) *, const X(, ) *);
-typedef b8 (*X(, lessfn))(X(, ), X(, ));
+
+typedef ok64 (*X(, x))(X(, p) a, X(, cp) b);
+typedef ok64 (*X(, y))(X(, p) a, X(, cs) b);
+typedef ok64 (*X(, z))(X(, cp) a, X(, cp) b);
 
 typedef b8 (*X(, isfn))(const X(, ) *);
 

@@ -92,9 +92,9 @@ fun int RDXZvalue($u8c const* a, $u8c const* b) {
         case 'R':
             return ZINTu128z(vala, valb);
         case 'S':
-            return $u8cz(vala, valb);
+            return $u8cZ(vala, valb);
         case 'T':
-            return $u8cz(vala, valb);
+            return $u8cZ(vala, valb);
         case 'P':
             return 0;  // FIXME 1st
         case 'L':

@@ -209,7 +209,7 @@ pro(LEXonRuleName, $cu8c tok, LEXstate *state) {
 
     if (**tok < 'A' || **tok > 'Z') done;
 
-    u8B ct = (u8B)state->ct;
+    u8Bp ct = (u8Bp)state->ct;
 
     u8c$ tmpl = LEX_TEMPL[state->lang][LEX_TEMPL_ACTION];
     call(NESTsplice, ct, LEX$ACTIONS);
@@ -230,7 +230,7 @@ pro(LEXonRuleName, $cu8c tok, LEXstate *state) {
 
 ok64 LEXonLine($cu8c tok, LEXstate *state) {
     sane($ok(tok) && state != nil);
-    u8B ct = (u8B)state->ct;
+    u8Bp ct = (u8Bp)state->ct;
     u8c$ cur = state->cur;
 
     u8c$ fntmpl;
@@ -249,7 +249,7 @@ ok64 LEXonLine($cu8c tok, LEXstate *state) {
 
 ok64 LEXonRoot($cu8c tok, LEXstate *state) {
     sane($ok(tok) && state != nil);
-    u8B ct = (u8B)state->ct;
+    u8Bp ct = (u8Bp)state->ct;
     try(NESTspliceall, ct, LEX$mod);
     then try($u8feed, NESTidle(ct), state->mod);
     done;
@@ -280,7 +280,7 @@ pro(lex2rl, $u8c mod, $u8c lang) {
 
     LEXstate state = {
         .lang = nlang,
-        .ct = (u8B)ctbuf,
+        .ct = (u8Bp)ctbuf,
         .mod = mod,
     };
     $mv(state.text, lexdata);

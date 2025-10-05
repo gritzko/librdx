@@ -4,10 +4,18 @@
 
 #define T X(, )
 
-typedef T *const X(B, )[4];
-typedef T **X(, B);
+typedef T *X(B, )[4];
 typedef T const **X(, cB);
 typedef X($, ) * X(B$, )[4];
+#ifndef ABC_X_$
+typedef X($, c) * X(B$, c)[4];
+#endif
+
+typedef T *X(, B)[4];
+typedef T **X(, Bp);
+typedef T const **X(, cBp);
+typedef X($, ) * X(, sB)[4];
+typedef X($, c) * X(, csB)[4];
 
 fun T *const *X(B, past)(X(B, ) buf) { return (T **)buf + 0; }
 fun T const *const *X(B, pastc)(X(B, ) buf) {

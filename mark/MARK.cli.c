@@ -70,9 +70,9 @@ pro(mark, $u8c mod) {
 
     then {
         MARKstate state = {};
-        state.divB = (u64B)divbuf;
-        state.lineB = (u8cpB)linebuf;
-        state.pB = (u64B)pbuf;
+        state.divB = (u64Bp)divbuf;
+        state.lineB = (u8cpBp)linebuf;
+        state.pB = (u64Bp)pbuf;
         $mv(state.text, Bu8cdata(text));
         $mv(state.fmt, Bu8idle(fmtbuf));
 

@@ -41,10 +41,10 @@ typedef struct {
     u64 _div;
     // Each one points to the first character of a line,
     // likely one after '\n'. The last one is $term(text).
-    u8cpB lineB;
+    u8cpBp lineB;
     // Line div stacks, indices match those of `lines`.
-    u64B divB;
-    u64B pB;
+    u64Bp divB;
+    u64Bp pB;
 } MARKstate;
 
 fun u8c$ MARKline(MARKstate const* state, u64 ndx) {

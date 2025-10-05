@@ -26,7 +26,7 @@ typedef struct {
     u8c$ text;
     u8$ tlv;
 
-    u8pB stack;
+    u8pBp stack;
 
     u32 line;
     u32 col;
@@ -151,7 +151,7 @@ fun ok64 JDRparse($u8 tlv, $u8 errmsg, $u8c jdr) {
     a$dup(u8c, j, jdr);
     JDRstate state = {
         .text = j,
-        .stack = (u8pB)stackbuf,
+        .stack = (u8pBp)stackbuf,
         .tlv = tlv,
     };
     ok64 o = JDRlexer(&state);
@@ -178,7 +178,7 @@ fun ok64 JDRdrain($u8 tlv, $u8c jdr) {
     aBcpad(u8p, stack, RDX_MAX_NEST);
     JDRstate state = {
         .text = jdr,
-        .stack = (u8pB)stackbuf,
+        .stack = (u8pBp)stackbuf,
         .tlv = tlv,
     };
     call(JDRlexer, &state);

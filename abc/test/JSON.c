@@ -10,8 +10,8 @@ pro(RDXtest1) {
     aBcpad(u32, stack, 1024);
 
     JSONstate state = {.text = {json[0], json[1]},
-                       .json = (u64B)padbuf,
-                       .stack = (u32B)stackbuf};
+                       .json = (u64Bp)padbuf,
+                       .stack = (u32Bp)stackbuf};
 
     js64 child = {.node = JSON_NODE_ROOT};
     call(Bu64feedp, state.json, (u64*)&child);

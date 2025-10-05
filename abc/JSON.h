@@ -25,8 +25,8 @@ typedef struct {
 } js64;
 
 typedef struct {
-    u64B json;
-    u32B stack;
+    u64Bp json;
+    u32Bp stack;
     $u8c text;
 } JSONstate;
 

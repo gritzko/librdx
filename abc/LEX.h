@@ -19,7 +19,7 @@ extern const u8c *LEX_TEMPL[LEX_TEMPL_LANG_LEN][LEX_TEMPL_LEN][2];
 typedef struct {
     $u8c text;
     int lang;
-    u8B ct;
+    u8Bp ct;
 
     u8c$ mod;
 
