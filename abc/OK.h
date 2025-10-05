@@ -3,8 +3,8 @@
 #include <errno.h>
 #include <stdint.h>
 
-#include "S.h"
 #include "01.h"
+#include "S.h"
 
 typedef uint64_t ok64;
 typedef ok64 ok;
@@ -17,6 +17,7 @@ typedef u64 u60;
 
 con ok64 FAILsanity = 0x3ca495de5cade3d;
 con ok64 notimplyet = 0xcb3e2dc74c3da78;
+con ok64 waitnotyet = 0xee5b78cb3e3da78;
 con ok64 OKnoroom = 0x614cb3db3cf1;
 con ok64 OKbadtext = 0x18526968e29f38;
 con ok64 noroom = 0xcb3db3cf1;
@@ -91,6 +92,10 @@ fun ok64 RONdrain64(ok64 *o, u8c **from) {
     }
     *o = res;
     return OK;
+}
+
+fun ok64 RONvalid(u8c **data) {
+    return OK;  // todo
 }
 
 fun ok64 OKscan(ok64 *o, uint8_t const **from) {

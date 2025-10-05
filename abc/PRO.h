@@ -1,6 +1,9 @@
 #ifndef LIBRDX_PRO_H
 #define LIBRDX_PRO_H
 
+// It is not recommended to include this header from
+// public .h files. It pollutes the namespace for non-ABC code.
+
 #include <errno.h>
 #include <stdint.h>
 #include <stdio.h>

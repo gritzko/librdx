@@ -25,7 +25,7 @@
 #define $in$(s, ins) (ins[0] - s[0])
 #define $nil(s) (s != NULL && s[0] == NULL && s[1] == NULL)
 
-#define $empty(s) ($head(s) >= $term(s))
+#define $empty(s) (s == nil || $head(s) >= $term(s))
 #define $nospace(s, l) ($head(s) + (l) > $term(s))
 #define $ok(s) (s != nil && *s != nil && s[1] >= s[0])
 #define $within(h, n) (n[0] >= h[0] && n[1] <= h[1])

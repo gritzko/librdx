@@ -1,11 +1,11 @@
 #ifndef LIBRDX_TLV_H
 #define LIBRDX_TLV_H
-#include "S.h"
 #include "01.h"
 #include "B.h"
 #include "INT.h"
 #include "OK.h"
 #include "PRO.h"
+#include "S.h"
 
 con ok64 TLVbadrec = 0x1d55f9a5a36a67;
 con ok64 TLVnodata = 0x1d55fcb3a25e25;
@@ -19,31 +19,20 @@ con ok64 TLVtoolong = 0x7557f8cf3c33cab;
 
 #define TLVaA 0x20
 #define TLV_MAX_LEN ((1 << 30) - 1)
-#define TLV_TINY_TYPE '0'
 
-fun int TLVtiny(u8 t) { return t >= '0' && t <= '9'; }
 fun int TLVlong(u8 t) { return t >= 'A' && t <= 'Z'; }
 fun int TLVshort(u8 t) { return t >= 'a' && t <= 'z'; }
 fun u8 TLVup(u8 t) { return t & ~TLVaA; }
 
 fun u32 TLVlen(size_t len) { return len <= 0xff ? 2 + len : 5 + len; }
-fun u32 TLVtinylen(size_t len) {
-    if (len <= 9) return len + 1;
-    return TLVlen(len);
-}
 
-fun ok64 TLVprobe(u8* t, u32* hlen, u32* blen,
-                  $cu8c data) {  // FIXME tiny on request, inline short
+fun ok64 TLVprobe(u8* t, u32* hlen, u32* blen, $cu8c data) {
     if ($empty(data)) return TLVnodata;
     if (TLVshort(**data)) {
         if ($len(data) < 2) return TLVnodata;
         *t = **data - TLVaA;
         *hlen = 2;
         *blen = (*data)[1];
-    } else if (TLVtiny(**data)) {
-        *t = TLV_TINY_TYPE;
-        *hlen = 1;
-        *blen = **data - '0';
     } else if (TLVlong(**data)) {
         if ($len(data) < 5) return TLVnodata;
         *t = **data;
@@ -113,21 +102,6 @@ fun pro(TLVfeed, $u8 into, u8 type, $u8c value) {
     u32 len = $len(value);
     test($len(into) >= len + 5, TLVnoroom);
     TLVhead(into, type, len);
-    $u8copy(into, value);
-    *into += len;
-    done;
-}
-
-fun pro(TLVtinyfeed, $u8 into, u8 type, $u8c value) {
-    sane($ok(into) && $ok(value));
-    size_t len = $len(value);
-    test($len(into) >= len + 5, TLVnoroom);  // todo
-    if (len > 9) {
-        TLVhead(into, type, len);
-    } else {
-        **into = '0' + len;
-        ++*into;
-    }
     $u8copy(into, value);
     *into += len;
     done;

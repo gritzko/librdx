@@ -31,10 +31,10 @@ fun ok64 _X(next)($u8 into, $$u8c lsm) {
     return o;
 }
 
-fun b8 $u8cempty($u8c const* s) { return $empty(*s); }
+fun b8 _$u8cempty($u8c const* s) { return $empty(*s); }
 
 fun ok64 _X(sort)($$u8c lsm) {
-    $$u8cpurge(lsm, &$u8cempty);
+    $$u8cpurge(lsm, &_$u8cempty);
     $sort(lsm, _X(z));
     return OK;  // ?
 }

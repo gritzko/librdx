@@ -17,7 +17,7 @@ pro(TLVtest1) {
     $u8c str3 = $u8str("world!");
     u8 **into = Bu8idle(pad);
     call(TLVfeed, into, 'S', str1);
-    call(TLVtinyfeed, into, 'S', str2);
+    call(TLVfeed, into, 'S', str2);
     call(TLVfeed, into, 'S', str3);
     u8c **from = Bu8cdata(pad);
     //$print(from);
