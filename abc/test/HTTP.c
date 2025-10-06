@@ -57,7 +57,7 @@ pro(HTTPtest1) {
         "X-Frame-Options: DENY\r\n\r\n");
 
     HTTPstate reqstate = {};
-    aBpad2($u8c, parse, 32);
+    aBpad2(u8cs, parse, 32);
     $mv(reqstate.text, req);
     reqstate.parsed = parseidle;
     call(HTTPlexer, &reqstate);

@@ -22,7 +22,7 @@ typedef ok64 (*POLLfunT)(struct POLLstate* state);
 typedef ok64 (*POLLfunI)(struct POLLctl* ctl);
 
 struct POLLctl {
-    B$u8c writes;
+    u8csB writes;
     Bu8 readbuf;
     Bu8 writebuf;
     $u8c name;
@@ -52,9 +52,9 @@ fun ok64 POLLdel(POLLstate state, int fd, ok64 o) {
 }
 
 fun ok64 POLLfeed$(POLLctl* ctl, u8c$ data) {
-    $u8c$ idle = B$u8cidle(ctl->writes);
+    u8cssp idle = Bu8csidle(ctl->writes);
     if ($empty(idle)) return POLLnoroom;
-    $$u8cfeed1(idle, data);
+    u8css_feed1(idle, data);
     return OK;
 }
 
@@ -67,7 +67,7 @@ fun ok64 POLLfeed(POLLctl* ctl, $u8c data) {
 }
 
 fun ok64 POLLdrain($u8 into, POLLctl* ctl) {
-    return $u8drain(into, Bu8cdata(ctl->readbuf));
+    return $u8drain(into,Bu8cdata(ctl->readbuf));
 }
 
 ok64 POLLonce(POLLstate state, size_t ms);

@@ -36,15 +36,15 @@ fun ok64 HEXfeedsep($u8 hex, $u8c bin, u8 sep) {
 fun ok64 UNITsafefeed($u8 into, $cu8c bin) {
     for (u8c *p = bin[0]; p < bin[1]; ++p) {
         if (*p >= ' ' && *p < 127) {
-            $u8feed1(into, *p);
+            u8s_feed1(into, *p);
         } else {
-            $u8feed1(into, '.');
+            u8s_feed1(into, '.');
         }
     }
     return OK;
 }
 
-fun ok64 HEXdump($u8 into, $u8cc b) {
+fun ok64 HEXdump($u8 into, u8cs b) {
     sane($ok(into) && $ok(b));
     a$dup(u8c, bin, b);
     while (!$empty(bin) && $len(into) >= 16 + 32 + 16 + 2) {
@@ -54,10 +54,10 @@ fun ok64 HEXdump($u8 into, $u8cc b) {
         }
         bin[0] = chunk[1];
         UNITsafefeed(into, chunk);
-        for (int i = 0; i < 16 - $len(chunk); ++i) $u8feed1(into, ' ');
-        $u8feed1(into, '\t');
+        for (int i = 0; i < 16 - $len(chunk); ++i) u8s_feed1(into, ' ');
+        u8s_feed1(into, '\t');
         HEXfeedsep(into, chunk, ' ');
-        $u8feed1(into, '\n');
+        u8s_feed1(into, '\n');
     }
     return OK;
 }
@@ -66,7 +66,7 @@ fun ok64 UNITdump($u8 into, $u8c rdx) {
     a$dup(u8c, c2, rdx);
     a$dup(u8c, c3, rdx);
     JDRfeed(into, c2);
-    $u8feed1(into, '\n');
+    u8s_feed1(into, '\n');
     HEXdump(into, c3);
     return OK;
 }
@@ -151,7 +151,7 @@ ok64 UNITdrain(Bu8 tests, UNITfn fn) {
     return o;
 }
 
-fun ok64 UNITfail($u8cc correct, $u8cc fact) {
+fun ok64 UNITfail(u8cs correct, u8cs fact) {
     aBpad2(u8, pad, PAGESIZE);
     a$strc(expstr, "\nEXPECTED:\n");
     a$strc(factstr, "\nFACT:\n");
@@ -159,20 +159,20 @@ fun ok64 UNITfail($u8cc correct, $u8cc fact) {
     $u8feed(paddata, expstr);
     a$dup(u8c, c2, correct);
     JDRfeed(paddata, c2);
-    $u8feed1(paddata, '\n');
+    u8s_feed1(paddata, '\n');
     HEXdump(paddata, correct);
     Back(padbuf);
     $u8feed(padidle, factstr);
     a$dup(u8c, f2, fact);
     JDRfeed(padidle, f2);
-    $u8feed1(padidle, '\n');
+    u8s_feed1(padidle, '\n');
     HEXdump(padidle, fact);
     Backpast(padbuf);
     return FILEfeed(STDOUT_FILENO, Bu8cdata(padbuf));
 }
 
-fun ok64 JDRdrainargs($u8 into, $$u8c jdr) {
-    a$dup($u8c, j, jdr);
+fun ok64 JDRdrainargs($u8 into, u8css jdr) {
+    a$dup(u8cs, j, jdr);
     id128 id128zero = {};
     while (!$empty(j)) {
         a$dup(u8, dup, into);

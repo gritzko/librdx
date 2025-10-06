@@ -24,7 +24,7 @@ con ok64 UTF8bad = 0x1e74f226968;
 ok64 _UTF8feed1($u8 into, u32 cp);
 
 fun ok64 UTF8feed1($u8 into, u32 cp) {
-    return cp < 0x80 ? $u8feed1(into, cp) : _UTF8feed1(into, cp);
+    return cp < 0x80 ? u8s_feed1(into, cp) : _UTF8feed1(into, cp);
 }
 
 ok64 _UTF8drain1(u32 *cp, $u8c data);

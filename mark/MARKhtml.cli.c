@@ -33,13 +33,13 @@ pro(md2html, $u8c mod) {
     sane($ok(mod) && !$empty(mod) && $len(mod) <= 1000);
     a$strf(name, 1024, "$s.md", mod);
     int fd = 0;
-    call(FILEopen, &fd, Bu8cdata(name), O_RDONLY);
+    call(FILEopen, &fd,Bu8cdata(name), O_RDONLY);
     Bu8 txtbuf = {};
     call(FILEmap, txtbuf, &fd, PROT_READ);
 
     Bu8 fmtbuf = {};
     call(MMAPu8open, fmtbuf, Blen(txtbuf));
-    Bu8cp linebuf = {};
+    u8cBp linebuf = {};
     call(MMAPu8cpopen, linebuf, Blen(txtbuf));
     Bu64 divbuf = {};
     call(MMAPu64open, divbuf, Blen(txtbuf));
@@ -52,7 +52,7 @@ pro(md2html, $u8c mod) {
     state.divB = (u64Bp)divbuf;
     state.lineB = (u8cpBp)linebuf;
     state.pB = (u64Bp)pbuf;
-    $mv(state.text, Bu8cdata(txtbuf));
+    $mv(state.text,Bu8cdata(txtbuf));
     $mv(state.fmt, Bu8idle(fmtbuf));
 
     call(MARKlexer, &state);
@@ -61,9 +61,9 @@ pro(md2html, $u8c mod) {
 
     int hfd = 0;
     a$strf(htmlname, 1024, "$s.html", mod);
-    call(FILEcreate, &hfd, Bu8cdata(htmlname));
+    call(FILEcreate, &hfd,Bu8cdata(htmlname));
     call(FILEfeedall, hfd, header_template);
-    call(FILEfeedall, hfd, Bu8cdata(intobuf));
+    call(FILEfeedall, hfd,Bu8cdata(intobuf));
     call(FILEfeedall, hfd, footer_template);
 
     // FIXME defer!!!

@@ -10,7 +10,7 @@ con ok64 Ybad = 0x8a6968;
 con ok64 Ynodata = 0x22cb3a25e25;
 con ok64 Ynoroom = 0x22cb3db3cf1;
 
-#define X(M, name) M##$u8c##name
+#define X(M, name) M##u8cs##name
 #include "abc/HEAPx.h"
 #undef X
 

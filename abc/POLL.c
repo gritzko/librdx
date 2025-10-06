@@ -32,12 +32,12 @@ pro(POLLadd, POLLstate state, int fd, $u8c name, POLLfunI fi) {
     try($u8dup, (u8**)ctl->name, name);
     then try(Bu8alloc, ctl->readbuf, PAGESIZE);
     then try(Bu8alloc, ctl->writebuf, PAGESIZE);
-    then try(B$u8calloc, ctl->writes, 64);
+    then try(Bu8csalloc, ctl->writes, 64);
     oops {
         Bu8free(ctl->readbuf);
         Bu8free(ctl->writebuf);
         $u8free(ctl->name);
-        B$u8cfree(ctl->writes);
+        Bu8csfree(ctl->writes);
     }
     done;
 }
@@ -53,7 +53,7 @@ pro(POLLlisten, POLLstate state, int fd, $u8c name, POLLfunI fi) {
     ctl->fn = fi;
     Bu8free(ctl->readbuf);
     Bu8free(ctl->writebuf);
-    B$u8cfree(ctl->writes);
+    Bu8csfree(ctl->writes);
     done;
 }
 
@@ -61,7 +61,7 @@ pro(POLLdelctl, POLLstate state, POLLctl* ctl, ok64 o) {
     sane(state != nil && ctl != nil && ctl->fd >= 0);
     Bu8free(ctl->readbuf);
     Bu8free(ctl->writebuf);
-    B$u8cfree(ctl->writes);
+    Bu8csfree(ctl->writes);
     $u8free(ctl->name);
     int len = POLLlen(state);
     POLLctl* last = state + len - 1;
@@ -80,7 +80,7 @@ pro(POLLread, POLLctl* ctl) {
 
 pro(POLLwrite, POLLctl* ctl) {
     sane(ctl != nil && ctl->fn != nil);
-    call(FILEfeedv, ctl->fd, B$u8cdata(ctl->writes));
+    call(FILEfeedv, ctl->fd, Bu8csdata(ctl->writes));
     if (Bdatalen(ctl->writes) == 0) {
         Breset(ctl->writebuf);
         Breset(ctl->writes);
@@ -108,7 +108,7 @@ pro(POLLonce, POLLstate state, size_t ms) {
     int l = 0;
     while (l < POLL_MAX_FILES && state[l].fn != nil) {
         int e = 0;
-        if (B$u8chasdata(state[l].writes)) e |= POLLOUT;
+        if (Bu8cshasdata(state[l].writes)) e |= POLLOUT;
         if (Bu8hasroom(state[l].readbuf)) e |= POLLIN;
         if (state[l].o == POLLaccept) e |= POLLIN;
         fds[l].fd = state[l].fd;

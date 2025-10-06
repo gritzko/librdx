@@ -77,7 +77,7 @@ fun pro(X(SKIP, feed), Bu8 buf, X(SKIP, tab) * k) {
 fun pro(X(SKIP, drain), X(SKIP, tab) * hop, Bu8 buf, size_t pos) {
     sane(hop != nil && Bok(buf) && pos > 0);
     a$(T, into, hop->off);
-    a$tail(u8c, data, Bu8cdata(buf), pos);
+    a$tail(u8c, data,Bu8cdata(buf), pos);
     $u8c w = {};
     u8 t = 0;
     call(TLVdrain, &t, w, data);
@@ -100,7 +100,7 @@ fun pro(X(SKIP, finish), Bu8 buf, X(SKIP, tab) * k) {
         a$dup(u8c, rest, tail);
         call(TLVdrain$, lastk, rest);
         call($u8move, tail, rest);
-        call($u8retract, Bu8cdata(buf), $len(lastk));
+        call($u8retract,Bu8cdata(buf), $len(lastk));
     }
     a$raw(w, k->off);
     a$head(u8c, wl, w, X(SKIP, top)(pos));

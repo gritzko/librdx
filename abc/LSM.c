@@ -1,26 +1,26 @@
 #include "LSM.h"
 
 #include "SKIP.h"
-#include "abc/S.h"
 #include "abc/OK.h"
+#include "abc/S.h"
 #include "abc/TLV.h"
 
-ok64 LSMnext($u8 into, $$u8c lsm, $u8cZfn cmp, $u8cYfn mrg) {
+ok64 LSMnext($u8 into, u8css lsm, $u8cZfn cmp, $u8cYfn mrg) {
     sane($ok(into) && $ok(lsm) && cmp != nil && mrg != nil);
     $u8c next = {}, _;
-    aBpad2($u8c, in, LSM_MAX_INPUTS);
+    aBpad2(u8cs, in, LSM_MAX_INPUTS);
 
     do {
         call(TLVdrain$, next, **lsm);
         while (!$empty(**lsm) && (~TLVaA & ****lsm) == SKIP_TLV_TYPE)
             call(TLVdrain$, _, **lsm);
-        call($$u8cfeedp, inidle, &next);
+        call(u8css_feedp, inidle, &next);
         if ($empty(**lsm)) {
-            $u8cswap($head(lsm), $last(lsm));
+            u8csswap($head(lsm), $last(lsm));
             --$term(lsm);
             if ($empty(lsm)) break;
         }
-        HEAP$u8cdownf(lsm, cmp);
+        HEAPu8csdownf(lsm, cmp);
     } while (0 == cmp($head(lsm), &next));
 
     if ($len(indata) == 1) {
@@ -31,24 +31,24 @@ ok64 LSMnext($u8 into, $$u8c lsm, $u8cZfn cmp, $u8cYfn mrg) {
     done;
 }
 
-ok64 LSMdrainruns(B$u8c heap, $u8c input, $u8cZfn cmp) {
-    sane(Bok(heap) && $ok(input) && B$u8chasroom(heap) && cmp != nil);
+ok64 LSMdrainruns(u8csB heap, $u8c input, $u8cZfn cmp) {
+    sane(Bok(heap) && $ok(input) && Bu8cshasroom(heap) && cmp != nil);
     $u8c last = {};
     call(TLVdrain$, last, input);
     a$dup(u8c, run, last);
-    while (!$empty(input) && $len(B$u8cidle(heap)) > 1) {
+    while (!$empty(input) && $len(Bu8csidle(heap)) > 1) {
         $u8c rec;
         call(TLVdrain$, rec, input);
         int z = cmp(&last, &rec);
         if (z >= 0) {
-            call(HEAP$u8cpushf, heap, &run, cmp);
+            call(HEAPu8cspushf, heap, &run, cmp);
             $mv(run, rec);
         } else {
             run[1] = rec[1];
         }
         $mv(last, rec);
     }
-    call(HEAP$u8cpushf, heap, &run, cmp);
+    call(HEAPu8cspushf, heap, &run, cmp);
     done;
 }
 
@@ -57,7 +57,7 @@ ok64 LSMsort1(size_t* runs, $u8 into, $u8c data, $u8cZfn cmp, $u8cYfn mrg) {
          mrg != nil);
     *runs = 0;
     while (!$empty(data)) {
-        aBpad2($u8c, runs, LSM_MAX_INPUTS);
+        aBpad2(u8cs, runs, LSM_MAX_INPUTS);
         call(LSMdrainruns, runsbuf, data, cmp);
         if ($len(runsdata) == 1 && *runs == 0) return OK;
         while (!$empty(runsdata)) {

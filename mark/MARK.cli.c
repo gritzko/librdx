@@ -58,7 +58,7 @@ pro(mark, $u8c mod) {
     call(FILEmap, text, &fd, PROT_READ);
 
     Bu8 fmtbuf = {};
-    Bu8cp linebuf = {};
+    u8cBp linebuf = {};
     Bu64 divbuf = {};
     Bu64 pbuf = {};
     Bu8 intobuf = {};
@@ -73,13 +73,13 @@ pro(mark, $u8c mod) {
         state.divB = (u64Bp)divbuf;
         state.lineB = (u8cpBp)linebuf;
         state.pB = (u64Bp)pbuf;
-        $mv(state.text, Bu8cdata(text));
+        $mv(state.text,Bu8cdata(text));
         $mv(state.fmt, Bu8idle(fmtbuf));
 
         try(MARKlexer, &state);
         then try(MARKMARQ, &state);
         then try(MARKANSI, Bu8idle(intobuf), 64, &state);
-        then try(FILEfeedall, STDOUT_FILENO, Bu8cdata(intobuf));
+        then try(FILEfeedall, STDOUT_FILENO,Bu8cdata(intobuf));
     }
 
     FILEclose(&fd);

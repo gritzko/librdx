@@ -11,11 +11,11 @@ con ok64 HTTPnone = 0x45d759cb3ca9;
 typedef struct {
     $u8c text;
 
-    $u8c$ parsed;
+    u8cssp parsed;
 } HTTPstate;
 
 ok64 HTTPlexer(HTTPstate *state);
 
-ok64 HTTPfind(u8c$ value, $cu8c key, $$u8c parsed);
+ok64 HTTPfind(u8c$ value, $cu8c key, u8css parsed);
 
 #endif

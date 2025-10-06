@@ -119,7 +119,7 @@ pro(HASHd) {
             HASHu32del(dict, &rec);
         }
     }
-    $u32feedall(Bu32idle(copybuf), Bu32cdata(dictbuf));
+    $u32feedall(Bu32idle(copybuf),Bu32cdata(dictbuf));
 
     for (int j = 0; j < 1000; ++j) {
         Bzero(dictbuf);

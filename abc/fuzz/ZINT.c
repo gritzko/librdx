@@ -13,7 +13,7 @@ fuzz(u64, ZINTfuzz) {
         a._64[1] = **tozip;
         aBpad(u8, pad, 16);
         u8$ into = Bu8idle(pad);
-        u8c$ data = Bu8cdata(pad);
+        u8c$ data =Bu8cdata(pad);
         ZINTu128feed(into, a);
         u128 b = {};
         ZINTu128drain(&b, data);

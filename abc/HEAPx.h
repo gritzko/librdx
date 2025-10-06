@@ -43,14 +43,14 @@ fun ok64 X(HEAP, pop)(T *v, X(B, ) buf) {
 }
 
 fun ok64 X(HEAP, push)(X(B, ) buf, T const *v) {
-    ok64 o = X(B, feedp)(buf, v);
+    ok64 o = X(, B_feedp)(buf, v);
     if (o != OK) return o;
     X(HEAP, up)(X(B, data)(buf));
     return OK;
 }
 
 fun ok64 X(HEAP, push1)(X(B, ) buf, T v) {
-    ok64 o = X(B, feed1)(buf, v);
+    ok64 o = X(, B_feed1)(buf, v);
     if (o != OK) return o;
     X(HEAP, up)(X(B, data)(buf));
     return OK;
@@ -94,14 +94,14 @@ fun ok64 X(HEAP, popf)(T *v, X(B, ) buf, X(, cmpfn) fn) {
 }
 
 fun ok64 X(HEAP, pushf)(X(B, ) buf, T const *v, X(, cmpfn) fn) {
-    ok64 o = X(B, feedp)(buf, v);
+    ok64 o = X(, B_feedp)(buf, v);
     if (o != OK) return o;
     X(HEAP, upf)(X(B, data)(buf), fn);
     return OK;
 }
 
 fun ok64 X(HEAP, push1f)(X(B, ) buf, T v, X(, cmpfn) fn) {
-    ok64 o = X(B, feed1)(buf, v);
+    ok64 o = X(, B_feed1)(buf, v);
     if (o != OK) return o;
     X(HEAP, upf)(X(B, data)(buf), fn);
     return OK;

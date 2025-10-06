@@ -31,7 +31,7 @@ pro(MARQANSI, $u8 $into, $u8c const $txt, $u8c const $fmt) {
             call(openesc, $into, *fp);
             prev = *fp;
         }
-        call($u8feed1, $into, *p);  // todo segments
+        call(u8s_feed1, $into, *p);  // todo segments
         ++fp;
     }
     if (prev != 0) call(closeesc, $into);
@@ -52,7 +52,7 @@ pro(openspan, $u8 $into, u8 mask) {
     b8 first = YES;
     while (mask != 0) {
         u8 low = ctz32(mask);
-        if (!first) call($u8feed1, $into, ' ');
+        if (!first) call(u8s_feed1, $into, ' ');
         call($u8feed, $into, CLASSES[low]);
         mask -= 1 << low;
         first = NO;
@@ -76,7 +76,7 @@ pro(MARQHTML, $u8 $into, $u8c $txt, $u8c $fmt) {
             call(openspan, $into, *fp);
             prev = *fp;
         }
-        call($u8feed1, $into, *p);  // todo segments
+        call(u8s_feed1, $into, *p);  // todo segments
         ++fp;
     }
     if (prev != 0xff) call(closespan, $into);

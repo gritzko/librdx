@@ -29,7 +29,7 @@ pro(RDXtest1) {
     aRDXid(id, 1, 2);
     call(RDXfeed, into, RDX_STRING, id, hello);
     same(10, $len(Bu8data(pad)));
-    call(RDXallFIRST, Bu8c$1(pad));
+    call(RDXallFIRST, Bu8cdata(pad));
 
     u8 const** from = Bu8cdata(pad);
     u8 t;

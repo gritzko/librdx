@@ -21,7 +21,7 @@ pro(RDXZtestvalue, Bu8 testbuf) {
         $print(Bu8cdata(testbuf));  // state.text);
         fail(o);
     }
-    aBcpad($u8c, elem, 64);
+    aBcpad(u8cs, elem, 64);
     a$dup(u8c, tlv, tlvdata);
     int i = 0, j = 0;
     while (!$empty(tlv)) {
@@ -44,8 +44,8 @@ pro(RDXZtestvalue, Bu8 testbuf) {
     done;
 }
 
-static $u8c$ zcasesdata;
-static $u8c$ zcasesidle;
+static u8cssp zcasesdata;
+static u8cssp zcasesidle;
 
 con ok64 FAILz = 0x3e55228f;
 
@@ -57,7 +57,7 @@ ok64 zfn($cu8c cases) {
         $u8c rec;
         o = TLVdrain$(rec, c);
         if (o != OK) break;
-        for ($u8cc* p = $head(zcasesdata); p < $term(zcasesdata); ++p) {
+        for (u8cs* p = $head(zcasesdata); p < $term(zcasesdata); ++p) {
             int self = RDXZvalue(p, p);
             if (self != 0) {
                 UNITfail(*p, *p);
@@ -69,15 +69,13 @@ ok64 zfn($cu8c cases) {
                 o = FAILz;
             }
         }
-        $$u8cfeedp(zcasesidle, &rec);
+        u8css_feedp(zcasesidle, &rec);
     }
     return o;
 }
 
 pro(RDXZtest) {
-    aBpad($u8c, zcases, 256);
-    zcasesidle = B$u8c$2(zcases);
-    zcasesdata = B$u8c$1(zcases);
+    aBpad(u8cs, zcases, 256);
     sane(1);
     a$rg(path, 1);
     Bu8 rdxjbuf = {};

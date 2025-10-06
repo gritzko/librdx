@@ -20,7 +20,7 @@ fun int alpha($cu8c* a, $cu8c* b) {
     return c;
 }
 
-fun ok64 latest($u8 into, $$u8c from) {
+fun ok64 latest($u8 into, u8css from) {
     u8 ta = 0;
     $u8c max = {};
     for (int i = 0; i < $len(from); ++i) {
@@ -51,9 +51,9 @@ pro(LSM0) {
     for (int i = 0; i < 5; ++i)
         call(TLVfeedkv, pad2idle, 'K', kv2[i][0], kv2[i][1]);
 
-    aBpad2($u8c, lsm, 4);
-    call(HEAP$u8cpushf, lsmbuf, ($u8c*)pad1data, alpha);
-    call(HEAP$u8cpushf, lsmbuf, ($u8c*)pad2data, alpha);
+    aBpad2(u8cs, lsm, 4);
+    call(HEAPu8cspushf, lsmbuf, ($u8c*)pad1data, alpha);
+    call(HEAPu8cspushf, lsmbuf, ($u8c*)pad2data, alpha);
 
     aBcpad(u8, txt, 1024);
     call(LSMmerge, txtidle, lsmdata, alpha, latest);
@@ -72,7 +72,7 @@ pro(LSM0) {
     done;
 }
 
-fun ok64 nomerge($u8 into, $$u8c from) { return $u8feedall(into, **from); }
+fun ok64 nomerge($u8 into, u8css from) { return $u8feedall(into, **from); }
 
 pro(LSM1) {
     sane(1);
@@ -94,7 +94,7 @@ pro(LSM1) {
         u8 ta;
         $u8c keya;
         $u8c vala;
-        call(TLVdrainkv, &ta, keya, vala, Bu8cdata(padbuf));
+        call(TLVdrainkv, &ta, keya, vala,Bu8cdata(padbuf));
         //$println(keya);
         want(**keya == c);
         ++c;
@@ -130,7 +130,7 @@ ok64 LSM1000000() {
     for (u64 i = 0; i < LEN; ++i) {
         u8 t = 0;
         $u8c zint = {};
-        call(TLVdrain, &t, zint, Bu8cdata(milbuf));
+        call(TLVdrain, &t, zint,Bu8cdata(milbuf));
         want(t == 'I');
         u64 u = 0;
         call(ZINTu64drain, &u, zint);

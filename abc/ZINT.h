@@ -27,7 +27,7 @@ fun ok64 ZINTu64feed($u8 into, u64 n) {
     if (n <= B1) {
         if (n != 0) $u8feed8(into, (u8*)&n);
     } else if (n <= B2) {
-        $u8feed16(into, (u16*)&n);
+        u8s_feed16(into, (u16*)&n);
     } else if (n <= B4) {
         $u8feed32(into, (u32*)&n);
     } else {
@@ -75,7 +75,7 @@ fun ok64 ZINTu128feed($u8 into, u128c* a) {
         if (big <= B1) {
             if (big != 0 || lil != 0) $u8feed8(into, (u8*)&big);
         } else if (big <= B2) {
-            $u8feed16(into, (u16*)&big);
+            u8s_feed16(into, (u16*)&big);
         } else if (big <= B4) {
             $u8feed32(into, (u32*)&big);
         } else {
@@ -84,13 +84,13 @@ fun ok64 ZINTu128feed($u8 into, u128c* a) {
         if (lil != 0 || big > B1) $u8feed8(into, (u8*)&lil);
     } else if (lil <= B2) {
         if (big <= B2) {
-            $u8feed16(into, (u16*)&big);
+            u8s_feed16(into, (u16*)&big);
         } else if (big <= B4) {
             $u8feed32(into, (u32*)&big);
         } else {
             $u8feed64(into, &big);
         }
-        $u8feed16(into, (u16*)&lil);
+        u8s_feed16(into, (u16*)&lil);
     } else if (lil <= B4) {
         if (big <= B4) {
             $u8feed32(into, (u32*)&big);

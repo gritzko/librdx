@@ -7,23 +7,23 @@
 #include "RDXC.h"
 #include "UNIT.h"
 #include "Y.h"
-#include "abc/S.h"
 #include "abc/BUF.h"
 #include "abc/FILE.h"
 #include "abc/OK.h"
+#include "abc/S.h"
 
 con ok64 RDXbadverb = 0x6cd866968ea9da6;
 
 u8* tmp[4] = {};
 $u8c* ins[4] = {};
 
-fun ok64 TLVsplit($$u8c idle, $cu8c data) {
+fun ok64 TLVsplit(u8css idle, $cu8c data) {
     sane($ok(idle) && $ok(data));
     a$dup(u8c, d, data);
     while (!$empty(d)) {
         $u8c next = {};
         call(TLVdrain$, next, d);
-        call($$u8cfeed1, idle, next);
+        call(u8css_feed1, idle, next);
     }
     done;
 }
@@ -45,7 +45,7 @@ pro(RDXeatfile, int fd) {
     call(FILEmapro2, buf, &fd);
     ok64 jdr = RDXtry(Bu8cdata(buf));
     if (jdr == OK) {
-        call(TLVsplit, B$u8cidle(ins), Bu8cdata(buf));
+        call(TLVsplit, Bu8csidle(ins), Bu8cdata(buf));
     } else {
         aBcpad(u8, err, 128);
         try(JDRparse, Bu8idle(tmp), erridle, Bu8cdata(buf));
@@ -53,7 +53,7 @@ pro(RDXeatfile, int fd) {
             FILEfeed(STDERR_FILENO, errdata);
             done;
         }
-        call(TLVsplit, B$u8cidle(ins), Bu8cdata(tmp));
+        call(TLVsplit, Bu8csidle(ins), Bu8cdata(tmp));
         Beat(tmp);
     }
     done;
@@ -80,7 +80,7 @@ pro(RDXeatfiles, $u8c args) {
 pro(RDX_print, $u8c args) {
     sane(1);
     Beat(tmp);
-    a$dup($u8c, in, B$u8cdata(ins));
+    a$dup(u8cs, in, Bu8csdata(ins));
     u8$ idle = Bu8idle(tmp);
     call(JDRfeed, idle, **in);
     ++*in;
@@ -88,7 +88,7 @@ pro(RDX_print, $u8c args) {
         call($u8feed2, idle, ',', '\n');
         call(JDRfeed, idle, **in);
     }
-    call($u8feed1, idle, '\n');
+    call(u8s_feed1, idle, '\n');
 
     int fd = STDOUT_FILENO;
     if (TLVup(**args) == RDX_STRING) {
@@ -117,7 +117,7 @@ ok64 RDX_write($u8c args) {
     test(t == RDX_STRING, badarg);
     int fd = FILE_CLOSED;
     call(FILEcreate, &fd, val);
-    $eat(B$u8cdata(ins)) call(FILEfeedall, fd, *ins[1]);
+    $eat(Bu8csdata(ins)) call(FILEfeedall, fd, *ins[1]);
     call(FILEclose, &fd);
     Breset(ins);
     done;
@@ -128,9 +128,9 @@ ok64 RDX_merge($u8c args) {
     call(RDXeatfiles, args);
     Beat(tmp);
     u8$ idle = Bu8idle(tmp);
-    call(Y, idle, B$u8cdata(ins));
+    call(Y, idle, Bu8csdata(ins));
     Breset(ins);
-    call($$u8cfeed1, B$u8cidle(ins), Bu8cdata(tmp));
+    call(u8css_feed1, Bu8csidle(ins), Bu8cdata(tmp));
     Beat(tmp);
     done;
 }
@@ -146,12 +146,12 @@ ok64 yfn($cu8c cases) {
     a$dup(u8c, tlv, cases);
     while (!$empty(tlv)) {
         $u8c in = {};
-        aBpad2($u8c, elem, PAGESIZE);
+        aBpad2(u8cs, elem, PAGESIZE);
         $u8c correct = {};
         aBcpad(u8, res, PAGESIZE);
         call(TLVdrain$, in, tlv);
         do {
-            $$u8cfeed1(elemidle, in);
+            u8css_feed1(elemidle, in);
             call(TLVdrain$, in, tlv);
         } while (!is_tilda(in));
         call(TLVdrain$, correct, tlv);
@@ -220,14 +220,14 @@ cmd_t COMMANDS[] = {
 
 ok64 RDXcli() {
     sane(1);
-    a$dup($u8c, stdargs, B$u8cdata(STD_ARGS));
+    a$dup(u8cs, stdargs, Bu8csdata(STD_ARGS));
     ++*stdargs;  // program name
     aBcpad(u8, cmds, PAGESIZE);
     call(JDRdrainargs, cmdsidle, stdargs);
     u8c$ cmds = cmdsdata;
 
     call(Bu8map, tmp, 1UL << 32);
-    call(B$u8calloc, ins, Y_MAX_INPUTS * 8);
+    call(Bu8csalloc, ins, Y_MAX_INPUTS * 8);
 
     while (!$empty(cmds)) {
         u8 t = 0;
@@ -261,7 +261,7 @@ ok64 RDXcli() {
     test($empty(cmds), badarg);
 
     Bu8unmap(tmp);
-    B$u8cfree(ins);
+    Bu8csfree(ins);
 
     done;
 }

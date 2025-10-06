@@ -34,7 +34,7 @@ pro(MARQANSItest) {
         call(MARQlexer, &state);
         call(MARQANSI, Bu8idle(into), state.text, (u8c**)state.fmt);
 
-        test($eq(QA[c][1], Bu8cdata(into)), TESTfail);
+        test($eq(QA[c][1],Bu8cdata(into)), TESTfail);
     }
     done;
 }
@@ -62,7 +62,7 @@ pro(MARQHTMLtest) {
         call(MARQlexer, &state);
         call(MARQHTML, Bu8idle(into), state.text, (u8c**)state.fmt);
 
-        test($eq(QA[c][1], Bu8cdata(into)), TESTfail);
+        test($eq(QA[c][1],Bu8cdata(into)), TESTfail);
     }
     done;
 }

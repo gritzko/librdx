@@ -110,7 +110,7 @@ fun ok64 FILEfeed(int fd, u8 const **data) {
     return OK;
 }
 
-fun int FILE2iovec(struct iovec *io, $$u8c datav) {
+fun int FILE2iovec(struct iovec *io, u8css datav) {
     int l = 0;
     while (l < $len(datav) && l < FILEmaxiov) {
         u8c$ data = $at(datav, l);
@@ -121,7 +121,7 @@ fun int FILE2iovec(struct iovec *io, $$u8c datav) {
     return l;
 }
 
-fun void $$u8cdrained($$u8c datav, size_t re) {
+fun void u8cssdrained(u8css datav, size_t re) {
     while (re > 0 && !$empty(datav)) {
         u8c$ data = $at(datav, 0);
         if (re < $len(data)) {
@@ -134,12 +134,12 @@ fun void $$u8cdrained($$u8c datav, size_t re) {
     }
 }
 
-fun ok64 FILEfeedv(int fd, $$u8c datav) {
+fun ok64 FILEfeedv(int fd, u8css datav) {
     struct iovec io[FILEmaxiov];
     int l = FILE2iovec(io, datav);
     ssize_t re = writev(fd, io, l);
     if (re <= 0) return FILEfail;
-    $$u8cdrained(datav, re);
+    u8cssdrained(datav, re);
     return OK;
 }
 
@@ -165,10 +165,10 @@ fun ok64 FILEdrain(u8 **into, int fd) {
 
 fun ok64 FILEdrainv($$u8 datav, int fd) {
     struct iovec io[FILEmaxiov];
-    int l = FILE2iovec(io, ($u8c$)datav);
+    int l = FILE2iovec(io, (u8cssp)datav);
     ssize_t re = readv(fd, io, l);
     if (re <= 0) return FILEfail;
-    $$u8cdrained(($u8c$)datav, re);
+    u8cssdrained((u8cssp)datav, re);
     return OK;
 }
 
@@ -316,7 +316,7 @@ con u8 *const NL[2] = {_NL, _NL + 1};
     {                                            \
         aBpad(u8, _pad, PAGESIZE);               \
         $feedf(Bu8idle(_pad), fmt, __VA_ARGS__); \
-        FILEfeed(fd, Bu8cdata(_pad));            \
+        FILEfeed(fd,Bu8cdata(_pad));            \
     }
 
 #endif  // ABC_F_H

@@ -19,7 +19,7 @@ pro(TLVtest1) {
     call(TLVfeed, into, 'S', str1);
     call(TLVfeed, into, 'S', str2);
     call(TLVfeed, into, 'S', str3);
-    u8c **from = Bu8cdata(pad);
+    u8c **from =Bu8cdata(pad);
     //$print(from);
     $u8c str1b, str2b, str3b;
     call(TLVtake, 'S', str1b, from);
@@ -40,13 +40,13 @@ pro(TLVtest2) {
         **init = v;
         ++*init;
     }
-    u8c **block = Bu8cdata(pad);
+    u8c **block =Bu8cdata(pad);
     testeq($len(block), 256);
     u8 **into = Bu8idle(tlv);
     for (int j = 0; j < 2; j++) {
         call(TLVfeed, into, 'B', block);
     }
-    u8c **from = Bu8cdata(tlv);
+    u8c **from =Bu8cdata(tlv);
     $print(from);
     for (int i = 0; i < 2; i++) {
         $u8c take;

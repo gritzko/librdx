@@ -37,7 +37,7 @@ ok64 BRIKfilename($u8 into, BRIX const* brix, sha256c* sha) {
 ok64 BRIKpath($u8 into, BRIX const* brix, sha256c* sha) {
     sane($ok(into) && brix != nil);
     call($u8feedall, into, brix->home);
-    call($u8feed1, into, '/');
+    call(u8s_feed1, into, '/');
     call(BRIKfilename, into, brix, sha);
     done;
 }
@@ -45,7 +45,7 @@ ok64 BRIKpath($u8 into, BRIX const* brix, sha256c* sha) {
 ok64 BRIXopenrepo(BRIX* brix, $u8c path) {
     sane(brix != nil && !Bok(brix->ssts) && $ok(path));
     call(FILEisdir, path);
-    call(BBu8alloc, brix->ssts, LSM_MAX_INPUTS);
+    call(Bu8Balloc, brix->ssts, LSM_MAX_INPUTS);
     call(Bsha256alloc, brix->shas, LSM_MAX_INPUTS);
     Bu8 pb = {};
     call(Bu8alloc, pb, $len(path));
@@ -70,8 +70,8 @@ ok64 BRIXadd(BRIX* brix, sha256c* sha) {
         ok64 o = BRIXhave(brix, $head(deps));
         if (o != OK) call(BRIXadd, brix, $head(deps));
     }
-    call(BBu8feed1, brix->ssts, sst);
-    call(Bsha256feedp, brix->shas, sha);
+    call(u8BB_feed1, brix->ssts, sst);
+    call(sha256B_feedp, brix->shas, sha);
     done;
 }
 
@@ -81,7 +81,7 @@ ok64 BRIXopen(BRIX* brix, sha256c* sha) {
     sane(BRIXok(brix) && sha != nil);
     call(BRIXcloseall, brix);
     call(BRIXadd, brix, sha);
-    BBu8eatdata(brix->ssts);
+    Bu8Beatdata(brix->ssts);
     Bsha256eatdata(brix->shas);
     done;
 }
@@ -89,7 +89,7 @@ ok64 BRIXopen(BRIX* brix, sha256c* sha) {
 ok64 BRIXcloserepo(BRIX* brix) {
     sane(BRIXok(brix));
     call(BRIXcloseall, brix);
-    if (Bok(brix->ssts)) BBu8free(brix->ssts);
+    if (Bok(brix->ssts)) Bu8Bfree(brix->ssts);
     if (Bok(brix->shas)) Bsha256free(brix->shas);
     if ($ok(brix->home)) $u8free(brix->home);
     if (Bok(brix->pad)) Bu8unmap(brix->pad);
@@ -114,10 +114,10 @@ ok64 BRIXhave(BRIX const* brix, sha256c* id) {
 // close the added SSTs
 ok64 BRIXcloseadded(BRIX* brix) {
     sane(BRIXok(brix));
-    a$dup(Bu8, added, BBu8data(brix->ssts));
+    a$dup(Bu8, added, Bu8Bdata(brix->ssts));
     $eat(added) SSTu128close(**added);
     $zero(Bsha256data(brix->shas));
-    BBu8resetdata(brix->ssts);
+    Bu8Bresetdata(brix->ssts);
     Bsha256resetdata(brix->shas);
     done;
 }
@@ -148,7 +148,7 @@ ok64 BRIXmerge(sha256* newsha, BRIX* brix) {
     sane(newsha != nil && BRIXok(brix));
     test(Bdatalen(brix->ssts) > 0, BRIXnone);
 
-    aBpad2($u8c, ins, LSM_MAX_INPUTS);
+    aBpad2(u8cs, ins, LSM_MAX_INPUTS);
     aBpad2(sha256, deps, LSM_MAX_INPUTS);
 
     sha256 base = {};
@@ -156,14 +156,14 @@ ok64 BRIXmerge(sha256* newsha, BRIX* brix) {
     if (!$empty(opened)) {
         base = *$sha256last(opened);
     }
-    Bsha256feed1(depsbuf, base);
+    sha256B_feed1(depsbuf, base);
     Bsha256eatdata(depsbuf);
     call($sha256feed, Bsha256idle(depsbuf), Bsha256cdata(brix->shas));
     $sha256sort(depsdata);
     Bsha256resetpast(depsbuf);
 
-    a$dup(Bu8, news, BBu8data(brix->ssts));
-    $eat(news) HEAP$u8cpush1f(insbuf, Bu8cdata(**news), RDXZrevision);
+    a$dup(u8B, news, Bu8Bdata(brix->ssts));
+    $eat(news) HEAPu8cspush1f(insbuf, Bu8cdata(**news), RDXZrevision);
 
     SSTu128 sst = {};
     int fd = FILE_CLOSED;
@@ -171,11 +171,11 @@ ok64 BRIXmerge(sha256* newsha, BRIX* brix) {
     call($u8feedall, tmpidle, brix->home);
     call($u8feedall, tmpidle, BRIKtmp);
     size_t sumsz = PAGESIZE;
-    a$dup($u8c, ins, insdata);
+    a$dup(u8cs, ins, insdata);
     $eat(ins) sumsz += $size(**ins);
     sumsz = roundup(sumsz + PAGESIZE + $size(depsdata), PAGESIZE);
     call(SSTu128init, sst, &fd, tmpdata, sumsz);
-    call(Bu8feed$, sst, (u8c$)depsdata);
+    call(u8B_feed$, sst, (u8c$)depsdata);
     Bu8eatdata(sst);
 
     SKIPu8tab tab = {};
@@ -203,12 +203,12 @@ ok64 BRIXmerge(sha256* newsha, BRIX* brix) {
 
 ok64 BRIXget($u8 rec, BRIX const* brix, u8 rdt, id128 key) {
     sane(rec != nil && brix != nil && (TLVlong(rdt) || rdt == 0));
-    aBpad2($u8c, ins, LSM_MAX_INPUTS);
+    aBpad2(u8cs, ins, LSM_MAX_INPUTS);
     for (Bu8* p = brix->ssts[0]; p < brix->ssts[2]; ++p) {
         u8 t = rdt;
         $u8c rec = {};
         ok64 o = SSTu128getkv(rec, *p, t, &key);
-        if (o == OK) $$u8cfeed1(insidle, rec);
+        if (o == OK) u8css_feed1(insidle, rec);
     }
     if ($len(insdata) == 1) {
         call($u8feedall, rec, *$head(insdata));
@@ -222,12 +222,12 @@ ok64 BRIXget($u8 rec, BRIX const* brix, u8 rdt, id128 key) {
 
 ok64 _BRIXgetc(u8c$ rec, BRIX const* brix, u8 rdt, id128 key) {
     sane($nil(rec) && brix != nil && (TLVlong(rdt) || rdt == 0));
-    aBpad2($u8c, ins, LSM_MAX_INPUTS);
+    aBpad2(u8cs, ins, LSM_MAX_INPUTS);
     for (Bu8* p = brix->ssts[0]; p < brix->ssts[2]; ++p) {
         u8 t = rdt;
         $u8c rec = {};
         ok64 o = SSTu128getkv(rec, *p, t, &key);
-        if (o == OK) $$u8cfeed1(insidle, rec);
+        if (o == OK) u8css_feed1(insidle, rec);
     }
     if ($len(insdata) == 1) {
         $mv(rec, *$head(insdata));
@@ -257,7 +257,7 @@ ok64 _BRIXreget($u8 into, BRIX const* brix, u8 rdt, id128 key, Bu8p stack) {
     $u8c k = {}, v = {}, body = {};
     call(TLVdrainkv, &t, k, body, got);
     call(TLVinitlong, into, t, stack);
-    call($u8feed1, into, $len(k));
+    call(u8s_feed1, into, $len(k));
     call($u8feedall, into, k);
     while (!$empty(body)) {
         a$dup(u8c, d, body);
@@ -303,7 +303,7 @@ ok64 BRIXisentry($cu8c rdx) {
     return o;
 }
 
-ok64 BRIXenlist(B$u8c heap, u64* roughlen, $cu8c allrdx) {
+ok64 BRIXenlist(u8csB heap, u64* roughlen, $cu8c allrdx) {
     sane(Bok(heap) && $ok(allrdx));
     a$dup(u8c, rdx, allrdx);
     while (!$empty(rdx)) {
@@ -312,7 +312,7 @@ ok64 BRIXenlist(B$u8c heap, u64* roughlen, $cu8c allrdx) {
         *roughlen += $len(rec);
         if (RDXisPLEX(**rec)) {
             if (BRIXisentry(rec) == OK) {
-                call(HEAP$u8cpushf, heap, &rec, RDXZrevision);
+                call(HEAPu8cspushf, heap, &rec, RDXZrevision);
             }
             $u8c id, val;
             u8 rdt;
@@ -332,7 +332,7 @@ ok64 BRIXflatfeed($u8 into, $u8c rdx) {
     $u8c key = {}, body = {};
     call(TLVdrainkv, &rdt, key, body, rdx);
     call(TLVinitlong, into, rdt, stackbuf);  // TODO adapt
-    call($u8feed1, into, $len(key));
+    call(u8s_feed1, into, $len(key));
     call($u8feedall, into, key);
     while (!$empty(body)) {
         $u8c e = {};
@@ -347,7 +347,7 @@ ok64 BRIXflatfeed($u8 into, $u8c rdx) {
     done;
 }
 
-ok64 _BRIXaddpatch(sha256* sha, BRIX* brix, $u8c rdx, B$u8c heap) {
+ok64 _BRIXaddpatch(sha256* sha, BRIX* brix, $u8c rdx, u8csB heap) {
     sane(sha != nil && BRIXok(brix) && $ok(rdx));
 
     u64 roughlen = 0;
@@ -364,7 +364,7 @@ ok64 _BRIXaddpatch(sha256* sha, BRIX* brix, $u8c rdx, B$u8c heap) {
 
     while (!Bempty(heap)) {
         $u8c pop = {};
-        call(HEAP$u8cpop, &pop, heap);
+        call(HEAPu8cspop, &pop, heap);
         call(BRIXflatfeed, Bu8idle(sst), pop);
     }
 
@@ -384,12 +384,12 @@ ok64 _BRIXaddpatch(sha256* sha, BRIX* brix, $u8c rdx, B$u8c heap) {
 // Makes a *patch* SST for it (no deps), puts it on the stack.
 ok64 BRIXaddpatch(sha256* sha, BRIX* brix, $u8c rdx) {
     sane(sha != nil && BRIXok(brix) && $ok(rdx));
-    B$u8c heap = {};
-    try(B$u8calloc, heap, BRIX_MAX_SST0_ENTRIES);
+    u8csB heap = {};
+    try(Bu8csalloc, heap, BRIX_MAX_SST0_ENTRIES);
     then try(_BRIXaddpatch, sha, brix, rdx, heap);
     then try(BRIXadd, brix, sha);
     // TODO rm file on fail
-    B$u8cfree(heap);
+    Bu8csfree(heap);
     done;
 }
 

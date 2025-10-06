@@ -11,9 +11,9 @@
 
 #define Y_MAX_INPUTS LSM_MAX_INPUTS
 
-fun ok64 Y($u8 into, $$u8c from);
+fun ok64 Y($u8 into, u8css from);
 
-fun ok64 YmergeF($u8 into, $$u8c from) {
+fun ok64 YmergeF($u8 into, u8css from) {
     sane($ok(into) && $ok(from) && !$empty(from));
     double max = 0;
     $u8c res = {};
@@ -32,7 +32,7 @@ fun ok64 YmergeF($u8 into, $$u8c from) {
     done;
 }
 
-fun ok64 YmergeI($u8 into, $$u8c from) {
+fun ok64 YmergeI($u8 into, u8css from) {
     sane($ok(into) && $ok(from) && !$empty(from));
     RDXint max = 0;
     $u8c res = {};
@@ -51,7 +51,7 @@ fun ok64 YmergeI($u8 into, $$u8c from) {
     done;
 }
 
-fun ok64 YmergeR($u8 into, $$u8c from) {
+fun ok64 YmergeR($u8 into, u8css from) {
     sane($ok(into) && $ok(from) && !$empty(from));
     RDXref max = {};
     $u8c res = {};
@@ -70,13 +70,13 @@ fun ok64 YmergeR($u8 into, $$u8c from) {
     done;
 }
 
-fun ok64 YmergeS($u8 into, $$u8c from) {
+fun ok64 YmergeS($u8 into, u8css from) {
     sane($ok(into) && $ok(from) && !$empty(from));
     $u8c res = {};
     $mv(res, **from);
     ++*from;
     $eat(from) {
-        if ($u8ccmp(&res, &**from) < 0) {
+        if (u8cscmp(&res, &**from) < 0) {
             $mv(res, **from);
         }
     }
@@ -84,19 +84,19 @@ fun ok64 YmergeS($u8 into, $$u8c from) {
     done;
 }
 
-fun ok64 YmergeT($u8 into, $$u8c from) { return YmergeS(into, from); }
+fun ok64 YmergeT($u8 into, u8css from) { return YmergeS(into, from); }
 
-fun ok64 YmergeP($u8 into, $$u8c bare) {
+fun ok64 YmergeP($u8 into, u8css bare) {
     sane($ok(into) && $ok(bare));
 
     while (1) {
-        aBpad2($u8c, yputs, Y_MAX_INPUTS);
+        aBpad2(u8cs, yputs, Y_MAX_INPUTS);
         for (size_t i = 0; i < $len(bare); ++i) {
-            u8c$ n = (u8c$)$$u8catp(bare, i);
+            u8c$ n = (u8csp)u8css_atp(bare, i);
             if ($empty(n)) continue;
             $u8c rec = {};
             call(TLVdrain$, rec, n);
-            $$u8cfeed1(yputsidle, rec);
+            u8css_feed1(yputsidle, rec);
         }
         if ($empty(yputsdata)) break;
         call(Y, into, yputsdata);
@@ -105,7 +105,7 @@ fun ok64 YmergeP($u8 into, $$u8c bare) {
     done;
 }
 
-fun ok64 YmergeL($u8 into, $$u8c from) {
+fun ok64 YmergeL($u8 into, u8css from) {
     sane($ok(into) && $ok(from));
     // TODO injects
     // TODO step wise
@@ -113,18 +113,18 @@ fun ok64 YmergeL($u8 into, $$u8c from) {
     done;
 }
 
-fun ok64 YmergeE($u8 into, $$u8c bare) {
+fun ok64 YmergeE($u8 into, u8css bare) {
     return LSMmerge(into, bare, RDXZvalue, Y);
 }
 
-fun ok64 YmergeX($u8 into, $$u8c bare) {
+fun ok64 YmergeX($u8 into, u8css bare) {
     return LSMmerge(into, bare, RDXZauthor, Y);
 }
 
-fun ok64 Y($u8 into, $$u8c inputs) {
+fun ok64 Y($u8 into, u8css inputs) {
     sane($ok(into) && $ok(inputs));
-    aBpad2($u8c, bares, Y_MAX_INPUTS);
-    a$dup($u8c, ins, inputs);
+    aBpad2(u8cs, bares, Y_MAX_INPUTS);
+    a$dup(u8cs, ins, inputs);
     u8 maxt = 0;
     u128 maxid = {};
     $eat(ins) {
@@ -145,7 +145,7 @@ fun ok64 Y($u8 into, $$u8c inputs) {
             Breset(baresbuf);
         }
         if (z <= 0) {
-            call($$u8cfeed1, baresidle, bare);
+            call(u8css_feed1, baresidle, bare);
         }
     }
 
@@ -153,7 +153,7 @@ fun ok64 Y($u8 into, $$u8c inputs) {
     call(TLVopen, into, maxt, &len);
     aBcpad(u8, id, 16);
     ZINTu128feed(ididle, &maxid);
-    call($u8feed1, into, $len(iddata));
+    call(u8s_feed1, into, $len(iddata));
     call($u8feed, into, iddata);
 
     switch (maxt) {

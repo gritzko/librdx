@@ -20,12 +20,12 @@ ok64 yfn($cu8c cases) {
     a$dup(u8c, tlv, cases);
     while (!$empty(tlv)) {
         $u8c in = {};
-        aBpad2($u8c, elem, PAGESIZE);
+        aBpad2(u8cs, elem, PAGESIZE);
         $u8c correct = {};
         aBcpad(u8, res, PAGESIZE);
         call(TLVdrain$, in, tlv);
         do {
-            $$u8cfeed1(elemidle, in);
+            u8css_feed1(elemidle, in);
             call(TLVdrain$, in, tlv);
         } while (!is_tilda(in));
         call(TLVdrain$, correct, tlv);
@@ -41,7 +41,7 @@ ok64 yfn($cu8c cases) {
 }
 
 pro(Y2) {
-    aBpad($u8c, zcases, PAGESIZE);
+    aBpad(u8cs, zcases, PAGESIZE);
     sane(1);
     a$rg(path, 1);
     Bu8 rdxjbuf = {};

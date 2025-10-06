@@ -1,9 +1,9 @@
 #include "MARK.h"
 
+#include "MARQ.h"
 #include "abc/01.h"
 #include "abc/B.h"
 #include "abc/INT.h"
-#include "MARQ.h"
 #include "abc/OK.h"
 #include "abc/PRO.h"
 
@@ -151,7 +151,7 @@ pro(feedlistbullet, $u8 $into, u16 list) {
     sane(1);
     test($len($into) >= 4, MARKnoroom);
     if (list < 10) {
-        $u8feed1($into, ' ');
+        u8s_feed1($into, ' ');
         u64decfeed($into, list);
         $u8feed2($into, '.', ' ');
     } else if (list < 100) {
@@ -159,10 +159,10 @@ pro(feedlistbullet, $u8 $into, u16 list) {
         $u8feed2($into, '.', ' ');
     } else if (list < 1000) {
         u64decfeed($into, list);
-        $u8feed1($into, '.');
+        u8s_feed1($into, '.');
     } else {
         u64decfeed($into, 999);
-        $u8feed1($into, '.');
+        u8s_feed1($into, '.');
     }
     done;
 }
@@ -217,7 +217,7 @@ pro(MARKANSIdiv, $u8 $into, u64 lfrom, u64 ltill, u64 stack, u32 width,
         call(MARQANSI, $into, wrap, wfmt);
         nled = NO;
         if (!$empty(line)) {
-            call($u8feed1, $into, '\n');
+            call(u8s_feed1, $into, '\n');
             room = width - depth * 4;
             call(feedbullet, $into, stack, NO, list);
             nled = YES;
@@ -225,7 +225,7 @@ pro(MARKANSIdiv, $u8 $into, u64 lfrom, u64 ltill, u64 stack, u32 width,
             ++lno;
             call(MARKlinetext, line, lno, state);
             if ($len(line) == 1) {
-                call($u8feed1, $into, '\n');
+                call(u8s_feed1, $into, '\n');
                 room = width - depth * 4;
                 call(feedbullet, $into, stack, NO, list);
                 nled = YES;
@@ -234,19 +234,19 @@ pro(MARKANSIdiv, $u8 $into, u64 lfrom, u64 ltill, u64 stack, u32 width,
                 nled = NO;
                 if (room) {
                     --room;
-                    call($u8feed1, $into, ' ');
+                    call(u8s_feed1, $into, ' ');
                 }
             }
         }
     }
-    if (!nled) call($u8feed1, $into, '\n');
+    if (!nled) call(u8s_feed1, $into, '\n');
     done;
 }
 
 pro(MARKANSI, $u8 $into, u32 width, MARKstate const* state) {
     sane($ok($into) && state != nil && !Bempty(state->divB));
     u64$ divs = Bu64data(state->divB);
-    u8cp$ lines = Bu8cpdata(state->lineB);
+    u8cp$ lines = u8cpB_data(state->lineB);
     u64 lists = 0;
     u64 divlen = 0;
     b8 hadgap = NO;
@@ -261,7 +261,7 @@ pro(MARKANSI, $u8 $into, u32 width, MARKstate const* state) {
         u16 li = 0;
         if (depth > 0 && u64getbyte(div, depth - 1) == MARK_OLIST) {
         }
-        if (olddiv != div && olddiv != 0xff) call($u8feed1, $into, '\n');
+        if (olddiv != div && olddiv != 0xff) call(u8s_feed1, $into, '\n');
         call(MARKANSIdiv, $into, from, till, div, width, li, state);
         olddiv = div;
     }
@@ -286,7 +286,7 @@ pro(MARKMARQdiv, u64 from, u64 till, MARKstate* state) {
 pro(MARKMARQ, MARKstate* state) {
     sane(state != nil && !Bempty(state->divB));
     u64$ divs = Bu64data(state->divB);
-    u8cp$ lines = Bu8cpdata(state->lineB);
+    u8cp$ lines = u8cpB_data(state->lineB);
     u64$ blocks = Bu64data(state->pB);
     for (u64 b = 0; b + 1 < $len(blocks); ++b) {
         call(MARKMARQdiv, $at(blocks, b), $at(blocks, b + 1), state);
@@ -329,7 +329,7 @@ fun u8 samedepth(u64 stack, u64 div) {
 pro(MARKHTML, $u8 $into, MARKstate const* state) {
     sane($ok($into) && state != nil && !Bempty(state->divB));
     u64$ divs = Bu64data(state->divB);
-    u8cp$ lines = Bu8cpdata(state->lineB);
+    u8cp$ lines = u8cpB_data(state->lineB);
     test($len(divs) == $len(lines), FAILsanity);
     u64 stack = 0;
     u64$ ps = Bu64data(state->pB);
@@ -417,14 +417,14 @@ pro(MARKonLine, $cu8c tok, MARKstate* state) {
     b8 end = tok[1] == state->text[1];
     if (Bempty(state->pB) ||
         !samediv(Blast(state->divB), state->_div)) {  // FIXME gaps
-        call(Bu64feed1, state->pB, Bdatalen(state->lineB));
+        call(u64B_feed1, state->pB, Bdatalen(state->lineB));
     }
-    call(Bu64feed1, state->divB, state->_div);
-    call(Bu8cpfeed1, state->lineB, tok[0]);
+    call(u64B_feed1, state->divB, state->_div);
+    call(u8cpB_feed1, state->lineB, tok[0]);
     if (tok[1] == state->text[1]) {
-        call(Bu64feed1, state->pB, Bdatalen(state->lineB));
-        call(Bu8cpfeed1, state->lineB, tok[1]);
-        call(Bu64feed1, state->divB, 0);
+        call(u64B_feed1, state->pB, Bdatalen(state->lineB));
+        call(u8cpB_feed1, state->lineB, tok[1]);
+        call(u64B_feed1, state->divB, 0);
     }
     state->_div = 0;
     done;

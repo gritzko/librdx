@@ -12,30 +12,30 @@ con ok64 LSMnodata = 0x25e25a33c96715;
 con ok64 LSMnoroom = 0x31cf3db3c96715;
 
 typedef ok64 (*$u8cXfn)(u8c$ next, $u8c rest);
-typedef ok64 (*$u8cYfn)($u8 into, $$u8c from);
+typedef ok64 (*$u8cYfn)($u8 into, u8css from);
 typedef int (*$u8cZfn)($cu8c* a, $cu8c* b);
 
-#define X(M, name) M##$u8c##name
+#define X(M, name) M##u8cs##name
 #include "abc/HEAPx.h"
 #undef X
 
-typedef B$u8c LSM;
+typedef u8csB LSM;
 
-fun pro(LSMmore, B$u8c lsm, $u8c x, $u8cZfn cmp) {
+fun pro(LSMmore, u8csB lsm, $u8c x, $u8cZfn cmp) {
     sane(Bok(lsm) && $ok(x) && cmp != nil);
-    // call($$u8cfeed1, B$u8cidle(lsm), x);
+    // call(u8css_feed1, Bu8csidle(lsm), x);
     memcpy(lsm[2], x, sizeof($u8c));
-    B$u8cidle(lsm)[0]++;
-    HEAP$u8cupf(lsm, cmp);
+    Bu8csidle(lsm)[0]++;
+    HEAPu8csupf(lsm, cmp);
     done;
 }
 
-ok64 LSMnext($u8 into, $$u8c lsm, $u8cZfn cmp, $u8cYfn mrg);
+ok64 LSMnext($u8 into, u8css lsm, $u8cZfn cmp, $u8cYfn mrg);
 
 fun b8 _$u8cempty($u8c const* s) { return $empty(*s); }
 
-fun ok64 LSMmerge($u8 into, $$u8c lsm, $u8cZfn cmp, $u8cYfn mrg) {
-    $$u8cpurge(lsm, &_$u8cempty);
+fun ok64 LSMmerge($u8 into, u8css lsm, $u8cZfn cmp, $u8cYfn mrg) {
+    u8css_purge(lsm, &_$u8cempty);
     $sort(lsm, cmp);
     ok64 o = OK;
     while (o == OK && !$empty(lsm)) {

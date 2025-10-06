@@ -23,6 +23,8 @@ fun T const *const *X(B, pastc)(X(B, ) buf) {
 }
 fun T **X(B, data)(X(B, ) buf) { return (T **)buf + 1; }
 fun T **X(B, idle)(X(B, ) buf) { return (T **)buf + 2; }
+fun T **X(, B_data)(X(B, ) buf) { return (T **)buf + 1; }
+fun T **X(, B_idle)(X(B, ) buf) { return (T **)buf + 2; }
 
 fun T **X(B, $1)(X(B, ) buf) { return (T **)buf + 1; }
 fun T **X(B, $2)(X(B, ) buf) { return (T **)buf + 2; }
@@ -108,14 +110,14 @@ fun ok64 X(B, feedp)(X(B, ) buf, T const *one) {
 */
 
 fun ok64 X(, B_push)(X(, B) buf, X(, cp) one) {
-    return X(, s_feed1)(Bidle(buf), one);
+    return X(, s_feedp)(Bidle(buf), one);
 }
 
-fun ok64 X(B, feedp)(X(B, ) buf, T const *one) {
-    return X($, feedp)(X(B, idle)(buf), one);
+fun ok64 X(, B_feedp)(X(B, ) buf, T const *one) {
+    return X(, s_feedp)(X(B, idle)(buf), one);
 }
 
-fun ok64 X(B, feed2)(X(B, ) buf, T a, T b) {
+fun ok64 X(, Bfeed2)(X(B, ) buf, T a, T b) {
     // ok64 re = X(B, reserve)(buf, 2);
     // f (re != OK) return re;
     T **idle = X(B, idle)(buf);
@@ -127,11 +129,11 @@ fun ok64 X(B, feed2)(X(B, ) buf, T a, T b) {
     return OK;
 }
 
-fun ok64 X(B, feed1)(X(B, ) buf, T one) {
-    return X($, feed1)(X(B, idle)(buf), one);
+fun ok64 X(, B_feed1)(X(B, ) buf, T one) {
+    return X(, s_feed1)(X(B, idle)(buf), one);
 }
 
-fun ok64 X(B, feed$)(X(B, ) buf, X($c, c) from) {
+fun ok64 X(, B_feed$)(X(, B) buf, X($c, c) from) {
     T **into = X(B, idle)(buf);
     if ($len(into) < $len(from)) return Bnoroom;
     X($, copy)(into, from);
@@ -192,7 +194,7 @@ fun ok64 X(B, rewind$)(X(B, ) buf, X($, ) slice, range64 range) {
     return OK;
 }
 
-fun ok64 X(B, push)(X(B, ) buf, const T *val) { return X(B, feedp)(buf, val); }
+fun ok64 X(B, push)(X(B, ) buf, const T *val) { return X(, B_feedp)(buf, val); }
 
 fun T const *X(B, top)(X(B, ) buf) {
     assert(buf[2] > buf[1]);

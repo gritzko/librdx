@@ -4,7 +4,7 @@
 
 ok64 SORTu64($u64 into, $u64 from) {
     if ($len(into) < $len(from)) return SORTnoroom;
-    aBpad2($u8c, chunks, Y_MAX_INPUTS);
+    aBpad2(u8cs, chunks, Y_MAX_INPUTS);
     ok64 o = OK;
     size_t clen = 1;
     b8 dir = NO;
@@ -26,7 +26,7 @@ ok64 SORTu64($u64 into, $u64 from) {
                 chunk[0] = (u8c*)p;
                 p += clen;
                 chunk[1] = (u8c*)p;
-                HEAP$u8cpush1f(chunksbuf, chunk, SORTu64z);
+                HEAPu8cspush1f(chunksbuf, chunk, SORTu64z);
             }
             u8c$ last = *$last(chunksdata);
             if (last[1] > (u8c*)from64[1]) {

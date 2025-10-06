@@ -64,11 +64,11 @@ typedef struct {
     // The path where the bricks are
     $u8c home;
     // Open bricks, a buffer of buffers (mmaped SSTs)
-    BBu8 ssts;
+    Bu8B ssts;
     // Brick hashes
     Bsha256 shas;
     // Scratch pad;
-    Bu8 pad;
+    u8B pad;
 } BRIX;
 
 fun b8 BRIXok(BRIX const* brix) {

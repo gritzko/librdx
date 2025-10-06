@@ -1,6 +1,6 @@
 #include "HTTP.h"
 
-#define HTTPfeed $$u8cfeed1(state->parsed, (u8c**)tok);
+#define HTTPfeed u8css_feed1(state->parsed, (u8c**)tok);
 
 ok64 HTTPonMethod($cu8c tok, HTTPstate* state) {
     HTTPfeed;
@@ -37,7 +37,7 @@ ok64 HTTPonResponse($cu8c tok, HTTPstate* state) { return OK; }
 ok64 HTTPonMessage($cu8c tok, HTTPstate* state) { return OK; }
 ok64 HTTPonRoot($cu8c tok, HTTPstate* state) { return OK; }
 
-ok64 HTTPfind(u8c$ value, $cu8c key, $$u8c parsed) {
+ok64 HTTPfind(u8c$ value, $cu8c key, u8css parsed) {
     for (size_t i = 2; i < $len(parsed); ++i) {
         if ($eq($at(parsed, i), key)) {
             if (i + 1 < $len(parsed)) {

@@ -146,7 +146,7 @@ pro(MARKHTMLtest) {
 
     Bu64 divs = {};
     Bu64 blocks = {};
-    Bu8cp lines = {};
+    u8cpB lines = {};
     Bu8 fmt = {};
     call(Bu64alloc, divs, 32);
     call(Bu8cpalloc, lines, 32);

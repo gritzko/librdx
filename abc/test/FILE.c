@@ -62,8 +62,8 @@ pro(FILEtest4) {
     a$str(one, "Hello");
     a$str(two, " beautiful");
     a$str(three, " world!");
-    aBpad2($u8c, queue, 4);
-    call($$u8cfeed3, queueidle, one, two, three);
+    aBpad2(u8cs, queue, 4);
+    call(u8css_feed3, queueidle, one, two, three);
     int fd;
     call(FILEcreate, &fd, path);
     call(FILEfeedv, fd, queuedata);

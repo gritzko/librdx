@@ -41,7 +41,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
 
     Play(dict, ins, Size);
 
-    $u32feedall(Bu32idle(copybuf), Bu32cdata(dictbuf));
+    $u32feedall(Bu32idle(copybuf),Bu32cdata(dictbuf));
 
     for (int j = 0; j < 1000; ++j) {
         Bzero(dictbuf);

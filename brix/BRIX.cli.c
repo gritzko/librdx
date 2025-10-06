@@ -122,7 +122,7 @@ ok64 BRIX_seal(BRIX* brix, id128 id, ok64 sub, $u8c args) {
     sane(1);
     test(Bdatalen(brix->ssts) > 0, BRIXnone);
 
-    aBcpad($u8c, ins, LSM_MAX_INPUTS);
+    aBcpad(u8cs, ins, LSM_MAX_INPUTS);
     aBpad2(sha256, deps, LSM_MAX_INPUTS);
 
     u64 base = {};
@@ -136,20 +136,20 @@ ok64 BRIX_seal(BRIX* brix, id128 id, ok64 sub, $u8c args) {
     $sha256sort(depsdata);
 
     a$dup(Bu8, news, BBu8data(brix->ssts));
-    $eat(news) B$u8cfeed1(insbuf, Bu8cdata(**news));
+    $eat(news) u8csBfeed1(insbuf,Bu8cdata(**news));
 
     SSTu128 sst = {};
     int fd = FILE_CLOSED;
     aBcpad(u8, tmp, FILEmaxpathlen);
-    call($u8feedall, tmpidle, Bu8c$1(brix->home));
+    call($u8feedall, tmpidle, u8cB$1(brix->home));
     call($u8feedall, tmpidle, BRIKtmp);
     size_t sumsz = PAGESIZE;
-    a$dup($u8c, ins, B$u8cdata(insbuf));
+    a$dup(u8cs, ins, Bu8csdata(insbuf));
     $eat(ins) sumsz += $size(**ins);
     call(SSTu128init, sst, &fd, tmpdata, sumsz);
     SKIPu8tab tab = {};
 
-    call(LSMmerge, Bu8idle(sst), B$u8cdata(insbuf), RDXZrevision, Y);
+    call(LSMmerge, Bu8idle(sst), Bu8csdata(insbuf), RDXZrevision, Y);
 
     call(SSTu128end, sst, &fd, &tab);
     sha256 sha = {};
@@ -172,7 +172,7 @@ ok64 BRIX_merge(BRIX* brix, id128 id, ok64 sub, $u8c args) {
     aBcpad(u8, out, 128);
     a$rawc(raw, sha);
     call(HEXfeed, outidle, raw);
-    call($u8feed1, outidle, '\n');
+    call(u8s_feed1, outidle, '\n');
     call(FILEfeedall, STDOUT_FILENO, outdata);
     done;
 }
@@ -223,9 +223,9 @@ ok64 BRIX_list(BRIX* brix, id128 id, ok64 sub, $u8c args) {
             sha256c* p = $atp(shas, i);
             a$rawcp(raw, p);
             u8 flag = (p == head) ? '*' : ' ';
-            call($u8feed1, outidle, flag);
+            call(u8s_feed1, outidle, flag);
             call(HEXfeed, outidle, raw);
-            call($u8feed1, outidle, '\n');
+            call(u8s_feed1, outidle, '\n');
             if (sub == SUBdeps) {
                 SSTu128* sst = Batp(brix->ssts, i);
                 $sha256c deps = {};
@@ -235,7 +235,7 @@ ok64 BRIX_list(BRIX* brix, id128 id, ok64 sub, $u8c args) {
                     a$rawcp(depraw, *deps);
                     call($u8feed2, outidle, '\t', flag);
                     call(HEXfeed, outidle, depraw);
-                    call($u8feed1, outidle, '\n');
+                    call(u8s_feed1, outidle, '\n');
                     flag = ' ';
                 }
             }
@@ -268,7 +268,7 @@ cmd_t COMMANDS[] = {
 ok64 BRIXcli() {
     sane(1);
     BRIX brix = {};
-    a$dup($u8c, stdargs, B$u8cdata(STD_ARGS));
+    a$dup(u8cs, stdargs, Bu8csdata(STD_ARGS));
     ++*stdargs;  // program name
     aBcpad(u8, cmds, PAGESIZE);
     call(JDRdrainargs, cmdsidle, stdargs);

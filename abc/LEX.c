@@ -78,7 +78,7 @@ const u8c *LEX_TEMPL[LEX_TEMPL_LANG_LEN][LEX_TEMPL_LEN][2] = {
                "    u64 mark0[64] = {};\n"
                "    ok64 o = OK;\n"
                "\n"
-               "    $$u8c tok = {p, p};\n"
+               "    u8css tok = {p, p};\n"
                "\n"
                "    %% write init;\n"
                "    %% write exec;\n"
@@ -187,7 +187,7 @@ ok64 LEXonQString($cu8c tok, LEXstate *state) {
 }
 ok64 LEXonSpace($cu8c tok, LEXstate *state) {
     // return $u8feed(NESTidle(state->ct), tok);
-    return $u8feed1(NESTidle(state->ct), ' ');
+    return u8s_feed1(NESTidle(state->ct), ' ');
 }
 
 ok64 LEXonEntity($cu8c tok, LEXstate *state) { return OK; }

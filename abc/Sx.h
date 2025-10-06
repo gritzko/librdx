@@ -91,7 +91,7 @@ fun T const *X($, findge)(X($c, c) haystack, T const *needle) {
 fun T X($, at)(X($, ) s, size_t pos) { return s[0][pos]; }
 #endif
 
-fun T *X($, atp)(X($, ) s, size_t pos) { return s[0] + pos; }
+fun T *X(, s_atp)(X($, ) s, size_t pos) { return s[0] + pos; }
 
 fun ok64 X($, eat1)(X($, ) s) {
     if (s[0] >= s[1]) return $nodata;
@@ -195,14 +195,14 @@ fun ok64 X(, s_feed)(X(, s) into, X(, cs) from) {
     *into += $len(from);
     return OK;
 }
-
-fun ok64 X(, s_feed1)(X(, s) into, X(, cp) from) {
+/*
+fun ok64 X(, s_feed1)(X(, s) into, X(, ) from) {
     if (1 > X(, s_len)(into)) return $noroom;
     memcpy((void *)*into, (void *)&from, sizeof(T));
     *into += 1;
     return OK;
 }
-
+*/
 fun ok64 X($, feed)(X($, ) into, X($c, c) from) {  // TODO naming
     if (unlikely(!$ok(from) || !$ok(into))) return $badarg;
     if (unlikely($size(from) > $size(into))) return $noroom;
@@ -243,7 +243,7 @@ fun ok64 X($, move)(X($, ) into, X($, c) from) {
 
 fun void X(, mv)(T *into, T const *from) { Ocopy(into, from); }
 
-fun ok64 X($, feed1)(X($, ) into, T what) {
+fun ok64 X(, s_feed1)(X(, s) into, T what) {
     if ($empty(into)) return $noroom;
 #ifndef ABC_X_$
     X(, mv)(*into, (T const *)&what);
@@ -273,14 +273,14 @@ fun ok64 X($, feed2)(X($, ) into, T a, T b) {
     return OK;
 }
 
-fun ok64 X($, feed3)(X($, ) into, T a, T b, T c) {
+fun ok64 X(, s_feed3)(X(, s) into, T a, T b, T c) {
     if ($len(into) < 3) return $noroom;
-    X($, feed1)(into, a);
-    X($, feed1)(into, b);
-    X($, feed1)(into, c);
+    X(, s_feed1)(into, a);
+    X(, s_feed1)(into, b);
+    X(, s_feed1)(into, c);
     return OK;
 }
-fun ok64 X($, feedp)(X($, ) into, T const *what) {
+fun ok64 X(, s_feedp)(X(, s) into, T const *what) {
     if ($empty(into)) return $noroom;
     X(, mv)(*into, what);
     ++*into;
@@ -329,9 +329,9 @@ fun void X(, swap)(T *a, T *b) {
     Ocopy(b, &c);
 }
 
-fun void X($, purge)(X($, ) s, X(, isfn) f) {
+fun void X(, s_purge)(X($, ) s, X(, isfn) f) {
     for (int i = 0; i < $len(s); ++i) {
-        T *p = X($, atp)(s, i);
+        T *p = X(, s_atp)(s, i);
         if (f(p)) {
             X(, swap)(p, $last(s));
             --$term(s);
@@ -350,7 +350,7 @@ fun void X($, str0)(X($, c) s, T const *a) {
 static const u8 X(, zero)[sizeof(T)] = {};
 
 fun b8 X($, is0)(X($, ) s, size_t ndx) {
-    return X(, cmp)((T const *)X(, zero), X($, atp)(s, ndx)) == 0;
+    return X(, cmp)((T const *)X(, zero), X(, s_atp)(s, ndx)) == 0;
 }
 
 #undef T

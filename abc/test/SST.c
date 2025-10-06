@@ -33,7 +33,7 @@ fun int alpha($cu8c* a, $cu8c* b) {
     return c;
 }
 
-fun ok64 latest($u8 into, $$u8c from) {
+fun ok64 latest($u8 into, u8css from) {
     u8 ta = 0;
     $u8c max = {};
     for (int i = 0; i < $len(from); ++i) {
@@ -75,7 +75,7 @@ pro(SST0) {
     done;
 }
 
-fun ok64 nomerge($u8 into, $$u8c from) { return $u8feedall(into, **from); }
+fun ok64 nomerge($u8 into, u8css from) { return $u8feedall(into, **from); }
 
 pro(SSTtest) {
     sane(1);

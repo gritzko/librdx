@@ -28,7 +28,7 @@ pro(B$_test) {
     sane(1);
     aBpad(u8cp, slices, 8);
     $u8c hello = $u8str("Hello");
-    Bu8cpfeed2(slices, hello[0], hello[1]);
+    u8cpBfeed2(slices, hello[0], hello[1]);
     done;
 }
 
@@ -37,7 +37,7 @@ pro(Bndx_test) {
     Bu64 buf = {};
     Bu64alloc(buf, 1024);
     for (u64 i = 0; i < 1000; ++i) {
-        call(Bu64feed1, buf, i);
+        call(u64B_feed1, buf, i);
         sane(Blast(buf) == i);
     }
     Bu64free(buf);
@@ -49,7 +49,7 @@ pro(Breserve_test) {
     Bu8 buf = {};
     call(Bu8alloc, buf, 1024);
     for (int i = 0; i < (1 << 20); i++) {
-        otry(Bu8feed2, buf, '1', '2');
+        otry(u8Bfeed2, buf, '1', '2');
         ofix(Bnoroom) call(Bu8reserve, buf, 1024);
         ocry();
     }
@@ -73,7 +73,7 @@ pro(B$test) {
 
 pro(BBtest) {
     sane(1);
-    aBpad(Bu8, buff, 4);
+    aBpad(u8B, buff, 4);
     testeq(sizeof(Bat(buff, 0)), sizeof(Bvoid));
     done;
 }
