@@ -73,6 +73,13 @@ typedef void *const *voidB;
     T##$ n##idle = B##T##idle(n##buf);            \
     T##$ n##data = B##T##data(n##buf);
 
+#define a_pad(T, n, l)                       \
+    T _##n[(l)];                             \
+    T##B n = {_##n, _##n, _##n, _##n + (l)}; \
+    T##sp n##_idle = B##T##idle(n);          \
+    T##sp n##_data = B##T##data(n);          \
+    T##csp n##_datac = B##T##cdata(n);
+
 #define aBcpad(T, n, l)                           \
     T _##n[(l)];                                  \
     B##T n##buf = {_##n, _##n, _##n, _##n + (l)}; \

@@ -86,6 +86,8 @@
 #define $eat(s) for (; s[0] < s[1]; s[0]++)
 #define $eat2(s) for (; s[0] < s[1]; s[0] += 2)
 
+#define eats(T, i, s) for (T *i = s[0]; i < s[1]; i++)
+
 #define $reverse(s)                                                    \
     {                                                                  \
         size_t sz = sizeof(**s);                                       \

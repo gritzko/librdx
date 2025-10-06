@@ -27,9 +27,12 @@ typedef T const *const X(, csc)[2];
 typedef T **X(, sp);
 typedef T *const *X(, spc);
 typedef T const **X(, csp);
+typedef X(, cs) * *X(, cssp);
+typedef X(, cs) const **X(, cscsp);
 typedef T const *const *X(, cspc);
 typedef X(, s) * X(, ss)[2];
 typedef X(, cs) * X(, css)[2];
+typedef X(, p) * X(, ps)[2];
 
 typedef T **X(, $);
 typedef T const **X(, c$);
@@ -176,6 +179,27 @@ fun ok64 X($, free)(X($, c) what) {
     if (what[0] == nil) return $badarg;
     free((void *)what[0]);
     what[0] = what[1] = nil;
+    return OK;
+}
+
+fun u64 X(, cs_len)(X(, cs) s) {
+    if (s == nil || s[0] == nil || s[1] <= s[0]) return 0;
+    return s[1] - s[0];
+}
+
+fun u64 X(, s_len)(X(, s) s) { return X(, cs_len)((X(, csp))s); }
+
+fun ok64 X(, s_feed)(X(, s) into, X(, cs) from) {
+    if (unlikely(X(, cs_len)(from) > X(, s_len)(into))) return $noroom;
+    memcpy((void *)*into, (void *)*from, $size(from));
+    *into += $len(from);
+    return OK;
+}
+
+fun ok64 X(, s_feed1)(X(, s) into, X(, cp) from) {
+    if (1 > X(, s_len)(into)) return $noroom;
+    memcpy((void *)*into, (void *)&from, sizeof(T));
+    *into += 1;
     return OK;
 }
 

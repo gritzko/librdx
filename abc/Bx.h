@@ -106,6 +106,11 @@ fun ok64 X(B, feedp)(X(B, ) buf, T const *one) {
     return OK;
 }
 */
+
+fun ok64 X(, B_push)(X(, B) buf, X(, cp) one) {
+    return X(, s_feed1)(Bidle(buf), one);
+}
+
 fun ok64 X(B, feedp)(X(B, ) buf, T const *one) {
     return X($, feedp)(X(B, idle)(buf), one);
 }
