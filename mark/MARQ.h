@@ -27,7 +27,7 @@ typedef u64 link64;
 #define MARQ_MAX_OPEN_BRACKETS 31
 
 typedef struct {
-    $u8c text;
+    u8cs text;
     $u8 fmt;
 
     // 0 ~ nothing
@@ -36,8 +36,8 @@ typedef struct {
 
 ok64 MARQlexer(MARQstate* state);
 
-ok64 MARQANSI($u8 $into, $u8c const txt, $u8c const fmt);
+ok64 MARQANSI($u8 $into, u8cs const txt, $u8c const fmt);
 
-ok64 MARQHTML($u8 $into, $u8c txt, $u8c fmt);
+ok64 MARQHTML($u8 $into, u8cs txt, $u8c fmt);
 
 #endif

@@ -27,9 +27,9 @@ fun ok64 UTF8feed1($u8 into, u32 cp) {
     return cp < 0x80 ? u8s_feed1(into, cp) : _UTF8feed1(into, cp);
 }
 
-ok64 _UTF8drain1(u32 *cp, $u8c data);
+ok64 _UTF8drain1(u32 *cp, u8cs data);
 
-fun ok64 UTF8drain1(u32 *cp, $u8c utf8) {
+fun ok64 UTF8drain1(u32 *cp, u8cs utf8) {
     if ($empty(utf8)) return UTF8nodata;
     if (**utf8 >= 0x80) return _UTF8drain1(cp, utf8);
     *cp = **utf8;
@@ -37,7 +37,7 @@ fun ok64 UTF8drain1(u32 *cp, $u8c utf8) {
     return OK;
 }
 
-fun ok64 UTF8valid($u8c utf8) {
+fun ok64 UTF8valid(u8cs utf8) {
     if (!$ok(utf8)) return badarg;
     u32 cp;
     ok64 o = OK;

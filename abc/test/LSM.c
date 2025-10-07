@@ -13,7 +13,7 @@ fun int alpha($cu8c* a, $cu8c* b) {
     a$dup(u8c, aa, *a);
     a$dup(u8c, bb, *b);
     u8 ta, tb;
-    $u8c keya, keyb, vala, valb;
+    u8cs keya, keyb, vala, valb;
     TLVdrainkv(&ta, keya, vala, aa);
     TLVdrainkv(&tb, keyb, valb, bb);
     int c = $cmp(keya, keyb);
@@ -22,9 +22,9 @@ fun int alpha($cu8c* a, $cu8c* b) {
 
 fun ok64 latest($u8 into, u8css from) {
     u8 ta = 0;
-    $u8c max = {};
+    u8cs max = {};
     for (int i = 0; i < $len(from); ++i) {
-        $u8c rec;
+        u8cs rec;
         TLVdrain$(rec, $at(from, i));
         if (*$last(rec) > ta) $mv(max, rec);
     }
@@ -34,12 +34,12 @@ fun ok64 latest($u8 into, u8css from) {
 
 pro(LSM0) {
     sane(1);
-    $u8c kv1[5][2] = {
+    u8cs kv1[5][2] = {
         {$u8str("Four"), $u8str("1")},  {$u8str("One"), $u8str("2")},
         {$u8str("Three"), $u8str("5")}, {$u8str("Two"), $u8str("0")},
         {$u8str("Zero"), $u8str("7")},
     };
-    $u8c kv2[5][2] = {
+    u8cs kv2[5][2] = {
         {$u8str("Five"), $u8str("0")},  {$u8str("Four"), $u8str("0")},
         {$u8str("Seven"), $u8str("3")}, {$u8str("Six"), $u8str("4")},
         {$u8str("Two"), $u8str("6")},
@@ -52,8 +52,8 @@ pro(LSM0) {
         call(TLVfeedkv, pad2idle, 'K', kv2[i][0], kv2[i][1]);
 
     aBpad2(u8cs, lsm, 4);
-    call(HEAPu8cspushf, lsmbuf, ($u8c*)pad1data, alpha);
-    call(HEAPu8cspushf, lsmbuf, ($u8c*)pad2data, alpha);
+    call(HEAPu8cspushf, lsmbuf, (u8cs*)pad1data, alpha);
+    call(HEAPu8cspushf, lsmbuf, (u8cs*)pad2data, alpha);
 
     aBcpad(u8, txt, 1024);
     call(LSMmerge, txtidle, lsmdata, alpha, latest);
@@ -62,8 +62,8 @@ pro(LSM0) {
     u8 n = '0';
     while (!$empty(res)) {
         u8 ta;
-        $u8c keya;
-        $u8c vala;
+        u8cs keya;
+        u8cs vala;
         TLVdrainkv(&ta, keya, vala, res);
         u8 c = **vala;
         want(c == n);
@@ -76,7 +76,7 @@ fun ok64 nomerge($u8 into, u8css from) { return $u8feedall(into, **from); }
 
 pro(LSM1) {
     sane(1);
-    $u8c kv1[6][2] = {
+    u8cs kv1[6][2] = {
         {$u8str("A"), $u8str("1")},  //
         {$u8str("C"), $u8str("3")},  //
         {$u8str("B"), $u8str("2")},  //
@@ -92,8 +92,8 @@ pro(LSM1) {
     int c = 'A';
     while (!$empty(paddata)) {
         u8 ta;
-        $u8c keya;
-        $u8c vala;
+        u8cs keya;
+        u8cs vala;
         call(TLVdrainkv, &ta, keya, vala,Bu8cdata(padbuf));
         //$println(keya);
         want(**keya == c);
@@ -105,7 +105,7 @@ pro(LSM1) {
 fun int ZINTz($cu8c* a, $cu8c* b) {
     a$dup(u8c, aa, *a);
     a$dup(u8c, bb, *b);
-    $u8c vala, valb;
+    u8cs vala, valb;
     u8 ta, tb;
     TLVdrain(&ta, vala, aa);
     TLVdrain(&tb, valb, bb);
@@ -129,7 +129,7 @@ ok64 LSM1000000() {
     call(LSMsort, mildata, ZINTz, nomerge, milidle);
     for (u64 i = 0; i < LEN; ++i) {
         u8 t = 0;
-        $u8c zint = {};
+        u8cs zint = {};
         call(TLVdrain, &t, zint,Bu8cdata(milbuf));
         want(t == 'I');
         u64 u = 0;

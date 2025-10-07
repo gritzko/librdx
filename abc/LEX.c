@@ -255,12 +255,12 @@ ok64 LEXonRoot($cu8c tok, LEXstate *state) {
     done;
 }
 
-pro(lex2rl, $u8c mod, $u8c lang) {
+pro(lex2rl, u8cs mod, $u8c lang) {
     sane($ok(mod));
 
     aBcpad(u8, name, KB);
     aBcpad(u8, lex, KB << 8);
-    $u8c $namet = $u8str("$s.lex");
+    u8cs $namet = $u8str("$s.lex");
     $feedf(nameidle, $namet, mod);
     int fd;
     call(FILEopen, &fd, namedata, O_RDONLY);
@@ -292,7 +292,7 @@ pro(lex2rl, $u8c mod, $u8c lang) {
     call(NESTrender, rlidle, ctbuf);
 
     aBcpad(u8, rlname, KB);
-    $u8c $rnamet = $u8str("$s.$s.rl");
+    u8cs $rnamet = $u8str("$s.$s.rl");
     $feedf(rlnameidle, $rnamet, mod, LEX_TEMPL[nlang][LEX_TEMPL_L]);
     int rfd;
     call(FILEcreate, &rfd, rlnamedata);

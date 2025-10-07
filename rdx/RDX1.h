@@ -9,10 +9,10 @@
 fun pro(YmergeFIRST, $u8 into, u8css from) {
     sane($ok(into) && $ok(from));
     u128 max = {};
-    $u8c rec = {};
+    u8cs rec = {};
     u8 t;
     u128 id;
-    $u8c value;
+    u8cs value;
     $eat2(from) {
         u8c* p = **from;
         call(RDXdrain, &t, &id, value, *from);
@@ -37,7 +37,7 @@ fun pro(RDX1dtlv, $u8 dtlv, $cu8c oldtlv, u8 type, u128* clock, $cu8c newbits) {
     a$dup(u8c, oldtlv2, oldtlv);
     u8 t = 0;
     u128 id = {};
-    $u8c value = {};
+    u8cs value = {};
     call(RDXdrain, &t, &id, value, oldtlv2);
     RDXtock(clock, id);
     RDXtick(clock);

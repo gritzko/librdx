@@ -17,9 +17,9 @@ fun int u8pcmp(u8 *const *a, u8 *const *b) {
     return *a < *b ? -1 : 1;
 }
 
-fun int $u8cmp(u8 const *const *a, u8 const *const *b) { return $cmp(a, b); }
+fun int u8csmp(u8 const *const *a, u8 const *const *b) { return $cmp(a, b); }
 
-fun int $u8cZ($cu8c a, $cu8c b) { return $cmp(a, b); }
+fun int u8csZ($cu8c a, $cu8c b) { return $cmp(a, b); }
 
 #define X(M, name) M##u8##name
 #include "Bx.h"
@@ -46,9 +46,9 @@ fun int voidpcmp(void *const *a, void *const *b) {
 #include "Bx.h"
 #undef X
 
-fun int u8cscmp($u8c const *a, $u8c const *b) { return $cmp(*a, *b); }
+fun int u8cscmp(u8cs const *a, u8cs const *b) { return $cmp(*a, *b); }
 
-typedef $u8c const *$u8ccp;
+typedef u8cs const *$u8ccp;
 typedef u8cs const *u8cscp;
 
 #define X(M, name) M##u8cs##name
@@ -73,13 +73,13 @@ typedef u8B const *u8Bcp;
     { (u8 *)&(v), (u8 *)(&v) + sizeof(v) }
 
 #define a$raw(n, v) $u8 n = {(u8 *)&(v), (u8 *)(&v) + sizeof(v)}
-#define a$rawc(n, v) $u8c n = {(u8 *)&(v), (u8 *)(&v) + sizeof(v)}
+#define a$rawc(n, v) u8cs n = {(u8 *)&(v), (u8 *)(&v) + sizeof(v)}
 #define a$rawp(n, p) $u8 n = {(u8 *)(p), (u8 *)(p) + sizeof(*p)}
-#define a$rawcp(n, p) $u8c n = {(u8 const *)(p), (u8 const *)(p) + sizeof(*p)}
+#define a$rawcp(n, p) u8cs n = {(u8 const *)(p), (u8 const *)(p) + sizeof(*p)}
 
 #define a$u8c(n, ...)            \
     u8c __##n[] = {__VA_ARGS__}; \
-    $u8c n = {__##n, __##n + sizeof(__##n)};
+    u8cs n = {__##n, __##n + sizeof(__##n)};
 
 #define an$u8(n, l, ...)         \
     u8 __##n[l] = {__VA_ARGS__}; \
@@ -87,7 +87,7 @@ typedef u8B const *u8Bcp;
 
 #define an$u8c(n, l, ...)         \
     u8c __##n[l] = {__VA_ARGS__}; \
-    $u8c n = {__##n, __##n + sizeof(__##n)};
+    u8cs n = {__##n, __##n + sizeof(__##n)};
 
 fun b8 Bitat(Bu8 buf, size_t ndx) {
     size_t thebyte = ndx >> 3;
@@ -115,14 +115,14 @@ fun void Bitunset(Bu8 buf, size_t ndx) {
     Bu8 n##buf = {_##n, _##n, _##n, _##n + (l)};        \
     u8$ n##idle = Bu8idle(n##buf);                      \
     u8$ n##data = Bu8data(n##buf);                      \
-    $u8c _$##n[(l)];                                    \
+    u8cs _$##n[(l)];                                    \
     u8csB n##$buf = {_$##n, _$##n, _$##n, _$##n + (l)}; \
     u8cssp n##$idle = Bu8csidle(n##$buf);               \
     u8cssp n##$data = u8csB_data(n##$buf);
 
 #define $$call(fn, n, ...)               \
     {                                    \
-        $u8c _s = {n##idle[0]};          \
+        u8cs _s = {n##idle[0]};          \
         call(fn, n##idle, __VA_ARGS__);  \
         _s[1] = n##idle[0];              \
         call(u8css_feed1, n##$idle, _s); \
@@ -130,7 +130,7 @@ fun void Bitunset(Bu8 buf, size_t ndx) {
 
 con ok64 Badtemplte = 0x2e5a38a71d30e29;
 
-fun ok64 $$feedf($u8 into, $u8c tmpl, u8css args) {
+fun ok64 $$feedf($u8 into, u8cs tmpl, u8css args) {
     a$dup(u8c, t, tmpl);
     ok64 o = OK;
     while (!$empty(t) && o == OK) {

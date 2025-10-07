@@ -97,14 +97,14 @@ pro(RDXRtest) {
 pro(RDXStest) {
     sane(1);
 #define RDXSlen 3
-    $u8c inputs[RDXRlen] = {$u8str(""), $u8str("a"), $u8str("abcdef")};
+    u8cs inputs[RDXRlen] = {$u8str(""), $u8str("a"), $u8str("abcdef")};
     for (int i = 0; i < RDXRlen; ++i) {
         u8c$ c = inputs[i];
         aRDXid(id, i, i);
         aBpad(u8, tlv, 64);
         call(RDXCfeedS, Bu8idle(tlv), c, id);
         id128 id2 = {};
-        $u8c c2 = {};
+        u8cs c2 = {};
         call(RDXCdrainS, c2,Bu8cdata(tlv), &id2);
         want($eq(c, c2));
         same(id128time(id), id128time(id2));
@@ -112,7 +112,7 @@ pro(RDXStest) {
         same($empty(c) ? 3 : $len(c) + 3 + 2, Bdatalen(tlv));
         aBcpad(u8, txt, 32);
         id128 id3;
-        $u8c text = {};
+        u8cs text = {};
         call(RDXCdrainS, text,Bu8cdata(tlv), &id3);
         aBcpad(u8, tlv2, 32);
         call(RDXCfeedS, tlv2idle, text, id);
@@ -145,13 +145,13 @@ pro(RDX1) {
     aBpad2(u8cs, ins, 64);
     while (!$empty(inputs)) {
         u8 lit;
-        $u8c rec = {};
+        u8cs rec = {};
         call(RDXdrain$, &lit, rec, inputs);
         if (lit != RDX_TERM) {
             u8css_feed1(insidle, rec);
             continue;
         }
-        $u8c correct = $dup(Blast(insbuf));
+        u8cs correct = $dup(Blast(insbuf));
         u8csBpop(insbuf);
         aBcpad(u8, merged, PAGESIZE);
         call(YmergeFIRST, mergedidle, insdata);

@@ -21,7 +21,7 @@ int POLLlen(POLLstate state) {
     return e;
 }
 
-pro(POLLadd, POLLstate state, int fd, $u8c name, POLLfunI fi) {
+pro(POLLadd, POLLstate state, int fd, u8cs name, POLLfunI fi) {
     sane(state != nil && fd >= 0);
     int l = POLLlen(state);
     test(l < POLL_MAX_FILES, POLLnoroom);
@@ -42,7 +42,7 @@ pro(POLLadd, POLLstate state, int fd, $u8c name, POLLfunI fi) {
     done;
 }
 
-pro(POLLlisten, POLLstate state, int fd, $u8c name, POLLfunI fi) {
+pro(POLLlisten, POLLstate state, int fd, u8cs name, POLLfunI fi) {
     sane(state != nil && fd >= 0);
     int l = POLLlen(state);
     test(l < POLL_MAX_FILES, POLLnoroom);
@@ -94,7 +94,7 @@ pro(POLLaccpt, POLLstate state, POLLctl* ctl) {
     socklen_t len = 64;
     int cfd = accept(ctl->fd, (struct sockaddr*)addr, &len);
     testc(cfd != -1, POLLfail);
-    $u8c name = {addr, addr + len};
+    u8cs name = {addr, addr + len};
     otry(POLLadd, state, cfd, name, ctl->fn);
     oops { close(cfd); }
     done;

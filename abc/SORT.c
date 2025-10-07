@@ -22,7 +22,7 @@ ok64 SORTu64($u64 into, $u64 from) {
         u64* p = from64[0];
         while (p < from64[1] && o == OK) {
             while (!$empty(chunksidle) && p < from64[1]) {
-                $u8c chunk;
+                u8cs chunk;
                 chunk[0] = (u8c*)p;
                 p += clen;
                 chunk[1] = (u8c*)p;

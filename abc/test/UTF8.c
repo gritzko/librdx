@@ -12,7 +12,7 @@
 
 pro(UTF8test1) {
     sane(1);
-    $u8c abc = $u8str("abc");
+    u8cs abc = $u8str("abc");
     u32 a, b, c;
     call(UTF8drain1, &a, abc);
     call(UTF8drain1, &b, abc);

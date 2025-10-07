@@ -5,7 +5,7 @@
 fun pro(RDXCdrainF, RDXfloat* c, id128* id, $cu8c tlv) {
     sane(c != nil && id != nil && $ok(tlv));
     u8 t = 0;
-    $u8c value = {};
+    u8cs value = {};
     u64 bits = 0;
     a$dup(u8c, dup, tlv);
     call(RDXdrain, &t, id, value, dup);
@@ -28,7 +28,7 @@ fun pro(RDXCdrainI, RDXint* c, id128* id, $cu8c tlv) {
     sane(c != nil && id != nil && $ok(tlv));
     u8 t = 0;
     u64 bits = 0;
-    $u8c value = {};
+    u8cs value = {};
     a$dup(u8c, dup, tlv);
     call(RDXdrain, &t, id, value, dup);
     call(ZINTu64drain, &bits, value);
@@ -45,10 +45,10 @@ fun pro(RDXCfeedI, $u8 tlv, RDXint c, u128 time) {
     done;
 }
 
-fun ok64 RDXCdrainR(RDXref* c, id128* id, $u8c rdx) {
+fun ok64 RDXCdrainR(RDXref* c, id128* id, u8cs rdx) {
     sane(c != nil && id != nil && $ok(rdx));
     u8 t = 0;
-    $u8c value = {};
+    u8cs value = {};
     call(RDXdrain, &t, id, value, rdx);
     call(ZINTu128drain, c, value);
     done;
@@ -62,7 +62,7 @@ fun pro(RDXCfeedR, $u8 tlv, RDXref c, u128 time) {
     done;
 }
 
-fun ok64 RDXCdrainS(u8c$ str, id128* id, $u8c rdx) {
+fun ok64 RDXCdrainS(u8c$ str, id128* id, u8cs rdx) {
     u8 t = 0;
     id128 _;
     if (id == nil) id = &_;
@@ -76,7 +76,7 @@ fun pro(RDXCfeedS, $u8 tlv, $cu8c c, u128 time) {
     done;
 }
 
-fun ok64 RDXCdrainT(u8c$ str, id128* id, $u8c rdx) {
+fun ok64 RDXCdrainT(u8c$ str, id128* id, u8cs rdx) {
     u8 t = 0;
     ok64 o = RDXdrain(&t, id, str, rdx);
     return t == RDX_TERM ? o : RDXwrong;

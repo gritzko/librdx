@@ -20,7 +20,7 @@ typedef ok64 (*UNITfn)($cu8c rdx);
 a$strc(UNITokmsg, "\tOK\n");
 a$strc(UNITfailmsg, "\tFAIL\n");
 
-fun ok64 HEXfeedsep($u8 hex, $u8c bin, u8 sep) {
+fun ok64 HEXfeedsep($u8 hex, u8cs bin, u8 sep) {
     while (!$empty(bin) && $len(hex) >= 3) {
         **hex = $at(BASE16, **bin >> 4);
         ++*hex;
@@ -62,7 +62,7 @@ fun ok64 HEXdump($u8 into, u8cs b) {
     return OK;
 }
 
-fun ok64 UNITdump($u8 into, $u8c rdx) {
+fun ok64 UNITdump($u8 into, u8cs rdx) {
     a$dup(u8c, c2, rdx);
     a$dup(u8c, c3, rdx);
     JDRfeed(into, c2);
@@ -88,9 +88,9 @@ ok64 UNITdrain(Bu8 tests, UNITfn fn) {
     a$dup(u8c, cases, Bu8$1(rdx));
     aBcpad(u8, msg, PAGESIZE);
     int cs = 0;
-    $u8c caserdx = {};
+    u8cs caserdx = {};
     while (o == OK && !$empty(cases)) {
-        $u8c rec = {};
+        u8cs rec = {};
         o = TLVdrain$(rec, cases);
         if (o != OK) break;
         switch (cs) {
@@ -102,7 +102,7 @@ ok64 UNITdrain(Bu8 tests, UNITfn fn) {
             case 1:
                 if ((~TLVaA & **rec) == RDX_STRING && $len(rec) > 3) {
                     cs = 2;
-                    $u8c key, body = {};
+                    u8cs key, body = {};
                     u8 t;
                     TLVdrainkv(&t, key, body, rec);
                     while (!$empty(body) && *body[0] == '\n') ++body[0];

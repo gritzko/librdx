@@ -81,7 +81,7 @@ pro(SKIP1) {
 
 pro(SKIP2) {
     sane(1);
-    $u8c path = $u8str("/tmp/SKIP2.txt");
+    u8cs path = $u8str("/tmp/SKIP2.txt");
     FILEunlink(path);
     aB(u8, pad);
     aBcpad(u8, check, SCALE);
@@ -129,7 +129,7 @@ pro(SKIP3) {
     }
     call(SKIPu8finish, padbuf, &k);
     for (u64 u = 0; u < SCALE / 16; ++u) {
-        $u8c gap = {};
+        u8cs gap = {};
         a$rawc(raw, u);
         call(SKIPu8find, gap, padbuf, raw, cmp);
         u64c* head = (u64c*)*gap;
@@ -162,7 +162,7 @@ pro(SKIP4) {
     call(SKIPu8finish, padbuf, &k);
     for (u64 u = 0; u < SCALE / 16; ++u) {
         u8 t = 0;
-        $u8c gap = {}, val = {};
+        u8cs gap = {}, val = {};
         u8 u10[10] = {
             'i',
             8,

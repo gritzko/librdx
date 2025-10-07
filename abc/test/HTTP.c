@@ -67,7 +67,7 @@ pro(HTTPtest1) {
     $testeq(path, $at(parsedata, 1));
     a$str(key, "Connection");
     a$str(val, "keep-alive");
-    $u8c conn = {};
+    u8cs conn = {};
     call(HTTPfind, conn, key, parsedata);
     $testeq(conn, val);
 
@@ -78,7 +78,7 @@ pro(HTTPtest1) {
     call(HTTPlexer, &resstate);
     a$str(key2, "Content-Encoding");
     a$str(val2, "gzip");
-    $u8c conn2 = {};
+    u8cs conn2 = {};
     call(HTTPfind, conn2, key2, parsedata);
     $testeq(conn2, val2);
 

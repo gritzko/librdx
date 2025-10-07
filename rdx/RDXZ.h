@@ -15,12 +15,12 @@ fun int RDXZlit(u8 const* a, u8 const* b) {
     return _RDXZlit(a, b);
 }
 
-fun int RDXZauthor($u8c const* a, $u8c const* b) {
+fun int RDXZauthor(u8cs const* a, u8cs const* b) {
     u8 ta, tb;
-    $u8c keya = {}, keyb = {};
-    $u8c vala = {}, valb = {};
-    $u8c aa = $dup(*a);
-    $u8c bb = $dup(*b);
+    u8cs keya = {}, keyb = {};
+    u8cs vala = {}, valb = {};
+    u8cs aa = $dup(*a);
+    u8cs bb = $dup(*b);
     ok64 oa = TLVdrainkv(&ta, keya, vala, aa);
     ok64 ob = TLVdrainkv(&tb, keyb, valb, bb);
     u128 reva = {}, revb = {};
@@ -30,12 +30,12 @@ fun int RDXZauthor($u8c const* a, $u8c const* b) {
     return z;
 }
 
-fun int RDXZrevision($u8c const* a, $u8c const* b) {
+fun int RDXZrevision(u8cs const* a, u8cs const* b) {
     u8 ta, tb;
-    $u8c keya = {}, keyb = {};
-    $u8c vala = {}, valb = {};
-    $u8c aa = $dup(*a);
-    $u8c bb = $dup(*b);
+    u8cs keya = {}, keyb = {};
+    u8cs vala = {}, valb = {};
+    u8cs aa = $dup(*a);
+    u8cs bb = $dup(*b);
     ok64 oa = TLVdrainkv(&ta, keya, vala, aa);
     ok64 ob = TLVdrainkv(&tb, keyb, valb, bb);
     u128 reva = {}, revb = {};
@@ -56,12 +56,12 @@ fun int RDXZrevision($u8c const* a, $u8c const* b) {
      4. `S` alphanumeric, as in `strcmp(3)`,
      5. `T` alphanumeric.
  **/
-fun int RDXZvalue($u8c const* a, $u8c const* b) {
+fun int RDXZvalue(u8cs const* a, u8cs const* b) {
     u8 ta, tb;
-    $u8c keya = {}, keyb = {};
-    $u8c vala = {}, valb = {};
-    $u8c aa = $dup(*a);
-    $u8c bb = $dup(*b);
+    u8cs keya = {}, keyb = {};
+    u8cs vala = {}, valb = {};
+    u8cs aa = $dup(*a);
+    u8cs bb = $dup(*b);
     if ($empty(aa)) {
         a$u8c(RDX_EMPTY_TUPLE, RDX_TUPLE | TLVaA, 1, 0);
         if ($empty(bb) || $eq(bb, RDX_EMPTY_TUPLE)) return 0;
@@ -92,9 +92,9 @@ fun int RDXZvalue($u8c const* a, $u8c const* b) {
         case 'R':
             return ZINTu128z(vala, valb);
         case 'S':
-            return $u8cZ(vala, valb);
+            return u8csZ(vala, valb);
         case 'T':
-            return $u8cZ(vala, valb);
+            return u8csZ(vala, valb);
         case 'P':
             return 0;  // FIXME 1st
         case 'L':
@@ -113,13 +113,13 @@ fun int RDXZvalue($u8c const* a, $u8c const* b) {
  3. in case of a tie, use the *author-order* (higher replica id wins),
  4. in case of a tie, we look at the same value on both sides.
  **/
-fun int RDXZlww($u8c const* a, $u8c const* b) {
+fun int RDXZlww(u8cs const* a, u8cs const* b) {
     //
     u8 ta, tb;
-    $u8c keya = {}, keyb = {};
-    $u8c vala = {}, valb = {};
-    $u8c aa = $dup(*a);
-    $u8c bb = $dup(*b);
+    u8cs keya = {}, keyb = {};
+    u8cs vala = {}, valb = {};
+    u8cs aa = $dup(*a);
+    u8cs bb = $dup(*b);
     ok64 oa = TLVdrainkv(&ta, keya, vala, aa);
     ok64 ob = TLVdrainkv(&tb, keyb, valb, bb);
     u128 reva = {}, revb = {};

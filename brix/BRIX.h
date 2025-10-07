@@ -48,9 +48,9 @@ typedef u64 h60;
 #include "abc/Bx.h"
 #undef X
 
-extern $u8c BRIKext;
-extern $u8c BRIXdir;
-extern $u8c BRIXindex;
+extern u8cs BRIKext;
+extern u8cs BRIXdir;
+extern u8cs BRIXindex;
 
 /** BRIX repo structure:
 
@@ -62,7 +62,7 @@ extern $u8c BRIXindex;
 */
 typedef struct {
     // The path where the bricks are
-    $u8c home;
+    u8cs home;
     // Open bricks, a buffer of buffers (mmaped SSTs)
     Bu8B ssts;
     // Brick hashes
@@ -77,7 +77,7 @@ fun b8 BRIXok(BRIX const* brix) {
 
 // close everything previously open, then
 // add an SST to the stack, including its dependencies.
-ok64 BRIXopenrepo(BRIX* brix, $u8c path);
+ok64 BRIXopenrepo(BRIX* brix, u8cs path);
 
 // open an SST file, including all dependencies (close everything first)
 ok64 BRIXopen(BRIX* brix, sha256c* sha);
@@ -131,8 +131,8 @@ ok64 BRIXreget($u8 into, BRIX const* brix, u8c rdt, id128 key);
 // Converts a nested RDX document (as produced by BRIXreget) into BRIX
 // key-value form.
 // Makes a *patch* SST for it (no deps), puts it on the stack.
-ok64 BRIXaddpatch(sha256* sha, BRIX* brix, $u8c rdx);
+ok64 BRIXaddpatch(sha256* sha, BRIX* brix, u8cs rdx);
 
-ok64 BRIXfind(sha256* sha, BRIX const* brix, $u8c part);
+ok64 BRIXfind(sha256* sha, BRIX const* brix, u8cs part);
 
 #endif

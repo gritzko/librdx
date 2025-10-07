@@ -9,7 +9,7 @@ ok64 NACLtest() {
     edsec512 secretKey2;
     call(NACLed25519create, &publicKey, &secretKey);
     call(NACLed25519create, &publicKey2, &secretKey2);
-    $u8c value = $u8str("Hello world!\n");
+    u8cs value = $u8str("Hello world!\n");
     sha256 hash = {};
     SHAsum(&hash, value);
     edsig512 sign;

@@ -66,7 +66,7 @@ ok64 NESTsplicemany(Bu8 ct, u64 var, b8 some) {
 }
 
 // $1 $var ${var}
-ok64 NESTscanvar(ok64* var, $u8c input) {
+ok64 NESTscanvar(ok64* var, u8cs input) {
     sane(**input == '$' && $len(input) > 1 && var != nil);
     u8c* p = input[0];
     ++p;
@@ -76,7 +76,7 @@ ok64 NESTscanvar(ok64* var, $u8c input) {
     }
     b8 bracket = (*p == '{');
     if (bracket) ++p;
-    $u8c name = {p};
+    u8cs name = {p};
     while (p < input[1] && BASEron64rev[*p] != 0xff) ++p;
     if (bracket) {
         test(p < input[1] && *p == '}', NESTbad);
@@ -91,7 +91,7 @@ ok64 NESTscanvar(ok64* var, $u8c input) {
     done;
 }
 
-ok64 NESTfeed(Bu8 ct, $u8c insert) {
+ok64 NESTfeed(Bu8 ct, u8cs insert) {
     sane(Bok(ct) && $ok(insert));
     u8$ idle = NESTidle(ct);
     u8c$ data = NESTdata(ct);

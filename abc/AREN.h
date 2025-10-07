@@ -43,7 +43,7 @@
 
 #define afedc(n, feed, s, ...) \
     align64(s);                \
-    $u8c n = {s[0], nil};      \
+    u8cs n = {s[0], nil};      \
     feed(s, __VA_ARGS__);      \
     n[1] = s[0];
 

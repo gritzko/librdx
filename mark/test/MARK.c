@@ -60,7 +60,7 @@ pro(MARKANSItest) {
 #define CLR "[0m"
 #define MRK "[90m"
 #define BLD "[1m"
-    $u8c QA[MARKANSIcases][2] = {
+    u8cs QA[MARKANSIcases][2] = {
         {$u8str("some text\n"), $u8str("some\ntext\n")},
         {$u8str("some *bold* text\n"),
          $u8str("some\n" MRK BLD "*" CLR BLD "bold" CLR MRK BLD "*" CLR
@@ -97,7 +97,7 @@ pro(MARKANSItest) {
 pro(MARKHTMLtest) {
     sane(YES);
 #define MARK1cases 8
-    $u8c cases[MARK1cases][2] = {
+    u8cs cases[MARK1cases][2] = {
 
         {$u8str("Good morning!\n"),
          $u8str("<p><span>Good morning!\n</span></p>\n")},

@@ -1,13 +1,13 @@
 #include "Y.h"
 
-fun ok64 _X(push)(u8csB lsm, $u8c x) {
+fun ok64 _X(push)(u8csB lsm, u8cs x) {
     ok64 o = u8css_feed1(Bu8csidle(lsm), x);
     if (o == OK) HEAPu8csupf(lsm, &_X(z));
     return o;
 }
 
 fun ok64 _X(next)($u8 into, u8css lsm) {
-    $u8c next = {};
+    u8cs next = {};
     aBpad2(u8cs, in, Y_MAX_INPUTS);
     ok64 o = OK;
 
@@ -31,7 +31,7 @@ fun ok64 _X(next)($u8 into, u8css lsm) {
     return o;
 }
 
-fun b8 _$u8cempty($u8c const* s) { return $empty(*s); }
+fun b8 _$u8cempty(u8cs const* s) { return $empty(*s); }
 
 fun ok64 _X(sort)(u8css lsm) {
     u8css_purge(lsm, &_$u8cempty);

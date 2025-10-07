@@ -12,7 +12,7 @@ con char *header_template;
 
 ABC_INIT;
 
-ok64 lex2rl($u8c mod, $u8c lang);
+ok64 lex2rl(u8cs mod, u8cs lang);
 
 int main(int argn, char **args) {
     if (argn != 3) {

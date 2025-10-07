@@ -30,11 +30,11 @@ typedef enum {
 } MARKdiv;
 
 extern char MARKdivascii[];
-extern $u8c MARKdivcanon[];
+extern u8cs MARKdivcanon[];
 
 typedef struct {
     // The wiki-text to be parsed.
-    $u8c text;
+    u8cs text;
     // Inline formatting
     $u8 fmt;
     // Current line div stack.

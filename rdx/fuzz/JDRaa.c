@@ -12,7 +12,7 @@ ok64 RDXvalid($cu8c data) {
     a$dup(u8c, d, data);
     while (!$empty(d)) {
         u8 t;
-        $u8c key, val;
+        u8cs key, val;
         call(TLVdrainkv, &t, key, val, d);
         test($len(key) <= 16, JDRbad + 1);
         if (RDXisPLEX(t)) {
@@ -48,7 +48,7 @@ ok64 RDXvalid($cu8c data) {
 
 uint8_t _pro_depth = 0;
 int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
-    $u8c input = {(u8c *)Data, (u8c *)Data + Size};
+    u8cs input = {(u8c *)Data, (u8c *)Data + Size};
     aBcpad(u8, rdx, PAGESIZE);
 
     ok64 o = JDRdrain(rdxidle, input);

@@ -37,8 +37,8 @@ typedef int64_t RDXint;
 typedef double RDXfloat;
 typedef u128 id128;
 typedef id128 RDXref;
-typedef $u8c RDXstring;
-typedef $u8c RDXterm;
+typedef u8cs RDXstring;
+typedef u8cs RDXterm;
 
 // FIXME big: seq, lil: src
 #define id128cmp u128cmp
@@ -48,7 +48,7 @@ typedef $u8c RDXterm;
 #define id128seq(t) ((t)._64[1])
 
 fun b8 id128empty(id128 id) { return id._64[0] == 0 && id._64[1] == 0; }
-fun u8 RDXrdt($u8c rdx) { return $empty(rdx) ? 0 : TLVup(**rdx); }
+fun u8 RDXrdt(u8cs rdx) { return $empty(rdx) ? 0 : TLVup(**rdx); }
 fun b8 RDXisFIRST(u8 l) {
     l &= ~TLVaA;
     return l == RDX_FLOAT || l == RDX_INT || l == RDX_REF || l == RDX_STRING ||
@@ -64,7 +64,7 @@ fun b8 RDXisPLEX(u8 l) {
 // #include "abc/HEAPx.h"
 // #undef X
 
-typedef ok64 rdxnext(u8c$ next, $u8c input);
+typedef ok64 rdxnext(u8c$ next, u8cs input);
 
 fun u64 RDXtick(u128* clock) { return ++id128time(*clock); }
 fun u64 RDXtock(u128* clock, u128 see) {
@@ -78,14 +78,14 @@ fun pro(RDXfeed, $u8 tlv, u8 t, id128 id, $cu8c value) {
     return TLVfeedkv(tlv, t,Bu8cdata(idpad), value);
 }
 
-fun ok64 RDXdrain(u8* t, id128* id, $u8c value, $u8c tlv) {
-    $u8c idbody = {};
+fun ok64 RDXdrain(u8* t, id128* id, u8cs value, $u8c tlv) {
+    u8cs idbody = {};
     ok64 o = TLVdrainkv(t, idbody, value, tlv);
     if (likely(o == OK)) o = ZINTu128drain(id, idbody);
     return o;  // TODO untouched on error
 }
 
-fun ok64 RDXdrain$(u8* t, $u8c rec, $u8c rdx) {
+fun ok64 RDXdrain$(u8* t, u8cs rec, $u8c rdx) {
     ok64 o = TLVdrain$(rec, rdx);
     if (unlikely(o != OK)) return o;
     *t = **rec;
@@ -93,10 +93,10 @@ fun ok64 RDXdrain$(u8* t, $u8c rec, $u8c rdx) {
     return OK;
 }
 
-ok64 RDXflatfeed($u8 into, $u8c rdx);
+ok64 RDXflatfeed($u8 into, u8cs rdx);
 
 ok64 RDXallFIRST($cu8c rdx);
 
-static $u8c ID128DELIM = $u8str("-");
+static u8cs ID128DELIM = $u8str("-");
 
 #endif

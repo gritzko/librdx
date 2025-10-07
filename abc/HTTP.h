@@ -9,7 +9,7 @@ con ok64 HTTPnone = 0x45d759cb3ca9;
 #define HTTPenum 0
 
 typedef struct {
-    $u8c text;
+    u8cs text;
 
     u8cssp parsed;
 } HTTPstate;

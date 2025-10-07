@@ -129,7 +129,7 @@ fun u128 u128xor(u128 a, u128 b) {
     return x;
 }
 
-fun ok64 $u8drain8(u8 *into, $u8c from) {
+fun ok64 $u8drain8(u8 *into, u8cs from) {
     if ($empty(from)) return $nodata;
     *into = **from;
     *from += sizeof(u8);
@@ -171,7 +171,7 @@ fun ok64 $u8drain64(u64 *into, $u8 from) {
     return OK;
 }
 #else
-fun ok64 $u8drain16(u16 *into, $u8c from) {
+fun ok64 $u8drain16(u16 *into, u8cs from) {
     if ($len(from) < sizeof(u16)) return $nodata;
     memcpy(into, *from, sizeof(u16));
     *from += sizeof(u16);
@@ -183,7 +183,7 @@ fun ok64 u8s_feed16($u8 into, u16 const *what) {
     *into += sizeof(u16);
     return OK;
 }
-fun ok64 $u8drain32(u32 *into, $u8c from) {
+fun ok64 $u8drain32(u32 *into, u8cs from) {
     if ($len(from) < sizeof(u32)) return $nodata;
     memcpy(into, *from, sizeof(u32));
     *from += sizeof(u32);
@@ -195,7 +195,7 @@ fun ok64 $u8feed32($u8 into, u32 const *what) {
     *into += sizeof(u32);
     return OK;
 }
-fun ok64 $u8drain64(u64 *into, $u8c from) {
+fun ok64 $u8drain64(u64 *into, u8cs from) {
     if ($len(from) < sizeof(u64)) return $nodata;
     memcpy(into, *from, sizeof(u64));
     *from += sizeof(u64);
@@ -212,6 +212,6 @@ fun ok64 $u8feed64($u8 into, u64 const *what) {
 fun u8 u64bit(u64 u, u32 ndx) { return 1 & (u >> ndx); }
 fun u8 u128bit(u128 u, u32 ndx) { return 1 & (u._64[ndx >> 6] >> (ndx & 63)); }
 
-ok64 i64decdrain(i64 *i, $u8c tok);
+ok64 i64decdrain(i64 *i, u8cs tok);
 
 #endif  // ABC_INT_H

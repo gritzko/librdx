@@ -42,7 +42,7 @@ ok64 BRIKpath($u8 into, BRIX const* brix, sha256c* sha) {
     done;
 }
 
-ok64 BRIXopenrepo(BRIX* brix, $u8c path) {
+ok64 BRIXopenrepo(BRIX* brix, u8cs path) {
     sane(brix != nil && !Bok(brix->ssts) && $ok(path));
     call(FILEisdir, path);
     call(Bu8Balloc, brix->ssts, LSM_MAX_INPUTS);
@@ -136,7 +136,7 @@ ok64 BRIXcloseall(BRIX* brix) {
 ok64 BRIKhash(sha256* hash, SSTu128 sst) {
     sane(hash != nil && Bok(sst));
     // aBusy(u8c, hashed, sst); strange compiler glitch?
-    $u8c hashed = {};
+    u8cs hashed = {};
     hashed[0] = sst[0];
     hashed[1] = sst[2];
     SHAsum(hash, hashed);
@@ -206,7 +206,7 @@ ok64 BRIXget($u8 rec, BRIX const* brix, u8 rdt, id128 key) {
     aBpad2(u8cs, ins, LSM_MAX_INPUTS);
     for (Bu8* p = brix->ssts[0]; p < brix->ssts[2]; ++p) {
         u8 t = rdt;
-        $u8c rec = {};
+        u8cs rec = {};
         ok64 o = SSTu128getkv(rec, *p, t, &key);
         if (o == OK) u8css_feed1(insidle, rec);
     }
@@ -225,7 +225,7 @@ ok64 _BRIXgetc(u8c$ rec, BRIX const* brix, u8 rdt, id128 key) {
     aBpad2(u8cs, ins, LSM_MAX_INPUTS);
     for (Bu8* p = brix->ssts[0]; p < brix->ssts[2]; ++p) {
         u8 t = rdt;
-        $u8c rec = {};
+        u8cs rec = {};
         ok64 o = SSTu128getkv(rec, *p, t, &key);
         if (o == OK) u8css_feed1(insidle, rec);
     }
@@ -251,10 +251,10 @@ ok64 BRIXgetc(u8c$ rec, BRIX const* brix, u8c rdt, id128 key) {
 
 ok64 _BRIXreget($u8 into, BRIX const* brix, u8 rdt, id128 key, Bu8p stack) {
     sane($ok(into) && BRIXok(brix) && Bdatalen(stack) < RDX_MAX_NEST);
-    $u8c got = {};
+    u8cs got = {};
     call(_BRIXgetc, got, brix, rdt, key);
     u8 t = 0;
-    $u8c k = {}, v = {}, body = {};
+    u8cs k = {}, v = {}, body = {};
     call(TLVdrainkv, &t, k, body, got);
     call(TLVinitlong, into, t, stack);
     call(u8s_feed1, into, $len(k));
@@ -262,8 +262,8 @@ ok64 _BRIXreget($u8 into, BRIX const* brix, u8 rdt, id128 key, Bu8p stack) {
     while (!$empty(body)) {
         a$dup(u8c, d, body);
         u8 erdt = 0;
-        $u8c ekey = {};
-        $u8c eval = {};
+        u8cs ekey = {};
+        u8cs eval = {};
         id128 eid = {};
         call(TLVdrainkv, &erdt, ekey, eval, body);
         if (RDXisPLEX(erdt) && !$empty(ekey)) {
@@ -273,7 +273,7 @@ ok64 _BRIXreget($u8 into, BRIX const* brix, u8 rdt, id128 key, Bu8p stack) {
                 continue;
             }
         }
-        $u8csup(d, body);
+        u8cssup(d, body);
         call($u8feedall, into, d);
     }
     call(TLVendany, into, rdt, stack);
@@ -296,7 +296,7 @@ ok64 BRIXisentry($cu8c rdx) {
     if ($empty(rdx) || !RDXisPLEX(**rdx)) return BRIXnone;
     u128 id = {};
     u8 t = 0;
-    $u8c val = {};
+    u8cs val = {};
     a$dup(u8c, dup, rdx);
     ok64 o = RDXdrain(&t, &id, val, dup);
     if (o == OK && id128src(id) == 0) o = BRIXnone;
@@ -307,14 +307,14 @@ ok64 BRIXenlist(u8csB heap, u64* roughlen, $cu8c allrdx) {
     sane(Bok(heap) && $ok(allrdx));
     a$dup(u8c, rdx, allrdx);
     while (!$empty(rdx)) {
-        $u8c rec = {};
+        u8cs rec = {};
         call(TLVdrain$, rec, rdx);
         *roughlen += $len(rec);
         if (RDXisPLEX(**rec)) {
             if (BRIXisentry(rec) == OK) {
                 call(HEAPu8cspushf, heap, &rec, RDXZrevision);
             }
-            $u8c id, val;
+            u8cs id, val;
             u8 rdt;
             call(TLVdrainkv, &rdt, id, val, rec);
             *roughlen -= $len(val);
@@ -324,18 +324,18 @@ ok64 BRIXenlist(u8csB heap, u64* roughlen, $cu8c allrdx) {
     done;
 }
 
-ok64 BRIXflatfeed($u8 into, $u8c rdx) {
+ok64 BRIXflatfeed($u8 into, u8cs rdx) {
     sane($ok(into) && $ok(rdx) && RDXisPLEX(**rdx));
-    $u8c empty = {};
+    u8cs empty = {};
     aBcpad(u8p, stack, 1);
     u8 rdt = 0;
-    $u8c key = {}, body = {};
+    u8cs key = {}, body = {};
     call(TLVdrainkv, &rdt, key, body, rdx);
     call(TLVinitlong, into, rdt, stackbuf);  // TODO adapt
     call(u8s_feed1, into, $len(key));
     call($u8feedall, into, key);
     while (!$empty(body)) {
-        $u8c e = {};
+        u8cs e = {};
         call(TLVdrain$, e, body);
         if (BRIXisentry(e) == OK) {
             call(BRIXflatfeed, into, e);
@@ -347,7 +347,7 @@ ok64 BRIXflatfeed($u8 into, $u8c rdx) {
     done;
 }
 
-ok64 _BRIXaddpatch(sha256* sha, BRIX* brix, $u8c rdx, u8csB heap) {
+ok64 _BRIXaddpatch(sha256* sha, BRIX* brix, u8cs rdx, u8csB heap) {
     sane(sha != nil && BRIXok(brix) && $ok(rdx));
 
     u64 roughlen = 0;
@@ -363,7 +363,7 @@ ok64 _BRIXaddpatch(sha256* sha, BRIX* brix, $u8c rdx, u8csB heap) {
     call(SSTu128init, sst, &fd, tmpdata, size);
 
     while (!Bempty(heap)) {
-        $u8c pop = {};
+        u8cs pop = {};
         call(HEAPu8cspop, &pop, heap);
         call(BRIXflatfeed, Bu8idle(sst), pop);
     }
@@ -382,7 +382,7 @@ ok64 _BRIXaddpatch(sha256* sha, BRIX* brix, $u8c rdx, u8csB heap) {
 // Converts a nested RDX document (as produced by BRIXreget) into BRIX
 // key-value form.
 // Makes a *patch* SST for it (no deps), puts it on the stack.
-ok64 BRIXaddpatch(sha256* sha, BRIX* brix, $u8c rdx) {
+ok64 BRIXaddpatch(sha256* sha, BRIX* brix, u8cs rdx) {
     sane(sha != nil && BRIXok(brix) && $ok(rdx));
     u8csB heap = {};
     try(Bu8csalloc, heap, BRIX_MAX_SST0_ENTRIES);
@@ -393,7 +393,7 @@ ok64 BRIXaddpatch(sha256* sha, BRIX* brix, $u8c rdx) {
     done;
 }
 
-ok64 BRIXfind(sha256* sha, BRIX const* brix, $u8c part) {
+ok64 BRIXfind(sha256* sha, BRIX const* brix, u8cs part) {
     sane($ok(part) && BRIXok(brix) && sha != nil &&
          $len(part) <= sizeof(sha256) * 2);
     DIR* d = opendir((char*)*brix->home);

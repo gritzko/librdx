@@ -63,12 +63,12 @@ ok64 JDRonRef($cu8c tok, JDRstate* state) {
 }
 
 ok64 JDRonString($cu8c tok, JDRstate* state) {
-    $u8c str = {tok[0] + 1, tok[1] - 1};
+    u8cs str = {tok[0] + 1, tok[1] - 1};
     return JDRonFIRST0(str, state, RDX_STRING);
 }
 
 ok64 JDRonMLString($cu8c tok, JDRstate* state) {
-    $u8c str = {tok[0] + 1, tok[1] - 1};
+    u8cs str = {tok[0] + 1, tok[1] - 1};
     return JDRonFIRST0(str, state, RDX_STRING);
 }
 
@@ -83,7 +83,7 @@ ok64 JDRonNoStamp($cu8c tok, JDRstate* state) {
 
 ok64 JDRonStamp($cu8c tok, JDRstate* state) {
     sane($ok(tok) && $len(tok) >= 2 && **tok == '@' && state != nil);
-    $u8c idstr = {tok[0] + 1, tok[1]};
+    u8cs idstr = {tok[0] + 1, tok[1]};
     id128 id = {};
     call(RDXid128drain, &id, idstr);
     u8* p = $head(state->tlv);
@@ -243,7 +243,7 @@ ok64 JDRinsertU(JDRstate* state) {
         call(JDRfeedempty, state);
     } else {
         u8p start = *$term(Bu8pdata(state->stack));
-        $u8c rec = {start, state->tlv[0]}, key, body;
+        u8cs rec = {start, state->tlv[0]}, key, body;
         test($len(state->tlv) > 1 + 4 + 1 + 1 + $len(rec), JDRnoroom);
         u8 lit;
         call(TLVdrainkv, &lit, key, body, rec);
@@ -326,7 +326,7 @@ ok64 JDRonNL($cu8c tok, JDRstate* state) {
     return OK;
 }
 
-ok64 JDRfeedSesc($u8 tlv, $u8c txt) {
+ok64 JDRfeedSesc($u8 tlv, u8cs txt) {
     while (!$empty(txt) && !$empty(tlv)) {
         if (**txt != '\\') {
             **tlv = **txt;
@@ -366,7 +366,7 @@ ok64 JDRfeedSesc($u8 tlv, $u8c txt) {
                 break;
             case 'u': {
                 if ($len(txt) < 5) return HEXnodata;
-                $u8c hex = {*txt + 1, *txt + 5};
+                u8cs hex = {*txt + 1, *txt + 5};
                 *txt += 4;
                 u64 cp = 0;
                 ok64 o = u64hexdrain(&cp, hex);
@@ -385,7 +385,7 @@ ok64 JDRfeedSesc($u8 tlv, $u8c txt) {
     return OK;
 }
 
-ok64 JDRdrainSesc($u8 txt, $u8c tlv);
+ok64 JDRdrainSesc($u8 txt, u8cs tlv);
 // . . . . . . . w r i t e r . . . . . . .
 
 fun ok64 JDRfeedstamp($u8 rdxj, id128 stamp, b8 pad) {
@@ -409,14 +409,14 @@ fun ok64 JDRindent($u8 rdxj, u64 style) {
     }
 }
 
-fun ok64 JDRfeedlist($u8 rdxj, $u8c tlv, u64 style) {
+fun ok64 JDRfeedlist($u8 rdxj, u8cs tlv, u64 style) {
     sane($ok(rdxj) && $ok(tlv));
     a$dup(u8c, rest, tlv);
     u64 commanl = (style & StyleCommaNL) != 0 ||
                   ((style & StyleTopCommaNL) != 0 && (style & 0xff) == 0);
     ok64 err = OK;
     while ($len(rest) > 0 && err == OK) {
-        $u8c rec = {};
+        u8cs rec = {};
         call(TLVdrain$, rec, rest);
         call(JDRfeed1, rdxj, rec, style);
         if (!$empty(rest) || (style & StyleTrailingComma) != 0) {
@@ -439,7 +439,7 @@ ok64 JDRisPU($cu8c body) {
     size_t n = 0;
     while (!$empty(b)) {
         u8 t = 0;
-        $u8c val = {};
+        u8cs val = {};
         call(TLVdrain, &t, val, b);
         if (RDXisPLEX(t)) return FAIL;
         ++n;
@@ -448,11 +448,11 @@ ok64 JDRisPU($cu8c body) {
     done;
 }
 
-ok64 JDRfeed1($u8 rdxj, $u8c tlv, u64 style) {
+ok64 JDRfeed1($u8 rdxj, u8cs tlv, u64 style) {
     sane($ok(rdxj) && $ok(tlv));
     u8 lit;
-    $u8c value;
-    $u8c idz;
+    u8cs value;
+    u8cs idz;
     id128 id = {};
     a$dup(u8c, tlv2, tlv);
     call(TLVdrainkv, &lit, idz, value, tlv);
@@ -521,12 +521,12 @@ ok64 JDRfeed1($u8 rdxj, $u8c tlv, u64 style) {
     done;
 }
 
-pro(JDRdrainSesc, $u8 txt, $u8c tlv) {
+pro(JDRdrainSesc, $u8 txt, u8cs tlv) {
     sane($ok(txt) && $ok(tlv));
     if ($len(txt) < $len(tlv)) return RDXnoroom;
     u8 t = 0;
-    $u8c key = {};
-    $u8c val = {};
+    u8cs key = {};
+    u8cs val = {};
     call(TLVdrainkv, &t, key, val, tlv);
     while (!$empty(val) && !$empty(txt)) {
         switch (**val) {

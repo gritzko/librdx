@@ -17,13 +17,13 @@ con ok64 LEXnoroom = 0x153a1cb3db3cf1;
 extern const u8c *LEX_TEMPL[LEX_TEMPL_LANG_LEN][LEX_TEMPL_LEN][2];
 
 typedef struct {
-    $u8c text;
+    u8cs text;
     int lang;
     u8Bp ct;
 
     u8c$ mod;
 
-    $u8c cur;
+    u8cs cur;
     u32 ruleno;
 } LEXstate;
 

@@ -28,7 +28,7 @@ pro(_UTF8feed1, $u8 into, u32 cp) {
     done;
 }
 
-pro(_UTF8drain1, u32 *cp, $u8c data) {
+pro(_UTF8drain1, u32 *cp, u8cs data) {
     sane($ok(data) && cp != nil);
     const u8 *utf8 = *data;
     unsigned char byte = utf8[0];

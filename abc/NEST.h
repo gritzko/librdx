@@ -25,7 +25,7 @@ fun ok64 NESTspliceall(Bu8 ct, ok64 var) {
 
 fun ok64 NESTspliceany(Bu8 ct, ok64 var) { return NESTsplicemany(ct, var, NO); }
 
-ok64 NESTfeed(Bu8 ct, $u8c insert);
+ok64 NESTfeed(Bu8 ct, u8cs insert);
 
 ok64 NESTrender($u8 into, Bu8 ct);
 

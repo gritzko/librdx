@@ -25,13 +25,13 @@ pro(RDXZtestvalue, Bu8 testbuf) {
     a$dup(u8c, tlv, tlvdata);
     int i = 0, j = 0;
     while (!$empty(tlv)) {
-        $u8c prev = {};
+        u8cs prev = {};
         call(TLVdrain$, prev, tlv);
         ++i;
         j = i;
         a$dup(u8c, rest, tlv);
         while (!$empty(rest)) {
-            $u8c rec = {};
+            u8cs rec = {};
             call(TLVdrain$, rec, rest);
             ++j;
             int z = RDXZvalue(&prev, &rec);
@@ -54,7 +54,7 @@ ok64 zfn($cu8c cases) {
     a$dup(u8c, c, cases);
     ok64 o = OK;
     while (!$empty(c) && o == OK) {
-        $u8c rec;
+        u8cs rec;
         o = TLVdrain$(rec, c);
         if (o != OK) break;
         for (u8cs* p = $head(zcasesdata); p < $term(zcasesdata); ++p) {

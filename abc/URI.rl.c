@@ -715,7 +715,7 @@ pro(URIlexer, URIstate* state) {
     u64 mark0[64] = {};
 
     u32 sp = 2;
-    $u8c tok = {p, p};
+    u8cs tok = {p, p};
 
     
 #line 713 "URI.rl.c"

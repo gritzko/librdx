@@ -19,7 +19,7 @@ fun ok64 X(SST, meta)(X(SST, ) sst, SSTheader const** head, u8c$ meta) {
     return OK;
 }
 
-fun ok64 X(SST, init)(X(SST, ) sst, int* fd, $u8c path, size_t size) {
+fun ok64 X(SST, init)(X(SST, ) sst, int* fd, u8cs path, size_t size) {
     if (size < sizeof(SSTheader)) return SSTbadhead;
     ok64 o = FILEmapnew(sst, fd, path, size);
     if (o == OK) {
@@ -31,7 +31,7 @@ fun ok64 X(SST, init)(X(SST, ) sst, int* fd, $u8c path, size_t size) {
     return o;
 }
 
-fun ok64 X(SST, open)(X(SST, ) sst, $u8c path) {
+fun ok64 X(SST, open)(X(SST, ) sst, u8cs path) {
     ok64 o = FILEmapro(sst, path);
     if (o != OK) return o;
     SSTheader const* head = (SSTheader const*)sst[0];
@@ -47,7 +47,7 @@ fun ok64 X(SST, open)(X(SST, ) sst, $u8c path) {
 fun ok64 X(SST, hasindex)(X(SST, ) sst) { return Bidlelen(sst) != 0; }
 
 fun ok64 X(SST, feed)(X(SST, ) sst, SSTab* tab, u8 type, Key const* key,
-                      $u8c value) {
+                      u8cs value) {
     aBcpad(u8, raw, sizeof(Key));
     X(, pack)(rawidle, key);
     ok64 o = TLVfeedkv(Bu8idle(sst), type, rawdata, value);
@@ -79,7 +79,7 @@ fun ok64 X(SST, endany)(X(SST, ) sst, u8 type, SSTab* tab, Bu8p stack) {
     return o;
 }
 
-fun ok64 X(SST, feedkv)(X(SST, ) sst, SSTab* tab, $u8c rec) {
+fun ok64 X(SST, feedkv)(X(SST, ) sst, SSTab* tab, u8cs rec) {
     ok64 o = $u8feedall(Bu8idle(sst), rec);
     if (o == OK) o = SKIPu8mayfeed(sst, tab);
     return o;
@@ -87,7 +87,7 @@ fun ok64 X(SST, feedkv)(X(SST, ) sst, SSTab* tab, $u8c rec) {
 
 fun int X(SST, cmp)($cc a, $cc b) {
     u8 ta = 0, tb = 0;
-    $u8c ka = {}, va = {}, kb = {}, vb = {};
+    u8cs ka = {}, va = {}, kb = {}, vb = {};
     a$dup(u8c, aa, a);
     a$dup(u8c, bb, b);  // TODO fast and robust
     TLVdrainkv(&ta, ka, va, aa);
@@ -111,12 +111,12 @@ fun ok64 X(SST, locate)(u8c$ rest, X(SST, ) sst, u8 type, Key const* key) {
     return SKIPu8find(rest, sst, rawdata, X(SST, cmp));
 }
 
-fun ok64 X(SST, next)(u8* t, Key* key, u8c$ val, $u8c rest) {
+fun ok64 X(SST, next)(u8* t, Key* key, u8c$ val, u8cs rest) {
     if (!$empty(rest) && (**rest & ~TLVaA) == SKIP_TLV_TYPE) {
-        $u8c rec;
+        u8cs rec;
         TLVdrain$(rec, rest);
     }
-    $u8c k = {};
+    u8cs k = {};
     ok64 o = TLVdrainkv(t, k, val, rest);
     if (o == OK) o = X(, unpack)(key, k);
     if (o != OK) return o;
@@ -124,12 +124,12 @@ fun ok64 X(SST, next)(u8* t, Key* key, u8c$ val, $u8c rest) {
 }
 
 fun ok64 X(SST, getkv)(u8c$ rec, X(SST, ) sst, u8 type, Key const* key) {
-    $u8c rest = {};
+    u8cs rest = {};
     ok64 o = X(SST, locate)(rest, sst, type, key);
     while (o == OK) {
         u8 t = 0;
         Key k = {};
-        $u8c v;
+        u8cs v;
         a$dup(u8c, dup, rest);
         o = X(SST, next)(&t, &k, v, rest);
         if (o != OK) break;
@@ -140,7 +140,7 @@ fun ok64 X(SST, getkv)(u8c$ rec, X(SST, ) sst, u8 type, Key const* key) {
             if (type != 0 && type != t) {
                 continue;
             }
-            $u8csup(dup, rest);
+            u8scSup(dup, rest);
             $mv(rec, dup);
             break;
         } else {
@@ -153,7 +153,7 @@ fun ok64 X(SST, getkv)(u8c$ rec, X(SST, ) sst, u8 type, Key const* key) {
 
 // Get a record by its type, id. Set type to 0 if insignificant.
 fun ok64 X(SST, get)(u8* type, u8c$ val, X(SST, ) sst, Key const* key) {
-    $u8c rest = {};
+    u8cs rest = {};
     ok64 o = X(SST, locate)(rest, sst, *type, key);
     while (o == OK) {
         Key k = {};

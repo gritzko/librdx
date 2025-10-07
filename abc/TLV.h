@@ -45,7 +45,7 @@ fun ok64 TLVprobe(u8* t, u32* hlen, u32* blen, $cu8c data) {
     return (*hlen + *blen) <= $len(data) ? OK : TLVnodata;
 }
 
-fun pro(TLVdrain, u8* t, u8c$ value, $u8c from) {
+fun pro(TLVdrain, u8* t, u8c$ value, u8cs from) {
     sane(t != nil && value != nil && $ok(from));
     u32 hlen = 0, blen = 0;
     call(TLVprobe, t, &hlen, &blen, from);
@@ -55,7 +55,7 @@ fun pro(TLVdrain, u8* t, u8c$ value, $u8c from) {
     done;
 }
 
-fun pro(TLVdrain$, u8c$ rec, $u8c from) {
+fun pro(TLVdrain$, u8c$ rec, u8cs from) {
     sane(rec != nil && $ok(from));
     u32 hlen = 0, blen = 0;
     u8 t = 0;
@@ -66,12 +66,12 @@ fun pro(TLVdrain$, u8c$ rec, $u8c from) {
     done;
 }
 
-fun ok64 TLVpick(u8* type, $u8c value, $cu8c tlv, size_t offset) {
+fun ok64 TLVpick(u8* type, u8cs value, $cu8c tlv, size_t offset) {
     a$tail(u8c, keytlv, tlv, offset);
     return TLVdrain(type, value, keytlv);
 }
 
-fun pro(TLVtake, u8 t, $u8c value, $u8c from) {
+fun pro(TLVtake, u8 t, u8cs value, $u8c from) {
     sane(value != NULL && from != NULL);
     u32 hlen = 0;
     u32 blen = 0;
@@ -97,12 +97,12 @@ fun void TLVhead($u8 into, u8 type, u32 len) {
     }
 }
 
-fun pro(TLVfeed, $u8 into, u8 type, $u8c value) {
+fun pro(TLVfeed, $u8 into, u8 type, u8cs value) {
     sane(TLVlong(type) && into != NULL && value != NULL);
     u32 len = $len(value);
     test($len(into) >= len + 5, TLVnoroom);
     TLVhead(into, type, len);
-    $u8copy(into, value);
+    u8sCopy(into, value);
     *into += len;
     done;
 }
@@ -153,7 +153,7 @@ fun pro(TLVclose, $u8 tlv, u8 type, u32* const* len) {
     done;
 }
 
-fun pro(TLVfeedkv, $u8 tlv, u8c type, $u8c key, $cu8c val) {
+fun pro(TLVfeedkv, $u8 tlv, u8c type, u8cs key, $cu8c val) {
     sane($ok(tlv) && $ok(key) && ($empty(val) || $ok(val)));
     size_t keylen = $len(key);
     test(keylen < 0x100, TLVbadarg);
@@ -167,11 +167,11 @@ fun pro(TLVfeedkv, $u8 tlv, u8c type, $u8c key, $cu8c val) {
     done;
 }
 
-fun pro(TLVdrainkv, u8* type, $u8c key, $u8c val, $u8c tlv) {
+fun pro(TLVdrainkv, u8* type, u8cs key, $u8c val, $u8c tlv) {
     sane(type != nil && key != nil && val != nil && $ok(tlv));
     u32 hlen = 0, blen = 0;
     call(TLVprobe, type, &hlen, &blen, tlv);
-    $u8c body = {tlv[0] + hlen, tlv[0] + hlen + blen};
+    u8cs body = {tlv[0] + hlen, tlv[0] + hlen + blen};
     test($len(body) > 0 && $len(body) >= **body, TLVbadkv);
     key[0] = body[0] + 1;
     key[1] = key[0] + **body;

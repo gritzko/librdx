@@ -123,13 +123,13 @@ fun ok64 X($, retract)(X($, c) from, size_t len) {
     return OK;
 }
 
-fun ok64 X($, sup)(X($, ) full, X($, ) consumed) {
+fun ok64 X(, sSup)(X(, s) full, X(, s) consumed) {
     if (unlikely(full[1] != consumed[1] || full[0] > consumed[0])) return $miss;
     full[1] = consumed[0];
     return OK;
 }
 
-fun ok64 X($, csup)(X($, c) full, X($, c) consumed) {
+fun ok64 X(, scSup)(X(, cs) full, X(, cs) consumed) {
     if (unlikely(full[1] != consumed[1] || full[0] > consumed[0])) return $miss;
     full[1] = consumed[0];
     return OK;
@@ -150,7 +150,7 @@ fun ok64 X($, part)(X($, c) into, X($c, c) orig, size_t from, size_t till) {
     return OK;
 }
 
-fun size_t X($, copy)(X($c, ) into, X($c, c) from) {
+fun size_t X(, sCopy)(X(, sc) into, X(, csc) from) {
     size_t l = $minlen(into, from);
     memcpy((void *)*into, (void *)*from, l * sizeof(T));
     return l;

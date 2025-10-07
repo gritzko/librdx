@@ -16,7 +16,7 @@ fun ok64 Y($u8 into, u8css from);
 fun ok64 YmergeF($u8 into, u8css from) {
     sane($ok(into) && $ok(from) && !$empty(from));
     double max = 0;
-    $u8c res = {};
+    u8cs res = {};
     call(ZINTf64drain, &max, **from);
     $mv(res, **from);
     ++*from;
@@ -35,7 +35,7 @@ fun ok64 YmergeF($u8 into, u8css from) {
 fun ok64 YmergeI($u8 into, u8css from) {
     sane($ok(into) && $ok(from) && !$empty(from));
     RDXint max = 0;
-    $u8c res = {};
+    u8cs res = {};
     call(ZINTi64drain, &max, **from);
     $mv(res, **from);
     ++*from;
@@ -54,7 +54,7 @@ fun ok64 YmergeI($u8 into, u8css from) {
 fun ok64 YmergeR($u8 into, u8css from) {
     sane($ok(into) && $ok(from) && !$empty(from));
     RDXref max = {};
-    $u8c res = {};
+    u8cs res = {};
     call(ZINTu128drain, &max, **from);
     $mv(res, **from);
     ++*from;
@@ -72,7 +72,7 @@ fun ok64 YmergeR($u8 into, u8css from) {
 
 fun ok64 YmergeS($u8 into, u8css from) {
     sane($ok(into) && $ok(from) && !$empty(from));
-    $u8c res = {};
+    u8cs res = {};
     $mv(res, **from);
     ++*from;
     $eat(from) {
@@ -94,7 +94,7 @@ fun ok64 YmergeP($u8 into, u8css bare) {
         for (size_t i = 0; i < $len(bare); ++i) {
             u8c$ n = (u8csp)u8css_atp(bare, i);
             if ($empty(n)) continue;
-            $u8c rec = {};
+            u8cs rec = {};
             call(TLVdrain$, rec, n);
             u8css_feed1(yputsidle, rec);
         }
@@ -130,7 +130,7 @@ fun ok64 Y($u8 into, u8css inputs) {
     $eat(ins) {
         u8 t = 0;
         id128 id = {};
-        $u8c bare = {};
+        u8cs bare = {};
         call(RDXdrain, &t, &id, bare, **ins);
         int z = id128cmp(&maxid, &id);
         if (z == 0) {

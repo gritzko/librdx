@@ -576,7 +576,7 @@ pro(JDRlexer, JDRstate* state) {
     u64 mark0[64] = {};
     ok64 o = OK;
 
-    $u8c tok = {p, p};
+    u8cs tok = {p, p};
 
 #line 1028 "JDR.rl.c"
     { cs = JDR_start; }

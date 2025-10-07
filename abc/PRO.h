@@ -171,7 +171,7 @@ extern $u8c *STD_ARGS[];
 fun void _parse_args(int argn, char **args) {
     for (int i = 0; i < argn; ++i) {
         u8c *s[2] = $u8str(args[i]);
-        memcpy(_STD_ARGS + i, s, sizeof($u8c));
+        memcpy(_STD_ARGS + i, s, sizeof(s));
     }
     STD_ARGS[0] = STD_ARGS[1] = _STD_ARGS;
     STD_ARGS[2] = STD_ARGS[3] = _STD_ARGS + argn;
@@ -182,13 +182,13 @@ fun void _parse_args(int argn, char **args) {
 #define $arg(i) (*u8cssatp(Bu8csdata(STD_ARGS), i))
 
 #define a$rg(name, i) \
-    $u8c name = {};   \
+    u8cs name = {};   \
     $mv(name, *u8css_atp(u8csB_data(STD_ARGS), i));
 
 #define MAIN(f)                                                          \
     uint8_t _pro_depth = 0;                                              \
-    $u8c _STD_ARGS[64] = {};                                             \
-    $u8c *STD_ARGS[4] = {};                                              \
+    u8cs _STD_ARGS[64] = {};                                             \
+    u8cs *STD_ARGS[4] = {};                                              \
     int main(int argn, char **args) {                                    \
         _parse_args(argn, args);                                         \
         ok64 ret = f();                                                  \

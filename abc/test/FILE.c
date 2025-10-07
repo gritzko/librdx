@@ -8,8 +8,8 @@
 
 pro(FILEtest1) {
     sane(1);
-    $u8c path = $u8str("/tmp/test1.txt");
-    $u8c text = $u8str("Hello world!\n");
+    u8cs path = $u8str("/tmp/test1.txt");
+    u8cs text = $u8str("Hello world!\n");
     int fd = 0;
     call(FILEcreate, &fd, path);
     call(FILEfeed, fd, text);
@@ -20,7 +20,7 @@ pro(FILEtest1) {
 
 pro(FILEtest2) {
     sane(1);
-    $u8c path = $u8str("/tmp/testA.txt");
+    u8cs path = $u8str("/tmp/testA.txt");
     int fd = 0;
     call(FILEcreate, &fd, path);
     call(FILEresize, &fd, 4096);

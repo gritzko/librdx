@@ -21,7 +21,7 @@ fun ok64 TLVsplit(u8css idle, $cu8c data) {
     sane($ok(idle) && $ok(data));
     a$dup(u8c, d, data);
     while (!$empty(d)) {
-        $u8c next = {};
+        u8cs next = {};
         call(TLVdrain$, next, d);
         call(u8css_feed1, idle, next);
     }
@@ -32,7 +32,7 @@ fun ok64 RDXtry($cu8c data) {
     a$dup(u8c, d, data);
     ok64 o = OK;
     while (!$empty(d) && o == OK) {
-        $u8c rec = {};
+        u8cs rec = {};
         o = TLVdrain$(rec, d);
         if (o == OK && !RDXisPLEX(**rec) && !RDXisFIRST(**rec)) return RDXbad;
     }
@@ -54,19 +54,19 @@ pro(RDXeatfile, int fd) {
             done;
         }
         call(TLVsplit, Bu8csidle(ins), Bu8cdata(tmp));
-        Bate(tmp);
+        Bu8Ate(tmp);
     }
     done;
 }
 
-pro(RDXeatfiles, $u8c args) {
+pro(RDXeatfiles, u8cs args) {
     sane(1);
     if (!Bempty(ins)) {
     } else if ($empty(args) || TLVup(**args) != RDX_STRING) {
         call(RDXeatfile, STDIN_FILENO);
     }
     while (!$empty(args) && TLVup(**args) == RDX_STRING) {
-        $u8c str = {};
+        u8cs str = {};
         id128 id = {};
         RDXCdrainS(str, &id, args);
         int fd = FILE_CLOSED;
@@ -77,7 +77,7 @@ pro(RDXeatfiles, $u8c args) {
     done;
 }
 
-pro(RDX_print, $u8c args) {
+pro(RDX_print, u8cs args) {
     sane(1);
     Bate(tmp);
     a$dup(u8cs, in, Bu8csdata(ins));
@@ -92,7 +92,7 @@ pro(RDX_print, $u8c args) {
 
     int fd = STDOUT_FILENO;
     if (TLVup(**args) == RDX_STRING) {
-        $u8c str = {};
+        u8cs str = {};
         RDXCdrainS(str, nil, args);
         call(FILEcreate, &fd, str);
     }
@@ -101,17 +101,17 @@ pro(RDX_print, $u8c args) {
     done;
 }
 
-ok64 RDX_parse($u8c args) {
+ok64 RDX_parse(u8cs args) {
     sane(1);
     call(RDXeatfiles, args);
     done;
 }
 
-ok64 RDX_write($u8c args) {
+ok64 RDX_write(u8cs args) {
     sane(1);
     u8 t = 0;
     id128 id = {};
-    $u8c val = {};
+    u8cs val = {};
     u64 sub = 0;
     call(RDXdrain, &t, &id, val, args);
     test(t == RDX_STRING, badarg);
@@ -123,7 +123,7 @@ ok64 RDX_write($u8c args) {
     done;
 }
 
-ok64 RDX_merge($u8c args) {
+ok64 RDX_merge(u8cs args) {
     sane(1);
     call(RDXeatfiles, args);
     Bate(tmp);
@@ -135,9 +135,9 @@ ok64 RDX_merge($u8c args) {
     done;
 }
 
-fun b8 is_tilda($u8c data) {
+fun b8 is_tilda(u8cs data) {
     u8 _tilda[] = {'t', 2, 0, '~'};
-    $u8c tilda = $u8raw(_tilda);
+    u8cs tilda = $u8raw(_tilda);
     return $eq(data, tilda);
 }
 
@@ -145,9 +145,9 @@ ok64 yfn($cu8c cases) {
     sane($ok(cases));
     a$dup(u8c, tlv, cases);
     while (!$empty(tlv)) {
-        $u8c in = {};
+        u8cs in = {};
         aBpad2(u8cs, elem, PAGESIZE);
-        $u8c correct = {};
+        u8cs correct = {};
         aBcpad(u8, res, PAGESIZE);
         call(TLVdrain$, in, tlv);
         do {
@@ -166,10 +166,10 @@ ok64 yfn($cu8c cases) {
     done;
 }
 
-ok64 RDX_test($u8c args) {
+ok64 RDX_test(u8cs args) {
     sane(1);
     while (!$empty(args) && TLVup(**args) == RDX_STRING) {
-        $u8c path = {};
+        u8cs path = {};
         call(RDXCdrainS, path, nil, args);
         Bu8 rdxjbuf = {};
         call(FILEmapro, rdxjbuf, path);
@@ -179,24 +179,24 @@ ok64 RDX_test($u8c args) {
     done;
 }
 
-ok64 RDX_clean($u8c args) {
+ok64 RDX_clean(u8cs args) {
     sane(1);
     // call(FILEmapro, (voidB)rdxjbuf, path);
     // call(FILEunmap, rdxjbuf);
     done;
 }
 
-ok64 RDX_diff($u8c args) {
+ok64 RDX_diff(u8cs args) {
     sane(1);
     // call(FILEmapro, (voidB)rdxjbuf, path);
     // call(FILEunmap, rdxjbuf);
     done;
 }
 
-typedef ok64 (*cmdfn)($u8c args);
+typedef ok64 (*cmdfn)(u8cs args);
 
 typedef struct {
-    $u8c name;
+    u8cs name;
     cmdfn fn;
 } cmd_t;
 
@@ -232,8 +232,8 @@ ok64 RDXcli() {
     while (!$empty(cmds)) {
         u8 t = 0;
         id128 id = {};
-        $u8c val = {};
-        $u8c verb = {};
+        u8cs val = {};
+        u8cs verb = {};
         u64 sub = 0;
         call(RDXdrain, &t, &id, val, cmds);
         if (t == RDX_TUPLE) {
@@ -242,7 +242,7 @@ ok64 RDXcli() {
             call(RDXdrain, &t, &_, verb, val);
             test(t == RDX_TERM, RDXbadverb);
             if (!$empty(val)) {
-                $u8c s = {};
+                u8cs s = {};
                 call(RDXdrain, &t, &_, s, val);
                 test(t == RDX_TERM, badarg);
                 call(RONdrain64, &sub, s);

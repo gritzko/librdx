@@ -27,7 +27,7 @@ pro(Bmap_test) {
 pro(B$_test) {
     sane(1);
     aBpad(u8cp, slices, 8);
-    $u8c hello = $u8str("Hello");
+    u8cs hello = $u8str("Hello");
     u8cpBfeed2(slices, hello[0], hello[1]);
     done;
 }

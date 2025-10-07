@@ -2,7 +2,7 @@
 
 #include "PRO.h"
 
-ok64 i64decdrain(i64 *i, $u8c tok) {
+ok64 i64decdrain(i64 *i, u8cs tok) {
     sane(i != nil && $ok(tok) && !$empty(tok));
     a$dup(u8c, dec, tok);
     if (**tok == '-' || **tok == '+') ++*dec;

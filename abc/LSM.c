@@ -7,7 +7,7 @@
 
 ok64 LSMnext($u8 into, u8css lsm, $u8cZfn cmp, $u8cYfn mrg) {
     sane($ok(into) && $ok(lsm) && cmp != nil && mrg != nil);
-    $u8c next = {}, _;
+    u8cs next = {}, _;
     aBpad2(u8cs, in, LSM_MAX_INPUTS);
 
     do {
@@ -31,13 +31,13 @@ ok64 LSMnext($u8 into, u8css lsm, $u8cZfn cmp, $u8cYfn mrg) {
     done;
 }
 
-ok64 LSMdrainruns(u8csB heap, $u8c input, $u8cZfn cmp) {
+ok64 LSMdrainruns(u8csB heap, u8cs input, $u8cZfn cmp) {
     sane(Bok(heap) && $ok(input) && Bu8cshasroom(heap) && cmp != nil);
-    $u8c last = {};
+    u8cs last = {};
     call(TLVdrain$, last, input);
     a$dup(u8c, run, last);
     while (!$empty(input) && $len(Bu8csidle(heap)) > 1) {
-        $u8c rec;
+        u8cs rec;
         call(TLVdrain$, rec, input);
         int z = cmp(&last, &rec);
         if (z >= 0) {
@@ -52,7 +52,7 @@ ok64 LSMdrainruns(u8csB heap, $u8c input, $u8cZfn cmp) {
     done;
 }
 
-ok64 LSMsort1(size_t* runs, $u8 into, $u8c data, $u8cZfn cmp, $u8cYfn mrg) {
+ok64 LSMsort1(size_t* runs, $u8 into, u8cs data, $u8cZfn cmp, $u8cYfn mrg) {
     sane($ok(into) && $ok(data) && $len(into) >= $len(data) && cmp != nil &&
          mrg != nil);
     *runs = 0;
@@ -77,11 +77,11 @@ ok64 LSMsort($u8 data, $u8cZfn cmp, $u8cYfn mrg, $u8 tmp) {
         a$dup(u8c, in, data);
         call(LSMsort1, &runs, out, in, cmp, mrg);
         if (runs == 0) return OK;
-        $u8c in2 = {tmp[0], out[0]};
+        u8cs in2 = {tmp[0], out[0]};
         $u8 out2 = {data[0], data[0] + $len(in2)};
         if (runs == 1) {
             $mv(data, out2);
-            $u8copy(data, in2);
+            u8sCopy(data, in2);
             return OK;
         }
         call(LSMsort1, &runs, out2, in2, cmp, mrg);

@@ -25,7 +25,7 @@ struct POLLctl {
     u8csB writes;
     Bu8 readbuf;
     Bu8 writebuf;
-    $u8c name;
+    u8cs name;
     ok64 o;
     POLLfunI fn;
     int fd;
@@ -40,9 +40,9 @@ fun POLLctl* POLLfind(POLLstate state, int fd) {
     return nil;
 }
 
-ok64 POLLadd(POLLstate state, int fd, $u8c name, POLLfunI fi);
+ok64 POLLadd(POLLstate state, int fd, u8cs name, POLLfunI fi);
 
-ok64 POLLlisten(POLLstate state, int fd, $u8c name, POLLfunI fi);
+ok64 POLLlisten(POLLstate state, int fd, u8cs name, POLLfunI fi);
 
 ok64 POLLdelctl(POLLstate state, POLLctl* ctl, ok64 o);
 fun ok64 POLLdel(POLLstate state, int fd, ok64 o) {
@@ -58,8 +58,8 @@ fun ok64 POLLfeed$(POLLctl* ctl, u8c$ data) {
     return OK;
 }
 
-fun ok64 POLLfeed(POLLctl* ctl, $u8c data) {
-    $u8c n = {ctl->writebuf[2], nil};
+fun ok64 POLLfeed(POLLctl* ctl, u8cs data) {
+    u8cs n = {ctl->writebuf[2], nil};
     ok64 o = $u8feed(Bu8idle(ctl->writebuf), data);
     if (o != OK) return o;
     n[1] = ctl->writebuf[2];

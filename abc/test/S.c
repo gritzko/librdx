@@ -29,7 +29,7 @@ pro($test1) {
 
     aBpad(i32, padi2, 4);
     i32$ into2 = Bi32idle(padi2);
-    $i32copy(into2, data);  // FIXME
+    i32sCopy(into2, data);  // FIXME
     want($eq(into2, data));
 
     i32swap(&a1, &a2);

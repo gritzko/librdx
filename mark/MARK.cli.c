@@ -47,10 +47,10 @@ void debug(MARKstate *state) {
 
 #define a$strf(name, len, tmpl, ...) \
     aBpad(u8, name, len);            \
-    $u8c __##name = $u8str(tmpl);    \
+    u8cs __##name = $u8str(tmpl);    \
     $feedf(Bu8idle(name), __##name, __VA_ARGS__);
 
-pro(mark, $u8c mod) {
+pro(mark, u8cs mod) {
     sane($ok(mod) && !$empty(mod) && $len(mod) <= 1000);
     int fd = 0;
     call(FILEopen, &fd, mod, O_RDONLY);

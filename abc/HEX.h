@@ -10,7 +10,7 @@ con ok64 HEXbad = 0x44e866968;
 
 static $u8 BASE16 = $u8str("0123456789abcdef");
 
-fun ok64 HEXfeed($u8 hex, $u8c bin) {
+fun ok64 HEXfeed($u8 hex, u8cs bin) {
     while (!$empty(bin) && $len(hex) >= 2) {
         **hex = $at(BASE16, **bin >> 4);
         ++*hex;
@@ -51,7 +51,7 @@ static const u8 BASE16rev[256] = {
     0xff, 0xff, 0xff, 0xff,
 };
 
-fun ok64 HEXdrain($u8 bin, $u8c hex) {
+fun ok64 HEXdrain($u8 bin, u8cs hex) {
     if ($len(hex) & 1) return HEXbad;
     while (!$empty(hex) && !$empty(bin)) {
         u8 u = BASE16rev[**hex];
@@ -68,13 +68,13 @@ fun ok64 HEXdrain($u8 bin, $u8c hex) {
 
 fun ok64 HEXfeedall($u8 hex, $cu8c bin) {
     if ($len(bin) * 2 > $len(hex)) return HEXnoroom;
-    $u8c dup = {bin[0], bin[1]};
+    u8cs dup = {bin[0], bin[1]};
     return HEXfeed(hex, dup);
 }
 
 fun ok64 HEXdrainall($u8 bin, $cu8c hex) {
     if ($len(hex) > $len(bin) * 2) return HEXnoroom;
-    $u8c dup = {hex[0], hex[1]};
+    u8cs dup = {hex[0], hex[1]};
     return HEXdrain(bin, dup);
 }
 
@@ -89,7 +89,7 @@ fun ok64 u64hexfeed($u8 hex, u64 val) {
     return $u8feed(hex, (u8c**)h);
 }
 
-fun ok64 u64hexdrain(u64* res, $u8c hex) {
+fun ok64 u64hexdrain(u64* res, u8cs hex) {
     if ($len(hex) > sizeof(u64) * 2) return HEXbad;
     u64 t = 0;
     $for(u8c, p, hex) {

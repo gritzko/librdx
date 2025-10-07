@@ -10,7 +10,7 @@
 pro(URItest1) {
     sane(1);
 #define LEN1 5
-    $u8c inputs[LEN1] = {
+    u8cs inputs[LEN1] = {
         $u8str("http://mit.edu"),
         $u8str("git+ssh://git@github.com/gritzko/librdx"),
         $u8str("ftp://1.2.3.4/some/path"),

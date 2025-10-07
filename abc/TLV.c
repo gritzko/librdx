@@ -28,7 +28,7 @@ ok64 TLVendany($u8 tlv, u8 type, Bu8p stack) {
         test(len >= 4 + 1, FAILsanity);
         len -= 4 + 1;
         if (len < 0x100) {
-            $u8c from = {start + 1 + 4, tlv[0]};
+            u8cs from = {start + 1 + 4, tlv[0]};
             $u8 into = {start + 1 + 1, tlv[0] - 4 + 1};
             $u8move(into, from);
             tlv[0] -= 4 - 1;
@@ -42,7 +42,7 @@ ok64 TLVendany($u8 tlv, u8 type, Bu8p stack) {
         if (len >= 0x100) {
             test(len <= TLV_MAX_LEN, TLVtoolong);
             test($len(tlv) >= 4 - 1, TLVnoroom);
-            $u8c from = {start + 1 + 1, tlv[0]};
+            u8cs from = {start + 1 + 1, tlv[0]};
             $u8 into = {start + 1 + 4, tlv[0] + 4 - 1};
             $u8move(into, from);
             tlv[0] += 4 - 1;

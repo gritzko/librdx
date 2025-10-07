@@ -14,7 +14,7 @@ typedef struct {
 pro(ARENtest1) {
     sane(1);
     aBcpad(u8, arena, PAGESIZE);
-    $u8c abc = $u8str("abcdefg");
+    u8cs abc = $u8str("abcdefg");
 
     afed(str, $u8feed, arenaidle, abc);  // 7
     want($eq(abc, str));

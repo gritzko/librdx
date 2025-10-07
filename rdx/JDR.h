@@ -31,7 +31,7 @@ typedef struct {
     u32 line;
     u32 col;
 
-    $u8c val;
+    u8cs val;
     u8 pre;
 } JDRstate;
 
@@ -56,8 +56,8 @@ fun ok64 RDXid128drain(id128* id, $cu8c txt) {
     if (p == nil) {  // FIXME not INT
         o = RONdrain64(&id128time(res), t);
     } else {
-        $u8c src = {t[0], p};
-        $u8c time = {p + 1, t[1]};
+        u8cs src = {t[0], p};
+        u8cs time = {p + 1, t[1]};
         o = RONdrain64(&id128time(res), time);
         if (o == OK) o = RONdrain64(&id128src(res), src);
     }
@@ -84,7 +84,7 @@ fun ok64 RDXFtlv2txt($u8 txt, $cu8c tlv) {
     call(RDXCdrainF, &v, &time, tlv);
     u8 res[32];
     int len = d2s_buffered_n(v, (char*)res);
-    $u8c $res = {res, res + len};
+    u8cs $res = {res, res + len};
     call($u8feed, txt, $res);
     done;
 }
@@ -108,7 +108,7 @@ fun ok64 RDXItlv2txt($u8 txt, $cu8c tlv) {
     call(RDXCdrainI, &v, &time, tlv);
     u8 res[32];
     int len = sprintf((char*)res, "%li", v);
-    $u8c $res = {res, res + len};
+    u8cs $res = {res, res + len};
     call($u8feed, txt, $res);
     done;
 }
@@ -132,11 +132,11 @@ fun ok64 RDXRtlv2txt($u8 txt, $cu8c tlv) {
     done;
 }
 
-ok64 JDRfeedSesc($u8 tlv, $u8c txt);
+ok64 JDRfeedSesc($u8 tlv, u8cs txt);
 
-ok64 JDRdrainSesc($u8 txt, $u8c tlv);
+ok64 JDRdrainSesc($u8 txt, u8cs tlv);
 
-fun ok64 JDRdrainS($u8 txt, $u8c tlv) {
+fun ok64 JDRdrainS($u8 txt, u8cs tlv) {
     sane($ok(txt) && $ok(tlv));
     call(u8s_feed1, txt, '"');
     call(JDRdrainSesc, txt, tlv);
@@ -146,7 +146,7 @@ fun ok64 JDRdrainS($u8 txt, $u8c tlv) {
 
 ok64 JDRlexer(JDRstate* state);
 
-fun ok64 JDRparse($u8 tlv, $u8 errmsg, $u8c jdr) {
+fun ok64 JDRparse($u8 tlv, $u8 errmsg, u8cs jdr) {
     aBcpad(u8p, stack, RDX_MAX_NEST);
     a$dup(u8c, j, jdr);
     JDRstate state = {
@@ -160,7 +160,7 @@ fun ok64 JDRparse($u8 tlv, $u8 errmsg, $u8c jdr) {
         $printf(errmsg, "%s at %ld:%ld\n", okstr(o), (size_t)state.line + 1,
                 off - state.col);
         u8cp p = *j;
-        $u8c line = {p, p};
+        u8cs line = {p, p};
         while (line[0] > jdr[0] && $len(line) < 32 && *(line[0] - 1) != '\n')
             --line[0];
         size_t n = $len(line);
@@ -173,7 +173,7 @@ fun ok64 JDRparse($u8 tlv, $u8 errmsg, $u8c jdr) {
     return o;
 }
 
-fun ok64 JDRdrain($u8 tlv, $u8c jdr) {
+fun ok64 JDRdrain($u8 tlv, u8cs jdr) {
     sane($ok(tlv) && $ok(jdr));
     aBcpad(u8p, stack, RDX_MAX_NEST);
     JDRstate state = {
@@ -185,9 +185,9 @@ fun ok64 JDRdrain($u8 tlv, $u8c jdr) {
     done;
 }
 
-ok64 JDRfeed1($u8 jdr, $u8c tlv, u64 style);
+ok64 JDRfeed1($u8 jdr, u8cs tlv, u64 style);
 
-fun ok64 JDRfeed($u8 jdr, $u8c tlv) {
+fun ok64 JDRfeed($u8 jdr, u8cs tlv) {
     sane($ok(jdr) && $ok(tlv));
     do {
         call(JDRfeed1, jdr, tlv, 0);

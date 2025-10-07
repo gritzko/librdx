@@ -105,7 +105,7 @@ fun ok64 ZINTu128feed($u8 into, u128c* a) {
     return OK;
 }
 
-fun ok64 ZINTu128drain(u128* a, $u8c from) {
+fun ok64 ZINTu128drain(u128* a, u8cs from) {
     u32 len = $len(from);
     u64* big = &(a->_64[0]);
     u64* lil = &(a->_64[1]);
@@ -208,8 +208,8 @@ fun ok64 ZINTf64drain(f64* n, $cu8c from) {
 }
 
 fun int ZINTu128z($cu8c a, $cu8c b) {
-    $u8c aa = $dup(a);
-    $u8c bb = $dup(b);
+    u8cs aa = $dup(a);
+    u8cs bb = $dup(b);
     u128 an = {};
     u128 bn = {};
     ZINTu128drain(&an, aa);
@@ -218,8 +218,8 @@ fun int ZINTu128z($cu8c a, $cu8c b) {
 }
 
 fun int ZINTi64z($cu8c a, $cu8c b) {
-    $u8c aa = $dup(a);
-    $u8c bb = $dup(b);
+    u8cs aa = $dup(a);
+    u8cs bb = $dup(b);
     i64 an = 0;
     i64 bn = 0;
     ZINTi64drain(&an, aa);
@@ -233,8 +233,8 @@ fun int f64z(f64 const* a, f64 const* b) {
 }
 
 fun int ZINTf64z($cu8c a, $cu8c b) {
-    $u8c aa = $dup(a);
-    $u8c bb = $dup(b);
+    u8cs aa = $dup(a);
+    u8cs bb = $dup(b);
     f64 an = 0;
     f64 bn = 0;
     ZINTf64drain(&an, aa);

@@ -64,7 +64,7 @@ fun pro(X(SKIP, feed), Bu8 buf, X(SKIP, tab) * k) {
         memset(k->off, 0xff, topflip * sizeof(T));
     }
 
-    $u8c w = {(u8c*)(k->off), (u8c*)(k->off + X(SKIP, len)(pos))};
+    u8cs w = {(u8c*)(k->off), (u8c*)(k->off + X(SKIP, len)(pos))};
     must($ok(w));
     must($ok(Bu8idle(buf)));
     call(TLVfeed, Bu8idle(buf), SKIP_TLV_TYPE, w);
@@ -78,7 +78,7 @@ fun pro(X(SKIP, drain), X(SKIP, tab) * hop, Bu8 buf, size_t pos) {
     sane(hop != nil && Bok(buf) && pos > 0);
     a$(T, into, hop->off);
     a$tail(u8c, data,Bu8cdata(buf), pos);
-    $u8c w = {};
+    u8cs w = {};
     u8 t = 0;
     call(TLVdrain, &t, w, data);
     test(t == SKIP_TLV_TYPE, SKIPbad);
@@ -95,7 +95,7 @@ fun pro(X(SKIP, finish), Bu8 buf, X(SKIP, tab) * k) {
     sane(Bok(buf) && k != nil && k->pos < Bdatalen(buf));
     size_t pos = Bdatalen(buf);
     if (k->pos != 0 && X(SKIP, blk)(pos) == X(SKIP, blk)(k->pos)) {
-        $u8c lastk = {};
+        u8cs lastk = {};
         a$tail(u8, tail, Bu8data(buf), k->pos);
         a$dup(u8c, rest, tail);
         call(TLVdrain$, lastk, rest);
@@ -172,7 +172,7 @@ fun ok64 X(SKIP, mayfeed)(Bu8 buf, X(SKIP, tab) * skips) {
 
 ok64 X(SKIP, load)(X(SKIP, tab) * k, Bu8 buf);
 
-fun pro(X(SKIP, find), u8c$ range, Bu8 hay, $u8c needle, $cmpfn cmp) {
+fun pro(X(SKIP, find), u8c$ range, Bu8 hay, u8cs needle, $cmpfn cmp) {
     sane(range != nil && Bok(hay) && $ok(needle) && cmp != nil);
     X(SKIP, tab) k = {};
     call(X(SKIP, load), &k, hay);
@@ -200,11 +200,11 @@ fun pro(X(SKIP, find), u8c$ range, Bu8 hay, $u8c needle, $cmpfn cmp) {
     done;
 }
 
-fun ok64 X(SKIP, findTLV)(u8c$ rec, Bu8 buf, $u8c x, $cmpfn cmp) {
-    $u8c gap = {};
+fun ok64 X(SKIP, findTLV)(u8c$ rec, Bu8 buf, u8cs x, $cmpfn cmp) {
+    u8cs gap = {};
     ok64 o = X(SKIP, find)(gap, buf, x, cmp);
     if (o != OK) return o;
-    $u8c r = {};
+    u8cs r = {};
     while (!$empty(gap) && OK == (o = TLVdrain$(r, gap))) {
         if ((**r & ~TLVaA) == SKIP_TLV_TYPE) continue;
         if (cmp((cc$)x, (cc$)r) <= 0) {

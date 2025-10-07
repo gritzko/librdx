@@ -96,7 +96,7 @@ fun b8 samediv(u64 stack, u64 div) {
 
 fun b8 u8ws(u8 c) { return c == ' ' || c == '\t' || c == '\n' || c == '\r'; }
 
-pro(eatline, $u8c line, $u8c dline, u64* room) {
+pro(eatline, u8cs line, $u8c dline, u64* room) {
     sane($ok(line));
     b8 wasws = NO;
     u64 len = 0;
@@ -186,7 +186,7 @@ pro(feedbullet, $u8 $into, u64 stack, b8 head, u16 list) {
     done;
 }
 
-fun pro(MARKlinetext, $u8c text, u64 lno, MARKstate const* state) {
+fun pro(MARKlinetext, u8cs text, u64 lno, MARKstate const* state) {
     sane(state != nil);
     $mv(text, state->lineB[0] + lno);
     u64 div = Bat(state->divB, lno);
@@ -202,15 +202,15 @@ pro(MARKANSIdiv, $u8 $into, u64 lfrom, u64 ltill, u64 stack, u32 width,
     u64 depth = u64bytelen(stack);
     test(width > depth * 4, MARKnoroom);
     u64 lno = lfrom;
-    $u8c line = {};
+    u8cs line = {};
     b8 nled = NO;
     call(MARKlinetext, line, lno, state);
     u64 room = width - depth * 4;
     call(feedbullet, $into, stack, YES, list);
     while (!$empty(line)) {
-        $u8c wrap = {};
+        u8cs wrap = {};
         call(eatline, line, wrap, &room);
-        $u8c wfmt = {};
+        u8cs wfmt = {};
         range64 mark = {};
         call($u8mark, state->text, wrap, &mark);
         call($u8rewind, (u8c**)state->fmt, wfmt, mark);
@@ -302,7 +302,7 @@ pro(MARKHTMLp, $u8 $into, u64 from, u64 till, u64 stack,
     u8c* fmt0 = state->fmt[0];
     if (pable(stack)) call($u8feed, $into, P0);
     for (u64 l = from; l < till; ++l) {
-        $u8c line = {};
+        u8cs line = {};
         call(MARKlinetext, line, l, state);
         if ($len(line) == 1) {
             call($u8feed, $into, P1);
@@ -311,7 +311,7 @@ pro(MARKHTMLp, $u8 $into, u64 from, u64 till, u64 stack,
         }
         size_t f = line[0] - text0;  // TODO mark
         size_t t = line[1] - text0;
-        $u8c fmt = {fmt0 + f, fmt0 + t};
+        u8cs fmt = {fmt0 + f, fmt0 + t};
         call(MARQHTML, $into, line, fmt);
     }
     if (pable(stack)) call($u8feed, $into, P1);

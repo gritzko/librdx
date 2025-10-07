@@ -9,9 +9,9 @@
 #include "abc/OK.h"
 #include "abc/PRO.h"
 
-fun b8 is_tilda($u8c data) {
+fun b8 is_tilda(u8cs data) {
     u8 _tilda[] = {'t', 2, 0, '~'};
-    $u8c tilda = $u8raw(_tilda);
+    u8cs tilda = $u8raw(_tilda);
     return $eq(data, tilda);
 }
 
@@ -19,9 +19,9 @@ ok64 yfn($cu8c cases) {
     sane($ok(cases));
     a$dup(u8c, tlv, cases);
     while (!$empty(tlv)) {
-        $u8c in = {};
+        u8cs in = {};
         aBpad2(u8cs, elem, PAGESIZE);
-        $u8c correct = {};
+        u8cs correct = {};
         aBcpad(u8, res, PAGESIZE);
         call(TLVdrain$, in, tlv);
         do {

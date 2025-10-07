@@ -21,7 +21,7 @@ pro(closeesc, $u8 $into) {
     done;
 }
 
-pro(MARQANSI, $u8 $into, $u8c const $txt, $u8c const $fmt) {
+pro(MARQANSI, $u8 $into, u8cs const $txt, $u8c const $fmt) {
     sane($ok($into) && $len($txt) <= $len($fmt));
     u8 prev = 0;
     u8cp fp = $fmt[0];
@@ -66,7 +66,7 @@ fun ok64 closespan($u8 $into) {
     return $u8feed($into, CLOSE);
 }
 
-pro(MARQHTML, $u8 $into, $u8c $txt, $u8c $fmt) {
+pro(MARQHTML, $u8 $into, u8cs $txt, $u8c $fmt) {
     sane($ok($into) && $len($txt) <= $len($fmt));
     u8 prev = 0xff;
     u8cp fp = $fmt[0];

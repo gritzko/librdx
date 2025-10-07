@@ -27,7 +27,7 @@ typedef struct {
 typedef struct {
     u64Bp json;
     u32Bp stack;
-    $u8c text;
+    u8cs text;
 } JSONstate;
 
 ok64 JSONlexer(JSONstate* state);

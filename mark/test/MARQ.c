@@ -18,7 +18,7 @@ pro(MARQANSItest) {
 #define CLR "[0m"
 #define MRK "[90m"
 #define BLD "[1m"
-    $u8c QA[MARQANSIcases][2] = {
+    u8cs QA[MARQANSIcases][2] = {
         {$u8str("some text\n"), $u8str("some text\n")},
         {$u8str("some *bold* text\n"),
          $u8str("some " MRK BLD "*" CLR BLD "bold" CLR MRK BLD "*" CLR
@@ -43,7 +43,7 @@ pro(MARQHTMLtest) {
     sane(1);
     MARQstate state = {};
 #define MARQHTMLcases 2
-    $u8c QA[MARQHTMLcases][2] = {
+    u8cs QA[MARQHTMLcases][2] = {
         {$u8str("some text\n"), $u8str("<span>some text\n</span>")},
         {$u8str("some *bold* text\n"),
          $u8str("<span>some </span>"

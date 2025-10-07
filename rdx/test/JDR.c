@@ -8,7 +8,7 @@
 pro(JDRtest1) {
     sane(1);
 #define LEN1 18
-    $u8c inputs[LEN1] = {
+    u8cs inputs[LEN1] = {
         $u8str("{@b0b-1}"),
         $u8str("123"),
         $u8str("1.2345E2"),
@@ -37,7 +37,7 @@ pro(JDRtest1) {
         aBcpad(u8, tlv, PAGESIZE);
         aBcpad(u8, rdxj2, PAGESIZE);
 
-        $u8c text = $dup(inputs[i]);
+        u8cs text = $dup(inputs[i]);
         ok64 o = JDRdrain(tlvidle, text);
 
         if (o != OK) {
@@ -62,7 +62,7 @@ pro(JDRtest1) {
 
 pro(JDRtest2) {
     sane(1);
-    $u8c ml = $u8str("`multi\nline\n\nstring\n`");
+    u8cs ml = $u8str("`multi\nline\n\nstring\n`");
     a$dup(u8c, dup, ml);
     aBcpad(u8, tlv, PAGESIZE);
     call(JDRdrain, tlvidle, dup);
@@ -71,7 +71,7 @@ pro(JDRtest2) {
 }
 
 ok64 eqfn($cu8c cases) {
-    $u8c rec0, rec;
+    u8cs rec0, rec;
     a$dup(u8c, c, cases);
     ok64 o = TLVdrain$(rec0, c);
     while (!$empty(c) && o == OK) {

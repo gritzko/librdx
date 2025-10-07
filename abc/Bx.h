@@ -136,7 +136,7 @@ fun ok64 X(, B_feed1)(X(B, ) buf, T one) {
 fun ok64 X(, B_feed$)(X(, B) buf, X($c, c) from) {
     T **into = X(B, idle)(buf);
     if ($len(into) < $len(from)) return Bnoroom;
-    X($, copy)(into, from);
+    X(, sCopy)(into, from);
     *into += $len(from);
     return OK;
 }
@@ -147,11 +147,13 @@ fun ok64 X(B, mark)(X(B, ) const buf, range64 *range) {
     return OK;
 }
 
-fun void X(B, reset)(X(B, ) buf) {
+fun void X(B, reset)(X(, B) buf) {
     T **b = (T **)buf;
     b[1] = b[0];
     b[2] = b[0];
 }
+
+fun void X(B, Ate)(X(, B) buf) { Bate(buf); }
 
 fun ok64 X(B, rewind)(X(B, ) buf, range64 range) {
     size_t len = Blen(buf);

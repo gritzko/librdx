@@ -26,7 +26,7 @@ fun int alpha($cu8c* a, $cu8c* b) {
     a$dup(u8c, aa, *a);
     a$dup(u8c, bb, *b);
     u8 ta, tb;
-    $u8c keya, keyb, vala, valb;
+    u8cs keya, keyb, vala, valb;
     TLVdrainkv(&ta, keya, vala, aa);
     TLVdrainkv(&tb, keyb, valb, bb);
     int c = $cmp(keya, keyb);
@@ -35,9 +35,9 @@ fun int alpha($cu8c* a, $cu8c* b) {
 
 fun ok64 latest($u8 into, u8css from) {
     u8 ta = 0;
-    $u8c max = {};
+    u8cs max = {};
     for (int i = 0; i < $len(from); ++i) {
-        $u8c rec;
+        u8cs rec;
         TLVdrain$(rec, $at(from, i));
         if (*$last(rec) > ta) $mv(max, rec);
     }
@@ -65,7 +65,7 @@ pro(SST0) {
     call(SSTu128open, sst, path);
     for (u64 n = 0; n < ITER; ++n) {
         u128 id = {SrcAlice, n};
-        $u8c val = {}, fact = {};
+        u8cs val = {}, fact = {};
         u8 t = 0;
         call(SSTu128get, &t, val, sst, &id);
         want(t == 'E');

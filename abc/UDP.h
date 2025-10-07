@@ -27,7 +27,7 @@ fun ok64 UDPdrain($u8 into, NETaddr addr, int fd) {
     return OK;
 }
 
-fun ok64 UDPfeed(int fd, NETaddr addr, $u8c data) {
+fun ok64 UDPfeed(int fd, NETaddr addr, u8cs data) {
     u8$ raw = NETraw(addr);
     ssize_t sz =
         sendto(fd, *data, $len(data), 0, (struct sockaddr *)*raw, $len(raw));

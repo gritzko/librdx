@@ -5,7 +5,7 @@
 con ok64 SORTnoroom = 0x7186ddcb3db3cf1;
 con ok64 SORTnodata = 0x7186ddcb3a25e25;
 
-fun ok64 SORTu64x($u8c s, $u8c rest) { return $u8take(s, rest, sizeof(u64)); }
+fun ok64 SORTu64x(u8cs s, u8cs rest) { return $u8take(s, rest, sizeof(u64)); }
 
 fun ok64 SORTu64y($u8 into, u8css eqs) { return $u8feed(into, (u8c$c)eqs[0]); }
 
