@@ -7,7 +7,9 @@
 #include "JS.h"
 #include "JavaScriptCore/JSBase.h"
 #include "JavaScriptCore/JSObjectRef.h"
+#include "JavaScriptCore/JSTypedArray.h"
 #include "JavaScriptCore/JSValueRef.h"
+#include "abc/FILE.h"
 #include "abc/POL.h"
 
 // SM convention
@@ -23,9 +25,11 @@
 // fd.Close()
 
 short io_callback(poller* p) { return 0; }
-void io_finalize(JSObjectRef object) {}
+void io_file_finalize(JSObjectRef object) {}
+void io_map_finalize(JSObjectRef object) {}
 
 JSValueRef JSPropertyFD = NULL;
+JSValueRef JSPropertyBuf = NULL;
 
 int poll_loop(int ms) {
     struct timespec ts;
@@ -54,7 +58,8 @@ poller* find_fd(JSContextRef ctx, JSObjectRef thisObject,
     return POLfind((int)fdd);
 }
 
-static JSClassRef fileClass = NULL;
+static JSClassRef JSIOFileClass = NULL;
+static JSClassRef JSIOMapClass = NULL;
 
 // fd.Write(ta) -> int
 JSValueRef io_file_write(JSContextRef ctx, JSObjectRef function,
@@ -142,13 +147,8 @@ JSValueRef io_std_io(JSContextRef ctx, JSObjectRef function,
                      JSObjectRef thisObject, size_t argc,
                      const JSValueRef args[], JSValueRef* exception,
                      int which) {
-    if (fileClass == NULL) {
-        JSClassDefinition classDef = kJSClassDefinitionEmpty;
-        classDef.finalize = io_finalize;
-        fileClass = JSClassCreate(&classDef);
-    }
     if (JSio_std[which] == NULL) {
-        JSObjectRef fileObject = JSObjectMake(ctx, fileClass, NULL);
+        JSObjectRef fileObject = JSObjectMake(ctx, JSIOFileClass, NULL);
         JSValueProtect(ctx, fileObject);
         JS_ADD_METHOD(fileObject, "Write", io_file_write);
         JS_ADD_METHOD(fileObject, "Read", io_file_read);
@@ -189,6 +189,30 @@ JSValueRef io_std_err(JSContextRef ctx, JSObjectRef function,
                      STDERR_FILENO);
 }
 
+JSValueRef io_file_map(JSContextRef ctx, JSObjectRef function,
+                       JSObjectRef thisObject, size_t argc,
+                       const JSValueRef args[], JSValueRef* exception) {
+    if (!JSValueIsString(ctx, args[0])) {
+        return throw_error(ctx, "no path", exception);
+    }
+    u8 page[PAGESIZE];
+    size_t len =
+        JSStringGetUTF8CString((JSStringRef)args[0], (char*)page, PAGESIZE);
+
+    Bu8 buf = {};
+    u8csc path = {page, page + len - 1};
+    ok64 o = FILEmapro(buf, path);
+    JSObjectRef fileObject = JSObjectMake(ctx, JSIOMapClass, NULL);
+    JSValueRef ta = JSObjectMakeTypedArrayWithBytesNoCopy(
+        ctx, kJSTypedArrayTypeUint8Array, buf[0], Bsize(buf), NULL, NULL,
+        exception);
+    if (*exception != NULL)
+        return throw_error(ctx, "no typed array for you", exception);
+    JSObjectSetPropertyForKey(ctx, fileObject, JSPropertyBuf, ta,
+                              kJSPropertyAttributeReadOnly, NULL);
+    return fileObject;
+}
+
 extern const char* io_js;
 
 ok64 io_install() {
@@ -196,11 +220,25 @@ ok64 io_install() {
 
     JSStringRef propFD = JSStringCreateWithUTF8CString("_fd");
     JSPropertyFD = JSValueMakeString(JSctx, propFD);
+    JSStringRef propBuf = JSStringCreateWithUTF8CString("buf");
+    JSPropertyBuf = JSValueMakeString(JSctx, propBuf);
+
+    JSClassDefinition classDef = kJSClassDefinitionEmpty;
+    classDef.finalize = io_file_finalize;
+    JSIOFileClass = JSClassCreate(&classDef);
+    JSClassRetain(JSIOFileClass);
+
+    JSClassDefinition mapClassDef = kJSClassDefinitionEmpty;
+    classDef.finalize = io_map_finalize;
+    JSIOMapClass = JSClassCreate(&classDef);
+    JSClassRetain(JSIOMapClass);
 
     JS_API_OBJECT(io, "io");
     JS_INSTALL_FN(io, "StdIn", io_std_in);
     JS_INSTALL_FN(io, "StdErr", io_std_err);
     JS_INSTALL_FN(io, "StdOut", io_std_out);
+    JS_INSTALL_FN(io, "MapFile", io_file_map);
+
     // io.stderr.WriteLine("Hello world!")
     // response = io.stdin.ReadLine()
     // io.stdout.WriteLine("You said: '"+response+"'");

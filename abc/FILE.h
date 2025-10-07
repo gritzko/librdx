@@ -246,7 +246,7 @@ ok64 FILEmap(Bu8 buf, int const *fd, int mode);
 // Memory-map a file for reading.
 fun ok64 FILEmapro2(Bu8 buf, int *fd) { return FILEmap(buf, fd, PROT_READ); }
 
-fun ok64 FILEmapro(Bu8 buf, $cu8c path) {
+fun ok64 FILEmapro(Bu8 buf, u8csc path) {
     if (buf == nil || Bok(buf) || !$ok(path)) return FILEbadarg;
     int fd = FILE_CLOSED;
     ok64 o = FILEopen(&fd, path, O_RDONLY);
@@ -316,7 +316,7 @@ con u8 *const NL[2] = {_NL, _NL + 1};
     {                                            \
         aBpad(u8, _pad, PAGESIZE);               \
         $feedf(Bu8idle(_pad), fmt, __VA_ARGS__); \
-        FILEfeed(fd,Bu8cdata(_pad));            \
+        FILEfeed(fd, Bu8cdata(_pad));            \
     }
 
 #endif  // ABC_F_H
