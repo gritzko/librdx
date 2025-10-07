@@ -47,6 +47,8 @@ JS_DEFINE_FN(io_std_err);
         JSStringRelease(someName);                               \
     }
 
-JSGlobalContextRef create_js_context();
+JSGlobalContextRef JSCreate();
+void JSExecute(const char* script);
+void JSReport(JSValueRef exception);
 
 #endif

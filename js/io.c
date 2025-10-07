@@ -31,24 +31,26 @@ void io_finalize(JSObjectRef object) {}
 int poll_loop(int ms) {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
-    /*while (ms > 0) {
-        struct pollfd polls[POLL_MAX_FILES];
-        int pollscount = 0;
-        eatB(voidp, j, pollers) polls[pollscount++] = *(struct pollfd*)j;
-        poll(polls, pollscount, ms);
-        for (int i = 0; i < pollscount; i++) {
-            if (!polls[i].revents) continue;
-            //...
-        }
-    }*/
     return 0;
 }
 
-void io_install() {
+extern unsigned int ___js_io_js_len;
+extern unsigned char ___js_io_js[];
+
+ok64 io_install() {
+    POLinit();
+
     JS_API_OBJECT(io, "io");
     JS_INSTALL_FN(io, "StdIn", io_std_in);
     JS_INSTALL_FN(io, "StdErr", io_std_err);
     JS_INSTALL_FN(io, "StdOut", io_std_out);
+    // io.stderr.WriteLine("Hello world!")
+    // response = io.stdin.ReadLine()
+    // io.stdout.WriteLine("You said: '"+response+"'");
+
+    JSExecute((const char*)___js_io_js);
+
+    return OK;
 }
 
 JSfd* find_fd(JSObjectRef thisObject) { return NULL; }
@@ -150,6 +152,7 @@ JSValueRef io_std_io(JSContextRef ctx, JSObjectRef function,
                      JSObjectRef thisObject, size_t argc,
                      const JSValueRef args[], JSValueRef* exception,
                      int which) {
+    printf("reaches\n");
     if (fileClass == NULL) {
         JSClassDefinition classDef = kJSClassDefinitionEmpty;
         classDef.finalize = io_finalize;

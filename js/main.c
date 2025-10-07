@@ -1,43 +1,74 @@
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "JS.h"
+#include "JavaScriptCore/JSBase.h"
+#include "JavaScriptCore/JSObjectRef.h"
+#include "JavaScriptCore/JSValueRef.h"
+#include "abc/PRO.h"
 
 thread_local JSGlobalContextRef JSctx;
 thread_local JSObjectRef JSglobal;
 
-void io_install();
+JSValueRef JSPropertyMessage = NULL;
+JSValueRef JSPropertyStack = NULL;
 
-JSGlobalContextRef create_js_context() {
+ok64 io_install();
+
+JSGlobalContextRef JSCreate() {
     JSctx = JSGlobalContextCreate(NULL);
     JSglobal = JSContextGetGlobalObject(JSctx);
 
-    io_install();
+    JSStringRef propMsg = JSStringCreateWithUTF8CString("message");
+    JSPropertyMessage = JSValueMakeString(JSctx, propMsg);
+
+    JSStringRef stackMsg = JSStringCreateWithUTF8CString("stack");
+    JSPropertyMessage = JSValueMakeString(JSctx, stackMsg);
 
     return JSctx;
 }
 
-void execute_js(JSGlobalContextRef ctx, const char* script) {
+ok64 JSInstallModules() {
+    sane(1);
+    call(io_install);
+    done;
+}
+
+void JSReport(JSValueRef exception) {
+    char page[PAGE_SIZE], *msg;
+    if (JSValueIsString(JSctx, exception)) {
+        size_t len =
+            JSStringGetUTF8CString((JSStringRef)exception, page, PAGE_SIZE);
+        if (len > 0) len--;
+        msg = page;
+    } else if (JSValueIsObject(JSctx, exception) &&
+               JSObjectHasPropertyForKey(JSctx, (JSObjectRef)exception,
+                                         JSPropertyMessage, NULL)) {
+        JSValueRef ref = JSObjectGetPropertyForKey(
+            JSctx, (JSObjectRef)exception, JSPropertyMessage, NULL);
+        size_t len = JSStringGetUTF8CString((JSStringRef)ref, page, PAGE_SIZE);
+        page[len - 1] = '\n';
+        size_t len2 = JSStringGetUTF8CString((JSStringRef)exception, page + len,
+                                             PAGE_SIZE - len);
+        msg = page;
+    } else {
+        msg = "some exception of unknown nature";
+    }
+    fprintf(stderr, "uncaught exception: %s\n", msg);
+}
+
+void JSExecute(const char* script) {
+    printf("executing: %s\n", script);
     // Convert C string to JSC string
     JSStringRef js_code = JSStringCreateWithUTF8CString(script);
 
     JSValueRef exception = NULL;
-    char page[128], *msg;
-    size_t page_len = 128;
     // Execute script with default options
-    JSEvaluateScript(ctx, js_code, NULL, NULL, 1, &exception);
-    if (exception != NULL) {
-        if (JSValueIsString(ctx, exception)) {
-            size_t len =
-                JSStringGetUTF8CString((JSStringRef)exception, page, page_len);
-            if (len > 0) len--;
-            msg = page;
-        } else {
-            msg = "some exception";
-        }
-        fprintf(stderr, "uncaught exception: %s\n", msg);
-    }
+    JSEvaluateScript(JSctx, js_code, NULL, NULL, 1, &exception);
+    if (exception != NULL) JSReport(exception);
+
     // Cleanup JS string resources
     JSStringRelease(js_code);
 }
@@ -47,7 +78,7 @@ int poll_loop();
 #define HELP_BOILERPLATE ""
 #define VERSION_BOILERPLATE ""
 
-int _pro_depth = 0;
+u8 _pro_depth = 0;
 
 int main(int argc, char** argv) {
     char* eval_code = NULL;
@@ -76,8 +107,9 @@ int main(int argc, char** argv) {
 
     // Handle --eval
     if (eval_code != NULL) {
-        JSGlobalContextRef ctx = create_js_context();
-        execute_js(ctx, eval_code);
+        JSGlobalContextRef ctx = JSCreate();
+        JSInstallModules();
+        JSExecute(eval_code);
         poll_loop();
         JSGlobalContextRelease(ctx);
         return 0;
@@ -105,10 +137,12 @@ int main(int argc, char** argv) {
     fclose(f);
 
     // Initialize runtime components
-    JSGlobalContextRef ctx = create_js_context();
+    JSGlobalContextRef ctx = JSCreate();
+
+    JSInstallModules();
 
     // Execute script and run event loop
-    execute_js(ctx, script);
+    JSExecute(script);
     // TODO one global context?
     poll_loop();
 

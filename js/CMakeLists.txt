@@ -25,6 +25,7 @@ add_executable(jar
     js_bindings.c
     io.c
     main.c
+    io.js.c
 )
 
 target_link_libraries(jar
