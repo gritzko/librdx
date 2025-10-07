@@ -164,7 +164,9 @@ fun ok64 Bfree(Bvoid buf) {
         bb[1] = bb[0];      \
     }
 
-#define Beat(b)              \
+#define eatB(T, i, b) for (T *i = b[1]; i < b[2]; i++)
+
+#define Bate(b)              \
     {                        \
         u8c **v = (u8c **)b; \
         v[1] = v[2];         \

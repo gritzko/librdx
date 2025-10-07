@@ -79,6 +79,7 @@ LEX.c
 LEX.rl.c
 LSM.c
 MMAP.c
+POL.c
 SORT.c
 URI.rl.c
 URI.c

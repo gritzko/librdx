@@ -54,7 +54,7 @@ pro(RDXeatfile, int fd) {
             done;
         }
         call(TLVsplit, Bu8csidle(ins), Bu8cdata(tmp));
-        Beat(tmp);
+        Bate(tmp);
     }
     done;
 }
@@ -79,7 +79,7 @@ pro(RDXeatfiles, $u8c args) {
 
 pro(RDX_print, $u8c args) {
     sane(1);
-    Beat(tmp);
+    Bate(tmp);
     a$dup(u8cs, in, Bu8csdata(ins));
     u8$ idle = Bu8idle(tmp);
     call(JDRfeed, idle, **in);
@@ -126,12 +126,12 @@ ok64 RDX_write($u8c args) {
 ok64 RDX_merge($u8c args) {
     sane(1);
     call(RDXeatfiles, args);
-    Beat(tmp);
+    Bate(tmp);
     u8$ idle = Bu8idle(tmp);
     call(Y, idle, Bu8csdata(ins));
     Breset(ins);
     call(u8css_feed1, Bu8csidle(ins), Bu8cdata(tmp));
-    Beat(tmp);
+    Bate(tmp);
     done;
 }
 

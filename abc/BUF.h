@@ -33,6 +33,19 @@ fun int $u8cZ($cu8c a, $cu8c b) { return $cmp(a, b); }
 #include "Bx.h"
 #undef X
 
+typedef void *voidp;
+typedef void const *voidcp;
+
+fun int voidpcmp(void *const *a, void *const *b) {
+    if (*a < *b) return -1;
+    if (*a > *b) return 1;
+    return 0;
+}
+
+#define X(M, name) M##voidp##name
+#include "Bx.h"
+#undef X
+
 fun int u8cscmp($u8c const *a, $u8c const *b) { return $cmp(*a, *b); }
 
 typedef $u8c const *$u8ccp;

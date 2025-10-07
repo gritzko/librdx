@@ -23,11 +23,11 @@ set(BENCH_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -v")
 set(BENCH_LDD_FLAGS benchmark::benchmark)
 
 list(APPEND BRIX_HEADERS 
-  BRIX.h
+  BRIX2.h
 )
 
 list(APPEND BRIX_SOURCES 
-  BRIX.c
+  BRIX2.c
 )
 
 add_library(brix STATIC ${BRIX_HEADERS} ${BRIX_SOURCES})

@@ -5,9 +5,8 @@ typedef T const X(, c);
 
 typedef int (*X(, cmpfn))(const X(, ) *, const X(, ) *);
 
-fun void X(HEAP, up)(X($c, ) heap) {
+fun void X(HEAP, up_at)(X($c, ) heap, size_t a) {
     if ($len(heap) == 0) return;
-    size_t a = $len(heap) - 1;
     while (a) {
         size_t b = (a - 1) / 2;  // parent
         int cmp = X(, cmp)(*heap + b, *heap + a);
@@ -17,8 +16,9 @@ fun void X(HEAP, up)(X($c, ) heap) {
     }
 }
 
-fun void X(HEAP, down)(X($c, ) heap) {
-    size_t i = 0;
+fun void X(HEAP, up)(X($c, ) heap) { X(HEAP, up_at)(heap, $len(heap) - 1); }
+
+fun void X(HEAP, down_at)(X($c, ) heap, size_t i) {
     size_t n = $len(heap);
     do {
         size_t left = 2 * i + 1;
@@ -31,6 +31,8 @@ fun void X(HEAP, down)(X($c, ) heap) {
         i = j;
     } while (1);
 }
+
+fun void X(HEAP, down)(X($c, ) heap) { return X(HEAP, down_at)(heap, 0); }
 
 fun ok64 X(HEAP, pop)(T *v, X(B, ) buf) {
     T **data = X(B, data)(buf);

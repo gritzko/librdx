@@ -352,6 +352,8 @@ fun ok64 u64decdrain(u64 *x, u8c *const *dec) {
     return OK;
 }
 
+typedef ok64 (*OKcallback)(void *);
+
 #define $u8str(c) \
     { (u8 *)(c), (u8 *)(c) + strlen(c) }
 

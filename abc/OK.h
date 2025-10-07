@@ -7,7 +7,6 @@
 #include "S.h"
 
 typedef uint64_t ok64;
-typedef ok64 ok;
 
 #define OK 0
 #define FAIL 0xffffffffffffffffUL
