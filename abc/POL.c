@@ -46,7 +46,7 @@ ok64 POLtrack(poller* poller) {
     sane(poller != nil);
     u64 to = POLnanops;
     pollersp ps = $data(POL);
-    if (poller < ps[0] && poller >= ps[1]) {
+    if (poller < ps[0] || poller >= ps[1]) {
         call(pollerB_feedp, POL, poller);
         poller = $last(ps);
         HEAPpollerup_at(ps, poller - *ps);

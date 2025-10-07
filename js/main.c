@@ -60,7 +60,7 @@ void JSReport(JSValueRef exception) {
 }
 
 void JSExecute(const char* script) {
-    printf("executing: %s\n", script);
+    fprintf(stderr, "executing: %s\n", script);
     // Convert C string to JSC string
     JSStringRef js_code = JSStringCreateWithUTF8CString(script);
 

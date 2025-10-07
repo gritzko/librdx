@@ -3,3 +3,7 @@ function something() {
 }
 
 something();
+
+io.stdin = io.StdIn()
+io.stdout = io.StdOut()
+io.stderr = io.StdErr()

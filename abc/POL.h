@@ -27,6 +27,7 @@ ok64 POLfree();
 
 b8 POLany();
 
+poller* POLfind(int fd);
 ok64 POLtrack(poller* p);
 ok64 POLcancel(int fd);
 

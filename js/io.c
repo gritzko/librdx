@@ -1,9 +1,13 @@
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
 
 #include "JS.h"
+#include "JavaScriptCore/JSBase.h"
+#include "JavaScriptCore/JSObjectRef.h"
+#include "JavaScriptCore/JSValueRef.h"
 #include "abc/POL.h"
 
 // SM convention
@@ -17,16 +21,11 @@
 // fd.XxxOnRead()
 // fd.XxxOnWrite()
 // fd.Close()
-typedef struct {
-    struct pollfd poll;
-    int type;  //  0 file
-    u64 timeout;
-    JSContextRef ctx;
-    JSObjectRef machine;
-} JSfd;
 
 short io_callback(poller* p) { return 0; }
 void io_finalize(JSObjectRef object) {}
+
+JSValueRef JSPropertyFD = NULL;
 
 int poll_loop(int ms) {
     struct timespec ts;
@@ -37,30 +36,22 @@ int poll_loop(int ms) {
 extern unsigned int ___js_io_js_len;
 extern unsigned char ___js_io_js[];
 
-ok64 io_install() {
-    POLinit();
-
-    JS_API_OBJECT(io, "io");
-    JS_INSTALL_FN(io, "StdIn", io_std_in);
-    JS_INSTALL_FN(io, "StdErr", io_std_err);
-    JS_INSTALL_FN(io, "StdOut", io_std_out);
-    // io.stderr.WriteLine("Hello world!")
-    // response = io.stdin.ReadLine()
-    // io.stdout.WriteLine("You said: '"+response+"'");
-
-    JSExecute((const char*)___js_io_js);
-
-    return OK;
-}
-
-JSfd* find_fd(JSObjectRef thisObject) { return NULL; }
-
 JSValueRef throw_error(JSContextRef ctx, const char* msg,
                        JSValueRef* exception) {
     JSStringRef errMsg = JSStringCreateWithUTF8CString(msg);
     *exception = JSValueMakeString(ctx, errMsg);
     JSStringRelease(errMsg);
     return JSValueMakeUndefined(ctx);
+}
+
+poller* find_fd(JSContextRef ctx, JSObjectRef thisObject,
+                JSValueRef* exception) {
+    JSValueRef fdv =
+        JSObjectGetPropertyForKey(ctx, thisObject, JSPropertyFD, NULL);
+    double fdd = JSValueToNumber(ctx, fdv, exception);
+    if (isnan(fdd)) return NULL;
+    fprintf(stderr, "looging for %i\n", (int)fdd);
+    return POLfind((int)fdd);
 }
 
 static JSClassRef fileClass = NULL;
@@ -91,14 +82,14 @@ JSValueRef io_file_write(JSContextRef ctx, JSObjectRef function,
                                               exception);
     }
 
-    JSfd* fd = JSObjectGetPrivate(thisObject);
-    if (fd == nil)
+    poller* fd = find_fd(ctx, thisObject, exception);
+    if (fd == NULL)
         return throw_error(ctx, "this object is not a file", exception);
 
-    int wn = write(fd->poll.fd, bytes, len);
+    int wn = write(fd->fd.fd, bytes, len);
     // fprintf(stderr, "fd %i len %lu ret %i\n", fd->poll.fd, len, wn);
     if (wn >= 0) {
-        fd->poll.events |= POLLOUT;
+        fd->fd.events |= POLLOUT;
     } else {
         perror("write x");
         return throw_error(ctx, strerror(errno), exception);
@@ -125,13 +116,12 @@ JSValueRef io_file_read(JSContextRef ctx, JSObjectRef function,
     size_t len =
         JSObjectGetTypedArrayByteLength(ctx, (JSObjectRef)args[0], exception);
 
-    JSfd* fd = find_fd(thisObject);
-    if (fd == nil)
-        return throw_error(ctx, "this object is not a file", exception);
+    poller* fd = find_fd(ctx, thisObject, exception);
+    if (fd == NULL) throw_error(ctx, "this object is not a file", exception);
 
-    int rn = read(fd->poll.fd, bytes, len);
+    int rn = read(fd->fd.fd, bytes, len);
     if (rn >= 0) {
-        fd->poll.events |= POLLIN;
+        fd->fd.events |= POLLIN;
     } else {
         return throw_error(ctx, strerror(errno), exception);
     }
@@ -152,7 +142,6 @@ JSValueRef io_std_io(JSContextRef ctx, JSObjectRef function,
                      JSObjectRef thisObject, size_t argc,
                      const JSValueRef args[], JSValueRef* exception,
                      int which) {
-    printf("reaches\n");
     if (fileClass == NULL) {
         JSClassDefinition classDef = kJSClassDefinitionEmpty;
         classDef.finalize = io_finalize;
@@ -164,11 +153,16 @@ JSValueRef io_std_io(JSContextRef ctx, JSObjectRef function,
         JS_ADD_METHOD(fileObject, "Write", io_file_write);
         JS_ADD_METHOD(fileObject, "Read", io_file_read);
         JS_ADD_METHOD(fileObject, "Close", io_file_close);
+        JSValueRef fd = JSValueMakeNumber(ctx, (double)which);
+        JSObjectSetPropertyForKey(ctx, fileObject, JSPropertyFD, fd,
+                                  kJSPropertyAttributeReadOnly, NULL);
         poller p = {.fd = {.fd = which},
                     .callback = io_callback,
                     .payload = fileObject,
                     .timeout = POLnever};
         ok64 o = POLtrack(&p);
+        poller* test = POLfind(which);
+        if (test == NULL) printf("oopsie\n");
         JSio_std[which] = fileObject;
     }
     return JSio_std[which];
@@ -193,4 +187,25 @@ JSValueRef io_std_err(JSContextRef ctx, JSObjectRef function,
                       const JSValueRef args[], JSValueRef* exception) {
     return io_std_io(ctx, function, thisObject, argc, args, exception,
                      STDERR_FILENO);
+}
+
+extern const char* io_js;
+
+ok64 io_install() {
+    POLinit();
+
+    JSStringRef propFD = JSStringCreateWithUTF8CString("_fd");
+    JSPropertyFD = JSValueMakeString(JSctx, propFD);
+
+    JS_API_OBJECT(io, "io");
+    JS_INSTALL_FN(io, "StdIn", io_std_in);
+    JS_INSTALL_FN(io, "StdErr", io_std_err);
+    JS_INSTALL_FN(io, "StdOut", io_std_out);
+    // io.stderr.WriteLine("Hello world!")
+    // response = io.stdin.ReadLine()
+    // io.stdout.WriteLine("You said: '"+response+"'");
+
+    JSExecute(io_js);
+
+    return OK;
 }
