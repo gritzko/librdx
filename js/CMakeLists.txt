@@ -25,6 +25,7 @@ add_executable(jar
     io.c
     main.c
     io.js.c
+    utf8.c
 )
 
 target_link_libraries(jar

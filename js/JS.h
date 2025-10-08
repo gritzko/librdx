@@ -1,5 +1,6 @@
 #ifndef ABC_JS_H
 #define ABC_JS_H
+#include <stdlib.h>
 #include <threads.h>
 
 #include "JavaScriptCore/JSBase.h"
@@ -18,6 +19,9 @@ extern thread_local JSObjectRef JSglobal;
 #define JS_ARG_IS_OBJECT(n) JSValueIsObject(ctx, args[n])
 #define JS_ARG_IS_TARRAY(n) \
     (JSValueGetTypedArrayType(ctx, args[n], NULL) != kJSTypedArrayTypeNone)
+
+#define JS_ARG_TO_STRING(var, n) \
+    JSStringRef var = JSValueToStringCopy(ctx, args[n], exception);
 
 #define JS_THROW(msg)                                            \
     {                                                            \

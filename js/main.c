@@ -15,8 +15,6 @@ thread_local JSObjectRef JSglobal;
 JSValueRef JSPropertyMessage = NULL;
 JSValueRef JSPropertyStack = NULL;
 
-ok64 io_install();
-
 JSGlobalContextRef JSCreate() {
     JSctx = JSGlobalContextCreate(NULL);
     JSglobal = JSContextGetGlobalObject(JSctx);
@@ -30,9 +28,13 @@ JSGlobalContextRef JSCreate() {
     return JSctx;
 }
 
+ok64 io_install();
+ok64 utf8_install();
+
 ok64 JSInstallModules() {
     sane(1);
     call(io_install);
+    call(utf8_install);
     done;
 }
 
