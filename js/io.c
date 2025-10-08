@@ -7,6 +7,7 @@
 #include "JS.h"
 #include "JavaScriptCore/JSBase.h"
 #include "JavaScriptCore/JSObjectRef.h"
+#include "JavaScriptCore/JSStringRef.h"
 #include "JavaScriptCore/JSTypedArray.h"
 #include "JavaScriptCore/JSValueRef.h"
 #include "abc/FILE.h"
@@ -28,33 +29,17 @@ short io_callback(poller* p) { return 0; }
 void io_file_finalize(JSObjectRef object) {}
 void io_map_finalize(JSObjectRef object) {}
 
-JSValueRef JSPropertyFD = NULL;
-JSValueRef JSPropertyBuf = NULL;
-
 int poll_loop(int ms) {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return 0;
 }
 
-extern unsigned int ___js_io_js_len;
-extern unsigned char ___js_io_js[];
-
-JSValueRef throw_error(JSContextRef ctx, const char* msg,
-                       JSValueRef* exception) {
-    JSStringRef errMsg = JSStringCreateWithUTF8CString(msg);
-    *exception = JSValueMakeString(ctx, errMsg);
-    JSStringRelease(errMsg);
-    return JSValueMakeUndefined(ctx);
-}
-
-poller* find_fd(JSContextRef ctx, JSObjectRef thisObject,
-                JSValueRef* exception) {
-    JSValueRef fdv =
-        JSObjectGetPropertyForKey(ctx, thisObject, JSPropertyFD, NULL);
-    double fdd = JSValueToNumber(ctx, fdv, exception);
+poller* find_fd(JSContextRef ctx, JSObjectRef self, JSValueRef* exception) {
+    JS_MAKE_STRING(fdkey, "_fd");
+    JS_GET_PROPERTY(fdv, self, fdkey);
+    JS_TO_NUMBER(fdd, fdv);
     if (isnan(fdd)) return NULL;
-    fprintf(stderr, "looging for %i\n", (int)fdd);
     return POLfind((int)fdd);
 }
 
@@ -62,100 +47,83 @@ static JSClassRef JSIOFileClass = NULL;
 static JSClassRef JSIOMapClass = NULL;
 
 // fd.Write(ta) -> int
-JSValueRef io_file_write(JSContextRef ctx, JSObjectRef function,
-                         JSObjectRef thisObject, size_t argc,
-                         const JSValueRef args[], JSValueRef* exception) {
-    if (argc == 0) {
-        return throw_error(ctx, "fo.Write() requires data to write", exception);
-    }
+JS_DEFINE_FN(io_file_write) {
+    if (argc == 0) JS_THROW("fo.Write() requires data to write");
 
     void* bytes = NULL;
     size_t len = 0;
     char page[4096];
 
-    if (JSValueIsString(ctx, args[0])) {
+    poller* fd = find_fd(ctx, self, exception);
+    if (fd == NULL) JS_THROW("this object is not a file");
+
+    u8cs ta;
+
+    if (JS_ARG_IS_STRING(0)) {  // TODO io.utf8()
         len = JSStringGetUTF8CString((JSStringRef)args[0], page, 4096);
         if (len > 0) len--;
         bytes = page;
-    } else if (JSValueIsObject(ctx, args[0])) {
-        bytes =
-            JSObjectGetTypedArrayBytesPtr(ctx, (JSObjectRef)args[0], exception);
-        if (*exception != NULL) return JSValueMakeUndefined(ctx);
-        if (bytes == NULL)
-            return throw_error(ctx, "not a TypedArray", exception);
-        len = JSObjectGetTypedArrayByteLength(ctx, (JSObjectRef)args[0],
-                                              exception);
+    } else if (JS_ARG_IS_TARRAY(0)) {
+        JS_ARG_TA_u8s(0, ta);
     }
 
-    poller* fd = find_fd(ctx, thisObject, exception);
-    if (fd == NULL)
-        return throw_error(ctx, "this object is not a file", exception);
-
-    int wn = write(fd->fd.fd, bytes, len);
+    int wn = write(fd->fd.fd, ta[0], $len(ta));
     // fprintf(stderr, "fd %i len %lu ret %i\n", fd->poll.fd, len, wn);
     if (wn >= 0) {
         fd->fd.events |= POLLOUT;
     } else {
         perror("write x");
-        return throw_error(ctx, strerror(errno), exception);
+        JS_THROW(strerror(errno));
     }
 
-    return JSValueMakeNumber(ctx, wn);
+    JS_MAKE_NUMBER(ret, wn);
+    return ret;
 }
 
 // fd.Read(ta) -> int
-JSValueRef io_file_read(JSContextRef ctx, JSObjectRef function,
-                        JSObjectRef thisObject, size_t argc,
-                        const JSValueRef args[], JSValueRef* exception) {
-    if (argc == 0) {
-        return throw_error(ctx, "fo.Write() requires data to write", exception);
-    }
+JS_DEFINE_FN(io_file_read) {
+    if (argc == 0) JS_THROW("fo.Write() requires data to write");
 
-    if (!JSValueIsObject(ctx, args[0]))
-        return throw_error(ctx, "not a TypedArray", exception);
+    if (!JS_ARG_IS_TARRAY(0)) JS_THROW("not a TypedArray");
 
-    void* bytes =
-        JSObjectGetTypedArrayBytesPtr(ctx, (JSObjectRef)args[0], exception);
-    if (*exception != NULL) return JSValueMakeUndefined(ctx);
-    if (bytes == NULL) return throw_error(ctx, "not a TypedArray", exception);
-    size_t len =
-        JSObjectGetTypedArrayByteLength(ctx, (JSObjectRef)args[0], exception);
+    u8s ta = {};
+    JS_ARG_TA_u8s(0, ta);
 
-    poller* fd = find_fd(ctx, thisObject, exception);
-    if (fd == NULL) throw_error(ctx, "this object is not a file", exception);
+    poller* fd = find_fd(ctx, self, exception);
+    if (fd == NULL) JS_THROW("this object is not a file");
 
-    int rn = read(fd->fd.fd, bytes, len);
+    int rn = read(fd->fd.fd, *ta, $len(ta));
     if (rn >= 0) {
         fd->fd.events |= POLLIN;
     } else {
-        return throw_error(ctx, strerror(errno), exception);
+        JS_THROW(strerror(errno));
     }
 
-    return JSValueMakeNumber(ctx, rn);
+    JS_MAKE_NUMBER(num, rn);
+    return num;
 }
 
-JSValueRef io_file_close(JSContextRef ctx, JSObjectRef function,
-                         JSObjectRef thisObject, size_t argc,
-                         const JSValueRef args[], JSValueRef* exception) {
-    return JSValueMakeUndefined(ctx);
+JS_DEFINE_FN(io_file_close) {
+    JS_UNPROTECT(self);
+    JS_MAKE_UNDEFINED(u);
+    return u;
 }
 
 JSObjectRef JSio_std[3];
 
 // io.StdErr() -> fd
-JSValueRef io_std_io(JSContextRef ctx, JSObjectRef function,
-                     JSObjectRef thisObject, size_t argc,
-                     const JSValueRef args[], JSValueRef* exception,
-                     int which) {
+JSValueRef io_std_io(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
+                     size_t argc, const JSValueRef args[],
+                     JSValueRef* exception, int which) {
     if (JSio_std[which] == NULL) {
         JSObjectRef fileObject = JSObjectMake(ctx, JSIOFileClass, NULL);
-        JSValueProtect(ctx, fileObject);
+        JS_PROTECT(fileObject);
         JS_ADD_METHOD(fileObject, "Write", io_file_write);
         JS_ADD_METHOD(fileObject, "Read", io_file_read);
         JS_ADD_METHOD(fileObject, "Close", io_file_close);
-        JSValueRef fd = JSValueMakeNumber(ctx, (double)which);
-        JSObjectSetPropertyForKey(ctx, fileObject, JSPropertyFD, fd,
-                                  kJSPropertyAttributeReadOnly, NULL);
+        JS_MAKE_NUMBER(fd, which);
+        JS_MAKE_STRING(key, "_fd");
+        JS_SET_PROPERTY_RO(fileObject, key, fd);
         poller p = {.fd = {.fd = which},
                     .callback = io_callback,
                     .payload = fileObject,
@@ -168,33 +136,26 @@ JSValueRef io_std_io(JSContextRef ctx, JSObjectRef function,
     return JSio_std[which];
 }
 
-JSValueRef io_std_in(JSContextRef ctx, JSObjectRef function,
-                     JSObjectRef thisObject, size_t argc,
-                     const JSValueRef args[], JSValueRef* exception) {
-    return io_std_io(ctx, function, thisObject, argc, args, exception,
-                     STDIN_FILENO);
+JS_DEFINE_FN(io_std_in) {
+    return io_std_io(ctx, function, self, argc, args, exception, STDIN_FILENO);
 }
 
-JSValueRef io_std_out(JSContextRef ctx, JSObjectRef function,
-                      JSObjectRef thisObject, size_t argc,
-                      const JSValueRef args[], JSValueRef* exception) {
-    return io_std_io(ctx, function, thisObject, argc, args, exception,
-                     STDOUT_FILENO);
+JS_DEFINE_FN(io_std_out) {
+    return io_std_io(ctx, function, self, argc, args, exception, STDOUT_FILENO);
 }
 
-JSValueRef io_std_err(JSContextRef ctx, JSObjectRef function,
-                      JSObjectRef thisObject, size_t argc,
-                      const JSValueRef args[], JSValueRef* exception) {
-    return io_std_io(ctx, function, thisObject, argc, args, exception,
-                     STDERR_FILENO);
+JS_DEFINE_FN(io_std_err) {
+    return io_std_io(ctx, function, self, argc, args, exception, STDERR_FILENO);
 }
 
-JSValueRef io_file_map(JSContextRef ctx, JSObjectRef function,
-                       JSObjectRef thisObject, size_t argc,
-                       const JSValueRef args[], JSValueRef* exception) {
-    if (!JSValueIsString(ctx, args[0])) {
-        return throw_error(ctx, "no path", exception);
-    }
+void MMapDeallocator(void* bytes, void* deallocatorContext) {
+    Bu8 buf = {bytes, bytes, bytes, deallocatorContext};
+    FILEunmap(buf);
+}
+
+JS_DEFINE_FN(io_file_map) {
+    if (!JSValueIsString(ctx, args[0])) JS_THROW("no path");
+
     u8 page[PAGESIZE];
     size_t len =
         JSStringGetUTF8CString((JSStringRef)args[0], (char*)page, PAGESIZE);
@@ -202,14 +163,15 @@ JSValueRef io_file_map(JSContextRef ctx, JSObjectRef function,
     Bu8 buf = {};
     u8csc path = {page, page + len - 1};
     ok64 o = FILEmapro(buf, path);
-    JSObjectRef fileObject = JSObjectMake(ctx, JSIOMapClass, NULL);
+    JS_MAKE_OBJECT(fileObject, JSIOMapClass, NULL);
     JSValueRef ta = JSObjectMakeTypedArrayWithBytesNoCopy(
-        ctx, kJSTypedArrayTypeUint8Array, buf[0], Bsize(buf), NULL, NULL,
-        exception);
-    if (*exception != NULL)
-        return throw_error(ctx, "no typed array for you", exception);
-    JSObjectSetPropertyForKey(ctx, fileObject, JSPropertyBuf, ta,
-                              kJSPropertyAttributeReadOnly, NULL);
+        ctx, kJSTypedArrayTypeUint8Array, buf[0], Bsize(buf), MMapDeallocator,
+        buf[3], exception);
+    if (*exception != NULL) {
+        JS_THROW("no typed array for you");
+    }
+    JS_MAKE_STRING(keyBuf, "buf");
+    JS_SET_PROPERTY_RO(fileObject, keyBuf, ta);
     return fileObject;
 }
 
@@ -218,26 +180,17 @@ extern const char* io_js;
 ok64 io_install() {
     POLinit();
 
-    JSStringRef propFD = JSStringCreateWithUTF8CString("_fd");
-    JSPropertyFD = JSValueMakeString(JSctx, propFD);
-    JSStringRef propBuf = JSStringCreateWithUTF8CString("buf");
-    JSPropertyBuf = JSValueMakeString(JSctx, propBuf);
+    JS_MAKE_CLASS(FileDesc, io_file_finalize);
+    JSIOFileClass = FileDesc;
 
-    JSClassDefinition classDef = kJSClassDefinitionEmpty;
-    classDef.finalize = io_file_finalize;
-    JSIOFileClass = JSClassCreate(&classDef);
-    JSClassRetain(JSIOFileClass);
-
-    JSClassDefinition mapClassDef = kJSClassDefinitionEmpty;
-    classDef.finalize = io_map_finalize;
-    JSIOMapClass = JSClassCreate(&classDef);
-    JSClassRetain(JSIOMapClass);
+    JS_MAKE_CLASS(FileMMap, io_map_finalize);
+    JSIOMapClass = FileMMap;
 
     JS_API_OBJECT(io, "io");
-    JS_INSTALL_FN(io, "StdIn", io_std_in);
-    JS_INSTALL_FN(io, "StdErr", io_std_err);
-    JS_INSTALL_FN(io, "StdOut", io_std_out);
-    JS_INSTALL_FN(io, "MapFile", io_file_map);
+    JS_SET_PROPERTY_FN(io, "StdIn", io_std_in);
+    JS_SET_PROPERTY_FN(io, "StdErr", io_std_err);
+    JS_SET_PROPERTY_FN(io, "StdOut", io_std_out);
+    JS_SET_PROPERTY_FN(io, "MapFile", io_file_map);
 
     // io.stderr.WriteLine("Hello world!")
     // response = io.stdin.ReadLine()
@@ -245,5 +198,11 @@ ok64 io_install() {
 
     JSExecute(io_js);
 
+    return OK;
+}
+
+ok64 io_uninstall() {
+    JSClassRelease(JSIOFileClass);
+    JSClassRelease(JSIOMapClass);
     return OK;
 }

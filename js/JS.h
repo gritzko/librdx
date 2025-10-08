@@ -10,10 +10,60 @@
 extern thread_local JSGlobalContextRef JSctx;
 extern thread_local JSObjectRef JSglobal;
 
-#define JS_DEFINE_FN(fn)                                    \
-    JSValueRef fn(JSContextRef JSctx, JSObjectRef function, \
-                  JSObjectRef thisObject, size_t argc,      \
-                  const JSValueRef args[], JSValueRef* exception);
+#define JS_DEFINE_FN(fn)                                                    \
+    JSValueRef fn(JSContextRef ctx, JSObjectRef function, JSObjectRef self, \
+                  size_t argc, const JSValueRef args[], JSValueRef* exception)
+
+#define JS_ARG_IS_STRING(n) JSValueIsString(ctx, args[n])
+#define JS_ARG_IS_OBJECT(n) JSValueIsObject(ctx, args[n])
+#define JS_ARG_IS_TARRAY(n) \
+    (JSValueGetTypedArrayType(ctx, args[n], NULL) != kJSTypedArrayTypeNone)
+
+#define JS_THROW(msg)                                            \
+    {                                                            \
+        JSStringRef errMsg = JSStringCreateWithUTF8CString(msg); \
+        *exception = JSValueMakeString(ctx, errMsg);             \
+        JSStringRelease(errMsg);                                 \
+        return JSValueMakeUndefined(ctx);                        \
+    }
+
+#define JS_ARG_TA_u8s(n, ta)                                                   \
+    ta[0] =                                                                    \
+        JSObjectGetTypedArrayBytesPtr(ctx, (JSObjectRef)args[n], exception);   \
+    if (*exception != NULL || ta[0] == NULL) JS_THROW("not a TypedArray");     \
+    ta[1] = ta[0] + JSObjectGetTypedArrayByteLength(ctx, (JSObjectRef)args[n], \
+                                                    exception);
+
+#define JS_MAKE_NUMBER(n, i) JSValueRef n = JSValueMakeNumber(ctx, i)
+
+#define JS_MAKE_UNDEFINED(n) JSValueRef n = JSValueMakeUndefined(ctx);
+
+#define JS_MAKE_OBJECT(n, class, ptr) \
+    JSObjectRef n = JSObjectMake(ctx, class, ptr);
+
+#define JS_MAKE_STRING(n, str)                             \
+    JSStringRef _##n = JSStringCreateWithUTF8CString(str); \
+    JSValueRef n = JSValueMakeString(ctx, _##n);           \
+    JSStringRelease(_##n);
+
+#define JS_MAKE_CLASS(n, f)                                  \
+    JSClassDefinition n##ClassDef = kJSClassDefinitionEmpty; \
+    n##ClassDef.className = #n;                              \
+    n##ClassDef.finalize = f;                                \
+    JSClassRef n = JSClassCreate(&n##ClassDef);              \
+    JSClassRetain(n);
+
+#define JS_PROTECT(obj) JSValueProtect(ctx, obj)
+#define JS_UNPROTECT(obj) JSValueUnprotect(ctx, obj)
+
+#define JS_SET_PROPERTY_RO(obj, key, val)         \
+    JSObjectSetPropertyForKey(ctx, obj, key, val, \
+                              kJSPropertyAttributeReadOnly, exception);
+
+#define JS_GET_PROPERTY(n, obj, key) \
+    JSValueRef n = JSObjectGetPropertyForKey(ctx, obj, key, exception);
+
+#define JS_TO_NUMBER(n, val) double n = JSValueToNumber(ctx, val, exception);
 
 #define JS_API_OBJECT(o, n)                                    \
     JSObjectRef o = JSObjectMake(JSctx, NULL, NULL);           \
@@ -24,7 +74,7 @@ extern thread_local JSObjectRef JSglobal;
         JSStringRelease(ioName);                               \
     }
 
-#define JS_INSTALL_FN(o, n, f)                                              \
+#define JS_SET_PROPERTY_FN(o, n, f)                                         \
     {                                                                       \
         JSStringRef fn = JSStringCreateWithUTF8CString(n);                  \
         JSObjectSetProperty(JSctx, o, fn,                                   \

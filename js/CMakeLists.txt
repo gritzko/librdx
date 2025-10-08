@@ -22,7 +22,6 @@ include_directories(
 )
 
 add_executable(jar
-    js_bindings.c
     io.c
     main.c
     io.js.c
