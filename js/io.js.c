@@ -1,10 +1,4 @@
-const char* io_js = "function something() {\n"
-"    var TestGlobals = \"test\";\n"
-"}\n"
-"\n"
-"something();\n"
-"\n"
-"io.stdin = io.StdIn()\n"
-"io.stdout = io.StdOut()\n"
-"io.stderr = io.StdErr()\n"
+const char* io_js = "io.stdin = io.stdIn()\n"
+"io.stdout = io.stdOut()\n"
+"io.stderr = io.stdErr()\n"
 "";

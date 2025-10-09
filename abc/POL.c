@@ -2,87 +2,153 @@
 
 #include <time.h>
 
+#include "B.h"
 #include "INT.h"
+#include "OK.h"
 #include "PRO.h"
 
 fun int pollercmp(poller const* a, poller const* b) {
     if (a->callback == NULL || b->callback == NULL) {
         return a->callback == NULL ? 1 : -1;
     }
-    return u64cmp(&a->timeout, &b->timeout);
+    return u64cmp(&a->deadline, &b->deadline);
 }
 
 #define X(M, name) M##poller##name
 #include "Bx.h"
+#undef X
+
+#define X(M, name) M##i32##name
 #include "HEAPx.h"
 #undef X
 
-Bpoller POL = {};
+thread_local Bpoller POL_FILES = {};
+thread_local poller POL_TIMER = {};
+thread_local Bi32 POL_QUEUE = {};
+thread_local struct pollfd* POL_VEC;
 
-int POLmax = 1024;
+const u64 POLTimeMask = (1UL << 48) - 1;
 
-int POLtimer = -1;
+fun poller* POLat(i32 fd) { return fd < 0 ? &POL_TIMER : Batp(POL_FILES, fd); }
 
-b8 POLany() { return Bdatalen(POL) > 0; }
+fun int fd32cmp(const i32* a, const i32* b) {
+    u64 ans = POLat(*a)->deadline;
+    u64 bns = POLat(*b)->deadline;
+    return ans < bns ? -1 : 1;
+}
 
-ok64 POLinit() {
-    Bpolleralloc(POL, POLmax);
+b8 POLany() { return !Bempty(POL_FILES) || !Bempty(POL_QUEUE); }
+
+ok64 POLInit(int max_fd) {
+    Bpolleralloc(POL_FILES, max_fd);
+    Bzero(POL_FILES);
+    POL_FILES[2] = POL_FILES[3];
+    zero(POL_TIMER);
+    POL_VEC = malloc(max_fd);
     return OK;
 }
-ok64 POLfree() {
-    Bpollerfree(POL);
+
+ok64 POLFree() {
+    Bpollerfree(POL_FILES);
+    Bi32free(POL_QUEUE);
+    free(POL_VEC);
     return OK;
 }
 
-poller* POLfind(int fd) {
-    pollersp ps = Bdata(POL);
-    eats(poller, p, ps) {
-        if (p->fd.fd == fd) return p;
-    }
-    return NULL;
-}
-
-ok64 POLtrack(poller* poller) {
-    sane(poller != nil);
-    u64 to = POLnanops;
-    pollersp ps = $data(POL);
-    if (poller < ps[0] || poller >= ps[1]) {
-        call(pollerB_feedp, POL, poller);
-        poller = $last(ps);
-        HEAPpollerup_at(ps, poller - *ps);
+ok64 POLTrackEvents(int fd, poller poller) {
+    sane(poller.callback != NULL && poller.timeout_ms != 0);
+    u64 now = POLnow();
+    b8 preex = 1;
+    if (fd < 0) {
+        preex = POL_TIMER.callback != NULL;
+        POL_TIMER = poller;
+        fd = -1;
+    } else if (fd < Blen(POL_FILES)) {
+        preex = Bat(POL_FILES, fd).callback != NULL;
+        Bat(POL_FILES, fd) = poller;
     } else {
-        HEAPpollerdown_at(ps, poller - *ps);
+        return POLnone;
     }
-    if ($last(ps)->callback == NULL) $term(ps)--;
+    if (poller.callback != NULL && !preex) call(i32s_feed1, POL_QUEUE, fd);
     done;
 }
 
-ok64 POLcancel(int fd) {
-    poller* p = POLfind(fd);
-    if (p == NULL) return POLnone;
-    return POLtrack(p);
+ok64 POLAddEvents(int fd, short events) {
+    if (fd >= Blen(POL_FILES) || Bat(POL_FILES, fd).callback == NULL)
+        return POLnone;
+    Bat(POL_FILES, fd).events |= events;
+    return OK;
 }
 
+ok64 POLIgnoreEvents(int fd) {
+    sane(fd < 0 || fd >= Blen(POL_FILES));
+    zerop(Batp(POL_FILES, fd));
+    done;
+}
+
+short POLTimer(int fd, struct poller* p) {
+    if (p->callback == NULL) return 0;
+    timercb timer = p->payload;
+    int ms = timer();
+    p->timeout_ms = ms;
+    return 0;
+}
+
+ok64 POLTrackTime(timercb callback) {
+    poller t = {
+        .callback = &POLTimer,
+        .payload = callback,
+        .timeout_ms = 1,
+    };
+    return POLTrackEvents(-1, t);
+}
+
+ok64 POLAddTime(int ms) {
+    if (POL_TIMER.callback == NULL) return POLnone;
+    POL_TIMER.timeout_ms = ms;
+    u64 now = POLnow();
+    u64 deadline = now + ms * (POLnanops / 1000);
+    if (POL_TIMER.deadline < deadline) return OK;
+    POL_TIMER.deadline = deadline;
+    int ndx = 0;
+    while (ndx < Bdatalen(POL_QUEUE) && Bat(POL_QUEUE, ndx) != -1) ndx++;
+    HEAPi32up_at_f(POL_QUEUE, fd32cmp, ndx);
+    return OK;
+}
+
+// @return OK/POLnone/etc
 ok64 POLloop(u64 timens) {
-    u64 elapsed = 0;
-    u64 start = POLnow();
-    pollersp ps = Bdata(POL);
-    while (elapsed < timens) {
-        struct pollfd polls[POLmax];
-        int pollscount = 0;
-        eatB(poller, j, POL) polls[pollscount++] = *(struct pollfd*)j;
-        // u64 ns = timens - elapsed;  // todo
-        u64 ns = POLnanops / 1000;
-        // todo timeouts
-        poll(polls, pollscount, ns);
-        for (int i = 0; i < pollscount; i++) {
-            if (!polls[i].revents) continue;
-            u64 to = POLnever;
-            poller* desc = $atp(ps, i);
-            short e = desc->callback(desc);
-            HEAPpollerdown_at(ps, desc - *ps);
-            if ($last(ps)->callback == NULL) $term(ps)--;
+    u64 now = POLnow();
+    u64 till = timens == POLnever ? POLnever : now + timens;
+    while (now < till && !Bempty(POL_QUEUE)) {
+        // deliver timeouts
+        poller* at = POLat(**POL_QUEUE);
+        while (at->deadline <= now) {
+            at->callback(**POL_QUEUE, at);
+            at->deadline = now + at->timeout_ms * (POLnanops / 1000);
+            HEAPi32downf(POL_QUEUE, fd32cmp);
+            at = POLat(**POL_QUEUE);
         }
+        u64 next_timeout = at->deadline;
+        int pollscount = 0;
+        eatB(poller, j, POL_FILES) {
+            if (0 == j->events) continue;
+            struct pollfd p = {.fd = j - *POL_FILES, .events = j->events};
+            POL_VEC[pollscount++] = p;
+        }
+        if (pollscount == 0) {
+            if (POL_TIMER.callback == NULL) break;
+            continue;
+        }
+        poll(POL_VEC, pollscount, (next_timeout - now) / (POLnanops / 1000));
+        for (int i = 0; i < pollscount; i++) {
+            if (!POL_VEC[i].revents) continue;
+            int fd = POL_VEC[i].fd;
+            at = Batp(POL_FILES, fd);
+            short e = at->callback(fd, at);
+            at->deadline = now + at->timeout_ms * (POLnanops / 1000);
+        }
+        now = POLnow();
     }
     return OK;
 }

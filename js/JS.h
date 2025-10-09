@@ -23,6 +23,8 @@ extern thread_local JSObjectRef JSglobal;
 #define JS_ARG_TO_STRING(var, n) \
     JSStringRef var = JSValueToStringCopy(ctx, args[n], exception);
 
+#define JS_TRACE(str) fprintf(stderr, "%s:%i\t%s\n", __FILE__, __LINE__, str);
+
 #define JS_THROW(msg)                                            \
     {                                                            \
         JSStringRef errMsg = JSStringCreateWithUTF8CString(msg); \

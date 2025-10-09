@@ -1,9 +1,3 @@
-function something() {
-    var TestGlobals = "test";
-}
-
-something();
-
-io.stdin = io.StdIn()
-io.stdout = io.StdOut()
-io.stderr = io.StdErr()
+io.stdin = io.stdIn()
+io.stdout = io.stdOut()
+io.stderr = io.stdErr()

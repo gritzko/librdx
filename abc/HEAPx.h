@@ -58,6 +58,17 @@ fun ok64 X(HEAP, push1)(X(B, ) buf, T v) {
     return OK;
 }
 
+fun void X(HEAP, up_at_f)(X($c, ) heap, X(, cmpfn) fn, size_t at) {
+    if ($len(heap) == 0) return;
+    while (at) {
+        size_t b = (at - 1) / 2;  // parent
+        int cmp = fn(*heap + b, *heap + at);
+        if (cmp <= 0) break;
+        X(, swap)(*heap + at, *heap + b);
+        at = b;
+    }
+}
+
 fun void X(HEAP, upf)(X($c, ) heap, X(, cmpfn) fn) {
     if ($len(heap) == 0) return;
     size_t a = $len(heap) - 1;

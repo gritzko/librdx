@@ -54,11 +54,11 @@ void JSReport(JSValueRef exception) {
         page[len - 1] = '\n';
         size_t len2 = JSStringGetUTF8CString((JSStringRef)exception, page + len,
                                              PAGE_SIZE - len);
+        printf("LEN %li %li\n", len, len2);
         msg = page;
     } else {
         msg = "some exception of unknown nature";
     }
-    fprintf(stderr, "uncaught exception: %s\n", msg);
 }
 
 void JSExecute(const char* script) {

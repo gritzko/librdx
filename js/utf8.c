@@ -9,7 +9,8 @@ void FreeDeallocator(void* bytes, void* deallocatorContext) { free(bytes); }
 JSValueRef utf8_en(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
                    size_t argc, const JSValueRef args[],
                    JSValueRef* exception) {
-    if (argc != 1 || !JS_ARG_IS_STRING(0)) JS_THROW("utf8(string)->utf8");
+    if (argc != 1 || !JS_ARG_IS_STRING(0))
+        JS_THROW("utf8.Encode(string)->Uint8Array");
     JSStringRef str = JSValueToStringCopy(ctx, args[0], exception);
     size_t maxSize = JSStringGetMaximumUTF8CStringSize(str);
     char* bytes = malloc(maxSize);
