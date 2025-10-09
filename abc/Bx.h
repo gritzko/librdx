@@ -129,8 +129,8 @@ fun ok64 X(, Bfeed2)(X(B, ) buf, T a, T b) {
     return OK;
 }
 
-fun ok64 X(, B_feed1)(X(B, ) buf, T one) {
-    return X(, s_feed1)(X(B, idle)(buf), one);
+fun ok64 X(, BFeed1)(X(B, ) buf, T one) {
+    return X(, sFeed1)(X(B, idle)(buf), one);
 }
 
 fun ok64 X(, B_feed$)(X(, B) buf, X($c, c) from) {

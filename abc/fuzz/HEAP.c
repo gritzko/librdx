@@ -23,7 +23,7 @@ fuzz(u32, HEAPfuzz) {
     while (!$empty(from)) {
         u32 v = 0;
         call(HEAPu32Pop, &v, heap);
-        call(u32B_feed1, heaped, v);
+        call(u32BFeed1, heaped, v);
     }
 
     assert(0 == $cmp(Bdata(heaped), Bdata(sorted)));

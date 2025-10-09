@@ -25,7 +25,7 @@ ok64 yfn($cu8c cases) {
         aBcpad(u8, res, PAGESIZE);
         call(TLVdrain$, in, tlv);
         do {
-            u8css_feed1(elemidle, in);
+            u8cssFeed1(elemidle, in);
             call(TLVdrain$, in, tlv);
         } while (!is_tilda(in));
         call(TLVdrain$, correct, tlv);

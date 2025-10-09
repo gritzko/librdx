@@ -54,7 +54,7 @@ fun ok64 POLLdel(POLLstate state, int fd, ok64 o) {
 fun ok64 POLLfeed$(POLLctl* ctl, u8c$ data) {
     u8cssp idle = Bu8csidle(ctl->writes);
     if ($empty(idle)) return POLLnoroom;
-    u8css_feed1(idle, data);
+    u8cssFeed1(idle, data);
     return OK;
 }
 

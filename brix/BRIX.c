@@ -37,7 +37,7 @@ ok64 BRIKfilename($u8 into, BRIX const* brix, sha256c* sha) {
 ok64 BRIKpath($u8 into, BRIX const* brix, sha256c* sha) {
     sane($ok(into) && brix != nil);
     call($u8feedall, into, brix->home);
-    call(u8s_feed1, into, '/');
+    call(u8sFeed1, into, '/');
     call(BRIKfilename, into, brix, sha);
     done;
 }
@@ -70,7 +70,7 @@ ok64 BRIXadd(BRIX* brix, sha256c* sha) {
         ok64 o = BRIXhave(brix, $head(deps));
         if (o != OK) call(BRIXadd, brix, $head(deps));
     }
-    call(u8BB_feed1, brix->ssts, sst);
+    call(u8BBFeed1, brix->ssts, sst);
     call(sha256B_feedp, brix->shas, sha);
     done;
 }
@@ -156,7 +156,7 @@ ok64 BRIXmerge(sha256* newsha, BRIX* brix) {
     if (!$empty(opened)) {
         base = *$sha256last(opened);
     }
-    sha256B_feed1(depsbuf, base);
+    sha256BFeed1(depsbuf, base);
     Bsha256eatdata(depsbuf);
     call($sha256feed, Bsha256idle(depsbuf), Bsha256cdata(brix->shas));
     $sha256sort(depsdata);
@@ -208,7 +208,7 @@ ok64 BRIXget($u8 rec, BRIX const* brix, u8 rdt, id128 key) {
         u8 t = rdt;
         u8cs rec = {};
         ok64 o = SSTu128getkv(rec, *p, t, &key);
-        if (o == OK) u8css_feed1(insidle, rec);
+        if (o == OK) u8cssFeed1(insidle, rec);
     }
     if ($len(insdata) == 1) {
         call($u8feedall, rec, *$head(insdata));
@@ -227,7 +227,7 @@ ok64 _BRIXgetc(u8c$ rec, BRIX const* brix, u8 rdt, id128 key) {
         u8 t = rdt;
         u8cs rec = {};
         ok64 o = SSTu128getkv(rec, *p, t, &key);
-        if (o == OK) u8css_feed1(insidle, rec);
+        if (o == OK) u8cssFeed1(insidle, rec);
     }
     if ($len(insdata) == 1) {
         $mv(rec, *$head(insdata));
@@ -257,7 +257,7 @@ ok64 _BRIXreget($u8 into, BRIX const* brix, u8 rdt, id128 key, Bu8p stack) {
     u8cs k = {}, v = {}, body = {};
     call(TLVdrainkv, &t, k, body, got);
     call(TLVinitlong, into, t, stack);
-    call(u8s_feed1, into, $len(k));
+    call(u8sFeed1, into, $len(k));
     call($u8feedall, into, k);
     while (!$empty(body)) {
         a$dup(u8c, d, body);
@@ -332,7 +332,7 @@ ok64 BRIXflatfeed($u8 into, u8cs rdx) {
     u8cs key = {}, body = {};
     call(TLVdrainkv, &rdt, key, body, rdx);
     call(TLVinitlong, into, rdt, stackbuf);  // TODO adapt
-    call(u8s_feed1, into, $len(key));
+    call(u8sFeed1, into, $len(key));
     call($u8feedall, into, key);
     while (!$empty(body)) {
         u8cs e = {};

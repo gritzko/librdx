@@ -36,9 +36,9 @@ fun ok64 HEXfeedsep($u8 hex, u8cs bin, u8 sep) {
 fun ok64 UNITsafefeed($u8 into, $cu8c bin) {
     for (u8c *p = bin[0]; p < bin[1]; ++p) {
         if (*p >= ' ' && *p < 127) {
-            u8s_feed1(into, *p);
+            u8sFeed1(into, *p);
         } else {
-            u8s_feed1(into, '.');
+            u8sFeed1(into, '.');
         }
     }
     return OK;
@@ -54,10 +54,10 @@ fun ok64 HEXdump($u8 into, u8cs b) {
         }
         bin[0] = chunk[1];
         UNITsafefeed(into, chunk);
-        for (int i = 0; i < 16 - $len(chunk); ++i) u8s_feed1(into, ' ');
-        u8s_feed1(into, '\t');
+        for (int i = 0; i < 16 - $len(chunk); ++i) u8sFeed1(into, ' ');
+        u8sFeed1(into, '\t');
         HEXfeedsep(into, chunk, ' ');
-        u8s_feed1(into, '\n');
+        u8sFeed1(into, '\n');
     }
     return OK;
 }
@@ -66,7 +66,7 @@ fun ok64 UNITdump($u8 into, u8cs rdx) {
     a$dup(u8c, c2, rdx);
     a$dup(u8c, c3, rdx);
     JDRfeed(into, c2);
-    u8s_feed1(into, '\n');
+    u8sFeed1(into, '\n');
     HEXdump(into, c3);
     return OK;
 }
@@ -159,13 +159,13 @@ fun ok64 UNITfail(u8cs correct, u8cs fact) {
     $u8feed(paddata, expstr);
     a$dup(u8c, c2, correct);
     JDRfeed(paddata, c2);
-    u8s_feed1(paddata, '\n');
+    u8sFeed1(paddata, '\n');
     HEXdump(paddata, correct);
     Back(padbuf);
     $u8feed(padidle, factstr);
     a$dup(u8c, f2, fact);
     JDRfeed(padidle, f2);
-    u8s_feed1(padidle, '\n');
+    u8sFeed1(padidle, '\n');
     HEXdump(padidle, fact);
     Backpast(padbuf);
     return FILEfeed(STDOUT_FILENO, Bu8cdata(padbuf));

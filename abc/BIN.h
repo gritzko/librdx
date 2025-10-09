@@ -206,7 +206,7 @@ fun ok64 BINpeaks($bin64 bins, size_t len) {
         u64 ones = (1UL << l) - 1;
         len &= ~zeros;
         u64 bin = (len << 1) | ones;
-        o = bin64s_feed1(bins, bin);
+        o = bin64sFeed1(bins, bin);
     }
     return o;
 }
@@ -215,7 +215,7 @@ fun ok64 BINpath($bin64 bins, size_t len, bin64 b) {
     ok64 o = OK;
     while (bin64term(b) < len && o == OK) {
         bin64 sibling = bin64sibling(b);
-        o = bin64s_feed1(bins, sibling);
+        o = bin64sFeed1(bins, sibling);
         b = bin64parent(b);
     }
     return o;

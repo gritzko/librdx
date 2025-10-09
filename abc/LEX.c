@@ -187,7 +187,7 @@ ok64 LEXonQString($cu8c tok, LEXstate *state) {
 }
 ok64 LEXonSpace($cu8c tok, LEXstate *state) {
     // return $u8feed(NESTidle(state->ct), tok);
-    return u8s_feed1(NESTidle(state->ct), ' ');
+    return u8sFeed1(NESTidle(state->ct), ' ');
 }
 
 ok64 LEXonEntity($cu8c tok, LEXstate *state) { return OK; }

@@ -172,7 +172,7 @@ ok64 BRIX_merge(BRIX* brix, id128 id, ok64 sub, u8cs args) {
     aBcpad(u8, out, 128);
     a$rawc(raw, sha);
     call(HEXfeed, outidle, raw);
-    call(u8s_feed1, outidle, '\n');
+    call(u8sFeed1, outidle, '\n');
     call(FILEfeedall, STDOUT_FILENO, outdata);
     done;
 }
@@ -223,9 +223,9 @@ ok64 BRIX_list(BRIX* brix, id128 id, ok64 sub, u8cs args) {
             sha256c* p = $atp(shas, i);
             a$rawcp(raw, p);
             u8 flag = (p == head) ? '*' : ' ';
-            call(u8s_feed1, outidle, flag);
+            call(u8sFeed1, outidle, flag);
             call(HEXfeed, outidle, raw);
-            call(u8s_feed1, outidle, '\n');
+            call(u8sFeed1, outidle, '\n');
             if (sub == SUBdeps) {
                 SSTu128* sst = Batp(brix->ssts, i);
                 $sha256c deps = {};
@@ -235,7 +235,7 @@ ok64 BRIX_list(BRIX* brix, id128 id, ok64 sub, u8cs args) {
                     a$rawcp(depraw, *deps);
                     call($u8feed2, outidle, '\t', flag);
                     call(HEXfeed, outidle, depraw);
-                    call(u8s_feed1, outidle, '\n');
+                    call(u8sFeed1, outidle, '\n');
                     flag = ' ';
                 }
             }

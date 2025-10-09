@@ -196,7 +196,7 @@ fun ok64 X(, s_feed)(X(, s) into, X(, cs) from) {
     return OK;
 }
 /*
-fun ok64 X(, s_feed1)(X(, s) into, X(, ) from) {
+fun ok64 X(, sFeed1)(X(, s) into, X(, ) from) {
     if (1 > X(, s_len)(into)) return $noroom;
     memcpy((void *)*into, (void *)&from, sizeof(T));
     *into += 1;
@@ -243,7 +243,7 @@ fun ok64 X($, move)(X($, ) into, X($, c) from) {
 
 fun void X(, mv)(T *into, T const *from) { Ocopy(into, from); }
 
-fun ok64 X(, s_feed1)(X(, s) into, T what) {
+fun ok64 X(, sFeed1)(X(, s) into, T what) {
     if ($empty(into)) return $noroom;
 #ifndef ABC_X_$
     X(, mv)(*into, (T const *)&what);
@@ -275,9 +275,9 @@ fun ok64 X($, feed2)(X($, ) into, T a, T b) {
 
 fun ok64 X(, s_feed3)(X(, s) into, T a, T b, T c) {
     if ($len(into) < 3) return $noroom;
-    X(, s_feed1)(into, a);
-    X(, s_feed1)(into, b);
-    X(, s_feed1)(into, c);
+    X(, sFeed1)(into, a);
+    X(, sFeed1)(into, b);
+    X(, sFeed1)(into, c);
     return OK;
 }
 fun ok64 X(, s_feedp)(X(, s) into, T const *what) {

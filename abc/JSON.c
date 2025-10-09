@@ -66,7 +66,7 @@ ok64 JSONonOpen($cu8c tok, JSONstate* state, int node) {
     js64 child = {.pos = $u8offset(state->text, tok), .node = node};
     u32 toklen = Bdatalen(state->json);
     call(u64B_feedp, state->json, (u64*)&child);
-    call(u32B_feed1, state->stack, toklen);
+    call(u32BFeed1, state->stack, toklen);
     done;
 }
 

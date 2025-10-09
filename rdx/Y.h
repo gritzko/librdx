@@ -96,7 +96,7 @@ fun ok64 YmergeP($u8 into, u8css bare) {
             if ($empty(n)) continue;
             u8cs rec = {};
             call(TLVdrain$, rec, n);
-            u8css_feed1(yputsidle, rec);
+            u8cssFeed1(yputsidle, rec);
         }
         if ($empty(yputsdata)) break;
         call(Y, into, yputsdata);
@@ -145,7 +145,7 @@ fun ok64 Y($u8 into, u8css inputs) {
             Breset(baresbuf);
         }
         if (z <= 0) {
-            call(u8css_feed1, baresidle, bare);
+            call(u8cssFeed1, baresidle, bare);
         }
     }
 
@@ -153,7 +153,7 @@ fun ok64 Y($u8 into, u8css inputs) {
     call(TLVopen, into, maxt, &len);
     aBcpad(u8, id, 16);
     ZINTu128feed(ididle, &maxid);
-    call(u8s_feed1, into, $len(iddata));
+    call(u8sFeed1, into, $len(iddata));
     call($u8feed, into, iddata);
 
     switch (maxt) {

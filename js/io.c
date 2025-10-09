@@ -32,12 +32,6 @@ short io_callback(int fd, poller* p) { return 0; }
 void io_file_finalize(JSObjectRef object) {}
 void io_map_finalize(JSObjectRef object) {}
 
-int poll_loop(int ms) {
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return 0;
-}
-
 int find_fd(JSContextRef ctx, JSObjectRef self, JSValueRef* exception) {
     JS_MAKE_STRING(fdkey, "_fd");
     JS_GET_PROPERTY(fdv, self, fdkey);
@@ -118,14 +112,20 @@ JSObjectRef JSTimer = NULL;
 int timeout_cb(int fd) {
     if (JSTimer == NULL) return INT32_MAX;
     JSValueRef exception = NULL;  // todo
-    JSObjectCallAsFunction(JSctx, JSTimer, NULL, 0, NULL, &exception);
-    return 0;
+    JSValueRef ret =
+        JSObjectCallAsFunction(JSctx, JSTimer, NULL, 0, NULL, &exception);
+    int next = 1000;
+    if (JSValueIsNumber(JSctx, ret)) {
+        next = JSValueToNumber(JSctx, ret, NULL);
+    }
+    return next;
 }
 
 // io.timer(fn)
 JSValueRef io_timer(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
                     size_t argc, const JSValueRef args[],
                     JSValueRef* exception) {
+    JS_TRACE("io_timer");
     if (argc < 1 || !JSValueIsObject(ctx, args[0]) ||
         !JSObjectIsFunction(ctx, (JSObjectRef)args[0])) {
         JS_THROW("io.timer(function)");

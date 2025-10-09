@@ -60,7 +60,7 @@ fun ok64 X(SST, initshort)(X(SST, ) sst, u8 type, Key const* key, Bu8p stack) {
     aBcpad(u8, raw, sizeof(Key));
     X(, pack)(rawidle, key);
     TLVinitshort(into, type, stack);
-    u8s_feed1(into, sizeof(Key));
+    u8sFeed1(into, sizeof(Key));
     return $u8feedall(into, rawdata);
 }
 
@@ -69,7 +69,7 @@ fun ok64 X(SST, initlong)(X(SST, ) sst, u8 type, Key const* key, Bu8p stack) {
     aBcpad(u8, raw, sizeof(Key));
     X(, pack)(rawidle, key);
     TLVinitlong(Bu8idle(sst), type, stack);
-    u8s_feed1(into, sizeof(Key));
+    u8sFeed1(into, sizeof(Key));
     return $u8feedall(into, rawdata);
 }
 
@@ -103,7 +103,7 @@ fun int X(SST, cmp)($cc a, $cc b) {
 fun ok64 X(SST, locate)(u8c$ rest, X(SST, ) sst, u8 type, Key const* key) {
     u8 t = (type ? type : 'A') | TLVaA;
     aBcpad(u8, raw, sizeof(Key) + 3);
-    u8s_feed1(rawidle, t);
+    u8sFeed1(rawidle, t);
     $u8feed2(rawidle, 0, 0);
     X(, pack)(rawidle, key);
     *Bu8atp(rawbuf, 1) = $len(rawdata) - 2;

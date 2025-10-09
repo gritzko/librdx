@@ -41,7 +41,7 @@ fun ok64 RDXid128feed($u8 txt, id128 id) {
     ok64 o = OK;
     if (id128src(id)) {
         o = RONfeed64(t, id128src(id));
-        if (o == OK) o = u8s_feed1(t, **ID128DELIM);
+        if (o == OK) o = u8sFeed1(t, **ID128DELIM);
     }
     if (o == OK) o = RONfeed64(t, id128time(id));
     if (o == OK) $mv(txt, t);
@@ -127,7 +127,7 @@ fun ok64 RDXRtlv2txt($u8 txt, $cu8c tlv) {
     RDXref v = {};
     a$dup(u8c, dup, tlv);
     call(RDXCdrainR, &v, &time, dup);
-    if (id128src(v) == 0) call(u8s_feed1, txt, '0');
+    if (id128src(v) == 0) call(u8sFeed1, txt, '0');
     call(RDXid128feed, txt, v);
     done;
 }
@@ -138,9 +138,9 @@ ok64 JDRdrainSesc($u8 txt, u8cs tlv);
 
 fun ok64 JDRdrainS($u8 txt, u8cs tlv) {
     sane($ok(txt) && $ok(tlv));
-    call(u8s_feed1, txt, '"');
+    call(u8sFeed1, txt, '"');
     call(JDRdrainSesc, txt, tlv);
-    call(u8s_feed1, txt, '"');
+    call(u8sFeed1, txt, '"');
     done;
 }
 

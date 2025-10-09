@@ -125,7 +125,7 @@ fun void Bitunset(Bu8 buf, size_t ndx) {
         u8cs _s = {n##idle[0]};          \
         call(fn, n##idle, __VA_ARGS__);  \
         _s[1] = n##idle[0];              \
-        call(u8css_feed1, n##$idle, _s); \
+        call(u8cssFeed1, n##$idle, _s); \
     }
 
 con ok64 Badtemplte = 0x2e5a38a71d30e29;
@@ -135,7 +135,7 @@ fun ok64 $$feedf($u8 into, u8cs tmpl, u8css args) {
     ok64 o = OK;
     while (!$empty(t) && o == OK) {
         if (**t != '$') {
-            o = u8s_feed1(into, **t);
+            o = u8sFeed1(into, **t);
             ++*t;
             continue;
         }

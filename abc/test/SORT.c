@@ -15,8 +15,8 @@ pro(SORT1) {
     aBpad2(u64, ints3, LEN1);
     u64 r = 57;
     for (u64 i = 0; i < LEN1; ++i) {
-        u64s_feed1(intsidle, i ^ r);
-        u64s_feed1(ints3idle, i ^ r);
+        u64sFeed1(intsidle, i ^ r);
+        u64sFeed1(ints3idle, i ^ r);
     }
     $sort(ints3data, u64cmp);
     call(SORTu64, ints2idle, intsdata);

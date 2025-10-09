@@ -23,7 +23,7 @@ fun ok64 TLVsplit(u8css idle, $cu8c data) {
     while (!$empty(d)) {
         u8cs next = {};
         call(TLVdrain$, next, d);
-        call(u8css_feed1, idle, next);
+        call(u8cssFeed1, idle, next);
     }
     done;
 }
@@ -88,7 +88,7 @@ pro(RDX_print, u8cs args) {
         call($u8feed2, idle, ',', '\n');
         call(JDRfeed, idle, **in);
     }
-    call(u8s_feed1, idle, '\n');
+    call(u8sFeed1, idle, '\n');
 
     int fd = STDOUT_FILENO;
     if (TLVup(**args) == RDX_STRING) {
@@ -130,7 +130,7 @@ ok64 RDX_merge(u8cs args) {
     u8$ idle = Bu8idle(tmp);
     call(Y, idle, Bu8csdata(ins));
     Breset(ins);
-    call(u8css_feed1, Bu8csidle(ins), Bu8cdata(tmp));
+    call(u8cssFeed1, Bu8csidle(ins), Bu8cdata(tmp));
     Bate(tmp);
     done;
 }
@@ -151,7 +151,7 @@ ok64 yfn($cu8c cases) {
         aBcpad(u8, res, PAGESIZE);
         call(TLVdrain$, in, tlv);
         do {
-            u8css_feed1(elemidle, in);
+            u8cssFeed1(elemidle, in);
             call(TLVdrain$, in, tlv);
         } while (!is_tilda(in));
         call(TLVdrain$, correct, tlv);

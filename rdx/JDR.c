@@ -78,7 +78,7 @@ ok64 JDRonTerm($cu8c tok, JDRstate* state) {
 
 ok64 JDRonNoStamp($cu8c tok, JDRstate* state) {
     sane($ok(tok) && state != nil);
-    return u8s_feed1(state->tlv, 0);
+    return u8sFeed1(state->tlv, 0);
 }
 
 ok64 JDRonStamp($cu8c tok, JDRstate* state) {
@@ -87,7 +87,7 @@ ok64 JDRonStamp($cu8c tok, JDRstate* state) {
     id128 id = {};
     call(RDXid128drain, &id, idstr);
     u8* p = $head(state->tlv);
-    call(u8s_feed1, state->tlv, 0);
+    call(u8sFeed1, state->tlv, 0);
     call(ZINTu128feed, state->tlv, &id);
     *p = $head(state->tlv) - p - 1;
     done;
@@ -239,7 +239,7 @@ ok64 JDRinsertU(JDRstate* state) {
     sane(state != nil);
     if (state->pre == 0 || state->pre == ',') {
         call(TLVinitlong, state->tlv, RDX_TUPLE_INLINE, state->stack);
-        call(u8s_feed1, state->tlv, 0);
+        call(u8sFeed1, state->tlv, 0);
         call(JDRfeedempty, state);
     } else {
         u8p start = *$term(Bu8pdata(state->stack));
@@ -255,7 +255,7 @@ ok64 JDRinsertU(JDRstate* state) {
         $u8move(safebody, body);
         state->tlv[0] = start;
         call(TLVinitlong, state->tlv, RDX_TUPLE_INLINE, state->stack);
-        call(u8s_feed1, state->tlv, $len(key));
+        call(u8sFeed1, state->tlv, $len(key));
         call($u8feedall, state->tlv, (u8c$)safekey);
         --safebody[0];
         **safebody = 0;
@@ -393,9 +393,9 @@ fun ok64 JDRfeedstamp($u8 rdxj, id128 stamp, b8 pad) {
     if (id128empty(stamp)) return OK;
     // call($u8feed2, rdxj, ' ', '@');
     if ($len(rdxj) < 2) return RDXnoroom;
-    u8s_feed1(rdxj, '@');
+    u8sFeed1(rdxj, '@');
     call(RDXid128feed, rdxj, stamp);
-    if (pad) u8s_feed1(rdxj, ' ');
+    if (pad) u8sFeed1(rdxj, ' ');
     done;
 }
 
@@ -420,15 +420,15 @@ fun ok64 JDRfeedlist($u8 rdxj, u8cs tlv, u64 style) {
         call(TLVdrain$, rec, rest);
         call(JDRfeed1, rdxj, rec, style);
         if (!$empty(rest) || (style & StyleTrailingComma) != 0) {
-            call(u8s_feed1, rdxj, ',');
+            call(u8sFeed1, rdxj, ',');
             if (commanl) {
-                call(u8s_feed1, rdxj, '\n');
+                call(u8sFeed1, rdxj, '\n');
                 call(JDRindent, rdxj, style);
             }
         }
     }
     if (commanl) {
-        call(u8s_feed1, rdxj, '\n');
+        call(u8sFeed1, rdxj, '\n');
     }
     done;
 }
@@ -471,9 +471,9 @@ ok64 JDRfeed1($u8 rdxj, u8cs tlv, u64 style) {
             call(JDRfeedstamp, rdxj, id, 0);
             break;
         case RDX_STRING:
-            call(u8s_feed1, rdxj, '"');
+            call(u8sFeed1, rdxj, '"');
             call(JDRdrainSesc, rdxj, tlv2);
-            call(u8s_feed1, rdxj, '"');
+            call(u8sFeed1, rdxj, '"');
             call(JDRfeedstamp, rdxj, id, 0);
             break;
         case RDX_TERM:
@@ -481,39 +481,39 @@ ok64 JDRfeed1($u8 rdxj, u8cs tlv, u64 style) {
             call(JDRfeedstamp, rdxj, id, 0);
             break;
         case RDX_LINEAR:
-            call(u8s_feed1, rdxj, '[');
+            call(u8sFeed1, rdxj, '[');
             call(JDRfeedstamp, rdxj, id, !$empty(value));
             call(JDRfeedlist, rdxj, value, style + 1);
-            call(u8s_feed1, rdxj, ']');
+            call(u8sFeed1, rdxj, ']');
             break;
         case RDX_TUPLE: {
             b8 brackets = 1;  //(parent == RDX_TUPLE || !id128empty(id));
             if ((style & StyleBracketTuples) || OK != JDRisPU(value) ||
                 !id128empty(id)) {
-                call(u8s_feed1, rdxj, '<');
+                call(u8sFeed1, rdxj, '<');
                 call(JDRfeedstamp, rdxj, id, !$empty(value));
                 call(JDRfeedlist, rdxj, value, style + 1);
-                call(u8s_feed1, rdxj, '>');
+                call(u8sFeed1, rdxj, '>');
             } else {
                 while (!$empty(value)) {
                     call(JDRfeed1, rdxj, value,
                          (style | StyleBracketTuples) + 1);
-                    if (!$empty(value)) call(u8s_feed1, rdxj, ':');
+                    if (!$empty(value)) call(u8sFeed1, rdxj, ':');
                 }
             }
             break;
         }
         case RDX_EULER:
-            call(u8s_feed1, rdxj, '{');
+            call(u8sFeed1, rdxj, '{');
             call(JDRfeedstamp, rdxj, id, !$empty(value));
             call(JDRfeedlist, rdxj, value, style + 1);
-            call(u8s_feed1, rdxj, '}');
+            call(u8sFeed1, rdxj, '}');
             break;
         case RDX_MULTIX:
-            call(u8s_feed1, rdxj, '(');
+            call(u8sFeed1, rdxj, '(');
             call(JDRfeedstamp, rdxj, id, !$empty(value));
             call(JDRfeedlist, rdxj, value, style + 1);
-            call(u8s_feed1, rdxj, ')');
+            call(u8sFeed1, rdxj, ')');
             break;
         case SKIP_TLV_TYPE:
             break;
@@ -559,7 +559,7 @@ pro(JDRdrainSesc, $u8 txt, u8cs tlv) {
                 break;
                 // TODO \u etc
             default:
-                u8s_feed1(txt, **val);
+                u8sFeed1(txt, **val);
         }
         ++*val;
     }

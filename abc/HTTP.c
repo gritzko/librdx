@@ -1,6 +1,6 @@
 #include "HTTP.h"
 
-#define HTTPfeed u8css_feed1(state->parsed, (u8c**)tok);
+#define HTTPfeed u8cssFeed1(state->parsed, (u8c**)tok);
 
 ok64 HTTPonMethod($cu8c tok, HTTPstate* state) {
     HTTPfeed;

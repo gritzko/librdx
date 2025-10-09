@@ -148,7 +148,7 @@ pro(RDX1) {
         u8cs rec = {};
         call(RDXdrain$, &lit, rec, inputs);
         if (lit != RDX_TERM) {
-            u8css_feed1(insidle, rec);
+            u8cssFeed1(insidle, rec);
             continue;
         }
         u8cs correct = $dup(Blast(insbuf));

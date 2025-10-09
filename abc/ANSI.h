@@ -42,10 +42,10 @@ typedef enum {
 
 fun ok64 escfeed($u8 data, u8 esc) {
     if (!$ok(data) || $size(data) < 7) return badarg;
-    u8s_feed1(data, 033);  //"\033[91m"
-    u8s_feed1(data, '[');
+    u8sFeed1(data, 033);  //"\033[91m"
+    u8sFeed1(data, '[');
     u64decfeed(data, esc);
-    u8s_feed1(data, 'm');
+    u8sFeed1(data, 'm');
     return OK;
 }
 

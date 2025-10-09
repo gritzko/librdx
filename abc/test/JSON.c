@@ -15,7 +15,7 @@ pro(RDXtest1) {
 
     js64 child = {.node = JSON_NODE_ROOT};
     call(u64B_feedp, state.json, (u64*)&child);
-    call(u32B_feed1, state.stack, 0);
+    call(u32BFeed1, state.stack, 0);
 
     call(JSONlexer, &state);
 
