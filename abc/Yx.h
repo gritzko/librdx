@@ -2,7 +2,7 @@
 
 fun ok64 _X(push)(u8csB lsm, u8cs x) {
     ok64 o = u8css_feed1(Bu8csidle(lsm), x);
-    if (o == OK) HEAPu8csupf(lsm, &_X(z));
+    if (o == OK) HEAPu8csUpZ(lsm, &_X(z));
     return o;
 }
 
@@ -20,7 +20,7 @@ fun ok64 _X(next)($u8 into, u8css lsm) {
             --$term(lsm);
             if ($empty(lsm)) break;
         }
-        HEAPu8csdownf(lsm, _X(z));
+        HEAPu8csDownZ(lsm, _X(z));
     } while (0 == _X(z)($head(lsm), &next));
 
     if ($len(indata) == 1) {

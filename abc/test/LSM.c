@@ -52,8 +52,8 @@ pro(LSM0) {
         call(TLVfeedkv, pad2idle, 'K', kv2[i][0], kv2[i][1]);
 
     aBpad2(u8cs, lsm, 4);
-    call(HEAPu8cspushf, lsmbuf, (u8cs*)pad1data, alpha);
-    call(HEAPu8cspushf, lsmbuf, (u8cs*)pad2data, alpha);
+    call(HEAPu8csPushZ, lsmbuf, (u8cs*)pad1data, alpha);
+    call(HEAPu8csPushZ, lsmbuf, (u8cs*)pad2data, alpha);
 
     aBcpad(u8, txt, 1024);
     call(LSMmerge, txtidle, lsmdata, alpha, latest);

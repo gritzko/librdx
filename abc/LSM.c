@@ -20,7 +20,7 @@ ok64 LSMnext($u8 into, u8css lsm, $u8cZfn cmp, $u8cYfn mrg) {
             --$term(lsm);
             if ($empty(lsm)) break;
         }
-        HEAPu8csdownf(lsm, cmp);
+        HEAPu8csDownZ(lsm, cmp);
     } while (0 == cmp($head(lsm), &next));
 
     if ($len(indata) == 1) {
@@ -41,14 +41,14 @@ ok64 LSMdrainruns(u8csB heap, u8cs input, $u8cZfn cmp) {
         call(TLVdrain$, rec, input);
         int z = cmp(&last, &rec);
         if (z >= 0) {
-            call(HEAPu8cspushf, heap, &run, cmp);
+            call(HEAPu8csPushZ, heap, &run, cmp);
             $mv(run, rec);
         } else {
             run[1] = rec[1];
         }
         $mv(last, rec);
     }
-    call(HEAPu8cspushf, heap, &run, cmp);
+    call(HEAPu8csPushZ, heap, &run, cmp);
     done;
 }
 

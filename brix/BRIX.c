@@ -163,7 +163,7 @@ ok64 BRIXmerge(sha256* newsha, BRIX* brix) {
     Bsha256resetpast(depsbuf);
 
     a$dup(u8B, news, Bu8Bdata(brix->ssts));
-    $eat(news) HEAPu8cspush1f(insbuf, Bu8cdata(**news), RDXZrevision);
+    $eat(news) HEAPu8csPush1Z(insbuf, Bu8cdata(**news), RDXZrevision);
 
     SSTu128 sst = {};
     int fd = FILE_CLOSED;
@@ -312,7 +312,7 @@ ok64 BRIXenlist(u8csB heap, u64* roughlen, $cu8c allrdx) {
         *roughlen += $len(rec);
         if (RDXisPLEX(**rec)) {
             if (BRIXisentry(rec) == OK) {
-                call(HEAPu8cspushf, heap, &rec, RDXZrevision);
+                call(HEAPu8csPushZ, heap, &rec, RDXZrevision);
             }
             u8cs id, val;
             u8 rdt;
@@ -364,7 +364,7 @@ ok64 _BRIXaddpatch(sha256* sha, BRIX* brix, u8cs rdx, u8csB heap) {
 
     while (!Bempty(heap)) {
         u8cs pop = {};
-        call(HEAPu8cspop, &pop, heap);
+        call(HEAPu8csPop, &pop, heap);
         call(BRIXflatfeed, Bu8idle(sst), pop);
     }
 

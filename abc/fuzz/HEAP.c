@@ -18,11 +18,11 @@ fuzz(u32, HEAPfuzz) {
 
     aBpad(u32, heap, 1024);
     aBpad(u32, heaped, 1024);
-    $for(u32c, p, input) call(HEAPu32push1, heap, *p);
+    $for(u32c, p, input) call(HEAPu32Push1, heap, *p);
     u32 **from = Bu32data(heap);
     while (!$empty(from)) {
         u32 v = 0;
-        call(HEAPu32pop, &v, heap);
+        call(HEAPu32Pop, &v, heap);
         call(u32B_feed1, heaped, v);
     }
 

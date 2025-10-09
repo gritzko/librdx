@@ -26,7 +26,7 @@ fun pro(LSMmore, u8csB lsm, u8cs x, $u8cZfn cmp) {
     // call(u8css_feed1, Bu8csidle(lsm), x);
     memcpy(lsm[2], x, sizeof(u8cs));
     Bu8csidle(lsm)[0]++;
-    HEAPu8csupf(lsm, cmp);
+    HEAPu8csUpZ(lsm, cmp);
     done;
 }
 
