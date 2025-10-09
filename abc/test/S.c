@@ -17,7 +17,7 @@ pro($test1) {
     i32c$ data = Bi32cdata(pad);
 
     call(i32sFeed1, into, a2);
-    call(i32s_feedp, into, &a1);
+    call(i32sFeedP, into, &a1);
     want($len(data) == 2);
     call($i32feed, into, data);
     want($len(data) == 4);

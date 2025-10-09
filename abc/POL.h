@@ -43,11 +43,11 @@ fun ok64 POLIgnoreTime() { return POLTrackTime(NULL); }
 ok64 POLLoop(u64 ns);
 ok64 POLSleep(u64 ns);
 
-#define POLnanops 1000000000UL
-#define POLnever u64max
+#define POLNanosPerSec 1000000000UL
+#define POLNever u64max
 
 fun u64 u64timespec(struct timespec ts) {
-    return ((u64)ts.tv_sec * POLnanops) + ts.tv_nsec;
+    return ((u64)ts.tv_sec * POLNanosPerSec) + ts.tv_nsec;
 }
 
 fun u64 POLNow() {

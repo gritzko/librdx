@@ -21,8 +21,8 @@ fun int RDXZauthor(u8cs const* a, u8cs const* b) {
     u8cs vala = {}, valb = {};
     u8cs aa = $dup(*a);
     u8cs bb = $dup(*b);
-    ok64 oa = TLVdrainkv(&ta, keya, vala, aa);
-    ok64 ob = TLVdrainkv(&tb, keyb, valb, bb);
+    ok64 oa = TLVDrainkv(&ta, keya, vala, aa);
+    ok64 ob = TLVDrainkv(&tb, keyb, valb, bb);
     u128 reva = {}, revb = {};
     ZINTu128drain(&reva, keya);
     ZINTu128drain(&revb, keyb);
@@ -36,8 +36,8 @@ fun int RDXZrevision(u8cs const* a, u8cs const* b) {
     u8cs vala = {}, valb = {};
     u8cs aa = $dup(*a);
     u8cs bb = $dup(*b);
-    ok64 oa = TLVdrainkv(&ta, keya, vala, aa);
-    ok64 ob = TLVdrainkv(&tb, keyb, valb, bb);
+    ok64 oa = TLVDrainkv(&ta, keya, vala, aa);
+    ok64 ob = TLVDrainkv(&tb, keyb, valb, bb);
     u128 reva = {}, revb = {};
     ZINTu128drain(&reva, keya);
     ZINTu128drain(&revb, keyb);
@@ -70,11 +70,11 @@ fun int RDXZvalue(u8cs const* a, u8cs const* b) {
     if ($empty(bb)) {
         return 1;
     }
-    ok64 oa = TLVdrainkv(&ta, keya, vala, aa);
+    ok64 oa = TLVDrainkv(&ta, keya, vala, aa);
     if (ta == RDX_TUPLE) {
         return RDXZvalue(&vala, b);
     }
-    ok64 ob = TLVdrainkv(&tb, keyb, valb, bb);
+    ok64 ob = TLVDrainkv(&tb, keyb, valb, bb);
     while (tb == RDX_TUPLE) {
         return RDXZvalue(a, &valb);
     }
@@ -120,8 +120,8 @@ fun int RDXZlww(u8cs const* a, u8cs const* b) {
     u8cs vala = {}, valb = {};
     u8cs aa = $dup(*a);
     u8cs bb = $dup(*b);
-    ok64 oa = TLVdrainkv(&ta, keya, vala, aa);
-    ok64 ob = TLVdrainkv(&tb, keyb, valb, bb);
+    ok64 oa = TLVDrainkv(&ta, keya, vala, aa);
+    ok64 ob = TLVDrainkv(&tb, keyb, valb, bb);
     u128 reva = {}, revb = {};
     ZINTu128drain(&reva, keya);
     ZINTu128drain(&revb, keyb);

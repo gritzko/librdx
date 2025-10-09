@@ -22,7 +22,7 @@ ok64 JSONonLiteral($cu8c tok, JSONstate* state) {
     ++prnt->toks;
     js64 child = {.pos = $u8offset(state->text, tok),
                   .node = JSON_NODE_LITERAL};
-    call(u64B_feedp, state->json, (u64*)&child);
+    call(u64BFeedP, state->json, (u64*)&child);
     done;
 }
 
@@ -36,7 +36,7 @@ ok64 JSONonString($cu8c tok, JSONstate* state) {
          JSONbad);
     ++prnt->toks;
     js64 child = {.pos = $u8offset(state->text, tok), .node = JSON_NODE_STRING};
-    call(u64B_feedp, state->json, (u64*)&child);
+    call(u64BFeedP, state->json, (u64*)&child);
     done;
 }
 
@@ -50,7 +50,7 @@ ok64 JSONonNumber($cu8c tok, JSONstate* state) {
          JSONbad);
     ++prnt->toks;
     js64 child = {.pos = $u8offset(state->text, tok), .node = JSON_NODE_NUMBER};
-    call(u64B_feedp, state->json, (u64*)&child);
+    call(u64BFeedP, state->json, (u64*)&child);
     done;
 }
 
@@ -65,7 +65,7 @@ ok64 JSONonOpen($cu8c tok, JSONstate* state, int node) {
     ++prnt->toks;
     js64 child = {.pos = $u8offset(state->text, tok), .node = node};
     u32 toklen = Bdatalen(state->json);
-    call(u64B_feedp, state->json, (u64*)&child);
+    call(u64BFeedP, state->json, (u64*)&child);
     call(u32BFeed1, state->stack, toklen);
     done;
 }

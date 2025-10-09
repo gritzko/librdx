@@ -113,7 +113,7 @@ ok64 POLAddTime(int ms) {
     if (POL_TIMER.callback == NULL) return POLnone;
     POL_TIMER.timeout_ms = ms;
     u64 now = POLNow();
-    u64 deadline = now + ms * (POLnanops / 1000);
+    u64 deadline = now + ms * (POLNanosPerSec / 1000);
     if (POL_TIMER.deadline < deadline) return OK;
     POL_TIMER.deadline = deadline;
     int ndx = 0;
@@ -123,8 +123,8 @@ ok64 POLAddTime(int ms) {
 }
 
 ok64 POLSleep(u64 ns) {
-    struct timespec duration = {.tv_sec = ns / POLnanops,
-                                .tv_nsec = ns % POLnanops};
+    struct timespec duration = {.tv_sec = ns / POLNanosPerSec,
+                                .tv_nsec = ns % POLNanosPerSec};
     nanosleep(&duration, NULL);
     return OK;
 }
@@ -133,14 +133,14 @@ ok64 POLSleep(u64 ns) {
 ok64 POLLoop(u64 timens) {
     printf("POLL loop; queue len %lu\n", Bdatalen(POL_QUEUE));
     u64 now = POLNow();
-    u64 till = timens == POLnever ? POLnever : now + timens;
+    u64 till = timens == POLNever ? POLNever : now + timens;
     while (now < till && !Bempty(POL_QUEUE)) {
         now = POLNow();
         // deliver timeouts
         poller* at = POLAt(**POL_QUEUE);
         while (at->deadline <= now) {
             at->callback(**POL_QUEUE, at);
-            at->deadline = now + at->timeout_ms * (POLnanops / 1000);
+            at->deadline = now + at->timeout_ms * (POLNanosPerSec / 1000);
             // printf("now %lu next %lu, in %luns\n", now, at->deadline,
             //        at->deadline - now);
             HEAPi32DownZ(POL_QUEUE, fd32cmp);
@@ -160,7 +160,7 @@ ok64 POLLoop(u64 timens) {
             POLSleep(next_timeout - now);
             continue;
         }
-        int pollms = (next_timeout - now) / (POLnanops / 1000);
+        int pollms = (next_timeout - now) / (POLNanosPerSec / 1000);
         printf("poll() for %ims\n", pollms);
         poll(POL_VEC, pollscount, pollms);
         for (int i = 0; i < pollscount; i++) {
@@ -168,7 +168,7 @@ ok64 POLLoop(u64 timens) {
             int fd = POL_VEC[i].fd;
             at = Batp(POL_FILES, fd);
             short e = at->callback(fd, at);
-            at->deadline = now + at->timeout_ms * (POLnanops / 1000);
+            at->deadline = now + at->timeout_ms * (POLNanosPerSec / 1000);
             printf("now %lu next %lu\n", now, at->deadline);
         }
     }

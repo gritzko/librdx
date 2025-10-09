@@ -73,9 +73,9 @@ pro(JDRtest2) {
 ok64 eqfn($cu8c cases) {
     u8cs rec0, rec;
     a$dup(u8c, c, cases);
-    ok64 o = TLVdrain$(rec0, c);
+    ok64 o = TLVDrain$(rec0, c);
     while (!$empty(c) && o == OK) {
-        o = TLVdrain$(rec, c);
+        o = TLVDrain$(rec, c);
         if (o == OK && !$eq(rec0, rec)) {
             UNITfail(rec0, rec);
             o = FAILeq;

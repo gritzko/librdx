@@ -13,7 +13,7 @@ ok64 RDXvalid($cu8c data) {
     while (!$empty(d)) {
         u8 t;
         u8cs key, val;
-        call(TLVdrainkv, &t, key, val, d);
+        call(TLVDrainkv, &t, key, val, d);
         test($len(key) <= 16, JDRbad + 1);
         if (RDXisPLEX(t)) {
             call(RDXvalid, val);

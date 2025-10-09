@@ -11,10 +11,10 @@ ok64 LSMnext($u8 into, u8css lsm, $u8cZfn cmp, $u8cYfn mrg) {
     aBpad2(u8cs, in, LSM_MAX_INPUTS);
 
     do {
-        call(TLVdrain$, next, **lsm);
+        call(TLVDrain$, next, **lsm);
         while (!$empty(**lsm) && (~TLVaA & ****lsm) == SKIP_TLV_TYPE)
-            call(TLVdrain$, _, **lsm);
-        call(u8css_feedp, inidle, &next);
+            call(TLVDrain$, _, **lsm);
+        call(u8cssFeedP, inidle, &next);
         if ($empty(**lsm)) {
             u8csswap($head(lsm), $last(lsm));
             --$term(lsm);
@@ -34,11 +34,11 @@ ok64 LSMnext($u8 into, u8css lsm, $u8cZfn cmp, $u8cYfn mrg) {
 ok64 LSMdrainruns(u8csB heap, u8cs input, $u8cZfn cmp) {
     sane(Bok(heap) && $ok(input) && Bu8cshasroom(heap) && cmp != nil);
     u8cs last = {};
-    call(TLVdrain$, last, input);
+    call(TLVDrain$, last, input);
     a$dup(u8c, run, last);
     while (!$empty(input) && $len(Bu8csidle(heap)) > 1) {
         u8cs rec;
-        call(TLVdrain$, rec, input);
+        call(TLVDrain$, rec, input);
         int z = cmp(&last, &rec);
         if (z >= 0) {
             call(HEAPu8csPushZ, heap, &run, cmp);

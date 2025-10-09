@@ -156,7 +156,7 @@ pro(SKIP4) {
     SKIPu8tab k = {};
     for (u64 u = 0; u < SCALE / 16; ++u) {
         a$rawc(raw, u);
-        call(TLVfeed, padidle, 'I', raw);
+        call(TLVFeed, padidle, 'I', raw);
         call(SKIPu8mayfeed, padbuf, &k);
     }
     call(SKIPu8finish, padbuf, &k);
@@ -170,7 +170,7 @@ pro(SKIP4) {
         *(u64*)(u10 + 2) = u;
         a$rawc(raw, u10);
         call(SKIPu8findTLV, gap, padbuf, raw, tlvcmp);
-        call(TLVdrain, &t, val, gap);
+        call(TLVDrain, &t, val, gap);
         want(t == 'I');
         want($len(val) == 8);
         want(u == *(u64*)*val);

@@ -7,7 +7,7 @@ ok64 RDXallFIRST($cu8c rdx) {
     a$dup(u8c, r, rdx);
     while (!$empty(r)) {
         u8cs next;
-        call(TLVdrain$, next, r);
+        call(TLVDrain$, next, r);
         if (!RDXisFIRST(**next)) fail(FAIL);
     }
     done;

@@ -75,18 +75,18 @@ fun u64 RDXtock(u128* clock, u128 see) {
 fun pro(RDXfeed, $u8 tlv, u8 t, id128 id, $cu8c value) {
     aBpad(u8, idpad, 16);
     ZINTu128feed(Bu8idle(idpad), &id);
-    return TLVfeedkv(tlv, t,Bu8cdata(idpad), value);
+    return TLVFeedkv(tlv, t,Bu8cdata(idpad), value);
 }
 
 fun ok64 RDXdrain(u8* t, id128* id, u8cs value, $u8c tlv) {
     u8cs idbody = {};
-    ok64 o = TLVdrainkv(t, idbody, value, tlv);
+    ok64 o = TLVDrainkv(t, idbody, value, tlv);
     if (likely(o == OK)) o = ZINTu128drain(id, idbody);
     return o;  // TODO untouched on error
 }
 
 fun ok64 RDXdrain$(u8* t, u8cs rec, $u8c rdx) {
-    ok64 o = TLVdrain$(rec, rdx);
+    ok64 o = TLVDrain$(rec, rdx);
     if (unlikely(o != OK)) return o;
     *t = **rec;
     if (*t >= 'a' && *t <= 'z') *t -= TLVaA;

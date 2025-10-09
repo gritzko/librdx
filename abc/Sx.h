@@ -280,7 +280,7 @@ fun ok64 X(, s_feed3)(X(, s) into, T a, T b, T c) {
     X(, sFeed1)(into, c);
     return OK;
 }
-fun ok64 X(, s_feedp)(X(, s) into, T const *what) {
+fun ok64 X(, sFeedP)(X(, s) into, T const *what) {
     if ($empty(into)) return $noroom;
     X(, mv)(*into, what);
     ++*into;

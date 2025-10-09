@@ -246,7 +246,7 @@ ok64 JDRinsertU(JDRstate* state) {
         u8cs rec = {start, state->tlv[0]}, key, body;
         test($len(state->tlv) > 1 + 4 + 1 + 1 + $len(rec), JDRnoroom);
         u8 lit;
-        call(TLVdrainkv, &lit, key, body, rec);
+        call(TLVDrainkv, &lit, key, body, rec);
         test($empty(rec), FAILsanity);
         u8p safe0 = state->tlv[0] + 1 + 4 + 1 + 1;
         $u8 safekey = {safe0, safe0 + $len(key)};
@@ -259,7 +259,7 @@ ok64 JDRinsertU(JDRstate* state) {
         call($u8feedall, state->tlv, (u8c$)safekey);
         --safebody[0];
         **safebody = 0;
-        call(TLVfeed, state->tlv, lit, (u8c$)safebody);
+        call(TLVFeed, state->tlv, lit, (u8c$)safebody);
     }
     done;
 }
@@ -417,7 +417,7 @@ fun ok64 JDRfeedlist($u8 rdxj, u8cs tlv, u64 style) {
     ok64 err = OK;
     while ($len(rest) > 0 && err == OK) {
         u8cs rec = {};
-        call(TLVdrain$, rec, rest);
+        call(TLVDrain$, rec, rest);
         call(JDRfeed1, rdxj, rec, style);
         if (!$empty(rest) || (style & StyleTrailingComma) != 0) {
             call(u8sFeed1, rdxj, ',');
@@ -440,7 +440,7 @@ ok64 JDRisPU($cu8c body) {
     while (!$empty(b)) {
         u8 t = 0;
         u8cs val = {};
-        call(TLVdrain, &t, val, b);
+        call(TLVDrain, &t, val, b);
         if (RDXisPLEX(t)) return FAIL;
         ++n;
     }
@@ -455,7 +455,7 @@ ok64 JDRfeed1($u8 rdxj, u8cs tlv, u64 style) {
     u8cs idz;
     id128 id = {};
     a$dup(u8c, tlv2, tlv);
-    call(TLVdrainkv, &lit, idz, value, tlv);
+    call(TLVDrainkv, &lit, idz, value, tlv);
     call(ZINTu128drain, &id, idz);
     switch (lit) {
         case RDX_INT:
@@ -527,7 +527,7 @@ pro(JDRdrainSesc, $u8 txt, u8cs tlv) {
     u8 t = 0;
     u8cs key = {};
     u8cs val = {};
-    call(TLVdrainkv, &t, key, val, tlv);
+    call(TLVDrainkv, &t, key, val, tlv);
     while (!$empty(val) && !$empty(txt)) {
         switch (**val) {
             case '\t':

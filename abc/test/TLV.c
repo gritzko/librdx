@@ -16,9 +16,9 @@ pro(TLVtest1) {
     u8cs str2 = $u8str(" ");
     u8cs str3 = $u8str("world!");
     u8 **into = Bu8idle(pad);
-    call(TLVfeed, into, 'S', str1);
-    call(TLVfeed, into, 'S', str2);
-    call(TLVfeed, into, 'S', str3);
+    call(TLVFeed, into, 'S', str1);
+    call(TLVFeed, into, 'S', str2);
+    call(TLVFeed, into, 'S', str3);
     u8c **from =Bu8cdata(pad);
     //$print(from);
     u8cs str1b, str2b, str3b;
@@ -44,7 +44,7 @@ pro(TLVtest2) {
     testeq($len(block), 256);
     u8 **into = Bu8idle(tlv);
     for (int j = 0; j < 2; j++) {
-        call(TLVfeed, into, 'B', block);
+        call(TLVFeed, into, 'B', block);
     }
     u8c **from =Bu8cdata(tlv);
     $print(from);

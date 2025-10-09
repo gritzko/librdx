@@ -110,11 +110,11 @@ fun ok64 X(B, feedp)(X(B, ) buf, T const *one) {
 */
 
 fun ok64 X(, B_push)(X(, B) buf, X(, cp) one) {
-    return X(, s_feedp)(Bidle(buf), one);
+    return X(, sFeedP)(Bidle(buf), one);
 }
 
-fun ok64 X(, B_feedp)(X(B, ) buf, T const *one) {
-    return X(, s_feedp)(X(B, idle)(buf), one);
+fun ok64 X(, BFeedP)(X(B, ) buf, T const *one) {
+    return X(, sFeedP)(X(B, idle)(buf), one);
 }
 
 fun ok64 X(, Bfeed2)(X(B, ) buf, T a, T b) {
@@ -196,7 +196,7 @@ fun ok64 X(B, rewind$)(X(B, ) buf, X($, ) slice, range64 range) {
     return OK;
 }
 
-fun ok64 X(B, push)(X(B, ) buf, const T *val) { return X(, B_feedp)(buf, val); }
+fun ok64 X(B, push)(X(B, ) buf, const T *val) { return X(, BFeedP)(buf, val); }
 
 fun T const *X(B, top)(X(B, ) buf) {
     assert(buf[2] > buf[1]);

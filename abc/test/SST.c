@@ -27,8 +27,8 @@ fun int alpha($cu8c* a, $cu8c* b) {
     a$dup(u8c, bb, *b);
     u8 ta, tb;
     u8cs keya, keyb, vala, valb;
-    TLVdrainkv(&ta, keya, vala, aa);
-    TLVdrainkv(&tb, keyb, valb, bb);
+    TLVDrainkv(&ta, keya, vala, aa);
+    TLVDrainkv(&tb, keyb, valb, bb);
     int c = $cmp(keya, keyb);
     return c;
 }
@@ -38,7 +38,7 @@ fun ok64 latest($u8 into, u8css from) {
     u8cs max = {};
     for (int i = 0; i < $len(from); ++i) {
         u8cs rec;
-        TLVdrain$(rec, $at(from, i));
+        TLVDrain$(rec, $at(from, i));
         if (*$last(rec) > ta) $mv(max, rec);
     }
     $u8feed(into, max);

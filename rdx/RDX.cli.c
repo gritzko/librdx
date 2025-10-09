@@ -22,7 +22,7 @@ fun ok64 TLVsplit(u8css idle, $cu8c data) {
     a$dup(u8c, d, data);
     while (!$empty(d)) {
         u8cs next = {};
-        call(TLVdrain$, next, d);
+        call(TLVDrain$, next, d);
         call(u8cssFeed1, idle, next);
     }
     done;
@@ -33,7 +33,7 @@ fun ok64 RDXtry($cu8c data) {
     ok64 o = OK;
     while (!$empty(d) && o == OK) {
         u8cs rec = {};
-        o = TLVdrain$(rec, d);
+        o = TLVDrain$(rec, d);
         if (o == OK && !RDXisPLEX(**rec) && !RDXisFIRST(**rec)) return RDXbad;
     }
     return o;
@@ -149,12 +149,12 @@ ok64 yfn($cu8c cases) {
         aBpad2(u8cs, elem, PAGESIZE);
         u8cs correct = {};
         aBcpad(u8, res, PAGESIZE);
-        call(TLVdrain$, in, tlv);
+        call(TLVDrain$, in, tlv);
         do {
             u8cssFeed1(elemidle, in);
-            call(TLVdrain$, in, tlv);
+            call(TLVDrain$, in, tlv);
         } while (!is_tilda(in));
-        call(TLVdrain$, correct, tlv);
+        call(TLVDrain$, correct, tlv);
 
         call(Y, residle, elemdata);
 

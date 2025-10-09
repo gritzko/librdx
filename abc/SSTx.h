@@ -50,7 +50,7 @@ fun ok64 X(SST, feed)(X(SST, ) sst, SSTab* tab, u8 type, Key const* key,
                       u8cs value) {
     aBcpad(u8, raw, sizeof(Key));
     X(, pack)(rawidle, key);
-    ok64 o = TLVfeedkv(Bu8idle(sst), type, rawdata, value);
+    ok64 o = TLVFeedkv(Bu8idle(sst), type, rawdata, value);
     if (o == OK) o = SKIPu8mayfeed(sst, tab);
     return o;
 }
@@ -90,8 +90,8 @@ fun int X(SST, cmp)($cc a, $cc b) {
     u8cs ka = {}, va = {}, kb = {}, vb = {};
     a$dup(u8c, aa, a);
     a$dup(u8c, bb, b);  // TODO fast and robust
-    TLVdrainkv(&ta, ka, va, aa);
-    TLVdrainkv(&tb, kb, vb, bb);
+    TLVDrainkv(&ta, ka, va, aa);
+    TLVDrainkv(&tb, kb, vb, bb);
     Key keya = X(, max), keyb = X(, max);
     X(, unpack)(&keya, ka);
     X(, unpack)(&keyb, kb);
@@ -114,10 +114,10 @@ fun ok64 X(SST, locate)(u8c$ rest, X(SST, ) sst, u8 type, Key const* key) {
 fun ok64 X(SST, next)(u8* t, Key* key, u8c$ val, u8cs rest) {
     if (!$empty(rest) && (**rest & ~TLVaA) == SKIP_TLV_TYPE) {
         u8cs rec;
-        TLVdrain$(rec, rest);
+        TLVDrain$(rec, rest);
     }
     u8cs k = {};
-    ok64 o = TLVdrainkv(t, k, val, rest);
+    ok64 o = TLVDrainkv(t, k, val, rest);
     if (o == OK) o = X(, unpack)(key, k);
     if (o != OK) return o;
     return OK;

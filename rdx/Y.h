@@ -95,7 +95,7 @@ fun ok64 YmergeP($u8 into, u8css bare) {
             u8c$ n = (u8csp)u8css_atp(bare, i);
             if ($empty(n)) continue;
             u8cs rec = {};
-            call(TLVdrain$, rec, n);
+            call(TLVDrain$, rec, n);
             u8cssFeed1(yputsidle, rec);
         }
         if ($empty(yputsdata)) break;

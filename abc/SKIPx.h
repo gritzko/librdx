@@ -67,7 +67,7 @@ fun pro(X(SKIP, feed), Bu8 buf, X(SKIP, tab) * k) {
     u8cs w = {(u8c*)(k->off), (u8c*)(k->off + X(SKIP, len)(pos))};
     must($ok(w));
     must($ok(Bu8idle(buf)));
-    call(TLVfeed, Bu8idle(buf), SKIP_TLV_TYPE, w);
+    call(TLVFeed, Bu8idle(buf), SKIP_TLV_TYPE, w);
 
     k->pos = pos;
 
@@ -80,7 +80,7 @@ fun pro(X(SKIP, drain), X(SKIP, tab) * hop, Bu8 buf, size_t pos) {
     a$tail(u8c, data,Bu8cdata(buf), pos);
     u8cs w = {};
     u8 t = 0;
-    call(TLVdrain, &t, w, data);
+    call(TLVDrain, &t, w, data);
     test(t == SKIP_TLV_TYPE, SKIPbad);
     test(X(SKIP, len)(pos) * sizeof(T) <= $len(w) &&
              X(SKIP, top)(pos) * sizeof(T) >= $len(w),
@@ -98,13 +98,13 @@ fun pro(X(SKIP, finish), Bu8 buf, X(SKIP, tab) * k) {
         u8cs lastk = {};
         a$tail(u8, tail, Bu8data(buf), k->pos);
         a$dup(u8c, rest, tail);
-        call(TLVdrain$, lastk, rest);
+        call(TLVDrain$, lastk, rest);
         call($u8move, tail, rest);
         call($u8retract,Bu8cdata(buf), $len(lastk));
     }
     a$raw(w, k->off);
     a$head(u8c, wl, w, X(SKIP, top)(pos));
-    call(TLVfeed, Bu8idle(buf), SKIP_TLV_TYPE, wl);
+    call(TLVFeed, Bu8idle(buf), SKIP_TLV_TYPE, wl);
     done;
 }
 
@@ -205,7 +205,7 @@ fun ok64 X(SKIP, findTLV)(u8c$ rec, Bu8 buf, u8cs x, $cmpfn cmp) {
     ok64 o = X(SKIP, find)(gap, buf, x, cmp);
     if (o != OK) return o;
     u8cs r = {};
-    while (!$empty(gap) && OK == (o = TLVdrain$(r, gap))) {
+    while (!$empty(gap) && OK == (o = TLVDrain$(r, gap))) {
         if ((**r & ~TLVaA) == SKIP_TLV_TYPE) continue;
         if (cmp((cc$)x, (cc$)r) <= 0) {
             $mv(rec, r);

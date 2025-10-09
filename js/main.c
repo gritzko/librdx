@@ -216,7 +216,7 @@ int main(int argc, char** argv) {
     printf("Execute script and run event loop\n");
     JSExecute(script);
     // TODO one global context?
-    POLLoop(POLnever);
+    POLLoop(POLNever);
 
     free(script);
     JSClose();

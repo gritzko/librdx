@@ -91,7 +91,7 @@ ok64 UNITdrain(Bu8 tests, UNITfn fn) {
     u8cs caserdx = {};
     while (o == OK && !$empty(cases)) {
         u8cs rec = {};
-        o = TLVdrain$(rec, cases);
+        o = TLVDrain$(rec, cases);
         if (o != OK) break;
         switch (cs) {
             case 0:
@@ -104,7 +104,7 @@ ok64 UNITdrain(Bu8 tests, UNITfn fn) {
                     cs = 2;
                     u8cs key, body = {};
                     u8 t;
-                    TLVdrainkv(&t, key, body, rec);
+                    TLVDrainkv(&t, key, body, rec);
                     while (!$empty(body) && *body[0] == '\n') ++body[0];
                     while (!$empty(body) && *(body[1] - 1) == '\n') --body[1];
                     $u8feedall(msgidle, body);

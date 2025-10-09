@@ -14,8 +14,8 @@ fun int alpha($cu8c* a, $cu8c* b) {
     a$dup(u8c, bb, *b);
     u8 ta, tb;
     u8cs keya, keyb, vala, valb;
-    TLVdrainkv(&ta, keya, vala, aa);
-    TLVdrainkv(&tb, keyb, valb, bb);
+    TLVDrainkv(&ta, keya, vala, aa);
+    TLVDrainkv(&tb, keyb, valb, bb);
     int c = $cmp(keya, keyb);
     return c;
 }
@@ -25,7 +25,7 @@ fun ok64 latest($u8 into, u8css from) {
     u8cs max = {};
     for (int i = 0; i < $len(from); ++i) {
         u8cs rec;
-        TLVdrain$(rec, $at(from, i));
+        TLVDrain$(rec, $at(from, i));
         if (*$last(rec) > ta) $mv(max, rec);
     }
     $u8feed(into, max);
@@ -46,10 +46,10 @@ pro(LSM0) {
     };
     aBcpad(u8, pad1, 1024);
     for (int i = 0; i < 5; ++i)
-        call(TLVfeedkv, pad1idle, 'K', kv1[i][0], kv1[i][1]);
+        call(TLVFeedkv, pad1idle, 'K', kv1[i][0], kv1[i][1]);
     aBcpad(u8, pad2, 1024);
     for (int i = 0; i < 5; ++i)
-        call(TLVfeedkv, pad2idle, 'K', kv2[i][0], kv2[i][1]);
+        call(TLVFeedkv, pad2idle, 'K', kv2[i][0], kv2[i][1]);
 
     aBpad2(u8cs, lsm, 4);
     call(HEAPu8csPushZ, lsmbuf, (u8cs*)pad1data, alpha);
@@ -64,7 +64,7 @@ pro(LSM0) {
         u8 ta;
         u8cs keya;
         u8cs vala;
-        TLVdrainkv(&ta, keya, vala, res);
+        TLVDrainkv(&ta, keya, vala, res);
         u8 c = **vala;
         want(c == n);
         ++n;
@@ -87,14 +87,14 @@ pro(LSM1) {
     aBpad2(u8, pad, 1024);
     Bzero(padbuf);
     for (int i = 0; i < 6; ++i)
-        call(TLVfeedkv, padidle, 'K', kv1[i][0], kv1[i][1]);
+        call(TLVFeedkv, padidle, 'K', kv1[i][0], kv1[i][1]);
     call(LSMsort, paddata, alpha, nomerge, padidle);
     int c = 'A';
     while (!$empty(paddata)) {
         u8 ta;
         u8cs keya;
         u8cs vala;
-        call(TLVdrainkv, &ta, keya, vala,Bu8cdata(padbuf));
+        call(TLVDrainkv, &ta, keya, vala,Bu8cdata(padbuf));
         //$println(keya);
         want(**keya == c);
         ++c;
@@ -107,8 +107,8 @@ fun int ZINTz($cu8c* a, $cu8c* b) {
     a$dup(u8c, bb, *b);
     u8cs vala, valb;
     u8 ta, tb;
-    TLVdrain(&ta, vala, aa);
-    TLVdrain(&tb, valb, bb);
+    TLVDrain(&ta, vala, aa);
+    TLVDrain(&tb, valb, bb);
     u64 au, bu;
     ZINTu64drain(&au, vala);
     ZINTu64drain(&bu, valb);
@@ -130,7 +130,7 @@ ok64 LSM1000000() {
     for (u64 i = 0; i < LEN; ++i) {
         u8 t = 0;
         u8cs zint = {};
-        call(TLVdrain, &t, zint,Bu8cdata(milbuf));
+        call(TLVDrain, &t, zint,Bu8cdata(milbuf));
         want(t == 'I');
         u64 u = 0;
         call(ZINTu64drain, &u, zint);

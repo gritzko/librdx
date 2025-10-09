@@ -71,7 +71,7 @@ ok64 BRIXadd(BRIX* brix, sha256c* sha) {
         if (o != OK) call(BRIXadd, brix, $head(deps));
     }
     call(u8BBFeed1, brix->ssts, sst);
-    call(sha256B_feedp, brix->shas, sha);
+    call(sha256BFeedP, brix->shas, sha);
     done;
 }
 
@@ -255,7 +255,7 @@ ok64 _BRIXreget($u8 into, BRIX const* brix, u8 rdt, id128 key, Bu8p stack) {
     call(_BRIXgetc, got, brix, rdt, key);
     u8 t = 0;
     u8cs k = {}, v = {}, body = {};
-    call(TLVdrainkv, &t, k, body, got);
+    call(TLVDrainkv, &t, k, body, got);
     call(TLVinitlong, into, t, stack);
     call(u8sFeed1, into, $len(k));
     call($u8feedall, into, k);
@@ -265,7 +265,7 @@ ok64 _BRIXreget($u8 into, BRIX const* brix, u8 rdt, id128 key, Bu8p stack) {
         u8cs ekey = {};
         u8cs eval = {};
         id128 eid = {};
-        call(TLVdrainkv, &erdt, ekey, eval, body);
+        call(TLVDrainkv, &erdt, ekey, eval, body);
         if (RDXisPLEX(erdt) && !$empty(ekey)) {
             call(ZINTu128drain, &eid, ekey);
             if (id128src(eid) != 0) {
@@ -308,7 +308,7 @@ ok64 BRIXenlist(u8csB heap, u64* roughlen, $cu8c allrdx) {
     a$dup(u8c, rdx, allrdx);
     while (!$empty(rdx)) {
         u8cs rec = {};
-        call(TLVdrain$, rec, rdx);
+        call(TLVDrain$, rec, rdx);
         *roughlen += $len(rec);
         if (RDXisPLEX(**rec)) {
             if (BRIXisentry(rec) == OK) {
@@ -316,7 +316,7 @@ ok64 BRIXenlist(u8csB heap, u64* roughlen, $cu8c allrdx) {
             }
             u8cs id, val;
             u8 rdt;
-            call(TLVdrainkv, &rdt, id, val, rec);
+            call(TLVDrainkv, &rdt, id, val, rec);
             *roughlen -= $len(val);
             call(BRIXenlist, heap, roughlen, val);
         }
@@ -330,13 +330,13 @@ ok64 BRIXflatfeed($u8 into, u8cs rdx) {
     aBcpad(u8p, stack, 1);
     u8 rdt = 0;
     u8cs key = {}, body = {};
-    call(TLVdrainkv, &rdt, key, body, rdx);
+    call(TLVDrainkv, &rdt, key, body, rdx);
     call(TLVinitlong, into, rdt, stackbuf);  // TODO adapt
     call(u8sFeed1, into, $len(key));
     call($u8feedall, into, key);
     while (!$empty(body)) {
         u8cs e = {};
-        call(TLVdrain$, e, body);
+        call(TLVDrain$, e, body);
         if (BRIXisentry(e) == OK) {
             call(BRIXflatfeed, into, e);
         } else {

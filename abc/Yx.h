@@ -14,7 +14,7 @@ fun ok64 _X(next)($u8 into, u8css lsm) {
     do {
         o = _X(x)(next, **lsm);
         if (o != OK) return o;
-        u8css_feedp(inidle, &next);
+        u8cssFeedP(inidle, &next);
         if ($empty(**lsm)) {
             u8csswap($head(lsm), $last(lsm));
             --$term(lsm);
