@@ -171,7 +171,7 @@ ok64 POLLoop(u64 timens) {
             int fd = POL_VEC[i].fd;
             at = Batp(POL_FILES, fd);
             at->revents = POL_VEC[i].revents;
-            at->callback(fd, at);
+            at->events = at->callback(fd, at);
             at->deadline = now + at->timeout_ms * (POLNanosPerSec / 1000);
             printf("now %lu next %lu\n", now, at->deadline);
         }

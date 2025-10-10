@@ -50,9 +50,9 @@ int JSFileFD(JSContextRef ctx, JSObjectRef self, JSValueRef* exception) {
 }
 
 // fd.Write(ta) -> int
-JSValueRef io_file_write(JSContextRef ctx, JSObjectRef function,
-                         JSObjectRef self, size_t argc, const JSValueRef args[],
-                         JSValueRef* exception) {
+JSValueRef IOFileWrite(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
+                       size_t argc, const JSValueRef args[],
+                       JSValueRef* exception) {
     if (argc == 0) JS_THROW("fo.Write() requires data to write");
 
     void* bytes = NULL;
@@ -76,11 +76,15 @@ JSValueRef io_file_write(JSContextRef ctx, JSObjectRef function,
 
     int wn = write(fd, ta[0], $len(ta));
     // fprintf(stderr, "fd %i len %lu ret %i\n", fd->poll.fd, len, wn);
-    if (wn >= 0) {
-        POLAddEvents(fd, POLLOUT);
-    } else {
-        perror("write x");
-        JS_THROW(strerror(errno));
+
+    if (wn < 0) {
+        if (errno == EWOULDBLOCK || errno == EAGAIN) {
+            POLAddEvents(fd, POLLOUT);
+        } else {
+            JSStringRef errMsg = JSStringCreateWithUTF8CString(strerror(errno));
+            *exception = JSValueMakeString(ctx, errMsg);
+            JSStringRelease(errMsg);
+        }
     }
 
     JS_MAKE_NUMBER(ret, wn);
@@ -88,9 +92,9 @@ JSValueRef io_file_write(JSContextRef ctx, JSObjectRef function,
 }
 
 // fd.Read(ta) -> int
-JSValueRef io_file_read(JSContextRef ctx, JSObjectRef function,
-                        JSObjectRef self, size_t argc, const JSValueRef args[],
-                        JSValueRef* exception) {
+JSValueRef IOFileRead(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
+                      size_t argc, const JSValueRef args[],
+                      JSValueRef* exception) {
     if (argc == 0) JS_THROW("fo.Write() requires data to write");
 
     if (!JS_ARG_IS_TARRAY(0)) JS_THROW("not a TypedArray");
@@ -102,10 +106,15 @@ JSValueRef io_file_read(JSContextRef ctx, JSObjectRef function,
     if (fd == -1) return JSValueMakeUndefined(ctx);
 
     int rn = read(fd, *ta, $len(ta));
-    if (rn >= 0) {
-        POLAddEvents(fd, POLLIN);
-    } else {
-        JS_THROW(strerror(errno));
+
+    if (rn < 0) {
+        if (errno == EWOULDBLOCK || errno == EAGAIN) {
+            POLAddEvents(fd, POLLIN);
+        } else {
+            JSStringRef errMsg = JSStringCreateWithUTF8CString(strerror(errno));
+            *exception = JSValueMakeString(ctx, errMsg);
+            JSStringRelease(errMsg);
+        }
     }
 
     JS_MAKE_NUMBER(num, rn);
@@ -120,10 +129,12 @@ JS_DEFINE_FN(io_file_close) {
 JSValueRef IONetClose(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
                       size_t argc, const JSValueRef args[],
                       JSValueRef* exception) {
-    // get fd
-    // Unprotect
-    // NULL
-    // close
+    int fd = JSFileFD(ctx, self, exception);
+    if (fd == -1) JS_THROW("file.close()");
+    JSValueUnprotect(JSctx, self);
+    JS_FILES[fd] = NULL;
+    POLIgnoreEvents(fd);  // only sockets, but who cares
+    close(fd);
     return JSValueMakeUndefined(ctx);
 }
 
@@ -198,42 +209,44 @@ JSValueRef IONetAccept(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
     return JSValueMakeUndefined(ctx);
 }
 
-// -> file.io("r"|"w"|"rw"|"error")
+// -> file.io("r"|"w"|"error")
 short IONetOnEvent(int fd, struct poller* p) {
     fprintf(stderr, "got event %i %i\n", fd, p->revents);
     JSObjectRef file = JS_FILES[fd];
     if (file == NULL) return 0;  //?
-    JSValueRef fn = JSObjectGetPropertyForKey(
+    JSValueRef fnv = JSObjectGetPropertyForKey(
         JSctx, file, JSValueMakeString(JSctx, JS_KEY_IO), NULL);
-    if (fn == NULL) return 0;
+    if (fnv == NULL || !JSValueIsObject(JSctx, fnv) ||
+        !JSObjectIsFunction(JSctx, (JSObjectRef)fnv)) {
+        p->events = 0;
+        return 0;
+    }
+    JSObjectRef fn = (JSObjectRef)fnv;
 
-    JSValueRef arg = NULL;
-    switch (p->revents) {
-        case POLLIN:
-            arg = JSValueMakeString(JSctx, JS_STATUS_READ);
-            break;
-        case POLLOUT:
-            arg = JSValueMakeString(JSctx, JS_STATUS_WRITE);
-            break;
-        case POLLIN | POLLOUT:
-            arg = JSValueMakeString(JSctx, JS_STATUS_READWRITE);
-            break;
-        default: {
-            int err = 0;
-            socklen_t errlen = sizeof(err);
-            getsockopt(fd, SOL_SOCKET, SO_ERROR, &err, &errlen);
-            if (err != 0) {
-                arg = JSOfCString(strerror(err));
-            } else {
-                arg = JSValueMakeString(JSctx, JS_STATUS_ERROR);
-            }
+    if (!(p->revents & (POLLIN | POLLOUT))) {
+        JSValueRef arg = JSValueMakeString(JSctx, JS_STATUS_ERROR);
+        int err = 0;
+        socklen_t errlen = sizeof(err);
+        getsockopt(fd, SOL_SOCKET, SO_ERROR, &err, &errlen);
+        if (err != 0) {
+            arg = JSOfCString(strerror(err));
         }
+        p->events = 0;
+        JSObjectCallAsFunction(JSctx, fn, file, 1, &arg, NULL);
+        IONetClose(JSctx, NULL, file, 0, NULL, NULL);
+    }
+    if (p->revents & POLLIN) {
+        JSValueRef arg = JSValueMakeString(JSctx, JS_STATUS_READ);
+        p->events &= ~POLLIN;
+        JSObjectCallAsFunction(JSctx, fn, file, 1, &arg, NULL);
+    }
+    if (p->revents & POLLOUT) {
+        JSValueRef arg = JSValueMakeString(JSctx, JS_STATUS_WRITE);
+        p->events &= ~POLLOUT;
+        JSObjectCallAsFunction(JSctx, fn, file, 1, &arg, NULL);
     }
 
-    fprintf(stderr, "calling the callback\n");
-    JSValueRef ret = JSObjectCallAsFunction(JSctx, fn, file, 1, &arg, NULL);
-
-    return p->events;
+    return p->events;  //?
 }
 
 short IONetOnConnect(int fd, struct poller* p) {
@@ -246,9 +259,8 @@ short IONetOnConnect(int fd, struct poller* p) {
     } else {
         p->callback = IONetOnEvent;
     }
-    // listen for POLLIN
-    // JS_FILES[fd];
-    return IONetOnEvent(fd, p);
+    IONetOnEvent(fd, p);
+    return p->events | POLLIN;
 }
 
 JSValueRef IONothing(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
@@ -373,11 +385,11 @@ ok64 IOInstall() {
 
     static JSStaticFunction file_statics[] = {
         {"io", IONothing, 0},
-        {"write", io_file_write,
+        {"write", IOFileWrite,
          kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete},
-        {"read", io_file_read,
+        {"read", IOFileRead,
          kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete},
-        {"close", io_file_close,
+        {"close", IONetClose,
          kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete},
         {NULL, NULL, 0}};
     static JSClassDefinition fc_definition = {
