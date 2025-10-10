@@ -89,7 +89,7 @@ ok64 BRIX_get(BRIX* brix, id128 id, ok64 sub, u8cs args) {
                 call(JDRfeed, Bu8idle(brix->pad), rec);
                 $mv(rec, Bu8data(brix->pad));
             }
-            call(FILEfeed, STDOUT_FILENO, rec);
+            call(FILEFeed, STDOUT_FILENO, rec);
         } else {
             fail(notimplyet);
         }
@@ -107,7 +107,7 @@ ok64 BRIX_reget(BRIX* brix, id128 id, ok64 sub, u8cs args) {
             id128 ref, _;
             call(RDXCdrainR, &ref, &_, args);
             call(BRIXreget, Bu8idle(gig), brix, 0, ref);
-            call(FILEfeedall, STDOUT_FILENO, Bu8cdata(gig));
+            call(FILEFeedall, STDOUT_FILENO, Bu8cdata(gig));
         } else {
             fail(notimplyet);
         }
@@ -173,7 +173,7 @@ ok64 BRIX_merge(BRIX* brix, id128 id, ok64 sub, u8cs args) {
     a$rawc(raw, sha);
     call(HEXfeed, outidle, raw);
     call(u8sFeed1, outidle, '\n');
-    call(FILEfeedall, STDOUT_FILENO, outdata);
+    call(FILEFeedall, STDOUT_FILENO, outdata);
     done;
 }
 
@@ -240,7 +240,7 @@ ok64 BRIX_list(BRIX* brix, id128 id, ok64 sub, u8cs args) {
                 }
             }
         }
-        call(FILEfeedall, STDOUT_FILENO, outdata);
+        call(FILEFeedall, STDOUT_FILENO, outdata);
     } else {
         fail(BRIXbadarg);
     }

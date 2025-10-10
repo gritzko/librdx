@@ -50,7 +50,7 @@ pro(RDXeatfile, int fd) {
         aBcpad(u8, err, 128);
         try(JDRparse, Bu8idle(tmp), erridle, Bu8cdata(buf));
         nedo {
-            FILEfeed(STDERR_FILENO, errdata);
+            FILEFeed(STDERR_FILENO, errdata);
             done;
         }
         call(TLVsplit, Bu8csidle(ins), Bu8cdata(tmp));
@@ -96,7 +96,7 @@ pro(RDX_print, u8cs args) {
         RDXCdrainS(str, nil, args);
         call(FILEcreate, &fd, str);
     }
-    call(FILEfeedall, fd, Bu8cdata(tmp));
+    call(FILEFeedall, fd, Bu8cdata(tmp));
     if (fd != STDOUT_FILENO) FILEclose(&fd);
     done;
 }
@@ -117,7 +117,7 @@ ok64 RDX_write(u8cs args) {
     test(t == RDX_STRING, badarg);
     int fd = FILE_CLOSED;
     call(FILEcreate, &fd, val);
-    $eat(Bu8csdata(ins)) call(FILEfeedall, fd, *ins[1]);
+    $eat(Bu8csdata(ins)) call(FILEFeedall, fd, *ins[1]);
     call(FILEclose, &fd);
     Breset(ins);
     done;

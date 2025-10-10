@@ -94,7 +94,7 @@ pro(MARQrange, MARQfmt fmt, $cu8c tok, MARQstate* state) {
 pro(MARQopenbracket, MARQfmt fmt, $cu8c tok, MARQstate* state) {
     sane(state != nil && $ok(tok) && $within(state->text, tok));
     //$u8c tmpl = $u8str("MARQopenbracket '$s' at $u\n");
-    // FILEfeedf(STDOUT_FILENO, tmpl, tok, tok[0] - state->text[0]);
+    // FILEFeedf(STDOUT_FILENO, tmpl, tok, tok[0] - state->text[0]);
     u8c$ text = state->text;
     $u64 $b = {};
     $u64str0((u64c**)$b, state->brackets);

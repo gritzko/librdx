@@ -24,7 +24,7 @@ typedef Bu8 NETaddr;
 
 #define aNETraw(name) aBpad(u8, name, 128);
 
-#define aNETaddr(name, host, port)            \
+#define aNETAddress(name, host, port)            \
     aBpad(u8, name, NETmaxhost + NETmaxserv); \
     {                                         \
         int hl = strlen(host) + 1;            \

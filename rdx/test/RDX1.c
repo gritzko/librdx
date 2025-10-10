@@ -30,7 +30,7 @@ pro(RDXFtest) {
         aBpad(u8, txt, 32);
         call(RDXFtlv2txt, Bu8idle(txt),Bu8cdata(tlv));
         a$str(str, "text RDX: $s\n");
-        FILEfeedf(STDOUT_FILENO, str,Bu8cdata(txt));
+        FILEFeedf(STDOUT_FILENO, str,Bu8cdata(txt));
         aBpad(u8, tlv2, 32);
         id128 id3 = {i, i};
         call(RDXFtxt2tlv, Bu8idle(tlv2),Bu8cdata(txt), id3);
@@ -58,7 +58,7 @@ pro(RDXItest) {
         aBpad(u8, txt, 32);
         call(RDXItlv2txt, Bu8idle(txt),Bu8cdata(tlv));
         a$str(str, "text RDX: $s\n");
-        FILEfeedf(STDOUT_FILENO, str,Bu8cdata(txt));
+        FILEFeedf(STDOUT_FILENO, str,Bu8cdata(txt));
         aBpad(u8, tlv2, 32);
         id128 id3 = {i, i};
         call(RDXItxt2tlv, Bu8idle(tlv2),Bu8cdata(txt), id3);
@@ -85,7 +85,7 @@ pro(RDXRtest) {
         aBpad(u8, txt, 64);
         call(RDXRtlv2txt, Bu8idle(txt),Bu8cdata(tlv));
         a$str(str, "text RDX: $s\n");
-        FILEfeedf(STDOUT_FILENO, str,Bu8cdata(txt));
+        FILEFeedf(STDOUT_FILENO, str,Bu8cdata(txt));
         aBpad(u8, tlv2, 32);
         id128 id3 = {i, i};
         call(RDXRtxt2tlv, Bu8idle(tlv2),Bu8cdata(txt), id3);

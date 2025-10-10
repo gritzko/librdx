@@ -24,7 +24,7 @@ con ok64 POLnone = 0x19615cb3ca9;
 ok64 POLInit(int max_fd);
 ok64 POLFree();
 
-b8 POLany();
+b8 POLAny();
 
 // track events on a file descriptor
 ok64 POLTrackEvents(int fd, poller p);

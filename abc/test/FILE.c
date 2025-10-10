@@ -12,7 +12,7 @@ pro(FILEtest1) {
     u8cs text = $u8str("Hello world!\n");
     int fd = 0;
     call(FILEcreate, &fd, path);
-    call(FILEfeed, fd, text);
+    call(FILEFeed, fd, text);
     call(FILEclose, &fd);
     call(FILEunlink, path);
     done;
@@ -66,7 +66,7 @@ pro(FILEtest4) {
     call(u8css_feed3, queueidle, one, two, three);
     int fd;
     call(FILEcreate, &fd, path);
-    call(FILEfeedv, fd, queuedata);
+    call(FILEFeedv, fd, queuedata);
     want($empty(queuedata));
     aBpad2(u8, back, 64);
     testeq(0, lseek(fd, 0, SEEK_SET));

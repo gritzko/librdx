@@ -103,7 +103,7 @@ ok64 FILEresize(int const *fd, size_t new_size);
 ok64 FILErename(const path oldname, const path newname);
 
 // Drains the data to the file; if the slice is non empty on return, see errno!
-fun ok64 FILEfeed(int fd, u8 const **data) {
+fun ok64 FILEFeed(int fd, u8 const **data) {
     ssize_t re = write(fd, *data, $size(data));
     if (re <= 0) return FILEfail;
     *data += re;
@@ -134,7 +134,7 @@ fun void u8cssdrained(u8css datav, size_t re) {
     }
 }
 
-fun ok64 FILEfeedv(int fd, u8css datav) {
+fun ok64 FILEFeedv(int fd, u8css datav) {
     struct iovec io[FILEmaxiov];
     int l = FILE2iovec(io, datav);
     ssize_t re = writev(fd, io, l);
@@ -143,12 +143,12 @@ fun ok64 FILEfeedv(int fd, u8css datav) {
     return OK;
 }
 
-fun ok64 FILEfeedall(int fd, uint8_t const *const *data) {
+fun ok64 FILEFeedall(int fd, uint8_t const *const *data) {
     if (!FILEok(fd) || !$ok(data)) return FILEbadarg;
     a$dup(u8 const, d, data);
     ok64 ret = OK;
     while (!$empty(d) && OK == ret) {
-        ret = FILEfeed(fd, d);
+        ret = FILEFeed(fd, d);
     }
     return ret;
 }
@@ -297,12 +297,12 @@ fun ok64 FILEremap125(Bu8 buf, int const *fd) {
 
 fun ok64 FILEout(u8 const *const *txt) {
     a$dup(u8 const, dup, txt);
-    return FILEfeedall(STDOUT_FILENO, dup);
+    return FILEFeedall(STDOUT_FILENO, dup);
 }
 
 fun ok64 FILEerr(u8 const *const *txt) {
     a$dup(u8 const, dup, txt);
-    return FILEfeedall(STDERR_FILENO, dup);
+    return FILEFeedall(STDERR_FILENO, dup);
 }
 
 static u8 _NL[2] = {'\n', 0};
@@ -312,11 +312,11 @@ con u8 *const NL[2] = {_NL, _NL + 1};
 #define $print FILEout
 #define $println(s) FILEout(s), FILEout(NL)
 
-#define FILEfeedf(fd, fmt, ...)                  \
+#define FILEFeedf(fd, fmt, ...)                  \
     {                                            \
         aBpad(u8, _pad, PAGESIZE);               \
         $feedf(Bu8idle(_pad), fmt, __VA_ARGS__); \
-        FILEfeed(fd, Bu8cdata(_pad));            \
+        FILEFeed(fd, Bu8cdata(_pad));            \
     }
 
 #endif  // ABC_F_H

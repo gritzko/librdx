@@ -37,7 +37,7 @@ fun int fd32cmp(const i32* a, const i32* b) {
     return ans < bns ? -1 : 1;
 }
 
-b8 POLany() { return !Bempty(POL_FILES) || !Bempty(POL_QUEUE); }
+b8 POLAny() { return !Bempty(POL_FILES) || !Bempty(POL_QUEUE); }
 
 ok64 POLInit(int max_fd) {
     Bpolleralloc(POL_FILES, max_fd);

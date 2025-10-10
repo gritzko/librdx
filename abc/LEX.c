@@ -296,7 +296,7 @@ pro(lex2rl, u8cs mod, $u8c lang) {
     $feedf(rlnameidle, $rnamet, mod, LEX_TEMPL[nlang][LEX_TEMPL_L]);
     int rfd;
     call(FILEcreate, &rfd, rlnamedata);
-    call(FILEfeedall, rfd, rldata);
+    call(FILEFeedall, rfd, rldata);
     call(FILEclose, &rfd);
 
     done;

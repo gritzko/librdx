@@ -1,8 +1,10 @@
 #include "TCP.h"
 
+#include <sys/socket.h>
+
 #include "PRO.h"
 
-pro(TCPbind, int *fd, NETaddr addr) {
+pro(TCPBind, int *fd, NETaddr addr) {
     sane(fd != nil && Bok(addr));
     int s, sfd;
     socklen_t peer_addrlen;
@@ -60,7 +62,7 @@ pro(TCPbind, int *fd, NETaddr addr) {
     done;
 }
 
-ok64 TCPconnect(int *fd, NETaddr addr) {
+ok64 TCPConnect(int *fd, NETaddr addr, b8 nonblocking) {
     int sfd, s;
     size_t len;
     ssize_t nread;
@@ -68,8 +70,9 @@ ok64 TCPconnect(int *fd, NETaddr addr) {
     struct addrinfo *result, *rp;
 
     memset(&hints, 0, sizeof(hints));
-    hints.ai_family = AF_UNSPEC;     /* Allow IPv4 or IPv6 */
-    hints.ai_socktype = SOCK_STREAM; /* Datagram socket */
+    hints.ai_family = AF_UNSPEC; /* Allow IPv4 or IPv6 */
+    hints.ai_socktype = SOCK_STREAM;
+    if (nonblocking) hints.ai_socktype |= SOCK_NONBLOCK;
     hints.ai_flags = 0;
     hints.ai_protocol = 0; /* Any protocol */
 

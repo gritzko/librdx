@@ -79,7 +79,7 @@ pro(mark, u8cs mod) {
         try(MARKlexer, &state);
         then try(MARKMARQ, &state);
         then try(MARKANSI, Bu8idle(intobuf), 64, &state);
-        then try(FILEfeedall, STDOUT_FILENO, Bu8cdata(intobuf));
+        then try(FILEFeedall, STDOUT_FILENO, Bu8cdata(intobuf));
     }
 
     FILEclose(&fd);

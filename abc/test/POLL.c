@@ -6,7 +6,7 @@
 #include "TCP.h"
 #include "TEST.h"
 
-ok64 funIecho(POLLctl* ctl) { return POLLfeed(ctl,Bu8cdata(ctl->readbuf)); }
+ok64 funIecho(POLLctl* ctl) { return POLLfeed(ctl, Bu8cdata(ctl->readbuf)); }
 
 u8 count = 0;
 
@@ -23,14 +23,14 @@ pro(POLLtest1) {
     sane(1);
     char port[16];
     sprintf(port, "%d", NETrandomport());
-    aNETaddr(addr, "127.0.0.1", port);
+    aNETAddress(addr, "127.0.0.1", port);
     int sfd;
-    call(TCPbind, &sfd, addr);
+    call(TCPBind, &sfd, addr);
     int cfd;
-    call(TCPconnect, &cfd, addr);
+    call(TCPConnect, &cfd, addr, 0);
     int scfd;
     aNETraw(myself);
-    call(TCPaccept, &scfd, myself, sfd);
+    call(TCPAccept, &scfd, myself, sfd);
 
     POLLstate state = {};
     a$str(cname, "client");
@@ -41,7 +41,7 @@ pro(POLLtest1) {
 
     u8 v0 = 0;
     a$rawc(s0, v0);
-    call(FILEfeed, cfd, s0);
+    call(FILEFeed, cfd, s0);
 
     while (count < 100) {
         call(POLLonce, state, 10);
@@ -50,9 +50,9 @@ pro(POLLtest1) {
     call(POLLdel, state, cfd, OK);
     call(POLLdel, state, scfd, OK);
 
-    call(TCPclose, cfd);
-    call(TCPclose, scfd);
-    call(TCPclose, sfd);
+    call(TCPClose, cfd);
+    call(TCPClose, scfd);
+    call(TCPClose, sfd);
     done;
 }
 

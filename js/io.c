@@ -167,6 +167,30 @@ JSValueRef io_log(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
     return JSValueMakeUndefined(ctx);
 }
 
+JSValueRef io_net_listen(JSContextRef ctx, JSObjectRef function,
+                         JSObjectRef self, size_t argc, const JSValueRef args[],
+                         JSValueRef* exception) {
+    return JSValueMakeUndefined(ctx);
+}
+
+JSValueRef io_net_accept(JSContextRef ctx, JSObjectRef function,
+                         JSObjectRef self, size_t argc, const JSValueRef args[],
+                         JSValueRef* exception) {
+    return JSValueMakeUndefined(ctx);
+}
+
+JSValueRef io_net_connect(JSContextRef ctx, JSObjectRef function,
+                          JSObjectRef self, size_t argc,
+                          const JSValueRef args[], JSValueRef* exception) {
+    return JSValueMakeUndefined(ctx);
+}
+
+JSValueRef io_net_close(JSContextRef ctx, JSObjectRef function,
+                        JSObjectRef self, size_t argc, const JSValueRef args[],
+                        JSValueRef* exception) {
+    return JSValueMakeUndefined(ctx);
+}
+
 JSObjectRef JSio_std[3];
 
 // io.StdErr() -> fd
@@ -248,6 +272,10 @@ ok64 io_install() {
     JS_SET_PROPERTY_FN(io, "timer", io_timer);
     JS_SET_PROPERTY_FN(io, "wake", io_wake);
     JS_SET_PROPERTY_FN(io, "log", io_log);
+    JS_SET_PROPERTY_FN(io, "listen", io_net_listen);
+    JS_SET_PROPERTY_FN(io, "accept", io_net_accept);
+    JS_SET_PROPERTY_FN(io, "connect", io_net_connect);
+    JS_SET_PROPERTY_FN(io, "close", io_net_close);
 
     // io.stderr.WriteLine("Hello world!")
     // response = io.stdin.ReadLine()

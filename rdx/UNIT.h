@@ -82,8 +82,8 @@ ok64 UNITdrain(Bu8 tests, UNITfn fn) {
     size_t rl = Bdatalen(rdx);
     if (o != OK) {
         a$str(msg, "JDR parse failed: ");
-        FILEfeedall(STDERR_FILENO, msg);
-        FILEfeedall(STDERR_FILENO, errdata);
+        FILEFeedall(STDERR_FILENO, msg);
+        FILEFeedall(STDERR_FILENO, errdata);
     }
     a$dup(u8c, cases, Bu8$1(rdx));
     aBcpad(u8, msg, PAGESIZE);
@@ -142,7 +142,7 @@ ok64 UNITdrain(Bu8 tests, UNITfn fn) {
                     escfeed(msgidle, 0);
                     UNITdump(msgidle, caserdx);
                 }
-                FILEfeedall(STDOUT_FILENO, msgdata);
+                FILEFeedall(STDOUT_FILENO, msgdata);
                 Breset(msgbuf);
                 break;
         }
@@ -168,7 +168,7 @@ fun ok64 UNITfail(u8cs correct, u8cs fact) {
     u8sFeed1(padidle, '\n');
     HEXdump(padidle, fact);
     Backpast(padbuf);
-    return FILEfeed(STDOUT_FILENO, Bu8cdata(padbuf));
+    return FILEFeed(STDOUT_FILENO, Bu8cdata(padbuf));
 }
 
 fun ok64 JDRdrainargs($u8 into, u8css jdr) {

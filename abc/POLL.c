@@ -80,7 +80,7 @@ pro(POLLread, POLLctl* ctl) {
 
 pro(POLLwrite, POLLctl* ctl) {
     sane(ctl != nil && ctl->fn != nil);
-    call(FILEfeedv, ctl->fd, Bu8csdata(ctl->writes));
+    call(FILEFeedv, ctl->fd, Bu8csdata(ctl->writes));
     if (Bdatalen(ctl->writes) == 0) {
         Breset(ctl->writebuf);
         Breset(ctl->writes);

@@ -62,7 +62,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
         ok64feed(hexidle, o);
         $u8feed2(hexidle, '\n', '\n');
         HEXdump(hexidle, rdxdata);
-        FILEfeed(STDERR_FILENO, hexdata);
+        FILEFeed(STDERR_FILENO, hexdata);
         abort();
     }
 

@@ -22,30 +22,30 @@ pro(TCPtest1) {
 
     char port[16];
     sprintf(port, "%d", NETrandomport());
-    aNETaddr(addr, "127.0.0.1", port);
+    aNETAddress(addr, "127.0.0.1", port);
     $println(Bu8cdata(addr));
 
     int fd;
-    call(TCPbind, &fd, addr);
+    call(TCPBind, &fd, addr);
 
     int cfd;
-    call(TCPconnect, &cfd, addr);
+    call(TCPConnect, &cfd, addr, 0);
 
     int sfd;
     aNETraw(caddr);
-    call(TCPaccept, &sfd, caddr, fd);
+    call(TCPAccept, &sfd, caddr, fd);
 
     a$str(bubu, "BuBu");
-    call(FILEfeedall, cfd, bubu);
+    call(FILEFeedall, cfd, bubu);
 
     aBpad2(u8, read, 128);
     aNETraw(sndaddr);
     call(FILEdrain, readidle, sfd);
     $testeq(bubu, readdata);
 
-    call(TCPclose, fd);
-    call(TCPclose, cfd);
-    call(TCPclose, sfd);
+    call(TCPClose, fd);
+    call(TCPClose, cfd);
+    call(TCPClose, sfd);
     done;
 }
 

@@ -62,9 +62,9 @@ pro(md2html, u8cs mod) {
     int hfd = 0;
     a$strf(htmlname, 1024, "$s.html", mod);
     call(FILEcreate, &hfd, Bu8cdata(htmlname));
-    call(FILEfeedall, hfd, header_template);
-    call(FILEfeedall, hfd, Bu8cdata(intobuf));
-    call(FILEfeedall, hfd, footer_template);
+    call(FILEFeedall, hfd, header_template);
+    call(FILEFeedall, hfd, Bu8cdata(intobuf));
+    call(FILEFeedall, hfd, footer_template);
 
     // FIXME defer!!!
     FILEclose(&hfd);
