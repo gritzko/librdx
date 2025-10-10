@@ -31,6 +31,8 @@ const u64 POLTimeMask = (1UL << 48) - 1;
 
 fun poller* POLAt(i32 fd) { return fd < 0 ? &POL_TIMER : Batp(POL_FILES, fd); }
 
+int POLMaxFiles() { return Blen(POL_FILES); }
+
 fun int fd32cmp(const i32* a, const i32* b) {
     u64 ans = POLAt(*a)->deadline;
     u64 bns = POLAt(*b)->deadline;
@@ -165,9 +167,11 @@ ok64 POLLoop(u64 timens) {
         poll(POL_VEC, pollscount, pollms);
         for (int i = 0; i < pollscount; i++) {
             if (!POL_VEC[i].revents) continue;
+            printf("hoho %i on %i\n", POL_VEC[i].revents, POL_VEC[i].fd);
             int fd = POL_VEC[i].fd;
             at = Batp(POL_FILES, fd);
-            short e = at->callback(fd, at);
+            at->revents = POL_VEC[i].revents;
+            at->callback(fd, at);
             at->deadline = now + at->timeout_ms * (POLNanosPerSec / 1000);
             printf("now %lu next %lu\n", now, at->deadline);
         }

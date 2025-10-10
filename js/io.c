@@ -1,5 +1,6 @@
 #include <math.h>
 #include <poll.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -15,45 +16,51 @@
 #include "JavaScriptCore/JSValueRef.h"
 #include "abc/FILE.h"
 #include "abc/POL.h"
-
-// SM convention
-// .state = Closed Connecting Connected
-// .ConnectedonRead()
-// ._onRead()
-
-// io.Connect() io.Listen() io.Open() io.Wait()...
-// fd.Write(ta) -> int
-// fd.Read(ta) -> int
-// fd.XxxOnRead()
-// fd.XxxOnWrite()
-// fd.Close()
+#include "abc/TCP.h"
 
 short io_callback(int fd, poller* p) { return 0; }
 void io_file_finalize(JSObjectRef object) {}
 void io_map_finalize(JSObjectRef object) {}
 
-int find_fd(JSContextRef ctx, JSObjectRef self, JSValueRef* exception) {
-    JS_MAKE_STRING(fdkey, "_fd");
-    JS_GET_PROPERTY(fdv, self, fdkey);
-    JS_TO_NUMBER(fdd, fdv);
-    if (isnan(fdd)) return -1;
-    return (int)fdd;
-}
-
 static JSClassRef JSIOFileClass = NULL;
 static JSClassRef JSIOMapClass = NULL;
 
+static JSStringRef JS_KEY_IO = NULL;
+
+static JSStringRef JS_STATUS_READ = NULL;
+static JSStringRef JS_STATUS_WRITE = NULL;
+static JSStringRef JS_STATUS_READWRITE = NULL;
+static JSStringRef JS_STATUS_ERROR = NULL;
+
+thread_local JSObjectRef* JS_FILES;
+
+JSObjectRef IO_STD[3];
+
+JSObjectRef JSMakeFile(int fd, JSValueRef* exception);
+
+int JSFileFD(JSContextRef ctx, JSObjectRef self, JSValueRef* exception) {
+    JSObjectRef* ptr = JSObjectGetPrivate(self);
+    if (ptr == NULL || ptr < JS_FILES || ptr > JS_FILES + POLMaxFiles()) {
+        *exception = JSOfCString("read(): not a file");
+        return -1;
+    } else {
+        ptrdiff_t d = ptr - JS_FILES;
+        return (int)d;
+    }
+}
+
 // fd.Write(ta) -> int
-JS_DEFINE_FN(io_file_write) {
+JSValueRef io_file_write(JSContextRef ctx, JSObjectRef function,
+                         JSObjectRef self, size_t argc, const JSValueRef args[],
+                         JSValueRef* exception) {
     if (argc == 0) JS_THROW("fo.Write() requires data to write");
 
     void* bytes = NULL;
     size_t len = 0;
     char page[4096];
 
-    // poller* fd = find_fd(ctx, self, exception);
-    // if (fd == NULL) JS_THROW("this object is not a file");
-    int fd;
+    int fd = JSFileFD(ctx, self, exception);
+    if (fd == -1) return JSValueMakeUndefined(ctx);
 
     u8cs ta;
 
@@ -61,6 +68,8 @@ JS_DEFINE_FN(io_file_write) {
         len = JSStringGetUTF8CString((JSStringRef)args[0], page, 4096);
         if (len > 0) len--;
         bytes = page;
+        ta[0] = page;
+        ta[1] = page + len;  // FUCKIN FIXME
     } else if (JS_ARG_IS_TARRAY(0)) {
         JS_ARG_TA_u8s(0, ta);
     }
@@ -79,7 +88,9 @@ JS_DEFINE_FN(io_file_write) {
 }
 
 // fd.Read(ta) -> int
-JS_DEFINE_FN(io_file_read) {
+JSValueRef io_file_read(JSContextRef ctx, JSObjectRef function,
+                        JSObjectRef self, size_t argc, const JSValueRef args[],
+                        JSValueRef* exception) {
     if (argc == 0) JS_THROW("fo.Write() requires data to write");
 
     if (!JS_ARG_IS_TARRAY(0)) JS_THROW("not a TypedArray");
@@ -87,8 +98,8 @@ JS_DEFINE_FN(io_file_read) {
     u8s ta = {};
     JS_ARG_TA_u8s(0, ta);
 
-    int fd = find_fd(ctx, self, exception);
-    // if (fd == NULL) JS_THROW("this object is not a file");
+    int fd = JSFileFD(ctx, self, exception);
+    if (fd == -1) return JSValueMakeUndefined(ctx);
 
     int rn = read(fd, *ta, $len(ta));
     if (rn >= 0) {
@@ -106,6 +117,15 @@ JS_DEFINE_FN(io_file_close) {
     JS_MAKE_UNDEFINED(u);
     return u;
 }
+JSValueRef IONetClose(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
+                      size_t argc, const JSValueRef args[],
+                      JSValueRef* exception) {
+    // get fd
+    // Unprotect
+    // NULL
+    // close
+    return JSValueMakeUndefined(ctx);
+}
 
 JSObjectRef JSTimer = NULL;
 
@@ -122,10 +142,10 @@ int timeout_cb(int fd) {
 }
 
 // io.timer(fn)
-JSValueRef io_timer(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
-                    size_t argc, const JSValueRef args[],
-                    JSValueRef* exception) {
-    JS_TRACE("io_timer");
+JSValueRef IOTimer(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
+                   size_t argc, const JSValueRef args[],
+                   JSValueRef* exception) {
+    JS_TRACE("IOTimer");
     if (argc < 1 || !JSValueIsObject(ctx, args[0]) ||
         !JSObjectIsFunction(ctx, (JSObjectRef)args[0])) {
         JS_THROW("io.timer(function)");
@@ -138,9 +158,8 @@ JSValueRef io_timer(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
 }
 
 // io.wake(ms)
-JSValueRef io_wake(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
-                   size_t argc, const JSValueRef args[],
-                   JSValueRef* exception) {
+JSValueRef IOWake(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
+                  size_t argc, const JSValueRef args[], JSValueRef* exception) {
     if (argc != 1 || !JSValueIsNumber(ctx, args[0])) {
         JS_THROW("io.wakeTimer(ms)");
     }
@@ -152,8 +171,8 @@ JSValueRef io_wake(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
     return JSValueMakeUndefined(ctx);
 }
 
-JSValueRef io_log(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
-                  size_t argc, const JSValueRef args[], JSValueRef* exception) {
+JSValueRef IOLog(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
+                 size_t argc, const JSValueRef args[], JSValueRef* exception) {
     if (argc != 1 || !JSValueIsString(ctx, args[0])) {
         JS_THROW("io.log(string)");
     }
@@ -167,63 +186,153 @@ JSValueRef io_log(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
     return JSValueMakeUndefined(ctx);
 }
 
-JSValueRef io_net_listen(JSContextRef ctx, JSObjectRef function,
-                         JSObjectRef self, size_t argc, const JSValueRef args[],
-                         JSValueRef* exception) {
+JSValueRef IONetListen(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
+                       size_t argc, const JSValueRef args[],
+                       JSValueRef* exception) {
     return JSValueMakeUndefined(ctx);
 }
 
-JSValueRef io_net_accept(JSContextRef ctx, JSObjectRef function,
-                         JSObjectRef self, size_t argc, const JSValueRef args[],
-                         JSValueRef* exception) {
+JSValueRef IONetAccept(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
+                       size_t argc, const JSValueRef args[],
+                       JSValueRef* exception) {
     return JSValueMakeUndefined(ctx);
 }
 
-JSValueRef io_net_connect(JSContextRef ctx, JSObjectRef function,
-                          JSObjectRef self, size_t argc,
-                          const JSValueRef args[], JSValueRef* exception) {
+// -> file.io("r"|"w"|"rw"|"error")
+short IONetOnEvent(int fd, struct poller* p) {
+    fprintf(stderr, "got event %i %i\n", fd, p->revents);
+    JSObjectRef file = JS_FILES[fd];
+    if (file == NULL) return 0;  //?
+    JSValueRef fn = JSObjectGetPropertyForKey(
+        JSctx, file, JSValueMakeString(JSctx, JS_KEY_IO), NULL);
+    if (fn == NULL) return 0;
+
+    JSValueRef arg = NULL;
+    switch (p->revents) {
+        case POLLIN:
+            arg = JSValueMakeString(JSctx, JS_STATUS_READ);
+            break;
+        case POLLOUT:
+            arg = JSValueMakeString(JSctx, JS_STATUS_WRITE);
+            break;
+        case POLLIN | POLLOUT:
+            arg = JSValueMakeString(JSctx, JS_STATUS_READWRITE);
+            break;
+        default: {
+            int err = 0;
+            socklen_t errlen = sizeof(err);
+            getsockopt(fd, SOL_SOCKET, SO_ERROR, &err, &errlen);
+            if (err != 0) {
+                arg = JSOfCString(strerror(err));
+            } else {
+                arg = JSValueMakeString(JSctx, JS_STATUS_ERROR);
+            }
+        }
+    }
+
+    fprintf(stderr, "calling the callback\n");
+    JSValueRef ret = JSObjectCallAsFunction(JSctx, fn, file, 1, &arg, NULL);
+
+    return p->events;
+}
+
+short IONetOnConnect(int fd, struct poller* p) {
+    fprintf(stderr, "connected!\n");
+    int err = 0;
+    socklen_t errlen = sizeof(err);
+    getsockopt(fd, SOL_SOCKET, SO_ERROR, &err, &errlen);
+    if (err != 0) {
+        const char* msg = strerror(err);
+    } else {
+        p->callback = IONetOnEvent;
+    }
+    // listen for POLLIN
+    // JS_FILES[fd];
+    return IONetOnEvent(fd, p);
+}
+
+JSValueRef IONothing(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
+                     size_t argc, const JSValueRef args[],
+                     JSValueRef* exception) {
+    fprintf(stderr, "nothing\n");
     return JSValueMakeUndefined(ctx);
 }
 
-JSValueRef io_net_close(JSContextRef ctx, JSObjectRef function,
+JSValueRef IONetConnect(JSContextRef ctx, JSObjectRef function,
                         JSObjectRef self, size_t argc, const JSValueRef args[],
                         JSValueRef* exception) {
-    return JSValueMakeUndefined(ctx);
+    if (argc < 2 || !JSValueIsObject(ctx, args[1]) ||
+        !JSObjectIsFunction(ctx, (JSObjectRef)args[1])) {
+        JS_THROW("io.connect('google.com:80', function)");
+    }
+    JSStringRef address = args[0];
+    JSObjectRef callback = (JSObjectRef)args[1];
+
+    aNETAddress(addr, "127.0.0.1", "8888");
+    $println(Bu8cpast(addr));
+    int cfd;
+    ok64 o = TCPConnect(&cfd, addr, NO);
+    if (o != OK) {
+        *exception = JSOfCString(strerror(errno));  //"connect() error"));
+        return JSValueMakeUndefined(ctx);
+    }
+    poller p = {.events = POLLOUT,
+                .callback = IONetOnConnect,
+                .timeout_ms = 3000,
+                .payload = JS_FILES + cfd};
+    POLTrackEvents(cfd, p);
+
+    JSObjectRef file = JSMakeFile(cfd, exception);
+    JSObjectSetProperty(JSctx, file, JS_KEY_IO, callback,
+                        kJSPropertyAttributeNone, NULL);
+
+    return file;
 }
 
-JSObjectRef JSio_std[3];
+JSObjectRef JSMakeFile(int fd, JSValueRef* exception) {
+    if (fd >= POLMaxFiles()) {
+        *exception = JSOfCString("file descriptor out of bound");
+        return NULL;
+    }
+    JSObjectRef fileObject = JSObjectMake(JSctx, JSIOFileClass, NULL);
+    JSObjectSetPrivate(fileObject, JS_FILES + fd);
+    JS_FILES[fd] = fileObject;
+    JSValueProtect(JSctx, fileObject);
+    return fileObject;
+}
+
+inline JSValueRef JSOfCString(const char* str) {
+    JSStringRef tmp = JSStringCreateWithUTF8CString(str);
+    JSValueRef n = JSValueMakeString(JSctx, tmp);
+    JSStringRelease(tmp);
+    return n;
+}
 
 // io.StdErr() -> fd
-JSValueRef io_std_io(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
-                     size_t argc, const JSValueRef args[],
-                     JSValueRef* exception, int which) {
-    if (JSio_std[which] == NULL) {
-        JSObjectRef fileObject = JSObjectMake(ctx, JSIOFileClass, NULL);
+JSValueRef IOStdio(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
+                   size_t argc, const JSValueRef args[], JSValueRef* exception,
+                   int which) {
+    if (IO_STD[which] == NULL) {
+        JSObjectRef fileObject = JSMakeFile(which, exception);
         JS_PROTECT(fileObject);
-        JS_ADD_METHOD(fileObject, "Write", io_file_write);
-        JS_ADD_METHOD(fileObject, "Read", io_file_read);
-        JS_ADD_METHOD(fileObject, "Close", io_file_close);
-        JS_MAKE_NUMBER(fd, which);
-        JS_MAKE_STRING(key, "_fd");
-        JS_SET_PROPERTY_RO(fileObject, key, fd);
         poller p = {
             .callback = io_callback, .payload = fileObject, .timeout_ms = 1000};
         ok64 o = POLTrackEvents(which, p);
-        JSio_std[which] = fileObject;
+        IO_STD[which] = fileObject;
     }
-    return JSio_std[which];
+    return IO_STD[which];
 }
 
-JS_DEFINE_FN(io_std_in) {
-    return io_std_io(ctx, function, self, argc, args, exception, STDIN_FILENO);
+JS_DEFINE_FN(IOStdIn) {
+    return IOStdio(ctx, function, self, argc, args, exception, STDIN_FILENO);
 }
 
-JS_DEFINE_FN(io_std_out) {
-    return io_std_io(ctx, function, self, argc, args, exception, STDOUT_FILENO);
+JS_DEFINE_FN(IOStdOut) {
+    return IOStdio(ctx, function, self, argc, args, exception, STDOUT_FILENO);
 }
 
-JS_DEFINE_FN(io_std_err) {
-    return io_std_io(ctx, function, self, argc, args, exception, STDERR_FILENO);
+JS_DEFINE_FN(IOStdErr) {
+    return IOStdio(ctx, function, self, argc, args, exception, STDERR_FILENO);
 }
 
 void MMapDeallocator(void* bytes, void* deallocatorContext) {
@@ -231,7 +340,9 @@ void MMapDeallocator(void* bytes, void* deallocatorContext) {
     FILEunmap(buf);
 }
 
-JS_DEFINE_FN(io_file_map) {
+JSValueRef IOFileMap(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
+                     size_t argc, const JSValueRef args[],
+                     JSValueRef* exception) {
     if (!JSValueIsString(ctx, args[0])) JS_THROW("no path");
 
     u8 page[PAGESIZE];
@@ -241,42 +352,73 @@ JS_DEFINE_FN(io_file_map) {
     Bu8 buf = {};
     u8csc path = {page, page + len - 1};
     ok64 o = FILEmapro(buf, path);
-    JS_MAKE_OBJECT(fileObject, JSIOMapClass, NULL);
+    JSObjectRef fileObject = JSObjectMake(JSctx, JSIOMapClass, NULL);
     JSValueRef ta = JSObjectMakeTypedArrayWithBytesNoCopy(
         ctx, kJSTypedArrayTypeUint8Array, buf[0], Bsize(buf), MMapDeallocator,
         buf[3], exception);
     if (*exception != NULL) {
         JS_THROW("no typed array for you");
     }
-    JS_MAKE_STRING(keyBuf, "buf");
-    JS_SET_PROPERTY_RO(fileObject, keyBuf, ta);
+    JSObjectSetPropertyForKey(ctx, fileObject, JSOfCString("buf"), ta,
+                              kJSPropertyAttributeReadOnly, exception);
     return fileObject;
 }
 
 extern const char* io_js;
 
-ok64 io_install() {
+ok64 IOInstall() {
     POLInit(1024);
 
-    JS_MAKE_CLASS(FileDesc, io_file_finalize);
-    JSIOFileClass = FileDesc;
+    JS_FILES = malloc(sizeof(JSObjectRef) * POLMaxFiles());
+
+    static JSStaticFunction file_statics[] = {
+        {"io", IONothing, 0},
+        {"write", io_file_write,
+         kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete},
+        {"read", io_file_read,
+         kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete},
+        {"close", io_file_close,
+         kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete},
+        {NULL, NULL, 0}};
+    static JSClassDefinition fc_definition = {
+        0,                      // version
+        kJSClassAttributeNone,  // attributes
+        "File",                 // class name
+        NULL,                   // parentClass
+        NULL,                   // staticValues
+        file_statics,           // method table
+        NULL,
+        NULL,
+        NULL,
+        NULL,
+        NULL,
+        NULL,
+        NULL,
+        NULL,
+        NULL,
+        NULL};
+    JSIOFileClass = JSClassCreate(&fc_definition);
 
     JS_MAKE_CLASS(FileMMap, io_map_finalize);
     JSIOMapClass = FileMMap;
 
     JS_API_OBJECT(io, "io");
-    JS_SET_PROPERTY_FN(io, "stdIn", io_std_in);
-    JS_SET_PROPERTY_FN(io, "stdErr", io_std_err);
-    JS_SET_PROPERTY_FN(io, "stdOut", io_std_out);
-    JS_SET_PROPERTY_FN(io, "mapFile", io_file_map);
-    JS_SET_PROPERTY_FN(io, "timer", io_timer);
-    JS_SET_PROPERTY_FN(io, "wake", io_wake);
-    JS_SET_PROPERTY_FN(io, "log", io_log);
-    JS_SET_PROPERTY_FN(io, "listen", io_net_listen);
-    JS_SET_PROPERTY_FN(io, "accept", io_net_accept);
-    JS_SET_PROPERTY_FN(io, "connect", io_net_connect);
-    JS_SET_PROPERTY_FN(io, "close", io_net_close);
+    JS_SET_PROPERTY_FN(io, "stdIn", IOStdIn);
+    JS_SET_PROPERTY_FN(io, "stdErr", IOStdErr);
+    JS_SET_PROPERTY_FN(io, "stdOut", IOStdOut);
+    JS_SET_PROPERTY_FN(io, "mapFile", IOFileMap);
+    JS_SET_PROPERTY_FN(io, "timer", IOTimer);
+    JS_SET_PROPERTY_FN(io, "wake", IOWake);
+    JS_SET_PROPERTY_FN(io, "log", IOLog);
+    JS_SET_PROPERTY_FN(io, "listen", IONetListen);
+    JS_SET_PROPERTY_FN(io, "accept", IONetAccept);
+    JS_SET_PROPERTY_FN(io, "connect", IONetConnect);
 
+    JS_KEY_IO = JSStringCreateWithUTF8CString("io");
+    JS_STATUS_READ = JSStringCreateWithUTF8CString("r");
+    JS_STATUS_WRITE = JSStringCreateWithUTF8CString("w");
+    JS_STATUS_READWRITE = JSStringCreateWithUTF8CString("rw");
+    JS_STATUS_ERROR = JSStringCreateWithUTF8CString("error");
     // io.stderr.WriteLine("Hello world!")
     // response = io.stdin.ReadLine()
     // io.stdout.WriteLine("You said: '"+response+"'");
@@ -289,5 +431,7 @@ ok64 io_install() {
 ok64 io_uninstall() {
     JSClassRelease(JSIOFileClass);
     JSClassRelease(JSIOMapClass);
+    JSStringRelease(JS_KEY_IO);
+    // etc
     return OK;
 }

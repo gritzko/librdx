@@ -56,4 +56,6 @@ fun u64 POLNow() {
     return u64timespec(ts);
 }
 
+int POLMaxFiles();
+
 #endif

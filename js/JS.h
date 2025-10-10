@@ -89,10 +89,6 @@ extern thread_local JSObjectRef JSglobal;
         JSStringRelease(fn);                                                \
     }
 
-JS_DEFINE_FN(io_std_in);
-JS_DEFINE_FN(io_std_out);
-JS_DEFINE_FN(io_std_err);
-
 #define JS_ADD_METHOD(o, n, fn)                                  \
     {                                                            \
         JSStringRef someName = JSStringCreateWithUTF8CString(n); \
@@ -103,7 +99,8 @@ JS_DEFINE_FN(io_std_err);
         JSStringRelease(someName);                               \
     }
 
-JSGlobalContextRef JSCreate();
+JSValueRef JSOfCString(const char* str);
+
 void JSExecute(const char* script);
 void JSReport(JSValueRef exception);
 

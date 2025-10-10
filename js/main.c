@@ -33,13 +33,13 @@ JSGlobalContextRef JSInit() {
 
 void JSClose() { JSGlobalContextRelease(JSctx); }
 
-ok64 io_install();
-ok64 utf8_install();
+ok64 IOInstall();
+ok64 UTF8Install();
 
 ok64 JSInstallModules() {
     sane(1);
-    call(io_install);
-    call(utf8_install);
+    call(IOInstall);
+    call(UTF8Install);
     done;
 }
 
@@ -53,7 +53,7 @@ char* JSStringRefToCString(JSStringRef str) {
 }
 
 // Main: Dump all enumerable properties of a JS object
-void JSObjectPropertiesDump(JSContextRef ctx, JSObjectRef obj) {
+void JSObjectPropertiesDump(JSContextRef ctx, const JSObjectRef obj) {
     if (!JSValueIsObject(ctx, obj)) {
         printf("Not an object.\n");
         return;
@@ -122,7 +122,7 @@ void JSReport(JSValueRef exception) {
         msg = page;
     } else if (JSValueIsObject(JSctx, exception)) {
         JSDump(JSctx, exception);
-        JSObjectPropertiesDump(JSctx, exception);
+        JSObjectPropertiesDump(JSctx, (JSObjectRef)exception);
         msg = "see above";
     } else {
         JSDump(JSctx, exception);
@@ -178,47 +178,38 @@ int main(int argc, char** argv) {
         }
     }
 
-    /* Handle --eval
-    if (eval_code != NULL) {
-        JSGlobalContextRef ctx = JSCreate();
-        JSInstallModules();
-        JSExecute(eval_code);
-        JSGlobalContextRelease(ctx);
-        return 0;
-    }*/
-
-    // Handle script file
-    if (!script_file) {
-        fprintf(stderr, "Error: No script or --eval provided\n");
-        fprintf(stderr, HELP_BOILERPLATE);
-        return 1;
-    }
-
-    // Read JS file
-    FILE* f = fopen(argv[1], "rb");
-    if (!f) {
-        fprintf(stderr, "Error: Could not open file %s\n", argv[1]);
-        return 1;
-    }
-    fseek(f, 0, SEEK_END);
-    long len = ftell(f);
-    rewind(f);
-    char* script = malloc(len + 1);
-    fread(script, 1, len, f);
-    script[len] = '\0';
-    fclose(f);
-
     // Initialize runtime components
     JSGlobalContextRef ctx = JSInit();
 
     JSInstallModules();
 
-    printf("Execute script and run event loop\n");
-    JSExecute(script);
-    // TODO one global context?
+    if (eval_code != NULL) {
+        JSExecute(eval_code);
+    }
+
+    // Handle script file
+    if (script_file) {
+        // Read JS file
+        FILE* f = fopen(argv[1], "rb");
+        if (!f) {
+            fprintf(stderr, "Error: Could not open file %s\n", argv[1]);
+            return 1;
+        }
+        fseek(f, 0, SEEK_END);
+        long len = ftell(f);
+        rewind(f);
+        char* script = malloc(len + 1);
+        fread(script, 1, len, f);
+        script[len] = '\0';
+        fclose(f);
+
+        JSExecute(script);
+
+        free(script);
+    }
+
     POLLoop(POLNever);
 
-    free(script);
     JSClose();
 
     return 0;
