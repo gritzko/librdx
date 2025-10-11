@@ -7,40 +7,62 @@
 #include "JavaScriptCore/JSBase.h"
 #include "JavaScriptCore/JSContextRef.h"
 #include "JavaScriptCore/JSObjectRef.h"
+#include "JavaScriptCore/JSStringRef.h"
 #include "JavaScriptCore/JSValueRef.h"
 #include "abc/POL.h"
 #include "abc/PRO.h"
 
-thread_local JSGlobalContextRef JSctx;
-thread_local JSObjectRef JSglobal;
+thread_local JSGlobalContextRef JS_CONTEXT;
+thread_local JSObjectRef JS_GLOBAL_OBJECT;
 
 JSValueRef JSPropertyMessage = NULL;
 JSValueRef JSPropertyStack = NULL;
 
 JSGlobalContextRef JSInit() {
-    JSctx = JSGlobalContextCreate(NULL);
-    JSGlobalContextRetain(JSctx);
-    JSglobal = JSContextGetGlobalObject(JSctx);
+    JS_CONTEXT = JSGlobalContextCreate(NULL);
+    //  JSGlobalContextRetain(JS_CONTEXT);
+    JS_GLOBAL_OBJECT = JSContextGetGlobalObject(JS_CONTEXT);
 
     JSStringRef propMsg = JSStringCreateWithUTF8CString("message");
-    JSPropertyMessage = JSValueMakeString(JSctx, propMsg);
+    JSPropertyMessage = JSValueMakeString(JS_CONTEXT, propMsg);
+    JSStringRelease(propMsg);
+    JSValueProtect(JS_CONTEXT, JSPropertyMessage);
 
     JSStringRef stackMsg = JSStringCreateWithUTF8CString("stack");
-    JSPropertyMessage = JSValueMakeString(JSctx, stackMsg);
+    JSPropertyStack = JSValueMakeString(JS_CONTEXT, stackMsg);
+    JSStringRelease(stackMsg);
+    JSValueProtect(JS_CONTEXT, JSPropertyStack);
 
-    return JSctx;
+    return JS_CONTEXT;
 }
 
-void JSClose() { JSGlobalContextRelease(JSctx); }
-
 ok64 IOInstall();
+ok64 IOUninstall();
 ok64 UTF8Install();
+ok64 UTF8Uninstall();
 
 ok64 JSInstallModules() {
     sane(1);
     call(IOInstall);
     call(UTF8Install);
     done;
+}
+
+ok64 UninstallModules() {
+    sane(1);
+    call(IOUninstall);
+    call(UTF8Uninstall);
+    done;
+}
+
+void JSClose() {
+    JSValueUnprotect(JS_CONTEXT, JSPropertyStack);
+    JSValueUnprotect(JS_CONTEXT, JSPropertyMessage);
+    JSGlobalContextRelease(JS_CONTEXT);
+    JS_CONTEXT = NULL;
+    JS_GLOBAL_OBJECT = NULL;
+    JSPropertyMessage = NULL;
+    JSPropertyStack = NULL;
 }
 
 // Utility: Convert JSStringRef to null-terminated C string
@@ -96,36 +118,36 @@ void JSDump(JSContextRef ctx, JSValueRef exception) {
 void JSReport(JSValueRef exception) {
     JS_TRACE("something is wrong");
     char page[PAGE_SIZE], *msg;
-    if (JSValueIsString(JSctx, exception)) {
+    if (JSValueIsString(JS_CONTEXT, exception)) {
         size_t len =
             JSStringGetUTF8CString((JSStringRef)exception, page, PAGE_SIZE);
         if (len > 0) len--;
         msg = page;
-    } else if (JSValueIsObject(JSctx, exception) &&
-               JSObjectHasPropertyForKey(JSctx, (JSObjectRef)exception,
+    } else if (JSValueIsObject(JS_CONTEXT, exception) &&
+               JSObjectHasPropertyForKey(JS_CONTEXT, (JSObjectRef)exception,
                                          JSPropertyStack, NULL)) {
         JSValueRef ref = JSObjectGetPropertyForKey(
-            JSctx, (JSObjectRef)exception, JSPropertyStack, NULL);
+            JS_CONTEXT, (JSObjectRef)exception, JSPropertyStack, NULL);
         size_t len = JSStringGetUTF8CString((JSStringRef)ref, page, PAGE_SIZE);
         printf("LEN %li\n", len);
         msg = page;
-    } else if (JSValueIsObject(JSctx, exception) &&
-               JSObjectHasPropertyForKey(JSctx, (JSObjectRef)exception,
+    } else if (JSValueIsObject(JS_CONTEXT, exception) &&
+               JSObjectHasPropertyForKey(JS_CONTEXT, (JSObjectRef)exception,
                                          JSPropertyMessage, NULL)) {
         JSValueRef ref = JSObjectGetPropertyForKey(
-            JSctx, (JSObjectRef)exception, JSPropertyMessage, NULL);
+            JS_CONTEXT, (JSObjectRef)exception, JSPropertyMessage, NULL);
         size_t len = JSStringGetUTF8CString((JSStringRef)ref, page, PAGE_SIZE);
         page[len - 1] = '\n';
         size_t len2 = JSStringGetUTF8CString((JSStringRef)exception, page + len,
                                              PAGE_SIZE - len);
         printf("LEN %li %li\n", len, len2);
         msg = page;
-    } else if (JSValueIsObject(JSctx, exception)) {
-        JSDump(JSctx, exception);
-        JSObjectPropertiesDump(JSctx, (JSObjectRef)exception);
+    } else if (JSValueIsObject(JS_CONTEXT, exception)) {
+        JSDump(JS_CONTEXT, exception);
+        JSObjectPropertiesDump(JS_CONTEXT, (JSObjectRef)exception);
         msg = "see above";
     } else {
-        JSDump(JSctx, exception);
+        JSDump(JS_CONTEXT, exception);
     }
     if (*msg) fprintf(stderr, "JavaScript exception: %s\n", msg);
 }
@@ -137,7 +159,7 @@ void JSExecute(const char* script) {
 
     JSValueRef exception = NULL;
     // Execute script with default options
-    JSEvaluateScript(JSctx, js_code, NULL, NULL, 1, &exception);
+    JSEvaluateScript(JS_CONTEXT, js_code, NULL, NULL, 1, &exception);
     if (exception != NULL) {
         JSReport(exception);
     } else {
@@ -178,9 +200,7 @@ int main(int argc, char** argv) {
         }
     }
 
-    // Initialize runtime components
-    JSGlobalContextRef ctx = JSInit();
-
+    JSInit();
     JSInstallModules();
 
     if (eval_code != NULL) {
@@ -210,6 +230,7 @@ int main(int argc, char** argv) {
 
     POLLoop(POLNever);
 
+    UninstallModules();
     JSClose();
 
     return 0;

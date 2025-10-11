@@ -6,12 +6,16 @@
 #include "JavaScriptCore/JSValueRef.h"
 #include "abc/OK.h"
 
+JSObjectRef UTF8Object = NULL;
+
 void FreeDeallocator(void* bytes, void* deallocatorContext) { free(bytes); }
 
 JSValueRef UTF8En(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
                   size_t argc, const JSValueRef args[], JSValueRef* exception) {
-    if (argc != 1 || !JS_ARG_IS_STRING(0))
-        JS_THROW("utf8.Encode(string)->Uint8Array");
+    if (argc != 1 || !JS_ARG_IS_STRING(0)) {
+        *exception = JSOfCString("utf8.Encode(string)->Uint8Array");
+        return JSValueMakeUndefined(ctx);
+    }
     JSStringRef str = JSValueToStringCopy(ctx, args[0], exception);
     size_t maxSize = JSStringGetMaximumUTF8CStringSize(str);
     char* bytes = malloc(maxSize);
@@ -34,5 +38,8 @@ ok64 UTF8Install() {
     JS_SET_PROPERTY_FN(utf8, "Encode", UTF8En);
     JS_SET_PROPERTY_FN(utf8, "de", UTF8De);
     JS_SET_PROPERTY_FN(utf8, "Decode", UTF8De);
+    UTF8Object = utf8;
     return OK;
 }
+
+ok64 UTF8Uninstall() { return OK; }

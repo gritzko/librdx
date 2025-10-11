@@ -53,10 +53,11 @@ int JSFileFD(JSContextRef ctx, JSObjectRef self, JSValueRef* exception) {
 JSValueRef IOFileWrite(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
                        size_t argc, const JSValueRef args[],
                        JSValueRef* exception) {
-    if (argc == 0) JS_THROW("fo.Write() requires data to write");
+    if (argc == 0) {
+        *exception = JSOfCString("file.write(string|typedarray)");
+        return JSValueMakeUndefined(ctx);
+    }
 
-    void* bytes = NULL;
-    size_t len = 0;
     char page[4096];
 
     int fd = JSFileFD(ctx, self, exception);
@@ -65,13 +66,19 @@ JSValueRef IOFileWrite(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
     u8cs ta;
 
     if (JS_ARG_IS_STRING(0)) {  // TODO io.utf8()
-        len = JSStringGetUTF8CString((JSStringRef)args[0], page, 4096);
+        size_t len = JSStringGetUTF8CString((JSStringRef)args[0], page, 4096);
         if (len > 0) len--;
-        bytes = page;
-        ta[0] = page;
-        ta[1] = page + len;  // FUCKIN FIXME
-    } else if (JS_ARG_IS_TARRAY(0)) {
-        JS_ARG_TA_u8s(0, ta);
+        ta[0] = (u8*)page;
+        ta[1] = (u8*)page + len;  // FUCKIN FIXME
+    } else if (JSValueGetTypedArrayType(ctx, args[0], NULL) !=
+               kJSTypedArrayTypeNone) {
+        ta[0] =
+            JSObjectGetTypedArrayBytesPtr(ctx, (JSObjectRef)args[0], exception);
+        ta[1] = ta[0] + JSObjectGetTypedArrayByteLength(
+                            ctx, (JSObjectRef)args[0], exception);
+    } else {
+        *exception = JSOfCString("file.write(string|typedarray)");
+        return JSValueMakeUndefined(ctx);
     }
 
     int wn = write(fd, ta[0], $len(ta));
@@ -95,12 +102,16 @@ JSValueRef IOFileWrite(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
 JSValueRef IOFileRead(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
                       size_t argc, const JSValueRef args[],
                       JSValueRef* exception) {
-    if (argc == 0) JS_THROW("fo.Write() requires data to write");
-
-    if (!JS_ARG_IS_TARRAY(0)) JS_THROW("not a TypedArray");
+    if (argc == 0 ||
+        JSValueGetTypedArrayType(ctx, args[1], NULL) == kJSTypedArrayTypeNone) {
+        *exception = JSOfCString("Use: file.read(typedarray)");
+        return JSValueMakeUndefined(ctx);
+    }
+    JSObjectRef arg = args[0];
 
     u8s ta = {};
-    JS_ARG_TA_u8s(0, ta);
+    ta[0] = JSObjectGetTypedArrayBytesPtr(ctx, arg, exception);
+    ta[1] = ta[0] + JSObjectGetTypedArrayByteLength(ctx, arg, exception);
 
     int fd = JSFileFD(ctx, self, exception);
     if (fd == -1) return JSValueMakeUndefined(ctx);
@@ -121,20 +132,23 @@ JSValueRef IOFileRead(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
     return num;
 }
 
-JS_DEFINE_FN(io_file_close) {
-    JS_UNPROTECT(self);
-    JS_MAKE_UNDEFINED(u);
-    return u;
+void JSCloseFile(int fd) {
+    JSObjectRef self = JS_FILES[fd];
+    JSValueUnprotect(JS_CONTEXT, self);
+    JS_FILES[fd] = NULL;
+    POLIgnoreEvents(fd);  // only sockets, but who cares
+    close(fd);
 }
+
 JSValueRef IONetClose(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
                       size_t argc, const JSValueRef args[],
                       JSValueRef* exception) {
     int fd = JSFileFD(ctx, self, exception);
-    if (fd == -1) JS_THROW("file.close()");
-    JSValueUnprotect(JSctx, self);
-    JS_FILES[fd] = NULL;
-    POLIgnoreEvents(fd);  // only sockets, but who cares
-    close(fd);
+    if (fd == -1) {
+        *exception = JSOfCString("file.close()");
+    } else {
+        JSCloseFile(fd);
+    }
     return JSValueMakeUndefined(ctx);
 }
 
@@ -144,10 +158,10 @@ int timeout_cb(int fd) {
     if (JSTimer == NULL) return INT32_MAX;
     JSValueRef exception = NULL;  // todo
     JSValueRef ret =
-        JSObjectCallAsFunction(JSctx, JSTimer, NULL, 0, NULL, &exception);
+        JSObjectCallAsFunction(JS_CONTEXT, JSTimer, NULL, 0, NULL, &exception);
     int next = 1000;
-    if (JSValueIsNumber(JSctx, ret)) {
-        next = JSValueToNumber(JSctx, ret, NULL);
+    if (JSValueIsNumber(JS_CONTEXT, ret)) {
+        next = JSValueToNumber(JS_CONTEXT, ret, NULL);
     }
     return next;
 }
@@ -159,9 +173,10 @@ JSValueRef IOTimer(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
     JS_TRACE("IOTimer");
     if (argc < 1 || !JSValueIsObject(ctx, args[0]) ||
         !JSObjectIsFunction(ctx, (JSObjectRef)args[0])) {
-        JS_THROW("io.timer(function)");
+        *exception = JSOfCString("io.timer(function)");
+        return JSValueMakeUndefined(ctx);
     }
-    if (JSTimer != NULL) JSValueUnprotect(JSctx, JSTimer);
+    if (JSTimer != NULL) JSValueUnprotect(JS_CONTEXT, JSTimer);
     JSTimer = (JSObjectRef)args[0];
     POLTrackTime(timeout_cb);
     JSValueProtect(ctx, JSTimer);
@@ -172,9 +187,13 @@ JSValueRef IOTimer(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
 JSValueRef IOWake(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
                   size_t argc, const JSValueRef args[], JSValueRef* exception) {
     if (argc != 1 || !JSValueIsNumber(ctx, args[0])) {
-        JS_THROW("io.wakeTimer(ms)");
+        *exception = JSOfCString("io.wake(ms)");
+        return JSValueMakeUndefined(ctx);
     }
-    if (JSTimer == NULL) JS_THROW("no timer set");
+    if (JSTimer == NULL) {
+        *exception = JSOfCString("no timer set");
+        return JSValueMakeUndefined(ctx);
+    }
     double ms = JSValueToNumber(ctx, args[0], exception);
     // get function
     JSObjectRef fn = (JSObjectRef)args[0];
@@ -192,15 +211,16 @@ JSValueRef IOLog(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
             size_t factlen = JSStringGetUTF8CString(str, bytes, maxSize);
             int n = write(STDERR_FILENO, bytes, factlen);
             free(bytes);
+            JSStringRelease(str);
         } else if (kJSTypedArrayTypeNone !=
                    JSValueGetTypedArrayType(ctx, args[i], exception)) {
-            void* bytes =
-                JSObjectGetTypedArrayBytesPtr(ctx, args[i], exception);
-            size_t len =
-                JSObjectGetTypedArrayByteLength(ctx, args[i], exception);
+            JSObjectRef obj = JSValueToObject(ctx, args[i], NULL);
+            void* bytes = JSObjectGetTypedArrayBytesPtr(ctx, obj, exception);
+            size_t len = JSObjectGetTypedArrayByteLength(ctx, obj, exception);
             int n = write(STDERR_FILENO, bytes, len);
         } else {
-            JS_THROW("io.log( (string|typedarray)* )");
+            *exception = JSOfCString("io.log( (string|typedarray)* )");
+            return JSValueMakeUndefined(ctx);
         }
     }
     write(STDERR_FILENO, "\n", 1);
@@ -226,9 +246,9 @@ short IONetOnEvent(int fd, struct poller* p) {
     JSObjectRef file = JS_FILES[fd];
     if (file == NULL) return 0;  //?
     JSValueRef fnv = JSObjectGetPropertyForKey(
-        JSctx, file, JSValueMakeString(JSctx, JS_KEY_IO), NULL);
-    if (fnv == NULL || !JSValueIsObject(JSctx, fnv) ||
-        !JSObjectIsFunction(JSctx, (JSObjectRef)fnv)) {
+        JS_CONTEXT, file, JSValueMakeString(JS_CONTEXT, JS_KEY_IO), NULL);
+    if (fnv == NULL || !JSValueIsObject(JS_CONTEXT, fnv) ||
+        !JSObjectIsFunction(JS_CONTEXT, (JSObjectRef)fnv)) {
         p->events = 0;
         return 0;
     }
@@ -236,7 +256,7 @@ short IONetOnEvent(int fd, struct poller* p) {
     JSValueRef exception = NULL;
 
     if (!(p->revents & (POLLIN | POLLOUT))) {
-        JSValueRef arg = JSValueMakeString(JSctx, JS_STATUS_ERROR);
+        JSValueRef arg = JSValueMakeString(JS_CONTEXT, JS_STATUS_ERROR);
         int err = 0;
         socklen_t errlen = sizeof(err);
         getsockopt(fd, SOL_SOCKET, SO_ERROR, &err, &errlen);
@@ -244,20 +264,20 @@ short IONetOnEvent(int fd, struct poller* p) {
             arg = JSOfCString(strerror(err));
         }
         p->events = 0;
-        JSObjectCallAsFunction(JSctx, fn, file, 1, &arg, NULL);
-        IONetClose(JSctx, NULL, file, 0, NULL, &exception);
+        JSObjectCallAsFunction(JS_CONTEXT, fn, file, 1, &arg, NULL);
+        IONetClose(JS_CONTEXT, NULL, file, 0, NULL, &exception);
         if (exception) JSReport(exception), exception = NULL;
     }
     if (p->revents & POLLIN) {
-        JSValueRef arg = JSValueMakeString(JSctx, JS_STATUS_READ);
+        JSValueRef arg = JSValueMakeString(JS_CONTEXT, JS_STATUS_READ);
         p->events &= ~POLLIN;
-        JSObjectCallAsFunction(JSctx, fn, file, 1, &arg, &exception);
+        JSObjectCallAsFunction(JS_CONTEXT, fn, file, 1, &arg, &exception);
         if (exception) JSReport(exception), exception = NULL;
     }
     if (p->revents & POLLOUT) {
-        JSValueRef arg = JSValueMakeString(JSctx, JS_STATUS_WRITE);
+        JSValueRef arg = JSValueMakeString(JS_CONTEXT, JS_STATUS_WRITE);
         p->events &= ~POLLOUT;
-        JSObjectCallAsFunction(JSctx, fn, file, 1, &arg, &exception);
+        JSObjectCallAsFunction(JS_CONTEXT, fn, file, 1, &arg, &exception);
         if (exception) JSReport(exception), exception = NULL;
     }
 
@@ -290,7 +310,8 @@ JSValueRef IONetConnect(JSContextRef ctx, JSObjectRef function,
                         JSValueRef* exception) {
     if (argc < 2 || !JSValueIsObject(ctx, args[1]) ||
         !JSObjectIsFunction(ctx, (JSObjectRef)args[1])) {
-        JS_THROW("io.connect('google.com:80', function)");
+        *exception = JSOfCString("io.connect('google.com:80', function)");
+        return JSValueMakeUndefined(ctx);
     }
     JSStringRef address = args[0];
     JSObjectRef callback = (JSObjectRef)args[1];
@@ -310,7 +331,7 @@ JSValueRef IONetConnect(JSContextRef ctx, JSObjectRef function,
     POLTrackEvents(cfd, p);
 
     JSObjectRef file = JSMakeFile(cfd, exception);
-    JSObjectSetProperty(JSctx, file, JS_KEY_IO, callback,
+    JSObjectSetProperty(JS_CONTEXT, file, JS_KEY_IO, callback,
                         kJSPropertyAttributeNone, NULL);
 
     return file;
@@ -321,16 +342,16 @@ JSObjectRef JSMakeFile(int fd, JSValueRef* exception) {
         *exception = JSOfCString("file descriptor out of bound");
         return NULL;
     }
-    JSObjectRef fileObject = JSObjectMake(JSctx, JSIOFileClass, NULL);
+    JSObjectRef fileObject = JSObjectMake(JS_CONTEXT, JSIOFileClass, NULL);
     JSObjectSetPrivate(fileObject, JS_FILES + fd);
     JS_FILES[fd] = fileObject;
-    JSValueProtect(JSctx, fileObject);
+    JSValueProtect(JS_CONTEXT, fileObject);
     return fileObject;
 }
 
 inline JSValueRef JSOfCString(const char* str) {
     JSStringRef tmp = JSStringCreateWithUTF8CString(str);
-    JSValueRef n = JSValueMakeString(JSctx, tmp);
+    JSValueRef n = JSValueMakeString(JS_CONTEXT, tmp);
     JSStringRelease(tmp);
     return n;
 }
@@ -341,7 +362,6 @@ JSValueRef IOStdio(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
                    int which) {
     if (IO_STD[which] == NULL) {
         JSObjectRef fileObject = JSMakeFile(which, exception);
-        JS_PROTECT(fileObject);
         poller p = {
             .callback = io_callback, .payload = fileObject, .timeout_ms = 1000};
         ok64 o = POLTrackEvents(which, p);
@@ -370,7 +390,10 @@ void MMapDeallocator(void* bytes, void* deallocatorContext) {
 JSValueRef IOFileMap(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
                      size_t argc, const JSValueRef args[],
                      JSValueRef* exception) {
-    if (!JSValueIsString(ctx, args[0])) JS_THROW("no path");
+    if (!JSValueIsString(ctx, args[0])) {
+        *exception = JSOfCString("io.mmap(path)");
+        return JSValueMakeUndefined(ctx);
+    }
 
     u8 page[PAGESIZE];
     size_t len =
@@ -379,13 +402,11 @@ JSValueRef IOFileMap(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
     Bu8 buf = {};
     u8csc path = {page, page + len - 1};
     ok64 o = FILEmapro(buf, path);
-    JSObjectRef fileObject = JSObjectMake(JSctx, JSIOMapClass, NULL);
+    JSObjectRef fileObject = JSObjectMake(JS_CONTEXT, JSIOMapClass, NULL);
     JSValueRef ta = JSObjectMakeTypedArrayWithBytesNoCopy(
         ctx, kJSTypedArrayTypeUint8Array, buf[0], Bsize(buf), MMapDeallocator,
         buf[3], exception);
-    if (*exception != NULL) {
-        JS_THROW("no typed array for you");
-    }
+    if (*exception != NULL) return JSValueMakeUndefined(ctx);
     JSObjectSetPropertyForKey(ctx, fileObject, JSOfCString("buf"), ta,
                               kJSPropertyAttributeReadOnly, exception);
     return fileObject;
@@ -433,7 +454,7 @@ ok64 IOInstall() {
     JS_SET_PROPERTY_FN(io, "stdIn", IOStdIn);
     JS_SET_PROPERTY_FN(io, "stdErr", IOStdErr);
     JS_SET_PROPERTY_FN(io, "stdOut", IOStdOut);
-    JS_SET_PROPERTY_FN(io, "mapFile", IOFileMap);
+    JS_SET_PROPERTY_FN(io, "mmap", IOFileMap);
     JS_SET_PROPERTY_FN(io, "timer", IOTimer);
     JS_SET_PROPERTY_FN(io, "wake", IOWake);
     JS_SET_PROPERTY_FN(io, "log", IOLog);
@@ -455,10 +476,32 @@ ok64 IOInstall() {
     return OK;
 }
 
-ok64 io_uninstall() {
+ok64 IOUninstall() {
     JSClassRelease(JSIOFileClass);
     JSClassRelease(JSIOMapClass);
     JSStringRelease(JS_KEY_IO);
-    // etc
+    JSStringRelease(JS_STATUS_ERROR);
+    JSStringRelease(JS_STATUS_READ);
+    JSStringRelease(JS_STATUS_WRITE);
+    JSStringRelease(JS_STATUS_READWRITE);
+    JSValueUnprotect(JS_CONTEXT, IO_STD[0]);
+    JSValueUnprotect(JS_CONTEXT, IO_STD[1]);
+    JSValueUnprotect(JS_CONTEXT, IO_STD[2]);
+    IO_STD[0] = NULL;
+    IO_STD[1] = NULL;
+    IO_STD[2] = NULL;
+    JS_KEY_IO = NULL;
+    JS_STATUS_ERROR = NULL;
+    JS_STATUS_READ = NULL;
+    JS_STATUS_WRITE = NULL;
+    JS_STATUS_READWRITE = NULL;
+    JSIOFileClass = NULL;
+    JSIOMapClass = NULL;
+
+    for (int i = 0; i < POLMaxFiles(); i++)
+        if (JS_FILES[i] != NULL) {
+            JSCloseFile(i);
+        }
+    POLFree();
     return OK;
 }

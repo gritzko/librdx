@@ -55,6 +55,7 @@ ok64 POLFree() {
     Bpollerfree(POL_FILES);
     Bi32free(POL_QUEUE);
     free(POL_VEC);
+    POL_VEC = NULL;
     return OK;
 }
 

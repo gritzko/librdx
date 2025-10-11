@@ -8,8 +8,8 @@
 #include "JavaScriptCore/JSValueRef.h"
 #include "JavaScriptCore/JavaScript.h"
 
-extern thread_local JSGlobalContextRef JSctx;
-extern thread_local JSObjectRef JSglobal;
+extern thread_local JSGlobalContextRef JS_CONTEXT;
+extern thread_local JSObjectRef JS_GLOBAL_OBJECT;
 
 #define JS_DEFINE_FN(fn)                                                    \
     JSValueRef fn(JSContextRef ctx, JSObjectRef function, JSObjectRef self, \
@@ -24,14 +24,6 @@ extern thread_local JSObjectRef JSglobal;
     JSStringRef var = JSValueToStringCopy(ctx, args[n], exception);
 
 #define JS_TRACE(str) fprintf(stderr, "%s:%i\t%s\n", __FILE__, __LINE__, str);
-
-#define JS_THROW(msg)                                            \
-    {                                                            \
-        JSStringRef errMsg = JSStringCreateWithUTF8CString(msg); \
-        *exception = JSValueMakeString(ctx, errMsg);             \
-        JSStringRelease(errMsg);                                 \
-        return JSValueMakeUndefined(ctx);                        \
-    }
 
 #define JS_ARG_TA_u8s(n, ta)                                                   \
     ta[0] =                                                                    \
@@ -56,8 +48,7 @@ extern thread_local JSObjectRef JSglobal;
     JSClassDefinition n##ClassDef = kJSClassDefinitionEmpty; \
     n##ClassDef.className = #n;                              \
     n##ClassDef.finalize = f;                                \
-    JSClassRef n = JSClassCreate(&n##ClassDef);              \
-    JSClassRetain(n);
+    JSClassRef n = JSClassCreate(&n##ClassDef);
 
 #define JS_PROTECT(obj) JSValueProtect(ctx, obj)
 #define JS_UNPROTECT(obj) JSValueUnprotect(ctx, obj)
@@ -71,22 +62,23 @@ extern thread_local JSObjectRef JSglobal;
 
 #define JS_TO_NUMBER(n, val) double n = JSValueToNumber(ctx, val, exception);
 
-#define JS_API_OBJECT(o, n)                                    \
-    JSObjectRef o = JSObjectMake(JSctx, NULL, NULL);           \
-    {                                                          \
-        JSStringRef ioName = JSStringCreateWithUTF8CString(n); \
-        JSObjectSetProperty(JSctx, JSglobal, ioName, o,        \
-                            kJSPropertyAttributeNone, NULL);   \
-        JSStringRelease(ioName);                               \
+#define JS_API_OBJECT(o, n)                                          \
+    JSObjectRef o = JSObjectMake(JS_CONTEXT, NULL, NULL);            \
+    {                                                                \
+        JSStringRef ioName = JSStringCreateWithUTF8CString(n);       \
+        JSObjectSetProperty(JS_CONTEXT, JS_GLOBAL_OBJECT, ioName, o, \
+                            kJSPropertyAttributeNone, NULL);         \
+        JSStringRelease(ioName);                                     \
     }
 
-#define JS_SET_PROPERTY_FN(o, n, f)                                         \
-    {                                                                       \
-        JSStringRef fn = JSStringCreateWithUTF8CString(n);                  \
-        JSObjectSetProperty(JSctx, o, fn,                                   \
-                            JSObjectMakeFunctionWithCallback(JSctx, fn, f), \
-                            kJSPropertyAttributeNone, NULL);                \
-        JSStringRelease(fn);                                                \
+#define JS_SET_PROPERTY_FN(o, n, f)                              \
+    {                                                            \
+        JSStringRef fn = JSStringCreateWithUTF8CString(n);       \
+        JSObjectSetProperty(                                     \
+            JS_CONTEXT, o, fn,                                   \
+            JSObjectMakeFunctionWithCallback(JS_CONTEXT, fn, f), \
+            kJSPropertyAttributeNone, NULL);                     \
+        JSStringRelease(fn);                                     \
     }
 
 #define JS_ADD_METHOD(o, n, fn)                                  \
