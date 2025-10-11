@@ -12,9 +12,9 @@ con ok64 UDPfail = 0x1e359aa5b70;
         name[l] = 0;               \
     }
 
-ok64 UDPbind(int *fd, NETaddr addr);
+ok64 UDPBind(int *fd, u8cs addr);
 
-ok64 UDPconnect(int *fd, NETaddr addr);
+ok64 UDPConnect(int *fd, u8cs addr);
 
 fun ok64 UDPdrain($u8 into, NETaddr addr, int fd) {
     socklen_t len = Blen(addr);

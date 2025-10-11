@@ -1,23 +1,19 @@
 #include "UDP.h"
 
-#include <stdlib.h>
-
 #include "FILE.h"
-#include "INT.h"
 #include "NET.h"
 #include "PRO.h"
-#include "TEST.h"
 
 pro(UDPtest1) {
     sane(1);
 
-    aNETAddress(addr, "127.0.0.1", "1234");
+    a$str(addr, "udp://127.0.0.1:3456");
 
     int fd;
-    call(UDPbind, &fd, addr);
+    call(UDPBind, &fd, addr);
 
     int cfd;
-    call(UDPconnect, &cfd, addr);
+    call(UDPConnect, &cfd, addr);
 
     a$str(bubu, "BuBu");
     call(FILEFeedall, cfd, bubu);

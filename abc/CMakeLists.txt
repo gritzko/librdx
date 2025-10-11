@@ -83,6 +83,7 @@ POL.c
 SORT.c
 URI.rl.c
 URI.c
+NET.c
 HTTP.rl.c
 HTTP.c
 TCP.c

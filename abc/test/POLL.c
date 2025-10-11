@@ -21,11 +21,9 @@ ok64 funIcount(POLLctl* ctl) {
 
 pro(POLLtest1) {
     sane(1);
-    char port[16];
-    sprintf(port, "%d", NETrandomport());
-    aNETAddress(addr, "127.0.0.1", port);
+    a$strc(addr, "tcp://127.0.0.1:23456");
     int sfd;
-    call(TCPBind, &sfd, addr);
+    call(TCPListen, &sfd, addr);
     int cfd;
     call(TCPConnect, &cfd, addr, 0);
     int scfd;

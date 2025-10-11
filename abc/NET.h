@@ -13,6 +13,7 @@
 
 con ok64 NETbadaddr = 0x5ce766968968a36;
 con ok64 NETnospace = 0x5ce772cf7d259e9;
+con ok64 NETnone = 0x1739dcb3ca9;
 
 typedef Bu8 NETaddr;
 #define NEThost(a) Bu8past(a)
@@ -24,7 +25,7 @@ typedef Bu8 NETaddr;
 
 #define aNETraw(name) aBpad(u8, name, 128);
 
-#define aNETAddress(name, host, port)            \
+#define aNETAddress(name, host, port)         \
     aBpad(u8, name, NETmaxhost + NETmaxserv); \
     {                                         \
         int hl = strlen(host) + 1;            \
@@ -38,8 +39,8 @@ typedef Bu8 NETaddr;
 fun ok64 NETinfo(NETaddr text, NETaddr raw) {
     char host[NETmaxhost], service[NETmaxserv];
     u8$ addr = NETraw(raw);
-    int s = getnameinfo((struct sockaddr *)addr[0], $len(addr), host,
-                        NETmaxhost, service, NETmaxserv, NI_NUMERICSERV);
+    int s = getnameinfo((struct sockaddr*)addr[0], $len(addr), host, NETmaxhost,
+                        service, NETmaxserv, NI_NUMERICSERV);
     if (s != 0) {
         return NETbadaddr;
     }
@@ -56,6 +57,18 @@ fun int NETrandomport() {
     ret += (int)(time(nil) % 10000);
     ret += 10 * (getpid() % 1000);
     return ret;
+}
+
+//  tcp://1.2.3.4:8080
+//  udp://5.5.5.5:domain
+//  http://server/path
+ok64 NETParseAddress(struct addrinfo** result, u8cs address, b8 stream);
+
+fun ok64 NETFreeAddress(struct addrinfo** addr) {
+    if (*addr == NULL) return NETnone;
+    freeaddrinfo(*addr);
+    *addr = NULL;
+    return OK;
 }
 
 #endif

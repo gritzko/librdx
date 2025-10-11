@@ -76,8 +76,11 @@ ok64 zfn($cu8c cases) {
 
 pro(RDXZtest) {
     aBpad(u8cs, zcases, 256);
+    zcasesdata = Bdata(zcases);
+    zcasesidle = Bidle(zcases);
     sane(1);
     a$rg(path, 1);
+    $println(path);
     Bu8 rdxjbuf = {};
     call(FILEmapro, rdxjbuf, path);
     call(UNITdrain, rdxjbuf, zfn);

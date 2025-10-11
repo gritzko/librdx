@@ -20,13 +20,10 @@ void garble($u8 data) {
 pro(TCPtest1) {
     sane(1);
 
-    char port[16];
-    sprintf(port, "%d", NETrandomport());
-    aNETAddress(addr, "127.0.0.1", port);
-    $println(Bu8cdata(addr));
+    a$strc(addr, "tcp://127.0.0.1:12345");
 
     int fd;
-    call(TCPBind, &fd, addr);
+    call(TCPListen, &fd, addr);
 
     int cfd;
     call(TCPConnect, &cfd, addr, 0);

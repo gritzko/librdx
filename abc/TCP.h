@@ -5,9 +5,8 @@
 
 con ok64 TCPfail = 0x1d319aa5b70;
 
-ok64 TCPBind(int *fd, NETaddr addr);
-
-ok64 TCPConnect(int *fd, NETaddr addr, b8 nonblocking);
+ok64 TCPListen(int *fd, u8cs addr);
+ok64 TCPConnect(int *fd, u8cs addr, b8 nonblocking);
 
 fun ok64 TCPAccept(int *cfd, NETaddr addr, int sfd) {
     socklen_t len = Blen(addr);
