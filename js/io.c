@@ -184,16 +184,27 @@ JSValueRef IOWake(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
 
 JSValueRef IOLog(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
                  size_t argc, const JSValueRef args[], JSValueRef* exception) {
-    if (argc != 1 || !JSValueIsString(ctx, args[0])) {
-        JS_THROW("io.log(string)");
+    for (int i = 0; i < argc; i++) {
+        if (JSValueIsString(ctx, args[i])) {
+            JSStringRef str = JSValueToStringCopy(ctx, args[0], exception);
+            size_t maxSize = JSStringGetMaximumUTF8CStringSize(str);
+            char* bytes = malloc(maxSize);
+            size_t factlen = JSStringGetUTF8CString(str, bytes, maxSize);
+            int n = write(STDERR_FILENO, bytes, factlen);
+            free(bytes);
+        } else if (kJSTypedArrayTypeNone !=
+                   JSValueGetTypedArrayType(ctx, args[i], exception)) {
+            void* bytes =
+                JSObjectGetTypedArrayBytesPtr(ctx, args[i], exception);
+            size_t len =
+                JSObjectGetTypedArrayByteLength(ctx, args[i], exception);
+            int n = write(STDERR_FILENO, bytes, len);
+        } else {
+            JS_THROW("io.log( (string|typedarray)* )");
+        }
     }
-    JSStringRef str = JSValueToStringCopy(ctx, args[0], exception);
-    size_t maxSize = JSStringGetMaximumUTF8CStringSize(str);
-    char* bytes = malloc(maxSize);
-    size_t factlen = JSStringGetUTF8CString(str, bytes, maxSize);
-    fputs(bytes, stderr);
-    fputc('\n', stderr);
-    free(bytes);
+    write(STDERR_FILENO, "\n", 1);
+    fsync(STDERR_FILENO);
     return JSValueMakeUndefined(ctx);
 }
 
@@ -222,6 +233,7 @@ short IONetOnEvent(int fd, struct poller* p) {
         return 0;
     }
     JSObjectRef fn = (JSObjectRef)fnv;
+    JSValueRef exception = NULL;
 
     if (!(p->revents & (POLLIN | POLLOUT))) {
         JSValueRef arg = JSValueMakeString(JSctx, JS_STATUS_ERROR);
@@ -233,17 +245,20 @@ short IONetOnEvent(int fd, struct poller* p) {
         }
         p->events = 0;
         JSObjectCallAsFunction(JSctx, fn, file, 1, &arg, NULL);
-        IONetClose(JSctx, NULL, file, 0, NULL, NULL);
+        IONetClose(JSctx, NULL, file, 0, NULL, &exception);
+        if (exception) JSReport(exception), exception = NULL;
     }
     if (p->revents & POLLIN) {
         JSValueRef arg = JSValueMakeString(JSctx, JS_STATUS_READ);
         p->events &= ~POLLIN;
-        JSObjectCallAsFunction(JSctx, fn, file, 1, &arg, NULL);
+        JSObjectCallAsFunction(JSctx, fn, file, 1, &arg, &exception);
+        if (exception) JSReport(exception), exception = NULL;
     }
     if (p->revents & POLLOUT) {
         JSValueRef arg = JSValueMakeString(JSctx, JS_STATUS_WRITE);
         p->events &= ~POLLOUT;
-        JSObjectCallAsFunction(JSctx, fn, file, 1, &arg, NULL);
+        JSObjectCallAsFunction(JSctx, fn, file, 1, &arg, &exception);
+        if (exception) JSReport(exception), exception = NULL;
     }
 
     return p->events;  //?
