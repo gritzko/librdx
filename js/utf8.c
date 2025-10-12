@@ -2,6 +2,7 @@
 
 #include "JS.h"
 #include "JavaScriptCore/JSBase.h"
+#include "JavaScriptCore/JSStringRef.h"
 #include "JavaScriptCore/JSTypedArray.h"
 #include "JavaScriptCore/JSValueRef.h"
 #include "abc/OK.h"
@@ -10,8 +11,9 @@ JSObjectRef UTF8Object = NULL;
 
 void FreeDeallocator(void* bytes, void* deallocatorContext) { free(bytes); }
 
-JSValueRef UTF8En(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
-                  size_t argc, const JSValueRef args[], JSValueRef* exception) {
+JSValueRef JARutf8Encode(JSContextRef ctx, JSObjectRef function,
+                         JSObjectRef self, size_t argc, const JSValueRef args[],
+                         JSValueRef* exception) {
     if (argc != 1 || !JS_ARG_IS_STRING(0)) {
         *exception = JSOfCString("utf8.Encode(string)->Uint8Array");
         return JSValueMakeUndefined(ctx);
@@ -26,20 +28,52 @@ JSValueRef UTF8En(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
     return ta2;
 }
 
-JSValueRef UTF8De(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
-                  size_t argc, const JSValueRef args[], JSValueRef* exception) {
+JSValueRef JARutf8Decode(JSContextRef ctx, JSObjectRef function,
+                         JSObjectRef self, size_t argc, const JSValueRef args[],
+                         JSValueRef* exception) {
     JSValueRef n = JSValueMakeUndefined(ctx);
     return n;
 }
 
-ok64 UTF8Install() {
+ok64 JSu8BString(JSStringRef str, u8B into) {
+    u8sp idle = Bidle(into);
+    size_t fact = JSStringGetUTF8CString(str, (char*)*idle, $len(idle));
+    if (fact < 1) return badarg;
+    idle[0] += fact - 1;
+    return OK;
+}
+
+ok64 JARutf8BFeedValueRef(u8B into, JSContextRef ctx, JSValueRef val) {
+    JSStringRef str = JSValueToStringCopy(ctx, val, NULL);
+    ok64 o = JSu8BString(str, into);
+    JSStringRelease(str);
+    return o;
+}
+
+JSValueRef JSOfCString(utf8cp str) {
+    JSStringRef tmp = JSStringCreateWithUTF8CString(str);
+    JSValueRef n = JSValueMakeString(JS_CONTEXT, tmp);
+    JSStringRelease(tmp);
+    return n;
+}
+
+// Utility: Convert JSStringRef to null-terminated C string
+char* JSStringRefToCString(JSStringRef str) {
+    size_t maxSize = JSStringGetMaximumUTF8CStringSize(str);
+    char* buffer = (char*)malloc(maxSize);
+    if (!buffer) return NULL;
+    JSStringGetUTF8CString(str, buffer, maxSize);
+    return buffer;
+}
+
+ok64 JARutf8Install() {
     JS_API_OBJECT(utf8, "utf8");
-    JS_SET_PROPERTY_FN(utf8, "en", UTF8En);
-    JS_SET_PROPERTY_FN(utf8, "Encode", UTF8En);
-    JS_SET_PROPERTY_FN(utf8, "de", UTF8De);
-    JS_SET_PROPERTY_FN(utf8, "Decode", UTF8De);
+    JS_SET_PROPERTY_FN(utf8, "en", JARutf8Encode);
+    JS_SET_PROPERTY_FN(utf8, "Encode", JARutf8Encode);
+    JS_SET_PROPERTY_FN(utf8, "de", JARutf8Decode);
+    JS_SET_PROPERTY_FN(utf8, "Decode", JARutf8Decode);
     UTF8Object = utf8;
     return OK;
 }
 
-ok64 UTF8Uninstall() { return OK; }
+ok64 JARutf8Uninstall() { return OK; }

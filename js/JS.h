@@ -4,9 +4,8 @@
 #include <threads.h>
 
 #include "JavaScriptCore/JSBase.h"
-#include "JavaScriptCore/JSTypedArray.h"
-#include "JavaScriptCore/JSValueRef.h"
-#include "JavaScriptCore/JavaScript.h"
+#include "JavaScriptCore/JSObjectRef.h"
+#include "abc/BUF.h"
 
 extern thread_local JSGlobalContextRef JS_CONTEXT;
 extern thread_local JSObjectRef JS_GLOBAL_OBJECT;
@@ -91,9 +90,13 @@ extern thread_local JSObjectRef JS_GLOBAL_OBJECT;
         JSStringRelease(someName);                               \
     }
 
+JSValueRef JARutf8cpMakeValueRef(JSContextRef ctx, utf8cp str);
+ok64 JARutf8BFeedStringRef(u8B into, JSStringRef str);
+ok64 JARutf8BFeedValueRef(u8B into, JSContextRef ctx, JSValueRef val);
+
 JSValueRef JSOfCString(const char* str);
 
-void JSExecute(const char* script);
-void JSReport(JSValueRef exception);
+void JARExecute(const char* script);
+void JARReport(JSValueRef exception);
 
 #endif

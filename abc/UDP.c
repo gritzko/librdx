@@ -38,7 +38,7 @@ ok64 UDPConnect(int *fd, u8cs addr) {
     int sfd, s;
     size_t len;
     ssize_t nread;
-    struct addrinfo *result, *rp;
+    struct addrinfo *result = NULL, *rp;
 
     call(NETParseAddress, &result, addr, NO);
 

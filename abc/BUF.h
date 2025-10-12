@@ -120,11 +120,11 @@ fun void Bitunset(Bu8 buf, size_t ndx) {
     u8cssp n##$idle = Bu8csidle(n##$buf);               \
     u8cssp n##$data = u8csB_data(n##$buf);
 
-#define $$call(fn, n, ...)               \
-    {                                    \
-        u8cs _s = {n##idle[0]};          \
-        call(fn, n##idle, __VA_ARGS__);  \
-        _s[1] = n##idle[0];              \
+#define $$call(fn, n, ...)              \
+    {                                   \
+        u8cs _s = {n##idle[0]};         \
+        call(fn, n##idle, __VA_ARGS__); \
+        _s[1] = n##idle[0];             \
         call(u8cssFeed1, n##$idle, _s); \
     }
 
@@ -171,5 +171,11 @@ fun ok64 $u8feedcn($u8 into, u8 what, size_t n) {
     *into += n;
     return OK;
 }
+
+typedef char utf8;
+fun int utf8cmp(utf8 const *a, utf8 const *b) { return $cmp(a, b); }
+#define X(M, name) M##utf8##name
+#include "Bx.h"
+#undef X
 
 #endif

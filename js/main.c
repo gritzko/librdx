@@ -36,26 +36,26 @@ JSGlobalContextRef JSInit() {
     return JS_CONTEXT;
 }
 
-ok64 IOInstall();
-ok64 IOUninstall();
-ok64 UTF8Install();
-ok64 UTF8Uninstall();
+ok64 JARioInstall();
+ok64 JARioUninstall();
+ok64 JARutf8Install();
+ok64 JARutf8Uninstall();
 
-ok64 JSInstallModules() {
+ok64 JARInstallModules() {
     sane(1);
-    call(IOInstall);
-    call(UTF8Install);
+    call(JARioInstall);
+    call(JARutf8Install);
     done;
 }
 
-ok64 UninstallModules() {
+ok64 JARUninstallModules() {
     sane(1);
-    call(IOUninstall);
-    call(UTF8Uninstall);
+    call(JARioUninstall);
+    call(JARutf8Uninstall);
     done;
 }
 
-void JSClose() {
+void JARClose() {
     JSValueUnprotect(JS_CONTEXT, JSPropertyStack);
     JSValueUnprotect(JS_CONTEXT, JSPropertyMessage);
     JSGlobalContextRelease(JS_CONTEXT);
@@ -65,14 +65,7 @@ void JSClose() {
     JSPropertyStack = NULL;
 }
 
-// Utility: Convert JSStringRef to null-terminated C string
-char* JSStringRefToCString(JSStringRef str) {
-    size_t maxSize = JSStringGetMaximumUTF8CStringSize(str);
-    char* buffer = (char*)malloc(maxSize);
-    if (!buffer) return NULL;
-    JSStringGetUTF8CString(str, buffer, maxSize);
-    return buffer;
-}
+char* JSStringRefToCString(JSStringRef str);
 
 // Main: Dump all enumerable properties of a JS object
 void JSObjectPropertiesDump(JSContextRef ctx, const JSObjectRef obj) {
@@ -103,7 +96,7 @@ void JSObjectPropertiesDump(JSContextRef ctx, const JSObjectRef obj) {
     JSPropertyNameArrayRelease(props);
 }
 
-void JSDump(JSContextRef ctx, JSValueRef exception) {
+void JARDump(JSContextRef ctx, JSValueRef exception) {
     JSStringRef errorStr = JSValueToStringCopy(ctx, exception, NULL);
     size_t errorSize = JSStringGetMaximumUTF8CStringSize(errorStr);
     char* errorUTF8 = (char*)malloc(errorSize);
@@ -115,7 +108,7 @@ void JSDump(JSContextRef ctx, JSValueRef exception) {
     JSStringRelease(errorStr);
 }
 
-void JSReport(JSValueRef exception) {
+void JARReport(JSValueRef exception) {
     JS_TRACE("something is wrong");
     char page[PAGE_SIZE], *msg;
     if (JSValueIsString(JS_CONTEXT, exception)) {
@@ -143,16 +136,16 @@ void JSReport(JSValueRef exception) {
         printf("LEN %li %li\n", len, len2);
         msg = page;
     } else if (JSValueIsObject(JS_CONTEXT, exception)) {
-        JSDump(JS_CONTEXT, exception);
+        JARDump(JS_CONTEXT, exception);
         JSObjectPropertiesDump(JS_CONTEXT, (JSObjectRef)exception);
         msg = "see above";
     } else {
-        JSDump(JS_CONTEXT, exception);
+        JARDump(JS_CONTEXT, exception);
     }
     if (*msg) fprintf(stderr, "JavaScript exception: %s\n", msg);
 }
 
-void JSExecute(const char* script) {
+void JARExecute(const char* script) {
     fprintf(stderr, "Starting:\n%s\n", script);
     // Convert C string to JSC string
     JSStringRef js_code = JSStringCreateWithUTF8CString(script);
@@ -161,7 +154,7 @@ void JSExecute(const char* script) {
     // Execute script with default options
     JSEvaluateScript(JS_CONTEXT, js_code, NULL, NULL, 1, &exception);
     if (exception != NULL) {
-        JSReport(exception);
+        JARReport(exception);
     } else {
         fprintf(stderr, "Finished normally\n");
     }
@@ -171,7 +164,7 @@ void JSExecute(const char* script) {
 }
 
 #define HELP_BOILERPLATE ""
-#define VERSION_BOILERPLATE ""
+#define VERSJARIoN_BOILERPLATE ""
 
 u8 _pro_depth = 0;
 
@@ -182,7 +175,7 @@ int main(int argc, char** argv) {
     // Parse command-line arguments
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--version") == 0) {
-            fprintf(stderr, VERSION_BOILERPLATE);
+            fprintf(stderr, VERSJARIoN_BOILERPLATE);
             return 0;
         } else if (strcmp(argv[i], "--help") == 0) {
             fprintf(stderr, HELP_BOILERPLATE);
@@ -201,10 +194,10 @@ int main(int argc, char** argv) {
     }
 
     JSInit();
-    JSInstallModules();
+    JARInstallModules();
 
     if (eval_code != NULL) {
-        JSExecute(eval_code);
+        JARExecute(eval_code);
     }
 
     // Handle script file
@@ -223,15 +216,15 @@ int main(int argc, char** argv) {
         script[len] = '\0';
         fclose(f);
 
-        JSExecute(script);
+        JARExecute(script);
 
         free(script);
     }
 
     POLLoop(POLNever);
 
-    UninstallModules();
-    JSClose();
+    JARUninstallModules();
+    JARClose();
 
     return 0;
 }
