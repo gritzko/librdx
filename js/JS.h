@@ -90,13 +90,13 @@ extern thread_local JSObjectRef JS_GLOBAL_OBJECT;
         JSStringRelease(someName);                               \
     }
 
-JSValueRef JARutf8cpMakeValueRef(JSContextRef ctx, utf8cp str);
-ok64 JARutf8BFeedStringRef(u8B into, JSStringRef str);
-ok64 JARutf8BFeedValueRef(u8B into, JSContextRef ctx, JSValueRef val);
+JSValueRef JABCutf8cpMakeValueRef(JSContextRef ctx, utf8cp str);
+ok64 JABCutf8BFeedStringRef(u8B into, JSStringRef str);
+ok64 JABCutf8BFeedValueRef(u8B into, JSContextRef ctx, JSValueRef val);
 
 JSValueRef JSOfCString(const char* str);
 
-void JARExecute(const char* script);
-void JARReport(JSValueRef exception);
+void JABCExecute(const char* script);
+void JABCReport(JSValueRef exception);
 
 #endif

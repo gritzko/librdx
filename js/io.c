@@ -23,10 +23,10 @@ short io_callback(int fd, poller* p) { return 0; }
 void io_file_finalize(JSObjectRef object) {}
 void io_map_finalize(JSObjectRef object) {}
 
-static JSClassRef JAR_IO_FILE_CLASS = NULL;
-static JSClassRef JAR_IO_MAP_CLASS = NULL;
+static JSClassRef JABC_IO_FILE_CLASS = NULL;
+static JSClassRef JABC_IO_MAP_CLASS = NULL;
 
-static JSStringRef JS_KEY_JARio = NULL;
+static JSStringRef JS_KEY_JABCio = NULL;
 
 static JSStringRef JS_STATUS_READ = NULL;
 static JSStringRef JS_STATUS_WRITE = NULL;
@@ -35,21 +35,21 @@ static JSStringRef JS_STATUS_ERROR = NULL;
 
 thread_local JSObjectRef* JS_FILES;
 
-JSObjectRef JARio_STD[3];
+JSObjectRef JABCio_STD[3];
 
-JSObjectRef JARioMakeFileObject(int fd, JSValueRef* exception) {
+JSObjectRef JABCioMakeFileObject(int fd, JSValueRef* exception) {
     if (fd >= POLMaxFiles()) {
         *exception = JSOfCString("file descriptor out of bound");
         return NULL;
     }
-    JSObjectRef fileObject = JSObjectMake(JS_CONTEXT, JAR_IO_FILE_CLASS, NULL);
+    JSObjectRef fileObject = JSObjectMake(JS_CONTEXT, JABC_IO_FILE_CLASS, NULL);
     JSObjectSetPrivate(fileObject, JS_FILES + fd);
     JS_FILES[fd] = fileObject;
     JSValueProtect(JS_CONTEXT, fileObject);
     return fileObject;
 }
 
-int JARioFileGetDescriptor(JSContextRef ctx, JSObjectRef self,
+int JABCioFileGetDescriptor(JSContextRef ctx, JSObjectRef self,
                            JSValueRef* exception) {
     JSObjectRef* ptr = JSObjectGetPrivate(self);
     if (ptr == NULL || ptr < JS_FILES || ptr > JS_FILES + POLMaxFiles()) {
@@ -61,7 +61,7 @@ int JARioFileGetDescriptor(JSContextRef ctx, JSObjectRef self,
     }
 }
 
-void JARioCloseFile(int fd) {
+void JABCioCloseFile(int fd) {
     JSObjectRef self = JS_FILES[fd];
     JSValueUnprotect(JS_CONTEXT, self);
     JS_FILES[fd] = NULL;
@@ -69,7 +69,7 @@ void JARioCloseFile(int fd) {
     close(fd);
 }
 // fd.Write(ta) -> int
-JSValueRef JARioFileWrite(JSContextRef ctx, JSObjectRef function,
+JSValueRef JABCioFileWrite(JSContextRef ctx, JSObjectRef function,
                           JSObjectRef self, size_t argc,
                           const JSValueRef args[], JSValueRef* exception) {
     if (argc == 0) {
@@ -79,7 +79,7 @@ JSValueRef JARioFileWrite(JSContextRef ctx, JSObjectRef function,
 
     char page[4096];
 
-    int fd = JARioFileGetDescriptor(ctx, self, exception);
+    int fd = JABCioFileGetDescriptor(ctx, self, exception);
     if (fd == -1) return JSValueMakeUndefined(ctx);
 
     u8cs ta;
@@ -117,13 +117,13 @@ JSValueRef JARioFileWrite(JSContextRef ctx, JSObjectRef function,
     return ret;
 }
 
-#define JARCall(n)
-#define JARArgGetNumber(a, n, err)
-#define JARArgGetString(a, n, err)
-#define JARArgGetTypedArray(a, n, err)
-#define JARioArgGetFileDescriptor(a, n, err)
+#define JABCCall(n)
+#define JABCArgGetNumber(a, n, err)
+#define JABCArgGetString(a, n, err)
+#define JABCArgGetTypedArray(a, n, err)
+#define JABCioArgGetFileDescriptor(a, n, err)
 
-JSValueRef JARioFileRead(JSContextRef ctx, JSObjectRef function,
+JSValueRef JABCioFileRead(JSContextRef ctx, JSObjectRef function,
                          JSObjectRef self, size_t argc, const JSValueRef args[],
                          JSValueRef* exception) {
     if (argc == 0 ||
@@ -137,7 +137,7 @@ JSValueRef JARioFileRead(JSContextRef ctx, JSObjectRef function,
     ta[0] = JSObjectGetTypedArrayBytesPtr(ctx, arg, exception);
     ta[1] = ta[0] + JSObjectGetTypedArrayByteLength(ctx, arg, exception);
 
-    int fd = JARioFileGetDescriptor(ctx, self, exception);
+    int fd = JABCioFileGetDescriptor(ctx, self, exception);
     if (fd == -1) return JSValueMakeUndefined(ctx);
 
     int rn = read(fd, *ta, $len(ta));
@@ -156,14 +156,14 @@ JSValueRef JARioFileRead(JSContextRef ctx, JSObjectRef function,
     return num;
 }
 
-JSValueRef JARioNetClose(JSContextRef ctx, JSObjectRef function,
+JSValueRef JABCioNetClose(JSContextRef ctx, JSObjectRef function,
                          JSObjectRef self, size_t argc, const JSValueRef args[],
                          JSValueRef* exception) {
-    int fd = JARioFileGetDescriptor(ctx, self, exception);
+    int fd = JABCioFileGetDescriptor(ctx, self, exception);
     if (fd == -1) {
         *exception = JSOfCString("file.close()");
     } else {
-        JARioCloseFile(fd);
+        JABCioCloseFile(fd);
     }
     return JSValueMakeUndefined(ctx);
 }
@@ -183,10 +183,10 @@ int timeout_cb(int fd) {
 }
 
 // io.timer(fn)
-JSValueRef JARioTimer(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
+JSValueRef JABCioTimer(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
                       size_t argc, const JSValueRef args[],
                       JSValueRef* exception) {
-    JS_TRACE("JARioTimer");
+    JS_TRACE("JABCioTimer");
     if (argc < 1 || !JSValueIsObject(ctx, args[0]) ||
         !JSObjectIsFunction(ctx, (JSObjectRef)args[0])) {
         *exception = JSOfCString("io.timer(function)");
@@ -200,7 +200,7 @@ JSValueRef JARioTimer(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
 }
 
 // io.wake(ms)
-JSValueRef JARioWake(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
+JSValueRef JABCioWake(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
                      size_t argc, const JSValueRef args[],
                      JSValueRef* exception) {
     if (argc != 1 || !JSValueIsNumber(ctx, args[0])) {
@@ -218,7 +218,7 @@ JSValueRef JARioWake(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
     return JSValueMakeUndefined(ctx);
 }
 
-JSValueRef JARioLog(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
+JSValueRef JABCioLog(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
                     size_t argc, const JSValueRef args[],
                     JSValueRef* exception) {
     for (int i = 0; i < argc; i++) {
@@ -246,25 +246,25 @@ JSValueRef JARioLog(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
     return JSValueMakeUndefined(ctx);
 }
 
-JSValueRef JARioNetListen(JSContextRef ctx, JSObjectRef function,
+JSValueRef JABCioNetListen(JSContextRef ctx, JSObjectRef function,
                           JSObjectRef self, size_t argc,
                           const JSValueRef args[], JSValueRef* exception) {
     return JSValueMakeUndefined(ctx);
 }
 
-JSValueRef JARioNetAccept(JSContextRef ctx, JSObjectRef function,
+JSValueRef JABCioNetAccept(JSContextRef ctx, JSObjectRef function,
                           JSObjectRef self, size_t argc,
                           const JSValueRef args[], JSValueRef* exception) {
     return JSValueMakeUndefined(ctx);
 }
 
 // -> file.io("r"|"w"|"error")
-short JARioNetOnEvent(int fd, struct poller* p) {
+short JABCioNetOnEvent(int fd, struct poller* p) {
     fprintf(stderr, "got event %i %i\n", fd, p->revents);
     JSObjectRef file = JS_FILES[fd];
     if (file == NULL) return 0;  //?
     JSValueRef fnv = JSObjectGetPropertyForKey(
-        JS_CONTEXT, file, JSValueMakeString(JS_CONTEXT, JS_KEY_JARio), NULL);
+        JS_CONTEXT, file, JSValueMakeString(JS_CONTEXT, JS_KEY_JABCio), NULL);
     if (fnv == NULL || !JSValueIsObject(JS_CONTEXT, fnv) ||
         !JSObjectIsFunction(JS_CONTEXT, (JSObjectRef)fnv)) {
         p->events = 0;
@@ -283,26 +283,26 @@ short JARioNetOnEvent(int fd, struct poller* p) {
         }
         p->events = 0;
         JSObjectCallAsFunction(JS_CONTEXT, fn, file, 1, &arg, NULL);
-        JARioNetClose(JS_CONTEXT, NULL, file, 0, NULL, &exception);
-        if (exception) JARReport(exception), exception = NULL;
+        JABCioNetClose(JS_CONTEXT, NULL, file, 0, NULL, &exception);
+        if (exception) JABCReport(exception), exception = NULL;
     }
     if (p->revents & POLLIN) {
         JSValueRef arg = JSValueMakeString(JS_CONTEXT, JS_STATUS_READ);
         p->events &= ~POLLIN;
         JSObjectCallAsFunction(JS_CONTEXT, fn, file, 1, &arg, &exception);
-        if (exception) JARReport(exception), exception = NULL;
+        if (exception) JABCReport(exception), exception = NULL;
     }
     if (p->revents & POLLOUT) {
         JSValueRef arg = JSValueMakeString(JS_CONTEXT, JS_STATUS_WRITE);
         p->events &= ~POLLOUT;
         JSObjectCallAsFunction(JS_CONTEXT, fn, file, 1, &arg, &exception);
-        if (exception) JARReport(exception), exception = NULL;
+        if (exception) JABCReport(exception), exception = NULL;
     }
 
     return p->events;  //?
 }
 
-short JARioNetOnConnect(int fd, struct poller* p) {
+short JABCioNetOnConnect(int fd, struct poller* p) {
     fprintf(stderr, "connected!\n");
     int err = 0;
     socklen_t errlen = sizeof(err);
@@ -310,20 +310,20 @@ short JARioNetOnConnect(int fd, struct poller* p) {
     if (err != 0) {
         const char* msg = strerror(err);
     } else {
-        p->callback = JARioNetOnEvent;
+        p->callback = JABCioNetOnEvent;
     }
-    JARioNetOnEvent(fd, p);
+    JABCioNetOnEvent(fd, p);
     return p->events | POLLIN;
 }
 
-JSValueRef JARioNothing(JSContextRef ctx, JSObjectRef function,
+JSValueRef JABCioNothing(JSContextRef ctx, JSObjectRef function,
                         JSObjectRef self, size_t argc, const JSValueRef args[],
                         JSValueRef* exception) {
     fprintf(stderr, "nothing\n");
     return JSValueMakeUndefined(ctx);
 }
 
-JSValueRef JARioNetConnect(JSContextRef ctx, JSObjectRef function,
+JSValueRef JABCioNetConnect(JSContextRef ctx, JSObjectRef function,
                            JSObjectRef self, size_t argc,
                            const JSValueRef args[], JSValueRef* exception) {
     if (argc < 2 || !JSValueIsString(ctx, args[0]) ||
@@ -333,7 +333,7 @@ JSValueRef JARioNetConnect(JSContextRef ctx, JSObjectRef function,
         return JSValueMakeUndefined(ctx);
     }
     a_pad(u8, uri, 1024);
-    ok64 o = JARutf8BFeedValueRef(uri, ctx, args[0]);
+    ok64 o = JABCutf8BFeedValueRef(uri, ctx, args[0]);
 
     JSObjectRef callback = (JSObjectRef)args[1];
 
@@ -344,43 +344,43 @@ JSValueRef JARioNetConnect(JSContextRef ctx, JSObjectRef function,
         return JSValueMakeUndefined(ctx);
     }
     poller p = {.events = POLLOUT,
-                .callback = JARioNetOnConnect,
+                .callback = JABCioNetOnConnect,
                 .timeout_ms = 3000,
                 .payload = JS_FILES + cfd};
     POLTrackEvents(cfd, p);
 
-    JSObjectRef file = JARioMakeFileObject(cfd, exception);
-    JSObjectSetProperty(JS_CONTEXT, file, JS_KEY_JARio, callback,
+    JSObjectRef file = JABCioMakeFileObject(cfd, exception);
+    JSObjectSetProperty(JS_CONTEXT, file, JS_KEY_JABCio, callback,
                         kJSPropertyAttributeNone, NULL);
 
     return file;
 }
 
 // io.StdErr() -> fd
-JSValueRef JARioStdio(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
+JSValueRef JABCioStdio(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
                       size_t argc, const JSValueRef args[],
                       JSValueRef* exception, int which) {
-    if (JARio_STD[which] == NULL) {
-        JSObjectRef fileObject = JARioMakeFileObject(which, exception);
+    if (JABCio_STD[which] == NULL) {
+        JSObjectRef fileObject = JABCioMakeFileObject(which, exception);
         poller p = {
             .callback = io_callback, .payload = fileObject, .timeout_ms = 1000};
         ok64 o = POLTrackEvents(which, p);
-        JARio_STD[which] = fileObject;
+        JABCio_STD[which] = fileObject;
     }
-    return JARio_STD[which];
+    return JABCio_STD[which];
 }
 
-JS_DEFINE_FN(JARioStdIn) {
-    return JARioStdio(ctx, function, self, argc, args, exception, STDIN_FILENO);
+JS_DEFINE_FN(JABCioStdIn) {
+    return JABCioStdio(ctx, function, self, argc, args, exception, STDIN_FILENO);
 }
 
-JS_DEFINE_FN(JARioStdOut) {
-    return JARioStdio(ctx, function, self, argc, args, exception,
+JS_DEFINE_FN(JABCioStdOut) {
+    return JABCioStdio(ctx, function, self, argc, args, exception,
                       STDOUT_FILENO);
 }
 
-JS_DEFINE_FN(JARioStdErr) {
-    return JARioStdio(ctx, function, self, argc, args, exception,
+JS_DEFINE_FN(JABCioStdErr) {
+    return JABCioStdio(ctx, function, self, argc, args, exception,
                       STDERR_FILENO);
 }
 
@@ -389,7 +389,7 @@ void mmap_free(void* bytes, void* deallocatorContext) {
     FILEunmap(buf);
 }
 
-JSValueRef JARioFileMap(JSContextRef ctx, JSObjectRef function,
+JSValueRef JABCioFileMap(JSContextRef ctx, JSObjectRef function,
                         JSObjectRef self, size_t argc, const JSValueRef args[],
                         JSValueRef* exception) {
     if (!JSValueIsString(ctx, args[0])) {
@@ -404,7 +404,7 @@ JSValueRef JARioFileMap(JSContextRef ctx, JSObjectRef function,
     Bu8 buf = {};
     u8csc path = {page, page + len - 1};
     ok64 o = FILEmapro(buf, path);
-    JSObjectRef fileObject = JSObjectMake(JS_CONTEXT, JAR_IO_MAP_CLASS, NULL);
+    JSObjectRef fileObject = JSObjectMake(JS_CONTEXT, JABC_IO_MAP_CLASS, NULL);
     JSValueRef ta = JSObjectMakeTypedArrayWithBytesNoCopy(
         ctx, kJSTypedArrayTypeUint8Array, buf[0], Bsize(buf), mmap_free, buf[3],
         exception);
@@ -416,18 +416,18 @@ JSValueRef JARioFileMap(JSContextRef ctx, JSObjectRef function,
 
 extern const char* io_js;
 
-ok64 JARioInstall() {
+ok64 JABCioInstall() {
     POLInit(1024);
 
     JS_FILES = malloc(sizeof(JSObjectRef) * POLMaxFiles());
 
     static JSStaticFunction file_statics[] = {
-        {"io", JARioNothing, 0},
-        {"write", JARioFileWrite,
+        {"io", JABCioNothing, 0},
+        {"write", JABCioFileWrite,
          kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete},
-        {"read", JARioFileRead,
+        {"read", JABCioFileRead,
          kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete},
-        {"close", JARioNetClose,
+        {"close", JABCioNetClose,
          kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete},
         {NULL, NULL, 0}};
     static JSClassDefinition fc_definition = {
@@ -447,24 +447,24 @@ ok64 JARioInstall() {
         NULL,
         NULL,
         NULL};
-    JAR_IO_FILE_CLASS = JSClassCreate(&fc_definition);
+    JABC_IO_FILE_CLASS = JSClassCreate(&fc_definition);
 
     JS_MAKE_CLASS(FileMMap, io_map_finalize);
-    JAR_IO_MAP_CLASS = FileMMap;
+    JABC_IO_MAP_CLASS = FileMMap;
 
     JS_API_OBJECT(io, "io");
-    JS_SET_PROPERTY_FN(io, "stdIn", JARioStdIn);
-    JS_SET_PROPERTY_FN(io, "stdErr", JARioStdErr);
-    JS_SET_PROPERTY_FN(io, "stdOut", JARioStdOut);
-    JS_SET_PROPERTY_FN(io, "mmap", JARioFileMap);
-    JS_SET_PROPERTY_FN(io, "timer", JARioTimer);
-    JS_SET_PROPERTY_FN(io, "wake", JARioWake);
-    JS_SET_PROPERTY_FN(io, "log", JARioLog);
-    JS_SET_PROPERTY_FN(io, "listen", JARioNetListen);
-    JS_SET_PROPERTY_FN(io, "accept", JARioNetAccept);
-    JS_SET_PROPERTY_FN(io, "connect", JARioNetConnect);
+    JS_SET_PROPERTY_FN(io, "stdIn", JABCioStdIn);
+    JS_SET_PROPERTY_FN(io, "stdErr", JABCioStdErr);
+    JS_SET_PROPERTY_FN(io, "stdOut", JABCioStdOut);
+    JS_SET_PROPERTY_FN(io, "mmap", JABCioFileMap);
+    JS_SET_PROPERTY_FN(io, "timer", JABCioTimer);
+    JS_SET_PROPERTY_FN(io, "wake", JABCioWake);
+    JS_SET_PROPERTY_FN(io, "log", JABCioLog);
+    JS_SET_PROPERTY_FN(io, "listen", JABCioNetListen);
+    JS_SET_PROPERTY_FN(io, "accept", JABCioNetAccept);
+    JS_SET_PROPERTY_FN(io, "connect", JABCioNetConnect);
 
-    JS_KEY_JARio = JSStringCreateWithUTF8CString("io");
+    JS_KEY_JABCio = JSStringCreateWithUTF8CString("io");
     JS_STATUS_READ = JSStringCreateWithUTF8CString("r");
     JS_STATUS_WRITE = JSStringCreateWithUTF8CString("w");
     JS_STATUS_READWRITE = JSStringCreateWithUTF8CString("rw");
@@ -473,36 +473,36 @@ ok64 JARioInstall() {
     // response = io.stdin.ReadLine()
     // io.stdout.WriteLine("You said: '"+response+"'");
 
-    JARExecute(io_js);
+    JABCExecute(io_js);
 
     return OK;
 }
 
-ok64 JARioUninstall() {
-    JSClassRelease(JAR_IO_FILE_CLASS);
-    JSClassRelease(JAR_IO_MAP_CLASS);
-    JSStringRelease(JS_KEY_JARio);
+ok64 JABCioUninstall() {
+    JSClassRelease(JABC_IO_FILE_CLASS);
+    JSClassRelease(JABC_IO_MAP_CLASS);
+    JSStringRelease(JS_KEY_JABCio);
     JSStringRelease(JS_STATUS_ERROR);
     JSStringRelease(JS_STATUS_READ);
     JSStringRelease(JS_STATUS_WRITE);
     JSStringRelease(JS_STATUS_READWRITE);
-    JSValueUnprotect(JS_CONTEXT, JARio_STD[0]);
-    JSValueUnprotect(JS_CONTEXT, JARio_STD[1]);
-    JSValueUnprotect(JS_CONTEXT, JARio_STD[2]);
-    JARio_STD[0] = NULL;
-    JARio_STD[1] = NULL;
-    JARio_STD[2] = NULL;
-    JS_KEY_JARio = NULL;
+    JSValueUnprotect(JS_CONTEXT, JABCio_STD[0]);
+    JSValueUnprotect(JS_CONTEXT, JABCio_STD[1]);
+    JSValueUnprotect(JS_CONTEXT, JABCio_STD[2]);
+    JABCio_STD[0] = NULL;
+    JABCio_STD[1] = NULL;
+    JABCio_STD[2] = NULL;
+    JS_KEY_JABCio = NULL;
     JS_STATUS_ERROR = NULL;
     JS_STATUS_READ = NULL;
     JS_STATUS_WRITE = NULL;
     JS_STATUS_READWRITE = NULL;
-    JAR_IO_FILE_CLASS = NULL;
-    JAR_IO_MAP_CLASS = NULL;
+    JABC_IO_FILE_CLASS = NULL;
+    JABC_IO_MAP_CLASS = NULL;
 
     for (int i = 0; i < POLMaxFiles(); i++)
         if (JS_FILES[i] != NULL) {
-            JARioCloseFile(i);
+            JABCioCloseFile(i);
         }
     POLFree();
     return OK;

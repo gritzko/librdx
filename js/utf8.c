@@ -11,7 +11,7 @@ JSObjectRef UTF8Object = NULL;
 
 void FreeDeallocator(void* bytes, void* deallocatorContext) { free(bytes); }
 
-JSValueRef JARutf8Encode(JSContextRef ctx, JSObjectRef function,
+JSValueRef JABCutf8Encode(JSContextRef ctx, JSObjectRef function,
                          JSObjectRef self, size_t argc, const JSValueRef args[],
                          JSValueRef* exception) {
     if (argc != 1 || !JS_ARG_IS_STRING(0)) {
@@ -28,7 +28,7 @@ JSValueRef JARutf8Encode(JSContextRef ctx, JSObjectRef function,
     return ta2;
 }
 
-JSValueRef JARutf8Decode(JSContextRef ctx, JSObjectRef function,
+JSValueRef JABCutf8Decode(JSContextRef ctx, JSObjectRef function,
                          JSObjectRef self, size_t argc, const JSValueRef args[],
                          JSValueRef* exception) {
     JSValueRef n = JSValueMakeUndefined(ctx);
@@ -43,7 +43,7 @@ ok64 JSu8BString(JSStringRef str, u8B into) {
     return OK;
 }
 
-ok64 JARutf8BFeedValueRef(u8B into, JSContextRef ctx, JSValueRef val) {
+ok64 JABCutf8BFeedValueRef(u8B into, JSContextRef ctx, JSValueRef val) {
     JSStringRef str = JSValueToStringCopy(ctx, val, NULL);
     ok64 o = JSu8BString(str, into);
     JSStringRelease(str);
@@ -66,14 +66,14 @@ char* JSStringRefToCString(JSStringRef str) {
     return buffer;
 }
 
-ok64 JARutf8Install() {
+ok64 JABCutf8Install() {
     JS_API_OBJECT(utf8, "utf8");
-    JS_SET_PROPERTY_FN(utf8, "en", JARutf8Encode);
-    JS_SET_PROPERTY_FN(utf8, "Encode", JARutf8Encode);
-    JS_SET_PROPERTY_FN(utf8, "de", JARutf8Decode);
-    JS_SET_PROPERTY_FN(utf8, "Decode", JARutf8Decode);
+    JS_SET_PROPERTY_FN(utf8, "en", JABCutf8Encode);
+    JS_SET_PROPERTY_FN(utf8, "Encode", JABCutf8Encode);
+    JS_SET_PROPERTY_FN(utf8, "de", JABCutf8Decode);
+    JS_SET_PROPERTY_FN(utf8, "Decode", JABCutf8Decode);
     UTF8Object = utf8;
     return OK;
 }
 
-ok64 JARutf8Uninstall() { return OK; }
+ok64 JABCutf8Uninstall() { return OK; }

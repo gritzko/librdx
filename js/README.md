@@ -1,4 +1,4 @@
-#   JavaScriptCore bindings
+#   JABC: JavaScriptCore bindings
 
 <img align=right width="25%" src="./logo.jpg"/>
 There is quite a selection of JavaScript environments these days:

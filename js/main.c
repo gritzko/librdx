@@ -36,26 +36,26 @@ JSGlobalContextRef JSInit() {
     return JS_CONTEXT;
 }
 
-ok64 JARioInstall();
-ok64 JARioUninstall();
-ok64 JARutf8Install();
-ok64 JARutf8Uninstall();
+ok64 JABCioInstall();
+ok64 JABCioUninstall();
+ok64 JABCutf8Install();
+ok64 JABCutf8Uninstall();
 
-ok64 JARInstallModules() {
+ok64 JABCInstallModules() {
     sane(1);
-    call(JARioInstall);
-    call(JARutf8Install);
+    call(JABCioInstall);
+    call(JABCutf8Install);
     done;
 }
 
-ok64 JARUninstallModules() {
+ok64 JABCUninstallModules() {
     sane(1);
-    call(JARioUninstall);
-    call(JARutf8Uninstall);
+    call(JABCioUninstall);
+    call(JABCutf8Uninstall);
     done;
 }
 
-void JARClose() {
+void JABCClose() {
     JSValueUnprotect(JS_CONTEXT, JSPropertyStack);
     JSValueUnprotect(JS_CONTEXT, JSPropertyMessage);
     JSGlobalContextRelease(JS_CONTEXT);
@@ -96,7 +96,7 @@ void JSObjectPropertiesDump(JSContextRef ctx, const JSObjectRef obj) {
     JSPropertyNameArrayRelease(props);
 }
 
-void JARDump(JSContextRef ctx, JSValueRef exception) {
+void JABCDump(JSContextRef ctx, JSValueRef exception) {
     JSStringRef errorStr = JSValueToStringCopy(ctx, exception, NULL);
     size_t errorSize = JSStringGetMaximumUTF8CStringSize(errorStr);
     char* errorUTF8 = (char*)malloc(errorSize);
@@ -108,7 +108,7 @@ void JARDump(JSContextRef ctx, JSValueRef exception) {
     JSStringRelease(errorStr);
 }
 
-void JARReport(JSValueRef exception) {
+void JABCReport(JSValueRef exception) {
     JS_TRACE("something is wrong");
     char page[PAGE_SIZE], *msg;
     if (JSValueIsString(JS_CONTEXT, exception)) {
@@ -136,16 +136,16 @@ void JARReport(JSValueRef exception) {
         printf("LEN %li %li\n", len, len2);
         msg = page;
     } else if (JSValueIsObject(JS_CONTEXT, exception)) {
-        JARDump(JS_CONTEXT, exception);
+        JABCDump(JS_CONTEXT, exception);
         JSObjectPropertiesDump(JS_CONTEXT, (JSObjectRef)exception);
         msg = "see above";
     } else {
-        JARDump(JS_CONTEXT, exception);
+        JABCDump(JS_CONTEXT, exception);
     }
     if (*msg) fprintf(stderr, "JavaScript exception: %s\n", msg);
 }
 
-void JARExecute(const char* script) {
+void JABCExecute(const char* script) {
     fprintf(stderr, "Starting:\n%s\n", script);
     // Convert C string to JSC string
     JSStringRef js_code = JSStringCreateWithUTF8CString(script);
@@ -154,7 +154,7 @@ void JARExecute(const char* script) {
     // Execute script with default options
     JSEvaluateScript(JS_CONTEXT, js_code, NULL, NULL, 1, &exception);
     if (exception != NULL) {
-        JARReport(exception);
+        JABCReport(exception);
     } else {
         fprintf(stderr, "Finished normally\n");
     }
@@ -164,7 +164,7 @@ void JARExecute(const char* script) {
 }
 
 #define HELP_BOILERPLATE ""
-#define VERSJARIoN_BOILERPLATE ""
+#define VERSJABCIoN_BOILERPLATE ""
 
 u8 _pro_depth = 0;
 
@@ -175,7 +175,7 @@ int main(int argc, char** argv) {
     // Parse command-line arguments
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--version") == 0) {
-            fprintf(stderr, VERSJARIoN_BOILERPLATE);
+            fprintf(stderr, VERSJABCIoN_BOILERPLATE);
             return 0;
         } else if (strcmp(argv[i], "--help") == 0) {
             fprintf(stderr, HELP_BOILERPLATE);
@@ -194,10 +194,10 @@ int main(int argc, char** argv) {
     }
 
     JSInit();
-    JARInstallModules();
+    JABCInstallModules();
 
     if (eval_code != NULL) {
-        JARExecute(eval_code);
+        JABCExecute(eval_code);
     }
 
     // Handle script file
@@ -216,15 +216,15 @@ int main(int argc, char** argv) {
         script[len] = '\0';
         fclose(f);
 
-        JARExecute(script);
+        JABCExecute(script);
 
         free(script);
     }
 
     POLLoop(POLNever);
 
-    JARUninstallModules();
-    JARClose();
+    JABCUninstallModules();
+    JABCClose();
 
     return 0;
 }
