@@ -3,8 +3,18 @@ project(jar)
 
 set(CMAKE_C_STANDARD 11)
 
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(WEBKIT REQUIRED webkit2gtk-4.0)
+find_library(JSC_LIB
+    NAMES javascriptcoregtk-4.1 javascriptcoregtk-4.0
+    PATH_SUFFIXES 
+    PATHS /usr/lib/x86_64-linux-gnu/ /usr/lib
+  )
+find_path(JSC_INCLUDE_DIR
+    NAMES JavaScriptCore/JSBase.h
+    PATH_SUFFIXES webkitgtk-4.1/ webkitgtk-4.0/
+  )
+
+#TODO MacOS paths
+
 set(CMAKE_EXPORT_COMPILE_COMMANDS on)
 
 set(TEST_CXX_FLAGS "-g")
@@ -15,12 +25,11 @@ set(BENCH_LDD_FLAGS benchmark::benchmark)
 include(CTest)
 
 include_directories(
-    ${WEBKIT_INCLUDE_DIRS}
+  ${JSC_INCLUDE_DIR}
     ${CMAKE_SOURCE_DIR}/include
     ..
     .
 )
-
 add_executable(jar
     io.c
     main.c
@@ -29,10 +38,6 @@ add_executable(jar
 )
 
 target_link_libraries(jar
-    ${WEBKIT_LIBRARIES}
+    ${JSC_LIB}
     abc
 )
-
-if(NOT APPLE)
-    pkg_check_modules(WEBKIT REQUIRED webkit2gtk-4.0)
-endif()

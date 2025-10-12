@@ -25,7 +25,7 @@ jobs:
     - name: Install libsodium
       run: |
           sudo apt-get update
-          sudo apt-get -y install libsodium-dev libc6-dev 
+          sudo apt-get -y install libsodium-dev libc6-dev libjavascriptcoregtk-4.1-dev
 
     - name: Configure CMake
       # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.

@@ -110,10 +110,10 @@ void JABCDump(JSContextRef ctx, JSValueRef exception) {
 
 void JABCReport(JSValueRef exception) {
     JS_TRACE("something is wrong");
-    char page[PAGE_SIZE], *msg;
+    char page[PAGESIZE], *msg;
     if (JSValueIsString(JS_CONTEXT, exception)) {
         size_t len =
-            JSStringGetUTF8CString((JSStringRef)exception, page, PAGE_SIZE);
+            JSStringGetUTF8CString((JSStringRef)exception, page, PAGESIZE);
         if (len > 0) len--;
         msg = page;
     } else if (JSValueIsObject(JS_CONTEXT, exception) &&
@@ -121,7 +121,7 @@ void JABCReport(JSValueRef exception) {
                                          JSPropertyStack, NULL)) {
         JSValueRef ref = JSObjectGetPropertyForKey(
             JS_CONTEXT, (JSObjectRef)exception, JSPropertyStack, NULL);
-        size_t len = JSStringGetUTF8CString((JSStringRef)ref, page, PAGE_SIZE);
+        size_t len = JSStringGetUTF8CString((JSStringRef)ref, page, PAGESIZE);
         printf("LEN %li\n", len);
         msg = page;
     } else if (JSValueIsObject(JS_CONTEXT, exception) &&
@@ -129,10 +129,10 @@ void JABCReport(JSValueRef exception) {
                                          JSPropertyMessage, NULL)) {
         JSValueRef ref = JSObjectGetPropertyForKey(
             JS_CONTEXT, (JSObjectRef)exception, JSPropertyMessage, NULL);
-        size_t len = JSStringGetUTF8CString((JSStringRef)ref, page, PAGE_SIZE);
+        size_t len = JSStringGetUTF8CString((JSStringRef)ref, page, PAGESIZE);
         page[len - 1] = '\n';
         size_t len2 = JSStringGetUTF8CString((JSStringRef)exception, page + len,
-                                             PAGE_SIZE - len);
+                                             PAGESIZE - len);
         printf("LEN %li %li\n", len, len2);
         msg = page;
     } else if (JSValueIsObject(JS_CONTEXT, exception)) {
