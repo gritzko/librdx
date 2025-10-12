@@ -62,7 +62,7 @@ fun int NETrandomport() {
 //  tcp://1.2.3.4:8080
 //  udp://5.5.5.5:domain
 //  http://server/path
-ok64 NETParseAddress(struct addrinfo** result, u8cs address, b8 stream);
+ok64 NETParseAddress(struct addrinfo** result, u8csc address, b8 stream);
 
 fun ok64 NETFreeAddress(struct addrinfo** addr) {
     if (*addr == NULL) return NETnone;

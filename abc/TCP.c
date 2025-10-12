@@ -6,10 +6,10 @@
 #include "PRO.h"
 #include "S.h"
 
-ok64 TCPConnect(int *fd, u8cs address, b8 nonblocking) {
+ok64 TCPConnect(int *fd, u8csc address, b8 nonblocking) {
     sane(fd != NULL && !$empty(address));
     int sfd, s;
-    struct addrinfo *result, *rp;
+    struct addrinfo *result = NULL, *rp;
 
     call(NETParseAddress, &result, address, YES);
 

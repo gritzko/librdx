@@ -15,6 +15,7 @@
 #include "JavaScriptCore/JSTypedArray.h"
 #include "JavaScriptCore/JSValueRef.h"
 #include "abc/FILE.h"
+#include "abc/OK.h"
 #include "abc/POL.h"
 #include "abc/TCP.h"
 
@@ -103,7 +104,7 @@ JSValueRef IOFileRead(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
                       size_t argc, const JSValueRef args[],
                       JSValueRef* exception) {
     if (argc == 0 ||
-        JSValueGetTypedArrayType(ctx, args[1], NULL) == kJSTypedArrayTypeNone) {
+        JSValueGetTypedArrayType(ctx, args[0], NULL) == kJSTypedArrayTypeNone) {
         *exception = JSOfCString("Use: file.read(typedarray)");
         return JSValueMakeUndefined(ctx);
     }
@@ -305,21 +306,37 @@ JSValueRef IONothing(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
     return JSValueMakeUndefined(ctx);
 }
 
+ok64 JSu8BString(JSStringRef str, u8B into) {
+    u8sp idle = Bidle(into);
+    size_t fact = JSStringGetUTF8CString(str, (char*)*idle, $len(idle));
+    if (fact < 1) return badarg;
+    idle[0] += fact - 1;
+    return OK;
+}
+
+ok64 JSu8BValueString(JSContextRef ctx, JSValueRef val, u8B into) {
+    JSStringRef str = JSValueToStringCopy(ctx, val, NULL);
+    ok64 o = JSu8BString(str, into);
+    JSStringRelease(str);
+    return o;
+}
+
 JSValueRef IONetConnect(JSContextRef ctx, JSObjectRef function,
                         JSObjectRef self, size_t argc, const JSValueRef args[],
                         JSValueRef* exception) {
-    if (argc < 2 || !JSValueIsObject(ctx, args[1]) ||
+    if (argc < 2 || !JSValueIsString(ctx, args[0]) ||
+        !JSValueIsObject(ctx, args[1]) ||
         !JSObjectIsFunction(ctx, (JSObjectRef)args[1])) {
-        *exception = JSOfCString("io.connect('google.com:80', function)");
+        *exception = JSOfCString("io.connect('tcp://google.com:80', function)");
         return JSValueMakeUndefined(ctx);
     }
-    JSStringRef address = args[0];
+    a_pad(u8, uri, 1024);
+    ok64 o = JSu8BValueString(ctx, args[0], uri);
+
     JSObjectRef callback = (JSObjectRef)args[1];
 
-    aNETAddress(addr, "127.0.0.1", "8888");
-    $println(Bu8cpast(addr));
     int cfd;
-    ok64 o = TCPConnect(&cfd, addr, NO);
+    o = TCPConnect(&cfd, uri_datac, NO);
     if (o != OK) {
         *exception = JSOfCString(strerror(errno));  //"connect() error"));
         return JSValueMakeUndefined(ctx);

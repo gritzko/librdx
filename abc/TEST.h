@@ -1,7 +1,7 @@
 #ifndef LIBRDX_TEST_H
 #define LIBRDX_TEST_H
 
-#define ABC_TRACE 1
+#define ABC_TRACE ON
 
 #include <assert.h>
 

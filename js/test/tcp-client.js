@@ -1,5 +1,4 @@
-io.connect("127.0.0.1:8888", function(rw){
-    io.log("CALLBACK: "+rw)
+io.connect("tcp://127.0.0.1:8888", function(rw){
     if (rw=="w") {
         this.write("Hello");
     } else if (rw=="r") {

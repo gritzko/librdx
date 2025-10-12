@@ -6,7 +6,7 @@
 #include "PRO.h"
 #include "URI.h"
 
-ok64 NETParseAddress(struct addrinfo **result, u8cs address, b8 tcp) {
+ok64 NETParseAddress(struct addrinfo **result, u8csc address, b8 tcp) {
     sane(!$empty(address) && result != NULL && *result == NULL);
     socklen_t peer_addrlen;
     struct addrinfo *rp;
