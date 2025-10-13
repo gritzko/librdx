@@ -4,7 +4,6 @@
 #include "B.h"
 #include "INT.h"
 #include "OK.h"
-#include "PRO.h"
 #include "S.h"
 
 con ok64 TLVbadrec = 0x1d55f9a5a36a67;
@@ -45,44 +44,16 @@ fun ok64 TLVprobe(u8* t, u32* hlen, u32* blen, $cu8c data) {
     return (*hlen + *blen) <= $len(data) ? OK : TLVnodata;
 }
 
-fun pro(TLVDrain, u8* t, u8c$ value, u8cs from) {
-    sane(t != nil && value != nil && $ok(from));
-    u32 hlen = 0, blen = 0;
-    call(TLVprobe, t, &hlen, &blen, from);
-    value[0] = from[0] + hlen;
-    value[1] = value[0] + blen;
-    from[0] += hlen + blen;
-    done;
-}
+ok64 TLVDrain(u8* t, u8c$ value, u8cs from);
 
-fun pro(TLVDrain$, u8c$ rec, u8cs from) {
-    sane(rec != nil && $ok(from));
-    u32 hlen = 0, blen = 0;
-    u8 t = 0;
-    call(TLVprobe, &t, &hlen, &blen, from);
-    rec[0] = from[0];
-    rec[1] = from[0] + hlen + blen;
-    from[0] += hlen + blen;
-    done;
-}
+ok64 TLVDrain$(u8c$ rec, u8cs from);
 
 fun ok64 TLVpick(u8* type, u8cs value, $cu8c tlv, size_t offset) {
     a$tail(u8c, keytlv, tlv, offset);
     return TLVDrain(type, value, keytlv);
 }
 
-fun pro(TLVtake, u8 t, u8cs value, $u8c from) {
-    sane(value != NULL && from != NULL);
-    u32 hlen = 0;
-    u32 blen = 0;
-    u8 fact = 0;
-    call(TLVprobe, &fact, &hlen, &blen, from);
-    test(fact == '0' || fact == t, TLVbadtype);
-    value[0] = from[0] + hlen;
-    value[1] = from[0] + hlen + blen;
-    from[0] += hlen + blen;
-    done;
-}
+ok64 TLVtake(u8 t, u8cs value, $u8c from);
 
 fun void TLVhead($u8 into, u8 type, u32 len) {
     if (len <= 0xff) {
@@ -97,30 +68,13 @@ fun void TLVhead($u8 into, u8 type, u32 len) {
     }
 }
 
-fun pro(TLVFeed, $u8 into, u8 type, u8cs value) {
-    sane(TLVlong(type) && into != NULL && value != NULL);
-    u32 len = $len(value);
-    test($len(into) >= len + 5, TLVnoroom);
-    TLVhead(into, type, len);
-    u8sCopy(into, value);
-    *into += len;
-    done;
-}
+ok64 TLVFeed($u8 into, u8 type, u8cs value);
 
 /** Open a TLV header for a record of unknown length.
  *  The buffer must be stable during the whole write;
  *  no shifts, no reallocs, no remaps.
  * @deprecated */
-fun pro(TLVopen, $u8 tlv, u8 type, u32** len) {
-    sane($ok(tlv) && len != nil && TLVlong(type));
-    test($len(tlv) >= 5, TLVnoroom);
-    **tlv = type;
-    ++*tlv;
-    *len = (u32*)*tlv;
-    u32 zero = 0;
-    $u8feed32(tlv, &zero);
-    done;
-}
+ok64 TLVopen($u8 tlv, u8 type, u32** len);
 
 /** Open a TLV header for a yet-unwritten (short) record. */
 ok64 TLVinitshort($u8 tlv, u8 type, Bu8p stack);
@@ -132,53 +86,10 @@ ok64 TLVinitlong($u8 tlv, u8 type, Bu8p stack);
 ok64 TLVendany($u8 tlv, u8 type, Bu8p stack);
 
 // @deprecated
-fun pro(TLVclose, $u8 tlv, u8 type, u32* const* len) {
-    sane($ok(tlv) && TLVlong(type) && len != nil && *len != nil &&
-         (u8*)*len < *tlv && *(*((u8**)len) - 1) == type);
-    size_t d = *tlv - (u8*)*len;
-    test(d <= TLV_MAX_LEN && d >= 4, TLVbadrec);
-    d -= 4;
-    if (d > 0xff) {
-        **len = d;
-    } else {
-        u8* p = *(u8**)len - 1;
-        *p += TLVaA;
-        ++p;
-        *p = d;
-        ++p;
-        con size_t shift = sizeof(u32) - sizeof(u8);
-        memmove(p, p + shift, d);
-        *tlv -= shift;
-    }
-    done;
-}
+ok64 TLVclose($u8 tlv, u8 type, u32* const* len);
 
-fun pro(TLVFeedkv, $u8 tlv, u8c type, u8cs key, $cu8c val) {
-    sane($ok(tlv) && $ok(key) && ($empty(val) || $ok(val)));
-    size_t keylen = $len(key);
-    test(keylen < 0x100, TLVbadarg);
-    u64 blen = keylen + $len(val);
-    test($len(tlv) >= blen + 1 + 4 + 1, TLVnoroom);
-    TLVhead(tlv, type, blen + 1);
-    **tlv = keylen;
-    ++*tlv;
-    $feed(tlv, key);
-    $feed(tlv, val);
-    done;
-}
+ok64 TLVFeedkv($u8 tlv, u8c type, u8cs key, $cu8c val);
 
-fun pro(TLVDrainkv, u8* type, u8cs key, $u8c val, $u8c tlv) {
-    sane(type != nil && key != nil && val != nil && $ok(tlv));
-    u32 hlen = 0, blen = 0;
-    call(TLVprobe, type, &hlen, &blen, tlv);
-    u8cs body = {tlv[0] + hlen, tlv[0] + hlen + blen};
-    test($len(body) > 0 && $len(body) >= **body, TLVbadkv);
-    key[0] = body[0] + 1;
-    key[1] = key[0] + **body;
-    val[0] = key[1];
-    val[1] = body[1];
-    tlv[0] = body[1];
-    done;
-}
+ok64 TLVDrainkv(u8* type, u8cs key, $u8c val, $u8c tlv);
 
 #endif

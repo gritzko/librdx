@@ -17,6 +17,7 @@ set(TEST_LDD_FLAGS "-g")
 add_executable(RDXtest RDX.c ../RDX.c)
 target_link_options(RDXtest PRIVATE ${TEST_LDD_FLAGS})
 target_compile_options(RDXtest PRIVATE ${TEST_CXX_FLAGS})
+target_link_libraries(RDXtest abc rdx)
 add_test(NAME RDXtest COMMAND RDXtest)
 
 add_executable(JDRtest JDR.c)

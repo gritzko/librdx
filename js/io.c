@@ -26,7 +26,7 @@ void io_map_finalize(JSObjectRef object) {}
 static JSClassRef JABC_IO_FILE_CLASS = NULL;
 static JSClassRef JABC_IO_MAP_CLASS = NULL;
 
-static JSStringRef JS_KEY_JABCio = NULL;
+static JSStringRef JS_KEY_IO = NULL;
 
 static JSStringRef JS_STATUS_READ = NULL;
 static JSStringRef JS_STATUS_WRITE = NULL;
@@ -43,16 +43,19 @@ JSObjectRef JABCioMakeFileObject(int fd, JSValueRef* exception) {
         return NULL;
     }
     JSObjectRef fileObject = JSObjectMake(JS_CONTEXT, JABC_IO_FILE_CLASS, NULL);
+    // The point of JABC is to hold no C pointers in JS, no JS references in C.
+    // This is a pointer into a static array, so we can do that :)
     JSObjectSetPrivate(fileObject, JS_FILES + fd);
+    // Again, a file object gets filed into a static array.
     JS_FILES[fd] = fileObject;
     JSValueProtect(JS_CONTEXT, fileObject);
     return fileObject;
 }
 
 int JABCioFileGetDescriptor(JSContextRef ctx, JSObjectRef self,
-                           JSValueRef* exception) {
+                            JSValueRef* exception) {
     JSObjectRef* ptr = JSObjectGetPrivate(self);
-    if (ptr == NULL || ptr < JS_FILES || ptr > JS_FILES + POLMaxFiles()) {
+    if (ptr == NULL || ptr < JS_FILES || ptr >= JS_FILES + POLMaxFiles()) {
         *exception = JSOfCString("read(): not a file");
         return -1;
     } else {
@@ -63,15 +66,23 @@ int JABCioFileGetDescriptor(JSContextRef ctx, JSObjectRef self,
 
 void JABCioCloseFile(int fd) {
     JSObjectRef self = JS_FILES[fd];
-    JSValueUnprotect(JS_CONTEXT, self);
-    JS_FILES[fd] = NULL;
+    if (self != NULL) {
+        JSValueUnprotect(JS_CONTEXT, self);
+        JS_FILES[fd] = NULL;
+    }
     POLIgnoreEvents(fd);  // only sockets, but who cares
     close(fd);
 }
+
+#define JABCCall(n)                                                        \
+    JSValueRef n(JSContextRef ctx, JSObjectRef function, JSObjectRef self, \
+                 size_t argc, const JSValueRef args[], JSValueRef* exception)
+#define JABCArgGetNumber(a, n, err)
+#define JABCArgGetString(a, n, err)
+#define JABCArgGetTypedArray(a, n, err)
+
 // fd.Write(ta) -> int
-JSValueRef JABCioFileWrite(JSContextRef ctx, JSObjectRef function,
-                          JSObjectRef self, size_t argc,
-                          const JSValueRef args[], JSValueRef* exception) {
+JABCCall(JABCioFileWrite) {
     if (argc == 0) {
         *exception = JSOfCString("file.write(string|typedarray)");
         return JSValueMakeUndefined(ctx);
@@ -82,13 +93,12 @@ JSValueRef JABCioFileWrite(JSContextRef ctx, JSObjectRef function,
     int fd = JABCioFileGetDescriptor(ctx, self, exception);
     if (fd == -1) return JSValueMakeUndefined(ctx);
 
-    u8cs ta;
+    u8s ta = {};
+    b8 tofree = NO;
 
-    if (JS_ARG_IS_STRING(0)) {  // TODO io.utf8()
-        size_t len = JSStringGetUTF8CString((JSStringRef)args[0], page, 4096);
-        if (len > 0) len--;
-        ta[0] = (u8*)page;
-        ta[1] = (u8*)page + len;  // FUCKIN FIXME
+    if (JSValueIsString(ctx, args[0])) {  // TODO io.utf8()
+        JABCutf8CopyStringValue(ctx, ta, args[0], exception);
+        tofree = YES;
     } else if (JSValueGetTypedArrayType(ctx, args[0], NULL) !=
                kJSTypedArrayTypeNone) {
         ta[0] =
@@ -113,19 +123,14 @@ JSValueRef JABCioFileWrite(JSContextRef ctx, JSObjectRef function,
         }
     }
 
+    if (tofree) $u8free((u8csp)ta);
     JS_MAKE_NUMBER(ret, wn);
     return ret;
 }
 
-#define JABCCall(n)
-#define JABCArgGetNumber(a, n, err)
-#define JABCArgGetString(a, n, err)
-#define JABCArgGetTypedArray(a, n, err)
-#define JABCioArgGetFileDescriptor(a, n, err)
-
 JSValueRef JABCioFileRead(JSContextRef ctx, JSObjectRef function,
-                         JSObjectRef self, size_t argc, const JSValueRef args[],
-                         JSValueRef* exception) {
+                          JSObjectRef self, size_t argc,
+                          const JSValueRef args[], JSValueRef* exception) {
     if (argc == 0 ||
         JSValueGetTypedArrayType(ctx, args[0], NULL) == kJSTypedArrayTypeNone) {
         *exception = JSOfCString("Use: file.read(typedarray)");
@@ -157,8 +162,8 @@ JSValueRef JABCioFileRead(JSContextRef ctx, JSObjectRef function,
 }
 
 JSValueRef JABCioNetClose(JSContextRef ctx, JSObjectRef function,
-                         JSObjectRef self, size_t argc, const JSValueRef args[],
-                         JSValueRef* exception) {
+                          JSObjectRef self, size_t argc,
+                          const JSValueRef args[], JSValueRef* exception) {
     int fd = JABCioFileGetDescriptor(ctx, self, exception);
     if (fd == -1) {
         *exception = JSOfCString("file.close()");
@@ -184,8 +189,8 @@ int timeout_cb(int fd) {
 
 // io.timer(fn)
 JSValueRef JABCioTimer(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
-                      size_t argc, const JSValueRef args[],
-                      JSValueRef* exception) {
+                       size_t argc, const JSValueRef args[],
+                       JSValueRef* exception) {
     JS_TRACE("JABCioTimer");
     if (argc < 1 || !JSValueIsObject(ctx, args[0]) ||
         !JSObjectIsFunction(ctx, (JSObjectRef)args[0])) {
@@ -201,8 +206,8 @@ JSValueRef JABCioTimer(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
 
 // io.wake(ms)
 JSValueRef JABCioWake(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
-                     size_t argc, const JSValueRef args[],
-                     JSValueRef* exception) {
+                      size_t argc, const JSValueRef args[],
+                      JSValueRef* exception) {
     if (argc != 1 || !JSValueIsNumber(ctx, args[0])) {
         *exception = JSOfCString("io.wake(ms)");
         return JSValueMakeUndefined(ctx);
@@ -219,8 +224,8 @@ JSValueRef JABCioWake(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
 }
 
 JSValueRef JABCioLog(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
-                    size_t argc, const JSValueRef args[],
-                    JSValueRef* exception) {
+                     size_t argc, const JSValueRef args[],
+                     JSValueRef* exception) {
     for (int i = 0; i < argc; i++) {
         if (JSValueIsString(ctx, args[i])) {
             JSStringRef str = JSValueToStringCopy(ctx, args[0], exception);
@@ -247,14 +252,14 @@ JSValueRef JABCioLog(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
 }
 
 JSValueRef JABCioNetListen(JSContextRef ctx, JSObjectRef function,
-                          JSObjectRef self, size_t argc,
-                          const JSValueRef args[], JSValueRef* exception) {
+                           JSObjectRef self, size_t argc,
+                           const JSValueRef args[], JSValueRef* exception) {
     return JSValueMakeUndefined(ctx);
 }
 
 JSValueRef JABCioNetAccept(JSContextRef ctx, JSObjectRef function,
-                          JSObjectRef self, size_t argc,
-                          const JSValueRef args[], JSValueRef* exception) {
+                           JSObjectRef self, size_t argc,
+                           const JSValueRef args[], JSValueRef* exception) {
     return JSValueMakeUndefined(ctx);
 }
 
@@ -264,7 +269,7 @@ short JABCioNetOnEvent(int fd, struct poller* p) {
     JSObjectRef file = JS_FILES[fd];
     if (file == NULL) return 0;  //?
     JSValueRef fnv = JSObjectGetPropertyForKey(
-        JS_CONTEXT, file, JSValueMakeString(JS_CONTEXT, JS_KEY_JABCio), NULL);
+        JS_CONTEXT, file, JSValueMakeString(JS_CONTEXT, JS_KEY_IO), NULL);
     if (fnv == NULL || !JSValueIsObject(JS_CONTEXT, fnv) ||
         !JSObjectIsFunction(JS_CONTEXT, (JSObjectRef)fnv)) {
         p->events = 0;
@@ -317,15 +322,15 @@ short JABCioNetOnConnect(int fd, struct poller* p) {
 }
 
 JSValueRef JABCioNothing(JSContextRef ctx, JSObjectRef function,
-                        JSObjectRef self, size_t argc, const JSValueRef args[],
-                        JSValueRef* exception) {
+                         JSObjectRef self, size_t argc, const JSValueRef args[],
+                         JSValueRef* exception) {
     fprintf(stderr, "nothing\n");
     return JSValueMakeUndefined(ctx);
 }
 
 JSValueRef JABCioNetConnect(JSContextRef ctx, JSObjectRef function,
-                           JSObjectRef self, size_t argc,
-                           const JSValueRef args[], JSValueRef* exception) {
+                            JSObjectRef self, size_t argc,
+                            const JSValueRef args[], JSValueRef* exception) {
     if (argc < 2 || !JSValueIsString(ctx, args[0]) ||
         !JSValueIsObject(ctx, args[1]) ||
         !JSObjectIsFunction(ctx, (JSObjectRef)args[1])) {
@@ -350,7 +355,7 @@ JSValueRef JABCioNetConnect(JSContextRef ctx, JSObjectRef function,
     POLTrackEvents(cfd, p);
 
     JSObjectRef file = JABCioMakeFileObject(cfd, exception);
-    JSObjectSetProperty(JS_CONTEXT, file, JS_KEY_JABCio, callback,
+    JSObjectSetProperty(JS_CONTEXT, file, JS_KEY_IO, callback,
                         kJSPropertyAttributeNone, NULL);
 
     return file;
@@ -358,8 +363,8 @@ JSValueRef JABCioNetConnect(JSContextRef ctx, JSObjectRef function,
 
 // io.StdErr() -> fd
 JSValueRef JABCioStdio(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
-                      size_t argc, const JSValueRef args[],
-                      JSValueRef* exception, int which) {
+                       size_t argc, const JSValueRef args[],
+                       JSValueRef* exception, int which) {
     if (JABCio_STD[which] == NULL) {
         JSObjectRef fileObject = JABCioMakeFileObject(which, exception);
         poller p = {
@@ -371,17 +376,18 @@ JSValueRef JABCioStdio(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
 }
 
 JS_DEFINE_FN(JABCioStdIn) {
-    return JABCioStdio(ctx, function, self, argc, args, exception, STDIN_FILENO);
+    return JABCioStdio(ctx, function, self, argc, args, exception,
+                       STDIN_FILENO);
 }
 
 JS_DEFINE_FN(JABCioStdOut) {
     return JABCioStdio(ctx, function, self, argc, args, exception,
-                      STDOUT_FILENO);
+                       STDOUT_FILENO);
 }
 
 JS_DEFINE_FN(JABCioStdErr) {
     return JABCioStdio(ctx, function, self, argc, args, exception,
-                      STDERR_FILENO);
+                       STDERR_FILENO);
 }
 
 void mmap_free(void* bytes, void* deallocatorContext) {
@@ -390,8 +396,8 @@ void mmap_free(void* bytes, void* deallocatorContext) {
 }
 
 JSValueRef JABCioFileMap(JSContextRef ctx, JSObjectRef function,
-                        JSObjectRef self, size_t argc, const JSValueRef args[],
-                        JSValueRef* exception) {
+                         JSObjectRef self, size_t argc, const JSValueRef args[],
+                         JSValueRef* exception) {
     if (!JSValueIsString(ctx, args[0])) {
         *exception = JSOfCString("io.mmap(path)");
         return JSValueMakeUndefined(ctx);
@@ -464,7 +470,7 @@ ok64 JABCioInstall() {
     JS_SET_PROPERTY_FN(io, "accept", JABCioNetAccept);
     JS_SET_PROPERTY_FN(io, "connect", JABCioNetConnect);
 
-    JS_KEY_JABCio = JSStringCreateWithUTF8CString("io");
+    JS_KEY_IO = JSStringCreateWithUTF8CString("io");
     JS_STATUS_READ = JSStringCreateWithUTF8CString("r");
     JS_STATUS_WRITE = JSStringCreateWithUTF8CString("w");
     JS_STATUS_READWRITE = JSStringCreateWithUTF8CString("rw");
@@ -481,7 +487,7 @@ ok64 JABCioInstall() {
 ok64 JABCioUninstall() {
     JSClassRelease(JABC_IO_FILE_CLASS);
     JSClassRelease(JABC_IO_MAP_CLASS);
-    JSStringRelease(JS_KEY_JABCio);
+    JSStringRelease(JS_KEY_IO);
     JSStringRelease(JS_STATUS_ERROR);
     JSStringRelease(JS_STATUS_READ);
     JSStringRelease(JS_STATUS_WRITE);
@@ -492,7 +498,7 @@ ok64 JABCioUninstall() {
     JABCio_STD[0] = NULL;
     JABCio_STD[1] = NULL;
     JABCio_STD[2] = NULL;
-    JS_KEY_JABCio = NULL;
+    JS_KEY_IO = NULL;
     JS_STATUS_ERROR = NULL;
     JS_STATUS_READ = NULL;
     JS_STATUS_WRITE = NULL;

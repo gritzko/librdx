@@ -2,7 +2,23 @@
 
 #include <sys/mman.h>
 
-#include "OK.h"
+#include "PRO.h"
+
+ok64 FILEmakedir(path const name) {
+    sane($ok(name));
+    aFILEpath(p, name);
+    int rc = mkdir(p, S_IRWXU);
+    testc(rc == 0, FILEfail);
+    done;
+}
+
+ok64 FILEunlink(path const name) {
+    sane($ok(name));
+    aFILEpath(p, name);
+    int rc = unlink(p);
+    testc(rc == 0, FILEfail);
+    done;
+}
 
 ok64 FILEisdir(const path name) {
     sane($ok(name));

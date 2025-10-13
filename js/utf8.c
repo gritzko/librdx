@@ -5,15 +5,16 @@
 #include "JavaScriptCore/JSStringRef.h"
 #include "JavaScriptCore/JSTypedArray.h"
 #include "JavaScriptCore/JSValueRef.h"
-#include "abc/OK.h"
+#include "abc/BUF.h"
+#include "abc/PRO.h"
 
 JSObjectRef UTF8Object = NULL;
 
 void FreeDeallocator(void* bytes, void* deallocatorContext) { free(bytes); }
 
 JSValueRef JABCutf8Encode(JSContextRef ctx, JSObjectRef function,
-                         JSObjectRef self, size_t argc, const JSValueRef args[],
-                         JSValueRef* exception) {
+                          JSObjectRef self, size_t argc,
+                          const JSValueRef args[], JSValueRef* exception) {
     if (argc != 1 || !JS_ARG_IS_STRING(0)) {
         *exception = JSOfCString("utf8.Encode(string)->Uint8Array");
         return JSValueMakeUndefined(ctx);
@@ -29,8 +30,8 @@ JSValueRef JABCutf8Encode(JSContextRef ctx, JSObjectRef function,
 }
 
 JSValueRef JABCutf8Decode(JSContextRef ctx, JSObjectRef function,
-                         JSObjectRef self, size_t argc, const JSValueRef args[],
-                         JSValueRef* exception) {
+                          JSObjectRef self, size_t argc,
+                          const JSValueRef args[], JSValueRef* exception) {
     JSValueRef n = JSValueMakeUndefined(ctx);
     return n;
 }
@@ -48,6 +49,36 @@ ok64 JABCutf8BFeedValueRef(u8B into, JSContextRef ctx, JSValueRef val) {
     ok64 o = JSu8BString(str, into);
     JSStringRelease(str);
     return o;
+}
+
+#define JABproc(n, params...) n(JSContextRef ctx, params, JSValueRef* exception)
+#define JABsane(cond)  \
+    {                  \
+        if (!(cond)) { \
+        }              \
+    }
+#define JABcall(fn, params...) \
+    {                          \
+        ok64 o = fn(params);   \
+        if (o != OK) {         \
+        }                      \
+    }
+
+void JABproc(JABCutf8CopyStringValue, u8sp into, JSValueRef val) {
+    JABsane(into != NULL && val != NULL);
+    JSStringRef str = JSValueToStringCopy(ctx, val, exception);
+    JABcall($u8alloc, into, JSStringGetMaximumUTF8CStringSize(str));
+    size_t fact = JSStringGetUTF8CString(str, (char*)*into, $len(into));
+    into[0] += fact;
+    JSStringRelease(str);
+}
+
+JSValueRef JABproc(JAButf8CreateValue, utf8cp str) {
+    JABsane(str != NULL);
+    JSStringRef tmp = JSStringCreateWithUTF8CString(str);
+    JSValueRef n = JSValueMakeString(ctx, tmp);
+    JSStringRelease(tmp);
+    return n;
 }
 
 JSValueRef JSOfCString(utf8cp str) {

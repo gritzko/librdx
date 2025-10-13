@@ -4,7 +4,6 @@
 #include "01.h"
 #include "BUF.h"
 #include "OK.h"
-#include "PRO.h"
 
 #ifndef _XOPEN_SOURCE
 #define _XOPEN_SOURCE 500
@@ -217,23 +216,11 @@ fun proc Fpread(int fd, path into, size_t offset) {
 }
 */
 
-fun ok64 FILEmakedir(path const name) {
-    sane($ok(name));
-    aFILEpath(p, name);
-    int rc = mkdir(p, S_IRWXU);
-    testc(rc == 0, FILEfail);
-    done;
-}
+ok64 FILEmakedir(path const name);
 
 ok64 FILErmrf(path const name);
 
-fun pro(FILEunlink, path const name) {
-    sane($ok(name));
-    aFILEpath(p, name);
-    int rc = unlink(p);
-    testc(rc == 0, FILEfail);
-    done;
-}
+ok64 FILEunlink(path const name);
 
 fun int flags2prot(int flags) {
     int prot = PROT_READ;

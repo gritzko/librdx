@@ -146,7 +146,7 @@ const u8c *LEX_TEMPL[LEX_TEMPL_LANG_LEN][LEX_TEMPL_LEN][2] = {
                "    %% write init;\n"
                "    %% write exec;\n"
                "\n"
-               "    if (p!=len(data) || cs < ${mod}_first_final) {\n"
+               "    if (p<len(data) || cs < ${mod}_first_final) {\n"
                "        state.text = state.text[p:];\n"
                "        return errors.New(\"${mod} bad syntax\")\n"
                "    }\n"

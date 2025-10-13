@@ -3,6 +3,7 @@
 #include <unistd.h>
 
 #include "abc/ANSI.h"
+#include "abc/PRO.h"
 #include "abc/S.h"
 
 pro(openesc, $u8 $into, u8 mask) {

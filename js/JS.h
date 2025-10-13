@@ -93,6 +93,8 @@ extern thread_local JSObjectRef JS_GLOBAL_OBJECT;
 JSValueRef JABCutf8cpMakeValueRef(JSContextRef ctx, utf8cp str);
 ok64 JABCutf8BFeedStringRef(u8B into, JSStringRef str);
 ok64 JABCutf8BFeedValueRef(u8B into, JSContextRef ctx, JSValueRef val);
+void JABCutf8CopyStringValue(JSContextRef ctx, u8sp into, JSValueRef val,
+                             JSValueRef* exception);
 
 JSValueRef JSOfCString(const char* str);
 

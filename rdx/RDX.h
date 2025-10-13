@@ -1,12 +1,13 @@
 #ifndef LIBRDX_RDX_H
 #define LIBRDX_RDX_H
 
-#include "abc/S.h"
 #include "abc/01.h"
 #include "abc/B.h"
 #include "abc/HEX.h"
 #include "abc/INT.h"
 #include "abc/OK.h"
+#include "abc/PRO.h"
+#include "abc/S.h"
 #include "abc/TLV.h"
 #include "abc/ZINT.h"
 
@@ -72,10 +73,10 @@ fun u64 RDXtock(u128* clock, u128 see) {
     return id128time(*clock);
 }
 
-fun pro(RDXfeed, $u8 tlv, u8 t, id128 id, $cu8c value) {
+fun ok64 RDXfeed($u8 tlv, u8 t, id128 id, $cu8c value) {
     aBpad(u8, idpad, 16);
     ZINTu128feed(Bu8idle(idpad), &id);
-    return TLVFeedkv(tlv, t,Bu8cdata(idpad), value);
+    return TLVFeedkv(tlv, t, Bu8cdata(idpad), value);
 }
 
 fun ok64 RDXdrain(u8* t, id128* id, u8cs value, $u8c tlv) {

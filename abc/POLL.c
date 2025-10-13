@@ -6,6 +6,7 @@
 
 #include "B.h"
 #include "FILE.h"
+#include "PRO.h"
 
 int POLLlen(POLLstate state) {
     if (state[0].fn == nil) return 0;

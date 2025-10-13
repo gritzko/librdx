@@ -6,6 +6,7 @@
 #include "abc/FILE.h"
 #include "abc/INT.h"
 #include "abc/MMAP.h"
+#include "abc/PRO.h"
 
 a$strc(ext, ".lex");
 

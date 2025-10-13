@@ -157,8 +157,6 @@ fun ok64 JDRparse($u8 tlv, $u8 errmsg, u8cs jdr) {
     ok64 o = JDRlexer(&state);
     if (o != OK) {
         size_t off = j[0] - jdr[0];
-        $printf(errmsg, "%s at %ld:%ld\n", okstr(o), (size_t)state.line + 1,
-                off - state.col);
         u8cp p = *j;
         u8cs line = {p, p};
         while (line[0] > jdr[0] && $len(line) < 32 && *(line[0] - 1) != '\n')
