@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "JS.h"
+#include "JABC.h"
 #include "JavaScriptCore/JSBase.h"
 #include "JavaScriptCore/JSContextRef.h"
 #include "JavaScriptCore/JSObjectRef.h"
@@ -12,28 +12,28 @@
 #include "abc/POL.h"
 #include "abc/PRO.h"
 
-thread_local JSGlobalContextRef JS_CONTEXT;
-thread_local JSObjectRef JS_GLOBAL_OBJECT;
+thread_local JSGlobalContextRef JABC_CONTEXT;
+thread_local JSObjectRef JABC_GLOBAL_OBJECT;
 
 JSValueRef JSPropertyMessage = NULL;
 JSValueRef JSPropertyStack = NULL;
 
 JSGlobalContextRef JSInit() {
-    JS_CONTEXT = JSGlobalContextCreate(NULL);
-    //  JSGlobalContextRetain(JS_CONTEXT);
-    JS_GLOBAL_OBJECT = JSContextGetGlobalObject(JS_CONTEXT);
+    JABC_CONTEXT = JSGlobalContextCreate(NULL);
+    //  JSGlobalContextRetain(JABC_CONTEXT);
+    JABC_GLOBAL_OBJECT = JSContextGetGlobalObject(JABC_CONTEXT);
 
     JSStringRef propMsg = JSStringCreateWithUTF8CString("message");
-    JSPropertyMessage = JSValueMakeString(JS_CONTEXT, propMsg);
+    JSPropertyMessage = JSValueMakeString(JABC_CONTEXT, propMsg);
     JSStringRelease(propMsg);
-    JSValueProtect(JS_CONTEXT, JSPropertyMessage);
+    JSValueProtect(JABC_CONTEXT, JSPropertyMessage);
 
     JSStringRef stackMsg = JSStringCreateWithUTF8CString("stack");
-    JSPropertyStack = JSValueMakeString(JS_CONTEXT, stackMsg);
+    JSPropertyStack = JSValueMakeString(JABC_CONTEXT, stackMsg);
     JSStringRelease(stackMsg);
-    JSValueProtect(JS_CONTEXT, JSPropertyStack);
+    JSValueProtect(JABC_CONTEXT, JSPropertyStack);
 
-    return JS_CONTEXT;
+    return JABC_CONTEXT;
 }
 
 ok64 JABCioInstall();
@@ -56,11 +56,11 @@ ok64 JABCUninstallModules() {
 }
 
 void JABCClose() {
-    JSValueUnprotect(JS_CONTEXT, JSPropertyStack);
-    JSValueUnprotect(JS_CONTEXT, JSPropertyMessage);
-    JSGlobalContextRelease(JS_CONTEXT);
-    JS_CONTEXT = NULL;
-    JS_GLOBAL_OBJECT = NULL;
+    JSValueUnprotect(JABC_CONTEXT, JSPropertyStack);
+    JSValueUnprotect(JABC_CONTEXT, JSPropertyMessage);
+    JSGlobalContextRelease(JABC_CONTEXT);
+    JABC_CONTEXT = NULL;
+    JABC_GLOBAL_OBJECT = NULL;
     JSPropertyMessage = NULL;
     JSPropertyStack = NULL;
 }
@@ -111,36 +111,36 @@ void JABCDump(JSContextRef ctx, JSValueRef exception) {
 void JABCReport(JSValueRef exception) {
     JS_TRACE("something is wrong");
     char page[PAGESIZE], *msg;
-    if (JSValueIsString(JS_CONTEXT, exception)) {
+    if (JSValueIsString(JABC_CONTEXT, exception)) {
         size_t len =
             JSStringGetUTF8CString((JSStringRef)exception, page, PAGESIZE);
         if (len > 0) len--;
         msg = page;
-    } else if (JSValueIsObject(JS_CONTEXT, exception) &&
-               JSObjectHasPropertyForKey(JS_CONTEXT, (JSObjectRef)exception,
+    } else if (JSValueIsObject(JABC_CONTEXT, exception) &&
+               JSObjectHasPropertyForKey(JABC_CONTEXT, (JSObjectRef)exception,
                                          JSPropertyStack, NULL)) {
         JSValueRef ref = JSObjectGetPropertyForKey(
-            JS_CONTEXT, (JSObjectRef)exception, JSPropertyStack, NULL);
+            JABC_CONTEXT, (JSObjectRef)exception, JSPropertyStack, NULL);
         size_t len = JSStringGetUTF8CString((JSStringRef)ref, page, PAGESIZE);
         printf("LEN %li\n", len);
         msg = page;
-    } else if (JSValueIsObject(JS_CONTEXT, exception) &&
-               JSObjectHasPropertyForKey(JS_CONTEXT, (JSObjectRef)exception,
+    } else if (JSValueIsObject(JABC_CONTEXT, exception) &&
+               JSObjectHasPropertyForKey(JABC_CONTEXT, (JSObjectRef)exception,
                                          JSPropertyMessage, NULL)) {
         JSValueRef ref = JSObjectGetPropertyForKey(
-            JS_CONTEXT, (JSObjectRef)exception, JSPropertyMessage, NULL);
+            JABC_CONTEXT, (JSObjectRef)exception, JSPropertyMessage, NULL);
         size_t len = JSStringGetUTF8CString((JSStringRef)ref, page, PAGESIZE);
         page[len - 1] = '\n';
         size_t len2 = JSStringGetUTF8CString((JSStringRef)exception, page + len,
                                              PAGESIZE - len);
         printf("LEN %li %li\n", len, len2);
         msg = page;
-    } else if (JSValueIsObject(JS_CONTEXT, exception)) {
-        JABCDump(JS_CONTEXT, exception);
-        JSObjectPropertiesDump(JS_CONTEXT, (JSObjectRef)exception);
+    } else if (JSValueIsObject(JABC_CONTEXT, exception)) {
+        JABCDump(JABC_CONTEXT, exception);
+        JSObjectPropertiesDump(JABC_CONTEXT, (JSObjectRef)exception);
         msg = "see above";
     } else {
-        JABCDump(JS_CONTEXT, exception);
+        JABCDump(JABC_CONTEXT, exception);
     }
     if (*msg) fprintf(stderr, "JavaScript exception: %s\n", msg);
 }
@@ -152,7 +152,7 @@ void JABCExecute(const char* script) {
 
     JSValueRef exception = NULL;
     // Execute script with default options
-    JSEvaluateScript(JS_CONTEXT, js_code, NULL, NULL, 1, &exception);
+    JSEvaluateScript(JABC_CONTEXT, js_code, NULL, NULL, 1, &exception);
     if (exception != NULL) {
         JABCReport(exception);
     } else {
@@ -164,7 +164,7 @@ void JABCExecute(const char* script) {
 }
 
 #define HELP_BOILERPLATE ""
-#define VERSJABCIoN_BOILERPLATE ""
+#define VERSION_BOILERPLATE "jabc v0.0.1"
 
 u8 _pro_depth = 0;
 
@@ -175,7 +175,7 @@ int main(int argc, char** argv) {
     // Parse command-line arguments
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--version") == 0) {
-            fprintf(stderr, VERSJABCIoN_BOILERPLATE);
+            fprintf(stderr, VERSION_BOILERPLATE);
             return 0;
         } else if (strcmp(argv[i], "--help") == 0) {
             fprintf(stderr, HELP_BOILERPLATE);

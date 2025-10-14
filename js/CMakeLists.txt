@@ -30,14 +30,14 @@ include_directories(
     ..
     .
 )
-add_executable(jar
+add_executable(jabc
     io.c
     main.c
     io.js.c
     utf8.c
 )
 
-target_link_libraries(jar
+target_link_libraries(jabc
     ${JSC_LIB}
     abc
 )

@@ -7,8 +7,8 @@
 #include "JavaScriptCore/JSObjectRef.h"
 #include "abc/BUF.h"
 
-extern thread_local JSGlobalContextRef JS_CONTEXT;
-extern thread_local JSObjectRef JS_GLOBAL_OBJECT;
+extern thread_local JSGlobalContextRef JABC_CONTEXT;
+extern thread_local JSObjectRef JABC_GLOBAL_OBJECT;
 
 #define JS_DEFINE_FN(fn)                                                    \
     JSValueRef fn(JSContextRef ctx, JSObjectRef function, JSObjectRef self, \
@@ -61,23 +61,23 @@ extern thread_local JSObjectRef JS_GLOBAL_OBJECT;
 
 #define JS_TO_NUMBER(n, val) double n = JSValueToNumber(ctx, val, exception);
 
-#define JS_API_OBJECT(o, n)                                          \
-    JSObjectRef o = JSObjectMake(JS_CONTEXT, NULL, NULL);            \
-    {                                                                \
-        JSStringRef ioName = JSStringCreateWithUTF8CString(n);       \
-        JSObjectSetProperty(JS_CONTEXT, JS_GLOBAL_OBJECT, ioName, o, \
-                            kJSPropertyAttributeNone, NULL);         \
-        JSStringRelease(ioName);                                     \
+#define JS_API_OBJECT(o, n)                                              \
+    JSObjectRef o = JSObjectMake(JABC_CONTEXT, NULL, NULL);              \
+    {                                                                    \
+        JSStringRef ioName = JSStringCreateWithUTF8CString(n);           \
+        JSObjectSetProperty(JABC_CONTEXT, JABC_GLOBAL_OBJECT, ioName, o, \
+                            kJSPropertyAttributeNone, NULL);             \
+        JSStringRelease(ioName);                                         \
     }
 
-#define JS_SET_PROPERTY_FN(o, n, f)                              \
-    {                                                            \
-        JSStringRef fn = JSStringCreateWithUTF8CString(n);       \
-        JSObjectSetProperty(                                     \
-            JS_CONTEXT, o, fn,                                   \
-            JSObjectMakeFunctionWithCallback(JS_CONTEXT, fn, f), \
-            kJSPropertyAttributeNone, NULL);                     \
-        JSStringRelease(fn);                                     \
+#define JS_SET_PROPERTY_FN(o, n, f)                                \
+    {                                                              \
+        JSStringRef fn = JSStringCreateWithUTF8CString(n);         \
+        JSObjectSetProperty(                                       \
+            JABC_CONTEXT, o, fn,                                   \
+            JSObjectMakeFunctionWithCallback(JABC_CONTEXT, fn, f), \
+            kJSPropertyAttributeNone, NULL);                       \
+        JSStringRelease(fn);                                       \
     }
 
 #define JS_ADD_METHOD(o, n, fn)                                  \
@@ -91,10 +91,10 @@ extern thread_local JSObjectRef JS_GLOBAL_OBJECT;
     }
 
 JSValueRef JABCutf8cpMakeValueRef(JSContextRef ctx, utf8cp str);
-ok64 JABCutf8BFeedStringRef(u8b into, JSStringRef str);
-ok64 JABCutf8BFeedValueRef(u8b into, JSContextRef ctx, JSValueRef val);
-void JABCutf8CopyStringValue(JSContextRef ctx, u8sp into, JSValueRef val,
-                             JSValueRef* exception);
+ok64 JABCutf8bFeedStringRef(u8b into, JSStringRef str);
+ok64 JABCutf8bFeedValueRef(u8b into, JSContextRef ctx, JSValueRef val);
+JSValueRef JABCutf8CopyStringValue(JSContextRef ctx, u8sp into, JSValueRef val,
+                                   JSValueRef* exception);
 
 JSValueRef JSOfCString(const char* str);
 

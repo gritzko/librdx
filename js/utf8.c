@@ -1,6 +1,6 @@
 #include "abc/UTF8.h"
 
-#include "JS.h"
+#include "JABC.h"
 #include "JavaScriptCore/JSBase.h"
 #include "JavaScriptCore/JSStringRef.h"
 #include "JavaScriptCore/JSTypedArray.h"
@@ -36,7 +36,7 @@ JSValueRef JABCutf8Decode(JSContextRef ctx, JSObjectRef function,
     return n;
 }
 
-ok64 JSu8BString(JSStringRef str, u8bp into) {
+ok64 JSu8bString(JSStringRef str, u8bp into) {
     u8sp idle = Bidle(into);
     size_t fact = JSStringGetUTF8CString(str, (char*)*idle, $len(idle));
     if (fact < 1) return badarg;
@@ -44,36 +44,37 @@ ok64 JSu8BString(JSStringRef str, u8bp into) {
     return OK;
 }
 
-ok64 JABCutf8BFeedValueRef(u8bp into, JSContextRef ctx, JSValueRef val) {
+ok64 JABCutf8bFeedValueRef(u8bp into, JSContextRef ctx, JSValueRef val) {
     JSStringRef str = JSValueToStringCopy(ctx, val, NULL);
-    ok64 o = JSu8BString(str, into);
+    ok64 o = JSu8bString(str, into);
     JSStringRelease(str);
     return o;
 }
 
-#define JABproc(n, params...) n(JSContextRef ctx, params, JSValueRef* exception)
+#define JABproc(n, params...) \
+    JSValueRef n(JSContextRef ctx, params, JSValueRef* exception)
 #define JABsane(cond)  \
     {                  \
         if (!(cond)) { \
         }              \
     }
-#define JABcall(fn, params...) \
-    {                          \
-        ok64 o = fn(params);   \
-        if (o != OK) {         \
-        }                      \
+#define JABcall(fn, params...)            \
+    fn(ctx, params, exception);           \
+    if (exception != NULL) {              \
+        return JSValueMakeUndefined(ctx); \
     }
 
-void JABproc(JABCutf8CopyStringValue, u8sp into, JSValueRef val) {
+JABproc(JABCutf8CopyStringValue, u8sp into, JSValueRef val) {
     JABsane(into != NULL && val != NULL);
     JSStringRef str = JSValueToStringCopy(ctx, val, exception);
-    JABcall($u8alloc, into, JSStringGetMaximumUTF8CStringSize(str));
+    $u8alloc(into, JSStringGetMaximumUTF8CStringSize(str));
     size_t fact = JSStringGetUTF8CString(str, (char*)*into, $len(into));
     into[0] += fact;
     JSStringRelease(str);
+    return JSValueMakeUndefined(ctx);
 }
 
-JSValueRef JABproc(JAButf8CreateValue, utf8cp str) {
+JABproc(JAButf8CreateValue, utf8cp str) {
     JABsane(str != NULL);
     JSStringRef tmp = JSStringCreateWithUTF8CString(str);
     JSValueRef n = JSValueMakeString(ctx, tmp);
@@ -83,7 +84,7 @@ JSValueRef JABproc(JAButf8CreateValue, utf8cp str) {
 
 JSValueRef JSOfCString(utf8cp str) {
     JSStringRef tmp = JSStringCreateWithUTF8CString(str);
-    JSValueRef n = JSValueMakeString(JS_CONTEXT, tmp);
+    JSValueRef n = JSValueMakeString(JABC_CONTEXT, tmp);
     JSStringRelease(tmp);
     return n;
 }
