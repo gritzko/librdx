@@ -303,7 +303,7 @@ ok64 BRIXisentry($cu8c rdx) {
     return o;
 }
 
-ok64 BRIXenlist(u8csB heap, u64* roughlen, $cu8c allrdx) {
+ok64 BRIXenlist(u8csb heap, u64* roughlen, $cu8c allrdx) {
     sane(Bok(heap) && $ok(allrdx));
     a$dup(u8c, rdx, allrdx);
     while (!$empty(rdx)) {
@@ -347,7 +347,7 @@ ok64 BRIXflatfeed($u8 into, u8cs rdx) {
     done;
 }
 
-ok64 _BRIXaddpatch(sha256* sha, BRIX* brix, u8cs rdx, u8csB heap) {
+ok64 _BRIXaddpatch(sha256* sha, BRIX* brix, u8cs rdx, u8csb heap) {
     sane(sha != nil && BRIXok(brix) && $ok(rdx));
 
     u64 roughlen = 0;
@@ -384,7 +384,7 @@ ok64 _BRIXaddpatch(sha256* sha, BRIX* brix, u8cs rdx, u8csB heap) {
 // Makes a *patch* SST for it (no deps), puts it on the stack.
 ok64 BRIXaddpatch(sha256* sha, BRIX* brix, u8cs rdx) {
     sane(sha != nil && BRIXok(brix) && $ok(rdx));
-    u8csB heap = {};
+    u8csb heap = {};
     try(Bu8csalloc, heap, BRIX_MAX_SST0_ENTRIES);
     then try(_BRIXaddpatch, sha, brix, rdx, heap);
     then try(BRIXadd, brix, sha);

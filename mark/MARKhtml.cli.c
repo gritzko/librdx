@@ -40,7 +40,7 @@ pro(md2html, u8cs mod) {
 
     Bu8 fmtbuf = {};
     call(MMAPu8open, fmtbuf, Blen(txtbuf));
-    u8cpB linebuf = {};
+    u8cpb linebuf = {};
     call(MMAPu8cpopen, linebuf, Blen(txtbuf));
     Bu64 divbuf = {};
     call(MMAPu64open, divbuf, Blen(txtbuf));
@@ -50,9 +50,9 @@ pro(md2html, u8cs mod) {
     call(MMAPu8open, intobuf, roundup(Blen(txtbuf) * 8, PAGESIZE));
 
     MARKstate state = {};
-    state.divB = (u64Bp)divbuf;
-    state.lineB = (u8cpBp)linebuf;
-    state.pB = (u64Bp)pbuf;
+    state.divB = (u64bp)divbuf;
+    state.lineB = (u8cpbp)linebuf;
+    state.pB = (u64bp)pbuf;
     $mv(state.text, Bu8cdata(txtbuf));
     $mv(state.fmt, Bu8idle(fmtbuf));
 

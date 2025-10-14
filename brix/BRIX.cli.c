@@ -136,7 +136,7 @@ ok64 BRIX_seal(BRIX* brix, id128 id, ok64 sub, u8cs args) {
     $sha256sort(depsdata);
 
     a$dup(Bu8, news, BBu8data(brix->ssts));
-    $eat(news) u8csBfeed1(insbuf,Bu8cdata(**news));
+    $eat(news) u8csbfeed1(insbuf,Bu8cdata(**news));
 
     SSTu128 sst = {};
     int fd = FILE_CLOSED;

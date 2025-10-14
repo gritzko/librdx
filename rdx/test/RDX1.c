@@ -152,7 +152,7 @@ pro(RDX1) {
             continue;
         }
         u8cs correct = $dup(Blast(insbuf));
-        u8csBpop(insbuf);
+        u8csbpop(insbuf);
         aBcpad(u8, merged, PAGESIZE);
         call(YmergeFIRST, mergedidle, insdata);
         $testeq(correct, mergeddata);

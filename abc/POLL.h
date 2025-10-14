@@ -22,7 +22,7 @@ typedef ok64 (*POLLfunT)(struct POLLstate* state);
 typedef ok64 (*POLLfunI)(struct POLLctl* ctl);
 
 struct POLLctl {
-    u8csB writes;
+    u8csb writes;
     Bu8 readbuf;
     Bu8 writebuf;
     u8cs name;

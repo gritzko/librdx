@@ -1,6 +1,6 @@
 #include "Y.h"
 
-fun ok64 _X(push)(u8csB lsm, u8cs x) {
+fun ok64 _X(push)(u8csb lsm, u8cs x) {
     ok64 o = u8cssFeed1(Bu8csidle(lsm), x);
     if (o == OK) HEAPu8csUpZ(lsm, &_X(z));
     return o;

@@ -29,12 +29,12 @@ con ok64 Bmiss = 0xbc6ddf7;
 BTYPE(void);
 typedef void *const *void$;
 typedef void const *const *voidc$;
-typedef void *const *voidB;
+typedef void *voidb[4];
+typedef void **voidbp;
 
 #define B(T, b) B##T b = {0, 0, 0, 0}
 
-#define Bbusy(b) \
-    { b[0], b[2] }
+#define Bbusy(b) {b[0], b[2]}
 
 #define Bpast(b) (b + 0)
 #define Bdata(b) (b + 1)
@@ -75,7 +75,7 @@ typedef void *const *voidB;
 
 #define a_pad(T, n, l)                       \
     T _##n[(l)];                             \
-    T##B n = {_##n, _##n, _##n, _##n + (l)}; \
+    T##b n = {_##n, _##n, _##n, _##n + (l)}; \
     T##sp n##_idle = B##T##idle(n);          \
     T##sp n##_data = B##T##data(n);          \
     T##csp n##_datac = B##T##cdata(n);

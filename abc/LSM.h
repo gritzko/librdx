@@ -19,9 +19,9 @@ typedef int (*$u8cZfn)($cu8c* a, $cu8c* b);
 #include "abc/HEAPx.h"
 #undef X
 
-typedef u8csB LSM;
+typedef u8csb LSM;
 
-fun pro(LSMmore, u8csB lsm, u8cs x, $u8cZfn cmp) {
+fun pro(LSMmore, u8csb lsm, u8cs x, $u8cZfn cmp) {
     sane(Bok(lsm) && $ok(x) && cmp != nil);
     // call(u8cssFeed1, Bu8csidle(lsm), x);
     memcpy(lsm[2], x, sizeof(u8cs));

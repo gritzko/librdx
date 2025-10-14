@@ -57,20 +57,19 @@ typedef u8cs const *u8cscp;
 #undef ABC_X_$
 #undef X
 
-fun int u8Bcmp(Bu8 const *a, Bu8 const *b) {
+fun int u8bcmp(u8b const *a, u8b const *b) {
     return u8cpcmp((u8cp *)((*a)[0]), (u8cp *)((*b)[0]));
 }
 
-typedef u8B const *u8Bcp;
+typedef u8b const *u8bcp;
 
-#define X(M, name) M##u8B##name
+#define X(M, name) M##u8b##name
 #define ABC_X_$
 #include "Bx.h"
 #undef ABC_X_$
 #undef X
 
-#define $u8raw(v) \
-    { (u8 *)&(v), (u8 *)(&v) + sizeof(v) }
+#define $u8raw(v) {(u8 *)&(v), (u8 *)(&v) + sizeof(v)}
 
 #define a$raw(n, v) $u8 n = {(u8 *)&(v), (u8 *)(&v) + sizeof(v)}
 #define a$rawc(n, v) u8cs n = {(u8 *)&(v), (u8 *)(&v) + sizeof(v)}
@@ -116,9 +115,9 @@ fun void Bitunset(Bu8 buf, size_t ndx) {
     u8$ n##idle = Bu8idle(n##buf);                      \
     u8$ n##data = Bu8data(n##buf);                      \
     u8cs _$##n[(l)];                                    \
-    u8csB n##$buf = {_$##n, _$##n, _$##n, _$##n + (l)}; \
+    u8csb n##$buf = {_$##n, _$##n, _$##n, _$##n + (l)}; \
     u8cssp n##$idle = Bu8csidle(n##$buf);               \
-    u8cssp n##$data = u8csB_data(n##$buf);
+    u8cssp n##$data = u8csb_data(n##$buf);
 
 #define $$call(fn, n, ...)              \
     {                                   \

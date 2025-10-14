@@ -183,7 +183,7 @@ fun void _parse_args(int argn, char **args) {
 
 #define a$rg(name, i) \
     u8cs name = {};   \
-    $mv(name, *u8css_atp(u8csB_data(STD_ARGS), i));
+    $mv(name, *u8css_atp(u8csb_data(STD_ARGS), i));
 
 #define MAIN(f)                                                          \
     uint8_t _pro_depth = 0;                                              \

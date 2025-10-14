@@ -19,9 +19,9 @@ pro(MARKparsetest) {
     aBpad(u64, divs, 32);
     aBpad(u64, blocks, 32);
     aBpad(u8cp, lines, 32);
-    state.lineB = (u8cpBp)lines;
-    state.divB = (u64Bp)divs;
-    state.pB = (u64Bp)blocks;
+    state.lineB = (u8cpbp)lines;
+    state.divB = (u64bp)divs;
+    state.pB = (u64bp)blocks;
     a$strc(mark,
            "  # Header\n"
            " 1. list of\n"
@@ -73,9 +73,9 @@ pro(MARKANSItest) {
         aBpad(u8, fmt, 256);
         aBpad(u8, into, 256);
         aBpad(u64, blocks, 256);
-        state.lineB = (u8cpBp)lines;
-        state.divB = (u64Bp)divs;
-        state.pB = (u64Bp)blocks;
+        state.lineB = (u8cpbp)lines;
+        state.divB = (u64bp)divs;
+        state.pB = (u64bp)blocks;
         $mv(state.text, QA[c][0]);
         $mv(state.fmt, Bu8idle(fmt));
         Bzero(fmt);
@@ -144,9 +144,9 @@ pro(MARKHTMLtest) {
 
     };
 
-    Bu64 divs = {};
-    Bu64 blocks = {};
-    u8cpB lines = {};
+    u64b divs = {};
+    u64b blocks = {};
+    u8cpb lines = {};
     Bu8 fmt = {};
     call(Bu64alloc, divs, 32);
     call(Bu8cpalloc, lines, 32);
@@ -161,9 +161,9 @@ pro(MARKHTMLtest) {
         Bu64reset(blocks);
         Bu8reset(fmt);
         Bzero(fmt);
-        state.lineB = (u8cpBp)lines;
-        state.divB = (u64Bp)divs;
-        state.pB = (u64Bp)blocks;
+        state.lineB = (u8cpbp)lines;
+        state.divB = (u64bp)divs;
+        state.pB = (u64bp)blocks;
         $mv(state.text, cases[i][0]);
         $mv(state.fmt, Bu8idle(fmt));
 

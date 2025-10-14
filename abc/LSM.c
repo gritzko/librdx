@@ -31,7 +31,7 @@ ok64 LSMnext($u8 into, u8css lsm, $u8cZfn cmp, $u8cYfn mrg) {
     done;
 }
 
-ok64 LSMdrainruns(u8csB heap, u8cs input, $u8cZfn cmp) {
+ok64 LSMdrainruns(u8csb heap, u8cs input, $u8cZfn cmp) {
     sane(Bok(heap) && $ok(input) && Bu8cshasroom(heap) && cmp != nil);
     u8cs last = {};
     call(TLVDrain$, last, input);

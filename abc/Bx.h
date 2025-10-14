@@ -5,17 +5,17 @@
 #define T X(, )
 
 typedef T *X(B, )[4];
-typedef T const **X(, cB);
 typedef X($, ) * X(B$, )[4];
 #ifndef ABC_X_$
 typedef X($, c) * X(B$, c)[4];
 #endif
 
-typedef T *X(, B)[4];
-typedef T **X(, Bp);
-typedef T const **X(, cBp);
-typedef X($, ) * X(, sB)[4];
-typedef X($, c) * X(, csB)[4];
+typedef T *X(, b)[4];
+typedef T const **X(, cb);
+typedef T **X(, bp);
+typedef T const **X(, cbp);
+typedef X($, ) * X(, sb)[4];
+typedef X($, c) * X(, csb)[4];
 
 fun T *const *X(B, past)(X(B, ) buf) { return (T **)buf + 0; }
 fun T const *const *X(B, pastc)(X(B, ) buf) {
@@ -23,8 +23,8 @@ fun T const *const *X(B, pastc)(X(B, ) buf) {
 }
 fun T **X(B, data)(X(B, ) buf) { return (T **)buf + 1; }
 fun T **X(B, idle)(X(B, ) buf) { return (T **)buf + 2; }
-fun T **X(, B_data)(X(B, ) buf) { return (T **)buf + 1; }
-fun T **X(, B_idle)(X(B, ) buf) { return (T **)buf + 2; }
+fun T **X(, b_data)(X(B, ) buf) { return (T **)buf + 1; }
+fun T **X(, b_idle)(X(B, ) buf) { return (T **)buf + 2; }
 
 fun T **X(B, $1)(X(B, ) buf) { return (T **)buf + 1; }
 fun T **X(B, $2)(X(B, ) buf) { return (T **)buf + 2; }
@@ -109,7 +109,7 @@ fun ok64 X(B, feedp)(X(B, ) buf, T const *one) {
 }
 */
 
-fun ok64 X(, B_push)(X(, B) buf, X(, cp) one) {
+fun ok64 X(, B_push)(X(, b) buf, X(, cp) one) {
     return X(, sFeedP)(Bidle(buf), one);
 }
 
@@ -133,7 +133,7 @@ fun ok64 X(, BFeed1)(X(B, ) buf, T one) {
     return X(, sFeed1)(X(B, idle)(buf), one);
 }
 
-fun ok64 X(, B_feed$)(X(, B) buf, X($c, c) from) {
+fun ok64 X(, B_feed$)(X(, b) buf, X($c, c) from) {
     T **into = X(B, idle)(buf);
     if ($len(into) < $len(from)) return Bnoroom;
     X(, sCopy)(into, from);
@@ -147,13 +147,13 @@ fun ok64 X(B, mark)(X(B, ) const buf, range64 *range) {
     return OK;
 }
 
-fun void X(B, reset)(X(, B) buf) {
+fun void X(B, reset)(X(, b) buf) {
     T **b = (T **)buf;
     b[1] = b[0];
     b[2] = b[0];
 }
 
-fun void X(B, Ate)(X(, B) buf) { Bate(buf); }
+fun void X(B, Ate)(X(, b) buf) { Bate(buf); }
 
 fun ok64 X(B, rewind)(X(B, ) buf, range64 range) {
     size_t len = Blen(buf);

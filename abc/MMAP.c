@@ -2,7 +2,7 @@
 
 #include "PRO.h"
 
-ok64 MMAPopen(Bvoid buf, size_t size) {
+ok64 MMAPopen(voidb buf, size_t size) {
     sane(!(buf == nil || *buf != nil || size == 0));
     uint8_t *p = (uint8_t *)mmap(NULL, size, PROT_READ | PROT_WRITE,
                                  MAP_SHARED | MAP_ANON, -1, 0);
@@ -13,7 +13,7 @@ ok64 MMAPopen(Bvoid buf, size_t size) {
     done;
 }
 
-ok64 MMAPresize(Bvoid buf, size_t new_size) {
+ok64 MMAPresize(voidb buf, size_t new_size) {
     sane(!Bnil(buf) && new_size > 0);
     size_t old_size = Bsize(buf);
 #ifdef MREMAP_MAYMOVE

@@ -6,8 +6,8 @@
 
 pro(MMAPtest1) {
     sane(1);
-    Bu8 buf8 = {};
-    call(MMAPopen, (void$)buf8, 4096);
+    u8b buf8 = {};
+    call(MMAPopen, (voidbp)buf8, 4096);
     aB(u32, word);
     testeq(YES, Bnil(wordbuf));
     call(Bmmap, wordbuf, 1024);
@@ -32,7 +32,7 @@ pro(MMAPtest1) {
     testeq(Bat(wordbuf, 2047), 0xeeccbbaa);
     testeq(Bat(wordbuf, 0), 0xddccbbaa);
 
-    call(MMAPclose, (void$)buf8);
+    call(MMAPclose, (voidbp)buf8);
     call(Bunmap, wordbuf);
     done;
 }

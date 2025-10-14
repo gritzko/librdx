@@ -59,7 +59,7 @@ pro(mark, u8cs mod) {
     call(FILEmap, text, &fd, PROT_READ);
 
     Bu8 fmtbuf = {};
-    u8cpB linebuf = {};
+    u8cpb linebuf = {};
     Bu64 divbuf = {};
     Bu64 pbuf = {};
     Bu8 intobuf = {};
@@ -71,9 +71,9 @@ pro(mark, u8cs mod) {
 
     then {
         MARKstate state = {};
-        state.divB = (u64Bp)divbuf;
-        state.lineB = (u8cpBp)linebuf;
-        state.pB = (u64Bp)pbuf;
+        state.divB = (u64bp)divbuf;
+        state.lineB = (u8cpbp)linebuf;
+        state.pB = (u64bp)pbuf;
         $mv(state.text, Bu8cdata(text));
         $mv(state.fmt, Bu8idle(fmtbuf));
 

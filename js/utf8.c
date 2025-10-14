@@ -36,7 +36,7 @@ JSValueRef JABCutf8Decode(JSContextRef ctx, JSObjectRef function,
     return n;
 }
 
-ok64 JSu8BString(JSStringRef str, u8B into) {
+ok64 JSu8BString(JSStringRef str, u8bp into) {
     u8sp idle = Bidle(into);
     size_t fact = JSStringGetUTF8CString(str, (char*)*idle, $len(idle));
     if (fact < 1) return badarg;
@@ -44,7 +44,7 @@ ok64 JSu8BString(JSStringRef str, u8B into) {
     return OK;
 }
 
-ok64 JABCutf8BFeedValueRef(u8B into, JSContextRef ctx, JSValueRef val) {
+ok64 JABCutf8BFeedValueRef(u8bp into, JSContextRef ctx, JSValueRef val) {
     JSStringRef str = JSValueToStringCopy(ctx, val, NULL);
     ok64 o = JSu8BString(str, into);
     JSStringRelease(str);

@@ -73,7 +73,7 @@ pro(B$test) {
 
 pro(BBtest) {
     sane(1);
-    aBpad(u8B, buff, 4);
+    aBpad(u8b, buff, 4);
     testeq(sizeof(Bat(buff, 0)), sizeof(Bvoid));
     done;
 }
