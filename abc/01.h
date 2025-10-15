@@ -1,5 +1,6 @@
 #ifndef ABC_BITS_H
 #define ABC_BITS_H
+#include <float.h>
 #include <stdint.h>
 #include <string.h>
 #include <unistd.h>
@@ -354,7 +355,13 @@ fun ok64 u64decdrain(u64 *x, u8c *const *dec) {
 
 typedef ok64 (*OKcallback)(void *);
 
-#define $u8str(c) \
-    { (u8 *)(c), (u8 *)(c) + strlen(c) }
+#define $u8str(c) {(u8 *)(c), (u8 *)(c) + strlen(c)}
+
+#define u64MaxValue UINT64_MAX
+#define u64MinValue 0
+#define i64MaxValue INT64_MAX
+#define i64MinValue INT64_MIN
+#define f64MaxValue DBL_MAX
+#define f64MinValue -DBL_MAX
 
 #endif

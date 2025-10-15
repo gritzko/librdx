@@ -246,7 +246,7 @@ ok64 JDRinsertU(JDRstate* state) {
         u8cs rec = {start, state->tlv[0]}, key, body;
         test($len(state->tlv) > 1 + 4 + 1 + 1 + $len(rec), JDRnoroom);
         u8 lit;
-        call(TLVDrainkv, &lit, key, body, rec);
+        call(TLVDrainKeyVal, &lit, key, body, rec);
         test($empty(rec), FAILsanity);
         u8p safe0 = state->tlv[0] + 1 + 4 + 1 + 1;
         $u8 safekey = {safe0, safe0 + $len(key)};
@@ -455,7 +455,7 @@ ok64 JDRfeed1($u8 rdxj, u8cs tlv, u64 style) {
     u8cs idz;
     id128 id = {};
     a$dup(u8c, tlv2, tlv);
-    call(TLVDrainkv, &lit, idz, value, tlv);
+    call(TLVDrainKeyVal, &lit, idz, value, tlv);
     call(ZINTu128drain, &id, idz);
     switch (lit) {
         case RDX_INT:
@@ -527,7 +527,7 @@ pro(JDRdrainSesc, $u8 txt, u8cs tlv) {
     u8 t = 0;
     u8cs key = {};
     u8cs val = {};
-    call(TLVDrainkv, &t, key, val, tlv);
+    call(TLVDrainKeyVal, &t, key, val, tlv);
     while (!$empty(val) && !$empty(txt)) {
         switch (**val) {
             case '\t':

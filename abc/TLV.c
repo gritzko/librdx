@@ -91,7 +91,7 @@ ok64 TLVDrain$(u8c$ rec, u8cs from) {
     done;
 }
 
-ok64 TLVDrainkv(u8* type, u8cs key, $u8c val, $u8c tlv) {
+ok64 TLVDrainKeyVal(u8* type, u8cs key, $u8c val, $u8c tlv) {
     sane(type != nil && key != nil && val != nil && $ok(tlv));
     u32 hlen = 0, blen = 0;
     call(TLVprobe, type, &hlen, &blen, tlv);

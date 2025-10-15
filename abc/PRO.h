@@ -44,6 +44,8 @@ con char *_pro_indent =
         }                                                               \
     }
 
+#define scan(f, ...) while (OK == (__ = f(__VA_ARGS__)))
+
 #define try(f, ...)                                                     \
     {                                                                   \
         u8 __depth = _pro_depth++;                                      \
@@ -126,6 +128,13 @@ con char *_pro_indent =
 
 #define sure(f) \
     if (__ != f) fail(__);
+
+#define seen(f)    \
+    if (__ != f) { \
+        fail(__);  \
+    } else {       \
+        __ = OK;   \
+    }
 
 #define mute(f, o)            \
     {                         \

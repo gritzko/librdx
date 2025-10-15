@@ -90,8 +90,8 @@ fun int X(SST, cmp)($cc a, $cc b) {
     u8cs ka = {}, va = {}, kb = {}, vb = {};
     a$dup(u8c, aa, a);
     a$dup(u8c, bb, b);  // TODO fast and robust
-    TLVDrainkv(&ta, ka, va, aa);
-    TLVDrainkv(&tb, kb, vb, bb);
+    TLVDrainKeyVal(&ta, ka, va, aa);
+    TLVDrainKeyVal(&tb, kb, vb, bb);
     Key keya = X(, max), keyb = X(, max);
     X(, unpack)(&keya, ka);
     X(, unpack)(&keyb, kb);
@@ -117,7 +117,7 @@ fun ok64 X(SST, next)(u8* t, Key* key, u8c$ val, u8cs rest) {
         TLVDrain$(rec, rest);
     }
     u8cs k = {};
-    ok64 o = TLVDrainkv(t, k, val, rest);
+    ok64 o = TLVDrainKeyVal(t, k, val, rest);
     if (o == OK) o = X(, unpack)(key, k);
     if (o != OK) return o;
     return OK;

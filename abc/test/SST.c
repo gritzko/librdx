@@ -27,8 +27,8 @@ fun int alpha($cu8c* a, $cu8c* b) {
     a$dup(u8c, bb, *b);
     u8 ta, tb;
     u8cs keya, keyb, vala, valb;
-    TLVDrainkv(&ta, keya, vala, aa);
-    TLVDrainkv(&tb, keyb, valb, bb);
+    TLVDrainKeyVal(&ta, keya, vala, aa);
+    TLVDrainKeyVal(&tb, keyb, valb, bb);
     int c = $cmp(keya, keyb);
     return c;
 }

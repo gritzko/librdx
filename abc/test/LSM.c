@@ -14,8 +14,8 @@ fun int alpha($cu8c* a, $cu8c* b) {
     a$dup(u8c, bb, *b);
     u8 ta, tb;
     u8cs keya, keyb, vala, valb;
-    TLVDrainkv(&ta, keya, vala, aa);
-    TLVDrainkv(&tb, keyb, valb, bb);
+    TLVDrainKeyVal(&ta, keya, vala, aa);
+    TLVDrainKeyVal(&tb, keyb, valb, bb);
     int c = $cmp(keya, keyb);
     return c;
 }
@@ -64,7 +64,7 @@ pro(LSM0) {
         u8 ta;
         u8cs keya;
         u8cs vala;
-        TLVDrainkv(&ta, keya, vala, res);
+        TLVDrainKeyVal(&ta, keya, vala, res);
         u8 c = **vala;
         want(c == n);
         ++n;
@@ -94,7 +94,7 @@ pro(LSM1) {
         u8 ta;
         u8cs keya;
         u8cs vala;
-        call(TLVDrainkv, &ta, keya, vala,Bu8cdata(padbuf));
+        call(TLVDrainKeyVal, &ta, keya, vala,Bu8cdata(padbuf));
         //$println(keya);
         want(**keya == c);
         ++c;

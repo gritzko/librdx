@@ -90,6 +90,6 @@ ok64 TLVclose($u8 tlv, u8 type, u32* const* len);
 
 ok64 TLVFeedkv($u8 tlv, u8c type, u8cs key, $cu8c val);
 
-ok64 TLVDrainkv(u8* type, u8cs key, $u8c val, $u8c tlv);
+ok64 TLVDrainKeyVal(u8* type, u8cs key, $u8c val, $u8c tlv);
 
 #endif

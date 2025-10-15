@@ -243,6 +243,8 @@ fun ok64 X($, move)(X($, ) into, X($, c) from) {
 
 fun void X(, mv)(T *into, T const *from) { Ocopy(into, from); }
 
+fun void X(, Move)(X(, p) into, X(, cp) from) { Ocopy(into, from); }
+
 fun ok64 X(, sFeed1)(X(, s) into, T what) {
     if ($empty(into)) return $noroom;
 #ifndef ABC_X_$
@@ -250,6 +252,12 @@ fun ok64 X(, sFeed1)(X(, s) into, T what) {
 #else
     memcpy((void *)*into, (void *)what, sizeof(T));
 #endif
+    ++*into;
+    return OK;
+}
+
+fun ok64 X(, sFed1)(X(, s) into) {
+    if (unlikely(into[0] >= into[1])) return $noroom;
     ++*into;
     return OK;
 }
@@ -322,7 +330,17 @@ fun size_t X($, offset)(X($c, c) outer, X($c, c) inner) {
     return inner[0] - outer[0];
 }
 
-fun void X(, swap)(T *a, T *b) {
+fun void X(, csDup)(X(, csp) a, X(, cspc) b) {
+    a[0] = b[0];
+    a[1] = b[1];
+}
+
+fun void X(, sDup)(X(, sp) a, X(, spc) b) {
+    a[0] = b[0];
+    a[1] = b[1];
+}
+
+fun void X(, Swap)(T *a, T *b) {
     u8 c[sizeof(T)];
     Ocopy(&c, a);
     Ocopy(a, b);
@@ -333,7 +351,7 @@ fun void X(, s_purge)(X($, ) s, X(, isfn) f) {
     for (int i = 0; i < $len(s); ++i) {
         T *p = X(, s_atp)(s, i);
         if (f(p)) {
-            X(, swap)(p, $last(s));
+            X(, Swap)(p, $last(s));
             --$term(s);
         }
     }

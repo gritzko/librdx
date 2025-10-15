@@ -81,7 +81,7 @@ fun ok64 RDXfeed($u8 tlv, u8 t, id128 id, $cu8c value) {
 
 fun ok64 RDXdrain(u8* t, id128* id, u8cs value, $u8c tlv) {
     u8cs idbody = {};
-    ok64 o = TLVDrainkv(t, idbody, value, tlv);
+    ok64 o = TLVDrainKeyVal(t, idbody, value, tlv);
     if (likely(o == OK)) o = ZINTu128drain(id, idbody);
     return o;  // TODO untouched on error
 }

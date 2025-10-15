@@ -255,7 +255,7 @@ ok64 _BRIXreget($u8 into, BRIX const* brix, u8 rdt, id128 key, Bu8p stack) {
     call(_BRIXgetc, got, brix, rdt, key);
     u8 t = 0;
     u8cs k = {}, v = {}, body = {};
-    call(TLVDrainkv, &t, k, body, got);
+    call(TLVDrainKeyVal, &t, k, body, got);
     call(TLVinitlong, into, t, stack);
     call(u8sFeed1, into, $len(k));
     call($u8feedall, into, k);
@@ -265,7 +265,7 @@ ok64 _BRIXreget($u8 into, BRIX const* brix, u8 rdt, id128 key, Bu8p stack) {
         u8cs ekey = {};
         u8cs eval = {};
         id128 eid = {};
-        call(TLVDrainkv, &erdt, ekey, eval, body);
+        call(TLVDrainKeyVal, &erdt, ekey, eval, body);
         if (RDXisPLEX(erdt) && !$empty(ekey)) {
             call(ZINTu128drain, &eid, ekey);
             if (id128src(eid) != 0) {
@@ -316,7 +316,7 @@ ok64 BRIXenlist(u8csb heap, u64* roughlen, $cu8c allrdx) {
             }
             u8cs id, val;
             u8 rdt;
-            call(TLVDrainkv, &rdt, id, val, rec);
+            call(TLVDrainKeyVal, &rdt, id, val, rec);
             *roughlen -= $len(val);
             call(BRIXenlist, heap, roughlen, val);
         }
@@ -330,7 +330,7 @@ ok64 BRIXflatfeed($u8 into, u8cs rdx) {
     aBcpad(u8p, stack, 1);
     u8 rdt = 0;
     u8cs key = {}, body = {};
-    call(TLVDrainkv, &rdt, key, body, rdx);
+    call(TLVDrainKeyVal, &rdt, key, body, rdx);
     call(TLVinitlong, into, rdt, stackbuf);  // TODO adapt
     call(u8sFeed1, into, $len(key));
     call($u8feedall, into, key);
