@@ -13,7 +13,7 @@ void garble($u8 data) {
     srandom(time(nil));
     for (int i = 0; i < $len(data); ++i) {
         int b = random() % $len(data);
-        u8swap($atp(data, i), $atp(data, b));
+        u8Swap($atp(data, i), $atp(data, b));
     }
 }
 

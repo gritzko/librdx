@@ -9,7 +9,7 @@ typedef struct poller poller;
 
 typedef short (*pollcb)(int fd, struct poller* p);
 
-typedef int (*timercb)();
+typedef int (*timercb)(u64 ns);
 
 typedef struct poller {
     pollcb callback;
@@ -44,6 +44,7 @@ ok64 POLLoop(u64 ns);
 ok64 POLSleep(u64 ns);
 
 #define POLNanosPerSec 1000000000UL
+#define POLNanosPerMSec (POLNanosPerSec / 1000)
 #define POLNever u64max
 
 fun u64 u64timespec(struct timespec ts) {

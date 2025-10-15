@@ -96,7 +96,7 @@ ok64 POLIgnoreEvents(int fd) {
 short POLTimer(int fd, struct poller* p) {
     if (p->callback == NULL) return 0;
     timercb timer = p->payload;
-    int ms = timer();
+    int ms = timer(p->deadline);
     printf("next in %ims\n", ms);
     p->timeout_ms = ms;
     return 0;
@@ -142,6 +142,7 @@ ok64 POLLoop(u64 timens) {
         // deliver timeouts
         poller* at = POLAt(**POL_QUEUE);
         while (at->deadline <= now) {
+            at->deadline = now;
             at->callback(**POL_QUEUE, at);
             at->deadline = now + at->timeout_ms * (POLNanosPerSec / 1000);
             // printf("now %lu next %lu, in %luns\n", now, at->deadline,

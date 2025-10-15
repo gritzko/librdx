@@ -176,11 +176,13 @@ JSValueRef JABCioNetClose(JSContextRef ctx, JSObjectRef function,
 
 JSObjectRef JSTimer = NULL;
 
-int timeout_cb(int fd) {
+int timeout_cb(u64 ns) {
     if (JSTimer == NULL) return INT32_MAX;
     JSValueRef exception = NULL;  // todo
-    JSValueRef ret = JSObjectCallAsFunction(JABC_CONTEXT, JSTimer, NULL, 0,
-                                            NULL, &exception);
+    JSValueRef ms =
+        JSValueMakeNumber(JABC_CONTEXT, (double)(1.0 * ns) / POLNanosPerMSec);
+    JSValueRef ret =
+        JSObjectCallAsFunction(JABC_CONTEXT, JSTimer, NULL, 1, &ms, &exception);
     int next = 1000;
     if (JSValueIsNumber(JABC_CONTEXT, ret)) {
         next = JSValueToNumber(JABC_CONTEXT, ret, NULL);

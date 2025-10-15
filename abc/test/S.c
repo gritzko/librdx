@@ -32,7 +32,7 @@ pro($test1) {
     i32sCopy(into2, data);  // FIXME
     want($eq(into2, data));
 
-    i32swap(&a1, &a2);
+    i32Swap(&a1, &a2);
     want(a1 == 0 && a2 == 1);
     i32mv(&a1, &a2);
     want(a1 == a2 && a1 == 1);

@@ -1,9 +1,9 @@
 //
 // (c) Victor Grishchenko, 2020-2024
 //
-#include "S.h"
 #include "01.h"
 #include "HASH.h"
+#include "S.h"
 
 #define T X(, )
 
@@ -76,7 +76,7 @@ fun ok64 X(HASH, _put)(T const *rec, X($, ) data, size_t hash) {
             return OK;
         }
         u64 hash2 = X(, hash)($atp(data, ndx));
-        if (ABC_HASH_CONVERGE && hash2 > hash) X(, swap)(&r, $atp(data, ndx));
+        if (ABC_HASH_CONVERGE && hash2 > hash) X(, Swap)(&r, $atp(data, ndx));
     }
     return HASHnoroom;
 }

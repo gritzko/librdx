@@ -16,7 +16,7 @@ ok64 LSMnext($u8 into, u8css lsm, $u8cZfn cmp, $u8cYfn mrg) {
             call(TLVDrain$, _, **lsm);
         call(u8cssFeedP, inidle, &next);
         if ($empty(**lsm)) {
-            u8csswap($head(lsm), $last(lsm));
+            u8csSwap($head(lsm), $last(lsm));
             --$term(lsm);
             if ($empty(lsm)) break;
         }

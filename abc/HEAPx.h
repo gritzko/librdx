@@ -11,7 +11,7 @@ fun void X(HEAP, UpAt)(X($c, ) heap, size_t a) {
         size_t b = (a - 1) / 2;  // parent
         int cmp = X(, cmp)(*heap + b, *heap + a);
         if (cmp <= 0) break;
-        X(, swap)(*heap + a, *heap + b);
+        X(, Swap)(*heap + a, *heap + b);
         a = b;
     }
 }
@@ -27,7 +27,7 @@ fun void X(HEAP, DownAt)(X($c, ) heap, size_t i) {
         size_t right = left + 1;
         if (right < n && X(, cmp)(*heap + j, *heap + right) > 0) j = right;
         if (X(, cmp)(*heap + i, *heap + j) <= 0) break;
-        X(, swap)(*heap + i, *heap + j);
+        X(, Swap)(*heap + i, *heap + j);
         i = j;
     } while (1);
 }
@@ -38,7 +38,7 @@ fun ok64 X(HEAP, Pop)(T *v, X(B, ) buf) {
     T **data = X(B, data)(buf);
     if ($empty(data)) return Bnodata;
     X(, mv)(v, $head(data));
-    X(, swap)($head(data), $last(data));
+    X(, Swap)($head(data), $last(data));
     --$term(data);
     X(HEAP, Down)(data);
     return OK;
@@ -64,7 +64,7 @@ fun void X(HEAP, UpAtZ)(X($c, ) heap, X(, cmpfn) fn, size_t at) {
         size_t b = (at - 1) / 2;  // parent
         int cmp = fn(*heap + b, *heap + at);
         if (cmp <= 0) break;
-        X(, swap)(*heap + at, *heap + b);
+        X(, Swap)(*heap + at, *heap + b);
         at = b;
     }
 }
@@ -76,7 +76,7 @@ fun void X(HEAP, UpZ)(X($c, ) heap, X(, cmpfn) fn) {
         size_t b = (a - 1) / 2;  // parent
         int cmp = fn(*heap + b, *heap + a);
         if (cmp <= 0) break;
-        X(, swap)(*heap + a, *heap + b);
+        X(, Swap)(*heap + a, *heap + b);
         a = b;
     }
 }
@@ -91,7 +91,7 @@ fun void X(HEAP, DownZ)(X($c, ) heap, X(, cmpfn) fn) {
         size_t right = left + 1;
         if (right < n && fn(*heap + j, *heap + right) > 0) j = right;
         if (fn(*heap + i, *heap + j) <= 0) break;
-        X(, swap)(*heap + i, *heap + j);
+        X(, Swap)(*heap + i, *heap + j);
         i = j;
     } while (1);
 }
@@ -100,7 +100,7 @@ fun ok64 X(HEAP, PopZ)(T *v, X(B, ) buf, X(, cmpfn) fn) {
     T **data = X(B, data)(buf);
     if ($empty(data)) return Bnodata;
     X(, mv)(v, $head(data));
-    X(, swap)($head(data), $last(data));
+    X(, Swap)($head(data), $last(data));
     --$term(data);
     X(HEAP, DownZ)(data, fn);
     return OK;

@@ -119,12 +119,12 @@ pro(HASHd) {
             HASHu32del(dict, &rec);
         }
     }
-    $u32feedall(Bu32idle(copybuf),Bu32cdata(dictbuf));
+    $u32feedall(Bu32idle(copybuf), Bu32cdata(dictbuf));
 
     for (int j = 0; j < 1000; ++j) {
         Bzero(dictbuf);
         int p = rand() % (LENd - 1);
-        if (ins[p] != -ins[p + 1]) i32swap(ins + p, ins + p + 1);
+        if (ins[p] != -ins[p + 1]) i32Swap(ins + p, ins + p + 1);
         for (int i = 0; i < LENd; ++i) {
             if (ins[i] > 0) {
                 u32 rec = ins[i];
