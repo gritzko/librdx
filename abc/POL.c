@@ -113,10 +113,11 @@ ok64 POLTrackTime(timercb callback) {
 }
 
 ok64 POLAddTime(int ms) {
+    printf("POLAddTime(%i)\n", ms);
     if (POL_TIMER.callback == NULL) return POLnone;
     POL_TIMER.timeout_ms = ms;
     u64 now = POLNow();
-    u64 deadline = now + ms * (POLNanosPerSec / 1000);
+    u64 deadline = now + ms * POLNanosPerMSec;
     if (POL_TIMER.deadline < deadline) return OK;
     POL_TIMER.deadline = deadline;
     int ndx = 0;
@@ -143,6 +144,7 @@ ok64 POLLoop(u64 timens) {
         poller* at = POLAt(**POL_QUEUE);
         while (at->deadline <= now) {
             at->deadline = now;
+            printf("%lu invoke timeout\n", now);
             at->callback(**POL_QUEUE, at);
             at->deadline = now + at->timeout_ms * (POLNanosPerSec / 1000);
             // printf("now %lu next %lu, in %luns\n", now, at->deadline,
@@ -151,6 +153,7 @@ ok64 POLLoop(u64 timens) {
             at = POLAt(**POL_QUEUE);
         }
         u64 next_timeout = at->deadline;
+        printf("%lu next tick at %lu\n", now, next_timeout);
         int pollscount = 0;
         printf("make a poll fd list\n");
         eatB(poller, j, POL_FILES) {

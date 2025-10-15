@@ -116,17 +116,20 @@ void JABCReport(JSValueRef exception) {
             JSStringGetUTF8CString((JSStringRef)exception, page, PAGESIZE);
         if (len > 0) len--;
         msg = page;
-    } else if (JSValueIsObject(JABC_CONTEXT, exception) &&
-               JSObjectHasPropertyForKey(JABC_CONTEXT, (JSObjectRef)exception,
-                                         JSPropertyStack, NULL)) {
+    }
+    if (JSValueIsObject(JABC_CONTEXT, exception) &&
+        JSObjectHasPropertyForKey(JABC_CONTEXT, (JSObjectRef)exception,
+                                  JSPropertyStack, NULL)) {
         JSValueRef ref = JSObjectGetPropertyForKey(
             JABC_CONTEXT, (JSObjectRef)exception, JSPropertyStack, NULL);
         size_t len = JSStringGetUTF8CString((JSStringRef)ref, page, PAGESIZE);
         printf("LEN %li\n", len);
         msg = page;
-    } else if (JSValueIsObject(JABC_CONTEXT, exception) &&
-               JSObjectHasPropertyForKey(JABC_CONTEXT, (JSObjectRef)exception,
-                                         JSPropertyMessage, NULL)) {
+        fprintf(stderr, "JavaScript exception: %s\n", page);
+    }
+    if (JSValueIsObject(JABC_CONTEXT, exception) &&
+        JSObjectHasPropertyForKey(JABC_CONTEXT, (JSObjectRef)exception,
+                                  JSPropertyMessage, NULL)) {
         JSValueRef ref = JSObjectGetPropertyForKey(
             JABC_CONTEXT, (JSObjectRef)exception, JSPropertyMessage, NULL);
         size_t len = JSStringGetUTF8CString((JSStringRef)ref, page, PAGESIZE);
@@ -134,15 +137,15 @@ void JABCReport(JSValueRef exception) {
         size_t len2 = JSStringGetUTF8CString((JSStringRef)exception, page + len,
                                              PAGESIZE - len);
         printf("LEN %li %li\n", len, len2);
-        msg = page;
-    } else if (JSValueIsObject(JABC_CONTEXT, exception)) {
+        fprintf(stderr, "JavaScript exception: %s\n", page);
+    }
+    if (JSValueIsObject(JABC_CONTEXT, exception)) {
         JABCDump(JABC_CONTEXT, exception);
         JSObjectPropertiesDump(JABC_CONTEXT, (JSObjectRef)exception);
         msg = "see above";
     } else {
         JABCDump(JABC_CONTEXT, exception);
     }
-    if (*msg) fprintf(stderr, "JavaScript exception: %s\n", msg);
 }
 
 void JABCExecute(const char* script) {

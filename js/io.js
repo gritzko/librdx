@@ -30,37 +30,44 @@ io._tqdown = function () {
     var n = tq.length;
     var i = 0;
     do {
-        size_t left = 2 * i + 1;
+        var left = 2 * i + 1;
         if (left >= n || left < i) break;
-        size_t j = left;
-        size_t right = left + 1;
-        if (right < n && tq[j] > tq[right]) j = right;
-        if (tq[i] <= tq[j]) break;
+        var j = left;
+        var right = left + 1;
+        if (right < n && tq[j].ms > tq[right].ms) j = right;
+        if (tq[i].ms <= tq[j].ms) break;
         io._tqswap(i, j);
         i = j;
     } while (1);
 }
 
-io.setTimeout = function (ms, callback) {
-    task = {ms: io.now() + ms, callback: callback};
-    io._tq.push(task);
-    pre = io._tq.length > 0 ? io._tq[0].ms : 0;
-    io._tqup();
-    post = io._tq[0].ms;
-    if (post<pre) io.wakeIn(post);
-}
-
-io.wake = function (ms) {
-    while (io._tq.length>0 && io._tq[0].ms<=ms) {
+io.timer( function (now) {
+    console.log("TICK "+now);
+    var tq = io._tq;
+    while (tq.length>0 && tq[0].ms<=now) {
         try {
-            io._tq[0]();
+            tq[0].callback();
         } catch (e) {
             io.log(e);
         }
-        io._tq[0] = io._tq[io._tq.length-1];
-        io._tq.pop();
+        tq[0] = tq[io._tq.length-1];
+        tq.pop();
         io._tqdown();
     }
+    if (tq.length>0) {
+        return tq[0].ms - now
+    } else {
+        return 1000;
+    }
+} );
+
+io.setTimeout = function (ms, callback) {
+    io.log("set timeout "+ms)
+    var tq = io._tq;
+    task = {ms: io.now() + ms, callback: callback};
+    tq.push(task);
+    io._tqup();
+    io.wakeIn(ms);
 }
 
-io.log("io init OK");
+io.log("io init OK, incl timeouts");

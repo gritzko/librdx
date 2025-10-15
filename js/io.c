@@ -174,18 +174,23 @@ JSValueRef JABCioNetClose(JSContextRef ctx, JSObjectRef function,
     return JSValueMakeUndefined(ctx);
 }
 
-JSObjectRef JSTimer = NULL;
+JSObjectRef JABC_TIMER = NULL;
 
 int timeout_cb(u64 ns) {
-    if (JSTimer == NULL) return INT32_MAX;
+    printf("timeout_cb\n");
+    if (JABC_TIMER == NULL) return INT32_MAX;
     JSValueRef exception = NULL;  // todo
     JSValueRef ms =
         JSValueMakeNumber(JABC_CONTEXT, (double)(1.0 * ns) / POLNanosPerMSec);
-    JSValueRef ret =
-        JSObjectCallAsFunction(JABC_CONTEXT, JSTimer, NULL, 1, &ms, &exception);
+    JSValueRef ret = JSObjectCallAsFunction(
+        JABC_CONTEXT, JABC_TIMER, JABC_GLOBAL_OBJECT, 1, &ms, &exception);
+    if (exception != NULL) JABCReport(exception);
     int next = 1000;
     if (JSValueIsNumber(JABC_CONTEXT, ret)) {
         next = JSValueToNumber(JABC_CONTEXT, ret, NULL);
+        printf("timeout_cb asked next wake in %i ms\n", next);
+    } else {
+        printf("timeout_cb asked nothing\n");
     }
     return next;
 }
@@ -200,22 +205,22 @@ JSValueRef JABCioTimer(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
         *exception = JSOfCString("io.timer(function)");
         return JSValueMakeUndefined(ctx);
     }
-    if (JSTimer != NULL) JSValueUnprotect(JABC_CONTEXT, JSTimer);
-    JSTimer = (JSObjectRef)args[0];
+    if (JABC_TIMER != NULL) JSValueUnprotect(JABC_CONTEXT, JABC_TIMER);
+    JABC_TIMER = (JSObjectRef)args[0];
     POLTrackTime(timeout_cb);
-    JSValueProtect(ctx, JSTimer);
+    JSValueProtect(ctx, JABC_TIMER);
     return JSValueMakeUndefined(ctx);
 }
 
 // io.wake(ms)
-JSValueRef JABCioWake(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
-                      size_t argc, const JSValueRef args[],
-                      JSValueRef* exception) {
+JSValueRef JABCioWakeIn(JSContextRef ctx, JSObjectRef function,
+                        JSObjectRef self, size_t argc, const JSValueRef args[],
+                        JSValueRef* exception) {
     if (argc != 1 || !JSValueIsNumber(ctx, args[0])) {
         *exception = JSOfCString("io.wake(ms)");
         return JSValueMakeUndefined(ctx);
     }
-    if (JSTimer == NULL) {
+    if (JABC_TIMER == NULL) {
         *exception = JSOfCString("no timer set");
         return JSValueMakeUndefined(ctx);
     }
@@ -224,6 +229,13 @@ JSValueRef JABCioWake(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
     JSObjectRef fn = (JSObjectRef)args[0];
     POLAddTime((int)ms);
     return JSValueMakeUndefined(ctx);
+}
+
+JSValueRef JABCioNow(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
+                     size_t argc, const JSValueRef args[],
+                     JSValueRef* exception) {
+    u64 now = POLNow();
+    return JSValueMakeNumber(ctx, now / POLNanosPerMSec);
 }
 
 JSValueRef JABCioLog(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
@@ -468,7 +480,8 @@ ok64 JABCioInstall() {
     JS_SET_PROPERTY_FN(io, "stdOut", JABCioStdOut);
     JS_SET_PROPERTY_FN(io, "mmap", JABCioFileMap);
     JS_SET_PROPERTY_FN(io, "timer", JABCioTimer);
-    JS_SET_PROPERTY_FN(io, "wake", JABCioWake);
+    JS_SET_PROPERTY_FN(io, "wakeIn", JABCioWakeIn);
+    JS_SET_PROPERTY_FN(io, "now", JABCioNow);
     JS_SET_PROPERTY_FN(io, "log", JABCioLog);
     JS_SET_PROPERTY_FN(io, "listen", JABCioNetListen);
     JS_SET_PROPERTY_FN(io, "accept", JABCioNetAccept);
