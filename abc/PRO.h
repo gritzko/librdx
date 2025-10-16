@@ -8,6 +8,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
+#include "BUF.h"
 #include "OK.h"
 
 extern uint8_t _pro_depth;
@@ -174,8 +175,8 @@ con char *_pro_indent =
 #define trace(...) ;
 #endif
 
-extern $u8c _STD_ARGS[];
-extern $u8c *STD_ARGS[];
+extern u8cs _STD_ARGS[];
+extern u8cs *STD_ARGS[];
 
 fun void _parse_args(int argn, char **args) {
     for (int i = 0; i < argn; ++i) {

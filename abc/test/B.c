@@ -37,7 +37,7 @@ pro(Bndx_test) {
     Bu64 buf = {};
     Bu64alloc(buf, 1024);
     for (u64 i = 0; i < 1000; ++i) {
-        call(u64BFeed1, buf, i);
+        call(u64bFeed1, buf, i);
         sane(Blast(buf) == i);
     }
     Bu64free(buf);

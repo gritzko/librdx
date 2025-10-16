@@ -417,14 +417,14 @@ pro(MARKonLine, $cu8c tok, MARKstate* state) {
     b8 end = tok[1] == state->text[1];
     if (Bempty(state->pB) ||
         !samediv(Blast(state->divB), state->_div)) {  // FIXME gaps
-        call(u64BFeed1, state->pB, Bdatalen(state->lineB));
+        call(u64bFeed1, state->pB, Bdatalen(state->lineB));
     }
-    call(u64BFeed1, state->divB, state->_div);
-    call(u8cpBFeed1, state->lineB, tok[0]);
+    call(u64bFeed1, state->divB, state->_div);
+    call(u8cpbFeed1, state->lineB, tok[0]);
     if (tok[1] == state->text[1]) {
-        call(u64BFeed1, state->pB, Bdatalen(state->lineB));
-        call(u8cpBFeed1, state->lineB, tok[1]);
-        call(u64BFeed1, state->divB, 0);
+        call(u64bFeed1, state->pB, Bdatalen(state->lineB));
+        call(u8cpbFeed1, state->lineB, tok[1]);
+        call(u64bFeed1, state->divB, 0);
     }
     state->_div = 0;
     done;

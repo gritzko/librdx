@@ -29,7 +29,7 @@ fun ok64 ZINTu64feed($u8 into, u64 n) {
     } else if (n <= B2) {
         u8sFeed16(into, (u16*)&n);
     } else if (n <= B4) {
-        $u8feed32(into, (u32*)&n);
+        u8sFeed32(into, (u32*)&n);
     } else {
         $u8feed64(into, &n);
     }
@@ -65,19 +65,16 @@ fun ok64 ZINTu64drain(u64* n, $cu8c zip) {
     }
 }
 
-// ZipUint64Pair packs a pair of uint64 into a byte string.
+// Packs a pair of uint64 into a byte string.
 // The smaller the ints, the shorter the string
-fun ok64 ZINTu128feed($u8 into, u128c* a) {
-    if (!$ok(into) || $size(into) < sizeof(u64) * 2) return ZINTnoroom;
-    u64 big = a->_64[0];
-    u64 lil = a->_64[1];
+fun ok64 ZINTu8sFeed128(u8s into, u64 big, u64 lil) {
     if (lil <= B1) {
         if (big <= B1) {
             if (big != 0 || lil != 0) $u8feed8(into, (u8*)&big);
         } else if (big <= B2) {
             u8sFeed16(into, (u16*)&big);
         } else if (big <= B4) {
-            $u8feed32(into, (u32*)&big);
+            u8sFeed32(into, (u32*)&big);
         } else {
             $u8feed64(into, &big);
         }
@@ -86,18 +83,18 @@ fun ok64 ZINTu128feed($u8 into, u128c* a) {
         if (big <= B2) {
             u8sFeed16(into, (u16*)&big);
         } else if (big <= B4) {
-            $u8feed32(into, (u32*)&big);
+            u8sFeed32(into, (u32*)&big);
         } else {
             $u8feed64(into, &big);
         }
         u8sFeed16(into, (u16*)&lil);
     } else if (lil <= B4) {
         if (big <= B4) {
-            $u8feed32(into, (u32*)&big);
+            u8sFeed32(into, (u32*)&big);
         } else {
             $u8feed64(into, &big);
         }
-        $u8feed32(into, (u32*)&lil);
+        u8sFeed32(into, (u32*)&lil);
     } else {
         $u8feed64(into, &big);
         $u8feed64(into, &lil);
@@ -105,10 +102,8 @@ fun ok64 ZINTu128feed($u8 into, u128c* a) {
     return OK;
 }
 
-fun ok64 ZINTu128drain(u128* a, u8cs from) {
+fun ok64 ZINTu8sDrain128(u8cs from, u64* big, u64* lil) {  // FIXME no inline
     u32 len = $len(from);
-    u64* big = &(a->_64[0]);
-    u64* lil = &(a->_64[1]);
     *big = *lil = 0;
     switch (len) {
         case 0:
@@ -170,6 +165,19 @@ fun ok64 ZINTu128drain(u128* a, u8cs from) {
             return ZINTbadrec;
     }
     return OK;
+}
+
+fun ok64 ZINTu128drain(u128* a, u8cs from) {
+    u64* big = &(a->_64[0]);
+    u64* lil = &(a->_64[1]);
+    return ZINTu8sDrain128(from, big, lil);
+}
+
+fun ok64 ZINTu128feed($u8 into, u128c* a) {
+    if (!$ok(into) || $size(into) < sizeof(u64) * 2) return ZINTnoroom;
+    u64 big = a->_64[0];
+    u64 lil = a->_64[1];
+    return ZINTu8sFeed128(into, big, lil);
 }
 
 fun u64 ZINTzigzag(int64_t i) { return (u64)(i * 2) ^ (u64)(i >> 63); }

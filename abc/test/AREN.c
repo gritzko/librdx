@@ -20,7 +20,7 @@ pro(ARENtest1) {
     want($eq(abc, str));
     u32 u = 0x12345678;
 
-    afedc(uu, $u8feed32, arenaidle, &u);  // 12
+    afedc(uu, u8sFeed32, arenaidle, &u);  // 12
     u32 u2 = 0;
     $u8drain32(&u2, uu);
 

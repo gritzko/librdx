@@ -43,7 +43,7 @@ ok64 TLVopen($u8 tlv, u8 type, u32** len) {
     ++*tlv;
     *len = (u32*)*tlv;
     u32 zero = 0;
-    $u8feed32(tlv, &zero);
+    u8sFeed32(tlv, &zero);
     done;
 }
 

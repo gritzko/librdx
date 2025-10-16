@@ -12,7 +12,7 @@ fun ok64 X(LIST, insert)(X(B, ) list, T const* entry, u32 prev) {
     T** data = X(B, data)(list);
     size_t len = $len(data);
     if (len < prev) return LISTbadndx;
-    ok64 o = X(, BFeedP)(list, entry);
+    ok64 o = X(, bFeedP)(list, entry);
     if (o != OK) return o;
     u32 next = X(B, atp)(list, prev)->_list.next;
     X(B, atp)(list, len)->_list.next = next;

@@ -203,12 +203,16 @@ fun ok64 X(, sFeed1)(X(, s) into, X(, ) from) {
     return OK;
 }
 */
-fun ok64 X($, feed)(X($, ) into, X($c, c) from) {  // TODO naming
+fun ok64 X($, feed)(X($, ) into, X($c, c) from) {
     if (unlikely(!$ok(from) || !$ok(into))) return $badarg;
     if (unlikely($size(from) > $size(into))) return $noroom;
     memcpy((void *)*into, (void *)*from, $size(from));
     *into += $len(from);
     return OK;
+}
+
+fun ok64 X(, sFeed)(X(, s) into, X(, csc) from) {
+    return X($, feed)(into, from);
 }
 
 fun ok64 X($, feedall)(X($, ) into, X($c, c) from) {
@@ -369,6 +373,12 @@ static const u8 X(, zero)[sizeof(T)] = {};
 
 fun b8 X($, is0)(X($, ) s, size_t ndx) {
     return X(, cmp)((T const *)X(, zero), X(, s_atp)(s, ndx)) == 0;
+}
+
+fun b8 X(, csHasSuffix)(X(, cs) line, X(, cs) suffix) {
+    size_t l = $len(suffix);
+    size_t s = $size(suffix);
+    return l <= $len(line) && 0 == memcmp(line[1] - l, suffix[0], s);
 }
 
 #undef T

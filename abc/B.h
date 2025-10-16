@@ -51,6 +51,7 @@ typedef void **voidbp;
 
 #define Blen(b) (b[3] - b[0])
 #define Bsize(b) ((u8 *)(b[3]) - (u8 *)(b[0]))
+#define BDataSize(b) ((u8 *)(b[2]) - (u8 *)(b[1]))
 #define Busylen(b) (b[2] - b[0])
 #define Busysize(b) ((u8 const *)b[2] - (u8 const *)b[0])
 #define Bpastlen(b) $len(Bpast(b))

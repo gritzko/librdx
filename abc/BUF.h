@@ -171,6 +171,28 @@ fun ok64 $u8feedcn($u8 into, u8 what, size_t n) {
     return OK;
 }
 
+fun ok64 u8sPop1(u8cs s, u8p last) {
+    if (unlikely($len(s) <= 0)) return $nodata;
+    --s[1];
+    *last = *s[1];
+    return OK;
+}
+
+fun ok64 u8sPop(u8cs s, u8sc into) {
+    size_t len = $len(into);
+    if (unlikely(len > $len(s))) return $nodata;
+    memcpy(*into, *s, len * sizeof(u8));
+    s[1] -= len;
+    return OK;
+}
+
+fun ok64 u8sPop32(u8cs s, u32p last) {
+    if (unlikely($len(s) < 4)) return $nodata;
+    s[1] -= 4;
+    memcpy(last, s[1], 4);
+    return OK;
+}
+
 typedef char utf8;
 fun int utf8cmp(utf8 const *a, utf8 const *b) { return $cmp(a, b); }
 #define X(M, name) M##utf8##name

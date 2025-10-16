@@ -42,11 +42,14 @@ fun void X(B, resetdata)(X(B, ) buf) { ((T **)buf)[2] = buf[1]; }
 fun b8 X(B, hasroom)(X(B, ) buf) { return !$empty(X(B, idle)(buf)); }
 fun b8 X(B, hasdata)(X(B, ) buf) { return !$empty(X(B, data)(buf)); }
 
-fun T const *const *X(B, cpast)(X(B, ) buf) {
-    return (T const *const *)buf + 0;
-}
+fun T const **X(B, cpast)(X(B, ) buf) { return (T const **)buf + 0; }
 fun T const **X(B, cdata)(X(B, ) buf) { return (T const **)buf + 1; }
 fun T const **X(B, cidle)(X(B, ) buf) { return (T const **)buf + 2; }
+
+fun T const **X(, cbData)(X(, b) buf) { return (T const **)buf + 1; }
+fun T const **X(, cbIdle)(X(B, ) buf) { return (T const **)buf + 2; }
+fun T **X(, bData)(X(, b) buf) { return (T **)buf + 1; }
+fun T **X(, bIdle)(X(, b) buf) { return (T **)buf + 2; }
 
 fun T *const *X(Bc, past)(X(B, ) buf) { return (T *const *)buf + 0; }
 fun T *const *X(Bc, data)(X(B, ) buf) { return (T *const *)buf + 1; }
@@ -74,7 +77,7 @@ fun void X(B, eat)(X(B, ) buf) {
     b[1] = b[2];
 }
 
-fun T *X(B, last)(X(B, ) buf) {
+fun T *X(, bLast)(X(B, ) buf) {
     size_t len = buf[2] - buf[0];
     return X(B, atp)(buf, len - 1);
 }
@@ -113,7 +116,7 @@ fun ok64 X(, B_push)(X(, b) buf, X(, cp) one) {
     return X(, sFeedP)(Bidle(buf), one);
 }
 
-fun ok64 X(, BFeedP)(X(B, ) buf, T const *one) {
+fun ok64 X(, bFeedP)(X(B, ) buf, T const *one) {
     return X(, sFeedP)(X(B, idle)(buf), one);
 }
 
@@ -129,7 +132,7 @@ fun ok64 X(, Bfeed2)(X(B, ) buf, T a, T b) {
     return OK;
 }
 
-fun ok64 X(, BFeed1)(X(B, ) buf, T one) {
+fun ok64 X(, bFeed1)(X(B, ) buf, T one) {
     return X(, sFeed1)(X(B, idle)(buf), one);
 }
 
@@ -196,7 +199,7 @@ fun ok64 X(B, rewind$)(X(B, ) buf, X($, ) slice, range64 range) {
     return OK;
 }
 
-fun ok64 X(B, push)(X(B, ) buf, const T *val) { return X(, BFeedP)(buf, val); }
+fun ok64 X(B, push)(X(, b) buf, const T *val) { return X(, bFeedP)(buf, val); }
 
 fun T const *X(B, top)(X(B, ) buf) {
     assert(buf[2] > buf[1]);
@@ -228,6 +231,17 @@ fun ok64 X(B, unmap)(X(B, ) buf) {
     if (-1 == munmap((void *)buf[0], Bsize(buf))) return Bmapfail;
     void **b = (void **)buf;
     b[0] = b[1] = b[2] = b[3] = nil;
+    return OK;
+}
+
+fun ok64 X(, bShift)(X(, b) buf, size_t pastlen) {
+    if (unlikely(!Bok(buf))) return FAILsanity;
+    size_t datalen = $len(Bdata(buf));
+    if (unlikely(pastlen + datalen > Blen(buf))) return Bnoroom;
+    T *to = buf[0] + pastlen;
+    memmove(to, buf[1], BDataSize(buf));
+    buf[1] = to;
+    buf[2] = to + datalen;
     return OK;
 }
 
