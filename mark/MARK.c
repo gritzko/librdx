@@ -246,7 +246,7 @@ pro(MARKANSIdiv, $u8 $into, u64 lfrom, u64 ltill, u64 stack, u32 width,
 pro(MARKANSI, $u8 $into, u32 width, MARKstate const* state) {
     sane($ok($into) && state != nil && !Bempty(state->divB));
     u64$ divs = Bu64data(state->divB);
-    u8cp$ lines = u8cpb_data(state->lineB);
+    u8cp$ lines = u8cpbData(state->lineB);
     u64 lists = 0;
     u64 divlen = 0;
     b8 hadgap = NO;
@@ -286,7 +286,7 @@ pro(MARKMARQdiv, u64 from, u64 till, MARKstate* state) {
 pro(MARKMARQ, MARKstate* state) {
     sane(state != nil && !Bempty(state->divB));
     u64$ divs = Bu64data(state->divB);
-    u8cp$ lines = u8cpb_data(state->lineB);
+    u8cp$ lines = u8cpbData(state->lineB);
     u64$ blocks = Bu64data(state->pB);
     for (u64 b = 0; b + 1 < $len(blocks); ++b) {
         call(MARKMARQdiv, $at(blocks, b), $at(blocks, b + 1), state);
@@ -329,7 +329,7 @@ fun u8 samedepth(u64 stack, u64 div) {
 pro(MARKHTML, $u8 $into, MARKstate const* state) {
     sane($ok($into) && state != nil && !Bempty(state->divB));
     u64$ divs = Bu64data(state->divB);
-    u8cp$ lines = u8cpb_data(state->lineB);
+    u8cp$ lines = u8cpbData(state->lineB);
     test($len(divs) == $len(lines), FAILsanity);
     u64 stack = 0;
     u64$ ps = Bu64data(state->pB);

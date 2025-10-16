@@ -23,8 +23,6 @@ fun T const *const *X(B, pastc)(X(B, ) buf) {
 }
 fun T **X(B, data)(X(B, ) buf) { return (T **)buf + 1; }
 fun T **X(B, idle)(X(B, ) buf) { return (T **)buf + 2; }
-fun T **X(, b_data)(X(B, ) buf) { return (T **)buf + 1; }
-fun T **X(, b_idle)(X(B, ) buf) { return (T **)buf + 2; }
 
 fun T **X(B, $1)(X(B, ) buf) { return (T **)buf + 1; }
 fun T **X(B, $2)(X(B, ) buf) { return (T **)buf + 2; }

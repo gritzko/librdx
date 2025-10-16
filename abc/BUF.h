@@ -117,7 +117,7 @@ fun void Bitunset(Bu8 buf, size_t ndx) {
     u8cs _$##n[(l)];                                    \
     u8csb n##$buf = {_$##n, _$##n, _$##n, _$##n + (l)}; \
     u8cssp n##$idle = Bu8csidle(n##$buf);               \
-    u8cssp n##$data = u8csb_data(n##$buf);
+    u8cssp n##$data = u8csbData(n##$buf);
 
 #define $$call(fn, n, ...)              \
     {                                   \

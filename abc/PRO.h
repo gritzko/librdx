@@ -187,13 +187,13 @@ fun void _parse_args(int argn, char **args) {
     STD_ARGS[2] = STD_ARGS[3] = _STD_ARGS + argn;
 }
 
-#define $arglen $len(Bu8csdata(STD_ARGS))
+#define $arglen $len(Bu8csData(STD_ARGS))
 
 #define $arg(i) (*u8cssatp(Bu8csdata(STD_ARGS), i))
 
 #define a$rg(name, i) \
     u8cs name = {};   \
-    $mv(name, *u8css_atp(u8csb_data(STD_ARGS), i));
+    $mv(name, *u8css_atp(u8csbData(STD_ARGS), i));
 
 #define MAIN(f)                                                          \
     uint8_t _pro_depth = 0;                                              \

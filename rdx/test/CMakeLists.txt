@@ -45,6 +45,6 @@ add_executable(RDX2MergeTest RDX2.c)
 target_link_options(RDX2MergeTest PRIVATE ${TEST_LDD_FLAGS})
 target_compile_options(RDX2MergeTest PRIVATE ${TEST_CXX_FLAGS})
 target_link_libraries(RDX2MergeTest abc rdx)
-add_test(NAME RDX2MergeTest COMMAND RDX2mergetest)
+add_test(NAME RDX2MergeTest COMMAND RDX2MergeTest)
 
 

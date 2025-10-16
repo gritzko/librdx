@@ -158,7 +158,7 @@ b8 rdxMultixZ(rdxcp a, rdxcp b);
 b8 rdxLastWriteWinsZ(rdxcp a, rdxcp b);
 
 fun ok64 RDXu8bFeed(u8b builder, rdxcp what) {
-    return RDXu8sFeed(u8b_idle(builder), what);
+    return RDXu8sFeed(u8bIdle(builder), what);
 }
 ok64 RDXu8bInto(u8b builder, rdxcp what);
 ok64 RDXu8bOuto(u8b builder, rdxcp what);
