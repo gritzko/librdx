@@ -14,9 +14,9 @@ pro(UTF8test1) {
     sane(1);
     u8cs abc = $u8str("abc");
     u32 a, b, c;
-    call(UTF8drain1, &a, abc);
-    call(UTF8drain1, &b, abc);
-    call(UTF8drain1, &c, abc);
+    call(utf8sDrain32, &a, abc);
+    call(utf8sDrain32, &b, abc);
+    call(utf8sDrain32, &c, abc);
     same(a, 'a');
     same(b, 'b');
     same(c, 'c');

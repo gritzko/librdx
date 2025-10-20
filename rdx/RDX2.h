@@ -23,6 +23,13 @@ typedef enum {
     RDX_MULTIX = 'X',
 } RDXtype;
 
+typedef enum {
+    RDX_ENC_UTF8 = '8',
+    RDX_ENC_UTF16 = '6',
+    RDX_ENC_UTF8_ESC = 'e',
+    RDX_ENC_UTF8_ESC_ML = 'm',
+} RDXEncoding;
+
 fun b8 RDXisFIRST(u8 l) {
     l &= ~TLVaA;
     return l == RDX_FLOAT || l == RDX_INT || l == RDX_REF || l == RDX_STRING ||
@@ -35,9 +42,20 @@ fun b8 RDXisPLEX(u8 l) {
            l == RDX_MULTIX;
 }
 
-#endif
-
+con ok64 RDXbad = 0x4cd6e6968;
+con ok64 RDXnoroom = 0x1335bcb3db3cf1;
 con ok64 RDXnodata = 0x1b361cb3a25e25;
+con ok64 RDXfail = 0x1335baa5b70;
+con ok64 RDXbadF = 0x1335b9a5a0f;
+con ok64 RDXbadI = 0x1335b9a5a12;
+con ok64 RDXbadR = 0x1335b9a5a1b;
+con ok64 RDXbadS = 0x1335b9a5a1c;
+con ok64 RDXbadT = 0x1335b9a5a1d;
+con ok64 RDXbadnest = 0x4cd6e6968ca9df8;
+con ok64 RDXsyntax = 0x1335bdfdcb897c;
+con ok64 RDXsogood = OK;
+
+#endif
 
 typedef struct {
     u64 src, seq;
@@ -67,7 +85,9 @@ typedef u8cs RDXstring;
 typedef u8cs RDXterm;
 
 typedef struct {
-    u8cs rec;
+    u8 type;
+    u8 enc;
+    u64 reclen;
     u8cs rest;
     ref128 id;
     union {
@@ -86,10 +106,8 @@ typedef struct {
 typedef const rdx rdxc;
 typedef const rdx* rdxcp;
 
-fun u8 rdxType(rdxcp k) { return $empty(k->rec) ? 0 : (**(k->rec) & ~TLVaA); }
-
 fun b8 rdxIsPLEX(rdxcp k) {
-    u8 lit = rdxType(k);
+    u8 lit = k->type;
     return lit == RDX_TUPLE || lit == RDX_LINEAR || lit == RDX_EULER ||
            lit == RDX_MULTIX;
 }
@@ -116,7 +134,6 @@ typedef b8 (*rdxZ)(rdxcp a, rdxcp b);
 fun void rdxInit(rdxp it, u8csc data) {
     zerop(it);
     $mv(it->plex, data);
-    $mv(it->rec, RDX_ROOT_REC);
 }
 ok64 rdxNext(rdxp it);
 fun ok64 rdxInto(rdxp it, u8cs rest) {
@@ -130,15 +147,17 @@ fun ok64 rdxOuto(rdxp it, u8csc rest) {
 }
 
 ok64 rdxbInit(rdxb reader, u8cs data);
-fun u8 rdxbType(rdxb reader) { return rdxType(rdxbLast(reader)); }
+fun u8 rdxbType(rdxb reader) { return rdxbLast(reader)->type; }
 ok64 rdxbNext(rdxb reader);
 ok64 rdxbInto(rdxb reader);
 ok64 rdxbOuto(rdxb reader);
 
-void rdxpsUpAt(rdxps heap, int ndx, rdxZ z);
-fun void rdxpsUp(rdxps heap, rdxZ z) { rdxpsUpAt(heap, $len(heap) - 1, z); }
-void rdxpsDownAt(rdxps heap, int ndx, rdxZ z);
-fun void rdxpsDown(rdxps heap, rdxZ z) { rdxpsDownAt(heap, 0, z); }
+ok64 rdxpsUpAt(rdxps heap, size_t ndx, rdxZ z);
+fun ok64 rdxpsUp(rdxps heap, rdxZ z) {
+    return rdxpsUpAt(heap, $len(heap) - 1, z);
+}
+ok64 rdxpsDownAt(rdxps heap, size_t ndx, rdxZ z);
+fun ok64 rdxpsDown(rdxps heap, rdxZ z) { return rdxpsDownAt(heap, 0, z); }
 ok64 rdxpsEqs(rdxps heap, u32p eqs, rdxZ z);
 ok64 rdxpsNexts(rdxps heap, u32 eqs, rdxZ z);  // ejects
 

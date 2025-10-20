@@ -23,9 +23,9 @@ utf8esc = (utf8cp - ["\\\r\n]) | esc | hexEsc;
 id128 = ron64+ ("-" ron64+)?;
 
 Int = [\-]? ( [0] | [1-9] [0-9]* );
-Float = ( [\-]? ( [0] | [1-9] [0-9]* )
+Float = (   Int
             ("." [0-9]+)?
-            ([eE] [\-+]? [0-9]+ )? ) - Int;
+            ([eE] [\-+]? [0-9]+ )?  ) -Int;
 Term = ron64+ -Int -Float;
 Ref = id128 -Float -Int -Term;
 String = ["] utf8esc* ["];

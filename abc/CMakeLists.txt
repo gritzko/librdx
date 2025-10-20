@@ -7,7 +7,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS on)
 
 include(CTest)
 
-include_directories(.. .)
+include_directories(.. . ryu)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}")
 find_library(sodium 
@@ -90,6 +90,7 @@ TCP.c
 TLV.c
 UDP.c
 UTF8.c
+ryu/d2s.c
 )
 
 add_library(abc STATIC ${ABC_HEADERS} ${ABC_SOURCES})

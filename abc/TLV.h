@@ -53,7 +53,7 @@ fun ok64 TLVpick(u8* type, u8cs value, $cu8c tlv, size_t offset) {
     return TLVDrain(type, value, keytlv);
 }
 
-ok64 TLVtake(u8 t, u8cs value, $u8c from);
+ok64 TLVtake(u8 t, u8cs value, u8cs from);
 
 fun void TLVhead($u8 into, u8 type, u32 len) {
     if (len <= 0xff) {
@@ -90,6 +90,26 @@ ok64 TLVclose($u8 tlv, u8 type, u32* const* len);
 
 ok64 TLVFeedkv($u8 tlv, u8c type, u8cs key, $cu8c val);
 
-ok64 TLVDrainKeyVal(u8* type, u8cs key, $u8c val, $u8c tlv);
+ok64 TLVDrainKeyVal(u8* type, u8cs key, u8cs val, u8cs tlv);
+/*
+fun ok64 TLVDrainKeyVal(u8* type, u8cs key, u8cs val, u8cs tlv) {
+    if ($len(tlv) < 3) return TLVnodata;
+    if ((**tlv & TLVaA) == 0) return _TLVDrainKeyVal(type, key, val, tlv);
+    *type = **tlv & ~TLVaA;
+    u8 len = *(*tlv + 1);
+    if ($len(tlv) < 1 + 1 + len) return TLVnodata;
+    u8 keylen = *(*tlv + 2);
+    if (unlikely(keylen) >= len) return TLVbadrec;
+    key[0] = tlv[0] + 3;
+    key[1] = key[0] + keylen;
+    val[0] = key[1];
+    val[1] = tlv[0] + 2 + len;
+    tlv[1] += 2 + len;
+    return OK;
+}
+*/
+ok64 TLVu8cssNextKeyVal(u8css stack, u8* type, u8cs key, u8cs val);
+ok64 TLVu8cssInto(u8css stack, u8cs val);
+ok64 TLVu8cssOuto(u8css stack);
 
 #endif

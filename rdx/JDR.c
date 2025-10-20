@@ -370,7 +370,7 @@ ok64 JDRfeedSesc($u8 tlv, u8cs txt) {
                 *txt += 4;
                 u64 cp = 0;
                 ok64 o = u64hexdrain(&cp, hex);
-                if (o == OK) o = UTF8feed1(tlv, cp);
+                if (o == OK) o = utf8sFeed32(tlv, cp);
                 --*tlv;
                 if (o != OK) return o;
                 break;

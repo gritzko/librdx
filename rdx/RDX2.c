@@ -69,20 +69,22 @@ ok64 rdxbOuto(rdxb reader) {
     done;
 }
 
-void rdxpsUpAt(rdxps heap, int ndx, rdxZ z) {
-    if ($len(heap) == 0) return;
+ok64 rdxpsUpAt(rdxps heap, size_t ndx, rdxZ z) {
+    sane(ndx < rdxpsLen(heap));
     int a = ndx;
     while (a) {
         size_t b = (a - 1) / 2;  // parent
         if (!z($at(heap, a), $at(heap, b))) break;
-        rdxpSwap(*heap + a, *heap + b);
+        rdxpsSwap(heap, a, b);
         a = b;
     }
+    done;
 }
 
-void rdxpsDownAt(rdxps heap, int ndx, rdxZ z) {
+ok64 rdxpsDownAt(rdxps heap, size_t ndx, rdxZ z) {
+    sane(rdxpsOK(heap) && ndx < rdxpsLen(heap) && z != NULL);
     size_t i = ndx;
-    size_t n = $len(heap);
+    size_t n = rdxpsLen(heap);
     do {
         size_t left = 2 * i + 1;
         if (left >= n || left < i) break;
@@ -90,9 +92,10 @@ void rdxpsDownAt(rdxps heap, int ndx, rdxZ z) {
         size_t right = left + 1;
         if (right < n && ($at(heap, right), $at(heap, j))) j = right;
         if (!z($at(heap, j), $at(heap, i))) break;
-        rdxpSwap(*heap + i, *heap + j);
+        rdxpsSwap(heap, i, j);
         i = j;
     } while (1);
+    done;
 }
 
 ok64 rdxpsEqs(rdxps heap, u32p eqs, rdxZ z) {
@@ -154,7 +157,7 @@ ok64 RDXu8sFeed(u8s rdx, rdxcp fit) {
     a_pad(u8, val_pad, 16);
     a_pad(u8, key_pad, 16);
     u8cs val = {};
-    u8 lit = rdxType(fit);
+    u8 lit = fit->type;
     switch (lit) {
         case 0:
             break;
@@ -190,7 +193,7 @@ ok64 RDXu8sFeed(u8s rdx, rdxcp fit) {
 ok64 RDXu8bInto(u8b builder, rdxcp what) {
     sane(Bok(builder) && what != NULL);
     u8sp idle = Bidle(builder);
-    call(u8sFeed1, idle, rdxType(what));
+    call(u8sFeed1, idle, what->type);
     size_t dlen = Bdatalen(builder);
     test(dlen <= u32max, Bnoroom);
     call(u8sFeed32, idle, (u32*)&dlen);
@@ -226,6 +229,7 @@ ok64 RDXu8bOuto(u8b builder, rdxcp what) {
         past[1] = oldpast[1];
         call(u8bShift, builder, d);
     }
+    // todo test(what==NULL || what->type==type, RDXbadnest);
     builder[1] = builder[0] + prevlen;
     done;
 }
@@ -262,9 +266,9 @@ ok64 rdxNext(rdxp it) {
     sane($ok(it->rest));
     u8 lit;
     u8cs key = {}, val = {};
-    it->rec[0] = it->rest[0];
+    size_t ol = $len(it->rest);
     call(TLVDrainKeyVal, &lit, key, val, it->rest);
-    it->rec[1] = it->rest[0];
+    it->reclen = ol - $len(it->rest);
     switch (lit) {
         case 0:
             break;
@@ -313,7 +317,7 @@ ok64 RDXu8bMergeLWW(u8b merged, rdxpsc eqs) {
     rdxps wins;
     b8 plex = NO;
     rdxZ z = NULL;
-    switch (rdxType(**wins)) {
+    switch ((**wins)->type) {
         case RDX_FLOAT: {
             f64 max = f64MinValue;
             eats(rdxp, p, wins) if ((**p).f > max) max = (**p).f;
@@ -407,8 +411,8 @@ ok64 RDXu8sMergeZ(u8s merged, u8css inputs, rdxZ less) {
 }
 
 b8 rdx1Z(rdxcp a, rdxcp b) {
-    u8 at = rdxType(a);
-    u8 bt = rdxType(b);
+    u8 at = a->type;
+    u8 bt = b->type;
     if (at != bt) return rdxTypeZ(a, b);
     switch (at) {
         case RDX_FLOAT:
@@ -427,8 +431,8 @@ b8 rdx1Z(rdxcp a, rdxcp b) {
 }
 
 b8 rdxTypeZ(rdxcp a, rdxcp b) {
-    u8 at = rdxType(a);
-    u8 bt = rdxType(b);
+    u8 at = a->type;
+    u8 bt = b->type;
     if (at == bt) return GREQ;
     b8 aplex = rdxIsPLEX(a);
     b8 bplex = rdxIsPLEX(b);
@@ -441,13 +445,13 @@ b8 rdxLinearZ(rdxcp a, rdxcp b) { return ref128Z(&a->id, &b->id); }
 
 b8 rdxEulerZ(rdxcp a, rdxcp b) {
     rdx aa;
-    if (rdxType(a) == RDX_TUPLE) {
+    if (a->type == RDX_TUPLE) {
         rdxInit(&aa, a->plex);
         rdxNext(&aa);
         a = &aa;
     }
     rdx bb;
-    if (rdxType(b) == RDX_TUPLE) {
+    if (b->type == RDX_TUPLE) {
         rdxInit(&bb, b->plex);
         rdxNext(&bb);
         b = &bb;
@@ -459,7 +463,7 @@ b8 rdxMultixZ(rdxcp a, rdxcp b) { return u64Z(&a->id.src, &b->id.src); }
 
 b8 rdxLastWriteWinsZ(rdxcp a, rdxcp b) {
     if (!ref128Eq(&a->id, &b->id)) return ref128Z(&a->id, &b->id);
-    u8 at = rdxType(a);
-    u8 bt = rdxType(b);
+    u8 at = a->type;
+    u8 bt = b->type;
     return at == bt ? rdx1Z(a, b) : rdxTypeZ(a, b);
 }

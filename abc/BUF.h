@@ -79,6 +79,9 @@ typedef u8b const *u8bcp;
 #define a$u8c(n, ...)            \
     u8c __##n[] = {__VA_ARGS__}; \
     u8cs n = {__##n, __##n + sizeof(__##n)};
+#define au8cs(n, ...)            \
+    u8c __##n[] = {__VA_ARGS__}; \
+    u8cs n = {__##n, __##n + sizeof(__##n)};
 
 #define an$u8(n, l, ...)         \
     u8 __##n[l] = {__VA_ARGS__}; \
@@ -192,11 +195,5 @@ fun ok64 u8sPop32(u8cs s, u32p last) {
     memcpy(last, s[1], 4);
     return OK;
 }
-
-typedef char utf8;
-fun int utf8cmp(utf8 const *a, utf8 const *b) { return $cmp(a, b); }
-#define X(M, name) M##utf8##name
-#include "Bx.h"
-#undef X
 
 #endif

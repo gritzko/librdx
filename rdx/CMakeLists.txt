@@ -36,7 +36,6 @@ JDR.c
 RDX.c
 RDX2.c
 JDR.rl.c
-ryu/d2s.c
 )
 
 add_library(rdx STATIC ${RDX_HEADERS} ${RDX_SOURCES})

@@ -50,7 +50,7 @@ typedef ok64 (*X(, z))(X(, cp) a, X(, cp) b);
 
 typedef b8 (*X(, isfn))(const X(, ) *);
 
-fun size_t X($, len)(X($c, ) data) { return data[1] - data[0]; }
+fun size_t X(, sLen)(X($c, ) data) { return data[1] - data[0]; }
 
 fun T *X($, last)(X($c, ) data) {
     assert(!$empty(data));
@@ -245,6 +245,13 @@ fun ok64 X($, move)(X($, ) into, X($, c) from) {
     return OK;
 }
 
+fun b8 X(, csOK)(X(, csc) s) {
+    return s != NULL && s[0] != NULL && s[1] >= s[0] &&
+           (((u8c *)s[1] - (u8c *)s[0]) % sizeof(T) == 0);
+}
+
+fun b8 X(, sOK)(X(, sc) s) { return X(, csOK)((T const **)s); }
+
 fun void X(, mv)(T *into, T const *from) { Ocopy(into, from); }
 
 fun void X(, Move)(X(, p) into, X(, cp) from) { Ocopy(into, from); }
@@ -349,6 +356,13 @@ fun void X(, Swap)(T *a, T *b) {
     Ocopy(&c, a);
     Ocopy(a, b);
     Ocopy(b, &c);
+}
+
+fun ok64 X(, sSwap)(X(, s) s, size_t a, size_t b) {
+    size_t l = X(, sLen)(s);
+    if (unlikely(a >= l || b >= l)) return badarg;
+    X(, Swap)(*s + a, *s + b);
+    return OK;
 }
 
 fun void X(, s_purge)(X($, ) s, X(, isfn) f) {

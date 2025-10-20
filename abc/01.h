@@ -41,7 +41,17 @@ typedef u64 const *u64cp;
 typedef int8_t i8;
 typedef int16_t i16;
 typedef int32_t i32;
+
 typedef int64_t i64;
+typedef i64 *i64p;
+typedef i64 const *i64cp;
+
+typedef float f32;
+typedef double f64;
+typedef f32 *f32p;
+typedef f64 *f64p;
+typedef f32 const *f32cp;
+typedef f64 const *f64cp;
 
 typedef u8 bl00[1];
 typedef u8 bl01[2];
@@ -361,6 +371,7 @@ typedef ok64 (*OKcallback)(void *);
 #define u64MinValue 0
 #define i64MaxValue INT64_MAX
 #define i64MinValue INT64_MIN
+#define i64MinAbsValue 9223372036854775808UL
 #define f64MaxValue DBL_MAX
 #define f64MinValue -DBL_MAX
 

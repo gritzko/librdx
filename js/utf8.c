@@ -76,13 +76,13 @@ JABproc(JABCutf8CopyStringValue, u8sp into, JSValueRef val) {
 
 JABproc(JAButf8CreateValue, utf8cp str) {
     JABsane(str != NULL);
-    JSStringRef tmp = JSStringCreateWithUTF8CString(str);
+    JSStringRef tmp = JSStringCreateWithUTF8CString((const char*)str);
     JSValueRef n = JSValueMakeString(ctx, tmp);
     JSStringRelease(tmp);
     return n;
 }
 
-JSValueRef JSOfCString(utf8cp str) {
+JSValueRef JSOfCString(const char* str) {
     JSStringRef tmp = JSStringCreateWithUTF8CString(str);
     JSValueRef n = JSValueMakeString(JABC_CONTEXT, tmp);
     JSStringRelease(tmp);

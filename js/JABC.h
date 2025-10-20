@@ -6,6 +6,7 @@
 #include "JavaScriptCore/JSBase.h"
 #include "JavaScriptCore/JSObjectRef.h"
 #include "abc/BUF.h"
+#include "abc/UTF8.h"
 
 extern thread_local JSGlobalContextRef JABC_CONTEXT;
 extern thread_local JSObjectRef JABC_GLOBAL_OBJECT;

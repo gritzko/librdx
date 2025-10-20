@@ -2,7 +2,11 @@
 
 <img align=right width="25%" src="./logo.jpg"/>
 There is quite a selection of JavaScript environments these days:
-node.js, Deno, Bun, Bare, and so on. The top issue with node-like
+[node.js][n], 
+[Deno][d], 
+[Bun][b], 
+[Bare][r], 
+and so on. The top issue with node-like
 environments is *bloat*. What should be a simple scripting language
 gradually became an elephantine monstrosity. Can we try to work
 around the underlying forces that cause bloat? Why does it happen,
@@ -20,8 +24,8 @@ again and again? My working hypothesis is that
  4. the system-library layer (incl. `libuv`),
  5. the POSIX layer (also Windows).
 
-Each of the layers tends to have its own programming language, 
-its own memory management theory, I/O abstraction layer, its own
+Each of the layers tends to have its own programming language,
+build system, memory management theory, I/O abstraction layer, and
 package/dependency management. Each layer is a separate universe.
 We will try to compact that into three layers:
 
@@ -39,7 +43,7 @@ and so on. The particular solutions used are listed below.
     work and a lot of overhead. Advanced users would likely
     make their own build anyway.
  2. `poll()` is probably enough. As a historical note, I was 
-    using a node.js-like technology at least a year before
+    using a [node.js-like technology][7] almost a year before
     node.js was released in 2009. I needed it to crawl large
     BitTorrent swarms for scientific purposes. For thousands
     of low-traffic connections that was really necessary.
@@ -57,15 +61,21 @@ and so on. The particular solutions used are listed below.
     C land to the minimum: only keep the bootstrap points.
     Do not stash the callbacks, values and suchlike.
     This clear separation between layers improves many things,
-    including security.
+    including security. Also, avoid pointer-holding in JS.
  5. Running threads for disk reads the `libuv` way is likely
     no longer necessary. `libuv` quotes Arvid Norberg on that. 
     Again, that was the 2008/2010 era and Arvid authored a
     high-performance low-overhead BitTorrent client. People
     had HDDs back in those days. These days we all have NVMe 
     and our data quite likely fits in memory anyway.
- 6. Because of the latter fact, let JavaScript use mmap.
+ 6. Because of the latter fact, let JavaScript use `mmap()`.
     Asynchrony in file system access is a huge stumble point.
  7. The UTF8/UTF16 mismatch is a pain.
 
  This list will be appended as the story develops.
+
+[7]: http://github.com/gritzko/k7
+[n]:
+[d]:
+[b]:
+[r];

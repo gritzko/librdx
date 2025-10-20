@@ -7,7 +7,7 @@
 #include "abc/OK.h"
 #include "abc/UTF8.h"
 #define RYU_OPTIMIZE_SIZE
-#include "ryu/ryu.h"
+#include "abc/ryu/ryu.h"
 
 #define JDRenum 0
 

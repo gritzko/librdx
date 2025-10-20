@@ -3,9 +3,11 @@
 //
 #include "UTF8.h"
 
+#include "01.h"
 #include "PRO.h"
+#include "ryu/ryu.h"
 
-pro(_UTF8feed1, $u8 into, u32 cp) {
+pro(_utf8sFeed32, utf8s into, u32 cp) {
     sane($ok(into));
     if (cp < 0x800) {
         test($len(into) >= 2, UTF8noroom);
@@ -28,7 +30,7 @@ pro(_UTF8feed1, $u8 into, u32 cp) {
     done;
 }
 
-pro(_UTF8drain1, u32 *cp, u8cs data) {
+pro(_utf8sDrain32, u32 *cp, utf8cs data) {
     sane($ok(data) && cp != nil);
     const u8 *utf8 = *data;
     unsigned char byte = utf8[0];
@@ -66,5 +68,60 @@ pro(_UTF8drain1, u32 *cp, u8cs data) {
         fail(UTF8bad);
     }
     *cp = code_point;
+    done;
+}
+
+ok64 utf8sDrainFloat(utf8cs txt, f64p f) {
+    sane($ok(txt) && f != NULL);
+    size_t tl = $len(txt);
+    test(tl < 32, UTF8badnum);
+    char str[32];
+    memcpy(str, *txt, tl);
+    str[tl] = 0;
+    char *ep = NULL;
+    *f = strtod((char *)str, &ep);
+    test((ep - str) == tl, UTF8badnum);
+    *txt += tl;
+    done;
+}
+
+ok64 utf8sFeedFloat(utf8s txt, f64cp f) {
+    sane($ok(txt) && f != NULL);
+    u8 res[32];
+    int len = d2s_buffered_n(*f, (char *)res);
+    u8cs $res = {res, res + len};
+    call($u8feed, txt, $res);
+    done;
+}
+
+ok64 utf8sDrainInt(utf8cs txt, i64p i) {
+    sane($ok(txt) && !$empty(txt) && i != NULL);
+    u64 u = 0;
+    b8 neg = NO;
+    if (**txt == '-') {
+        ++*txt;
+        neg = YES;
+    }
+    call(u64decdrain, &u, txt);
+    if (neg) {
+        test(u <= i64MinAbsValue, UTF8badnum);
+        *i = -u;
+    } else {
+        test(u <= i64MaxValue, UTF8badnum);
+        *i = u;
+    }
+    done;
+}
+
+ok64 utf8sFeedInt(utf8s txt, i64cp i) {
+    sane($ok(txt) && i != NULL);
+    u64 u;
+    if (*i < 0) {
+        call(u8sFeed1, txt, '-');
+        u = -*i;
+    } else {
+        u = *i;
+    }
+    call(u64decfeed, txt, u);
     done;
 }
