@@ -3,7 +3,7 @@
 #include "abc/FILE.h"
 #include "abc/PRO.h"
 #include "abc/TLV.h"
-#include "rdx/JDR.h"
+#include "rdx/JDR2.h"
 // and the new version
 #include "rdx/RDX2.h"
 
@@ -18,7 +18,7 @@ ok64 RDX2MergeTest() {
         $println(*arg);
         a_pad(u8, rdx, PAGESIZE);
         a_pad(u8, err, 256);
-        try(JDRparse, u8bIdle(rdx), u8bIdle(err), u8cbData(jdr));
+        try(RDXutf8sParse, u8cbData(jdr), u8bIdle(rdx), u8bIdle(err));
         nedo { $println(u8cbData(err)); }
         then {
             u8cs rdxdata, correct, rec;
@@ -32,9 +32,9 @@ ok64 RDX2MergeTest() {
             if ($eq(fact_data, correct)) done;
             // OK, some error
             $println(u8cbData(jdr));
-            a_pad(u8, jdr, PAGESIZE);
-            call(JDRfeed, jdr_idle, fact_datac);
-            $println(jdr_datac);
+            a_pad(u8, jdr2, PAGESIZE);
+            call(RDXutf8sFeed, jdr2_idle, fact_datac);
+            $println(jdr2_datac);
         }
 
         call(FILEunmap, jdr);

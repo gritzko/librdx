@@ -74,14 +74,14 @@ pro(_utf8sDrain32, u32 *cp, utf8cs data) {
 ok64 utf8sDrainFloat(utf8cs txt, f64p f) {
     sane($ok(txt) && f != NULL);
     size_t tl = $len(txt);
-    test(tl < 32, UTF8badnum);
+    if (tl >= 32) tl = 31;
     char str[32];
     memcpy(str, *txt, tl);
     str[tl] = 0;
     char *ep = NULL;
     *f = strtod((char *)str, &ep);
-    test((ep - str) == tl, UTF8badnum);
-    *txt += tl;
+    test(ep > str, UTF8badnum);
+    *txt += ep - str;
     done;
 }
 

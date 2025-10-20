@@ -1,11 +1,10 @@
-#include "RDX.h"
-
 #include <stdint.h>
 #include <unistd.h>
 
-#include "JDR.h"
 #include "abc/B.h"
 #include "abc/TEST.h"
+#include "rdx/JDR2.h"
+#include "rdx/RDX2.h"
 
 pro(RDXtest0) {
     sane(1);
@@ -21,38 +20,38 @@ pro(RDXtest0) {
     done;
 }
 
-pro(RDXtest1) {
-    sane(1);
-    aBpad(u8, pad, 0x1000);
-    u8** into = u8bIdle(pad);
-    u8cs hello = $u8str("Hello");
-    aRDXid(id, 1, 2);
-    call(RDXfeed, into, RDX_STRING, id, hello);
-    same(10, $len(u8bData(pad)));
-    call(RDXallFIRST, Bu8cdata(pad));
-
-    u8 const** from = Bu8cdata(pad);
-    u8 t;
-    id128 reid = {};
-    u8cs rehello = {};
-    call(RDXdrain, &t, &reid, rehello, from);
-    same(RDX_STRING, t);
-    same(0, $cmp(hello, rehello));
-    same(0, id128cmp(&id, &reid));
-    done;
-}
-
 pro(RDXid128test) {
     sane(1);
 #define RDXIDINLEN 3
-    u64 inputs[RDXIDINLEN][2] = {{0, 0}, {100, 200}, {UINT64_MAX, UINT64_MAX}};
+    ref128 inputs[RDXIDINLEN] = {{0, 0},      //
+                                 {100, 200},  //
+                                 {ron60Max, ron60Max}};
     for (int i = 0; i < RDXIDINLEN; ++i) {
-        aRDXid(in, inputs[i][0], inputs[i][1]);
-        aBpad(u8, hex, 64);
-        call(RDXid128feed, u8bIdle(hex), in);
-        id128 in2 = {};
-        call(RDXid128drain, &in2, Bu8cdata(hex));
-        want(0 == id128cmp(&in, &in2));
+        aBpad(u8, ron, 64);
+        Bzero(ron);
+        call(RDXutf8sFeedID, u8bIdle(ron), &inputs[i]);
+        ref128 in2 = {};
+        call(RDXutf8sDrainID, u8cbData(ron), &in2);
+        want(ref128Eq(&inputs[i], &in2));
+    }
+    done;
+}
+
+
+pro(RDXTestF) {
+    sane(1);
+    RDXfloat inputs[] = {0, 12345.6789, 1.2e+20};
+    for (int i = 0; i < sizeof(inputs)/sizeof(*inputs); ++i) {
+        a_pad(utf8, txt, 64);
+        rdx r1 = {.type=RDX_FLOAT, .f = inputs[i]}, r2 = {}, r3 = {};
+        call(RDXutf8sFeedF, utf8bIdle(txt), &r1);
+        call(RDXutf8sDrainF, utf8cbData(txt), &r2);
+        testeqv(r1.f, r2.f, "%f");
+
+        a_pad(u8, tlv, 64);
+        call(RDXu8sFeedF, utf8bIdle(tlv), &r1);
+        call(RDXu8sDrainF, utf8cbData(tlv), &r3);
+        testeqv(r1.f, r3.f, "%f");
     }
     done;
 }
@@ -60,8 +59,8 @@ pro(RDXid128test) {
 pro(RDXtest) {
     sane(1);
     call(RDXtest0);
-    call(RDXtest1);
     call(RDXid128test);
+    call(RDXTestF);
     done;
 }
 

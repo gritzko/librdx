@@ -46,10 +46,10 @@ pro(LSM0) {
     };
     aBcpad(u8, pad1, 1024);
     for (int i = 0; i < 5; ++i)
-        call(TLVFeedkv, pad1idle, 'K', kv1[i][0], kv1[i][1]);
+        call(TLVFeedKeyVal, pad1idle, 'K', kv1[i][0], kv1[i][1]);
     aBcpad(u8, pad2, 1024);
     for (int i = 0; i < 5; ++i)
-        call(TLVFeedkv, pad2idle, 'K', kv2[i][0], kv2[i][1]);
+        call(TLVFeedKeyVal, pad2idle, 'K', kv2[i][0], kv2[i][1]);
 
     aBpad2(u8cs, lsm, 4);
     call(HEAPu8csPushZ, lsmbuf, (u8cs*)pad1data, alpha);
@@ -87,7 +87,7 @@ pro(LSM1) {
     aBpad2(u8, pad, 1024);
     Bzero(padbuf);
     for (int i = 0; i < 6; ++i)
-        call(TLVFeedkv, padidle, 'K', kv1[i][0], kv1[i][1]);
+        call(TLVFeedKeyVal, padidle, 'K', kv1[i][0], kv1[i][1]);
     call(LSMsort, paddata, alpha, nomerge, padidle);
     int c = 'A';
     while (!$empty(paddata)) {

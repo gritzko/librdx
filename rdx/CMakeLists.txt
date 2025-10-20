@@ -7,7 +7,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS on)
 
 include(CTest)
 
-include_directories(.. . ryu)
+include_directories(.. .)
 
 option(WITH_ASAN "build with ASAN" OFF)
 if (WITH_ASAN)
@@ -23,27 +23,18 @@ set(BENCH_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -v")
 set(BENCH_LDD_FLAGS benchmark::benchmark)
 
 list(APPEND RDX_HEADERS 
-RDX.h
-RDXC.h
-JDR.h
-Y.h
-RDXZ.h
-UNIT.h
+    RDX2.h
+    JDR2.h
 )
 
 list(APPEND RDX_SOURCES 
-JDR.c
-RDX.c
-RDX2.c
-JDR.rl.c
+    RDX2.c
+    JDR.rl.c
+    JDR2.c
 )
 
 add_library(rdx STATIC ${RDX_HEADERS} ${RDX_SOURCES})
 target_link_libraries(rdx abc sodium)
-
-add_executable(rdx-cli RDX.cli.c)
-set_target_properties(rdx-cli PROPERTIES OUTPUT_NAME rdx)
-target_link_libraries(rdx-cli rdx)
 
 add_subdirectory(test)
 

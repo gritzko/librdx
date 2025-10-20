@@ -36,33 +36,10 @@ typedef struct {
 } JDRstate;
 
 fun ok64 RDXid128feed($u8 txt, id128 id) {
-    if (unlikely($len(txt) < 3)) return RDXnoroom;
-    a$dup(u8, t, txt);
-    ok64 o = OK;
-    if (id128src(id)) {
-        o = RONfeed64(t, id128src(id));
-        if (o == OK) o = u8sFeed1(t, **ID128DELIM);
-    }
-    if (o == OK) o = RONfeed64(t, id128time(id));
-    if (o == OK) $mv(txt, t);
-    return o;
+
 }
 
 fun ok64 RDXid128drain(id128* id, $cu8c txt) {
-    a$dup(u8c, t, txt);
-    u8c* p = $u8find(t, *ID128DELIM);
-    ok64 o = OK;
-    id128 res = {};
-    if (p == nil) {  // FIXME not INT
-        o = RONdrain64(&id128time(res), t);
-    } else {
-        u8cs src = {t[0], p};
-        u8cs time = {p + 1, t[1]};
-        o = RONdrain64(&id128time(res), time);
-        if (o == OK) o = RONdrain64(&id128src(res), src);
-    }
-    if (o == OK) *id = res;
-    return o;
 }
 
 fun ok64 RDXFtxt2tlv($u8 tlv, $cu8c txt, id128 time) {
@@ -78,15 +55,6 @@ fun ok64 RDXFtxt2tlv($u8 tlv, $cu8c txt, id128 time) {
 }
 
 fun ok64 RDXFtlv2txt($u8 txt, $cu8c tlv) {
-    sane($ok(txt) && $ok(tlv));
-    u128 time;
-    RDXfloat v;
-    call(RDXCdrainF, &v, &time, tlv);
-    u8 res[32];
-    int len = d2s_buffered_n(v, (char*)res);
-    u8cs $res = {res, res + len};
-    call(u8sFeed, txt, $res);
-    done;
 }
 
 fun ok64 RDXItxt2tlv($u8 tlv, $cu8c txt, id128 time) {

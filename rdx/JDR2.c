@@ -3,7 +3,10 @@
 #include "RDX2.h"
 #include "abc/PRO.h"
 
+// . . . . . . . . . . P A R S E R . . . . . . . . . .
+
 typedef struct {
+    u8cs text;
     u8bp builder;
     rdx cur;
     u64 flags;
@@ -17,7 +20,7 @@ typedef enum {
     JDR_TUPLE = 4,
 } JDR_FLAGS;
 
-fun ok64 JDRFlush(JDRstate* state, b8 force) {
+ok64 JDRFlush(JDRstate* state, b8 force) {
     ok64 o = OK;
     utf8sp idle = utf8bIdle(state->builder);
     if (state->cur.type != 0) {
@@ -29,69 +32,69 @@ fun ok64 JDRFlush(JDRstate* state, b8 force) {
     return o;
 }
 
-fun ok64 JDRonNL($cu8c tok, JDRstate* state) { return OK; }
-fun ok64 JDRonUtf8cp1($cu8c tok, JDRstate* state) { return OK; }
-fun ok64 JDRonUtf8cp2($cu8c tok, JDRstate* state) { return OK; }
-fun ok64 JDRonUtf8cp3($cu8c tok, JDRstate* state) { return OK; }
-fun ok64 JDRonUtf8cp4($cu8c tok, JDRstate* state) { return OK; }
-fun ok64 JDRonInt($cu8c tok, JDRstate* state) {
+ok64 JDRonNL($cu8c tok, JDRstate* state) { return OK; }
+ok64 JDRonUtf8cp1($cu8c tok, JDRstate* state) { return OK; }
+ok64 JDRonUtf8cp2($cu8c tok, JDRstate* state) { return OK; }
+ok64 JDRonUtf8cp3($cu8c tok, JDRstate* state) { return OK; }
+ok64 JDRonUtf8cp4($cu8c tok, JDRstate* state) { return OK; }
+ok64 JDRonInt($cu8c tok, JDRstate* state) {
     return RDXutf8sDrainI(tok, &state->cur);
 }
-fun ok64 JDRonFloat($cu8c tok, JDRstate* state) {
+ok64 JDRonFloat($cu8c tok, JDRstate* state) {
     return RDXutf8sDrainF(tok, &state->cur);
 }
-fun ok64 JDRonTerm($cu8c tok, JDRstate* state) {
+ok64 JDRonTerm($cu8c tok, JDRstate* state) {
     return RDXutf8sDrainT(tok, &state->cur);
 }
-fun ok64 JDRonRef($cu8c tok, JDRstate* state) {
+ok64 JDRonRef($cu8c tok, JDRstate* state) {
     return RDXutf8sDrainR(tok, &state->cur);
 }
-fun ok64 JDRonString($cu8c tok, JDRstate* state) {
+ok64 JDRonString($cu8c tok, JDRstate* state) {
     return RDXutf8sDrainS(tok, &state->cur);
 }
-fun ok64 JDRonMLString($cu8c tok, JDRstate* state) {
+ok64 JDRonMLString($cu8c tok, JDRstate* state) {
     return RDXutf8sDrainS(tok, &state->cur);
 }
-fun ok64 JDRonStamp($cu8c tok, JDRstate* state) {
+ok64 JDRonStamp($cu8c tok, JDRstate* state) {
     return RDXutf8sDrainR(tok, &state->cur);
 }
-fun ok64 JDRonNoStamp($cu8c tok, JDRstate* state) {
+ok64 JDRonNoStamp($cu8c tok, JDRstate* state) {
     zero(state->cur.id);
     return OK;
 }
-fun ok64 JDRonOpenP($cu8c tok, JDRstate* state) {
+ok64 JDRonOpenP($cu8c tok, JDRstate* state) {
     state->cur.type = RDX_TUPLE;
     return OK;
 }
-fun ok64 JDRonCloseP($cu8c tok, JDRstate* state) {
+ok64 JDRonCloseP($cu8c tok, JDRstate* state) {
     state->cur.type = RDX_TUPLE;
     return OK;
 }
-fun ok64 JDRonOpenL($cu8c tok, JDRstate* state) {
+ok64 JDRonOpenL($cu8c tok, JDRstate* state) {
     state->cur.type = RDX_LINEAR;
     return OK;
 }
-fun ok64 JDRonCloseL($cu8c tok, JDRstate* state) {
+ok64 JDRonCloseL($cu8c tok, JDRstate* state) {
     state->cur.type = RDX_LINEAR;
     return OK;
 }
-fun ok64 JDRonOpenE($cu8c tok, JDRstate* state) {
+ok64 JDRonOpenE($cu8c tok, JDRstate* state) {
     state->cur.type = RDX_EULER;
     return OK;
 }
-fun ok64 JDRonCloseE($cu8c tok, JDRstate* state) {
+ok64 JDRonCloseE($cu8c tok, JDRstate* state) {
     state->cur.type = RDX_EULER;
     return OK;
 }
-fun ok64 JDRonOpenX($cu8c tok, JDRstate* state) {
+ok64 JDRonOpenX($cu8c tok, JDRstate* state) {
     state->cur.type = RDX_MULTIX;
     return OK;
 }
-fun ok64 JDRonCloseX($cu8c tok, JDRstate* state) {
+ok64 JDRonCloseX($cu8c tok, JDRstate* state) {
     state->cur.type = RDX_MULTIX;
     return OK;
 }
-fun ok64 JDRonComma($cu8c tok, JDRstate* state) {
+ok64 JDRonComma($cu8c tok, JDRstate* state) {
     ok64 o = OK;
     utf8sp idle = utf8bIdle(state->builder);
     switch (state->flags) {
@@ -116,7 +119,7 @@ fun ok64 JDRonComma($cu8c tok, JDRstate* state) {
     return o;
 }
 
-fun ok64 JDRonColon($cu8c tok, JDRstate* state) {
+ok64 JDRonColon($cu8c tok, JDRstate* state) {
     ok64 o = OK;
     utf8sp idle = utf8bIdle(state->builder);
     switch (state->flags) {
@@ -145,15 +148,34 @@ fun ok64 JDRonColon($cu8c tok, JDRstate* state) {
     }
     return OK;
 }
-fun ok64 JDRonOpen($cu8c tok, JDRstate* state) {
+ok64 JDRonOpen($cu8c tok, JDRstate* state) {
     return RDXu8bInto(state->builder, &state->cur);
 }
-fun ok64 JDRonClose($cu8c tok, JDRstate* state) {
+ok64 JDRonClose($cu8c tok, JDRstate* state) {
     return RDXu8bOuto(state->builder, &state->cur);
 }
-fun ok64 JDRonInter($cu8c tok, JDRstate* state) { return OK; }
-fun ok64 JDRonFIRST($cu8c tok, JDRstate* state) {
+ok64 JDRonInter($cu8c tok, JDRstate* state) { return OK; }
+ok64 JDRonFIRST($cu8c tok, JDRstate* state) {
     state->flags &= ~(JDR_TUPLE | JDR_COLON);
     return OK;
 }
-fun ok64 JDRonRoot($cu8c tok, JDRstate* state) { return OK; }
+ok64 JDRonRoot($cu8c tok, JDRstate* state) { return OK; }
+
+ok64 JDRlexer(JDRstate* state);
+
+ok64 RDXutf8sParse(utf8cs jdr, u8b builder, utf8s err) {
+    JDRstate state = {.text = {jdr[0], jdr[1]}, .builder = builder};
+    ok64 o = JDRlexer(&state);
+    // todo error render
+    return o;
+}
+
+ok64 RDXutf8sDrainF(utf8csc elem, rdxp rdx);
+ok64 RDXutf8sDrainI(utf8csc elem, rdxp rdx);
+ok64 RDXutf8sDrainR(utf8csc elem, rdxp rdx);
+ok64 RDXutf8sDrainS(utf8csc elem, rdxp rdx);
+ok64 RDXutf8sDrainT(utf8csc elem, rdxp rdx);
+
+// . . . . . . . . . . R E N D E R . . . . . . . . . .
+
+ok64 RDXutf8sRender(utf8s jdr, rdxb reader, u64 style) { return notimplyet; }

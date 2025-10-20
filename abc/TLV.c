@@ -67,7 +67,7 @@ ok64 TLVclose($u8 tlv, u8 type, u32* const* len) {
     }
     done;
 }
-ok64 TLVFeedkv($u8 tlv, u8c type, u8cs key, $cu8c val) {
+ok64 TLVFeedKeyVal($u8 tlv, u8c type, u8cs key, $cu8c val) {
     sane($ok(tlv) && $ok(key) && ($empty(val) || $ok(val)));
     size_t keylen = $len(key);
     test(keylen < 0x100, TLVbadarg);

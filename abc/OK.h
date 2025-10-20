@@ -11,8 +11,8 @@ typedef uint64_t ok64;
 #define OK 0
 #define FAIL 0xffffffffffffffffUL
 
-typedef u64 u60;
-#define u60max ((1UL << 60) - 1)
+typedef u64 ron60;
+#define ron60Max ((1UL << 60) - 1)
 
 con ok64 FAILsanity = 0x3ca495de5cade3d;
 con ok64 notimplyet = 0xcb3e2dc74c3da78;
@@ -23,6 +23,7 @@ con ok64 noroom = 0xcb3db3cf1;
 con ok64 badarg = 0x9a5a25dab;
 con ok64 faileq = 0xaa5b70a75;
 con ok64 FAILeq = 0x3ca495a75;
+con ok64 RONbad	= 0x6d85e6968;
 
 con char *_base_ron64 =
     "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz~";
@@ -55,7 +56,7 @@ con u8 BASEron64rev[256] = {
 // todo thread local
 static char _ok64_tmp[16];
 
-fun ok64 RONfeed64(u8 **into, ok64 val) {
+fun ok64 RONutf8sFeed64(u8 **into, ok64 val) {
     u8 tmp[11];
     u8 *e = tmp + 11, *t = e;
     do {
@@ -78,7 +79,7 @@ fun ok64 OKprint(ok64 o, uint8_t **into) {
         ++*into;
         return OK;
     } else {
-        return RONfeed64(into, o);
+        return RONutf8sFeed64(into, o);
     }
 }
 

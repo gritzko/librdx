@@ -2,11 +2,445 @@
 
 #include <stddef.h>
 
+#include "JDR2.h"
 #include "abc/01.h"
 #include "abc/B.h"
+#include "abc/HEX.h"
 #include "abc/PRO.h"
 #include "abc/TLV.h"
 #include "abc/ZINT.h"
+#include "abc/ryu/ryu.h"
+
+ok64 RDXutf8sFeedID(utf8s into, ref128cp ref) {
+    if (unlikely($len(into) < 24)) return RDXnoroom;
+    RONutf8sFeed64(into, ron60Max & ref->src);
+    utf8sFeed1(into, '-');
+    RONutf8sFeed64(into, ron60Max & ref->seq);
+    return OK;
+}
+
+ok64 RDXutf8sDrainID(utf8cs from, ref128p ref) {
+    a$dup(u8c, t, from);
+    u8 DELIM = '-';
+    u8c* p = $u8find(t, &DELIM);
+    ok64 o = OK;
+    if (p == nil) {
+        test($len(t) <= 10, RONbad);
+        ref->src = 0;
+        o = RONdrain64(&ref->seq, t);
+    } else {
+        u8cs src = {t[0], p};
+        u8cs time = {p + 1, t[1]};
+        test($len(src) <= 10 && $len(time) <= 10, RONbad);
+        o = RONdrain64(&ref->seq, time);
+        if (o == OK) o = RONdrain64(&ref->src, src);
+    }
+    return o;
+}
+
+ok64 RDXutf8sFeedStamp(utf8s into, rdxcp rp) {
+    sane($ok(into));
+    if (rp->id.src != 0 || rp->id.seq != 0) {
+        call(utf8sFeed1, into, '@');
+        if (rp->id.src != 0) {
+            call(RDXutf8sFeedID, into, &rp->id);
+        } else {
+            call(RONutf8sFeed64, into, rp->id.seq & ron60Max);
+        }
+    }
+    done;
+}
+
+ok64 RDXutf8sDrainStamp(utf8cs from, rdxp rp) {
+    sane($ok(from) && rp != NULL);
+    while (!$empty(from) && RDXisWS(**from)) (*from)++;
+    if (!$empty(from)) {
+        test(**from == '@', RDXbad);
+        (*from)++;
+        call(RDXutf8sDrainID, from, &rp->id);
+    }
+    done;
+}
+
+ok64 RDXu8sFeed1(u8s into, rdxcp rp) {
+    $ok(into);
+    switch (rp->type) {
+        case RDX_FLOAT:
+            return RDXu8sFeedF(into, rp);
+        case RDX_INT:
+            return RDXu8sFeedI(into, rp);
+        case RDX_REF:
+            return RDXu8sFeedR(into, rp);
+        case RDX_STRING:
+            return RDXu8sFeedS(into, rp);
+        case RDX_TERM:
+            return RDXu8sFeedT(into, rp);
+        default:
+            return RDXbad;
+    }
+}
+
+ok64 RDXutf8sFeed1(utf8s into, rdxcp rp) {
+    $ok(into);
+    switch (rp->type) {
+        case RDX_FLOAT:
+            return RDXutf8sFeedF(into, rp);
+        case RDX_INT:
+            return RDXutf8sFeedI(into, rp);
+        case RDX_REF:
+            return RDXutf8sFeedR(into, rp);
+        case RDX_STRING:
+            return RDXutf8sFeedS(into, rp);
+        case RDX_TERM:
+            return RDXutf8sFeedT(into, rp);
+        default:
+            return RDXbad;
+    }
+}
+
+// . . . . . . . . FLOAT . . . . . . . .
+
+ok64 RDXutf8sFeedF(utf8s into, rdxcp rp) {
+    sane($ok(into) && rp != NULL && rp->type == RDX_FLOAT);
+    call(utf8sFeedFloat, into, &rp->f);
+    call(RDXutf8sFeedStamp, into, rp);
+    done;
+}
+
+ok64 RDXutf8sDrainF(utf8csc from, rdxp rp) {
+    sane(!$empty(from) && rp != NULL);
+    utf8cs txt;
+    utf8csDup(txt, from);
+    call(utf8sDrainFloat, txt, &rp->f);
+    rp->type = RDX_FLOAT;
+    call(RDXutf8sDrainStamp, txt, rp);
+    test($empty(txt), RDXbadF);
+    done;
+}
+
+ok64 RDXu8sFeedF(u8s into, rdxcp rcp) {
+    sane($ok(into) && rcp != NULL && rcp->type == RDX_FLOAT);
+    a_pad(u8, fpad, 16);
+    a_pad(u8, idpad, 16);
+    ZINTu8sFeedFloat(fpad_idle, &rcp->f);
+    ZINTu8sFeed128(idpad_idle, rcp->id.src, rcp->id.seq);
+    call(TLVFeedKeyVal, into, RDX_FLOAT, idpad_datac, fpad_datac);
+    done;
+}
+
+ok64 RDXu8sDrainF(u8csc from, rdxp rp) {
+    sane($ok(from) && rp != NULL);
+    u8cs key, val, fro;
+    u8csDup(fro, from);
+    call(TLVDrainKeyVal, &rp->type, key, val, fro);
+    test(rp->type == RDX_FLOAT, RDXbad);
+    call(ZINTu8sDrain128, key, &rp->id.src, &rp->id.seq);
+    call(ZINTu8sDrainFloat, &rp->f, val);
+    done;
+}
+
+// . . . . . . . . INTEGER . . . . . . . .
+
+ok64 RDXutf8sFeedI(utf8s into, rdxcp rp) {
+    sane($ok(into) && rp != NULL && rp->type == RDX_INT);
+    call(utf8sFeedInt, into, &rp->i);
+    call(RDXutf8sFeedStamp, into, rp);
+    done;
+}
+
+ok64 RDXutf8sDrainI(utf8csc from, rdxp rp) {
+    sane(!$empty(from) && rp != NULL);
+    utf8cs txt;
+    utf8csDup(txt, from);
+    call(utf8sDrainInt, txt, &rp->i);
+    rp->type = RDX_INT;
+    call(RDXutf8sDrainStamp, txt, rp);
+    test($empty(txt), RDXbadF);
+    done;
+}
+
+ok64 RDXu8sFeedI(u8s into, rdxcp rcp) {
+    sane($ok(into) && rcp != NULL && rcp->type == RDX_INT);
+    a_pad(u8, vpad, 16);
+    a_pad(u8, idpad, 16);
+    ZINTu8sFeedInt(vpad_idle, &rcp->i);
+    ZINTu8sFeed128(idpad_idle, rcp->id.src, rcp->id.seq);
+    call(TLVFeedKeyVal, into, RDX_INT, idpad_datac, vpad_datac);
+    done;
+}
+
+ok64 RDXu8sDrainI(u8csc from, rdxp rp) {
+    sane($ok(from) && rp != NULL);
+    u8cs key, val, fro;
+    u8csDup(fro, from);
+    call(TLVDrainKeyVal, &rp->type, key, val, fro);
+    test(rp->type == RDX_INT, RDXbad);
+    call(ZINTu8sDrain128, key, &rp->id.src, &rp->id.seq);
+    call(ZINTu8sDrainInt, &rp->i, val);
+    done;
+}
+
+// . . . . . . . . REFERENCE . . . . . . . .
+
+ok64 RDXutf8sFeedR(utf8s into, rdxcp rp) {
+    sane($ok(into) && rp != NULL && rp->type == RDX_REF);
+    call(RDXutf8sFeedID, into, &rp->r);
+    call(RDXutf8sFeedStamp, into, rp);
+    done;
+}
+
+ok64 RDXutf8sDrainR(utf8csc from, rdxp rp) {
+    sane(!$empty(from) && rp != NULL);
+    utf8cs txt;
+    utf8csDup(txt, from);
+    call(RDXutf8sDrainID, txt, &rp->r);
+    rp->type = RDX_REF;
+    call(RDXutf8sDrainStamp, txt, rp);
+    test($empty(txt), RDXbadF);
+    done;
+}
+
+ok64 RDXu8sFeedR(u8s into, rdxcp rcp) {
+    sane($ok(into) && rcp != NULL && rcp->type == RDX_REF);
+    a_pad(u8, vpad, 16);
+    a_pad(u8, idpad, 16);
+    ZINTu8sFeed128(vpad_idle, rcp->r.src, rcp->r.seq);
+    ZINTu8sFeed128(idpad_idle, rcp->id.src, rcp->id.seq);
+    call(TLVFeedKeyVal, into, RDX_REF, idpad_datac, vpad_datac);
+    done;
+}
+
+ok64 RDXu8sDrainR(u8csc from, rdxp rp) {
+    sane($ok(from) && rp != NULL);
+    u8cs key, val, fro;
+    u8csDup(fro, from);
+    call(TLVDrainKeyVal, &rp->type, key, val, fro);
+    test(rp->type == RDX_REF, RDXbad);
+    call(ZINTu8sDrain128, key, &rp->id.src, &rp->id.seq);
+    call(ZINTu8sDrain128, val, &rp->r.src, &rp->r.seq);
+    done;
+}
+
+// . . . . . . . . STRING . . . . . . . .
+
+pro(RDXutf8sFeedEscape, utf8s txt, u8cs val) {
+    sane($ok(txt) && $ok(val));
+    if ($len(txt) < $len(val)) return RDXnoroom;
+    while (!$empty(val) && !$empty(txt)) {
+        switch (**val) {
+            case '\t':
+                call(u8sFeed2, txt, '\\', 't');
+                break;
+            case '\r':
+                call(u8sFeed2, txt, '\\', 'r');
+                break;
+            case '\n':
+                call(u8sFeed2, txt, '\\', 'n');
+                break;
+            case '\b':
+                call(u8sFeed2, txt, '\\', 'b');
+                break;
+            case '\f':
+                call(u8sFeed2, txt, '\\', 'f');
+                break;
+            case '\\':
+                call(u8sFeed2, txt, '\\', '\\');
+                break;
+            case '/':
+                call(u8sFeed2, txt, '\\', '/');
+                break;
+            case '"':
+                call(u8sFeed2, txt, '\\', '"');
+                break;
+            case 0:
+                call(u8sFeed2, txt, '\\', '0');
+                break;
+                // TODO \u etc
+            default:
+                u8sFeed1(txt, **val);
+        }
+        ++*val;
+    }
+    test($empty(val), RDXnoroom);
+    done;
+}
+
+ok64 RDXutf8sDrainEscaped(utf8cs txt, u8s tlv) {
+    while (!$empty(txt) && !$empty(tlv)) {
+        if (**txt != '\\') {
+            **tlv = **txt;
+            ++*tlv;
+            ++*txt;
+            continue;
+        }
+        ++*txt;
+        if ($empty(txt)) return RDXbadS;
+        switch (**txt) {
+            case 't':
+                **tlv = '\t';
+                break;
+            case 'r':
+                **tlv = '\r';
+                break;
+            case 'n':
+                **tlv = '\n';
+                break;
+            case 'b':
+                **tlv = '\b';
+                break;
+            case 'f':
+                **tlv = '\f';
+                break;
+            case '0':
+                **tlv = 0;
+                break;
+            case '\\':
+                **tlv = '\\';
+                break;
+            case '/':
+                **tlv = '/';
+                break;
+            case '"':
+                **tlv = '"';
+                break;
+            case 'u': {
+                if ($len(txt) < 5) return HEXnodata;
+                u8cs hex = {*txt + 1, *txt + 5};
+                *txt += 4;
+                u64 cp = 0;
+                ok64 o = u64hexdrain(&cp, hex);
+                if (o == OK) o = utf8sFeed32(tlv, cp);
+                --*tlv;
+                if (o != OK) return o;
+                break;
+            }
+            default:
+                return RDXbadS;
+        }
+        ++*tlv;
+        ++*txt;
+    }
+    if (!$empty(txt)) return RDXnoroom;
+    return OK;
+}
+
+ok64 RDXutf8sFeedS(utf8s into, rdxcp rp) {
+    sane($ok(into) && rp != NULL && rp->type == RDX_STRING);
+    u8cs dup;
+    u8csDup(dup, rp->s);
+    call(utf8sFeed1, into, '"');
+    if (rp->enc == RDX_ENC_UTF8 || rp->enc == 0) {
+        call(utf8sFeed, into, dup);
+    } else if (rp->enc == RDX_ENC_UTF8_ESC) {
+        call(RDXutf8sFeedEscape, into, dup);
+    } else {
+        return notimplyet;
+    }
+    call(utf8sFeed1, into, '"');
+    call(RDXutf8sFeedStamp, into, rp);
+    done;
+}
+
+ok64 RDXutf8sDrainS(utf8csc from, rdxp rp) {
+    sane($len(from) >= 2 && rp != NULL);
+    u8csp t = rp->t;
+    u8 quote = *from[0];
+    test(quote == '"' || quote == '`', RDXbadS);
+    t[0] = from[0];
+    t[1] = from[0] + 1;
+    while (t[1] < from[1]) {
+        if (*t[1] == quote) break;
+        if (*t[1] == '\\' && quote == '"') t[1]++;
+        t[1]++;
+    }
+    test(t[1] < from[1], RDXbadS);
+    utf8cs txt = {t[1] + 1, from[1]};
+    rp->type = RDX_STRING;
+    rp->enc = RDX_ENC_UTF8_ESC;
+    call(RDXutf8sDrainStamp, txt, rp);
+    test($empty(txt), RDXbadF);
+    done;
+}
+
+ok64 RDXu8sFeedS(u8s into, rdxcp rcp) {
+    sane($ok(into) && rcp != NULL && rcp->type == RDX_STRING);
+    a_pad(u8, idpad, 16);
+    ZINTu8sFeed128(idpad_idle, rcp->id.src, rcp->id.seq);
+    a_pad(u8p, stack, 1);
+    if ($len(rcp->s) < 0xff - 16) {
+        call(TLVinitshort, into, RDX_STRING, stack);
+    } else {
+        call(TLVinitlong, into, RDX_STRING, stack);
+    }
+    call(u8sFeed1, into, $len(idpad_datac));
+    call(u8sFeed, into, idpad_datac);
+    if (rcp->enc == RDX_ENC_UTF8_ESC) {
+        u8cs dup;
+        u8csDup(dup, rcp->s);
+        call(RDXutf8sDrainEscaped, dup, into);
+    } else if (rcp->enc == RDX_ENC_UTF8 || rcp->enc == 0) {
+        call(u8sFeed, into, rcp->s);
+    } else {
+        return notimplyet;
+    }
+    call(TLVendany, into, RDX_STRING, stack);
+    done;
+}
+
+ok64 RDXu8sDrainS(u8csc from, rdxp rp) {
+    sane($ok(from) && rp != NULL);
+    u8cs key, val, fro;
+    u8csDup(fro, from);
+    call(TLVDrainKeyVal, &rp->type, key, val, fro);
+    test(rp->type == RDX_STRING, RDXbad);
+    rp->enc = RDX_ENC_UTF8;
+    call(ZINTu8sDrain128, key, &rp->id.src, &rp->id.seq);
+    u8csDup(rp->t, val);
+    done;
+}
+
+// . . . . . . . . TERM . . . . . . . .
+
+ok64 RDXutf8sFeedT(utf8s into, rdxcp rp) {
+    sane($ok(into) && rp != NULL && rp->type == RDX_TERM);
+    call(utf8sFeed, into, rp->t);
+    call(RDXutf8sFeedStamp, into, rp);
+    done;
+}
+
+ok64 RDXutf8sDrainT(utf8csc from, rdxp rp) {
+    sane(!$empty(from) && rp != NULL);
+    u8csp t = rp->t;
+    t[0] = from[0];
+    t[1] = from[0];
+    while (t[1] < from[1] && BASEron64rev[*t[1]] != 0xff) t[1]++;
+    utf8cs txt = {t[1], from[1]};
+    rp->type = RDX_TERM;
+    call(RDXutf8sDrainStamp, txt, rp);
+    test($empty(txt), RDXbadF);
+    done;
+}
+
+ok64 RDXu8sFeedT(u8s into, rdxcp rcp) {
+    sane($ok(into) && rcp != NULL && rcp->type == RDX_TERM);
+    a_pad(u8, idpad, 16);
+    ZINTu8sFeed128(idpad_idle, rcp->id.src, rcp->id.seq);
+    call(TLVFeedKeyVal, into, RDX_REF, idpad_datac, rcp->t);
+    done;
+}
+
+ok64 RDXu8sDrainT(u8csc from, rdxp rp) {
+    sane($ok(from) && rp != NULL);
+    u8cs key, val, fro;
+    u8csDup(fro, from);
+    call(TLVDrainKeyVal, &rp->type, key, val, fro);
+    test(rp->type == RDX_TERM, RDXbad);
+    call(ZINTu8sDrain128, key, &rp->id.src, &rp->id.seq);
+    u8csDup(rp->t, val);  // TODO len, chars
+    done;
+}
+
+// . . . . . . . . READER . . . . . . . .
 
 a$strc(RDX_ROOT_REC, " \x01\x00");
 
@@ -31,10 +465,10 @@ ok64 rdxbNext(rdxb reader) {
     call(ZINTu8sDrain128, id, &p->id.src, &p->id.seq);
     switch (type) {
         case RDX_FLOAT:
-            call(ZINTf64drain, &p->f, val);
+            call(ZINTu8sDrainFloat, &p->f, val);
             break;
         case RDX_INT:
-            call(ZINTi64drain, &p->i, val);
+            call(ZINTu8sDrainInt, &p->i, val);
             break;
         case RDX_REF:
             call(ZINTu8sDrain128, val, &p->r.src, &p->r.seq);
@@ -162,11 +596,11 @@ ok64 RDXu8sFeed(u8s rdx, rdxcp fit) {
         case 0:
             break;
         case RDX_FLOAT:
-            ZINTf64feed(val_pad_idle, &fit->f);
+            ZINTu8sFeedFloat(val_pad_idle, &fit->f);
             $mv(val, val_pad_data);
             break;
         case RDX_INT:
-            ZINTi64feed(val_pad_idle, &fit->i);
+            ZINTu8sFeedInt(val_pad_idle, &fit->i);
             $mv(val, val_pad_data);
             break;
         case RDX_REF:
@@ -187,7 +621,7 @@ ok64 RDXu8sFeed(u8s rdx, rdxcp fit) {
             break;
     }
     ZINTu8sFeed128(key_pad_idle, fit->id.src, fit->id.seq);
-    return TLVFeedkv(rdx, lit, key_pad_datac, val);
+    return TLVFeedKeyVal(rdx, lit, key_pad_datac, val);
 }
 
 ok64 RDXu8bInto(u8b builder, rdxcp what) {
@@ -273,10 +707,10 @@ ok64 rdxNext(rdxp it) {
         case 0:
             break;
         case RDX_FLOAT:
-            call(ZINTf64drain, &it->f, val);
+            call(ZINTu8sDrainFloat, &it->f, val);
             break;
         case RDX_INT:
-            call(ZINTi64drain, &it->i, val);
+            call(ZINTu8sDrainInt, &it->i, val);
             break;
         case RDX_REF:
             call(ZINTu8sDrain128, val, &it->r.src, &it->r.seq);

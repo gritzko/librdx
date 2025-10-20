@@ -3,7 +3,7 @@
 #include <abc/BUF.h>
 #include <abc/TLV.h>
 #include <abc/ZINT.h>
-
+#include "abc/UTF8.h"
 #include "abc/01.h"
 #include "abc/OK.h"
 #include "abc/S.h"
@@ -63,6 +63,7 @@ typedef struct {
 
 #define ref128RevMask 63
 typedef ref128 const ref128c;
+typedef ref128* ref128p;
 typedef ref128c* ref128cp;
 fun b8 ref128Z(ref128cp a, ref128cp b) {
     u64 at = a->seq & ~ref128RevMask;
@@ -74,9 +75,17 @@ fun b8 ref128Eq(ref128cp a, ref128cp b) {
     u64 bt = b->seq & ~ref128RevMask;
     return at == bt && a->src == b->src;
 }
-fun ok64 ref128Feed(u8s into, ref128cp ref) {
+
+fun ok64 RDXu8sFeedID(u8s into, ref128cp ref) {
     return ZINTu8sFeed128(into, ref->src, ref->seq);
 }
+
+fun ok64 RDXu8csDrainID(u8cs from, ref128p ref) {
+    return ZINTu8sDrain128(from, &ref->src, &ref->seq);
+}
+
+ok64 RDXutf8sFeedID(utf8s into, ref128cp ref);
+ok64 RDXutf8sDrainID(utf8cs from, ref128p ref);
 
 typedef int64_t RDXint;
 typedef double RDXfloat;
@@ -194,5 +203,21 @@ ok64 RDXu8sMergeZ(u8s merged, u8css inputs, rdxZ z);
 fun ok64 RDXu8sMerge(u8s merged, u8css inputs) {
     return RDXu8sMergeZ(merged, inputs, rdxTupleZ);
 }
+
+// . . . . . . . . RDX TLV FIRST . . . . . . . .
+
+ok64 RDXu8sFeed1(u8s elem, rdxcp rdx);
+ok64 RDXu8sFeedF(u8s elem, rdxcp rdx);
+ok64 RDXu8sFeedI(u8s elem, rdxcp rdx);
+ok64 RDXu8sFeedR(u8s elem, rdxcp rdx);
+// the reason to use rdxcp in the signature: encoding may vary (u8, json etc)
+ok64 RDXu8sFeedS(u8s elem, rdxcp rdx);
+ok64 RDXu8sFeedT(u8s elem, rdxcp rdx);
+
+ok64 RDXu8sDrainF(u8csc elem, rdxp rdx);
+ok64 RDXu8sDrainI(u8csc elem, rdxp rdx);
+ok64 RDXu8sDrainR(u8csc elem, rdxp rdx);
+ok64 RDXu8sDrainS(u8csc elem, rdxp rdx);
+ok64 RDXu8sDrainT(u8csc elem, rdxp rdx);
 
 #endif

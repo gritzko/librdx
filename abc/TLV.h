@@ -88,7 +88,7 @@ ok64 TLVendany($u8 tlv, u8 type, Bu8p stack);
 // @deprecated
 ok64 TLVclose($u8 tlv, u8 type, u32* const* len);
 
-ok64 TLVFeedkv($u8 tlv, u8c type, u8cs key, $cu8c val);
+ok64 TLVFeedKeyVal($u8 tlv, u8c type, u8cs key, $cu8c val);
 
 ok64 TLVDrainKeyVal(u8* type, u8cs key, u8cs val, u8cs tlv);
 /*

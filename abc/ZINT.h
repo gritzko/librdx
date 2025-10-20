@@ -188,10 +188,10 @@ fun int64_t ZINTzagzig(u64 u) {
     return (int64_t)(half ^ mask);
 }
 
-fun ok64 ZINTi64feed($u8 into, i64 const* n) {
+fun ok64 ZINTu8sFeedInt($u8 into, i64 const* n) {
     return ZINTu64feed(into, ZINTzigzag(*n));
 }
-fun ok64 ZINTi64drain(i64* n, $cu8c zip) {
+fun ok64 ZINTu8sDrainInt(i64* n, $cu8c zip) {
     u64 u;
     ok64 o = ZINTu64drain(&u, zip);
     if (o == OK) *n = ZINTzagzig(u);
@@ -204,11 +204,11 @@ fun u64 ZINTf64bits(f64 val) { return *(u64*)&val; }
 
 fun f64 ZINTf64from(u64 bits) { return *(f64*)&bits; }
 
-fun ok64 ZINTf64feed($u8 into, f64 const* n) {
+fun ok64 ZINTu8sFeedFloat($u8 into, f64cp n) {
     u64 bits = flip64(*(u64 const*)n);
     return ZINTu64feed(into, bits);
 }
-fun ok64 ZINTf64drain(f64* n, $cu8c from) {
+fun ok64 ZINTu8sDrainFloat(f64* n, $cu8c from) {
     u64 bits = 0;
     ok64 o = ZINTu64drain(&bits, from);
     if (o == OK) *(u64*)n = flip64(bits);
@@ -230,8 +230,8 @@ fun int ZINTi64z($cu8c a, $cu8c b) {
     u8cs bb = $dup(b);
     i64 an = 0;
     i64 bn = 0;
-    ZINTi64drain(&an, aa);
-    ZINTi64drain(&bn, bb);
+    ZINTu8sDrainInt(&an, aa);
+    ZINTu8sDrainInt(&bn, bb);
     return i64cmp(&an, &bn);
 }
 
@@ -245,8 +245,8 @@ fun int ZINTf64z($cu8c a, $cu8c b) {
     u8cs bb = $dup(b);
     f64 an = 0;
     f64 bn = 0;
-    ZINTf64drain(&an, aa);
-    ZINTf64drain(&bn, bb);
+    ZINTu8sDrainFloat(&an, aa);
+    ZINTu8sDrainFloat(&bn, bb);
     return f64z(&an, &bn);
 }
 
