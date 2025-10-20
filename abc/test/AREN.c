@@ -16,7 +16,7 @@ pro(ARENtest1) {
     aBcpad(u8, arena, PAGESIZE);
     u8cs abc = $u8str("abcdefg");
 
-    afed(str, $u8feed, arenaidle, abc);  // 7
+    afed(str, u8sFeed, arenaidle, abc);  // 7
     want($eq(abc, str));
     u32 u = 0x12345678;
 

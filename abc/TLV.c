@@ -106,17 +106,17 @@ ok64 TLVDrainKeyVal(u8* type, u8cs key, $u8c val, $u8c tlv) {
 }
 ok64 TLVinitshort($u8 tlv, u8 type, Bu8p stack) {
     sane($ok(tlv) && Bok(stack) && TLVlong(type));
-    call(Bu8ppush, stack, &$head(tlv));
-    call($u8feed2, tlv, type | TLVaA, 0);
+    call(u8pbPush, stack, &$head(tlv));
+    call(u8sFeed2, tlv, type | TLVaA, 0);
     done;
 }
 
 ok64 TLVinitlong($u8 tlv, u8 type, Bu8p stack) {
     sane($ok(tlv) && Bok(stack) && TLVlong(type));
-    call(Bu8ppush, stack, &$head(tlv));
+    call(u8pbPush, stack, &$head(tlv));
     u8 head[] = {type & ~TLVaA, 0, 0, 0, 0};
     a$(u8c, h, head);
-    call($u8feedall, tlv, h);
+    call(u8sFeed, tlv, h);
     done;
 }
 
@@ -155,6 +155,6 @@ ok64 TLVendany($u8 tlv, u8 type, Bu8p stack) {
     } else {
         fail(TLVbadrec);
     }
-    Bu8ppop(stack);
+    u8pbPop(stack);
     done;
 }

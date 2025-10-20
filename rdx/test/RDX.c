@@ -24,11 +24,11 @@ pro(RDXtest0) {
 pro(RDXtest1) {
     sane(1);
     aBpad(u8, pad, 0x1000);
-    u8** into = Bu8idle(pad);
+    u8** into = u8bIdle(pad);
     u8cs hello = $u8str("Hello");
     aRDXid(id, 1, 2);
     call(RDXfeed, into, RDX_STRING, id, hello);
-    same(10, $len(Bu8data(pad)));
+    same(10, $len(u8bData(pad)));
     call(RDXallFIRST, Bu8cdata(pad));
 
     u8 const** from = Bu8cdata(pad);
@@ -49,7 +49,7 @@ pro(RDXid128test) {
     for (int i = 0; i < RDXIDINLEN; ++i) {
         aRDXid(in, inputs[i][0], inputs[i][1]);
         aBpad(u8, hex, 64);
-        call(RDXid128feed, Bu8idle(hex), in);
+        call(RDXid128feed, u8bIdle(hex), in);
         id128 in2 = {};
         call(RDXid128drain, &in2, Bu8cdata(hex));
         want(0 == id128cmp(&in, &in2));

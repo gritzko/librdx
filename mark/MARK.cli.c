@@ -49,7 +49,7 @@ void debug(MARKstate *state) {
 #define a$strf(name, len, tmpl, ...) \
     aBpad(u8, name, len);            \
     u8cs __##name = $u8str(tmpl);    \
-    $feedf(Bu8idle(name), __##name, __VA_ARGS__);
+    $feedf(u8bIdle(name), __##name, __VA_ARGS__);
 
 pro(mark, u8cs mod) {
     sane($ok(mod) && !$empty(mod) && $len(mod) <= 1000);
@@ -75,11 +75,11 @@ pro(mark, u8cs mod) {
         state.lineB = (u8cpbp)linebuf;
         state.pB = (u64bp)pbuf;
         $mv(state.text, Bu8cdata(text));
-        $mv(state.fmt, Bu8idle(fmtbuf));
+        $mv(state.fmt, u8bIdle(fmtbuf));
 
         try(MARKlexer, &state);
         then try(MARKMARQ, &state);
-        then try(MARKANSI, Bu8idle(intobuf), 64, &state);
+        then try(MARKANSI, u8bIdle(intobuf), 64, &state);
         then try(FILEFeedall, STDOUT_FILENO, Bu8cdata(intobuf));
     }
 

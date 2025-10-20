@@ -48,7 +48,7 @@ pro(RDXeatfile, int fd) {
         call(TLVsplit, Bu8csidle(ins), Bu8cdata(buf));
     } else {
         aBcpad(u8, err, 128);
-        try(JDRparse, Bu8idle(tmp), erridle, Bu8cdata(buf));
+        try(JDRparse, u8bIdle(tmp), erridle, Bu8cdata(buf));
         nedo {
             FILEFeed(STDERR_FILENO, errdata);
             done;
@@ -81,11 +81,11 @@ pro(RDX_print, u8cs args) {
     sane(1);
     Bate(tmp);
     a$dup(u8cs, in, Bu8csdata(ins));
-    u8$ idle = Bu8idle(tmp);
+    u8$ idle = u8bIdle(tmp);
     call(JDRfeed, idle, **in);
     ++*in;
     $eat(in) {
-        call($u8feed2, idle, ',', '\n');
+        call(u8sFeed2, idle, ',', '\n');
         call(JDRfeed, idle, **in);
     }
     call(u8sFeed1, idle, '\n');
@@ -127,7 +127,7 @@ ok64 RDX_merge(u8cs args) {
     sane(1);
     call(RDXeatfiles, args);
     Bate(tmp);
-    u8$ idle = Bu8idle(tmp);
+    u8$ idle = u8bIdle(tmp);
     call(Y, idle, Bu8csdata(ins));
     Breset(ins);
     call(u8cssFeed1, Bu8csidle(ins), Bu8cdata(tmp));

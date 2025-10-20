@@ -15,7 +15,7 @@ pro(NESTtest1) {
     call(NESTfeed, ct, templ);
     call(NESTsplice, ct, mood);
     a$strc(good, "beautiful");
-    call($u8feed, NESTidle(ct), good);
+    call(u8sFeed, NESTidle(ct), good);
 
     aBpad2(u8, res, 128);
     call(NESTrender, residle, ct);
@@ -34,7 +34,7 @@ pro(NESTtest2) {
     call(NESTfeed, ct, templ);
     call(NESTspliceall, ct, a);
     a$strc(good, "A");
-    call($u8feed, NESTidle(ct), good);
+    call(u8sFeed, NESTidle(ct), good);
 
     aBpad2(u8, res, 128);
     call(NESTrender, residle, ct);

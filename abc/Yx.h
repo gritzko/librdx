@@ -24,7 +24,7 @@ fun ok64 _X(next)($u8 into, u8css lsm) {
     } while (0 == _X(z)($head(lsm), &next));
 
     if ($len(indata) == 1) {
-        o = $u8feed(into, next);
+        o = u8sFeed(into, next);
     } else {
         o = _X(y)(into, indata);
     }

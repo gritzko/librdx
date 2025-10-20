@@ -29,10 +29,10 @@ pro(MARQANSItest) {
         aBpad(u8, pfmt, PAGESIZE);
         Bzero(pfmt);
         $mv(state.text, QA[c][0]);
-        $mv(state.fmt, Bu8idle(pfmt));
+        $mv(state.fmt, u8bIdle(pfmt));
 
         call(MARQlexer, &state);
-        call(MARQANSI, Bu8idle(into), state.text, (u8c**)state.fmt);
+        call(MARQANSI, u8bIdle(into), state.text, (u8c**)state.fmt);
 
         test($eq(QA[c][1],Bu8cdata(into)), TESTfail);
     }
@@ -57,10 +57,10 @@ pro(MARQHTMLtest) {
         aBpad(u8, pfmt, PAGESIZE);
         Bzero(pfmt);
         $mv(state.text, QA[c][0]);
-        $mv(state.fmt, Bu8idle(pfmt));
+        $mv(state.fmt, u8bIdle(pfmt));
 
         call(MARQlexer, &state);
-        call(MARQHTML, Bu8idle(into), state.text, (u8c**)state.fmt);
+        call(MARQHTML, u8bIdle(into), state.text, (u8c**)state.fmt);
 
         test($eq(QA[c][1],Bu8cdata(into)), TESTfail);
     }

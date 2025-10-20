@@ -34,15 +34,15 @@ pro(Utest1) {
     Bu8 buf = {};
     Bu8alloc(buf, 32);
     u8 i = 0;
-    $eat(Bu8idle(buf)) { Bi(buf) = i++; }
+    $eat(u8bIdle(buf)) { Bi(buf) = i++; }
     assert(Bd(buf) == 0);
-    $reverse(Bu8data(buf));
+    $reverse(u8bData(buf));
     assert(Bd(buf) == 31);
-    $sort(Bu8data(buf), &u8cmp);
+    $sort(u8bData(buf), &u8cmp);
     assert(Bd(buf) == 0);
     check(Bd(buf), 0);
     check(Bd(buf), 31);
-    u8 **data = Bu8data(buf);
+    u8 **data = u8bData(buf);
     $eat(data) printf("%c", (int)(**data + 'A'));
     printf("\n");
     $u8 abc = $cut(Bu8past(buf), 0, 3);
@@ -66,10 +66,10 @@ pro(Utest2) {
 pro(OKdec) {
     sane(YES);
     aBpad(u8, into, 64);
-    call(u64decfeed, Bu8idle(into), 12345UL);
+    call(u64decfeed, u8bIdle(into), 12345UL);
     $print(Bu8cdata(into));
     a$str(str, "12345");
-    testeq(YES, $eq(Bu8data(into), str));
+    testeq(YES, $eq(u8bData(into), str));
     done;
 }
 

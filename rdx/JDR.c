@@ -27,7 +27,7 @@ a$u8c(TLV_EMPTY_TUPLE, 'p', 1, 0);
 
 fun ok64 JDRfeedempty(JDRstate* state) {
     state->pre = RDX_TUPLE;
-    return $u8feedall(state->tlv, TLV_EMPTY_TUPLE);
+    return u8sFeed(state->tlv, TLV_EMPTY_TUPLE);
 }
 
 fun ok64 JDRcloseinline(JDRstate* state) {
@@ -128,14 +128,14 @@ ok64 JDRonFIRST($cu8c tok, JDRstate* state) {
             if (**tok == '"') {
                 call(JDRfeedSesc, state->tlv, state->val);
             } else if (**tok == '`') {
-                call($u8feed, state->tlv, state->val);
+                call(u8sFeed, state->tlv, state->val);
             } else {
                 fail(FAILsanity);
             }
             break;
         }
         case RDX_TERM: {
-            call($u8feed, state->tlv, state->val);
+            call(u8sFeed, state->tlv, state->val);
             break;
         }
         default:
@@ -256,7 +256,7 @@ ok64 JDRinsertU(JDRstate* state) {
         state->tlv[0] = start;
         call(TLVinitlong, state->tlv, RDX_TUPLE_INLINE, state->stack);
         call(u8sFeed1, state->tlv, $len(key));
-        call($u8feedall, state->tlv, (u8c$)safekey);
+        call(u8sFeed, state->tlv, (u8c$)safekey);
         --safebody[0];
         **safebody = 0;
         call(TLVFeed, state->tlv, lit, (u8c$)safebody);
@@ -391,7 +391,7 @@ ok64 JDRdrainSesc($u8 txt, u8cs tlv);
 fun ok64 JDRfeedstamp($u8 rdxj, id128 stamp, b8 pad) {
     sane($ok(rdxj));
     if (id128empty(stamp)) return OK;
-    // call($u8feed2, rdxj, ' ', '@');
+    // call(u8sFeed2, rdxj, ' ', '@');
     if ($len(rdxj) < 2) return RDXnoroom;
     u8sFeed1(rdxj, '@');
     call(RDXid128feed, rdxj, stamp);
@@ -401,9 +401,9 @@ fun ok64 JDRfeedstamp($u8 rdxj, id128 stamp, b8 pad) {
 
 fun ok64 JDRindent($u8 rdxj, u64 style) {
     if (style & StyleIndentTab) {
-        return $u8feedcn(rdxj, '\t', style & 0xff);
+        return u8sFeedcn(rdxj, '\t', style & 0xff);
     } else if (style & StyleIndentSpace4) {
-        return $u8feedcn(rdxj, ' ', (style & 0xff) << 2);
+        return u8sFeedcn(rdxj, ' ', (style & 0xff) << 2);
     } else {
         return OK;
     }
@@ -477,7 +477,7 @@ ok64 JDRfeed1($u8 rdxj, u8cs tlv, u64 style) {
             call(JDRfeedstamp, rdxj, id, 0);
             break;
         case RDX_TERM:
-            call($u8feed, rdxj, value);
+            call(u8sFeed, rdxj, value);
             call(JDRfeedstamp, rdxj, id, 0);
             break;
         case RDX_LINEAR:
@@ -531,31 +531,31 @@ pro(JDRdrainSesc, $u8 txt, u8cs tlv) {
     while (!$empty(val) && !$empty(txt)) {
         switch (**val) {
             case '\t':
-                call($u8feed2, txt, '\\', 't');
+                call(u8sFeed2, txt, '\\', 't');
                 break;
             case '\r':
-                call($u8feed2, txt, '\\', 'r');
+                call(u8sFeed2, txt, '\\', 'r');
                 break;
             case '\n':
-                call($u8feed2, txt, '\\', 'n');
+                call(u8sFeed2, txt, '\\', 'n');
                 break;
             case '\b':
-                call($u8feed2, txt, '\\', 'b');
+                call(u8sFeed2, txt, '\\', 'b');
                 break;
             case '\f':
-                call($u8feed2, txt, '\\', 'f');
+                call(u8sFeed2, txt, '\\', 'f');
                 break;
             case '\\':
-                call($u8feed2, txt, '\\', '\\');
+                call(u8sFeed2, txt, '\\', '\\');
                 break;
             case '/':
-                call($u8feed2, txt, '\\', '/');
+                call(u8sFeed2, txt, '\\', '/');
                 break;
             case '"':
-                call($u8feed2, txt, '\\', '"');
+                call(u8sFeed2, txt, '\\', '"');
                 break;
             case 0:
-                call($u8feed2, txt, '\\', '0');
+                call(u8sFeed2, txt, '\\', '0');
                 break;
                 // TODO \u etc
             default:

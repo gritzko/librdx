@@ -66,8 +66,8 @@ fun pro(X(SKIP, feed), Bu8 buf, X(SKIP, tab) * k) {
 
     u8cs w = {(u8c*)(k->off), (u8c*)(k->off + X(SKIP, len)(pos))};
     must($ok(w));
-    must($ok(Bu8idle(buf)));
-    call(TLVFeed, Bu8idle(buf), SKIP_TLV_TYPE, w);
+    must($ok(u8bIdle(buf)));
+    call(TLVFeed, u8bIdle(buf), SKIP_TLV_TYPE, w);
 
     k->pos = pos;
 
@@ -96,7 +96,7 @@ fun pro(X(SKIP, finish), Bu8 buf, X(SKIP, tab) * k) {
     size_t pos = Bdatalen(buf);
     if (k->pos != 0 && X(SKIP, blk)(pos) == X(SKIP, blk)(k->pos)) {
         u8cs lastk = {};
-        a$tail(u8, tail, Bu8data(buf), k->pos);
+        a$tail(u8, tail, u8bData(buf), k->pos);
         a$dup(u8c, rest, tail);
         call(TLVDrain$, lastk, rest);
         call($u8move, tail, rest);
@@ -104,7 +104,7 @@ fun pro(X(SKIP, finish), Bu8 buf, X(SKIP, tab) * k) {
     }
     a$raw(w, k->off);
     a$head(u8c, wl, w, X(SKIP, top)(pos));
-    call(TLVFeed, Bu8idle(buf), SKIP_TLV_TYPE, wl);
+    call(TLVFeed, u8bIdle(buf), SKIP_TLV_TYPE, wl);
     done;
 }
 
@@ -183,7 +183,7 @@ fun pro(X(SKIP, find), u8c$ range, Bu8 hay, u8cs needle, $cmpfn cmp) {
         X(SKIP, tab) hop = {};
         call(X(SKIP, hop), &hop, hay, &k, h);
         u64 b = hop.pos + X(SKIP, tlvlen)(hop.pos);
-        a$tail(u8c, sub, Bu8data(hay), b);
+        a$tail(u8c, sub, u8bData(hay), b);
         int c = cmp((cc$)needle, (cc$)sub);
         if (c < 0) {
             k = hop;
@@ -195,7 +195,7 @@ fun pro(X(SKIP, find), u8c$ range, Bu8 hay, u8cs needle, $cmpfn cmp) {
             break;
         }
     }
-    a$tail(u8c, sub, Bu8data(hay), from);
+    a$tail(u8c, sub, u8bData(hay), from);
     $mv(range, sub);
     done;
 }

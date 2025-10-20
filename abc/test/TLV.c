@@ -15,7 +15,7 @@ pro(TLVtest1) {
     u8cs str1 = $u8str("Hello");
     u8cs str2 = $u8str(" ");
     u8cs str3 = $u8str("world!");
-    u8 **into = Bu8idle(pad);
+    u8 **into = u8bIdle(pad);
     call(TLVFeed, into, 'S', str1);
     call(TLVFeed, into, 'S', str2);
     call(TLVFeed, into, 'S', str3);
@@ -34,7 +34,7 @@ pro(TLVtest1) {
 pro(TLVtest2) {
     sane(1);
     aBpad(u8, pad, 256);
-    u8 **init = Bu8idle(pad);
+    u8 **init = u8bIdle(pad);
     aBpad(u8, tlv, 5000);
     for (u32 v = 0; v < 256; v++) {
         **init = v;
@@ -42,7 +42,7 @@ pro(TLVtest2) {
     }
     u8c **block = Bu8cdata(pad);
     testeq($len(block), 256);
-    u8 **into = Bu8idle(tlv);
+    u8 **into = u8bIdle(tlv);
     for (int j = 0; j < 2; j++) {
         call(TLVFeed, into, 'B', block);
     }
@@ -80,13 +80,13 @@ pro(TLVtest3) {
     call(TLVopen, padidle, 'C', Bpush(stack));
     u8cs ccc = $u8str("ccccc");
 
-    $u8feed(padidle, ccc);
+    u8sFeed(padidle, ccc);
     call(TLVclose, padidle, 'C', Bpop(stack));
 
-    $u8feed(padidle, bbb);
+    u8sFeed(padidle, bbb);
     call(TLVclose, padidle, 'B', Bpop(stack));
 
-    $u8feed(padidle, aaa);
+    u8sFeed(padidle, aaa);
     call(TLVclose, padidle, 'A', Bpop(stack));
 
     $println(paddata);
@@ -111,7 +111,7 @@ ok64 TLVtest4() {
     a$(u8c, cor, correct);
     u8cs text = {cor[0] + 2, cor[1]};
     call(TLVinitlong, padidle, 'A', stack);
-    call($u8feedall, padidle, text);
+    call(u8sFeed, padidle, text);
     call(TLVendany, padidle, 'A', stack);
     $testeq(cor, paddata);
     done;

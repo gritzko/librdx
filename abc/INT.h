@@ -136,7 +136,7 @@ fun ok64 $u8drain8(u8 *into, u8cs from) {
     return OK;
 }
 
-fun ok64 $u8feed8($u8 into, u8 const *what) {
+fun ok64 u8sFeed8($u8 into, u8 const *what) {
     if ($empty(into)) return $noroom;
     **into = *what;
     *into += sizeof(u8);
@@ -201,7 +201,7 @@ fun ok64 $u8drain64(u64 *into, u8cs from) {
     *from += sizeof(u64);
     return OK;
 }
-fun ok64 $u8feed64($u8 into, u64 const *what) {
+fun ok64 u8sFeed64($u8 into, u64 const *what) {
     if ($len(into) < sizeof(u64)) return $noroom;
     memcpy(*into, what, 8);
     *into += sizeof(u64);

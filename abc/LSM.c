@@ -24,7 +24,7 @@ ok64 LSMnext($u8 into, u8css lsm, $u8cZfn cmp, $u8cYfn mrg) {
     } while (0 == cmp($head(lsm), &next));
 
     if ($len(indata) == 1) {
-        call($u8feed, into, next);
+        call(u8sFeed, into, next);
     } else {
         call(mrg, into, indata);
     }

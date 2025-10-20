@@ -39,7 +39,7 @@ ok64 SORTu64($u64 into, $u64 from) {
         clen *= Y_MAX_INPUTS;
     }
     if (dir == NO) {
-        $u64feedall(into, (u64c$c)from);
+        u64sFeed(into, (u64c$c)from);
     } else {
         *into += $len(from);
     }

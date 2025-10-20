@@ -18,11 +18,11 @@ ok64 NETParseAddress(struct addrinfo **result, u8csc address, b8 tcp) {
 
     a_pad(u8, host, 64);
     a_pad(u8, port, 16);
-    call($u8feed, host_idle, state.host);
+    call(u8sFeed, host_idle, state.host);
     if ($len(state.port)) {
-        call($u8feed, port_idle, state.port);
+        call(u8sFeed, port_idle, state.port);
     } else if ($len(state.scheme)) {
-        call($u8feed, port_idle, state.scheme);
+        call(u8sFeed, port_idle, state.scheme);
     } else {
         fail(badarg);
     }

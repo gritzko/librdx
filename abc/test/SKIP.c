@@ -66,7 +66,7 @@ pro(SKIP1) {
     Bzero(checkbuf);
     SKIPu8tab k = {};
     for (u64 u = 0; u < SCALE / 16; ++u) {
-        call($u8feed64, padidle, &u);
+        call(u8sFeed64, padidle, &u);
         call(SKIPu8mayfeed, padbuf, &k);
     }
     // aBcpad(u8, hex, PAGESIZE * 2);
@@ -91,7 +91,7 @@ pro(SKIP2) {
     SKIPu8tab k = {};
     for (u64 i = 0; i < 8; ++i) {
         for (u64 u = 0; u < SCALE / 16; ++u) {
-            call($u8feed64, padidle, &u);
+            call(u8sFeed64, padidle, &u);
             call(SKIPu8mayfeed, padbuf, &k);
         }
         call(SKIPu8finish, padbuf, &k);
@@ -124,7 +124,7 @@ pro(SKIP3) {
     aBcpad(u8, check, SCALE);
     SKIPu8tab k = {};
     for (u64 u = 0; u < SCALE / 16; ++u) {
-        $u8feed64(padidle, &u);
+        u8sFeed64(padidle, &u);
         call(SKIPu8mayfeed, padbuf, &k);
     }
     call(SKIPu8finish, padbuf, &k);

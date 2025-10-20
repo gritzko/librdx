@@ -17,8 +17,8 @@ con ok64 NETnone = 0x1739dcb3ca9;
 
 typedef Bu8 NETaddr;
 #define NEThost(a) Bu8past(a)
-#define NETraw(a) Bu8data(a)
-#define NETport(a) Bu8data(a)
+#define NETraw(a) u8bData(a)
+#define NETport(a) u8bData(a)
 
 #define NETmaxhost (256 - 32 - 2)
 #define NETmaxserv (32)

@@ -25,13 +25,13 @@ fun u32 ZINTlen(u64 n) {
 fun ok64 ZINTu64feed($u8 into, u64 n) {
     if ($len(into) < 8) return ZINTnoroom;
     if (n <= B1) {
-        if (n != 0) $u8feed8(into, (u8*)&n);
+        if (n != 0) u8sFeed8(into, (u8*)&n);
     } else if (n <= B2) {
         u8sFeed16(into, (u16*)&n);
     } else if (n <= B4) {
         u8sFeed32(into, (u32*)&n);
     } else {
-        $u8feed64(into, &n);
+        u8sFeed64(into, &n);
     }
     return OK;
 }
@@ -70,34 +70,34 @@ fun ok64 ZINTu64drain(u64* n, $cu8c zip) {
 fun ok64 ZINTu8sFeed128(u8s into, u64 big, u64 lil) {
     if (lil <= B1) {
         if (big <= B1) {
-            if (big != 0 || lil != 0) $u8feed8(into, (u8*)&big);
+            if (big != 0 || lil != 0) u8sFeed8(into, (u8*)&big);
         } else if (big <= B2) {
             u8sFeed16(into, (u16*)&big);
         } else if (big <= B4) {
             u8sFeed32(into, (u32*)&big);
         } else {
-            $u8feed64(into, &big);
+            u8sFeed64(into, &big);
         }
-        if (lil != 0 || big > B1) $u8feed8(into, (u8*)&lil);
+        if (lil != 0 || big > B1) u8sFeed8(into, (u8*)&lil);
     } else if (lil <= B2) {
         if (big <= B2) {
             u8sFeed16(into, (u16*)&big);
         } else if (big <= B4) {
             u8sFeed32(into, (u32*)&big);
         } else {
-            $u8feed64(into, &big);
+            u8sFeed64(into, &big);
         }
         u8sFeed16(into, (u16*)&lil);
     } else if (lil <= B4) {
         if (big <= B4) {
             u8sFeed32(into, (u32*)&big);
         } else {
-            $u8feed64(into, &big);
+            u8sFeed64(into, &big);
         }
         u8sFeed32(into, (u32*)&lil);
     } else {
-        $u8feed64(into, &big);
-        $u8feed64(into, &lil);
+        u8sFeed64(into, &big);
+        u8sFeed64(into, &lil);
     }
     return OK;
 }

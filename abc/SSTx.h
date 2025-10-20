@@ -50,37 +50,37 @@ fun ok64 X(SST, feed)(X(SST, ) sst, SSTab* tab, u8 type, Key const* key,
                       u8cs value) {
     aBcpad(u8, raw, sizeof(Key));
     X(, pack)(rawidle, key);
-    ok64 o = TLVFeedkv(Bu8idle(sst), type, rawdata, value);
+    ok64 o = TLVFeedkv(u8bIdle(sst), type, rawdata, value);
     if (o == OK) o = SKIPu8mayfeed(sst, tab);
     return o;
 }
 
 fun ok64 X(SST, initshort)(X(SST, ) sst, u8 type, Key const* key, Bu8p stack) {
-    u8$ into = Bu8idle(sst);
+    u8$ into = u8bIdle(sst);
     aBcpad(u8, raw, sizeof(Key));
     X(, pack)(rawidle, key);
     TLVinitshort(into, type, stack);
     u8sFeed1(into, sizeof(Key));
-    return $u8feedall(into, rawdata);
+    return u8sFeed(into, rawdata);
 }
 
 fun ok64 X(SST, initlong)(X(SST, ) sst, u8 type, Key const* key, Bu8p stack) {
-    u8$ into = Bu8idle(sst);
+    u8$ into = u8bIdle(sst);
     aBcpad(u8, raw, sizeof(Key));
     X(, pack)(rawidle, key);
-    TLVinitlong(Bu8idle(sst), type, stack);
+    TLVinitlong(u8bIdle(sst), type, stack);
     u8sFeed1(into, sizeof(Key));
-    return $u8feedall(into, rawdata);
+    return u8sFeed(into, rawdata);
 }
 
 fun ok64 X(SST, endany)(X(SST, ) sst, u8 type, SSTab* tab, Bu8p stack) {
-    ok64 o = TLVendany(Bu8idle(sst), type, stack);
+    ok64 o = TLVendany(u8bIdle(sst), type, stack);
     if (o == OK) o = SKIPu8mayfeed(sst, tab);
     return o;
 }
 
 fun ok64 X(SST, feedkv)(X(SST, ) sst, SSTab* tab, u8cs rec) {
-    ok64 o = $u8feedall(Bu8idle(sst), rec);
+    ok64 o = u8sFeed(u8bIdle(sst), rec);
     if (o == OK) o = SKIPu8mayfeed(sst, tab);
     return o;
 }
@@ -104,7 +104,7 @@ fun ok64 X(SST, locate)(u8c$ rest, X(SST, ) sst, u8 type, Key const* key) {
     u8 t = (type ? type : 'A') | TLVaA;
     aBcpad(u8, raw, sizeof(Key) + 3);
     u8sFeed1(rawidle, t);
-    $u8feed2(rawidle, 0, 0);
+    u8sFeed2(rawidle, 0, 0);
     X(, pack)(rawidle, key);
     *Bu8atp(rawbuf, 1) = $len(rawdata) - 2;
     *Bu8atp(rawbuf, 2) = $len(rawdata) - 3;

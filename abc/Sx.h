@@ -283,7 +283,7 @@ fun ok64 X($, drain1)(T *into, X($, ) from) {
     ++*from;
     return OK;
 }
-fun ok64 X($, feed2)(X($, ) into, T a, T b) {
+fun ok64 X(, sFeed2)(X($, ) into, T a, T b) {
     if ($len(into) < 2) return $noroom;
     X(, mv)(*into, (T const *)&a);
     ++*into;

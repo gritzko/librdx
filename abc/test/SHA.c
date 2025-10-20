@@ -19,7 +19,7 @@ pro(SHAtest1) {
     sha256 hash1 = {};
     SHAsum(&hash1, value1);
     aBpad(u8, hex1b, 64);
-    call(HEXsha256put, Bu8idle(hex1b), &hash1);
+    call(HEXsha256put, u8bIdle(hex1b), &hash1);
     testeq(YES, $eq(hex1,Bu8cdata(hex1b)));
 
     sha256 hash2;
@@ -29,8 +29,8 @@ pro(SHAtest1) {
     SHAfeed(&state, value2);
     SHAclose(&state, &hash2);
     a$(u8c, hs2, hash2.data);
-    HEXput(Bu8idle(hex2b), hs2);
-    testeq(YES, $eq(Bu8data(hex2b), hex2));
+    HEXput(u8bIdle(hex2b), hs2);
+    testeq(YES, $eq(u8bData(hex2b), hex2));
 
     done;
 }

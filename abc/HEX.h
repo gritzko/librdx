@@ -86,7 +86,7 @@ fun ok64 u64hexfeed($u8 hex, u64 val) {
         *--*h = $at(BASE16, val & 0xf);
         val >>= 4;
     } while (val != 0);
-    return $u8feed(hex, (u8c**)h);
+    return u8sFeed(hex, (u8c**)h);
 }
 
 fun ok64 u64hexdrain(u64* res, u8cs hex) {

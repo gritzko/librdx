@@ -60,7 +60,7 @@ fun ok64 POLLfeed$(POLLctl* ctl, u8c$ data) {
 
 fun ok64 POLLfeed(POLLctl* ctl, u8cs data) {
     u8cs n = {ctl->writebuf[2], nil};
-    ok64 o = $u8feed(Bu8idle(ctl->writebuf), data);
+    ok64 o = u8sFeed(u8bIdle(ctl->writebuf), data);
     if (o != OK) return o;
     n[1] = ctl->writebuf[2];
     return POLLfeed$(ctl, n);

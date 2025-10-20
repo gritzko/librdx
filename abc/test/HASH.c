@@ -101,7 +101,7 @@ pro(HASHd) {
     sane(1);
     Bu32 dictbuf = {};
     Bu32alloc(dictbuf, 16);
-    u32$ dict = Bu32data(dictbuf);
+    u32$ dict = u32bData(dictbuf);
     void **b = (void **)dictbuf;
     b[2] = b[3];
     Bu32 copybuf = {};
@@ -119,7 +119,7 @@ pro(HASHd) {
             HASHu32del(dict, &rec);
         }
     }
-    $u32feedall(Bu32idle(copybuf), Bu32cdata(dictbuf));
+    u32sFeed(u32bIdle(copybuf), Bu32cdata(dictbuf));
 
     for (int j = 0; j < 1000; ++j) {
         Bzero(dictbuf);
@@ -134,7 +134,7 @@ pro(HASHd) {
                 HASHu32del(dict, &rec);
             }
         }
-        if (!$eq(Bu32data(dictbuf), Bu32data(copybuf))) {
+        if (!$eq(u32bData(dictbuf), u32bData(copybuf))) {
             fprintf(stderr, "INS\t");
             for (int i = 0; i < LENd; ++i) fprintf(stderr, "%i\t", ins[i]);
             fprintf(stderr, "\n");
@@ -165,7 +165,7 @@ pro(HASHd) {
                 fprintf(stderr, "\n");
             }
         }
-        $testeq(Bu32data(dictbuf), Bu32data(copybuf));
+        $testeq(u32bData(dictbuf), u32bData(copybuf));
     }
 
     Bu32free(dictbuf);

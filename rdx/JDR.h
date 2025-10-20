@@ -85,7 +85,7 @@ fun ok64 RDXFtlv2txt($u8 txt, $cu8c tlv) {
     u8 res[32];
     int len = d2s_buffered_n(v, (char*)res);
     u8cs $res = {res, res + len};
-    call($u8feed, txt, $res);
+    call(u8sFeed, txt, $res);
     done;
 }
 
@@ -109,7 +109,7 @@ fun ok64 RDXItlv2txt($u8 txt, $cu8c tlv) {
     u8 res[32];
     int len = sprintf((char*)res, "%li", v);
     u8cs $res = {res, res + len};
-    call($u8feed, txt, $res);
+    call(u8sFeed, txt, $res);
     done;
 }
 
@@ -164,9 +164,9 @@ fun ok64 JDRparse($u8 tlv, $u8 errmsg, u8cs jdr) {
         size_t n = $len(line);
         while (line[1] < jdr[1] && $len(line) < 64 && *(line[1]) != '\n')
             ++line[1];
-        $u8feed(errmsg, line);
-        $u8feedcn(errmsg, ' ', n);
-        $u8feed2(errmsg, '^', '\n');
+        u8sFeed(errmsg, line);
+        u8sFeedcn(errmsg, ' ', n);
+        u8sFeed2(errmsg, '^', '\n');
     }
     return o;
 }
@@ -189,7 +189,7 @@ fun ok64 JDRfeed($u8 jdr, u8cs tlv) {
     sane($ok(jdr) && $ok(tlv));
     do {
         call(JDRfeed1, jdr, tlv, 0);
-        if (!$empty(tlv)) call($u8feed2, jdr, ',', '\n');
+        if (!$empty(tlv)) call(u8sFeed2, jdr, ',', '\n');
     } while (!$empty(tlv));
     done;
 }

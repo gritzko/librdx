@@ -86,8 +86,8 @@ ok64 BRIX_get(BRIX* brix, id128 id, ok64 sub, u8cs args) {
             call(BRIXgetc, rec, brix, 0, ref);
             if (sub == SUBjdr) {
                 Beat(brix->pad);
-                call(JDRfeed, Bu8idle(brix->pad), rec);
-                $mv(rec, Bu8data(brix->pad));
+                call(JDRfeed, u8bIdle(brix->pad), rec);
+                $mv(rec, u8bData(brix->pad));
             }
             call(FILEFeed, STDOUT_FILENO, rec);
         } else {
@@ -106,7 +106,7 @@ ok64 BRIX_reget(BRIX* brix, id128 id, ok64 sub, u8cs args) {
         if (rdt == RDX_REF) {
             id128 ref, _;
             call(RDXCdrainR, &ref, &_, args);
-            call(BRIXreget, Bu8idle(gig), brix, 0, ref);
+            call(BRIXreget, u8bIdle(gig), brix, 0, ref);
             call(FILEFeedall, STDOUT_FILENO, Bu8cdata(gig));
         } else {
             fail(notimplyet);
@@ -135,21 +135,21 @@ ok64 BRIX_seal(BRIX* brix, id128 id, ok64 sub, u8cs args) {
     // FIXME Bsha256feed$(depsidle, Bsha256cdata(brix->ids));
     $sha256sort(depsdata);
 
-    a$dup(Bu8, news, BBu8data(brix->ssts));
+    a$dup(Bu8, news, Bu8bData(brix->ssts));
     $eat(news) u8csbfeed1(insbuf,Bu8cdata(**news));
 
     SSTu128 sst = {};
     int fd = FILE_CLOSED;
     aBcpad(u8, tmp, FILEmaxpathlen);
-    call($u8feedall, tmpidle, u8cB$1(brix->home));
-    call($u8feedall, tmpidle, BRIKtmp);
+    call(u8sFeed, tmpidle, u8cB$1(brix->home));
+    call(u8sFeed, tmpidle, BRIKtmp);
     size_t sumsz = PAGESIZE;
     a$dup(u8cs, ins, Bu8csdata(insbuf));
     $eat(ins) sumsz += $size(**ins);
     call(SSTu128init, sst, &fd, tmpdata, sumsz);
     SKIPu8tab tab = {};
 
-    call(LSMmerge, Bu8idle(sst), Bu8csdata(insbuf), RDXZrevision, Y);
+    call(LSMmerge, u8bIdle(sst), Bu8csdata(insbuf), RDXZrevision, Y);
 
     call(SSTu128end, sst, &fd, &tab);
     sha256 sha = {};
@@ -233,7 +233,7 @@ ok64 BRIX_list(BRIX* brix, id128 id, ok64 sub, u8cs args) {
                 u8 flag = '>';
                 $eat(deps) {
                     a$rawcp(depraw, *deps);
-                    call($u8feed2, outidle, '\t', flag);
+                    call(u8sFeed2, outidle, '\t', flag);
                     call(HEXfeed, outidle, depraw);
                     call(u8sFeed1, outidle, '\n');
                     flag = ' ';

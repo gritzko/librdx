@@ -41,7 +41,7 @@ fun ok64 latest($u8 into, u8css from) {
         TLVDrain$(rec, $at(from, i));
         if (*$last(rec) > ta) $mv(max, rec);
     }
-    $u8feed(into, max);
+    u8sFeed(into, max);
     return OK;
 }
 
@@ -75,7 +75,7 @@ pro(SST0) {
     done;
 }
 
-fun ok64 nomerge($u8 into, u8css from) { return $u8feedall(into, **from); }
+fun ok64 nomerge($u8 into, u8css from) { return u8sFeed(into, **from); }
 
 pro(SSTtest) {
     sane(1);

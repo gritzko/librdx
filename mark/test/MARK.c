@@ -77,12 +77,12 @@ pro(MARKANSItest) {
         state.divB = (u64bp)divs;
         state.pB = (u64bp)blocks;
         $mv(state.text, QA[c][0]);
-        $mv(state.fmt, Bu8idle(fmt));
+        $mv(state.fmt, u8bIdle(fmt));
         Bzero(fmt);
 
         call(MARKlexer, &state);
         call(MARKMARQ, &state);
-        call(MARKANSI, Bu8idle(into), 8, &state);
+        call(MARKANSI, u8bIdle(into), 8, &state);
 
         debugdivs(Bu64cdata(state.divB));
         a$str(hline, "---\n");
@@ -165,11 +165,11 @@ pro(MARKHTMLtest) {
         state.divB = (u64bp)divs;
         state.pB = (u64bp)blocks;
         $mv(state.text, cases[i][0]);
-        $mv(state.fmt, Bu8idle(fmt));
+        $mv(state.fmt, u8bIdle(fmt));
 
         callsafe(MARKlexer(&state), break);
         callsafe(MARKMARQ(&state), break);
-        callsafe(MARKHTML(Bu8idle(into), &state), break);
+        callsafe(MARKHTML(u8bIdle(into), &state), break);
 
         testsafe($eq(cases[i][1], Bu8cdata(into)), TESTfail, break);
     }

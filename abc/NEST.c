@@ -125,7 +125,7 @@ ok64 NESTrendertree($u8 into, Bu8 ct, u32 ndx) {
         while (next->var != 0) {
             u32 till = next->pos;
             a$part(u8c, part, data, from, till - from);  // TODO
-            call($u8feedall, into, part);
+            call(u8sFeed, into, part);
             from = till;
             if (next->ins != 0) {
                 call(NESTrendertree, into, ct, next->ins);
@@ -134,7 +134,7 @@ ok64 NESTrendertree($u8 into, Bu8 ct, u32 ndx) {
         }
         u32 till = next->pos;
         a$part(u8c, part, data, from, till - from);  // TODO
-        call($u8feedall, into, part);
+        call(u8sFeed, into, part);
         ndx = mark->ins;
     } while (ndx != 0);
     done;

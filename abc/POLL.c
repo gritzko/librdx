@@ -73,7 +73,7 @@ pro(POLLdelctl, POLLstate state, POLLctl* ctl, ok64 o) {
 
 pro(POLLread, POLLctl* ctl) {
     sane(ctl != nil && ctl->fn != nil);
-    call(FILEdrain, Bu8idle(ctl->readbuf), ctl->fd);
+    call(FILEdrain, u8bIdle(ctl->readbuf), ctl->fd);
     call((*ctl->fn), (struct POLLctl*)ctl);
     if (!Bu8hasdata(ctl->readbuf)) Breset(ctl->readbuf);
     done;

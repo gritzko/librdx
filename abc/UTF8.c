@@ -90,7 +90,7 @@ ok64 utf8sFeedFloat(utf8s txt, f64cp f) {
     u8 res[32];
     int len = d2s_buffered_n(*f, (char *)res);
     u8cs $res = {res, res + len};
-    call($u8feed, txt, $res);
+    call(u8sFeed, txt, $res);
     done;
 }
 

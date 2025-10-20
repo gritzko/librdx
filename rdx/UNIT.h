@@ -75,7 +75,7 @@ ok64 UNITdrain(Bu8 tests, UNITfn fn) {
     Bu8 rdx = {};
     size_t dl = Bdatalen(tests);
     Bu8alloc(rdx, roundup(Bdatalen(tests) * 2, PAGESIZE));
-    a$dup(u8c, jdr, Bu8data(tests));
+    a$dup(u8c, jdr, u8bData(tests));
     // ok64 o = JDRdrain(Bu8$2(rdx), jdr);
     aBcpad(u8, err, 128);
     ok64 o = JDRparse(Bu8$2(rdx), erridle, jdr);
@@ -107,7 +107,7 @@ ok64 UNITdrain(Bu8 tests, UNITfn fn) {
                     TLVDrainKeyVal(&t, key, body, rec);
                     while (!$empty(body) && *body[0] == '\n') ++body[0];
                     while (!$empty(body) && *(body[1] - 1) == '\n') --body[1];
-                    $u8feedall(msgidle, body);
+                    u8sFeed(msgidle, body);
                 } else {
                     cs = 0;
                 }
@@ -134,11 +134,11 @@ ok64 UNITdrain(Bu8 tests, UNITfn fn) {
                 }
                 if (o == OK) {
                     escfeed(msgidle, LIGHT_GREEN);
-                    $u8feedall(msgidle, UNITokmsg);
+                    u8sFeed(msgidle, UNITokmsg);
                     escfeed(msgidle, 0);
                 } else {
                     escfeed(msgidle, LIGHT_RED);
-                    $u8feedall(msgidle, UNITfailmsg);
+                    u8sFeed(msgidle, UNITfailmsg);
                     escfeed(msgidle, 0);
                     UNITdump(msgidle, caserdx);
                 }
@@ -156,13 +156,13 @@ fun ok64 UNITfail(u8cs correct, u8cs fact) {
     a$strc(expstr, "\nEXPECTED:\n");
     a$strc(factstr, "\nFACT:\n");
     Bump(padbuf, PAGESIZE / 2);
-    $u8feed(paddata, expstr);
+    u8sFeed(paddata, expstr);
     a$dup(u8c, c2, correct);
     JDRfeed(paddata, c2);
     u8sFeed1(paddata, '\n');
     HEXdump(paddata, correct);
     Back(padbuf);
-    $u8feed(padidle, factstr);
+    u8sFeed(padidle, factstr);
     a$dup(u8c, f2, fact);
     JDRfeed(padidle, f2);
     u8sFeed1(padidle, '\n');

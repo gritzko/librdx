@@ -28,7 +28,7 @@ ABC_INIT;
 #define a$strf(name, len, tmpl, ...) \
     aBpad(u8, name, len);            \
     u8cs __##name = $u8str(tmpl);    \
-    $feedf(Bu8idle(name), __##name, __VA_ARGS__);
+    $feedf(u8bIdle(name), __##name, __VA_ARGS__);
 
 pro(md2html, u8cs mod) {
     sane($ok(mod) && !$empty(mod) && $len(mod) <= 1000);
@@ -54,11 +54,11 @@ pro(md2html, u8cs mod) {
     state.lineB = (u8cpbp)linebuf;
     state.pB = (u64bp)pbuf;
     $mv(state.text, Bu8cdata(txtbuf));
-    $mv(state.fmt, Bu8idle(fmtbuf));
+    $mv(state.fmt, u8bIdle(fmtbuf));
 
     call(MARKlexer, &state);
     call(MARKMARQ, &state);
-    call(MARKHTML, Bu8idle(intobuf), &state);
+    call(MARKHTML, u8bIdle(intobuf), &state);
 
     int hfd = 0;
     a$strf(htmlname, 1024, "$s.html", mod);

@@ -62,9 +62,9 @@ $u8c DIVTAGS[][3] = {{},
                          $u8str("</blockquote>\n"),
                      }};
 
-fun ok64 tagopen($u8 $into, u8 tag) { return $u8feed($into, DIVTAGS[tag][0]); }
-fun ok64 tagredo($u8 $into, u8 tag) { return $u8feed($into, DIVTAGS[tag][1]); }
-fun ok64 tagclose($u8 $into, u8 tag) { return $u8feed($into, DIVTAGS[tag][2]); }
+fun ok64 tagopen($u8 $into, u8 tag) { return u8sFeed($into, DIVTAGS[tag][0]); }
+fun ok64 tagredo($u8 $into, u8 tag) { return u8sFeed($into, DIVTAGS[tag][1]); }
+fun ok64 tagclose($u8 $into, u8 tag) { return u8sFeed($into, DIVTAGS[tag][2]); }
 
 fun b8 pable(u64 stack) {
     u8 l = u64bytelen(stack);
@@ -153,10 +153,10 @@ pro(feedlistbullet, $u8 $into, u16 list) {
     if (list < 10) {
         u8sFeed1($into, ' ');
         u64decfeed($into, list);
-        $u8feed2($into, '.', ' ');
+        u8sFeed2($into, '.', ' ');
     } else if (list < 100) {
         u64decfeed($into, list);
-        $u8feed2($into, '.', ' ');
+        u8sFeed2($into, '.', ' ');
     } else if (list < 1000) {
         u64decfeed($into, list);
         u8sFeed1($into, '.');
@@ -176,11 +176,11 @@ pro(feedbullet, $u8 $into, u64 stack, b8 head, u16 list) {
         test(b < MARK_END, MARKbadrec);
         b8 bullet = head && d + 1 == depth || b == MARK_QUOTE;
         if (bullet && b != MARK_OLIST) {
-            call($u8feed, $into, MARKdivcanon[b]);
+            call(u8sFeed, $into, MARKdivcanon[b]);
         } else if (bullet && b == MARK_OLIST) {
             call(feedlistbullet, $into, list);
         } else {
-            call($u8feed, $into, MARKdivcanon[0]);
+            call(u8sFeed, $into, MARKdivcanon[0]);
         }
     }
     done;
@@ -245,14 +245,14 @@ pro(MARKANSIdiv, $u8 $into, u64 lfrom, u64 ltill, u64 stack, u32 width,
 
 pro(MARKANSI, $u8 $into, u32 width, MARKstate const* state) {
     sane($ok($into) && state != nil && !Bempty(state->divB));
-    u64$ divs = Bu64data(state->divB);
+    u64$ divs = u64bData(state->divB);
     u8cp$ lines = u8cpbData(state->lineB);
     u64 lists = 0;
     u64 divlen = 0;
     b8 hadgap = NO;
     size_t llen = $len(divs) - 1;
     u64 olddiv = 0xff;
-    u64$ ps = Bu64data(state->pB);
+    u64$ ps = u64bData(state->pB);
     for (u64 p = 0; p + 1 < $len(ps); ++p) {
         u64 from = Bat(ps, p);
         u64 till = Bat(ps, p + 1);
@@ -285,9 +285,9 @@ pro(MARKMARQdiv, u64 from, u64 till, MARKstate* state) {
 
 pro(MARKMARQ, MARKstate* state) {
     sane(state != nil && !Bempty(state->divB));
-    u64$ divs = Bu64data(state->divB);
+    u64$ divs = u64bData(state->divB);
     u8cp$ lines = u8cpbData(state->lineB);
-    u64$ blocks = Bu64data(state->pB);
+    u64$ blocks = u64bData(state->pB);
     for (u64 b = 0; b + 1 < $len(blocks); ++b) {
         call(MARKMARQdiv, $at(blocks, b), $at(blocks, b + 1), state);
     }
@@ -300,13 +300,13 @@ pro(MARKHTMLp, $u8 $into, u64 from, u64 till, u64 stack,
     u8 depth = u64bytelen(stack);
     u8c* text0 = state->text[0];
     u8c* fmt0 = state->fmt[0];
-    if (pable(stack)) call($u8feed, $into, P0);
+    if (pable(stack)) call(u8sFeed, $into, P0);
     for (u64 l = from; l < till; ++l) {
         u8cs line = {};
         call(MARKlinetext, line, l, state);
         if ($len(line) == 1) {
-            call($u8feed, $into, P1);
-            call($u8feed, $into, P0);
+            call(u8sFeed, $into, P1);
+            call(u8sFeed, $into, P0);
             continue;
         }
         size_t f = line[0] - text0;  // TODO mark
@@ -314,7 +314,7 @@ pro(MARKHTMLp, $u8 $into, u64 from, u64 till, u64 stack,
         u8cs fmt = {fmt0 + f, fmt0 + t};
         call(MARQHTML, $into, line, fmt);
     }
-    if (pable(stack)) call($u8feed, $into, P1);
+    if (pable(stack)) call(u8sFeed, $into, P1);
     done;
 }
 
@@ -328,11 +328,11 @@ fun u8 samedepth(u64 stack, u64 div) {
 
 pro(MARKHTML, $u8 $into, MARKstate const* state) {
     sane($ok($into) && state != nil && !Bempty(state->divB));
-    u64$ divs = Bu64data(state->divB);
+    u64$ divs = u64bData(state->divB);
     u8cp$ lines = u8cpbData(state->lineB);
     test($len(divs) == $len(lines), FAILsanity);
     u64 stack = 0;
-    u64$ ps = Bu64data(state->pB);
+    u64$ ps = u64bData(state->pB);
     for (u64 p = 0; p + 1 < $len(ps); ++p) {
         u64 from = Bat(ps, p);
         u64 till = Bat(ps, p + 1);

@@ -166,27 +166,27 @@ con ok64 LEX$act = 0x389e5;
 con ok64 LEX$actno = 0x33cb89e5;
 
 ok64 LEXonName($cu8c tok, LEXstate *state) {
-    ok64 o = $u8feed(NESTidle(state->ct), state->mod);
-    if (o == OK) o = $u8feed(NESTidle(state->ct), tok);
+    ok64 o = u8sFeed(NESTidle(state->ct), state->mod);
+    if (o == OK) o = u8sFeed(NESTidle(state->ct), tok);
     return o;
 }
 ok64 LEXonOp($cu8c tok, LEXstate *state) {
-    return $u8feed(NESTidle(state->ct), tok);
+    return u8sFeed(NESTidle(state->ct), tok);
 }
 ok64 LEXonClass($cu8c tok, LEXstate *state) {
-    return $u8feed(NESTidle(state->ct), tok);
+    return u8sFeed(NESTidle(state->ct), tok);
 }
 ok64 LEXonRange($cu8c tok, LEXstate *state) {
-    return $u8feed(NESTidle(state->ct), tok);
+    return u8sFeed(NESTidle(state->ct), tok);
 }
 ok64 LEXonString($cu8c tok, LEXstate *state) {
-    return $u8feed(NESTidle(state->ct), tok);
+    return u8sFeed(NESTidle(state->ct), tok);
 }
 ok64 LEXonQString($cu8c tok, LEXstate *state) {
-    return $u8feed(NESTidle(state->ct), tok);
+    return u8sFeed(NESTidle(state->ct), tok);
 }
 ok64 LEXonSpace($cu8c tok, LEXstate *state) {
-    // return $u8feed(NESTidle(state->ct), tok);
+    // return u8sFeed(NESTidle(state->ct), tok);
     return u8sFeed1(NESTidle(state->ct), ' ');
 }
 
@@ -242,7 +242,7 @@ ok64 LEXonLine($cu8c tok, LEXstate *state) {
 
     try(NESTfeed, ct, fntmpl);
     then try(NESTspliceany, ct, LEX$act);
-    then try($u8feed, NESTidle(ct), cur);
+    then try(u8sFeed, NESTidle(ct), cur);
 
     done;
 }
@@ -251,7 +251,7 @@ ok64 LEXonRoot($cu8c tok, LEXstate *state) {
     sane($ok(tok) && state != nil);
     u8bp ct = (u8bp)state->ct;
     try(NESTspliceall, ct, LEX$mod);
-    then try($u8feed, NESTidle(ct), state->mod);
+    then try(u8sFeed, NESTidle(ct), state->mod);
     done;
 }
 

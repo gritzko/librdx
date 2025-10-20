@@ -60,9 +60,9 @@ pro(Breserve_test) {
 pro(B$test) {
     sane(1);
     a$$pad(pad, 128, 8);
-    $$call($u8feedstr, pad, "one");
+    $$call(u8sFeedstr, pad, "one");
     $$call(u64decfeed, pad, 2);
-    $$call($u8feedstr, pad, "three");
+    $$call(u8sFeedstr, pad, "three");
     a$str(templ, "First $1, then $2, then $3!");
     a$str(correct, "First one, then 2, then three!");
     aBpad2(u8, res, 128);

@@ -42,29 +42,29 @@ pro(MARQANSI, $u8 $into, u8cs const $txt, $u8c const $fmt) {
 pro(openspan, $u8 $into, u8 mask) {
     sane($ok($into));
     $cu8c OPEN0 = $u8str("<span>");
-    if (mask == 0) return $u8feed($into, OPEN0);
+    if (mask == 0) return u8sFeed($into, OPEN0);
     $cu8c OPEN = $u8str("<span class='");
     $cu8c END = $u8str("'>");
     $cu8c CLASSES[] = {
         $u8str("mark"),   $u8str("code"), $u8str("link"),
         $u8str("strong"), $u8str("emph"),
     };
-    call($u8feed, $into, OPEN);
+    call(u8sFeed, $into, OPEN);
     b8 first = YES;
     while (mask != 0) {
         u8 low = ctz32(mask);
         if (!first) call(u8sFeed1, $into, ' ');
-        call($u8feed, $into, CLASSES[low]);
+        call(u8sFeed, $into, CLASSES[low]);
         mask -= 1 << low;
         first = NO;
     }
-    call($u8feed, $into, END);
+    call(u8sFeed, $into, END);
     done;
 }
 
 fun ok64 closespan($u8 $into) {
     $cu8c CLOSE = $u8str("</span>");
-    return $u8feed($into, CLOSE);
+    return u8sFeed($into, CLOSE);
 }
 
 pro(MARQHTML, $u8 $into, u8cs $txt, $u8c $fmt) {

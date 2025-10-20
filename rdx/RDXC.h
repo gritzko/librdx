@@ -20,7 +20,7 @@ fun pro(RDXCfeedF, $u8 tlv, RDXfloat c, u128 time) {
     sane($ok(tlv));
     u64 bits = *(u64*)&c;
     aBpad(u8, pad, 8);
-    call(ZINTu64feed, Bu8idle(pad), flip64(bits));
+    call(ZINTu64feed, u8bIdle(pad), flip64(bits));
     call(RDXfeed, tlv, RDX_FLOAT, time, Bu8cdata(pad));
     done;
 }
@@ -41,7 +41,7 @@ fun pro(RDXCfeedI, $u8 tlv, RDXint c, u128 time) {
     sane($ok(tlv));
     aBpad(u8, pad, 8);
     u64 bits = ZINTzigzag(c);
-    ZINTu64feed(Bu8idle(pad), bits);
+    ZINTu64feed(u8bIdle(pad), bits);
     call(RDXfeed, tlv, RDX_INT, time, Bu8cdata(pad));
     done;
 }
@@ -58,7 +58,7 @@ fun ok64 RDXCdrainR(RDXref* c, id128* id, u8cs rdx) {
 fun pro(RDXCfeedR, $u8 tlv, RDXref c, u128 time) {
     sane($ok(tlv));
     aBpad(u8, pad, 16);
-    ZINTu128feed(Bu8idle(pad), &c);
+    ZINTu128feed(u8bIdle(pad), &c);
     call(RDXfeed, tlv, RDX_REF, time, Bu8cdata(pad));
     done;
 }

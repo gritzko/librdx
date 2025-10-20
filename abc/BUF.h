@@ -115,8 +115,8 @@ fun void Bitunset(Bu8 buf, size_t ndx) {
 #define a$$pad(n, l, ll)                                \
     u8 _##n[(l)];                                       \
     Bu8 n##buf = {_##n, _##n, _##n, _##n + (l)};        \
-    u8$ n##idle = Bu8idle(n##buf);                      \
-    u8$ n##data = Bu8data(n##buf);                      \
+    u8$ n##idle = u8bIdle(n##buf);                      \
+    u8$ n##data = u8bData(n##buf);                      \
     u8cs _$##n[(l)];                                    \
     u8csb n##$buf = {_$##n, _$##n, _$##n, _$##n + (l)}; \
     u8cssp n##$idle = Bu8csidle(n##$buf);               \
@@ -147,12 +147,12 @@ fun ok64 $$feedf($u8 into, u8cs tmpl, u8css args) {
         int n = **t - '1';
         ++*t;
         if (n >= $len(args)) return Bnodata;
-        o = $u8feedall(into, $at(args, n));
+        o = u8sFeed(into, $at(args, n));
     }
     return $empty(t) ? OK : Bnoroom;
 }
 
-fun ok64 $u8feedstr($u8 into, const char *str) {
+fun ok64 u8sFeedstr($u8 into, const char *str) {
     int l = strlen(str);
     if ($len(into) < l) return $noroom;
     memcpy(*into, str, l);
@@ -160,14 +160,14 @@ fun ok64 $u8feedstr($u8 into, const char *str) {
     return OK;
 }
 
-fun ok64 $u8feedn($u8 into, u8c *what, size_t n) {
+fun ok64 u8sFeedn($u8 into, u8c *what, size_t n) {
     if (unlikely($len(into) < n)) return $noroom;
     memcpy(*into, what, n);
     *into += n;
     return OK;
 }
 
-fun ok64 $u8feedcn($u8 into, u8 what, size_t n) {
+fun ok64 u8sFeedcn($u8 into, u8 what, size_t n) {
     if ($len(into) < n) return Bnoroom;
     memset(*into, what, n);
     *into += n;

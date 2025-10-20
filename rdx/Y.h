@@ -28,7 +28,7 @@ fun ok64 YmergeF($u8 into, u8css from) {
             $mv(res, **from);
         }
     }
-    call($u8feed, into, res);
+    call(u8sFeed, into, res);
     done;
 }
 
@@ -47,7 +47,7 @@ fun ok64 YmergeI($u8 into, u8css from) {
             $mv(res, **from);
         }
     }
-    call($u8feed, into, res);
+    call(u8sFeed, into, res);
     done;
 }
 
@@ -66,7 +66,7 @@ fun ok64 YmergeR($u8 into, u8css from) {
             $mv(res, **from);
         }
     }
-    call($u8feed, into, res);
+    call(u8sFeed, into, res);
     done;
 }
 
@@ -80,7 +80,7 @@ fun ok64 YmergeS($u8 into, u8css from) {
             $mv(res, **from);
         }
     }
-    call($u8feed, into, res);
+    call(u8sFeed, into, res);
     done;
 }
 
@@ -154,7 +154,7 @@ fun ok64 Y($u8 into, u8css inputs) {
     aBcpad(u8, id, 16);
     ZINTu128feed(ididle, &maxid);
     call(u8sFeed1, into, $len(iddata));
-    call($u8feed, into, iddata);
+    call(u8sFeed, into, iddata);
 
     switch (maxt) {
         case RDX_FLOAT:

@@ -45,7 +45,7 @@ pro(FILE3) {
     int fd = FILE_CLOSED;
     call(FILEmapnew, buf, &fd, path, PAGESIZE);
     Breset(buf);
-    call($u8feed, Bu8idle(buf), path);
+    call(u8sFeed, u8bIdle(buf), path);
     call(FILEunmap, buf);
     Bu8 buf2 = {};
     call(FILEmapro, buf2, path);

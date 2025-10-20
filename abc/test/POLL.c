@@ -12,7 +12,7 @@ u8 count = 0;
 
 ok64 funIcount(POLLctl* ctl) {
     u8 n = 0;
-    ok64 o = $u8drain1(&n, Bu8data(ctl->readbuf));
+    ok64 o = $u8drain1(&n, u8bData(ctl->readbuf));
     if (o == OK && n != count) return faileq;
     ++count;
     a$rawc($n, count);

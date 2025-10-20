@@ -19,22 +19,22 @@ pro(RDXFtest) {
         RDXfloat c = inputs[i];
         aRDXid(id, i, i);
         aBpad(u8, tlv, 64);
-        call(RDXCfeedF, Bu8idle(tlv), c, id);
+        call(RDXCfeedF, u8bIdle(tlv), c, id);
         RDXfloat c2 = 0;
         id128 id2 = {};
-        call(RDXCdrainF, &c2, &id2,Bu8cdata(tlv));
+        call(RDXCdrainF, &c2, &id2, Bu8cdata(tlv));
         printf("%lf %lf\n", c, c2);
         same(c, c2);
         same(id128time(id), id128time(id2));
         same(id128src(id), id128src(id2));
         aBpad(u8, txt, 32);
-        call(RDXFtlv2txt, Bu8idle(txt),Bu8cdata(tlv));
+        call(RDXFtlv2txt, u8bIdle(txt), Bu8cdata(tlv));
         a$str(str, "text RDX: $s\n");
-        FILEFeedf(STDOUT_FILENO, str,Bu8cdata(txt));
+        FILEFeedf(STDOUT_FILENO, str, Bu8cdata(txt));
         aBpad(u8, tlv2, 32);
         id128 id3 = {i, i};
-        call(RDXFtxt2tlv, Bu8idle(tlv2),Bu8cdata(txt), id3);
-        $testeq(Bu8cdata(tlv),Bu8cdata(tlv2));
+        call(RDXFtxt2tlv, u8bIdle(tlv2), Bu8cdata(txt), id3);
+        $testeq(Bu8cdata(tlv), Bu8cdata(tlv2));
     }
     done;
 }
@@ -47,22 +47,22 @@ pro(RDXItest) {
         RDXint c = inputs[i];
         aRDXid(id, i, i);
         aBpad(u8, tlv, 64);
-        call(RDXCfeedI, Bu8idle(tlv), c, id);
+        call(RDXCfeedI, u8bIdle(tlv), c, id);
         RDXint c2 = 0;
         id128 id2 = {};
-        call(RDXCdrainI, &c2, &id2,Bu8cdata(tlv));
+        call(RDXCdrainI, &c2, &id2, Bu8cdata(tlv));
         printf("%li %li\n", c, c2);
         same(c, c2);
         same(id128time(id), id128time(id2));
         same(id128src(id), id128src(id2));
         aBpad(u8, txt, 32);
-        call(RDXItlv2txt, Bu8idle(txt),Bu8cdata(tlv));
+        call(RDXItlv2txt, u8bIdle(txt), Bu8cdata(tlv));
         a$str(str, "text RDX: $s\n");
-        FILEFeedf(STDOUT_FILENO, str,Bu8cdata(txt));
+        FILEFeedf(STDOUT_FILENO, str, Bu8cdata(txt));
         aBpad(u8, tlv2, 32);
         id128 id3 = {i, i};
-        call(RDXItxt2tlv, Bu8idle(tlv2),Bu8cdata(txt), id3);
-        $testeq(Bu8cdata(tlv),Bu8cdata(tlv2));
+        call(RDXItxt2tlv, u8bIdle(tlv2), Bu8cdata(txt), id3);
+        $testeq(Bu8cdata(tlv), Bu8cdata(tlv2));
     }
     done;
 }
@@ -75,21 +75,21 @@ pro(RDXRtest) {
         aRDXid(c, inputs[i][0], inputs[i][1]);
         aRDXid(id, i, i);
         aBpad(u8, tlv, 64);
-        call(RDXCfeedR, Bu8idle(tlv), c, id);
+        call(RDXCfeedR, u8bIdle(tlv), c, id);
         RDXref c2 = {};
         id128 id2 = {};
-        call(RDXCdrainR, &c2, &id2,Bu8cdata(tlv));
+        call(RDXCdrainR, &c2, &id2, Bu8cdata(tlv));
         want(id128cmp(&c, &c2) == 0);
         same(id128time(id), id128time(id2));
         same(id128src(id), id128src(id2));
         aBpad(u8, txt, 64);
-        call(RDXRtlv2txt, Bu8idle(txt),Bu8cdata(tlv));
+        call(RDXRtlv2txt, u8bIdle(txt), Bu8cdata(tlv));
         a$str(str, "text RDX: $s\n");
-        FILEFeedf(STDOUT_FILENO, str,Bu8cdata(txt));
+        FILEFeedf(STDOUT_FILENO, str, Bu8cdata(txt));
         aBpad(u8, tlv2, 32);
         id128 id3 = {i, i};
-        call(RDXRtxt2tlv, Bu8idle(tlv2),Bu8cdata(txt), id3);
-        $testeq(Bu8cdata(tlv),Bu8cdata(tlv2));
+        call(RDXRtxt2tlv, u8bIdle(tlv2), Bu8cdata(txt), id3);
+        $testeq(Bu8cdata(tlv), Bu8cdata(tlv2));
     }
     done;
 }
@@ -102,10 +102,10 @@ pro(RDXStest) {
         u8c$ c = inputs[i];
         aRDXid(id, i, i);
         aBpad(u8, tlv, 64);
-        call(RDXCfeedS, Bu8idle(tlv), c, id);
+        call(RDXCfeedS, u8bIdle(tlv), c, id);
         id128 id2 = {};
         u8cs c2 = {};
-        call(RDXCdrainS, c2,Bu8cdata(tlv), &id2);
+        call(RDXCdrainS, c2, Bu8cdata(tlv), &id2);
         want($eq(c, c2));
         same(id128time(id), id128time(id2));
         same(id128src(id), id128src(id2));
@@ -113,7 +113,7 @@ pro(RDXStest) {
         aBcpad(u8, txt, 32);
         id128 id3;
         u8cs text = {};
-        call(RDXCdrainS, text,Bu8cdata(tlv), &id3);
+        call(RDXCdrainS, text, Bu8cdata(tlv), &id3);
         aBcpad(u8, tlv2, 32);
         call(RDXCfeedS, tlv2idle, text, id);
         $testeq(Bu8cdata(tlv), tlv2data);
@@ -152,7 +152,7 @@ pro(RDX1) {
             continue;
         }
         u8cs correct = $dup(Blast(insbuf));
-        u8csbpop(insbuf);
+        u8csbPop(insbuf);
         aBcpad(u8, merged, PAGESIZE);
         call(YmergeFIRST, mergedidle, insdata);
         $testeq(correct, mergeddata);
