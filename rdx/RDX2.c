@@ -445,11 +445,9 @@ a$strc(RDX_ROOT_REC, " \x01\x00");
 ok64 rdxbInit(rdxb reader, u8cs data) {
     sane(Bok(reader) && $ok(data));
     Breset(reader);
-    call(rdxsFed1, Bidle(reader));
-    rdxp p = Blastp(reader);
-    zerop(p);
-    u8csDup(p->rest, data);
-    call(rdxbNext, reader);
+    rdx r;
+    call(rdxInit, &r, data);
+    call(rdxsFeedP, Bidle(reader), &r);
     done;
 }
 
@@ -704,9 +702,10 @@ ok64 RDXu8bFeedAll(u8b into, u8cs from) {
 }
 
 ok64 rdxNext(rdxp it) {
-    sane($ok(it->rest));
+    sane($ok(it->rest) && it->reclen <= $len(it->rest));
     u8 lit;
     u8cs key = {}, val = {};
+    it->rest[0] += it->reclen;
     size_t ol = $len(it->rest);
     call(TLVDrainKeyVal, &lit, key, val, it->rest);
     it->reclen = ol - $len(it->rest);
@@ -756,7 +755,7 @@ ok64 RDXu8bMergeLWW(u8bp merged, rdxpsc eqs) {
         }
     }
     if (eqlen == 1) return RDXu8bFeed(merged, toprev);
-    rdxps wins;
+    a_head(rdxp, wins, eqs, eqlen);
     b8 plex = NO;
     rdxZ z = NULL;
     switch ((**wins)->type) {
@@ -843,7 +842,7 @@ ok64 RDXu8sMergeZ(u8bp merged, u8css inputs, rdxZ less) {
     eats(u8cs, i, inputs) {
         rdx r = {};
         rdxInit(&r, (u8cspc)i);
-        call(rdxNext, &r);  // todo empty
+
         call(rdxsFeedP, its_idle, &r);
         call(rdxpsFeed1, ins_idle, $last(its_data));
         rdxpsUp(ins_data, rdxTupleZ);

@@ -3,10 +3,11 @@
 #include <abc/BUF.h>
 #include <abc/TLV.h>
 #include <abc/ZINT.h>
-#include "abc/UTF8.h"
+
 #include "abc/01.h"
 #include "abc/OK.h"
 #include "abc/S.h"
+#include "abc/UTF8.h"
 
 #ifndef LIBRDX_RDX_H
 typedef enum {
@@ -140,11 +141,13 @@ extern u8cs RDX_ROOT_REC;
 #define GREQ 0
 typedef b8 (*rdxZ)(rdxcp a, rdxcp b);
 
-fun void rdxInit(rdxp it, u8csc data) {
-    zerop(it);
-    $mv(it->rest, data);
-}
 ok64 rdxNext(rdxp it);
+fun b8 rdxOK(rdxp it) {return it->reclen > 0; }
+fun ok64 rdxInit(rdxp it, u8csc data) {
+    zerop(it);
+    u8csDup(it->rest, data);
+    return rdxNext(it);
+}
 fun ok64 rdxInto(rdxp it, u8cs rest) {
     u8csDup(rest, it->rest);
     u8csDup(it->rest, it->plex);
