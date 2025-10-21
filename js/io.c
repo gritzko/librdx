@@ -424,7 +424,7 @@ JSValueRef JABCioFileMap(JSContextRef ctx, JSObjectRef function,
 
     Bu8 buf = {};
     u8csc path = {page, page + len - 1};
-    ok64 o = FILEmapro(buf, path);
+    ok64 o = FILEMapRO(buf, path);
     JSObjectRef fileObject =
         JSObjectMake(JABC_CONTEXT, JABC_IO_MAP_CLASS, NULL);
     JSValueRef ta = JSObjectMakeTypedArrayWithBytesNoCopy(

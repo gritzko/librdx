@@ -352,12 +352,15 @@ fun ok64 u64decfeed(u8 **dec, u64 x) {
     return OK;
 }
 
-fun ok64 u64decdrain(u64 *x, u8c *const *dec) {
-    u64 a = 0;
-    for (u8c *p = dec[0]; p < dec[1]; ++p) {
+fun ok64 u64decdrain(u64 *x, u8c **dec) {
+    if (*dec >= dec[1] || **dec < '0' || **dec > '9') return $badarg;
+    u64 a = **dec - '0';
+    ++*dec;
+    while (*dec < dec[1]) {
         a *= 10;
-        if (*p > '9' || *p < '0') return $badarg;
-        a += *p - '0';
+        if (**dec > '9' || **dec < '0') break;
+        a += **dec - '0';
+        ++*dec;
     }
     *x = a;
     return OK;

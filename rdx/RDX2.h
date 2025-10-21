@@ -142,7 +142,7 @@ typedef b8 (*rdxZ)(rdxcp a, rdxcp b);
 
 fun void rdxInit(rdxp it, u8csc data) {
     zerop(it);
-    $mv(it->plex, data);
+    $mv(it->rest, data);
 }
 ok64 rdxNext(rdxp it);
 fun ok64 rdxInto(rdxp it, u8cs rest) {
@@ -200,7 +200,7 @@ ok64 RDXu8bMerge(u8b merged, rdxps inputs, rdxZ z);
 
 ok64 RDXu8sMergeZ(u8s merged, u8css inputs, rdxZ z);
 
-fun ok64 RDXu8sMerge(u8s merged, u8css inputs) {
+fun ok64 RDXu8sMerge(u8bp merged, u8css inputs) {
     return RDXu8sMergeZ(merged, inputs, rdxTupleZ);
 }
 

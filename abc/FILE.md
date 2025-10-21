@@ -4,9 +4,9 @@ The module contains various file-related routines.
 Creating, opening, removing, memory-mapping files, etc.
 Those are mostly ABC wrappers for POSIX routines.
 
-For read-only files, `FILEmap` is highly recommended.
+For read-only files, `FILEMap` is highly recommended.
 For append-only files, `FILEfeed` and a `Bu8` buffer might work.
-Andy Pavlo insists that `FILEmap` is not good for random-access writes.
+Andy Pavlo insists that `FILEMap` is not good for random-access writes.
 You may use the `pwrite` wrapper instead.
 Also, see the relevant [discussion][h] on HN.
 

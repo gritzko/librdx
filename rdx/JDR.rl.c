@@ -1,6 +1,6 @@
 
-#line 1 "JDR.c.rl"
-#include "JDR.h"
+
+#include "JDR2.h"
 
 #include "abc/INT.h"
 #include "abc/PRO.h"
@@ -68,9 +68,6 @@ ok64 JDRonInter($cu8c tok, JDRstate* state);
 ok64 JDRonFIRST($cu8c tok, JDRstate* state);
 ok64 JDRonRoot($cu8c tok, JDRstate* state);
 
-#line 378 "JDR.c.rl"
-
-#line 73 "JDR.rl.c"
 static const char _JDR_actions[] = {
     0,  1,  0,  1,  1,  1,  2,  1,  3,  1,  4,  1,  5,  1,  6,  1,  7,  1,  8,
     1,  9,  1,  11, 1,  13, 1,  15, 1,  17, 1,  19, 1,  21, 1,  22, 1,  23, 1,
@@ -562,8 +559,6 @@ static const int JDR_error = 0;
 
 static const int JDR_en_main = 38;
 
-#line 381 "JDR.c.rl"
-
 // the public API function
 pro(JDRlexer, JDRstate* state) {
     a$dup(u8c, text, state->text);
@@ -578,12 +573,8 @@ pro(JDRlexer, JDRstate* state) {
 
     u8cs tok = {p, p};
 
-#line 1028 "JDR.rl.c"
     { cs = JDR_start; }
 
-#line 398 "JDR.c.rl"
-
-#line 1031 "JDR.rl.c"
     {
         int _klen;
         unsigned int _trans;
@@ -650,12 +641,12 @@ pro(JDRlexer, JDRstate* state) {
         while (_nacts-- > 0) {
             switch (*_acts++) {
                 case 0:
-#line 77 "JDR.c.rl"
+
                 {
                     mark0[JDRNL] = p - text[0];
                 } break;
                 case 1:
-#line 78 "JDR.c.rl"
+
                 {
                     tok[0] = text[0] + mark0[JDRNL];
                     tok[1] = p;
@@ -668,12 +659,12 @@ pro(JDRlexer, JDRstate* state) {
                     }
                 } break;
                 case 2:
-#line 86 "JDR.c.rl"
+
                 {
                     mark0[JDRUtf8cp1] = p - text[0];
                 } break;
                 case 3:
-#line 87 "JDR.c.rl"
+
                 {
                     tok[0] = text[0] + mark0[JDRUtf8cp1];
                     tok[1] = p;
@@ -686,12 +677,12 @@ pro(JDRlexer, JDRstate* state) {
                     }
                 } break;
                 case 4:
-#line 95 "JDR.c.rl"
+
                 {
                     mark0[JDRUtf8cp2] = p - text[0];
                 } break;
                 case 5:
-#line 96 "JDR.c.rl"
+
                 {
                     tok[0] = text[0] + mark0[JDRUtf8cp2];
                     tok[1] = p;
@@ -704,12 +695,12 @@ pro(JDRlexer, JDRstate* state) {
                     }
                 } break;
                 case 6:
-#line 104 "JDR.c.rl"
+
                 {
                     mark0[JDRUtf8cp3] = p - text[0];
                 } break;
                 case 7:
-#line 105 "JDR.c.rl"
+
                 {
                     tok[0] = text[0] + mark0[JDRUtf8cp3];
                     tok[1] = p;
@@ -722,12 +713,12 @@ pro(JDRlexer, JDRstate* state) {
                     }
                 } break;
                 case 8:
-#line 113 "JDR.c.rl"
+
                 {
                     mark0[JDRUtf8cp4] = p - text[0];
                 } break;
                 case 9:
-#line 114 "JDR.c.rl"
+
                 {
                     tok[0] = text[0] + mark0[JDRUtf8cp4];
                     tok[1] = p;
@@ -740,12 +731,12 @@ pro(JDRlexer, JDRstate* state) {
                     }
                 } break;
                 case 10:
-#line 122 "JDR.c.rl"
+
                 {
                     mark0[JDRInt] = p - text[0];
                 } break;
                 case 11:
-#line 123 "JDR.c.rl"
+
                 {
                     tok[0] = text[0] + mark0[JDRInt];
                     tok[1] = p;
@@ -758,12 +749,12 @@ pro(JDRlexer, JDRstate* state) {
                     }
                 } break;
                 case 12:
-#line 131 "JDR.c.rl"
+
                 {
                     mark0[JDRFloat] = p - text[0];
                 } break;
                 case 13:
-#line 132 "JDR.c.rl"
+
                 {
                     tok[0] = text[0] + mark0[JDRFloat];
                     tok[1] = p;
@@ -776,12 +767,12 @@ pro(JDRlexer, JDRstate* state) {
                     }
                 } break;
                 case 14:
-#line 140 "JDR.c.rl"
+
                 {
                     mark0[JDRTerm] = p - text[0];
                 } break;
                 case 15:
-#line 141 "JDR.c.rl"
+
                 {
                     tok[0] = text[0] + mark0[JDRTerm];
                     tok[1] = p;
@@ -794,12 +785,12 @@ pro(JDRlexer, JDRstate* state) {
                     }
                 } break;
                 case 16:
-#line 149 "JDR.c.rl"
+
                 {
                     mark0[JDRRef] = p - text[0];
                 } break;
                 case 17:
-#line 150 "JDR.c.rl"
+
                 {
                     tok[0] = text[0] + mark0[JDRRef];
                     tok[1] = p;
@@ -812,12 +803,12 @@ pro(JDRlexer, JDRstate* state) {
                     }
                 } break;
                 case 18:
-#line 158 "JDR.c.rl"
+
                 {
                     mark0[JDRString] = p - text[0];
                 } break;
                 case 19:
-#line 159 "JDR.c.rl"
+
                 {
                     tok[0] = text[0] + mark0[JDRString];
                     tok[1] = p;
@@ -830,12 +821,12 @@ pro(JDRlexer, JDRstate* state) {
                     }
                 } break;
                 case 20:
-#line 167 "JDR.c.rl"
+
                 {
                     mark0[JDRMLString] = p - text[0];
                 } break;
                 case 21:
-#line 168 "JDR.c.rl"
+
                 {
                     tok[0] = text[0] + mark0[JDRMLString];
                     tok[1] = p;
@@ -848,12 +839,12 @@ pro(JDRlexer, JDRstate* state) {
                     }
                 } break;
                 case 22:
-#line 176 "JDR.c.rl"
+
                 {
                     mark0[JDRStamp] = p - text[0];
                 } break;
                 case 23:
-#line 177 "JDR.c.rl"
+
                 {
                     tok[0] = text[0] + mark0[JDRStamp];
                     tok[1] = p;
@@ -866,12 +857,12 @@ pro(JDRlexer, JDRstate* state) {
                     }
                 } break;
                 case 24:
-#line 185 "JDR.c.rl"
+
                 {
                     mark0[JDRNoStamp] = p - text[0];
                 } break;
                 case 25:
-#line 186 "JDR.c.rl"
+
                 {
                     tok[0] = text[0] + mark0[JDRNoStamp];
                     tok[1] = p;
@@ -884,12 +875,12 @@ pro(JDRlexer, JDRstate* state) {
                     }
                 } break;
                 case 26:
-#line 194 "JDR.c.rl"
+
                 {
                     mark0[JDROpenP] = p - text[0];
                 } break;
                 case 27:
-#line 195 "JDR.c.rl"
+
                 {
                     tok[0] = text[0] + mark0[JDROpenP];
                     tok[1] = p;
@@ -902,12 +893,12 @@ pro(JDRlexer, JDRstate* state) {
                     }
                 } break;
                 case 28:
-#line 203 "JDR.c.rl"
+
                 {
                     mark0[JDRCloseP] = p - text[0];
                 } break;
                 case 29:
-#line 204 "JDR.c.rl"
+
                 {
                     tok[0] = text[0] + mark0[JDRCloseP];
                     tok[1] = p;
@@ -920,12 +911,12 @@ pro(JDRlexer, JDRstate* state) {
                     }
                 } break;
                 case 30:
-#line 212 "JDR.c.rl"
+
                 {
                     mark0[JDROpenL] = p - text[0];
                 } break;
                 case 31:
-#line 213 "JDR.c.rl"
+
                 {
                     tok[0] = text[0] + mark0[JDROpenL];
                     tok[1] = p;
@@ -938,12 +929,12 @@ pro(JDRlexer, JDRstate* state) {
                     }
                 } break;
                 case 32:
-#line 221 "JDR.c.rl"
+
                 {
                     mark0[JDRCloseL] = p - text[0];
                 } break;
                 case 33:
-#line 222 "JDR.c.rl"
+
                 {
                     tok[0] = text[0] + mark0[JDRCloseL];
                     tok[1] = p;
@@ -956,12 +947,12 @@ pro(JDRlexer, JDRstate* state) {
                     }
                 } break;
                 case 34:
-#line 230 "JDR.c.rl"
+
                 {
                     mark0[JDROpenE] = p - text[0];
                 } break;
                 case 35:
-#line 231 "JDR.c.rl"
+
                 {
                     tok[0] = text[0] + mark0[JDROpenE];
                     tok[1] = p;
@@ -974,12 +965,12 @@ pro(JDRlexer, JDRstate* state) {
                     }
                 } break;
                 case 36:
-#line 239 "JDR.c.rl"
+
                 {
                     mark0[JDRCloseE] = p - text[0];
                 } break;
                 case 37:
-#line 240 "JDR.c.rl"
+
                 {
                     tok[0] = text[0] + mark0[JDRCloseE];
                     tok[1] = p;
@@ -992,12 +983,12 @@ pro(JDRlexer, JDRstate* state) {
                     }
                 } break;
                 case 38:
-#line 248 "JDR.c.rl"
+
                 {
                     mark0[JDROpenX] = p - text[0];
                 } break;
                 case 39:
-#line 249 "JDR.c.rl"
+
                 {
                     tok[0] = text[0] + mark0[JDROpenX];
                     tok[1] = p;
@@ -1010,12 +1001,12 @@ pro(JDRlexer, JDRstate* state) {
                     }
                 } break;
                 case 40:
-#line 257 "JDR.c.rl"
+
                 {
                     mark0[JDRCloseX] = p - text[0];
                 } break;
                 case 41:
-#line 258 "JDR.c.rl"
+
                 {
                     tok[0] = text[0] + mark0[JDRCloseX];
                     tok[1] = p;
@@ -1028,12 +1019,12 @@ pro(JDRlexer, JDRstate* state) {
                     }
                 } break;
                 case 42:
-#line 266 "JDR.c.rl"
+
                 {
                     mark0[JDRComma] = p - text[0];
                 } break;
                 case 43:
-#line 267 "JDR.c.rl"
+
                 {
                     tok[0] = text[0] + mark0[JDRComma];
                     tok[1] = p;
@@ -1046,12 +1037,12 @@ pro(JDRlexer, JDRstate* state) {
                     }
                 } break;
                 case 44:
-#line 275 "JDR.c.rl"
+
                 {
                     mark0[JDRColon] = p - text[0];
                 } break;
                 case 45:
-#line 276 "JDR.c.rl"
+
                 {
                     tok[0] = text[0] + mark0[JDRColon];
                     tok[1] = p;
@@ -1064,12 +1055,12 @@ pro(JDRlexer, JDRstate* state) {
                     }
                 } break;
                 case 46:
-#line 284 "JDR.c.rl"
+
                 {
                     mark0[JDROpen] = p - text[0];
                 } break;
                 case 47:
-#line 285 "JDR.c.rl"
+
                 {
                     tok[0] = text[0] + mark0[JDROpen];
                     tok[1] = p;
@@ -1082,12 +1073,12 @@ pro(JDRlexer, JDRstate* state) {
                     }
                 } break;
                 case 48:
-#line 293 "JDR.c.rl"
+
                 {
                     mark0[JDRClose] = p - text[0];
                 } break;
                 case 49:
-#line 294 "JDR.c.rl"
+
                 {
                     tok[0] = text[0] + mark0[JDRClose];
                     tok[1] = p;
@@ -1100,12 +1091,12 @@ pro(JDRlexer, JDRstate* state) {
                     }
                 } break;
                 case 50:
-#line 302 "JDR.c.rl"
+
                 {
                     mark0[JDRInter] = p - text[0];
                 } break;
                 case 51:
-#line 303 "JDR.c.rl"
+
                 {
                     tok[0] = text[0] + mark0[JDRInter];
                     tok[1] = p;
@@ -1118,12 +1109,12 @@ pro(JDRlexer, JDRstate* state) {
                     }
                 } break;
                 case 52:
-#line 311 "JDR.c.rl"
+
                 {
                     mark0[JDRFIRST] = p - text[0];
                 } break;
                 case 53:
-#line 312 "JDR.c.rl"
+
                 {
                     tok[0] = text[0] + mark0[JDRFIRST];
                     tok[1] = p;
@@ -1136,25 +1127,24 @@ pro(JDRlexer, JDRstate* state) {
                     }
                 } break;
                 case 54:
-#line 320 "JDR.c.rl"
+
                 {
                     mark0[JDRRoot] = p - text[0];
                 } break;
-#line 1457 "JDR.rl.c"
             }
         }
 
     _again:
         if (cs == 0) goto _out;
         if (++p != pe) goto _resume;
-    _test_eof: {}
+    _test_eof : {}
         if (p == eof) {
             const char* __acts = _JDR_actions + _JDR_eof_actions[cs];
             unsigned int __nacts = (unsigned int)*__acts++;
             while (__nacts-- > 0) {
                 switch (*__acts++) {
                     case 1:
-#line 78 "JDR.c.rl"
+
                     {
                         tok[0] = text[0] + mark0[JDRNL];
                         tok[1] = p;
@@ -1167,7 +1157,7 @@ pro(JDRlexer, JDRstate* state) {
                         }
                     } break;
                     case 11:
-#line 123 "JDR.c.rl"
+
                     {
                         tok[0] = text[0] + mark0[JDRInt];
                         tok[1] = p;
@@ -1180,7 +1170,7 @@ pro(JDRlexer, JDRstate* state) {
                         }
                     } break;
                     case 13:
-#line 132 "JDR.c.rl"
+
                     {
                         tok[0] = text[0] + mark0[JDRFloat];
                         tok[1] = p;
@@ -1193,7 +1183,7 @@ pro(JDRlexer, JDRstate* state) {
                         }
                     } break;
                     case 15:
-#line 141 "JDR.c.rl"
+
                     {
                         tok[0] = text[0] + mark0[JDRTerm];
                         tok[1] = p;
@@ -1206,7 +1196,7 @@ pro(JDRlexer, JDRstate* state) {
                         }
                     } break;
                     case 17:
-#line 150 "JDR.c.rl"
+
                     {
                         tok[0] = text[0] + mark0[JDRRef];
                         tok[1] = p;
@@ -1219,7 +1209,7 @@ pro(JDRlexer, JDRstate* state) {
                         }
                     } break;
                     case 19:
-#line 159 "JDR.c.rl"
+
                     {
                         tok[0] = text[0] + mark0[JDRString];
                         tok[1] = p;
@@ -1232,7 +1222,7 @@ pro(JDRlexer, JDRstate* state) {
                         }
                     } break;
                     case 21:
-#line 168 "JDR.c.rl"
+
                     {
                         tok[0] = text[0] + mark0[JDRMLString];
                         tok[1] = p;
@@ -1245,7 +1235,7 @@ pro(JDRlexer, JDRstate* state) {
                         }
                     } break;
                     case 23:
-#line 177 "JDR.c.rl"
+
                     {
                         tok[0] = text[0] + mark0[JDRStamp];
                         tok[1] = p;
@@ -1258,12 +1248,12 @@ pro(JDRlexer, JDRstate* state) {
                         }
                     } break;
                     case 24:
-#line 185 "JDR.c.rl"
+
                     {
                         mark0[JDRNoStamp] = p - text[0];
                     } break;
                     case 25:
-#line 186 "JDR.c.rl"
+
                     {
                         tok[0] = text[0] + mark0[JDRNoStamp];
                         tok[1] = p;
@@ -1276,7 +1266,7 @@ pro(JDRlexer, JDRstate* state) {
                         }
                     } break;
                     case 27:
-#line 195 "JDR.c.rl"
+
                     {
                         tok[0] = text[0] + mark0[JDROpenP];
                         tok[1] = p;
@@ -1289,7 +1279,7 @@ pro(JDRlexer, JDRstate* state) {
                         }
                     } break;
                     case 29:
-#line 204 "JDR.c.rl"
+
                     {
                         tok[0] = text[0] + mark0[JDRCloseP];
                         tok[1] = p;
@@ -1302,7 +1292,7 @@ pro(JDRlexer, JDRstate* state) {
                         }
                     } break;
                     case 31:
-#line 213 "JDR.c.rl"
+
                     {
                         tok[0] = text[0] + mark0[JDROpenL];
                         tok[1] = p;
@@ -1315,7 +1305,7 @@ pro(JDRlexer, JDRstate* state) {
                         }
                     } break;
                     case 33:
-#line 222 "JDR.c.rl"
+
                     {
                         tok[0] = text[0] + mark0[JDRCloseL];
                         tok[1] = p;
@@ -1328,7 +1318,7 @@ pro(JDRlexer, JDRstate* state) {
                         }
                     } break;
                     case 35:
-#line 231 "JDR.c.rl"
+
                     {
                         tok[0] = text[0] + mark0[JDROpenE];
                         tok[1] = p;
@@ -1341,7 +1331,7 @@ pro(JDRlexer, JDRstate* state) {
                         }
                     } break;
                     case 37:
-#line 240 "JDR.c.rl"
+
                     {
                         tok[0] = text[0] + mark0[JDRCloseE];
                         tok[1] = p;
@@ -1354,7 +1344,7 @@ pro(JDRlexer, JDRstate* state) {
                         }
                     } break;
                     case 39:
-#line 249 "JDR.c.rl"
+
                     {
                         tok[0] = text[0] + mark0[JDROpenX];
                         tok[1] = p;
@@ -1367,7 +1357,7 @@ pro(JDRlexer, JDRstate* state) {
                         }
                     } break;
                     case 41:
-#line 258 "JDR.c.rl"
+
                     {
                         tok[0] = text[0] + mark0[JDRCloseX];
                         tok[1] = p;
@@ -1380,7 +1370,7 @@ pro(JDRlexer, JDRstate* state) {
                         }
                     } break;
                     case 43:
-#line 267 "JDR.c.rl"
+
                     {
                         tok[0] = text[0] + mark0[JDRComma];
                         tok[1] = p;
@@ -1393,7 +1383,7 @@ pro(JDRlexer, JDRstate* state) {
                         }
                     } break;
                     case 45:
-#line 276 "JDR.c.rl"
+
                     {
                         tok[0] = text[0] + mark0[JDRColon];
                         tok[1] = p;
@@ -1406,7 +1396,7 @@ pro(JDRlexer, JDRstate* state) {
                         }
                     } break;
                     case 47:
-#line 285 "JDR.c.rl"
+
                     {
                         tok[0] = text[0] + mark0[JDROpen];
                         tok[1] = p;
@@ -1419,7 +1409,7 @@ pro(JDRlexer, JDRstate* state) {
                         }
                     } break;
                     case 49:
-#line 294 "JDR.c.rl"
+
                     {
                         tok[0] = text[0] + mark0[JDRClose];
                         tok[1] = p;
@@ -1432,7 +1422,7 @@ pro(JDRlexer, JDRstate* state) {
                         }
                     } break;
                     case 51:
-#line 303 "JDR.c.rl"
+
                     {
                         tok[0] = text[0] + mark0[JDRInter];
                         tok[1] = p;
@@ -1445,7 +1435,7 @@ pro(JDRlexer, JDRstate* state) {
                         }
                     } break;
                     case 53:
-#line 312 "JDR.c.rl"
+
                     {
                         tok[0] = text[0] + mark0[JDRFIRST];
                         tok[1] = p;
@@ -1458,12 +1448,12 @@ pro(JDRlexer, JDRstate* state) {
                         }
                     } break;
                     case 54:
-#line 320 "JDR.c.rl"
+
                     {
                         mark0[JDRRoot] = p - text[0];
                     } break;
                     case 55:
-#line 321 "JDR.c.rl"
+
                     {
                         tok[0] = text[0] + mark0[JDRRoot];
                         tok[1] = p;
@@ -1475,18 +1465,15 @@ pro(JDRlexer, JDRstate* state) {
                             }
                         }
                     } break;
-#line 1718 "JDR.rl.c"
                 }
             }
         }
 
-    _out: {}
+    _out : {}
     }
 
-#line 399 "JDR.c.rl"
-
     state->text[0] = p;
-    if (o == OK && (p != text[1] || cs < JDR_first_final)) o = JDRsyntax;
+    if (o == OK && (p != text[1] || cs < JDR_first_final)) o = RDXbad;
 
     return o;
 }

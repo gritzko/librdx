@@ -36,4 +36,11 @@ ok64 RDXutf8sDrainR(utf8csc elem, rdxp rdx);
 ok64 RDXutf8sDrainS(utf8csc elem, rdxp rdx);
 ok64 RDXutf8sDrainT(utf8csc elem, rdxp rdx);
 
+typedef struct {
+    u8cs text;
+    u8bp builder;
+    rdx cur;
+    u64 flags;
+} JDRstate;
+
 #endif

@@ -5,13 +5,6 @@
 
 // . . . . . . . . . . P A R S E R . . . . . . . . . .
 
-typedef struct {
-    u8cs text;
-    u8bp builder;
-    rdx cur;
-    u64 flags;
-} JDRstate;
-
 au8cs(TLV_EMPTY_TUPLE, 'p', 1, 0);
 
 typedef enum {
@@ -56,7 +49,9 @@ ok64 JDRonMLString($cu8c tok, JDRstate* state) {
     return RDXutf8sDrainS(tok, &state->cur);
 }
 ok64 JDRonStamp($cu8c tok, JDRstate* state) {
-    return RDXutf8sDrainR(tok, &state->cur);
+    assert(**tok == '@');
+    a_tail(u8c, r, tok, 1);
+    return RDXutf8sDrainID(r, &state->cur.r);
 }
 ok64 JDRonNoStamp($cu8c tok, JDRstate* state) {
     zero(state->cur.id);
@@ -156,25 +151,21 @@ ok64 JDRonClose($cu8c tok, JDRstate* state) {
 }
 ok64 JDRonInter($cu8c tok, JDRstate* state) { return OK; }
 ok64 JDRonFIRST($cu8c tok, JDRstate* state) {
-    state->flags &= ~(JDR_TUPLE | JDR_COLON);
-    return OK;
+    ok64 o = RDXu8sFeed1(u8bIdle(state->builder), &state->cur);
+    state->flags &= ~(JDR_COMMA | JDR_COLON);
+    return o;
 }
 ok64 JDRonRoot($cu8c tok, JDRstate* state) { return OK; }
 
 ok64 JDRlexer(JDRstate* state);
 
-ok64 RDXutf8sParse(utf8cs jdr, u8b builder, utf8s err) {
+ok64 RDXutf8sParse(utf8cs jdr, u8bp builder, utf8s err) {
+    sane($ok(jdr) && Bok(builder));
     JDRstate state = {.text = {jdr[0], jdr[1]}, .builder = builder};
     ok64 o = JDRlexer(&state);
     // todo error render
     return o;
 }
-
-ok64 RDXutf8sDrainF(utf8csc elem, rdxp rdx);
-ok64 RDXutf8sDrainI(utf8csc elem, rdxp rdx);
-ok64 RDXutf8sDrainR(utf8csc elem, rdxp rdx);
-ok64 RDXutf8sDrainS(utf8csc elem, rdxp rdx);
-ok64 RDXutf8sDrainT(utf8csc elem, rdxp rdx);
 
 // . . . . . . . . . . R E N D E R . . . . . . . . . .
 

@@ -63,7 +63,6 @@ ok64 RDXutf8sDrainStamp(utf8cs from, rdxp rp) {
 }
 
 ok64 RDXu8sFeed1(u8s into, rdxcp rp) {
-    $ok(into);
     switch (rp->type) {
         case RDX_FLOAT:
             return RDXu8sFeedF(into, rp);
@@ -81,7 +80,6 @@ ok64 RDXu8sFeed1(u8s into, rdxcp rp) {
 }
 
 ok64 RDXutf8sFeed1(utf8s into, rdxcp rp) {
-    $ok(into);
     switch (rp->type) {
         case RDX_FLOAT:
             return RDXutf8sFeedF(into, rp);
@@ -541,10 +539,13 @@ ok64 rdxpsEqs(rdxps heap, u32p eqs, rdxZ z) {
     *eqs = 1;
     a_pad(u8, q, RDX_MAX_INPUTS);
     u8Bfeed2(q, 1, 2);
-    eats(u8, n, q) {
+    eats(u8, n, q_data) {
         if (!z($at(heap, 0), $at(heap, *n))) {
             u8 j1 = 2 * *n + 1;
-            u8Bfeed2(q, j1, j1 + 1);
+            if (j1 < $len(heap)) {
+                call(u8bFeed1, q, j1);
+                if (j1 + 1 < $len(heap)) call(u8bFeed1, q, j1 + 1);
+            }
             rdxpSwap($atp(heap, *eqs), $atp(heap, *n));
             ++*eqs;
         }
@@ -557,7 +558,13 @@ ok64 rdxpsNexts(rdxps heap, u32 eqs, rdxZ z) {  // ejects
     u8 i = eqs;
     while (i > 0) {
         --i;
-        call(rdxNext, $at(heap, i));
+        rdxp p = $at(heap, i);
+        if (!$empty(p->rest)) {
+            call(rdxNext, p);
+        } else {
+            rdxpsSwap(heap, i, $len(heap) - 1);
+            --heap[1];
+        }
         rdxpsDownAt(heap, i, z);
     }
     done;
@@ -729,10 +736,11 @@ ok64 rdxNext(rdxp it) {
             break;
     }
     call(ZINTu8sDrain128, key, &it->id.src, &it->id.seq);
+    it->type = lit;
     done;
 }
 
-ok64 RDXu8bMergeLWW(u8b merged, rdxpsc eqs) {
+ok64 RDXu8bMergeLWW(u8bp merged, rdxpsc eqs) {
     sane(Bok(merged) && !$empty(eqs));
     int eqlen = 1;
     rdxp toprev = **eqs;
@@ -815,27 +823,29 @@ ok64 RDXu8bMergeLWW(u8b merged, rdxpsc eqs) {
     done;
 }
 
-ok64 RDXu8bMerge(u8b merged, rdxps inputs, rdxZ z) {
+ok64 RDXu8bMerge(u8bp merged, rdxps inputs, rdxZ z) {
     sane($ok(merged) && $ok(inputs) && z != NULL);
     while (!$empty(inputs)) {
-        u32 eqs;
+        u32 eqs = 0;
         rdxpsEqs(inputs, &eqs, z);
-        rdxps eq = {inputs[0], inputs[0] + eqs};
+        a_head(rdxp, eq, inputs, eqs);
         call(RDXu8bMergeLWW, merged, eq);
-        rdxpsNexts(inputs, eqs, z);
+        call(rdxpsNexts, inputs, eqs, z);
     }
     done;
 }
 
-ok64 RDXu8sMergeZ(u8s merged, u8css inputs, rdxZ less) {
+ok64 RDXu8sMergeZ(u8bp merged, u8css inputs, rdxZ less) {
     sane($ok(merged) && $ok(inputs));
     a_pad(rdx, its, RDX_MAX_INPUTS);
     a_pad(rdxp, ins, RDX_MAX_INPUTS);
 
     eats(u8cs, i, inputs) {
-        rdxInit(*its_idle, (u8cspc)i);
-        call(rdxpsFeed1, ins_idle, *its_idle);  // noroom
-        rdxsFed1(its_idle);
+        rdx r = {};
+        rdxInit(&r, (u8cspc)i);
+        call(rdxNext, &r);  // todo empty
+        call(rdxsFeedP, its_idle, &r);
+        call(rdxpsFeed1, ins_idle, $last(its_data));
         rdxpsUp(ins_data, rdxTupleZ);
     }
 

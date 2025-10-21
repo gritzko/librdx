@@ -34,9 +34,9 @@ pro(md2html, u8cs mod) {
     sane($ok(mod) && !$empty(mod) && $len(mod) <= 1000);
     a$strf(name, 1024, "$s.md", mod);
     int fd = 0;
-    call(FILEopen, &fd, Bu8cdata(name), O_RDONLY);
+    call(FILEOpen, &fd, Bu8cdata(name), O_RDONLY);
     Bu8 txtbuf = {};
-    call(FILEmap, txtbuf, &fd, PROT_READ);
+    call(FILEMap, txtbuf, &fd, PROT_READ);
 
     Bu8 fmtbuf = {};
     call(MMAPu8open, fmtbuf, Blen(txtbuf));
@@ -62,14 +62,14 @@ pro(md2html, u8cs mod) {
 
     int hfd = 0;
     a$strf(htmlname, 1024, "$s.html", mod);
-    call(FILEcreate, &hfd, Bu8cdata(htmlname));
+    call(FILECreate, &hfd, Bu8cdata(htmlname));
     call(FILEFeedall, hfd, header_template);
     call(FILEFeedall, hfd, Bu8cdata(intobuf));
     call(FILEFeedall, hfd, footer_template);
 
     // FIXME defer!!!
-    FILEclose(&hfd);
-    FILEclose(&fd);
+    FILEClose(&hfd);
+    FILEClose(&fd);
     MMAPu8close(fmtbuf);
     MMAPu8close(intobuf);
     MMAPu8cpclose(linebuf);

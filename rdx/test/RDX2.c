@@ -13,12 +13,12 @@ ok64 RDX2MergeTest() {
     eats(u8cs, arg, Bu8csdata(STD_ARGS)) {
         if (!u8csHasSuffix(*arg, jdrExt)) continue;
         Bu8 jdr = {};
-        call(FILEmapro, jdr, *arg);
+        call(FILEMapRO, jdr, *arg);
 
         $println(*arg);
         a_pad(u8, rdx, PAGESIZE);
         a_pad(u8, err, 256);
-        try(RDXutf8sParse, u8cbData(jdr), u8bIdle(rdx), u8bIdle(err));
+        try(RDXutf8sParse, u8cbData(jdr), rdx, u8bIdle(err));
         nedo { $println(u8cbData(err)); }
         then {
             u8cs rdxdata, correct, rec;
@@ -28,7 +28,7 @@ ok64 RDX2MergeTest() {
             u8csDup(correct, *$last(inputs_data));
             inputs_data[1]--;
             a_pad(u8, fact, PAGESIZE);
-            call(RDXu8sMerge, fact_idle, inputs_data);
+            call(RDXu8sMerge, fact, inputs_data);
             if ($eq(fact_data, correct)) done;
             // OK, some error
             $println(u8cbData(jdr));

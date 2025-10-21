@@ -4,6 +4,22 @@
 
 #include "PRO.h"
 
+u64 FILE_ERR_VOCAB[][2] = {
+    {EBADF, 0xe2ca34f},           {EBUSY, 0xe2de722},
+    {EDQUOT, 0x38d69e61d},        {EINVAL, 0x3925df295},
+    {EISDIR, 0x39270d49b},        {ENAMETOOLONG, 0x729639d6185585d0},
+    {ENOENT, 0x39760e5dd},        {ENOMEM, 0x397616396},
+    {ENOSPC, 0x39761c64c},        {ENOTDIR, 0xe5d874d49b},
+    {EOVERFLOW, 0xe61f39b3d5620}, {EPERM, 0xe64e6d6},
+    {ETXTBSY, 0xe76174b722},      {0, 0}};
+
+ok64 FILEErr(ok64 def) {
+    int err = errno;
+    for (int i = 0; FILE_ERR_VOCAB[i][0] != 0; i++)
+        if (FILE_ERR_VOCAB[i][0] == err) return FILE_ERR_VOCAB[i][1];
+    return def;
+}
+
 ok64 FILEmakedir(path const name) {
     sane($ok(name));
     aFILEpath(p, name);
@@ -34,34 +50,34 @@ ok64 FILEsync(int const *fd) {
     done;
 }
 
-pro(FILEclose, int *fd) {
+pro(FILEClose, int *fd) {
     sane(FILEok(*fd));
     testc(0 == close(*fd), FILEnoclse);
     *fd = FILE_CLOSED;
     done;
 }
 
-ok64 FILEcreate(int *fd, const path name) {
+ok64 FILECreate(int *fd, const path name) {
     sane(fd != nil && $ok(name));
     aFILEpath(p, name);
     *fd = open(p, O_CREAT | O_RDWR | O_TRUNC, S_IRUSR | S_IWUSR);
-    testc(*fd >= 0, FILEnoopen);
+    if (*fd < 0) fail(FILEErr(FILEnoopen));
     done;
 }
 
-ok64 FILEopen(int *fd, const path name, int flags) {
+ok64 FILEOpen(int *fd, const path name, int flags) {
     sane(fd != nil && $ok(name));
     aFILEpath(p, name);
     *fd = open(p, flags);
-    testc(*fd >= 0, FILEnoopen);
+    if (*fd < 0) fail(FILEErr(FILEnoopen));
     done;
 }
 
-ok64 FILEopenat(int *fd, int const *dirfd, const path name, int flags) {
+ok64 FILEOpenAt(int *fd, int const *dirfd, const path name, int flags) {
     sane(fd != nil && $ok(name) && FILEok(*dirfd));
     aFILEpath(p, name);
     *fd = openat(*dirfd, p, flags);
-    testc(*fd >= 0, FILEnoopen);
+    if (*fd < 0) fail(FILEErr(FILEnoopen));
     done;
 }
 
@@ -124,7 +140,7 @@ ok64 FILErmrf(path const name) {
     done;
 }
 
-ok64 FILEmap(Bu8 buf, int const *fd, int mode) {
+ok64 FILEMap(Bu8 buf, int const *fd, int mode) {
     sane(buf != nil && *buf == nil && FILEok(*fd));
     size_t size;
     call(FILEsize, &size, fd);

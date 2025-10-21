@@ -37,6 +37,14 @@
 #define a$dup(T, n, s) T *n[2] = {(s)[0], (s)[1]}
 #define $dup(s) {(s)[0], (s)[1]}
 
+#define a_tail(T, n, orig, off) \
+    assert((off)<=$len(orig));     \
+    T##s n = {orig[0]+(off), orig[1]};
+
+#define a_head(T, n, orig, len) \
+    assert((len)<=$len(orig));     \
+    T##s n = {orig[0], orig[0]+(len)};
+
 #define a$tail(T, n, s, off) \
     $##T n = {(off) > $len(s) ? s[1] : s[0] + (off), s[1]};
 #define a$last(T, n, s, len) \

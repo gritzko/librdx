@@ -263,9 +263,9 @@ pro(lex2rl, u8cs mod, $u8c lang) {
     u8cs $namet = $u8str("$s.lex");
     $feedf(nameidle, $namet, mod);
     int fd;
-    call(FILEopen, &fd, namedata, O_RDONLY);
+    call(FILEOpen, &fd, namedata, O_RDONLY);
     call(FILEdrainall, lexidle, fd);
-    call(FILEclose, &fd);
+    call(FILEClose, &fd);
 
     aBcpad(u8, ct, MB);
     NESTreset(ctbuf);
@@ -295,9 +295,9 @@ pro(lex2rl, u8cs mod, $u8c lang) {
     u8cs $rnamet = $u8str("$s.$s.rl");
     $feedf(rlnameidle, $rnamet, mod, LEX_TEMPL[nlang][LEX_TEMPL_L]);
     int rfd;
-    call(FILEcreate, &rfd, rlnamedata);
+    call(FILECreate, &rfd, rlnamedata);
     call(FILEFeedall, rfd, rldata);
-    call(FILEclose, &rfd);
+    call(FILEClose, &rfd);
 
     done;
 }

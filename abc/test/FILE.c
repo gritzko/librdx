@@ -11,9 +11,9 @@ pro(FILEtest1) {
     u8cs path = $u8str("/tmp/test1.txt");
     u8cs text = $u8str("Hello world!\n");
     int fd = 0;
-    call(FILEcreate, &fd, path);
+    call(FILECreate, &fd, path);
     call(FILEFeed, fd, text);
-    call(FILEclose, &fd);
+    call(FILEClose, &fd);
     call(FILEunlink, path);
     done;
 }
@@ -22,15 +22,15 @@ pro(FILEtest2) {
     sane(1);
     u8cs path = $u8str("/tmp/testA.txt");
     int fd = 0;
-    call(FILEcreate, &fd, path);
+    call(FILECreate, &fd, path);
     call(FILEresize, &fd, 4096);
     aB(u8, map);
-    call(FILEmap, mapbuf, &fd, PROT_READ | PROT_WRITE);
+    call(FILEMap, mapbuf, &fd, PROT_READ | PROT_WRITE);
     testeq(Bsize(mapbuf), 4096);
     Bat(mapbuf, 42) = 1;
     call(FILEunmap, mapbuf);
-    call(FILEmap, mapbuf, &fd, PROT_READ | PROT_WRITE);
-    call(FILEclose, &fd);
+    call(FILEMap, mapbuf, &fd, PROT_READ | PROT_WRITE);
+    call(FILEClose, &fd);
     testeq(Blen(mapbuf), 4096);
     testeq(Bat(mapbuf, 41), 0);
     testeq(Bat(mapbuf, 42), 1);
@@ -48,7 +48,7 @@ pro(FILE3) {
     call(u8sFeed, u8bIdle(buf), path);
     call(FILEunmap, buf);
     Bu8 buf2 = {};
-    call(FILEmapro, buf2, path);
+    call(FILEMapRO, buf2, path);
     aB$(u8c, path2, buf2, 0, $len(path));
     $testeq(path, path2);
     call(FILEunmap, buf2);
@@ -65,7 +65,7 @@ pro(FILEtest4) {
     aBpad2(u8cs, queue, 4);
     call(u8css_feed3, queueidle, one, two, three);
     int fd;
-    call(FILEcreate, &fd, path);
+    call(FILECreate, &fd, path);
     call(FILEFeedv, fd, queuedata);
     want($empty(queuedata));
     aBpad2(u8, back, 64);

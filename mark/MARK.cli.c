@@ -54,9 +54,9 @@ void debug(MARKstate *state) {
 pro(mark, u8cs mod) {
     sane($ok(mod) && !$empty(mod) && $len(mod) <= 1000);
     int fd = 0;
-    call(FILEopen, &fd, mod, O_RDONLY);
+    call(FILEOpen, &fd, mod, O_RDONLY);
     Bu8 text = {};
-    call(FILEmap, text, &fd, PROT_READ);
+    call(FILEMap, text, &fd, PROT_READ);
 
     Bu8 fmtbuf = {};
     u8cpb linebuf = {};
@@ -83,7 +83,7 @@ pro(mark, u8cs mod) {
         then try(FILEFeedall, STDOUT_FILENO, Bu8cdata(intobuf));
     }
 
-    FILEclose(&fd);
+    FILEClose(&fd);
     MMAPu8close(fmtbuf);
     MMAPu8close(intobuf);
     MMAPu8cpclose(linebuf);
