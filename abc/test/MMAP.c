@@ -9,7 +9,7 @@ pro(MMAPtest1) {
     u8b buf8 = {};
     call(MMAPopen, (voidbp)buf8, 4096);
     aB(u32, word);
-    testeq(YES, Bnil(wordbuf));
+    testeq(YES, BNULL(wordbuf));
     call(Bmmap, wordbuf, 1024);
     testeq(Bsize(buf8), Bsize(wordbuf));
 

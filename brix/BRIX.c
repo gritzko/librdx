@@ -27,7 +27,7 @@ fun ok64 BRIKhead(BRIX const* brix, SSTheader const** head, sha256c$ shas,
 }
 
 ok64 BRIKfilename($u8 into, BRIX const* brix, sha256c* sha) {
-    sane($ok(into) && brix != nil && sha != nil);
+    sane($ok(into) && brix != NULL && sha != NULL);
     a$rawcp(raw, sha);
     call(HEXfeedall, into, raw);
     call(u8sFeed, into, BRIKext);
@@ -35,7 +35,7 @@ ok64 BRIKfilename($u8 into, BRIX const* brix, sha256c* sha) {
 }
 
 ok64 BRIKpath($u8 into, BRIX const* brix, sha256c* sha) {
-    sane($ok(into) && brix != nil);
+    sane($ok(into) && brix != NULL);
     call(u8sFeed, into, brix->home);
     call(u8sFeed1, into, '/');
     call(BRIKfilename, into, brix, sha);
@@ -43,7 +43,7 @@ ok64 BRIKpath($u8 into, BRIX const* brix, sha256c* sha) {
 }
 
 ok64 BRIXopenrepo(BRIX* brix, u8cs path) {
-    sane(brix != nil && !Bok(brix->ssts) && $ok(path));
+    sane(brix != NULL && !Bok(brix->ssts) && $ok(path));
     call(FILEisdir, path);
     call(Bu8Balloc, brix->ssts, LSM_MAX_INPUTS);
     call(Bsha256alloc, brix->shas, LSM_MAX_INPUTS);
@@ -57,14 +57,14 @@ ok64 BRIXopenrepo(BRIX* brix, u8cs path) {
 
 // add an SST to the stack, including *missing* dependencies
 ok64 BRIXadd(BRIX* brix, sha256c* sha) {
-    sane(BRIXok(brix) && sha != nil);
+    sane(BRIXok(brix) && sha != NULL);
     aBcpad(u8, fn, FILEmaxpathlen);
     call(BRIKpath, fnidle, brix, sha);
     SSTu128 sst = {};
     int fd = FILE_CLOSED;
     call(SSTu128open, sst, fndata);
     $sha256c deps = {};
-    call(SSTu128meta, sst, nil, (u8c**)deps);
+    call(SSTu128meta, sst, NULL, (u8c**)deps);
     test($sha256ok(deps), BRIXbad);
     if (!$empty(deps) && !sha256empty($head(deps))) {  // TODO
         ok64 o = BRIXhave(brix, $head(deps));
@@ -78,7 +78,7 @@ ok64 BRIXadd(BRIX* brix, sha256c* sha) {
 // close everything previously open, then
 // add an SST to the stack, including its dependencies.
 ok64 BRIXopen(BRIX* brix, sha256c* sha) {
-    sane(BRIXok(brix) && sha != nil);
+    sane(BRIXok(brix) && sha != NULL);
     call(BRIXcloseall, brix);
     call(BRIXadd, brix, sha);
     Bu8Beatdata(brix->ssts);
@@ -98,13 +98,13 @@ ok64 BRIXcloserepo(BRIX* brix) {
 
 // @return OK, BRIXnone
 ok64 BRIXhave(BRIX const* brix, sha256c* id) {
-    sane(BRIXok(brix) && id != nil);
+    sane(BRIXok(brix) && id != NULL);
     aBusy(sha256c, shas, brix->shas);
     $eat(shas) if (sha256eq(*shas, id)) return OK;
     aBusy(SSTu128, ssts, brix->ssts);
     $eat(ssts) {
         $sha256c deps = {};
-        call(SSTu128meta, **ssts, nil, (u8c**)deps);
+        call(SSTu128meta, **ssts, NULL, (u8c**)deps);
         $eat(shas) if (sha256eq(*shas, id)) return OK;
     }
     // TODO a recurring version, one day
@@ -134,7 +134,7 @@ ok64 BRIXcloseall(BRIX* brix) {
 }
 
 ok64 BRIKhash(sha256* hash, SSTu128 sst) {
-    sane(hash != nil && Bok(sst));
+    sane(hash != NULL && Bok(sst));
     // aBusy(u8c, hashed, sst); strange compiler glitch?
     u8cs hashed = {};
     hashed[0] = sst[0];
@@ -145,7 +145,7 @@ ok64 BRIKhash(sha256* hash, SSTu128 sst) {
 
 // Merge the added SSTs, so the newly formed SST replaces them.
 ok64 BRIXmerge(sha256* newsha, BRIX* brix) {
-    sane(newsha != nil && BRIXok(brix));
+    sane(newsha != NULL && BRIXok(brix));
     test(Bdatalen(brix->ssts) > 0, BRIXnone);
 
     aBpad2(u8cs, ins, LSM_MAX_INPUTS);
@@ -202,7 +202,7 @@ ok64 BRIXmerge(sha256* newsha, BRIX* brix) {
 }
 
 ok64 BRIXget($u8 rec, BRIX const* brix, u8 rdt, id128 key) {
-    sane(rec != nil && brix != nil && (TLVlong(rdt) || rdt == 0));
+    sane(rec != NULL && brix != NULL && (TLVlong(rdt) || rdt == 0));
     aBpad2(u8cs, ins, LSM_MAX_INPUTS);
     for (Bu8* p = brix->ssts[0]; p < brix->ssts[2]; ++p) {
         u8 t = rdt;
@@ -221,7 +221,7 @@ ok64 BRIXget($u8 rec, BRIX const* brix, u8 rdt, id128 key) {
 }
 
 ok64 _BRIXgetc(u8c$ rec, BRIX const* brix, u8 rdt, id128 key) {
-    sane($nil(rec) && brix != nil && (TLVlong(rdt) || rdt == 0));
+    sane($NULL(rec) && brix != NULL && (TLVlong(rdt) || rdt == 0));
     aBpad2(u8cs, ins, LSM_MAX_INPUTS);
     for (Bu8* p = brix->ssts[0]; p < brix->ssts[2]; ++p) {
         u8 t = rdt;
@@ -348,7 +348,7 @@ ok64 BRIXflatfeed($u8 into, u8cs rdx) {
 }
 
 ok64 _BRIXaddpatch(sha256* sha, BRIX* brix, u8cs rdx, u8csb heap) {
-    sane(sha != nil && BRIXok(brix) && $ok(rdx));
+    sane(sha != NULL && BRIXok(brix) && $ok(rdx));
 
     u64 roughlen = 0;
     call(BRIXenlist, heap, &roughlen, rdx);
@@ -383,7 +383,7 @@ ok64 _BRIXaddpatch(sha256* sha, BRIX* brix, u8cs rdx, u8csb heap) {
 // key-value form.
 // Makes a *patch* SST for it (no deps), puts it on the stack.
 ok64 BRIXaddpatch(sha256* sha, BRIX* brix, u8cs rdx) {
-    sane(sha != nil && BRIXok(brix) && $ok(rdx));
+    sane(sha != NULL && BRIXok(brix) && $ok(rdx));
     u8csb heap = {};
     try(Bu8csalloc, heap, BRIX_MAX_SST0_ENTRIES);
     then try(_BRIXaddpatch, sha, brix, rdx, heap);
@@ -394,7 +394,7 @@ ok64 BRIXaddpatch(sha256* sha, BRIX* brix, u8cs rdx) {
 }
 
 ok64 BRIXfind(sha256* sha, BRIX const* brix, u8cs part) {
-    sane($ok(part) && BRIXok(brix) && sha != nil &&
+    sane($ok(part) && BRIXok(brix) && sha != NULL &&
          $len(part) <= sizeof(sha256) * 2);
     DIR* d = opendir((char*)*brix->home);
     testc(d != NULL, BRIXnone);

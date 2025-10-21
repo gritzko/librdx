@@ -43,7 +43,7 @@ ok64 HTTPfind(u8c$ value, $cu8c key, u8css parsed) {
             if (i + 1 < $len(parsed)) {
                 $mv(value, $at(parsed, i + 1));
             } else {
-                value[0] = value[1] = nil;
+                value[0] = value[1] = NULL;
             }
             return OK;
         }

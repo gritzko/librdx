@@ -10,7 +10,7 @@
 #include "TEST.h"
 
 void garble($u8 data) {
-    srandom(time(nil));
+    srandom(time(NULL));
     for (int i = 0; i < $len(data); ++i) {
         int b = random() % $len(data);
         u8Swap($atp(data, i), $atp(data, b));

@@ -14,7 +14,7 @@
 #undef then
 #undef fail
 #undef try
-#undef nil
+#undef NULL
 #undef pro
 #undef fun
 #undef con

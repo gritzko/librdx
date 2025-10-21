@@ -93,7 +93,7 @@ pro(RDX_print, u8cs args) {
     int fd = STDOUT_FILENO;
     if (TLVup(**args) == RDX_STRING) {
         u8cs str = {};
-        RDXCdrainS(str, nil, args);
+        RDXCdrainS(str, NULL, args);
         call(FILEcreate, &fd, str);
     }
     call(FILEFeedall, fd, Bu8cdata(tmp));
@@ -170,7 +170,7 @@ ok64 RDX_test(u8cs args) {
     sane(1);
     while (!$empty(args) && TLVup(**args) == RDX_STRING) {
         u8cs path = {};
-        call(RDXCdrainS, path, nil, args);
+        call(RDXCdrainS, path, NULL, args);
         Bu8 rdxjbuf = {};
         call(FILEmapro, rdxjbuf, path);
         call(UNITdrain, rdxjbuf, yfn);
@@ -215,7 +215,7 @@ cmd_t COMMANDS[] = {
     {$u8str("d"), RDX_diff},       //
     {$u8str("clean"), RDX_clean},  //
     {$u8str("c"), RDX_clean},      //
-    {$u8str(""), nil},
+    {$u8str(""), NULL},
 };
 
 ok64 RDXcli() {
@@ -253,8 +253,8 @@ ok64 RDXcli() {
             fail(RDXbadverb);
         }
         int v = 0;
-        while (!$eq(COMMANDS[v].name, verb) && COMMANDS[v].fn != nil) ++v;
-        test(COMMANDS[v].fn != nil, RDXbadverb);
+        while (!$eq(COMMANDS[v].name, verb) && COMMANDS[v].fn != NULL) ++v;
+        test(COMMANDS[v].fn != NULL, RDXbadverb);
 
         call(COMMANDS[v].fn, cmds);
     }

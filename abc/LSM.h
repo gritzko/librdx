@@ -22,7 +22,7 @@ typedef int (*$u8cZfn)($cu8c* a, $cu8c* b);
 typedef u8csb LSM;
 
 fun pro(LSMmore, u8csb lsm, u8cs x, $u8cZfn cmp) {
-    sane(Bok(lsm) && $ok(x) && cmp != nil);
+    sane(Bok(lsm) && $ok(x) && cmp != NULL);
     // call(u8cssFeed1, Bu8csidle(lsm), x);
     memcpy(lsm[2], x, sizeof(u8cs));
     Bu8csidle(lsm)[0]++;

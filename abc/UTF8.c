@@ -31,7 +31,7 @@ pro(_utf8sFeed32, utf8s into, u32 cp) {
 }
 
 pro(_utf8sDrain32, u32 *cp, utf8cs data) {
-    sane($ok(data) && cp != nil);
+    sane($ok(data) && cp != NULL);
     const u8 *utf8 = *data;
     unsigned char byte = utf8[0];
     u32 code_point = 0;

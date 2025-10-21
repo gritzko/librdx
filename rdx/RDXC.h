@@ -4,7 +4,7 @@
 #include "abc/PRO.h"
 
 fun pro(RDXCdrainF, RDXfloat* c, id128* id, $cu8c tlv) {
-    sane(c != nil && id != nil && $ok(tlv));
+    sane(c != NULL && id != NULL && $ok(tlv));
     u8 t = 0;
     u8cs value = {};
     u64 bits = 0;
@@ -26,7 +26,7 @@ fun pro(RDXCfeedF, $u8 tlv, RDXfloat c, u128 time) {
 }
 
 fun pro(RDXCdrainI, RDXint* c, id128* id, $cu8c tlv) {
-    sane(c != nil && id != nil && $ok(tlv));
+    sane(c != NULL && id != NULL && $ok(tlv));
     u8 t = 0;
     u64 bits = 0;
     u8cs value = {};
@@ -47,7 +47,7 @@ fun pro(RDXCfeedI, $u8 tlv, RDXint c, u128 time) {
 }
 
 fun ok64 RDXCdrainR(RDXref* c, id128* id, u8cs rdx) {
-    sane(c != nil && id != nil && $ok(rdx));
+    sane(c != NULL && id != NULL && $ok(rdx));
     u8 t = 0;
     u8cs value = {};
     call(RDXdrain, &t, id, value, rdx);
@@ -66,7 +66,7 @@ fun pro(RDXCfeedR, $u8 tlv, RDXref c, u128 time) {
 fun ok64 RDXCdrainS(u8c$ str, id128* id, u8cs rdx) {
     u8 t = 0;
     id128 _;
-    if (id == nil) id = &_;
+    if (id == NULL) id = &_;
     ok64 o = RDXdrain(&t, id, str, rdx);
     return t == RDX_STRING ? o : RDXwrong;
 }

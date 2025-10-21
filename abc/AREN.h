@@ -37,13 +37,13 @@
 
 #define afed(n, feed, s, ...) \
     align64(s);               \
-    $u8 n = {s[0], nil};      \
+    $u8 n = {s[0], NULL};      \
     feed(s, __VA_ARGS__);     \
     n[1] = s[0];
 
 #define afedc(n, feed, s, ...) \
     align64(s);                \
-    u8cs n = {s[0], nil};      \
+    u8cs n = {s[0], NULL};      \
     feed(s, __VA_ARGS__);      \
     n[1] = s[0];
 

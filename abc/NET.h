@@ -54,7 +54,7 @@ fun ok64 NETinfo(NETaddr text, NETaddr raw) {
 
 fun int NETrandomport() {
     int ret = 10000;
-    ret += (int)(time(nil) % 10000);
+    ret += (int)(time(NULL) % 10000);
     ret += 10 * (getpid() % 1000);
     return ret;
 }

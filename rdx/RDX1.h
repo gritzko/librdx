@@ -22,7 +22,7 @@ fun pro(YmergeFIRST, $u8 into, u8css from) {
             rec[1] = **from;
         }
     }
-    if (*rec != nil) call(u8sFeed, into, rec);
+    if (*rec != NULL) call(u8sFeed, into, rec);
     done;
 }
 
@@ -33,7 +33,7 @@ fun pro(YmergeFIRST, $u8 into, u8css from) {
 #define RDXTmerge RDX1merge
 
 fun pro(RDX1dtlv, $u8 dtlv, $cu8c oldtlv, u8 type, u128* clock, $cu8c newbits) {
-    sane($ok(oldtlv) && clock != nil);
+    sane($ok(oldtlv) && clock != NULL);
     a$dup(u8c, oldtlv2, oldtlv);
     u8 t = 0;
     u128 id = {};
@@ -48,7 +48,7 @@ fun pro(RDX1dtlv, $u8 dtlv, $cu8c oldtlv, u8 type, u128* clock, $cu8c newbits) {
 // F
 
 fun pro(RDXFdtlv, $u8 dtlv, $cu8c oldtlv, RDXfloat c, u128* clock) {
-    sane($ok(oldtlv) && clock != nil);
+    sane($ok(oldtlv) && clock != NULL);
     u64 bits;
     *(RDXfloat*)&bits = c;
     aBpad(u8, pad, 8);
@@ -60,7 +60,7 @@ fun pro(RDXFdtlv, $u8 dtlv, $cu8c oldtlv, RDXfloat c, u128* clock) {
 // I
 
 fun pro(RDXIdtlv, $u8 dtlv, $cu8c oldtlv, RDXint c, u128* clock) {
-    sane($ok(oldtlv) && clock != nil);
+    sane($ok(oldtlv) && clock != NULL);
     u64 bits = ZINTzigzag(c);
     aBpad(u8, pad, 8);
     ZINTu64feed(u8bIdle(pad), bits);
@@ -71,7 +71,7 @@ fun pro(RDXIdtlv, $u8 dtlv, $cu8c oldtlv, RDXint c, u128* clock) {
 // R
 
 fun pro(RDXRdtlv, $u8 dtlv, $cu8c oldtlv, RDXref c, u128* clock) {
-    sane($ok(oldtlv) && clock != nil);
+    sane($ok(oldtlv) && clock != NULL);
     aBpad(u8, pad, 16);
     ZINTu128feed(u8bIdle(pad), c);
     call(RDX1dtlv, dtlv, oldtlv, RDX_REF, clock,Bu8cdata(pad));
@@ -81,7 +81,7 @@ fun pro(RDXRdtlv, $u8 dtlv, $cu8c oldtlv, RDXref c, u128* clock) {
 // S
 
 fun pro(RDXSdtlv, $u8 dtlv, $cu8c oldtlv, $cu8c c, u128* clock) {
-    sane($ok(oldtlv) && clock != nil);
+    sane($ok(oldtlv) && clock != NULL);
     call(RDX1dtlv, dtlv, oldtlv, RDX_STRING, clock, c);
     done;
 }

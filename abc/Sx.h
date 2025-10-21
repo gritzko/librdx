@@ -158,7 +158,7 @@ fun size_t X(, sCopy)(X(, sc) into, X(, csc) from) {
 
 fun ok64 X($, alloc)(X($, ) what, size_t len) {
     T *m = (T *)malloc(len * sizeof(T));
-    if (m == nil) return noroom;
+    if (m == NULL) return noroom;
     what[0] = m;
     what[1] = m + len;
     return OK;
@@ -176,14 +176,14 @@ fun ok64 X($, dup)(X($, ) copy, X($, c) orig) {
 }
 
 fun ok64 X($, free)(X($, c) what) {
-    if (what[0] == nil) return $badarg;
+    if (what[0] == NULL) return $badarg;
     free((void *)what[0]);
-    what[0] = what[1] = nil;
+    what[0] = what[1] = NULL;
     return OK;
 }
 
 fun u64 X(, cs_len)(X(, cs) s) {
-    if (s == nil || s[0] == nil || s[1] <= s[0]) return 0;
+    if (s == NULL || s[0] == NULL || s[1] <= s[0]) return 0;
     return s[1] - s[0];
 }
 

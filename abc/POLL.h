@@ -35,9 +35,9 @@ typedef struct POLLctl POLLctl;
 typedef POLLctl POLLstate[POLL_MAX_FILES];
 
 fun POLLctl* POLLfind(POLLstate state, int fd) {
-    for (int i = 0; i < POLL_MAX_FILES && state[i].fn != nil; ++i)
+    for (int i = 0; i < POLL_MAX_FILES && state[i].fn != NULL; ++i)
         if (state[i].fd == fd) return state + i;
-    return nil;
+    return NULL;
 }
 
 ok64 POLLadd(POLLstate state, int fd, u8cs name, POLLfunI fi);
@@ -47,7 +47,7 @@ ok64 POLLlisten(POLLstate state, int fd, u8cs name, POLLfunI fi);
 ok64 POLLdelctl(POLLstate state, POLLctl* ctl, ok64 o);
 fun ok64 POLLdel(POLLstate state, int fd, ok64 o) {
     POLLctl* ctl = POLLfind(state, fd);
-    if (ctl == nil) return POLLnone;
+    if (ctl == NULL) return POLLnone;
     return POLLdelctl(state, ctl, o);
 }
 
@@ -59,7 +59,7 @@ fun ok64 POLLfeed$(POLLctl* ctl, u8c$ data) {
 }
 
 fun ok64 POLLfeed(POLLctl* ctl, u8cs data) {
-    u8cs n = {ctl->writebuf[2], nil};
+    u8cs n = {ctl->writebuf[2], NULL};
     ok64 o = u8sFeed(u8bIdle(ctl->writebuf), data);
     if (o != OK) return o;
     n[1] = ctl->writebuf[2];

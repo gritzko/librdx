@@ -223,10 +223,10 @@ fun ok64 X(B, map)(X(B, ) buf, size_t len) {
 }
 
 fun ok64 X(B, unmap)(X(B, ) buf) {
-    if (unlikely(buf == nil || *buf == nil)) return FAILsanity;
+    if (unlikely(buf == NULL || *buf == NULL)) return FAILsanity;
     if (-1 == munmap((void *)buf[0], Bsize(buf))) return Bmapfail;
     void **b = (void **)buf;
-    b[0] = b[1] = b[2] = b[3] = nil;
+    b[0] = b[1] = b[2] = b[3] = NULL;
     return OK;
 }
 

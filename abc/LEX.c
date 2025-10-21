@@ -95,7 +95,7 @@ const u8c *LEX_TEMPL[LEX_TEMPL_LANG_LEN][LEX_TEMPL_LEN][2] = {
         $u8str("action $mod${act}0 { mark0[$mod$act] = p; }\n"
                "action $mod${act}1 {\n"
                "    err = ${mod}on$act(data[mark0[$mod$act] : p], state); \n"
-               "    if err!=nil {\n"
+               "    if err!=NULL {\n"
                "        fbreak;\n"
                "    }\n"
                "}\n"),
@@ -150,7 +150,7 @@ const u8c *LEX_TEMPL[LEX_TEMPL_LANG_LEN][LEX_TEMPL_LEN][2] = {
                "        state.text = state.text[p:];\n"
                "        return errors.New(\"${mod} bad syntax\")\n"
                "    }\n"
-               "    return nil;\n"
+               "    return NULL;\n"
                "}\n"),
         $u8str("go"),
     },
@@ -195,7 +195,7 @@ ok64 LEXonExpr($cu8c tok, LEXstate *state) { return OK; }
 ok64 LEXonRep($cu8c tok, LEXstate *state) { return OK; }
 
 ok64 LEXonEq($cu8c tok, LEXstate *state) {
-    sane($ok(tok) && state != nil);
+    sane($ok(tok) && state != NULL);
     u8c$ tmpl = LEX_TEMPL[state->lang][LEX_TEMPL_ACT];
     try(NESTsplice, state->ct, LEX$RULES);
     then try(NESTfeed, state->ct, tmpl);
@@ -203,7 +203,7 @@ ok64 LEXonEq($cu8c tok, LEXstate *state) {
 }
 
 pro(LEXonRuleName, $cu8c tok, LEXstate *state) {
-    sane($ok(tok) && state != nil);
+    sane($ok(tok) && state != NULL);
     $set(state->cur, tok);
     state->ruleno++;
 
@@ -229,7 +229,7 @@ pro(LEXonRuleName, $cu8c tok, LEXstate *state) {
 }
 
 ok64 LEXonLine($cu8c tok, LEXstate *state) {
-    sane($ok(tok) && state != nil);
+    sane($ok(tok) && state != NULL);
     u8bp ct = (u8bp)state->ct;
     u8c$ cur = state->cur;
 
@@ -248,7 +248,7 @@ ok64 LEXonLine($cu8c tok, LEXstate *state) {
 }
 
 ok64 LEXonRoot($cu8c tok, LEXstate *state) {
-    sane($ok(tok) && state != nil);
+    sane($ok(tok) && state != NULL);
     u8bp ct = (u8bp)state->ct;
     try(NESTspliceall, ct, LEX$mod);
     then try(u8sFeed, NESTidle(ct), state->mod);

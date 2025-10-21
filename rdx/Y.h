@@ -149,7 +149,7 @@ fun ok64 Y($u8 into, u8css inputs) {
         }
     }
 
-    u32* len = nil;
+    u32* len = NULL;
     call(TLVopen, into, maxt, &len);
     aBcpad(u8, id, 16);
     ZINTu128feed(ididle, &maxid);

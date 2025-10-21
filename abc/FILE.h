@@ -234,7 +234,7 @@ ok64 FILEMap(Bu8 buf, int const *fd, int mode);
 fun ok64 FILEmapro2(Bu8 buf, int *fd) { return FILEMap(buf, fd, PROT_READ); }
 
 fun ok64 FILEMapRO(Bu8 buf, u8csc path) {
-    if (buf == nil || Bok(buf) || !$ok(path)) return FILEbadarg;
+    if (buf == NULL || Bok(buf) || !$ok(path)) return FILEbadarg;
     int fd = FILE_CLOSED;
     ok64 o = FILEOpen(&fd, path, O_RDONLY);
     if (o == OK) {
@@ -246,7 +246,7 @@ fun ok64 FILEMapRO(Bu8 buf, u8csc path) {
 
 // Memory-map a file for reading and writing.
 fun ok64 FILEmaprw(Bu8 buf, int *fd, $cu8c path) {
-    if (buf == nil || Bok(buf) || !$ok(path) || fd == nil) return FILEbadarg;
+    if (buf == NULL || Bok(buf) || !$ok(path) || fd == NULL) return FILEbadarg;
     ok64 o = FILEOpen(fd, path, O_RDWR);
     if (o == OK) o = FILEMap(buf, fd, PROT_READ | PROT_WRITE);
     if (o != OK) FILEClose(fd);
@@ -255,7 +255,7 @@ fun ok64 FILEmaprw(Bu8 buf, int *fd, $cu8c path) {
 
 // Memory-map a file for reading and writing.
 fun ok64 FILEmapnew(Bu8 buf, int *fd, $cu8c path, size_t size) {
-    if (buf == nil || Bok(buf) || !$ok(path) || fd == nil) return FILEbadarg;
+    if (buf == NULL || Bok(buf) || !$ok(path) || fd == NULL) return FILEbadarg;
     ok64 o = FILECreate(fd, path);
     if (o == OK) o = FILEresize(fd, size);
     if (o == OK) o = FILEMap(buf, fd, PROT_READ | PROT_WRITE);
@@ -268,7 +268,7 @@ ok64 FILEunmap(Bu8 buf);
 
 // Resize the file and update the mapping.
 fun ok64 FILEremap(Bu8 buf, int const *fd, size_t new_size) {
-    if (!Bok(buf) || fd == nil) return FILEbadarg;
+    if (!Bok(buf) || fd == NULL) return FILEbadarg;
     ok64 o = FILEunmap(buf);
     if (o == OK) o = FILEresize(fd, new_size);
     if (o == OK) o = FILEMap(buf, fd, PROT_WRITE | PROT_READ);

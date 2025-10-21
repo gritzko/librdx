@@ -67,7 +67,7 @@ ok64 NESTsplicemany(Bu8 ct, u64 var, b8 some) {
 
 // $1 $var ${var}
 ok64 NESTscanvar(ok64* var, u8cs input) {
-    sane(**input == '$' && $len(input) > 1 && var != nil);
+    sane(**input == '$' && $len(input) > 1 && var != NULL);
     u8c* p = input[0];
     ++p;
     if (*p == '$') {

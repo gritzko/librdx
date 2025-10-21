@@ -12,7 +12,7 @@ const char* JSON_NODE_NAMES[] = {
 };
 
 ok64 JSONonLiteral($cu8c tok, JSONstate* state) {
-    sane($ok(tok) && state != nil && !Bempty(state->stack));
+    sane($ok(tok) && state != NULL && !Bempty(state->stack));
     u32 ndx = Blast(state->stack);
     js64* prnt = (js64*)Batp(state->json, ndx);
     test((prnt->node == JSON_NODE_OBJECT && (prnt->toks & 1) == 0) ||
@@ -27,7 +27,7 @@ ok64 JSONonLiteral($cu8c tok, JSONstate* state) {
 }
 
 ok64 JSONonString($cu8c tok, JSONstate* state) {
-    sane($ok(tok) && state != nil && !Bempty(state->stack));
+    sane($ok(tok) && state != NULL && !Bempty(state->stack));
     u32 ndx = Blast(state->stack);
     js64* prnt = (js64*)Batp(state->json, ndx);
     test((prnt->node == JSON_NODE_OBJECT && (prnt->toks & 1) == 0) ||
@@ -41,7 +41,7 @@ ok64 JSONonString($cu8c tok, JSONstate* state) {
 }
 
 ok64 JSONonNumber($cu8c tok, JSONstate* state) {
-    sane($ok(tok) && state != nil && !Bempty(state->stack));
+    sane($ok(tok) && state != NULL && !Bempty(state->stack));
     u32 ndx = Blast(state->stack);
     js64* prnt = (js64*)Batp(state->json, ndx);
     test((prnt->node == JSON_NODE_OBJECT && (prnt->toks & 3) == 2) ||
@@ -55,7 +55,7 @@ ok64 JSONonNumber($cu8c tok, JSONstate* state) {
 }
 
 ok64 JSONonOpen($cu8c tok, JSONstate* state, int node) {
-    sane($ok(tok) && state != nil && !Bempty(state->stack));
+    sane($ok(tok) && state != NULL && !Bempty(state->stack));
     u32 ndx = Blast(state->stack);
     js64* prnt = (js64*)Batp(state->json, ndx);
     test((prnt->node == JSON_NODE_OBJECT && (prnt->toks & 3) == 2) ||
@@ -71,7 +71,7 @@ ok64 JSONonOpen($cu8c tok, JSONstate* state, int node) {
 }
 
 ok64 JSONonClose($cu8c tok, JSONstate* state, int node) {
-    sane($ok(tok) && state != nil && !Bempty(state->stack));
+    sane($ok(tok) && state != NULL && !Bempty(state->stack));
     u32 ndx = Blast(state->stack);
     u32 toklen = Bdatalen(state->json);
     js64* arr = (js64*)Bu64atp(state->json, ndx);
@@ -97,7 +97,7 @@ ok64 JSONonCloseArray($cu8c tok, JSONstate* state) {
 }
 
 ok64 JSONonComma($cu8c tok, JSONstate* state) {
-    sane($ok(tok) && state != nil);
+    sane($ok(tok) && state != NULL);
     u32 ndx = Blast(state->stack);
     js64* prnt = (js64*)Batp(state->json, ndx);
     test((prnt->node == JSON_NODE_OBJECT && (prnt->toks & 3) == 3) ||
@@ -108,7 +108,7 @@ ok64 JSONonComma($cu8c tok, JSONstate* state) {
 }
 
 ok64 JSONonColon($cu8c tok, JSONstate* state) {
-    sane($ok(tok) && state != nil);
+    sane($ok(tok) && state != NULL);
     u32 ndx = Blast(state->stack);
     js64* prnt = (js64*)Batp(state->json, ndx);
     test((prnt->node == JSON_NODE_OBJECT && (prnt->toks & 3) == 1), JSONbad);

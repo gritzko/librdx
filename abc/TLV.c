@@ -4,7 +4,7 @@
 #include "PRO.h"
 
 ok64 TLVDrain(u8* t, u8c$ value, u8cs from) {
-    sane(t != nil && value != nil && $ok(from));
+    sane(t != NULL && value != NULL && $ok(from));
     u32 hlen = 0, blen = 0;
     call(TLVprobe, t, &hlen, &blen, from);
     value[0] = from[0] + hlen;
@@ -37,7 +37,7 @@ ok64 TLVFeed($u8 into, u8 type, u8cs value) {
 }
 
 ok64 TLVopen($u8 tlv, u8 type, u32** len) {
-    sane($ok(tlv) && len != nil && TLVlong(type));
+    sane($ok(tlv) && len != NULL && TLVlong(type));
     test($len(tlv) >= 5, TLVnoroom);
     **tlv = type;
     ++*tlv;
@@ -48,7 +48,7 @@ ok64 TLVopen($u8 tlv, u8 type, u32** len) {
 }
 
 ok64 TLVclose($u8 tlv, u8 type, u32* const* len) {
-    sane($ok(tlv) && TLVlong(type) && len != nil && *len != nil &&
+    sane($ok(tlv) && TLVlong(type) && len != NULL && *len != NULL &&
          (u8*)*len < *tlv && *(*((u8**)len) - 1) == type);
     size_t d = *tlv - (u8*)*len;
     test(d <= TLV_MAX_LEN && d >= 4, TLVbadrec);
@@ -81,7 +81,7 @@ ok64 TLVFeedKeyVal($u8 tlv, u8c type, u8cs key, $cu8c val) {
     done;
 }
 ok64 TLVDrain$(u8c$ rec, u8cs from) {
-    sane(rec != nil && $ok(from));
+    sane(rec != NULL && $ok(from));
     u32 hlen = 0, blen = 0;
     u8 t = 0;
     call(TLVprobe, &t, &hlen, &blen, from);
@@ -92,7 +92,7 @@ ok64 TLVDrain$(u8c$ rec, u8cs from) {
 }
 
 ok64 TLVDrainKeyVal(u8* type, u8cs key, $u8c val, $u8c tlv) {
-    sane(type != nil && key != nil && val != nil && $ok(tlv));
+    sane(type != NULL && key != NULL && val != NULL && $ok(tlv));
     u32 hlen = 0, blen = 0;
     call(TLVprobe, type, &hlen, &blen, tlv);
     u8cs body = {tlv[0] + hlen, tlv[0] + hlen + blen};

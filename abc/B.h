@@ -12,7 +12,7 @@
 
 con ok64 Bmapfail = 0x2f1974aa5b70;
 con ok64 Bnotnull = 0x2f2cf8cb9c30;
-con ok64 Bisnil = 0x2eddf2b70;
+con ok64 BisNULL = 0x2eddf2b70;
 con ok64 Bnotmap = 0xbcb3e31974;
 con ok64 Ballocfail = 0x2e5c30ce7aa5b70;
 con ok64 Bnotalloc = 0xbcb3e25c30ce7;
@@ -60,8 +60,8 @@ typedef void **voidbp;
 #define Bempty(b) $empty(Bdata(b))
 
 #define Bok(b) \
-    (b != nil && b[0] != nil && b[0] <= b[1] && b[1] <= b[2] && b[2] <= b[3])
-#define Bnil(b) (b == nil || b[0] == nil)
+    (b != NULL && b[0] != NULL && b[0] <= b[1] && b[1] <= b[2] && b[2] <= b[3])
+#define BNULL(b) (b == NULL || b[0] == NULL)
 #define Bhasroom(b) (b[2] < b[3])
 
 #define aBpad(T, n, l) \
@@ -112,7 +112,7 @@ fun void _Brebase(Bvoid buf, void *newhead, size_t newlen) {
 }
 
 fun ok64 Balloc(Bvoid b, size_t sz) {
-    if (!Bnil(b)) return Bnotnull;
+    if (!BNULL(b)) return Bnotnull;
     u8 *p = (u8 *)malloc(sz);
     if (p == NULL) return Ballocfail;
     u8 **buf = (u8 **)b;
@@ -134,12 +134,12 @@ fun ok64 Breserve(Bvoid b, size_t sz) {
     return Brealloc(b, roundup(Busysize(b) + sz, 256));
 }
 
-#define Bnilify(buf) memset((void **)buf, 0, sizeof(Bvoid));
+#define BNULLify(buf) memset((void **)buf, 0, sizeof(Bvoid));
 
 fun ok64 Bfree(Bvoid buf) {
-    if (Bnil(buf)) return Bisnil;
+    if (BNULL(buf)) return BisNULL;
     free(buf[0]);
-    Bnilify(buf);
+    BNULLify(buf);
     return OK;
 }
 

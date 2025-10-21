@@ -6,7 +6,7 @@
 #include "abc/TLV.h"
 
 ok64 LSMnext($u8 into, u8css lsm, $u8cZfn cmp, $u8cYfn mrg) {
-    sane($ok(into) && $ok(lsm) && cmp != nil && mrg != nil);
+    sane($ok(into) && $ok(lsm) && cmp != NULL && mrg != NULL);
     u8cs next = {}, _;
     aBpad2(u8cs, in, LSM_MAX_INPUTS);
 
@@ -32,7 +32,7 @@ ok64 LSMnext($u8 into, u8css lsm, $u8cZfn cmp, $u8cYfn mrg) {
 }
 
 ok64 LSMdrainruns(u8csb heap, u8cs input, $u8cZfn cmp) {
-    sane(Bok(heap) && $ok(input) && Bu8cshasroom(heap) && cmp != nil);
+    sane(Bok(heap) && $ok(input) && Bu8cshasroom(heap) && cmp != NULL);
     u8cs last = {};
     call(TLVDrain$, last, input);
     a$dup(u8c, run, last);
@@ -53,8 +53,8 @@ ok64 LSMdrainruns(u8csb heap, u8cs input, $u8cZfn cmp) {
 }
 
 ok64 LSMsort1(size_t* runs, $u8 into, u8cs data, $u8cZfn cmp, $u8cYfn mrg) {
-    sane($ok(into) && $ok(data) && $len(into) >= $len(data) && cmp != nil &&
-         mrg != nil);
+    sane($ok(into) && $ok(data) && $len(into) >= $len(data) && cmp != NULL &&
+         mrg != NULL);
     *runs = 0;
     while (!$empty(data)) {
         aBpad2(u8cs, runs, LSM_MAX_INPUTS);
@@ -69,8 +69,8 @@ ok64 LSMsort1(size_t* runs, $u8 into, u8cs data, $u8cZfn cmp, $u8cYfn mrg) {
 }
 
 ok64 LSMsort($u8 data, $u8cZfn cmp, $u8cYfn mrg, $u8 tmp) {
-    sane($ok(tmp) && $ok(data) && $len(tmp) >= $len(data) && cmp != nil &&
-         mrg != nil);
+    sane($ok(tmp) && $ok(data) && $len(tmp) >= $len(data) && cmp != NULL &&
+         mrg != NULL);
     size_t runs = 0;
     do {
         a$dup(u8, out, tmp);

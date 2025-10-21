@@ -9,11 +9,11 @@
 #include "PRO.h"
 
 int POLLlen(POLLstate state) {
-    if (state[0].fn == nil) return 0;
+    if (state[0].fn == NULL) return 0;
     int b = 0, e = POLL_MAX_FILES;
     while (b + 1 < e) {
         int m = (b + e) >> 1;
-        if (state[m].fn == nil) {
+        if (state[m].fn == NULL) {
             e = m;
         } else {
             b = m;
@@ -23,7 +23,7 @@ int POLLlen(POLLstate state) {
 }
 
 pro(POLLadd, POLLstate state, int fd, u8cs name, POLLfunI fi) {
-    sane(state != nil && fd >= 0);
+    sane(state != NULL && fd >= 0);
     int l = POLLlen(state);
     test(l < POLL_MAX_FILES, POLLnoroom);
     POLLctl* ctl = state + l;
@@ -44,7 +44,7 @@ pro(POLLadd, POLLstate state, int fd, u8cs name, POLLfunI fi) {
 }
 
 pro(POLLlisten, POLLstate state, int fd, u8cs name, POLLfunI fi) {
-    sane(state != nil && fd >= 0);
+    sane(state != NULL && fd >= 0);
     int l = POLLlen(state);
     test(l < POLL_MAX_FILES, POLLnoroom);
     POLLctl* ctl = state + l;
@@ -59,7 +59,7 @@ pro(POLLlisten, POLLstate state, int fd, u8cs name, POLLfunI fi) {
 }
 
 pro(POLLdelctl, POLLstate state, POLLctl* ctl, ok64 o) {
-    sane(state != nil && ctl != nil && ctl->fd >= 0);
+    sane(state != NULL && ctl != NULL && ctl->fd >= 0);
     Bu8free(ctl->readbuf);
     Bu8free(ctl->writebuf);
     Bu8csfree(ctl->writes);
@@ -72,7 +72,7 @@ pro(POLLdelctl, POLLstate state, POLLctl* ctl, ok64 o) {
 }
 
 pro(POLLread, POLLctl* ctl) {
-    sane(ctl != nil && ctl->fn != nil);
+    sane(ctl != NULL && ctl->fn != NULL);
     call(FILEdrain, u8bIdle(ctl->readbuf), ctl->fd);
     call((*ctl->fn), (struct POLLctl*)ctl);
     if (!Bu8hasdata(ctl->readbuf)) Breset(ctl->readbuf);
@@ -80,7 +80,7 @@ pro(POLLread, POLLctl* ctl) {
 }
 
 pro(POLLwrite, POLLctl* ctl) {
-    sane(ctl != nil && ctl->fn != nil);
+    sane(ctl != NULL && ctl->fn != NULL);
     call(FILEFeedv, ctl->fd, Bu8csdata(ctl->writes));
     if (Bdatalen(ctl->writes) == 0) {
         Breset(ctl->writebuf);
@@ -90,7 +90,7 @@ pro(POLLwrite, POLLctl* ctl) {
 }
 
 pro(POLLaccpt, POLLstate state, POLLctl* ctl) {
-    sane(ctl != nil && ctl->fn != nil);
+    sane(ctl != NULL && ctl->fn != NULL);
     u8 addr[64];
     socklen_t len = 64;
     int cfd = accept(ctl->fd, (struct sockaddr*)addr, &len);
@@ -107,7 +107,7 @@ pro(POLLonce, POLLstate state, size_t ms) {
     sane(1);
     struct pollfd fds[POLL_MAX_FILES];
     int l = 0;
-    while (l < POLL_MAX_FILES && state[l].fn != nil) {
+    while (l < POLL_MAX_FILES && state[l].fn != NULL) {
         int e = 0;
         if (Bu8cshasdata(state[l].writes)) e |= POLLOUT;
         if (Bu8hasroom(state[l].readbuf)) e |= POLLIN;

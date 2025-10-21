@@ -97,7 +97,6 @@ con ok64 $none = 0x3fcb3ca9;
 con ok64 $noroom = 0x3fcb3db3cf1;
 con ok64 $badarg = 0x3f9a5a25dab;
 
-#define nil NULL
 #define WORDS(k)        \
     union {             \
         u64 _64[k];     \

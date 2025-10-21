@@ -13,7 +13,7 @@ static const u32 X(SST, magic) = (u32)'S' | ((u32)'S' << 8) | ((u32)'T' << 16) |
 fun ok64 X(SST, meta)(X(SST, ) sst, SSTheader const** head, u8c$ meta) {
     SSTheader const* h = (SSTheader const*)*sst;
     if (h->metalen > Bpastlen(sst)) return Bmiss;
-    if (head != nil) *head = h;
+    if (head != NULL) *head = h;
     meta[0] = *sst + sizeof(SSTheader);
     meta[1] = *sst + h->metalen;
     return OK;
@@ -179,7 +179,7 @@ fun ok64 X(SST, get)(u8* type, u8c$ val, X(SST, ) sst, Key const* key) {
 }
 
 fun ok64 X(SST, end)(X(SST, ) sst, int* fd, SSTab* tab) {
-    sane(Bok(sst) && fd != nil && *fd != FILE_CLOSED && tab != nil);
+    sane(Bok(sst) && fd != NULL && *fd != FILE_CLOSED && tab != NULL);
     call(SKIPu8finish, sst, tab);
     call(FILEresize, fd, Busysize(sst));
     SSTheader* head = (SSTheader*)*sst;

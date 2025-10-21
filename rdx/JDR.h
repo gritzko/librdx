@@ -49,7 +49,7 @@ fun ok64 RDXFtxt2tlv($u8 tlv, $cu8c txt, id128 time) {
     u8 str[32];
     memcpy(str, *txt, tl);
     str[tl] = 0;
-    double d = strtod((char*)str, nil);
+    double d = strtod((char*)str, NULL);
     call(RDXCfeedF, tlv, d, time);
     done;
 }
@@ -64,7 +64,7 @@ fun ok64 RDXItxt2tlv($u8 tlv, $cu8c txt, id128 time) {
     u8 str[32];
     memcpy(str, *txt, tl);
     str[tl] = 0;
-    i64 i = strtol((char*)str, nil, 10);
+    i64 i = strtol((char*)str, NULL, 10);
     call(RDXCfeedI, tlv, i, time);
     done;
 }

@@ -4,7 +4,7 @@
 #include "PRO.h"
 
 ok64 UDPBind(int *fd, u8cs addr) {
-    sane(fd != nil && !$empty(addr));
+    sane(fd != NULL && !$empty(addr));
     int s, sfd;
     struct addrinfo *result = NULL, *rp;
 

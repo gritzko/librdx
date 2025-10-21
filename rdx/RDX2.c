@@ -24,7 +24,7 @@ ok64 RDXutf8sDrainID(utf8cs from, ref128p ref) {
     u8 DELIM = '-';
     u8c* p = $u8find(t, &DELIM);
     ok64 o = OK;
-    if (p == nil) {
+    if (p == NULL) {
         test($len(t) <= 10, RONbad);
         ref->src = 0;
         o = RONdrain64(&ref->seq, t);

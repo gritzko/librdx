@@ -58,7 +58,7 @@ pro(FILEClose, int *fd) {
 }
 
 ok64 FILECreate(int *fd, const path name) {
-    sane(fd != nil && $ok(name));
+    sane(fd != NULL && $ok(name));
     aFILEpath(p, name);
     *fd = open(p, O_CREAT | O_RDWR | O_TRUNC, S_IRUSR | S_IWUSR);
     if (*fd < 0) fail(FILEErr(FILEnoopen));
@@ -66,7 +66,7 @@ ok64 FILECreate(int *fd, const path name) {
 }
 
 ok64 FILEOpen(int *fd, const path name, int flags) {
-    sane(fd != nil && $ok(name));
+    sane(fd != NULL && $ok(name));
     aFILEpath(p, name);
     *fd = open(p, flags);
     if (*fd < 0) fail(FILEErr(FILEnoopen));
@@ -74,7 +74,7 @@ ok64 FILEOpen(int *fd, const path name, int flags) {
 }
 
 ok64 FILEOpenAt(int *fd, int const *dirfd, const path name, int flags) {
-    sane(fd != nil && $ok(name) && FILEok(*dirfd));
+    sane(fd != NULL && $ok(name) && FILEok(*dirfd));
     aFILEpath(p, name);
     *fd = openat(*dirfd, p, flags);
     if (*fd < 0) fail(FILEErr(FILEnoopen));
@@ -82,7 +82,7 @@ ok64 FILEOpenAt(int *fd, int const *dirfd, const path name, int flags) {
 }
 
 ok64 FILEstat(struct stat *ret, const path name) {
-    sane(ret != nil && $ok(name));
+    sane(ret != NULL && $ok(name));
     aFILEpath(p, name);
     int rc = stat(p, ret);
     if (rc == 0) skip;
@@ -105,7 +105,7 @@ ok64 FILEstat(struct stat *ret, const path name) {
 }
 
 ok64 FILEsize(size_t *size, int const *fd) {
-    sane(size != nil && FILEok(*fd));
+    sane(size != NULL && FILEok(*fd));
     struct stat sb = {};
     testc(0 == fstat(*fd, &sb), FILEnostat);
     *size = sb.st_size;
@@ -141,7 +141,7 @@ ok64 FILErmrf(path const name) {
 }
 
 ok64 FILEMap(Bu8 buf, int const *fd, int mode) {
-    sane(buf != nil && *buf == nil && FILEok(*fd));
+    sane(buf != NULL && *buf == NULL && FILEok(*fd));
     size_t size;
     call(FILEsize, &size, fd);
     u8 *map = (u8 *)mmap(NULL, size, mode, MAP_FILE | MAP_SHARED, *fd, 0);
@@ -157,6 +157,6 @@ ok64 FILEunmap(Bu8 buf) {
     sane(Bok(buf));
     u8c **b = (u8c **)buf;
     testc(-1 != munmap(buf[0], Blen(b)), FILEfail);
-    b[0] = b[1] = b[2] = b[3] = nil;
+    b[0] = b[1] = b[2] = b[3] = NULL;
     done;
 }

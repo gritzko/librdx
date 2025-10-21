@@ -187,7 +187,7 @@ pro(feedbullet, $u8 $into, u64 stack, b8 head, u16 list) {
 }
 
 fun pro(MARKlinetext, u8cs text, u64 lno, MARKstate const* state) {
-    sane(state != nil);
+    sane(state != NULL);
     $mv(text, state->lineB[0] + lno);
     u64 div = Bat(state->divB, lno);
     u8 depth = u64bytelen(div);
@@ -198,7 +198,7 @@ fun pro(MARKlinetext, u8cs text, u64 lno, MARKstate const* state) {
 
 pro(MARKANSIdiv, $u8 $into, u64 lfrom, u64 ltill, u64 stack, u32 width,
     u16 list, MARKstate const* state) {
-    sane($ok($into) && state != nil);
+    sane($ok($into) && state != NULL);
     u64 depth = u64bytelen(stack);
     test(width > depth * 4, MARKnoroom);
     u64 lno = lfrom;
@@ -244,7 +244,7 @@ pro(MARKANSIdiv, $u8 $into, u64 lfrom, u64 ltill, u64 stack, u32 width,
 }
 
 pro(MARKANSI, $u8 $into, u32 width, MARKstate const* state) {
-    sane($ok($into) && state != nil && !Bempty(state->divB));
+    sane($ok($into) && state != NULL && !Bempty(state->divB));
     u64$ divs = u64bData(state->divB);
     u8cp$ lines = u8cpbData(state->lineB);
     u64 lists = 0;
@@ -284,7 +284,7 @@ pro(MARKMARQdiv, u64 from, u64 till, MARKstate* state) {
 }
 
 pro(MARKMARQ, MARKstate* state) {
-    sane(state != nil && !Bempty(state->divB));
+    sane(state != NULL && !Bempty(state->divB));
     u64$ divs = u64bData(state->divB);
     u8cp$ lines = u8cpbData(state->lineB);
     u64$ blocks = u64bData(state->pB);
@@ -296,7 +296,7 @@ pro(MARKMARQ, MARKstate* state) {
 
 pro(MARKHTMLp, $u8 $into, u64 from, u64 till, u64 stack,
     MARKstate const* state) {
-    sane($ok($into) && state != nil && till <= Bdatalen(state->lineB));
+    sane($ok($into) && state != NULL && till <= Bdatalen(state->lineB));
     u8 depth = u64bytelen(stack);
     u8c* text0 = state->text[0];
     u8c* fmt0 = state->fmt[0];
@@ -327,7 +327,7 @@ fun u8 samedepth(u64 stack, u64 div) {
 }
 
 pro(MARKHTML, $u8 $into, MARKstate const* state) {
-    sane($ok($into) && state != nil && !Bempty(state->divB));
+    sane($ok($into) && state != NULL && !Bempty(state->divB));
     u64$ divs = u64bData(state->divB);
     u8cp$ lines = u8cpbData(state->lineB);
     test($len(divs) == $len(lines), FAILsanity);
@@ -413,7 +413,7 @@ ok64 MARKonCode($cu8c tok, MARKstate* state) {
 }
 
 pro(MARKonLine, $cu8c tok, MARKstate* state) {
-    sane($ok(tok) && state != nil);
+    sane($ok(tok) && state != NULL);
     b8 end = tok[1] == state->text[1];
     if (Bempty(state->pB) ||
         !samediv(Blast(state->divB), state->_div)) {  // FIXME gaps

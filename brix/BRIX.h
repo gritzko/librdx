@@ -72,7 +72,7 @@ typedef struct {
 } BRIX;
 
 fun b8 BRIXok(BRIX const* brix) {
-    return brix != nil && Bok(brix->ssts) && $ok(brix->home);
+    return brix != NULL && Bok(brix->ssts) && $ok(brix->home);
 }
 
 // close everything previously open, then

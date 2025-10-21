@@ -18,7 +18,7 @@
 #define MASK (ABC_HASH_LINE - 1)
 
 fun ok64 X(HASH, scan)(size_t *ndx, X($, ) data, T const *rec) {
-    sane($ok(data) && ndx != nil && 0 == ($len(data) & MASK));
+    sane($ok(data) && ndx != NULL && 0 == ($len(data) & MASK));
     size_t off = (*ndx) & MASK;
     size_t base = (*ndx) & ~MASK;
     for (size_t i = off + 1; i < off + ABC_HASH_LINE; ++i) {

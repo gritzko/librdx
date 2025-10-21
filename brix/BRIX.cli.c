@@ -216,7 +216,7 @@ ok64 BRIX_list(BRIX* brix, id128 id, ok64 sub, u8cs args) {
     if (sub == 0 || sub == SUBsst || sub == SUBdeps) {
         aBcpad(u8, out, LSM_MAX_INPUTS * sizeof(sha256) * 2 * 8);  // TODO
         aBusy(sha256, shas, brix->shas);
-        sha256c* head = nil;
+        sha256c* head = NULL;
         sha256$c opened = Bsha256past(brix->shas);
         if (!$empty(opened)) head = $sha256last(opened);
         for (int i = 0; i < $len(shas); ++i) {
@@ -229,7 +229,7 @@ ok64 BRIX_list(BRIX* brix, id128 id, ok64 sub, u8cs args) {
             if (sub == SUBdeps) {
                 SSTu128* sst = Batp(brix->ssts, i);
                 $sha256c deps = {};
-                call(SSTu128meta, *sst, nil, (u8c$)deps);
+                call(SSTu128meta, *sst, NULL, (u8c$)deps);
                 u8 flag = '>';
                 $eat(deps) {
                     a$rawcp(depraw, *deps);
@@ -262,7 +262,7 @@ cmd_t COMMANDS[] = {
     {$u8str("get"), BRIX_get},      //
     {$u8str("reget"), BRIX_reget},  //
     {$u8str("list"), BRIX_list},    //
-    {$u8str(""), nil},
+    {$u8str(""), NULL},
 };
 
 ok64 BRIXcli() {
@@ -304,8 +304,8 @@ ok64 BRIXcli() {
             fail(BRIXnoverb);
         }
         int v = 0;
-        while (!$eq(COMMANDS[v].name, verb) && COMMANDS[v].fn != nil) ++v;
-        test(COMMANDS[v].fn != nil, BRIXnoverb);
+        while (!$eq(COMMANDS[v].name, verb) && COMMANDS[v].fn != NULL) ++v;
+        test(COMMANDS[v].fn != NULL, BRIXnoverb);
         if (v != 0 && !BRIXok(&brix)) {
             call(BRIXopenrepo, &brix, path);
         }

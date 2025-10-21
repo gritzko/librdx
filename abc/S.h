@@ -23,11 +23,11 @@
 #define $atp(s, n) (($head(s) + (n)))
 #define $in(s, p) (p - s[0])
 #define $in$(s, ins) (ins[0] - s[0])
-#define $nil(s) (s != NULL && s[0] == NULL && s[1] == NULL)
+#define $NULL(s) (s != NULL && s[0] == NULL && s[1] == NULL)
 
-#define $empty(s) (s == nil || $head(s) >= $term(s))
+#define $empty(s) (s == NULL || $head(s) >= $term(s))
 #define $nospace(s, l) ($head(s) + (l) > $term(s))
-#define $ok(s) (s != nil && *s != nil && s[1] >= s[0])
+#define $ok(s) (s != NULL && *s != NULL && s[1] >= s[0])
 #define $within(h, n) (n[0] >= h[0] && n[1] <= h[1])
 
 #define a$(T, n, a) T *n[2] = {(a), (a) + (sizeof(a) / sizeof(T))};
@@ -73,9 +73,9 @@
     }
 
 // produce a subslice given an offset
-#define $mvnil(s1)                \
+#define $mvNULL(s1)                \
     {                             \
-        s1[0] = nil, s1[1] = nil; \
+        s1[0] = NULL, s1[1] = NULL; \
     }
 
 #define $sub(s, o) {$off(s, o), s[1]}
@@ -170,7 +170,7 @@ fun ok64 $feedf(u8 **into, u8 const *const *tmpl, ...) {
     va_list ap;
     size_t l = 0;
     ok64 o = OK;
-    u8 const **sarg = nil;
+    u8 const **sarg = NULL;
     a$dup(u8 const, p, tmpl);
     va_start(ap, tmpl);
     while (!$empty(p) && !$empty(into)) {

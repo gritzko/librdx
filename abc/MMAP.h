@@ -9,7 +9,7 @@ con ok64 MMAPfail = 0x596299aa5b70;
 ok64 MMAPopen(voidb buf, size_t size);
 
 fun ok64 MMAPclose(voidb buf) {
-    if (buf == nil || *buf == nil) return MMAPbadarg;
+    if (buf == NULL || *buf == NULL) return MMAPbadarg;
     munmap(buf[0], Bsize(buf));
     memset((void **)buf, 0, sizeof(voidb));
     return OK;

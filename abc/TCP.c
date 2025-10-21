@@ -32,7 +32,7 @@ ok64 TCPConnect(int *fd, u8csc address, b8 nonblocking) {
 }
 
 pro(TCPListen, int *fd, u8cs addr) {
-    sane(fd != nil && !$empty(addr));
+    sane(fd != NULL && !$empty(addr));
     int s, sfd;
     struct addrinfo *result = NULL, *rp;
 
