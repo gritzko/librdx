@@ -499,7 +499,7 @@ ok64 rdxbOuto(rdxb reader) {
     done;
 }
 
-ok64 rdxpsUpAt(rdxps heap, size_t ndx, rdxZ z) {
+ok64 rdxpsUpAt(rdxps heap, size_t ndx, rdxz z) {
     sane(ndx < rdxpsLen(heap));
     int a = ndx;
     while (a) {
@@ -511,7 +511,7 @@ ok64 rdxpsUpAt(rdxps heap, size_t ndx, rdxZ z) {
     done;
 }
 
-ok64 rdxpsDownAt(rdxps heap, size_t ndx, rdxZ z) {
+ok64 rdxpsDownAt(rdxps heap, size_t ndx, rdxz z) {
     sane(rdxpsOK(heap) && ndx < rdxpsLen(heap) && z != NULL);
     size_t i = ndx;
     size_t n = rdxpsLen(heap);
@@ -528,7 +528,7 @@ ok64 rdxpsDownAt(rdxps heap, size_t ndx, rdxZ z) {
     done;
 }
 
-ok64 rdxpsEqs(rdxps heap, u32p eqs, rdxZ z) {
+ok64 rdxpsEqs(rdxps heap, u32p eqs, rdxz z) {
     sane($ok(heap) && eqs != NULL && z != NULL);
     if ($len(heap) <= 1) {
         *eqs = $len(heap);
@@ -551,7 +551,7 @@ ok64 rdxpsEqs(rdxps heap, u32p eqs, rdxZ z) {
     done;
 }
 
-ok64 rdxpsNexts(rdxps heap, u32 eqs, rdxZ z) {  // ejects
+ok64 rdxpsNexts(rdxps heap, u32 eqs, rdxz z) {  // ejects
     sane($ok(heap) && z != NULL);
     u8 i = eqs;
     while (i > 0) {
@@ -569,7 +569,7 @@ ok64 rdxpsNexts(rdxps heap, u32 eqs, rdxZ z) {  // ejects
 }
 
 //
-ok64 RDXu8ssMonoFeed(u8css spans, u8cs input, rdxZ z) {
+ok64 RDXu8ssMonoFeed(u8css spans, u8cs input, rdxz z) {
     sane(!$empty(spans) && input != NULL && z != NULL);
     u8cs span;
     u8csDup(span, input);
@@ -757,7 +757,7 @@ ok64 RDXu8bMergeLWW(u8bp merged, rdxpsc eqs) {
     if (eqlen == 1) return RDXu8bFeed(merged, toprev);
     a_head(rdxp, wins, eqs, eqlen);
     b8 plex = NO;
-    rdxZ z = NULL;
+    rdxz z = NULL;
     switch ((**wins)->type) {
         case RDX_FLOAT: {
             f64 max = f64MinValue;
@@ -822,7 +822,7 @@ ok64 RDXu8bMergeLWW(u8bp merged, rdxpsc eqs) {
     done;
 }
 
-ok64 RDXu8bMerge(u8bp merged, rdxps inputs, rdxZ z) {
+ok64 RDXu8bMerge(u8bp merged, rdxps inputs, rdxz z) {
     sane($ok(merged) && $ok(inputs) && z != NULL);
     while (!$empty(inputs)) {
         u32 eqs = 0;
@@ -834,7 +834,7 @@ ok64 RDXu8bMerge(u8bp merged, rdxps inputs, rdxZ z) {
     done;
 }
 
-ok64 RDXu8sMergeZ(u8bp merged, u8css inputs, rdxZ less) {
+ok64 RDXu8sMergeZ(u8bp merged, u8css inputs, rdxz less) {
     sane($ok(merged) && $ok(inputs));
     a_pad(rdx, its, RDX_MAX_INPUTS);
     a_pad(rdxp, ins, RDX_MAX_INPUTS);
@@ -853,7 +853,7 @@ ok64 RDXu8sMergeZ(u8bp merged, u8css inputs, rdxZ less) {
     done;
 }
 
-b8 rdx1Z(rdxcp a, rdxcp b) {
+ok64 rdx1Z(rdxcp a, rdxcp b) {
     u8 at = a->type;
     u8 bt = b->type;
     if (at != bt) return rdxTypeZ(a, b);
@@ -873,7 +873,7 @@ b8 rdx1Z(rdxcp a, rdxcp b) {
     }
 }
 
-b8 rdxTypeZ(rdxcp a, rdxcp b) {
+ok64 rdxTypeZ(rdxcp a, rdxcp b) {
     u8 at = a->type;
     u8 bt = b->type;
     if (at == bt) return GREQ;
@@ -882,11 +882,11 @@ b8 rdxTypeZ(rdxcp a, rdxcp b) {
     return aplex == bplex ? at < bt : aplex < bplex;
 }
 
-b8 rdxTupleZ(rdxcp a, rdxcp b) { return GREQ; }
+ok64 rdxTupleZ(rdxcp a, rdxcp b) { return GREQ; }
 
-b8 rdxLinearZ(rdxcp a, rdxcp b) { return ref128Z(&a->id, &b->id); }
+ok64 rdxLinearZ(rdxcp a, rdxcp b) { return ref128Z(&a->id, &b->id); }
 
-b8 rdxEulerZ(rdxcp a, rdxcp b) {
+ok64 rdxEulerZ(rdxcp a, rdxcp b) {
     rdx aa;
     if (a->type == RDX_TUPLE) {
         rdxInit(&aa, a->plex);
@@ -902,9 +902,9 @@ b8 rdxEulerZ(rdxcp a, rdxcp b) {
     return rdx1Z(a, b);
 }
 
-b8 rdxMultixZ(rdxcp a, rdxcp b) { return u64Z(&a->id.src, &b->id.src); }
+ok64 rdxMultixZ(rdxcp a, rdxcp b) { return u64Z(&a->id.src, &b->id.src); }
 
-b8 rdxLastWriteWinsZ(rdxcp a, rdxcp b) {
+ok64 rdxLastWriteWinsZ(rdxcp a, rdxcp b) {
     if (!ref128Eq(&a->id, &b->id)) return ref128Z(&a->id, &b->id);
     u8 at = a->type;
     u8 bt = b->type;

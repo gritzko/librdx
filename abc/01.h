@@ -269,6 +269,9 @@ fun h64 mix64(u64 a) {
 #define u64max 0xffffffffffffffffUL
 con u128 u128max = {u64max, u64max};
 
+#define LESS 0x54e71c
+#define GREQ 0
+
 #define O1join32(lo, hi) (((u64)lo) | (((u64)hi) << 32))
 #define O1low32(lohi) (((u64)lohi) & 0xffffffff)
 #define O1high32(lohi) (((u64)lohi) >> 32)

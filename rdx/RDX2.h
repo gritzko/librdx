@@ -137,12 +137,10 @@ fun int rdxpcmp(rdxp const* a, rdxp const* b) { return rdxcmp(*a, *b); }
 
 extern u8cs RDX_ROOT_REC;
 
-#define LESS 1
-#define GREQ 0
 typedef b8 (*rdxZ)(rdxcp a, rdxcp b);
 
 ok64 rdxNext(rdxp it);
-fun b8 rdxOK(rdxp it) {return it->reclen > 0; }
+fun b8 rdxOK(rdxp it) { return it->reclen > 0; }
 fun ok64 rdxInit(rdxp it, u8csc data) {
     zerop(it);
     u8csDup(it->rest, data);
@@ -164,29 +162,29 @@ ok64 rdxbNext(rdxb reader);
 ok64 rdxbInto(rdxb reader);
 ok64 rdxbOuto(rdxb reader);
 
-ok64 rdxpsUpAt(rdxps heap, size_t ndx, rdxZ z);
-fun ok64 rdxpsUp(rdxps heap, rdxZ z) {
+ok64 rdxpsUpAt(rdxps heap, size_t ndx, rdxz z);
+fun ok64 rdxpsUp(rdxps heap, rdxz z) {
     return rdxpsUpAt(heap, $len(heap) - 1, z);
 }
-ok64 rdxpsDownAt(rdxps heap, size_t ndx, rdxZ z);
-fun ok64 rdxpsDown(rdxps heap, rdxZ z) { return rdxpsDownAt(heap, 0, z); }
-ok64 rdxpsEqs(rdxps heap, u32p eqs, rdxZ z);
-ok64 rdxpsNexts(rdxps heap, u32 eqs, rdxZ z);  // ejects
+ok64 rdxpsDownAt(rdxps heap, size_t ndx, rdxz z);
+fun ok64 rdxpsDown(rdxps heap, rdxz z) { return rdxpsDownAt(heap, 0, z); }
+ok64 rdxpsEqs(rdxps heap, u32p eqs, rdxz z);
+ok64 rdxpsNexts(rdxps heap, u32 eqs, rdxz z);  // ejects
 
 ok64 RDXu8sFeed(u8s rdx, rdxcp it);
 
 ok64 RDXu8sDrain(rdxp it, u8s rdx);
 
-ok64 RDXu8ssMonoFeed(u8css spans, u8cs input, rdxZ z);
+ok64 RDXu8ssMonoFeed(u8css spans, u8cs input, rdxz z);
 
-fun b8 u64Z(u64cp a, u64cp b) { return a < b; }
-b8 rdxTypeZ(rdxcp a, rdxcp b);
-b8 rdx1Z(rdxcp a, rdxcp b);
-b8 rdxTupleZ(rdxcp a, rdxcp b);
-b8 rdxLinearZ(rdxcp a, rdxcp b);
-b8 rdxEulerZ(rdxcp a, rdxcp b);
-b8 rdxMultixZ(rdxcp a, rdxcp b);
-b8 rdxLastWriteWinsZ(rdxcp a, rdxcp b);
+fun ok64 u64Z(u64cp a, u64cp b) { return a < b; }
+ok64 rdxTypeZ(rdxcp a, rdxcp b);
+ok64 rdx1Z(rdxcp a, rdxcp b);
+ok64 rdxTupleZ(rdxcp a, rdxcp b);
+ok64 rdxLinearZ(rdxcp a, rdxcp b);
+ok64 rdxEulerZ(rdxcp a, rdxcp b);
+ok64 rdxMultixZ(rdxcp a, rdxcp b);
+ok64 rdxLastWriteWinsZ(rdxcp a, rdxcp b);
 
 fun ok64 RDXu8bFeed(u8b builder, rdxcp what) {
     return RDXu8sFeed(u8bIdle(builder), what);
@@ -199,9 +197,9 @@ ok64 RDXu8bFeedAll(u8s into, u8cs from);
 
 ok64 RDXu8bMergeLWW(u8b merged, rdxpsc eqs);
 
-ok64 RDXu8bMerge(u8b merged, rdxps inputs, rdxZ z);
+ok64 RDXu8bMerge(u8b merged, rdxps inputs, rdxz z);
 
-ok64 RDXu8sMergeZ(u8s merged, u8css inputs, rdxZ z);
+ok64 RDXu8sMergeZ(u8s merged, u8css inputs, rdxz z);
 
 fun ok64 RDXu8sMerge(u8bp merged, u8css inputs) {
     return RDXu8sMergeZ(merged, inputs, rdxTupleZ);
