@@ -69,8 +69,8 @@ pro(HASH1) {
 pro(HASH3) {
     sane(1);
     Bkv32 dictbuf = {};
-    Bkv32alloc(dictbuf, 1024);
-    kv32$ dict = Bkv32idle(dictbuf);
+    kv32bAllocate(dictbuf, 1024);
+    kv32$ dict = kv32bIdle(dictbuf);
 
     kv32 a = {.key = 6220, .val = 2};
     call(HASHkv32put, dict, &a);
@@ -91,7 +91,7 @@ pro(HASH3) {
     testeq(a.val, 2);
     mute(HASHkv32get(&b, dict), HASHnone);
 
-    Bkv32free(dictbuf);
+    kv32bFree(dictbuf);
     done;
 }
 
@@ -100,12 +100,12 @@ pro(HASH3) {
 pro(HASHd) {
     sane(1);
     Bu32 dictbuf = {};
-    Bu32alloc(dictbuf, 16);
+    u32bAllocate(dictbuf, 16);
     u32$ dict = u32bData(dictbuf);
     void **b = (void **)dictbuf;
     b[2] = b[3];
     Bu32 copybuf = {};
-    Bu32alloc(copybuf, 16);
+    u32bAllocate(copybuf, 16);
 
     i32 ins[LENd] = {1,  2,  3,  4,   -4, 5,   -5, 5,   6,  7,  8,  9,
                      10, 11, 12, -12, 12, -12, 13, -13, 14, 15, 15, 15};
@@ -119,7 +119,7 @@ pro(HASHd) {
             HASHu32del(dict, &rec);
         }
     }
-    u32sFeed(u32bIdle(copybuf), Bu32cdata(dictbuf));
+    u32sFeed(u32bIdle(copybuf), u32cbData(dictbuf));
 
     for (int j = 0; j < 1000; ++j) {
         Bzero(dictbuf);
@@ -168,8 +168,8 @@ pro(HASHd) {
         $testeq(u32bData(dictbuf), u32bData(copybuf));
     }
 
-    Bu32free(dictbuf);
-    Bu32free(copybuf);
+    u32bFree(dictbuf);
+    u32bFree(copybuf);
     done;
 }
 

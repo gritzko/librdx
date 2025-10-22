@@ -13,20 +13,20 @@ con ok64 NESTnodata = 0x5ce71dcb3a25e25;
 con ok64 NESTbad = 0x1739c766968;
 con ok64 NESTnone = 0x5ce71dcb3ca9;
 
-ok64 NESTinsert(Bu8 ct, ok64 var);
+ok64 NESTInsert(u8bp ct, ok64 var);
 
-ok64 NESTsplice(Bu8 ct, ok64 var);
+ok64 NESTSplice(u8bp ct, ok64 var);
 
-ok64 NESTsplicemany(Bu8 ct, ok64 var, b8 some);
+ok64 NESTSpliceMany(u8bp ct, ok64 var, b8 some);
 
-fun ok64 NESTspliceall(Bu8 ct, ok64 var) {
-    return NESTsplicemany(ct, var, YES);
+fun ok64 NESTSpliceAll(u8bp ct, ok64 var) {
+    return NESTSpliceMany(ct, var, YES);
 }
 
-fun ok64 NESTspliceany(Bu8 ct, ok64 var) { return NESTsplicemany(ct, var, NO); }
+fun ok64 NESTSpliceAny(u8bp ct, ok64 var) { return NESTSpliceMany(ct, var, NO); }
 
-ok64 NESTfeed(Bu8 ct, u8cs insert);
+ok64 NESTFeed(u8bp ct, u8cs insert);
 
-ok64 NESTrender($u8 into, Bu8 ct);
+ok64 NESTRender(u8s into, u8bp ct);
 
 #endif

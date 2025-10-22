@@ -16,9 +16,9 @@ pro(RDXZtestvalue, Bu8 testbuf) {
     aBcpad(u8, tlv, PAGESIZE);
     aBcpad(u64, stack, 1024);
     aBcpad(u8, pad, PAGESIZE);
-    ok64 o = JDRdrain(tlvidle, Bu8cdata(testbuf));
+    ok64 o = JDRdrain(tlvidle, u8cbData(testbuf));
     if (o != OK) {
-        $print(Bu8cdata(testbuf));  // state.text);
+        $print(u8cbData(testbuf));  // state.text);
         fail(o);
     }
     aBcpad(u8cs, elem, 64);

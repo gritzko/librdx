@@ -6,13 +6,13 @@
 #include "TCP.h"
 #include "TEST.h"
 
-ok64 funIecho(POLLctl* ctl) { return POLLfeed(ctl, Bu8cdata(ctl->readbuf)); }
+ok64 funIecho(POLLctl* ctl) { return POLLfeed(ctl, u8cbData(ctl->readbuf)); }
 
 u8 count = 0;
 
 ok64 funIcount(POLLctl* ctl) {
     u8 n = 0;
-    ok64 o = $u8drain1(&n, u8bData(ctl->readbuf));
+    ok64 o = u8sDrain1(u8cbData(ctl->readbuf), &n);
     if (o == OK && n != count) return faileq;
     ++count;
     a$rawc($n, count);

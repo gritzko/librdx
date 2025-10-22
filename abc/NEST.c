@@ -10,15 +10,15 @@ typedef struct {
 
 #define NESTlog(ct) ((mark128**)ct + 2)
 
-fun mark128* NESTmark(Bu8 ct, u32 ndx) {
+fun mark128* NESTmark(u8bp ct, u32 ndx) {
     mark128** log = NESTlog(ct);
     assert(ndx > 0 && ndx <= $len(log));
     return log[1] - ndx;
 }
 
-fun u32 NESTloglen(Bu8 ct) { return $len(NESTlog(ct)); }
+fun u32 NESTloglen(u8bp ct) { return $len(NESTlog(ct)); }
 
-fun ok64 NESTaddmark(Bu8 ct, mark128 const* rec) {
+fun ok64 NESTaddmark(u8bp ct, mark128 const* rec) {
     mark128** log = NESTlog(ct);
     u8$ idle = NESTidle(ct);
     if ($size(idle) < sizeof(u128)) return NESTnoroom;
@@ -27,18 +27,18 @@ fun ok64 NESTaddmark(Bu8 ct, mark128 const* rec) {
     return OK;
 }
 
-fun ok64 NESTaddvar(Bu8 ct, u64 var) {
+fun ok64 NESTaddvar(u8bp ct, u64 var) {
     mark128 mark = {.var = var, .pos = $len(NESTdata(ct))};
     return NESTaddmark(ct, &mark);
 }
 
-fun u32 NESTfind(Bu8 ct, u64 var) {
+fun u32 NESTfind(u8bp ct, u64 var) {
     for (u32 i = $len(NESTlog(ct)); i > 0; --i)
         if (NESTmark(ct, i)->var == var) return i;
     return 0;
 }
 
-ok64 NESTsplice(Bu8 ct, u64 var) {
+ok64 NESTSplice(u8bp ct, u64 var) {
     sane(Bok(ct));
     u32 at = NESTfind(ct, var);
     if (at == 0) return NESTnone;
@@ -49,7 +49,7 @@ ok64 NESTsplice(Bu8 ct, u64 var) {
     done;
 }
 
-ok64 NESTsplicemany(Bu8 ct, u64 var, b8 some) {
+ok64 NESTSpliceMany(u8bp ct, u64 var, b8 some) {
     sane(Bok(ct));
     mark128 mark = {.pos = $len(NESTdata(ct))};
     call(NESTaddmark, ct, &mark);
@@ -91,7 +91,7 @@ ok64 NESTscanvar(ok64* var, u8cs input) {
     done;
 }
 
-ok64 NESTfeed(Bu8 ct, u8cs insert) {
+ok64 NESTFeed(u8bp ct, u8cs insert) {
     sane(Bok(ct) && $ok(insert));
     u8$ idle = NESTidle(ct);
     u8c$ data = NESTdata(ct);
@@ -113,7 +113,7 @@ ok64 NESTfeed(Bu8 ct, u8cs insert) {
     done;
 }
 
-ok64 NESTrendertree($u8 into, Bu8 ct, u32 ndx) {
+ok64 NESTRenderTree(u8s into, u8bp ct, u32 ndx) {
     sane(Bok(ct) && $ok(into));
     u8c$ data = NESTdata(ct);
     mark128 zero = {};
@@ -128,7 +128,7 @@ ok64 NESTrendertree($u8 into, Bu8 ct, u32 ndx) {
             call(u8sFeed, into, part);
             from = till;
             if (next->ins != 0) {
-                call(NESTrendertree, into, ct, next->ins);
+                call(NESTRenderTree, into, ct, next->ins);
             }
             next = NESTmark(ct, ++n);
         }
@@ -140,11 +140,11 @@ ok64 NESTrendertree($u8 into, Bu8 ct, u32 ndx) {
     done;
 }
 
-ok64 NESTrender($u8 into, Bu8 ct) {
+ok64 NESTRender(u8* into[2], u8bp ct) {
     sane($ok(into) && Bok(ct));
     u32 from = 0;
     mark128 mark = {.pos = $len(NESTdata(ct))};
     try(NESTaddmark, ct, &mark);
-    then try(NESTrendertree, into, ct, 0);
+    then try(NESTRenderTree, into, ct, 0);
     done;
 }

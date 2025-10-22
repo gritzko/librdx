@@ -50,7 +50,7 @@ ok64 JDRonMLString($cu8c tok, JDRstate* state) {
 }
 ok64 JDRonStamp($cu8c tok, JDRstate* state) {
     assert(**tok == '@');
-    a_tail(u8c, r, tok, 1);
+    a_rest(u8c, r, tok, 1);
     return RDXutf8sDrainID(r, &state->cur.r);
 }
 ok64 JDRonNoStamp($cu8c tok, JDRstate* state) {

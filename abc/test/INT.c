@@ -32,7 +32,7 @@ pro(Utest1) {
     a$(u8, slice, array);
     $eat(slice) { printf("%i\n", **slice); }
     Bu8 buf = {};
-    Bu8alloc(buf, 32);
+    u8bAllocate(buf, 32);
     u8 i = 0;
     $eat(u8bIdle(buf)) { Bi(buf) = i++; }
     assert(Bd(buf) == 0);
@@ -45,12 +45,12 @@ pro(Utest1) {
     u8 **data = u8bData(buf);
     $eat(data) printf("%c", (int)(**data + 'A'));
     printf("\n");
-    $u8 abc = $cut(Bu8past(buf), 0, 3);
+    $u8 abc = $cut(u8bPast(buf), 0, 3);
     assert($len(abc) == 3);
     u8 three = 3;
-    u8c *c = $u8find(Bu8cpast(buf), &three);
+    u8c *c = $u8find(u8cbPast(buf), &three);
     assert(c - buf[0] == 3);
-    Bu8free(buf);
+    u8bFree(buf);
     done;
 }
 
@@ -67,7 +67,7 @@ pro(OKdec) {
     sane(YES);
     aBpad(u8, into, 64);
     call(u64decfeed, u8bIdle(into), 12345UL);
-    $print(Bu8cdata(into));
+    $print(u8cbData(into));
     a$str(str, "12345");
     testeq(YES, $eq(u8bData(into), str));
     done;

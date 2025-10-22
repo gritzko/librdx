@@ -48,7 +48,7 @@ ok64 BRIXopenrepo(BRIX* brix, u8cs path) {
     call(Bu8Balloc, brix->ssts, LSM_MAX_INPUTS);
     call(Bsha256alloc, brix->shas, LSM_MAX_INPUTS);
     Bu8 pb = {};
-    call(Bu8alloc, pb, $len(path));
+    call(u8bAllocate, pb, $len(path));
     u8sFeed(Bu8$2(pb), path);
     $mv(brix->home, Bu8$1(pb));
     call(Bu8map, brix->pad, GB);
@@ -163,7 +163,7 @@ ok64 BRIXmerge(sha256* newsha, BRIX* brix) {
     Bsha256resetpast(depsbuf);
 
     a$dup(u8B, news, Bu8Bdata(brix->ssts));
-    $eat(news) HEAPu8csPush1Z(insbuf, Bu8cdata(**news), RDXZrevision);
+    $eat(news) HEAPu8csPush1Z(insbuf, u8cbData(**news), RDXZrevision);
 
     SSTu128 sst = {};
     int fd = FILE_CLOSED;
@@ -385,11 +385,11 @@ ok64 _BRIXaddpatch(sha256* sha, BRIX* brix, u8cs rdx, u8csb heap) {
 ok64 BRIXaddpatch(sha256* sha, BRIX* brix, u8cs rdx) {
     sane(sha != NULL && BRIXok(brix) && $ok(rdx));
     u8csb heap = {};
-    try(Bu8csalloc, heap, BRIX_MAX_SST0_ENTRIES);
+    try(u8csbAllocate, heap, BRIX_MAX_SST0_ENTRIES);
     then try(_BRIXaddpatch, sha, brix, rdx, heap);
     then try(BRIXadd, brix, sha);
     // TODO rm file on fail
-    Bu8csfree(heap);
+    u8csbFree(heap);
     done;
 }
 

@@ -94,7 +94,7 @@ pro(LSM1) {
         u8 ta;
         u8cs keya;
         u8cs vala;
-        call(TLVDrainKeyVal, &ta, keya, vala,Bu8cdata(padbuf));
+        call(TLVDrainKeyVal, &ta, keya, vala,u8cbData(padbuf));
         //$println(keya);
         want(**keya == c);
         ++c;
@@ -107,8 +107,8 @@ fun int ZINTz($cu8c* a, $cu8c* b) {
     a$dup(u8c, bb, *b);
     u8cs vala, valb;
     u8 ta, tb;
-    TLVDrain(&ta, vala, aa);
-    TLVDrain(&tb, valb, bb);
+    TLVu8sDrain(aa,&ta, vala);
+    TLVu8sDrain(bb,&tb, valb);
     u64 au, bu;
     ZINTu64drain(&au, vala);
     ZINTu64drain(&bu, valb);
@@ -119,7 +119,7 @@ ok64 LSM1000000() {
     sane(1);
 #define LEN (1 << 10)
     aB(u8, mil);
-    call(Bu8alloc, milbuf, LEN * 16 * 2);
+    call(u8bAllocate, milbuf, LEN * 16 * 2);
     aBpad(u8p, stack, 8);
     for (u64 i = 0; i < LEN; ++i) {
         call(TLVinitshort, milidle, 'I', stack);
@@ -130,13 +130,13 @@ ok64 LSM1000000() {
     for (u64 i = 0; i < LEN; ++i) {
         u8 t = 0;
         u8cs zint = {};
-        call(TLVDrain, &t, zint,Bu8cdata(milbuf));
+        call(TLVu8sDrain, u8cbData(milbuf), &t, zint);
         want(t == 'I');
         u64 u = 0;
         call(ZINTu64drain, &u, zint);
         want(u == i);
     }
-    call(Bu8free, milbuf);
+    call(u8bFree, milbuf);
     done;
 }
 

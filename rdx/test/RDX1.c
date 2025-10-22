@@ -22,19 +22,19 @@ pro(RDXFtest) {
         call(RDXCfeedF, u8bIdle(tlv), c, id);
         RDXfloat c2 = 0;
         id128 id2 = {};
-        call(RDXCdrainF, &c2, &id2, Bu8cdata(tlv));
+        call(RDXCdrainF, &c2, &id2, u8cbData(tlv));
         printf("%lf %lf\n", c, c2);
         same(c, c2);
         same(id128time(id), id128time(id2));
         same(id128src(id), id128src(id2));
         aBpad(u8, txt, 32);
-        call(RDXFtlv2txt, u8bIdle(txt), Bu8cdata(tlv));
+        call(RDXFtlv2txt, u8bIdle(txt), u8cbData(tlv));
         a$str(str, "text RDX: $s\n");
-        FILEFeedf(STDOUT_FILENO, str, Bu8cdata(txt));
+        FILEFeedf(STDOUT_FILENO, str, u8cbData(txt));
         aBpad(u8, tlv2, 32);
         id128 id3 = {i, i};
-        call(RDXFtxt2tlv, u8bIdle(tlv2), Bu8cdata(txt), id3);
-        $testeq(Bu8cdata(tlv), Bu8cdata(tlv2));
+        call(RDXFtxt2tlv, u8bIdle(tlv2), u8cbData(txt), id3);
+        $testeq(u8cbData(tlv), Bu8cdata(tlv2));
     }
     done;
 }
@@ -50,19 +50,19 @@ pro(RDXItest) {
         call(RDXCfeedI, u8bIdle(tlv), c, id);
         RDXint c2 = 0;
         id128 id2 = {};
-        call(RDXCdrainI, &c2, &id2, Bu8cdata(tlv));
+        call(RDXCdrainI, &c2, &id2, u8cbData(tlv));
         printf("%li %li\n", c, c2);
         same(c, c2);
         same(id128time(id), id128time(id2));
         same(id128src(id), id128src(id2));
         aBpad(u8, txt, 32);
-        call(RDXItlv2txt, u8bIdle(txt), Bu8cdata(tlv));
+        call(RDXItlv2txt, u8bIdle(txt), u8cbData(tlv));
         a$str(str, "text RDX: $s\n");
-        FILEFeedf(STDOUT_FILENO, str, Bu8cdata(txt));
+        FILEFeedf(STDOUT_FILENO, str, u8cbData(txt));
         aBpad(u8, tlv2, 32);
         id128 id3 = {i, i};
-        call(RDXItxt2tlv, u8bIdle(tlv2), Bu8cdata(txt), id3);
-        $testeq(Bu8cdata(tlv), Bu8cdata(tlv2));
+        call(RDXItxt2tlv, u8bIdle(tlv2), u8cbData(txt), id3);
+        $testeq(u8cbData(tlv), Bu8cdata(tlv2));
     }
     done;
 }
@@ -78,18 +78,18 @@ pro(RDXRtest) {
         call(RDXCfeedR, u8bIdle(tlv), c, id);
         RDXref c2 = {};
         id128 id2 = {};
-        call(RDXCdrainR, &c2, &id2, Bu8cdata(tlv));
+        call(RDXCdrainR, &c2, &id2, u8cbData(tlv));
         want(id128cmp(&c, &c2) == 0);
         same(id128time(id), id128time(id2));
         same(id128src(id), id128src(id2));
         aBpad(u8, txt, 64);
-        call(RDXRtlv2txt, u8bIdle(txt), Bu8cdata(tlv));
+        call(RDXRtlv2txt, u8bIdle(txt), u8cbData(tlv));
         a$str(str, "text RDX: $s\n");
-        FILEFeedf(STDOUT_FILENO, str, Bu8cdata(txt));
+        FILEFeedf(STDOUT_FILENO, str, u8cbData(txt));
         aBpad(u8, tlv2, 32);
         id128 id3 = {i, i};
-        call(RDXRtxt2tlv, u8bIdle(tlv2), Bu8cdata(txt), id3);
-        $testeq(Bu8cdata(tlv), Bu8cdata(tlv2));
+        call(RDXRtxt2tlv, u8bIdle(tlv2), u8cbData(txt), id3);
+        $testeq(u8cbData(tlv), Bu8cdata(tlv2));
     }
     done;
 }
@@ -105,7 +105,7 @@ pro(RDXStest) {
         call(RDXCfeedS, u8bIdle(tlv), c, id);
         id128 id2 = {};
         u8cs c2 = {};
-        call(RDXCdrainS, c2, Bu8cdata(tlv), &id2);
+        call(RDXCdrainS, c2, u8cbData(tlv), &id2);
         want($eq(c, c2));
         same(id128time(id), id128time(id2));
         same(id128src(id), id128src(id2));
@@ -113,10 +113,10 @@ pro(RDXStest) {
         aBcpad(u8, txt, 32);
         id128 id3;
         u8cs text = {};
-        call(RDXCdrainS, text, Bu8cdata(tlv), &id3);
+        call(RDXCdrainS, text, u8cbData(tlv), &id3);
         aBcpad(u8, tlv2, 32);
         call(RDXCfeedS, tlv2idle, text, id);
-        $testeq(Bu8cdata(tlv), tlv2data);
+        $testeq(u8cbData(tlv), tlv2data);
     }
     done;
 }
@@ -128,12 +128,12 @@ pro(RDX1) {
     // a$str(path, "RDX1.rdx");
     call(FILEmapro, (voidB)testbuf, path);
     fprintf(stdout, "OK\n");
-    $print(Bu8cdata(testbuf));
+    $print(u8cbData(testbuf));
     aBcpad(u8, tlv, PAGESIZE);
     aBcpad(u64, stack, 1024);
     aBcpad(u8, pad, PAGESIZE);  // FIXME
     JDRstate state = {
-        .text = $dup(Bu8cdata(testbuf)),
+        .text = $dup(u8cbData(testbuf)),
         .tlv = $dup(tlvidle),
         .nest = 1,
     };

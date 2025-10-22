@@ -197,8 +197,8 @@ ok64 LEXonRep($cu8c tok, LEXstate *state) { return OK; }
 ok64 LEXonEq($cu8c tok, LEXstate *state) {
     sane($ok(tok) && state != NULL);
     u8c$ tmpl = LEX_TEMPL[state->lang][LEX_TEMPL_ACT];
-    try(NESTsplice, state->ct, LEX$RULES);
-    then try(NESTfeed, state->ct, tmpl);
+    try(NESTSplice, state->ct, LEX$RULES);
+    then try(NESTFeed, state->ct, tmpl);
     done;
 }
 
@@ -212,18 +212,18 @@ pro(LEXonRuleName, $cu8c tok, LEXstate *state) {
     u8bp ct = (u8bp)state->ct;
 
     u8c$ tmpl = LEX_TEMPL[state->lang][LEX_TEMPL_ACTION];
-    call(NESTsplice, ct, LEX$ACTIONS);
-    call(NESTfeed, ct, tmpl);
+    call(NESTSplice, ct, LEX$ACTIONS);
+    call(NESTFeed, ct, tmpl);
 
     u8c$ enmtmpl = LEX_TEMPL[state->lang][LEX_TEMPL_ENUM];
-    call(NESTsplice, ct, LEX$ENUM);
-    call(NESTfeed, ct, enmtmpl);
-    call(NESTsplice, ct, LEX$actno);
+    call(NESTSplice, ct, LEX$ENUM);
+    call(NESTFeed, ct, enmtmpl);
+    call(NESTSplice, ct, LEX$actno);
     call(u64decfeed, NESTidle(ct), state->ruleno);
 
     u8c$ fntmpl = LEX_TEMPL[state->lang][LEX_TEMPL_FN];
-    call(NESTsplice, ct, LEX$FN);
-    call(NESTfeed, ct, fntmpl);
+    call(NESTSplice, ct, LEX$FN);
+    call(NESTFeed, ct, fntmpl);
 
     done;
 }
@@ -240,8 +240,8 @@ ok64 LEXonLine($cu8c tok, LEXstate *state) {
         fntmpl = LEX_TEMPL[state->lang][LEX_TEMPL_ACTNL];
     }
 
-    try(NESTfeed, ct, fntmpl);
-    then try(NESTspliceany, ct, LEX$act);
+    try(NESTFeed, ct, fntmpl);
+    then try(NESTSpliceAny, ct, LEX$act);
     then try(u8sFeed, NESTidle(ct), cur);
 
     done;
@@ -250,7 +250,7 @@ ok64 LEXonLine($cu8c tok, LEXstate *state) {
 ok64 LEXonRoot($cu8c tok, LEXstate *state) {
     sane($ok(tok) && state != NULL);
     u8bp ct = (u8bp)state->ct;
-    try(NESTspliceall, ct, LEX$mod);
+    try(NESTSpliceAll, ct, LEX$mod);
     then try(u8sFeed, NESTidle(ct), state->mod);
     done;
 }
@@ -285,11 +285,11 @@ pro(lex2rl, u8cs mod, $u8c lang) {
     };
     $mv(state.text, lexdata);
 
-    call(NESTfeed, ctbuf, LEX_TEMPL[nlang][LEX_TEMPL_FILE]);
+    call(NESTFeed, ctbuf, LEX_TEMPL[nlang][LEX_TEMPL_FILE]);
 
     aBcpad(u8, rl, MB);
     call(LEXlexer, &state);
-    call(NESTrender, rlidle, ctbuf);
+    call(NESTRender, rlidle, ctbuf);
 
     aBcpad(u8, rlname, KB);
     u8cs $rnamet = $u8str("$s.$s.rl");

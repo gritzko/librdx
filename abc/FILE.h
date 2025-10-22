@@ -303,7 +303,7 @@ con u8 *const NL[2] = {_NL, _NL + 1};
     {                                            \
         aBpad(u8, _pad, PAGESIZE);               \
         $feedf(u8bIdle(_pad), fmt, __VA_ARGS__); \
-        FILEFeed(fd, Bu8cdata(_pad));            \
+        FILEFeed(fd, u8cbData(_pad));            \
     }
 
 #endif  // ABC_F_H

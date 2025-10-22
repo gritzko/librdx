@@ -1,6 +1,7 @@
 #include "POL.h"
 
 #include <time.h>
+#include <threads.h>
 
 #include "B.h"
 #include "INT.h"
@@ -42,18 +43,18 @@ fun int fd32cmp(const i32* a, const i32* b) {
 b8 POLAny() { return !Bempty(POL_FILES) || !Bempty(POL_QUEUE); }
 
 ok64 POLInit(int max_fd) {
-    Bpolleralloc(POL_FILES, max_fd);
+    pollerbAllocate(POL_FILES, max_fd);
     Bzero(POL_FILES);
     POL_FILES[2] = POL_FILES[3];
     zero(POL_TIMER);
     POL_VEC = malloc(max_fd);
-    Bi32alloc(POL_QUEUE, max_fd);
+    i32bAllocate(POL_QUEUE, max_fd);
     return OK;
 }
 
 ok64 POLFree() {
-    Bpollerfree(POL_FILES);
-    Bi32free(POL_QUEUE);
+    pollerbFree(POL_FILES);
+    i32bFree(POL_QUEUE);
     free(POL_VEC);
     POL_VEC = NULL;
     return OK;

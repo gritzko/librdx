@@ -23,9 +23,9 @@ typedef u8csb LSM;
 
 fun pro(LSMmore, u8csb lsm, u8cs x, $u8cZfn cmp) {
     sane(Bok(lsm) && $ok(x) && cmp != NULL);
-    // call(u8cssFeed1, Bu8csidle(lsm), x);
+    // call(u8cssFeed1, u8csbIdle(lsm), x);
     memcpy(lsm[2], x, sizeof(u8cs));
-    Bu8csidle(lsm)[0]++;
+    u8csbIdle(lsm)[0]++;
     HEAPu8csUpZ(lsm, cmp);
     done;
 }

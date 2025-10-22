@@ -35,25 +35,25 @@ pro(B$_test) {
 pro(Bndx_test) {
     sane(YES);
     Bu64 buf = {};
-    Bu64alloc(buf, 1024);
+    u64bAllocate(buf, 1024);
     for (u64 i = 0; i < 1000; ++i) {
         call(u64bFeed1, buf, i);
         sane(Blast(buf) == i);
     }
-    Bu64free(buf);
+    u64bFree(buf);
     done;
 }
 
 pro(Breserve_test) {
     sane(1);
     Bu8 buf = {};
-    call(Bu8alloc, buf, 1024);
+    call(u8bAllocate, buf, 1024);
     for (int i = 0; i < (1 << 20); i++) {
         otry(u8Bfeed2, buf, '1', '2');
         ofix(Bnoroom) call(Bu8reserve, buf, 1024);
         ocry();
     }
-    call(Bu8free, buf);
+    call(u8bFree, buf);
     done;
 }
 

@@ -16,17 +16,17 @@ pro(TLVtest1) {
     u8cs str2 = $u8str(" ");
     u8cs str3 = $u8str("world!");
     u8 **into = u8bIdle(pad);
-    call(TLVFeed, into, 'S', str1);
-    call(TLVFeed, into, 'S', str2);
-    call(TLVFeed, into, 'S', str3);
-    u8c **from = Bu8cdata(pad);
-    //$print(from);
+    call(TLVu8sFeed, into, 'S', str1);
+    call(TLVu8sFeed, into, 'S', str2);
+    call(TLVu8sFeed, into, 'S', str3);
+    u8c **from = u8cbData(pad);
+    u8 t1, t2, t3;
     u8cs str1b, str2b, str3b;
-    call(TLVtake, 'S', str1b, from);
+    call(TLVu8sDrain, from, &t1, str1b);
     testeq(0, $cmp(str1, str1b));
-    call(TLVtake, 'S', str2b, from);
+    call(TLVu8sDrain, from, &t2, str2b);
     testeq(0, $cmp(str2, str2b));
-    call(TLVtake, 'S', str3b, from);
+    call(TLVu8sDrain, from, &t3, str3b);
     testeq(0, $cmp(str3, str3b));
     done;
 }
@@ -40,18 +40,19 @@ pro(TLVtest2) {
         **init = v;
         ++*init;
     }
-    u8c **block = Bu8cdata(pad);
+    u8c **block = u8cbData(pad);
     testeq($len(block), 256);
     u8 **into = u8bIdle(tlv);
     for (int j = 0; j < 2; j++) {
-        call(TLVFeed, into, 'B', block);
+        call(TLVu8sFeed, into, 'B', block);
     }
-    u8c **from = Bu8cdata(tlv);
+    u8c **from = u8cbData(tlv);
     $print(from);
     for (int i = 0; i < 2; i++) {
         u8cs take;
-        call(TLVtake, 'B', take, from);
-        sane(0 == $cmp(block, take));
+        u8 t;
+        call(TLVu8sDrain, from, &t, take);
+        must(0 == $cmp(block, take));
     }
     done;
 }
@@ -67,38 +68,39 @@ fun int u32pcmp(u32p const *a, u32p const *b) {
 
 pro(TLVtest3) {
     sane(1);
-    aBcpad(u8, pad, 1024);
-    aBcpad(u32p, stack, 8);
-    u32pbp stack = (u32pbp)stackbuf;
+    a_pad(u8, pad, 1024);
 
-    call(TLVopen, padidle, 'A', Bpush(stack));
     u8cs aaa = $u8str("aaa");
-
-    call(TLVopen, padidle, 'B', Bpush(stack));
     u8cs bbb = $u8str("bbbb");
-
-    call(TLVopen, padidle, 'C', Bpush(stack));
     u8cs ccc = $u8str("ccccc");
 
-    u8sFeed(padidle, ccc);
-    call(TLVclose, padidle, 'C', Bpop(stack));
+    call(TLVu8bInto, pad, 'A');
+    call(u8bFeed, pad, aaa);
+    call(TLVu8bInto, pad, 'B');
+    call(TLVu8bInto, pad, 'C');
+    call(u8bFeed, pad, ccc);
+    call(TLVu8bOuto, pad, 'C');
+    call(u8bFeed, pad, bbb);
+    call(TLVu8bOuto, pad, 'B');
+    call(TLVu8bOuto, pad, 'A');
 
-    u8sFeed(padidle, bbb);
-    call(TLVclose, padidle, 'B', Bpop(stack));
-
-    u8sFeed(padidle, aaa);
-    call(TLVclose, padidle, 'A', Bpop(stack));
-
-    $println(paddata);
+    $println(pad_datac);
 
     u8cs ina = {}, inb = {}, inc = {};
-    call(TLVtake, 'A', ina, paddata);
-    call(TLVtake, 'B', inb, ina);
-    call(TLVtake, 'C', inc, inb);
+    u8 at, bt, ct;
+    call(TLVu8sDrain,  pad_datac, &at, ina);
+    a_head(u8c, head, ina, $len(aaa));
+    a_rest(u8c, rest, ina, $len(aaa));
+    call(TLVu8sDrain,  rest, &bt, inb);
+    call(TLVu8sDrain,  inb, &ct, inc);
+
+    testeq(at, 'A');
+    testeq(bt, 'B');
+    testeq(ct, 'C');
 
     testeq(0, $cmp(ccc, inc));
     testeq(0, $cmp(bbb, inb));
-    testeq(0, $cmp(aaa, ina));
+    testeq(0, $cmp(aaa, head));
 
     done;
 }

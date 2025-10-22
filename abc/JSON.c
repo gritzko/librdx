@@ -74,7 +74,7 @@ ok64 JSONonClose($cu8c tok, JSONstate* state, int node) {
     sane($ok(tok) && state != NULL && !Bempty(state->stack));
     u32 ndx = Blast(state->stack);
     u32 toklen = Bdatalen(state->json);
-    js64* arr = (js64*)Bu64atp(state->json, ndx);
+    js64* arr = (js64*)u64bAtP(state->json, ndx);
     arr->toks = toklen - ndx - 1;
     call(u32bPop, state->stack);
     done;

@@ -10,7 +10,7 @@
 ok64 RDX2MergeTest() {
     sane(1);
     a$strc(jdrExt, ".jdr");
-    eats(u8cs, arg, Bu8csdata(STD_ARGS)) {
+    eats(u8cs, arg, u8csbData(STD_ARGS)) {
         if (!u8csHasSuffix(*arg, jdrExt)) continue;
         Bu8 jdr = {};
         call(FILEMapRO, jdr, *arg);

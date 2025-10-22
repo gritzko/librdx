@@ -44,6 +44,7 @@ fun b8 RDXisPLEX(u8 l) {
 }
 
 con ok64 RDXbad = 0x4cd6e6968;
+con ok64 RDXbadrec = 0x1b3619a5a36a67;
 con ok64 RDXnoroom = 0x1335bcb3db3cf1;
 con ok64 RDXnodata = 0x1b361cb3a25e25;
 con ok64 RDXfail = 0x1335baa5b70;
@@ -186,23 +187,23 @@ ok64 rdxEulerZ(rdxcp a, rdxcp b);
 ok64 rdxMultixZ(rdxcp a, rdxcp b);
 ok64 rdxLastWriteWinsZ(rdxcp a, rdxcp b);
 
-fun ok64 RDXu8bFeed(u8b builder, rdxcp what) {
+fun ok64 RDXu8bFeed(u8bp builder, rdxcp what) {
     return RDXu8sFeed(u8bIdle(builder), what);
 }
-ok64 RDXu8bInto(u8b builder, rdxcp what);
-ok64 RDXu8bOuto(u8b builder, rdxcp what);
+ok64 RDXu8bInto(u8bp builder, rdxcp what);
+ok64 RDXu8bOuto(u8bp builder, rdxcp what);
 
-ok64 RDXu8bFeedDeep(u8b builder, rdxb reader);
-ok64 RDXu8bFeedAll(u8s into, u8cs from);
+ok64 RDXu8bFeedDeep(u8bp builder, rdxb reader);
+ok64 RDXu8bFeedAll(u8bp into, u8cs from);
 
 ok64 RDXu8bMergeLWW(u8b merged, rdxpsc eqs);
 
 ok64 RDXu8bMerge(u8b merged, rdxps inputs, rdxz z);
 
-ok64 RDXu8sMergeZ(u8s merged, u8css inputs, rdxz z);
+ok64 RDXu8bMergeZ(u8bp merged, u8css inputs, rdxz z);
 
 fun ok64 RDXu8sMerge(u8bp merged, u8css inputs) {
-    return RDXu8sMergeZ(merged, inputs, rdxTupleZ);
+    return RDXu8bMergeZ(merged, inputs, rdxTupleZ);
 }
 
 // . . . . . . . . RDX TLV FIRST . . . . . . . .

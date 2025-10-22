@@ -16,7 +16,7 @@ con ok64 NETnospace = 0x5ce772cf7d259e9;
 con ok64 NETnone = 0x1739dcb3ca9;
 
 typedef Bu8 NETaddr;
-#define NEThost(a) Bu8past(a)
+#define NEThost(a) u8bPast(a)
 #define NETraw(a) u8bData(a)
 #define NETport(a) u8bData(a)
 

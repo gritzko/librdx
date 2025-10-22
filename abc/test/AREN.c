@@ -22,7 +22,7 @@ pro(ARENtest1) {
 
     afedc(uu, u8sFeed32, arenaidle, &u);  // 12
     u32 u2 = 0;
-    $u8drain32(&u2, uu);
+    u8sDrain32(uu, &u2);
 
     a32(u3, 123, arenaidle);  // 16
     same(*u3, 123);

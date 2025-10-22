@@ -84,12 +84,12 @@ pro(MARKANSItest) {
         call(MARKMARQ, &state);
         call(MARKANSI, u8bIdle(into), 8, &state);
 
-        debugdivs(Bu64cdata(state.divB));
+        debugdivs(u64cbData(state.divB));
         a$str(hline, "---\n");
         $print(hline);
-        $print(Bu8cdata(into));
+        $print(u8cbData(into));
         $print(hline);
-        test($eq(QA[c][1], Bu8cdata(into)), TESTfail);
+        test($eq(QA[c][1], u8cbData(into)), TESTfail);
     }
     done;
 }
@@ -148,10 +148,10 @@ pro(MARKHTMLtest) {
     u64b blocks = {};
     u8cpb lines = {};
     Bu8 fmt = {};
-    call(Bu64alloc, divs, 32);
-    call(Bu8cpalloc, lines, 32);
-    call(Bu8alloc, fmt, PAGESIZE);
-    call(Bu64alloc, blocks, 32);
+    call(u64bAllocate, divs, 32);
+    call(u8cpbAllocate, lines, 32);
+    call(u8bAllocate, fmt, PAGESIZE);
+    call(u64bAllocate, blocks, 32);
     ok64 o = OK;
     for (int i = 0; o == OK && i < MARK1cases; i++) {
         MARKstate state = {};
@@ -171,12 +171,12 @@ pro(MARKHTMLtest) {
         callsafe(MARKMARQ(&state), break);
         callsafe(MARKHTML(u8bIdle(into), &state), break);
 
-        testsafe($eq(cases[i][1], Bu8cdata(into)), TESTfail, break);
+        testsafe($eq(cases[i][1], u8cbData(into)), TESTfail, break);
     }
-    Bu64free(blocks);
-    Bu64free(divs);
-    Bu8cpfree(lines);
-    Bu8free(fmt);
+    u64bFree(blocks);
+    u64bFree(divs);
+    u8cpbFree(lines);
+    u8bFree(fmt);
     return o;
 };
 

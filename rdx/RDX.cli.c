@@ -43,17 +43,17 @@ pro(RDXeatfile, int fd) {
     sane(fd > FILE_CLOSED);
     Bu8 buf = {};
     call(FILEmapro2, buf, &fd);
-    ok64 jdr = RDXtry(Bu8cdata(buf));
+    ok64 jdr = RDXtry(u8cbData(buf));
     if (jdr == OK) {
-        call(TLVsplit, Bu8csidle(ins), Bu8cdata(buf));
+        call(TLVsplit, u8csbIdle(ins), u8cbData(buf));
     } else {
         aBcpad(u8, err, 128);
-        try(JDRparse, u8bIdle(tmp), erridle, Bu8cdata(buf));
+        try(JDRparse, u8bIdle(tmp), erridle, u8cbData(buf));
         nedo {
             FILEFeed(STDERR_FILENO, errdata);
             done;
         }
-        call(TLVsplit, Bu8csidle(ins), Bu8cdata(tmp));
+        call(TLVsplit, u8csbIdle(ins), u8cbData(tmp));
         Bu8Ate(tmp);
     }
     done;
@@ -80,7 +80,7 @@ pro(RDXeatfiles, u8cs args) {
 pro(RDX_print, u8cs args) {
     sane(1);
     Bate(tmp);
-    a$dup(u8cs, in, Bu8csdata(ins));
+    a$dup(u8cs, in, u8csbData(ins));
     u8$ idle = u8bIdle(tmp);
     call(JDRfeed, idle, **in);
     ++*in;
@@ -96,7 +96,7 @@ pro(RDX_print, u8cs args) {
         RDXCdrainS(str, NULL, args);
         call(FILEcreate, &fd, str);
     }
-    call(FILEFeedall, fd, Bu8cdata(tmp));
+    call(FILEFeedall, fd, u8cbData(tmp));
     if (fd != STDOUT_FILENO) FILEclose(&fd);
     done;
 }
@@ -117,7 +117,7 @@ ok64 RDX_write(u8cs args) {
     test(t == RDX_STRING, badarg);
     int fd = FILE_CLOSED;
     call(FILEcreate, &fd, val);
-    $eat(Bu8csdata(ins)) call(FILEFeedall, fd, *ins[1]);
+    $eat(u8csbData(ins)) call(FILEFeedall, fd, *ins[1]);
     call(FILEclose, &fd);
     Breset(ins);
     done;
@@ -128,9 +128,9 @@ ok64 RDX_merge(u8cs args) {
     call(RDXeatfiles, args);
     Bate(tmp);
     u8$ idle = u8bIdle(tmp);
-    call(Y, idle, Bu8csdata(ins));
+    call(Y, idle, u8csbData(ins));
     Breset(ins);
-    call(u8cssFeed1, Bu8csidle(ins), Bu8cdata(tmp));
+    call(u8cssFeed1, u8csbIdle(ins), u8cbData(tmp));
     Bate(tmp);
     done;
 }
@@ -220,14 +220,14 @@ cmd_t COMMANDS[] = {
 
 ok64 RDXcli() {
     sane(1);
-    a$dup(u8cs, stdargs, Bu8csdata(STD_ARGS));
+    a$dup(u8cs, stdargs, u8csbData(STD_ARGS));
     ++*stdargs;  // program name
     aBcpad(u8, cmds, PAGESIZE);
     call(JDRdrainargs, cmdsidle, stdargs);
     u8c$ cmds = cmdsdata;
 
     call(Bu8map, tmp, 1UL << 32);
-    call(Bu8csalloc, ins, Y_MAX_INPUTS * 8);
+    call(u8csbAllocate, ins, Y_MAX_INPUTS * 8);
 
     while (!$empty(cmds)) {
         u8 t = 0;
@@ -261,7 +261,7 @@ ok64 RDXcli() {
     test($empty(cmds), badarg);
 
     Bu8unmap(tmp);
-    Bu8csfree(ins);
+    u8csbFree(ins);
 
     done;
 }

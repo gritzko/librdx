@@ -23,7 +23,7 @@ pro(LINEtest1) {
         aBpad(u8, pad, 1024);
         line k = {.rest = u8cBidle(pad)};
         call(LINEfeed, &k, lines + i);
-        line l = {.rest =Bu8cdata(pad)};
+        line l = {.rest =u8cbData(pad)};
         call(LINEdrain, &l);
         sane(0 == linecmp(lines + i, &l));
     }
@@ -52,7 +52,7 @@ pro(LINEtest2) {
         call(LINEfeed, &sit, lines + i);
     }
 
-    aLINE(cit,Bu8cdata(pad));
+    aLINE(cit,u8cbData(pad));
 
     for (int i = 0; i < LC_2; i++) {
         line *correct = lines + i;
@@ -108,17 +108,17 @@ pro(LINEtest3) {
     aBpad(u8, pad, 4096);
     aLINE(sit, u8cBidle(pad));
     aBpad(line, fpad, 2);
-    call(LINEpush, fpad,Bu8cdata(arg1), srccmp);
-    call(LINEpush, fpad,Bu8cdata(arg2), srccmp);
+    call(LINEpush, fpad,u8cbData(arg1), srccmp);
+    call(LINEpush, fpad,u8cbData(arg2), srccmp);
     line$ from = Blinedata(fpad);
 
     while (!$empty(from)) {
         call(LINEmerge, &sit, from, srccmp, srcmerge);
     }
-    $println(Bu8cdata(pad));
+    $println(u8cbData(pad));
 
     int excl = 0;
-    a$dup(u8c, dup,Bu8cdata(pad));
+    a$dup(u8c, dup,u8cbData(pad));
     $eat(dup) if (**dup == '!') excl++;
     test(4 == excl, FAILsanity);
 

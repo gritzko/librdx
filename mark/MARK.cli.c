@@ -40,7 +40,7 @@ void debug(MARKstate *state) {
             Bat(t, 0) = '+';
             ++p;
         }
-        $print(Bu8cidle(t));
+        $print(u8cbIdle(t));
         $print(state->lineB[0] + l);
     }
     printf("========\n");
@@ -74,13 +74,13 @@ pro(mark, u8cs mod) {
         state.divB = (u64bp)divbuf;
         state.lineB = (u8cpbp)linebuf;
         state.pB = (u64bp)pbuf;
-        $mv(state.text, Bu8cdata(text));
+        $mv(state.text, u8cbData(text));
         $mv(state.fmt, u8bIdle(fmtbuf));
 
         try(MARKlexer, &state);
         then try(MARKMARQ, &state);
         then try(MARKANSI, u8bIdle(intobuf), 64, &state);
-        then try(FILEFeedall, STDOUT_FILENO, Bu8cdata(intobuf));
+        then try(FILEFeedall, STDOUT_FILENO, u8cbData(intobuf));
     }
 
     FILEClose(&fd);

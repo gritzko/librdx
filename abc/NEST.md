@@ -26,12 +26,12 @@ Yes, differently from PHP, bash and others, a variable can be substituted
 for a template that will be recursively subjected to further substitutions.
 Despite that NEST is a single-pass algorithm. Yes, minimalism.
 ````
-    NESTfeed(nestbuf, a$str("Next waypoint: $LOC. Reach by: $TIME."));
-    NESTsplice(nestbuf, LOC);
+    NESTFeed(nestbuf, a$str("Next waypoint: $LOC. Reach by: $TIME."));
+    NESTSplice(nestbuf, LOC);
     if (!$empty(locname)) {
         $u8feed(nestidle, locname);
     } else {
-        NESTfeed(nestbuf, "coordinates ${LAT}:${LONG}");
+        NESTFeed(nestbuf, "coordinates ${LAT}:${LONG}");
     }
     //...
 ````
@@ -46,14 +46,14 @@ Shortcomings? NEST is not Turing-complete. It cannot stream data (as of now).
 
 API is rather basic:
 
-  - `NESTfeed(ct, template)` parses the template fed to the buffer and
+  - `NESTFeed(ct, template)` parses the template fed to the buffer and
     remembers the insertion points, like the one in `"$BYTES bytes sent"`.
     Point names are stored as u64, hence limited to 10 Base64 chars.
-  - Later, we can invoke `NESTsplice(ct, BYTES)` and all the following
+  - Later, we can invoke `NESTSplice(ct, BYTES)` and all the following
     output will be spliced into that insertion point, including any
-    `NESTfeed` templates. `NESTspliceall` and `NESTspliceany` do multiple
+    `NESTFeed` templates. `NESTSpliceAll` and `NESTSpliceAny` do multiple
     substitutions; `...all` returns an error if none is found.
-  - `NESTrender(into, ct)` produces the resulting text. As NEST is
+  - `NESTRender(into, ct)` produces the resulting text. As NEST is
     using the usual ABC buffers, they can be saved and cloned at any
     point in time.
 

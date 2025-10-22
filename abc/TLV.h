@@ -19,56 +19,69 @@ con ok64 TLVtoolong = 0x7557f8cf3c33cab;
 #define TLVaA 0x20
 #define TLV_MAX_LEN ((1 << 30) - 1)
 
+ok64 _TLVu8sFeed(u8s into, u8 type, u8csc value);
+
+fun ok64 TLVu8sFeed(u8s into, u8 type, u8csc value) {
+    if ($len(value) > 0xff || $len(into) < 2 + $len(value))
+        return _TLVu8sFeed(into, type, value);
+    u8sFeed2(into, type | TLVaA, (u8)$len(value));
+    u8sFeed(into, value);
+    return OK;
+}
+
+ok64 _TLVu8sDrain(u8cs from, u8p type, u8csp value);
+
+fun ok64 TLVu8sDrain(u8cs from, u8p type, u8csp value) {
+    if ($len(from) < 2 || !(**from & TLVaA))
+        return _TLVu8sDrain(from, type, value);
+    *type = **from & ~TLVaA;
+    u8 len = *(1 + *from);
+    if ($len(from) < 2 + len) return TLVnodata;
+    *from += 2;
+    value[0] = *from;
+    *from += len;
+    value[1] = *from;
+    return OK;
+}
+
+fun ok64 TLVu8bInto(u8bp into, u8 type) {
+    if (u8bIdleLen(into) < 5) return TLVnoroom;
+    size_t dl = u8bDataLen(into);
+    if (unlikely(dl > u32max)) return TLVtoolong;
+    u8bFeed1(into, type & ~TLVaA);
+    u8sFeed32(u8bIdle(into), (u32*)&dl);  // all le
+    ((u8**)into)[1] = into[2];
+    return OK;
+}
+
+fun ok64 TLVu8bOuto(u8bp into, u8 type) {
+    if (u8bPastLen(into) < 5) return TLVnodata;
+    size_t ndl = u8bDataLen(into);
+    a_tail(u8c, hdr, u8bPast(into), 5);
+    u8 t = 0;
+    u64 l = 0;
+    u8sDrain1(hdr, &t);
+    u32p lp = (u32p)*hdr;
+    u8sDrain32(hdr, (u32p)&l);
+    ((u8**)into)[1] = into[1] - 5 - l;
+    *lp = ndl;
+    u8cs empty = {};
+    if (ndl <= 0xff) {
+        u8bSplice(into, l + 2, 3, empty);
+        *u8s_atp(u8bData(into), l) |= TLVaA;
+    }
+    return OK;
+}
+
+// ----------------------
+
 fun int TLVlong(u8 t) { return t >= 'A' && t <= 'Z'; }
 fun int TLVshort(u8 t) { return t >= 'a' && t <= 'z'; }
-fun u8 TLVup(u8 t) { return t & ~TLVaA; }
 
 fun u32 TLVlen(size_t len) { return len <= 0xff ? 2 + len : 5 + len; }
 
-fun ok64 TLVprobe(u8* t, u32* hlen, u32* blen, $cu8c data) {
-    if ($empty(data)) return TLVnodata;
-    if (TLVshort(**data)) {
-        if ($len(data) < 2) return TLVnodata;
-        *t = **data - TLVaA;
-        *hlen = 2;
-        *blen = (*data)[1];
-    } else if (TLVlong(**data)) {
-        if ($len(data) < 5) return TLVnodata;
-        *t = **data;
-        *hlen = 5;
-        *blen = $at(data, 1) | ($at(data, 2) << 8) | ($at(data, 3) << 16) |
-                ($at(data, 4) << 24);
-    } else {
-        return TLVbadrec;
-    }
-    return (*hlen + *blen) <= $len(data) ? OK : TLVnodata;
-}
-
-ok64 TLVDrain(u8* t, u8c$ value, u8cs from);
 
 ok64 TLVDrain$(u8c$ rec, u8cs from);
-
-fun ok64 TLVpick(u8* type, u8cs value, $cu8c tlv, size_t offset) {
-    a$tail(u8c, keytlv, tlv, offset);
-    return TLVDrain(type, value, keytlv);
-}
-
-ok64 TLVtake(u8 t, u8cs value, u8cs from);
-
-fun void TLVhead($u8 into, u8 type, u32 len) {
-    if (len <= 0xff) {
-        **into = type + TLVaA;
-        ++*into;
-        **into = len;
-        ++*into;
-    } else {
-        **into = type;
-        ++*into;
-        put32(into, len);
-    }
-}
-
-ok64 TLVFeed($u8 into, u8 type, u8cs value);
 
 /** Open a TLV header for a record of unknown length.
  *  The buffer must be stable during the whole write;
@@ -91,25 +104,5 @@ ok64 TLVclose($u8 tlv, u8 type, u32* const* len);
 ok64 TLVFeedKeyVal($u8 tlv, u8c type, u8cs key, $cu8c val);
 
 ok64 TLVDrainKeyVal(u8* type, u8cs key, u8cs val, u8cs tlv);
-/*
-fun ok64 TLVDrainKeyVal(u8* type, u8cs key, u8cs val, u8cs tlv) {
-    if ($len(tlv) < 3) return TLVnodata;
-    if ((**tlv & TLVaA) == 0) return _TLVDrainKeyVal(type, key, val, tlv);
-    *type = **tlv & ~TLVaA;
-    u8 len = *(*tlv + 1);
-    if ($len(tlv) < 1 + 1 + len) return TLVnodata;
-    u8 keylen = *(*tlv + 2);
-    if (unlikely(keylen) >= len) return TLVbadrec;
-    key[0] = tlv[0] + 3;
-    key[1] = key[0] + keylen;
-    val[0] = key[1];
-    val[1] = tlv[0] + 2 + len;
-    tlv[1] += 2 + len;
-    return OK;
-}
-*/
-ok64 TLVu8cssNextKeyVal(u8css stack, u8* type, u8cs key, u8cs val);
-ok64 TLVu8cssInto(u8css stack, u8cs val);
-ok64 TLVu8cssOuto(u8css stack);
 
 #endif

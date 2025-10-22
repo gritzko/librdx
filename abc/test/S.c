@@ -13,8 +13,8 @@ pro($test1) {
     aBpad(i32, pad, 4);
     i32 a1 = 1;
     i32 a2 = 0;
-    i32$ into = Bi32idle(pad);
-    i32c$ data = Bi32cdata(pad);
+    i32$ into = i32bIdle(pad);
+    i32c$ data = i32cbData(pad);
 
     call(i32sFeed1, into, a2);
     call(i32sFeedP, into, &a1);
@@ -28,7 +28,7 @@ pro($test1) {
     want($noroom == i32sFeed1(into, a1));
 
     aBpad(i32, padi2, 4);
-    i32$ into2 = Bi32idle(padi2);
+    i32$ into2 = i32bIdle(padi2);
     i32sCopy(into2, data);  // FIXME
     want($eq(into2, data));
 
@@ -42,8 +42,8 @@ pro($test1) {
 pro($test2) {
     sane(1);
     aBpad(i32, pad, 8);
-    i32$ into = Bi32idle(pad);
-    i32$ data = Bi32data(pad);
+    i32$ into = i32bIdle(pad);
+    i32$ data = i32bData(pad);
     call(i32sFeed1, into, 4);
     call(i32sFeed1, into, 7);
     call(i32sFeed1, into, 2);

@@ -74,7 +74,7 @@ fun ok64 UNITdump($u8 into, u8cs rdx) {
 ok64 UNITdrain(Bu8 tests, UNITfn fn) {
     Bu8 rdx = {};
     size_t dl = Bdatalen(tests);
-    Bu8alloc(rdx, roundup(Bdatalen(tests) * 2, PAGESIZE));
+    u8bAllocate(rdx, roundup(Bdatalen(tests) * 2, PAGESIZE));
     a$dup(u8c, jdr, u8bData(tests));
     // ok64 o = JDRdrain(Bu8$2(rdx), jdr);
     aBcpad(u8, err, 128);
@@ -147,7 +147,7 @@ ok64 UNITdrain(Bu8 tests, UNITfn fn) {
                 break;
         }
     }
-    Bu8free(rdx);
+    u8bFree(rdx);
     return o;
 }
 
@@ -168,7 +168,7 @@ fun ok64 UNITfail(u8cs correct, u8cs fact) {
     u8sFeed1(padidle, '\n');
     HEXdump(padidle, fact);
     Backpast(padbuf);
-    return FILEFeed(STDOUT_FILENO, Bu8cdata(padbuf));
+    return FILEFeed(STDOUT_FILENO, u8cbData(padbuf));
 }
 
 fun ok64 JDRdrainargs($u8 into, u8css jdr) {

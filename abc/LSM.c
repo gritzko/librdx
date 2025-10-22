@@ -32,11 +32,11 @@ ok64 LSMnext($u8 into, u8css lsm, $u8cZfn cmp, $u8cYfn mrg) {
 }
 
 ok64 LSMdrainruns(u8csb heap, u8cs input, $u8cZfn cmp) {
-    sane(Bok(heap) && $ok(input) && Bu8cshasroom(heap) && cmp != NULL);
+    sane(Bok(heap) && $ok(input) && u8csbHasRoom(heap) && cmp != NULL);
     u8cs last = {};
     call(TLVDrain$, last, input);
     a$dup(u8c, run, last);
-    while (!$empty(input) && $len(Bu8csidle(heap)) > 1) {
+    while (!$empty(input) && $len(u8csbIdle(heap)) > 1) {
         u8cs rec;
         call(TLVDrain$, rec, input);
         int z = cmp(&last, &rec);

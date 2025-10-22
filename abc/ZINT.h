@@ -43,22 +43,22 @@ fun ok64 ZINTu64drain(u64* n, $cu8c zip) {
         case 0:
             return OK;
         case 1:
-            $u8drain8((u8*)n, from);
+            u8sDrain8(from, (u8*)n);
             return OK;
         case 2:
-            $u8drain16((u16*)n, from);
+            u8sDrain16(from, (u16*)n);
             return OK;
         case 3:
             return ZINTbadrec;
         case 4:
-            $u8drain32((u32*)n, from);
+            u8sDrain32(from, (u32*)n);
             return OK;
         case 5:
         case 6:
         case 7:
             return ZINTbadrec;
         case 8:
-            $u8drain64(n, from);
+            u8sDrain64(from, n);
             return OK;
         default:
             return ZINTbadrec;
@@ -109,47 +109,47 @@ fun ok64 ZINTu8sDrain128(u8cs from, u64* big, u64* lil) {  // FIXME no inline
         case 0:
             break;
         case 1:
-            $u8drain8((u8*)big, from);
+            u8sDrain8(from, (u8*)big);
             break;
         case 2:
-            $u8drain8((u8*)big, from);
-            $u8drain8((u8*)lil, from);
+            u8sDrain8(from, (u8*)big);
+            u8sDrain8(from, (u8*)lil);
             break;
         case 3:
-            $u8drain16((u16*)big, from);
-            $u8drain8((u8*)lil, from);
+            u8sDrain16(from, (u16*)big);
+            u8sDrain8(from, (u8*)lil);
             break;
         case 4:
-            $u8drain16((u16*)big, from);
-            $u8drain16((u16*)lil, from);
+            u8sDrain16(from, (u16*)big);
+            u8sDrain16(from, (u16*)lil);
             break;
         case 5:
-            $u8drain32((u32*)big, from);
-            $u8drain8((u8*)lil, from);
+            u8sDrain32(from, (u32*)big);
+            u8sDrain8(from, (u8*)lil);
             break;
         case 6:
-            $u8drain32((u32*)big, from);
-            $u8drain16((u16*)lil, from);
+            u8sDrain32(from, (u32*)big);
+            u8sDrain16(from, (u16*)lil);
             break;
         case 7:
             return ZINTbadrec;
         case 8:
-            $u8drain32((u32*)big, from);
-            $u8drain32((u32*)lil, from);
+            u8sDrain32(from, (u32*)big);
+            u8sDrain32(from, (u32*)lil);
             break;
         case 9:
-            $u8drain64((u64*)big, from);
-            $u8drain8((u8*)lil, from);
+            u8sDrain64(from, (u64*)big);
+            u8sDrain8(from, (u8*)lil);
             break;
         case 10:
-            $u8drain64((u64*)big, from);
-            $u8drain16((u16*)lil, from);
+            u8sDrain64(from, (u64*)big);
+            u8sDrain16(from, (u16*)lil);
             break;
         case 11:
             return ZINTbadrec;
         case 12:
-            $u8drain64((u64*)big, from);
-            $u8drain32((u32*)lil, from);
+            u8sDrain64(from, (u64*)big);
+            u8sDrain32(from, (u32*)lil);
             break;
         case 13:
             return ZINTbadrec;
@@ -158,8 +158,8 @@ fun ok64 ZINTu8sDrain128(u8cs from, u64* big, u64* lil) {  // FIXME no inline
         case 15:
             return ZINTbadrec;
         case 16:
-            $u8drain64((u64*)big, from);
-            $u8drain64((u64*)lil, from);
+            u8sDrain64(from, (u64*)big);
+            u8sDrain64(from, (u64*)lil);
             break;
         default:
             return ZINTbadrec;

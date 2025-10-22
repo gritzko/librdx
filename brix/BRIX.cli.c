@@ -65,7 +65,7 @@ ok64 BRIX_patch(BRIX* brix, id128 id, ok64 sub, u8cs args) {
     call(FILEmapro, rdx, path);
 
     sha256 sha = {};
-    try(BRIXaddpatch, &sha, brix, Bu8cdata(rdx));
+    try(BRIXaddpatch, &sha, brix, u8cbData(rdx));
 
     FILEunmap(rdx);
 
@@ -107,7 +107,7 @@ ok64 BRIX_reget(BRIX* brix, id128 id, ok64 sub, u8cs args) {
             id128 ref, _;
             call(RDXCdrainR, &ref, &_, args);
             call(BRIXreget, u8bIdle(gig), brix, 0, ref);
-            call(FILEFeedall, STDOUT_FILENO, Bu8cdata(gig));
+            call(FILEFeedall, STDOUT_FILENO, u8cbData(gig));
         } else {
             fail(notimplyet);
         }
@@ -136,7 +136,7 @@ ok64 BRIX_seal(BRIX* brix, id128 id, ok64 sub, u8cs args) {
     $sha256sort(depsdata);
 
     a$dup(Bu8, news, Bu8bData(brix->ssts));
-    $eat(news) u8csbfeed1(insbuf,Bu8cdata(**news));
+    $eat(news) u8csbfeed1(insbuf,u8cbData(**news));
 
     SSTu128 sst = {};
     int fd = FILE_CLOSED;
@@ -144,12 +144,12 @@ ok64 BRIX_seal(BRIX* brix, id128 id, ok64 sub, u8cs args) {
     call(u8sFeed, tmpidle, u8cB$1(brix->home));
     call(u8sFeed, tmpidle, BRIKtmp);
     size_t sumsz = PAGESIZE;
-    a$dup(u8cs, ins, Bu8csdata(insbuf));
+    a$dup(u8cs, ins, u8csbData(insbuf));
     $eat(ins) sumsz += $size(**ins);
     call(SSTu128init, sst, &fd, tmpdata, sumsz);
     SKIPu8tab tab = {};
 
-    call(LSMmerge, u8bIdle(sst), Bu8csdata(insbuf), RDXZrevision, Y);
+    call(LSMmerge, u8bIdle(sst), u8csbData(insbuf), RDXZrevision, Y);
 
     call(SSTu128end, sst, &fd, &tab);
     sha256 sha = {};
@@ -268,7 +268,7 @@ cmd_t COMMANDS[] = {
 ok64 BRIXcli() {
     sane(1);
     BRIX brix = {};
-    a$dup(u8cs, stdargs, Bu8csdata(STD_ARGS));
+    a$dup(u8cs, stdargs, u8csbData(STD_ARGS));
     ++*stdargs;  // program name
     aBcpad(u8, cmds, PAGESIZE);
     call(JDRdrainargs, cmdsidle, stdargs);

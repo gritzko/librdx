@@ -106,8 +106,8 @@ fun ok64 X(SST, locate)(u8c$ rest, X(SST, ) sst, u8 type, Key const* key) {
     u8sFeed1(rawidle, t);
     u8sFeed2(rawidle, 0, 0);
     X(, pack)(rawidle, key);
-    *Bu8atp(rawbuf, 1) = $len(rawdata) - 2;
-    *Bu8atp(rawbuf, 2) = $len(rawdata) - 3;
+    *u8bAtP(rawbuf, 1) = $len(rawdata) - 2;
+    *u8bAtP(rawbuf, 2) = $len(rawdata) - 3;
     return SKIPu8find(rest, sst, rawdata, X(SST, cmp));
 }
 

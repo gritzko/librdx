@@ -12,13 +12,13 @@ pro(NESTtest1) {
     NESTreset(ct);
     con ok64 mood = 0xc73ce8;
     a$strc(templ, "Hello $mood world!");
-    call(NESTfeed, ct, templ);
-    call(NESTsplice, ct, mood);
+    call(NESTFeed, ct, templ);
+    call(NESTSplice, ct, mood);
     a$strc(good, "beautiful");
     call(u8sFeed, NESTidle(ct), good);
 
     aBpad2(u8, res, 128);
-    call(NESTrender, residle, ct);
+    call(NESTRender, residle, ct);
     a$strc(correct, "Hello beautiful world!");
     $testeq(correct, resdata);
 
@@ -31,13 +31,13 @@ pro(NESTtest2) {
     NESTreset(ct);
     con ok64 a = 0x25;
     a$strc(templ, "1. $a 2. ${a} 3. a");
-    call(NESTfeed, ct, templ);
-    call(NESTspliceall, ct, a);
+    call(NESTFeed, ct, templ);
+    call(NESTSpliceAll, ct, a);
     a$strc(good, "A");
     call(u8sFeed, NESTidle(ct), good);
 
     aBpad2(u8, res, 128);
-    call(NESTrender, residle, ct);
+    call(NESTRender, residle, ct);
     a$strc(correct, "1. A 2. A 3. a");
     $testeq(correct, resdata);
 

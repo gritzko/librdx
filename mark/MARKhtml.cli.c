@@ -34,7 +34,7 @@ pro(md2html, u8cs mod) {
     sane($ok(mod) && !$empty(mod) && $len(mod) <= 1000);
     a$strf(name, 1024, "$s.md", mod);
     int fd = 0;
-    call(FILEOpen, &fd, Bu8cdata(name), O_RDONLY);
+    call(FILEOpen, &fd, u8cbData(name), O_RDONLY);
     Bu8 txtbuf = {};
     call(FILEMap, txtbuf, &fd, PROT_READ);
 
@@ -53,7 +53,7 @@ pro(md2html, u8cs mod) {
     state.divB = (u64bp)divbuf;
     state.lineB = (u8cpbp)linebuf;
     state.pB = (u64bp)pbuf;
-    $mv(state.text, Bu8cdata(txtbuf));
+    $mv(state.text, u8cbData(txtbuf));
     $mv(state.fmt, u8bIdle(fmtbuf));
 
     call(MARKlexer, &state);
@@ -62,9 +62,9 @@ pro(md2html, u8cs mod) {
 
     int hfd = 0;
     a$strf(htmlname, 1024, "$s.html", mod);
-    call(FILECreate, &hfd, Bu8cdata(htmlname));
+    call(FILECreate, &hfd, u8cbData(htmlname));
     call(FILEFeedall, hfd, header_template);
-    call(FILEFeedall, hfd, Bu8cdata(intobuf));
+    call(FILEFeedall, hfd, u8cbData(intobuf));
     call(FILEFeedall, hfd, footer_template);
 
     // FIXME defer!!!

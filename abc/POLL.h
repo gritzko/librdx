@@ -52,7 +52,7 @@ fun ok64 POLLdel(POLLstate state, int fd, ok64 o) {
 }
 
 fun ok64 POLLfeed$(POLLctl* ctl, u8c$ data) {
-    u8cssp idle = Bu8csidle(ctl->writes);
+    u8cssp idle = u8csbIdle(ctl->writes);
     if ($empty(idle)) return POLLnoroom;
     u8cssFeed1(idle, data);
     return OK;
@@ -67,7 +67,7 @@ fun ok64 POLLfeed(POLLctl* ctl, u8cs data) {
 }
 
 fun ok64 POLLdrain($u8 into, POLLctl* ctl) {
-    return $u8drain(into,Bu8cdata(ctl->readbuf));
+    return $u8drain(into,u8cbData(ctl->readbuf));
 }
 
 ok64 POLLonce(POLLstate state, size_t ms);

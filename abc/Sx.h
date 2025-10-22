@@ -50,7 +50,8 @@ typedef ok64 (*X(, z))(X(, cp) a, X(, cp) b);
 
 typedef b8 (*X(, isfn))(const X(, ) *);
 
-fun size_t X(, sLen)(X($c, ) data) { return data[1] - data[0]; }
+fun size_t X(, sLen)(X(, sc) data) { return data[1] - data[0]; }
+fun size_t X(, csLen)(X(, csc) data) { return data[1] - data[0]; }
 
 fun T *X($, last)(X($c, ) data) {
     assert(!$empty(data));
@@ -246,7 +247,7 @@ fun ok64 X($, move)(X($, ) into, X($, c) from) {
 }
 
 fun b8 X(, csOK)(X(, csc) s) {
-    return s != NULL && s[0] != NULL && s[1] >= s[0] &&
+    return s != NULL && s[1] >= s[0] &&
            (((u8c *)s[1] - (u8c *)s[0]) % sizeof(T) == 0);
 }
 
@@ -273,7 +274,7 @@ fun ok64 X(, sFed1)(X(, s) into) {
     return OK;
 }
 
-fun ok64 X($, drain1)(T *into, X($, ) from) {
+fun ok64 X(, sDrain1)(X(, cs) from, T *into) {
     if ($empty(from)) return $nodata;
 #ifndef ABC_X_$
     X(, mv)(into, *from);

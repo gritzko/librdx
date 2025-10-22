@@ -71,21 +71,21 @@ typedef void **voidbp;
 #define aBpad2(T, n, l)                           \
     T _##n[(l)];                                  \
     B##T n##buf = {_##n, _##n, _##n, _##n + (l)}; \
-    T##$ n##idle = B##T##idle(n##buf);            \
-    T##$ n##data = B##T##data(n##buf);
+    T##$ n##idle = T##bIdle(n##buf);            \
+    T##$ n##data = T##bData(n##buf);
 
 #define a_pad(T, n, l)                       \
     T _##n[(l)];                             \
     T##b n = {_##n, _##n, _##n, _##n + (l)}; \
-    T##sp n##_idle = B##T##idle(n);          \
-    T##sp n##_data = B##T##data(n);          \
-    T##csp n##_datac = B##T##cdata(n);
+    T##sp n##_idle = T##bIdle(n);          \
+    T##sp n##_data = T##bData(n);          \
+    T##csp n##_datac = T##cbData(n);
 
 #define aBcpad(T, n, l)                           \
     T _##n[(l)];                                  \
     B##T n##buf = {_##n, _##n, _##n, _##n + (l)}; \
-    T##$ n##idle = B##T##idle(n##buf);            \
-    T##c##$ n##data = B##T##cdata(n##buf);
+    T##$ n##idle = T##bIdle(n##buf);            \
+    T##c##$ n##data = T##cbData(n##buf);
 
 #define aB(T, name)                                    \
     T *name##buf[4] = {};                              \

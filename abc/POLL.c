@@ -31,14 +31,14 @@ pro(POLLadd, POLLstate state, int fd, u8cs name, POLLfunI fi) {
     ctl->fd = fd;
     ctl->fn = fi;
     try($u8dup, (u8**)ctl->name, name);
-    then try(Bu8alloc, ctl->readbuf, PAGESIZE);
-    then try(Bu8alloc, ctl->writebuf, PAGESIZE);
-    then try(Bu8csalloc, ctl->writes, 64);
+    then try(u8bAllocate, ctl->readbuf, PAGESIZE);
+    then try(u8bAllocate, ctl->writebuf, PAGESIZE);
+    then try(u8csbAllocate, ctl->writes, 64);
     oops {
-        Bu8free(ctl->readbuf);
-        Bu8free(ctl->writebuf);
+        u8bFree(ctl->readbuf);
+        u8bFree(ctl->writebuf);
         $u8free(ctl->name);
-        Bu8csfree(ctl->writes);
+        u8csbFree(ctl->writes);
     }
     done;
 }
@@ -52,17 +52,17 @@ pro(POLLlisten, POLLstate state, int fd, u8cs name, POLLfunI fi) {
     ctl->fd = fd;
     $u8dup((u8**)ctl->name, name);
     ctl->fn = fi;
-    Bu8free(ctl->readbuf);
-    Bu8free(ctl->writebuf);
-    Bu8csfree(ctl->writes);
+    u8bFree(ctl->readbuf);
+    u8bFree(ctl->writebuf);
+    u8csbFree(ctl->writes);
     done;
 }
 
 pro(POLLdelctl, POLLstate state, POLLctl* ctl, ok64 o) {
     sane(state != NULL && ctl != NULL && ctl->fd >= 0);
-    Bu8free(ctl->readbuf);
-    Bu8free(ctl->writebuf);
-    Bu8csfree(ctl->writes);
+    u8bFree(ctl->readbuf);
+    u8bFree(ctl->writebuf);
+    u8csbFree(ctl->writes);
     $u8free(ctl->name);
     int len = POLLlen(state);
     POLLctl* last = state + len - 1;
@@ -75,13 +75,13 @@ pro(POLLread, POLLctl* ctl) {
     sane(ctl != NULL && ctl->fn != NULL);
     call(FILEdrain, u8bIdle(ctl->readbuf), ctl->fd);
     call((*ctl->fn), (struct POLLctl*)ctl);
-    if (!Bu8hasdata(ctl->readbuf)) Breset(ctl->readbuf);
+    if (!u8bHasData(ctl->readbuf)) Breset(ctl->readbuf);
     done;
 }
 
 pro(POLLwrite, POLLctl* ctl) {
     sane(ctl != NULL && ctl->fn != NULL);
-    call(FILEFeedv, ctl->fd, Bu8csdata(ctl->writes));
+    call(FILEFeedv, ctl->fd, u8csbData(ctl->writes));
     if (Bdatalen(ctl->writes) == 0) {
         Breset(ctl->writebuf);
         Breset(ctl->writes);
@@ -109,8 +109,8 @@ pro(POLLonce, POLLstate state, size_t ms) {
     int l = 0;
     while (l < POLL_MAX_FILES && state[l].fn != NULL) {
         int e = 0;
-        if (Bu8cshasdata(state[l].writes)) e |= POLLOUT;
-        if (Bu8hasroom(state[l].readbuf)) e |= POLLIN;
+        if (u8csbHasData(state[l].writes)) e |= POLLOUT;
+        if (u8bHasRoom(state[l].readbuf)) e |= POLLIN;
         if (state[l].o == POLLaccept) e |= POLLIN;
         fds[l].fd = state[l].fd;
         fds[l].events = e;

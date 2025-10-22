@@ -10,19 +10,17 @@ typedef X($, ) * X(B$, )[4];
 typedef X($, c) * X(B$, c)[4];
 #endif
 
-typedef T *X(, b)[4];
-typedef T const **X(, cb);
-typedef T **X(, bp);
-typedef T const **X(, cbp);
-typedef X($, ) * X(, sb)[4];
-typedef X($, c) * X(, csb)[4];
+typedef T *const X(, b)[4];
+typedef T const *const X(, cb)[4];
+typedef T *const *X(, bp);
+typedef T const *const *X(, cbp);
+typedef X($, ) *const X(, sb)[4];
+typedef X($, c) *const X(, csb)[4];
 
 fun T *const *X(B, past)(X(B, ) buf) { return (T **)buf + 0; }
 fun T const *const *X(B, pastc)(X(B, ) buf) {
     return (T const *const *)buf + 0;
 }
-fun T **X(B, data)(X(B, ) buf) { return (T **)buf + 1; }
-fun T **X(B, idle)(X(B, ) buf) { return (T **)buf + 2; }
 
 fun T **X(B, $1)(X(B, ) buf) { return (T **)buf + 1; }
 fun T **X(B, $2)(X(B, ) buf) { return (T **)buf + 2; }
@@ -37,21 +35,19 @@ fun void X(B, eatidle)(X(B, ) buf) { ((T **)buf)[2] = buf[3]; }
 fun void X(B, resetpast)(X(B, ) buf) { ((T **)buf)[1] = buf[0]; }
 fun void X(B, resetdata)(X(B, ) buf) { ((T **)buf)[2] = buf[1]; }
 
-fun b8 X(B, hasroom)(X(B, ) buf) { return !$empty(X(B, idle)(buf)); }
-fun b8 X(B, hasdata)(X(B, ) buf) { return !$empty(X(B, data)(buf)); }
-
-fun T const **X(B, cpast)(X(B, ) buf) { return (T const **)buf + 0; }
-fun T const **X(B, cdata)(X(B, ) buf) { return (T const **)buf + 1; }
-fun T const **X(B, cidle)(X(B, ) buf) { return (T const **)buf + 2; }
-
+fun T const **X(, cbPast)(X(, b) buf) { return (T const **)buf + 0; }
 fun T const **X(, cbData)(X(, b) buf) { return (T const **)buf + 1; }
-fun T const **X(, cbIdle)(X(B, ) buf) { return (T const **)buf + 2; }
+fun T const **X(, cbIdle)(X(, b) buf) { return (T const **)buf + 2; }
+fun T **X(, bPast)(X(, b) buf) { return (T **)buf + 0; }
 fun T **X(, bData)(X(, b) buf) { return (T **)buf + 1; }
 fun T **X(, bIdle)(X(, b) buf) { return (T **)buf + 2; }
 
-fun T *const *X(Bc, past)(X(B, ) buf) { return (T *const *)buf + 0; }
-fun T *const *X(Bc, data)(X(B, ) buf) { return (T *const *)buf + 1; }
-fun T *const *X(Bc, idle)(X(B, ) buf) { return (T *const *)buf + 2; }
+fun size_t X(, bPastLen)(X(, b) buf) { return $len((T **)buf + 0); }
+fun size_t X(, bDataLen)(X(, b) buf) { return $len((T **)buf + 1); }
+fun size_t X(, bIdleLen)(X(, b) buf) { return $len((T **)buf + 2); }
+
+fun b8 X(, bHasRoom)(X(, bp) buf) { return !$empty(X(, bIdle)(buf)); }
+fun b8 X(, bHasData)(X(, bp) buf) { return !$empty(X(, bData)(buf)); }
 
 fun T const *const *X(Bc, cpast)(X(B, ) buf) {
     return (T const *const *)buf + 0;
@@ -64,7 +60,7 @@ fun T const *const *X(Bc, cidle)(X(B, ) buf) {
 }
 fun b8 X(B, empty)(X(B, ) buf) { return buf[2] == buf[1]; }
 
-fun T *X(B, atp)(X(B, ) buf, size_t ndx) {
+fun T *X(, bAtP)(X(, b) buf, size_t ndx) {
     T *p = buf[0] + ndx;
     assert(p < buf[3]);
     return p;
@@ -75,9 +71,9 @@ fun void X(B, eat)(X(B, ) buf) {
     b[1] = b[2];
 }
 
-fun T *X(, bLast)(X(B, ) buf) {
+fun T *X(, bLast)(X(, b) buf) {
     size_t len = buf[2] - buf[0];
-    return X(B, atp)(buf, len - 1);
+    return X(, bAtP)(buf, len - 1);
 }
 
 /*fun T X(B, at)(X(B, ) buf, size_t ndx) {
@@ -86,7 +82,7 @@ fun T *X(, bLast)(X(B, ) buf) {
     return *p;
 }*/
 
-fun ok64 X(B, alloc)(X(B, ) buf, size_t len) {
+fun ok64 X(, bAllocate)(X(, bp) buf, size_t len) {
     size_t sz = len * sizeof(T);
     ok64 o = Balloc((void **)buf, sz);
     if (o != OK) return o;
@@ -94,7 +90,7 @@ fun ok64 X(B, alloc)(X(B, ) buf, size_t len) {
     return OK;
 }
 
-fun ok64 X(B, free)(X(B, ) buf) { return Bfree((void **)buf); }
+fun ok64 X(, bFree)(X(, bp) buf) { return Bfree((void **)buf); }
 
 fun ok64 X(B, reserve)(X(B, ) buf, size_t len) {
     return Breserve((void *const *)buf, len * sizeof(T));
@@ -103,25 +99,25 @@ fun ok64 X(B, reserve)(X(B, ) buf, size_t len) {
 fun ok64 X(B, feedp)(X(B, ) buf, T const *one) {
     ok64 re = X(B, reserve)(buf, 1);
     if (re != OK) return re;
-    T **idle = X(B, idle)(buf);
+    T **idle = X(,bIdle)(buf);
     memcpy(*idle, one, sizeof(T));
     ++*idle;
     return OK;
 }
 */
 
-fun ok64 X(, bPush)(X(, b) buf, X(, cp) one) {
-    return X(, sFeedP)(Bidle(buf), one);
+fun ok64 X(, bPush)(X(, bp) buf, X(, cp) one) {
+    return X(, sFeedP)(X(, bIdle)(buf), one);
 }
 
-fun ok64 X(, bFeedP)(X(B, ) buf, T const *one) {
-    return X(, sFeedP)(X(B, idle)(buf), one);
+fun ok64 X(, bFeedP)(X(, bp) buf, T const *one) {
+    return X(, sFeedP)(X(, bIdle)(buf), one);
 }
 
-fun ok64 X(, Bfeed2)(X(B, ) buf, T a, T b) {
+fun ok64 X(, Bfeed2)(X(, bp) buf, T a, T b) {
     // ok64 re = X(B, reserve)(buf, 2);
     // f (re != OK) return re;
-    T **idle = X(B, idle)(buf);
+    T **idle = X(, bIdle)(buf);
     if ($len(idle) < 2) return Bnoroom;
     memcpy((void *)*idle, &a, sizeof(T));
     ++*idle;
@@ -130,12 +126,12 @@ fun ok64 X(, Bfeed2)(X(B, ) buf, T a, T b) {
     return OK;
 }
 
-fun ok64 X(, bFeed1)(X(B, ) buf, T one) {
-    return X(, sFeed1)(X(B, idle)(buf), one);
+fun ok64 X(, bFeed1)(X(, bp) buf, T one) {
+    return X(, sFeed1)(X(, bIdle)(buf), one);
 }
 
-fun ok64 X(, B_feed$)(X(, b) buf, X($c, c) from) {
-    T **into = X(B, idle)(buf);
+fun ok64 X(, bFeed)(X(, b) buf, X(, csc) from) {
+    T **into = X(, bIdle)(buf);
     if ($len(into) < $len(from)) return Bnoroom;
     X(, sCopy)(into, from);
     *into += $len(from);
@@ -235,9 +231,22 @@ fun ok64 X(, bShift)(X(, b) buf, size_t pastlen) {
     size_t datalen = $len(Bdata(buf));
     if (unlikely(pastlen + datalen > Blen(buf))) return Bnoroom;
     T *to = buf[0] + pastlen;
-    memmove(to, buf[1], BDataSize(buf));
-    buf[1] = to;
-    buf[2] = to + datalen;
+    memmove((void *)(to), (void *)(buf[1]), BDataSize(buf));
+    ((T **)buf)[1] = to;
+    ((T **)buf)[2] = to + datalen;
+    return OK;
+}
+
+fun ok64 X(, bSplice)(X(, bp) buf, size_t off, size_t cut, X(, csc) paste) {
+    if (!Bok(buf) || !X(,csOK)(paste)) return FAILsanity;
+    if (X(, bDataLen)(buf) < off + cut ||
+        X(, bIdleLen)(buf) + cut < X(, csLen)(paste))
+        return Bmiss;
+    void *b = ((void**)buf)[1];
+    memmove(b + off + $len(paste), b + off + cut,
+            X(, bDataLen)(buf) - off - cut);
+    memmove(b + off, paste[0], $len(paste));
+    ((T **)buf)[2] = buf[2] + $len(paste) - cut;
     return OK;
 }
 

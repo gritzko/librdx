@@ -76,7 +76,7 @@ fun u64 RDXtock(u128* clock, u128 see) {
 fun ok64 RDXfeed($u8 tlv, u8 t, id128 id, $cu8c value) {
     aBpad(u8, idpad, 16);
     ZINTu128feed(u8bIdle(idpad), &id);
-    return TLVFeedKeyVal(tlv, t, Bu8cdata(idpad), value);
+    return TLVFeedKeyVal(tlv, t, u8cbData(idpad), value);
 }
 
 fun ok64 RDXdrain(u8* t, id128* id, u8cs value, $u8c tlv) {
