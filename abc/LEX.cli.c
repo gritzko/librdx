@@ -5,7 +5,7 @@
 
 #include "PRO.h"
 
-a$strc(ext, ".lex");
+a_cstr(ext, ".lex");
 
 con char *ragel_template;
 con char *header_template;
@@ -19,8 +19,8 @@ int main(int argn, char **args) {
         fprintf(stderr, "Usage: lex2rl MOD [c|go]\n");
         return -1;
     }
-    a$strc(name, args[1]);
-    a$strc(lang, args[2]);
+    a_cstr(name, args[1]);
+    a_cstr(lang, args[2]);
     ok64 o = lex2rl(name, lang);
     if (o != OK)
         trace("%s<%s at %s:%i\n", PROindent, ok64str(o), __func__, __LINE__);

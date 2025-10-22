@@ -168,7 +168,7 @@ typedef int (*$cmpfn)($cc a, $cc b);
     char const *__##n = (s); \
     u8 const *n[2] = {(u8 *)__##n, (u8 *)__##n + strlen(__##n)};
 
-#define a$strc(n, c) u8 const *n[2] = {(u8c *)(c), (u8c *)((c) + strlen(c))}
+#define a_cstr(n, c) u8 const *n[2] = {(u8c *)(c), (u8c *)((c) + strlen(c))}
 
 fun ok64 $feedf(u8 **into, u8 const *const *tmpl, ...) {
     va_list ap;

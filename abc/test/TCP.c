@@ -20,7 +20,7 @@ void garble($u8 data) {
 pro(TCPtest1) {
     sane(1);
 
-    a$strc(addr, "tcp://127.0.0.1:12345");
+    a_cstr(addr, "tcp://127.0.0.1:12345");
 
     int fd;
     call(TCPListen, &fd, addr);

@@ -11,7 +11,7 @@
 #include "abc/MMAP.h"
 #include "abc/PRO.h"
 
-a$strc(ext, "abc/.lex");
+a_cstr(ext, "abc/.lex");
 
 #define X(M, name) M##u8##name
 #include "abc/MMAPx.h"
@@ -98,7 +98,7 @@ int main(int argn, char **args) {
         fprintf(stderr, "Usage: mark [file.md]\n");
         return -1;
     }
-    a$strc(name, args[1]);
+    a_cstr(name, args[1]);
     ok64 o = mark(name);
     if (o != OK)
         trace("%s<%s at %s:%i\n", PROindent, ok64str(o), __func__, __LINE__);

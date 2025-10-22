@@ -82,8 +82,8 @@ fun ok64 OKprint(ok64 o, uint8_t **into) {
         return RONutf8sFeed64(into, o);
     }
 }
-
-fun ok64 RONdrain64(ok64 *o, u8c **from) {
+// todo consuming
+fun ok64 RONdrain64(ok64 *o, u8c * const *from) {
     ok64 res = 0;
     for (uint8_t const *p = from[0]; p < from[1]; ++p) {
         uint64_t v = BASEron64rev[*p];

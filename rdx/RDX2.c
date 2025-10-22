@@ -28,12 +28,14 @@ ok64 RDXutf8sDrainID(utf8cs from, ref128p ref) {
         test($len(t) <= 10, RONbad);
         ref->src = 0;
         o = RONdrain64(&ref->seq, t);
+        if (o == OK) from[0] = t[0];
     } else {
         u8cs src = {t[0], p};
         u8cs time = {p + 1, t[1]};
         test($len(src) <= 10 && $len(time) <= 10, RONbad);
-        o = RONdrain64(&ref->seq, time);
-        if (o == OK) o = RONdrain64(&ref->src, src);
+        o = RONdrain64(&ref->src, src);
+        if (o == OK) o = RONdrain64(&ref->seq, time);
+        if (o == OK) from[0] = t[1];
     }
     return o;
 }
@@ -344,8 +346,7 @@ ok64 RDXutf8sDrainS(utf8csc from, rdxp rp) {
     u8csp t = rp->t;
     u8 quote = *from[0];
     test(quote == '"' || quote == '`', RDXbadS);
-    t[0] = from[0];
-    t[1] = from[0] + 1;
+    t[0] = t[1] = from[0] + 1;
     while (t[1] < from[1]) {
         if (*t[1] == quote) break;
         if (*t[1] == '\\' && quote == '"') t[1]++;
@@ -368,7 +369,7 @@ ok64 RDXu8sFeedS(u8s into, rdxcp rcp) {
     if ($len(rcp->s) < 0xff - 16) {
         call(TLVinitshort, into, RDX_STRING, (u8p**)stack);
     } else {
-        call(TLVinitlong, into, RDX_STRING, (u8p**)stack); // todo
+        call(TLVinitlong, into, RDX_STRING, (u8p**)stack);  // todo
     }
     call(u8sFeed1, into, $len(idpad_datac));
     call(u8sFeed, into, idpad_datac);
@@ -423,7 +424,7 @@ ok64 RDXu8sFeedT(u8s into, rdxcp rcp) {
     sane($ok(into) && rcp != NULL && rcp->type == RDX_TERM);
     a_pad(u8, idpad, 16);
     ZINTu8sFeed128(idpad_idle, rcp->id.src, rcp->id.seq);
-    call(TLVFeedKeyVal, into, RDX_REF, idpad_datac, rcp->t);
+    call(TLVFeedKeyVal, into, RDX_TERM, idpad_datac, rcp->t);
     done;
 }
 
@@ -440,7 +441,7 @@ ok64 RDXu8sDrainT(u8csc from, rdxp rp) {
 
 // . . . . . . . . READER . . . . . . . .
 
-a$strc(RDX_ROOT_REC, " \x01\x00");
+a_cstr(RDX_ROOT_REC, " \x01\x00");
 
 ok64 rdxbInit(rdxb reader, u8cs data) {
     sane(Bok(reader) && $ok(data));
@@ -563,7 +564,7 @@ ok64 rdxpsNexts(rdxps heap, u32 eqs, rdxz z) {  // ejects
             rdxpsSwap(heap, i, $len(heap) - 1);
             --heap[1];
         }
-        rdxpsDownAt(heap, i, z);
+        if (i < $len(heap)) rdxpsDownAt(heap, i, z);
     }
     done;
 }
@@ -671,7 +672,7 @@ ok64 RDXu8bOuto(u8b builder, rdxcp what) {
         call(u8bShift, builder, d);
     }
     // todo test(what==NULL || what->type==type, RDXbadnest);
-    ((u8**)builder)[1] = builder[0] + prevlen; // FIXME TLVu8bOuto
+    ((u8**)builder)[1] = builder[0] + prevlen;  // FIXME TLVu8bOuto
     done;
 }
 
@@ -699,7 +700,7 @@ ok64 RDXu8bFeedAll(u8bp into, u8cs from) {
     call(rdxbInit, reader, from);
     u8b builder = {into[0], into[0], into[0], into[1]};
     call(RDXu8bFeedDeep, builder, reader);
-    ((u8**)into)[0] = builder[2]; // FIXME
+    ((u8**)into)[0] = builder[2];  // FIXME
     done;
 }
 
@@ -746,51 +747,41 @@ ok64 rdxNext(rdxp it) {
 ok64 RDXu8bMergeLWW(u8bp merged, rdxpsc eqs) {
     sane(Bok(merged) && !$empty(eqs));
     int eqlen = 1;
-    rdxp toprev = **eqs;
     for (rdxp* p = *eqs + 1; p < $term(eqs); ++p) {
-        if (rdxLastWriteWinsZ(**eqs, *p) == LESS) {
+        if (rdxLastWriteWinsZ(**eqs, *p)) {
             rdxpSwap(*eqs, p);
             eqlen = 1;
-            toprev = **eqs;
-        } else if (rdxLastWriteWinsZ(*p, **eqs) != LESS) {
+        } else if (!rdxLastWriteWinsZ(*p, **eqs)) {  // e>=p && p<=e
             rdxpSwap(*eqs + eqlen, p);
             ++eqlen;
-            // todo toprev
+        } else {
+            ;  // skip
         }
     }
+    rdxp toprev = **eqs;
     if (eqlen == 1) return RDXu8bFeed(merged, toprev);
     a_head(rdxp, wins, eqs, eqlen);
     b8 plex = NO;
     rdxz z = NULL;
     switch ((**wins)->type) {
         case RDX_FLOAT: {
-            f64 max = f64MinValue;
-            eats(rdxp, p, wins) if ((**p).f > max) max = (**p).f;
-            toprev->f = max;
+            eats(rdxp, p, wins) if ((*p)->f > toprev->f) toprev = *p;
             break;
         }
         case RDX_INT: {
-            i64 max = i64MinValue;
-            eats(rdxp, p, wins) if ((**p).i > max) max = (**p).i;
-            toprev->i = max;
+            eats(rdxp, p, wins) if ((*p)->i > toprev->i) toprev = *p;
             break;
         }
         case RDX_REF: {
-            ref128 max = {};
-            eats(rdxp, p, wins) if (ref128Z(&max, &(**p).r)) max = (**p).r;
-            toprev->r = max;
+            eats(rdxp, p, wins) if (ref128Z(&(*p)->r, &toprev->r)) toprev = *p;
             break;
         }
         case RDX_STRING: {
-            u8cs max = {};
-            eats(rdxp, p, wins) if (u8csZ(max, (**p).s)) u8csDup(max, (**p).s);
-            u8csDup(toprev->s, max);
+            eats(rdxp, p, wins) if (u8csZ((*p)->s, toprev->s)) toprev = *p;
             break;
         }
         case RDX_TERM: {
-            u8cs max = {};
-            eats(rdxp, p, wins) if (u8csZ(max, (**p).t)) u8csDup(max, (**p).t);
-            u8csDup(toprev->t, max);
+            eats(rdxp, p, wins) if (u8csZ((*p)->t, toprev->t)) toprev = *p;
             break;
         }
         case RDX_TUPLE: {
@@ -883,7 +874,7 @@ ok64 rdxTypeZ(rdxcp a, rdxcp b) {
     if (at == bt) return GREQ;
     b8 aplex = rdxIsPLEX(a);
     b8 bplex = rdxIsPLEX(b);
-    return aplex == bplex ? at < bt : aplex < bplex;
+    return aplex < bplex || (aplex == bplex && at < bt);
 }
 
 ok64 rdxTupleZ(rdxcp a, rdxcp b) { return GREQ; }
@@ -912,5 +903,5 @@ ok64 rdxLastWriteWinsZ(rdxcp a, rdxcp b) {
     if (!ref128Eq(&a->id, &b->id)) return ref128Z(&a->id, &b->id);
     u8 at = a->type;
     u8 bt = b->type;
-    return at == bt ? rdx1Z(a, b) : rdxTypeZ(a, b);
+    return (at == bt) ? rdx1Z(a, b) : rdxTypeZ(a, b);
 }

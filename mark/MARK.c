@@ -73,8 +73,8 @@ fun b8 pable(u64 stack) {
     return b == MARK_OLIST || b == MARK_ULIST || b == MARK_QUOTE;
 }
 
-a$strc(P0, "<p>");
-a$strc(P1, "</p>\n");
+a_cstr(P0, "<p>");
+a_cstr(P1, "</p>\n");
 
 fun b8 samediv(u64 stack, u64 div) {
     u8 al = u64bytelen(stack);

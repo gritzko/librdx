@@ -22,7 +22,7 @@ pro(MARKparsetest) {
     state.lineB = (u8cpbp)lines;
     state.divB = (u64bp)divs;
     state.pB = (u64bp)blocks;
-    a$strc(mark,
+    a_cstr(mark,
            "  # Header\n"
            " 1. list of\n"
            "\n"

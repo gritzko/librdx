@@ -21,7 +21,7 @@ ok64 funIcount(POLLctl* ctl) {
 
 pro(POLLtest1) {
     sane(1);
-    a$strc(addr, "tcp://127.0.0.1:23456");
+    a_cstr(addr, "tcp://127.0.0.1:23456");
     int sfd;
     call(TCPListen, &sfd, addr);
     int cfd;
