@@ -26,10 +26,10 @@ ok64 RDX2MergeTest() {
             a_pad(u8cs, inputs, 128);
             scan(TLVDrain$, rec, rdxdata) { call(u8csbFeed1, inputs, rec); }
             u8csDup(correct, *$last(inputs_data));
-            inputs_data[1]--; // todo pop
+            inputs_data[1]--;  // todo pop
             a_pad(u8, fact, PAGESIZE);
             call(RDXu8sMerge, fact, inputs_data);
-            if ($eq(fact_data, correct)) done;
+            if ($eq(fact_data, correct)) continue;
             // OK, some error
             $println(u8cbData(jdr));
             a_pad(u8, jdr2, PAGESIZE);
@@ -37,7 +37,7 @@ ok64 RDX2MergeTest() {
             $println(jdr2_datac);
         }
 
-        call(FILEunmap, jdr);
+        call(FILEUnMap, jdr);
     }
     done;
 }

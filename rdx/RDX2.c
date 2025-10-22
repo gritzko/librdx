@@ -748,7 +748,7 @@ ok64 RDXu8bMergeLWW(u8bp merged, rdxpsc eqs) {
     sane(Bok(merged) && !$empty(eqs));
     int eqlen = 1;
     for (rdxp* p = *eqs + 1; p < $term(eqs); ++p) {
-        if (rdxLastWriteWinsZ(**eqs, *p)) {
+        if (rdxLastWriteWinsZ(**eqs, *p)) { // e < p
             rdxpSwap(*eqs, p);
             eqlen = 1;
         } else if (!rdxLastWriteWinsZ(*p, **eqs)) {  // e>=p && p<=e

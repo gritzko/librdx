@@ -28,13 +28,13 @@ pro(FILEtest2) {
     call(FILEMap, mapbuf, &fd, PROT_READ | PROT_WRITE);
     testeq(Bsize(mapbuf), 4096);
     Bat(mapbuf, 42) = 1;
-    call(FILEunmap, mapbuf);
+    call(FILEUnMap, mapbuf);
     call(FILEMap, mapbuf, &fd, PROT_READ | PROT_WRITE);
     call(FILEClose, &fd);
     testeq(Blen(mapbuf), 4096);
     testeq(Bat(mapbuf, 41), 0);
     testeq(Bat(mapbuf, 42), 1);
-    call(FILEunmap, mapbuf);
+    call(FILEUnMap, mapbuf);
     done;
 }
 
@@ -46,12 +46,12 @@ pro(FILE3) {
     call(FILEmapnew, buf, &fd, path, PAGESIZE);
     Breset(buf);
     call(u8sFeed, u8bIdle(buf), path);
-    call(FILEunmap, buf);
+    call(FILEUnMap, buf);
     Bu8 buf2 = {};
     call(FILEMapRO, buf2, path);
     aB$(u8c, path2, buf2, 0, $len(path));
     $testeq(path, path2);
-    call(FILEunmap, buf2);
+    call(FILEUnMap, buf2);
     // nedo(FILEunlink(path));
     done;
 }

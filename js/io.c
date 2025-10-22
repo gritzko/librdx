@@ -407,7 +407,7 @@ JS_DEFINE_FN(JABCioStdErr) {
 
 void mmap_free(void* bytes, void* deallocatorContext) {
     Bu8 buf = {bytes, bytes, bytes, deallocatorContext};
-    FILEunmap(buf);
+    FILEUnMap(buf);
 }
 
 JSValueRef JABCioFileMap(JSContextRef ctx, JSObjectRef function,

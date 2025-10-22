@@ -264,12 +264,12 @@ fun ok64 FILEmapnew(Bu8 buf, int *fd, $cu8c path, size_t size) {
 }
 
 // Unmaps the buffer.
-ok64 FILEunmap(Bu8 buf);
+ok64 FILEUnMap(u8b buf);
 
 // Resize the file and update the mapping.
 fun ok64 FILEremap(Bu8 buf, int const *fd, size_t new_size) {
     if (!Bok(buf) || fd == NULL) return FILEbadarg;
-    ok64 o = FILEunmap(buf);
+    ok64 o = FILEUnMap(buf);
     if (o == OK) o = FILEresize(fd, new_size);
     if (o == OK) o = FILEMap(buf, fd, PROT_WRITE | PROT_READ);
     // TODO mremap()

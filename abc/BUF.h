@@ -19,8 +19,6 @@ fun int u8pcmp(u8 *const *a, u8 *const *b) {
 
 fun int u8csmp(u8 const *const *a, u8 const *const *b) { return $cmp(a, b); }
 
-fun int u8csZ($cu8c a, $cu8c b) { return $cmp(a, b); }
-
 #define X(M, name) M##u8##name
 #include "Bx.h"
 #undef X
@@ -69,7 +67,8 @@ typedef u8b const *u8bcp;
 #undef ABC_X_$
 #undef X
 
-#define $u8raw(v) {(u8 *)&(v), (u8 *)(&v) + sizeof(v)}
+#define $u8raw(v) \
+    { (u8 *)&(v), (u8 *)(&v) + sizeof(v) }
 
 #define a$raw(n, v) $u8 n = {(u8 *)&(v), (u8 *)(&v) + sizeof(v)}
 #define a$rawc(n, v) u8cs n = {(u8 *)&(v), (u8 *)(&v) + sizeof(v)}
@@ -194,6 +193,14 @@ fun ok64 u8sPop32(u8cs s, u32p last) {
     s[1] -= 4;
     memcpy(last, s[1], 4);
     return OK;
+}
+
+fun int u8csZ(u8csc a, u8csc b) {
+    size_t sza = $size(a), szb = $size(b);
+    size_t sz = sza < szb ? sza : szb;
+    int ret = memcmp(*a, *b, sz);
+    if (ret == 0 && sza != szb) return sza < szb;
+    return ret < 0;
 }
 
 #endif

@@ -153,7 +153,7 @@ ok64 FILEMap(Bu8 buf, int const *fd, int mode) {
     done;
 }
 
-ok64 FILEunmap(Bu8 buf) {
+ok64 FILEUnMap(u8b buf) {
     sane(Bok(buf));
     u8c **b = (u8c **)buf;
     testc(-1 != munmap(buf[0], Blen(b)), FILEfail);
