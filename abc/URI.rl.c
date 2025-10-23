@@ -702,8 +702,7 @@ static const int URI_en_main = 33;
 #line 186 "URI.rl"
 
 pro(URIlexer, URIstate* state) {
-
-    a$dup(u8c, text, state->text);
+    a_dup(u8c, text, state->text);
     sane($ok(text));
 
     int cs = 0;

@@ -228,8 +228,7 @@ static const int JSON_en_main = 20;
 #line 138 "JSON.rl"
 
 pro(JSONlexer, JSONstate* state) {
-
-    a$dup(u8c, text, state->text);
+    a_dup(u8c, text, state->text);
     sane($ok(text));
 
     int cs = 0;

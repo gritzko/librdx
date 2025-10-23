@@ -35,7 +35,7 @@ ok64 LSMdrainruns(u8csb heap, u8cs input, $u8cZfn cmp) {
     sane(Bok(heap) && $ok(input) && u8csbHasRoom(heap) && cmp != NULL);
     u8cs last = {};
     call(TLVDrain$, last, input);
-    a$dup(u8c, run, last);
+    a_dup(u8c, run, last);
     while (!$empty(input) && $len(u8csbIdle(heap)) > 1) {
         u8cs rec;
         call(TLVDrain$, rec, input);
@@ -73,8 +73,8 @@ ok64 LSMsort($u8 data, $u8cZfn cmp, $u8cYfn mrg, $u8 tmp) {
          mrg != NULL);
     size_t runs = 0;
     do {
-        a$dup(u8, out, tmp);
-        a$dup(u8c, in, data);
+        a_dup(u8, out, tmp);
+        a_dup(u8c, in, data);
         call(LSMsort1, &runs, out, in, cmp, mrg);
         if (runs == 0) return OK;
         u8cs in2 = {tmp[0], out[0]};

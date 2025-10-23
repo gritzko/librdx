@@ -22,7 +22,7 @@ fun ok64 HEXfeed($u8 hex, u8cs bin) {
 }
 
 fun ok64 HEXput($u8 hex, $cu8c bin) {
-    a$dup(u8c, copy, bin);
+    a_dup(u8c, copy, bin);
     return HEXfeed(hex, copy);
 }
 

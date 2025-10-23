@@ -17,7 +17,7 @@ typedef enum {
 
 con ok64 JDRbad = 0x4cd6e6968;
 
-con u64 RDX_STYLE_DEFAULT = RDX_STYLE_SEP_COMMA;
+con u64 RDX_STYLE_DEFAULT = RDX_STYLE_SEP_COMMA | RDX_STYLE_SEP_COLON;
 
 fun b8 RDXisWS(u8 c) { return c == ' ' || c == '\t' || c == '\n' || c == '\r'; }
 

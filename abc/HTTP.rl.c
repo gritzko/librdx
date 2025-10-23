@@ -216,8 +216,7 @@ static const int HTTP_en_main = 1;
 #line 202 "HTTP.rl"
 
 pro(HTTPlexer, HTTPstate* state) {
-
-    a$dup(u8c, text, state->text);
+    a_dup(u8c, text, state->text);
     sane($ok(text));
 
     int cs = 0;

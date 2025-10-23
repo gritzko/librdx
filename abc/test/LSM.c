@@ -10,8 +10,8 @@
 #include "abc/ZINT.h"
 
 fun int alpha($cu8c* a, $cu8c* b) {
-    a$dup(u8c, aa, *a);
-    a$dup(u8c, bb, *b);
+    a_dup(u8c, aa, *a);
+    a_dup(u8c, bb, *b);
     u8 ta, tb;
     u8cs keya, keyb, vala, valb;
     TLVDrainKeyVal(&ta, keya, vala, aa);
@@ -58,7 +58,7 @@ pro(LSM0) {
     aBcpad(u8, txt, 1024);
     call(LSMmerge, txtidle, lsmdata, alpha, latest);
 
-    a$dup(u8c, res, txtdata);
+    a_dup(u8c, res, txtdata);
     u8 n = '0';
     while (!$empty(res)) {
         u8 ta;
@@ -103,8 +103,8 @@ pro(LSM1) {
 }
 
 fun int ZINTz($cu8c* a, $cu8c* b) {
-    a$dup(u8c, aa, *a);
-    a$dup(u8c, bb, *b);
+    a_dup(u8c, aa, *a);
+    a_dup(u8c, bb, *b);
     u8cs vala, valb;
     u8 ta, tb;
     TLVu8sDrain(aa,&ta, vala);

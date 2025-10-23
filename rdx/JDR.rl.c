@@ -1,7 +1,6 @@
 
 
 #include "JDR2.h"
-
 #include "abc/INT.h"
 #include "abc/PRO.h"
 
@@ -21,14 +20,14 @@ enum {
     JDRMLString = JDRenum + 24,
     JDRStamp = JDRenum + 25,
     JDRNoStamp = JDRenum + 26,
-    JDROpenP = JDRenum + 27,
-    JDRCloseP = JDRenum + 28,
+    JDROpenX = JDRenum + 27,
+    JDRCloseX = JDRenum + 28,
     JDROpenL = JDRenum + 29,
     JDRCloseL = JDRenum + 30,
     JDROpenE = JDRenum + 31,
     JDRCloseE = JDRenum + 32,
-    JDROpenX = JDRenum + 33,
-    JDRCloseX = JDRenum + 34,
+    JDROpenP = JDRenum + 33,
+    JDRCloseP = JDRenum + 34,
     JDRComma = JDRenum + 35,
     JDRColon = JDRenum + 36,
     JDROpen = JDRenum + 37,
@@ -52,14 +51,14 @@ ok64 JDRonString($cu8c tok, JDRstate* state);
 ok64 JDRonMLString($cu8c tok, JDRstate* state);
 ok64 JDRonStamp($cu8c tok, JDRstate* state);
 ok64 JDRonNoStamp($cu8c tok, JDRstate* state);
-ok64 JDRonOpenP($cu8c tok, JDRstate* state);
-ok64 JDRonCloseP($cu8c tok, JDRstate* state);
+ok64 JDRonOpenX($cu8c tok, JDRstate* state);
+ok64 JDRonCloseX($cu8c tok, JDRstate* state);
 ok64 JDRonOpenL($cu8c tok, JDRstate* state);
 ok64 JDRonCloseL($cu8c tok, JDRstate* state);
 ok64 JDRonOpenE($cu8c tok, JDRstate* state);
 ok64 JDRonCloseE($cu8c tok, JDRstate* state);
-ok64 JDRonOpenX($cu8c tok, JDRstate* state);
-ok64 JDRonCloseX($cu8c tok, JDRstate* state);
+ok64 JDRonOpenP($cu8c tok, JDRstate* state);
+ok64 JDRonCloseP($cu8c tok, JDRstate* state);
 ok64 JDRonComma($cu8c tok, JDRstate* state);
 ok64 JDRonColon($cu8c tok, JDRstate* state);
 ok64 JDRonOpen($cu8c tok, JDRstate* state);
@@ -561,7 +560,7 @@ static const int JDR_en_main = 38;
 
 // the public API function
 pro(JDRlexer, JDRstate* state) {
-    a$dup(u8c, text, state->text);
+    a_dup(u8c, text, state->text);
     sane($ok(text));
 
     int cs = 0;
@@ -573,7 +572,9 @@ pro(JDRlexer, JDRstate* state) {
 
     u8cs tok = {p, p};
 
-    { cs = JDR_start; }
+    {
+        cs = JDR_start;
+    }
 
     {
         int _klen;
@@ -877,14 +878,14 @@ pro(JDRlexer, JDRstate* state) {
                 case 26:
 
                 {
-                    mark0[JDROpenP] = p - text[0];
+                    mark0[JDROpenX] = p - text[0];
                 } break;
                 case 27:
 
                 {
-                    tok[0] = text[0] + mark0[JDROpenP];
+                    tok[0] = text[0] + mark0[JDROpenX];
                     tok[1] = p;
-                    o = JDRonOpenP(tok, state);
+                    o = JDRonOpenX(tok, state);
                     if (o != OK) {
                         {
                             p++;
@@ -895,14 +896,14 @@ pro(JDRlexer, JDRstate* state) {
                 case 28:
 
                 {
-                    mark0[JDRCloseP] = p - text[0];
+                    mark0[JDRCloseX] = p - text[0];
                 } break;
                 case 29:
 
                 {
-                    tok[0] = text[0] + mark0[JDRCloseP];
+                    tok[0] = text[0] + mark0[JDRCloseX];
                     tok[1] = p;
-                    o = JDRonCloseP(tok, state);
+                    o = JDRonCloseX(tok, state);
                     if (o != OK) {
                         {
                             p++;
@@ -985,14 +986,14 @@ pro(JDRlexer, JDRstate* state) {
                 case 38:
 
                 {
-                    mark0[JDROpenX] = p - text[0];
+                    mark0[JDROpenP] = p - text[0];
                 } break;
                 case 39:
 
                 {
-                    tok[0] = text[0] + mark0[JDROpenX];
+                    tok[0] = text[0] + mark0[JDROpenP];
                     tok[1] = p;
-                    o = JDRonOpenX(tok, state);
+                    o = JDRonOpenP(tok, state);
                     if (o != OK) {
                         {
                             p++;
@@ -1003,14 +1004,14 @@ pro(JDRlexer, JDRstate* state) {
                 case 40:
 
                 {
-                    mark0[JDRCloseX] = p - text[0];
+                    mark0[JDRCloseP] = p - text[0];
                 } break;
                 case 41:
 
                 {
-                    tok[0] = text[0] + mark0[JDRCloseX];
+                    tok[0] = text[0] + mark0[JDRCloseP];
                     tok[1] = p;
-                    o = JDRonCloseX(tok, state);
+                    o = JDRonCloseP(tok, state);
                     if (o != OK) {
                         {
                             p++;
@@ -1137,7 +1138,7 @@ pro(JDRlexer, JDRstate* state) {
     _again:
         if (cs == 0) goto _out;
         if (++p != pe) goto _resume;
-    _test_eof : {}
+    _test_eof: {}
         if (p == eof) {
             const char* __acts = _JDR_actions + _JDR_eof_actions[cs];
             unsigned int __nacts = (unsigned int)*__acts++;
@@ -1268,9 +1269,9 @@ pro(JDRlexer, JDRstate* state) {
                     case 27:
 
                     {
-                        tok[0] = text[0] + mark0[JDROpenP];
+                        tok[0] = text[0] + mark0[JDROpenX];
                         tok[1] = p;
-                        o = JDRonOpenP(tok, state);
+                        o = JDRonOpenX(tok, state);
                         if (o != OK) {
                             {
                                 p++;
@@ -1281,9 +1282,9 @@ pro(JDRlexer, JDRstate* state) {
                     case 29:
 
                     {
-                        tok[0] = text[0] + mark0[JDRCloseP];
+                        tok[0] = text[0] + mark0[JDRCloseX];
                         tok[1] = p;
-                        o = JDRonCloseP(tok, state);
+                        o = JDRonCloseX(tok, state);
                         if (o != OK) {
                             {
                                 p++;
@@ -1346,9 +1347,9 @@ pro(JDRlexer, JDRstate* state) {
                     case 39:
 
                     {
-                        tok[0] = text[0] + mark0[JDROpenX];
+                        tok[0] = text[0] + mark0[JDROpenP];
                         tok[1] = p;
-                        o = JDRonOpenX(tok, state);
+                        o = JDRonOpenP(tok, state);
                         if (o != OK) {
                             {
                                 p++;
@@ -1359,9 +1360,9 @@ pro(JDRlexer, JDRstate* state) {
                     case 41:
 
                     {
-                        tok[0] = text[0] + mark0[JDRCloseX];
+                        tok[0] = text[0] + mark0[JDRCloseP];
                         tok[1] = p;
-                        o = JDRonCloseX(tok, state);
+                        o = JDRonCloseP(tok, state);
                         if (o != OK) {
                             {
                                 p++;
@@ -1469,7 +1470,7 @@ pro(JDRlexer, JDRstate* state) {
             }
         }
 
-    _out : {}
+    _out: {}
     }
 
     state->text[0] = p;

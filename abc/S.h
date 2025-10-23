@@ -21,12 +21,8 @@
 #define $size(s) (((uint8_t *)$term(s)) - ((uint8_t *)$head(s)))
 #define $at(s, n) (*($head(s) + (n)))
 #define $atp(s, n) (($head(s) + (n)))
-#define $in(s, p) (p - s[0])
-#define $in$(s, ins) (ins[0] - s[0])
-#define $NULL(s) (s != NULL && s[0] == NULL && s[1] == NULL)
 
 #define $empty(s) (s == NULL || $head(s) >= $term(s))
-#define $nospace(s, l) ($head(s) + (l) > $term(s))
 #define $ok(s) (s != NULL && *s != NULL && s[1] >= s[0])
 #define $within(h, n) (n[0] >= h[0] && n[1] <= h[1])
 
@@ -34,7 +30,7 @@
 
 #define $off(s, o) ((s[0] + (o) < s[1]) ? (s[0] + (o)) : s[1])
 
-#define a$dup(T, n, s) T *n[2] = {(s)[0], (s)[1]}
+#define a_dup(T, n, s) T *n[2] = {(s)[0], (s)[1]}
 #define $dup(s) {(s)[0], (s)[1]}
 
 #define a_rest(T, n, orig, off) \
@@ -51,24 +47,14 @@
 
 #define a$tail(T, n, s, off) \
     $##T n = {(off) > $len(s) ? s[1] : s[0] + (off), s[1]};
-#define a$last(T, n, s, len) \
-    $##T n = {(len) > $len(s) ? s[0] : s[1] - (len), s[1]};
 #define a$head(T, n, s, l) \
     T *n[2] = {s[0], ((l) > $len(s) ? s[1] : (s[0] + l))};
 
 #define a$part(T, n, s, off, len) T *n[2] = {*s + off, *s + off + len};
-#define a$lpart(T, n, s, off) T *n[2] = {(s)[0], (s)[0] + off}
-#define a$rpart(T, n, s, off) T *n[2] = {(s)[0] + off, (s)[1]}
 #define $set(a, b)   \
     {                \
         a[0] = b[0]; \
         a[1] = b[1]; \
-    }
-
-#define $put(s, p)                  \
-    {                               \
-        memcpy(*s, p, sizeof(**s)); \
-        ++*s;                       \
     }
 
 #define $mv(s1, s2)                           \
@@ -76,28 +62,11 @@
         (s1)[0] = (s2)[0], (s1)[1] = (s2)[1]; \
     }
 
-// produce a subslice given an offset
-#define $mvNULL(s1)                \
-    {                             \
-        s1[0] = NULL, s1[1] = NULL; \
-    }
-
-#define $sub(s, o) {$off(s, o), s[1]}
-
 /** produce a subslice given offset and length */
 #define $cut(s, o, l) {$off(s, o), $off(s, o + l)}
 
-#define $trim2(s, v) \
-    if ($len(s) > 0 && *$last(s) == v) --s[1];
-
-#define $shift(s) (*(s[0]++))
-
 #define $for(T, n, s) for (T *n = s[0]; (n + 1) <= s[1]; ++n)
-#define $for$(T, n, s) for (T n = s[0]; (n + 2) <= s[1]; n += 2)
-#define $rof(T, n, s) for (T *n = s[1] - 1; n >= s[0]; --n)
-#define $next(s) ((*s)++)
 #define $eat(s) for (; s[0] < s[1]; s[0]++)
-#define $eat2(s) for (; s[0] < s[1]; s[0] += 2)
 
 #define eats(T, i, s) for (T *i = s[0]; i < s[1]; i++)
 
@@ -135,13 +104,6 @@ typedef int (*fncmp)(const void *, const void *);
         *(uint8_t **)into += sz;          \
     }
 
-#define $drain(into, from)                         \
-    {                                              \
-        $copy(into, from);                         \
-        *(uint8_t **)into += $minsize(into, from); \
-        *(uint8_t **)from += $minsize(into, from); \
-    }
-
 fun int $memcmp($cc a, $cc b) {
     size_t sza = $size(a), szb = $size(b);
     size_t sz = sza < szb ? sza : szb;
@@ -175,7 +137,7 @@ fun ok64 $feedf(u8 **into, u8 const *const *tmpl, ...) {
     size_t l = 0;
     ok64 o = OK;
     u8 const **sarg = NULL;
-    a$dup(u8 const, p, tmpl);
+    a_dup(u8 const, p, tmpl);
     va_start(ap, tmpl);
     while (!$empty(p) && !$empty(into)) {
         if (**p != '$') {

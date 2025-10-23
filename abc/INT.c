@@ -4,7 +4,7 @@
 
 ok64 i64decdrain(i64 *i, u8cs tok) {
     sane(i != NULL && $ok(tok) && !$empty(tok));
-    a$dup(u8c, dec, tok);
+    a_dup(u8c, dec, tok);
     if (**tok == '-' || **tok == '+') ++*dec;
     u64 x;
     ok64 o = u64decdrain(&x, dec);

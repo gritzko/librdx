@@ -55,7 +55,7 @@ pro($test2) {
 
     $i32sort(data);
 
-    a$dup(i32, d, data);
+    a_dup(i32, d, data);
     int j = 0;
     $eat(d) want(**d == j++);
 

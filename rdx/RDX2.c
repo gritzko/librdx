@@ -20,7 +20,7 @@ ok64 RDXutf8sFeedID(utf8s into, ref128cp ref) {
 }
 
 ok64 RDXutf8sDrainID(utf8cs from, ref128p ref) {
-    a$dup(u8c, t, from);
+    a_dup(u8c, t, from);
     u8 DELIM = '-';
     u8c* p = $u8find(t, &DELIM);
     ok64 o = OK;
@@ -64,18 +64,18 @@ ok64 RDXutf8sDrainStamp(utf8cs from, rdxp rp) {
     done;
 }
 
-ok64 RDXu8sFeed1(u8s into, rdxcp rp) {
-    switch (rp->type) {
+ok64 RDXu8sFeedFIRST(u8s elem, rdxcp rdx) {
+    switch (rdx->type) {
         case RDX_FLOAT:
-            return RDXu8sFeedF(into, rp);
+            return RDXu8sFeedF(elem, rdx);
         case RDX_INT:
-            return RDXu8sFeedI(into, rp);
+            return RDXu8sFeedI(elem, rdx);
         case RDX_REF:
-            return RDXu8sFeedR(into, rp);
+            return RDXu8sFeedR(elem, rdx);
         case RDX_STRING:
-            return RDXu8sFeedS(into, rp);
+            return RDXu8sFeedS(elem, rdx);
         case RDX_TERM:
-            return RDXu8sFeedT(into, rp);
+            return RDXu8sFeedT(elem, rdx);
         default:
             return RDXbad;
     }
@@ -330,9 +330,9 @@ ok64 RDXutf8sFeedS(utf8s into, rdxcp rp) {
     u8csDup(dup, rp->s);
     call(utf8sFeed1, into, '"');
     if (rp->enc == RDX_ENC_UTF8 || rp->enc == 0) {
-        call(utf8sFeed, into, dup);
-    } else if (rp->enc == RDX_ENC_UTF8_ESC) {
         call(RDXutf8sFeedEscape, into, dup);
+    } else if (rp->enc == RDX_ENC_UTF8_ESC) {
+        call(utf8sFeed, into, dup);
     } else {
         return notimplyet;
     }
@@ -343,21 +343,23 @@ ok64 RDXutf8sFeedS(utf8s into, rdxcp rp) {
 
 ok64 RDXutf8sDrainS(utf8csc from, rdxp rp) {
     sane($len(from) >= 2 && rp != NULL);
-    u8csp t = rp->t;
-    u8 quote = *from[0];
+    a_dup(u8c, f, from);
+    u8 quote = *f[0];
     test(quote == '"' || quote == '`', RDXbadS);
-    t[0] = t[1] = from[0] + 1;
-    while (t[1] < from[1]) {
-        if (*t[1] == quote) break;
-        if (*t[1] == '\\' && quote == '"') t[1]++;
-        t[1]++;
+    ++*f;
+    rp->t[0] = rp->t[1] = *f;
+    while (!$empty(f)) {
+        if (**f == quote) break;
+        if (**f == '\\' && quote == '"') ++*f;
+        ++*f;
     }
-    test(t[1] < from[1], RDXbadS);
-    utf8cs txt = {t[1] + 1, from[1]};
+    test(!$empty(f), RDXbadS);
+    rp->t[1] = *f;
+    ++*f;  // the quote
     rp->type = RDX_STRING;
-    rp->enc = RDX_ENC_UTF8_ESC;
-    call(RDXutf8sDrainStamp, txt, rp);
-    test($empty(txt), RDXbadF);
+    rp->enc = quote == '"' ? RDX_ENC_UTF8_ESC : RDX_ENC_UTF8;
+    call(RDXutf8sDrainStamp, f, rp);
+    test($empty(f), RDXbadF);
     done;
 }
 
@@ -612,8 +614,8 @@ ok64 RDXu8bInto(u8b builder, rdxcp what) {
 }
 
 ok64 RDXu8bOuto(u8b builder, rdxcp what) {
-    sane(Bok(builder) && what != NULL && RDXisPLEX(what->type));
-    call(TLVu8bOuto, builder, what->type);
+    sane(Bok(builder) && (what == NULL || RDXisPLEX(what->type)));
+    call(TLVu8bOuto, builder, what ? what->type : 0);
     done;
 }
 

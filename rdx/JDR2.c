@@ -17,7 +17,7 @@ ok64 JDRFlush(JDRstate* state, b8 force) {
     ok64 o = OK;
     utf8sp idle = utf8bIdle(state->builder);
     if (state->cur.type != 0) {
-        o = RDXutf8sFeedFIRST(idle, &state->cur);
+        o = RDXu8sFeedFIRST(idle, &state->cur);
         state->cur.type = 0;
     } else if (force) {
         o = utf8sFeed(idle, TLV_EMPTY_TUPLE);
@@ -31,22 +31,40 @@ ok64 JDRonUtf8cp2($cu8c tok, JDRstate* state) { return OK; }
 ok64 JDRonUtf8cp3($cu8c tok, JDRstate* state) { return OK; }
 ok64 JDRonUtf8cp4($cu8c tok, JDRstate* state) { return OK; }
 ok64 JDRonInt($cu8c tok, JDRstate* state) {
-    return RDXutf8sDrainI(tok, &state->cur);
+    sane(1);
+    call(JDRFlush, state, NO);
+    call(RDXutf8sDrainI, tok, &state->cur);
+    done;
 }
 ok64 JDRonFloat($cu8c tok, JDRstate* state) {
-    return RDXutf8sDrainF(tok, &state->cur);
+    sane(1);
+    call(JDRFlush, state, NO);
+    call(RDXutf8sDrainF, tok, &state->cur);
+    done;
 }
 ok64 JDRonTerm($cu8c tok, JDRstate* state) {
-    return RDXutf8sDrainT(tok, &state->cur);
+    sane(1);
+    call(JDRFlush, state, NO);
+    call(RDXutf8sDrainT, tok, &state->cur);
+    done;
 }
 ok64 JDRonRef($cu8c tok, JDRstate* state) {
-    return RDXutf8sDrainR(tok, &state->cur);
+    sane(1);
+    call(JDRFlush, state, NO);
+    call(RDXutf8sDrainR, tok, &state->cur);
+    done;
 }
 ok64 JDRonString($cu8c tok, JDRstate* state) {
-    return RDXutf8sDrainS(tok, &state->cur);
+    sane(1);
+    call(JDRFlush, state, NO);
+    call(RDXutf8sDrainS, tok, &state->cur);
+    done;
 }
 ok64 JDRonMLString($cu8c tok, JDRstate* state) {
-    return RDXutf8sDrainS(tok, &state->cur);
+    sane(1);
+    call(JDRFlush, state, NO);
+    call(RDXutf8sDrainS, tok, &state->cur);
+    done;
 }
 ok64 JDRonStamp($cu8c tok, JDRstate* state) {
     assert(**tok == '@');
@@ -62,32 +80,36 @@ ok64 JDRonOpenP($cu8c tok, JDRstate* state) {
     return OK;
 }
 ok64 JDRonCloseP($cu8c tok, JDRstate* state) {
+    ok64 o = JDRFlush(state, NO);
     state->cur.type = RDX_TUPLE;
-    return OK;
+    return o;
 }
 ok64 JDRonOpenL($cu8c tok, JDRstate* state) {
     state->cur.type = RDX_LINEAR;
     return OK;
 }
 ok64 JDRonCloseL($cu8c tok, JDRstate* state) {
+    ok64 o = JDRFlush(state, NO);
     state->cur.type = RDX_LINEAR;
-    return OK;
+    return o;
 }
 ok64 JDRonOpenE($cu8c tok, JDRstate* state) {
     state->cur.type = RDX_EULER;
     return OK;
 }
 ok64 JDRonCloseE($cu8c tok, JDRstate* state) {
+    ok64 o = JDRFlush(state, NO);
     state->cur.type = RDX_EULER;
-    return OK;
+    return o;
 }
 ok64 JDRonOpenX($cu8c tok, JDRstate* state) {
     state->cur.type = RDX_MULTIX;
     return OK;
 }
 ok64 JDRonCloseX($cu8c tok, JDRstate* state) {
+    ok64 o = JDRFlush(state, NO);
     state->cur.type = RDX_MULTIX;
-    return OK;
+    return o;
 }
 ok64 JDRonComma($cu8c tok, JDRstate* state) {
     ok64 o = OK;
@@ -100,11 +122,13 @@ ok64 JDRonComma($cu8c tok, JDRstate* state) {
             o = utf8sFeed(idle, TLV_EMPTY_TUPLE);
             break;
         case JDR_TUPLE:
-            o = RDXu8bOuto(state->builder, NULL);
+            o = JDRFlush(state, NO);
+            if (o == OK) o = RDXu8bOuto(state->builder, NULL);
             state->flags = JDR_COMMA;
             break;
         case JDR_COLON | JDR_TUPLE:
-            o = RDXu8bOuto(state->builder, NULL);
+            o = JDRFlush(state, NO); // ?
+            if (o == OK) o = RDXu8bOuto(state->builder, NULL);
             state->flags = JDR_COMMA;
             break;
         default:
@@ -128,7 +152,7 @@ ok64 JDRonColon($cu8c tok, JDRstate* state) {
             rdx wat = {.type = RDX_TUPLE};
             o = RDXu8bInto(state->builder, &wat);
             state->flags = JDR_TUPLE | JDR_COLON;
-            o = utf8sFeed(idle, TLV_EMPTY_TUPLE);
+            if (o == OK) o = utf8sFeed(idle, TLV_EMPTY_TUPLE);
             break;
         }
         case JDR_TUPLE:
@@ -141,21 +165,33 @@ ok64 JDRonColon($cu8c tok, JDRstate* state) {
             o = JDRbad;
             break;
     }
-    return OK;
+    return o;
 }
 ok64 JDRonOpen($cu8c tok, JDRstate* state) {
-    return RDXu8bInto(state->builder, &state->cur);
+    ok64 o = RDXu8bInto(state->builder, &state->cur);
+    state->cur.type = 0;
+    return o;
 }
 ok64 JDRonClose($cu8c tok, JDRstate* state) {
-    return RDXu8bOuto(state->builder, &state->cur);
+    ok64 o = RDXu8bOuto(state->builder, &state->cur);
+    state->cur.type = 0;
+    return o;
 }
 ok64 JDRonInter($cu8c tok, JDRstate* state) { return OK; }
 ok64 JDRonFIRST($cu8c tok, JDRstate* state) {
-    ok64 o = RDXu8sFeed1(u8bIdle(state->builder), &state->cur);
     state->flags &= ~(JDR_COMMA | JDR_COLON);
-    return o;
+    return OK;
 }
-ok64 JDRonRoot($cu8c tok, JDRstate* state) { return OK; }
+ok64 JDRonRoot($cu8c tok, JDRstate* state) {
+    sane(1);
+    call(JDRFlush, state, NO);
+    if (u8bPastLen(state->builder)) {
+        state->cur.type = RDX_TUPLE;
+        call(RDXu8bOuto, state->builder, &state->cur);
+    }
+    test(0 == u8bPastLen(state->builder), RDXbadnest);
+    return OK;
+}
 
 ok64 JDRlexer(JDRstate* state);
 
@@ -181,6 +217,23 @@ ok64 RDXutf8sIndent(utf8s jdr, rdxbp reader, u64 style) {
 }
 
 ok64 RDXutf8sFeedStamp(utf8s into, rdxcp rp);
+ok64 RDXutf8sRenderPLEX(utf8s jdr, rdxbp reader, u64 style);
+
+ok64 RDXutf8sRenderInlineTuple(utf8s jdr, rdxbp reader, u64 style) {
+    sane($ok(jdr) && Bok(reader));
+    rdxp top = rdxbLast(reader);
+    scan(rdxNext, top) {
+        if (RDXisFIRST(top->type)) {
+            call(RDXutf8sFeedFIRST, jdr, top);
+        } else {
+            call(RDXutf8sRenderPLEX, jdr, reader, style);
+        }
+        if ($empty(top->rest)) continue;
+        call(utf8sFeed1, jdr, ':');
+    }
+    seen(RDXeof);
+    done;
+}
 
 ok64 RDXutf8sRenderPLEX(utf8s jdr, rdxbp reader, u64 style) {
     sane($ok(jdr));
@@ -189,6 +242,14 @@ ok64 RDXutf8sRenderPLEX(utf8s jdr, rdxbp reader, u64 style) {
     switch (top->type) {
         case RDX_TUPLE:
             brackets = "()";
+            if ((style & RDX_STYLE_SEP_COLON) && $len(top->plex) <= 64 &&
+                ref128Empty(&top->id)) {
+                style &= ~(RDX_STYLE_SEP_COLON | RDX_STYLE_SEP_NLINE);
+                call(rdxbInto, reader);
+                call(RDXutf8sRenderInlineTuple, jdr, reader, style);
+                call(rdxbOuto, reader);
+                done;
+            }
             break;
         case RDX_LINEAR:
             brackets = "[]";
@@ -203,7 +264,10 @@ ok64 RDXutf8sRenderPLEX(utf8s jdr, rdxbp reader, u64 style) {
             return RDXbadnest;
     }
     call(utf8sFeed1, jdr, brackets[0]);
-    if (!ref128Empty(&top->id)) call(RDXutf8sFeedStamp, jdr, top);
+    if (!ref128Empty(&top->id)) {
+        call(RDXutf8sFeedStamp, jdr, top);
+        if (!$empty(top->plex)) call(utf8sFeed1, jdr, ' ');
+    }
     call(rdxbInto, reader);
     call(RDXutf8sRender, jdr, reader, style);
     call(rdxbOuto, reader);
@@ -231,8 +295,4 @@ ok64 RDXutf8sRender(utf8s jdr, rdxbp reader, u64 style) {
     }
     seen(RDXeof);
     done;
-}
-
-ok64 RDXutf8sRenderInlineTuple(utf8s jdr, rdxbp reader, u64 style) {
-    return notimplyet;
 }

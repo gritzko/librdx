@@ -215,7 +215,7 @@ fun ok64 RDXu8sMerge(u8bp merged, u8css inputs) {
 
 // . . . . . . . . RDX TLV FIRST . . . . . . . .
 
-ok64 RDXu8sFeed1(u8s elem, rdxcp rdx);
+ok64 RDXu8sFeedFIRST(u8s elem, rdxcp rdx);
 ok64 RDXu8sFeedF(u8s elem, rdxcp rdx);
 ok64 RDXu8sFeedI(u8s elem, rdxcp rdx);
 ok64 RDXu8sFeedR(u8s elem, rdxcp rdx);

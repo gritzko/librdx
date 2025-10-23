@@ -144,7 +144,7 @@ fun ok64 FILEFeedv(int fd, u8css datav) {
 
 fun ok64 FILEFeedall(int fd, uint8_t const *const *data) {
     if (!FILEok(fd) || !$ok(data)) return FILEbadarg;
-    a$dup(u8 const, d, data);
+    a_dup(u8 const, d, data);
     ok64 ret = OK;
     while (!$empty(d) && OK == ret) {
         ret = FILEFeed(fd, d);
@@ -283,12 +283,12 @@ fun ok64 FILEremap125(Bu8 buf, int const *fd) {
 }
 
 fun ok64 FILEout(u8 const *const *txt) {
-    a$dup(u8 const, dup, txt);
+    a_dup(u8 const, dup, txt);
     return FILEFeedall(STDOUT_FILENO, dup);
 }
 
 fun ok64 FILEerr(u8 const *const *txt) {
-    a$dup(u8 const, dup, txt);
+    a_dup(u8 const, dup, txt);
     return FILEFeedall(STDERR_FILENO, dup);
 }
 

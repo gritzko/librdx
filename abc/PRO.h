@@ -45,6 +45,7 @@ con char *_pro_indent =
         }                                                               \
     }
 
+// e.g. scan(u64sDrain1, numbers, &i) { ... }  seen(nodata);
 #define scan(f, ...) while (OK == (__ = f(__VA_ARGS__)))
 
 #define try(f, ...)                                                     \

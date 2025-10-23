@@ -96,7 +96,7 @@ ok64 NESTFeed(u8bp ct, u8cs insert) {
     u8$ idle = NESTidle(ct);
     u8c$ data = NESTdata(ct);
     if ($len(idle) < $len(insert)) return NESTnoroom;
-    a$dup(u8c, ins, insert);
+    a_dup(u8c, ins, insert);
     while (!$empty(ins)) {
         if (**ins != '$' || $len(ins) <= 1) {
             **idle = **ins, ++*idle, ++*ins;

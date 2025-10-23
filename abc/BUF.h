@@ -132,7 +132,7 @@ fun void Bitunset(Bu8 buf, size_t ndx) {
 con ok64 Badtemplte = 0x2e5a38a71d30e29;
 
 fun ok64 $$feedf($u8 into, u8cs tmpl, u8css args) {
-    a$dup(u8c, t, tmpl);
+    a_dup(u8c, t, tmpl);
     ok64 o = OK;
     while (!$empty(t) && o == OK) {
         if (**t != '$') {

@@ -288,7 +288,7 @@ static const int MARQ_en_main = 0;
 #line 119 "MARQ.rl"
 
 pro(MARQlexer, MARQstate *state) {
-    a$dup(u8c, text, state->text);
+    a_dup(u8c, text, state->text);
     sane($ok(text));
 
     int cs = 0;

@@ -167,8 +167,7 @@ static const int MARK_en_main = 43;
 #line 159 "MARK.rl"
 
 pro(MARKlexer, MARKstate* state) {
-
-    a$dup(u8c, text, state->text);
+    a_dup(u8c, text, state->text);
     sane($ok(text));
 
     int cs = 0;

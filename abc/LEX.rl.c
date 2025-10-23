@@ -1232,8 +1232,7 @@ static const int LEX_en_main = 247;
 
 // the public API function
 pro(LEXlexer, LEXstate* state) {
-
-    a$dup(u8c, text, state->text);
+    a_dup(u8c, text, state->text);
     sane($ok(text));
 
     int cs = 0;

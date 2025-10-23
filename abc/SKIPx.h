@@ -97,7 +97,7 @@ fun pro(X(SKIP, finish), Bu8 buf, X(SKIP, tab) * k) {
     if (k->pos != 0 && X(SKIP, blk)(pos) == X(SKIP, blk)(k->pos)) {
         u8cs lastk = {};
         a$tail(u8, tail, u8bData(buf), k->pos);
-        a$dup(u8c, rest, tail);
+        a_dup(u8c, rest, tail);
         call(TLVDrain$, lastk, rest);
         call($u8move, tail, rest);
         call($u8retract,u8cbData(buf), $len(lastk));

@@ -34,14 +34,14 @@ MLString = "`" (utf8cp - [`])* "`";
 Stamp = "@" id128;
 NoStamp = "";
 
-OpenP = "<";
-CloseP = ">";
+OpenP = "(";
+CloseP = ")";
 OpenL = "[";
 CloseL = "]";
 OpenE = "{";
 CloseE = "}";
-OpenX = "(";
-CloseX = ")";
+OpenX = "<";
+CloseX = ">";
 
 Comma = ",";
 Colon = ":";
