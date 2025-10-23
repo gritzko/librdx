@@ -56,6 +56,7 @@ con ok64 RDXbadT = 0x1335b9a5a1d;
 con ok64 RDXbadnest = 0x4cd6e6968ca9df8;
 con ok64 RDXsyntax = 0x1335bdfdcb897c;
 con ok64 RDXsogood = OK;
+con ok64 RDXeof = 0x6cd869cea;
 
 #endif
 
@@ -77,6 +78,7 @@ fun b8 ref128Eq(ref128cp a, ref128cp b) {
     u64 bt = b->seq & ~ref128RevMask;
     return at == bt && a->src == b->src;
 }
+fun b8 ref128Empty(ref128cp a) { return a->src == 0 && a->seq == 0; }
 
 fun ok64 RDXu8sFeedID(u8s into, ref128cp ref) {
     return ZINTu8sFeed128(into, ref->src, ref->seq);
@@ -145,7 +147,7 @@ fun b8 rdxOK(rdxp it) { return it->reclen > 0; }
 fun ok64 rdxInit(rdxp it, u8csc data) {
     zerop(it);
     u8csDup(it->rest, data);
-    return rdxNext(it);
+    return OK;
 }
 fun ok64 rdxInto(rdxp it, u8cs rest) {
     u8csDup(rest, it->rest);
@@ -159,7 +161,12 @@ fun ok64 rdxOuto(rdxp it, u8csc rest) {
 
 ok64 rdxbInit(rdxb reader, u8cs data);
 fun u8 rdxbType(rdxb reader) { return rdxbLast(reader)->type; }
-ok64 rdxbNext(rdxb reader);
+fun ok64 rdxbNext(rdxb reader) {
+#ifndef ABC_INSANE
+    if (unlikely(reader == NULL || Bdatalen(reader) <= 0)) return FAILsanity;
+#endif
+    return rdxNext(Blastp(reader));
+}
 ok64 rdxbInto(rdxb reader);
 ok64 rdxbOuto(rdxb reader);
 

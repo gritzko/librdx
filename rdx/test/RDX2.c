@@ -33,7 +33,7 @@ ok64 RDX2MergeTest() {
             // OK, some error
             $println(u8cbData(jdr));
             a_pad(u8, jdr2, PAGESIZE);
-            call(RDXutf8sFeed, jdr2_idle, fact_datac);
+            call(RDXutf8sFeedRaw, jdr2_idle, fact_datac);
             $println(jdr2_datac);
         }
 

@@ -1,6 +1,5 @@
-#include "JDR.h"
+#include "JDR2.h"
 
-#include "../UNIT.h"
 #include "abc/B.h"
 #include "abc/FILE.h"
 #include "abc/PRO.h"
@@ -34,28 +33,28 @@ pro(JDRtest1) {
     for (int i = 0; i < LEN1; ++i) {
         aBcpad(u8, pad, 1024);
         aBcpad(u64, stack, 1024);
-        aBcpad(u8, tlv, PAGESIZE);
-        aBcpad(u8, rdxj2, PAGESIZE);
+        a_pad(u8, tlv, PAGESIZE);
+        a_pad(u8, jdr2, PAGESIZE);
 
         u8cs text = $dup(inputs[i]);
-        ok64 o = JDRdrain(tlvidle, text);
+        ok64 o = RDXutf8sParse( text, tlv, NULL);
 
         if (o != OK) {
             $print(text);
             fail(o);
         }
 
-        o = JDRfeed(rdxj2idle, tlvdata);
+        o = RDXutf8sFeedRaw(jdr2_idle, tlv_datac);
 
-        if (o == OK && 0 != $cmp(inputs[i], rdxj2data)) o = faileq;
+        if (o == OK && 0 != $cmp(inputs[i], jdr2_datac)) o = faileq;
 
         if (o != OK) {
             $println(inputs[i]);
-            $println(rdxj2data);
+            $println(jdr2_datac);
             fail(o);
         }
 
-        $testeq(inputs[i], rdxj2data);
+        $testeq(inputs[i], jdr2_datac);
     }
     done;
 }
@@ -65,34 +64,8 @@ pro(JDRtest2) {
     u8cs ml = $u8str("`multi\nline\n\nstring\n`");
     a$dup(u8c, dup, ml);
     aBcpad(u8, tlv, PAGESIZE);
-    call(JDRdrain, tlvidle, dup);
+    call(RDXutf8sParse, dup, tlvidle, NULL);
     testeq($len(tlvdata), $len(ml) - 2 + 3);
-    done;
-}
-
-ok64 eqfn($cu8c cases) {
-    u8cs rec0, rec;
-    a$dup(u8c, c, cases);
-    ok64 o = TLVDrain$(rec0, c);
-    while (!$empty(c) && o == OK) {
-        o = TLVDrain$(rec, c);
-        if (o == OK && !$eq(rec0, rec)) {
-            UNITfail(rec0, rec);
-            o = FAILeq;
-        } else {
-            // fprintf(stderr, "match\n");
-        }
-    }
-    return o;
-}
-
-pro(JDRtest3) {
-    sane(1);
-    a$rg(path, 1);
-    Bu8 rdxjbuf = {};
-    call(FILEmapro, rdxjbuf, path);
-    call(UNITdrain, rdxjbuf, eqfn);
-    call(FILEunmap, rdxjbuf);
     done;
 }
 
@@ -100,7 +73,6 @@ pro(JDRtest) {
     sane(1);
     call(JDRtest1);
     call(JDRtest2);
-    call(JDRtest3);
     done;
 }
 

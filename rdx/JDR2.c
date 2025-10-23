@@ -17,7 +17,7 @@ ok64 JDRFlush(JDRstate* state, b8 force) {
     ok64 o = OK;
     utf8sp idle = utf8bIdle(state->builder);
     if (state->cur.type != 0) {
-        o = RDXutf8sFeed1(idle, &state->cur);
+        o = RDXutf8sFeedFIRST(idle, &state->cur);
         state->cur.type = 0;
     } else if (force) {
         o = utf8sFeed(idle, TLV_EMPTY_TUPLE);
@@ -51,7 +51,7 @@ ok64 JDRonMLString($cu8c tok, JDRstate* state) {
 ok64 JDRonStamp($cu8c tok, JDRstate* state) {
     assert(**tok == '@');
     a_rest(u8c, r, tok, 1);
-    return RDXutf8sDrainID(r, &state->cur.r);
+    return RDXutf8sDrainID(r, &state->cur.id);
 }
 ok64 JDRonNoStamp($cu8c tok, JDRstate* state) {
     zero(state->cur.id);
@@ -169,4 +169,70 @@ ok64 RDXutf8sParse(utf8cs jdr, u8bp builder, utf8s err) {
 
 // . . . . . . . . . . R E N D E R . . . . . . . . . .
 
-ok64 RDXutf8sRender(utf8s jdr, rdxb reader, u64 style) { return notimplyet; }
+ok64 RDXutf8sIndent(utf8s jdr, rdxbp reader, u64 style) {
+    size_t depth = rdxbDataLen(reader) - 1;
+    if (style & RDX_STYLE_INDENT_TAB) {
+        return u8sFeed1xN(jdr, '\t', depth);
+    } else if (style & RDX_STYLE_INDENT_SPACE) {
+        return u8sFeed1xN(jdr, ' ', depth << 2);
+    } else {
+        return OK;
+    }
+}
+
+ok64 RDXutf8sFeedStamp(utf8s into, rdxcp rp);
+
+ok64 RDXutf8sRenderPLEX(utf8s jdr, rdxbp reader, u64 style) {
+    sane($ok(jdr));
+    rdxp top = rdxbLast(reader);
+    char* brackets;
+    switch (top->type) {
+        case RDX_TUPLE:
+            brackets = "()";
+            break;
+        case RDX_LINEAR:
+            brackets = "[]";
+            break;
+        case RDX_EULER:
+            brackets = "{}";
+            break;
+        case RDX_MULTIX:
+            brackets = "<>";
+            break;
+        default:
+            return RDXbadnest;
+    }
+    call(utf8sFeed1, jdr, brackets[0]);
+    if (!ref128Empty(&top->id)) call(RDXutf8sFeedStamp, jdr, top);
+    call(rdxbInto, reader);
+    call(RDXutf8sRender, jdr, reader, style);
+    call(rdxbOuto, reader);
+    call(utf8sFeed1, jdr, brackets[1]);
+    done;
+}
+
+ok64 RDXutf8sRender(utf8s jdr, rdxbp reader, u64 style) {
+    sane($ok(jdr) && Bok(reader));
+    rdxp top = rdxbLast(reader);
+    scan(rdxNext, top) {
+        if (RDXisFIRST(top->type)) {
+            call(RDXutf8sFeedFIRST, jdr, top);
+        } else {
+            call(RDXutf8sRenderPLEX, jdr, reader, style);
+        }
+        if ($empty(top->rest) && !(style & RDX_STYLE_SEP_TRAIL)) continue;
+        if (style & RDX_STYLE_SEP_COMMA) call(utf8sFeed1, jdr, ',');
+        if (style & RDX_STYLE_SEP_SPACE) call(utf8sFeed1, jdr, ' ');
+        if (style & RDX_STYLE_SEP_NLINE) {
+            call(utf8sFeed1, jdr, '\n');
+            if (style & RDX_STYLE_INDENT)
+                call(RDXutf8sIndent, jdr, reader, style);
+        }
+    }
+    seen(RDXeof);
+    done;
+}
+
+ok64 RDXutf8sRenderInlineTuple(utf8s jdr, rdxbp reader, u64 style) {
+    return notimplyet;
+}

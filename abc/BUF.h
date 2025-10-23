@@ -166,7 +166,7 @@ fun ok64 u8sFeedn($u8 into, u8c *what, size_t n) {
     return OK;
 }
 
-fun ok64 u8sFeedcn($u8 into, u8 what, size_t n) {
+fun ok64 u8sFeed1xN($u8 into, u8 what, size_t n) {
     if ($len(into) < n) return Bnoroom;
     memset(*into, what, n);
     *into += n;

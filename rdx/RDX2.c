@@ -81,18 +81,18 @@ ok64 RDXu8sFeed1(u8s into, rdxcp rp) {
     }
 }
 
-ok64 RDXutf8sFeed1(utf8s into, rdxcp rp) {
-    switch (rp->type) {
+ok64 RDXutf8sFeedFIRST(utf8s elem, rdxcp rdx) {
+    switch (rdx->type) {
         case RDX_FLOAT:
-            return RDXutf8sFeedF(into, rp);
+            return RDXutf8sFeedF(elem, rdx);
         case RDX_INT:
-            return RDXutf8sFeedI(into, rp);
+            return RDXutf8sFeedI(elem, rdx);
         case RDX_REF:
-            return RDXutf8sFeedR(into, rp);
+            return RDXutf8sFeedR(elem, rdx);
         case RDX_STRING:
-            return RDXutf8sFeedS(into, rp);
+            return RDXutf8sFeedS(elem, rdx);
         case RDX_TERM:
-            return RDXutf8sFeedT(into, rp);
+            return RDXutf8sFeedT(elem, rdx);
         default:
             return RDXbad;
     }
@@ -452,37 +452,6 @@ ok64 rdxbInit(rdxb reader, u8cs data) {
     done;
 }
 
-ok64 rdxbNext(rdxb reader) {
-    sane(Bok(reader) && Bdatalen(reader) != 0);
-    rdxp p = Blastp(reader);
-    test(!$empty(p->rest), RDXnodata);
-    u8 type;
-    u8cs id, val;
-    call(TLVDrainKeyVal, &type, id, val, p->rest);
-    call(ZINTu8sDrain128, id, &p->id.src, &p->id.seq);
-    switch (type) {
-        case RDX_FLOAT:
-            call(ZINTu8sDrainFloat, &p->f, val);
-            break;
-        case RDX_INT:
-            call(ZINTu8sDrainInt, &p->i, val);
-            break;
-        case RDX_REF:
-            call(ZINTu8sDrain128, val, &p->r.src, &p->r.seq);
-            break;
-        case RDX_STRING:
-            u8csDup(p->s, val);
-            break;
-        case RDX_TERM:
-            u8csDup(p->t, val);
-            break;
-        default:
-            u8csDup(p->plex, val);
-            break;
-    }
-    done;
-}
-
 ok64 rdxbInto(rdxb reader) {
     sane(Bok(reader) && Bdatalen(reader) > 0 && Bidlelen(reader) > 0 &&
          RDXisPLEX(rdxbType(reader)));
@@ -634,45 +603,17 @@ ok64 RDXu8sFeed(u8s rdx, rdxcp fit) {
 
 ok64 RDXu8bInto(u8b builder, rdxcp what) {
     sane(Bok(builder) && what != NULL);
-    u8sp idle = u8bIdle(builder);
-    call(u8sFeed1, idle, what->type);
-    size_t dlen = Bdatalen(builder);
-    test(dlen <= u32max, Bnoroom);
-    call(u8sFeed32, idle, (u32*)&dlen);
-    size_t ol = $len(idle);
-    call(ZINTu8sFeed128, idle, what->id.src, what->id.seq);
-    call(u8sFeed1, idle, ol - $len(idle));
-    ((u8**)builder)[1] = builder[2];  // FIXME TLVu8bInto()
+    call(TLVu8bInto, builder, what->type);
+    a_pad(u8, pad, 16);
+    call(ZINTu8sFeed128, pad_idle, what->id.src, what->id.seq);
+    call(u8bFeed1, builder, $len(pad_data));
+    call(u8bFeed, builder, pad_datac);
     done;
 }
 
 ok64 RDXu8bOuto(u8b builder, rdxcp what) {
-    sane(Bok(builder) && $len(Bpast(builder)) >= 6 && what != NULL);
-    u8csp past = u8cbPast(builder);
-    u8cs oldpast;
-    u8csDup(oldpast, past);
-    u8sp data = u8bData(builder);
-    a_pad(u8, oldid, 16);
-    u8 idlen = 0;
-    u32 prevlen = 0;
-    call(u8sPop1, past, &idlen);
-    call(u8sPop, past, oldid_idle);
-    call(u8sPop32, past, &prevlen);
-    size_t newlen = $len(data);
-    if (newlen < 0xff) {
-        u8sFeed1(data, (u8)newlen);
-    } else {
-        u8sFeed32(data, (u32*)&newlen);
-    }
-    u8sFeed1(data, idlen);
-    u8sFeed(data, oldid_datac);
-    ptrdiff_t d = $len(past);
-    if (d != $len(oldpast)) {
-        past[1] = oldpast[1];
-        call(u8bShift, builder, d);
-    }
-    // todo test(what==NULL || what->type==type, RDXbadnest);
-    ((u8**)builder)[1] = builder[0] + prevlen;  // FIXME TLVu8bOuto
+    sane(Bok(builder) && what != NULL && RDXisPLEX(what->type));
+    call(TLVu8bOuto, builder, what->type);
     done;
 }
 
@@ -705,10 +646,11 @@ ok64 RDXu8bFeedAll(u8bp into, u8cs from) {
 }
 
 ok64 rdxNext(rdxp it) {
-    sane($ok(it->rest) && it->reclen <= $len(it->rest));
+    sane($ok(it->rest));
     u8 lit;
     u8cs key = {}, val = {};
-    it->rest[0] += it->reclen;
+    it->reclen = 0;
+    test(!$empty(it->rest), RDXeof);
     size_t ol = $len(it->rest);
     call(TLVDrainKeyVal, &lit, key, val, it->rest);
     it->reclen = ol - $len(it->rest);
@@ -748,7 +690,7 @@ ok64 RDXu8bMergeLWW(u8bp merged, rdxpsc eqs) {
     sane(Bok(merged) && !$empty(eqs));
     int eqlen = 1;
     for (rdxp* p = *eqs + 1; p < $term(eqs); ++p) {
-        if (rdxLastWriteWinsZ(**eqs, *p)) { // e < p
+        if (rdxLastWriteWinsZ(**eqs, *p)) {  // e < p
             rdxpSwap(*eqs, p);
             eqlen = 1;
         } else if (!rdxLastWriteWinsZ(*p, **eqs)) {  // e>=p && p<=e
@@ -837,7 +779,7 @@ ok64 RDXu8bMergeZ(u8bp merged, u8css inputs, rdxz less) {
     eats(u8cs, i, inputs) {
         rdx r = {};
         rdxInit(&r, (u8cspc)i);
-
+        if (OK != rdxNext(&r)) continue;  // todo err vs eof
         call(rdxsFeedP, its_idle, &r);
         call(rdxpsFeed1, ins_idle, $last(its_data));
         rdxpsUp(ins_data, rdxTupleZ);
