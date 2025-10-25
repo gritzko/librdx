@@ -89,10 +89,10 @@ fun T const *X($, findge)(X($c, c) haystack, T const *needle) {
 }
 
 #ifndef ABC_X_$
-fun T X($, at)(X($, ) s, size_t pos) { return s[0][pos]; }
+fun T X(, sAt)(X($, ) s, size_t pos) { return s[0][pos]; }
 #endif
 
-fun T *X(, s_atp)(X($, ) s, size_t pos) { return s[0] + pos; }
+fun T *X(, sAtP)(X($, ) s, size_t pos) { return s[0] + pos; }
 
 fun ok64 X($, eat1)(X($, ) s) {
     if (s[0] >= s[1]) return $nodata;
@@ -368,7 +368,7 @@ fun ok64 X(, sSwap)(X(, s) s, size_t a, size_t b) {
 
 fun void X(, s_purge)(X($, ) s, X(, isfn) f) {
     for (int i = 0; i < $len(s); ++i) {
-        T *p = X(, s_atp)(s, i);
+        T *p = X(, sAtP)(s, i);
         if (f(p)) {
             X(, Swap)(p, $last(s));
             --$term(s);
@@ -387,7 +387,7 @@ fun void X($, str0)(X($, c) s, T const *a) {
 static const u8 X(, zero)[sizeof(T)] = {};
 
 fun b8 X($, is0)(X($, ) s, size_t ndx) {
-    return X(, cmp)((T const *)X(, zero), X(, s_atp)(s, ndx)) == 0;
+    return X(, cmp)((T const *)X(, zero), X(, sAtP)(s, ndx)) == 0;
 }
 
 fun b8 X(, csHasSuffix)(X(, cs) line, X(, cs) suffix) {

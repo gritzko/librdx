@@ -28,7 +28,7 @@ pro(B$_test) {
     sane(1);
     aBpad(u8cp, slices, 8);
     u8cs hello = $u8str("Hello");
-    u8cpBfeed2(slices, hello[0], hello[1]);
+    u8cpbFeed2(slices, hello[0], hello[1]);
     done;
 }
 
@@ -49,7 +49,7 @@ pro(Breserve_test) {
     Bu8 buf = {};
     call(u8bAllocate, buf, 1024);
     for (int i = 0; i < (1 << 20); i++) {
-        otry(u8Bfeed2, buf, '1', '2');
+        otry(u8bFeed2, buf, '1', '2');
         ofix(Bnoroom) call(Bu8reserve, buf, 1024);
         ocry();
     }

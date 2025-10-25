@@ -96,6 +96,7 @@ con ok64 none	= 0xcb3ca9;
 con ok64 notimplyet = 0xcb3e2dc74c3da78;
 con ok64 badarg = 0x9a5a25dab;
 con ok64 badpos	= 0x9a5a34cf7;
+con ok64 wrong	= 0x3bdb3cab;
 
 con ok64 $miss = 0x3fc6ddf7;
 con ok64 $nodata = 0x3fcb3a25e25;

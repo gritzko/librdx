@@ -22,7 +22,7 @@ pro(SORT1) {
     call(SORTu64, ints2idle, intsdata);
     testeq(LEN1, $len(ints2data));
     for (u64 i = 0; i < LEN1; ++i) {
-        testeq($u64at(ints3data, i), $u64at(ints2data, i));
+        testeq(u64sAt(ints3data, i), u64sAt(ints2data, i));
     }
     done;
 }

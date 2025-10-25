@@ -9,6 +9,7 @@
 
 ok64 RDX2MergeTest() {
     sane(1);
+    ok64 o = OK;
     a_cstr(jdrExt, ".jdr");
     eats(u8cs, arg, u8csbData(STD_ARGS)) {
         if (!u8csHasSuffix(*arg, jdrExt)) continue;
@@ -35,11 +36,12 @@ ok64 RDX2MergeTest() {
             a_pad(u8, jdr2, PAGESIZE);
             call(RDXutf8sFeedRaw, jdr2_idle, fact_datac);
             $println(jdr2_datac);
+            o = wrong;
         }
 
         call(FILEUnMap, jdr);
     }
-    done;
+    return o;
 }
 
 MAIN(RDX2MergeTest);

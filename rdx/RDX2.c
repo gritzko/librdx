@@ -501,24 +501,20 @@ ok64 rdxpsDownAt(rdxps heap, size_t ndx, rdxz z) {
 }
 
 ok64 rdxpsEqs(rdxps heap, u32p eqs, rdxz z) {
-    sane($ok(heap) && eqs != NULL && z != NULL);
-    if ($len(heap) <= 1) {
-        *eqs = $len(heap);
-        done;
-    }
+    sane(!$empty(heap) && eqs != NULL && z != NULL);
     *eqs = 1;
     a_pad(u8, q, RDX_MAX_INPUTS);
-    u8Bfeed2(q, 1, 2);
-    eats(u8, n, q_data) {
-        if (!z($at(heap, 0), $at(heap, *n))) {
-            u8 j1 = 2 * *n + 1;
-            if (j1 < $len(heap)) {
-                call(u8bFeed1, q, j1);
-                if (j1 + 1 < $len(heap)) call(u8bFeed1, q, j1 + 1);
-            }
-            rdxpSwap($atp(heap, *eqs), $atp(heap, *n));
+    u8bFeed2(q, 1, 2);
+    while (!$empty(q_data) && **q_data < $len(heap)) {
+        rdxp p = rdxpsAt(heap, **q_data);
+        if (!z(**heap, p) && !z(p, **heap)) {
+            u8 j1 = 2 * **q_data + 1;
+            call(u8bFeed2, q, j1, j1 + 1);
+            rdxpsSwap(heap, *eqs, **q_data);
+            call(rdxpsDownAt, heap, **q_data, z);
             ++*eqs;
         }
+        ++*q_data;
     }
     done;
 }
@@ -784,10 +780,10 @@ ok64 RDXu8bMergeZ(u8bp merged, u8css inputs, rdxz less) {
         if (OK != rdxNext(&r)) continue;  // todo err vs eof
         call(rdxsFeedP, its_idle, &r);
         call(rdxpsFeed1, ins_idle, $last(its_data));
-        rdxpsUp(ins_data, rdxTupleZ);
+        rdxpsUp(ins_data, less);
     }
 
-    call(RDXu8bMerge, merged, ins_data, rdxTupleZ);
+    call(RDXu8bMerge, merged, ins_data, less);
 
     done;
 }

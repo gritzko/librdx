@@ -114,7 +114,7 @@ fun ok64 X(, bFeedP)(X(, bp) buf, T const *one) {
     return X(, sFeedP)(X(, bIdle)(buf), one);
 }
 
-fun ok64 X(, Bfeed2)(X(, bp) buf, T a, T b) {
+fun ok64 X(, bFeed2)(X(, bp) buf, T a, T b) {
     // ok64 re = X(B, reserve)(buf, 2);
     // f (re != OK) return re;
     T **idle = X(, bIdle)(buf);

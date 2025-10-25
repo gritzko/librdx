@@ -92,7 +92,7 @@ fun ok64 YmergeP($u8 into, u8css bare) {
     while (1) {
         aBpad2(u8cs, yputs, Y_MAX_INPUTS);
         for (size_t i = 0; i < $len(bare); ++i) {
-            u8c$ n = (u8csp)u8css_atp(bare, i);
+            u8c$ n = (u8csp)u8cssAtP(bare, i);
             if ($empty(n)) continue;
             u8cs rec = {};
             call(TLVDrain$, rec, n);

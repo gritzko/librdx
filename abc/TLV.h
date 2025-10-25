@@ -68,7 +68,7 @@ fun ok64 TLVu8bOuto(u8bp into, u8 type) {
     u8cs empty = {};
     if (ndl <= 0xff) {
         u8bSplice(into, l + 2, 3, empty);
-        *u8s_atp(u8bData(into), l) |= TLVaA;
+        *u8sAtP(u8bData(into), l) |= TLVaA;
     }
     return OK;
 }
