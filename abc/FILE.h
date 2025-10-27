@@ -228,12 +228,12 @@ fun int flags2prot(int flags) {
     return prot;
 }
 
-ok64 FILEMap(Bu8 buf, int const *fd, int mode);
+ok64 FILEMap(u8bp buf, int const *fd, int mode);
 
 // Memory-map a file for reading.
 fun ok64 FILEmapro2(Bu8 buf, int *fd) { return FILEMap(buf, fd, PROT_READ); }
 
-fun ok64 FILEMapRO(Bu8 buf, u8csc path) {
+fun ok64 FILEMapRO(u8bp buf, u8csc path) {
     if (buf == NULL || Bok(buf) || !$ok(path)) return FILEbadarg;
     int fd = FILE_CLOSED;
     ok64 o = FILEOpen(&fd, path, O_RDONLY);
@@ -244,8 +244,19 @@ fun ok64 FILEMapRO(Bu8 buf, u8csc path) {
     return o;
 }
 
+fun ok64 FILEMapROAt(u8bp buf, int *dir, u8csc path) {
+    if (buf == NULL || Bok(buf) || !$ok(path)) return FILEbadarg;
+    int fd = FILE_CLOSED;
+    ok64 o = FILEOpenAt(&fd, dir, path, O_RDONLY);
+    if (o == OK) {
+        o = FILEMap(buf, &fd, PROT_READ);
+        FILEClose(&fd);
+    }
+    return o;
+}
+
 // Memory-map a file for reading and writing.
-fun ok64 FILEmaprw(Bu8 buf, int *fd, $cu8c path) {
+fun ok64 FILEMapRW(u8bp buf, int *fd, $cu8c path) {
     if (buf == NULL || Bok(buf) || !$ok(path) || fd == NULL) return FILEbadarg;
     ok64 o = FILEOpen(fd, path, O_RDWR);
     if (o == OK) o = FILEMap(buf, fd, PROT_READ | PROT_WRITE);
@@ -254,7 +265,7 @@ fun ok64 FILEmaprw(Bu8 buf, int *fd, $cu8c path) {
 }
 
 // Memory-map a file for reading and writing.
-fun ok64 FILEmapnew(Bu8 buf, int *fd, $cu8c path, size_t size) {
+fun ok64 FILEMapNew(u8bp buf, int *fd, u8csc path, size_t size) {
     if (buf == NULL || Bok(buf) || !$ok(path) || fd == NULL) return FILEbadarg;
     ok64 o = FILECreate(fd, path);
     if (o == OK) o = FILEresize(fd, size);
@@ -267,7 +278,7 @@ fun ok64 FILEmapnew(Bu8 buf, int *fd, $cu8c path, size_t size) {
 ok64 FILEUnMap(u8b buf);
 
 // Resize the file and update the mapping.
-fun ok64 FILEremap(Bu8 buf, int const *fd, size_t new_size) {
+fun ok64 FILEReMap(u8bp buf, int const *fd, size_t new_size) {
     if (!Bok(buf) || fd == NULL) return FILEbadarg;
     ok64 o = FILEUnMap(buf);
     if (o == OK) o = FILEresize(fd, new_size);
@@ -279,7 +290,7 @@ fun ok64 FILEremap(Bu8 buf, int const *fd, size_t new_size) {
 // Extend the mapped file by 1/4
 fun ok64 FILEremap125(Bu8 buf, int const *fd) {
     size_t new_size = roundup(Bsize(buf) * 5 / 4, PAGESIZE);
-    return FILEremap(buf, fd, new_size);
+    return FILEReMap(buf, fd, new_size);
 }
 
 fun ok64 FILEout(u8 const *const *txt) {

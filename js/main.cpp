@@ -9,8 +9,6 @@
 #include "JavaScriptCore/JSObjectRef.h"
 #include "JavaScriptCore/JSStringRef.h"
 #include "JavaScriptCore/JSValueRef.h"
-#include "abc/POL.h"
-#include "abc/PRO.h"
 
 thread_local JSGlobalContextRef JABC_CONTEXT;
 thread_local JSObjectRef JABC_GLOBAL_OBJECT;
@@ -42,17 +40,15 @@ ok64 JABCutf8Install();
 ok64 JABCutf8Uninstall();
 
 ok64 JABCInstallModules() {
-    sane(1);
-    call(JABCioInstall);
-    call(JABCutf8Install);
-    done;
+    JABCioInstall();
+    JABCutf8Install();
+    return 0;
 }
 
 ok64 JABCUninstallModules() {
-    sane(1);
-    call(JABCioUninstall);
-    call(JABCutf8Uninstall);
-    done;
+    JABCioUninstall();
+    JABCutf8Uninstall();
+    return 0;
 }
 
 void JABCClose() {
@@ -110,7 +106,8 @@ void JABCDump(JSContextRef ctx, JSValueRef exception) {
 
 void JABCReport(JSValueRef exception) {
     JS_TRACE("something is wrong");
-    char page[PAGESIZE], *msg;
+    char page[PAGESIZE];
+    const char* msg;
     if (JSValueIsString(JABC_CONTEXT, exception)) {
         size_t len =
             JSStringGetUTF8CString((JSStringRef)exception, page, PAGESIZE);
@@ -214,7 +211,7 @@ int main(int argc, char** argv) {
         fseek(f, 0, SEEK_END);
         long len = ftell(f);
         rewind(f);
-        char* script = malloc(len + 1);
+        char* script = (char*)malloc(len + 1);
         fread(script, 1, len, f);
         script[len] = '\0';
         fclose(f);

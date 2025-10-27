@@ -140,7 +140,7 @@ ok64 FILErmrf(path const name) {
     done;
 }
 
-ok64 FILEMap(Bu8 buf, int const *fd, int mode) {
+ok64 FILEMap(u8bp buf, int const *fd, int mode) {
     sane(buf != NULL && *buf == NULL && FILEok(*fd));
     size_t size;
     call(FILEsize, &size, fd);

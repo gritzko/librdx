@@ -769,7 +769,7 @@ ok64 RDXu8bMerge(u8bp merged, rdxps inputs, rdxz z) {
     done;
 }
 
-ok64 RDXu8bMergeZ(u8bp merged, u8css inputs, rdxz less) {
+ok64 RDXu8bMergeZ(u8bp merged, u8css inputs, rdxz z) {
     sane($ok(merged) && $ok(inputs));
     a_pad(rdx, its, RDX_MAX_INPUTS);
     a_pad(rdxp, ins, RDX_MAX_INPUTS);
@@ -780,10 +780,10 @@ ok64 RDXu8bMergeZ(u8bp merged, u8css inputs, rdxz less) {
         if (OK != rdxNext(&r)) continue;  // todo err vs eof
         call(rdxsFeedP, its_idle, &r);
         call(rdxpsFeed1, ins_idle, $last(its_data));
-        rdxpsUp(ins_data, less);
+        rdxpsUp(ins_data, z);
     }
 
-    call(RDXu8bMerge, merged, ins_data, less);
+    call(RDXu8bMerge, merged, ins_data, z);
 
     done;
 }

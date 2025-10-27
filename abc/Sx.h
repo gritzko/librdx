@@ -105,6 +105,11 @@ fun ok64 X($, eatall)(X($, ) s) {
     return OK;
 }
 
+fun ok64 X(, sAte)(X(, s) s) {
+    s[0] = s[1];
+    return OK;
+}
+
 fun T const *X($, find)(X($c, c) haystack, T const *needle) {
     for (T const *p = haystack[0]; p < haystack[1]; p++)
         if (memcmp(p, needle, sizeof(T)) == 0) return p;
@@ -271,6 +276,12 @@ fun ok64 X(, sFeed1)(X(, s) into, T what) {
 fun ok64 X(, sFed1)(X(, s) into) {
     if (unlikely(into[0] >= into[1])) return $noroom;
     ++*into;
+    return OK;
+}
+
+fun ok64 X(, sFed)(X(, s) into, size_t len) {
+    if (unlikely($len(into)<len)) return $noroom;
+    *into += len;
     return OK;
 }
 

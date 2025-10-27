@@ -14,10 +14,6 @@
 #include "JavaScriptCore/JSStringRef.h"
 #include "JavaScriptCore/JSTypedArray.h"
 #include "JavaScriptCore/JSValueRef.h"
-#include "abc/FILE.h"
-#include "abc/OK.h"
-#include "abc/POL.h"
-#include "abc/TCP.h"
 
 short io_callback(int fd, poller* p) { return 0; }
 void io_file_finalize(JSObjectRef object) {}
@@ -55,7 +51,7 @@ JSObjectRef JABCioMakeFileObject(int fd, JSValueRef* exception) {
 
 int JABCioFileGetDescriptor(JSContextRef ctx, JSObjectRef self,
                             JSValueRef* exception) {
-    JSObjectRef* ptr = JSObjectGetPrivate(self);
+    JSObjectRef* ptr = (JSObjectRef*)JSObjectGetPrivate(self);
     if (ptr == NULL || ptr < JS_FILES || ptr >= JS_FILES + POLMaxFiles()) {
         *exception = JSOfCString("read(): not a file");
         return -1;
@@ -102,8 +98,8 @@ JABCCall(JABCioFileWrite) {
         tofree = YES;
     } else if (JSValueGetTypedArrayType(ctx, args[0], NULL) !=
                kJSTypedArrayTypeNone) {
-        ta[0] =
-            JSObjectGetTypedArrayBytesPtr(ctx, (JSObjectRef)args[0], exception);
+        ta[0] = (u8*)JSObjectGetTypedArrayBytesPtr(ctx, (JSObjectRef)args[0],
+                                                   exception);
         ta[1] = ta[0] + JSObjectGetTypedArrayByteLength(
                             ctx, (JSObjectRef)args[0], exception);
     } else {
@@ -140,7 +136,7 @@ JSValueRef JABCioFileRead(JSContextRef ctx, JSObjectRef function,
     JSObjectRef arg = JSValueToObject(ctx, args[0], exception);
 
     u8s ta = {};
-    ta[0] = JSObjectGetTypedArrayBytesPtr(ctx, arg, exception);
+    ta[0] = (u8*)JSObjectGetTypedArrayBytesPtr(ctx, arg, exception);
     ta[1] = ta[0] + JSObjectGetTypedArrayByteLength(ctx, arg, exception);
 
     int fd = JABCioFileGetDescriptor(ctx, self, exception);
@@ -235,7 +231,7 @@ JSValueRef JABCioNow(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
                      size_t argc, const JSValueRef args[],
                      JSValueRef* exception) {
     u64 now = POLNow();
-    return JSValueMakeNumber(ctx, now / POLNanosPerMSec);
+    return JSValueMakeNumber(ctx, u64(now / POLNanosPerMSec));
 }
 
 JSValueRef JABCioLog(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
@@ -245,7 +241,7 @@ JSValueRef JABCioLog(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
         if (JSValueIsString(ctx, args[i])) {
             JSStringRef str = JSValueToStringCopy(ctx, args[0], exception);
             size_t maxSize = JSStringGetMaximumUTF8CStringSize(str);
-            char* bytes = malloc(maxSize);
+            char* bytes = (char*)malloc(maxSize);
             size_t factlen = JSStringGetUTF8CString(str, bytes, maxSize);
             int n = write(STDERR_FILENO, bytes, factlen);
             free(bytes);
@@ -363,10 +359,12 @@ JSValueRef JABCioNetConnect(JSContextRef ctx, JSObjectRef function,
         *exception = JSOfCString(strerror(errno));  //"connect() error"));
         return JSValueMakeUndefined(ctx);
     }
-    poller p = {.events = POLLOUT,
-                .callback = JABCioNetOnConnect,
-                .timeout_ms = 3000,
-                .payload = JS_FILES + cfd};
+    poller p = {
+        .callback = JABCioNetOnConnect,
+        .payload = JS_FILES + cfd,
+        .timeout_ms = 3000,
+        .events = POLLOUT,
+    };
     POLTrackEvents(cfd, p);
 
     JSObjectRef file = JABCioMakeFileObject(cfd, exception);
@@ -406,7 +404,7 @@ JS_DEFINE_FN(JABCioStdErr) {
 }
 
 void mmap_free(void* bytes, void* deallocatorContext) {
-    Bu8 buf = {bytes, bytes, bytes, deallocatorContext};
+    Bu8 buf = {(u8*)bytes, (u8*)bytes, (u8*)bytes, (u8*)deallocatorContext};
     FILEUnMap(buf);
 }
 
@@ -441,7 +439,7 @@ extern const char* io_js;
 ok64 JABCioInstall() {
     POLInit(1024);
 
-    JS_FILES = malloc(sizeof(JSObjectRef) * POLMaxFiles());
+    JS_FILES = (JSObjectRef*)malloc(sizeof(JSObjectRef) * POLMaxFiles());
 
     static JSStaticFunction file_statics[] = {
         {"io", JABCioNothing, 0},

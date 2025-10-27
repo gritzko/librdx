@@ -25,12 +25,14 @@ set(BENCH_LDD_FLAGS benchmark::benchmark)
 list(APPEND RDX_HEADERS 
     RDX2.h
     JDR2.h
+    BRIX2.h
 )
 
 list(APPEND RDX_SOURCES 
     RDX2.c
     JDR.rl.c
     JDR2.c
+    BRIX2.c
 )
 
 add_library(rdx STATIC ${RDX_HEADERS} ${RDX_SOURCES})

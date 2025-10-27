@@ -44,8 +44,8 @@ fun ok64 NETinfo(NETaddr text, NETaddr raw) {
     if (s != 0) {
         return NETbadaddr;
     }
-    int hl = strlen(host);
-    int sl = strlen(service);
+    u64 hl = strlen(host);
+    u64 sl = strlen(service);
     range64 range = {hl + 1, hl + sl + 2};
     if (range.till > Blen(text)) return NETnospace;
     Bu8rewind(text, range);

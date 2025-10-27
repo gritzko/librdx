@@ -1,12 +1,8 @@
-#include "abc/UTF8.h"
-
 #include "JABC.h"
 #include "JavaScriptCore/JSBase.h"
 #include "JavaScriptCore/JSStringRef.h"
 #include "JavaScriptCore/JSTypedArray.h"
 #include "JavaScriptCore/JSValueRef.h"
-#include "abc/BUF.h"
-#include "abc/PRO.h"
 
 JSObjectRef UTF8Object = NULL;
 
@@ -21,7 +17,7 @@ JSValueRef JABCutf8Encode(JSContextRef ctx, JSObjectRef function,
     }
     JSStringRef str = JSValueToStringCopy(ctx, args[0], exception);
     size_t maxSize = JSStringGetMaximumUTF8CStringSize(str);
-    char* bytes = malloc(maxSize);
+    char* bytes = (char*)malloc(maxSize);
     size_t factlen = JSStringGetUTF8CString(str, bytes, maxSize);
     JSObjectRef ta2 = JSObjectMakeTypedArrayWithBytesNoCopy(
         ctx, kJSTypedArrayTypeUint8Array, bytes, factlen, FreeDeallocator,

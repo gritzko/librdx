@@ -15,7 +15,7 @@ ok64 funIcount(POLLctl* ctl) {
     ok64 o = u8sDrain1(u8cbData(ctl->readbuf), &n);
     if (o == OK && n != count) return faileq;
     ++count;
-    a$rawc($n, count);
+    a_rawc($n, count);
     return POLLfeed(ctl, $n);
 }
 
@@ -38,7 +38,7 @@ pro(POLLtest1) {
     call(POLLadd, state, scfd, sname, funIcount);
 
     u8 v0 = 0;
-    a$rawc(s0, v0);
+    a_rawc(s0, v0);
     call(FILEFeed, cfd, s0);
 
     while (count < 100) {

@@ -1,4 +1,5 @@
-
+#ifndef ABC_TCP_H
+#define ABC_TCP_H
 #include <sys/socket.h>
 
 #include "NET.h"
@@ -20,3 +21,4 @@ fun ok64 TCPClose(int fd) {
     int r = close(fd);
     return r == 0 ? OK : TCPfail;
 }
+#endif

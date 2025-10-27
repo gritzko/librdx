@@ -31,19 +31,20 @@
 #define $off(s, o) ((s[0] + (o) < s[1]) ? (s[0] + (o)) : s[1])
 
 #define a_dup(T, n, s) T *n[2] = {(s)[0], (s)[1]}
-#define $dup(s) {(s)[0], (s)[1]}
+#define $dup(s) \
+    { (s)[0], (s)[1] }
 
-#define a_rest(T, n, orig, off) \
-    assert((off)<=$len(orig));     \
-    T##s n = {orig[0]+(off), orig[1]};
+#define a_rest(T, n, orig, off)  \
+    assert((off) <= $len(orig)); \
+    T##s n = {orig[0] + (off), orig[1]};
 
-#define a_tail(T, n, orig, len) \
-    assert((len)<=$len(orig));     \
-    T##s n = {orig[1]-(len), orig[1]};
+#define a_tail(T, n, orig, len)  \
+    assert((len) <= $len(orig)); \
+    T##s n = {orig[1] - (len), orig[1]};
 
-#define a_head(T, n, orig, len) \
-    assert((len)<=$len(orig));     \
-    T##s n = {orig[0], orig[0]+(len)};
+#define a_head(T, n, orig, len)  \
+    assert((len) <= $len(orig)); \
+    T##s n = {orig[0], orig[0] + (len)};
 
 #define a$tail(T, n, s, off) \
     $##T n = {(off) > $len(s) ? s[1] : s[0] + (off), s[1]};
@@ -57,13 +58,12 @@
         a[1] = b[1]; \
     }
 
-#define $mv(s1, s2)                           \
-    {                                         \
-        (s1)[0] = (s2)[0], (s1)[1] = (s2)[1]; \
-    }
+#define $mv(s1, s2) \
+    { (s1)[0] = (s2)[0], (s1)[1] = (s2)[1]; }
 
 /** produce a subslice given offset and length */
-#define $cut(s, o, l) {$off(s, o), $off(s, o + l)}
+#define $cut(s, o, l) \
+    { $off(s, o), $off(s, o + l) }
 
 #define $for(T, n, s) for (T *n = s[0]; (n + 1) <= s[1]; ++n)
 #define $eat(s) for (; s[0] < s[1]; s[0]++)
@@ -118,7 +118,7 @@ typedef int (*$cmpfn)($cc a, $cc b);
 
 #define $cmp(a, b) $memcmp((void const *const *)(a), (void const *const *)b)
 
-#define $eq(a, b) (0 == $cmp(a, b))
+#define $eq(a, b) ($size(a)==$size(b) && 0 == memcmp(*a, *b, $size(a)))
 
 #define $printf(into, fmt, ...)                                         \
     {                                                                   \

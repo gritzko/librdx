@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(libbrix C)
+project(libbrix LANGUAGES C CXX)
 
 set(CMAKE_C_STANDARD 23)
 

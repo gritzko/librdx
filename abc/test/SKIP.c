@@ -86,7 +86,7 @@ pro(SKIP2) {
     aB(u8, pad);
     aBcpad(u8, check, SCALE);
     int fd = FILE_CLOSED;
-    call(FILEmapnew, padbuf, &fd, path, SCALE);
+    call(FILEMapNew, padbuf, &fd, path, SCALE);
     COMBinit(padbuf);
     SKIPu8tab k = {};
     for (u64 i = 0; i < 8; ++i) {
@@ -98,7 +98,7 @@ pro(SKIP2) {
         size_t ds = Bdatalen(padbuf);
         size_t bs = Busysize(padbuf);
         COMBsave(padbuf);
-        call(FILEremap, padbuf, &fd, SCALE * (i + 2));
+        call(FILEReMap, padbuf, &fd, SCALE * (i + 2));
         COMBload(padbuf);
         testeq(ds, Bdatalen(padbuf));
         testeq(bs, Busysize(padbuf));
@@ -130,7 +130,7 @@ pro(SKIP3) {
     call(SKIPu8finish, padbuf, &k);
     for (u64 u = 0; u < SCALE / 16; ++u) {
         u8cs gap = {};
-        a$rawc(raw, u);
+        a_rawc(raw, u);
         call(SKIPu8find, gap, padbuf, raw, cmp);
         u64c* head = (u64c*)*gap;
         want(*head <= u);  // && u - *head < 256 / 8);
@@ -155,7 +155,7 @@ pro(SKIP4) {
     aBcpad(u8, check, SCALE);
     SKIPu8tab k = {};
     for (u64 u = 0; u < SCALE / 16; ++u) {
-        a$rawc(raw, u);
+        a_rawc(raw, u);
         call(TLVu8sFeed, padidle, 'I', raw);
         call(SKIPu8mayfeed, padbuf, &k);
     }
@@ -168,7 +168,7 @@ pro(SKIP4) {
             8,
         };
         *(u64*)(u10 + 2) = u;
-        a$rawc(raw, u10);
+        a_rawc(raw, u10);
         call(SKIPu8findTLV, gap, padbuf, raw, tlvcmp);
         call(TLVu8sDrain, gap, &t, val);
         want(t == 'I');

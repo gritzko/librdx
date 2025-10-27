@@ -43,7 +43,7 @@ pro(FILE3) {
     a$str(path, "/tmp/FILE3.txt");
     Bu8 buf = {};
     int fd = FILE_CLOSED;
-    call(FILEmapnew, buf, &fd, path, PAGESIZE);
+    call(FILEMapNew, buf, &fd, path, PAGESIZE);
     Breset(buf);
     call(u8sFeed, u8bIdle(buf), path);
     call(FILEUnMap, buf);

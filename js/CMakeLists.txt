@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(jar)
+project(jabc)
 
 set(CMAKE_C_STANDARD 11)
 
@@ -31,11 +31,11 @@ include_directories(
     .
 )
 add_executable(jabc
-    io.c
-    main.c
+    io.cpp
+    main.cpp
     io.js.c
-    utf8.c
-)
+    utf8.cpp
+    brix.cpp)
 
 target_link_libraries(jabc
     ${JSC_LIB}

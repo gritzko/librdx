@@ -242,7 +242,7 @@ fun ok64 X(, bSplice)(X(, bp) buf, size_t off, size_t cut, X(, csc) paste) {
     if (X(, bDataLen)(buf) < off + cut ||
         X(, bIdleLen)(buf) + cut < X(, csLen)(paste))
         return Bmiss;
-    void *b = ((void**)buf)[1];
+    u8 *b = ((u8**)buf)[1];
     memmove(b + off + $len(paste), b + off + cut,
             X(, bDataLen)(buf) - off - cut);
     memmove(b + off, paste[0], $len(paste));
