@@ -5,6 +5,7 @@
 
 #include "JavaScriptCore/JSBase.h"
 #include "JavaScriptCore/JSObjectRef.h"
+#include "JavaScriptCore/JSStringRef.h"
 #include "abc/ABC.hpp"
 
 extern thread_local JSGlobalContextRef JABC_CONTEXT;
@@ -24,24 +25,7 @@ extern thread_local JSObjectRef JABC_GLOBAL_OBJECT;
 
 #define JS_TRACE(str) fprintf(stderr, "%s:%i\t%s\n", __FILE__, __LINE__, str);
 
-#define JS_ARG_TA_u8s(n, ta)                                                   \
-    ta[0] =                                                                    \
-        JSObjectGetTypedArrayBytesPtr(ctx, (JSObjectRef)args[n], exception);   \
-    if (*exception != NULL || ta[0] == NULL) JS_THROW("not a TypedArray");     \
-    ta[1] = ta[0] + JSObjectGetTypedArrayByteLength(ctx, (JSObjectRef)args[n], \
-                                                    exception);
-
 #define JS_MAKE_NUMBER(n, i) JSValueRef n = JSValueMakeNumber(ctx, i)
-
-#define JS_MAKE_UNDEFINED(n) JSValueRef n = JSValueMakeUndefined(ctx);
-
-#define JS_MAKE_OBJECT(n, class, ptr) \
-    JSObjectRef n = JSObjectMake(ctx, class, ptr);
-
-#define JS_MAKE_STRING(n, str)                             \
-    JSStringRef _##n = JSStringCreateWithUTF8CString(str); \
-    JSValueRef n = JSValueMakeString(ctx, _##n);           \
-    JSStringRelease(_##n);
 
 #define JS_MAKE_CLASS(n, f)                                  \
     JSClassDefinition n##ClassDef = kJSClassDefinitionEmpty; \

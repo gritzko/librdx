@@ -207,3 +207,15 @@ ok64 BRIXu8bbCloseTip(u8bbp bx, int* fd) {
     call(BRIXu8bbClose, bx);
     done;
 }
+
+ok64 BRIXu8bAppend(u8b tip, u8csb recs) {
+    return notimplyet;
+}
+
+ok64 BRIXu8bbGets(u8bb brix, ref128 key, u8css intos) {
+    return notimplyet;
+}
+
+ok64 BRIXu8bbGet(u8bb brix, ref128 key, u8s into) {
+    return notimplyet;
+}

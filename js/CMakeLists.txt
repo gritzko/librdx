@@ -34,10 +34,12 @@ add_executable(jabc
     io.cpp
     main.cpp
     io.js.c
+    test.js.c
     utf8.cpp
-    brix.cpp)
+    brix.cpp test.cpp)
 
 target_link_libraries(jabc
     ${JSC_LIB}
     abc
+    rdx
 )

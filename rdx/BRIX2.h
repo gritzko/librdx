@@ -66,6 +66,7 @@ ok64 BRIXu8bbSeal(u8bbp brix, int* fd, int home, sha256p result);
 ok64 BRIXu8bbMerge(u8bb brix, int home, int height, sha256p result);
 
 ok64 BRIXu8bAdd(u8b tip, u8csc rec);
+ok64 BRIXu8bAppend(u8b tip, u8csb recs);
 fun ok64 BRIXu8bbAdd(u8bb brix, u8csc rec) {
     if (unlikely(brix == NULL || Bempty(brix))) return BRIXnoopen;
     return BRIXu8bAdd(Blast(brix), rec);

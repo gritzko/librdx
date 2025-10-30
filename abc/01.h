@@ -90,13 +90,13 @@ typedef uint64_t ok64;
 
 #define OK 0
 #define FAIL 0xffffffffffffffffUL
-con ok64 nodata	= 0xcb3a25e25;
-con ok64 noroom	= 0xcb3db3cf1;
-con ok64 none	= 0xcb3ca9;
+con ok64 nodata = 0xcb3a25e25;
+con ok64 noroom = 0xcb3db3cf1;
+con ok64 none = 0xcb3ca9;
 con ok64 notimplyet = 0xcb3e2dc74c3da78;
 con ok64 badarg = 0x9a5a25dab;
-con ok64 badpos	= 0x9a5a34cf7;
-con ok64 wrong	= 0x3bdb3cab;
+con ok64 badpos = 0x9a5a34cf7;
+con ok64 wrong = 0x3bdb3cab;
 
 con ok64 $miss = 0x3fc6ddf7;
 con ok64 $nodata = 0x3fcb3a25e25;
@@ -283,7 +283,7 @@ con u128 u128max = {u64max, u64max};
 #define O1high32(lohi) (((u64)lohi) >> 32)
 
 #define bitmask(l) ((1UL << l) - 1)
-#define bitpack(a, h, l) (((u64)(a) & bitmask(l)) << (h))
+#define bitpack(a, h, l) (((u64)(a)&bitmask(l)) << (h))
 #define bitpick(u, h, l) ((u >> h) & bitmask(l))
 #define bitpack4816(a, b) (bitpack(a, 0, 48) | bitpack(b, 48, 16))
 #define bitpick4816a(u) (u & 0xffffffffffffUL)
@@ -374,9 +374,15 @@ fun ok64 u64decdrain(u64 *x, u8c **dec) {
     return OK;
 }
 
+fun b8 isOnStack(void *p) {
+    int i;
+    return p > (void *)&i;
+}
+
 typedef ok64 (*OKcallback)(void *);
 
-#define $u8str(c) {(u8 *)(c), (u8 *)(c) + strlen(c)}
+#define $u8str(c) \
+    { (u8 *)(c), (u8 *)(c) + strlen(c) }
 
 #define u64MaxValue UINT64_MAX
 #define u64MinValue 0

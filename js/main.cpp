@@ -1,7 +1,6 @@
-#include <limits.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 
 #include "JABC.h"
 #include "JavaScriptCore/JSBase.h"
@@ -38,16 +37,24 @@ ok64 JABCioInstall();
 ok64 JABCioUninstall();
 ok64 JABCutf8Install();
 ok64 JABCutf8Uninstall();
+ok64 JABCbrixInstall();
+ok64 JABCbrixUninstall();
+ok64 JABCtestInstall();
+ok64 JABCtestUninstall();
 
 ok64 JABCInstallModules() {
     JABCioInstall();
     JABCutf8Install();
+    JABCbrixInstall();
+    JABCtestInstall();
     return 0;
 }
 
 ok64 JABCUninstallModules() {
     JABCioUninstall();
     JABCutf8Uninstall();
+    JABCbrixUninstall();
+    JABCtestUninstall();
     return 0;
 }
 
