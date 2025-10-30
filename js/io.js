@@ -57,7 +57,7 @@ io.timer( function (now) {
     if (tq.length>0) {
         return tq[0].ms - now
     } else {
-        return 1000;
+        return 1000*60*60*24*31; // month or "never"
     }
 } );
 

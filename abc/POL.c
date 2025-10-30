@@ -1,7 +1,7 @@
 #include "POL.h"
 
-#include <time.h>
 #include <threads.h>
+#include <time.h>
 
 #include "B.h"
 #include "INT.h"
@@ -98,7 +98,7 @@ short POLTimer(int fd, struct poller* p) {
     if (p->callback == NULL) return 0;
     timercb timer = p->payload;
     int ms = timer(p->deadline);
-    printf("next in %ims\n", ms);
+    printf("next in %ums\n", ms);
     p->timeout_ms = ms;
     return 0;
 }
@@ -165,7 +165,9 @@ ok64 POLLoop(u64 timens) {
         if (pollscount == 0) {
             printf("nothing to poll\n");
             if (POL_TIMER.callback == NULL) break;
-            POLSleep(next_timeout - now);
+            u64 sleep = next_timeout - now;
+            if (sleep > POLNanosPerMonth) break;
+            POLSleep(sleep);
             continue;
         }
         int pollms = (next_timeout - now) / (POLNanosPerSec / 1000);
