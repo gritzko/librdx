@@ -76,7 +76,6 @@ ok64 POLTrackEvents(int fd, poller poller) {
     }
     if (poller.callback != NULL && !preex) {
         call(HEAPi32Push1, POL_QUEUE, fd);
-        printf("push %lu\n", Bdatalen(POL_QUEUE));
     }
     done;
 }
@@ -98,13 +97,11 @@ short POLTimer(int fd, struct poller* p) {
     if (p->callback == NULL) return 0;
     timercb timer = p->payload;
     int ms = timer(p->deadline);
-    printf("next in %ums\n", ms);
     p->timeout_ms = ms;
     return 0;
 }
 
 ok64 POLTrackTime(timercb callback) {
-    printf("timer installed\n");
     poller t = {
         .callback = &POLTimer,
         .payload = callback,
@@ -114,7 +111,6 @@ ok64 POLTrackTime(timercb callback) {
 }
 
 ok64 POLAddTime(int ms) {
-    printf("POLAddTime(%i)\n", ms);
     if (POL_TIMER.callback == NULL) return POLnone;
     POL_TIMER.timeout_ms = ms;
     u64 now = POLNow();
@@ -136,7 +132,6 @@ ok64 POLSleep(u64 ns) {
 
 // @return OK/POLnone/etc
 ok64 POLLoop(u64 timens) {
-    printf("POLL loop; queue len %lu\n", Bdatalen(POL_QUEUE));
     u64 now = POLNow();
     u64 till = timens == POLNever ? POLNever : now + timens;
     while (now < till && !Bempty(POL_QUEUE)) {
@@ -145,25 +140,19 @@ ok64 POLLoop(u64 timens) {
         poller* at = POLAt(**POL_QUEUE);
         while (at->deadline <= now) {
             at->deadline = now;
-            printf("%lu invoke timeout\n", now);
             at->callback(**POL_QUEUE, at);
             at->deadline = now + at->timeout_ms * (POLNanosPerSec / 1000);
-            // printf("now %lu next %lu, in %luns\n", now, at->deadline,
-            //        at->deadline - now);
             HEAPi32DownZ(POL_QUEUE, fd32cmp);
             at = POLAt(**POL_QUEUE);
         }
         u64 next_timeout = at->deadline;
-        printf("%lu next tick at %lu\n", now, next_timeout);
         int pollscount = 0;
-        printf("make a poll fd list\n");
         eatB(poller, j, POL_FILES) {
             if (0 == j->events) continue;
             struct pollfd p = {.fd = j - *POL_FILES, .events = j->events};
             POL_VEC[pollscount++] = p;
         }
         if (pollscount == 0) {
-            printf("nothing to poll\n");
             if (POL_TIMER.callback == NULL) break;
             u64 sleep = next_timeout - now;
             if (sleep > POLNanosPerMonth) break;
@@ -171,17 +160,14 @@ ok64 POLLoop(u64 timens) {
             continue;
         }
         int pollms = (next_timeout - now) / (POLNanosPerSec / 1000);
-        printf("poll() for %ims\n", pollms);
         poll(POL_VEC, pollscount, pollms);
         for (int i = 0; i < pollscount; i++) {
             if (!POL_VEC[i].revents) continue;
-            printf("hoho %i on %i\n", POL_VEC[i].revents, POL_VEC[i].fd);
             int fd = POL_VEC[i].fd;
             at = Batp(POL_FILES, fd);
             at->revents = POL_VEC[i].revents;
             at->events = at->callback(fd, at);
             at->deadline = now + at->timeout_ms * (POLNanosPerSec / 1000);
-            printf("now %lu next %lu\n", now, at->deadline);
         }
     }
     return OK;

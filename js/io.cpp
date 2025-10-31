@@ -173,7 +173,6 @@ JSValueRef JABCioNetClose(JSContextRef ctx, JSObjectRef function,
 JSObjectRef JABC_TIMER = NULL;
 
 u32 timeout_cb(u64 ns) {
-    printf("timeout_cb\n");
     if (JABC_TIMER == NULL) return INT32_MAX;
     JSValueRef exception = NULL;  // todo
     JSValueRef ms =
@@ -184,9 +183,6 @@ u32 timeout_cb(u64 ns) {
     u64 next = 1000;
     if (JSValueIsNumber(JABC_CONTEXT, ret)) {
         next = JSValueToNumber(JABC_CONTEXT, ret, NULL);
-        printf("timeout_cb asked next wake in %lu ms\n", next);
-    } else {
-        printf("timeout_cb asked nothing\n");
     }
     return next;
 }

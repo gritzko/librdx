@@ -112,7 +112,7 @@ void JABCDump(JSContextRef ctx, JSValueRef exception) {
 }
 
 void JABCReport(JSValueRef exception) {
-    JS_TRACE("something is wrong");
+    // JS_TRACE("something is wrong");
     char page[PAGESIZE];
     const char* msg;
     if (JSValueIsString(JABC_CONTEXT, exception)) {
