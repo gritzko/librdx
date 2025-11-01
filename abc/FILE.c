@@ -20,31 +20,37 @@ ok64 FILEErr(ok64 def) {
     return def;
 }
 
-ok64 FILEmakedir(path const name) {
-    sane($ok(name));
-    aFILEpath(p, name);
-    int rc = mkdir(p, S_IRWXU);
+ok64 path8Join(path8 path, u8csc part) {
+    sane(path8Sane(path) && $ok(part) && !$empty(part));
+    call(u8bFeed1, path, FILE_PATH_SEP);
+    u8sAte(u8bData(path));
+    call(u8bFeed, path, part);
+    done;
+}
+
+ok64 FILEmakedir(path8 path) {
+    sane(path8Sane(path));
+    int rc = mkdir(path8CStr(path), S_IRWXU);
     testc(rc == 0, FILEfail);
     done;
 }
 
-ok64 FILEunlink(path const name) {
-    sane($ok(name));
-    aFILEpath(p, name);
-    int rc = unlink(p);
+ok64 FILEunlink(path8 path) {
+    sane(path8Sane(path));
+    int rc = unlink(path8CStr(path));
     testc(rc == 0, FILEfail);
     done;
 }
 
-ok64 FILEisdir(const path name) {
-    sane($ok(name));
+ok64 FILEisdir(path8 path) {
+    sane(path8Sane(path));
     struct stat sb = {};
-    call(FILEstat, &sb, name);
+    call(FILEStat, &sb, path);
     test(sb.st_mode & S_IFDIR, FILEwrong);
     done;
 }
 
-ok64 FILEsync(int const *fd) {
+ok64 FILESync(int const *fd) {
     sane(FILEok(*fd));
     testc(fsync(*fd) == 0, FILEnosync);
     done;
@@ -57,34 +63,34 @@ pro(FILEClose, int *fd) {
     done;
 }
 
-ok64 FILECreate(int *fd, const path name) {
-    sane(fd != NULL && $ok(name));
-    aFILEpath(p, name);
-    *fd = open(p, O_CREAT | O_RDWR | O_TRUNC, S_IRUSR | S_IWUSR);
+ok64 FILECreate(int *fd, path8 path) {
+    sane(fd != NULL && path8Sane(path));
+    *fd = open(path8CStr(path), O_CREAT | O_RDWR | O_TRUNC, S_IRUSR | S_IWUSR);
     if (*fd < 0) fail(FILEErr(FILEnoopen));
     done;
 }
 
-ok64 FILEOpen(int *fd, const path name, int flags) {
-    sane(fd != NULL && $ok(name));
-    aFILEpath(p, name);
-    *fd = open(p, flags);
+ok64 FILEOpen(int *fd, path8 path, int flags) {
+    sane(fd != NULL && path8Sane(path));
+    *fd = open(path8CStr(path), flags);
     if (*fd < 0) fail(FILEErr(FILEnoopen));
     done;
 }
 
-ok64 FILEOpenAt(int *fd, int const *dirfd, const path name, int flags) {
-    sane(fd != NULL && $ok(name) && FILEok(*dirfd));
-    aFILEpath(p, name);
-    *fd = openat(*dirfd, p, flags);
+fun ok64 FILEOpenDir(int *fd, path8 path) {
+    return FILEOpen(fd, path, O_DIRECTORY);
+}
+
+ok64 FILEOpenAt(int *fd, int const *dirfd, path8 path, int flags) {
+    sane(fd != NULL && path8Sane(path) && FILEok(*dirfd));
+    *fd = openat(*dirfd, path8CStr(path), flags);
     if (*fd < 0) fail(FILEErr(FILEnoopen));
     done;
 }
 
-ok64 FILEstat(struct stat *ret, const path name) {
-    sane(ret != NULL && $ok(name));
-    aFILEpath(p, name);
-    int rc = stat(p, ret);
+ok64 FILEStat(struct stat *ret, path8 path) {
+    sane(ret != NULL && path8Sane(path));
+    int rc = stat(path8CStr(path), ret);
     if (rc == 0) skip;
     switch (errno) {
         case ENOENT:
@@ -104,7 +110,7 @@ ok64 FILEstat(struct stat *ret, const path name) {
     done;
 }
 
-ok64 FILEsize(size_t *size, int const *fd) {
+ok64 FILESize(size_t *size, int const *fd) {
     sane(size != NULL && FILEok(*fd));
     struct stat sb = {};
     testc(0 == fstat(*fd, &sb), FILEnostat);
@@ -112,18 +118,16 @@ ok64 FILEsize(size_t *size, int const *fd) {
     done;
 }
 
-ok64 FILEresize(int const *fd, size_t new_size) {
+ok64 FILEResize(int const *fd, size_t new_size) {
     sane(FILEok(*fd));
     testc(0 == ftruncate(*fd, new_size), FILEnoresz);
     // FIXME sync the dir data (another msync?)
     done;
 }
 
-ok64 FILErename(const path oldname, const path newname) {
-    sane($ok(oldname) && $ok(newname));
-    aFILEpath(old, oldname);
-    aFILEpath(neu, newname);
-    testc(0 == rename(old, neu), FILEfail);
+ok64 FILERename(path8 old, path8 neu) {
+    sane(path8Sane(old) && path8Sane(neu));
+    testc(0 == rename(path8CStr(old), path8CStr(neu)), FILEfail);
     done;
 }
 
@@ -132,10 +136,9 @@ fun int unlink_cb(const char *fname, const struct stat *sb, int typeflag,
     return remove(fname);
 }
 
-ok64 FILErmrf(path const name) {
-    sane($ok(name));
-    aFILEpath(p, name);
-    int rc = nftw(p, unlink_cb, 64, FTW_DEPTH | FTW_PHYS);
+ok64 FILERmRF(path8 path) {
+    sane(path8Sane(path));
+    int rc = nftw(path8CStr(path), unlink_cb, 64, FTW_DEPTH | FTW_PHYS);
     testc(rc == 0, FILEfail);
     done;
 }
@@ -143,7 +146,7 @@ ok64 FILErmrf(path const name) {
 ok64 FILEMap(u8bp buf, int const *fd, int mode) {
     sane(buf != NULL && *buf == NULL && FILEok(*fd));
     size_t size;
-    call(FILEsize, &size, fd);
+    call(FILESize, &size, fd);
     u8 *map = (u8 *)mmap(NULL, size, mode, MAP_FILE | MAP_SHARED, *fd, 0);
     testc(map != MAP_FAILED, FILEfail);
     uint8_t **b = (uint8_t **)buf;

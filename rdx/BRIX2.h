@@ -5,6 +5,7 @@
 #ifndef RDX_BRIX_H
 #define RDX_BRIX_H
 #include "RDX2.h"
+#include "abc/FILE.h"
 #include "abc/SHA.h"
 
 #define BRIX_MAX_STACK 32
@@ -52,7 +53,8 @@ fun u8 BRIXu8bCryptoType(u8b brik) { return Bat(brik, 2); }
 ok64 BRIXu8bBase(u8b brik, sha256p own);
 ok64 BRIXu8bOwn(u8b brik, sha256p own);
 
-ok64 BRIXOpenHome(int* home, u8cs path);
+ok64 BRIXTipPath(u8s pad, u8csc tip);
+ok64 BRIXOpenHome(int* home, path8 path);
 
 ok64 BRIXu8bbCreateTip(u8bbp brix, int* fd, int home, sha256cp base, u8cs tip);
 ok64 BRIXu8bCreate(u8bp brik, int home, sha256cs deps);

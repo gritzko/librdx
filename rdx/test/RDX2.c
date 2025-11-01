@@ -14,16 +14,18 @@ ok64 RDX2MergeTest() {
     eats(u8cs, arg, u8csbData(STD_ARGS)) {
         if (!u8csHasSuffix(*arg, jdrExt)) continue;
         Bu8 jdr = {};
-        call(FILEMapRO, jdr, *arg);
+        a_pad(u8, path, FILE_PATH_MAX_LEN);
+        call(u8bFeed, path, *arg);
+        call(FILEMapRO, jdr, path);
 
         $println(*arg);
         a_pad(u8, rdx, PAGESIZE);
         a_pad(u8, err, 256);
-        try(RDXutf8sParse, u8cbData(jdr), rdx, u8bIdle(err));
-        nedo { $println(u8cbData(err)); }
+        try(RDXutf8sParse, u8bDataC(jdr), rdx, u8bIdle(err));
+        nedo { $println(u8bDataC(err)); }
         then {
             u8cs rdxdata, correct, rec;
-            u8csDup(rdxdata, u8cbData(rdx));
+            u8csDup(rdxdata, u8bDataC(rdx));
             a_pad(u8cs, inputs, 128);
             scan(TLVDrain$, rec, rdxdata) { call(u8csbFeed1, inputs, rec); }
             u8csDup(correct, *$last(inputs_data));
@@ -32,7 +34,7 @@ ok64 RDX2MergeTest() {
             call(RDXu8sMerge, fact, inputs_data);
             if ($eq(fact_data, correct)) continue;
             // OK, some error
-            $println(u8cbData(jdr));
+            $println(u8bDataC(jdr));
             a_pad(u8, jdr2, PAGESIZE);
             call(RDXutf8sFeedRaw, jdr2_idle, fact_datac);
             $println(jdr2_datac);

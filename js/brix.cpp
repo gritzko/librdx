@@ -17,6 +17,8 @@ const unsigned JABC_RO_PROP_ATTS = kJSPropertyAttributeDontDelete |
                                    kJSPropertyAttributeDontEnum |
                                    kJSPropertyAttributeReadOnly;
 
+int JABC_BRIX_HOME = FILE_CLOSED;
+
 static u32 JABC_BRIX_GEN = 0;
 
 /*
@@ -38,10 +40,19 @@ static u32 JABC_BRIX_GEN = 0;
  */
 
 typedef struct {
-    int home;
     u8b _brix[BRIX_MAX_STACK];
     u8bb brix;
+    int home;
+    int fd;
 } JABCBrix;
+
+void JABCBrixInit(JABCBrix* brix) {
+    // ptrs;
+    u8b** b = (u8b**)brix->brix;
+    b[0] = b[1] = b[2] = brix->_brix;
+    b[3] = (u8b*)brix->_brix + BRIX_MAX_STACK;
+    // home
+}
 
 ok64 JABCBrixOpen(JABCBrix* store, u8csc path, u8csc tip) { return notimplyet; }
 
@@ -86,12 +97,12 @@ JSValueRef JABCBrixStoreP(JSContextRef ctx, JSObjectRef function,
                           JSObjectRef thisObject, size_t argumentCount,
                           const JSValueRef arguments[], JSValueRef* exception) {
     JABCBrix* store = (JABCBrix*)JSObjectGetPrivate(thisObject);
-    a_pad(u8, rec, PAGESIZE); // ?
+    a_pad(u8, rec, PAGESIZE);  // ?
     // see args
     ok64 o = BRIXu8bbAdd(store->brix, rec);
     void* desc;
     JSClassRef lass = JABCBrixClassEuler;
-    u8ss inputs_datac; // fixme
+    u8ss inputs_datac;  // fixme
     o = JABCBrixDesc(store, &desc, inputs_datac);
     JSObjectRef ret = JSObjectMake(ctx, lass, desc);
     JSObjectSetProperty(ctx, ret, JABC_PROP_PRNT, thisObject, JABC_RO_PROP_ATTS,
@@ -233,11 +244,81 @@ JSValueRef JABCBrixEulerConvert(JSContextRef ctx, JSObjectRef object,
     return nullptr;
 }
 
+JABC_FN_DEFINE(JABCBrixHome) {
+    JABC_FN_ARG_STRING(0, homepath, 1024, "no tip tag specified");
+    a_path(defhome, ".rdx/");
+    //if ($len(homepath) == 0) u8csDup(homepath, defhome);
+    if (JABC_BRIX_HOME != FILE_CLOSED) FILEClose(&JABC_BRIX_HOME);
+    JABC_FN_CALL(BRIXOpenHome, &JABC_BRIX_HOME, defhome);
+    JABC_FN_RETURN_UNDEFINED;
+}
+
+JABC_FN_DEFINE(JABCBrixOpen) {
+    JABC_FN_ARG_STRING(0, tiptag, 128, "no tip tag specified");
+    if (JABC_BRIX_HOME == FILE_CLOSED) {
+        a_path(defhome, ".rdx/");
+        JABC_FN_CALL(BRIXOpenHome, &JABC_BRIX_HOME, defhome);
+    }
+    JABCBrix brix{};
+    JABCBrixInit(&brix);
+    JABC_FN_CALL(BRIXu8bbOpenTip, brix.brix, &brix.fd, JABC_BRIX_HOME, tiptag);
+    JABCBrix* allocd = (JABCBrix*)malloc(sizeof(JABCBrix));
+    memcpy(allocd, &brix, sizeof(JABCBrix));
+    return JSObjectMake(ctx, JABCBrixClassStore, allocd);
+}
+
+JABC_FN_DEFINE(JABCBrixCreate) {
+    JABC_FN_ARG_STRING(0, tiptag, 128, "no tip tag specified");
+    if (JABC_BRIX_HOME == FILE_CLOSED) {
+        a_path(defhome, ".rdx/");
+        JABC_FN_CALL(BRIXOpenHome, &JABC_BRIX_HOME, defhome);
+    }
+    JABCBrix brix{};
+    JABCBrixInit(&brix);
+    sha256 nobase{};
+    JABC_FN_CALL(BRIXu8bbCreateTip, brix.brix, &brix.fd, brix.home, &nobase,
+                 tiptag);
+    JABCBrix* allocd = (JABCBrix*)malloc(sizeof(JABCBrix));
+    memcpy(allocd, &brix, sizeof(JABCBrix));
+    return JSObjectMake(ctx, JABCBrixClassStore, allocd);
+}
+
+JSValueRef JABCBrixModeRW, JABCBrixModeRO;
+
+JABC_FN_DEFINE(JABCBrixStoreMode) {
+    JABCBrix* brixp = (JABCBrix*)JSObjectGetPrivate(self);
+    if (!JSValueIsObjectOfClass(ctx, self, JABCBrixClassStore) || !brixp)
+        JABC_FN_THROW("not a store");
+    u8bp tip = Blast(brixp->brix);
+    return BRIXu8bIndexType(tip) == BRIX_INDEX_LSMHASH ? JABCBrixModeRW
+                                                       : JABCBrixModeRO;
+}
+
+JABC_FN_DEFINE(JABCBrixStoreLength) {
+    JABCBrix* brixp = (JABCBrix*)JSObjectGetPrivate(self);
+    if (!JSValueIsObjectOfClass(ctx, self, JABCBrixClassStore) || !brixp)
+        JABC_FN_THROW("not a store");
+    return JSValueMakeNumber(ctx, (double)u8bbDataLen(brixp->brix));
+}
+
+void JABCBrixStoreFin(JSObjectRef self) {
+    JABCBrix* brixp = (JABCBrix*)JSObjectGetPrivate(self);
+    BRIXu8bbClose(brixp->brix);
+}
+
 ok64 JABCbrixInstall() {
-    JSStaticFunction brix_store_fns[] = {{.name = "Length",
-                                          .callAsFunction = nullptr,
+    JABC_API_OBJECT(brix);
+    JABC_API_FN(brix, "home", JABCBrixHome);
+    JABC_API_FN(brix, "open", JABCBrixOpen);
+    JABC_API_FN(brix, "create", JABCBrixCreate);
+
+    JSStaticFunction brix_store_fns[] = {{.name = "length",
+                                          .callAsFunction = JABCBrixStoreLength,
                                           .attributes = JABC_RO_PROP_ATTS},
-                                         {.name = "Hash",
+                                         {.name = "mode",
+                                          .callAsFunction = JABCBrixStoreMode,
+                                          .attributes = JABC_RO_PROP_ATTS},
+                                         {.name = "hash",
                                           .callAsFunction = nullptr,
                                           .attributes = JABC_RO_PROP_ATTS},
                                          {.name = "P",
@@ -246,13 +327,14 @@ ok64 JABCbrixInstall() {
                                          {.name = "E",
                                           .callAsFunction = JABCBrixStoreE,
                                           .attributes = JABC_RO_PROP_ATTS},
-                                         {.name = "String",
+                                         {.name = "toString",
                                           .callAsFunction = nullptr,
                                           .attributes = JABC_RO_PROP_ATTS},
                                          {.name = nullptr}};
     JSClassDefinition def_store = {
         .className = "Store",
         .staticFunctions = brix_store_fns,
+        .finalize = JABCBrixStoreFin,
         .hasProperty = JABCBrixStoreHas,
         .getProperty = JABCBrixStoreGet,
         .setProperty = JABCBrixStoreSet,
@@ -262,12 +344,8 @@ ok64 JABCbrixInstall() {
     };
     JABCBrixClassStore = JSClassCreate(&def_store);
     JSClassRetain(JABCBrixClassStore);
-    JSStringRef fn = JSStringCreateWithUTF8CString("brix");
     JSObjectRef store_constr = JSObjectMakeConstructor(
         JABC_CONTEXT, JABCBrixClassStore, JABCBrixStoreConstructor);
-    JSObjectSetProperty(JABC_CONTEXT, JABC_GLOBAL_OBJECT, fn, store_constr,
-                        kJSPropertyAttributeNone, nullptr);
-    JSStringRelease(fn);
 
     JSStaticFunction brix_elem_fns[] = {{.name = "Type",
                                          .callAsFunction = nullptr,
@@ -307,6 +385,15 @@ ok64 JABCbrixInstall() {
 
     JABC_PROP_PRNT = JSStringCreateWithUTF8CString("_prnt");
 
+    JSStringRef ro = JSStringCreateWithUTF8CString("ro");
+    JSStringRef rw = JSStringCreateWithUTF8CString("rw");
+    JABCBrixModeRW = JSValueMakeString(JABC_CONTEXT, rw);
+    JABCBrixModeRO = JSValueMakeString(JABC_CONTEXT, ro);
+    JSValueProtect(JABC_CONTEXT, JABCBrixModeRO);
+    JSValueProtect(JABC_CONTEXT, JABCBrixModeRW);
+    JSStringRelease(ro);
+    JSStringRelease(rw);
+
     return OK;
 }
 
@@ -317,5 +404,9 @@ ok64 JABCbrixUninstall() {
     JABCBrixClassEuler = nullptr;
     JSClassRelease(JABCBrixClassTuple);
     JABCBrixClassTuple = nullptr;
+    JSValueUnprotect(JABC_CONTEXT, JABCBrixModeRO);
+    JSValueUnprotect(JABC_CONTEXT, JABCBrixModeRW);
+    JABCBrixModeRO = nullptr;
+    JABCBrixModeRW = nullptr;
     return OK;
 }

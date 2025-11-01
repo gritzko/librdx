@@ -11,7 +11,7 @@
 
 pro(TLVtest1) {
     sane(1);
-    aBpad(u8, pad, 64);
+    a_pad(u8, pad, 64);
     u8cs str1 = $u8str("Hello");
     u8cs str2 = $u8str(" ");
     u8cs str3 = $u8str("world!");
@@ -19,7 +19,7 @@ pro(TLVtest1) {
     call(TLVu8sFeed, into, 'S', str1);
     call(TLVu8sFeed, into, 'S', str2);
     call(TLVu8sFeed, into, 'S', str3);
-    u8c **from = u8cbData(pad);
+    u8c **from = u8bDataC(pad);
     u8 t1, t2, t3;
     u8cs str1b, str2b, str3b;
     call(TLVu8sDrain, from, &t1, str1b);
@@ -33,20 +33,20 @@ pro(TLVtest1) {
 
 pro(TLVtest2) {
     sane(1);
-    aBpad(u8, pad, 256);
+    a_pad(u8, pad, 256);
     u8 **init = u8bIdle(pad);
     aBpad(u8, tlv, 5000);
     for (u32 v = 0; v < 256; v++) {
         **init = v;
         ++*init;
     }
-    u8c **block = u8cbData(pad);
+    u8c **block = u8bDataC(pad);
     testeq($len(block), 256);
     u8 **into = u8bIdle(tlv);
     for (int j = 0; j < 2; j++) {
         call(TLVu8sFeed, into, 'B', block);
     }
-    u8c **from = u8cbData(tlv);
+    u8c **from = u8bDataC(tlv);
     $print(from);
     for (int i = 0; i < 2; i++) {
         u8cs take;
@@ -88,11 +88,11 @@ pro(TLVtest3) {
 
     u8cs ina = {}, inb = {}, inc = {};
     u8 at, bt, ct;
-    call(TLVu8sDrain,  pad_datac, &at, ina);
+    call(TLVu8sDrain, pad_datac, &at, ina);
     a_head(u8c, head, ina, $len(aaa));
     a_rest(u8c, rest, ina, $len(aaa));
-    call(TLVu8sDrain,  rest, &bt, inb);
-    call(TLVu8sDrain,  inb, &ct, inc);
+    call(TLVu8sDrain, rest, &bt, inb);
+    call(TLVu8sDrain, inb, &ct, inc);
 
     testeq(at, 'A');
     testeq(bt, 'B');

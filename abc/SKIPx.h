@@ -1,9 +1,9 @@
 #include <stdint.h>
 
 #include "B.h"
-#include "abc/S.h"
 #include "abc/01.h"
 #include "abc/OK.h"
+#include "abc/S.h"
 #include "abc/SKIP.h"
 #include "abc/TLV.h"
 #define T X(, )
@@ -42,7 +42,7 @@ fun size_t X(SKIP, pos)(X(SKIP, tab) const* k, u8 hi) {
     return (was << SKIP_BLK_HI) + off;
 }
 
-fun pro(X(SKIP, feed), Bu8 buf, X(SKIP, tab) * k) {
+fun pro(X(SKIP, feed), u8bp buf, X(SKIP, tab) * k) {
     sane(Bok(buf) && k != NULL);
     size_t pos = Bdatalen(buf);
     size_t last = k->pos;
@@ -74,10 +74,10 @@ fun pro(X(SKIP, feed), Bu8 buf, X(SKIP, tab) * k) {
     done;
 }
 
-fun pro(X(SKIP, drain), X(SKIP, tab) * hop, Bu8 buf, size_t pos) {
+fun pro(X(SKIP, drain), X(SKIP, tab) * hop, u8bp buf, size_t pos) {
     sane(hop != NULL && Bok(buf) && pos > 0);
     a$(T, into, hop->off);
-    a$tail(u8c, data,u8cbData(buf), pos);
+    a$tail(u8c, data, u8bDataC(buf), pos);
     u8cs w = {};
     u8 t = 0;
     call(TLVu8sDrain, data, &t, w);
@@ -91,7 +91,7 @@ fun pro(X(SKIP, drain), X(SKIP, tab) * hop, Bu8 buf, size_t pos) {
     done;
 }
 
-fun pro(X(SKIP, finish), Bu8 buf, X(SKIP, tab) * k) {
+fun pro(X(SKIP, finish), u8bp buf, X(SKIP, tab) * k) {
     sane(Bok(buf) && k != NULL && k->pos < Bdatalen(buf));
     size_t pos = Bdatalen(buf);
     if (k->pos != 0 && X(SKIP, blk)(pos) == X(SKIP, blk)(k->pos)) {
@@ -100,7 +100,7 @@ fun pro(X(SKIP, finish), Bu8 buf, X(SKIP, tab) * k) {
         a_dup(u8c, rest, tail);
         call(TLVDrain$, lastk, rest);
         call($u8move, tail, rest);
-        call($u8retract,u8cbData(buf), $len(lastk));
+        call($u8retract, u8bDataC(buf), $len(lastk));
     }
     a$raw(w, k->off);
     a$head(u8c, wl, w, X(SKIP, top)(pos));
@@ -108,7 +108,7 @@ fun pro(X(SKIP, finish), Bu8 buf, X(SKIP, tab) * k) {
     done;
 }
 
-fun pro(X(SKIP, load), X(SKIP, tab) * k, Bu8 buf) {
+fun pro(X(SKIP, load), X(SKIP, tab) * k, u8bp buf) {
     sane(k != NULL && Bok(buf));
     zerop(k);
     size_t len = Bdatalen(buf);
@@ -157,22 +157,22 @@ fun pro(X(SKIP, load), X(SKIP, tab) * k, Bu8 buf) {
     done;
 }
 
-fun ok64 X(SKIP, hop)(X(SKIP, tab) * hop, Bu8 buf, X(SKIP, tab) const* k,
+fun ok64 X(SKIP, hop)(X(SKIP, tab) * hop, u8bp buf, X(SKIP, tab) const* k,
                       u8 hi) {
     size_t pos = X(SKIP, pos)(k, hi);
     if (pos == 0) return SKIPnone;
     return X(SKIP, drain)(hop, buf, pos);
 }
 
-fun ok64 X(SKIP, mayfeed)(Bu8 buf, X(SKIP, tab) * skips) {
+fun ok64 X(SKIP, mayfeed)(u8bp buf, X(SKIP, tab) * skips) {
     size_t pos = Bdatalen(buf);
     if (X(SKIP, blk)(pos) == X(SKIP, blk)(skips->pos)) return OK;
     return X(SKIP, feed)(buf, skips);
 }
 
-ok64 X(SKIP, load)(X(SKIP, tab) * k, Bu8 buf);
+ok64 X(SKIP, load)(X(SKIP, tab) * k, u8bp buf);
 
-fun pro(X(SKIP, find), u8c$ range, Bu8 hay, u8cs needle, $cmpfn cmp) {
+fun pro(X(SKIP, find), u8c$ range, u8b hay, u8cs needle, $cmpfn cmp) {
     sane(range != NULL && Bok(hay) && $ok(needle) && cmp != NULL);
     X(SKIP, tab) k = {};
     call(X(SKIP, load), &k, hay);
@@ -200,7 +200,7 @@ fun pro(X(SKIP, find), u8c$ range, Bu8 hay, u8cs needle, $cmpfn cmp) {
     done;
 }
 
-fun ok64 X(SKIP, findTLV)(u8c$ rec, Bu8 buf, u8cs x, $cmpfn cmp) {
+fun ok64 X(SKIP, findTLV)(u8c$ rec, u8bp buf, u8cs x, $cmpfn cmp) {
     u8cs gap = {};
     ok64 o = X(SKIP, find)(gap, buf, x, cmp);
     if (o != OK) return o;

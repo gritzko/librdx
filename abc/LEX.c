@@ -258,17 +258,17 @@ ok64 LEXonRoot($cu8c tok, LEXstate *state) {
 pro(lex2rl, u8cs mod, $u8c lang) {
     sane($ok(mod));
 
-    aBcpad(u8, name, KB);
-    aBcpad(u8, lex, KB << 8);
+    a_pad(u8, name, KB);
+    a_pad(u8, lex, KB << 8);
     u8cs $namet = $u8str("$s.lex");
-    $feedf(nameidle, $namet, mod);
+    $feedf(name_idle, $namet, mod);
     int fd;
-    call(FILEOpen, &fd, namedata, O_RDONLY);
-    call(FILEdrainall, lexidle, fd);
+    call(FILEOpen, &fd, name, O_RDONLY);
+    call(FILEdrainall, lex_idle, fd);
     call(FILEClose, &fd);
 
-    aBcpad(u8, ct, MB);
-    NESTreset(ctbuf);
+    a_pad(u8, ct, MB);
+    NESTreset(ct);
     int nlang = 0;
     if (!$empty(lang)) {
         while (nlang < LEX_TEMPL_LANG_LEN) {
@@ -280,23 +280,23 @@ pro(lex2rl, u8cs mod, $u8c lang) {
 
     LEXstate state = {
         .lang = nlang,
-        .ct = (u8bp)ctbuf,
+        .ct = (u8bp)ct,
         .mod = mod,
     };
-    $mv(state.text, lexdata);
+    $mv(state.text, lex_data);
 
-    call(NESTFeed, ctbuf, LEX_TEMPL[nlang][LEX_TEMPL_FILE]);
+    call(NESTFeed, ct, LEX_TEMPL[nlang][LEX_TEMPL_FILE]);
 
-    aBcpad(u8, rl, MB);
+    a_pad(u8, rl, MB);
     call(LEXlexer, &state);
-    call(NESTRender, rlidle, ctbuf);
+    call(NESTRender, rl_idle, ct);
 
-    aBcpad(u8, rlname, KB);
+    a_pad(u8, rlname, KB);
     u8cs $rnamet = $u8str("$s.$s.rl");
-    $feedf(rlnameidle, $rnamet, mod, LEX_TEMPL[nlang][LEX_TEMPL_L]);
+    $feedf(rlname_idle, $rnamet, mod, LEX_TEMPL[nlang][LEX_TEMPL_L]);
     int rfd;
-    call(FILECreate, &rfd, rlnamedata);
-    call(FILEFeedall, rfd, rldata);
+    call(FILECreate, &rfd, rlname);
+    call(FILEFeedall, rfd, rl_datac);
     call(FILEClose, &rfd);
 
     done;

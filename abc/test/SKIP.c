@@ -40,7 +40,7 @@ pro(SKIP0) {
     done;
 }
 
-pro(SKIPcheck, Bu8 buf, Bu8 checked, SKIPu8tab const* k) {
+pro(SKIPcheck, u8bp buf, u8bp checked, SKIPu8tab const* k) {
     sane(1);
     for (int h = SKIPu8len(k->pos) - 1; h >= 0; --h) {
         if (k->off[h] == 0xff) continue;
@@ -61,51 +61,51 @@ pro(SKIPcheck, Bu8 buf, Bu8 checked, SKIPu8tab const* k) {
 
 pro(SKIP1) {
     sane(1);
-    aBcpad(u8, check, SCALE / 8);
-    aBcpad(u8, pad, SCALE);
-    Bzero(checkbuf);
+    a_pad(u8, check, SCALE / 8);
+    a_pad(u8, pad, SCALE);
+    Bzero(check);
     SKIPu8tab k = {};
     for (u64 u = 0; u < SCALE / 16; ++u) {
-        call(u8sFeed64, padidle, &u);
-        call(SKIPu8mayfeed, padbuf, &k);
+        call(u8sFeed64, pad_idle, &u);
+        call(SKIPu8mayfeed, pad, &k);
     }
     // aBcpad(u8, hex, PAGESIZE * 2);
     // HEXfeedall(hexidle, paddata);
-    call(SKIPu8finish, padbuf, &k);
+    call(SKIPu8finish, pad, &k);
     SKIPu8tab k2 = {};
-    // call(SKIPu8drain, &k2, padbuf, k.pos);
-    call(SKIPu8load, &k2, padbuf);
-    call(SKIPcheck, padbuf, checkbuf, &k2);
+    // call(SKIPu8drain, &k2, pad, k.pos);
+    call(SKIPu8load, &k2, pad);
+    call(SKIPcheck, pad, check, &k2);
     done;
 }
 
 pro(SKIP2) {
     sane(1);
-    u8cs path = $u8str("/tmp/SKIP2.txt");
+    a_path(path, "/tmp/SKIP2.txt");
     FILEunlink(path);
-    aB(u8, pad);
-    aBcpad(u8, check, SCALE);
+    u8b pad;
+    a_pad(u8, check, SCALE);
     int fd = FILE_CLOSED;
-    call(FILEMapNew, padbuf, &fd, path, SCALE);
-    COMBinit(padbuf);
+    call(FILEMapNew, pad, &fd, path, SCALE);
+    COMBinit(pad);
     SKIPu8tab k = {};
     for (u64 i = 0; i < 8; ++i) {
         for (u64 u = 0; u < SCALE / 16; ++u) {
-            call(u8sFeed64, padidle, &u);
-            call(SKIPu8mayfeed, padbuf, &k);
+            call(u8sFeed64, u8bIdle(pad), &u);
+            call(SKIPu8mayfeed, pad, &k);
         }
-        call(SKIPu8finish, padbuf, &k);
-        size_t ds = Bdatalen(padbuf);
-        size_t bs = Busysize(padbuf);
-        COMBsave(padbuf);
-        call(FILEReMap, padbuf, &fd, SCALE * (i + 2));
-        COMBload(padbuf);
-        testeq(ds, Bdatalen(padbuf));
-        testeq(bs, Busysize(padbuf));
-        testeq(SCALE * (i + 2), Bsize(padbuf));
+        call(SKIPu8finish, pad, &k);
+        size_t ds = Bdatalen(pad);
+        size_t bs = Busysize(pad);
+        COMBsave(pad);
+        call(FILEReMap, pad, &fd, SCALE * (i + 2));
+        COMBload(pad);
+        testeq(ds, Bdatalen(pad));
+        testeq(bs, Busysize(pad));
+        testeq(SCALE * (i + 2), Bsize(pad));
         zero(k);
-        Bzero(checkbuf);
-        call(SKIPcheck, padbuf, checkbuf, &k);
+        Bzero(check);
+        call(SKIPcheck, pad, check, &k);
     }
     call(FILEunlink, path);
     done;
@@ -120,22 +120,22 @@ fun int cmp($cc a, $cc b) {
 
 pro(SKIP3) {
     sane(1);
-    aBcpad(u8, pad, SCALE);
-    aBcpad(u8, check, SCALE);
+    a_pad(u8, pad, SCALE);
+    a_pad(u8, check, SCALE);
     SKIPu8tab k = {};
     for (u64 u = 0; u < SCALE / 16; ++u) {
-        u8sFeed64(padidle, &u);
-        call(SKIPu8mayfeed, padbuf, &k);
+        u8sFeed64(pad_idle, &u);
+        call(SKIPu8mayfeed, pad, &k);
     }
-    call(SKIPu8finish, padbuf, &k);
+    call(SKIPu8finish, pad, &k);
     for (u64 u = 0; u < SCALE / 16; ++u) {
         u8cs gap = {};
         a_rawc(raw, u);
-        call(SKIPu8find, gap, padbuf, raw, cmp);
+        call(SKIPu8find, gap, pad, raw, cmp);
         u64c* head = (u64c*)*gap;
         want(*head <= u);  // && u - *head < 256 / 8);
         fprintf(stderr, "%lu IN %lu [%lu,%lu) of %lu?\n", u, *head,
-                gap[0] - *padbuf, gap[1] - *padbuf, Bdatalen(padbuf));
+                gap[0] - *pad, gap[1] - *pad, u8bDataLen(pad));
     }
     done;
 }
@@ -151,15 +151,15 @@ fun int tlvcmp($cc a, $cc b) {
 
 pro(SKIP4) {
     sane(1);
-    aBcpad(u8, pad, SCALE);
-    aBcpad(u8, check, SCALE);
+    a_pad(u8, pad, SCALE);
+    a_pad(u8, check, SCALE);
     SKIPu8tab k = {};
     for (u64 u = 0; u < SCALE / 16; ++u) {
         a_rawc(raw, u);
-        call(TLVu8sFeed, padidle, 'I', raw);
-        call(SKIPu8mayfeed, padbuf, &k);
+        call(TLVu8sFeed, pad_idle, 'I', raw);
+        call(SKIPu8mayfeed, pad, &k);
     }
-    call(SKIPu8finish, padbuf, &k);
+    call(SKIPu8finish, pad, &k);
     for (u64 u = 0; u < SCALE / 16; ++u) {
         u8 t = 0;
         u8cs gap = {}, val = {};
@@ -169,7 +169,7 @@ pro(SKIP4) {
         };
         *(u64*)(u10 + 2) = u;
         a_rawc(raw, u10);
-        call(SKIPu8findTLV, gap, padbuf, raw, tlvcmp);
+        call(SKIPu8findTLV, gap, pad, raw, tlvcmp);
         call(TLVu8sDrain, gap, &t, val);
         want(t == 'I');
         want($len(val) == 8);

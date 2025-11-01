@@ -95,11 +95,11 @@ char* JSStringRefToCString(JSStringRef str) {
 }
 
 ok64 JABCutf8Install() {
-    JS_API_OBJECT(utf8, "utf8");
-    JS_SET_PROPERTY_FN(utf8, "en", JABCutf8Encode);
-    JS_SET_PROPERTY_FN(utf8, "Encode", JABCutf8Encode);
-    JS_SET_PROPERTY_FN(utf8, "de", JABCutf8Decode);
-    JS_SET_PROPERTY_FN(utf8, "Decode", JABCutf8Decode);
+    JABC_API_OBJECT(utf8);
+    JABC_API_FN(utf8, "en", JABCutf8Encode);
+    JABC_API_FN(utf8, "Encode", JABCutf8Encode);
+    JABC_API_FN(utf8, "de", JABCutf8Decode);
+    JABC_API_FN(utf8, "Decode", JABCutf8Decode);
     UTF8Object = utf8;
     return OK;
 }

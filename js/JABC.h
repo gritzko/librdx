@@ -11,9 +11,40 @@
 extern thread_local JSGlobalContextRef JABC_CONTEXT;
 extern thread_local JSObjectRef JABC_GLOBAL_OBJECT;
 
-#define JS_DEFINE_FN(fn)                                                    \
+#define JABC_FN_DEFINE(fn)                                              \
     JSValueRef fn(JSContextRef ctx, JSObjectRef function, JSObjectRef self, \
                   size_t argc, const JSValueRef args[], JSValueRef* exception)
+
+#define JABC_FN_RETURN_UNDEFINED return JSValueMakeUndefined(ctx);
+
+#define JABC_FN_THROW(msg)                                     \
+    {                                                          \
+        JSStringRef _msg = JSStringCreateWithUTF8CString(msg); \
+        JSValueRef _val = JSValueMakeString(ctx, _msg);        \
+        *exception = JSObjectMakeError(ctx, 1, &_val, NULL);   \
+        JSStringRelease(_msg);                                 \
+        JABC_FN_RETURN_UNDEFINED;                      \
+    }
+
+#define JABC_FN_ARG_STRING(ndx, varn, maxlen, errmsg)                \
+    u8 _##varn[maxlen];                                              \
+    u8cs varn = {_##varn, _##varn};                                  \
+    if (argc > ndx) {                                                \
+        if (!JSValueIsString(ctx, args[ndx])) {                      \
+            JABC_FN_THROW(errmsg);                                   \
+        }                                                            \
+        size_t len = JSStringGetUTF8CString((JSStringRef)args[ndx],  \
+                                            (char*)_##varn, maxlen); \
+        varn[1] += len;                                              \
+    }
+
+#define JABC_FN_CALL(f, ...)            \
+    {                                   \
+        ok64 __ = (f(__VA_ARGS__));          \
+        if (__ != OK) {                 \
+            JABC_FN_THROW(ok64str(__)); \
+        }                               \
+    }
 
 #define JS_ARG_IS_STRING(n) JSValueIsString(ctx, args[n])
 #define JS_ARG_IS_OBJECT(n) JSValueIsObject(ctx, args[n])
@@ -45,16 +76,16 @@ extern thread_local JSObjectRef JABC_GLOBAL_OBJECT;
 
 #define JS_TO_NUMBER(n, val) double n = JSValueToNumber(ctx, val, exception);
 
-#define JS_API_OBJECT(o, n)                                              \
+#define JABC_API_OBJECT(o)                                               \
     JSObjectRef o = JSObjectMake(JABC_CONTEXT, NULL, NULL);              \
     {                                                                    \
-        JSStringRef ioName = JSStringCreateWithUTF8CString(n);           \
+        JSStringRef ioName = JSStringCreateWithUTF8CString(#o);          \
         JSObjectSetProperty(JABC_CONTEXT, JABC_GLOBAL_OBJECT, ioName, o, \
                             kJSPropertyAttributeNone, NULL);             \
         JSStringRelease(ioName);                                         \
     }
 
-#define JS_SET_PROPERTY_FN(o, n, f)                                \
+#define JABC_API_FN(o, n, f)                                       \
     {                                                              \
         JSStringRef fn = JSStringCreateWithUTF8CString(n);         \
         JSObjectSetProperty(                                       \

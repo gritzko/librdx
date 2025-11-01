@@ -45,7 +45,7 @@ ok64 BRIXu8bOwn(u8b brik, sha256p own) {
     return OK;
 }
 
-ok64 BRIXOpenHome(int* home, u8cs path) {
+ok64 BRIXOpenHome(int* home, path8 path) {
     sane(home != NULL && $ok(path));
     call(FILEOpen, home, path, O_DIRECTORY);
     done;
@@ -55,7 +55,7 @@ ok64 BRIXu8bOpen(u8bp brik, int home, sha256cp hash) {
     sane(Bok(brik) && home != FILE_CLOSED && !sha256empty(hash));
     a_pad(u8, fn, FILENAME_MAX);
     BRIXPath(fn_idle, hash);
-    call(FILEMapROAt, brik, &home, fn_datac);
+    call(FILEMapROAt, brik, &home, fn);
     done;
 }
 
@@ -77,7 +77,7 @@ ok64 BRIXu8bbCreateTip(u8bbp brix, int* fd, int home, sha256cp base, u8cs tip) {
     a_pad(u8, fn, FILENAME_MAX);
     call(BRIXTipPath, fn_idle, tip);
     u8b top = {};
-    call(FILEMapNew, top, fd, fn_datac, PAGESIZE);
+    call(FILEMapNew, top, fd, fn, PAGESIZE);
     brikhead128 head = {
         .litS = 'S',
         .litT = 'T',
@@ -101,7 +101,7 @@ ok64 BRIXu8bbOpenTip(u8bbp brix, int* fd, int home, u8cs tip) {
     a_pad(u8, fn, FILENAME_MAX);
     call(BRIXTipPath, fn_idle, tip);
     u8b top = {};
-    call(FILEMapRW, top, fd, fn_datac);
+    call(FILEMapRW, top, fd, fn);
     size_t pastlen = sizeof(brikhead128) + sizeof(sha256);
     call(u8sFed, u8bIdle(top), pastlen);
     call(u8sAte, u8bData(top));
@@ -208,14 +208,8 @@ ok64 BRIXu8bbCloseTip(u8bbp bx, int* fd) {
     done;
 }
 
-ok64 BRIXu8bAppend(u8b tip, u8csb recs) {
-    return notimplyet;
-}
+ok64 BRIXu8bAppend(u8b tip, u8csb recs) { return notimplyet; }
 
-ok64 BRIXu8bbGets(u8bb brix, ref128 key, u8css intos) {
-    return notimplyet;
-}
+ok64 BRIXu8bbGets(u8bb brix, ref128 key, u8css intos) { return notimplyet; }
 
-ok64 BRIXu8bbGet(u8bb brix, ref128 key, u8s into) {
-    return notimplyet;
-}
+ok64 BRIXu8bbGet(u8bb brix, ref128 key, u8s into) { return notimplyet; }

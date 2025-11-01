@@ -67,7 +67,7 @@ fun ok64 POLLfeed(POLLctl* ctl, u8cs data) {
 }
 
 fun ok64 POLLdrain($u8 into, POLLctl* ctl) {
-    return $u8drain(into,u8cbData(ctl->readbuf));
+    return $u8drain(into, u8bDataC(ctl->readbuf));
 }
 
 ok64 POLLonce(POLLstate state, size_t ms);

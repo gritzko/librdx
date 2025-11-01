@@ -14,6 +14,7 @@
 #include "JavaScriptCore/JSStringRef.h"
 #include "JavaScriptCore/JSTypedArray.h"
 #include "JavaScriptCore/JSValueRef.h"
+#include "abc/FILE.h"
 
 short io_callback(int fd, poller* p) { return 0; }
 void io_file_finalize(JSObjectRef object) {}
@@ -191,7 +192,6 @@ u32 timeout_cb(u64 ns) {
 JSValueRef JABCioTimer(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
                        size_t argc, const JSValueRef args[],
                        JSValueRef* exception) {
-    JS_TRACE("JABCioTimer");
     if (argc < 1 || !JSValueIsObject(ctx, args[0]) ||
         !JSObjectIsFunction(ctx, (JSObjectRef)args[0])) {
         *exception = JSOfCString("io.timer(function)");
@@ -384,17 +384,17 @@ JSValueRef JABCioStdio(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
     return JABCio_STD[which];
 }
 
-JS_DEFINE_FN(JABCioStdIn) {
+JABC_FN_DEFINE(JABCioStdIn) {
     return JABCioStdio(ctx, function, self, argc, args, exception,
                        STDIN_FILENO);
 }
 
-JS_DEFINE_FN(JABCioStdOut) {
+JABC_FN_DEFINE(JABCioStdOut) {
     return JABCioStdio(ctx, function, self, argc, args, exception,
                        STDOUT_FILENO);
 }
 
-JS_DEFINE_FN(JABCioStdErr) {
+JABC_FN_DEFINE(JABCioStdErr) {
     return JABCioStdio(ctx, function, self, argc, args, exception,
                        STDERR_FILENO);
 }
@@ -417,7 +417,8 @@ JSValueRef JABCioFileMap(JSContextRef ctx, JSObjectRef function,
         JSStringGetUTF8CString((JSStringRef)args[0], (char*)page, PAGESIZE);
 
     Bu8 buf = {};
-    u8csc path = {page, page + len - 1};
+    a_pad(u8, path, FILE_PATH_MAX_LEN);
+    u8sFeedn(u8bIdle(path), page, len - 1);
     ok64 o = FILEMapRO(buf, path);
     JSObjectRef fileObject =
         JSObjectMake(JABC_CONTEXT, JABC_IO_MAP_CLASS, NULL);
@@ -468,18 +469,18 @@ ok64 JABCioInstall() {
     JS_MAKE_CLASS(FileMMap, io_map_finalize);
     JABC_IO_MAP_CLASS = FileMMap;
 
-    JS_API_OBJECT(io, "io");
-    JS_SET_PROPERTY_FN(io, "stdIn", JABCioStdIn);
-    JS_SET_PROPERTY_FN(io, "stdErr", JABCioStdErr);
-    JS_SET_PROPERTY_FN(io, "stdOut", JABCioStdOut);
-    JS_SET_PROPERTY_FN(io, "mmap", JABCioFileMap);
-    JS_SET_PROPERTY_FN(io, "timer", JABCioTimer);
-    JS_SET_PROPERTY_FN(io, "wakeIn", JABCioWakeIn);
-    JS_SET_PROPERTY_FN(io, "now", JABCioNow);
-    JS_SET_PROPERTY_FN(io, "log", JABCioLog);
-    JS_SET_PROPERTY_FN(io, "listen", JABCioNetListen);
-    JS_SET_PROPERTY_FN(io, "accept", JABCioNetAccept);
-    JS_SET_PROPERTY_FN(io, "connect", JABCioNetConnect);
+    JABC_API_OBJECT(io);
+    JABC_API_FN(io, "stdIn", JABCioStdIn);
+    JABC_API_FN(io, "stdErr", JABCioStdErr);
+    JABC_API_FN(io, "stdOut", JABCioStdOut);
+    JABC_API_FN(io, "mmap", JABCioFileMap);
+    JABC_API_FN(io, "timer", JABCioTimer);
+    JABC_API_FN(io, "wakeIn", JABCioWakeIn);
+    JABC_API_FN(io, "now", JABCioNow);
+    JABC_API_FN(io, "log", JABCioLog);
+    JABC_API_FN(io, "listen", JABCioNetListen);
+    JABC_API_FN(io, "accept", JABCioNetAccept);
+    JABC_API_FN(io, "connect", JABCioNetConnect);
 
     JS_KEY_IO = JSStringCreateWithUTF8CString("io");
     JS_STATUS_READ = JSStringCreateWithUTF8CString("r");

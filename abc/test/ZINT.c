@@ -4,8 +4,8 @@
 #include <stdint.h>
 #include <unistd.h>
 
-#include "S.h"
 #include "PRO.h"
+#include "S.h"
 #include "TEST.h"
 
 pro(ZINTtest1) {
@@ -56,7 +56,7 @@ pro(ZINTtest2) {
         a._64[1] = **tozip;
         aBpad(u8, pad, 16);
         u8$ into = u8bIdle(pad);
-        u8c$ data =u8cbData(pad);
+        u8c$ data = u8bDataC(pad);
         ZINTu128feed(into, &a);
         u128 b = {};
         ZINTu128drain(&b, data);

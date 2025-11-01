@@ -153,7 +153,7 @@ void JABCReport(JSValueRef exception) {
 }
 
 void JABCExecute(const char* script) {
-    fprintf(stderr, "Starting:\n%s\n", script);
+    //fprintf(stderr, "Starting:\n%s\n", script);
     // Convert C string to JSC string
     JSStringRef js_code = JSStringCreateWithUTF8CString(script);
 
@@ -163,7 +163,7 @@ void JABCExecute(const char* script) {
     if (exception != NULL) {
         JABCReport(exception);
     } else {
-        fprintf(stderr, "Finished normally\n");
+    //    fprintf(stderr, "Finished normally\n");
     }
 
     // Cleanup JS string resources

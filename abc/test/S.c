@@ -2,7 +2,6 @@
 #include "S.h"
 
 #include <assert.h>
-#include <stdio.h>
 #include <unistd.h>
 
 #include "INT.h"
@@ -10,11 +9,11 @@
 
 pro($test1) {
     sane(1);
-    aBpad(i32, pad, 4);
+    a_pad(i32, pad, 4);
     i32 a1 = 1;
     i32 a2 = 0;
     i32$ into = i32bIdle(pad);
-    i32c$ data = i32cbData(pad);
+    i32c$ data = i32bDataC(pad);
 
     call(i32sFeed1, into, a2);
     call(i32sFeedP, into, &a1);

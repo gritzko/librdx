@@ -3,12 +3,12 @@
 
 #include <unistd.h>
 
-#include "abc/S.h"
 #include "abc/01.h"
 #include "abc/FILE.h"
 #include "abc/INT.h"
 #include "abc/LEX.h"
 #include "abc/PRO.h"
+#include "abc/S.h"
 #include "abc/TEST.h"
 
 pro(MARQANSItest) {
@@ -34,7 +34,7 @@ pro(MARQANSItest) {
         call(MARQlexer, &state);
         call(MARQANSI, u8bIdle(into), state.text, (u8c**)state.fmt);
 
-        test($eq(QA[c][1],u8cbData(into)), TESTfail);
+        test($eq(QA[c][1], u8bDataC(into)), TESTfail);
     }
     done;
 }
@@ -62,7 +62,7 @@ pro(MARQHTMLtest) {
         call(MARQlexer, &state);
         call(MARQHTML, u8bIdle(into), state.text, (u8c**)state.fmt);
 
-        test($eq(QA[c][1],u8cbData(into)), TESTfail);
+        test($eq(QA[c][1], u8bDataC(into)), TESTfail);
     }
     done;
 }

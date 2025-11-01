@@ -8,7 +8,7 @@
 
 pro(FILEtest1) {
     sane(1);
-    u8cs path = $u8str("/tmp/test1.txt");
+    a_path(path, "/tmp/test1.txt");
     u8cs text = $u8str("Hello world!\n");
     int fd = 0;
     call(FILECreate, &fd, path);
@@ -20,10 +20,10 @@ pro(FILEtest1) {
 
 pro(FILEtest2) {
     sane(1);
-    u8cs path = $u8str("/tmp/testA.txt");
+    a_path(path, "/tmp/testA.txt");
     int fd = 0;
     call(FILECreate, &fd, path);
-    call(FILEresize, &fd, 4096);
+    call(FILEResize, &fd, 4096);
     aB(u8, map);
     call(FILEMap, mapbuf, &fd, PROT_READ | PROT_WRITE);
     testeq(Bsize(mapbuf), 4096);
@@ -40,12 +40,13 @@ pro(FILEtest2) {
 
 pro(FILE3) {
     sane(1);
-    a$str(path, "/tmp/FILE3.txt");
+    a_path(path, "/tmp/FILE3.txt");
+    a_cstr(text, "Hello world!");
     Bu8 buf = {};
     int fd = FILE_CLOSED;
     call(FILEMapNew, buf, &fd, path, PAGESIZE);
     Breset(buf);
-    call(u8sFeed, u8bIdle(buf), path);
+    call(u8bFeed, buf, text);
     call(FILEUnMap, buf);
     Bu8 buf2 = {};
     call(FILEMapRO, buf2, path);
@@ -58,7 +59,7 @@ pro(FILE3) {
 
 pro(FILEtest4) {
     sane(1);
-    a$str(path, "/tmp/FILEtest4.txt");
+    a_path(path, "/tmp/FILEtest4.txt");
     a$str(one, "Hello");
     a$str(two, " beautiful");
     a$str(three, " world!");

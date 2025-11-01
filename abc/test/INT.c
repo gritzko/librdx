@@ -48,7 +48,7 @@ pro(Utest1) {
     $u8 abc = $cut(u8bPast(buf), 0, 3);
     assert($len(abc) == 3);
     u8 three = 3;
-    u8c *c = $u8find(u8cbPast(buf), &three);
+    u8c *c = $u8find(u8bPastC(buf), &three);
     assert(c - buf[0] == 3);
     u8bFree(buf);
     done;
@@ -67,7 +67,7 @@ pro(OKdec) {
     sane(YES);
     aBpad(u8, into, 64);
     call(u64decfeed, u8bIdle(into), 12345UL);
-    $print(u8cbData(into));
+    $print(u8bDataC(into));
     a$str(str, "12345");
     testeq(YES, $eq(u8bData(into), str));
     done;

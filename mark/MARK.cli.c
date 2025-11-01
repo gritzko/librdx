@@ -40,7 +40,7 @@ void debug(MARKstate *state) {
             Bat(t, 0) = '+';
             ++p;
         }
-        $print(u8cbIdle(t));
+        $print(u8bIdleC(t));
         $print(state->lineB[0] + l);
     }
     printf("========\n");
@@ -51,7 +51,7 @@ void debug(MARKstate *state) {
     u8cs __##name = $u8str(tmpl);    \
     $feedf(u8bIdle(name), __##name, __VA_ARGS__);
 
-pro(mark, u8cs mod) {
+pro(mark, path8 mod) {
     sane($ok(mod) && !$empty(mod) && $len(mod) <= 1000);
     int fd = 0;
     call(FILEOpen, &fd, mod, O_RDONLY);
@@ -74,13 +74,13 @@ pro(mark, u8cs mod) {
         state.divB = (u64bp)divbuf;
         state.lineB = (u8cpbp)linebuf;
         state.pB = (u64bp)pbuf;
-        $mv(state.text, u8cbData(text));
+        $mv(state.text, u8bDataC(text));
         $mv(state.fmt, u8bIdle(fmtbuf));
 
         try(MARKlexer, &state);
         then try(MARKMARQ, &state);
         then try(MARKANSI, u8bIdle(intobuf), 64, &state);
-        then try(FILEFeedall, STDOUT_FILENO, u8cbData(intobuf));
+        then try(FILEFeedall, STDOUT_FILENO, u8bDataC(intobuf));
     }
 
     FILEClose(&fd);
@@ -98,7 +98,7 @@ int main(int argn, char **args) {
         fprintf(stderr, "Usage: mark [file.md]\n");
         return -1;
     }
-    a_cstr(name, args[1]);
+    a_path(name, args[1]);
     ok64 o = mark(name);
     if (o != OK)
         trace("%s<%s at %s:%i\n", PROindent, ok64str(o), __func__, __LINE__);

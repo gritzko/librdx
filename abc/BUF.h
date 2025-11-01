@@ -67,8 +67,7 @@ typedef u8b const *u8bcp;
 #undef ABC_X_$
 #undef X
 
-#define $u8raw(v) \
-    { (u8 *)&(v), (u8 *)(&v) + sizeof(v) }
+#define $u8raw(v) {(u8 *)&(v), (u8 *)(&v) + sizeof(v)}
 
 #define a$raw(n, v) $u8 n = {(u8 *)&(v), (u8 *)(&v) + sizeof(v)}
 #define a_rawc(n, v) u8cs n = {(u8 *)&(v), (u8 *)(&v) + sizeof(v)}
@@ -90,21 +89,21 @@ typedef u8b const *u8bcp;
     u8c __##n[l] = {__VA_ARGS__}; \
     u8cs n = {__##n, __##n + sizeof(__##n)};
 
-fun b8 Bitat(Bu8 buf, size_t ndx) {
+fun b8 Bitat(u8b buf, size_t ndx) {
     size_t thebyte = ndx >> 3;
     size_t thebit = ndx & 7;
     must(thebyte < Bsize(buf));
     return (Bat(buf, thebyte) >> thebit) & 1;
 }
 
-fun void Bitset(Bu8 buf, size_t ndx) {
+fun void Bitset(u8b buf, size_t ndx) {
     size_t thebyte = ndx >> 3;
     size_t thebit = ndx & 7;
     must(thebyte < Bsize(buf));
     Bat(buf, thebyte) |= 1 << thebit;
 }
 
-fun void Bitunset(Bu8 buf, size_t ndx) {
+fun void Bitunset(u8b buf, size_t ndx) {
     size_t thebyte = ndx >> 3;
     size_t thebit = ndx & 7;
     must(thebyte < Bsize(buf));
@@ -151,7 +150,7 @@ fun ok64 $$feedf($u8 into, u8cs tmpl, u8css args) {
     return $empty(t) ? OK : Bnoroom;
 }
 
-fun ok64 u8sFeedstr($u8 into, const char *str) {
+fun ok64 u8sFeedCStr($u8 into, const char *str) {
     int l = strlen(str);
     if ($len(into) < l) return $noroom;
     memcpy(*into, str, l);

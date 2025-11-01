@@ -84,12 +84,12 @@ pro(MARKANSItest) {
         call(MARKMARQ, &state);
         call(MARKANSI, u8bIdle(into), 8, &state);
 
-        debugdivs(u64cbData(state.divB));
+        debugdivs(u64bDataC(state.divB));
         a$str(hline, "---\n");
         $print(hline);
-        $print(u8cbData(into));
+        $print(u8bDataC(into));
         $print(hline);
-        test($eq(QA[c][1], u8cbData(into)), TESTfail);
+        test($eq(QA[c][1], u8bData(into)), TESTfail);
     }
     done;
 }
@@ -171,7 +171,7 @@ pro(MARKHTMLtest) {
         callsafe(MARKMARQ(&state), break);
         callsafe(MARKHTML(u8bIdle(into), &state), break);
 
-        testsafe($eq(cases[i][1], u8cbData(into)), TESTfail, break);
+        testsafe($eq(cases[i][1], u8bDataC(into)), TESTfail, break);
     }
     u64bFree(blocks);
     u64bFree(divs);

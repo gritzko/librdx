@@ -53,7 +53,12 @@ typedef b8 (*X(, isfn))(const X(, ) *);
 fun size_t X(, sLen)(X(, sc) data) { return data[1] - data[0]; }
 fun size_t X(, csLen)(X(, csc) data) { return data[1] - data[0]; }
 
-fun T *X($, last)(X($c, ) data) {
+fun T *X(, sLast)(X(, s) data) {
+    assert(!$empty(data));
+    return data[1] - 1;
+}
+
+fun const T *X(, csLast)(X(, cs) data) {
     assert(!$empty(data));
     return data[1] - 1;
 }

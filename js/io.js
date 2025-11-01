@@ -70,4 +70,4 @@ io.setTimeout = function (ms, callback) {
     io.wakeIn(ms);
 }
 
-io.log("io init OK, incl timeouts");
+//io.log("io init OK, incl timeouts");
