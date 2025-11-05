@@ -8,7 +8,7 @@
 #include <time.h>
 #include <unistd.h>
 
-#include "JABC.h"
+#include "JABC.hpp"
 #include "JavaScriptCore/JSBase.h"
 #include "JavaScriptCore/JSObjectRef.h"
 #include "JavaScriptCore/JSStringRef.h"

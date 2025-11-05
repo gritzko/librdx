@@ -28,7 +28,7 @@ ok64 path8Join(path8 path, u8csc part) {
     done;
 }
 
-ok64 FILEmakedir(path8 path) {
+ok64 FILEMakeDir(path8 path) {
     sane(path8Sane(path));
     int rc = mkdir(path8CStr(path), S_IRWXU);
     testc(rc == 0, FILEfail);
@@ -75,10 +75,6 @@ ok64 FILEOpen(int *fd, path8 path, int flags) {
     *fd = open(path8CStr(path), flags);
     if (*fd < 0) fail(FILEErr(FILEnoopen));
     done;
-}
-
-fun ok64 FILEOpenDir(int *fd, path8 path) {
-    return FILEOpen(fd, path, O_DIRECTORY);
 }
 
 ok64 FILEOpenAt(int *fd, int const *dirfd, path8 path, int flags) {

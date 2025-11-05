@@ -11,6 +11,10 @@
 #include "abc/ZINT.h"
 #include "abc/ryu/ryu.h"
 
+u64 RDXNow() {
+
+}
+
 ok64 RDXutf8sFeedID(utf8s into, ref128cp ref) {
     if (unlikely($len(into) < 24)) return RDXnoroom;
     RONutf8sFeed64(into, ron60Max & ref->src);

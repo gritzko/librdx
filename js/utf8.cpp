@@ -1,4 +1,4 @@
-#include "JABC.h"
+#include "JABC.hpp"
 #include "JavaScriptCore/JSBase.h"
 #include "JavaScriptCore/JSStringRef.h"
 #include "JavaScriptCore/JSTypedArray.h"

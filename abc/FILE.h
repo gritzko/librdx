@@ -104,6 +104,9 @@ ok64 FILECreate(int *fd, path8 path);
 
 ok64 FILEOpen(int *fd, path8 path, int flags);
 ok64 FILEOpenAt(int *fd, int const *dirfd, path8 path, int flags);
+fun ok64 FILEOpenDir(int *fd, path8 path) {
+    return FILEOpen(fd, path, O_DIRECTORY);
+}
 
 ok64 FILESync(int const *fd);
 
@@ -234,7 +237,7 @@ fun proc Fpread(int fd, path into, size_t offset) {
 }
 */
 
-ok64 FILEmakedir(path8 path);
+ok64 FILEMakeDir(path8 path);
 
 ok64 FILErmrf(path8 name);
 

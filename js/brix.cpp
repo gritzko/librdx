@@ -1,7 +1,7 @@
 //
 // Created by gritzko on 10/27/25.
 //
-#include "JABC.h"
+#include "JABC.hpp"
 #include "JavaScriptCore/JSBase.h"
 #include "JavaScriptCore/JSStringRef.h"
 #include "JavaScriptCore/JSTypedArray.h"
@@ -40,10 +40,10 @@ static u32 JABC_BRIX_GEN = 0;
  */
 
 typedef struct {
-    u8b _brix[BRIX_MAX_STACK];
     u8bb brix;
+    u32b refs;
+    u16b prevs;
     int home;
-    int fd;
 } JABCBrix;
 
 void JABCBrixInit(JABCBrix* brix) {

@@ -1,7 +1,7 @@
 //
 // Created by gritzko on 10/30/25.
 //
-#include "JABC.h"
+#include "JABC.hpp"
 
 JSObjectRef JABCTest = NULL;
 extern const char* test_js;

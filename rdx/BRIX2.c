@@ -18,10 +18,11 @@ ok64 BRIXPath(u8s pad, sha256cp hash) {
     done;
 }
 
-ok64 BRIXTipPath(u8s pad, u8csc tip) {
+ok64 BRIXTipPath(path8 pad, u8csc tip) {
     sane($ok(pad) && $ok(tip));
-    call(u8sFeed, pad, tip);
-    call(u8sFeed, pad, BRIX_EXT);
+    // todo dir
+    call(u8sFeed, u8bIdle(pad), tip);
+    call(u8sFeed, u8bIdle(pad), BRIX_EXT);
     done;
 }
 
@@ -47,7 +48,16 @@ ok64 BRIXu8bOwn(u8b brik, sha256p own) {
 
 ok64 BRIXOpenHome(int* home, path8 path) {
     sane(home != NULL && $ok(path));
-    call(FILEOpen, home, path, O_DIRECTORY);
+    struct stat st;
+    ok64 o = FILEStat(&st, path);
+    if (o == FILEnone) {
+        call(FILEMakeDir, path);
+    } else if (o != OK) {
+        fail(o);
+    } else {
+        test((st.st_mode & S_IFDIR), FILEbadarg);
+    }
+    call(FILEOpenDir, home, path);
     done;
 }
 
@@ -74,8 +84,8 @@ ok64 BRIXu8bbOpen(u8bbp brix, int home, sha256cp hash) {
 
 ok64 BRIXu8bbCreateTip(u8bbp brix, int* fd, int home, sha256cp base, u8cs tip) {
     sane(Bok(brix));
-    a_pad(u8, fn, FILENAME_MAX);
-    call(BRIXTipPath, fn_idle, tip);
+    a_path(fn, "");
+    call(BRIXTipPath, fn, tip);
     u8b top = {};
     call(FILEMapNew, top, fd, fn, PAGESIZE);
     brikhead128 head = {
@@ -185,6 +195,8 @@ ok64 BRIXu8bAdd(u8b tip, u8csc rec) {
     sane(brikOK(tip));
     rdx p;
     call(rdxInit, &p, rec);
+    // POLnow();
+
     // use the clock
     // make the rec
     u8cs newrec;  // :(

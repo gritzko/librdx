@@ -2,7 +2,7 @@
 #include <cstdlib>
 #include <cstring>
 
-#include "JABC.h"
+#include "JABC.hpp"
 #include "JavaScriptCore/JSBase.h"
 #include "JavaScriptCore/JSContextRef.h"
 #include "JavaScriptCore/JSObjectRef.h"

@@ -11,16 +11,22 @@
 #define BRIX_MAX_STACK 32
 
 typedef enum {
-    BRIX_CRYPTO_NOSIG_SHA256 = 'h',
+    BRIX_CRYPTO_NOSIG_SHA256 = '2',
     BRIX_CRYPTO_ED25519_SHA256 = 'e',
 } BRIX_CRYPTO;
 
 typedef enum {
-    BRIX_INDEX_NONE = '-',
-    BRIX_INDEX_LSMHASH = 'i',
-    BRIX_INDEX_2K = '2',
+    BRIX_INDEX_NONE = '_',
+    BRIX_INDEX_LSMHASH_4 = '4',
+    BRIX_INDEX_LSMHASH_8 = '8',
+    BRIX_INDEX_2K = 'K',
     BRIX_INDEX_BLOOM = 'B',
 } BRIX_INDEX;
+
+typedef enum {
+    BRIX_COMPRESS_NONE = '_',
+    BRIX_COMPRESS_DEFLATE = 'z',
+} BRIX_COMPRESS;
 
 // PAST: header, meta
 // DATA: data
@@ -53,7 +59,7 @@ fun u8 BRIXu8bCryptoType(u8b brik) { return Bat(brik, 2); }
 ok64 BRIXu8bBase(u8b brik, sha256p own);
 ok64 BRIXu8bOwn(u8b brik, sha256p own);
 
-ok64 BRIXTipPath(u8s pad, u8csc tip);
+ok64 BRIXTipPath(path8 pad, u8csc tip);
 ok64 BRIXOpenHome(int* home, path8 path);
 
 ok64 BRIXu8bbCreateTip(u8bbp brix, int* fd, int home, sha256cp base, u8cs tip);

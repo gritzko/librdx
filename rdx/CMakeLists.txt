@@ -35,7 +35,7 @@ list(APPEND RDX_SOURCES
     BRIX2.c
 )
 
-add_library(rdx STATIC ${RDX_HEADERS} ${RDX_SOURCES})
+add_library(rdx STATIC ${RDX_HEADERS} ${RDX_SOURCES} MAN.h)
 target_link_libraries(rdx abc sodium)
 
 add_subdirectory(test)
