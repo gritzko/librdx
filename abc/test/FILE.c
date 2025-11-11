@@ -25,12 +25,11 @@ pro(FILEtest2) {
     call(FILECreate, &fd, path);
     call(FILEResize, &fd, 4096);
     aB(u8, map);
-    call(FILEMap, mapbuf, &fd, PROT_READ | PROT_WRITE);
+    call(FILEMapFD, mapbuf, &fd, PROT_READ | PROT_WRITE);
     testeq(Bsize(mapbuf), 4096);
     Bat(mapbuf, 42) = 1;
     call(FILEUnMap, mapbuf);
-    call(FILEMap, mapbuf, &fd, PROT_READ | PROT_WRITE);
-    call(FILEClose, &fd);
+    call(FILEMapRO, mapbuf, path);
     testeq(Blen(mapbuf), 4096);
     testeq(Bat(mapbuf, 41), 0);
     testeq(Bat(mapbuf, 42), 1);
@@ -43,8 +42,7 @@ pro(FILE3) {
     a_path(path, "/tmp/FILE3.txt");
     a_cstr(text, "Hello world!");
     Bu8 buf = {};
-    int fd = FILE_CLOSED;
-    call(FILEMapNew, buf, &fd, path, PAGESIZE);
+    call(FILEMapCreate, buf, path, PAGESIZE);
     Breset(buf);
     call(u8bFeed, buf, text);
     call(FILEUnMap, buf);

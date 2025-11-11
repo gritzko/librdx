@@ -36,7 +36,7 @@ pro(md2html, u8cs mod) {
     int fd = 0;
     call(FILEOpen, &fd, name, O_RDONLY);
     Bu8 txtbuf = {};
-    call(FILEMap, txtbuf, &fd, PROT_READ);
+    call(FILEMapFD, txtbuf, &fd, PROT_READ);
 
     Bu8 fmtbuf = {};
     call(MMAPu8open, fmtbuf, Blen(txtbuf));

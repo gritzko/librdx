@@ -39,31 +39,31 @@ static u32 JABC_BRIX_GEN = 0;
  *   brix.TagPublic()
  */
 
-typedef struct {
-    u8bb brix;
-    u32b refs;
-    u16b prevs;
-    int home;
-} JABCBrix;
+u8cs JABC_REPO_PATH = {};
+int JABC_REPO = FILE_CLOSED;
 
-void JABCBrixInit(JABCBrix* brix) {
-    // ptrs;
-    u8b** b = (u8b**)brix->brix;
-    b[0] = b[1] = b[2] = brix->_brix;
-    b[3] = (u8b*)brix->_brix + BRIX_MAX_STACK;
-    // home
+u8bbp AllocBrix() {
+    size_t sz = sizeof(u8b) * RDX_MAX_INPUTS;
+    u8* buf = (u8*)malloc(sz);
+    u8*** head = (u8***)buf;
+    u8** next = (u8**)(buf + sizeof(u8bb));
+    head[0] = head[1] = head[2] = next;
+    head[1] = (u8**)(buf + sz);
+    return (u8bbp)buf;
 }
 
-ok64 JABCBrixOpen(JABCBrix* store, u8csc path, u8csc tip) { return notimplyet; }
+void FreeBrix(u8bbp brix) { free((void*)brix); }
 
-ok64 JABCBrixRecords(JABCBrix* store, u8cssp recs, void* desc) {
+ok64 JABCBrixOpen(u8bbp store, u8csc path, u8csc tip) { return notimplyet; }
+
+ok64 JABCBrixRecords(u8bbp store, u8cssp recs, void* desc) {
     return notimplyet;
 }
 
-ok64 JABCBrixDesc(JABCBrix* store, void** desc, u8cscsc recs) { return 0; }
+ok64 JABCBrixDesc(u8bbp store, void** desc, u8cscsc recs) { return 0; }
 
-JABCBrix* JABCBrixStoreOf(JSContextRef ctx, JSObjectRef object,
-                          JSValueRef* exception) {
+u8bbp JABCBrixStoreOf(JSContextRef ctx, JSObjectRef object,
+                      JSValueRef* exception) {
     JSObjectRef i = object;
     while (JSObjectHasProperty(ctx, i, JABC_PROP_PRNT)) {
         JSValueRef v = JSObjectGetProperty(ctx, i, JABC_PROP_PRNT, exception);
@@ -71,7 +71,7 @@ JABCBrix* JABCBrixStoreOf(JSContextRef ctx, JSObjectRef object,
         i = (JSObjectRef)v;
     }
     if (!JSValueIsObjectOfClass(ctx, i, JABCBrixClassStore)) return nullptr;
-    JABCBrix* brix = (JABCBrix*)JSObjectGetPrivate(i);
+    u8bbp brix = (u8bbp)JSObjectGetPrivate(i);
     return brix;
 }
 
@@ -96,10 +96,10 @@ bool JABCBrixStoreHas(JSContextRef ctx, JSObjectRef object,
 JSValueRef JABCBrixStoreP(JSContextRef ctx, JSObjectRef function,
                           JSObjectRef thisObject, size_t argumentCount,
                           const JSValueRef arguments[], JSValueRef* exception) {
-    JABCBrix* store = (JABCBrix*)JSObjectGetPrivate(thisObject);
+    u8bbp store = (u8bbp)JSObjectGetPrivate(thisObject);
     a_pad(u8, rec, PAGESIZE);  // ?
     // see args
-    ok64 o = BRIXu8bbAdd(store->brix, rec);
+    ok64 o = BRIXu8bbAdd(store, rec);
     void* desc;
     JSClassRef lass = JABCBrixClassEuler;
     u8ss inputs_datac;  // fixme
@@ -121,11 +121,11 @@ JSValueRef JABCBrixStoreGet(JSContextRef ctx, JSObjectRef object,
                             JSStringRef propertyName, JSValueRef* exception) {
     // pick from every
     // special case: E P2
-    JABCBrix* store = (JABCBrix*)JSObjectGetPrivate(object);
+    u8bbp store = (u8bbp)JSObjectGetPrivate(object);
     a_pad(u8cs, inputs, BRIX_MAX_STACK);
     // todo parse
     ref128 ref;
-    ok64 o = BRIXu8bbGets(store->brix, ref, inputs_idle);
+    ok64 o = BRIXu8bbGets(store, ref, inputs_idle);
     u8 type;
     void* desc;
     JSClassRef lass = JABCBrixClassEuler;
@@ -191,7 +191,7 @@ JSObjectRef JABCBrixEulerConstructor(JSContextRef ctx, JSObjectRef constructor,
                                      size_t argumentCount,
                                      const JSValueRef arguments[],
                                      JSValueRef* exception) {
-    JABCBrix* store;
+    u8bbp store;
     JSObjectRef storeRef;
     void* desc = nullptr;
     a_pad(u8cs, recs, BRIX_MAX_STACK);
@@ -220,7 +220,7 @@ JSValueRef JABCBrixEulerGet(JSContextRef ctx, JSObjectRef object,
 bool JABCBrixEulerSet(JSContextRef ctx, JSObjectRef object,
                       JSStringRef propertyName, JSValueRef value,
                       JSValueRef* exception) {
-    JABCBrix* brix;
+    u8bbp brix;
     u8bp top = {};
     // prnt ->
     a_pad(u8cs, inputs, RDX_MAX_INPUTS);  //!!!
@@ -247,7 +247,7 @@ JSValueRef JABCBrixEulerConvert(JSContextRef ctx, JSObjectRef object,
 JABC_FN_DEFINE(JABCBrixHome) {
     JABC_FN_ARG_STRING(0, homepath, 1024, "no tip tag specified");
     a_path(defhome, ".rdx/");
-    //if ($len(homepath) == 0) u8csDup(homepath, defhome);
+    // if ($len(homepath) == 0) u8csDup(homepath, defhome);
     if (JABC_BRIX_HOME != FILE_CLOSED) FILEClose(&JABC_BRIX_HOME);
     JABC_FN_CALL(BRIXOpenHome, &JABC_BRIX_HOME, defhome);
     JABC_FN_RETURN_UNDEFINED;
@@ -259,12 +259,9 @@ JABC_FN_DEFINE(JABCBrixOpen) {
         a_path(defhome, ".rdx/");
         JABC_FN_CALL(BRIXOpenHome, &JABC_BRIX_HOME, defhome);
     }
-    JABCBrix brix{};
-    JABCBrixInit(&brix);
-    JABC_FN_CALL(BRIXu8bbOpenTip, brix.brix, &brix.fd, JABC_BRIX_HOME, tiptag);
-    JABCBrix* allocd = (JABCBrix*)malloc(sizeof(JABCBrix));
-    memcpy(allocd, &brix, sizeof(JABCBrix));
-    return JSObjectMake(ctx, JABCBrixClassStore, allocd);
+    u8bbp brix = AllocBrix();
+    JABC_FN_CALL(BRIXu8bbOpenTip, brix, JABC_BRIX_HOME, tiptag);  // fixme ret
+    return JSObjectMake(ctx, JABCBrixClassStore, (void*)brix);
 }
 
 JABC_FN_DEFINE(JABCBrixCreate) {
@@ -273,37 +270,33 @@ JABC_FN_DEFINE(JABCBrixCreate) {
         a_path(defhome, ".rdx/");
         JABC_FN_CALL(BRIXOpenHome, &JABC_BRIX_HOME, defhome);
     }
-    JABCBrix brix{};
-    JABCBrixInit(&brix);
+    u8bbp brix = AllocBrix();
     sha256 nobase{};
-    JABC_FN_CALL(BRIXu8bbCreateTip, brix.brix, &brix.fd, brix.home, &nobase,
-                 tiptag);
-    JABCBrix* allocd = (JABCBrix*)malloc(sizeof(JABCBrix));
-    memcpy(allocd, &brix, sizeof(JABCBrix));
-    return JSObjectMake(ctx, JABCBrixClassStore, allocd);
+    JABC_FN_CALL(BRIXu8bbCreateTip, brix, JABC_BRIX_HOME, &nobase, tiptag);
+    return JSObjectMake(ctx, JABCBrixClassStore, (void*)brix);
 }
 
 JSValueRef JABCBrixModeRW, JABCBrixModeRO;
 
 JABC_FN_DEFINE(JABCBrixStoreMode) {
-    JABCBrix* brixp = (JABCBrix*)JSObjectGetPrivate(self);
+    u8bbp brixp = (u8bbp)JSObjectGetPrivate(self);
     if (!JSValueIsObjectOfClass(ctx, self, JABCBrixClassStore) || !brixp)
         JABC_FN_THROW("not a store");
-    u8bp tip = Blast(brixp->brix);
-    return BRIXu8bIndexType(tip) == BRIX_INDEX_LSMHASH ? JABCBrixModeRW
-                                                       : JABCBrixModeRO;
+    u8bp tip = Blast(brixp);
+    return BRIXu8bIndexType(tip) <= BRIX_INDEX_LSMHASH_4 ? JABCBrixModeRW
+                                                         : JABCBrixModeRO;
 }
 
 JABC_FN_DEFINE(JABCBrixStoreLength) {
-    JABCBrix* brixp = (JABCBrix*)JSObjectGetPrivate(self);
+    u8bbp brixp = (u8bbp)JSObjectGetPrivate(self);
     if (!JSValueIsObjectOfClass(ctx, self, JABCBrixClassStore) || !brixp)
         JABC_FN_THROW("not a store");
-    return JSValueMakeNumber(ctx, (double)u8bbDataLen(brixp->brix));
+    return JSValueMakeNumber(ctx, (double)u8bbDataLen(brixp));
 }
 
 void JABCBrixStoreFin(JSObjectRef self) {
-    JABCBrix* brixp = (JABCBrix*)JSObjectGetPrivate(self);
-    BRIXu8bbClose(brixp->brix);
+    u8bbp brixp = (u8bbp)JSObjectGetPrivate(self);
+    BRIXu8bbClose(brixp);
 }
 
 ok64 JABCbrixInstall() {

@@ -28,6 +28,21 @@ extern thread_local JSObjectRef JABC_GLOBAL_OBJECT;
         JABC_FN_RETURN_UNDEFINED;                              \
     }
 
+#define JABC_FN_ARG_ALLOC_STRING(ndx, varn, errmsg)                    \
+    u8* _##varn;                                                       \
+    u8cs varn = {_##varn, _##varn};                                    \
+    if (argc > ndx) {                                                  \
+        if (!JSValueIsString(ctx, args[ndx])) {                        \
+            JABC_FN_THROW(errmsg);                                     \
+        }                                                              \
+        size_t maxlen =                                                \
+            JSStringGetMaximumUTF8CStringSize((JSStringRef)args[ndx]); \
+        _##varn = (u8*)malloc(maxlen);                                 \
+        size_t len = JSStringGetUTF8CString((JSStringRef)args[ndx],    \
+                                            (char*)_##varn, maxlen);   \
+        varn[1] += len - 1;                                            \
+    }
+
 #define JABC_FN_ARG_STRING(ndx, varn, maxlen, errmsg)                \
     u8 _##varn[maxlen];                                              \
     u8cs varn = {_##varn, _##varn};                                  \

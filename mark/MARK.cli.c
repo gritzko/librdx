@@ -56,7 +56,7 @@ pro(mark, path8 mod) {
     int fd = 0;
     call(FILEOpen, &fd, mod, O_RDONLY);
     Bu8 text = {};
-    call(FILEMap, text, &fd, PROT_READ);
+    call(FILEMapFD, text, &fd, PROT_READ);
 
     Bu8 fmtbuf = {};
     u8cpb linebuf = {};

@@ -89,21 +89,21 @@ typedef u8b const *u8bcp;
     u8c __##n[l] = {__VA_ARGS__}; \
     u8cs n = {__##n, __##n + sizeof(__##n)};
 
-fun b8 Bitat(u8b buf, size_t ndx) {
+fun b8 BitAt(u8b buf, size_t ndx) {
     size_t thebyte = ndx >> 3;
     size_t thebit = ndx & 7;
     must(thebyte < Bsize(buf));
     return (Bat(buf, thebyte) >> thebit) & 1;
 }
 
-fun void Bitset(u8b buf, size_t ndx) {
+fun void BitSet(u8b buf, size_t ndx) {
     size_t thebyte = ndx >> 3;
     size_t thebit = ndx & 7;
     must(thebyte < Bsize(buf));
     Bat(buf, thebyte) |= 1 << thebit;
 }
 
-fun void Bitunset(u8b buf, size_t ndx) {
+fun void BitUnset(u8b buf, size_t ndx) {
     size_t thebyte = ndx >> 3;
     size_t thebit = ndx & 7;
     must(thebyte < Bsize(buf));

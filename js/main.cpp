@@ -41,20 +41,24 @@ ok64 JABCbrixInstall();
 ok64 JABCbrixUninstall();
 ok64 JABCtestInstall();
 ok64 JABCtestUninstall();
+ok64 JABCrdxInstall();
+ok64 JABCrdxUninstall();
 
 ok64 JABCInstallModules() {
-    JABCioInstall();
     JABCutf8Install();
+    JABCioInstall();
+    JABCrdxInstall();
     JABCbrixInstall();
     JABCtestInstall();
     return 0;
 }
 
 ok64 JABCUninstallModules() {
+    JABCtestUninstall();
+    JABCbrixUninstall();
+    JABCrdxUninstall();
     JABCioUninstall();
     JABCutf8Uninstall();
-    JABCbrixUninstall();
-    JABCtestUninstall();
     return 0;
 }
 
@@ -153,8 +157,8 @@ void JABCReport(JSValueRef exception) {
 }
 
 void JABCExecute(const char* script) {
-    //fprintf(stderr, "Starting:\n%s\n", script);
-    // Convert C string to JSC string
+    // fprintf(stderr, "Starting:\n%s\n", script);
+    //  Convert C string to JSC string
     JSStringRef js_code = JSStringCreateWithUTF8CString(script);
 
     JSValueRef exception = NULL;
@@ -163,7 +167,7 @@ void JABCExecute(const char* script) {
     if (exception != NULL) {
         JABCReport(exception);
     } else {
-    //    fprintf(stderr, "Finished normally\n");
+        //    fprintf(stderr, "Finished normally\n");
     }
 
     // Cleanup JS string resources

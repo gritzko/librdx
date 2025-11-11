@@ -140,7 +140,7 @@ fun int rdxpcmp(rdxp const* a, rdxp const* b) { return rdxcmp(*a, *b); }
 
 extern u8cs RDX_ROOT_REC;
 
-typedef b8 (*rdxZ)(rdxcp a, rdxcp b);
+typedef ok64 (*rdxZ)(rdxcp a, rdxcp b);
 
 ok64 rdxNext(rdxp it);
 fun b8 rdxOK(rdxp it) { return it->reclen > 0; }
@@ -158,6 +158,7 @@ fun ok64 rdxOuto(rdxp it, u8csc rest) {
     u8csDup(it->rest, rest);
     return rdxNext(it);
 }
+fun b8 rdxEmpty(rdxp it) { return $empty(it->rest); }
 
 ok64 rdxbInit(rdxb reader, u8cs data);
 fun u8 rdxbType(rdxb reader) { return rdxbLast(reader)->type; }
@@ -228,5 +229,12 @@ ok64 RDXu8sDrainI(u8csc elem, rdxp rdx);
 ok64 RDXu8sDrainR(u8csc elem, rdxp rdx);
 ok64 RDXu8sDrainS(u8csc elem, rdxp rdx);
 ok64 RDXu8sDrainT(u8csc elem, rdxp rdx);
+
+
+// . . . . . . . . DIFF . . . . . . . .
+
+#define DIFF_MAX_STEPS 1<<20
+
+ok64 RDXu8bDiff(u8b diff, u8cs a, u8cs b);
 
 #endif

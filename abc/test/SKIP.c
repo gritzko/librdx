@@ -51,8 +51,8 @@ pro(SKIPcheck, u8bp buf, u8bp checked, SKIPu8tab const* k) {
         if (o != OK) {
             if (o == SKIPnone) continue;
             fail(o);
-        } else if (!Bitat(checked, hop.pos)) {
-            Bitset(checked, hop.pos);
+        } else if (!BitAt(checked, hop.pos)) {
+            BitSet(checked, hop.pos);
             call(SKIPcheck, buf, checked, &hop);
         }
     }
@@ -85,8 +85,7 @@ pro(SKIP2) {
     FILEunlink(path);
     u8b pad;
     a_pad(u8, check, SCALE);
-    int fd = FILE_CLOSED;
-    call(FILEMapNew, pad, &fd, path, SCALE);
+    call(FILEMapCreate, pad, path, SCALE);
     COMBinit(pad);
     SKIPu8tab k = {};
     for (u64 i = 0; i < 8; ++i) {
@@ -98,7 +97,7 @@ pro(SKIP2) {
         size_t ds = Bdatalen(pad);
         size_t bs = Busysize(pad);
         COMBsave(pad);
-        call(FILEReMap, pad, &fd, SCALE * (i + 2));
+        call(FILEReMap, pad, SCALE * (i + 2));
         COMBload(pad);
         testeq(ds, Bdatalen(pad));
         testeq(bs, Busysize(pad));

@@ -290,6 +290,13 @@ fun ok64 X(, sFed)(X(, s) into, size_t len) {
     return OK;
 }
 
+fun ok64 X(, sPuked)(X(, s) from, size_t len) {
+    if ($len(from) < len) return $miss;
+    from[1] -= len;
+    return OK;
+}
+
+
 fun ok64 X(, sDrain1)(X(, cs) from, T *into) {
     if ($empty(from)) return $nodata;
 #ifndef ABC_X_$

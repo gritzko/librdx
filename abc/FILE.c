@@ -77,9 +77,9 @@ ok64 FILEOpen(int *fd, path8 path, int flags) {
     done;
 }
 
-ok64 FILEOpenAt(int *fd, int const *dirfd, path8 path, int flags) {
-    sane(fd != NULL && path8Sane(path) && FILEok(*dirfd));
-    *fd = openat(*dirfd, path8CStr(path), flags);
+ok64 FILEOpenAt(int *fd, int const dirfd, path8 path, int flags) {
+    sane(fd != NULL && path8Sane(path) && FILEok(dirfd));
+    *fd = openat(dirfd, path8CStr(path), flags);
     if (*fd < 0) fail(FILEErr(FILEnoopen));
     done;
 }
@@ -139,8 +139,54 @@ ok64 FILERmRF(path8 path) {
     done;
 }
 
-ok64 FILEMap(u8bp buf, int const *fd, int mode) {
+u8p *FILE_BUFS[4] = {};
+u8 *FILE_RW[4] = {};
+
+ok64 FILENoteMap(int const *fd, u8bp buf, b8 rw) {
+    sane(*fd > FILE_CLOSED && u8bOK(buf));
+    if (*FILE_BUFS == NULL) {
+        call(u8pbAllocate, FILE_BUFS, FILE_MAX_OPEN);
+        call(u8bAllocate, FILE_RW, roundup(FILE_MAX_OPEN >> 3, 64));
+    }
+    size_t fdlen = u8pbDataLen(FILE_BUFS);
+    if (*fd >= fdlen) u8psFed(u8pbIdle(FILE_BUFS), *fd - fdlen + 1);
+    *u8pbAtP(FILE_BUFS, *fd) = buf[0];
+    rw ? BitSet(FILE_RW, *fd) : BitUnset(FILE_RW, *fd);
+    done;
+}
+
+ok64 FILEFindMap(int *fd, u8bp buf) {
+    sane(fd != NULL && u8bOK(buf));
+    size_t l = u8pbDataLen(FILE_BUFS);
+    for (int i = 0; i < l; i++)
+        if (buf[0] == *u8pbAtP(FILE_BUFS, i)) {
+            *fd = i;
+            done;
+        }
+    fail(none);
+}
+
+ok64 FILEDropMap(int *fd, u8bp buf) {
+    sane(u8bOK(buf));
+    call(FILEFindMap, fd, buf);
+    *u8pbAtP(FILE_BUFS, *fd) = NULL;
+    BitUnset(FILE_RW, *fd);
+    u8psp data = u8pbData(FILE_BUFS);
+    while (!$empty(data) && *u8psLast(data) == NULL) u8psPuked(data, 1);
+    done;
+}
+
+ok64 FILECloseAll() {
+    sane(1);
+    // todo unmap/close all managed fds
+    call(u8pbFree, FILE_BUFS);
+    call(u8bFree, FILE_RW);
+    done;
+}
+
+ok64 FILEMapFD(u8bp buf, int const *fd, int mode) {
     sane(buf != NULL && *buf == NULL && FILEok(*fd));
+    test(*fd >= 0 && *fd < FILE_MAX_OPEN, badarg);
     size_t size;
     call(FILESize, &size, fd);
     u8 *map = (u8 *)mmap(NULL, size, mode, MAP_FILE | MAP_SHARED, *fd, 0);
@@ -149,13 +195,77 @@ ok64 FILEMap(u8bp buf, int const *fd, int mode) {
     b[0] = b[1] = b[2] = b[3] = map;
     b[3] += size;
     if (0 == (mode & PROT_WRITE)) b[2] += size;
+    call(FILENoteMap, fd, buf, (mode & PROT_WRITE) != 0);
+    done;
+}
+
+ok64 FILEMapRO(u8bp buf, path8 path) {
+    sane(buf != NULL && $ok(path));
+    int fd = FILE_CLOSED;
+    call(FILEOpen, &fd, path, O_RDONLY);
+    call(FILEMapFD, buf, &fd, PROT_READ);
+    // not expecting: opened-but-map-fails
+    done;
+}
+
+ok64 FILEMapROAt(u8bp buf, int dir, path8 path) {
+    sane(buf != NULL && $ok(path));
+    int fd = FILE_CLOSED;
+    call(FILEOpenAt, &fd, dir, path, O_RDONLY);
+    call(FILEMapFD, buf, &fd, PROT_READ);
+    // not expecting: opened-but-map-fails
+    done;
+}
+
+ok64 FILEMapRW(u8bp buf, path8 path) {
+    sane(buf != NULL && $ok(path));
+    int fd = FILE_CLOSED;
+    call(FILEOpen, &fd, path, O_RDWR);
+    call(FILEMapFD, buf, &fd, PROT_READ | PROT_WRITE);
+    // not expecting: opened-but-map-fails
+    done;
+}
+
+ok64 FILEMapCreate(u8bp buf, path8 path, size_t size) {
+    sane(buf != NULL && $ok(path));
+    int fd = FILE_CLOSED;
+    call(FILECreate, &fd, path);
+    call(FILEResize, &fd, size);
+    call(FILEMapFD, buf, &fd, PROT_READ | PROT_WRITE);
+    // not expecting: opened-but-map-fails
+    done;
+}
+
+ok64 FILEReMap(u8bp buf, size_t new_size) {
+    sane(Bok(buf));
+    int fd = FILE_CLOSED;
+    call(FILEFindMap, &fd, buf);
+    call(FILEUnMapFD, buf, &fd);  // fixme non-files
+    call(FILEResize, &fd, new_size);
+    int prot = PROT_READ;
+    b8 rw = BitAt(FILE_RW, fd);
+    if (rw) prot |= PROT_WRITE;
+    call(FILEMapFD, buf, &fd, prot);
+    call(FILENoteMap, &fd, buf, rw);  // the buf may change
+    // mremap() is not supported in FreeBSD
+    done;
+}
+
+ok64 FILEUnMapFD(u8b buf, int const *fd) {
+    sane(Bok(buf));
+    u8c **b = (u8c **)buf;
+    testc(-1 != munmap(buf[0], Blen(b)), FILEfail);
+    int fd2 = FILE_CLOSED;
+    FILEDropMap(&fd2, buf);  // if any
+    b[0] = b[1] = b[2] = b[3] = NULL;
     done;
 }
 
 ok64 FILEUnMap(u8b buf) {
     sane(Bok(buf));
-    u8c **b = (u8c **)buf;
-    testc(-1 != munmap(buf[0], Blen(b)), FILEfail);
-    b[0] = b[1] = b[2] = b[3] = NULL;
+    int fd = FILE_CLOSED;
+    call(FILEDropMap, &fd, buf);
+    call(FILEUnMapFD, buf, &fd);
+    call(FILEClose, &fd);
     done;
 }

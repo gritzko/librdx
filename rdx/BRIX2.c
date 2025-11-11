@@ -6,6 +6,7 @@
 
 #include "abc/FILE.h"
 #include "abc/HEX.h"
+#include "abc/MMAP.h"
 #include "abc/PRO.h"
 
 a_cstr(BRIX_EXT, ".brik");
@@ -65,7 +66,7 @@ ok64 BRIXu8bOpen(u8bp brik, int home, sha256cp hash) {
     sane(Bok(brik) && home != FILE_CLOSED && !sha256empty(hash));
     a_pad(u8, fn, FILENAME_MAX);
     BRIXPath(fn_idle, hash);
-    call(FILEMapROAt, brik, &home, fn);
+    call(FILEMapROAt, brik, home, fn);
     done;
 }
 
@@ -82,17 +83,17 @@ ok64 BRIXu8bbOpen(u8bbp brix, int home, sha256cp hash) {
     done;
 }
 
-ok64 BRIXu8bbCreateTip(u8bbp brix, int* fd, int home, sha256cp base, u8cs tip) {
+ok64 BRIXu8bbCreateTip(u8bbp brix, int home, sha256cp base, u8cs tip) {
     sane(Bok(brix));
     a_path(fn, "");
     call(BRIXTipPath, fn, tip);
     u8b top = {};
-    call(FILEMapNew, top, fd, fn, PAGESIZE);
+    call(FILEMapCreate, top, fn, PAGESIZE);
     brikhead128 head = {
         .litS = 'S',
         .litT = 'T',
         .lit_crypto = BRIX_CRYPTO_NOSIG_SHA256,
-        .lit_index = BRIX_INDEX_LSMHASH,
+        .lit_index = BRIX_INDEX_LSMHASH_4,
         .meta_len = 32,
         .data_len = 0,
     };
@@ -106,12 +107,12 @@ ok64 BRIXu8bbCreateTip(u8bbp brix, int* fd, int home, sha256cp base, u8cs tip) {
     done;
 }
 
-ok64 BRIXu8bbOpenTip(u8bbp brix, int* fd, int home, u8cs tip) {
+ok64 BRIXu8bbOpenTip(u8bbp brix, int home, u8cs tip) {
     sane(Bok(brix));
     a_pad(u8, fn, FILENAME_MAX);
     call(BRIXTipPath, fn_idle, tip);
     u8b top = {};
-    call(FILEMapRW, top, fd, fn);
+    call(FILEMapRW, top, fn);
     size_t pastlen = sizeof(brikhead128) + sizeof(sha256);
     call(u8sFed, u8bIdle(top), pastlen);
     call(u8sAte, u8bData(top));
@@ -134,6 +135,15 @@ ok64 BRIXu8bCreate(u8bp brik, int home, sha256cs deps) {
     call(u8bFeed, brik, headraw);
     $feed(u8bIdle(brik), deps);
     u8sAte(u8bData(brik));
+    done;
+}
+
+ok64 BRIXu8bResize2(u8b tip) {
+    sane(u8bOK(tip));
+    // fixme fd fd fd ?   FILE_BUFS!!!!
+    //call(MMAPresize2, tip);
+    int fd;
+    call(FILEReMap, tip, Bsize(tip) * 2);  // fixme fd ?!!
     done;
 }
 
@@ -165,7 +175,7 @@ ok64 BRIXu8bbSeal(u8bbp brix, int* fd, int home, sha256p result) {
 }
 
 fun b8 tipOK(u8b brik) {
-    return brikOK(brik) && BRIXu8bIndexType(brik) == BRIX_INDEX_LSMHASH;
+    return brikOK(brik) && BRIXu8bIndexType(brik) <= BRIX_INDEX_LSMHASH_4;
 }
 
 ok64 BRIXu8bExtend(u8b brik) { sane(brikOK(brik)) done; }

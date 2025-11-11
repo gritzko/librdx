@@ -17,7 +17,7 @@ typedef enum {
 
 typedef enum {
     BRIX_INDEX_NONE = '_',
-    BRIX_INDEX_LSMHASH_4 = '4',
+    BRIX_INDEX_LSMHASH_4 = '9',
     BRIX_INDEX_LSMHASH_8 = '8',
     BRIX_INDEX_2K = 'K',
     BRIX_INDEX_BLOOM = 'B',
@@ -62,12 +62,13 @@ ok64 BRIXu8bOwn(u8b brik, sha256p own);
 ok64 BRIXTipPath(path8 pad, u8csc tip);
 ok64 BRIXOpenHome(int* home, path8 path);
 
-ok64 BRIXu8bbCreateTip(u8bbp brix, int* fd, int home, sha256cp base, u8cs tip);
+ok64 BRIXu8bbCreateTip(u8bbp brix, int home, sha256cp base, u8cs tip);
 ok64 BRIXu8bCreate(u8bp brik, int home, sha256cs deps);
+ok64 BRIXu8bResize2(u8b tip);
 
 ok64 BRIXu8bOpen(u8bp brik, int home, sha256cp hash);
 ok64 BRIXu8bbOpen(u8bbp brix, int home, sha256cp hash);
-ok64 BRIXu8bbOpenTip(u8bbp brix, int* fd, int home, u8cs tip);
+ok64 BRIXu8bbOpenTip(u8bbp brix, int home, u8cs tip);
 
 ok64 BRIXu8bbSeal(u8bbp brix, int* fd, int home, sha256p result);
 
