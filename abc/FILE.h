@@ -269,6 +269,8 @@ ok64 FILEMapRW(u8bp buf, path8 path);
 // Create and map a file for reading and writing.
 ok64 FILEMapCreate(u8bp buf, path8 path, size_t size);
 
+ok64 FILEMapCreateAt(u8bp buf, int dir, path8 path, size_t size);
+
 // Unmaps the buffer.
 ok64 FILEUnMap(u8b buf);
 

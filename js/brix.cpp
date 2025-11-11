@@ -6,6 +6,7 @@
 #include "JavaScriptCore/JSStringRef.h"
 #include "JavaScriptCore/JSTypedArray.h"
 #include "JavaScriptCore/JSValueRef.h"
+#include "abc/PRO.h"
 #include "rdx/RDX.hpp"
 
 JSClassRef JABCBrixClassStore = NULL;
@@ -48,7 +49,7 @@ u8bbp AllocBrix() {
     u8*** head = (u8***)buf;
     u8** next = (u8**)(buf + sizeof(u8bb));
     head[0] = head[1] = head[2] = next;
-    head[1] = (u8**)(buf + sz);
+    head[3] = (u8**)(buf + sz);
     return (u8bbp)buf;
 }
 
@@ -249,7 +250,7 @@ JABC_FN_DEFINE(JABCBrixHome) {
     a_path(defhome, ".rdx/");
     // if ($len(homepath) == 0) u8csDup(homepath, defhome);
     if (JABC_BRIX_HOME != FILE_CLOSED) FILEClose(&JABC_BRIX_HOME);
-    JABC_FN_CALL(BRIXOpenHome, &JABC_BRIX_HOME, defhome);
+    JABC_FN_CALL(BRIXOpenRepo, &JABC_BRIX_HOME, defhome);
     JABC_FN_RETURN_UNDEFINED;
 }
 
@@ -257,7 +258,7 @@ JABC_FN_DEFINE(JABCBrixOpen) {
     JABC_FN_ARG_STRING(0, tiptag, 128, "no tip tag specified");
     if (JABC_BRIX_HOME == FILE_CLOSED) {
         a_path(defhome, ".rdx/");
-        JABC_FN_CALL(BRIXOpenHome, &JABC_BRIX_HOME, defhome);
+        JABC_FN_CALL(BRIXOpenRepo, &JABC_BRIX_HOME, defhome);
     }
     u8bbp brix = AllocBrix();
     JABC_FN_CALL(BRIXu8bbOpenTip, brix, JABC_BRIX_HOME, tiptag);  // fixme ret
@@ -268,7 +269,7 @@ JABC_FN_DEFINE(JABCBrixCreate) {
     JABC_FN_ARG_STRING(0, tiptag, 128, "no tip tag specified");
     if (JABC_BRIX_HOME == FILE_CLOSED) {
         a_path(defhome, ".rdx/");
-        JABC_FN_CALL(BRIXOpenHome, &JABC_BRIX_HOME, defhome);
+        JABC_FN_CALL(BRIXOpenRepo, &JABC_BRIX_HOME, defhome);
     }
     u8bbp brix = AllocBrix();
     sha256 nobase{};
@@ -279,6 +280,15 @@ JABC_FN_DEFINE(JABCBrixCreate) {
 JSValueRef JABCBrixModeRW, JABCBrixModeRO;
 
 JABC_FN_DEFINE(JABCBrixStoreMode) {
+    u8bbp brixp = (u8bbp)JSObjectGetPrivate(self);
+    if (!JSValueIsObjectOfClass(ctx, self, JABCBrixClassStore) || !brixp)
+        JABC_FN_THROW("not a store");
+    u8bp tip = Blast(brixp);
+    return BRIXu8bIndexType(tip) <= BRIX_INDEX_LSMHASH_4 ? JABCBrixModeRW
+                                                         : JABCBrixModeRO;
+}
+
+JABC_FN_DEFINE(JABCBrixStoreAdd) {
     u8bbp brixp = (u8bbp)JSObjectGetPrivate(self);
     if (!JSValueIsObjectOfClass(ctx, self, JABCBrixClassStore) || !brixp)
         JABC_FN_THROW("not a store");
@@ -299,34 +309,57 @@ void JABCBrixStoreFin(JSObjectRef self) {
     BRIXu8bbClose(brixp);
 }
 
-ok64 JABCbrixInstall() {
-    JABC_API_OBJECT(brix);
-    JABC_API_FN(brix, "home", JABCBrixHome);
-    JABC_API_FN(brix, "open", JABCBrixOpen);
-    JABC_API_FN(brix, "create", JABCBrixCreate);
+u8b JABC_RDX_STAGE = {};  //?
 
-    JSStaticFunction brix_store_fns[] = {{.name = "length",
-                                          .callAsFunction = JABCBrixStoreLength,
-                                          .attributes = JABC_RO_PROP_ATTS},
-                                         {.name = "mode",
-                                          .callAsFunction = JABCBrixStoreMode,
-                                          .attributes = JABC_RO_PROP_ATTS},
-                                         {.name = "hash",
-                                          .callAsFunction = nullptr,
-                                          .attributes = JABC_RO_PROP_ATTS},
-                                         {.name = "P",
-                                          .callAsFunction = JABCBrixStoreP,
-                                          .attributes = JABC_RO_PROP_ATTS},
-                                         {.name = "E",
-                                          .callAsFunction = JABCBrixStoreE,
-                                          .attributes = JABC_RO_PROP_ATTS},
-                                         {.name = "toString",
-                                          .callAsFunction = nullptr,
-                                          .attributes = JABC_RO_PROP_ATTS},
-                                         {.name = nullptr}};
+JABC_FN_DEFINE(JABCrdxParse) {
+    JABC_FN_ARG_ALLOC_STRING(0, jdr, "no tip tag specified");
+    a_path(defhome, ".rdx/");
+    u8cs rec;
+
+    ok64 o = BRIXu8bAdd(JABC_RDX_STAGE, rec);
+    if (o == noroom) {
+        // bump  todo maybe inf canvas
+        o = BRIXu8bResize2(JABC_RDX_STAGE);
+    }
+    if (o != OK) JABC_FN_THROW(ok64str(o));
+
+    // if ($len(homepath) == 0) u8csDup(homepath, defhome);
+    JABC_FN_RETURN_UNDEFINED;
+}
+
+ok64 JABCrdxInstall() {
+    JABC_API_OBJECT(rdx);
+    JABC_API_FN(rdx, "home", JABCBrixHome);
+    JABC_API_FN(rdx, "open", JABCBrixOpen);
+    JABC_API_FN(rdx, "create", JABCBrixCreate);
+    JABC_API_FN(rdx, "parse", JABCrdxParse);
+
+    JSStaticFunction rdx_store_fns[] = {{.name = "length",
+                                         .callAsFunction = JABCBrixStoreLength,
+                                         .attributes = JABC_RO_PROP_ATTS},
+                                        {.name = "mode",
+                                         .callAsFunction = JABCBrixStoreMode,
+                                         .attributes = JABC_RO_PROP_ATTS},
+                                        {.name = "hash",
+                                         .callAsFunction = nullptr,
+                                         .attributes = JABC_RO_PROP_ATTS},
+
+                                        {.name = "add",
+                                         .callAsFunction = JABCBrixStoreAdd,
+                                         .attributes = JABC_RO_PROP_ATTS},
+                                        {.name = "P",
+                                         .callAsFunction = JABCBrixStoreP,
+                                         .attributes = JABC_RO_PROP_ATTS},
+                                        {.name = "E",
+                                         .callAsFunction = JABCBrixStoreE,
+                                         .attributes = JABC_RO_PROP_ATTS},
+                                        {.name = "toString",
+                                         .callAsFunction = nullptr,
+                                         .attributes = JABC_RO_PROP_ATTS},
+                                        {.name = nullptr}};
     JSClassDefinition def_store = {
         .className = "Store",
-        .staticFunctions = brix_store_fns,
+        .staticFunctions = rdx_store_fns,
         .finalize = JABCBrixStoreFin,
         .hasProperty = JABCBrixStoreHas,
         .getProperty = JABCBrixStoreGet,
@@ -340,19 +373,19 @@ ok64 JABCbrixInstall() {
     JSObjectRef store_constr = JSObjectMakeConstructor(
         JABC_CONTEXT, JABCBrixClassStore, JABCBrixStoreConstructor);
 
-    JSStaticFunction brix_elem_fns[] = {{.name = "Type",
-                                         .callAsFunction = nullptr,
-                                         .attributes = JABC_RO_PROP_ATTS},
-                                        {.name = "Id",
-                                         .callAsFunction = nullptr,
-                                         .attributes = JABC_RO_PROP_ATTS},
-                                        {.name = "String",
-                                         .callAsFunction = nullptr,
-                                         .attributes = JABC_RO_PROP_ATTS},
-                                        {.name = nullptr}};
+    JSStaticFunction rdx_elem_fns[] = {{.name = "Type",
+                                        .callAsFunction = nullptr,
+                                        .attributes = JABC_RO_PROP_ATTS},
+                                       {.name = "Id",
+                                        .callAsFunction = nullptr,
+                                        .attributes = JABC_RO_PROP_ATTS},
+                                       {.name = "String",
+                                        .callAsFunction = nullptr,
+                                        .attributes = JABC_RO_PROP_ATTS},
+                                       {.name = nullptr}};
     JSClassDefinition def = {
         .className = "Euler",
-        .staticFunctions = brix_elem_fns,
+        .staticFunctions = rdx_elem_fns,
         .hasProperty = JABCBrixEulerHas,
         .getProperty = JABCBrixEulerGet,
         .setProperty = JABCBrixEulerSet,
@@ -365,7 +398,7 @@ ok64 JABCbrixInstall() {
 
     JSClassDefinition tuple_def = {
         .className = "Tuple",
-        .staticFunctions = brix_elem_fns,
+        .staticFunctions = rdx_elem_fns,
         .hasProperty = JABCBrixTupleHas,
         .getProperty = JABCBrixTupleGet,
         .setProperty = JABCBrixTupleSet,
@@ -390,7 +423,7 @@ ok64 JABCbrixInstall() {
     return OK;
 }
 
-ok64 JABCbrixUninstall() {
+ok64 JABCrdxUninstall() {
     JSClassRelease(JABCBrixClassStore);
     JABCBrixClassStore = nullptr;
     JSClassRelease(JABCBrixClassEuler);

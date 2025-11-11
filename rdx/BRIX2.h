@@ -12,13 +12,16 @@
 
 typedef enum {
     BRIX_CRYPTO_NOSIG_SHA256 = '2',
-    BRIX_CRYPTO_ED25519_SHA256 = 'e',
+    BRIX_CRYPTO_NOSIG_SHA3 = '3',
+    BRIX_CRYPTO_ED25519_SHA256 = 'E',
+    BRIX_CRYPTO_LAMPORT = 'L',
 } BRIX_CRYPTO;
 
 typedef enum {
     BRIX_INDEX_NONE = '_',
     BRIX_INDEX_LSMHASH_4 = '9',
     BRIX_INDEX_LSMHASH_8 = '8',
+    BRIX_INDEX_LSMHASH_G = '7',
     BRIX_INDEX_2K = 'K',
     BRIX_INDEX_BLOOM = 'B',
 } BRIX_INDEX;
@@ -60,7 +63,7 @@ ok64 BRIXu8bBase(u8b brik, sha256p own);
 ok64 BRIXu8bOwn(u8b brik, sha256p own);
 
 ok64 BRIXTipPath(path8 pad, u8csc tip);
-ok64 BRIXOpenHome(int* home, path8 path);
+ok64 BRIXOpenRepo(int* home, path8 path);
 
 ok64 BRIXu8bbCreateTip(u8bbp brix, int home, sha256cp base, u8cs tip);
 ok64 BRIXu8bCreate(u8bp brik, int home, sha256cs deps);

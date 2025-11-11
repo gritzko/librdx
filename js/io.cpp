@@ -230,6 +230,13 @@ JSValueRef JABCioNow(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
     return JSValueMakeNumber(ctx, u64(now / POLNanosPerMSec));
 }
 
+JSValueRef JABCioExit(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
+                     size_t argc, const JSValueRef args[],
+                     JSValueRef* exception) {
+    exit(0); //todo
+    JABC_FN_RETURN_UNDEFINED;
+}
+
 JSValueRef JABCioLog(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
                      size_t argc, const JSValueRef args[],
                      JSValueRef* exception) {
@@ -478,6 +485,7 @@ ok64 JABCioInstall() {
     JABC_API_FN(io, "wakeIn", JABCioWakeIn);
     JABC_API_FN(io, "now", JABCioNow);
     JABC_API_FN(io, "log", JABCioLog);
+    JABC_API_FN(io, "exit", JABCioExit);
     JABC_API_FN(io, "listen", JABCioNetListen);
     JABC_API_FN(io, "accept", JABCioNetAccept);
     JABC_API_FN(io, "connect", JABCioNetConnect);

@@ -47,7 +47,7 @@ ok64 BRIXu8bOwn(u8b brik, sha256p own) {
     return OK;
 }
 
-ok64 BRIXOpenHome(int* home, path8 path) {
+ok64 BRIXOpenRepo(int* home, path8 path) {
     sane(home != NULL && $ok(path));
     struct stat st;
     ok64 o = FILEStat(&st, path);
@@ -88,7 +88,7 @@ ok64 BRIXu8bbCreateTip(u8bbp brix, int home, sha256cp base, u8cs tip) {
     a_path(fn, "");
     call(BRIXTipPath, fn, tip);
     u8b top = {};
-    call(FILEMapCreate, top, fn, PAGESIZE);
+    call(FILEMapCreateAt, top, home, fn, PAGESIZE);
     brikhead128 head = {
         .litS = 'S',
         .litT = 'T',
@@ -141,7 +141,7 @@ ok64 BRIXu8bCreate(u8bp brik, int home, sha256cs deps) {
 ok64 BRIXu8bResize2(u8b tip) {
     sane(u8bOK(tip));
     // fixme fd fd fd ?   FILE_BUFS!!!!
-    //call(MMAPresize2, tip);
+    // call(MMAPresize2, tip);
     int fd;
     call(FILEReMap, tip, Bsize(tip) * 2);  // fixme fd ?!!
     done;

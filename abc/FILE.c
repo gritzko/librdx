@@ -70,6 +70,14 @@ ok64 FILECreate(int *fd, path8 path) {
     done;
 }
 
+ok64 FILECreateAt(int *fd, int dir, path8 path) {
+    sane(fd != NULL && path8Sane(path));
+    *fd = openat(dir, path8CStr(path), O_CREAT | O_RDWR | O_TRUNC,
+                 S_IRUSR | S_IWUSR);
+    if (*fd < 0) fail(FILEErr(FILEnoopen));
+    done;
+}
+
 ok64 FILEOpen(int *fd, path8 path, int flags) {
     sane(fd != NULL && path8Sane(path));
     *fd = open(path8CStr(path), flags);
@@ -230,6 +238,16 @@ ok64 FILEMapCreate(u8bp buf, path8 path, size_t size) {
     sane(buf != NULL && $ok(path));
     int fd = FILE_CLOSED;
     call(FILECreate, &fd, path);
+    call(FILEResize, &fd, size);
+    call(FILEMapFD, buf, &fd, PROT_READ | PROT_WRITE);
+    // not expecting: opened-but-map-fails
+    done;
+}
+
+ok64 FILEMapCreateAt(u8bp buf, int dir, path8 path, size_t size) {
+    sane(buf != NULL && $ok(path) && dir > FILE_CLOSED);
+    int fd = FILE_CLOSED;
+    call(FILECreateAt, &fd, dir, path);
     call(FILEResize, &fd, size);
     call(FILEMapFD, buf, &fd, PROT_READ | PROT_WRITE);
     // not expecting: opened-but-map-fails

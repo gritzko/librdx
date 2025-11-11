@@ -3,8 +3,10 @@ function is_inner(av, bv, path) {
         var bt = typeof bv;
         if (at!=bt) 
             throw path+" "+at+" vs "+bt;
-        if (at!="object" && av!=bv)
-            throw path+" "+av+" vs "+bv;
+        if (at!="object") {
+            if (av!=bv) throw path+" "+av+" vs "+bv;
+            return;
+        }
         if (av==null || bv==null) {
             if (av==null && bv==null) return true;
             throw path+" "+av+" vs "+bv;
@@ -23,6 +25,5 @@ function is_impl(a, b, path, t) {
 }
 
 test.is = function(a, b) {
-
     return is_inner(a, b, "")
 }
