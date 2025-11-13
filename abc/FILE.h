@@ -84,7 +84,9 @@ fun ok64 path8Sane(path8 path) {
 
 fun const char *path8CStr(path8 path) { return (char *)(path[0]); }
 
-ok64 path8Join(path8 path, u8csc part);
+ok64 path8Push(path8 path, u8csc part);
+
+ok64 path8Pop(path8 path); // todo
 
 fun void path8ResetToCWD(path8 path) {
     Breset(path);

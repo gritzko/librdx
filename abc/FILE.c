@@ -20,7 +20,7 @@ ok64 FILEErr(ok64 def) {
     return def;
 }
 
-ok64 path8Join(path8 path, u8csc part) {
+ok64 path8Push(path8 path, u8csc part) {
     sane(path8Sane(path) && $ok(part) && !$empty(part));
     call(u8bFeed1, path, FILE_PATH_SEP);
     u8sAte(u8bData(path));
@@ -208,7 +208,7 @@ ok64 FILEMapFD(u8bp buf, int const *fd, int mode) {
 }
 
 ok64 FILEMapRO(u8bp buf, path8 path) {
-    sane(buf != NULL && $ok(path));
+    sane(buf != NULL && path8Sane(path));
     int fd = FILE_CLOSED;
     call(FILEOpen, &fd, path, O_RDONLY);
     call(FILEMapFD, buf, &fd, PROT_READ);
@@ -217,7 +217,7 @@ ok64 FILEMapRO(u8bp buf, path8 path) {
 }
 
 ok64 FILEMapROAt(u8bp buf, int dir, path8 path) {
-    sane(buf != NULL && $ok(path));
+    sane(buf != NULL && path8Sane(path));
     int fd = FILE_CLOSED;
     call(FILEOpenAt, &fd, dir, path, O_RDONLY);
     call(FILEMapFD, buf, &fd, PROT_READ);
@@ -226,7 +226,7 @@ ok64 FILEMapROAt(u8bp buf, int dir, path8 path) {
 }
 
 ok64 FILEMapRW(u8bp buf, path8 path) {
-    sane(buf != NULL && $ok(path));
+    sane(buf != NULL && path8Sane(path));
     int fd = FILE_CLOSED;
     call(FILEOpen, &fd, path, O_RDWR);
     call(FILEMapFD, buf, &fd, PROT_READ | PROT_WRITE);
@@ -235,7 +235,7 @@ ok64 FILEMapRW(u8bp buf, path8 path) {
 }
 
 ok64 FILEMapCreate(u8bp buf, path8 path, size_t size) {
-    sane(buf != NULL && $ok(path));
+    sane(buf != NULL && path8Sane(path));
     int fd = FILE_CLOSED;
     call(FILECreate, &fd, path);
     call(FILEResize, &fd, size);
@@ -245,7 +245,7 @@ ok64 FILEMapCreate(u8bp buf, path8 path, size_t size) {
 }
 
 ok64 FILEMapCreateAt(u8bp buf, int dir, path8 path, size_t size) {
-    sane(buf != NULL && $ok(path) && dir > FILE_CLOSED);
+    sane(buf != NULL && path8Sane(path) && dir > FILE_CLOSED);
     int fd = FILE_CLOSED;
     call(FILECreateAt, &fd, dir, path);
     call(FILEResize, &fd, size);

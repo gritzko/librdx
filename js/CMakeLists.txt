@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.10)
 project(jabc)
 
-set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD 23)
 
 find_library(JSC_LIB
     NAMES javascriptcoregtk-4.1 javascriptcoregtk-4.0
@@ -36,7 +36,7 @@ add_executable(jabc
     io.js.c
     test.js.c
     utf8.cpp
-    brix.cpp test.cpp )
+    brix.cpp test.cpp convert.cpp)
 
 target_link_libraries(jabc
     ${JSC_LIB}

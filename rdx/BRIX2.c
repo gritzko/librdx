@@ -4,12 +4,56 @@
 
 #include "BRIX2.h"
 
+#include <threads.h>
+
 #include "abc/FILE.h"
 #include "abc/HEX.h"
 #include "abc/MMAP.h"
+#include "abc/NACL.h"
+#include "abc/POL.h"
 #include "abc/PRO.h"
 
 a_cstr(BRIX_EXT, ".brik");
+
+thread_local int BRIX_REPO = FILE_CLOSED;
+thread_local u8b BRIX_REPO_KEY = {};
+
+ok64 BRIXOpenRepo(path8 path) {
+    sane(u8bOK(path));
+    call(FILEOpenDir, &BRIX_REPO, path);
+    a_path(key, "key");
+    call(FILEMapROAt, BRIX_REPO_KEY, BRIX_REPO, key);
+    done;
+}
+
+ok64 BRIXMakeRepo(path8 path) {
+    sane(path8Sane(path));
+    struct stat st;
+    ok64 o = FILEStat(&st, path);
+    if (o == FILEnone) {
+        call(FILEMakeDir, path);
+    } else if (o != OK) {
+        fail(o);
+    } else {
+        test((st.st_mode & S_IFDIR), FILEbadarg);
+    }
+    call(FILEOpenDir, &BRIX_REPO, path);
+    a_path(key, "key");
+    call(FILEMapCreateAt, BRIX_REPO_KEY, BRIX_REPO, key, sizeof(edsec512));
+    edpub256 pub;
+    edsec512 sec;
+    call(NACLed25519create, &pub, &sec);
+    a_rawc(secraw, sec);
+    call(u8bFeed, BRIX_REPO_KEY, secraw);
+    done;
+}
+
+ok64 BRIXCloseRepo() {
+    sane(1);
+    call(FILEClose, &BRIX_REPO);
+    call(FILEUnMap, BRIX_REPO_KEY);
+    done;
+}
 
 ok64 BRIXPath(u8s pad, sha256cp hash) {
     sane($ok(pad) && hash != NULL);
@@ -47,48 +91,33 @@ ok64 BRIXu8bOwn(u8b brik, sha256p own) {
     return OK;
 }
 
-ok64 BRIXOpenRepo(int* home, path8 path) {
-    sane(home != NULL && $ok(path));
-    struct stat st;
-    ok64 o = FILEStat(&st, path);
-    if (o == FILEnone) {
-        call(FILEMakeDir, path);
-    } else if (o != OK) {
-        fail(o);
-    } else {
-        test((st.st_mode & S_IFDIR), FILEbadarg);
-    }
-    call(FILEOpenDir, home, path);
-    done;
-}
-
-ok64 BRIXu8bOpen(u8bp brik, int home, sha256cp hash) {
-    sane(Bok(brik) && home != FILE_CLOSED && !sha256empty(hash));
+ok64 BRIXu8bOpen(u8bp brik, sha256cp hash) {
+    sane(Bok(brik) && BRIXIsRepoOpen() && !sha256empty(hash));
     a_pad(u8, fn, FILENAME_MAX);
     BRIXPath(fn_idle, hash);
-    call(FILEMapROAt, brik, home, fn);
+    call(FILEMapROAt, brik, BRIX_REPO, fn);
     done;
 }
 
-ok64 BRIXu8bbOpen(u8bbp brix, int home, sha256cp hash) {
-    sane(Bok(brix) && home != FILE_CLOSED && !sha256empty(hash));
+ok64 BRIXu8bbOpen(u8bbp brix, sha256cp hash) {
+    sane(Bok(brix) && BRIXIsRepoOpen() && !sha256empty(hash));
     u8b top = {};
-    call(BRIXu8bOpen, top, home, hash);
+    call(BRIXu8bOpen, top, hash);
     sha256 base = {};
     call(BRIXu8bBase, top, &base);
     if (!sha256empty(&base)) {
-        call(BRIXu8bbOpen, brix, home, &base);
+        call(BRIXu8bbOpen, brix, &base);
     }
     call(u8bbFeed1, brix, top);
     done;
 }
 
-ok64 BRIXu8bbCreateTip(u8bbp brix, int home, sha256cp base, u8cs tip) {
+ok64 BRIXu8bbCreateTip(u8bbp brix, sha256cp base, u8cs tip) {
     sane(Bok(brix));
     a_path(fn, "");
     call(BRIXTipPath, fn, tip);
     u8b top = {};
-    call(FILEMapCreateAt, top, home, fn, PAGESIZE);
+    call(FILEMapCreateAt, top, BRIX_REPO, fn, PAGESIZE);
     brikhead128 head = {
         .litS = 'S',
         .litT = 'T',
@@ -107,7 +136,7 @@ ok64 BRIXu8bbCreateTip(u8bbp brix, int home, sha256cp base, u8cs tip) {
     done;
 }
 
-ok64 BRIXu8bbOpenTip(u8bbp brix, int home, u8cs tip) {
+ok64 BRIXu8bbOpenTip(u8bbp brix, u8cs tip) {
     sane(Bok(brix));
     a_pad(u8, fn, FILENAME_MAX);
     call(BRIXTipPath, fn_idle, tip);
@@ -121,7 +150,7 @@ ok64 BRIXu8bbOpenTip(u8bbp brix, int home, u8cs tip) {
     done;
 }
 
-ok64 BRIXu8bCreate(u8bp brik, int home, sha256cs deps) {
+ok64 BRIXu8bCreate(u8bp brik, sha256cs deps) {
     sane(brik != NULL && Bempty(brik));
     brikhead128 head = {
         .litS = 'S',
@@ -147,11 +176,11 @@ ok64 BRIXu8bResize2(u8b tip) {
     done;
 }
 
-ok64 BRIXu8bbSeal(u8bbp brix, int* fd, int home, sha256p result) {
+ok64 BRIXu8bbSeal(u8bbp brix, int* fd, sha256p result) {
     sane(Bok(brix) && fd != NULL && *fd != FILE_CLOSED && result != NULL);
     a_pad(sha256, deps, 32);
     u8b top = {};
-    call(BRIXu8bCreate, top, home, deps_datac);
+    call(BRIXu8bCreate, top, deps_datac);
     u32sp idx = (u32**)u8bIdle(top);
     size_t idxlen;
     a_pad(u8cs, inputs, RDX_MAX_INPUTS);

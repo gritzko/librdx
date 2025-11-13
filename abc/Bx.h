@@ -104,7 +104,7 @@ fun ok64 X(, bAllocate)(X(, bp) buf, size_t len) {
 
 fun ok64 X(, bFree)(X(, bp) buf) { return Bfree((void **)buf); }
 
-fun ok64 X(B, reserve)(X(B, ) buf, size_t len) {
+fun ok64 X(, bReserve)(X(B, ) buf, size_t len) {
     return Breserve((void *const *)buf, len * sizeof(T));
 }
 /*

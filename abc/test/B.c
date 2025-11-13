@@ -50,7 +50,7 @@ pro(Breserve_test) {
     call(u8bAllocate, buf, 1024);
     for (int i = 0; i < (1 << 20); i++) {
         otry(u8bFeed2, buf, '1', '2');
-        ofix(Bnoroom) call(Bu8reserve, buf, 1024);
+        ofix(Bnoroom) call(u8bReserve, buf, 1024);
         ocry();
     }
     call(u8bFree, buf);

@@ -18,9 +18,12 @@ const unsigned JABC_RO_PROP_ATTS = kJSPropertyAttributeDontDelete |
                                    kJSPropertyAttributeDontEnum |
                                    kJSPropertyAttributeReadOnly;
 
-int JABC_BRIX_HOME = FILE_CLOSED;
-
 static u32 JABC_BRIX_GEN = 0;
+
+ok64 JABCu8bImport(u8bp builder, JSContextRef ctx, JSValueRef val,
+                   JSValueRef* exception);
+ok64 JABCrdxExport(rdxb reader, JSContextRef ctx, JSValueRef* val,
+                   JSValueRef* exception);
 
 /*
  *   brix.Open("hello") // ?
@@ -245,35 +248,42 @@ JSValueRef JABCBrixEulerConvert(JSContextRef ctx, JSObjectRef object,
     return nullptr;
 }
 
+con u64 ABC_ENOENT = 0x39760e5dd;
+
+ok64 JABCBrixCheckRepo(path8 path) {
+    if (BRIXIsRepoOpen()) return OK;
+    a_path(defhome, ".rdx/");
+    if (path == nullptr) path = defhome;
+    ok64 o = BRIXOpenRepo(defhome);
+    if (o == ABC_ENOENT) {
+        o = BRIXMakeRepo(defhome);
+    }
+    return o;
+}
+
 JABC_FN_DEFINE(JABCBrixHome) {
     JABC_FN_ARG_STRING(0, homepath, 1024, "no tip tag specified");
     a_path(defhome, ".rdx/");
     // if ($len(homepath) == 0) u8csDup(homepath, defhome);
-    if (JABC_BRIX_HOME != FILE_CLOSED) FILEClose(&JABC_BRIX_HOME);
-    JABC_FN_CALL(BRIXOpenRepo, &JABC_BRIX_HOME, defhome);
+    if (BRIXIsRepoOpen()) BRIXCloseRepo();
+    JABC_FN_CALL(BRIXOpenRepo, defhome);
     JABC_FN_RETURN_UNDEFINED;
 }
 
 JABC_FN_DEFINE(JABCBrixOpen) {
     JABC_FN_ARG_STRING(0, tiptag, 128, "no tip tag specified");
-    if (JABC_BRIX_HOME == FILE_CLOSED) {
-        a_path(defhome, ".rdx/");
-        JABC_FN_CALL(BRIXOpenRepo, &JABC_BRIX_HOME, defhome);
-    }
+    JABC_FN_CALL(JABCBrixCheckRepo, nullptr);
     u8bbp brix = AllocBrix();
-    JABC_FN_CALL(BRIXu8bbOpenTip, brix, JABC_BRIX_HOME, tiptag);  // fixme ret
+    JABC_FN_CALL(BRIXu8bbOpenTip, brix, tiptag);  // fixme ret
     return JSObjectMake(ctx, JABCBrixClassStore, (void*)brix);
 }
 
 JABC_FN_DEFINE(JABCBrixCreate) {
     JABC_FN_ARG_STRING(0, tiptag, 128, "no tip tag specified");
-    if (JABC_BRIX_HOME == FILE_CLOSED) {
-        a_path(defhome, ".rdx/");
-        JABC_FN_CALL(BRIXOpenRepo, &JABC_BRIX_HOME, defhome);
-    }
+    JABC_FN_CALL(JABCBrixCheckRepo, nullptr);
     u8bbp brix = AllocBrix();
     sha256 nobase{};
-    JABC_FN_CALL(BRIXu8bbCreateTip, brix, JABC_BRIX_HOME, &nobase, tiptag);
+    JABC_FN_CALL(BRIXu8bbCreateTip, brix, &nobase, tiptag);
     return JSObjectMake(ctx, JABCBrixClassStore, (void*)brix);
 }
 
@@ -292,9 +302,20 @@ JABC_FN_DEFINE(JABCBrixStoreAdd) {
     u8bbp brixp = (u8bbp)JSObjectGetPrivate(self);
     if (!JSValueIsObjectOfClass(ctx, self, JABCBrixClassStore) || !brixp)
         JABC_FN_THROW("not a store");
+    if (argc != 1) JABC_FN_THROW("store.add({key:val...})");
     u8bp tip = Blast(brixp);
-    return BRIXu8bIndexType(tip) <= BRIX_INDEX_LSMHASH_4 ? JABCBrixModeRW
-                                                         : JABCBrixModeRO;
+    JSValueRef arg = args[0];
+    u8b builder = {};
+    // fixme page?
+    if (JSValueIsArray(ctx, arg)) {
+        JABC_FN_THROW("store.add([1, 2, 3...]) not implemented yet");
+    } else if (JSValueIsObject(ctx, arg)) {
+        JABCu8bImport(builder, ctx, arg, exception);
+    } else {
+        JABC_FN_THROW("store.add({key:val...})");
+    }
+    JABC_FN_CALL(BRIXu8bAdd, tip, u8bData(builder));
+    JABC_FN_RETURN_UNDEFINED;
 }
 
 JABC_FN_DEFINE(JABCBrixStoreLength) {

@@ -172,3 +172,21 @@ ok64 POLLoop(u64 timens) {
     }
     return OK;
 }
+
+ron60 RONNow() {
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    struct tm* now = localtime(&ts.tv_sec);
+    u64 t = 0;
+    u64 y = now->tm_year - 2000;
+    t = t | ((y / 10) << (9 * 6));
+    t = t | ((y % 10) << (8 * 6));
+    t = t | ((u64)(now->tm_mon) << (7 * 6));
+    t = t | ((u64)(now->tm_mday) << (6 * 6));
+    t = t | ((u64)(now->tm_hour) << (5 * 6));
+    t = t | ((u64)(now->tm_min) << (4 * 6));
+    t = t | ((u64)(now->tm_sec) << (3 * 6));
+    u64 ns = ts.tv_nsec % POLNanosPerSec;
+    t = t | ((u64)(ns >> 2));
+    return t;
+}

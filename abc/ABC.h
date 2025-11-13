@@ -5,6 +5,7 @@
 #include "FILE.h"
 #include "INT.h"
 #include "MMAP.h"
+#include "NACL.h"
 #include "NET.h"
 #include "POL.h"
 #include "TCP.h"
