@@ -95,7 +95,7 @@ typedef void **voidbp;
 
 #define aBusy(T, name, buf) T *name[2] = {buf[0], buf[2]};
 
-#define Bzero(buf) memset(buf[0], 0, Bsize(buf))
+#define zerob(buf) memset(buf[0], 0, Bsize(buf))
 
 #define Bwithin(b, s) (s[0] >= b[0] && s[1] <= b[3])
 
@@ -123,7 +123,7 @@ fun ok64 Balloc(Bvoid b, size_t sz) {
 
 fun ok64 Brealloc(Bvoid b, size_t sz) {
     void *m = realloc(b[0], sz);
-    if (m == NULL) return noroom;
+    if (m == NULL) return NOroom;
     _Brebase(b, m, sz);
     return OK;
 }

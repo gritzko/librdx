@@ -76,20 +76,34 @@ fun T *X(, bAtP)(X(, b) buf, size_t ndx) {
     return p;
 }
 
+#ifndef ABC_X_$
+fun T X(, bAt)(X(, b) buf, size_t ndx) { return *X(, bAtP)(buf, ndx); }
+#endif
+
 fun void X(B, eat)(X(B, ) buf) {
     T const **b = (T const **)buf;
     b[1] = b[2];
 }
 
-fun b8 X(, bDataEmpty)(const X(, cbp) buf) { return X(, cbDataLen)(buf) == 0; }
-
-fun T *X(, bLast)(X(, b) buf) {
-    size_t len = buf[2] - buf[0];
-    return X(, bAtP)(buf, len - 1);
+fun ok64 X(, bFed)(X(, b) buf, size_t len) {
+    return X(, sFed)(X(, bIdle)(buf), len);
 }
 
-/*fun T X(B, at)(X(B, ) buf, size_t ndx) {
-    T *p = buf[0] + ndx;
+fun ok64 X(, bFed1)(X(, b) buf) {
+    return X(, sFed)(X(, bIdle)(buf), 1);
+}
+
+fun b8 X(, bDataEmpty)(const X(, cbp) buf) { return X(, cbDataLen)(buf) == 0; }
+
+fun b8 X(, bEmpty)(const X(, bp) buf) { return buf[2] == buf[0]; }
+
+fun T *X(, bLast)(X(, b) buf) {
+    assert(buf[2] > buf[1]);
+    return buf[2] - 1;
+}
+
+/*fun T X(B, at)(X(B, ) buf, size_t len) {
+    T *p = buf[0] + len;
     assert(p < buf[3]);
     return *p;
 }*/
@@ -104,7 +118,7 @@ fun ok64 X(, bAllocate)(X(, bp) buf, size_t len) {
 
 fun ok64 X(, bFree)(X(, bp) buf) { return Bfree((void **)buf); }
 
-fun ok64 X(, bReserve)(X(B, ) buf, size_t len) {
+fun ok64 X(, bReserve)(X(, bp) buf, size_t len) {
     return Breserve((void *const *)buf, len * sizeof(T));
 }
 /*

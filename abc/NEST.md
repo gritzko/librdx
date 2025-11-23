@@ -52,7 +52,7 @@ API is rather basic:
   - Later, we can invoke `NESTSplice(ct, BYTES)` and all the following
     output will be spliced into that insertion point, including any
     `NESTFeed` templates. `NESTSpliceAll` and `NESTSpliceAny` do multiple
-    substitutions; `...all` returns an error if none is found.
+    substitutions; `...all` returns an error if NONE is found.
   - `NESTRender(into, ct)` produces the resulting text. As NEST is
     using the usual ABC buffers, they can be saved and cloned at any
     point in time.

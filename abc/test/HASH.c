@@ -24,7 +24,7 @@ fun u64 u32hash(u32 const *v) { return mix32(*v); }
 pro(HASH0) {
     sane(1);
     a_pad(u32, pad, 1024);
-    Bzero(pad);
+    zerob(pad);
     u32 one = 1;
     call(HASHu32put, pad_idle, &one);
     call(HASHu32get, &one, pad_idle);
@@ -36,7 +36,7 @@ pro(HASH0) {
 pro(HASH1) {
     sane(1);
     a_pad(u32, pad, 1024 + 128);
-    Bzero(pad);
+    zerob(pad);
     for (u32 i = 1; i < 1000; i += 2) {
         call(HASHu32put, pad_idle, &i);
     }
@@ -122,7 +122,7 @@ pro(HASHd) {
     u32sFeed(u32bIdle(copybuf), u32bDataC(dictbuf));
 
     for (int j = 0; j < 1000; ++j) {
-        Bzero(dictbuf);
+        zerob(dictbuf);
         int p = rand() % (LENd - 1);
         if (ins[p] != -ins[p + 1]) i32Swap(ins + p, ins + p + 1);
         for (int i = 0; i < LENd; ++i) {
@@ -150,7 +150,7 @@ pro(HASHd) {
             for (u32 u = 0; u < 16; ++u)
                 fprintf(stderr, "%u\t%lu\n", u, u32hash(&u) % 16);
 
-            Bzero(dictbuf);
+            zerob(dictbuf);
             for (int i = 0; i < LENd; ++i) {
                 if (ins[i] > 0) {
                     u32 rec = ins[i];

@@ -85,7 +85,7 @@ pro(LSM1) {
         {$u8str("B"), $u8str("2")},  //
     };
     aBpad2(u8, pad, 1024);
-    Bzero(padbuf);
+    zerob(padbuf);
     for (int i = 0; i < 6; ++i)
         call(TLVFeedKeyVal, padidle, 'K', kv1[i][0], kv1[i][1]);
     call(LSMsort, paddata, alpha, nomerge, padidle);

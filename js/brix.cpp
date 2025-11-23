@@ -304,16 +304,9 @@ JABC_FN_DEFINE(JABCBrixStoreAdd) {
         JABC_FN_THROW("not a store");
     if (argc != 1) JABC_FN_THROW("store.add({key:val...})");
     u8bp tip = Blast(brixp);
-    JSValueRef arg = args[0];
-    u8b builder = {};
-    // fixme page?
-    if (JSValueIsArray(ctx, arg)) {
-        JABC_FN_THROW("store.add([1, 2, 3...]) not implemented yet");
-    } else if (JSValueIsObject(ctx, arg)) {
-        JABCu8bImport(builder, ctx, arg, exception);
-    } else {
-        JABC_FN_THROW("store.add({key:val...})");
-    }
+    //u8b builder = {};
+    a_pad(u8, builder, PAGESIZE); // todo
+    JABCu8bImport(builder, ctx, args[0], exception);
     JABC_FN_CALL(BRIXu8bAdd, tip, u8bData(builder));
     JABC_FN_RETURN_UNDEFINED;
 }

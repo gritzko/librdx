@@ -39,7 +39,7 @@ pro(HTTPtest1) {
         "564645&h=stable-morda-yaru-sas-yp-10&csp=new&date=20201122&yandexuid="
         "5055715831606027475;style-src 'unsafe-inline';connect-src "
         "wss://webasr.voicetech.yandex.net https://mc.admetrica.ru "
-        "https://mc.yandex.ru https://yandex.ru;default-src 'none';img-src "
+        "https://mc.yandex.ru https://yandex.ru;default-src 'NONE';img-src "
         "https://mc.yandex.ru https://yandex.ru https://yastatic.net 'self' "
         "https://favicon.yandex.net https://avatars.mds.yandex.net "
         "https://*.verify.yandex.ru https://mc.yandex.com "

@@ -76,7 +76,7 @@ fun T *X($, bsearch)(T const *p, X($c, c) data) {
     return (T *)$bsearch(p, data, X(, cmp));
 }
 
-// Find the first entry >= needle or $term if none TODO test
+// Find the first entry >= needle or $term if NONE TODO test
 fun T const *X($, findge)(X($c, c) haystack, T const *needle) {
     size_t b = 0, e = $len(haystack);
     if (e == 0) return haystack[1];
@@ -169,7 +169,7 @@ fun size_t X(, sCopy)(X(, sc) into, X(, csc) from) {
 
 fun ok64 X($, alloc)(X($, ) what, size_t len) {
     T *m = (T *)malloc(len * sizeof(T));
-    if (m == NULL) return noroom;
+    if (m == NULL) return NOroom;
     what[0] = m;
     what[1] = m + len;
     return OK;
@@ -224,6 +224,25 @@ fun ok64 X($, feed)(X($, ) into, X($c, c) from) {
 
 fun ok64 X(, sFeed)(X(, s) into, X(, csc) from) {
     return X($, feed)(into, from);
+}
+
+fun ok64 X(, sFeedSome)(X(, s) into, X(, cs) from) {
+    if (unlikely(!$ok(from) || !$ok(into))) return $badarg;
+    size_t len = $len(from);
+    if (len > $len(into)) len = $len(into);
+    memcpy((void *)*into, (void *)*from, len * sizeof(T));
+    *into += len;
+    return OK;
+}
+
+fun ok64 X(, sFeedN)(X(, s) into, X(, cs) from, size_t len) {
+    if (unlikely(!$ok(from) || !$ok(into))) return $badarg;
+    if (unlikely($len(into)<len)) return $noroom;
+    if (unlikely($len(from)<len)) return $nodata;
+    memcpy((void *)*into, (void *)*from, len * sizeof(T));
+    *into += len;
+    *from += len;
+    return OK;
 }
 
 fun ok64 X($, feedall)(X($, ) into, X($c, c) from) {
@@ -285,7 +304,7 @@ fun ok64 X(, sFed1)(X(, s) into) {
 }
 
 fun ok64 X(, sFed)(X(, s) into, size_t len) {
-    if (unlikely($len(into)<len)) return $noroom;
+    if (unlikely($len(into) < len)) return $noroom;
     *into += len;
     return OK;
 }
@@ -295,7 +314,6 @@ fun ok64 X(, sPuked)(X(, s) from, size_t len) {
     from[1] -= len;
     return OK;
 }
-
 
 fun ok64 X(, sDrain1)(X(, cs) from, T *into) {
     if ($empty(from)) return $nodata;
@@ -384,7 +402,7 @@ fun void X(, Swap)(T *a, T *b) {
 
 fun ok64 X(, sSwap)(X(, s) s, size_t a, size_t b) {
     size_t l = X(, sLen)(s);
-    if (unlikely(a >= l || b >= l)) return badarg;
+    if (unlikely(a >= l || b >= l)) return BADarg;
     X(, Swap)(*s + a, *s + b);
     return OK;
 }

@@ -44,8 +44,16 @@ fun ok64 utf8sDrain32(u32 *cp, utf8cs utf8) {
     return OK;
 }
 
+static u8 UTF8_LEN[16] = {1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 4};
+
+fun ok64 utf8sDrain1utf8(utf8s into, utf8cs from) {
+    if ($empty(from)) return UTF8nodata;
+    u8 len = UTF8_LEN[**from >> 4];
+    return utf8sFeedN(into, from, len);
+}
+
 fun ok64 utf8sValid(utf8cs utf8) {
-    if (!utf8csOK(utf8)) return badarg;
+    if (!utf8csOK(utf8)) return BADarg;
     u32 cp;
     ok64 o = OK;
     while (!$empty(utf8) && o == OK) o = utf8sDrain32(&cp, utf8);

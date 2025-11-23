@@ -27,7 +27,7 @@ pro(MARQANSItest) {
     for (int c = 0; c < MARQANSIcases; ++c) {
         aBpad(u8, into, 1024);
         aBpad(u8, pfmt, PAGESIZE);
-        Bzero(pfmt);
+        zerob(pfmt);
         $mv(state.text, QA[c][0]);
         $mv(state.fmt, u8bIdle(pfmt));
 
@@ -55,7 +55,7 @@ pro(MARQHTMLtest) {
     for (int c = 0; c < MARQHTMLcases; ++c) {
         aBpad(u8, into, 1024);
         aBpad(u8, pfmt, PAGESIZE);
-        Bzero(pfmt);
+        zerob(pfmt);
         $mv(state.text, QA[c][0]);
         $mv(state.fmt, u8bIdle(pfmt));
 

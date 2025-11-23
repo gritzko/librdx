@@ -253,7 +253,7 @@ Replacement is done by adding an element that is equal in the value-order,
 but is higher in the revision order.
 
 Consider a set element `remarks:"need recheck"`.
-It may be replaced by `remarks@b0b-2: none`.
+It may be replaced by `remarks@b0b-2: NONE`.
 Or it can be removed by `remarks @b0b-1` (a tombstone).
 
 #### Merging

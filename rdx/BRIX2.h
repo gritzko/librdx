@@ -19,12 +19,16 @@ typedef enum {
 
 typedef enum {
     BRIX_INDEX_NONE = '_',
-    BRIX_INDEX_LSMHASH_4 = '9',
-    BRIX_INDEX_LSMHASH_8 = '8',
-    BRIX_INDEX_LSMHASH_G = '7',
-    BRIX_INDEX_2K = 'K',
+    BRIX_INDEX_WALTZ_4 = '2',
+    BRIX_INDEX_WALTZ_8 = '3',
+    BRIX_INDEX_WALTZ_G = '4',
+    BRIX_INDEX_WALTZ_MAX = '9',
+    BRIX_INDEX_OCTAB = 'K',
     BRIX_INDEX_BLOOM = 'B',
 } BRIX_INDEX;
+
+#define BRIX_INDEX_WALTZ_BUCKET_LEN 128
+#define BRIX_FACTOR 8
 
 typedef enum {
     BRIX_COMPRESS_NONE = '_',
@@ -91,11 +95,11 @@ fun ok64 BRIXRepoTime(ref128p time) {
     return BRIXRepoSrc(&time->src);
 }
 
-fun b8 brikOK(u8b brik) {
+fun b8 brikOK(u8bp brik) {
     return Bok(brik) && u8bPastLen(brik) >= sizeof(brikhead128);
 }
 
-fun u8 BRIXu8bIndexType(u8b brik) { return Bat(brik, 2); }
+fun u8 BRIXu8bIndexType(u8bp brik) { return Bat(brik, 2); }
 fun u8 BRIXu8bCryptoType(u8b brik) { return Bat(brik, 2); }
 ok64 BRIXu8bBase(u8b brik, sha256p own);
 ok64 BRIXu8bOwn(u8b brik, sha256p own);
@@ -113,6 +117,9 @@ ok64 BRIXu8bbOpenTip(u8bbp brix, u8cs tip);
 ok64 BRIXu8bbSeal(u8bbp brix, int* fd, sha256p result);
 
 ok64 BRIXu8bbMerge(u8bb brix, int height, sha256p result);
+
+ok64 BRIXu8bFind(u8bp brik, rdxs recs, ref128 ref);
+ok64 BRIXu8bbFind(u8bbp brix, rdxs recs, ref128 ref);
 
 ok64 BRIXu8bGet(u8b b, ref128 key, u8csp val);
 ok64 BRIXu8bbGets(u8bb brix, ref128 key, u8css intos);

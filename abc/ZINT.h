@@ -188,7 +188,7 @@ fun int64_t ZINTzagzig(u64 u) {
     return (int64_t)(half ^ mask);
 }
 
-fun ok64 ZINTu8sFeedInt($u8 into, i64 const* n) {
+fun ok64 ZINTu8sFeedInt(u8s into, i64cp n) {
     return ZINTu64feed(into, ZINTzigzag(*n));
 }
 fun ok64 ZINTu8sDrainInt(i64* n, $cu8c zip) {

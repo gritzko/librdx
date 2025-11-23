@@ -19,9 +19,9 @@
 
 const u8c *LEX_TEMPL[LEX_TEMPL_LANG_LEN][LEX_TEMPL_LEN][2] = {
     {
-        $u8str("action $mod${act}0 { mark0[$mod$act] = p - text[0]; }\n"
+        $u8str("action $mod${act}0 { mark0[$mod$act] = p - data[0]; }\n"
                "action $mod${act}1 {\n"
-               "    tok[0] = text[0] + mark0[$mod$act];\n"
+               "    tok[0] = data[0] + mark0[$mod$act];\n"
                "    tok[1] = p;\n"
                "    o = ${mod}on$act(tok, state); \n"
                "    if (o!=OK) {\n"
@@ -29,7 +29,7 @@ const u8c *LEX_TEMPL[LEX_TEMPL_LANG_LEN][LEX_TEMPL_LEN][2] = {
                "    }\n"
                "}\n"),
         $u8str("\t$mod$act = ${mod}enum+$actno,\n"),
-        $u8str("ok64 ${mod}on$act ($$cu8c tok, ${mod}state* state);\n"),
+        $u8str("ok64 ${mod}on$act (utf8cs tok, ${mod}state* state);\n"),
         $u8str("$mod$act = ( "),
         $u8str(" )  >$mod${act}0 %$mod${act}1;\n"),
         $u8str(" ); # no $act callback\n"),
@@ -68,24 +68,24 @@ const u8c *LEX_TEMPL[LEX_TEMPL_LANG_LEN][LEX_TEMPL_LEN][2] = {
                "// the public API function\n"
                "pro(${mod}lexer, ${mod}state* state) {\n"
                "\n"
-               "    a$$dup(u8c, text, state->text);\n"
-               "    sane($$ok(text));\n"
+               "    a_dup(u8c, data, state->data);\n"
+               "    sane($$ok(data));\n"
                "\n"
                "    int cs = 0;\n"
-               "    u8c *p = (u8c*) text[0];\n"
-               "    u8c *pe = (u8c*) text[1];\n"
+               "    u8c *p = (u8c*) data[0];\n"
+               "    u8c *pe = (u8c*) data[1];\n"
                "    u8c *eof = pe;\n"
                "    u64 mark0[64] = {};\n"
                "    ok64 o = OK;\n"
                "\n"
-               "    u8css tok = {p, p};\n"
+               "    utf8cs tok = {p, p};\n"
                "\n"
                "    %% write init;\n"
                "    %% write exec;\n"
                "\n"
-               "    state->text[0] = p;\n"
-               "    if (p!=text[1] || cs < ${mod}_first_final || o!=OK) {\n"
-               "        return ${mod}fail;\n"
+               "    state->data[0] = p;\n"
+               "    if (p!=data[1] || cs < ${mod}_first_final || o!=OK) {\n"
+               "        return ${mod}bad;\n"
                "    }\n"
                "    return o;\n"
                "}\n"),
@@ -139,7 +139,7 @@ const u8c *LEX_TEMPL[LEX_TEMPL_LANG_LEN][LEX_TEMPL_LEN][2] = {
                "// the public API function\n"
                "func ${mod}lexer (state *${mod}state) (err error) {\n"
                "\n"
-               "    data := state.text\n"
+               "    data := state.data\n"
                "    var mark0 [64]int\n"
                "    cs, p, pe, eof := 0, 0, len(data), len(data)\n"
                "\n"
@@ -147,7 +147,7 @@ const u8c *LEX_TEMPL[LEX_TEMPL_LANG_LEN][LEX_TEMPL_LEN][2] = {
                "    %% write exec;\n"
                "\n"
                "    if (p<len(data) || cs < ${mod}_first_final) {\n"
-               "        state.text = state.text[p:];\n"
+               "        state.data = state.data[p:];\n"
                "        return errors.New(\"${mod} bad syntax\")\n"
                "    }\n"
                "    return NULL;\n"
@@ -156,14 +156,13 @@ const u8c *LEX_TEMPL[LEX_TEMPL_LANG_LEN][LEX_TEMPL_LEN][2] = {
     },
 };
 
-con ok64 LEX$ACTIONS = 0x1c5d849d30a;
-con ok64 LEX$ENUM = 0x59e5ce;
-con ok64 LEX$FN = 0x5cf;
-con ok64 LEX$RULES = 0x1c39579b;
-
-con ok64 LEX$mod = 0x28cf1;
-con ok64 LEX$act = 0x389e5;
-con ok64 LEX$actno = 0x33cb89e5;
+con ok64 LEX$ACTIONS = 0xa31d4985dc;
+con ok64 LEX$ENUM = 0x397796;
+con ok64 LEX$FN = 0x3d7;
+con ok64 LEX$RULES = 0x1b79539c;
+con ok64 LEX$mod = 0x31ce8;
+con ok64 LEX$act = 0x259f8;
+con ok64 LEX$actno = 0x259f8cb3;
 
 ok64 LEXonName($cu8c tok, LEXstate *state) {
     ok64 o = u8sFeed(NESTidle(state->ct), state->mod);
@@ -275,7 +274,7 @@ pro(lex2rl, u8cs mod, $u8c lang) {
             if ($eq(lang, LEX_TEMPL[nlang][LEX_TEMPL_L])) break;
             ++nlang;
         }
-        if (nlang == LEX_TEMPL_LANG_LEN) fail(badarg);
+        if (nlang == LEX_TEMPL_LANG_LEN) fail(BADarg);
     }
 
     LEXstate state = {
@@ -283,7 +282,7 @@ pro(lex2rl, u8cs mod, $u8c lang) {
         .ct = (u8bp)ct,
         .mod = mod,
     };
-    $mv(state.text, lex_data);
+    $mv(state.data, lex_data);
 
     call(NESTFeed, ct, LEX_TEMPL[nlang][LEX_TEMPL_FILE]);
 

@@ -44,7 +44,7 @@ b8 POLAny() { return !Bempty(POL_FILES) || !Bempty(POL_QUEUE); }
 
 ok64 POLInit(int max_fd) {
     pollerbAllocate(POL_FILES, max_fd);
-    Bzero(POL_FILES);
+    zerob(POL_FILES);
     POL_FILES[2] = POL_FILES[3];
     zero(POL_TIMER);
     POL_VEC = malloc(max_fd);

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(rdx C)
+project(rdx2 C)
 
 set(CMAKE_C_STANDARD 23)
 
@@ -7,7 +7,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS on)
 
 include(CTest)
 
-include_directories(.)
+include_directories(.. .)
 
 option(WITH_ASAN "build with ASAN" OFF)
 if (WITH_ASAN)
@@ -17,24 +17,39 @@ if (WITH_ASAN)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${ASAN_FLAGS}")
 endif ()
 
-option(WITH_PROF "build with clang profile data" OFF)
-if (WITH_PROF)
-    set(PROF_FLAGS "-g -O1 -fprofile-instr-generate -fcoverage-mapping -DABC_INSANE")
-    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${PROF_FLAGS}")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${PROF_FLAGS}")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${PROF_FLAGS}")
-endif ()
-
 set(TEST_CXX_FLAGS "-g")
 set(TEST_LDD_FLAGS "-g")
 set(BENCH_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -v")
 set(BENCH_LDD_FLAGS benchmark::benchmark)
 
-add_subdirectory(abc)
-#add_subdirectory(rdx)
-add_subdirectory(rdx2)
-#add_subdirectory(brix)
-#add_subdirectory(fork)
-add_subdirectory(mark)
-#add_subdirectory(js)
-#add_subdirectory(cli)
+list(APPEND RDX_HEADERS 
+    RDX.h
+    LSM.h
+    DIFF.h
+)
+
+list(APPEND RDX_SOURCES 
+    RDX.c
+    RDOM.c
+    JDR.rl.c
+    JDR.c
+    JDR.actions.c
+    LSM.c
+    WAL.c
+    TLV.c
+    UTF8.c
+    DIFF.c
+)
+
+add_library(rdx2 STATIC ${RDX_HEADERS} ${RDX_SOURCES})
+target_link_libraries(rdx2 abc sodium)
+
+add_subdirectory(test)
+
+#if (WITH_BENCH)
+#add_subdirectory(bench EXCLUDE_FROM_ALL)
+#endif()
+#
+if (WITH_FUZZ)
+add_subdirectory(fuzz)
+endif()

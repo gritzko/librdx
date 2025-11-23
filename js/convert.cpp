@@ -11,15 +11,53 @@
 a_cstr(RDX_EMPTY_TUPLE, "p\01\00");
 
 ok64 JABCu8bImport(u8bp builder, JSContextRef ctx, JSValueRef val,
+                   JSValueRef* exception);
+
+ok64 JABCu8bImportString(u8bp builder, JSContextRef ctx, JSStringRef str,
+                         JSValueRef* exception) {
+    sane(builder != nullptr);
+    call(TLVu8bInto, builder, RDX_STRING);
+    call(u8bFeed1, builder, 0);
+    size_t maxSize = JSStringGetMaximumUTF8CStringSize(str);
+    // todo call(u8bReserve, builder, maxSize);
+    u8sp idle = u8bIdle(builder);
+    size_t factlen = JSStringGetUTF8CString(str, (char*)*idle, maxSize);
+    *idle += factlen-1; // null term
+    call(TLVu8bOuto, builder, RDX_STRING);
+    done;
+}
+
+ok64 JABCu8bImportObject(u8bp builder, JSContextRef ctx, JSObjectRef obj,
+                         JSValueRef* exception) {
+    sane(builder != nullptr);
+    call(TLVu8bInto, builder, RDX_EULER);
+    call(u8bFeed1, builder, 0);
+    JSPropertyNameArrayRef keys = JSObjectCopyPropertyNames(ctx, obj);
+    size_t len = JSPropertyNameArrayGetCount(keys);
+    for (size_t i = 0; i < len; i++) {
+        JSStringRef key = JSPropertyNameArrayGetNameAtIndex(keys, i);
+        call(TLVu8bInto, builder, RDX_TUPLE);
+        call(u8bFeed1, builder, 0);
+        call(JABCu8bImportString, builder, ctx, key, exception);
+        JSValueRef val = JSObjectGetProperty(ctx, obj, key, exception);
+        call(JABCu8bImport, builder, ctx, val, exception);
+        call(TLVu8bOuto, builder, RDX_TUPLE);
+    }
+    call(TLVu8bOuto, builder, RDX_EULER);
+    done;
+}
+
+ok64 JABCu8bImport(u8bp builder, JSContextRef ctx, JSValueRef val,
                    JSValueRef* exception) {
-    //u8bAllocate();
-    // u8bReserve()
+    // u8bAllocate();
+    //  u8bReserve()
     sane(u8bOK(builder) && ctx != nullptr && val != nullptr);
     JSType t = JSValueGetType(ctx, val);
     switch (t) {
-        case kJSTypeUndefined:
+        case kJSTypeUndefined: {
             call(u8bFeed, builder, RDX_EMPTY_TUPLE);
             done;
+        }
         case kJSTypeNull:
             break;
         case kJSTypeBoolean:
@@ -38,10 +76,14 @@ ok64 JABCu8bImport(u8bp builder, JSContextRef ctx, JSValueRef val,
             }
             done;
         }
-        case kJSTypeString:
-            break;
-        case kJSTypeObject:
-            break;
+        case kJSTypeString: {
+            JSStringRef str = JSValueToStringCopy(ctx, val, exception);
+            return JABCu8bImportString(builder, ctx, str, exception);
+        }
+        case kJSTypeObject: {
+            return JABCu8bImportObject(builder, ctx, (JSObjectRef)val,
+                                       exception);
+        }
     }
     done;
 }

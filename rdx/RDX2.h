@@ -22,14 +22,21 @@ typedef enum {
     RDX_LINEAR = 'L',
     RDX_EULER = 'E',
     RDX_MULTIX = 'X',
-} RDXtype;
+} rdxType8;
+
+#define RDX_TYPE_BAD 9
+extern u8 RDX_TYPE_FWD[];
+extern u4 RDX_TYPE_REV[];
+
+fun u4 rdxType8u4(u8 type8) { return RDX_TYPE_REV[type8]; }
+fun u8 u4rdxType8(u4 type4) { return RDX_TYPE_FWD[type4 & 0xf]; }
 
 typedef enum {
-    RDX_ENC_UTF8 = '8',
-    RDX_ENC_UTF16 = '6',
-    RDX_ENC_UTF8_ESC = 'e',
-    RDX_ENC_UTF8_ESC_ML = 'm',
-} RDXEncoding;
+    RDX_ENC_UTF8 = 0,
+    RDX_ENC_UTF16 = 1,
+    RDX_ENC_UTF8_ESC = 2,
+    RDX_ENC_UTF8_ESC_ML = 3,
+} rdxEncoding8;
 
 fun b8 RDXisFIRST(u8 l) {
     l &= ~TLVaA;
@@ -79,6 +86,7 @@ fun b8 ref128Eq(ref128cp a, ref128cp b) {
     return at == bt && a->src == b->src;
 }
 fun b8 ref128Empty(ref128cp a) { return a->src == 0 && a->seq == 0; }
+fun u64 ref128Hash(ref128cp a) { return u64hash2(a->src, a->seq); }
 
 fun ok64 RDXu8sFeedID(u8s into, ref128cp ref) {
     return ZINTu8sFeed128(into, ref->src, ref->seq);
@@ -97,20 +105,41 @@ typedef double RDXfloat;
 typedef u8cs RDXstring;
 typedef u8cs RDXterm;
 
-typedef struct {
-    u8 type;
-    u8 enc;
-    u64 reclen;
-    u8cs rest;
-    ref128 id;
-    union {
-        f64 f;
-        i64 i;
-        ref128 r;
-        u8cs s;
-        u8cs t;
-        u8cs plex;
+/**
+    ref128 id;     // id, type(4 bit) and p type(4 bit)
+    union {        // the value, depending on the type:
+        f64 f;     //  - float
+        i64 i;     //  - integer
+        ref128 r;  //  - 128 bit lamport id
+        u8cs s;    //  - utf8 string
+        u8cs t;    //  - RON base64
     };
+*/
+#define RDX_BASE  \
+    ref128 id;    \
+    union {       \
+        f64 f;    \
+        i64 i;    \
+        ref128 r; \
+        u8cs s;   \
+        u8cs t;   \
+    };
+// using any kind of virtual classes / methods would preclude vectorization,
+// inlining and other nice things. That is not acceptable; hence, we introduce
+// this shared "base class" to implement common functions (comparators, etc)
+
+// the basic unit of parsed RDX
+typedef struct {
+    RDX_BASE
+} rdx256;
+
+u8 rdx256Type(rdx256 const* r);
+u8 rdx256Coding(rdx256 const* r);
+
+// RDX parsing cursor/iterator
+typedef struct {
+    RDX_BASE
+    u8cs rest;
 } rdx;
 
 #define RDX_MAX_NESTING 64
@@ -142,13 +171,13 @@ extern u8cs RDX_ROOT_REC;
 
 typedef ok64 (*rdxZ)(rdxcp a, rdxcp b);
 
-ok64 rdxNext(rdxp it);
 fun b8 rdxOK(rdxp it) { return it->reclen > 0; }
 fun ok64 rdxInit(rdxp it, u8csc data) {
     zerop(it);
     u8csDup(it->rest, data);
     return OK;
 }
+ok64 rdxNext(rdxp it);
 fun ok64 rdxInto(rdxp it, u8cs rest) {
     u8csDup(rest, it->rest);
     u8csDup(it->rest, it->plex);
@@ -158,6 +187,7 @@ fun ok64 rdxOuto(rdxp it, u8csc rest) {
     u8csDup(it->rest, rest);
     return rdxNext(it);
 }
+ok64 rdxGoto(rdxp it, rdx256 const* mark);
 fun b8 rdxEmpty(rdxp it) { return $empty(it->rest); }
 
 ok64 rdxbInit(rdxb reader, u8cs data);
@@ -230,10 +260,9 @@ ok64 RDXu8sDrainR(u8csc elem, rdxp rdx);
 ok64 RDXu8sDrainS(u8csc elem, rdxp rdx);
 ok64 RDXu8sDrainT(u8csc elem, rdxp rdx);
 
-
 // . . . . . . . . DIFF . . . . . . . .
 
-#define DIFF_MAX_STEPS 1<<20
+#define DIFF_MAX_STEPS 1 << 20
 
 ok64 RDXu8bDiff(u8b diff, u8cs a, u8cs b);
 

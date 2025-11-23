@@ -17,7 +17,7 @@ con ok64 LEXnoroom = 0x153a1cb3db3cf1;
 extern const u8c *LEX_TEMPL[LEX_TEMPL_LANG_LEN][LEX_TEMPL_LEN][2];
 
 typedef struct {
-    u8cs text;
+    u8cs data;
     int lang;
     u8bp ct;
 

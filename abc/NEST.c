@@ -33,8 +33,10 @@ fun ok64 NESTaddvar(u8bp ct, u64 var) {
 }
 
 fun u32 NESTfind(u8bp ct, u64 var) {
-    for (u32 i = $len(NESTlog(ct)); i > 0; --i)
-        if (NESTmark(ct, i)->var == var) return i;
+    for (u32 i = $len(NESTlog(ct)); i > 0; --i) {
+        u64 got = NESTmark(ct, i)->var;
+        if (got == var) return i;
+    }
     return 0;
 }
 

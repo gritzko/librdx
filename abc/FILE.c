@@ -171,7 +171,7 @@ ok64 FILEFindMap(int *fd, u8bp buf) {
             *fd = i;
             done;
         }
-    fail(none);
+    fail(NONE);
 }
 
 ok64 FILEDropMap(int *fd, u8bp buf) {
@@ -194,7 +194,7 @@ ok64 FILECloseAll() {
 
 ok64 FILEMapFD(u8bp buf, int const *fd, int mode) {
     sane(buf != NULL && *buf == NULL && FILEok(*fd));
-    test(*fd >= 0 && *fd < FILE_MAX_OPEN, badarg);
+    test(*fd >= 0 && *fd < FILE_MAX_OPEN, BADarg);
     size_t size;
     call(FILESize, &size, fd);
     u8 *map = (u8 *)mmap(NULL, size, mode, MAP_FILE | MAP_SHARED, *fd, 0);

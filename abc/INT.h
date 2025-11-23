@@ -212,12 +212,10 @@ fun ok64 u8sFeed64(u8s into, u64 const *what) {
 fun u8 u64bit(u64 u, u32 ndx) { return 1 & (u >> ndx); }
 fun u8 u128bit(u128 u, u32 ndx) { return 1 & (u._64[ndx >> 6] >> (ndx & 63)); }
 
-ok64 i64decdrain(i64 *i, u8cs tok);
+ok64 i64decdrain(i64 *i, u8csc tok);
 
-fun u64 u128hash(u128cp val) {
+fun u64 u64hash2(u64 low, u64 high) {
     // Murmur-inspired hashing from LLVM
-    u64 low = val->_64[0];
-    u64 high = val->_64[1];
     const uint64_t kMul = 0x9ddfea08eb382d69ULL;
     uint64_t a = (low ^ high) * kMul;
     a ^= (a >> 47);
@@ -225,6 +223,12 @@ fun u64 u128hash(u128cp val) {
     b ^= (b >> 47);
     b *= kMul;
     return b;
+}
+
+fun u64 u128hash(u128cp val) {
+    u64 low = val->_64[0];
+    u64 high = val->_64[1];
+    return u64hash2(low, high);
 }
 
 #endif  // ABC_INT_H

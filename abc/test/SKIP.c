@@ -63,7 +63,7 @@ pro(SKIP1) {
     sane(1);
     a_pad(u8, check, SCALE / 8);
     a_pad(u8, pad, SCALE);
-    Bzero(check);
+    zerob(check);
     SKIPu8tab k = {};
     for (u64 u = 0; u < SCALE / 16; ++u) {
         call(u8sFeed64, pad_idle, &u);
@@ -103,7 +103,7 @@ pro(SKIP2) {
         testeq(bs, Busysize(pad));
         testeq(SCALE * (i + 2), Bsize(pad));
         zero(k);
-        Bzero(check);
+        zerob(check);
         call(SKIPcheck, pad, check, &k);
     }
     call(FILEunlink, path);

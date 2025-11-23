@@ -34,17 +34,17 @@
 #define $dup(s) \
     { (s)[0], (s)[1] }
 
-#define a_rest(T, n, orig, off)  \
-    assert((off) <= $len(orig)); \
-    T##s n = {orig[0] + (off), orig[1]};
+#define a_rest(T, n, orig, off)                        \
+    T##s n = {(T *)(orig[0]) + (off), (T *)(orig[1])}; \
+    assert($size(n) <= $size(orig));
 
-#define a_tail(T, n, orig, len)  \
-    assert((len) <= $len(orig)); \
-    T##s n = {orig[1] - (len), orig[1]};
+#define a_tail(T, n, orig, len)                        \
+    T##s n = {(T *)(orig[1]) - (len), (T *)(orig[1])}; \
+    assert($size(n) <= $size(orig));
 
-#define a_head(T, n, orig, len)  \
-    assert((len) <= $len(orig)); \
-    T##s n = {orig[0], orig[0] + (len)};
+#define a_head(T, n, orig, len)                        \
+    T##s n = {(T *)(orig[0]), (T *)(orig[0]) + (len)}; \
+    assert($size(n) <= $size(orig));
 
 #define a$tail(T, n, s, off) \
     $##T n = {(off) > $len(s) ? s[1] : s[0] + (off), s[1]};
@@ -118,7 +118,7 @@ typedef int (*$cmpfn)($cc a, $cc b);
 
 #define $cmp(a, b) $memcmp((void const *const *)(a), (void const *const *)b)
 
-#define $eq(a, b) ($size(a)==$size(b) && 0 == memcmp(*a, *b, $size(a)))
+#define $eq(a, b) ($size(a) == $size(b) && 0 == memcmp(*a, *b, $size(a)))
 
 #define $printf(into, fmt, ...)                                         \
     {                                                                   \
@@ -131,6 +131,10 @@ typedef int (*$cmpfn)($cc a, $cc b);
     u8 const *n[2] = {(u8 *)__##n, (u8 *)__##n + strlen(__##n)};
 
 #define a_cstr(n, c) u8 const *n[2] = {(u8c *)(c), (u8c *)((c) + strlen(c))}
+
+#define a_u8cs(n, ...)          \
+    u8c _##n[] = {__VA_ARGS__}; \
+    u8c *n[2] = {_##n, _##n + sizeof(_##n)};
 
 fun ok64 $feedf(u8 **into, u8 const *const *tmpl, ...) {
     va_list ap;

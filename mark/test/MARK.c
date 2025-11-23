@@ -78,7 +78,7 @@ pro(MARKANSItest) {
         state.pB = (u64bp)blocks;
         $mv(state.text, QA[c][0]);
         $mv(state.fmt, u8bIdle(fmt));
-        Bzero(fmt);
+        zerob(fmt);
 
         call(MARKlexer, &state);
         call(MARKMARQ, &state);
@@ -160,7 +160,7 @@ pro(MARKHTMLtest) {
         Bu64reset(divs);
         Bu64reset(blocks);
         Bu8reset(fmt);
-        Bzero(fmt);
+        zerob(fmt);
         state.lineB = (u8cpbp)lines;
         state.divB = (u64bp)divs;
         state.pB = (u64bp)blocks;

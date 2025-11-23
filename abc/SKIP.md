@@ -8,7 +8,7 @@ So, we can write a log normally, then we can search in that log, fast.
 For example, records can be timestamped (syslog), sorted (LSM) or numbered (WAL);
 a skiplist can use any such monotonous metric.
 There could be multiple such metrics at the same time, no biggie.
-Or there can be none, in case we only need valid record offsets.
+Or there can be NONE, in case we only need valid record offsets.
 No need to rescan the log, no need for a separate database or index.
 
 

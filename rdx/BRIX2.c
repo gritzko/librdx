@@ -122,7 +122,7 @@ ok64 BRIXu8bbCreateTip(u8bbp brix, sha256cp base, u8cs tip) {
         .litS = 'S',
         .litT = 'T',
         .lit_crypto = BRIX_CRYPTO_NOSIG_SHA256,
-        .lit_index = BRIX_INDEX_LSMHASH_4,
+        .lit_index = BRIX_INDEX_WALTZ_4,
         .meta_len = 32,
         .data_len = 0,
     };
@@ -156,7 +156,7 @@ ok64 BRIXu8bCreate(u8bp brik, sha256cs deps) {
         .litS = 'S',
         .litT = 'T',
         .lit_crypto = BRIX_CRYPTO_ED25519_SHA256,
-        .lit_index = BRIX_INDEX_2K,
+        .lit_index = BRIX_INDEX_OCTAB,
         .meta_len = $size(deps),
         .data_len = 0,
     };
@@ -204,41 +204,180 @@ ok64 BRIXu8bbSeal(u8bbp brix, int* fd, sha256p result) {
 }
 
 fun b8 tipOK(u8b brik) {
-    return brikOK(brik) && BRIXu8bIndexType(brik) <= BRIX_INDEX_LSMHASH_4;
+    return brikOK(brik) && BRIXu8bIndexType(brik) <= BRIX_INDEX_WALTZ_4;
 }
 
-ok64 BRIXu8bExtend(u8b brik) { sane(brikOK(brik)) done; }
+ok64 BRIXu8bExtend(u8b brik) {
+    sane(brikOK(brik));
+    done;
+}
 
-ok64 BRIXu8bIdle(u8b tip, u8sp idle) {}
+ok64 BRIXu8bWaltzIndexLen(u8bp tip, u64p len) {
+    if (!brikOK(tip)) return badarg;
+    u8 t = BRIXu8bIndexType(tip);
+    if (t > '9') return badarg;
+    u8 shift = t - '0';
+    *size = Bsize(tip) >> shift;
+    return OK;
+}
 
-ok64 BRIXu8bPut1(u8b tip, rdxcp rec) {
-    sane(tipOK(tip) && rec != NULL && RDXisPLEX(rec->type));
-    u32sp idx = (u32**)u8bIdle(tip);
-    // ...
-    u8s idle;
-    call(BRIXu8bIdle, tip, idle);
-    // ...
+ok64 BRIXu8bWaltzFind(u8bp brik, rdxs recs, ref128 ref) {
+    sane(brikOK(brik) && rdxsOK(recs));
+    u64 idxlen = 0;
+    call(BRIXu8bWaltzIndexLen, brik, &idxlen);
+    test(idxlen * sizeof(u32) >= u8bIdleLen(brik), FAILsanity);
+    a_tail(u32, index, u8bIdle(brik), idxlen);
+    size_t indx = ref128Hash(&ref) % $len(index);
+    u8csp data = u8bDataC(brik);
+    while ($at(index, indx) != 0) {
+        u32 off = $at(index, indx);
+        a_tail(u8c, rec, data, off);
+        rdx r;
+        call(rdxInit, &r, rec);
+        if (ref128Eq(&r.id, &ref)) {
+            call(rdxsFeed1, recs, r);
+        }
+        indx = (indx + 1) % $len(index);
+    }
+    done;
+}
+
+ok64 BRIXu8bOctabFind(u8bp brik, rdxs recs, ref128 ref) { return notimplyet; }
+
+ok64 BRIXu8bBloomFind(u8bp brik, rdxs recs, ref128 ref) { return notimplyet; }
+
+ok64 BRIXu8bFind(u8bp brik, rdxs recs, ref128 ref) {
+    u8 t = BRIXu8bIndexType(brik);
+    if (t == BRIX_INDEX_OCTAB) {
+        return BRIXu8bOctabFind(brik, recs, ref);
+    } else if (t <= BRIX_INDEX_WALTZ_MAX) {
+        return BRIXu8bWaltzFind(brik, recs, ref);
+    } else if (t == BRIX_INDEX_BLOOM) {
+        return BRIXu8bBloomFind(brik, recs, ref);
+    }
+    return notimplyet;
+}
+
+ok64 BRIXu8bbFind(u8bbp brix, rdxs recs, ref128 ref) {
+    sane(u8bbOK(brix) && rdxsOK(recs));
+    eats(u8b, b, u8bbData(brix)) { call(BRIXu8bFind, *b, recs, ref); }
+    done;
+}
+
+fun ok64 BRIXu8bWaltzLocate(u8b brik, u32sp idx, u8sp idle) {
+
+}
+
+fun u32 BRIXu8bWaltzLen(u8bp brik) { return Bat(brik, 2); }
+
+// fixme hash, block, off  CtrlC
+fun ok64 BRIXrdxsWaltzScan(rdxs entries, u32csc idx, u8csc data, ref128 id) {}
+
+// [ ] waltz length, not 1/k
+// [ ] replace-then-clean!  shift backwards
+// [ ] flush buckets
+// [ ] append or replace
+// [ ] salt?
+// [ ] fixme old maps / seal (never walz ptrs) / idoff! (up4)
+// [ ] state
+// [ ] put1 always y
+// [ ] ladder
+// [ ] rdxs ins/outs
+// [ ] revscan, no TS
+// [ ] u64 idx, u16 idxoff
+ok64 BRIXu8bPut1(u8b brik, rdxcp put) {
+    sane(tipOK(brik) && put != NULL && RDXisPLEX(put->type));
+    u64 idxlen = 0;
+    call(BRIXu8bWaltzIndexLen, brik, &idxlen);
+    test(idxlen * sizeof(u32) >= u8bIdleLen(brik), FAILsanity);
+    a_tail(u32, index, u8bIdle(brik), idxlen);
+    a_head(u8, idle, u8bIdle(brik), idlelen);
+    size_t indx = ref128Hash(&put->id) % $len(index);
+    u8csp data = u8bDataC(brik);
+    a_pad(rdxp, ins, RDX_MAX_INPUTS);
+    rdxpbFeed1(ins, (rdxp)put);
+    BRIX_INDEX_WALTZ_MAX;  // todo 'z' len
+    // scan till 0/128  *dyn*
+    //   find matches (limit to 4?)
+    //   rdxps 8b * MAX_STACK 256b
+    //   u32s  4b 128b
+    //   rdxs  64b * MAX_STACK 2K
+    //   ow? ate, break
+    // have ins? add, merge
+    //  else feed
+    // ow
+    // clear the merged
+    while ($at(index, indx) != 0) {
+        u32 off = $at(index, indx);
+        a_tail(u8c, rec, data, off);
+        rdx r;
+        call(rdxInit, &r, rec);
+        if (ref128Eq(&r.id, &put->id)) {
+            if (r.reclen <= put->reclen) {  // mere
+                rdxbFeed1(ins, r);
+            }
+        }
+        indx = (indx + 1) % $len(index);
+    }
+    if (rdxpbDataLen(ins) != 0) {
+        a_bs(u8, mergeb, idle);
+        call(RDXu8bMergeLWW, mergeb, eqs);
+        // clean-up
+    } else {
+        u32 off = u8bDataLen(brik);
+        u8cs rec;
+        rdxRecord(rdxcp, rec);
+        call(u8sFeed, idle, rec);
+        $at(index, indx) = off;
+    }
+
+    u64 idxlen = 0;
+    call(BRIXu8bWaltzIndexLen, tip, &idxlen);
+    a_tail(u32, index, u8bIdle(tip), idxlen);
+    size_t indx = ref128Hash(&rec->id) % $len(index);
+
+    a_pad(rdx, inputs, RDX_MAX_INPUTS);
+    a_pad(rdxp, eqs, RDX_MAX_INPUTS);
+    while ($at(index, indx) != 0) {
+        u8cs in;
+        rdx* h = $head(inputs_idle);
+        call(rdxInit, h, in);
+        if (ref128Eq(&h->id, &rec->id)) {
+            call(rdxpbFeed1, eqs, h);
+            rdxsFed1(inputs_idle);
+        }
+        indx = (indx + 1) % $len(index);
+    }
+
     u8b mergeb;
     rdxpsc eqs;
-    call(RDXu8bMergeLWW, mergeb, eqs);
+
     // ...
     a_pad(u8, head, 32);
     // ...
     call(u8bFeed, tip, head_datac);
     call(u8bFeed, tip, rec->plex);
 
+    $at(idx, indx) = 0;
+    done;
+}
+
+ok64 BRIXu8bGet(u8b brik, ref128 key, u8csp val) {
+    sane(brikOK(brik) && u8csOK(val));
+    u8 t = BRIXu8bIndexType(brik);
+    if (t == BRIX_INDEX_OCTAB) {
+    } else if (t <= BRIX_INDEX_WALTZ_4) {
+    } else {
+        fail(notimplyet);
+    }
     done;
 }
 
 ok64 BRIXu8bAdd(u8b tip, u8csc rec) {
-    sane(brikOK(tip));
+    sane(brikOK(tip) && BRIXIsRepoOpen());
     rdx p;
     call(rdxInit, &p, rec);
-    // POLnow();
-
-    // use the clock
-    // make the rec
-    u8cs newrec;  // :(
+    call(BRIXRepoTime, &p.id);
     call(BRIXu8bPut1, tip, &p);
     done;
 }
