@@ -6,7 +6,11 @@
 #include "abc/PRO.h"
 #include "abc/TEST.h"
 
-ok64 RDXTestBasics() {}
+ok64 RDXTestBasics() {
+    sane(1);
+    testeq(sizeof(rdx), 64);
+    done;
+}
 
 ok64 RDXid128test() {
     sane(1);
@@ -37,18 +41,17 @@ ok64 RDXTestTLV() {
     a_u8cs(uno, 'i', 2, 0, 2);
     a_u8cs(duos, 's', 12, 0, 'H', 'e', 'l', 'l', 'o', ' ', 'w', 'o', 'r', 'l',
            'd');
-    a_u8cs(tres, 'r', 1, 0);
+    a_u8cs(tres, 'r', 3, 2, 1, 2);
+    a_u8cs(tuple, 'p', 5, 0, 'i', 2, 0, 8);
     u8csp inputs[] = {
-        uno,
-        duos,
-        tres,
-        NULL,
+        tuple, uno, duos, tres, tuple, NULL,
     };
     int i = 0;
     while (inputs[i]) {
         u8csp in = inputs[i];
 
         a_pad(rdx, tlv1rdx, 8);
+        zerob(tlv1rdx);
         zerob(tlv1rdx);
         call(RDXOpen, tlv1rdx, RDX_FORMAT_TLV, in);
         a_pad(rdx, tlv2rdx, 8);

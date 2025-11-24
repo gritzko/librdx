@@ -274,7 +274,7 @@ pro(lex2rl, u8cs mod, $u8c lang) {
             if ($eq(lang, LEX_TEMPL[nlang][LEX_TEMPL_L])) break;
             ++nlang;
         }
-        if (nlang == LEX_TEMPL_LANG_LEN) fail(BADarg);
+        if (nlang == LEX_TEMPL_LANG_LEN) fail(BADARG);
     }
 
     LEXstate state = {

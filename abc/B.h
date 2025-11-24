@@ -123,7 +123,7 @@ fun ok64 Balloc(Bvoid b, size_t sz) {
 
 fun ok64 Brealloc(Bvoid b, size_t sz) {
     void *m = realloc(b[0], sz);
-    if (m == NULL) return NOroom;
+    if (m == NULL) return NOROOM;
     _Brebase(b, m, sz);
     return OK;
 }

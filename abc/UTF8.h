@@ -53,7 +53,7 @@ fun ok64 utf8sDrain1utf8(utf8s into, utf8cs from) {
 }
 
 fun ok64 utf8sValid(utf8cs utf8) {
-    if (!utf8csOK(utf8)) return BADarg;
+    if (!utf8csOK(utf8)) return BADARG;
     u32 cp;
     ok64 o = OK;
     while (!$empty(utf8) && o == OK) o = utf8sDrain32(&cp, utf8);

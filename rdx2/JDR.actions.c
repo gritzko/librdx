@@ -63,7 +63,7 @@ ok64 JDRonOpenP(utf8cs tok, JDRstate* state) {
 ok64 JDRonCloseP(utf8cs tok, JDRstate* state) {
     state->type = 0;
     state->mark = ')';
-    return NOdata;
+    return NODATA;
 }
 ok64 JDRonOpenL(utf8cs tok, JDRstate* state) {
     state->type = RDX_TYPE_LINEAR;
@@ -73,7 +73,7 @@ ok64 JDRonOpenL(utf8cs tok, JDRstate* state) {
 ok64 JDRonCloseL(utf8cs tok, JDRstate* state) {
     state->type = 0;
     state->mark = ']';
-    return NOdata;
+    return NODATA;
 }
 ok64 JDRonOpenE(utf8cs tok, JDRstate* state) {
     state->type = RDX_TYPE_EULER;

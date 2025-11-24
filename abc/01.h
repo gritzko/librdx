@@ -91,13 +91,15 @@ typedef uint64_t ok64;
 
 #define OK 0
 #define FAIL 0xffffffffffffffffUL
-con ok64 NOdata = 0xcb3a25e25;
-con ok64 NOroom = 0xcb3db3cf1;
+con ok64 NODATA	= 0x5d834a74a;
+con ok64 END	= 0xe5cd;
+con ok64 NOROOM	= 0x5d86d8616;
 con ok64 NONE = 0xcb3ca9;
-con ok64 NOTimplyet = 0xcb3e2dc74c3da78;
-con ok64 BADarg = 0x9a5a25dab;
-con ok64 BADpos = 0x9a5a34cf7;
+con ok64 NOTIMPLYET	= 0x5d875259956239d;
+con ok64 BADARG	= 0x2ca34a6d0;
+con ok64 BADPOS	= 0x2ca35961c;
 con ok64 FAILmiss	= 0xc6ddf7;
+con ok64 BADRANGE	= 0x2ca35b29740e;
 
 con ok64 $miss = 0x3fc6ddf7;
 con ok64 $nodata = 0x3fcb3a25e25;

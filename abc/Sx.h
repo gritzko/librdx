@@ -115,6 +115,11 @@ fun ok64 X(, sAte)(X(, s) s) {
     return OK;
 }
 
+fun ok64 X(, csAte)(X(, cs) s) {
+    s[0] = s[1];
+    return OK;
+}
+
 fun T const *X($, find)(X($c, c) haystack, T const *needle) {
     for (T const *p = haystack[0]; p < haystack[1]; p++)
         if (memcmp(p, needle, sizeof(T)) == 0) return p;
@@ -169,7 +174,7 @@ fun size_t X(, sCopy)(X(, sc) into, X(, csc) from) {
 
 fun ok64 X($, alloc)(X($, ) what, size_t len) {
     T *m = (T *)malloc(len * sizeof(T));
-    if (m == NULL) return NOroom;
+    if (m == NULL) return NOROOM;
     what[0] = m;
     what[1] = m + len;
     return OK;
@@ -402,7 +407,7 @@ fun void X(, Swap)(T *a, T *b) {
 
 fun ok64 X(, sSwap)(X(, s) s, size_t a, size_t b) {
     size_t l = X(, sLen)(s);
-    if (unlikely(a >= l || b >= l)) return BADarg;
+    if (unlikely(a >= l || b >= l)) return BADARG;
     X(, Swap)(*s + a, *s + b);
     return OK;
 }

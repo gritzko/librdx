@@ -194,7 +194,7 @@ ok64 FILECloseAll() {
 
 ok64 FILEMapFD(u8bp buf, int const *fd, int mode) {
     sane(buf != NULL && *buf == NULL && FILEok(*fd));
-    test(*fd >= 0 && *fd < FILE_MAX_OPEN, BADarg);
+    test(*fd >= 0 && *fd < FILE_MAX_OPEN, BADARG);
     size_t size;
     call(FILESize, &size, fd);
     u8 *map = (u8 *)mmap(NULL, size, mode, MAP_FILE | MAP_SHARED, *fd, 0);

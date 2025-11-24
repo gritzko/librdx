@@ -41,7 +41,7 @@ typedef enum {
 } ANSI_COLOR;
 
 fun ok64 escfeed($u8 data, u8 esc) {
-    if (!$ok(data) || $size(data) < 7) return BADarg;
+    if (!$ok(data) || $size(data) < 7) return BADARG;
     u8sFeed1(data, 033);  //"\033[91m"
     u8sFeed1(data, '[');
     u64decfeed(data, esc);

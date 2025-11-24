@@ -9,28 +9,28 @@
 
 pro(fail_test) {
     sane(1);
-    fail(BADarg);
+    fail(BADARG);
     done;
 }
 
-con ok64 Xbadarg = 0x219a5a25dab;
-con ok64 XYbadarg = 0x8629a5a25dab;
-con ok64 XYZbadarg = 0x218a39a5a25dab;
-con ok64 XYZAbadarg = 0x8628ca9a5a25dab;
+con ok64 BBADARG = 0xb2ca34a6d0;
+con ok64 ABBADARG = 0x28b2ca34a6d0;
+con ok64 ABCBADARG = 0xa2cc2ca34a6d0;
+con ok64 ABCDBADARG = 0x28b30d2ca34a6d0;
 
 pro(PROis) {
     sane(1);
-    test(ok64is(XYZAbadarg, BADarg), BADarg);
-    test(ok64is(XYZbadarg, BADarg), BADarg);
-    test(ok64is(XYbadarg, BADarg), BADarg);
-    test(ok64is(Xbadarg, BADarg), BADarg);
-    test(ok64is(BADarg, BADarg), BADarg);
+    test(ok64is(ABCDBADARG, BADARG), BADARG);
+    test(ok64is(ABCBADARG, BADARG), BADARG);
+    test(ok64is(ABBADARG, BADARG), BADARG);
+    test(ok64is(BBADARG, BADARG), BADARG);
+    test(ok64is(BADARG, BADARG), BADARG);
     done;
 }
 
 pro(pro_test) {
     sane(1);
-    mute(fail_test(), BADarg);
+    mute(fail_test(), BADARG);
     call(PROis);
     done;
 }

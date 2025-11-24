@@ -18,9 +18,8 @@ ok64 RDXCopy(rdxb into, rdxb from) {
             call(RDXOuto, from);
         }
     }
-    seen(NOdata);
+    seen(END);
+    rdxbLast(into)->type = 0;
+    call(RDXNext, into);
     done;
-    // todo rule: NOdata repeats!!!
-    // todo use 1 byte lookahead for JDR read P stuffing; use rdx copy for TLV
-    // peek-into todo string conversions: star, per cp fixme was it PLEX?
 }

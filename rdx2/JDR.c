@@ -43,7 +43,7 @@ ok64 RDXCheckNestingJDR(u8 parent_mark, rdxp at, rdxp next) {
     if (parent_mark == ':') {
         if (at->mark != ':') {
             *at = closeP;
-            fail(NOdata);
+            fail(NODATA);
         }
     } else if (at->mark != ',') {
         fail(JDRbad);
@@ -54,14 +54,14 @@ ok64 RDXCheckNestingJDR(u8 parent_mark, rdxp at, rdxp next) {
 ok64 RDXNextJDR(rdxb x) {
     sane(rdxbOK(x));
     rdxp at = rdxbLast(x);
-    test(!$empty(at->data), NOdata);
+    test(!$empty(at->data), NODATA);
     switch (at->mark) {
         case RDX_JDR_CLASS_OPEN:
             return RDXSkipBracketsJDR(x);
         case RDX_JDR_CLASS_INTER:  // FIXME
             return RDXSkipInlineTupleJDR(x);
         case RDX_JDR_CLASS_CLOSE:
-            fail(NOdata);
+            fail(NODATA);
     }
     u8 parent_mark = '(';
     u8 parent_type = RDX_TYPE_ROOT;
@@ -129,7 +129,7 @@ ok64 RDXNextJDR(rdxb x) {
             if (parent_type != at->type) fail(JDRbadnest);
             if (parent_type == RDX_TYPE_TUPLE && parent_mark == ':')
                 fail(JDRbadnest);
-            fail(NOdata);  // bust input
+            fail(NODATA);  // bust input
     }
     done;
 }
@@ -154,7 +154,7 @@ ok64 RDXOutoJDR(rdxb x) {
     done;
 }
 
-ok64 RDXSeekJDR(rdxb x) { return NOTimplyet; }
+ok64 RDXSeekJDR(rdxb x) { return NOTIMPLYET; }
 
 static const char* BRACKET[2] = {" ([{<", " )]}>"};
 
@@ -206,7 +206,7 @@ ok64 RDXWriteNextJDR(rdxb x) {
             break;
         case RDX_TYPE_STRING:
             test(last->enc == RDX_UTF_ENC_UTF8,
-                 NOTimplyet);  // may need 2 recodings
+                 NOTIMPLYET);  // may need 2 recodings
             call(utf8sFeed1, last->into, '"');
             call(UTABLE[RDX_UTF_ENC_UTF8_ESC][UTF8_ENCODER_ALL], last->into,
                  last->s);
@@ -244,10 +244,10 @@ ok64 RDXWriteOutoJDR(rdxb x) {
     call(rdxbPop, x);
     done;
 }
-ok64 RDXWriteSeekJDR(rdxb x) { return NOTimplyet; }
+ok64 RDXWriteSeekJDR(rdxb x) { return NOTIMPLYET; }
 
 ok64 RDXutf8sFeedID(utf8s into, id128cp ref) {
-    if (unlikely($len(into) < 24)) return NOroom;
+    if (unlikely($len(into) < 24)) return NOROOM;
     RONutf8sFeed64(into, ron60Max & ref->src);
     utf8sFeed1(into, '-');
     RONutf8sFeed64(into, ron60Max & ref->seq);

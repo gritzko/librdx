@@ -4,15 +4,15 @@
 #include "RDX.h"
 #include "abc/PRO.h"
 
-ok64 RDXNextLSM(rdxb x) { return NOTimplyet; }
-ok64 RDXIntoLSM(rdxb x) { return NOTimplyet; }
-ok64 RDXOutoLSM(rdxb x) { return NOTimplyet; }
-ok64 RDXSeekLSM(rdxb x) { return NOTimplyet; }
+ok64 RDXNextLSM(rdxb x) { return NOTIMPLYET; }
+ok64 RDXIntoLSM(rdxb x) { return NOTIMPLYET; }
+ok64 RDXOutoLSM(rdxb x) { return NOTIMPLYET; }
+ok64 RDXSeekLSM(rdxb x) { return NOTIMPLYET; }
 
-ok64 RDXWriteNextLSM(rdxb x) { return NOTimplyet; }
-ok64 RDXWriteIntoLSM(rdxb x) { return NOTimplyet; }
-ok64 RDXWriteOutoLSM(rdxb x) { return NOTimplyet; }
-ok64 RDXWriteSeekLSM(rdxb x) { return NOTimplyet; }
+ok64 RDXWriteNextLSM(rdxb x) { return NOTIMPLYET; }
+ok64 RDXWriteIntoLSM(rdxb x) { return NOTIMPLYET; }
+ok64 RDXWriteOutoLSM(rdxb x) { return NOTIMPLYET; }
+ok64 RDXWriteSeekLSM(rdxb x) { return NOTIMPLYET; }
 
 /*
 ok64 RDXNextLSM(rdxb x) {
@@ -63,16 +63,16 @@ ok64 RDXOutoLSM(rdxb x) {
 
 ok64 RDXSeekLSM(rdxb x) {
     // FIXME index? header?
-    return NOTimplyet;
+    return NOTIMPLYET;
 }
 
-ok64 RDXWriteNextLSM(rdxb x) { return NOTimplyet; }
+ok64 RDXWriteNextLSM(rdxb x) { return NOTIMPLYET; }
 
 ok64 RDXWriteIntoLSM(rdxb x) {
     rdxp neu;
     neu->rw = RDX_RW_WRITE;
     neu->format = RDX_FORMAT_TLV;
-    return NOTimplyet;
+    return NOTIMPLYET;
 }
 
 ok64 RDXWriteOutoLSM(rdxb x) {
@@ -92,8 +92,8 @@ ok64 RDXWriteOutoLSM(rdxb x) {
             call(u64sFeed2, idle, key, ops);
         }
     }
-    return NOTimplyet;
+    return NOTIMPLYET;
 }
 
-ok64 RDXWriteSeekLSM(rdxb x) { return NOTimplyet; }
+ok64 RDXWriteSeekLSM(rdxb x) { return NOTIMPLYET; }
 */

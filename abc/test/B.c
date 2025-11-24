@@ -10,7 +10,7 @@
 
 pro(fail_test) {
     sane(1);
-    fail(BADarg);
+    fail(BADARG);
     done;
 }
 

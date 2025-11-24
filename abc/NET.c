@@ -24,7 +24,7 @@ ok64 NETParseAddress(struct addrinfo **result, u8csc address, b8 tcp) {
     } else if ($len(state.scheme)) {
         call(u8sFeed, port_idle, state.scheme);
     } else {
-        fail(BADarg);
+        fail(BADARG);
     }
     call(u8sFeed1, host_idle, 0);
     call(u8sFeed1, port_idle, 0);
