@@ -4,43 +4,46 @@
 #include "RDX.h"
 #include "abc/PRO.h"
 
-ok64 RDXNextTLV(rdxb x) {
-    sane(rdxbOK(x) && rdxbDataLen(x) > 0);
-    rdxp top = rdxbLast(x);
+ok64 rdxNextTLV(rdxp x) {
+    sane(x);
+    if ($empty(x->data)) {
+        x->type = 0;
+        return END;
+    }
     u8cs idbody = {};
     u8cs value = {};
-    test(!$empty(top->data), END);
     u8 lit = 0;
-    call(TLVDrainKeyVal, &lit, idbody, value, top->data);
-    top->type = RDX_TYPE_LIT_REV[lit];
-    call(ZINTu8sDrain128, idbody, &top->id.seq, &top->id.src);
-    switch (top->type) {  //
+    call(TLVDrainKeyVal, &lit, idbody, value, x->data);
+    x->type = RDX_TYPE_LIT_REV[lit];
+    call(ZINTu8sDrain128, idbody, &x->id.seq, &x->id.src);
+    switch (x->type) {  //
         case RDX_TYPE_FLOAT:
-            call(ZINTu8sDrainFloat, &top->f, value);
+            call(ZINTu8sDrainFloat, &x->f, value);
             break;
         case RDX_TYPE_INT:
-            call(ZINTu8sDrainInt, &top->i, value);
+            call(ZINTu8sDrainInt, &x->i, value);
             break;
         case RDX_TYPE_REF:
-            call(ZINTu8sDrain128, value, &top->r.seq, &top->r.src);
+            call(ZINTu8sDrain128, value, &x->r.seq, &x->r.src);
             break;
         case RDX_TYPE_STRING:
-            $mv(top->s, value);
+            $mv(x->s, value);
             break;
         case RDX_TYPE_TERM:
-            $mv(top->t, value);
+            $mv(x->t, value);
             break;
         case RDX_TYPE_TUPLE:
         case RDX_TYPE_LINEAR:
         case RDX_TYPE_EULER:
-        case RDX_TYPE_MULTIX:
-            $mv(top->plex, value);
+        case RDX_TYPE_MULTIX: {
+            $mv(x->plex, value);
             break;
+        }
     }
     done;
 }
 
-ok64 RDXSeekTLV(rdxb x) {
+ok64 rdxSeekTLV(rdxp x) {
     // todo id <> id?!!  rdxbPending(x)
     return NOTIMPLYET;
 }
@@ -69,56 +72,54 @@ ok64 TLVu8sEnd(u8s idle, u8s inner, u8 lit) {
     done;
 }
 
-ok64 RDXWriteNextTLV(rdxb x) {
-    sane(rdxbOK(x) && !rdxbEmpty(x));
-    rdxp top = rdxbLast(x);
-    u8** into = top->into;
-    u8** plex = (u8**)top->plex;
-    if (top->mark && top->mark < RDX_TYPE_PLEX_LEN) {
-        call(TLVu8sEnd, into, plex, RDX_TYPE_LIT[top->mark]);
-    }
-    top->mark = top->type;
-    if (top->type == 0) {
+ok64 rdxWriteNextTLV(rdxp x) {
+    sane(x);
+    if (x->type == 0) {  // END
+        if (x->prnt) {
+            u8 plit = RDX_TYPE_LIT[(x - 1)->type];
+            call(TLVu8sEnd, (x - 1)->into, x->into, plit);
+        }
         done;
     }
-    u8 lit = RDX_TYPE_LIT[top->type];
+    u8 lit = RDX_TYPE_LIT[x->type];
 
     a_pad(u8, id, 16);
-    call(ZINTu8sFeed128, id_idle, top->id.seq, top->id.src);
+    call(ZINTu8sFeed128, id_idle, x->id.seq, x->id.src);
     a_pad(u8, val, 16);
-    switch (top->type) {
+    switch (x->type) {
         case RDX_TYPE_TUPLE:
         case RDX_TYPE_LINEAR:
         case RDX_TYPE_EULER:
         case RDX_TYPE_MULTIX: {
-            call(TLVu8sStart, into, plex, lit);
+            u8sp plex = (u8sp)x->plex;
+            call(TLVu8sStart, x->into, plex, lit);
             call(u8sFeed1, plex, $len(id_data));
             call(u8sFeed, plex, id_datac);
             done;
         }
         case RDX_TYPE_FLOAT:
-            call(ZINTu8sFeedFloat, val_idle, &top->f);
-            call(TLVFeedKeyVal, into, lit, id_datac, val_datac);
+            call(ZINTu8sFeedFloat, val_idle, &x->f);
+            call(TLVFeedKeyVal, x->into, lit, id_datac, val_datac);
             break;
         case RDX_TYPE_INT:
-            call(ZINTu8sFeedInt, val_idle, &top->i);
-            call(TLVFeedKeyVal, into, lit, id_datac, val_datac);
+            call(ZINTu8sFeedInt, val_idle, &x->i);
+            call(TLVFeedKeyVal, x->into, lit, id_datac, val_datac);
             break;
         case RDX_TYPE_REF:
-            call(ZINTu8sFeed128, val_idle, top->r.seq, top->r.src);
-            call(TLVFeedKeyVal, into, lit, id_datac, val_datac);
+            call(ZINTu8sFeed128, val_idle, x->r.seq, x->r.src);
+            call(TLVFeedKeyVal, x->into, lit, id_datac, val_datac);
             break;
         case RDX_TYPE_STRING: {
             u8s str = {};
-            call(TLVu8sStart, into, str, lit);
+            call(TLVu8sStart, x->into, str, lit);
             call(u8sFeed1, str, $len(id_data));
             call(u8sFeed, str, id_datac);
-            UTABLE[top->enc][3](str, top->s);
-            call(TLVu8sEnd, into, str, lit);
+            UTABLE[x->enc][3](str, x->s);
+            call(TLVu8sEnd, x->into, str, lit);
             break;
         }
         case RDX_TYPE_TERM:
-            call(TLVFeedKeyVal, into, lit, id_datac, top->t);
+            call(TLVFeedKeyVal, x->into, lit, id_datac, x->t);
             break;
         default:
             fail(BADARG);
@@ -126,7 +127,7 @@ ok64 RDXWriteNextTLV(rdxb x) {
     done;
 }
 
-ok64 RDXWriteSeekTLV(rdxb x) { return NOTIMPLYET; }
+ok64 rdxWriteSeekTLV(rdxp x) { return NOTIMPLYET; }
 
 const u8 RDX_TYPE_LIT_REV[] = {
     10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10,

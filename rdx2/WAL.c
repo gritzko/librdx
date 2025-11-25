@@ -3,12 +3,8 @@
 //
 #include "RDX.h"
 
-ok64 RDXNextWAL(rdxb x) { return NOTIMPLYET; }
-ok64 RDXIntoWAL(rdxb x) { return NOTIMPLYET; }
-ok64 RDXOutoWAL(rdxb x) { return NOTIMPLYET; }
-ok64 RDXSeekWAL(rdxb x) { return NOTIMPLYET; }
+ok64 rdxNextWAL(rdxp x) { return NOTIMPLYET; }
+ok64 rdxSeekWAL(rdxp x) { return NOTIMPLYET; }
 
-ok64 RDXWriteNextWAL(rdxb x) { return NOTIMPLYET; }
-ok64 RDXWriteIntoWAL(rdxb x) { return NOTIMPLYET; }
-ok64 RDXWriteOutoWAL(rdxb x) { return NOTIMPLYET; }
-ok64 RDXWriteSeekWAL(rdxb x) { return NOTIMPLYET; }
+ok64 rdxWriteNextWAL(rdxp x) { return NOTIMPLYET; }
+ok64 rdxWriteSeekWAL(rdxp x) { return NOTIMPLYET; }

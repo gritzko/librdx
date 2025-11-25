@@ -4,15 +4,11 @@
 #include "RDX.h"
 #include "abc/PRO.h"
 
-ok64 RDXNextLSM(rdxb x) { return NOTIMPLYET; }
-ok64 RDXIntoLSM(rdxb x) { return NOTIMPLYET; }
-ok64 RDXOutoLSM(rdxb x) { return NOTIMPLYET; }
-ok64 RDXSeekLSM(rdxb x) { return NOTIMPLYET; }
+ok64 rdxNextLSM(rdxp x) { return NOTIMPLYET; }
+ok64 rdxSeekLSM(rdxp x) { return NOTIMPLYET; }
 
-ok64 RDXWriteNextLSM(rdxb x) { return NOTIMPLYET; }
-ok64 RDXWriteIntoLSM(rdxb x) { return NOTIMPLYET; }
-ok64 RDXWriteOutoLSM(rdxb x) { return NOTIMPLYET; }
-ok64 RDXWriteSeekLSM(rdxb x) { return NOTIMPLYET; }
+ok64 rdxWriteNextLSM(rdxp x) { return NOTIMPLYET; }
+ok64 rdxWriteSeekLSM(rdxp x) { return NOTIMPLYET; }
 
 /*
 ok64 RDXNextLSM(rdxb x) {
@@ -24,7 +20,7 @@ ok64 RDXNextLSM(rdxb x) {
     a_tail(u8c, rest, top->data, top->pos + top->len);
     // todo pos starts at meta end
     // todo bail off before index
-    call(RDXNextTLV, x);  // fixme index?!!
+    call(rdxNextTLV, x);  // fixme index?!!
     done;
 }
 

@@ -20,31 +20,31 @@ ok64 JDRonFloat(utf8cs tok, JDRstate* state) {
     if (unlikely(l>32)) return badsyntax;
     ok64 o = utf8sDrainFloat(tok, &state->f);
     state->type = RDX_TYPE_FLOAT;
-    state->mark = '1';
+    state->prnt = '1';
     return o;
 }
 ok64 JDRonTerm(utf8cs tok, JDRstate* state) {
     state->type = RDX_TYPE_TERM;
-    state->mark = '1';
+    state->prnt = '1';
     $mv(state->t, tok);
     return OK;
 }
 ok64 JDRonRef(utf8cs tok, JDRstate* state) {
     state->type = RDX_TYPE_REF;
-    state->mark = '1';
+    state->prnt = '1';
     return RDXutf8sDrainID(tok, &state->r);
 }
 ok64 JDRonString(utf8cs tok, JDRstate* state) {
     $mv(state->s, tok);
     state->type = RDX_TYPE_STRING;
-    state->mark = '1';
+    state->prnt = '1';
     state->enc = RDX_UTF_ENC_UTF8_ESC;
     return OK;
 }
 ok64 JDRonMLString(utf8cs tok, JDRstate* state) {
     $mv(state->s, tok);
     state->type = RDX_TYPE_STRING;
-    state->mark = '1';
+    state->prnt = '1';
     state->enc = RDX_UTF_ENC_UTF8_ESC_ML;
     return OK;
 }
@@ -57,60 +57,60 @@ ok64 JDRonNoStamp(utf8cs tok, JDRstate* state) {
 }
 ok64 JDRonOpenP(utf8cs tok, JDRstate* state) {
     state->type = RDX_TYPE_TUPLE;
-    state->mark = '(';
+    state->prnt = '(';
     return OK;
 }
 ok64 JDRonCloseP(utf8cs tok, JDRstate* state) {
     state->type = 0;
-    state->mark = ')';
+    state->prnt = ')';
     return NODATA;
 }
 ok64 JDRonOpenL(utf8cs tok, JDRstate* state) {
     state->type = RDX_TYPE_LINEAR;
-    state->mark = '[';
+    state->prnt = '[';
     return OK;
 }
 ok64 JDRonCloseL(utf8cs tok, JDRstate* state) {
     state->type = 0;
-    state->mark = ']';
+    state->prnt = ']';
     return NODATA;
 }
 ok64 JDRonOpenE(utf8cs tok, JDRstate* state) {
     state->type = RDX_TYPE_EULER;
-    state->mark = '{';
+    state->prnt = '{';
     return OK;
 }
 ok64 JDRonCloseE(utf8cs tok, JDRstate* state) {
     state->type = 0;
-    state->mark = '}';
+    state->prnt = '}';
     return OK;
 }
 ok64 JDRonOpenX(utf8cs tok, JDRstate* state) {
     state->type = RDX_TYPE_MULTIX;
-    state->mark = '<';
+    state->prnt = '<';
     return OK;
 }
 ok64 JDRonCloseX(utf8cs tok, JDRstate* state) {
     state->type = 0;
-    state->mark = '>';
+    state->prnt = '>';
     return OK;
 }
 ok64 JDRonComma(utf8cs tok, JDRstate* state) {
     state->type = 0;
-    state->mark = ',';
+    state->prnt = ',';
     return OK;
 }
 ok64 JDRonColon(utf8cs tok, JDRstate* state) {
     state->type = 0;
-    state->mark = ':';
+    state->prnt = ':';
     return OK;
 }
 ok64 JDRonOpen(utf8cs tok, JDRstate* state) {
-    state->mark = 0;
+    state->prnt = 0;
     return OK;
 }
 ok64 JDRonClose(utf8cs tok, JDRstate* state) {
-    state->mark = 1;
+    state->prnt = 1;
     return OK;
 }
 ok64 JDRonInter(utf8cs tok, JDRstate* state) { return OK; }

@@ -15,37 +15,45 @@ const u8 CLASSES[] = {
     ['.'] = RDX_JDR_CLASS_CLOSE,
 };
 
+ok64 rdxNextJDR(rdxp x) { return NOTIMPLYET; }
+ok64 rdxSeekJDR(rdxp x) { return NOTIMPLYET; }
+
+ok64 rdxWriteNextJDR(rdxp x) { return NOTIMPLYET; }
+ok64 rdxWriteSeekJDR(rdxp x) { return NOTIMPLYET; }
+
 ok64 RDXSkipBracketsJDR(rdxb x) {
     // recur
+    return NOTIMPLYET;
 }
 ok64 RDXSkipInlineTupleJDR(rdxb x) {
     RDXSkipBracketsJDR(x);  // recur
+    return NOTIMPLYET;
 }
 
 static const rdx emptyP = {
     .format = RDX_FORMAT_JDR,
     .type = RDX_TYPE_TUPLE,
-    .mark = ':',
+    .prnt = ':',
 };
 static const rdx openP = {
     .format = RDX_FORMAT_JDR,
     .type = RDX_TYPE_TUPLE,
-    .mark = '(',
+    .prnt = '(',
 };
 static const rdx closeP = {
     .format = RDX_FORMAT_JDR,
     .type = RDX_TYPE_TUPLE,
-    .mark = ')',
+    .prnt = ')',
 };
 
-ok64 RDXCheckNestingJDR(u8 parent_mark, rdxp at, rdxp next) {
+ok64 RDXCheckNestingJDR(u8 parent_prnt, rdxp at, rdxp next) {
     sane(1);
-    if (parent_mark == ':') {
-        if (at->mark != ':') {
+    if (parent_prnt == ':') {
+        if (at->prnt != ':') {
             *at = closeP;
             fail(NODATA);
         }
-    } else if (at->mark != ',') {
+    } else if (at->prnt != ',') {
         fail(JDRbad);
     }
     done;
@@ -55,7 +63,7 @@ ok64 RDXNextJDR(rdxb x) {
     sane(rdxbOK(x));
     rdxp at = rdxbLast(x);
     test(!$empty(at->data), NODATA);
-    switch (at->mark) {
+    switch (at->prnt) {
         case RDX_JDR_CLASS_OPEN:
             return RDXSkipBracketsJDR(x);
         case RDX_JDR_CLASS_INTER:  // FIXME
@@ -63,18 +71,18 @@ ok64 RDXNextJDR(rdxb x) {
         case RDX_JDR_CLASS_CLOSE:
             fail(NODATA);
     }
-    u8 parent_mark = '(';
+    u8 parent_prnt = '(';
     u8 parent_type = RDX_TYPE_ROOT;
     if (rdxbDataLen(x) > 1) {
         rdxp parent = at - 1;
         parent_type = parent->type;
-        parent_mark = parent->mark;
+        parent_prnt = parent->prnt;
     }
     rdxp next = $term(rdxbData(x));
     rdxMove(at, next);
     call(JDRlexer, next);
-    u8 state = (CLASSES[at->mark] << 4) | CLASSES[next->mark];
-    // todo implied brackets 4x4  mark: returns {[(<FIRST non-returns  >)]}:,x
+    u8 state = (CLASSES[at->prnt] << 4) | CLASSES[next->prnt];
+    // todo implied brackets 4x4  prnt: returns {[(<FIRST non-returns  >)]}:,x
     switch (state) {  // todo move tricks
         case RDX_JDR_CLASS_OPEN_OPEN:
         case RDX_JDR_CLASS_OPEN_INTER:
@@ -82,40 +90,40 @@ ok64 RDXNextJDR(rdxb x) {
         case RDX_JDR_CLASS_OPEN_CLOSE:
             done;  // :)
         case RDX_JDR_CLASS_INTER_OPEN:
-            call(RDXCheckNestingJDR, parent_mark, at, next);
+            call(RDXCheckNestingJDR, parent_prnt, at, next);
             *at = *next;
             return JDRlexer(next);
         case RDX_JDR_CLASS_INTER_INTER:
-            call(RDXCheckNestingJDR, parent_mark, at, next);
+            call(RDXCheckNestingJDR, parent_prnt, at, next);
             *at = emptyP;
             done;
         case RDX_JDR_CLASS_INTER_FIRST:
-            call(RDXCheckNestingJDR, parent_mark, at, next);
+            call(RDXCheckNestingJDR, parent_prnt, at, next);
             *at = *next;
             return JDRlexer(next);
         case RDX_JDR_CLASS_INTER_CLOSE:
-            call(RDXCheckNestingJDR, parent_mark, at, next);
+            call(RDXCheckNestingJDR, parent_prnt, at, next);
             *at = emptyP;
             done;
         case RDX_JDR_CLASS_FIRST_OPEN:  // 1:2 (  // bust input
-            if (parent_type == RDX_TYPE_TUPLE && parent_mark == ':') {
+            if (parent_type == RDX_TYPE_TUPLE && parent_prnt == ':') {
                 *next = closeP;
                 $mv(next->data, at->data);
             }
             done;
         case RDX_JDR_CLASS_FIRST_INTER:
-            if (parent_mark == next->mark) {
+            if (parent_prnt == next->prnt) {
                 call(JDRlexer, next);
-            } else if (next->mark == ':') {
+            } else if (next->prnt == ':') {
                 *next = *at;
                 *at = openP;
-            } else if (next->mark == ',') {
+            } else if (next->prnt == ',') {
                 *next = closeP;
                 $mv(next->data, at->data);
             }
             done;
         case RDX_JDR_CLASS_FIRST_FIRST:  // 1:2 3  bust input
-            if (parent_type == RDX_TYPE_TUPLE && parent_mark == ':') {
+            if (parent_type == RDX_TYPE_TUPLE && parent_prnt == ':') {
                 *next = closeP;
                 $mv(next->data, at->data);
             }
@@ -127,7 +135,7 @@ ok64 RDXNextJDR(rdxb x) {
         case RDX_JDR_CLASS_CLOSE_FIRST:
         case RDX_JDR_CLASS_CLOSE_CLOSE:  // 1:() (  bust input twice?
             if (parent_type != at->type) fail(JDRbadnest);
-            if (parent_type == RDX_TYPE_TUPLE && parent_mark == ':')
+            if (parent_type == RDX_TYPE_TUPLE && parent_prnt == ':')
                 fail(JDRbadnest);
             fail(NODATA);  // bust input
     }
@@ -176,7 +184,7 @@ ok64 RDXWriteNextJDRSeparator(rdxb x) {
     rdxp last = rdxbLast(x);
     u64 style = last->pos;
     if (rdxbDataLen(x) && (last - 1)->type == RDX_TYPE_TUPLE &&
-        (last - 1)->mark == ':') {
+        (last - 1)->prnt == ':') {
         call(u8sFeed1, last->into, ':');
         done;
     }
@@ -188,9 +196,9 @@ ok64 RDXWriteNextJDRSeparator(rdxb x) {
 ok64 RDXWriteNextJDR(rdxb x) {
     sane(rdxbOK(x) && !rdxbEmpty(x));
     rdxp last = rdxbLast(x);
-    if (last->mark) {  // maybe close bracket
+    if (last->prnt) {  // maybe close bracket
         call(RDXWriteNextJDRIndent, x);
-        call(u8sFeed1, last->into, last->mark);
+        call(u8sFeed1, last->into, last->prnt);
         call(RDXWriteNextJDRSeparator, x);
     }
     call(RDXWriteNextJDRIndent, x);
@@ -220,7 +228,7 @@ ok64 RDXWriteNextJDR(rdxb x) {
         case RDX_TYPE_EULER:
         case RDX_TYPE_MULTIX:
             call(u8sFeed1, last->into, BRACKET[0][last->type]);
-            last->mark = BRACKET[1][last->type];
+            last->prnt = BRACKET[1][last->type];
             break;
     }
     call(RDXWriteNextJDRSeparator, x);

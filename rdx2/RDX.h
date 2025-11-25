@@ -33,31 +33,18 @@ static const u8 RDX_TYPE_LIT[] = {
 };
 extern const u8 RDX_TYPE_LIT_REV[];
 
-#define RDX_WRITABLE 1
-
 con ok64 RDXbad = 0x6cd866968;
 
 typedef enum {
     RDX_FORMAT_TLV = 0,
-    RDX_TLV_WRITER = RDX_FORMAT_TLV | RDX_WRITABLE,
     RDX_FORMAT_JDR = 2,
-    RDX_JDR_WRITER = RDX_FORMAT_JDR | RDX_WRITABLE,
     RDX_FORMAT_LSM = 4,
-    RDX_LSM_WRITER = RDX_FORMAT_LSM | RDX_WRITABLE,
     RDX_FORMAT_WAL = 6,
-    RDX_WAL_WRITER = RDX_FORMAT_WAL | RDX_WRITABLE,
     RDX_FORMAT_RAM = 8,
-    RDX_RAM_WRITER = RDX_FORMAT_RAM | RDX_WRITABLE,
     RDX_FORMAT_LEN = 10,
 } RDX_FORMAT;
 
-typedef enum {
-    RDX_METHOD_NEXT = 0,
-    RDX_METHOD_INTO = 1,
-    RDX_METHOD_OUTO = 2,
-    RDX_METHOD_SEEK = 3,
-    RDX_METHOD_LEN = 4,
-} RDX_METHOD;
+#define RDX_FORMAT_WRITE 1
 
 typedef enum {
     RDX_UTF_ENC_UTF8 = 0,
@@ -119,7 +106,7 @@ typedef struct {
     u8 format;      // RDX_FORMAT
     u8 type;        // RDX_TYPE (4:4)
     u8 enc;         // RDX_UTF_ENC
-    u8 mark;        // misc use
+    u8 prnt;        // misc use
     u32 len;        // record length
     u64 pos;        // pos in the data range
     id128 id;       // element id
@@ -144,13 +131,14 @@ fun RDX_TYPE rdxType(rdxcp p) { return 0xf & p->type; }
 
 fun RDX_TYPE rdxTypePlex(rdxcp p) { return rdxType(p) < RDX_TYPE_PLEX_LEN; }
 
-fun b8 rdxWritable(rdxcp p) { return p->format & RDX_WRITABLE; }
+fun b8 rdxWritable(rdxcp p) { return p->format & RDX_FORMAT_WRITE; }
 
 fun int id128cmp(id128cp a, id128cp b) { return 0; }
 fun int rdxcmp(rdxcp a, rdxcp b) { return id128cmp(&a->id, &b->id); }
 
 fun void rdxMv(rdxp into, rdxcp from) {
     into->type = from->type;
+    into->enc = from->enc;
     into->id = from->id;
     into->r = from->r;
 }
@@ -173,7 +161,8 @@ fun int rdxbpcmp(rdxbp const* a, rdxbp const* b) { return 0; }
 #undef X
 
 fun b8 rdxbWritable(rdxbp b) {
-    return rdxbDataLen(b) && rdxWritable(rdxbLast(b));
+    u64 l = rdxbDataLen(b);
+    return l && rdxWritable(rdxbAtP(b, l-1));
 }
 
 fun u8 rdxbType(rdxbp x) {
@@ -185,143 +174,70 @@ fun b8 rdxbTypePlex(rdxbp x) { return rdxbType(x) < RDX_TYPE_PLEX_LEN; }
 
 typedef ok64 (*rdxz)(rdxcp a, rdxcp b);
 
-typedef ok64 (*rdxf)(rdxb x);
+typedef ok64 (*rdxf)(rdxp x);
+typedef ok64 (*rdxbf)(rdxbp x);
 
 // 1. Next operates the data      -->
 // 2. Into/Outo operate the stack ^ v
 // 3. Seek moves in the data      <- ->
-ok64 RDXNextTLV(rdxb x);
-ok64 RDXIntoTLV(rdxb x);
-ok64 RDXOutoTLV(rdxb x);
-ok64 RDXSeekTLV(rdxb x);
+ok64 rdxNextTLV(rdxp x);
+ok64 rdxSeekTLV(rdxp x);
 
-ok64 RDXNextJDR(rdxb x);
-ok64 RDXIntoJDR(rdxb x);
-ok64 RDXOutoJDR(rdxb x);
-ok64 RDXSeekJDR(rdxb x);
+ok64 rdxNextJDR(rdxp x);
+ok64 rdxSeekJDR(rdxp x);
 
-ok64 RDXNextLSM(rdxb x);
-ok64 RDXIntoLSM(rdxb x);
-ok64 RDXOutoLSM(rdxb x);
-ok64 RDXSeekLSM(rdxb x);
+ok64 rdxNextLSM(rdxp x);
+ok64 rdxSeekLSM(rdxp x);
 
-ok64 RDXNextWAL(rdxb x);
-ok64 RDXIntoWAL(rdxb x);
-ok64 RDXOutoWAL(rdxb x);
-ok64 RDXSeekWAL(rdxb x);
+ok64 rdxNextWAL(rdxp x);
+ok64 rdxSeekWAL(rdxp x);
 
-ok64 RDXNextRAM(rdxb x);
-ok64 RDXIntoRAM(rdxb x);
-ok64 RDXOutoRAM(rdxb x);
-ok64 RDXSeekRAM(rdxb x);
+ok64 rdxNextRAM(rdxp x);
+ok64 rdxSeekRAM(rdxp x);
 
-ok64 RDXWriteNextTLV(rdxb x);
-ok64 RDXWriteIntoTLV(rdxb x);
-ok64 RDXWriteOutoTLV(rdxb x);
-ok64 RDXWriteSeekTLV(rdxb x);
+ok64 rdxWriteNextTLV(rdxp x);
+ok64 rdxWriteSeekTLV(rdxp x);
 
-ok64 RDXWriteNextJDR(rdxb x);
-ok64 RDXWriteIntoJDR(rdxb x);
-ok64 RDXWriteOutoJDR(rdxb x);
-ok64 RDXWriteSeekJDR(rdxb x);
+ok64 rdxWriteNextJDR(rdxp x);
+ok64 rdxWriteSeekJDR(rdxp x);
 
-ok64 RDXWriteNextLSM(rdxb x);
-ok64 RDXWriteIntoLSM(rdxb x);
-ok64 RDXWriteOutoLSM(rdxb x);
-ok64 RDXWriteSeekLSM(rdxb x);
+ok64 rdxWriteNextLSM(rdxp x);
+ok64 rdxWriteSeekLSM(rdxp x);
 
-ok64 RDXWriteNextWAL(rdxb x);
-ok64 RDXWriteIntoWAL(rdxb x);
-ok64 RDXWriteOutoWAL(rdxb x);
-ok64 RDXWriteSeekWAL(rdxb x);
+ok64 rdxWriteNextWAL(rdxp x);
+ok64 rdxWriteSeekWAL(rdxp x);
 
-ok64 RDXWriteNextRAM(rdxb x);
-ok64 RDXWriteIntoRAM(rdxb x);
-ok64 RDXWriteOutoRAM(rdxb x);
-ok64 RDXWriteSeekRAM(rdxb x);
+ok64 rdxWriteNextRAM(rdxp x);
+ok64 rdxWriteSeekRAM(rdxp x);
 
 static const rdxf VTABLE_NEXT[RDX_FORMAT_LEN] = {
-    RDXNextTLV, RDXWriteNextTLV, RDXNextJDR, RDXWriteNextJDR,
-    RDXNextLSM, RDXWriteNextLSM, RDXNextWAL, RDXWriteNextWAL,
-    RDXNextRAM, RDXWriteNextRAM,
+    rdxNextTLV, rdxWriteNextTLV, rdxNextJDR, rdxWriteNextJDR,
+    rdxNextLSM, rdxWriteNextLSM, rdxNextWAL, rdxWriteNextWAL,
+    rdxNextRAM, rdxWriteNextRAM,
 };
 
 static const rdxf VTABLE_SEEK[RDX_FORMAT_LEN] = {
-    RDXSeekTLV, RDXWriteSeekTLV, RDXSeekJDR, RDXWriteSeekJDR,
-    RDXSeekLSM, RDXWriteSeekLSM, RDXSeekWAL, RDXWriteSeekWAL,
-    RDXSeekRAM, RDXWriteSeekRAM,
+    rdxSeekTLV, rdxWriteSeekTLV, rdxSeekJDR, rdxWriteSeekJDR,
+    rdxSeekLSM, rdxWriteSeekLSM, rdxSeekWAL, rdxWriteSeekWAL,
+    rdxSeekRAM, rdxWriteSeekRAM,
 };
 
-fun rdxp rdxbPending(rdxbp x) { return x[2]; }
+fun ok64 rdxNext(rdxp x) { return VTABLE_NEXT[x->format](x); }
 
-fun ok64 RDXInto(rdxb x) {
-    if (!rdxbIdleLen(x)) return $noroom;
-    rdxp lo = $term(rdxbData(x));
-    if (rdxbDataLen(x)) {
-        zerop(lo);
-        rdxp hi = lo - 1;
-        $mv(lo->data, hi->plex);
-        lo->format = hi->format;
-    }
-    return rdxbFed1(x);
-}
+fun ok64 rdxSeek(rdxp x) { return VTABLE_SEEK[x->format](x); }
 
-fun ok64 RDXOuto(rdxb x) {
-    if (!rdxbDataLen(x)) return $nodata;
-    --*rdxbIdle(x);
-    rdxp lo = *rdxbIdle(x);
-    if (rdxbDataLen(x)) {
-        rdxp hi = lo - 1;
-        $mv(hi->plex, lo->data);
-    }
-    return OK;
-}
-
-// convention: RDXInto on an empty buf expects the 0th entry have `data` set
-fun ok64 RDXOpen(rdxb x, RDX_FORMAT fmt, u8cs data) {
-    rdxp first = rdxbAtP(x, 0);
-    first->format = fmt;
-    $mv(first->data, (u8**)data);
-    return RDXInto(x);
-}
-
-fun ok64 RDXWriteOpen(rdxb x, RDX_FORMAT fmt, u8s data) {
-    rdxp first = rdxbAtP(x, 0);
-    fmt |= RDX_WRITABLE;
-    first->format = fmt;
-    $mv(first->data, (u8**)data);
-    return RDXInto(x);
-}
-
-// convention: RDXOuto that pops the last entry, sets data->(used space)
-fun ok64 RDXClose(rdxb x, u8csp rest) {
-    assert(rdxbDataLen(x) == 1);
-    return RDXOuto(x);
-}
-
-fun ok64 RDXWriteClose(rdxb x, u8sp rest) {
-    assert(rdxbDataLen(x) == 1);
-    rdxp last = rdxbLast(x);
-    $mv(rest, last->into);
-    rest[0] += last->pos;
-    return RDXOuto(x);
-}
-
-fun ok64 RDXNext(rdxb x) { return VTABLE_NEXT[rdxbLast(x)->format](x); }
-
-fun ok64 RDXSeek(rdxb x) { return VTABLE_SEEK[rdxbLast(x)->format](x); }
-
-fun ok64 RDXRootZ(rdxcp a, rdxcp b) { return NOTIMPLYET; }
-fun ok64 RDXTupleZ(rdxcp a, rdxcp b) { return NOTIMPLYET; }
-fun ok64 RDXLinearZ(rdxcp a, rdxcp b) { return NOTIMPLYET; }
-fun ok64 RDXEulerZ(rdxcp a, rdxcp b) { return NOTIMPLYET; }
-fun ok64 RDXMultixZ(rdxcp a, rdxcp b) { return NOTIMPLYET; }
+fun ok64 rdxRootZ(rdxcp a, rdxcp b) { return NOTIMPLYET; }
+fun ok64 rdxTupleZ(rdxcp a, rdxcp b) { return NOTIMPLYET; }
+fun ok64 rdxLinearZ(rdxcp a, rdxcp b) { return NOTIMPLYET; }
+fun ok64 rdxEulerZ(rdxcp a, rdxcp b) { return NOTIMPLYET; }
+fun ok64 rdxMultixZ(rdxcp a, rdxcp b) { return NOTIMPLYET; }
 
 static const rdxz ZTABLE[RDX_TYPE_PLEX_LEN] = {
-    RDXRootZ, RDXTupleZ, RDXLinearZ, RDXEulerZ, RDXMultixZ,
+    rdxRootZ, rdxTupleZ, rdxLinearZ, rdxEulerZ, rdxMultixZ,
 };
 
-ok64 RDXCopy(rdxb into, rdxb from);
+ok64 rdxCopy(rdxp into, rdxp from);
+ok64 rdxbCopy(rdxb into, rdxb from);
 ok64 RDXMerge(rdxb into, rdxbps heap);
 ok64 RDXHash(sha256p hash, rdxb root);
 
@@ -375,5 +291,11 @@ static UTFRecode UTABLE[RDX_UTF_ENC_LEN][UTF8_CODER_LEN] = {
         UTF8UnEscTick,
         UTF8UnEscTickAll,
     }};
+
+ok64 rdxbOpen(rdxb b, u8cs data, RDX_FORMAT fmt);
+ok64 rdxbInto(rdxb b);
+
+ok64 rdxbOuto(rdxb its);
+ok64 rdxbClose(rdxb its, u8cs data);
 
 #endif

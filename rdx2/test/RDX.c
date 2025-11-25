@@ -43,8 +43,10 @@ ok64 RDXTestTLV() {
            'd');
     a_u8cs(tres, 'r', 3, 2, 1, 2);
     a_u8cs(tuple, 'p', 5, 0, 'i', 2, 0, 8);
+    a_u8cs(euler, 'e', 18, 0, 'p', 5, 0, 'i', 2, 0, 8, 'p', 8, 2, 2, 3, 'i', 3,
+           0, 1, 2);
     u8csp inputs[] = {
-        tuple, uno, duos, tres, tuple, NULL,
+        tuple, uno, duos, tres, tuple, euler, NULL,
     };
     int i = 0;
     while (inputs[i]) {
@@ -53,18 +55,17 @@ ok64 RDXTestTLV() {
         a_pad(rdx, tlv1rdx, 8);
         zerob(tlv1rdx);
         zerob(tlv1rdx);
-        call(RDXOpen, tlv1rdx, RDX_FORMAT_TLV, in);
+        call(rdxbOpen, tlv1rdx, in, RDX_FORMAT_TLV);
         a_pad(rdx, tlv2rdx, 8);
         zerob(tlv2rdx);
         a_pad(u8, tlv2, TEST_LEN);
         zerob(tlv2);
-        call(RDXWriteOpen, tlv2rdx, RDX_FORMAT_TLV, tlv2_idle);
+        call(rdxbOpen, tlv2rdx, (u8csp)tlv2_idle,
+             RDX_FORMAT_TLV | RDX_FORMAT_WRITE);
 
-        call(RDXCopy, tlv2rdx, tlv1rdx);
+        call(rdxbCopy, tlv2rdx, tlv1rdx);
 
-        call(RDXClose, tlv1rdx, NULL);
-        call(RDXWriteClose, tlv2rdx, tlv2_idle);
-
+        call(rdxbClose, tlv2rdx, (u8c**)tlv2_idle);
         $testeq(in, tlv2_datac);
 
         i++;
