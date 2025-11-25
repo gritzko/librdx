@@ -8,7 +8,7 @@
 
 ok64 RDXTestBasics() {
     sane(1);
-    testeq(sizeof(rdx), 64);
+    testeq(sizeof(rdx), 48);
     done;
 }
 
@@ -35,7 +35,6 @@ ok64 RDXid128test() {
  *    |
  *   tlv3
  */
-#define TEST_LEN 128
 ok64 RDXTestTLV() {
     sane(1);
     a_u8cs(uno, 'i', 2, 0, 2);
@@ -50,23 +49,46 @@ ok64 RDXTestTLV() {
     };
     int i = 0;
     while (inputs[i]) {
-        u8csp in = inputs[i];
+        a_dup(u8c, in, inputs[i]);
 
-        a_pad(rdx, tlv1rdx, 8);
-        zerob(tlv1rdx);
-        zerob(tlv1rdx);
-        call(rdxbOpen, tlv1rdx, in, RDX_FORMAT_TLV);
-        a_pad(rdx, tlv2rdx, 8);
-        zerob(tlv2rdx);
-        a_pad(u8, tlv2, TEST_LEN);
-        zerob(tlv2);
-        call(rdxbOpen, tlv2rdx, (u8csp)tlv2_idle,
-             RDX_FORMAT_TLV | RDX_FORMAT_WRITE);
+        a_pad(u8, tlv2, 256);
+        a_rdx(tlv1it, in, RDX_FORMAT_TLV);
+        a_rdxw(tlv2wit, u8bIdle(tlv2), RDX_FORMAT_TLV);
 
-        call(rdxbCopy, tlv2rdx, tlv1rdx);
+        call(rdxbCopy, tlv2wit, tlv1it);
 
-        call(rdxbClose, tlv2rdx, (u8c**)tlv2_idle);
-        $testeq(in, tlv2_datac);
+        $testeq(inputs[i], tlv2_datac);
+
+        i++;
+    }
+
+    done;
+}
+
+ok64 RDXTestJDR() {
+    sane(1);
+    a_cstr(oneint, "1");
+    u8csp inputs[] = {
+        oneint,
+        NULL,
+    };
+    int i = 0;
+    while (inputs[i]) {
+        a_dup(u8c, in, inputs[i]);
+
+        a_rdx(jdr1it, in, RDX_FORMAT_JDR);
+        a_pad(u8, tlv1, 256);
+        a_rdxw(tlv1wit, u8bIdle(tlv1), RDX_FORMAT_TLV);
+
+        call(rdxbCopy, tlv1wit, jdr1it);
+
+        a_rdx(tlv1it, u8bDataC(tlv1), RDX_FORMAT_TLV);
+        a_pad(u8, jdr2, 256);
+        a_rdxw(jdr2wit, u8bIdle(jdr2), RDX_FORMAT_JDR);
+
+        call(rdxbCopy, jdr2wit, tlv1it);
+
+        $testeq(inputs[i], jdr2_datac);
 
         i++;
     }
@@ -79,6 +101,7 @@ pro(RDXtest) {
     call(RDXTestBasics);
     call(RDXid128test);
     call(RDXTestTLV);
+    call(RDXTestJDR);
     done;
 }
 

@@ -32,8 +32,11 @@ static const u8 RDX_TYPE_LIT[] = {
     0, 'P', 'L', 'E', 'X', 'F', 'I', 'R', 'S', 'T',
 };
 extern const u8 RDX_TYPE_LIT_REV[];
+static const char* RDX_PLEX_OPEN_LIT = " ([{<";
+static const char* RDX_PLEX_CLOSE_LIT = " )]}>";
 
 con ok64 RDXbad = 0x6cd866968;
+con ok64 RDXBADNEST = 0x6cd84b28d5ce71d;
 
 typedef enum {
     RDX_FORMAT_TLV = 0,
@@ -106,9 +109,8 @@ typedef struct {
     u8 format;      // RDX_FORMAT
     u8 type;        // RDX_TYPE (4:4)
     u8 enc;         // RDX_UTF_ENC
-    u8 prnt;        // misc use
+    u8 prnt;        // parent type
     u32 len;        // record length
-    u64 pos;        // pos in the data range
     id128 id;       // element id
     union {         // parsed values
         f64 f;      // float
@@ -116,16 +118,30 @@ typedef struct {
         id128 r;    // reference
         u8cs s;     // string
         u8cs t;     // term
-        u8cs plex;  // plex inners (?)
+        u8cs plex;  // plex inners
     };
     union {
-        u8cs data;  // data range
-        u8s into;   // same
+        u8csp data;  // data range
+        u8sp into;   // same
     };
 } rdx;
 
 typedef rdx* rdxp;
 typedef rdx const* rdxcp;
+
+#define a_rdx(n, s, fmt)            \
+    a_pad(rdx, n, RDX_MAX_NESTING); \
+    zerob(n);                       \
+    rdxbFed1(n);                    \
+    (**n).format = fmt;             \
+    (**n).data = s;
+
+#define a_rdxw(n, s, fmt)                  \
+    a_pad(rdx, n, RDX_MAX_NESTING);        \
+    zerob(n);                              \
+    rdxbFed1(n);                           \
+    (**n).format = fmt | RDX_FORMAT_WRITE; \
+    (**n).into = s;
 
 fun RDX_TYPE rdxType(rdxcp p) { return 0xf & p->type; }
 
@@ -162,7 +178,7 @@ fun int rdxbpcmp(rdxbp const* a, rdxbp const* b) { return 0; }
 
 fun b8 rdxbWritable(rdxbp b) {
     u64 l = rdxbDataLen(b);
-    return l && rdxWritable(rdxbAtP(b, l-1));
+    return l && rdxWritable(rdxbAtP(b, l - 1));
 }
 
 fun u8 rdxbType(rdxbp x) {
@@ -292,10 +308,7 @@ static UTFRecode UTABLE[RDX_UTF_ENC_LEN][UTF8_CODER_LEN] = {
         UTF8UnEscTickAll,
     }};
 
-ok64 rdxbOpen(rdxb b, u8cs data, RDX_FORMAT fmt);
 ok64 rdxbInto(rdxb b);
-
 ok64 rdxbOuto(rdxb its);
-ok64 rdxbClose(rdxb its, u8cs data);
 
 #endif

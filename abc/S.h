@@ -191,7 +191,7 @@ fun ok64 $feedf(u8 **into, u8 const *const *tmpl, ...) {
 
 #define zero(s) memset((void *)&(s), 0, sizeof(s))
 #define zerop(s) memset((void *)s, 0, sizeof(*s))
-#define $zero(s)     \
+#define $null(s)     \
     {                \
         s[0] = NULL; \
         s[1] = NULL; \

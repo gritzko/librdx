@@ -37,44 +37,23 @@ ok64 rdxbCopy(rdxb into, rdxb from) {
     done;
 }
 
-ok64 rdxbOpen(rdxb b, u8cs data, RDX_FORMAT fmt) {
-    sane(rdxbOK(b));
-    call(rdxbFed1, b);
-    rdxp last = rdxbLast(b);
-    zerop(last);
-    $mv(last->data, data);
-    last->format = fmt;
-    last->type = 0;
-    done;
-}
-
 ok64 rdxbInto(rdxb b) {
     sane(rdxbOK(b) && rdxbDataLen(b));
     rdxp prev = rdxbLast(b);
     call(rdxbFed1, b);
     rdxp last = rdxbLast(b);
-    zerop(last);
-    $mv(last->data, prev->plex);
+    zerop(last);  //???
+    last->data = prev->plex;
     last->format = prev->format;
     last->type = 0;
     last->prnt = prev->type;
+    last->len = 0;
+    zero(last->r);
     done;
 }
 
 ok64 rdxbOuto(rdxb its) {
     sane(rdxbOK(its) && rdxbDataLen(its));
-    u8cs data;
-    $mv(data, rdxbLast(its)->data);
-    rdxbPop(its);
-    if (rdxbDataLen(its)) {
-        $mv(rdxbLast(its)->plex, data);
-    }
-    done;
-}
-
-ok64 rdxbClose(rdxb its, u8cs data) {
-    sane(rdxbOK(its) && rdxbDataLen(its));
-    $mv(data, rdxbLast(its)->data);
     rdxbPop(its);
     done;
 }

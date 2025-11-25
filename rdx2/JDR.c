@@ -15,17 +15,15 @@ const u8 CLASSES[] = {
     ['.'] = RDX_JDR_CLASS_CLOSE,
 };
 
-ok64 rdxNextJDR(rdxp x) { return NOTIMPLYET; }
 ok64 rdxSeekJDR(rdxp x) { return NOTIMPLYET; }
 
-ok64 rdxWriteNextJDR(rdxp x) { return NOTIMPLYET; }
 ok64 rdxWriteSeekJDR(rdxp x) { return NOTIMPLYET; }
 
-ok64 RDXSkipBracketsJDR(rdxb x) {
+ok64 RDXSkipBracketsJDR(rdxp x) {
     // recur
     return NOTIMPLYET;
 }
-ok64 RDXSkipInlineTupleJDR(rdxb x) {
+ok64 RDXSkipInlineTupleJDR(rdxp x) {
     RDXSkipBracketsJDR(x);  // recur
     return NOTIMPLYET;
 }
@@ -59,179 +57,109 @@ ok64 RDXCheckNestingJDR(u8 parent_prnt, rdxp at, rdxp next) {
     done;
 }
 
-ok64 RDXNextJDR(rdxb x) {
-    sane(rdxbOK(x));
-    rdxp at = rdxbLast(x);
-    test(!$empty(at->data), NODATA);
-    switch (at->prnt) {
-        case RDX_JDR_CLASS_OPEN:
-            return RDXSkipBracketsJDR(x);
-        case RDX_JDR_CLASS_INTER:  // FIXME
-            return RDXSkipInlineTupleJDR(x);
-        case RDX_JDR_CLASS_CLOSE:
-            fail(NODATA);
+u8 skipCommaColon(u8cs data) {
+    if ($empty(data)) return 0;
+    u8 p = **data;
+    if (p == ':' || p == ',') {
+        ++*data;
+        return p;
     }
-    u8 parent_prnt = '(';
-    u8 parent_type = RDX_TYPE_ROOT;
-    if (rdxbDataLen(x) > 1) {
-        rdxp parent = at - 1;
-        parent_type = parent->type;
-        parent_prnt = parent->prnt;
-    }
-    rdxp next = $term(rdxbData(x));
-    rdxMove(at, next);
-    call(JDRlexer, next);
-    u8 state = (CLASSES[at->prnt] << 4) | CLASSES[next->prnt];
-    // todo implied brackets 4x4  prnt: returns {[(<FIRST non-returns  >)]}:,x
-    switch (state) {  // todo move tricks
-        case RDX_JDR_CLASS_OPEN_OPEN:
-        case RDX_JDR_CLASS_OPEN_INTER:
-        case RDX_JDR_CLASS_OPEN_FIRST:
-        case RDX_JDR_CLASS_OPEN_CLOSE:
-            done;  // :)
-        case RDX_JDR_CLASS_INTER_OPEN:
-            call(RDXCheckNestingJDR, parent_prnt, at, next);
-            *at = *next;
-            return JDRlexer(next);
-        case RDX_JDR_CLASS_INTER_INTER:
-            call(RDXCheckNestingJDR, parent_prnt, at, next);
-            *at = emptyP;
-            done;
-        case RDX_JDR_CLASS_INTER_FIRST:
-            call(RDXCheckNestingJDR, parent_prnt, at, next);
-            *at = *next;
-            return JDRlexer(next);
-        case RDX_JDR_CLASS_INTER_CLOSE:
-            call(RDXCheckNestingJDR, parent_prnt, at, next);
-            *at = emptyP;
-            done;
-        case RDX_JDR_CLASS_FIRST_OPEN:  // 1:2 (  // bust input
-            if (parent_type == RDX_TYPE_TUPLE && parent_prnt == ':') {
-                *next = closeP;
-                $mv(next->data, at->data);
-            }
-            done;
-        case RDX_JDR_CLASS_FIRST_INTER:
-            if (parent_prnt == next->prnt) {
-                call(JDRlexer, next);
-            } else if (next->prnt == ':') {
-                *next = *at;
-                *at = openP;
-            } else if (next->prnt == ',') {
-                *next = closeP;
-                $mv(next->data, at->data);
-            }
-            done;
-        case RDX_JDR_CLASS_FIRST_FIRST:  // 1:2 3  bust input
-            if (parent_type == RDX_TYPE_TUPLE && parent_prnt == ':') {
-                *next = closeP;
-                $mv(next->data, at->data);
-            }
-            done;
-        case RDX_JDR_CLASS_FIRST_CLOSE:
-            done;
-        case RDX_JDR_CLASS_CLOSE_OPEN:
-        case RDX_JDR_CLASS_CLOSE_INTER:
-        case RDX_JDR_CLASS_CLOSE_FIRST:
-        case RDX_JDR_CLASS_CLOSE_CLOSE:  // 1:() (  bust input twice?
-            if (parent_type != at->type) fail(JDRbadnest);
-            if (parent_type == RDX_TYPE_TUPLE && parent_prnt == ':')
-                fail(JDRbadnest);
-            fail(NODATA);  // bust input
-    }
-    done;
+    return 0;
 }
 
-ok64 RDXIntoJDR(rdxb x) {
-    sane(rdxbOK(x));
-    if (rdxbDataLen(x)) {
-        $mv(rdxbLast(x)->data, (*rdxbIdle(x))->data);
+ok64 rdxNextJDR(rdxp at) {
+    sane(at);
+    test(!$empty(at->data), END);
+    u8 inlineP = at->prnt == RDX_TYPE_TUPLE && (at - 1)->enc == ':';
+    if (at->type && at->type < RDX_TYPE_PLEX_LEN) {
+        $mv(at->data, at->plex)
     }
-    call(rdxbFed1, x);
-    done;
-}
-
-ok64 RDXOutoJDR(rdxb x) {
-    sane(rdxbOK(x));
-    call(rdxbPop, x);
-    if (rdxbDataLen(x)) {
-        rdxp last = rdxbLast(x);
-        rdxp inner = last + 1;  // fixme :(
-        if (inner->data[0]) last->data[0] = inner->data[0];
+    if ($empty(at->data)) {
+        at->type = 0;
+        return END;
     }
-    done;
-}
-
-ok64 RDXSeekJDR(rdxb x) { return NOTIMPLYET; }
-
-static const char* BRACKET[2] = {" ([{<", " )]}>"};
-
-ok64 RDXWriteNextJDRIndent(rdxb x) {
-    sane(rdxbOK(x) && !rdxbEmpty(x));
-    rdxp last = rdxbLast(x);
-    u64 style = last->pos;
-    if (style & RDX_JDR_FORMAT_INDENT_LINES)
-        if ((style & RDX_JDR_FORMAT_NL_FIRST) ||
-            (rdxTypePlex(last) && (style & RDX_JDR_FORMAT_NL_PLEX))) {
-            call(u8sFeed1, last->into, '\n');
-            call(u8sFeed1xN, last->into, ' ', (rdxbDataLen(x) - 1) * 4);
+    if (inlineP) {
+        if (**at->data != ':') {
+            at->type = 0;
+            return END;
         }
+        ++*at->data;  // inline tuple continues
+    } else {
+        if (**at->data == ',') ++*at->data;
+    }
+    u8 pre_enc = at->enc;
+    u8cs pre_data;
+    $mv(pre_data, at->data);
+
+    call(JDRlexer, at);
+
+    switch (at->enc) {
+        case '{':
+            $mv(at->plex, at->data);
+            done;
+        case '}':
+            test(at->type == at->prnt, RDXBADNEST);
+            return END;
+        case ':':
+            at->type = RDX_TYPE_TUPLE;
+            $null(at->plex);
+            done;
+        case ',':
+            at->type = RDX_TYPE_TUPLE;
+            $null(at->plex);
+            done;
+        case '1': {
+            if (!inlineP && !$empty(at->data) && ':' == **at->data) {
+                at->type = RDX_TYPE_TUPLE;
+                at->enc = ':';
+                $mv(at->plex, pre_data);
+            }  // todo enc
+            done;
+        }
+    }
+
     done;
 }
 
-ok64 RDXWriteNextJDRSeparator(rdxb x) {
-    sane(rdxbOK(x) && !rdxbEmpty(x));
-    rdxp last = rdxbLast(x);
-    u64 style = last->pos;
-    if (rdxbDataLen(x) && (last - 1)->type == RDX_TYPE_TUPLE &&
-        (last - 1)->prnt == ':') {
-        call(u8sFeed1, last->into, ':');
-        done;
+ok64 rdxWriteNextJDR(rdxp x) {
+    sane(x);
+    if (x->len != 0 && x->prnt) {
+        u8 sep = (x->prnt == RDX_TYPE_TUPLE && (x - 1)->enc == ':') ? ':' : ',';
+        call(u8sFeed1, x->into, sep);
     }
-    // if (style & RDX_JDR_FORMAT_COMMA_FIRST) todo make it a shift
-    // ',' ', ' ',\n' ':'
-    done;
-}
-
-ok64 RDXWriteNextJDR(rdxb x) {
-    sane(rdxbOK(x) && !rdxbEmpty(x));
-    rdxp last = rdxbLast(x);
-    if (last->prnt) {  // maybe close bracket
-        call(RDXWriteNextJDRIndent, x);
-        call(u8sFeed1, last->into, last->prnt);
-        call(RDXWriteNextJDRSeparator, x);
-    }
-    call(RDXWriteNextJDRIndent, x);
-    switch (last->type) {
-        case RDX_TYPE_FLOAT:
-            call(utf8sFeedFloat, last->into, &last->f);
-            break;
-        case RDX_TYPE_INT:
-            call(utf8sFeedInt, last->into, &last->i);
-            break;
-        case RDX_TYPE_REF:
-            call(RDXutf8sFeedID, last->into, &last->r);
-            break;
-        case RDX_TYPE_STRING:
-            test(last->enc == RDX_UTF_ENC_UTF8,
-                 NOTIMPLYET);  // may need 2 recodings
-            call(utf8sFeed1, last->into, '"');
-            call(UTABLE[RDX_UTF_ENC_UTF8_ESC][UTF8_ENCODER_ALL], last->into,
-                 last->s);
-            call(utf8sFeed1, last->into, '"');
-            break;
-        case RDX_TYPE_TERM:
-            call(u8sFeed, last->into, last->t);
+    // todo indent
+    switch (x->type) {
+        case 0:
+            if (x->prnt) {
+                call(u8sFeed1, x->into, RDX_PLEX_CLOSE_LIT[x->prnt]);
+            }
             break;
         case RDX_TYPE_TUPLE:
         case RDX_TYPE_LINEAR:
         case RDX_TYPE_EULER:
         case RDX_TYPE_MULTIX:
-            call(u8sFeed1, last->into, BRACKET[0][last->type]);
-            last->prnt = BRACKET[1][last->type];
+            call(u8sFeed1, x->into, RDX_PLEX_OPEN_LIT[x->prnt]);
+            break;
+        case RDX_TYPE_FLOAT:
+            call(utf8sFeedFloat, x->into, &x->f);
+            break;
+        case RDX_TYPE_INT:
+            call(utf8sFeedInt, x->into, &x->i);
+            break;
+        case RDX_TYPE_REF:
+            call(RDXutf8sFeedID, x->into, &x->r);
+            break;
+        case RDX_TYPE_STRING:
+            test(x->enc != RDX_UTF_ENC_UTF8, NOTIMPLYET); // todo
+            call(utf8sFeed1, x->into, '"');
+            call(UTABLE[RDX_UTF_ENC_UTF8_ESC][UTF8_ENCODER_ALL], x->into, x->s);
+            call(utf8sFeed1, x->into, '"');
+            break;
+        case RDX_TYPE_TERM:
+            call(u8sFeed, x->into, x->t);
             break;
     }
-    call(RDXWriteNextJDRSeparator, x);
+    ++x->len;
     done;
 }
 ok64 RDXWriteIntoJDR(rdxb x) {
