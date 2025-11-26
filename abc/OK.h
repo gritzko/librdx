@@ -21,6 +21,8 @@ con ok64 OKbadtext = 0x18526968e29f38;
 con ok64 faileq = 0xaa5b70a75;
 con ok64 FAILeq = 0x3ca495a75;
 con ok64 RONbad	= 0x6d85e6968;
+con ok64 NEXT	= 0x5ce85d;
+
 
 con char *_base_ron64 =
     "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz~";

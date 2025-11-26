@@ -68,8 +68,14 @@ ok64 RDXTestTLV() {
 ok64 RDXTestJDR() {
     sane(1);
     a_cstr(oneint, "1");
+    a_cstr(oneterm, "a1");
+    a_cstr(oneid, "a-1");
+    a_cstr(tuple, "(1,two,3E0)");
     u8csp inputs[] = {
+        tuple,
         oneint,
+        oneterm,
+        oneid,
         NULL,
     };
     int i = 0;

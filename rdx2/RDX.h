@@ -35,7 +35,7 @@ extern const u8 RDX_TYPE_LIT_REV[];
 static const char* RDX_PLEX_OPEN_LIT = " ([{<";
 static const char* RDX_PLEX_CLOSE_LIT = " )]}>";
 
-con ok64 RDXbad = 0x6cd866968;
+con ok64 RDXBAD = 0x6cd84b28d;
 con ok64 RDXBADNEST = 0x6cd84b28d5ce71d;
 
 typedef enum {
@@ -143,9 +143,9 @@ typedef rdx const* rdxcp;
     (**n).format = fmt | RDX_FORMAT_WRITE; \
     (**n).into = s;
 
-fun RDX_TYPE rdxType(rdxcp p) { return 0xf & p->type; }
-
-fun RDX_TYPE rdxTypePlex(rdxcp p) { return rdxType(p) < RDX_TYPE_PLEX_LEN; }
+fun RDX_TYPE rdxTypePlex(rdxcp p) {
+    return p->type && p->type < RDX_TYPE_PLEX_LEN;
+}
 
 fun b8 rdxWritable(rdxcp p) { return p->format & RDX_FORMAT_WRITE; }
 
@@ -183,7 +183,7 @@ fun b8 rdxbWritable(rdxbp b) {
 
 fun u8 rdxbType(rdxbp x) {
     if (rdxbEmpty(x)) return RDX_TYPE_ROOT;
-    return rdxType(rdxbLast(x));
+    return rdxbLast(x)->type;
 }
 
 fun b8 rdxbTypePlex(rdxbp x) { return rdxbType(x) < RDX_TYPE_PLEX_LEN; }
@@ -199,7 +199,16 @@ typedef ok64 (*rdxbf)(rdxbp x);
 ok64 rdxNextTLV(rdxp x);
 ok64 rdxSeekTLV(rdxp x);
 
-ok64 rdxNextJDR(rdxp x);
+ok64 JDRlexer(rdxp x);
+fun ok64 rdxNextJDR(rdxp x) {
+    if (x->type && x->type < RDX_TYPE_PLEX_LEN) {
+        // FIXME length -1
+
+        $mv(x->data, x->plex);
+    }
+    if ($empty(x->data)) return END;
+    return JDRlexer(x);
+}
 ok64 rdxSeekJDR(rdxp x);
 
 ok64 rdxNextLSM(rdxp x);

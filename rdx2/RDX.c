@@ -47,6 +47,7 @@ ok64 rdxbInto(rdxb b) {
     last->format = prev->format;
     last->type = 0;
     last->prnt = prev->type;
+    last->enc = 0;
     last->len = 0;
     zero(last->r);
     done;
@@ -54,6 +55,9 @@ ok64 rdxbInto(rdxb b) {
 
 ok64 rdxbOuto(rdxb its) {
     sane(rdxbOK(its) && rdxbDataLen(its));
+    rdxp lo = rdxbLast(its);
     rdxbPop(its);
+    rdxp hi = rdxbLast(its);
+    $mv(hi->plex, lo->data);
     done;
 }

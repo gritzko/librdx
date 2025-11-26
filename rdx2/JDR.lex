@@ -27,7 +27,7 @@ Int = [\-]? ( [0] | [1-9] dec* );
 Float = (   Int
             ("." dec+)?
             ([eE] [\-+]? dec+ )?  ) -Int;
-Term = (ron64 - dec) ron64** -Int -Float;
+Term = ((ron64 - dec) ron64*) -Int -Float;
 Ref = id128 -Float -Int -Term;
 String = ["] utf8esc* ["];
 MLString = "`" (utf8cp - [`])* "`";
@@ -55,4 +55,4 @@ FIRST = ( Float | Int | Ref | String | MLString | Term ) ws* ( Stamp | NoStamp )
 
 Token = FIRST | Open | Close | Inter;
 
-Root = ( ws* Token )** ws*;
+Root = ws* ( Token <: ws* )*;

@@ -66,7 +66,7 @@ const u8c *LEX_TEMPL[LEX_TEMPL_LANG_LEN][LEX_TEMPL_LEN][2] = {
                "%%write data;\n"
                "\n"
                "// the public API function\n"
-               "pro(${mod}lexer, ${mod}state* state) {\n"
+               "ok64 ${mod}lexer(${mod}state* state) {\n"
                "\n"
                "    a_dup(u8c, data, state->data);\n"
                "    sane($$ok(data));\n"
@@ -84,9 +84,9 @@ const u8c *LEX_TEMPL[LEX_TEMPL_LANG_LEN][LEX_TEMPL_LEN][2] = {
                "    %% write exec;\n"
                "\n"
                "    state->data[0] = p;\n"
-               "    if (p!=data[1] || cs < ${mod}_first_final || o!=OK) {\n"
-               "        return ${mod}bad;\n"
-               "    }\n"
+               "    if (o==OK && cs < ${mod}_first_final) \n"
+               "        o = ${mod}bad;\n"
+               "    \n"
                "    return o;\n"
                "}\n"),
         $u8str("c"),
