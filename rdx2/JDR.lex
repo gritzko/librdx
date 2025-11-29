@@ -35,24 +35,12 @@ MLString = "`" (utf8cp - [`])* "`";
 Stamp = "@" id128;
 NoStamp = "";
 
-OpenP = "(";
-CloseP = ")";
-OpenL = "[";
-CloseL = "]";
-OpenE = "{";
-CloseE = "}";
-OpenX = "<";
-CloseX = ">";
+Comma = [,;];
+Colon = [:];
 
-Comma = ",";
-Colon = ":";
-
-Open = (OpenP | OpenL | OpenE | OpenX) ws* (Stamp | NoStamp);
-Close = (CloseP | CloseL | CloseE | CloseX);
-Inter = (Comma | Colon);
-
+Open = [(\[{<] ws* (Stamp | NoStamp);
+Close = [)\]}>];
 FIRST = ( Float | Int | Ref | String | MLString | Term ) ws* ( Stamp | NoStamp );
+Inter = Comma | Colon | Open | Close | ws+;
 
-Token = FIRST | Open | Close | Inter;
-
-Root = ws* ( Token <: ws* )*;
+Root = Inter* ( FIRST Inter+ )* ;

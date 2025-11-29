@@ -175,3 +175,28 @@ ok64 TLVendany($u8 tlv, u8 type, Bu8p stack) {
     u8pbPop(stack);
     done;
 }
+
+ok64 TLVu8sStart(u8sc idle, u8s inner, u8 lit) {
+    sane(u8sOK(idle) && inner != NULL);
+    $mv(inner, idle);
+    call(u8sFeed1, inner, lit);
+    u32 z = 0;
+    call(u8sFeed32, inner, &z);
+    done;
+}
+
+ok64 TLVu8sEnd(u8s idle, u8sc inner, u8 lit) {
+    sane(u8sOK(idle) && u8sOK(inner) && inner[1] == idle[1] &&
+         *inner > *idle + 5 && lit == **idle);
+    u64 tl = *inner - *idle;
+    *(u32*)(1 + *idle) = tl - 5;
+    if (tl <= 0xff + 5) {
+        **idle |= TLVaA;
+        memmove(*idle + 2, *idle + 5, tl - 5);
+        *idle = *inner - 3;
+    } else {
+        *idle = *inner;
+    }
+    done;
+}
+

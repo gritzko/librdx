@@ -105,4 +105,8 @@ ok64 TLVFeedKeyVal($u8 tlv, u8c type, u8cs key, $cu8c val);
 
 ok64 TLVDrainKeyVal(u8* type, u8cs key, u8cs val, u8cs tlv);
 
+ok64 TLVu8sStart(u8sc idle, u8s inner, u8 lit);
+
+ok64 TLVu8sEnd(u8s idle, u8sc inner, u8 lit);
+
 #endif

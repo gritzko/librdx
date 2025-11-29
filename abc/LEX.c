@@ -85,7 +85,7 @@ const u8c *LEX_TEMPL[LEX_TEMPL_LANG_LEN][LEX_TEMPL_LEN][2] = {
                "\n"
                "    state->data[0] = p;\n"
                "    if (o==OK && cs < ${mod}_first_final) \n"
-               "        o = ${mod}bad;\n"
+               "        o = ${mod}BAD;\n"
                "    \n"
                "    return o;\n"
                "}\n"),

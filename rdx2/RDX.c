@@ -33,31 +33,24 @@ ok64 rdxbCopy(rdxb into, rdxb from) {
     }
     seen(END);
     i->type = 0;
-    call(rdxNext, i);
+    f->type = 0;
     done;
 }
 
 ok64 rdxbInto(rdxb b) {
     sane(rdxbOK(b) && rdxbDataLen(b));
-    rdxp prev = rdxbLast(b);
+    rdxp p = rdxbLast(b);
     call(rdxbFed1, b);
-    rdxp last = rdxbLast(b);
-    zerop(last);  //???
-    last->data = prev->plex;
-    last->format = prev->format;
-    last->type = 0;
-    last->prnt = prev->type;
-    last->enc = 0;
-    last->len = 0;
-    zero(last->r);
+    rdxp c = rdxbLast(b);
+    call(VTABLE_INTO[p->format], c, p);
     done;
 }
 
 ok64 rdxbOuto(rdxb its) {
     sane(rdxbOK(its) && rdxbDataLen(its));
-    rdxp lo = rdxbLast(its);
+    rdxp c = rdxbLast(its);
     rdxbPop(its);
-    rdxp hi = rdxbLast(its);
-    $mv(hi->plex, lo->data);
+    rdxp p = rdxbLast(its);
+    call(VTABLE_OUTO[p->format], c, p);
     done;
 }

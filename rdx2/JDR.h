@@ -1,57 +1,143 @@
 //
 // Created by gritzko on 11/20/25.
 //
-
-#ifndef RDX_JDR_H
-#define RDX_JDR_H
 #include "RDX.h"
 
-// len -> line number, pos -> p
 typedef rdx JDRstate;
 
-ok64 JDRlexer(JDRstate* s);
+con ok64 JDRBAD = 0x4cd6cb28d;
 
-con ok64 JDRbadnest = 0x4cd6e6968ca9df8;
-con ok64 JDRbad = 0x4cd6e6968;
+fun u8 JDRPeek(utf8cs tok, rdxp x) { return tok[1] < x->data[1] ? *tok[1] : 0; }
 
-typedef enum {
-    RDX_JDR_CLASS_OPEN = 0,
-    RDX_JDR_CLASS_INTER = 1,
-    RDX_JDR_CLASS_FIRST = 2,
-    RDX_JDR_CLASS_CLOSE = 3,
-    RDX_JDR_CLASS_LEN = 4,
-} RDX_JDR_CLASS;
-
-typedef enum {
-    RDX_JDR_CLASS_OPEN_OPEN = 0,
-    RDX_JDR_CLASS_OPEN_INTER = 1,
-    RDX_JDR_CLASS_OPEN_FIRST = 2,
-    RDX_JDR_CLASS_OPEN_CLOSE = 3,
-    RDX_JDR_CLASS_INTER_OPEN = 4,
-    RDX_JDR_CLASS_INTER_INTER = 5,
-    RDX_JDR_CLASS_INTER_FIRST = 6,
-    RDX_JDR_CLASS_INTER_CLOSE = 7,
-    RDX_JDR_CLASS_FIRST_OPEN = 8,
-    RDX_JDR_CLASS_FIRST_INTER = 9,
-    RDX_JDR_CLASS_FIRST_FIRST = 10,
-    RDX_JDR_CLASS_FIRST_CLOSE = 11,
-    RDX_JDR_CLASS_CLOSE_OPEN = 12,
-    RDX_JDR_CLASS_CLOSE_INTER = 13,
-    RDX_JDR_CLASS_CLOSE_FIRST = 14,
-    RDX_JDR_CLASS_CLOSE_CLOSE = 15,
-} RDX_JDR_LR1;
-
-typedef enum {
-    RDX_JDR_FORMAT_INDENT_LINES = 1,
-    RDX_JDR_FORMAT_ML_STRINGS = 2,
-    RDX_JDR_FORMAT_COMMA_PLEX = 4,
-    RDX_JDR_FORMAT_COMMA_FIRST = 8,
-    RDX_JDR_FORMAT_SPACE_PLEX = 16,
-    RDX_JDR_FORMAT_SPACE_FIRST = 32,
-    RDX_JDR_FORMAT_NL_PLEX = 64,
-    RDX_JDR_FORMAT_NL_FIRST = 128,
-    RDX_JDR_FORMAT_TRAILING_SEP = 1<<8,
-    RDX_JDR_FORMAT_INLINE_TUPLES = 1<<30,
-} RDX_JDR_FORMAT;
-
-#endif  // RDX_JDR_H
+// user functions (callbacks) for the parser
+fun ok64 JDRonNL(utf8cs tok, rdxp x) { return OK; }
+fun ok64 JDRonUtf8cp1(utf8cs tok, rdxp x) { return OK; }
+fun ok64 JDRonUtf8cp2(utf8cs tok, rdxp x) { return OK; }
+fun ok64 JDRonUtf8cp3(utf8cs tok, rdxp x) { return OK; }
+fun ok64 JDRonUtf8cp4(utf8cs tok, rdxp x) { return OK; }
+fun ok64 JDRonInt(utf8cs tok, rdxp x) {
+    x->type = RDX_TYPE_INT;
+    i64decdrain(&x->i, tok);
+    return OK;
+}
+fun ok64 JDRonFloat(utf8cs tok, rdxp x) {
+    u64 l = $len(tok);
+    if (unlikely(l > 32)) return RDXBAD;
+    utf8sDrainFloat(tok, &x->f);
+    x->type = RDX_TYPE_FLOAT;
+    return OK;
+}
+fun ok64 JDRonTerm(utf8cs tok, rdxp x) {
+    x->type = RDX_TYPE_TERM;
+    $mv(x->t, tok);
+    return OK;
+}
+fun ok64 JDRonRef(utf8cs tok, rdxp x) {
+    x->type = RDX_TYPE_REF;
+    RDXutf8sDrainID(tok, &x->r);
+    return OK;
+}
+fun ok64 JDRonString(utf8cs tok, rdxp x) {
+    $mv(x->s, tok);
+    x->type = RDX_TYPE_STRING;
+    x->cformat = RDX_UTF_ENC_UTF8_ESC;
+    return OK;
+}
+fun ok64 JDRonMLString(utf8cs tok, rdxp x) {
+    $mv(x->s, tok);
+    x->type = RDX_TYPE_STRING;
+    x->cformat = RDX_UTF_ENC_UTF8_ESC_ML;  // ?
+    return OK;
+}
+fun ok64 JDRonStamp(utf8cs tok, rdxp x) { return RDXutf8sDrainID(tok, &x->id); }
+fun ok64 JDRonNoStamp(utf8cs tok, rdxp x) {
+    zero(x->id);
+    return OK;
+}
+fun ok64 JDRonInlineComma(utf8cs tok, rdxp x) { return RDXBADNEST; }
+fun ok64 JDRonComma(utf8cs tok, rdxp x) {
+    if (x->format == RDX_FORMAT_JDR_PIN) return JDRonInlineComma(tok, x);
+    if (x->len & 1) {
+        x->type = 0;
+        x->len += 1;
+        return OK;
+    } else {
+        x->type = RDX_TYPE_TUPLE;
+        x->cformat = RDX_FORMAT_JDR_PIN;
+        x->len += 2;
+        $null(x->plex);
+        return NEXT;
+    }
+}
+fun ok64 JDRonInlineColon(utf8cs tok, rdxp x) {
+    if (x->len & 1) {
+        x->type = 0;
+        x->len += 1;
+        return OK;
+    } else {
+        x->type = RDX_TYPE_TUPLE;
+        x->cformat = RDX_FORMAT_JDR_PIN;
+        x->len += 2;
+        $null(x->plex);
+        return NEXT;
+    }
+}
+fun ok64 JDRonColon(utf8cs tok, rdxp x) {
+    if (x->format == RDX_FORMAT_JDR_PIN) return JDRonInlineColon(tok, x);
+    x->type = RDX_TYPE_TUPLE;
+    x->cformat = RDX_FORMAT_JDR_PIN;
+    x->len += 2;
+    $null(x->plex);
+    return NEXT;
+}
+fun ok64 JDRonInlineOpen(utf8cs tok, rdxp x) { return NOTIMPLYET; }
+fun ok64 JDRonOpen(utf8cs tok, rdxp x) {
+    if (x->format == RDX_FORMAT_JDR_PIN) {
+        if (x->len == 0) return RDXBAD;
+    }
+    x->type = RDX_TYPE_BRACKET_REV[**tok];
+    x->plex[0] = tok[1];
+    x->plex[1] = x->data[1];
+    x->cformat = RDX_FORMAT_JDR;
+    return NEXT;
+}
+fun ok64 JDRonInlineClose(utf8cs tok, rdxp x) {  // ????
+    x->data[0] = tok[0];                         // backtrack
+    x->type = 0;
+    return END;
+}
+fun ok64 JDRonClose(utf8cs tok, rdxp x) {
+    if (x->format == RDX_FORMAT_JDR_PIN) return RDXBADNEST;
+    if (x->type != RDX_TYPE_BRACKET_REV[**tok]) return RDXBADNEST;
+    x->type = 0;
+    // FIXME peek?  test   1:(2, 3) vs 1:(2, 3):4:5
+    return END;
+}
+fun ok64 JDRonInter(utf8cs tok, rdxp x) { return OK; }
+fun ok64 JDRonInlineFIRST(utf8cs tok, rdxp x) {
+    if (x->len & 1) {
+        return RDXBAD;  // ?
+    }
+    if (JDRPeek(tok, x) != ':') {
+        x->data[1] = tok[1];
+    }
+    x->len += 1;
+    return NEXT;
+}
+fun ok64 JDRonFIRST(utf8cs tok, rdxp x) {
+    if (x->format == RDX_FORMAT_JDR_PIN) return JDRonInlineFIRST(tok, x);
+    if (x->len & 1) {
+        x->len += 2;
+    } else {
+        x->len += 1;
+    }
+    if (JDRPeek(tok, x) == ':') {
+        x->data[0] = tok[0];
+        x->type = RDX_TYPE_TUPLE;
+        x->cformat = RDX_FORMAT_JDR_PIN;
+        x->plex[0] = tok[0];
+        x->plex[1] = x->data[1];
+    }
+    return NEXT;
+}
+fun ok64 JDRonRoot(utf8cs tok, rdxp x) { return OK; }

@@ -17,6 +17,14 @@ ok64 rdxNextTLV(rdxp x) {
     x->type = RDX_TYPE_LIT_REV[lit];
     call(ZINTu8sDrain128, idbody, &x->id.seq, &x->id.src);
     switch (x->type) {  //
+        case RDX_TYPE_TUPLE:
+        case RDX_TYPE_LINEAR:
+        case RDX_TYPE_EULER:
+        case RDX_TYPE_MULTIX: {
+            $mv(x->plex, value);
+            x->cformat = RDX_FORMAT_TLV;
+            break;
+        }
         case RDX_TYPE_FLOAT:
             call(ZINTu8sDrainFloat, &x->f, value);
             break;
@@ -32,57 +40,33 @@ ok64 rdxNextTLV(rdxp x) {
         case RDX_TYPE_TERM:
             $mv(x->t, value);
             break;
-        case RDX_TYPE_TUPLE:
-        case RDX_TYPE_LINEAR:
-        case RDX_TYPE_EULER:
-        case RDX_TYPE_MULTIX: {
-            $mv(x->plex, value);
-            break;
-        }
+        default:
+            fail(RDXBAD);
     }
     done;
 }
 
-ok64 rdxSeekTLV(rdxp x) {
-    // todo id <> id?!!  rdxbPending(x)
-    return NOTIMPLYET;
-}
-
-ok64 TLVu8sStart(u8sc idle, u8s inner, u8 lit) {
-    sane(u8sOK(idle) && inner != NULL);
-    $mv(inner, idle);
-    call(u8sFeed1, inner, lit);
-    u32 z = 0;
-    call(u8sFeed32, inner, &z);
-    done;
-}
-
-ok64 TLVu8sEnd(u8s idle, u8s inner, u8 lit) {
-    sane(u8sOK(idle) && u8sOK(inner) && inner[1] == idle[1] &&
-         *inner > *idle + 5 && lit == **idle);
-    u64 tl = *inner - *idle;
-    *(u32*)(1 + *idle) = tl - 5;
-    if (tl <= 0xff + 5) {
-        **idle |= TLVaA;
-        memmove(*idle + 2, *idle + 5, tl - 5);
-        *idle = *inner - 3;
+ok64 rdxIntoTLV(rdxp c, rdxp p) {
+    sane(c && p && p->type);
+    c->format = p->cformat;
+    c->data = p->plex;
+    c->ptype = p->type;
+    if (!c->type) {
+        c->type = 0;
+        c->cformat = 0;
+        c->len = 0;
+        zero(c->r);
     } else {
-        *idle = *inner;
+        fail(NOTIMPLYET);
     }
     done;
 }
+
+ok64 rdxOutoTLV(rdxp c, rdxp p) { return OK; }
 
 ok64 rdxWriteNextTLV(rdxp x) {
     sane(x);
-    if (x->type == 0) {  // END
-        if (x->prnt) {
-            u8 plit = RDX_TYPE_LIT[(x - 1)->type];
-            call(TLVu8sEnd, (x - 1)->into, x->into, plit);
-        }
-        done;
-    }
     u8 lit = RDX_TYPE_LIT[x->type];
-
     a_pad(u8, id, 16);
     call(ZINTu8sFeed128, id_idle, x->id.seq, x->id.src);
     a_pad(u8, val, 16);
@@ -95,6 +79,7 @@ ok64 rdxWriteNextTLV(rdxp x) {
             call(TLVu8sStart, x->into, plex, lit);
             call(u8sFeed1, plex, $len(id_data));
             call(u8sFeed, plex, id_datac);
+            x->cformat = RDX_FORMAT_TLV | RDX_FORMAT_WRITE;
             done;
         }
         case RDX_TYPE_FLOAT:
@@ -114,7 +99,7 @@ ok64 rdxWriteNextTLV(rdxp x) {
             call(TLVu8sStart, x->into, str, lit);
             call(u8sFeed1, str, $len(id_data));
             call(u8sFeed, str, id_datac);
-            UTABLE[x->enc][3](str, x->s);
+            UTABLE[x->cformat][3](str, x->s);
             call(TLVu8sEnd, x->into, str, lit);
             break;
         }
@@ -122,25 +107,26 @@ ok64 rdxWriteNextTLV(rdxp x) {
             call(TLVFeedKeyVal, x->into, lit, id_datac, x->t);
             break;
         default:
-            fail(BADARG);
+            fail(RDXBAD);
     }
     done;
 }
 
-ok64 rdxWriteSeekTLV(rdxp x) { return NOTIMPLYET; }
+ok64 rdxWriteIntoTLV(rdxp c, rdxp p) {
+    sane(c && p && p->type);
+    c->format = p->cformat;
+    c->data = p->plex;
+    c->ptype = p->type;
+    c->type = 0;
+    c->cformat = 0;
+    c->len = 0;
+    zero(c->r);
+    done;
+}
 
-const u8 RDX_TYPE_LIT_REV[] = {
-    10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10,
-    10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10,
-    10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 0,  10, 10, 10, 10, 10, 10, 10, 10,
-    10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 3,  5,  10, 10, 6,  10, 10,
-    2,  10, 10, 10, 1,  10, 7,  8,  9,  10, 10, 10, 4,  10, 10, 10, 10, 10, 10,
-    10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10,
-    10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10,
-    10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10,
-    10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10,
-    10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10,
-    10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10,
-    10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10,
-    10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10,
-    10, 10, 10, 10, 10, 10, 10, 10, 10};
+ok64 rdxWriteOutoTLV(rdxp c, rdxp p) {
+    sane(c && p);
+    u8 plit = RDX_TYPE_LIT[c->ptype];
+    call(TLVu8sEnd, p->into, c->into, plit);
+    done;
+}

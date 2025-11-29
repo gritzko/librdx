@@ -26,14 +26,14 @@ list(APPEND RDX_HEADERS
     RDX.h
     LSM.h
     DIFF.h
+    JDR.h
 )
 
 list(APPEND RDX_SOURCES 
     RDX.c
-    RDOM.c
+    MEM.c
     JDR.rl.c
     JDR.c
-    JDR.actions.c
     LSM.c
     WAL.c
     TLV.c

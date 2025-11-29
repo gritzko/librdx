@@ -18,22 +18,13 @@ enum {
 	JDRMLString = JDRenum+25,
 	JDRStamp = JDRenum+26,
 	JDRNoStamp = JDRenum+27,
-	JDROpenP = JDRenum+28,
-	JDRCloseP = JDRenum+29,
-	JDROpenL = JDRenum+30,
-	JDRCloseL = JDRenum+31,
-	JDROpenE = JDRenum+32,
-	JDRCloseE = JDRenum+33,
-	JDROpenX = JDRenum+34,
-	JDRCloseX = JDRenum+35,
-	JDRComma = JDRenum+36,
-	JDRColon = JDRenum+37,
-	JDROpen = JDRenum+38,
-	JDRClose = JDRenum+39,
-	JDRInter = JDRenum+40,
-	JDRFIRST = JDRenum+41,
-	JDRToken = JDRenum+42,
-	JDRRoot = JDRenum+43,
+	JDRComma = JDRenum+28,
+	JDRColon = JDRenum+29,
+	JDROpen = JDRenum+30,
+	JDRClose = JDRenum+31,
+	JDRFIRST = JDRenum+32,
+	JDRInter = JDRenum+33,
+	JDRRoot = JDRenum+34,
 };
 
 // user functions (callbacks) for the parser
@@ -50,21 +41,12 @@ ok64 JDRonString (utf8cs tok, JDRstate* state);
 ok64 JDRonMLString (utf8cs tok, JDRstate* state);
 ok64 JDRonStamp (utf8cs tok, JDRstate* state);
 ok64 JDRonNoStamp (utf8cs tok, JDRstate* state);
-ok64 JDRonOpenP (utf8cs tok, JDRstate* state);
-ok64 JDRonCloseP (utf8cs tok, JDRstate* state);
-ok64 JDRonOpenL (utf8cs tok, JDRstate* state);
-ok64 JDRonCloseL (utf8cs tok, JDRstate* state);
-ok64 JDRonOpenE (utf8cs tok, JDRstate* state);
-ok64 JDRonCloseE (utf8cs tok, JDRstate* state);
-ok64 JDRonOpenX (utf8cs tok, JDRstate* state);
-ok64 JDRonCloseX (utf8cs tok, JDRstate* state);
 ok64 JDRonComma (utf8cs tok, JDRstate* state);
 ok64 JDRonColon (utf8cs tok, JDRstate* state);
 ok64 JDRonOpen (utf8cs tok, JDRstate* state);
 ok64 JDRonClose (utf8cs tok, JDRstate* state);
-ok64 JDRonInter (utf8cs tok, JDRstate* state);
 ok64 JDRonFIRST (utf8cs tok, JDRstate* state);
-ok64 JDRonToken (utf8cs tok, JDRstate* state);
+ok64 JDRonInter (utf8cs tok, JDRstate* state);
 ok64 JDRonRoot (utf8cs tok, JDRstate* state);
 
 
@@ -193,78 +175,6 @@ action JDRNoStamp1 {
         fbreak;
     }
 }
-action JDROpenP0 { mark0[JDROpenP] = p - data[0]; }
-action JDROpenP1 {
-    tok[0] = data[0] + mark0[JDROpenP];
-    tok[1] = p;
-    o = JDRonOpenP(tok, state); 
-    if (o!=OK) {
-        fbreak;
-    }
-}
-action JDRCloseP0 { mark0[JDRCloseP] = p - data[0]; }
-action JDRCloseP1 {
-    tok[0] = data[0] + mark0[JDRCloseP];
-    tok[1] = p;
-    o = JDRonCloseP(tok, state); 
-    if (o!=OK) {
-        fbreak;
-    }
-}
-action JDROpenL0 { mark0[JDROpenL] = p - data[0]; }
-action JDROpenL1 {
-    tok[0] = data[0] + mark0[JDROpenL];
-    tok[1] = p;
-    o = JDRonOpenL(tok, state); 
-    if (o!=OK) {
-        fbreak;
-    }
-}
-action JDRCloseL0 { mark0[JDRCloseL] = p - data[0]; }
-action JDRCloseL1 {
-    tok[0] = data[0] + mark0[JDRCloseL];
-    tok[1] = p;
-    o = JDRonCloseL(tok, state); 
-    if (o!=OK) {
-        fbreak;
-    }
-}
-action JDROpenE0 { mark0[JDROpenE] = p - data[0]; }
-action JDROpenE1 {
-    tok[0] = data[0] + mark0[JDROpenE];
-    tok[1] = p;
-    o = JDRonOpenE(tok, state); 
-    if (o!=OK) {
-        fbreak;
-    }
-}
-action JDRCloseE0 { mark0[JDRCloseE] = p - data[0]; }
-action JDRCloseE1 {
-    tok[0] = data[0] + mark0[JDRCloseE];
-    tok[1] = p;
-    o = JDRonCloseE(tok, state); 
-    if (o!=OK) {
-        fbreak;
-    }
-}
-action JDROpenX0 { mark0[JDROpenX] = p - data[0]; }
-action JDROpenX1 {
-    tok[0] = data[0] + mark0[JDROpenX];
-    tok[1] = p;
-    o = JDRonOpenX(tok, state); 
-    if (o!=OK) {
-        fbreak;
-    }
-}
-action JDRCloseX0 { mark0[JDRCloseX] = p - data[0]; }
-action JDRCloseX1 {
-    tok[0] = data[0] + mark0[JDRCloseX];
-    tok[1] = p;
-    o = JDRonCloseX(tok, state); 
-    if (o!=OK) {
-        fbreak;
-    }
-}
 action JDRComma0 { mark0[JDRComma] = p - data[0]; }
 action JDRComma1 {
     tok[0] = data[0] + mark0[JDRComma];
@@ -301,15 +211,6 @@ action JDRClose1 {
         fbreak;
     }
 }
-action JDRInter0 { mark0[JDRInter] = p - data[0]; }
-action JDRInter1 {
-    tok[0] = data[0] + mark0[JDRInter];
-    tok[1] = p;
-    o = JDRonInter(tok, state); 
-    if (o!=OK) {
-        fbreak;
-    }
-}
 action JDRFIRST0 { mark0[JDRFIRST] = p - data[0]; }
 action JDRFIRST1 {
     tok[0] = data[0] + mark0[JDRFIRST];
@@ -319,11 +220,11 @@ action JDRFIRST1 {
         fbreak;
     }
 }
-action JDRToken0 { mark0[JDRToken] = p - data[0]; }
-action JDRToken1 {
-    tok[0] = data[0] + mark0[JDRToken];
+action JDRInter0 { mark0[JDRInter] = p - data[0]; }
+action JDRInter1 {
+    tok[0] = data[0] + mark0[JDRInter];
     tok[1] = p;
-    o = JDRonToken(tok, state); 
+    o = JDRonInter(tok, state); 
     if (o!=OK) {
         fbreak;
     }
@@ -368,22 +269,13 @@ JDRString = (   ["]  JDRutf8esc*  ["] )  >JDRString0 %JDRString1;
 JDRMLString = (   "`"  (JDRutf8cp  -  [`])*  "`" )  >JDRMLString0 %JDRMLString1;
 JDRStamp = (   "@"  JDRid128 )  >JDRStamp0 %JDRStamp1;
 JDRNoStamp = (   "" )  >JDRNoStamp0 %JDRNoStamp1;
-JDROpenP = (   "(" )  >JDROpenP0 %JDROpenP1;
-JDRCloseP = (   ")" )  >JDRCloseP0 %JDRCloseP1;
-JDROpenL = (   "[" )  >JDROpenL0 %JDROpenL1;
-JDRCloseL = (   "]" )  >JDRCloseL0 %JDRCloseL1;
-JDROpenE = (   "{" )  >JDROpenE0 %JDROpenE1;
-JDRCloseE = (   "}" )  >JDRCloseE0 %JDRCloseE1;
-JDROpenX = (   "<" )  >JDROpenX0 %JDROpenX1;
-JDRCloseX = (   ">" )  >JDRCloseX0 %JDRCloseX1;
 JDRComma = (   "," )  >JDRComma0 %JDRComma1;
 JDRColon = (   ":" )  >JDRColon0 %JDRColon1;
-JDROpen = (   (JDROpenP  |  JDROpenL  |  JDROpenE  |  JDROpenX)  JDRws*  (JDRStamp  |  JDRNoStamp) )  >JDROpen0 %JDROpen1;
-JDRClose = (   (JDRCloseP  |  JDRCloseL  |  JDRCloseE  |  JDRCloseX) )  >JDRClose0 %JDRClose1;
-JDRInter = (   (JDRComma  |  JDRColon) )  >JDRInter0 %JDRInter1;
+JDROpen = (   [(\[{<]  JDRws*  (JDRStamp  |  JDRNoStamp) )  >JDROpen0 %JDROpen1;
+JDRClose = (   [)\]}>] )  >JDRClose0 %JDRClose1;
 JDRFIRST = (   (  JDRFloat  |  JDRInt  |  JDRRef  |  JDRString  |  JDRMLString  |  JDRTerm  )  JDRws*  (  JDRStamp  |  JDRNoStamp  ) )  >JDRFIRST0 %JDRFIRST1;
-JDRToken = (   JDRFIRST  |  JDROpen  |  JDRClose  |  JDRInter )  >JDRToken0 %JDRToken1;
-JDRRoot = (   JDRws*  (  JDRToken  <:  JDRws*  )* )  >JDRRoot0 %JDRRoot1;
+JDRInter = (   JDRComma  |  JDRColon  |  JDROpen  |  JDRClose  |  JDRws+ )  >JDRInter0 %JDRInter1;
+JDRRoot = (   JDRInter*  (  JDRFIRST  JDRInter+  )*   )  >JDRRoot0 %JDRRoot1;
 
 main := JDRRoot;
 

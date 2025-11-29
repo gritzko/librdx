@@ -32,8 +32,9 @@ static const u8 RDX_TYPE_LIT[] = {
     0, 'P', 'L', 'E', 'X', 'F', 'I', 'R', 'S', 'T',
 };
 extern const u8 RDX_TYPE_LIT_REV[];
-static const char* RDX_PLEX_OPEN_LIT = " ([{<";
-static const char* RDX_PLEX_CLOSE_LIT = " )]}>";
+extern const u8 RDX_TYPE_BRACKET_REV[];
+static const char* RDX_TYPE_BRACKET_OPEN = " ([{<";
+static const char* RDX_TYPE_BRACKET_CLOSE = " )]}>";
 
 con ok64 RDXBAD = 0x6cd84b28d;
 con ok64 RDXBADNEST = 0x6cd84b28d5ce71d;
@@ -43,8 +44,9 @@ typedef enum {
     RDX_FORMAT_JDR = 2,
     RDX_FORMAT_LSM = 4,
     RDX_FORMAT_WAL = 6,
-    RDX_FORMAT_RAM = 8,
-    RDX_FORMAT_LEN = 10,
+    RDX_FORMAT_MEM = 8,
+    RDX_FORMAT_JDR_PIN = 10,
+    RDX_FORMAT_LEN = 12,
 } RDX_FORMAT;
 
 #define RDX_FORMAT_WRITE 1
@@ -105,12 +107,26 @@ typedef id128 RDXref;
 typedef u8cs RDXstring;
 typedef u8cs RDXterm;
 
+/**
+ *   [ |  | ] memory owning buffer u8b
+ *   ^
+ *  [^rdx0 <-- rdx1 <-- rdx2 ... ] rdxb
+ *
+ *  A parsed RDX element, the basic building block of everything here
+ *  and the ultimate hourglass waist. Serves as a stacked/hierarchical
+ *  iterator over any kind of RDX store: LSM, in-memory list, WAL,
+ *  plain TLV RDX. Because of RDX tree structure, most of the time
+ *  one uses rdxb (a stack of iterators). In the baseline scenario,
+ *  the 0th element in the stack refers to the underlying memory
+ *  owning buffer (mmap, etc). Lower elements consume a byte slice
+ *  borrowed from the parent element.
+ **/
 typedef struct {
     u8 format;      // RDX_FORMAT
     u8 type;        // RDX_TYPE (4:4)
-    u8 enc;         // RDX_UTF_ENC
-    u8 prnt;        // parent type
-    u32 len;        // record length
+    u8 cformat;     // RDX_FORMAT (for PLEX), RDX_UTF_ENC (for S)
+    u8 ptype;       // parent type
+    u32 len;        // length (format-dependant)
     id128 id;       // element id
     union {         // parsed values
         f64 f;      // float
@@ -121,8 +137,9 @@ typedef struct {
         u8cs plex;  // plex inners
     };
     union {
-        u8csp data;  // data range
-        u8sp into;   // same
+        u8bp host;   // memory owning buffer (0th element)
+        u8csp data;  // data range (non 0th, readers)
+        u8sp into;   // same (non 0th, writers)
     };
 } rdx;
 
@@ -154,7 +171,7 @@ fun int rdxcmp(rdxcp a, rdxcp b) { return id128cmp(&a->id, &b->id); }
 
 fun void rdxMv(rdxp into, rdxcp from) {
     into->type = from->type;
-    into->enc = from->enc;
+    into->cformat = from->cformat;
     into->id = from->id;
     into->r = from->r;
 }
@@ -191,65 +208,86 @@ fun b8 rdxbTypePlex(rdxbp x) { return rdxbType(x) < RDX_TYPE_PLEX_LEN; }
 typedef ok64 (*rdxz)(rdxcp a, rdxcp b);
 
 typedef ok64 (*rdxf)(rdxp x);
+typedef ok64 (*rdx2f)(rdxp c, rdxp p);
 typedef ok64 (*rdxbf)(rdxbp x);
 
 // 1. Next operates the data      -->
 // 2. Into/Outo operate the stack ^ v
 // 3. Seek moves in the data      <- ->
 ok64 rdxNextTLV(rdxp x);
-ok64 rdxSeekTLV(rdxp x);
+ok64 rdxIntoTLV(rdxp c, rdxp p);
+ok64 rdxOutoTLV(rdxp c, rdxp p);
 
 ok64 JDRlexer(rdxp x);
-fun ok64 rdxNextJDR(rdxp x) {
+fun ok64 rdxNextJDR(rdxp x) {  // fixme ration
     if (x->type && x->type < RDX_TYPE_PLEX_LEN) {
-        // FIXME length -1
-
+        // FIXME length -1   WAAAAT
         $mv(x->data, x->plex);
     }
     if ($empty(x->data)) return END;
-    return JDRlexer(x);
+    x->type = 0;
+    ok64 o = JDRlexer(x);
+    if (o == NEXT) o = OK;
+    if (x->type == 0) o = END;
+    return o;
 }
-ok64 rdxSeekJDR(rdxp x);
+ok64 rdxIntoJDR(rdxp c, rdxp p);
+ok64 rdxOutoJDR(rdxp c, rdxp p);
 
 ok64 rdxNextLSM(rdxp x);
-ok64 rdxSeekLSM(rdxp x);
+ok64 rdxIntoLSM(rdxp c, rdxp p);
+ok64 rdxOutoLSM(rdxp c, rdxp p);
 
 ok64 rdxNextWAL(rdxp x);
-ok64 rdxSeekWAL(rdxp x);
+ok64 rdxIntoWAL(rdxp c, rdxp p);
+ok64 rdxOutoWAL(rdxp c, rdxp p);
 
-ok64 rdxNextRAM(rdxp x);
-ok64 rdxSeekRAM(rdxp x);
+ok64 rdxNextMEM(rdxp x);
+ok64 rdxIntoMEM(rdxp c, rdxp p);
+ok64 rdxOutoMEM(rdxp c, rdxp p);
 
 ok64 rdxWriteNextTLV(rdxp x);
-ok64 rdxWriteSeekTLV(rdxp x);
+ok64 rdxWriteIntoTLV(rdxp c, rdxp p);
+ok64 rdxWriteOutoTLV(rdxp c, rdxp p);
 
 ok64 rdxWriteNextJDR(rdxp x);
-ok64 rdxWriteSeekJDR(rdxp x);
+ok64 rdxWriteIntoJDR(rdxp c, rdxp p);
+ok64 rdxWriteOutoJDR(rdxp c, rdxp p);
 
 ok64 rdxWriteNextLSM(rdxp x);
-ok64 rdxWriteSeekLSM(rdxp x);
+ok64 rdxWriteIntoLSM(rdxp c, rdxp p);
+ok64 rdxWriteOutoLSM(rdxp c, rdxp p);
 
 ok64 rdxWriteNextWAL(rdxp x);
-ok64 rdxWriteSeekWAL(rdxp x);
+ok64 rdxWriteIntoWAL(rdxp c, rdxp p);
+ok64 rdxWriteOutoWAL(rdxp c, rdxp p);
 
-ok64 rdxWriteNextRAM(rdxp x);
-ok64 rdxWriteSeekRAM(rdxp x);
+ok64 rdxWriteNextMEM(rdxp x);
+ok64 rdxWriteIntoMEM(rdxp c, rdxp p);
+ok64 rdxWriteOutoMEM(rdxp c, rdxp p);
 
 static const rdxf VTABLE_NEXT[RDX_FORMAT_LEN] = {
     rdxNextTLV, rdxWriteNextTLV, rdxNextJDR, rdxWriteNextJDR,
     rdxNextLSM, rdxWriteNextLSM, rdxNextWAL, rdxWriteNextWAL,
-    rdxNextRAM, rdxWriteNextRAM,
+    rdxNextMEM, rdxWriteNextMEM, rdxNextJDR, rdxWriteNextJDR,
 };
 
-static const rdxf VTABLE_SEEK[RDX_FORMAT_LEN] = {
-    rdxSeekTLV, rdxWriteSeekTLV, rdxSeekJDR, rdxWriteSeekJDR,
-    rdxSeekLSM, rdxWriteSeekLSM, rdxSeekWAL, rdxWriteSeekWAL,
-    rdxSeekRAM, rdxWriteSeekRAM,
+static const rdx2f VTABLE_INTO[RDX_FORMAT_LEN] = {
+    rdxIntoTLV, rdxWriteIntoTLV, rdxIntoJDR, rdxWriteIntoJDR,
+    rdxIntoLSM, rdxWriteIntoLSM, rdxIntoWAL, rdxWriteIntoWAL,
+    rdxIntoMEM, rdxWriteIntoMEM, rdxIntoJDR, rdxWriteIntoJDR,
+};
+
+static const rdx2f VTABLE_OUTO[RDX_FORMAT_LEN] = {
+    rdxOutoTLV, rdxWriteOutoTLV, rdxOutoJDR, rdxWriteOutoJDR,
+    rdxOutoLSM, rdxWriteOutoLSM, rdxOutoWAL, rdxWriteOutoWAL,
+    rdxOutoMEM, rdxWriteOutoMEM, rdxOutoJDR, rdxWriteOutoJDR,
 };
 
 fun ok64 rdxNext(rdxp x) { return VTABLE_NEXT[x->format](x); }
 
-fun ok64 rdxSeek(rdxp x) { return VTABLE_SEEK[x->format](x); }
+fun ok64 rdxInto(rdxp c, rdxp p) { return VTABLE_INTO[p->format](c, p); }
+fun ok64 rdxOuto(rdxp c, rdxp p) { return VTABLE_OUTO[p->format](c, p); }
 
 fun ok64 rdxRootZ(rdxcp a, rdxcp b) { return NOTIMPLYET; }
 fun ok64 rdxTupleZ(rdxcp a, rdxcp b) { return NOTIMPLYET; }

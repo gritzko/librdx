@@ -67,10 +67,10 @@ ok64 RDXTestTLV() {
 
 ok64 RDXTestJDR() {
     sane(1);
-    a_cstr(oneint, "1");
-    a_cstr(oneterm, "a1");
-    a_cstr(oneid, "a-1");
-    a_cstr(tuple, "(1,two,3E0)");
+    a_cstr(oneint, "1\n");
+    a_cstr(oneterm, "a1\n");
+    a_cstr(oneid, "a-1\n");
+    a_cstr(tuple, "(1,two,3E0)\n");
     u8csp inputs[] = {
         tuple,
         oneint,
@@ -94,6 +94,7 @@ ok64 RDXTestJDR() {
 
         call(rdxbCopy, jdr2wit, tlv1it);
 
+        u8sFeed1(jdr2_idle, '\n');
         $testeq(inputs[i], jdr2_datac);
 
         i++;
