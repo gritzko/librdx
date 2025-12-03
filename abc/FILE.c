@@ -2,6 +2,7 @@
 
 #include <sys/mman.h>
 
+#include "BUF.h"
 #include "PRO.h"
 
 u64 FILE_ERR_VOCAB[][2] = {
@@ -172,6 +173,16 @@ ok64 FILEFindMap(int *fd, u8bp buf) {
             done;
         }
     fail(NONE);
+}
+
+ok64 FILETrimMap(u8bp buf) {
+    sane(u8bOK(buf));
+    int fd = FILE_CLOSED;
+    call(FILEFindMap, &fd, buf);
+    call(FILEResize, &fd, u8bDataLen(buf));
+    u8c **b = (u8c **)buf;
+    b[3] = b[2];
+    done;
 }
 
 ok64 FILEDropMap(int *fd, u8bp buf) {

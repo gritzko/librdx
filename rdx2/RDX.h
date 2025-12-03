@@ -26,10 +26,11 @@ typedef enum {
     RDX_TYPE_STRING = 8,
     RDX_TYPE_TERM = 9,
     RDX_TYPE_LEN = 10,
+    RDX_TYPE_BLOB = 10,
 } RDX_TYPE;
 
 static const u8 RDX_TYPE_LIT[] = {
-    0, 'P', 'L', 'E', 'X', 'F', 'I', 'R', 'S', 'T',
+    0, 'P', 'L', 'E', 'X', 'F', 'I', 'R', 'S', 'T', 'B',
 };
 extern const u8 RDX_TYPE_LIT_REV[];
 extern const u8 RDX_TYPE_BRACKET_REV[];
@@ -38,6 +39,10 @@ static const char* RDX_TYPE_BRACKET_CLOSE = " )]}>";
 
 con ok64 RDXBAD = 0x6cd84b28d;
 con ok64 RDXBADNEST = 0x6cd84b28d5ce71d;
+con ok64 RDXBADFILE = 0x6cd84b28d3d254e;
+con ok64 RDXNOROOM = 0x1b3615d86d8616;
+con ok64 RDXBADORDR = 0x6cd84b28d61b35b;
+con ok64 RDXBADARG = 0x1b3612ca34a6d0;
 
 typedef enum {
     RDX_FORMAT_TLV = 0,
@@ -137,7 +142,6 @@ typedef struct {
         u8cs plex;  // plex inners
     };
     union {
-        u8bp host;   // memory owning buffer (0th element)
         u8csp data;  // data range (non 0th, readers)
         u8sp into;   // same (non 0th, writers)
     };
@@ -146,7 +150,14 @@ typedef struct {
 typedef rdx* rdxp;
 typedef rdx const* rdxcp;
 
-#define a_rdx(n, s, fmt)            \
+#define a_rdx(n, b, fmt)            \
+    a_pad(rdx, n, RDX_MAX_NESTING); \
+    zerob(n);                       \
+    rdxbFed1(n);                    \
+    (**n).format = fmt;             \
+    (**n).host = b;
+
+#define a_rdxr(n, s, fmt)           \
     a_pad(rdx, n, RDX_MAX_NESTING); \
     zerob(n);                       \
     rdxbFed1(n);                    \
@@ -219,16 +230,14 @@ ok64 rdxIntoTLV(rdxp c, rdxp p);
 ok64 rdxOutoTLV(rdxp c, rdxp p);
 
 ok64 JDRlexer(rdxp x);
-fun ok64 rdxNextJDR(rdxp x) {  // fixme ration
-    if (x->type && x->type < RDX_TYPE_PLEX_LEN) {
-        // FIXME length -1   WAAAAT
-        $mv(x->data, x->plex);
-    }
-    if ($empty(x->data)) return END;
+fun ok64 rdxNextJDR(rdxp x) {
     x->type = 0;
     ok64 o = JDRlexer(x);
-    if (o == NEXT) o = OK;
-    if (x->type == 0) o = END;
+    if (o == NEXT) {
+        o = OK;
+    } else if (o == OK && x->type == 0) {
+        o = END;
+    }
     return o;
 }
 ok64 rdxIntoJDR(rdxp c, rdxp p);
@@ -285,7 +294,6 @@ static const rdx2f VTABLE_OUTO[RDX_FORMAT_LEN] = {
 };
 
 fun ok64 rdxNext(rdxp x) { return VTABLE_NEXT[x->format](x); }
-
 fun ok64 rdxInto(rdxp c, rdxp p) { return VTABLE_INTO[p->format](c, p); }
 fun ok64 rdxOuto(rdxp c, rdxp p) { return VTABLE_OUTO[p->format](c, p); }
 
@@ -356,6 +364,9 @@ static UTFRecode UTABLE[RDX_UTF_ENC_LEN][UTF8_CODER_LEN] = {
     }};
 
 ok64 rdxbInto(rdxb b);
+ok64 rdxbNext(rdxb b);
 ok64 rdxbOuto(rdxb its);
+
+ok64 rdxCopy(rdxp into, rdxp from);
 
 #endif

@@ -94,10 +94,12 @@ fun T const *X($, findge)(X($c, c) haystack, T const *needle) {
 }
 
 #ifndef ABC_X_$
-fun T X(, sAt)(X($, ) s, size_t pos) { return s[0][pos]; }
+fun T X(, sAt)(X(, s) s, size_t pos) { return s[0][pos]; }
+fun T X(, csAt)(X(, cs) s, size_t pos) { return s[0][pos]; }
 #endif
 
-fun T *X(, sAtP)(X($, ) s, size_t pos) { return s[0] + pos; }
+fun T *X(, sAtP)(X(, s) s, size_t pos) { return s[0] + pos; }
+fun T const *X(, csAtP)(X(, cs) s, size_t pos) { return s[0] + pos; }
 
 fun ok64 X($, eat1)(X($, ) s) {
     if (s[0] >= s[1]) return $nodata;
@@ -242,8 +244,8 @@ fun ok64 X(, sFeedSome)(X(, s) into, X(, cs) from) {
 
 fun ok64 X(, sFeedN)(X(, s) into, X(, cs) from, size_t len) {
     if (unlikely(!$ok(from) || !$ok(into))) return $badarg;
-    if (unlikely($len(into)<len)) return $noroom;
-    if (unlikely($len(from)<len)) return $nodata;
+    if (unlikely($len(into) < len)) return $noroom;
+    if (unlikely($len(from) < len)) return $nodata;
     memcpy((void *)*into, (void *)*from, len * sizeof(T));
     *into += len;
     *from += len;
@@ -339,7 +341,7 @@ fun ok64 X(, sFeed2)(X($, ) into, T a, T b) {
     return OK;
 }
 
-fun ok64 X(, s_feed3)(X(, s) into, T a, T b, T c) {
+fun ok64 X(, sFeed3)(X(, s) into, T a, T b, T c) {
     if ($len(into) < 3) return $noroom;
     X(, sFeed1)(into, a);
     X(, sFeed1)(into, b);

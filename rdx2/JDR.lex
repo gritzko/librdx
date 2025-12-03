@@ -2,6 +2,7 @@ NL = "\n";
 ws = [\r\t ] | NL;
 hex = [0-9a-fA-Z];
 ron64 = [0-9A-Za-z_~];
+ron64s = ron64+;
 dec = [0-9];
 
 utf8cont =  (0x80..0xbf);
@@ -21,13 +22,13 @@ esc = [\\] ["\\/bfnrt];
 hexEsc =  "\\u" hex{4};
 utf8esc = (utf8cp - ["\\\r\n]) | esc | hexEsc;
 
-id128 = ron64+ ("-" ron64+)?;
+id128 = ron64s ("-" ron64s)?;
 
 Int = [\-]? ( [0] | [1-9] dec* );
 Float = (   Int
             ("." dec+)?
             ([eE] [\-+]? dec+ )?  ) -Int;
-Term = ((ron64 - dec) ron64*) -Int -Float;
+Term = ron64s -Int -Float;
 Ref = id128 -Float -Int -Term;
 String = ["] utf8esc* ["];
 MLString = "`" (utf8cp - [`])* "`";
@@ -43,4 +44,4 @@ Close = [)\]}>];
 FIRST = ( Float | Int | Ref | String | MLString | Term ) ws* ( Stamp | NoStamp );
 Inter = Comma | Colon | Open | Close | ws+;
 
-Root = Inter* ( FIRST Inter+ )* ;
+Root = Inter** ( FIRST Inter+ )** ;

@@ -1,5 +1,6 @@
 #include "RDX.h"
 
+#include "abc/BUF.h"
 #include "abc/PRO.h"
 
 ok64 rdxCopy(rdxp into, rdxp from) {
@@ -34,6 +35,13 @@ ok64 rdxbCopy(rdxb into, rdxb from) {
     seen(END);
     i->type = 0;
     f->type = 0;
+    done;
+}
+
+ok64 rdxbNext(rdxb b) {
+    sane(rdxbOK(b));
+    rdxp p = rdxbLast(b);
+    call(VTABLE_NEXT[p->format], p);
     done;
 }
 

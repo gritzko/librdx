@@ -31,8 +31,7 @@
 #define $off(s, o) ((s[0] + (o) < s[1]) ? (s[0] + (o)) : s[1])
 
 #define a_dup(T, n, s) T *n[2] = {(s)[0], (s)[1]}
-#define $dup(s) \
-    { (s)[0], (s)[1] }
+#define $dup(s) {(s)[0], (s)[1]}
 
 #define a_rest(T, n, orig, off)                        \
     T##s n = {(T *)(orig[0]) + (off), (T *)(orig[1])}; \
@@ -58,12 +57,13 @@
         a[1] = b[1]; \
     }
 
-#define $mv(s1, s2) \
-    { (s1)[0] = (s2)[0], (s1)[1] = (s2)[1]; }
+#define $mv(s1, s2)                           \
+    {                                         \
+        (s1)[0] = (s2)[0], (s1)[1] = (s2)[1]; \
+    }
 
 /** produce a subslice given offset and length */
-#define $cut(s, o, l) \
-    { $off(s, o), $off(s, o + l) }
+#define $cut(s, o, l) {$off(s, o), $off(s, o + l)}
 
 #define $for(T, n, s) for (T *n = s[0]; (n + 1) <= s[1]; ++n)
 #define $eat(s) for (; s[0] < s[1]; s[0]++)

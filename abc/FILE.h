@@ -86,7 +86,7 @@ fun const char *path8CStr(path8 path) { return (char *)(path[0]); }
 
 ok64 path8Push(path8 path, u8csc part);
 
-ok64 path8Pop(path8 path); // todo
+ok64 path8Pop(path8 path);  // todo
 
 fun void path8ResetToCWD(path8 path) {
     Breset(path);
@@ -278,6 +278,9 @@ ok64 FILEUnMap(u8b buf);
 
 // Resize the file and update the mapping.
 ok64 FILEReMap(u8bp buf, size_t new_size);
+
+// Resize the file to th busy part of the buffer (trim the idle part).
+ok64 FILETrimMap(u8bp buf);
 
 // Extend the mapped file by 1/2
 fun ok64 FILEremap15(Bu8 buf) {

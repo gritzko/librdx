@@ -38,6 +38,8 @@ fun ok64 JDRonRef(utf8cs tok, rdxp x) {
     return OK;
 }
 fun ok64 JDRonString(utf8cs tok, rdxp x) {
+    ++tok[0];  // "
+    --tok[1];  // "
     $mv(x->s, tok);
     x->type = RDX_TYPE_STRING;
     x->cformat = RDX_UTF_ENC_UTF8_ESC;
@@ -49,7 +51,10 @@ fun ok64 JDRonMLString(utf8cs tok, rdxp x) {
     x->cformat = RDX_UTF_ENC_UTF8_ESC_ML;  // ?
     return OK;
 }
-fun ok64 JDRonStamp(utf8cs tok, rdxp x) { return RDXutf8sDrainID(tok, &x->id); }
+fun ok64 JDRonStamp(utf8cs tok, rdxp x) {
+    ++*tok;  // @
+    return RDXutf8sDrainID(tok, &x->id);
+}
 fun ok64 JDRonNoStamp(utf8cs tok, rdxp x) {
     zero(x->id);
     return OK;
@@ -86,7 +91,7 @@ fun ok64 JDRonColon(utf8cs tok, rdxp x) {
     if (x->format == RDX_FORMAT_JDR_PIN) return JDRonInlineColon(tok, x);
     x->type = RDX_TYPE_TUPLE;
     x->cformat = RDX_FORMAT_JDR_PIN;
-    x->len += 2;
+    x->len = (x->len & 0xfffffffe) + 2;
     $null(x->plex);
     return NEXT;
 }
@@ -107,8 +112,8 @@ fun ok64 JDRonInlineClose(utf8cs tok, rdxp x) {  // ????
     return END;
 }
 fun ok64 JDRonClose(utf8cs tok, rdxp x) {
-    if (x->format == RDX_FORMAT_JDR_PIN) return RDXBADNEST;
-    if (x->type != RDX_TYPE_BRACKET_REV[**tok]) return RDXBADNEST;
+    if (x->format == RDX_FORMAT_JDR_PIN) return RDXBADNEST;  //?
+    if (x->ptype != RDX_TYPE_BRACKET_REV[**tok]) return RDXBADNEST;
     x->type = 0;
     // FIXME peek?  test   1:(2, 3) vs 1:(2, 3):4:5
     return END;

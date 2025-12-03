@@ -91,15 +91,16 @@ typedef uint64_t ok64;
 
 #define OK 0
 #define FAIL 0xffffffffffffffffUL
-con ok64 NODATA	= 0x5d834a74a;
-con ok64 END	= 0xe5cd;
-con ok64 NOROOM	= 0x5d86d8616;
+con ok64 NODATA = 0x5d834a74a;
+con ok64 END = 0xe5cd;
+con ok64 NOROOM = 0x5d86d8616;
 con ok64 NONE = 0xcb3ca9;
-con ok64 NOTIMPLYET	= 0x5d875259956239d;
-con ok64 BADARG	= 0x2ca34a6d0;
-con ok64 BADPOS	= 0x2ca35961c;
-con ok64 FAILmiss	= 0xc6ddf7;
-con ok64 BADRANGE	= 0x2ca35b29740e;
+con ok64 NOTIMPLYET = 0x5d875259956239d;
+con ok64 BADARG = 0x2ca34a6d0;
+con ok64 BADPOS = 0x2ca35961c;
+con ok64 FAILmiss = 0xc6ddf7;
+con ok64 BADRANGE = 0x2ca35b29740e;
+con ok64 BADSTAT = 0xb28d71d29d;
 
 con ok64 $miss = 0x3fc6ddf7;
 con ok64 $nodata = 0x3fcb3a25e25;
@@ -127,7 +128,7 @@ typedef w512 u512;
 #endif
 
 // minimal disk block size
-#define BLOCKSIZE (1<<9)
+#define BLOCKSIZE (1 << 9)
 
 // size_t, 6 bytes; two upper bytes are free for reuse
 typedef u64 pos48;
@@ -289,7 +290,7 @@ con u128 u128max = {u64max, u64max};
 #define O1high32(lohi) (((u64)lohi) >> 32)
 
 #define bitmask(l) ((1UL << l) - 1)
-#define bitpack(a, h, l) (((u64)(a)&bitmask(l)) << (h))
+#define bitpack(a, h, l) (((u64)(a) & bitmask(l)) << (h))
 #define bitpick(u, h, l) ((u >> h) & bitmask(l))
 #define bitpack4816(a, b) (bitpack(a, 0, 48) | bitpack(b, 48, 16))
 #define bitpick4816a(u) (u & 0xffffffffffffUL)
@@ -387,8 +388,7 @@ fun b8 isOnStack(void *p) {
 
 typedef ok64 (*OKcallback)(void *);
 
-#define $u8str(c) \
-    { (u8 *)(c), (u8 *)(c) + strlen(c) }
+#define $u8str(c) {(u8 *)(c), (u8 *)(c) + strlen(c)}
 
 #define u64MaxValue UINT64_MAX
 #define u64MinValue 0

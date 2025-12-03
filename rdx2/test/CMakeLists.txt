@@ -26,12 +26,12 @@ add_test(NAME RDXtest COMMAND RDXtest)
 #target_link_libraries(JDRtest abc rdx)
 #add_test(NAME JDRtest COMMAND JDRtest ${CMAKE_CURRENT_SOURCE_DIR}/jdr.eq.md)
 
-#add_executable(BRIXtest BRIX.c)
-#target_link_options(BRIXtest PRIVATE ${TEST_LDD_FLAGS})
-#target_compile_options(BRIXtest PRIVATE ${TEST_CXX_FLAGS})
-#target_link_libraries(BRIXtest abc rdx)
-#add_test(NAME BRIXtest COMMAND BRIXtest)
-#
+add_executable(BRIXtest LSM.c)
+target_link_options(BRIXtest PRIVATE ${TEST_LDD_FLAGS})
+target_compile_options(BRIXtest PRIVATE ${TEST_CXX_FLAGS})
+target_link_libraries(BRIXtest abc rdx2)
+add_test(NAME BRIXtest COMMAND BRIXtest)
+
 #add_executable(RDXZtest RDXZ.c)
 #target_link_options(RDXZtest PRIVATE ${TEST_LDD_FLAGS})
 #target_compile_options(RDXZtest PRIVATE ${TEST_CXX_FLAGS})

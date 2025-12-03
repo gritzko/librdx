@@ -52,7 +52,7 @@ ok64 RDXTestTLV() {
         a_dup(u8c, in, inputs[i]);
 
         a_pad(u8, tlv2, 256);
-        a_rdx(tlv1it, in, RDX_FORMAT_TLV);
+        a_rdxr(tlv1it, in, RDX_FORMAT_TLV);
         a_rdxw(tlv2wit, u8bIdle(tlv2), RDX_FORMAT_TLV);
 
         call(rdxbCopy, tlv2wit, tlv1it);
@@ -72,23 +72,19 @@ ok64 RDXTestJDR() {
     a_cstr(oneid, "a-1\n");
     a_cstr(tuple, "(1,two,3E0)\n");
     u8csp inputs[] = {
-        tuple,
-        oneint,
-        oneterm,
-        oneid,
-        NULL,
+        tuple, oneint, oneterm, oneid, NULL,
     };
     int i = 0;
     while (inputs[i]) {
         a_dup(u8c, in, inputs[i]);
 
-        a_rdx(jdr1it, in, RDX_FORMAT_JDR);
+        a_rdxr(jdr1it, in, RDX_FORMAT_JDR);
         a_pad(u8, tlv1, 256);
         a_rdxw(tlv1wit, u8bIdle(tlv1), RDX_FORMAT_TLV);
 
         call(rdxbCopy, tlv1wit, jdr1it);
 
-        a_rdx(tlv1it, u8bDataC(tlv1), RDX_FORMAT_TLV);
+        a_rdxr(tlv1it, u8bDataC(tlv1), RDX_FORMAT_TLV);
         a_pad(u8, jdr2, 256);
         a_rdxw(jdr2wit, u8bIdle(jdr2), RDX_FORMAT_JDR);
 

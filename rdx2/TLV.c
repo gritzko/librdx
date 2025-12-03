@@ -40,6 +40,8 @@ ok64 rdxNextTLV(rdxp x) {
         case RDX_TYPE_TERM:
             $mv(x->t, value);
             break;
+        case 0:
+            fail(END);
         default:
             fail(RDXBAD);
     }
@@ -63,6 +65,8 @@ ok64 rdxIntoTLV(rdxp c, rdxp p) {
 }
 
 ok64 rdxOutoTLV(rdxp c, rdxp p) { return OK; }
+
+ok64 rdxWriteTLV1(rdxp x) { return NOTIMPLYET; }
 
 ok64 rdxWriteNextTLV(rdxp x) {
     sane(x);

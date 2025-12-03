@@ -6,6 +6,8 @@
 #include "OK.h"
 #include "S.h"
 
+con ok64 TLVRECBAD = 0x1d55f6ce30b28d;
+// todo update conv
 con ok64 TLVbadrec = 0x1d55f9a5a36a67;
 con ok64 TLVnodata = 0x1d55fcb3a25e25;
 con ok64 TLVbadtype = 0x7557e6968e3dd29;
@@ -75,11 +77,11 @@ fun ok64 TLVu8bOuto(u8bp into, u8 type) {
 
 // ----------------------
 
+fun int TLVhuge(u8 t) { return t >= '!' && t <= ':'; }
 fun int TLVlong(u8 t) { return t >= 'A' && t <= 'Z'; }
 fun int TLVshort(u8 t) { return t >= 'a' && t <= 'z'; }
 
 fun u32 TLVlen(size_t len) { return len <= 0xff ? 2 + len : 5 + len; }
-
 
 ok64 TLVDrain$(u8c$ rec, u8cs from);
 
@@ -108,5 +110,9 @@ ok64 TLVDrainKeyVal(u8* type, u8cs key, u8cs val, u8cs tlv);
 ok64 TLVu8sStart(u8sc idle, u8s inner, u8 lit);
 
 ok64 TLVu8sEnd(u8s idle, u8sc inner, u8 lit);
+
+ok64 TLVu8sStartHuge(u8sc idle, u8s inner, u8 lit);
+
+ok64 TLVu8sEndHuge(u8s idle, u8sc inner, u8 lit);
 
 #endif

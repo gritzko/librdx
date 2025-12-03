@@ -10,7 +10,6 @@ ok64 rdxIntoJDR(rdxp c, rdxp p) {
     c->ptype = p->type;
     c->len = 0;
     if (!c->type) {
-        c->type = 0;
         c->cformat = 0;
         zero(c->r);
     } else {

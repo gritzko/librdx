@@ -6,25 +6,25 @@
 #define JDRenum 0
 enum {
 	JDRNL = JDRenum+1,
-	JDRUtf8cp1 = JDRenum+11,
-	JDRUtf8cp2 = JDRenum+12,
-	JDRUtf8cp3 = JDRenum+13,
-	JDRUtf8cp4 = JDRenum+14,
-	JDRInt = JDRenum+20,
-	JDRFloat = JDRenum+21,
-	JDRTerm = JDRenum+22,
-	JDRRef = JDRenum+23,
-	JDRString = JDRenum+24,
-	JDRMLString = JDRenum+25,
-	JDRStamp = JDRenum+26,
-	JDRNoStamp = JDRenum+27,
-	JDRComma = JDRenum+28,
-	JDRColon = JDRenum+29,
-	JDROpen = JDRenum+30,
-	JDRClose = JDRenum+31,
-	JDRFIRST = JDRenum+32,
-	JDRInter = JDRenum+33,
-	JDRRoot = JDRenum+34,
+	JDRUtf8cp1 = JDRenum+12,
+	JDRUtf8cp2 = JDRenum+13,
+	JDRUtf8cp3 = JDRenum+14,
+	JDRUtf8cp4 = JDRenum+15,
+	JDRInt = JDRenum+21,
+	JDRFloat = JDRenum+22,
+	JDRTerm = JDRenum+23,
+	JDRRef = JDRenum+24,
+	JDRString = JDRenum+25,
+	JDRMLString = JDRenum+26,
+	JDRStamp = JDRenum+27,
+	JDRNoStamp = JDRenum+28,
+	JDRComma = JDRenum+29,
+	JDRColon = JDRenum+30,
+	JDROpen = JDRenum+31,
+	JDRClose = JDRenum+32,
+	JDRFIRST = JDRenum+33,
+	JDRInter = JDRenum+34,
+	JDRRoot = JDRenum+35,
 };
 
 // user functions (callbacks) for the parser
@@ -244,6 +244,7 @@ JDRNL = (   "\n" )  >JDRNL0 %JDRNL1;
 JDRws = (   [\r\t ]  |  JDRNL ); # no ws callback
 JDRhex = (   [0-9a-fA-Z] ); # no hex callback
 JDRron64 = (   [0-9A-Za-z_~] ); # no ron64 callback
+JDRron64s = (   JDRron64+ ); # no ron64s callback
 JDRdec = (   [0-9] ); # no dec callback
 JDRutf8cont = (     (0x80..0xbf) ); # no utf8cont callback
 JDRutf8lead1 = (   (0x00..0x7f) ); # no utf8lead1 callback
@@ -258,24 +259,24 @@ JDRutf8cp = (   JDRUtf8cp1  |  JDRUtf8cp2  |  JDRUtf8cp3  |  JDRUtf8cp4 ); # no 
 JDResc = (   [\\]  ["\\/bfnrt] ); # no esc callback
 JDRhexEsc = (     "\\u"  JDRhex{4} ); # no hexEsc callback
 JDRutf8esc = (   (JDRutf8cp  -  ["\\\r\n])  |  JDResc  |  JDRhexEsc ); # no utf8esc callback
-JDRid128 = (   JDRron64+  ("-"  JDRron64+)? ); # no id128 callback
+JDRid128 = (   JDRron64s  ("-"  JDRron64s)? ); # no id128 callback
 JDRInt = (   [\-]?  (  [0]  |  [1-9]  JDRdec*  ) )  >JDRInt0 %JDRInt1;
 JDRFloat = (   (      JDRInt 
                         ("."  JDRdec+)? 
                         ([eE]  [\-+]?  JDRdec+  )?    )  -JDRInt )  >JDRFloat0 %JDRFloat1;
-JDRTerm = (   ((JDRron64  -  JDRdec)  JDRron64*)  -JDRInt  -JDRFloat )  >JDRTerm0 %JDRTerm1;
+JDRTerm = (   JDRron64s  -JDRInt  -JDRFloat )  >JDRTerm0 %JDRTerm1;
 JDRRef = (   JDRid128  -JDRFloat  -JDRInt  -JDRTerm )  >JDRRef0 %JDRRef1;
 JDRString = (   ["]  JDRutf8esc*  ["] )  >JDRString0 %JDRString1;
 JDRMLString = (   "`"  (JDRutf8cp  -  [`])*  "`" )  >JDRMLString0 %JDRMLString1;
 JDRStamp = (   "@"  JDRid128 )  >JDRStamp0 %JDRStamp1;
 JDRNoStamp = (   "" )  >JDRNoStamp0 %JDRNoStamp1;
-JDRComma = (   "," )  >JDRComma0 %JDRComma1;
-JDRColon = (   ":" )  >JDRColon0 %JDRColon1;
+JDRComma = (   [,;] )  >JDRComma0 %JDRComma1;
+JDRColon = (   [:] )  >JDRColon0 %JDRColon1;
 JDROpen = (   [(\[{<]  JDRws*  (JDRStamp  |  JDRNoStamp) )  >JDROpen0 %JDROpen1;
 JDRClose = (   [)\]}>] )  >JDRClose0 %JDRClose1;
 JDRFIRST = (   (  JDRFloat  |  JDRInt  |  JDRRef  |  JDRString  |  JDRMLString  |  JDRTerm  )  JDRws*  (  JDRStamp  |  JDRNoStamp  ) )  >JDRFIRST0 %JDRFIRST1;
 JDRInter = (   JDRComma  |  JDRColon  |  JDROpen  |  JDRClose  |  JDRws+ )  >JDRInter0 %JDRInter1;
-JDRRoot = (   JDRInter*  (  JDRFIRST  JDRInter+  )*   )  >JDRRoot0 %JDRRoot1;
+JDRRoot = (   JDRInter**  (  JDRFIRST  JDRInter+  )**   )  >JDRRoot0 %JDRRoot1;
 
 main := JDRRoot;
 
@@ -303,7 +304,7 @@ ok64 JDRlexer(JDRstate* state) {
 
     state->data[0] = p;
     if (o==OK && cs < JDR_first_final) 
-        o = JDRbad;
+        o = JDRBAD;
     
     return o;
 }

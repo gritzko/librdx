@@ -45,6 +45,8 @@ fun T **X(, bPast)(X(, b) buf) { return (T **)buf + 0; }
 fun T **X(, bData)(X(, b) buf) { return (T **)buf + 1; }
 fun T **X(, bIdle)(X(, b) buf) { return (T **)buf + 2; }
 
+fun size_t X(, bLen)(X(, b) buf) { return ((T *)buf[3]) - ((T *)buf[0]); }
+fun size_t X(, bBusyLen)(X(, b) buf) { return ((T *)buf[2]) - ((T *)buf[0]); }
 fun size_t X(, bPastLen)(X(, b) buf) { return $len((T **)buf + 0); }
 fun size_t X(, bDataLen)(X(, b) buf) { return $len((T **)buf + 1); }
 fun size_t X(, bIdleLen)(X(, b) buf) { return $len((T **)buf + 2); }
@@ -89,9 +91,7 @@ fun ok64 X(, bFed)(X(, b) buf, size_t len) {
     return X(, sFed)(X(, bIdle)(buf), len);
 }
 
-fun ok64 X(, bFed1)(X(, b) buf) {
-    return X(, sFed)(X(, bIdle)(buf), 1);
-}
+fun ok64 X(, bFed1)(X(, b) buf) { return X(, sFed)(X(, bIdle)(buf), 1); }
 
 fun b8 X(, bDataEmpty)(const X(, cbp) buf) { return X(, cbDataLen)(buf) == 0; }
 
