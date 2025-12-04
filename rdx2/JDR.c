@@ -1,6 +1,7 @@
 #include "JDR.h"
 
 #include "RDX.h"
+#include "abc/01.h"
 #include "abc/PRO.h"
 
 ok64 rdxIntoJDR(rdxp c, rdxp p) {
@@ -90,9 +91,15 @@ ok64 rdxWriteNextJDR(rdxp x) {
             call(rdxFeedStamp, x->into, &x->id);
             break;
         case RDX_TYPE_STRING:
-            test(x->cformat != RDX_UTF_ENC_UTF8, NOTIMPLYET);  // todo
             call(utf8sFeed1, x->into, '"');
-            call(UTABLE[RDX_UTF_ENC_UTF8_ESC][UTF8_ENCODER_ALL], x->into, x->s);
+            if (x->cformat == RDX_UTF_ENC_UTF8_ESC) {
+                call(u8sFeed, x->into, x->s);
+            } else if (x->cformat == RDX_UTF_ENC_UTF8) {
+                call(UTABLE[RDX_UTF_ENC_UTF8_ESC][UTF8_ENCODER_ALL], x->into,
+                     x->s);
+            } else {
+                fail(NOTIMPLYET);
+            }
             call(utf8sFeed1, x->into, '"');
             call(rdxFeedStamp, x->into, &x->id);
             break;

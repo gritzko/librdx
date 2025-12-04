@@ -399,8 +399,8 @@ fun ok64 X(, sFeedP)(X(, s) into, T const *what) {
     return OK;
 }
 
-fun b8 X($, empty)(X($, ) s) { return $empty(s); }
-fun b8 X($, cempty)(X($, c) s) { return $empty(s); }
+fun b8 X(, sEmpty)(X(, s) s) { return $len(s) == 0; }
+fun b8 X(, csEmpty)(X(, cs) s) { return $len(s) == 0; }
 
 fun void X($, drop)(X($, ) into, T const *from) {
     X(, mv)(*into, from);

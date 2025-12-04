@@ -102,9 +102,9 @@ ok64 RDXTestJDR() {
     done;
 }
 
-#include <test/Ez.h>
+#include <test/ZE.h>
 
-ok64 RDXTestEz() {
+ok64 RDXTestZE() {
     sane(1);
     a_pad(rdx, elems, 64);
     a_pad(u8cs, ple, 64);
@@ -151,12 +151,13 @@ ok64 RDXTestEz() {
     done;
 }
 
-#include <test/Y.h>
+#include <test/Y1.h>
 
-ok64 RDXTest1y() {
+ok64 RDXTestY1() {
     sane(1);
     for (int i = 0; FIRSTY_TEST[i][0][0]; i++) {
         a_pad(rdx, inputs, 16);
+        a_dup(u8c, correct, FIRSTY_TEST[i][0]);
         for (int j = 0; FIRSTY_TEST[i][j][0]; j++) {
             rdx it = {.format = RDX_FORMAT_JDR, .data = FIRSTY_TEST[i][j]};
             call(rdxNext, &it);
@@ -167,6 +168,7 @@ ok64 RDXTest1y() {
         rdx w = {.format = RDX_FORMAT_JDR | RDX_FORMAT_WRITE, .into = res_idle};
         call(rdxMerge, &w, rdxbDataIdle(inputs));
         $println(res_datac);
+        test(0 == $cmp(res_datac, correct), RDXBAD);
     }
     done;
 }
@@ -177,8 +179,8 @@ pro(RDXtest) {
     call(RDXid128test);
     call(RDXTestTLV);
     call(RDXTestJDR);
-    call(RDXTestEz);
-    call(RDXTest1y);
+    call(RDXTestZE);
+    call(RDXTestY1);
     done;
 }
 

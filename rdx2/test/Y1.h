@@ -1,0 +1,47 @@
+#include "abc/BUF.h"
+
+u8cs FIRSTY_TEST[128][8] = {
+    {
+        u8csOf("3@33"),
+        u8csOf("22@22"),
+        u8csOf("3@33"),
+        u8csOf("111@11"),
+        0,
+    },
+    {
+        u8csOf("3"),
+        u8csOf("2"),
+        u8csOf("3"),
+        u8csOf("1"),
+        0,
+    },
+    {
+        u8csOf("two"),
+        u8csOf("one"),
+        u8csOf("two"),
+        u8csOf("three"),
+        0,
+    },
+    {
+        u8csOf("alice-two"),
+        u8csOf("bob-one"),
+        u8csOf("alice-two"),
+        u8csOf("alice-too"),
+        u8csOf("alex-two"),
+        0,
+    },
+    {
+        u8csOf("\"string\""),
+        u8csOf("\"s\tring\""),
+        u8csOf("\"s\\tring\""),
+        u8csOf("\"string\""),
+        0,
+    },
+    {
+        u8csOf("\"s\\tring\""),
+        u8csOf("\"s\tring\""),
+        u8csOf("\"s\\tring\""),
+        0,
+    },
+    0,
+};

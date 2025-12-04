@@ -105,6 +105,28 @@ ok64 rdxbOuto(rdxb its) {
     done;
 }
 
+fun ok64 rdxStringZ(rdxcp a, rdxcp b) {
+    sane(a && b);
+    if (a->cformat == RDX_UTF_ENC_UTF8 && b->cformat == RDX_UTF_ENC_UTF8)
+        return u8csZ(&a->s, &b->s);
+    test(a->cformat < RDX_UTF_ENC_LEN && b->cformat < RDX_UTF_ENC_LEN, RDXBAD);
+    UTFRecode are = UTABLE[a->cformat][UTF8_DECODER_ONE];
+    UTFRecode bre = UTABLE[b->cformat][UTF8_DECODER_ONE];
+    a_pad(u8, autf, 16);
+    a_pad(u8, butf, 16);
+    a_dup(u8c, as, a->s);
+    a_dup(u8c, bs, b->s);
+    while (u8csLen(as) && u8csLen(bs)) {
+        call(are, autf_idle, as);
+        call(bre, butf_idle, bs);
+        int z = $cmp(autf_datac, butf_datac);
+        if (z != 0) return z < 0;
+        Breset(autf);
+        Breset(butf);
+    }
+    return u8csLen(as) < u8csLen(bs);
+}
+
 ok64 rdx1Z(rdxcp a, rdxcp b) {
     sane(a->type == b->type && a->type >= RDX_TYPE_PLEX_LEN);
     switch (a->type) {
@@ -114,8 +136,8 @@ ok64 rdx1Z(rdxcp a, rdxcp b) {
             return i64Z(&a->i, &b->i);
         case RDX_TYPE_REF:
             return id128Z(&a->r, &b->r);
-        case RDX_TYPE_STRING:            // fixme
-            return u8csZ(&a->s, &b->s);  // fixme
+        case RDX_TYPE_STRING:
+            return rdxStringZ(a, b);
         case RDX_TYPE_TERM:
             return u8csZ(&a->t, &b->t);
         default:

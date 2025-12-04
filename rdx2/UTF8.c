@@ -4,7 +4,43 @@
 #include "RDX.h"
 #include "abc/PRO.h"
 
-ok64 UTF8Escape(u8s into, u8cs from) { return NOTIMPLYET; }
+ok64 UTF8Escape(u8s txt, u8cs val) {
+    sane(u8sOK(txt) && u8csOK(val));
+    switch (**val) {
+        case '\t':
+            call(u8sFeed2, txt, '\\', 't');
+            break;
+        case '\r':
+            call(u8sFeed2, txt, '\\', 'r');
+            break;
+        case '\n':
+            call(u8sFeed2, txt, '\\', 'n');
+            break;
+        case '\b':
+            call(u8sFeed2, txt, '\\', 'b');
+            break;
+        case '\f':
+            call(u8sFeed2, txt, '\\', 'f');
+            break;
+        case '\\':
+            call(u8sFeed2, txt, '\\', '\\');
+            break;
+        case '/':
+            call(u8sFeed2, txt, '\\', '/');
+            break;
+        case '"':
+            call(u8sFeed2, txt, '\\', '"');
+            break;
+        case 0:
+            call(u8sFeed2, txt, '\\', '0');
+            break;
+            // TODO \u etc
+        default:
+            call(u8sFeed1, txt, **val);
+    }
+    ++*val;
+    done;
+}
 
 ok64 UTF8UnEscape(u8s tlv, u8cs txt) {
     if ($empty(tlv)) return NOROOM;
@@ -64,7 +100,13 @@ ok64 UTF8UnEscape(u8s tlv, u8cs txt) {
     return OK;
 }
 
-ok64 UTF8EscapeAll(u8s into, u8cs from) { return NOTIMPLYET; }
+ok64 UTF8EscapeAll(u8s into, u8cs from) {
+    sane(u8sOK(into) && u8csOK(from));
+    while (!u8csEmpty(from)) {
+        call(UTF8Escape, into, from);
+    }
+    done;
+}
 
 ok64 UTF8UnEscapeAll(u8s tlv, u8cs txt) {
     sane(u8sOK(tlv) && u8csOK(txt));
