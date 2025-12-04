@@ -9,9 +9,7 @@ fun ok64 SORTu64x(u8cs s, u8cs rest) { return $u8take(s, rest, sizeof(u64)); }
 
 fun ok64 SORTu64y($u8 into, u8css eqs) { return u8sFeed(into, (u8c$c)eqs[0]); }
 
-fun int SORTu64z($cu8c *a, $cu8c *b) {
-    return u64cmp((u64c *)**a, (u64c *)**b);
-}
+fun ok64 SORTu64z($cu8c *a, $cu8c *b) { return u64Z((u64c *)**a, (u64c *)**b); }
 
 #define _X(name) SORTu64##name
 #include "Yx.h"

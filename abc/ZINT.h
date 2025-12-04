@@ -198,8 +198,6 @@ fun ok64 ZINTu8sDrainInt(i64* n, $cu8c zip) {
     return o;
 }
 
-typedef double f64;
-
 fun u64 ZINTf64bits(f64 val) { return *(u64*)&val; }
 
 fun f64 ZINTf64from(u64 bits) { return *(f64*)&bits; }

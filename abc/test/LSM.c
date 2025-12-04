@@ -3,13 +3,12 @@
 #include <unistd.h>
 
 #include "abc/B.h"
-#include "abc/FILE.h"
 #include "abc/OK.h"
 #include "abc/TEST.h"
 #include "abc/TLV.h"
 #include "abc/ZINT.h"
 
-fun int alpha($cu8c* a, $cu8c* b) {
+fun ok64 alpha(u8cscp a, u8cscp b) {
     a_dup(u8c, aa, *a);
     a_dup(u8c, bb, *b);
     u8 ta, tb;
@@ -17,15 +16,15 @@ fun int alpha($cu8c* a, $cu8c* b) {
     TLVDrainKeyVal(&ta, keya, vala, aa);
     TLVDrainKeyVal(&tb, keyb, valb, bb);
     int c = $cmp(keya, keyb);
-    return c;
+    return c < 0;
 }
 
-fun ok64 latest($u8 into, u8css from) {
+fun ok64 latest(u8sp into, u8scs from) {
     u8 ta = 0;
     u8cs max = {};
     for (int i = 0; i < $len(from); ++i) {
         u8cs rec;
-        TLVDrain$(rec, $at(from, i));
+        TLVDrain$(rec, (u8c**)$at(from, i));
         if (*$last(rec) > ta) $mv(max, rec);
     }
     u8sFeed(into, max);
@@ -72,7 +71,7 @@ pro(LSM0) {
     done;
 }
 
-fun ok64 nomerge($u8 into, u8css from) { return u8sFeed(into, **from); }
+fun ok64 nomerge(u8s into, u8scs from) { return u8sFeed(into, (u8c**)**from); }
 
 pro(LSM1) {
     sane(1);
@@ -102,7 +101,7 @@ pro(LSM1) {
     done;
 }
 
-fun int ZINTz($cu8c* a, $cu8c* b) {
+fun ok64 ZINTz($cu8c* a, $cu8c* b) {
     a_dup(u8c, aa, *a);
     a_dup(u8c, bb, *b);
     u8cs vala, valb;
@@ -112,7 +111,7 @@ fun int ZINTz($cu8c* a, $cu8c* b) {
     u64 au, bu;
     ZINTu64drain(&au, vala);
     ZINTu64drain(&bu, valb);
-    return u64cmp(&au, &bu);
+    return u64Z(&au, &bu);
 }
 
 ok64 LSM1000000() {

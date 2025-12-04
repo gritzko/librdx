@@ -55,6 +55,11 @@ fun size_t X(, cbPastLen)(X(, cb) buf) { return $len((T **)buf + 0); }
 fun size_t X(, cbDataLen)(X(, cb) buf) { return $len((T **)buf + 1); }
 fun size_t X(, cbIdleLen)(X(, cb) buf) { return $len((T **)buf + 2); }
 
+fun T *X(, bHead)(X(, b) b) {
+    assert(!$empty(b + 1));
+    return b[1];
+}
+
 fun b8 X(, bHasRoom)(X(, bp) buf) { return !$empty(X(, bIdle)(buf)); }
 fun b8 X(, bHasData)(X(, bp) buf) { return !$empty(X(, bData)(buf)); }
 
@@ -135,6 +140,15 @@ fun ok64 X(B, feedp)(X(B, ) buf, T const *one) {
 fun ok64 X(, bPush)(X(, bp) buf, X(, cp) one) {
     return X(, sFeedP)(X(, bIdle)(buf), one);
 }
+#ifndef ABC_X_$
+fun ok64 X(, bPushed)(X(, bp) buf, X(, pp) pp) {
+    T **idle = X(, bIdle)(buf);
+    if (!$len(idle)) return NOROOM;
+    *pp = *idle;
+    ++*idle;
+    return OK;
+}
+#endif
 
 fun ok64 X(, bFeedP)(X(, bp) buf, T const *one) {
     return X(, sFeedP)(X(, bIdle)(buf), one);

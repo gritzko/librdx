@@ -5,33 +5,33 @@
 #include "abc/S.h"
 #include "abc/TLV.h"
 
-ok64 LSMnext($u8 into, u8css lsm, $u8cZfn cmp, $u8cYfn mrg) {
-    sane($ok(into) && $ok(lsm) && cmp != NULL && mrg != NULL);
+ok64 LSMnext(u8s into, u8css lsm, u8csz z, u8sy y) {
+    sane(u8sOK(into) && u8cssOK(lsm) && z && y);
     u8cs next = {}, _;
-    aBpad2(u8cs, in, LSM_MAX_INPUTS);
+    a_pad(u8cs, in, LSM_MAX_INPUTS);
 
     do {
         call(TLVDrain$, next, **lsm);
         while (!$empty(**lsm) && (~TLVaA & ****lsm) == SKIP_TLV_TYPE)
             call(TLVDrain$, _, **lsm);
-        call(u8cssFeedP, inidle, &next);
+        call(u8cssFeedP, in_idle, &next);
         if ($empty(**lsm)) {
             u8csSwap($head(lsm), $last(lsm));
             --$term(lsm);
             if ($empty(lsm)) break;
         }
-        HEAPu8csDownZ(lsm, cmp);
-    } while (0 == cmp($head(lsm), &next));
+        HEAPu8csDownZ(lsm, z);
+    } while (!z($head(lsm), &next) && !z(&next, $head(lsm)));
 
-    if ($len(indata) == 1) {
+    if ($len(in_data) == 1) {
         call(u8sFeed, into, next);
     } else {
-        call(mrg, into, indata);
+        call(y, (u8c**)into, in_datac);
     }
     done;
 }
 
-ok64 LSMdrainruns(u8csb heap, u8cs input, $u8cZfn cmp) {
+ok64 LSMdrainruns(u8csb heap, u8cs input, u8csz cmp) {
     sane(Bok(heap) && $ok(input) && u8csbHasRoom(heap) && cmp != NULL);
     u8cs last = {};
     call(TLVDrain$, last, input);
@@ -52,7 +52,7 @@ ok64 LSMdrainruns(u8csb heap, u8cs input, $u8cZfn cmp) {
     done;
 }
 
-ok64 LSMsort1(size_t* runs, $u8 into, u8cs data, $u8cZfn cmp, $u8cYfn mrg) {
+ok64 LSMsort1(size_t* runs, u8s into, u8cs data, u8csz cmp, u8sy mrg) {
     sane($ok(into) && $ok(data) && $len(into) >= $len(data) && cmp != NULL &&
          mrg != NULL);
     *runs = 0;
@@ -68,7 +68,7 @@ ok64 LSMsort1(size_t* runs, $u8 into, u8cs data, $u8cZfn cmp, $u8cYfn mrg) {
     done;
 }
 
-ok64 LSMsort($u8 data, $u8cZfn cmp, $u8cYfn mrg, $u8 tmp) {
+ok64 LSMsort(u8s data, u8csz cmp, u8sy mrg, u8s tmp) {
     sane($ok(tmp) && $ok(data) && $len(tmp) >= $len(data) && cmp != NULL &&
          mrg != NULL);
     size_t runs = 0;

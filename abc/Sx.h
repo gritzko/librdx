@@ -13,6 +13,8 @@ typedef T const X(, c);
 #ifndef ABC_X_$
 typedef T *X(, p);
 typedef T const *X(, cp);
+typedef T **X(, pp);
+typedef T const **X(, cpp);
 #endif
 
 typedef T *X($, )[2];
@@ -122,6 +124,16 @@ fun ok64 X(, csAte)(X(, cs) s) {
     return OK;
 }
 
+fun T *X(, sHead)(X(, s) s) {
+    assert(!$empty(s));
+    return *s;
+}
+
+fun T const *X(, csHead)(X(, cs) s) {
+    assert(!$empty(s));
+    return *s;
+}
+
 fun T const *X($, find)(X($c, c) haystack, T const *needle) {
     for (T const *p = haystack[0]; p < haystack[1]; p++)
         if (memcmp(p, needle, sizeof(T)) == 0) return p;
@@ -173,6 +185,16 @@ fun size_t X(, sCopy)(X(, sc) into, X(, csc) from) {
     memcpy((void *)*into, (void *)*from, l * sizeof(T));
     return l;
 }
+
+/* TODO define Z on all types
+fun b8 X(, csZ)(X(, scp) a, X(, scp) b) {
+    for (u64 i = 0; i < $len(a) && i < $len(b); i++) {
+        if (X(, Z)(*a + i, *b + i)) return YES;
+        if (X(, Z)(*b + i, *a + i)) return NO;
+    }
+    return $len(a) < $len(b);
+}
+*/
 
 fun ok64 X($, alloc)(X($, ) what, size_t len) {
     T *m = (T *)malloc(len * sizeof(T));
@@ -407,12 +429,14 @@ fun void X(, Swap)(T *a, T *b) {
     Ocopy(b, &c);
 }
 
+/*
 fun ok64 X(, sSwap)(X(, s) s, size_t a, size_t b) {
     size_t l = X(, sLen)(s);
     if (unlikely(a >= l || b >= l)) return BADARG;
     X(, Swap)(*s + a, *s + b);
     return OK;
 }
+*/
 
 fun void X(, s_purge)(X($, ) s, X(, isfn) f) {
     for (int i = 0; i < $len(s); ++i) {

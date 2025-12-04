@@ -22,28 +22,34 @@ typedef uint8_t u8;
 typedef uint16_t u16;
 typedef uint32_t u32;
 typedef uint64_t u64;
+typedef double f64;
 
 typedef u8 const u8c;
 typedef u16 const u16c;
 typedef u32 const u32c;
 typedef u64 const u64c;
+typedef double const f64c;
 typedef u8 u4;
 
 typedef u8 *u8p;
 typedef u16 *u16p;
 typedef u32 *u32p;
 typedef u64 *u64p;
+typedef double *f64p;
 
 typedef u8 const *u8cp;
 typedef u16 const *u16cp;
 typedef u32 const *u32cp;
 typedef u64 const *u64cp;
+typedef double const *f64cp;
 
 typedef int8_t i8;
 typedef int16_t i16;
 typedef int32_t i32;
 
 typedef int64_t i64;
+typedef i32 *i32p;
+typedef i32 const *i32cp;
 typedef i64 *i64p;
 typedef i64 const *i64cp;
 
@@ -397,5 +403,14 @@ typedef ok64 (*OKcallback)(void *);
 #define i64MinAbsValue 9223372036854775808UL
 #define f64MaxValue DBL_MAX
 #define f64MinValue -DBL_MAX
+
+fun ok64 f32Z(f32 const *a, f32 const *b) { return *a < *b; }
+fun ok64 f64Z(f64 const *a, f64 const *b) { return *a < *b; }
+fun ok64 u16Z(u16cp a, u16cp b) { return *a < *b; }
+fun ok64 u32Z(u32cp a, u32cp b) { return *a < *b; }
+fun ok64 u64Z(u64cp a, u64cp b) { return *a < *b; }
+fun ok64 i32Z(i32cp a, i32cp b) { return *a < *b; }
+fun ok64 i64Z(i64cp a, i64cp b) { return *a < *b; }
+fun ok64 u8Z(u8cp a, u8cp b) { return *a < *b; }
 
 #endif

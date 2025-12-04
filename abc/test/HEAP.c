@@ -11,7 +11,6 @@ pro(HEAPtest1) {
     sane(1);
     // Make a buffer on the stack
     aBpad(u32, pad, 32);
-    u32$ heap = u32bData(pad);
     // Pushes one entry into the heap buffer
     call(HEAPu32Push1, pad, 3);
     call(HEAPu32Push1, pad, 2);

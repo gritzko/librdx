@@ -113,9 +113,9 @@ typedef u8cs RDXstring;
 typedef u8cs RDXterm;
 
 /**
- *   [ |  | ] memory owning buffer u8b
- *   ^
- *  [^rdx0 <-- rdx1 <-- rdx2 ... ] rdxb
+ *  [ |  | ] memory owning buffer u8b
+ *    ^
+ *  [ ^rdx0 <-- rdx1 <-- rdx2 ... ] rdxb
  *
  *  A parsed RDX element, the basic building block of everything here
  *  and the ultimate hourglass waist. Serves as a stacked/hierarchical
@@ -149,6 +149,9 @@ typedef struct {
 
 typedef rdx* rdxp;
 typedef rdx const* rdxcp;
+typedef rdxp const* rdxpcp;
+typedef rdxp* rdxpp;
+typedef rdxp** rdxppp;
 
 #define a_rdx(n, b, fmt)            \
     a_pad(rdx, n, RDX_MAX_NESTING); \
@@ -192,17 +195,27 @@ fun void rdxMv(rdxp into, rdxcp from) {
 #include "abc/Bx.h"
 #undef X
 
+static const rdxz ZTABLE[RDX_TYPE_PLEX_LEN];
+fun ok64 rdxZ(rdxcp a, rdxcp b) {
+    rdxz Z = ZTABLE[a->type];
+    return NOTIMPLYET;
+}
+
 fun int rdxpcmp(rdxp const* a, rdxp const* b) { return rdxcmp(*a, *b); }
+fun ok64 rdxpZ(rdxpcp a, rdxpcp b) { return rdxZ(*a, *b); }
 
 #define X(M, name) M##rdxp##name
 #include "abc/Bx.h"
+#include "abc/HEAPx.h"
 #undef X
 
+/*
 fun int rdxbpcmp(rdxbp const* a, rdxbp const* b) { return 0; }
 
 #define X(M, name) M##rdxbp##name
 #include "abc/Bx.h"
 #undef X
+*/
 
 fun b8 rdxbWritable(rdxbp b) {
     u64 l = rdxbDataLen(b);
@@ -297,32 +310,28 @@ fun ok64 rdxNext(rdxp x) { return VTABLE_NEXT[x->format](x); }
 fun ok64 rdxInto(rdxp c, rdxp p) { return VTABLE_INTO[p->format](c, p); }
 fun ok64 rdxOuto(rdxp c, rdxp p) { return VTABLE_OUTO[p->format](c, p); }
 
-fun ok64 rdxRootZ(rdxcp a, rdxcp b) { return NOTIMPLYET; }
-fun ok64 rdxTupleZ(rdxcp a, rdxcp b) { return NOTIMPLYET; }
-fun ok64 rdxLinearZ(rdxcp a, rdxcp b) { return NOTIMPLYET; }
-fun ok64 rdxEulerZ(rdxcp a, rdxcp b) { return NOTIMPLYET; }
-fun ok64 rdxMultixZ(rdxcp a, rdxcp b) { return NOTIMPLYET; }
-
+fun ok64 rdxRootZ(rdxcp a, rdxcp b) { return NO; }
+fun ok64 rdxTupleZ(rdxcp a, rdxcp b) { return NO; }
+fun ok64 rdxLinearZ(rdxcp a, rdxcp b) {
+    u64 ao = a->id.seq - 1;
+    u64 bo = b->id.seq - 1;
+    return u64Z(&ao, &bo);
+}
+ok64 rdx1Z(rdxcp a, rdxcp b);
+fun ok64 rdxEulerZ(rdxcp a, rdxcp b) {
+    if (a->type != b->type) return u8Z(&a->type, &b->type);
+    if (a->type < RDX_TYPE_PLEX_LEN) return id128Z(&a->id, &b->id);
+    return rdx1Z(a, b);
+}
+fun ok64 rdxMultixZ(rdxcp a, rdxcp b) { return u64Z(&a->id.src, &b->id.src); }
 static const rdxz ZTABLE[RDX_TYPE_PLEX_LEN] = {
     rdxRootZ, rdxTupleZ, rdxLinearZ, rdxEulerZ, rdxMultixZ,
 };
 
 ok64 rdxCopy(rdxp into, rdxp from);
-ok64 rdxbCopy(rdxb into, rdxb from);
-ok64 RDXMerge(rdxb into, rdxbps heap);
-ok64 RDXHash(sha256p hash, rdxb root);
-
-// An RDX file minimalistic header, 16 bytes.
-typedef struct {
-    struct {
-        u8 litT;    // always T
-        u8 format;  // RDX_FORMAT
-        u8 index;   // index format
-        u8 crypto;  // crypto model
-    };
-    u32 meta_len;
-    u64 data_len;
-} rdxmeta128;
+ok64 rdxbCopy(rdxbp into, rdxbp from);
+ok64 rdxMerge(rdxp into, rdxbp inputs);
+ok64 rdxHash(sha256p hash, rdxp root);
 
 typedef enum {
     UTF8_ENCODER_ONE = 0,

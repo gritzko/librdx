@@ -44,6 +44,16 @@ fun int voidpcmp(void *const *a, void *const *b) {
 #include "Bx.h"
 #undef X
 
+fun int u8scmp(u8s const *a, u8s const *b) { return $cmp(*a, *b); }
+
+typedef u8s const *u8scp;
+
+#define X(M, name) M##u8s##name
+#define ABC_X_$
+#include "Bx.h"
+#undef ABC_X_$
+#undef X
+
 fun int u8cscmp(u8cs const *a, u8cs const *b) { return $cmp(*a, *b); }
 
 typedef u8cs const *$u8ccp;
@@ -194,7 +204,7 @@ fun ok64 u8sPop32(u8cs s, u32p last) {
     return OK;
 }
 
-fun int u8csZ(u8csc a, u8csc b) {
+fun ok64 u8csZ(u8cscp a, u8cscp b) {
     size_t sza = $size(a), szb = $size(b);
     size_t sz = sza < szb ? sza : szb;
     int ret = memcmp(*a, *b, sz);
