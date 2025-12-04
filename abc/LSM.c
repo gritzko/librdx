@@ -20,7 +20,7 @@ ok64 LSMnext(u8s into, u8css lsm, u8csz z, u8sy y) {
             --$term(lsm);
             if ($empty(lsm)) break;
         }
-        HEAPu8csDownZ(lsm, z);
+        u8cssDownZ(lsm, z);
     } while (!z($head(lsm), &next) && !z(&next, $head(lsm)));
 
     if ($len(in_data) == 1) {

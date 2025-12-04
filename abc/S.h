@@ -33,6 +33,15 @@
 #define a_dup(T, n, s) T *n[2] = {(s)[0], (s)[1]}
 #define $dup(s) {(s)[0], (s)[1]}
 
+#define a_gauge(T, n, s)                \
+    T *n[3] = {(s)[0], (s)[0], (s)[1]}; \
+    T **n##_data = n;                   \
+    T **n##_idle = n + 1;
+
+#define a_past(T, n, old, neu)                    \
+    assert(old[1] == neu[1] && old[0] <= neu[0]); \
+    T *n[2] = {old[0], neu[0]};
+
 #define a_rest(T, n, orig, off)                        \
     T##s n = {(T *)(orig[0]) + (off), (T *)(orig[1])}; \
     assert($size(n) <= $size(orig));
@@ -66,7 +75,7 @@
 #define $cut(s, o, l) {$off(s, o), $off(s, o + l)}
 
 #define $for(T, n, s) for (T *n = s[0]; (n + 1) <= s[1]; ++n)
-#define $rof(T, n, s) for (T *n = s[1]; n >= s[0]; --n) /*fixme*/
+#define $rof(T, n, s) for (T *n = s[1] - 1; n >= s[0]; --n) /*fixme*/
 #define $eat(s) for (; s[0] < s[1]; s[0]++)
 
 #define eats(T, i, s) for (T *i = s[0]; i < s[1]; i++)

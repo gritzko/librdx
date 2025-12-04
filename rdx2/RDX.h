@@ -75,6 +75,8 @@ typedef struct {
 } id128;
 
 #define id128RevMask 63
+#define id128SeqMask ((1UL << 60) - 1 - 63)
+#define id128SrcMask ((1UL << 60) - 1)
 typedef id128 const id128c;
 typedef id128* id128p;
 typedef id128c* id128cp;
@@ -190,18 +192,22 @@ fun void rdxMv(rdxp into, rdxcp from) {
     into->r = from->r;
 }
 
+fun ok64 rdxZ(rdxcp a, rdxcp b);
+
 // rdxb stack: [PAST PEND(0/1) IDLE]
 #define X(M, name) M##rdx##name
 #include "abc/Bx.h"
+#include "abc/HEAPx.h"
 #undef X
 
+fun int rdxpcmp(rdxp const* a, rdxp const* b) { return rdxcmp(*a, *b); }
 static const rdxz ZTABLE[RDX_TYPE_PLEX_LEN];
+
 fun ok64 rdxZ(rdxcp a, rdxcp b) {
-    rdxz Z = ZTABLE[a->type];
-    return NOTIMPLYET;
+    rdxz Z = ZTABLE[a->ptype];
+    return Z(a, b);
 }
 
-fun int rdxpcmp(rdxp const* a, rdxp const* b) { return rdxcmp(*a, *b); }
 fun ok64 rdxpZ(rdxpcp a, rdxpcp b) { return rdxZ(*a, *b); }
 
 #define X(M, name) M##rdxp##name
@@ -316,6 +322,7 @@ static const rdx2f VTABLE_OUTO[RDX_FORMAT_LEN] = {
 
 fun ok64 rdxNext(rdxp x) { return VTABLE_NEXT[x->format](x); }
 fun ok64 rdxInto(rdxp c, rdxp p) { return VTABLE_INTO[p->format](c, p); }
+// c is optional on reads
 fun ok64 rdxOuto(rdxp c, rdxp p) { return VTABLE_OUTO[p->format](c, p); }
 
 fun ok64 rdxRootZ(rdxcp a, rdxcp b) { return NO; }

@@ -107,6 +107,7 @@ con ok64 BADPOS = 0x2ca35961c;
 con ok64 FAILmiss = 0xc6ddf7;
 con ok64 BADRANGE = 0x2ca35b29740e;
 con ok64 BADSTAT = 0xb28d71d29d;
+con ok64 MISS = 0x59271c;
 
 con ok64 $miss = 0x3fc6ddf7;
 con ok64 $nodata = 0x3fcb3a25e25;

@@ -19,7 +19,7 @@ ok64 rdxEulerZ(rdxcp a, rdxcp b) {
     sane(a && b);
     rdx ac = {}, bc = {};
     u8cs acd = {}, bcd = {};
-    if (a->type == RDX_TYPE_TUPLE) {
+    if (a->type == RDX_TYPE_TUPLE) {  // FIXME mess
         ac.type = 0;
         call(rdxInto, &ac, (rdxp)a);
         $mv(acd, a->plex);
@@ -122,46 +122,53 @@ ok64 rdx1Z(rdxcp a, rdxcp b) {
     }
 }
 
-fun ok64 rdxpV(rdxpcp a, rdxpcp b) {
-    sane(a && b && (**a).ptype == (**b).ptype);
-    return NOTIMPLYET;
+fun ok64 rdxWinZ(rdxcp a, rdxcp b) {
+    sane(a && b && a->ptype == b->ptype);
+    u64 aseq = a->id.seq & id128SeqMask;
+    u64 bseq = b->id.seq & id128SeqMask;
+    if (aseq != bseq) return aseq < bseq;
+    u64 asrc = a->id.src & id128SrcMask;
+    u64 bsrc = b->id.src & id128SrcMask;
+    if (asrc != bsrc) return asrc < bsrc;
+    if (a->type != b->type) return u8Z(&a->type, &b->type);
+    if (!rdxTypePlex(a)) return rdx1Z(a, b);
+    return NO;
 }
 
-ok64 rdxsSpotMerge(rdxp into, rdxbp from) {
-    a_dup(rdx, next, rdxbIdle(from));
-    // scan, find eqs rdxsFeedP(next, eq)
-    // $mv(mydata, rdxbDataC(from));
-    // $mv(rdxbDataC(from), next);
-}
+fun ok64 rdxpWinZ(rdxpcp a, rdxpcp b) { return rdxWinZ(*a, *b); }
 
-ok64 rdxsHeapMerge(rdxp into, rdxbp ins) {
+/*
+ok64 rdxMerge(rdxp into, rdxbp ins) {
     sane(into && rdxbOK(ins));
     a_pad(rdxp, heap, RDX_MAX_INPUTS);
     $for(rdx, i, rdxbData(ins)) call(HEAPrdxpPush1Z, heap, i, rdxpZ);
     while (rdxpbDataLen(heap)) {
         rdxps eqs = {};
         HEAPrdxpEqsZ(rdxpbData(heap), eqs, rdxpZ);
-        HEAPrdxpMakeZ(eqs, rdxpV);
-        rdxps wins = {};
-        HEAPrdxpEqsZ(wins, eqs, rdxpV);
+        a_dup(rdxp, wins, eqs);
+        if (rdxpsLen(eqs) > 1) {
+            HEAPrdxpMakeZ(eqs, rdxpWinZ);
+            HEAPrdxpEqsZ(wins, eqs, rdxpWinZ);
+        }
         if ((**wins)->type < RDX_TYPE_PLEX_LEN) {
             a_dup(rdx, old, rdxbData(ins));
             rdxsAte(rdxbData(ins));
             rdx c = {};
             call(rdxInto, &c, into);
-            $for(rdxp, q, eqs) {
-                rdxp p;
+            $for(rdxp, q, wins) {
+                rdxp p = 0;
                 call(rdxbPushed, ins, &p);
+                p->type = 0;
                 call(rdxInto, p, *q);
             }
-            call(rdxsHeapMerge, into, ins);
+            call(rdxMerge, into, ins);
             call(rdxOuto, &c, into);
             $mv(rdxbData(ins), old);
         } else {
             rdxMv(into, **wins);
             call(rdxNext, into);
         }
-        $rof(rdxp, p, eqs) {  // fixme
+        $rof(rdxp, p, eqs) {
             ok64 o = rdxNext(*p);
             if (o == OK) {
                 HEAPrdxpDownAt(rdxpbData(heap), p - *eqs);
@@ -175,7 +182,53 @@ ok64 rdxsHeapMerge(rdxp into, rdxbp ins) {
     }
     done;
 }
+*/
 
+ok64 rdxMergeIn(rdxp into, rdxs ins, rdxs idle) {
+    sane(into && rdxsOK(ins) && rdxsOK(idle) && !$empty(ins));
+    rdxz Z = ZTABLE[(**ins).ptype];
+    call(rdxsHeapZ, ins, Z);
+    while (rdxsLen(ins)) {
+        rdxs eqs = {};
+        rdxsTopsZ(ins, eqs, Z);
+        a_dup(rdx, wins, eqs);
+        if (rdxsLen(eqs) > 1) {
+            rdxsHeapZ(eqs, rdxWinZ);
+            rdxsTopsZ(wins, eqs, rdxWinZ);
+        }
+        if ((**wins).type < RDX_TYPE_PLEX_LEN) {
+            test($len(idle) >= $len(wins), RDXNOROOM);
+            a_gauge(rdx, sub, idle);
+            rdx c = {};
+            call(rdxInto, &c, into);
+            $for(rdx, q, wins) {
+                (**sub_idle).type = 0;
+                call(rdxInto, *sub_idle, q);
+                ++sub_idle;
+            }
+            call(rdxMergeIn, &c, sub_data, sub_idle);
+            call(rdxOuto, &c, into);
+            $for(rdx, q, wins) {
+                call(rdxOuto, NULL, q);  // c is optional
+            }
+        } else {
+            rdxMv(into, *wins);
+            call(rdxNext, into);
+        }
+        $rof(rdx, p, eqs) {
+            ok64 o = rdxNext(p);
+            if (o == OK) {
+                rdxsDownAt(ins, p - *ins);
+            } else if (o == END) {
+                *p = *rdxsLast(ins);
+                --ins[1];
+            } else {
+                fail(o);
+            }
+        }
+    }
+    done;
+}
 ok64 rdxHash(sha256p hash, rdxp root) {
     sane(hash && root);
     done;

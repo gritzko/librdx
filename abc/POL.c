@@ -119,7 +119,7 @@ ok64 POLAddTime(int ms) {
     POL_TIMER.deadline = deadline;
     int ndx = 0;
     while (ndx < Bdatalen(POL_QUEUE) && Bat(POL_QUEUE, ndx) != -1) ndx++;
-    HEAPi32UpAtZ(POL_QUEUE, ndx, i32Z);
+    i32sUpAtZ(POL_QUEUE, ndx, i32Z);
     return OK;
 }
 
@@ -142,7 +142,7 @@ ok64 POLLoop(u64 timens) {
             at->deadline = now;
             at->callback(**POL_QUEUE, at);
             at->deadline = now + at->timeout_ms * (POLNanosPerSec / 1000);
-            HEAPi32DownZ(POL_QUEUE, i32Z);
+            i32sDownZ(POL_QUEUE, i32Z);
             at = POLAt(**POL_QUEUE);
         }
         u64 next_timeout = at->deadline;
