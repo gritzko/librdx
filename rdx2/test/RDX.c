@@ -153,6 +153,7 @@ ok64 RDXTestZE() {
 
 #include <test/Y1.h>
 #include <test/YE.h>
+#include <test/YP.h>
 
 ok64 RDXTestY(u8cs test[][8]) {
     sane(1);
@@ -182,6 +183,7 @@ pro(RDXtest) {
     call(RDXTestJDR);
     call(RDXTestZE);
     call(RDXTestY, FIRSTY_TEST);
+    call(RDXTestY, YP_TEST);
     call(RDXTestY, YE_TEST);
     done;
 }
