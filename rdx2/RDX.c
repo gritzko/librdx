@@ -163,15 +163,29 @@ fun ok64 rdxpWinZ(rdxpcp a, rdxpcp b) { return rdxWinZ(*a, *b); }
 ok64 rdxMerge(rdxp into, rdxg inputs) {
     sane(into && rdxgOK(inputs) && !rdxgEmpty(inputs));
     rdxz Z = ZTABLE[(**inputs).ptype];
-    call(rdxsHeapZ, inputs, Z);
+    a_dup(rdx, eqs, inputs);
     while (rdxsLen(inputs)) {
-        rdxs eqs = {};
+        $rof(rdx, p, eqs) {
+            ok64 o = rdxNext(p);
+            if (o == OK) {
+                rdxsDownAtZ(inputs, p - *inputs, Z);
+            } else if (o == END) {
+                *p = *rdxsLast(inputs);
+                rdxgFreed1(inputs);
+                if (!rdxsEmpty(inputs)) rdxsDownAtZ(inputs, p - *inputs, Z);
+            } else {
+                fail(o);
+            }
+        }
+        if (rdxsEmpty(inputs)) break;
         rdxsTopsZ(inputs, eqs, Z);
         a_dup(rdx, wins, eqs);
         if (rdxsLen(eqs) > 1) {
             rdxsHeapZ(eqs, rdxWinZ);
             rdxsTopsZ(eqs, wins, rdxWinZ);
         }
+        rdxMv(into, *wins);
+        call(rdxNext, into);
         if ((**wins).type < RDX_TYPE_PLEX_LEN) {
             test(rdxgIdleLen(inputs) >= rdxsLen(wins), RDXNOROOM);
             a_gauge(rdx, sub, rdxgIdle(inputs));
@@ -186,20 +200,6 @@ ok64 rdxMerge(rdxp into, rdxg inputs) {
             call(rdxOuto, &c, into);
             $for(rdx, q, wins) {
                 call(rdxOuto, NULL, q);  // c is optional
-            }
-        } else {
-            rdxMv(into, *wins);
-            call(rdxNext, into);
-        }
-        $rof(rdx, p, eqs) {
-            ok64 o = rdxNext(p);
-            if (o == OK) {
-                rdxsDownAtZ(inputs, p - *inputs, Z);
-            } else if (o == END) {
-                *p = *rdxsLast(inputs);
-                rdxgFreed1(inputs);
-            } else {
-                fail(o);
             }
         }
     }

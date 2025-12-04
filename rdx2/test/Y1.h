@@ -1,6 +1,6 @@
 #include "abc/BUF.h"
 
-u8cs FIRSTY_TEST[128][8] = {
+u8cs FIRSTY_TEST[][8] = {
     {
         u8csOf("3@33"),
         u8csOf("22@22"),
@@ -38,7 +38,7 @@ u8cs FIRSTY_TEST[128][8] = {
         0,
     },
     {
-        u8csOf("\"s\\tring\""),
+        u8csOf("\"s\tring\""),  // todo escaping  esc->esc
         u8csOf("\"s\tring\""),
         u8csOf("\"s\\tring\""),
         0,

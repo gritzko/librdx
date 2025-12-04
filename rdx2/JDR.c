@@ -20,7 +20,7 @@ ok64 rdxIntoJDR(rdxp c, rdxp p) {
 }
 
 ok64 rdxOutoJDR(rdxp c, rdxp p) {
-    sane(c && p);
+    sane(p);  // c is optional
     p->data[0] = p->plex[0];
     p->cformat = 0;
     if (p->len & 1) {
@@ -75,6 +75,7 @@ ok64 rdxWriteNextJDR(rdxp x) {
         case RDX_TYPE_MULTIX:
             call(u8sFeed1, x->into, RDX_TYPE_BRACKET_OPEN[x->type]);
             call(rdxFeedStamp, x->into, &x->id);
+            if (!id128Empty(&x->id)) call(u8sFeed1, x->into, ' ');
             $mv(x->plex, x->data);
             x->cformat = RDX_FORMAT_JDR | RDX_FORMAT_WRITE;
             break;

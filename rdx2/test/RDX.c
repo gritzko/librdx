@@ -152,15 +152,16 @@ ok64 RDXTestZE() {
 }
 
 #include <test/Y1.h>
+#include <test/YE.h>
 
-ok64 RDXTestY1() {
+ok64 RDXTestY(u8cs test[][8]) {
     sane(1);
-    for (int i = 0; FIRSTY_TEST[i][0][0]; i++) {
+    for (int i = 0; test[i][0][0]; i++) {
         a_pad(rdx, inputs, 16);
-        a_dup(u8c, correct, FIRSTY_TEST[i][0]);
-        for (int j = 0; FIRSTY_TEST[i][j][0]; j++) {
-            rdx it = {.format = RDX_FORMAT_JDR, .data = FIRSTY_TEST[i][j]};
-            call(rdxNext, &it);
+        a_dup(u8c, correct, test[i][0]);
+        for (int j = 0; test[i][j][0]; j++) {
+            rdx it = {.format = RDX_FORMAT_JDR, .data = test[i][j]};
+            // call(rdxNext, &it);
             call(rdxbFeedP, inputs, &it);
         }
         rdxsFed1(rdxbData(inputs));
@@ -180,7 +181,8 @@ pro(RDXtest) {
     call(RDXTestTLV);
     call(RDXTestJDR);
     call(RDXTestZE);
-    call(RDXTestY1);
+    call(RDXTestY, FIRSTY_TEST);
+    call(RDXTestY, YE_TEST);
     done;
 }
 
