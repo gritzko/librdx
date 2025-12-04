@@ -81,7 +81,7 @@ typedef id128c* id128cp;
 fun b8 id128Z(id128cp a, id128cp b) {
     u64 at = a->seq & ~id128RevMask;
     u64 bt = b->seq & ~id128RevMask;
-    return at == bt ? a->src < b->src : at < bt;
+    return at == bt ? (a->src < b->src) : (at < bt);
 }
 fun b8 id128Eq(id128cp a, id128cp b) {
     u64 at = a->seq & ~id128RevMask;
@@ -249,7 +249,8 @@ ok64 JDRlexer(rdxp x);
 ok64 rdxSkipJDR(rdxp x);
 fun ok64 rdxNextJDR(rdxp x) {
     if (x->cformat != 0 && rdxTypePlex(x)) {
-        return rdxSkipJDR(x);
+        ok64 o = rdxSkipJDR(x);
+        if (o != OK) return o;
     }
     x->type = 0;
     ok64 o = JDRlexer(x);
@@ -325,11 +326,8 @@ fun ok64 rdxLinearZ(rdxcp a, rdxcp b) {
     return u64Z(&ao, &bo);
 }
 ok64 rdx1Z(rdxcp a, rdxcp b);
-fun ok64 rdxEulerZ(rdxcp a, rdxcp b) {
-    if (a->type != b->type) return u8Z(&a->type, &b->type);
-    if (a->type < RDX_TYPE_PLEX_LEN) return id128Z(&a->id, &b->id);
-    return rdx1Z(a, b);
-}
+ok64 rdxEulerTupleZ(rdxcp a, rdxcp b);
+ok64 rdxEulerZ(rdxcp a, rdxcp b);
 fun ok64 rdxMultixZ(rdxcp a, rdxcp b) { return u64Z(&a->id.src, &b->id.src); }
 static const rdxz ZTABLE[RDX_TYPE_PLEX_LEN] = {
     rdxRootZ, rdxTupleZ, rdxLinearZ, rdxEulerZ, rdxMultixZ,

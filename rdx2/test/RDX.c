@@ -106,6 +106,7 @@ ok64 RDXTestJDR() {
 ok64 RDXTestEz() {
     sane(1);
     a_pad(rdx, elems, 64);
+    a_pad(u8cs, ple, 64);
     a_cstr(in, EULERZ_TEST);
     a_rdxr(it, in, RDX_FORMAT_JDR);
     call(rdxbNext, it);
@@ -115,16 +116,36 @@ ok64 RDXTestEz() {
     u8cp p = it[0][1].data[0];
     scan(rdxbNext, it) {
         u8cp p2 = it[0][1].data[0];
-        // just store them
-        call(rdxbPush, elems, rdxbLast(it));
+        u8csbFeed1(ple, it[0][0].plex);
+        call(rdxbFeedP, elems, &it[0][1]);
+        rdxbLast(elems)->data = *u8csbLast(ple);
         u8cs e = {p, p2};
-        FILEerr(e);
-        FILEerr(NL);
         p = p2;
     }
     seen(END);
 
     fprintf(stderr, "Stored %lu elements\n", rdxbDataLen(elems));
+
+    // N**N compare
+    rdxsp data = rdxbData(elems);
+    ok64 eu = rdxEulerZ(*data + 30, *data + 31);
+    for (rdxp i = data[0]; i < data[1]; ++i) {
+        // printf("%lu\n", i - *data);
+        for (rdxp j = i + 1; j < data[1]; ++j) {
+            test(YES == rdxEulerZ(i, j), RDXBADORDR);
+            /*if (!rdxEulerZ(i, j)) {
+                a_pad(u8, out, 128);
+                i->into = u8bIdle(out);
+                j->into = u8bIdle(out);
+                rdxWriteNextJDR(i);
+                u8bFeed1(out, '<');
+                rdxWriteNextJDR(j);
+                u8bFeed1(out, 0);
+                // printf("oops %lu < %lu, %s\n", (i - *data), (j - *data),
+                // *out);
+            }*/
+        }
+    }
 
     done;
 }

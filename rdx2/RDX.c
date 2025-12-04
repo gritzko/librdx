@@ -4,6 +4,45 @@
 #include "abc/BUF.h"
 #include "abc/PRO.h"
 
+ok64 rdxEulerTupleZ(rdxcp a, rdxcp b) {
+    sane(a && b);
+    rdx ac = {};
+    rdx bc = {};
+    call(rdxInto, &ac, (rdxp)a);
+    rdxNext(&ac);
+    call(rdxInto, &bc, (rdxp)b);
+    rdxNext(&bc);
+    return rdxEulerZ(&ac, &bc);
+}
+
+ok64 rdxEulerZ(rdxcp a, rdxcp b) {
+    sane(a && b);
+    rdx ac = {}, bc = {};
+    u8cs acd = {}, bcd = {};
+    if (a->type == RDX_TYPE_TUPLE) {
+        ac.type = 0;
+        call(rdxInto, &ac, (rdxp)a);
+        $mv(acd, a->plex);
+        ac.data = acd;
+        rdxNext(&ac);
+        a = &ac;
+    }
+    if (b->type == RDX_TYPE_TUPLE) {
+        bc.type = 0;
+        call(rdxInto, &bc, (rdxp)b);
+        $mv(bcd, b->plex);
+        bc.data = bcd;
+        rdxNext(&bc);
+        b = &bc;
+    }
+    if (a->type != b->type) return u8Z(&a->type, &b->type);
+    if (a->type < RDX_TYPE_PLEX_LEN) {
+        if (a->type == 0) return NO;
+        return id128Z(&a->id, &b->id);
+    }
+    return rdx1Z(a, b);
+}
+
 ok64 rdxCopy(rdxp into, rdxp from) {
     sane(into && from);
     scan(rdxNext, from) {
@@ -66,7 +105,7 @@ ok64 rdxbOuto(rdxb its) {
 }
 
 ok64 rdx1Z(rdxcp a, rdxcp b) {
-    sane(a->type == b->type && a->type < RDX_TYPE_PLEX_LEN);
+    sane(a->type == b->type && a->type >= RDX_TYPE_PLEX_LEN);
     switch (a->type) {
         case RDX_TYPE_FLOAT:
             return f64Z(&a->f, &b->f);
@@ -81,7 +120,6 @@ ok64 rdx1Z(rdxcp a, rdxcp b) {
         default:
             return NO;  // fixme
     }
-    done;
 }
 
 fun ok64 rdxpV(rdxpcp a, rdxpcp b) {

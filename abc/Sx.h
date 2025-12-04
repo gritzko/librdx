@@ -46,9 +46,9 @@ typedef X($, ) * X($$, )[2];
 
 typedef int (*X(, cmpfn))(const X(, ) *, const X(, ) *);
 
-typedef ok64 (*X(, x))(X(, p) a, X(, cp) b);
-typedef ok64 (*X(, y))(X(, p) a, X(, cs) b);
-typedef ok64 (*X(, z))(X(, cp) a, X(, cp) b);
+typedef ok64 (*X(, x))(X(, p) a, X(, cp) b);   // OK, error
+typedef ok64 (*X(, y))(X(, p) a, X(, cs) b);   // OK, error
+typedef ok64 (*X(, z))(X(, cp) a, X(, cp) b);  // YES, NO, error
 
 typedef b8 (*X(, isfn))(const X(, ) *);
 

@@ -205,9 +205,9 @@ fun ok64 u8sPop32(u8cs s, u32p last) {
 }
 
 fun ok64 u8csZ(u8cscp a, u8cscp b) {
-    size_t sza = $size(a), szb = $size(b);
+    size_t sza = u8csLen(*a), szb = u8csLen(*b);
     size_t sz = sza < szb ? sza : szb;
-    int ret = memcmp(*a, *b, sz);
+    int ret = memcmp(**a, **b, sz);
     if (ret == 0 && sza != szb) return sza < szb;
     return ret < 0;
 }
