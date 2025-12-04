@@ -327,12 +327,19 @@ fun ok64 rdxOuto(rdxp c, rdxp p) { return VTABLE_OUTO[p->format](c, p); }
 
 fun ok64 rdxRootZ(rdxcp a, rdxcp b) { return NO; }
 fun ok64 rdxTupleZ(rdxcp a, rdxcp b) { return NO; }
-fun ok64 rdxLinearZ(rdxcp a, rdxcp b) {
-    u64 ao = a->id.seq - 1;
-    u64 bo = b->id.seq - 1;
-    return u64Z(&ao, &bo);
-}
 ok64 rdx1Z(rdxcp a, rdxcp b);
+fun ok64 rdxLinearZ(rdxcp a, rdxcp b) {
+    u64 ao = (a->id.seq & id128SeqMask) - 1;
+    u64 bo = (b->id.seq & id128SeqMask) - 1;
+    if (ao == bo) {
+        ao = a->id.src & id128SrcMask;
+        bo = b->id.src & id128SrcMask;
+    }
+    if (ao != bo) {
+        return u64Z(&ao, &bo);
+    }
+    return rdx1Z(a, b);
+}
 ok64 rdxEulerTupleZ(rdxcp a, rdxcp b);
 ok64 rdxEulerZ(rdxcp a, rdxcp b);
 fun ok64 rdxMultixZ(rdxcp a, rdxcp b) { return u64Z(&a->id.src, &b->id.src); }

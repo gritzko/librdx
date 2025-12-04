@@ -163,6 +163,7 @@ fun ok64 rdxpWinZ(rdxpcp a, rdxpcp b) { return rdxWinZ(*a, *b); }
 ok64 rdxMerge(rdxp into, rdxg inputs) {
     sane(into && rdxgOK(inputs) && !rdxgEmpty(inputs));
     rdxz Z = ZTABLE[(**inputs).ptype];
+    // todo norm run
     a_dup(rdx, eqs, inputs);
     while (rdxsLen(inputs)) {
         $rof(rdx, p, eqs) {
@@ -172,7 +173,7 @@ ok64 rdxMerge(rdxp into, rdxg inputs) {
             } else if (o == END) {
                 *p = *rdxsLast(inputs);
                 rdxgFreed1(inputs);
-                if (!rdxsEmpty(inputs)) rdxsDownAtZ(inputs, p - *inputs, Z);
+                if (p < inputs[1]) rdxsDownAtZ(inputs, p - inputs[0], Z);
             } else {
                 fail(o);
             }
