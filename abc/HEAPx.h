@@ -111,6 +111,8 @@ fun ok64 X(, sTopsZ)(X(, sc) heap, X(, sp) eqs, X(, z) z) {
         }
         eqlen++;
     }
+    eqs[0] = heap[0];
+    eqs[1] = eqs[0] + eqlen;
     return OK;
 }
 

@@ -342,7 +342,7 @@ static const rdxz ZTABLE[RDX_TYPE_PLEX_LEN] = {
 
 ok64 rdxCopy(rdxp into, rdxp from);
 ok64 rdxbCopy(rdxbp into, rdxbp from);
-ok64 rdxMerge(rdxp into, rdxbp inputs);
+ok64 rdxMerge(rdxp into, rdxg inputs);
 ok64 rdxHash(sha256p hash, rdxp root);
 
 typedef enum {

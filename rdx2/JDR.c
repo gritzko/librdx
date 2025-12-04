@@ -45,6 +45,19 @@ ok64 rdxSkipJDR(rdxp x) {
     done;
 }
 
+ok64 RDXutf8sFeedID(utf8s into, id128cp ref);
+ok64 rdxFeedStamp(u8s into, id128cp id) {
+    sane(into && id);
+    if (id128Empty(id)) return OK;
+    call(u8sFeed1, into, '@');
+    if (id->src) {
+        call(RONutf8sFeed64, into, ron60Max & id->src);
+        utf8sFeed1(into, '-');
+    }
+    call(RONutf8sFeed64, into, ron60Max & id->seq);
+    done;
+}
+
 ok64 rdxWriteNextJDR(rdxp x) {
     sane(x);
     if (x->len != 0) {
@@ -60,26 +73,32 @@ ok64 rdxWriteNextJDR(rdxp x) {
         case RDX_TYPE_EULER:
         case RDX_TYPE_MULTIX:
             call(u8sFeed1, x->into, RDX_TYPE_BRACKET_OPEN[x->type]);
+            call(rdxFeedStamp, x->into, &x->id);
             $mv(x->plex, x->data);
             x->cformat = RDX_FORMAT_JDR | RDX_FORMAT_WRITE;
             break;
         case RDX_TYPE_FLOAT:
             call(utf8sFeedFloat, x->into, &x->f);
+            call(rdxFeedStamp, x->into, &x->id);
             break;
         case RDX_TYPE_INT:
             call(utf8sFeedInt, x->into, &x->i);
+            call(rdxFeedStamp, x->into, &x->id);
             break;
         case RDX_TYPE_REF:
             call(RDXutf8sFeedID, x->into, &x->r);
+            call(rdxFeedStamp, x->into, &x->id);
             break;
         case RDX_TYPE_STRING:
             test(x->cformat != RDX_UTF_ENC_UTF8, NOTIMPLYET);  // todo
             call(utf8sFeed1, x->into, '"');
             call(UTABLE[RDX_UTF_ENC_UTF8_ESC][UTF8_ENCODER_ALL], x->into, x->s);
             call(utf8sFeed1, x->into, '"');
+            call(rdxFeedStamp, x->into, &x->id);
             break;
         case RDX_TYPE_TERM:
             call(u8sFeed, x->into, x->t);
+            call(rdxFeedStamp, x->into, &x->id);
             break;
     }
     ++x->len;

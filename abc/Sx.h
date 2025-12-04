@@ -36,6 +36,9 @@ typedef X(, s) * X(, ss)[2];
 typedef X(, cs) * X(, css)[2];
 typedef X(, p) * X(, ps)[2];
 
+typedef T *X(, g)[3];
+typedef X(, g) * X(, gp);
+
 typedef T **X(, $);
 typedef T const **X(, c$);
 typedef T *const *X(, $c);
@@ -64,6 +67,25 @@ fun const T *X(, csLast)(X(, cs) data) {
     assert(!$empty(data));
     return data[1] - 1;
 }
+
+fun X(, sp) X(, gData)(X(, g) g) { return g; }
+fun X(, sp) X(, gIdle)(X(, g) g) { return g + 1; }
+fun size_t X(, gDataLen)(X(, g) g) { return g[1] - g[0]; }
+fun size_t X(, gIdleLen)(X(, g) g) { return g[2] - g[1]; }
+fun b8 X(, gOK)(X(, g) g) { return g && g[2] >= g[1] && g[1] >= g[0]; }
+fun b8 X(, gEmpty)(X(, g) g) { return g[1] == g[0]; }
+fun ok64 X(, gFed)(X(, g) g, size_t len) {
+    if (g[1] + len > g[2]) return NOROOM;
+    g[1] += len;
+    return OK;
+}
+fun ok64 X(, gFed1)(X(, g) g) { return X(, gFed)(g, 1); }
+fun ok64 X(, gFreed)(X(, g) g, size_t len) {
+    if (g[1] - g[0] < len) return NODATA;
+    g[1] -= len;
+    return OK;
+}
+fun ok64 X(, gFreed1)(X(, g) g) { return X(, gFreed)(g, 1); }
 
 fun T const *X($, lastc)(X($c, c) data) {
     assert(!$empty(data));

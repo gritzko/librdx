@@ -83,7 +83,7 @@ pro(SKIP2) {
     sane(1);
     a_path(path, "/tmp/SKIP2.txt");
     FILEunlink(path);
-    u8b pad;
+    u8b pad = {};
     a_pad(u8, check, SCALE);
     call(FILEMapCreate, pad, path, SCALE);
     COMBinit(pad);

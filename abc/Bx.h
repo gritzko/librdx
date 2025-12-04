@@ -45,6 +45,9 @@ fun T **X(, bPast)(X(, b) buf) { return (T **)buf + 0; }
 fun T **X(, bData)(X(, b) buf) { return (T **)buf + 1; }
 fun T **X(, bIdle)(X(, b) buf) { return (T **)buf + 2; }
 
+fun T **X(, bPastData)(X(, b) buf) { return (T **)buf; }
+fun T **X(, bDataIdle)(X(, b) buf) { return (T **)buf + 1; }
+
 fun size_t X(, bLen)(X(, b) buf) { return ((T *)buf[3]) - ((T *)buf[0]); }
 fun size_t X(, bBusyLen)(X(, b) buf) { return ((T *)buf[2]) - ((T *)buf[0]); }
 fun size_t X(, bPastLen)(X(, b) buf) { return $len((T **)buf + 0); }

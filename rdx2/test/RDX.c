@@ -3,6 +3,7 @@
 //
 #include "RDX.h"
 
+#include "abc/01.h"
 #include "abc/FILE.h"
 #include "abc/PRO.h"
 #include "abc/S.h"
@@ -150,6 +151,26 @@ ok64 RDXTestEz() {
     done;
 }
 
+#include <test/Y.h>
+
+ok64 RDXTest1y() {
+    sane(1);
+    for (int i = 0; FIRSTY_TEST[i][0][0]; i++) {
+        a_pad(rdx, inputs, 16);
+        for (int j = 0; FIRSTY_TEST[i][j][0]; j++) {
+            rdx it = {.format = RDX_FORMAT_JDR, .data = FIRSTY_TEST[i][j]};
+            call(rdxNext, &it);
+            call(rdxbFeedP, inputs, &it);
+        }
+        rdxsFed1(rdxbData(inputs));
+        a_pad(u8, res, PAGESIZE);
+        rdx w = {.format = RDX_FORMAT_JDR | RDX_FORMAT_WRITE, .into = res_idle};
+        call(rdxMerge, &w, rdxbDataIdle(inputs));
+        $println(res_datac);
+    }
+    done;
+}
+
 pro(RDXtest) {
     sane(1);
     call(RDXTestBasics);
@@ -157,6 +178,7 @@ pro(RDXtest) {
     call(RDXTestTLV);
     call(RDXTestJDR);
     call(RDXTestEz);
+    call(RDXTest1y);
     done;
 }
 

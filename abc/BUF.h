@@ -78,6 +78,7 @@ typedef u8b const *u8bcp;
 #undef X
 
 #define $u8raw(v) {(u8 *)&(v), (u8 *)(&v) + sizeof(v)}
+#define u8csOf(str) {(u8c *)str, (u8c *)str + strlen(str)}
 
 #define a$raw(n, v) $u8 n = {(u8 *)&(v), (u8 *)(&v) + sizeof(v)}
 #define a_rawc(n, v) u8cs n = {(u8 *)&(v), (u8 *)(&v) + sizeof(v)}

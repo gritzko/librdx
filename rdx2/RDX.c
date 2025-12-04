@@ -3,6 +3,7 @@
 #include "abc/01.h"
 #include "abc/BUF.h"
 #include "abc/PRO.h"
+#include "abc/SHA.h"
 
 ok64 rdxEulerTupleZ(rdxcp a, rdxcp b) {
     sane(a && b);
@@ -126,87 +127,40 @@ fun ok64 rdxWinZ(rdxcp a, rdxcp b) {
     sane(a && b && a->ptype == b->ptype);
     u64 aseq = a->id.seq & id128SeqMask;
     u64 bseq = b->id.seq & id128SeqMask;
-    if (aseq != bseq) return aseq < bseq;
+    if (aseq != bseq) return aseq > bseq;
     u64 asrc = a->id.src & id128SrcMask;
     u64 bsrc = b->id.src & id128SrcMask;
-    if (asrc != bsrc) return asrc < bsrc;
+    if (asrc != bsrc) return asrc > bsrc;
     if (a->type != b->type) return u8Z(&a->type, &b->type);
-    if (!rdxTypePlex(a)) return rdx1Z(a, b);
+    if (!rdxTypePlex(a)) return !rdx1Z(a, b);
     return NO;
 }
 
 fun ok64 rdxpWinZ(rdxpcp a, rdxpcp b) { return rdxWinZ(*a, *b); }
 
-/*
-ok64 rdxMerge(rdxp into, rdxbp ins) {
-    sane(into && rdxbOK(ins));
-    a_pad(rdxp, heap, RDX_MAX_INPUTS);
-    $for(rdx, i, rdxbData(ins)) call(HEAPrdxpPush1Z, heap, i, rdxpZ);
-    while (rdxpbDataLen(heap)) {
-        rdxps eqs = {};
-        HEAPrdxpEqsZ(rdxpbData(heap), eqs, rdxpZ);
-        a_dup(rdxp, wins, eqs);
-        if (rdxpsLen(eqs) > 1) {
-            HEAPrdxpMakeZ(eqs, rdxpWinZ);
-            HEAPrdxpEqsZ(wins, eqs, rdxpWinZ);
-        }
-        if ((**wins)->type < RDX_TYPE_PLEX_LEN) {
-            a_dup(rdx, old, rdxbData(ins));
-            rdxsAte(rdxbData(ins));
-            rdx c = {};
-            call(rdxInto, &c, into);
-            $for(rdxp, q, wins) {
-                rdxp p = 0;
-                call(rdxbPushed, ins, &p);
-                p->type = 0;
-                call(rdxInto, p, *q);
-            }
-            call(rdxMerge, into, ins);
-            call(rdxOuto, &c, into);
-            $mv(rdxbData(ins), old);
-        } else {
-            rdxMv(into, **wins);
-            call(rdxNext, into);
-        }
-        $rof(rdxp, p, eqs) {
-            ok64 o = rdxNext(*p);
-            if (o == OK) {
-                HEAPrdxpDownAt(rdxpbData(heap), p - *eqs);
-            } else if (o == END) {
-                *p = *rdxpbLast(heap);
-                rdxpbPop(heap);
-            } else {
-                fail(o);
-            }
-        }
-    }
-    done;
-}
-*/
-
-ok64 rdxMergeIn(rdxp into, rdxs ins, rdxs idle) {
-    sane(into && rdxsOK(ins) && rdxsOK(idle) && !$empty(ins));
-    rdxz Z = ZTABLE[(**ins).ptype];
-    call(rdxsHeapZ, ins, Z);
-    while (rdxsLen(ins)) {
+ok64 rdxMerge(rdxp into, rdxg inputs) {
+    sane(into && rdxgOK(inputs) && !rdxgEmpty(inputs));
+    rdxz Z = ZTABLE[(**inputs).ptype];
+    call(rdxsHeapZ, inputs, Z);
+    while (rdxsLen(inputs)) {
         rdxs eqs = {};
-        rdxsTopsZ(ins, eqs, Z);
+        rdxsTopsZ(inputs, eqs, Z);
         a_dup(rdx, wins, eqs);
         if (rdxsLen(eqs) > 1) {
             rdxsHeapZ(eqs, rdxWinZ);
-            rdxsTopsZ(wins, eqs, rdxWinZ);
+            rdxsTopsZ(eqs, wins, rdxWinZ);
         }
         if ((**wins).type < RDX_TYPE_PLEX_LEN) {
-            test($len(idle) >= $len(wins), RDXNOROOM);
-            a_gauge(rdx, sub, idle);
+            test(rdxgIdleLen(inputs) >= rdxsLen(wins), RDXNOROOM);
+            a_gauge(rdx, sub, rdxgIdle(inputs));
             rdx c = {};
             call(rdxInto, &c, into);
             $for(rdx, q, wins) {
                 (**sub_idle).type = 0;
                 call(rdxInto, *sub_idle, q);
-                ++sub_idle;
+                rdxgFed1(sub);
             }
-            call(rdxMergeIn, &c, sub_data, sub_idle);
+            call(rdxMerge, &c, sub);
             call(rdxOuto, &c, into);
             $for(rdx, q, wins) {
                 call(rdxOuto, NULL, q);  // c is optional
@@ -218,10 +172,10 @@ ok64 rdxMergeIn(rdxp into, rdxs ins, rdxs idle) {
         $rof(rdx, p, eqs) {
             ok64 o = rdxNext(p);
             if (o == OK) {
-                rdxsDownAt(ins, p - *ins);
+                rdxsDownAtZ(inputs, p - *inputs, Z);
             } else if (o == END) {
-                *p = *rdxsLast(ins);
-                --ins[1];
+                *p = *rdxsLast(inputs);
+                rdxgFreed1(inputs);
             } else {
                 fail(o);
             }
@@ -229,7 +183,60 @@ ok64 rdxMergeIn(rdxp into, rdxs ins, rdxs idle) {
     }
     done;
 }
+
+ok64 rdxHashMore(SHAstate* hash, rdxp root) {
+    // todo todo todo
+    sane(hash && root);
+    a_pad(u8, head, 8);
+    u8sFeed1(head_idle, RDX_TYPE_LIT[root->type]);
+    u32 len = 0;
+    u8sFeed32(head_idle, &len);
+    SHAfeed(hash, head_datac);
+    // feed lit, len?, id, value (str enc - 2 pass)
+    switch (root->type) {
+        case RDX_TYPE_ROOT:
+        // collection types
+        case RDX_TYPE_TUPLE:
+        case RDX_TYPE_LINEAR:
+        case RDX_TYPE_EULER:
+        case RDX_TYPE_MULTIX:
+            rdx c = {};
+            call(rdxInto, &c, root);
+            scan(rdxNext, &c) { call(rdxHashMore, hash, &c); }
+            seen(END);
+            call(rdxOuto, &c, root);
+            break;
+        // primitive types
+        case RDX_TYPE_FLOAT:
+        case RDX_TYPE_INT: {
+            a_rawc(vraw, root->i);
+            SHAfeed(hash, vraw);
+            break;
+        }
+        case RDX_TYPE_REF: {
+            a_rawc(vraw, root->r);
+            SHAfeed(hash, vraw);
+            break;
+        }
+        case RDX_TYPE_STRING:
+            if (root->cformat != RDX_UTF_ENC_UTF8) return NOTIMPLYET;
+            break;
+        case RDX_TYPE_TERM:
+            SHAfeed(hash, root->t);
+            break;
+        case RDX_TYPE_BLOB:
+            return NOTIMPLYET;
+        default:
+            return RDXBAD;
+    }
+    done;
+}
+
 ok64 rdxHash(sha256p hash, rdxp root) {
     sane(hash && root);
+    SHAstate state = {};
+    SHAopen(&state);
+    call(rdxHashMore, &state, root);
+    SHAclose(&state, hash);
     done;
 }
