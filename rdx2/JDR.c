@@ -21,6 +21,27 @@ ok64 rdxIntoJDR(rdxp c, rdxp p) {
 ok64 rdxOutoJDR(rdxp c, rdxp p) {
     sane(c && p);
     p->data[0] = p->plex[0];
+    p->cformat = 0;
+    if (p->len & 1) {
+        p->len += 2;
+    } else {
+        p->len += 1;
+    }
+    done;
+}
+
+ok64 rdxSkipJDR(rdxp x) {
+    sane(x && rdxTypePlex(x));
+    rdx c = {};
+    call(rdxIntoJDR, &c, x);
+    ok64 o;
+    while (NEXT == (o = JDRlexer(&c))) {
+        if (rdxTypePlex(&c)) call(rdxSkipJDR, &c);
+    }
+    if (o != END && o != OK) {
+        fail(o);  // fixme
+    }
+    call(rdxOutoJDR, &c, x);
     done;
 }
 

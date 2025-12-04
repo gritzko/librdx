@@ -64,7 +64,7 @@ action JDRNL1 {
     tok[1] = p;
     o = JDRonNL(tok, state); 
     if (o!=OK) {
-        fbreak;
+        goto _out;
     }
 }
 action JDRUtf8cp10 { mark0[JDRUtf8cp1] = p - data[0]; }
@@ -73,7 +73,7 @@ action JDRUtf8cp11 {
     tok[1] = p;
     o = JDRonUtf8cp1(tok, state); 
     if (o!=OK) {
-        fbreak;
+        goto _out;
     }
 }
 action JDRUtf8cp20 { mark0[JDRUtf8cp2] = p - data[0]; }
@@ -82,7 +82,7 @@ action JDRUtf8cp21 {
     tok[1] = p;
     o = JDRonUtf8cp2(tok, state); 
     if (o!=OK) {
-        fbreak;
+        goto _out;
     }
 }
 action JDRUtf8cp30 { mark0[JDRUtf8cp3] = p - data[0]; }
@@ -91,7 +91,7 @@ action JDRUtf8cp31 {
     tok[1] = p;
     o = JDRonUtf8cp3(tok, state); 
     if (o!=OK) {
-        fbreak;
+        goto _out;
     }
 }
 action JDRUtf8cp40 { mark0[JDRUtf8cp4] = p - data[0]; }
@@ -100,7 +100,7 @@ action JDRUtf8cp41 {
     tok[1] = p;
     o = JDRonUtf8cp4(tok, state); 
     if (o!=OK) {
-        fbreak;
+        goto _out;
     }
 }
 action JDRInt0 { mark0[JDRInt] = p - data[0]; }
@@ -109,7 +109,7 @@ action JDRInt1 {
     tok[1] = p;
     o = JDRonInt(tok, state); 
     if (o!=OK) {
-        fbreak;
+        goto _out;
     }
 }
 action JDRFloat0 { mark0[JDRFloat] = p - data[0]; }
@@ -118,7 +118,7 @@ action JDRFloat1 {
     tok[1] = p;
     o = JDRonFloat(tok, state); 
     if (o!=OK) {
-        fbreak;
+        goto _out;
     }
 }
 action JDRTerm0 { mark0[JDRTerm] = p - data[0]; }
@@ -127,7 +127,7 @@ action JDRTerm1 {
     tok[1] = p;
     o = JDRonTerm(tok, state); 
     if (o!=OK) {
-        fbreak;
+        goto _out;
     }
 }
 action JDRRef0 { mark0[JDRRef] = p - data[0]; }
@@ -136,7 +136,7 @@ action JDRRef1 {
     tok[1] = p;
     o = JDRonRef(tok, state); 
     if (o!=OK) {
-        fbreak;
+        goto _out;
     }
 }
 action JDRString0 { mark0[JDRString] = p - data[0]; }
@@ -145,7 +145,7 @@ action JDRString1 {
     tok[1] = p;
     o = JDRonString(tok, state); 
     if (o!=OK) {
-        fbreak;
+        goto _out;
     }
 }
 action JDRMLString0 { mark0[JDRMLString] = p - data[0]; }
@@ -154,7 +154,7 @@ action JDRMLString1 {
     tok[1] = p;
     o = JDRonMLString(tok, state); 
     if (o!=OK) {
-        fbreak;
+        goto _out;
     }
 }
 action JDRStamp0 { mark0[JDRStamp] = p - data[0]; }
@@ -163,7 +163,7 @@ action JDRStamp1 {
     tok[1] = p;
     o = JDRonStamp(tok, state); 
     if (o!=OK) {
-        fbreak;
+        goto _out;
     }
 }
 action JDRNoStamp0 { mark0[JDRNoStamp] = p - data[0]; }
@@ -172,7 +172,7 @@ action JDRNoStamp1 {
     tok[1] = p;
     o = JDRonNoStamp(tok, state); 
     if (o!=OK) {
-        fbreak;
+        goto _out;
     }
 }
 action JDRComma0 { mark0[JDRComma] = p - data[0]; }
@@ -181,7 +181,7 @@ action JDRComma1 {
     tok[1] = p;
     o = JDRonComma(tok, state); 
     if (o!=OK) {
-        fbreak;
+        goto _out;
     }
 }
 action JDRColon0 { mark0[JDRColon] = p - data[0]; }
@@ -190,7 +190,7 @@ action JDRColon1 {
     tok[1] = p;
     o = JDRonColon(tok, state); 
     if (o!=OK) {
-        fbreak;
+        goto _out;
     }
 }
 action JDROpen0 { mark0[JDROpen] = p - data[0]; }
@@ -199,7 +199,7 @@ action JDROpen1 {
     tok[1] = p;
     o = JDRonOpen(tok, state); 
     if (o!=OK) {
-        fbreak;
+        goto _out;
     }
 }
 action JDRClose0 { mark0[JDRClose] = p - data[0]; }
@@ -208,7 +208,7 @@ action JDRClose1 {
     tok[1] = p;
     o = JDRonClose(tok, state); 
     if (o!=OK) {
-        fbreak;
+        goto _out;
     }
 }
 action JDRFIRST0 { mark0[JDRFIRST] = p - data[0]; }
@@ -217,7 +217,7 @@ action JDRFIRST1 {
     tok[1] = p;
     o = JDRonFIRST(tok, state); 
     if (o!=OK) {
-        fbreak;
+        goto _out;
     }
 }
 action JDRInter0 { mark0[JDRInter] = p - data[0]; }
@@ -226,7 +226,7 @@ action JDRInter1 {
     tok[1] = p;
     o = JDRonInter(tok, state); 
     if (o!=OK) {
-        fbreak;
+        goto _out;
     }
 }
 action JDRRoot0 { mark0[JDRRoot] = p - data[0]; }
@@ -235,7 +235,7 @@ action JDRRoot1 {
     tok[1] = p;
     o = JDRonRoot(tok, state); 
     if (o!=OK) {
-        fbreak;
+        goto _out;
     }
 }
 
@@ -276,7 +276,7 @@ JDROpen = (   [(\[{<]  JDRws*  (JDRStamp  |  JDRNoStamp) )  >JDROpen0 %JDROpen1;
 JDRClose = (   [)\]}>] )  >JDRClose0 %JDRClose1;
 JDRFIRST = (   (  JDRFloat  |  JDRInt  |  JDRRef  |  JDRString  |  JDRMLString  |  JDRTerm  )  JDRws*  (  JDRStamp  |  JDRNoStamp  ) )  >JDRFIRST0 %JDRFIRST1;
 JDRInter = (   JDRComma  |  JDRColon  |  JDROpen  |  JDRClose  |  JDRws+ )  >JDRInter0 %JDRInter1;
-JDRRoot = (   JDRInter**  (  JDRFIRST  JDRInter+  )**   )  >JDRRoot0 %JDRRoot1;
+JDRRoot = (   (  JDRFIRST  |  JDRInter  )**   )  >JDRRoot0 %JDRRoot1;
 
 main := JDRRoot;
 

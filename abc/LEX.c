@@ -25,7 +25,7 @@ const u8c *LEX_TEMPL[LEX_TEMPL_LANG_LEN][LEX_TEMPL_LEN][2] = {
                "    tok[1] = p;\n"
                "    o = ${mod}on$act(tok, state); \n"
                "    if (o!=OK) {\n"
-               "        fbreak;\n"
+               "        goto _out;\n"
                "    }\n"
                "}\n"),
         $u8str("\t$mod$act = ${mod}enum+$actno,\n"),

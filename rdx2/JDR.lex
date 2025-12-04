@@ -44,4 +44,4 @@ Close = [)\]}>];
 FIRST = ( Float | Int | Ref | String | MLString | Term ) ws* ( Stamp | NoStamp );
 Inter = Comma | Colon | Open | Close | ws+;
 
-Root = Inter** ( FIRST Inter+ )** ;
+Root = ( FIRST | Inter )** ;

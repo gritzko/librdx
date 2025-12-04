@@ -45,7 +45,7 @@ con ok64 RDXBADORDR = 0x6cd84b28d61b35b;
 con ok64 RDXBADARG = 0x1b3612ca34a6d0;
 
 typedef enum {
-    RDX_FORMAT_TLV = 0,
+    RDX_FORMAT_TLV = 0,  // FIXME NONE = 0
     RDX_FORMAT_JDR = 2,
     RDX_FORMAT_LSM = 4,
     RDX_FORMAT_WAL = 6,
@@ -227,7 +227,10 @@ fun u8 rdxbType(rdxbp x) {
     return rdxbLast(x)->type;
 }
 
-fun b8 rdxbTypePlex(rdxbp x) { return rdxbType(x) < RDX_TYPE_PLEX_LEN; }
+fun b8 rdxbTypePlex(rdxbp x) {
+    u8 t = rdxbType(x);
+    return t && t < RDX_TYPE_PLEX_LEN;
+}
 
 typedef ok64 (*rdxz)(rdxcp a, rdxcp b);
 
@@ -243,7 +246,11 @@ ok64 rdxIntoTLV(rdxp c, rdxp p);
 ok64 rdxOutoTLV(rdxp c, rdxp p);
 
 ok64 JDRlexer(rdxp x);
+ok64 rdxSkipJDR(rdxp x);
 fun ok64 rdxNextJDR(rdxp x) {
+    if (x->cformat != 0 && rdxTypePlex(x)) {
+        return rdxSkipJDR(x);
+    }
     x->type = 0;
     ok64 o = JDRlexer(x);
     if (o == NEXT) {

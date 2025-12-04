@@ -3,7 +3,9 @@
 //
 #include "RDX.h"
 
+#include "abc/FILE.h"
 #include "abc/PRO.h"
+#include "abc/S.h"
 #include "abc/TEST.h"
 
 ok64 RDXTestBasics() {
@@ -99,12 +101,41 @@ ok64 RDXTestJDR() {
     done;
 }
 
+#include <test/Ez.h>
+
+ok64 RDXTestEz() {
+    sane(1);
+    a_pad(rdx, elems, 64);
+    a_cstr(in, EULERZ_TEST);
+    a_rdxr(it, in, RDX_FORMAT_JDR);
+    call(rdxbNext, it);
+    test(rdxbType(it) == RDX_TYPE_EULER, RDXBAD);
+    call(rdxbInto, it);
+
+    u8cp p = it[0][1].data[0];
+    scan(rdxbNext, it) {
+        u8cp p2 = it[0][1].data[0];
+        // just store them
+        call(rdxbPush, elems, rdxbLast(it));
+        u8cs e = {p, p2};
+        FILEerr(e);
+        FILEerr(NL);
+        p = p2;
+    }
+    seen(END);
+
+    fprintf(stderr, "Stored %lu elements\n", rdxbDataLen(elems));
+
+    done;
+}
+
 pro(RDXtest) {
     sane(1);
     call(RDXTestBasics);
     call(RDXid128test);
     call(RDXTestTLV);
     call(RDXTestJDR);
+    call(RDXTestEz);
     done;
 }
 
