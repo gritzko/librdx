@@ -38,6 +38,8 @@ con ok64 FILEbad = 0xf4953a6968;
 
 #define FILEok(fd) (fd >= 0)
 
+extern u8p *FILE_BUFS[4];
+
 /*
 typedef int *FILE;
 

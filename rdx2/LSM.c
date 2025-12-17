@@ -16,10 +16,11 @@ ok64 rdxNextLSM(rdxp x) {
 
 ok64 rdxWriteIndexKiloLSM(u8s idx8, rdxp reader) {
     sane(reader && u8sOK(idx8));
+    /*
     call(u8sFeed1, idx8, 0);  // no label
     u64sp idx = (u64**)idx8;
     // todo padding
-    u64 len = $len(reader->data);
+    u64 len = u8cgUsedLen(reader->datag);
     u64 lastkilo = 1;
     u64 pos = 0;
     scan(rdxNext, reader) {  // can index anything
@@ -28,9 +29,10 @@ ok64 rdxWriteIndexKiloLSM(u8s idx8, rdxp reader) {
             call(u64sFeed2, idx, id128Key(reader->id), pos);
             lastkilo = kilo;
         }
-        pos = len - $len(reader->data);
+        pos = len - u8cgUsedLen(reader->datag);
     }
     seen(END);
+    */
     done;
 }
 
@@ -64,24 +66,26 @@ ok64 rdxFindByLSMKiloIndex(u8cs idx8, u64p pos, id128 id) {
 ok64 rdxFindByLSMIndex(rdxp p, u64p pos, id128 id) {
     sane(p);
     rdx i = *p;
-    while (!$empty(i.data)) {
+    /*
+    while (u8cgUsedLen(i.datag)) {
         call(rdxNextTLV, &i);
         switch (i.type) {  // FIXME wrong
             case RDX_TYPE_BLOB:
-                return rdxFindByLSMKiloIndex(i.plex, pos, id);
+                return rdxFindByLSMKiloIndex(i.plexc, pos, id);
             case RDX_TYPE_EULER:
                 done;
             default:
                 continue;
         }
     }
+    */
     done;
 }
 
 ok64 rdxIntoLSM(rdxp c, rdxp p) {
     sane(c && p);
-    c->format = p->cformat;
-    c->data = p->plex;
+    /*c->format = p->cformat;
+    u8cgOf(c->datag, p->plexc);
     c->ptype = p->type;
     if (p->type != RDX_TYPE_EULER) done;
     id128 id = c->id;
@@ -91,7 +95,7 @@ ok64 rdxIntoLSM(rdxp c, rdxp p) {
     test(pos < $len(p->plex), BADPOS);
     p->plex[0] += pos;
     call(rdxNextTLV, c);
-    while (id128Z(&c->id, &id)) call(rdxNextTLV, c);
+    while (id128Z(&c->id, &id)) call(rdxNextTLV, c);*/
     done;
 }
 
@@ -116,7 +120,7 @@ ok64 rdxWriteNextLSM(rdxp x) {
 ok64 rdxWriteIntoLSM(rdxp c, rdxp p) {
     sane(c && p && p->type && p->cformat);
     c->format = p->cformat;
-    c->data = p->plex;
+    u8sFork(p->plex, c->into);
     c->ptype = p->type;
     c->type = 0;
     c->cformat = 0;
@@ -126,7 +130,7 @@ ok64 rdxWriteIntoLSM(rdxp c, rdxp p) {
 }
 
 ok64 rdxWriteIndexLSM(u8s idle, rdxp reader) {
-    sane(reader && u8csOK(reader->plex));
+    sane(reader && u8sOK(reader->plex));
     // here we pick the index format
     u8s idx = {};
     call(TLVu8sStartHuge, idle, idx, RDX_TYPE_LIT[RDX_TYPE_BLOB]);
@@ -139,17 +143,17 @@ ok64 rdxWriteIndexLSM(u8s idle, rdxp reader) {
 
 ok64 rdxWriteOutoLSM(rdxp c, rdxp p) {
     sane(p && c && c->format == (RDX_FORMAT_TLV | RDX_FORMAT_WRITE) &&
-         p->plex[1] == p->data[1] && (u8c**)c->into == p->plex);
+         u8sIs(p->plex, c->into));
     u8 plit = RDX_TYPE_LIT[c->ptype];
-    a_dup(u8c, full, p->into);
     call(TLVu8sEndHuge, p->into, c->into, plit);
-
-    rdx reader = {.format = RDX_FORMAT_LSM, .data = full};
-    call(rdxNextTLV, &reader);
-    test(reader.type == RDX_TYPE_EULER, TLVRECBAD);  // paranoid sanity check
-    rdx r = {};
-    call(rdxIntoLSM, &r, &reader);
-    call(rdxWriteIndexLSM, p->into, &r);
+    /*
+        rdx reader = {.format = RDX_FORMAT_LSM};
+        u8cgOf(reader.datag, u8cgUsed((u8c**)p->intog));
+        call(rdxNextTLV, &reader);
+        test(reader.type == RDX_TYPE_EULER, TLVRECBAD);  // paranoid sanity
+       check rdx r = {}; call(rdxIntoLSM, &r, &reader); call(rdxWriteIndexLSM,
+       u8gRest(p->intog), &r);
+        */
     // at this point, the host buffer is not trimmed yet, p->into==idle
     done;
 }

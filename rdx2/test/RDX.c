@@ -9,9 +9,36 @@
 #include "abc/S.h"
 #include "abc/TEST.h"
 
+ok64 u8csTestEq(u8cs a, u8cs b) {
+    sane(u8csOK(a) && u8csOK(b));
+#if NDEBUG
+    if ($eq(a, b)) return OK;
+#endif
+    a_pad(u8, msg, PAGESIZE);
+    a_cstr(wantmsg, "want:\t");
+    a_cstr(factmsg, "fact:\t");
+    call(u8bFeed, msg, wantmsg);
+    call(HEXput, msg_idle, a);
+    call(u8bFeed1, msg, '\n');
+    call(u8bFeed, msg, factmsg);
+    call(HEXput, msg_idle, b);
+    call(u8bFeed1, msg, '\n');
+
+    call(u8bFeed, msg, wantmsg);
+    call(u8bFeed, msg, a);
+    call(u8bFeed1, msg, '\n');
+    call(u8bFeed, msg, factmsg);
+    call(u8bFeed, msg, b);
+    call(u8bFeed1, msg, '\n');
+
+    $print(msg_datac);
+
+    return $eq(a, b) ? OK : NOEQ;
+}
+
 ok64 RDXTestBasics() {
     sane(1);
-    testeq(sizeof(rdx), 48);
+    testeq(sizeof(rdx), 64);
     done;
 }
 
@@ -48,19 +75,22 @@ ok64 RDXTestTLV() {
     a_u8cs(euler, 'e', 18, 0, 'p', 5, 0, 'i', 2, 0, 8, 'p', 8, 2, 2, 3, 'i', 3,
            0, 1, 2);
     u8csp inputs[] = {
-        tuple, uno, duos, tres, tuple, euler, NULL,
+        uno, duos, tres, tuple, euler, NULL,
     };
     int i = 0;
     while (inputs[i]) {
         a_dup(u8c, in, inputs[i]);
-
         a_pad(u8, tlv2, 256);
-        a_rdxr(tlv1it, in, RDX_FORMAT_TLV);
-        a_rdxw(tlv2wit, u8bIdle(tlv2), RDX_FORMAT_TLV);
+        rdx itc = {.format = RDX_FORMAT_TLV};
+        u8csFork(in, itc.data);
+        rdx it = {.format = RDX_FORMAT_TLV | RDX_FORMAT_WRITE};
+        u8sFork(tlv2_idle, it.into);
 
-        call(rdxbCopy, tlv2wit, tlv1it);
+        call(rdxCopy, &it, &itc);
 
-        $testeq(inputs[i], tlv2_datac);
+        call(u8sJoin, tlv2_idle, it.into);
+
+        call(u8csTestEq, inputs[i], tlv2_datac);
 
         i++;
     }
@@ -70,31 +100,43 @@ ok64 RDXTestTLV() {
 
 ok64 RDXTestJDR() {
     sane(1);
-    a_cstr(oneint, "1\n");
-    a_cstr(oneterm, "a1\n");
-    a_cstr(oneid, "a-1\n");
-    a_cstr(tuple, "(1,two,3E0)\n");
+    a_cstr(oneint, "1");
+    a_cstr(oneterm, "a1");
+    a_cstr(oneid, "a-1");
+    a_cstr(tuple, "(1,two,3E0)");
     u8csp inputs[] = {
-        tuple, oneint, oneterm, oneid, NULL,
+        oneint, oneterm, oneid, tuple, NULL,
     };
     int i = 0;
     while (inputs[i]) {
-        a_dup(u8c, in, inputs[i]);
+        a_dup(u8c, jdrA, inputs[i]);
+        a_pad(u8, tlv, 256);
+        a_pad(u8, jdrB, 256);
+        // 1. a_rdx(jdr1, in, ...) no rdxb
+        // 2. u8csFork(orig, copy), u8csJoin(orig, copy)
+        // 3. u8csIn(outer, inner) u8csIs(outer, inner)
+        // 4. RDX_FORMAT_SKIP ((()))
+        // 5. RDX_FORMAT_VEC 40b (diff, use len)
+        // 6. RDX_FORMAT_MEM (prepared, threshold, ext str)
+        // 7. g is s*2, no u8g API, a_gauge and .
 
-        a_rdxr(jdr1it, in, RDX_FORMAT_JDR);
-        a_pad(u8, tlv1, 256);
-        a_rdxw(tlv1wit, u8bIdle(tlv1), RDX_FORMAT_TLV);
+        rdx jdr1 = {.format = RDX_FORMAT_JDR};
+        u8csFork(jdrA, jdr1.data);
+        rdx tlv1 = {.format = RDX_FORMAT_TLV | RDX_FORMAT_WRITE};
+        u8sFork(tlv_idle, tlv1.into);
 
-        call(rdxbCopy, tlv1wit, jdr1it);
+        call(rdxCopy, &tlv1, &jdr1);
+        call(u8sJoin, tlv_idle, tlv1.into);
 
-        a_rdxr(tlv1it, u8bDataC(tlv1), RDX_FORMAT_TLV);
-        a_pad(u8, jdr2, 256);
-        a_rdxw(jdr2wit, u8bIdle(jdr2), RDX_FORMAT_JDR);
+        rdx tlv2 = {.format = RDX_FORMAT_TLV};
+        u8csFork(tlv_datac, tlv2.data);
+        rdx jdr2 = {.format = RDX_FORMAT_JDR | RDX_FORMAT_WRITE};
+        u8sFork(jdrB_idle, jdr2.into);
 
-        call(rdxbCopy, jdr2wit, tlv1it);
+        call(rdxCopy, &jdr2, &tlv2);
+        call(u8sJoin, jdrB_idle, jdr2.into);
 
-        u8sFeed1(jdr2_idle, '\n');
-        $testeq(inputs[i], jdr2_datac);
+        call(u8csTestEq, inputs[i], jdrB_datac);
 
         i++;
     }
@@ -107,22 +149,15 @@ ok64 RDXTestJDR() {
 ok64 RDXTestZE() {
     sane(1);
     a_pad(rdx, elems, 64);
-    a_pad(u8cs, ple, 64);
     a_cstr(in, EULERZ_TEST);
-    a_rdxr(it, in, RDX_FORMAT_JDR);
-    call(rdxbNext, it);
-    test(rdxbType(it) == RDX_TYPE_EULER, RDXBAD);
-    call(rdxbInto, it);
+    rdx it = {.format = RDX_FORMAT_JDR};
+    u8csFork(in, it.data);
+    call(rdxNext, &it);
+    test(it.type == RDX_TYPE_EULER, RDXBAD);
+    rdx c = {};
+    call(rdxInto, &c, &it);
 
-    u8cp p = it[0][1].data[0];
-    scan(rdxbNext, it) {
-        u8cp p2 = it[0][1].data[0];
-        u8csbFeed1(ple, it[0][0].plex);
-        call(rdxbFeedP, elems, &it[0][1]);
-        rdxbLast(elems)->data = *u8csbLast(ple);
-        u8cs e = {p, p2};
-        p = p2;
-    }
+    scan(rdxNext, &c) call(rdxbFeedP, elems, &c);
     seen(END);
 
     fprintf(stderr, "Stored %lu elements\n", rdxbDataLen(elems));
@@ -163,14 +198,16 @@ ok64 RDXTestY(u8cs test[][8]) {
         a_pad(rdx, inputs, 16);
         a_dup(u8c, correct, test[i][0]);
         for (int j = 0; test[i][j][0]; j++) {
-            rdx it = {.format = RDX_FORMAT_JDR, .data = test[i][j]};
-            // call(rdxNext, &it);
+            rdx it = {.format = RDX_FORMAT_JDR};
+            u8csFork(test[i][j], it.data);
             call(rdxbFeedP, inputs, &it);
         }
         rdxsFed1(rdxbData(inputs));
         a_pad(u8, res, PAGESIZE);
-        rdx w = {.format = RDX_FORMAT_JDR | RDX_FORMAT_WRITE, .into = res_idle};
+        rdx w = {.format = RDX_FORMAT_JDR | RDX_FORMAT_WRITE};
+        u8sFork(res_idle, w.into);
         call(rdxMerge, &w, rdxbDataIdle(inputs));
+        u8sJoin(res_idle, w.into);
         $println(res_datac);
         test(0 == $cmp(res_datac, correct), RDXBAD);
     }

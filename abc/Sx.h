@@ -37,7 +37,9 @@ typedef X(, cs) * X(, css)[2];
 typedef X(, p) * X(, ps)[2];
 
 typedef T *X(, g)[3];
-typedef X(, g) * X(, gp);
+typedef T **X(, gp);
+typedef T const *X(, cg)[3];
+typedef T const **X(, cgp);
 
 typedef T **X(, $);
 typedef T const **X(, c$);
@@ -49,14 +51,19 @@ typedef X($, ) * X($$, )[2];
 
 typedef int (*X(, cmpfn))(const X(, ) *, const X(, ) *);
 
-typedef ok64 (*X(, x))(X(, p) a, X(, cp) b);   // OK, error
-typedef ok64 (*X(, y))(X(, p) a, X(, cs) b);   // OK, error
-typedef ok64 (*X(, z))(X(, cp) a, X(, cp) b);  // YES, NO, error
+typedef ok64 (*X(, x))(X(, p) a, X(, cp) b);    // OK, error
+typedef ok64 (*X(, y))(X(, p) a, X(, cs) b);    // OK, error
+typedef ok64 (*X(, ys))(X(, s) a, X(, css) b);  // OK, error
+typedef ok64 (*X(, z))(X(, cp) a, X(, cp) b);   // YES, NO, error
 
 typedef b8 (*X(, isfn))(const X(, ) *);
 
 fun size_t X(, sLen)(X(, sc) data) { return data[1] - data[0]; }
 fun size_t X(, csLen)(X(, csc) data) { return data[1] - data[0]; }
+// fun T *X(, sHead)(X(, s) s) { return s[0]; }
+// fun T const *X(, csHead)(X(, cs) s) { return s[0]; }
+fun T *X(, sTerm)(X(, s) s) { return s[1]; }
+fun T const *X(, csTerm)(X(, cs) s) { return s[1]; }
 
 fun T *X(, sLast)(X(, s) data) {
     assert(!$empty(data));
@@ -68,12 +75,23 @@ fun const T *X(, csLast)(X(, cs) data) {
     return data[1] - 1;
 }
 
-fun X(, sp) X(, gData)(X(, g) g) { return g; }
-fun X(, sp) X(, gIdle)(X(, g) g) { return g + 1; }
-fun size_t X(, gDataLen)(X(, g) g) { return g[1] - g[0]; }
-fun size_t X(, gIdleLen)(X(, g) g) { return g[2] - g[1]; }
+fun X(, sp) X(, gUsed)(X(, g) g) { return g; }
+fun X(, csp) X(, gUsedC)(X(, g) g) { return (T const **)g; }
+fun X(, sp) X(, gRest)(X(, g) g) { return g + 1; }
+fun T *X(, gHead)(X(, g) g) { return g[0]; }
+fun T const *X(, cgHead)(X(, cg) g) { return g[0]; }
+fun T *X(, gTerm)(X(, g) g) { return g[2]; }
+fun T const *X(, cgTerm)(X(, cg) g) { return g[2]; }
+fun size_t X(, gUsedLen)(X(, g) g) { return g[1] - g[0]; }
+fun size_t X(, gRestLen)(X(, g) g) { return g[2] - g[1]; }
 fun b8 X(, gOK)(X(, g) g) { return g && g[2] >= g[1] && g[1] >= g[0]; }
 fun b8 X(, gEmpty)(X(, g) g) { return g[1] == g[0]; }
+fun X(, csp) X(, cgUsed)(X(, cg) g) { return g; }
+fun X(, csp) X(, cgRest)(X(, cg) g) { return g + 1; }
+fun size_t X(, cgUsedLen)(X(, cg) g) { return g[1] - g[0]; }
+fun size_t X(, cgRestLen)(X(, cg) g) { return g[2] - g[1]; }
+fun b8 X(, cgOK)(X(, cg) g) { return g && g[2] >= g[1] && g[1] >= g[0]; }
+fun b8 X(, cgEmpty)(X(, cg) g) { return g[1] == g[0]; }
 fun ok64 X(, gFed)(X(, g) g, size_t len) {
     if (g[1] + len > g[2]) return NOROOM;
     g[1] += len;
@@ -86,6 +104,34 @@ fun ok64 X(, gFreed)(X(, g) g, size_t len) {
     return OK;
 }
 fun ok64 X(, gFreed1)(X(, g) g) { return X(, gFreed)(g, 1); }
+
+#ifndef ABC_X_$
+fun X(, p) X(, gNext)(X(, g) g) { return g[1]; }
+fun X(, cp) X(, cgNext)(X(, cg) g) { return g[1]; }
+fun void X(, sMv)(X(, s) a, X(, s) b) {
+    a[0] = b[0];
+    a[1] = b[1];
+}
+fun void X(, csMv)(X(, cs) a, X(, cs) b) {
+    a[0] = b[0];
+    a[1] = b[1];
+}
+fun void X(, gMv)(X(, g) a, X(, g) b) {
+    a[0] = b[0];
+    a[1] = b[1];
+    a[2] = b[2];
+}
+fun void X(, gOf)(X(, g) g, X(, s) s) {
+    g[0] = s[0];
+    g[1] = s[0];
+    g[2] = s[1];
+}
+fun void X(, cgOf)(X(, cg) g, X(, csc) s) {
+    g[0] = s[0];
+    g[1] = s[0];
+    g[2] = s[1];
+}
+#endif
 
 fun T const *X($, lastc)(X($c, c) data) {
     assert(!$empty(data));
@@ -326,6 +372,7 @@ fun ok64 X($, move)(X($, ) into, X($, c) from) {
     return OK;
 }
 
+// non null, fits non-franctional number of records
 fun b8 X(, csOK)(X(, csc) s) {
     return s != NULL && s[1] >= s[0] &&
            (((u8c *)s[1] - (u8c *)s[0]) % sizeof(T) == 0);
@@ -347,6 +394,10 @@ fun ok64 X(, sFeed1)(X(, s) into, T what) {
     ++*into;
     return OK;
 }
+
+/*fun ok64 X(, gFeed1)(X(, g) into, T what) {
+    return X(, sFeed1)(X(, gRest)(into), what);
+}*/
 
 fun ok64 X(, sFed1)(X(, s) into) {
     if (unlikely(into[0] >= into[1])) return $noroom;
@@ -488,6 +539,48 @@ fun b8 X(, csHasSuffix)(X(, cs) line, X(, cs) suffix) {
     size_t l = $len(suffix);
     size_t s = $size(suffix);
     return l <= $len(line) && 0 == memcmp(line[1] - l, suffix[0], s);
+}
+
+fun b8 X(, sIn)(X(, sc) outer, X(, sc) inner) {
+    return inner[0] >= outer[0] && inner[1] <= outer[1];
+}
+
+fun b8 X(, sIs)(X(, sc) outer, X(, sc) inner) {
+    return outer[1] == inner[1] && outer[0] <= inner[0];
+}
+
+fun ok64 X(, sFork)(X(, sc) outer, X(, s) inner) {
+    inner[0] = outer[0];
+    inner[1] = outer[1];
+    return OK;
+}
+
+fun ok64 X(, sJoin)(X(, s) outer, X(, sc) inner) {
+    if (!X(, sIs)(outer, inner)) return BADRANGE;
+    outer[0] = inner[0];
+    return OK;
+}
+
+fun b8 X(, csIn)(X(, csc) outer, X(, csc) inner) {
+    return inner[0] >= outer[0] && inner[1] <= outer[1];
+}
+
+fun b8 X(, csIs)(X(, csc) outer, X(, csc) inner) {
+    return outer[1] == inner[1] && outer[0] <= inner[0];
+}
+
+fun ok64 X(, csFork)(X(, csc) outer, X(, cs) inner) {
+    inner[0] = outer[0];
+    inner[1] = outer[1];
+    return OK;
+}
+
+fun ok64 X(, csJoin)(X(, cs) outer, X(, csc) inner) {
+    if (!X(, csIs)(outer, inner)) {
+        return BADRANGE;
+    }
+    outer[0] = inner[0];
+    return OK;
 }
 
 #undef T

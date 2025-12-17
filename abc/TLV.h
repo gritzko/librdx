@@ -1,7 +1,6 @@
 #ifndef LIBRDX_TLV_H
 #define LIBRDX_TLV_H
 #include "01.h"
-#include "B.h"
 #include "INT.h"
 #include "OK.h"
 #include "S.h"

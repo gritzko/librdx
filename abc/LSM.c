@@ -5,7 +5,7 @@
 #include "abc/S.h"
 #include "abc/TLV.h"
 
-ok64 LSMnext(u8s into, u8css lsm, u8csz z, u8sy y) {
+ok64 LSMnext(u8s into, u8css lsm, u8csz z, u8ys y) {
     sane(u8sOK(into) && u8cssOK(lsm) && z && y);
     u8cs next = {}, _;
     a_pad(u8cs, in, LSM_MAX_INPUTS);
@@ -26,7 +26,7 @@ ok64 LSMnext(u8s into, u8css lsm, u8csz z, u8sy y) {
     if ($len(in_data) == 1) {
         call(u8sFeed, into, next);
     } else {
-        call(y, (u8c**)into, in_datac);
+        call(y, into, in_data);
     }
     done;
 }
@@ -52,7 +52,7 @@ ok64 LSMdrainruns(u8csb heap, u8cs input, u8csz cmp) {
     done;
 }
 
-ok64 LSMsort1(size_t* runs, u8s into, u8cs data, u8csz cmp, u8sy mrg) {
+ok64 LSMsort1(size_t* runs, u8s into, u8cs data, u8csz cmp, u8ys mrg) {
     sane($ok(into) && $ok(data) && $len(into) >= $len(data) && cmp != NULL &&
          mrg != NULL);
     *runs = 0;
@@ -68,7 +68,7 @@ ok64 LSMsort1(size_t* runs, u8s into, u8cs data, u8csz cmp, u8sy mrg) {
     done;
 }
 
-ok64 LSMsort(u8s data, u8csz cmp, u8sy mrg, u8s tmp) {
+ok64 LSMsort(u8s data, u8csz cmp, u8ys mrg, u8s tmp) {
     sane($ok(tmp) && $ok(data) && $len(tmp) >= $len(data) && cmp != NULL &&
          mrg != NULL);
     size_t runs = 0;

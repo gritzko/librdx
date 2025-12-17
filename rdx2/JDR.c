@@ -7,7 +7,7 @@
 ok64 rdxIntoJDR(rdxp c, rdxp p) {
     sane(c && p && p->type);
     c->format = p->cformat;
-    c->data = p->plex;
+    u8csFork(p->plexc, c->data);
     c->ptype = p->type;
     c->len = 0;
     if (!c->type) {
@@ -21,7 +21,8 @@ ok64 rdxIntoJDR(rdxp c, rdxp p) {
 
 ok64 rdxOutoJDR(rdxp c, rdxp p) {
     sane(p);  // c is optional
-    p->data[0] = p->plex[0];
+    // call(u8csJoin, p->data, c->data);
+    p->data[0] = c->data[0];  // todo inline tuple trim
     p->cformat = 0;
     if (p->len & 1) {
         p->len += 2;
@@ -61,9 +62,10 @@ ok64 rdxFeedStamp(u8s into, id128cp id) {
 
 ok64 rdxWriteNextJDR(rdxp x) {
     sane(x);
+    u8sp into = x->into;
     if (x->len != 0) {
         u8 sep = (x->format == RDX_FORMAT_JDR_PIN) ? ':' : ',';
-        call(u8sFeed1, x->into, sep);
+        call(u8sFeed1, into, sep);
     }
     // todo indent
     switch (x->type) {
@@ -73,40 +75,40 @@ ok64 rdxWriteNextJDR(rdxp x) {
         case RDX_TYPE_LINEAR:
         case RDX_TYPE_EULER:
         case RDX_TYPE_MULTIX:
-            call(u8sFeed1, x->into, RDX_TYPE_BRACKET_OPEN[x->type]);
-            call(rdxFeedStamp, x->into, &x->id);
+            call(u8sFeed1, into, RDX_TYPE_BRACKET_OPEN[x->type]);
+            call(rdxFeedStamp, into, &x->id);
             if (!id128Empty(&x->id)) call(u8sFeed1, x->into, ' ');
-            $mv(x->plex, x->data);
+            $mv(x->plex, into);
             x->cformat = RDX_FORMAT_JDR | RDX_FORMAT_WRITE;
             break;
         case RDX_TYPE_FLOAT:
-            call(utf8sFeedFloat, x->into, &x->f);
-            call(rdxFeedStamp, x->into, &x->id);
+            call(utf8sFeedFloat, into, &x->f);
+            call(rdxFeedStamp, into, &x->id);
             break;
         case RDX_TYPE_INT:
-            call(utf8sFeedInt, x->into, &x->i);
-            call(rdxFeedStamp, x->into, &x->id);
+            call(utf8sFeedInt, into, &x->i);
+            call(rdxFeedStamp, into, &x->id);
             break;
         case RDX_TYPE_REF:
-            call(RDXutf8sFeedID, x->into, &x->r);
-            call(rdxFeedStamp, x->into, &x->id);
+            call(RDXutf8sFeedID, into, &x->r);
+            call(rdxFeedStamp, into, &x->id);
             break;
         case RDX_TYPE_STRING:
-            call(utf8sFeed1, x->into, '"');
+            call(utf8sFeed1, into, '"');
             if (x->cformat == RDX_UTF_ENC_UTF8_ESC) {
-                call(u8sFeed, x->into, x->s);
+                call(u8sFeed, into, x->s);
             } else if (x->cformat == RDX_UTF_ENC_UTF8) {
-                call(UTABLE[RDX_UTF_ENC_UTF8_ESC][UTF8_ENCODER_ALL], x->into,
+                call(UTABLE[RDX_UTF_ENC_UTF8_ESC][UTF8_ENCODER_ALL], into,
                      x->s);
             } else {
                 fail(NOTIMPLYET);
             }
-            call(utf8sFeed1, x->into, '"');
-            call(rdxFeedStamp, x->into, &x->id);
+            call(utf8sFeed1, into, '"');
+            call(rdxFeedStamp, into, &x->id);
             break;
         case RDX_TYPE_TERM:
-            call(u8sFeed, x->into, x->t);
-            call(rdxFeedStamp, x->into, &x->id);
+            call(u8sFeed, into, x->t);
+            call(rdxFeedStamp, into, &x->id);
             break;
     }
     ++x->len;
@@ -116,7 +118,7 @@ ok64 rdxWriteNextJDR(rdxp x) {
 ok64 rdxWriteIntoJDR(rdxp c, rdxp p) {
     sane(c && p && p->type);
     c->format = p->cformat;  // fixme may be unset
-    c->data = p->plex;
+    u8sFork(p->plex, c->into);
     c->ptype = p->type;
     c->type = 0;
     c->cformat = 0;
@@ -126,11 +128,11 @@ ok64 rdxWriteIntoJDR(rdxp c, rdxp p) {
 }
 
 ok64 rdxWriteOutoJDR(rdxp c, rdxp p) {
-    sane(c && p);
+    sane(c && p && u8sIs(p->into, c->into));
     if (p->type) {
         call(u8sFeed1, c->into, RDX_TYPE_BRACKET_CLOSE[p->type]);
     }
-    p->data[0] = p->plex[0];
+    call(u8sJoin, p->into, c->into);
     done;
 }
 

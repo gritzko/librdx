@@ -30,11 +30,11 @@ fun pro(LSMmore, u8csb lsm, u8cs x, u8csz z) {
     done;
 }
 
-ok64 LSMnext(u8s into, u8css lsm, u8csz z, u8sy mrg);
+ok64 LSMnext(u8s into, u8css lsm, u8csz z, u8ys mrg);
 
 fun b8 _$u8cempty(u8cs const* s) { return $empty(*s); }
 
-fun ok64 LSMmerge(u8s into, u8css lsm, u8csz cmp, u8sy mrg) {
+fun ok64 LSMmerge(u8s into, u8css lsm, u8csz cmp, u8ys mrg) {
     u8css_purge(lsm, &_$u8cempty);
     $sort(lsm, cmp);
     ok64 o = OK;
@@ -48,6 +48,6 @@ fun ok64 LSMmerge(u8s into, u8css lsm, u8csz cmp, u8sy mrg) {
 // May not be the best way to sort things in the general case,
 // as it implies the data goes roughly in order.
 // The scratch space must not be less than the sorted slice.
-ok64 LSMsort(u8s data, u8csz cmp, u8sy mrg, u8s tmp);
+ok64 LSMsort(u8s data, u8csz cmp, u8ys mrg, u8s tmp);
 
 #endif

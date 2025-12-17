@@ -183,53 +183,53 @@ ok64 TLVendany($u8 tlv, u8 type, Bu8p stack) {
     done;
 }
 
-ok64 TLVu8sStart(u8sc idle, u8s inner, u8 lit) {
-    sane(u8sOK(idle) && inner != NULL);
-    $mv(inner, idle);
+ok64 TLVu8sStart(u8sc outer, u8s inner, u8 lit) {
+    sane(u8sOK(outer) && inner != NULL);
+    $mv(inner, outer);
     call(u8sFeed1, inner, lit);
     u32 z = 0;
     call(u8sFeed32, inner, &z);
     done;
 }
 
-ok64 TLVu8sEnd(u8s idle, u8sc inner, u8 lit) {
-    sane(u8sOK(idle) && u8sOK(inner) && inner[1] == idle[1] &&
-         *inner > *idle + 5 && lit == **idle);
-    u64 tl = *inner - *idle;
-    *(u32*)(1 + *idle) = tl - 5;
+ok64 TLVu8sEnd(u8s outer, u8sc inner, u8 lit) {
+    sane(u8sOK(outer) && u8sOK(inner) && inner[1] == outer[1] &&
+         *inner > *outer + 5 && lit == **outer);
+    u64 tl = *inner - *outer;
+    *(u32*)(1 + *outer) = tl - 5;
     if (tl <= 0xff + 5) {
-        **idle |= TLVaA;
-        memmove(*idle + 2, *idle + 5, tl - 5);
-        *idle = *inner - 3;
+        **outer |= TLVaA;
+        memmove(*outer + 2, *outer + 5, tl - 5);
+        *outer = *inner - 3;
     } else {
-        *idle = *inner;
+        *outer = *inner;
     }
     done;
 }
 
-ok64 TLVu8sStartHuge(u8sc idle, u8s inner, u8 lit) {
-    sane(u8sOK(idle) && inner != NULL && TLVlong(lit));
-    $mv(inner, idle);
+ok64 TLVu8sStartHuge(u8sc outer, u8s inner, u8 lit) {
+    sane(u8sOK(outer) && inner != NULL && TLVlong(lit));
+    $mv(inner, outer);
     call(u8sFeed1, inner, lit - TLVaA);
     u64 z = 0;
     call(u8sFeed64, inner, &z);
     done;
 }
 
-ok64 TLVu8sEndHuge(u8s idle, u8sc inner, u8 lit) {
-    sane(u8sOK(idle) && u8sOK(inner) && inner[1] == idle[1] &&
-         *inner > *idle + 9 && lit == **idle + TLVaA);
-    u64 tl = *inner - *idle;
-    *(u64*)(1 + *idle) = tl - 9;
+ok64 TLVu8sEndHuge(u8s outer, u8sc inner, u8 lit) {
+    sane(u8sOK(outer) && u8sOK(inner) && inner[1] == outer[1] &&
+         *inner > *outer + 9 && lit == **outer + TLVaA);
+    u64 tl = *inner - *outer;
+    *(u64*)(1 + *outer) = tl - 9;
     if (tl <= 0xff + 9) {
-        **idle += 2 * TLVaA;
-        memmove(*idle + 2, *idle + 9, tl - 9);
-        *idle = *inner - 7;
+        **outer += 2 * TLVaA;
+        memmove(*outer + 2, *outer + 9, tl - 9);
+        *outer = *inner - 7;
     } else if (tl <= 0xffff + 9) {
         // we can, but we do not want to move records > 255 bytes
-        *idle = *inner;
+        *outer = *inner;
     } else {
-        *idle = *inner;
+        *outer = *inner;
     }
     done;
 }

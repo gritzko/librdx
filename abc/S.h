@@ -33,6 +33,8 @@
 #define a_dup(T, n, s) T *n[2] = {(s)[0], (s)[1]}
 #define $dup(s) {(s)[0], (s)[1]}
 
+#define gauged(s) {(s)[0], (s)[0], (s)[1]}
+
 #define a_gauge(T, n, s)                \
     T *n[3] = {(s)[0], (s)[0], (s)[1]}; \
     T **n##_data = n;                   \

@@ -101,8 +101,8 @@ fun ok64 JDRonOpen(utf8cs tok, rdxp x) {
         if (x->len == 0) return RDXBAD;
     }
     x->type = RDX_TYPE_BRACKET_REV[**tok];
-    x->plex[0] = tok[1];
-    x->plex[1] = x->data[1];
+    x->plexc[0] = tok[1];
+    x->plexc[1] = x->data[1];
     x->cformat = RDX_FORMAT_JDR;
     return NEXT;
 }
@@ -112,8 +112,12 @@ fun ok64 JDRonInlineClose(utf8cs tok, rdxp x) {  // ????
     return END;
 }
 fun ok64 JDRonClose(utf8cs tok, rdxp x) {
-    if (x->format == RDX_FORMAT_JDR_PIN) return RDXBADNEST;  //?
-    if (x->ptype != RDX_TYPE_BRACKET_REV[**tok]) return RDXBADNEST;
+    if (x->format == RDX_FORMAT_JDR_PIN) {
+        return RDXBADNEST;  //?
+    }
+    if (x->ptype != RDX_TYPE_BRACKET_REV[**tok]) {
+        return RDXBADNEST;
+    }
     x->type = 0;
     // FIXME peek?  test   1:(2, 3) vs 1:(2, 3):4:5
     return END;
@@ -140,8 +144,8 @@ fun ok64 JDRonFIRST(utf8cs tok, rdxp x) {
         x->data[0] = tok[0];
         x->type = RDX_TYPE_TUPLE;
         x->cformat = RDX_FORMAT_JDR_PIN;
-        x->plex[0] = tok[0];
-        x->plex[1] = x->data[1];
+        x->plexc[0] = tok[0];
+        x->plexc[1] = x->data[1];
     }
     return NEXT;
 }

@@ -1,6 +1,7 @@
 #include "B.h"
 #include "OK.h"
 #include "Sx.h"
+#include "abc/01.h"
 
 #define T X(, )
 
@@ -45,14 +46,16 @@ fun T **X(, bPast)(X(, b) buf) { return (T **)buf + 0; }
 fun T **X(, bData)(X(, b) buf) { return (T **)buf + 1; }
 fun T **X(, bIdle)(X(, b) buf) { return (T **)buf + 2; }
 
-fun T **X(, bPastData)(X(, b) buf) { return (T **)buf; }
-fun T **X(, bDataIdle)(X(, b) buf) { return (T **)buf + 1; }
+fun X(, gp) X(, bPastData)(X(, bp) buf) { return (X(, gp))buf; }
+fun X(, gp) X(, bDataIdle)(X(, bp) buf) { return (X(, gp))(buf + 1); }
 
 fun size_t X(, bLen)(X(, b) buf) { return ((T *)buf[3]) - ((T *)buf[0]); }
 fun size_t X(, bBusyLen)(X(, b) buf) { return ((T *)buf[2]) - ((T *)buf[0]); }
 fun size_t X(, bPastLen)(X(, b) buf) { return $len((T **)buf + 0); }
 fun size_t X(, bDataLen)(X(, b) buf) { return $len((T **)buf + 1); }
 fun size_t X(, bIdleLen)(X(, b) buf) { return $len((T **)buf + 2); }
+
+fun size_t X(, bSize)(X(, b) buf) { return ((u8c *)buf[3]) - ((u8c *)buf[0]); }
 
 fun size_t X(, cbPastLen)(X(, cb) buf) { return $len((T **)buf + 0); }
 fun size_t X(, cbDataLen)(X(, cb) buf) { return $len((T **)buf + 1); }
@@ -248,22 +251,47 @@ fun ok64 X(, bPop)(X(, b) buf) {
     return OK;
 }
 
-fun ok64 X(B, map)(X(B, ) buf, size_t len) {
+fun ok64 X(, bMap)(X(, b) buf, size_t len) {
     size_t size = len * sizeof(T);
     T *map = (T *)mmap(NULL, size, PROT_READ | PROT_WRITE,
                        MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
-    if (map == MAP_FAILED) {
-        return Bmapfail;
-    }
+    if (map == MAP_FAILED) return MMAPFAIL;
     T **b = (T **)buf;
     b[0] = b[1] = b[2] = b[3] = map;
     b[3] += len;
     return OK;
 }
 
-fun ok64 X(B, unmap)(X(B, ) buf) {
+fun ok64 X(, bReMap)(X(, bp) buf, size_t new_len) {
+    if (BNULL(buf) || new_len == 0) return BADARG;
+    size_t old_size = X(, bSize)(buf);
+    size_t new_size = new_len * sizeof(T);
+#ifdef MREMAP_MAYMOVE
+    u8 *new_mem = (u8 *)mremap(buf[0], old_size, new_size, MREMAP_MAYMOVE);
+    if (new_mem == MAP_FAILED) return MMAPFAIL;
+#else
+    void *new_mem = mmap(NULL, new_size, PROT_READ | PROT_WRITE,
+                         MAP_ANONYMOUS | MAP_SHARED, -1, 0);
+    if (new_mem == MAP_FAILED) return MMAPFAIL;
+    memmove(new_mem, (void *)buf[0], old_size);  // TODO linux mremap
+    int rc = munmap((void *)buf[0], old_size);
+    if (rc != 0) return MMAPFAIL;
+#endif
+    T **b = (T **)buf;
+    size_t l1 = b[1] - b[0];
+    size_t l2 = b[2] - b[0];
+    if (l1 > new_len) l1 = new_len;
+    if (l2 > new_len) l2 = new_len;
+    b[0] = (T *)new_mem;
+    b[1] = b[0] + l1;
+    b[2] = b[0] + l2;
+    b[3] = b[0] + new_len;
+    return OK;
+}
+
+fun ok64 X(, bUnMap)(X(, b) buf) {
     if (unlikely(buf == NULL || *buf == NULL)) return FAILsanity;
-    if (-1 == munmap((void *)buf[0], Bsize(buf))) return Bmapfail;
+    if (-1 == munmap((void *)buf[0], Bsize(buf))) return MMAPFAIL;
     void **b = (void **)buf;
     b[0] = b[1] = b[2] = b[3] = NULL;
     return OK;

@@ -101,6 +101,7 @@ con ok64 NODATA = 0x5d834a74a;
 con ok64 END = 0xe5cd;
 con ok64 NOROOM = 0x5d86d8616;
 con ok64 NONE = 0xcb3ca9;
+con ok64 NOEQ = 0x5d839a;
 con ok64 NOTIMPLYET = 0x5d875259956239d;
 con ok64 BADARG = 0x2ca34a6d0;
 con ok64 BADPOS = 0x2ca35961c;
@@ -413,5 +414,13 @@ fun ok64 u64Z(u64cp a, u64cp b) { return *a < *b; }
 fun ok64 i32Z(i32cp a, i32cp b) { return *a < *b; }
 fun ok64 i64Z(i64cp a, i64cp b) { return *a < *b; }
 fun ok64 u8Z(u8cp a, u8cp b) { return *a < *b; }
+
+fun u64 i64Zig(i64 i) { return (u64)(i * 2) ^ (u64)(i >> 63); }
+
+fun int64_t u64Zag(u64 u) {
+    u64 half = u >> 1;
+    u64 mask = -(u & 1);
+    return (i64)(half ^ mask);
+}
 
 #endif

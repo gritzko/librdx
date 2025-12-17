@@ -10,6 +10,7 @@
 #include "OK.h"
 #include "S.h"
 
+con ok64 MMAPFAIL = 0x5962993ca495;
 con ok64 Bmapfail = 0x2f1974aa5b70;
 con ok64 Bnotnull = 0x2f2cf8cb9c30;
 con ok64 BisNULL = 0x2eddf2b70;

@@ -46,6 +46,7 @@ con ok64 RDXBADARG = 0x1b3612ca34a6d0;
 
 typedef enum {
     RDX_FORMAT_TLV = 0,  // FIXME NONE = 0
+    RDX_FORMAT_WRITE = 1,
     RDX_FORMAT_JDR = 2,
     RDX_FORMAT_LSM = 4,
     RDX_FORMAT_WAL = 6,
@@ -53,8 +54,6 @@ typedef enum {
     RDX_FORMAT_JDR_PIN = 10,
     RDX_FORMAT_LEN = 12,
 } RDX_FORMAT;
-
-#define RDX_FORMAT_WRITE 1
 
 typedef enum {
     RDX_UTF_ENC_UTF8 = 0,
@@ -129,24 +128,26 @@ typedef u8cs RDXterm;
  *  borrowed from the parent element.
  **/
 typedef struct {
-    u8 format;      // RDX_FORMAT
-    u8 type;        // RDX_TYPE (4:4)
-    u8 cformat;     // RDX_FORMAT (for PLEX), RDX_UTF_ENC (for S)
-    u8 ptype;       // parent type
-    u32 len;        // length (format-dependant)
-    id128 id;       // element id
-    union {         // parsed values
-        f64 f;      // float
-        i64 i;      // integer
-        id128 r;    // reference
-        u8cs s;     // string
-        u8cs t;     // term
-        u8cs plex;  // plex inners
+    u8 format;       // RDX_FORMAT
+    u8 type;         // RDX_TYPE (4:4)
+    u8 cformat;      // RDX_FORMAT (for PLEX), RDX_UTF_ENC (for S)
+    u8 ptype;        // parent type
+    u32 len;         // length (format-dependant)
+    id128 id;        // element id
+    union {          // parsed values
+        f64 f;       // float
+        i64 i;       // integer
+        id128 r;     // reference
+        u8cs s;      // string
+        u8cs t;      // term
+        u8s plex;    // plex inners
+        u8cs plexc;  // plex inners
     };
     union {
-        u8csp data;  // data range (non 0th, readers)
-        u8sp into;   // same (non 0th, writers)
+        u8cs data;  // data range (non 0th, readers)
+        u8s into;   // same (non 0th, writers)
     };
+    u64 pos;
 } rdx;
 
 typedef rdx* rdxp;
@@ -155,26 +156,27 @@ typedef rdxp const* rdxpcp;
 typedef rdxp* rdxpp;
 typedef rdxp** rdxppp;
 
-#define a_rdx(n, b, fmt)            \
+#define a_rdx(n, s, fmt)                        \
+    rdx n = {.format = fmt | RDX_FORMAT_WRITE}; \
+    u8sFork(n.into, s);
+
+#define a_rdxc(n, s, fmt)    \
+    rdx n = {.format = fmt}; \
+    u8csFork(n.data, s);
+
+#define a_rdxcb(n, s, fmt)          \
     a_pad(rdx, n, RDX_MAX_NESTING); \
     zerob(n);                       \
     rdxbFed1(n);                    \
     (**n).format = fmt;             \
-    (**n).host = b;
+    u8cgOf((**n).datag, s);
 
-#define a_rdxr(n, s, fmt)           \
-    a_pad(rdx, n, RDX_MAX_NESTING); \
-    zerob(n);                       \
-    rdxbFed1(n);                    \
-    (**n).format = fmt;             \
-    (**n).data = s;
-
-#define a_rdxw(n, s, fmt)                  \
+#define a_rdxb(n, s, fmt)                  \
     a_pad(rdx, n, RDX_MAX_NESTING);        \
     zerob(n);                              \
     rdxbFed1(n);                           \
     (**n).format = fmt | RDX_FORMAT_WRITE; \
-    (**n).into = s;
+    u8gOf((**n).intog, s);
 
 fun RDX_TYPE rdxTypePlex(rdxcp p) {
     return p->type && p->type < RDX_TYPE_PLEX_LEN;
@@ -322,7 +324,6 @@ static const rdx2f VTABLE_OUTO[RDX_FORMAT_LEN] = {
 
 fun ok64 rdxNext(rdxp x) { return VTABLE_NEXT[x->format](x); }
 fun ok64 rdxInto(rdxp c, rdxp p) { return VTABLE_INTO[p->format](c, p); }
-// c is optional on reads
 fun ok64 rdxOuto(rdxp c, rdxp p) { return VTABLE_OUTO[p->format](c, p); }
 
 fun ok64 rdxRootZ(rdxcp a, rdxcp b) { return NO; }
@@ -350,6 +351,7 @@ static const rdxz ZTABLE[RDX_TYPE_PLEX_LEN] = {
 ok64 rdxCopy(rdxp into, rdxp from);
 ok64 rdxbCopy(rdxbp into, rdxbp from);
 ok64 rdxMerge(rdxp into, rdxg inputs);
+ok64 rdxDiff(rdxp into, rdxp was, rdxp is);
 ok64 rdxHash(sha256p hash, rdxp root);
 
 typedef enum {

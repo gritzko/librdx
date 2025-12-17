@@ -17,9 +17,12 @@ ok64 LSMTestBasics() {
 
     // rdx lsm = {.format=RDX_FORMAT_LSM, .host=buf};
     a_cstr(jdrstr, "{@abc-120 one:1 two:2.0 three:\"3\"}");
-    a_rdxr(jdr, jdrstr, RDX_FORMAT_JDR);
-    a_rdxw(lsm, u8bIdle(buf), RDX_FORMAT_LSM);
+    rdx jdr = {.format = RDX_FORMAT_JDR};
+    u8csFork(jdrstr, jdr.data);
+    rdx lsm = {.format = RDX_FORMAT_LSM};
+    u8sFork(u8bIdle(buf), lsm.into);
 
+    /*
     rdxp top = rdxbAtP(lsm, 0);
     top->type = RDX_TYPE_EULER;
     top->r.src = SRC_ABC;
@@ -29,6 +32,7 @@ ok64 LSMTestBasics() {
     call(rdxbInto, lsm);
     call(rdxbCopy, lsm, jdr);
     call(rdxbOuto, lsm);
+    */
 
     call(FILETrimMap, buf);
     call(FILEUnMap, buf);

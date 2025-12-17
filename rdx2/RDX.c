@@ -18,21 +18,16 @@ ok64 rdxEulerTupleZ(rdxcp a, rdxcp b) {
 
 ok64 rdxEulerZ(rdxcp a, rdxcp b) {
     sane(a && b);
-    rdx ac = {}, bc = {};
-    u8cs acd = {}, bcd = {};
+    rdx ac = {}, bc = {};             // todo
     if (a->type == RDX_TYPE_TUPLE) {  // FIXME mess
         ac.type = 0;
         call(rdxInto, &ac, (rdxp)a);
-        $mv(acd, a->plex);
-        ac.data = acd;
         rdxNext(&ac);
         a = &ac;
     }
     if (b->type == RDX_TYPE_TUPLE) {
         bc.type = 0;
         call(rdxInto, &bc, (rdxp)b);
-        $mv(bcd, b->plex);
-        bc.data = bcd;
         rdxNext(&bc);
         b = &bc;
     }
@@ -45,15 +40,22 @@ ok64 rdxEulerZ(rdxcp a, rdxcp b) {
 }
 
 ok64 rdxCopy(rdxp into, rdxp from) {
-    sane(into && from);
+    sane(into && from && rdxWritable(into) && !rdxWritable(from));
     scan(rdxNext, from) {
         rdxMv(into, from);
         call(rdxNext, into);
-        // todo PLEX
+        if (rdxTypePlex(from)) {
+            rdx cinto = {};
+            rdx cfrom = {};
+            call(rdxInto, &cinto, into);
+            call(rdxInto, &cfrom, from);
+            call(rdxCopy, &cinto, &cfrom);
+            call(rdxOuto, &cinto, into);
+            call(rdxOuto, &cfrom, from);
+        }
     }
     seen(END);
     into->type = 0;
-    call(rdxNext, into);
     done;
 }
 
@@ -165,18 +167,18 @@ ok64 rdxMerge(rdxp into, rdxg inputs) {
     rdxz Z = ZTABLE[(**inputs).ptype];
     // todo norm run
     a_dup(rdx, eqs, inputs);
+    a_gauge(rdx, sub, rdxgRest(inputs));
     while (rdxsLen(inputs)) {
         $rof(rdx, p, eqs) {
             ok64 o = rdxNext(p);
             if (o == OK) {
-                rdxsDownAtZ(inputs, p - *inputs, Z);
             } else if (o == END) {
-                *p = *rdxsLast(inputs);
+                rdxSwap(p, rdxsLast(inputs));
                 rdxgFreed1(inputs);
-                if (p < inputs[1]) rdxsDownAtZ(inputs, p - inputs[0], Z);
             } else {
                 fail(o);
             }
+            if (p < inputs[1]) rdxsDownAtZ(inputs, p - inputs[0], Z);
         }
         if (rdxsEmpty(inputs)) break;
         rdxsTopsZ(inputs, eqs, Z);
@@ -187,24 +189,46 @@ ok64 rdxMerge(rdxp into, rdxg inputs) {
         }
         rdxMv(into, *wins);
         call(rdxNext, into);
-        if ((**wins).type < RDX_TYPE_PLEX_LEN) {
-            test(rdxgIdleLen(inputs) >= rdxsLen(wins), RDXNOROOM);
-            a_gauge(rdx, sub, rdxgIdle(inputs));
+        if (rdxTypePlex(*wins)) {
+            test(rdxgRestLen(inputs) >= rdxsLen(wins), RDXNOROOM);
             rdx c = {};
+            sub[1] = sub[0];
             call(rdxInto, &c, into);
             $for(rdx, q, wins) {
                 (**sub_idle).type = 0;
                 call(rdxInto, *sub_idle, q);
                 rdxgFed1(sub);
             }
+            a_dup(rdx, fc, sub_data);
             call(rdxMerge, &c, sub);
             call(rdxOuto, &c, into);
             $for(rdx, q, wins) {
-                call(rdxOuto, NULL, q);  // c is optional
+                rdxp mc = 0;
+                $for(rdx, cc, fc) {
+                    if (u8csIn(q->plexc, cc->data)) {
+                        mc = cc;
+                        break;
+                    }
+                }
+                call(rdxOuto, mc, q);
             }
         }
     }
     done;
+}
+
+ok64 rdxStringLength(rdxp str, u32p len) {
+    sane(str && str->type == RDX_TYPE_STRING && u8csOK(str->s));
+    a_pad(u8, pad, 256);
+    a_dup(u8c, from, str->s);
+    UTFRecode re = UTABLE[str->cformat][UTF8_DECODER_ALL];
+    ok64 o = OK;
+    do {
+        o = re(pad_idle, from);
+        *len += u8csLen(pad_datac);
+        Breset(pad);
+    } while (o == NOROOM);  // todo ok64Is()
+    return o;
 }
 
 ok64 rdxHashMore(SHAstate* hash, rdxp root) {
