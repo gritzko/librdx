@@ -24,7 +24,7 @@ ok64 FILEErr(ok64 def) {
 ok64 path8Push(path8 path, u8csc part) {
     sane(path8Sane(path) && $ok(part) && !$empty(part));
     call(u8bFeed1, path, FILE_PATH_SEP);
-    u8sAte(u8bData(path));
+    u8sUsedAll(u8bData(path));
     call(u8bFeed, path, part);
     done;
 }
@@ -96,7 +96,7 @@ ok64 FILEOpenAt(int *fd, int const dirfd, path8 path, int flags) {
 ok64 FILEStat(struct stat *ret, path8 path) {
     sane(ret != NULL && path8Sane(path));
     int rc = stat(path8CStr(path), ret);
-    if (rc == 0) skip;
+    if (rc == 0) done;
     switch (errno) {
         case ENOENT:
             fail(FILEnone);

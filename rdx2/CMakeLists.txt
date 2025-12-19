@@ -24,7 +24,6 @@ set(BENCH_LDD_FLAGS benchmark::benchmark)
 
 list(APPEND RDX_HEADERS 
     RDX.h
-    LSM.h
     DIFF.h
     JDR.h
 )
@@ -34,11 +33,11 @@ list(APPEND RDX_SOURCES
     MEM.c
     JDR.rl.c
     JDR.c
-    LSM.c
     WAL.c
     TLV.c
     UTF8.c
     DIFF.c
+    SKIL.c
 )
 
 add_library(rdx2 STATIC ${RDX_HEADERS} ${RDX_SOURCES})

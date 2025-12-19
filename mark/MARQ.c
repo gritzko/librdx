@@ -157,7 +157,7 @@ pro(MARQonCode01, $cu8c tok, MARQstate* state) {
     if (*p == 0) {
         size_t pos = tok[0] - text[0];
         *$term($b) = O1join32(pos, MARQ_CODE);
-        skip;
+        done;
     }
     size_t f = O1low32(*p);
     size_t t = tok[1] - text[0];

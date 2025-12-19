@@ -90,6 +90,7 @@ TCP.c
 TLV.c
 UDP.c
 UTF8.c
+ZINT.c
 ryu/d2s.c
 )
 

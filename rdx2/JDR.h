@@ -61,14 +61,14 @@ fun ok64 JDRonNoStamp(utf8cs tok, rdxp x) {
 }
 fun ok64 JDRonInlineComma(utf8cs tok, rdxp x) { return RDXBADNEST; }
 fun ok64 JDRonComma(utf8cs tok, rdxp x) {
-    if (x->format == RDX_FORMAT_JDR_PIN) return JDRonInlineComma(tok, x);
+    if (x->format == RDX_FMT_JDR_PIN) return JDRonInlineComma(tok, x);
     if (x->len & 1) {
         x->type = 0;
         x->len += 1;
         return OK;
     } else {
         x->type = RDX_TYPE_TUPLE;
-        x->cformat = RDX_FORMAT_JDR_PIN;
+        x->cformat = RDX_FMT_JDR_PIN;
         x->len += 2;
         $null(x->plex);
         return NEXT;
@@ -81,29 +81,29 @@ fun ok64 JDRonInlineColon(utf8cs tok, rdxp x) {
         return OK;
     } else {
         x->type = RDX_TYPE_TUPLE;
-        x->cformat = RDX_FORMAT_JDR_PIN;
+        x->cformat = RDX_FMT_JDR_PIN;
         x->len += 2;
         $null(x->plex);
         return NEXT;
     }
 }
 fun ok64 JDRonColon(utf8cs tok, rdxp x) {
-    if (x->format == RDX_FORMAT_JDR_PIN) return JDRonInlineColon(tok, x);
+    if (x->format == RDX_FMT_JDR_PIN) return JDRonInlineColon(tok, x);
     x->type = RDX_TYPE_TUPLE;
-    x->cformat = RDX_FORMAT_JDR_PIN;
+    x->cformat = RDX_FMT_JDR_PIN;
     x->len = (x->len & 0xfffffffe) + 2;
     $null(x->plex);
     return NEXT;
 }
 fun ok64 JDRonInlineOpen(utf8cs tok, rdxp x) { return NOTIMPLYET; }
 fun ok64 JDRonOpen(utf8cs tok, rdxp x) {
-    if (x->format == RDX_FORMAT_JDR_PIN) {
+    if (x->format == RDX_FMT_JDR_PIN) {
         if (x->len == 0) return RDXBAD;
     }
     x->type = RDX_TYPE_BRACKET_REV[**tok];
     x->plexc[0] = tok[1];
     x->plexc[1] = x->data[1];
-    x->cformat = RDX_FORMAT_JDR;
+    x->cformat = RDX_FMT_JDR;
     return NEXT;
 }
 fun ok64 JDRonInlineClose(utf8cs tok, rdxp x) {  // ????
@@ -112,7 +112,7 @@ fun ok64 JDRonInlineClose(utf8cs tok, rdxp x) {  // ????
     return END;
 }
 fun ok64 JDRonClose(utf8cs tok, rdxp x) {
-    if (x->format == RDX_FORMAT_JDR_PIN) {
+    if (x->format == RDX_FMT_JDR_PIN) {
         return RDXBADNEST;  //?
     }
     if (x->ptype != RDX_TYPE_BRACKET_REV[**tok]) {
@@ -134,7 +134,7 @@ fun ok64 JDRonInlineFIRST(utf8cs tok, rdxp x) {
     return NEXT;
 }
 fun ok64 JDRonFIRST(utf8cs tok, rdxp x) {
-    if (x->format == RDX_FORMAT_JDR_PIN) return JDRonInlineFIRST(tok, x);
+    if (x->format == RDX_FMT_JDR_PIN) return JDRonInlineFIRST(tok, x);
     if (x->len & 1) {
         x->len += 2;
     } else {
@@ -143,7 +143,7 @@ fun ok64 JDRonFIRST(utf8cs tok, rdxp x) {
     if (JDRPeek(tok, x) == ':') {
         x->data[0] = tok[0];
         x->type = RDX_TYPE_TUPLE;
-        x->cformat = RDX_FORMAT_JDR_PIN;
+        x->cformat = RDX_FMT_JDR_PIN;
         x->plexc[0] = tok[0];
         x->plexc[1] = x->data[1];
     }

@@ -64,7 +64,7 @@ ok64 rdxWriteNextJDR(rdxp x) {
     sane(x);
     u8sp into = x->into;
     if (x->len != 0) {
-        u8 sep = (x->format == RDX_FORMAT_JDR_PIN) ? ':' : ',';
+        u8 sep = (x->format == RDX_FMT_JDR_PIN) ? ':' : ',';
         call(u8sFeed1, into, sep);
     }
     // todo indent
@@ -79,7 +79,7 @@ ok64 rdxWriteNextJDR(rdxp x) {
             call(rdxFeedStamp, into, &x->id);
             if (!id128Empty(&x->id)) call(u8sFeed1, x->into, ' ');
             $mv(x->plex, into);
-            x->cformat = RDX_FORMAT_JDR | RDX_FORMAT_WRITE;
+            x->cformat = RDX_FMT_JDR | RDX_FMT_WRITE;
             break;
         case RDX_TYPE_FLOAT:
             call(utf8sFeedFloat, into, &x->f);

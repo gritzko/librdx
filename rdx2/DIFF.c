@@ -108,7 +108,7 @@ ok64 rdxDiffFindPath(u64p weight, u64b map, rdxp was, rdxp is) {
 }
 
 ok64 rdxDiffDrawPath(rdxp into, u64b map, rdxp was, rdxp is) {
-    sane(into && (into->format & RDX_FORMAT_WRITE) && u64bOK(map));
+    sane(into && (into->format & RDX_FMT_WRITE) && u64bOK(map));
     //
     done;
 }
@@ -117,7 +117,7 @@ ok64 rdxDiff(rdxp into, rdxp was, rdxp is) {
     sane(into && was && is);
     u64b map = {};
     u64 weight = 0;
-    u64 len = 0;  // fixme max(u8cgUsedLen(was->datag), u8cgUsedLen(is->datag));
+    u64 len = 0;  // fixme max(u8cgDoneLen(was->datag), u8cgDoneLen(is->datag));
     len = roundup(len, PAGESIZE / 8);
     // call(MMAPu64open, map, len);
 

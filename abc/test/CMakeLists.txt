@@ -83,7 +83,7 @@ target_link_options(SHAtest PRIVATE ${TEST_LDD_FLAGS})
 target_compile_options(SHAtest PRIVATE ${TEST_CXX_FLAGS})
 add_test(NAME SHAtest COMMAND SHAtest)
 
-add_executable(ZINTtest ZINT.c)
+add_executable(ZINTtest ZINT.c ../ZINT.c)
 target_link_options(ZINTtest PRIVATE ${TEST_LDD_FLAGS})
 target_compile_options(ZINTtest PRIVATE ${TEST_CXX_FLAGS})
 add_test(NAME ZINTtest COMMAND ZINTtest)

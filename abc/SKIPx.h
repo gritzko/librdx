@@ -57,7 +57,7 @@ fun pro(X(SKIP, feed), u8bp buf, X(SKIP, tab) * k) {
     }
 
     if (lastblk >= blk) {
-        if (lastblk == blk) skip;
+        if (lastblk == blk) done;
         fail(FAILsanity);
     } else if (blk != lastblk + 1) {
         u8 topflip = 64 - clz64(blk ^ lastblk);

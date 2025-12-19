@@ -18,11 +18,6 @@ typedef T const *const *X(, cbp);
 typedef X($, ) *const X(, sb)[4];
 typedef X($, c) *const X(, csb)[4];
 
-fun T *const *X(B, past)(X(B, ) buf) { return (T **)buf + 0; }
-fun T const *const *X(B, pastc)(X(B, ) buf) {
-    return (T const *const *)buf + 0;
-}
-
 fun T **X(B, $1)(X(B, ) buf) { return (T **)buf + 1; }
 fun T **X(B, $2)(X(B, ) buf) { return (T **)buf + 2; }
 fun T const **X(B, c$1)(X(B, ) buf) { return (T const **)buf + 1; }
@@ -36,13 +31,13 @@ fun void X(B, eatidle)(X(B, ) buf) { ((T **)buf)[2] = buf[3]; }
 fun void X(B, resetpast)(X(B, ) buf) { ((T **)buf)[1] = buf[0]; }
 fun void X(B, resetdata)(X(B, ) buf) { ((T **)buf)[2] = buf[1]; }
 
-fun T const **X(, cbPast)(X(, cb) buf) { return (T const **)buf + 0; }
+fun T const *const *X(, cbPast)(X(, cb) buf) { return (T const **)buf + 0; }
 fun T const **X(, cbData)(X(, cb) buf) { return (T const **)buf + 1; }
 fun T const **X(, cbIdle)(X(, cb) buf) { return (T const **)buf + 2; }
-fun T const **X(, bPastC)(X(, b) buf) { return (T const **)buf + 0; }
+fun T const *const *X(, bPastC)(X(, b) buf) { return (T const **)buf + 0; }
 fun T const **X(, bDataC)(X(, b) buf) { return (T const **)buf + 1; }
 fun T const **X(, bIdleC)(X(, b) buf) { return (T const **)buf + 2; }
-fun T **X(, bPast)(X(, b) buf) { return (T **)buf + 0; }
+fun T *const *X(, bPast)(X(, b) buf) { return (T **)buf + 0; }
 fun T **X(, bData)(X(, b) buf) { return (T **)buf + 1; }
 fun T **X(, bIdle)(X(, b) buf) { return (T **)buf + 2; }
 
@@ -154,6 +149,12 @@ fun ok64 X(, bPushed)(X(, bp) buf, X(, pp) pp) {
     ++*idle;
     return OK;
 }
+fun ok64 X(, bTop)(X(, bp) buf, X(, pp) pp) {
+    T **data = X(, bData)(buf);
+    if ($empty(data)) return NODATA;
+    *pp = data[1] - 1;
+    return OK;
+}
 #endif
 
 fun ok64 X(, bFeedP)(X(, bp) buf, T const *one) {
@@ -196,7 +197,16 @@ fun void X(B, reset)(X(, b) buf) {
     b[2] = b[0];
 }
 
-fun void X(B, Ate)(X(, b) buf) { Bate(buf); }
+fun ok64 X(, gShed)(X(, g) g, size_t len) {
+    return X(, sShed)(X(, gLeft)(g), len);
+}
+fun ok64 X(, gUsed)(X(, g) g, size_t len) {
+    return X(, sUsed)(X(, gRest)(g), len);
+}
+fun ok64 X(, gShedAll)(X(, g) g) { return X(, sShedAll)(X(, gLeft)(g)); }
+fun ok64 X(, gUsedAll)(X(, g) g) { return X(, sUsedAll)(X(, gRest)(g)); }
+fun ok64 X(, gShed1)(X(, g) g) { return X(, sShed1)(X(, gLeft)(g)); }
+fun ok64 X(, gUsed1)(X(, g) g) { return X(, sUsed1)(X(, gRest)(g)); }
 
 fun ok64 X(B, rewind)(X(B, ) buf, range64 range) {
     size_t len = Blen(buf);

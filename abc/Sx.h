@@ -60,6 +60,8 @@ typedef b8 (*X(, isfn))(const X(, ) *);
 
 fun size_t X(, sLen)(X(, sc) data) { return data[1] - data[0]; }
 fun size_t X(, csLen)(X(, csc) data) { return data[1] - data[0]; }
+fun b8 X(, sEmpty)(X(, sc) data) { return data[1] <= data[0]; }
+fun b8 X(, csEmpty)(X(, csc) data) { return data[1] <= data[0]; }
 // fun T *X(, sHead)(X(, s) s) { return s[0]; }
 // fun T const *X(, csHead)(X(, cs) s) { return s[0]; }
 fun T *X(, sTerm)(X(, s) s) { return s[1]; }
@@ -75,20 +77,20 @@ fun const T *X(, csLast)(X(, cs) data) {
     return data[1] - 1;
 }
 
-fun X(, sp) X(, gUsed)(X(, g) g) { return g; }
-fun X(, csp) X(, gUsedC)(X(, g) g) { return (T const **)g; }
+fun X(, sp) X(, gLeft)(X(, g) g) { return g; }
+fun X(, csp) X(, gLeftC)(X(, g) g) { return (T const **)g; }
 fun X(, sp) X(, gRest)(X(, g) g) { return g + 1; }
 fun T *X(, gHead)(X(, g) g) { return g[0]; }
 fun T const *X(, cgHead)(X(, cg) g) { return g[0]; }
 fun T *X(, gTerm)(X(, g) g) { return g[2]; }
 fun T const *X(, cgTerm)(X(, cg) g) { return g[2]; }
-fun size_t X(, gUsedLen)(X(, g) g) { return g[1] - g[0]; }
+fun size_t X(, gLeftLen)(X(, g) g) { return g[1] - g[0]; }
 fun size_t X(, gRestLen)(X(, g) g) { return g[2] - g[1]; }
 fun b8 X(, gOK)(X(, g) g) { return g && g[2] >= g[1] && g[1] >= g[0]; }
 fun b8 X(, gEmpty)(X(, g) g) { return g[1] == g[0]; }
-fun X(, csp) X(, cgUsed)(X(, cg) g) { return g; }
+fun X(, csp) X(, cgLeft)(X(, cg) g) { return g; }
 fun X(, csp) X(, cgRest)(X(, cg) g) { return g + 1; }
-fun size_t X(, cgUsedLen)(X(, cg) g) { return g[1] - g[0]; }
+fun size_t X(, cgLeftLen)(X(, cg) g) { return g[1] - g[0]; }
 fun size_t X(, cgRestLen)(X(, cg) g) { return g[2] - g[1]; }
 fun b8 X(, cgOK)(X(, cg) g) { return g && g[2] >= g[1] && g[1] >= g[0]; }
 fun b8 X(, cgEmpty)(X(, cg) g) { return g[1] == g[0]; }
@@ -171,24 +173,37 @@ fun T X(, csAt)(X(, cs) s, size_t pos) { return s[0][pos]; }
 fun T *X(, sAtP)(X(, s) s, size_t pos) { return s[0] + pos; }
 fun T const *X(, csAtP)(X(, cs) s, size_t pos) { return s[0] + pos; }
 
-fun ok64 X($, eat1)(X($, ) s) {
-    if (s[0] >= s[1]) return $nodata;
-    ++s[0];
+fun ok64 X(, sUsed)(X(, s) s, size_t len) {
+    if (unlikely(len > $len(s))) return MISS;
+    s[0] += len;
     return OK;
 }
+fun ok64 X(, csUsed)(X(, cs) s, size_t len) { return X(, sUsed)((T **)s, len); }
 
-fun ok64 X($, eatall)(X($, ) s) {
+fun ok64 X(, sUsed1)(X(, s) s) { return X(, sUsed)(s, 1); }
+fun ok64 X(, csUsed1)(X(, cs) s) { return X(, sUsed)((T **)s, 1); }
+
+fun ok64 X(, sUsedAll)(X(, s) s) {
     s[0] = s[1];
     return OK;
 }
+fun ok64 X(, csUsedAll)(X(, cs) s) { return X(, sUsedAll)((T **)s); }
 
-fun ok64 X(, sAte)(X(, s) s) {
-    s[0] = s[1];
+fun ok64 X(, sShed)(X(, s) s, size_t len) {
+    if (unlikely(len > $len(s))) return MISS;
+    s[1] -= len;
     return OK;
 }
 
-fun ok64 X(, csAte)(X(, cs) s) {
-    s[0] = s[1];
+fun ok64 X(, csShed1)(X(, cs) s) {
+    if (unlikely(s[0] >= s[1])) return MISS;
+    s[1]--;
+    return OK;
+}
+fun ok64 X(, sShed1)(X(, s) s) { return X(, csShed1)((T const **)s); }
+
+fun ok64 X(, sShedAll)(X(, s) s) {
+    s[1] = s[0];
     return OK;
 }
 
@@ -320,7 +335,15 @@ fun ok64 X($, feed)(X($, ) into, X($c, c) from) {
 }
 
 fun ok64 X(, sFeed)(X(, s) into, X(, csc) from) {
-    return X($, feed)(into, from);
+    if (unlikely(!$ok(from) || !$ok(into))) return BADARG;
+    if (unlikely($size(from) > $size(into))) return NOROOM;
+    memcpy((void *)*into, (void *)*from, $size(from));
+    *into += $len(from);
+    return OK;
+}
+
+fun ok64 X(, gFeed)(X(, g) into, X(, csc) from) {
+    return X(, sFeed)(X(, gRest)(into), from);
 }
 
 fun ok64 X(, sFeedSome)(X(, s) into, X(, cs) from) {
@@ -333,9 +356,9 @@ fun ok64 X(, sFeedSome)(X(, s) into, X(, cs) from) {
 }
 
 fun ok64 X(, sFeedN)(X(, s) into, X(, cs) from, size_t len) {
-    if (unlikely(!$ok(from) || !$ok(into))) return $badarg;
-    if (unlikely($len(into) < len)) return $noroom;
-    if (unlikely($len(from) < len)) return $nodata;
+    if (unlikely(!$ok(from) || !$ok(into))) return BADARG;
+    if (unlikely($len(into) < len)) return NOROOM;
+    if (unlikely($len(from) < len)) return NODATA;
     memcpy((void *)*into, (void *)*from, len * sizeof(T));
     *into += len;
     *from += len;
@@ -395,9 +418,9 @@ fun ok64 X(, sFeed1)(X(, s) into, T what) {
     return OK;
 }
 
-/*fun ok64 X(, gFeed1)(X(, g) into, T what) {
+fun ok64 X(, gFeed1)(X(, g) into, T what) {
     return X(, sFeed1)(X(, gRest)(into), what);
-}*/
+}
 
 fun ok64 X(, sFed1)(X(, s) into) {
     if (unlikely(into[0] >= into[1])) return $noroom;
@@ -449,9 +472,6 @@ fun ok64 X(, sFeedP)(X(, s) into, T const *what) {
     ++*into;
     return OK;
 }
-
-fun b8 X(, sEmpty)(X(, s) s) { return $len(s) == 0; }
-fun b8 X(, csEmpty)(X(, cs) s) { return $len(s) == 0; }
 
 fun void X($, drop)(X($, ) into, T const *from) {
     X(, mv)(*into, from);
@@ -541,8 +561,19 @@ fun b8 X(, csHasSuffix)(X(, cs) line, X(, cs) suffix) {
     return l <= $len(line) && 0 == memcmp(line[1] - l, suffix[0], s);
 }
 
+fun b8 X(, pIn)(X(, cp) p, X(, csc) outer) {
+    return p >= outer[0] && p < outer[1];
+}
+
 fun b8 X(, sIn)(X(, sc) outer, X(, sc) inner) {
     return inner[0] >= outer[0] && inner[1] <= outer[1];
+}
+
+fun b8 X(, gIn)(X(, g) outer, X(, sc) inner) {
+    return inner[0] >= outer[0] && inner[1] <= outer[2];
+}
+fun b8 X(, cgIn)(X(, cg) outer, X(, csc) inner) {
+    return inner[0] >= outer[0] && inner[1] <= outer[2];
 }
 
 fun b8 X(, sIs)(X(, sc) outer, X(, sc) inner) {

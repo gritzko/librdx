@@ -130,14 +130,14 @@ fun u128 u128xor(u128 a, u128 b) {
 }
 
 fun ok64 u8sDrain8(u8cs from, u8 *into) {
-    if ($empty(from)) return $nodata;
+    if ($empty(from)) return NODATA;
     *into = **from;
     *from += sizeof(u8);
     return OK;
 }
 
 fun ok64 u8sFeed8(u8s into, u8 const *what) {
-    if ($empty(into)) return $noroom;
+    if ($empty(into)) return NOROOM;
     **into = *what;
     *into += sizeof(u8);
     return OK;
@@ -145,7 +145,7 @@ fun ok64 u8sFeed8(u8s into, u8 const *what) {
 
 #ifdef ABC_ALIGN
 fun ok64 u8sDrain16(u16 *into, u8sfrom) {
-    if ($size(from) < sizeof(u16)) return $nodata;
+    if ($size(from) < sizeof(u16)) return NODATA;
     *into = **from;
     ++*from;
     *into |= u16(**from) << 8;
@@ -153,7 +153,7 @@ fun ok64 u8sDrain16(u16 *into, u8sfrom) {
     return OK;
 }
 fun ok64 u8sDrain32(u32 *into, u8sfrom) {
-    if ($size(from) < sizeof(u32)) return $nodata;
+    if ($size(from) < sizeof(u32)) return NODATA;
     u16 lo = 0, hi = 0;
     u8sDrain16(&lo, from);
     u8sDrain16(&hi, from);
@@ -162,7 +162,7 @@ fun ok64 u8sDrain32(u32 *into, u8sfrom) {
     return OK;
 }
 fun ok64 u8sDrain64(u64 *into, u8sfrom) {
-    if ($size(from) < sizeof(u64)) return $nodata;
+    if ($size(from) < sizeof(u64)) return NODATA;
     u32 lo = 0, hi = 0;
     u8sDrain32(&lo, from);
     u8sDrain32(&hi, from);
@@ -172,37 +172,37 @@ fun ok64 u8sDrain64(u64 *into, u8sfrom) {
 }
 #else
 fun ok64 u8sDrain16(u8cs from, u16 *into) {
-    if ($len(from) < sizeof(u16)) return $nodata;
+    if ($len(from) < sizeof(u16)) return NODATA;
     memcpy(into, *from, sizeof(u16));
     *from += sizeof(u16);
     return OK;
 }
 fun ok64 u8sFeed16(u8s into, u16 const *what) {
-    if ($len(into) < sizeof(u16)) return $noroom;
+    if ($len(into) < sizeof(u16)) return NOROOM;
     memcpy(*into, what, 2);
     *into += sizeof(u16);
     return OK;
 }
 fun ok64 u8sDrain32(u8cs from, u32p into) {
-    if ($len(from) < sizeof(u32)) return $nodata;
+    if ($len(from) < sizeof(u32)) return NODATA;
     memcpy(into, *from, sizeof(u32));
     *from += sizeof(u32);
     return OK;
 }
 fun ok64 u8sFeed32(u8s into, u32 const *what) {
-    if ($len(into) < sizeof(u32)) return $noroom;
+    if ($len(into) < sizeof(u32)) return NOROOM;
     memcpy(*into, what, 4);
     *into += sizeof(u32);
     return OK;
 }
 fun ok64 u8sDrain64(u8cs from, u64p into) {
-    if ($len(from) < sizeof(u64)) return $nodata;
+    if ($len(from) < sizeof(u64)) return NODATA;
     memcpy(into, *from, sizeof(u64));
     *from += sizeof(u64);
     return OK;
 }
 fun ok64 u8sFeed64(u8s into, u64 const *what) {
-    if ($len(into) < sizeof(u64)) return $noroom;
+    if ($len(into) < sizeof(u64)) return NOROOM;
     memcpy(*into, what, 8);
     *into += sizeof(u64);
     return OK;

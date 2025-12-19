@@ -89,9 +89,6 @@ con char *_pro_indent =
         return (code);                                                \
     }
 
-// Skip to procedure return.
-#define skip return OK;
-
 #define failc(code)                                                            \
     {                                                                          \
         trace("%s<%s errno %i %s at %s:%i\n", PROindent, ok64str(code), errno, \

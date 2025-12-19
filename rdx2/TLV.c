@@ -23,7 +23,7 @@ ok64 rdxNextTLV(rdxp x) {
         case RDX_TYPE_EULER:
         case RDX_TYPE_MULTIX: {
             u8csMv(x->plexc, value);
-            x->cformat = RDX_FORMAT_TLV;
+            x->cformat = RDX_FMT_TLV;
             break;
         }
         case RDX_TYPE_FLOAT:
@@ -52,17 +52,21 @@ ok64 rdxNextTLV(rdxp x) {
 ok64 rdxIntoTLV(rdxp c, rdxp p) {
     sane(c && p && p->type);
     c->format = p->cformat;
-    u8csFork(p->plexc, c->data);
+    u8csMv(c->data, p->plexc);
     c->ptype = p->type;
     if (!c->type) {
         c->type = 0;
         c->cformat = 0;
-        c->len = 0;
         zero(c->r);
-    } else {
-        fail(NOTIMPLYET);
+        done;
     }
-    done;
+    rdx c2 = *c;
+    ok64 o = OK;
+    do {
+        o = rdxNextTLV(c);
+    } while (o == OK && rdxZ(c, &c2));
+    if (o == END || rdxZ(&c2, c)) o = NONE;
+    return o;
 }
 
 ok64 rdxOutoTLV(rdxp c, rdxp p) { return OK; }
@@ -85,7 +89,7 @@ ok64 rdxWriteNextTLV(rdxp x) {
             call(TLVu8sStart, x->into, plex, lit);
             call(u8sFeed1, plex, $len(id_data));
             call(u8sFeed, plex, id_datac);
-            x->cformat = RDX_FORMAT_TLV | RDX_FORMAT_WRITE;
+            x->cformat = RDX_FMT_TLV | RDX_FMT_WRITE;
             done;
         }
         case RDX_TYPE_FLOAT:
@@ -125,7 +129,6 @@ ok64 rdxWriteIntoTLV(rdxp c, rdxp p) {
     c->ptype = p->type;
     c->type = 0;
     c->cformat = 0;
-    c->len = 0;
     zero(c->r);
     done;
 }

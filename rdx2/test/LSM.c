@@ -15,11 +15,11 @@ ok64 LSMTestBasics() {
     u8b buf = {};
     call(FILEMapCreate, buf, path, MB);
 
-    // rdx lsm = {.format=RDX_FORMAT_LSM, .host=buf};
+    // rdx lsm = {.format=RDX_FMT_LSM, .host=buf};
     a_cstr(jdrstr, "{@abc-120 one:1 two:2.0 three:\"3\"}");
-    rdx jdr = {.format = RDX_FORMAT_JDR};
+    rdx jdr = {.format = RDX_FMT_JDR};
     u8csFork(jdrstr, jdr.data);
-    rdx lsm = {.format = RDX_FORMAT_LSM};
+    rdx lsm = {.format = RDX_FMT_LSM};
     u8sFork(u8bIdle(buf), lsm.into);
 
     /*

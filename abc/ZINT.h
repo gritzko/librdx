@@ -1,11 +1,12 @@
 #ifndef LIBRDX_ZINT_H
 #define LIBRDX_ZINT_H
 
+#include "01.h"
 #include "INT.h"
 #include "OK.h"
 
-con ok64 ZINTnoroom = 0x8d25ddcb3db3cf1;
-con ok64 ZINTbadrec = 0x8d25dd9a5a36a67;
+con ok64 ZINTNOROOM = 0x8d25dd5d86d8616;
+con ok64 ZINTBAD = 0x2349774b28d;
 
 con u64 B1 = 0xff;
 con u64 B2 = 0xffff;
@@ -23,7 +24,7 @@ fun u32 ZINTlen(u64 n) {
 }
 
 fun ok64 ZINTu64feed($u8 into, u64 n) {
-    if ($len(into) < 8) return ZINTnoroom;
+    if ($len(into) < 8) return ZINTNOROOM;
     if (n <= B1) {
         if (n != 0) u8sFeed8(into, (u8*)&n);
     } else if (n <= B2) {
@@ -49,123 +50,27 @@ fun ok64 ZINTu64drain(u64* n, $cu8c zip) {
             u8sDrain16(from, (u16*)n);
             return OK;
         case 3:
-            return ZINTbadrec;
+            return ZINTBAD;
         case 4:
             u8sDrain32(from, (u32*)n);
             return OK;
         case 5:
         case 6:
         case 7:
-            return ZINTbadrec;
+            return ZINTBAD;
         case 8:
             u8sDrain64(from, n);
             return OK;
         default:
-            return ZINTbadrec;
+            return ZINTBAD;
     }
 }
 
 // Packs a pair of uint64 into a byte string.
 // The smaller the ints, the shorter the string
-fun ok64 ZINTu8sFeed128(u8s into, u64 big, u64 lil) {
-    if (lil <= B1) {
-        if (big <= B1) {
-            if (big != 0 || lil != 0) u8sFeed8(into, (u8*)&big);
-        } else if (big <= B2) {
-            u8sFeed16(into, (u16*)&big);
-        } else if (big <= B4) {
-            u8sFeed32(into, (u32*)&big);
-        } else {
-            u8sFeed64(into, &big);
-        }
-        if (lil != 0 || big > B1) u8sFeed8(into, (u8*)&lil);
-    } else if (lil <= B2) {
-        if (big <= B2) {
-            u8sFeed16(into, (u16*)&big);
-        } else if (big <= B4) {
-            u8sFeed32(into, (u32*)&big);
-        } else {
-            u8sFeed64(into, &big);
-        }
-        u8sFeed16(into, (u16*)&lil);
-    } else if (lil <= B4) {
-        if (big <= B4) {
-            u8sFeed32(into, (u32*)&big);
-        } else {
-            u8sFeed64(into, &big);
-        }
-        u8sFeed32(into, (u32*)&lil);
-    } else {
-        u8sFeed64(into, &big);
-        u8sFeed64(into, &lil);
-    }
-    return OK;
-}
+ok64 ZINTu8sFeed128(u8s into, u64 big, u64 lil);
 
-fun ok64 ZINTu8sDrain128(u8cs from, u64* big, u64* lil) {  // FIXME no inline
-    u32 len = $len(from);
-    *big = *lil = 0;
-    switch (len) {
-        case 0:
-            break;
-        case 1:
-            u8sDrain8(from, (u8*)big);
-            break;
-        case 2:
-            u8sDrain8(from, (u8*)big);
-            u8sDrain8(from, (u8*)lil);
-            break;
-        case 3:
-            u8sDrain16(from, (u16*)big);
-            u8sDrain8(from, (u8*)lil);
-            break;
-        case 4:
-            u8sDrain16(from, (u16*)big);
-            u8sDrain16(from, (u16*)lil);
-            break;
-        case 5:
-            u8sDrain32(from, (u32*)big);
-            u8sDrain8(from, (u8*)lil);
-            break;
-        case 6:
-            u8sDrain32(from, (u32*)big);
-            u8sDrain16(from, (u16*)lil);
-            break;
-        case 7:
-            return ZINTbadrec;
-        case 8:
-            u8sDrain32(from, (u32*)big);
-            u8sDrain32(from, (u32*)lil);
-            break;
-        case 9:
-            u8sDrain64(from, (u64*)big);
-            u8sDrain8(from, (u8*)lil);
-            break;
-        case 10:
-            u8sDrain64(from, (u64*)big);
-            u8sDrain16(from, (u16*)lil);
-            break;
-        case 11:
-            return ZINTbadrec;
-        case 12:
-            u8sDrain64(from, (u64*)big);
-            u8sDrain32(from, (u32*)lil);
-            break;
-        case 13:
-            return ZINTbadrec;
-        case 14:
-            return ZINTbadrec;
-        case 15:
-            return ZINTbadrec;
-        case 16:
-            u8sDrain64(from, (u64*)big);
-            u8sDrain64(from, (u64*)lil);
-            break;
-        default:
-            return ZINTbadrec;
-    }
-    return OK;
-}
+ok64 ZINTu8sDrain128(u8cs from, u64* big, u64* lil);
 
 fun ok64 ZINTu128drain(u128* a, u8cs from) {
     u64* big = &(a->_64[0]);
@@ -174,27 +79,19 @@ fun ok64 ZINTu128drain(u128* a, u8cs from) {
 }
 
 fun ok64 ZINTu128feed($u8 into, u128c* a) {
-    if (!$ok(into) || $size(into) < sizeof(u64) * 2) return ZINTnoroom;
+    if (!$ok(into) || $size(into) < sizeof(u64) * 2) return ZINTNOROOM;
     u64 big = a->_64[0];
     u64 lil = a->_64[1];
     return ZINTu8sFeed128(into, big, lil);
 }
 
-fun u64 ZINTzigzag(int64_t i) { return (u64)(i * 2) ^ (u64)(i >> 63); }
-
-fun int64_t ZINTzagzig(u64 u) {
-    u64 half = u >> 1;
-    u64 mask = -(u & 1);
-    return (int64_t)(half ^ mask);
-}
-
 fun ok64 ZINTu8sFeedInt(u8s into, i64cp n) {
-    return ZINTu64feed(into, ZINTzigzag(*n));
+    return ZINTu64feed(into, i64Zig(*n));
 }
 fun ok64 ZINTu8sDrainInt(i64* n, $cu8c zip) {
     u64 u;
     ok64 o = ZINTu64drain(&u, zip);
-    if (o == OK) *n = ZINTzagzig(u);
+    if (o == OK) *n = u64Zag(u);
     return o;
 }
 
@@ -247,5 +144,15 @@ fun int ZINTf64z($cu8c a, $cu8c b) {
     ZINTu8sDrainFloat(&bn, bb);
     return f64z(&an, &bn);
 }
+
+ok64 ZINTu64sDelta(u64s ints, u64 start);
+ok64 ZINTu64sUndelta(u64s ints, u64 start);
+
+// Converts a slice of u64 into a stream of blocked varints: first,
+// a header byte contains 4 2-bit lengths (1,2,4,8). Then, the
+// numbers follow.
+ok64 ZINTu8sFeedBlocked(u8s into, u64cs ints);
+// Restores an int slice from the blocked varint coding.
+ok64 ZINTu8sDrainBlocked(u8cs from, u64s ints);
 
 #endif

@@ -75,15 +75,15 @@ ok64 RDXTestTLV() {
     a_u8cs(euler, 'e', 18, 0, 'p', 5, 0, 'i', 2, 0, 8, 'p', 8, 2, 2, 3, 'i', 3,
            0, 1, 2);
     u8csp inputs[] = {
-        uno, duos, tres, tuple, euler, NULL,
+        tuple, uno, duos, tres, euler, NULL,
     };
     int i = 0;
     while (inputs[i]) {
         a_dup(u8c, in, inputs[i]);
         a_pad(u8, tlv2, 256);
-        rdx itc = {.format = RDX_FORMAT_TLV};
+        rdx itc = {.format = RDX_FMT_TLV};
         u8csFork(in, itc.data);
-        rdx it = {.format = RDX_FORMAT_TLV | RDX_FORMAT_WRITE};
+        rdx it = {.format = RDX_FMT_TLV | RDX_FMT_WRITE};
         u8sFork(tlv2_idle, it.into);
 
         call(rdxCopy, &it, &itc);
@@ -115,22 +115,22 @@ ok64 RDXTestJDR() {
         // 1. a_rdx(jdr1, in, ...) no rdxb
         // 2. u8csFork(orig, copy), u8csJoin(orig, copy)
         // 3. u8csIn(outer, inner) u8csIs(outer, inner)
-        // 4. RDX_FORMAT_SKIP ((()))
-        // 5. RDX_FORMAT_VEC 40b (diff, use len)
-        // 6. RDX_FORMAT_MEM (prepared, threshold, ext str)
+        // 4. RDX_FMT_SKIP ((()))
+        // 5. RDX_FMT_VEC 40b (diff, use len)
+        // 6. RDX_FMT_MEM (prepared, threshold, ext str)
         // 7. g is s*2, no u8g API, a_gauge and .
 
-        rdx jdr1 = {.format = RDX_FORMAT_JDR};
+        rdx jdr1 = {.format = RDX_FMT_JDR};
         u8csFork(jdrA, jdr1.data);
-        rdx tlv1 = {.format = RDX_FORMAT_TLV | RDX_FORMAT_WRITE};
+        rdx tlv1 = {.format = RDX_FMT_TLV | RDX_FMT_WRITE};
         u8sFork(tlv_idle, tlv1.into);
 
         call(rdxCopy, &tlv1, &jdr1);
         call(u8sJoin, tlv_idle, tlv1.into);
 
-        rdx tlv2 = {.format = RDX_FORMAT_TLV};
+        rdx tlv2 = {.format = RDX_FMT_TLV};
         u8csFork(tlv_datac, tlv2.data);
-        rdx jdr2 = {.format = RDX_FORMAT_JDR | RDX_FORMAT_WRITE};
+        rdx jdr2 = {.format = RDX_FMT_JDR | RDX_FMT_WRITE};
         u8sFork(jdrB_idle, jdr2.into);
 
         call(rdxCopy, &jdr2, &tlv2);
@@ -150,7 +150,7 @@ ok64 RDXTestZE() {
     sane(1);
     a_pad(rdx, elems, 64);
     a_cstr(in, EULERZ_TEST);
-    rdx it = {.format = RDX_FORMAT_JDR};
+    rdx it = {.format = RDX_FMT_JDR};
     u8csFork(in, it.data);
     call(rdxNext, &it);
     test(it.type == RDX_TYPE_EULER, RDXBAD);
@@ -198,13 +198,13 @@ ok64 RDXTestY(u8cs test[][8]) {
         a_pad(rdx, inputs, 16);
         a_dup(u8c, correct, test[i][0]);
         for (int j = 0; test[i][j][0]; j++) {
-            rdx it = {.format = RDX_FORMAT_JDR};
+            rdx it = {.format = RDX_FMT_JDR};
             u8csFork(test[i][j], it.data);
             call(rdxbFeedP, inputs, &it);
         }
         rdxsFed1(rdxbData(inputs));
         a_pad(u8, res, PAGESIZE);
-        rdx w = {.format = RDX_FORMAT_JDR | RDX_FORMAT_WRITE};
+        rdx w = {.format = RDX_FMT_JDR | RDX_FMT_WRITE};
         u8sFork(res_idle, w.into);
         call(rdxMerge, &w, rdxbDataIdle(inputs));
         u8sJoin(res_idle, w.into);
