@@ -3,6 +3,8 @@
 //
 #include "RDX.h"
 
+#include <strings.h>
+
 #include "abc/01.h"
 #include "abc/FILE.h"
 #include "abc/PRO.h"
@@ -39,6 +41,8 @@ ok64 u8csTestEq(u8cs a, u8cs b) {
 ok64 RDXTestBasics() {
     sane(1);
     testeq(sizeof(rdx), 64);
+    rdx a;
+    rdxgp g = a.ins;
     done;
 }
 
@@ -196,11 +200,13 @@ ok64 RDXTestY(u8cs test[][8]) {
     sane(1);
     for (int i = 0; test[i][0][0]; i++) {
         a_pad(rdx, inputs, 16);
+        rdxbZero(inputs);
         a_dup(u8c, correct, test[i][0]);
         for (int j = 0; test[i][j][0]; j++) {
-            rdx it = {.format = RDX_FMT_JDR};
-            u8csFork(test[i][j], it.data);
-            call(rdxbFeedP, inputs, &it);
+            rdxp it = 0;
+            call(rdxbFedP, inputs, &it);
+            it->format = RDX_FMT_JDR;
+            $mv(it->data, test[i][j]);
         }
         rdxsFed1(rdxbData(inputs));
         a_pad(u8, res, PAGESIZE);
@@ -214,7 +220,33 @@ ok64 RDXTestY(u8cs test[][8]) {
     done;
 }
 
-pro(RDXtest) {
+ok64 RDXTestY2(u8cs test[][8]) {
+    sane(1);
+    for (int i = 0; test[i][0][0]; i++) {
+        a_pad(rdx, inputs, 16);
+        rdxbZero(inputs);
+        a_dup(u8c, correct, test[i][0]);
+        for (int j = 0; test[i][j][0]; j++) {
+            rdxp it = 0;
+            call(rdxbFedP, inputs, &it);
+            it->format = RDX_FMT_JDR;
+            $mv(it->data, test[i][j]);
+        }
+        rdxsFed1(rdxbData(inputs));
+        rdx y = {.format = RDX_FMT_Y};
+        rdxgMv(y.ins, rdxbDataIdle(inputs));
+        a_pad(u8, res, PAGESIZE);
+        rdx w = {.format = RDX_FMT_JDR | RDX_FMT_WRITE};
+        u8sFork(res_idle, w.into);
+        call(rdxCopy, &w, &y);
+        u8sJoin(res_idle, w.into);
+        $println(res_datac);
+        test(0 == $cmp(res_datac, correct), RDXBAD);
+    }
+    done;
+}
+
+ok64 RDXtest() {
     sane(1);
     call(RDXTestBasics);
     call(RDXid128test);
@@ -226,6 +258,12 @@ pro(RDXtest) {
     call(RDXTestY, YL_TEST);
     call(RDXTestY, YE_TEST);
     call(RDXTestY, YX_TEST);
+
+    call(RDXTestY2, FIRSTY_TEST);
+    call(RDXTestY2, YP_TEST);
+    call(RDXTestY2, YL_TEST);
+    call(RDXTestY2, YE_TEST);
+    call(RDXTestY2, YX_TEST);
     done;
 }
 

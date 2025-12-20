@@ -38,6 +38,7 @@ list(APPEND RDX_SOURCES
     UTF8.c
     DIFF.c
     SKIL.c
+    Y.c
 )
 
 add_library(rdx2 STATIC ${RDX_HEADERS} ${RDX_SOURCES})

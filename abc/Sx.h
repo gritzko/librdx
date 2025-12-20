@@ -106,10 +106,23 @@ fun ok64 X(, gFreed)(X(, g) g, size_t len) {
     return OK;
 }
 fun ok64 X(, gFreed1)(X(, g) g) { return X(, gFreed)(g, 1); }
+fun ok64 X(, gDiv)(X(, g) g, X(, s) s) {
+    g[0] = g[1] = s[0];
+    g[2] = s[1];
+    return OK;
+}
 
 #ifndef ABC_X_$
-fun X(, p) X(, gNext)(X(, g) g) { return g[1]; }
-fun X(, cp) X(, cgNext)(X(, cg) g) { return g[1]; }
+fun ok64 X(, gFedP)(X(, g) g, X(, p) * p) {
+    if (g[1] >= g[2]) return NOROOM;
+    *p = g[1]++;
+    return OK;
+}
+fun ok64 X(, cgFedP)(X(, cg) g, X(, cp) * p) {
+    if (g[1] >= g[2]) return NOROOM;
+    *p = g[1]++;
+    return OK;
+}
 fun void X(, sMv)(X(, s) a, X(, s) b) {
     a[0] = b[0];
     a[1] = b[1];

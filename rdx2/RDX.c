@@ -147,19 +147,6 @@ ok64 rdx1Z(rdxcp a, rdxcp b) {
     }
 }
 
-fun ok64 rdxWinZ(rdxcp a, rdxcp b) {
-    sane(a && b && a->ptype == b->ptype);
-    u64 aseq = a->id.seq & id128SeqMask;
-    u64 bseq = b->id.seq & id128SeqMask;
-    if (aseq != bseq) return aseq > bseq;
-    u64 asrc = a->id.src & id128SrcMask;
-    u64 bsrc = b->id.src & id128SrcMask;
-    if (asrc != bsrc) return asrc > bsrc;
-    if (a->type != b->type) return u8Z(&a->type, &b->type);
-    if (!rdxTypePlex(a)) return !rdx1Z(a, b);
-    return NO;
-}
-
 fun ok64 rdxpWinZ(rdxpcp a, rdxpcp b) { return rdxWinZ(*a, *b); }
 
 ok64 rdxMerge(rdxp into, rdxg inputs) {

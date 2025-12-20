@@ -50,13 +50,12 @@ ok64 rdxNextTLV(rdxp x) {
 }
 
 ok64 rdxIntoTLV(rdxp c, rdxp p) {
-    sane(c && p && p->type);
+    sane(c && p && p->type && rdxTypePlex(p));
     c->format = p->cformat;
     u8csMv(c->data, p->plexc);
     c->ptype = p->type;
+    c->cformat = 0;
     if (!c->type) {
-        c->type = 0;
-        c->cformat = 0;
         zero(c->r);
         done;
     }

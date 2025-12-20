@@ -5,6 +5,7 @@
 #include <abc/UTF8.h>
 #include <abc/ZINT.h>
 
+#include "abc/01.h"
 #include "abc/BUF.h"
 
 #define RDX_MAX_NESTING 64
@@ -52,7 +53,8 @@ typedef enum {
     RDX_FMT_WAL = 6,
     RDX_FMT_MEM = 8,
     RDX_FMT_JDR_PIN = 10,
-    RDX_FMT_LEN = 12,
+    RDX_FMT_Y = 12,
+    RDX_FMT_LEN = 14,
 } RDX_FMT;
 
 typedef enum {
@@ -68,7 +70,7 @@ typedef struct {
 } id128;
 
 #define id128RevMask 63
-#define id128SeqMask ((1UL << 60) - 1 - 63)
+#define id128SeqMask ((1UL << 60) - 1)  // - 63)
 #define id128SrcMask ((1UL << 60) - 1)
 typedef id128 const id128c;
 typedef id128* id128p;
@@ -107,6 +109,8 @@ typedef id128 RDXref;
 typedef u8cs RDXstring;
 typedef u8cs RDXterm;
 
+typedef struct rdx rdx;
+
 /**
  *  [ |  | ] memory owning buffer u8b
  *    ^
@@ -123,7 +127,7 @@ typedef u8cs RDXterm;
  *  owning buffer (mmap, etc). Lower elements consume a byte slice
  *  borrowed from the parent element.
  **/
-typedef struct {
+typedef struct rdx {
     u8 format;       // RDX_FMT
     u8 type;         // RDX_TYPE (4:4)
     u8 cformat;      // RDX_FMT (for PLEX), RDX_UTF_ENC (for S)
@@ -138,11 +142,17 @@ typedef struct {
         u8cs t;      // term
         u8s plex;    // plex inners
         u8cs plexc;  // plex inners
+        rdx* y[2];   //
     };
-    voidp extra;  // pointer to anything format-specific
     union {
-        u8s into;   // same (non 0th, writers)
-        u8cs data;  // data range (non 0th, readers)
+        struct {
+            voidp extra;  // format-specific
+            union {
+                u8s into;   // same (non 0th, writers)
+                u8cs data;  // data range (non 0th, readers)
+            };
+        };
+        rdx* ins[3];
     };
 } rdx;
 
@@ -242,11 +252,13 @@ typedef ok64 (*rdxf)(rdxp x);
 typedef ok64 (*rdx2f)(rdxp c, rdxp p);
 typedef ok64 (*rdxbf)(rdxbp x);
 
-// 1. Next operates the data      -->
-// 2. Into/Outo operate the stack ^ v
-// 3. Seek moves in the data      <- ->
+// 1. Next moves horizontally      -->
+// 2. Into/Outo move by the stack  ^ v
 ok64 rdxNextTLV(rdxp x);
 ok64 rdxIntoTLV(rdxp c, rdxp p);
+// Outo is optional when reading (a child iterator may not
+// reach the END of sequence or Outo() may not be invoked
+// or there might be several child iterators)
 ok64 rdxOutoTLV(rdxp c, rdxp p);
 
 ok64 JDRlexer(rdxp x);
@@ -280,6 +292,10 @@ ok64 rdxNextMEM(rdxp x);
 ok64 rdxIntoMEM(rdxp c, rdxp p);
 ok64 rdxOutoMEM(rdxp c, rdxp p);
 
+ok64 rdxNextY(rdxp x);
+ok64 rdxIntoY(rdxp c, rdxp p);
+ok64 rdxOutoY(rdxp c, rdxp p);
+
 ok64 rdxWriteNextTLV(rdxp x);
 ok64 rdxWriteIntoTLV(rdxp c, rdxp p);
 ok64 rdxWriteOutoTLV(rdxp c, rdxp p);
@@ -300,22 +316,28 @@ ok64 rdxWriteNextMEM(rdxp x);
 ok64 rdxWriteIntoMEM(rdxp c, rdxp p);
 ok64 rdxWriteOutoMEM(rdxp c, rdxp p);
 
+fun ok64 rdxNoNext(rdxp c) { return NOTIMPLYET; }
+fun ok64 rdxNoInto(rdxp c, rdxp p) { return NOTIMPLYET; }
+fun ok64 rdxNoOuto(rdxp c, rdxp p) { return NOTIMPLYET; }
+
 static const rdxf VTABLE_NEXT[RDX_FMT_LEN] = {
     rdxNextTLV,  rdxWriteNextTLV,  rdxNextJDR, rdxWriteNextJDR,
     rdxNextSKIL, rdxWriteNextSKIL, rdxNextWAL, rdxWriteNextWAL,
     rdxNextMEM,  rdxWriteNextMEM,  rdxNextJDR, rdxWriteNextJDR,
-};
+    rdxNextY,    rdxNoNext};
 
 static const rdx2f VTABLE_INTO[RDX_FMT_LEN] = {
     rdxIntoTLV,  rdxWriteIntoTLV,  rdxIntoJDR, rdxWriteIntoJDR,
     rdxIntoSKIL, rdxWriteIntoSKIL, rdxIntoWAL, rdxWriteIntoWAL,
     rdxIntoMEM,  rdxWriteIntoMEM,  rdxIntoJDR, rdxWriteIntoJDR,
+    rdxIntoY,    rdxNoInto,
 };
 
 static const rdx2f VTABLE_OUTO[RDX_FMT_LEN] = {
     rdxOutoTLV,  rdxWriteOutoTLV,  rdxOutoJDR, rdxWriteOutoJDR,
     rdxOutoSKIL, rdxWriteOutoSKIL, rdxOutoWAL, rdxWriteOutoWAL,
     rdxOutoMEM,  rdxWriteOutoMEM,  rdxOutoJDR, rdxWriteOutoJDR,
+    rdxOutoY,    rdxNoOuto,
 };
 
 fun ok64 rdxNext(rdxp x) { return VTABLE_NEXT[x->format](x); }
@@ -343,6 +365,18 @@ fun ok64 rdxMultixZ(rdxcp a, rdxcp b) { return u64Z(&a->id.src, &b->id.src); }
 static const rdxz ZTABLE[RDX_TYPE_PLEX_LEN] = {
     rdxRootZ, rdxTupleZ, rdxLinearZ, rdxEulerZ, rdxMultixZ,
 };
+fun ok64 rdxWinZ(rdxcp a, rdxcp b) {
+    // sane(a && b && a->ptype == b->ptype);
+    u64 aseq = a->id.seq & id128SeqMask;
+    u64 bseq = b->id.seq & id128SeqMask;
+    if (aseq != bseq) return aseq > bseq;
+    u64 asrc = a->id.src & id128SrcMask;
+    u64 bsrc = b->id.src & id128SrcMask;
+    if (asrc != bsrc) return asrc > bsrc;
+    if (a->type != b->type) return u8Z(&a->type, &b->type);
+    if (!rdxTypePlex(a)) return !rdx1Z(a, b);
+    return NO;
+}
 
 ok64 rdxCopy(rdxp into, rdxp from);
 ok64 rdxbCopy(rdxbp into, rdxbp from);

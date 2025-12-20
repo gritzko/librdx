@@ -86,12 +86,20 @@ fun T *X(, bAtP)(X(, b) buf, size_t ndx) {
 
 #ifndef ABC_X_$
 fun T X(, bAt)(X(, b) buf, size_t ndx) { return *X(, bAtP)(buf, ndx); }
+
+fun ok64 X(, bFedP)(X(, b) b, X(, p) * p) {
+    if (b[2] >= b[3]) return NOROOM;
+    *p = ((T **)b)[2]++;
+    return OK;
+}
 #endif
 
 fun void X(B, eat)(X(B, ) buf) {
     T const **b = (T const **)buf;
     b[1] = b[2];
 }
+
+fun void X(, bZero)(X(, b) buf) { memset((void *)*buf, 0, Bsize(buf)); }
 
 fun ok64 X(, bFed)(X(, b) buf, size_t len) {
     return X(, sFed)(X(, bIdle)(buf), len);
