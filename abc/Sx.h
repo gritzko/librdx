@@ -100,12 +100,6 @@ fun ok64 X(, gFed)(X(, g) g, size_t len) {
     return OK;
 }
 fun ok64 X(, gFed1)(X(, g) g) { return X(, gFed)(g, 1); }
-fun ok64 X(, gFreed)(X(, g) g, size_t len) {
-    if (g[1] - g[0] < len) return NODATA;
-    g[1] -= len;
-    return OK;
-}
-fun ok64 X(, gFreed1)(X(, g) g) { return X(, gFreed)(g, 1); }
 fun ok64 X(, gDiv)(X(, g) g, X(, s) s) {
     g[0] = g[1] = s[0];
     g[2] = s[1];
@@ -220,6 +214,16 @@ fun ok64 X(, sShedAll)(X(, s) s) {
     return OK;
 }
 
+fun ok64 X(, gShed)(X(, g) g, size_t len) {
+    return X(, sShed)(X(, gLeft)(g), len);
+}
+fun ok64 X(, gUsed)(X(, g) g, size_t len) {
+    return X(, sUsed)(X(, gRest)(g), len);
+}
+fun ok64 X(, gShedAll)(X(, g) g) { return X(, sShedAll)(X(, gLeft)(g)); }
+fun ok64 X(, gUsedAll)(X(, g) g) { return X(, sUsedAll)(X(, gRest)(g)); }
+fun ok64 X(, gShed1)(X(, g) g) { return X(, sShed1)(X(, gLeft)(g)); }
+fun ok64 X(, gUsed1)(X(, g) g) { return X(, sUsed1)(X(, gRest)(g)); }
 fun T *X(, sHead)(X(, s) s) {
     assert(!$empty(s));
     return *s;

@@ -2,6 +2,7 @@
 
 #include "abc/01.h"
 #include "abc/BUF.h"
+#include "abc/NACL.h"
 #include "abc/PRO.h"
 #include "abc/SHA.h"
 
@@ -52,6 +53,27 @@ ok64 rdxCopy(rdxp into, rdxp from) {
             call(rdxCopy, &cinto, &cfrom);
             call(rdxOuto, &cinto, into);
             call(rdxOuto, &cfrom, from);
+        }
+    }
+    seen(END);
+    into->type = 0;
+    done;
+}
+
+ok64 rdxCopyF(rdxp into, rdxp from, voidf f, voidp p) {
+    sane(into && from && rdxWritable(into) && !rdxWritable(from));
+    scan(rdxNext, from) {
+        rdxMv(into, from);
+        call(rdxNext, into);
+        if (rdxTypePlex(from)) {
+            rdx cinto = {};
+            rdx cfrom = {};
+            call(rdxInto, &cinto, into);
+            call(rdxInto, &cfrom, from);
+            call(rdxCopy, &cinto, &cfrom);
+            call(rdxOuto, &cinto, into);
+            call(rdxOuto, &cfrom, from);
+            call(f, p);
         }
     }
     seen(END);
@@ -149,6 +171,31 @@ ok64 rdx1Z(rdxcp a, rdxcp b) {
 
 fun ok64 rdxpWinZ(rdxpcp a, rdxpcp b) { return rdxWinZ(*a, *b); }
 
+ok64 rdxNorm(rdxg inputs) {
+    sane(rdxgOK(inputs));
+    $for(rdx, p, rdxgLeft(inputs)) {
+        rdxz Z = ZTABLE[p->ptype];
+        rdx copy = *p;
+        if (OK != rdxNext(&copy)) break;
+        rdx c = copy;
+        while (OK == rdxNext(&c)) {
+            if (Z(&c, &copy)) {
+                p->data[1] = copy.data[0];
+                rdxp pp = 0;
+                call(rdxgFedP, inputs, &pp);
+                zerop(pp);
+                pp->format = p->format;
+                pp->ptype = p->ptype;
+                pp->len = 0;
+                $mv(pp->data, copy.data);
+                break;
+            }
+            copy = c;
+        }
+    }
+    done;
+}
+
 ok64 rdxMerge(rdxp into, rdxg inputs) {
     sane(into && rdxgOK(inputs) && !rdxgEmpty(inputs));
     rdxz Z = ZTABLE[(**inputs).ptype];
@@ -161,7 +208,7 @@ ok64 rdxMerge(rdxp into, rdxg inputs) {
             if (o == OK) {
             } else if (o == END) {
                 rdxSwap(p, rdxsLast(inputs));
-                rdxgFreed1(inputs);
+                rdxgShed1(inputs);
             } else {
                 fail(o);
             }
@@ -179,26 +226,17 @@ ok64 rdxMerge(rdxp into, rdxg inputs) {
         if (rdxTypePlex(*wins)) {
             test(rdxgRestLen(inputs) >= rdxsLen(wins), RDXNOROOM);
             rdx c = {};
-            sub[1] = sub[0];
+            rdxgShedAll(sub);
             call(rdxInto, &c, into);
             $for(rdx, q, wins) {
                 (**sub_idle).type = 0;
                 call(rdxInto, *sub_idle, q);
                 rdxgFed1(sub);
             }
+            call(rdxNorm, sub);
             a_dup(rdx, fc, sub_data);
             call(rdxMerge, &c, sub);
             call(rdxOuto, &c, into);
-            $for(rdx, q, wins) {
-                rdxp mc = 0;
-                $for(rdx, cc, fc) {
-                    if (u8csIn(q->plexc, cc->data)) {
-                        mc = cc;
-                        break;
-                    }
-                }
-                call(rdxOuto, mc, q);
-            }
         }
     }
     done;
@@ -272,5 +310,85 @@ ok64 rdxHash(sha256p hash, rdxp root) {
     SHAopen(&state);
     call(rdxHashMore, &state, root);
     SHAclose(&state, hash);
+    done;
+}
+
+ok64 rdxHashBlake(rdxp of, blake256* hash);
+
+ok64 rdxHashBlake1(rdxp of, blake256* hash) {
+    sane(of && hash);
+    blake0 state = {};
+    NACLBlakeInit(&state);
+    w64 head = {};
+    a_rawc(raw, head);
+    head._32[0] = of->type;
+    a_rawc(rawid, of->id);
+    switch (of->type) {
+        case RDX_TYPE_TUPLE:
+        case RDX_TYPE_LINEAR:
+        case RDX_TYPE_EULER:
+        case RDX_TYPE_MULTIX: {
+            head._32[1] = 32;
+            NACLBlakeUpdate(&state, rawid);
+            NACLBlakeUpdate(&state, raw);
+            rdx c = {.format = of->format};
+            call(rdxInto, &c, of);
+            blake256 chash;
+            a_rawc(craw, chash);
+            call(rdxHashBlake, &c, &chash);
+            NACLBlakeUpdate(&state, craw);
+            break;
+        }
+        case RDX_TYPE_INT:
+        case RDX_TYPE_FLOAT: {
+            a_rawc(raw, of->f);
+            head._32[1] = 8;
+            NACLBlakeUpdate(&state, rawid);
+            NACLBlakeUpdate(&state, raw);
+            break;
+        }
+        case RDX_TYPE_REF: {
+            a_rawc(raw, of->r);
+            head._32[1] = 16;
+            NACLBlakeUpdate(&state, rawid);
+            NACLBlakeUpdate(&state, raw);
+            break;
+        }
+        case RDX_TYPE_STRING:
+        case RDX_TYPE_TERM: {
+            head._32[1] = $len(of->s);
+            NACLBlakeUpdate(&state, rawid);
+            NACLBlakeUpdate(&state, of->s);
+            // FIXME this ignores escaping issues
+            break;
+        }
+        default:
+            fail(NOTIMPLYET);
+    }
+    NACLBlakeFinal(&state, hash);
+    done;
+}
+
+ok64 rdxHashBlake(rdxp of, blake256* hash) {
+    sane(of && hash);
+    blake256 pad[32] = {};
+    scan(rdxNext, of) {
+        blake256 one;
+        call(rdxHashBlake1, of, hash);
+        u8 hi = ctz64(one._64[0] | (1UL << 31));
+        blake0 state = {};
+        NACLBlakeInit(&state);
+        u8cs raw = {(u8*)pad, ((hi + 1) * sizeof(blake256)) + (u8*)pad};
+        NACLBlakeUpdate(&state, raw);
+        a_rawc(oneraw, one);
+        NACLBlakeUpdate(&state, oneraw);
+        NACLBlakeFinal(&state, &pad[hi]);
+        for (int i = 0; i < hi; ++i) zero(pad[i]);
+    }
+    blake0 outer;
+    NACLBlakeInit(&outer);
+    u8cs raw = {(u8*)pad, (32 * sizeof(blake256)) + (u8*)pad};
+    NACLBlakeUpdate(&outer, raw);
+    NACLBlakeFinal(&outer, hash);
     done;
 }

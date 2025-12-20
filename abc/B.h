@@ -82,6 +82,10 @@ typedef void **voidbp;
     T##sp n##_data = T##bData(n);            \
     T##csp n##_datac = T##cbData((T const **)n);
 
+#define a_pad0(T, n, l) \
+    a_pad(T, n, l);     \
+    zerob(n);
+
 #define aBcpad(T, n, l)                           \
     T _##n[(l)];                                  \
     B##T n##buf = {_##n, _##n, _##n, _##n + (l)}; \

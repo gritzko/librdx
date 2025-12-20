@@ -7,6 +7,7 @@
 
 #include "abc/01.h"
 #include "abc/BUF.h"
+#include "abc/NACL.h"
 
 #define RDX_MAX_NESTING 64
 #define RDX_MAX_INPUTS 64
@@ -357,7 +358,8 @@ fun ok64 rdxLinearZ(rdxcp a, rdxcp b) {
     if (ao != bo) {
         return u64Z(&ao, &bo);
     }
-    return rdx1Z(a, b);
+    return NO;
+    // return rdx1Z(a, b);
 }
 ok64 rdxEulerTupleZ(rdxcp a, rdxcp b);
 ok64 rdxEulerZ(rdxcp a, rdxcp b);
@@ -378,6 +380,7 @@ fun ok64 rdxWinZ(rdxcp a, rdxcp b) {
     return NO;
 }
 
+ok64 rdxCopyF(rdxp into, rdxp from, voidf f, voidp p);
 ok64 rdxCopy(rdxp into, rdxp from);
 ok64 rdxbCopy(rdxbp into, rdxbp from);
 ok64 rdxMerge(rdxp into, rdxg inputs);
@@ -428,5 +431,7 @@ ok64 rdxbNext(rdxb b);
 ok64 rdxbOuto(rdxb its);
 
 ok64 rdxCopy(rdxp into, rdxp from);
+
+ok64 rdxHashBlake(rdxp of, blake256* hash);
 
 #endif

@@ -105,6 +105,17 @@ fun ok64 X(, bFed)(X(, b) buf, size_t len) {
     return X(, sFed)(X(, bIdle)(buf), len);
 }
 
+fun ok64 X(, bShed1)(X(, b) buf) { return X(, gShed1)(X(, bDataIdle)(buf)); }
+fun ok64 X(, bShed)(X(, b) buf, size_t l) {
+    return X(, gShed)(X(, bDataIdle)(buf), l);
+}
+fun ok64 X(, bShedAll)(X(, b) buf) {
+    return X(, gShedAll)(X(, bDataIdle)(buf));
+}
+fun ok64 X(, bUsedAll)(X(, b) buf) {
+    return X(, gUsedAll)(X(, bDataIdle)(buf));
+}
+
 fun ok64 X(, bFed1)(X(, b) buf) { return X(, sFed)(X(, bIdle)(buf), 1); }
 
 fun b8 X(, bDataEmpty)(const X(, cbp) buf) { return X(, cbDataLen)(buf) == 0; }
@@ -204,17 +215,6 @@ fun void X(B, reset)(X(, b) buf) {
     b[1] = b[0];
     b[2] = b[0];
 }
-
-fun ok64 X(, gShed)(X(, g) g, size_t len) {
-    return X(, sShed)(X(, gLeft)(g), len);
-}
-fun ok64 X(, gUsed)(X(, g) g, size_t len) {
-    return X(, sUsed)(X(, gRest)(g), len);
-}
-fun ok64 X(, gShedAll)(X(, g) g) { return X(, sShedAll)(X(, gLeft)(g)); }
-fun ok64 X(, gUsedAll)(X(, g) g) { return X(, sUsedAll)(X(, gRest)(g)); }
-fun ok64 X(, gShed1)(X(, g) g) { return X(, sShed1)(X(, gLeft)(g)); }
-fun ok64 X(, gUsed1)(X(, g) g) { return X(, sUsed1)(X(, gRest)(g)); }
 
 fun ok64 X(B, rewind)(X(B, ) buf, range64 range) {
     size_t len = Blen(buf);
@@ -318,7 +318,11 @@ fun ok64 X(, bUnMap)(X(, b) buf) {
 fun ok64 X(, bShift)(X(, b) buf, size_t pastlen) {
     if (unlikely(!Bok(buf))) return FAILsanity;
     size_t datalen = $len(Bdata(buf));
-    if (unlikely(pastlen + datalen > Blen(buf))) return Bnoroom;
+    if (!datalen) {
+        Breset(buf);
+        return OK;
+    }
+    if (unlikely(pastlen + datalen > Blen(buf))) return NOROOM;
     T *to = buf[0] + pastlen;
     memmove((void *)(to), (void *)(buf[1]), BDataSize(buf));
     ((T **)buf)[1] = to;

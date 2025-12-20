@@ -5,12 +5,16 @@
 #ifndef ABC_NACL_H
 #define ABC_NACL_H
 
+#include <sodium/crypto_generichash_blake2b.h>
+
 #include "SHA.h"
 #include "sodium.h"
 
 typedef u512 edsec512;
 typedef u256 edpub256;
 typedef u512 edsig512;
+typedef crypto_generichash_blake2b_state blake0;
+typedef u256 blake256;
 
 #define edpub256cmp u256cmp
 #define edsig512cmp u512cmp
@@ -41,6 +45,22 @@ fun ok64 NACLed25519verify(const edsig512 *signature, const sha256 *hash,
         (const u8 *)signature, (const u8 *)hash, sizeof(sha256),
         (const u8 *)pubkey);
     return ret == 0 ? OK : NACLbad;
+}
+
+fun ok64 NACLBlakeInit(blake0 *state) {
+    crypto_generichash_blake2b_init(state, 0, 0,
+                                    crypto_generichash_blake2b_BYTES);
+    return OK;
+}
+
+fun ok64 NACLBlakeUpdate(blake0 *state, u8cs data) {
+    crypto_generichash_blake2b_update(state, *data, u8csLen(data));
+    return OK;
+}
+
+fun ok64 NACLBlakeFinal(blake0 *state, blake256 *out) {
+    crypto_generichash_blake2b_final(state, out->_8, sizeof(blake256));
+    return OK;
 }
 
 #endif  // DW_ED_H

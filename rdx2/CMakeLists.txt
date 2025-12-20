@@ -22,13 +22,13 @@ set(TEST_LDD_FLAGS "-g")
 set(BENCH_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -v")
 set(BENCH_LDD_FLAGS benchmark::benchmark)
 
-list(APPEND RDX_HEADERS 
+list(APPEND RDX_HEADERS
     RDX.h
     DIFF.h
     JDR.h
 )
 
-list(APPEND RDX_SOURCES 
+list(APPEND RDX_SOURCES
     RDX.c
     MEM.c
     JDR.rl.c
@@ -43,6 +43,9 @@ list(APPEND RDX_SOURCES
 
 add_library(rdx2 STATIC ${RDX_HEADERS} ${RDX_SOURCES})
 target_link_libraries(rdx2 abc sodium)
+
+add_executable(rdx RDX.cli.c)
+target_link_libraries(rdx rdx2)
 
 add_subdirectory(test)
 

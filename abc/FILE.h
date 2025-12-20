@@ -64,6 +64,7 @@ typedef int *FILE;
 
 #define FILE_PATH_SEP '/'
 #define FILE_PATH_CWD '.'
+#define FILE_NAME_MAX_LEN 255
 #define FILE_PATH_MAX_LEN 1024
 
 #ifndef FILE_MAX_OPEN
@@ -71,6 +72,8 @@ typedef int *FILE;
 #endif
 
 typedef u8b path8;
+typedef u8bp path8p;
+typedef ok64 (*path8f)(path8p path, voidp arg);
 
 #define a_path(n, p)                 \
     a_pad(u8, n, FILE_PATH_MAX_LEN); \
@@ -113,8 +116,30 @@ ok64 FILEOpenAt(int *fd, int const dirfd, path8 path, int flags);
 fun ok64 FILEOpenDir(int *fd, path8 path) {
     return FILEOpen(fd, path, O_DIRECTORY);
 }
+// dir entries have / appended
+
+typedef enum {
+    FILE_SCAN_DEEP = 1,
+    FILE_SCAN_FILES = 2,
+    FILE_SCAN_DIRS = 4,
+    FILE_SCAN_LINKS = 8,
+    FILE_SCAN_ALL = 14,
+} FILE_SCAN;
+ok64 FILEScan(path8 path, FILE_SCAN mode, path8f f, voidp arg);
+fun ok64 FILEScanDir(path8 path, path8f f, voidp arg) {
+    return FILEScan(path, FILE_SCAN_ALL, f, arg);
+}
+fun ok64 FILEScanFiles(path8 path, path8f f, voidp arg) {
+    return FILEScan(path, FILE_SCAN_FILES, f, arg);
+}
+fun ok64 FILEDeepScanDir(path8 path, path8f f, voidp arg) {
+    return FILEScan(path, FILE_SCAN_ALL | FILE_SCAN_DEEP, f, arg);
+}
 
 ok64 FILESync(int const *fd);
+
+ok64 FILEFlush(int const *fd);
+ok64 FILEFlushAll(int const *fd);
 
 ok64 FILEClose(int *fd);
 

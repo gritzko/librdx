@@ -1,9 +1,12 @@
 #include "FILE.h"
 
+#include <dirent.h>
 #include <sys/mman.h>
 
+#include "01.h"
 #include "BUF.h"
 #include "PRO.h"
+#include "S.h"
 
 u64 FILE_ERR_VOCAB[][2] = {
     {EBADF, 0xe2ca34f},           {EBUSY, 0xe2de722},
@@ -151,6 +154,30 @@ ok64 FILERmRF(path8 path) {
 u8p *FILE_BUFS[4] = {};
 u8 *FILE_RW[4] = {};
 
+ok64 FILEFlush(int const *fd) {
+    sane(fd && *fd >= 0 && *fd < FILE_MAX_OPEN);
+    u8bp buf = FILE_BUFS[*fd];
+    if (u8bDataLen(buf) >= PAGESIZE) {
+        int r = write(*fd, *u8bDataC(buf), u8bDataLen(buf));
+        if (r < 0) fail(FILEerror);  // todo
+        u8bFed(buf, r);
+        if (u8bPastLen(buf) >= u8bDataLen(buf)) u8bShift(buf, 0);
+        // todo if grows too fast
+    }
+    done;
+}
+
+ok64 FILEFlushAll(int const *fd) {
+    sane(fd && *fd >= 0 && *fd < FILE_MAX_OPEN && *FILE_BUFS[*fd]);
+    u8bp buf = FILE_BUFS[*fd];
+    while (u8bDataLen(buf)) {
+        int r = write(*fd, *u8bDataC(buf), u8bDataLen(buf));
+        if (r < 0) fail(FILEerror);  // todo
+        u8bFed(buf, r);
+    }
+    Breset(buf);
+    done;
+}
 ok64 FILENoteMap(int const *fd, u8bp buf, b8 rw) {
     sane(*fd > FILE_CLOSED && u8bOK(buf));
     if (*FILE_BUFS == NULL) {
@@ -297,4 +324,39 @@ ok64 FILEUnMap(u8b buf) {
     call(FILEUnMapFD, buf, &fd);
     call(FILEClose, &fd);
     done;
+}
+
+ok64 FILEScan(path8 path, FILE_SCAN mode, path8f f, voidp arg) {
+    sane(path8Sane(path) && f);
+    DIR *dir = opendir((const char *)*path);
+    if (dir == NULL) {
+        // todo
+        fail(FILEbad);
+    }
+    u64 dl = u8bDataLen(path);
+    u8gUsedAll(u8bPastData(path));
+    struct dirent *entry = 0;
+    ok64 o = OK;
+    while (o == OK && (entry = readdir(dir))) {
+        a_cstr(fn, entry->d_name);
+        o = path8Push(path, fn);
+        switch (entry->d_type) {
+            case DT_DIR:  // todo _BSD_SOURCE
+                if (o == OK && (mode & FILE_SCAN_DIRS)) o = f(path, arg);
+                if (o == OK && (mode & FILE_SCAN_DEEP))
+                    o = FILEScan(path, mode, f, arg);
+                break;
+            case DT_LNK:
+                if (o == OK && (mode & FILE_SCAN_LINKS)) o = f(path, arg);
+                break;
+            case DT_REG:
+                if (o == OK && (mode & FILE_SCAN_FILES)) o = f(path, arg);
+                break;
+            default:
+        }
+        u8bShedAll(path);
+    }
+    u8gShed(u8bPastData(path), dl);
+    closedir(dir);
+    return o;
 }
