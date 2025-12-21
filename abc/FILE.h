@@ -39,6 +39,7 @@ con ok64 FILEbad = 0xf4953a6968;
 #define FILEok(fd) (fd >= 0)
 
 extern u8p *FILE_BUFS[4];
+extern u8 *FILE_RW[4];
 
 /*
 typedef int *FILE;
@@ -325,6 +326,12 @@ fun ok64 FILEremap125(Bu8 buf) {
 
 ok64 FILECloseAll();
 
+fun ok64 FILEInit() {
+    if (*FILE_BUFS != NULL) return OK;
+    ok64 o = u8pbAllocate(FILE_BUFS, FILE_MAX_OPEN);
+    if (o == OK) o = u8bAllocate(FILE_RW, roundup(FILE_MAX_OPEN >> 3, 64));
+    return o;
+}
 // . . . . . . . .
 
 fun ok64 FILEout(u8 const *const *txt) {

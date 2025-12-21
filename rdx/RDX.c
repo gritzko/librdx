@@ -175,22 +175,22 @@ ok64 rdxNorm(rdxg inputs) {
     sane(rdxgOK(inputs));
     $for(rdx, p, rdxgLeft(inputs)) {
         rdxz Z = ZTABLE[p->ptype];
-        rdx copy = *p;
-        if (OK != rdxNext(&copy)) break;
-        rdx c = copy;
+        rdx prev = *p;
+        if (OK != rdxNext(&prev)) break;
+        rdx c = prev;
         while (OK == rdxNext(&c)) {
-            if (Z(&c, &copy)) {
-                p->data[1] = copy.data[0];
+            if (!Z(&prev, &c)) {
+                p->data[1] = prev.data[0];
                 rdxp pp = 0;
                 call(rdxgFedP, inputs, &pp);
                 zerop(pp);
                 pp->format = p->format;
                 pp->ptype = p->ptype;
                 pp->len = 0;
-                $mv(pp->data, copy.data);
+                $mv(pp->data, prev.data);
                 break;
             }
-            copy = c;
+            prev = c;
         }
     }
     done;

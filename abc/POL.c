@@ -178,7 +178,7 @@ ron60 RONNow() {
     clock_gettime(CLOCK_REALTIME, &ts);
     struct tm* now = localtime(&ts.tv_sec);
     u64 t = 0;
-    u64 y = now->tm_year - 2000;
+    u64 y = now->tm_year - 100;
     t = t | ((y / 10) << (9 * 6));
     t = t | ((y % 10) << (8 * 6));
     t = t | ((u64)(now->tm_mon) << (7 * 6));

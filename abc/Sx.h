@@ -450,6 +450,9 @@ fun ok64 X(, sFed)(X(, s) into, size_t len) {
     *into += len;
     return OK;
 }
+fun ok64 X(, csFed)(X(, cs) into, size_t len) {
+    return X(, sFed)((T **)into, len);
+}
 
 fun ok64 X(, sPuked)(X(, s) from, size_t len) {
     if ($len(from) < len) return $miss;

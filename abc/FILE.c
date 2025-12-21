@@ -170,20 +170,18 @@ ok64 FILEFlush(int const *fd) {
 ok64 FILEFlushAll(int const *fd) {
     sane(fd && *fd >= 0 && *fd < FILE_MAX_OPEN && *FILE_BUFS[*fd]);
     u8bp buf = FILE_BUFS[*fd];
+    u8csp data = u8bDataC(buf);
     while (u8bDataLen(buf)) {
-        int r = write(*fd, *u8bDataC(buf), u8bDataLen(buf));
+        int r = write(*fd, *data, u8csLen(data));
         if (r < 0) fail(FILEerror);  // todo
-        u8bFed(buf, r);
+        u8csFed(data, r);
     }
     Breset(buf);
     done;
 }
 ok64 FILENoteMap(int const *fd, u8bp buf, b8 rw) {
     sane(*fd > FILE_CLOSED && u8bOK(buf));
-    if (*FILE_BUFS == NULL) {
-        call(u8pbAllocate, FILE_BUFS, FILE_MAX_OPEN);
-        call(u8bAllocate, FILE_RW, roundup(FILE_MAX_OPEN >> 3, 64));
-    }
+    call(FILEInit);
     size_t fdlen = u8pbDataLen(FILE_BUFS);
     if (*fd >= fdlen) u8psFed(u8pbIdle(FILE_BUFS), *fd - fdlen + 1);
     *u8pbAtP(FILE_BUFS, *fd) = buf[0];
