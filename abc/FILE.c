@@ -342,15 +342,15 @@ ok64 FILEScan(path8 path, FILE_SCAN mode, path8f f, voidp arg) {
         o = path8Push(path, fn);
         switch (entry->d_type) {
             case DT_DIR:  // todo _BSD_SOURCE
-                if (o == OK && (mode & FILE_SCAN_DIRS)) o = f(path, arg);
+                if (o == OK && (mode & FILE_SCAN_DIRS)) o = f(arg, path);
                 if (o == OK && (mode & FILE_SCAN_DEEP))
                     o = FILEScan(path, mode, f, arg);
                 break;
             case DT_LNK:
-                if (o == OK && (mode & FILE_SCAN_LINKS)) o = f(path, arg);
+                if (o == OK && (mode & FILE_SCAN_LINKS)) o = f(arg, path);
                 break;
             case DT_REG:
-                if (o == OK && (mode & FILE_SCAN_FILES)) o = f(path, arg);
+                if (o == OK && (mode & FILE_SCAN_FILES)) o = f(arg, path);
                 break;
             default:
         }

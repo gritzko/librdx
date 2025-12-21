@@ -73,7 +73,7 @@ typedef int *FILE;
 
 typedef u8b path8;
 typedef u8bp path8p;
-typedef ok64 (*path8f)(path8p path, voidp arg);
+typedef ok64 (*path8f)(voidp arg, path8p path);
 
 #define a_path(n, p)                 \
     a_pad(u8, n, FILE_PATH_MAX_LEN); \
@@ -142,6 +142,8 @@ ok64 FILEFlush(int const *fd);
 ok64 FILEFlushAll(int const *fd);
 
 ok64 FILEClose(int *fd);
+
+// ok64 FILEExists(path8 path);
 
 ok64 FILEStat(struct stat *ret, path8 path);
 

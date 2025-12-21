@@ -16,21 +16,21 @@ interpretation and note that no "binary JSON" format maps to JSON 1:1.
 ````
     # 10.0 is 10.0 irrespectively of the notation
     $ rdx hash '1e1'
-    e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+    BLAKE256: 16c8bb58dffda8523a97834cfa8fcc2b7cd132edd4bccfde11729802784b7ae9
     $ rdx hash '10.0'
-    e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+    BLAKE256: 16c8bb58dffda8523a97834cfa8fcc2b7cd132edd4bccfde11729802784b7ae9
 
     # here we play with a set
     $ rdx hash '{1 2 1 4 3 five}'
-    629243be731e5348220fc07bb6caf48a37996ee8e752074d34320dd70701c850
+    BLAKE256: 8b534c0e309768fa57ebcc4028ce3c457836b5221da2ced1907c47baeadbe828
     $ rdx hash '{five 1 2 3 4}'
-    629243be731e5348220fc07bb6caf48a37996ee8e752074d34320dd70701c850
+    BLAKE256: 8b534c0e309768fa57ebcc4028ce3c457836b5221da2ced1907c47baeadbe828
 
     # here we play with subsets of that set
     $ rdx merge '{1 2 3}' '{4 five}' | rdx hash
-    629243be731e5348220fc07bb6caf48a37996ee8e752074d34320dd70701c850
+    BLAKE256: 8b534c0e309768fa57ebcc4028ce3c457836b5221da2ced1907c47baeadbe828
     $ rdx merge '{1 2 3}' '{4}' '{1 2 five}' | rdx hash
-    629243be731e5348220fc07bb6caf48a37996ee8e752074d34320dd70701c850
+    BLAKE256: 8b534c0e309768fa57ebcc4028ce3c457836b5221da2ced1907c47baeadbe828
 ````
 
 The RDX data change model is defined through the merge operation:

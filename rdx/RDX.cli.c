@@ -5,55 +5,117 @@
 #include <unistd.h>
 
 #include "abc/01.h"
+#include "abc/BUF.h"
 #include "abc/FILE.h"
+#include "abc/NACL.h"
 #include "abc/PRO.h"
+#include "abc/S.h"
 
-a_cstr(USAGE, "Usage: rdx-fmt dir/ 'rdx path'\n");
+a_cstr(USAGE, "Usage: rdx verb inputs\n");
 
-ok64 AddInput(path8p path, rdxbp inputs) {
-    sane(rdxbOK(inputs) && path8Sane(path));
+a_cstr(EXT_JDR, ".jdr");
+a_cstr(EXT_TLV, ".tlv");
+a_cstr(EXT_SKIL, ".tlv");
 
-    // TODO ext
+u8 RDX_FMT_DEFAULT = RDX_FMT_JDR;
+
+ok64 AddFileInput(voidp arg, path8p path) {
+    sane(arg && path8Sane(path));
+    rdxbp inputs = (rdxbp)arg;
+    rdxp n = 0;
+    call(rdxbFedP, inputs, &n);
+    if (u8csHasSuffix(arg, EXT_JDR)) {
+        n->format = RDX_FMT_JDR;
+    } else {
+        done;
+    }
     int fd = FILE_CLOSED;
     u8bp buf = {};
     call(FILEMapRO, buf, path);
-
-    rdxp n = 0;
-    call(rdxbFedP, inputs, &n);
-    n->format = RDX_FMT_JDR;
     $mv(n->data, u8bData(buf));
-
     done;
 }
 
-ok64 OpenRepo(rdxbp inputs, path8 path) {
-    sane(rdxbOK(inputs) && path8Sane(path));
-    if (!FILEisdir(path)) {
-        call(AddInput, path, inputs);
+ok64 AddInput(rdxbp inputs, u8csp arg) {
+    sane(rdxbOK(inputs) && u8csOK(arg));
+    a_path(path, "");
+    call(u8bFeed, path, arg);
+    struct stat s = {};
+
+    if (OK == FILEStat(&s, path)) {
+        if ((s.st_mode & S_IFMT) == S_IFDIR) {
+            call(FILEScanFiles, path, AddFileInput, (voidp)inputs);
+        } else {
+            call(AddFileInput, (voidp)inputs, path);
+        }
     } else {
-        call(FILEScanFiles, path, (path8f)AddInput, (voidp)inputs);
+        rdxp n = 0;
+        call(rdxbFedP, inputs, &n);
+        zerop(n);
+        n->format = RDX_FMT_JDR;
+        $mv(n->data, arg);
     }
+
     done;
 }
 
-ok64 FindPath(rdxsp inputs, rdxs locus, rdxp path) {
-    sane(rdxsOK(inputs) && path);
-    ok64 o = rdxNext(path);
-    if (o == END) {
-        call(rdxsFeed, locus, (rdxcsp)inputs);
-        done;
-    } else if (o != OK) {
-        fail(o);
+ok64 CmdY(rdxg inputs, u8 fmt) {
+    sane(rdxgOK(inputs) && rdxgLeftLen(inputs));
+    rdx in = {};
+    if (rdxgLeftLen(inputs) == 1) {
+        in = rdxsAt(rdxgLeft(inputs), 0);
+    } else {
+        in.format = RDX_FMT_Y;
+        rdxgMv(in.ins, inputs);
     }
-    a_pad(rdx, pad, 64);
-    $for(rdx, p, inputs) {
-        rdxp n = 0;
-        call(rdxbFedP, pad, &n);
-        ok64 o = rdxInto(n, p);
-        if (o != OK) rdxbShed1(pad);
+    rdx out = {.format = fmt | RDX_FMT_WRITE};
+    int fd = STDOUT_FILENO;
+    call(u8bMap, FILE_BUFS[fd], GB * 2);
+    try(rdxCopyF, &out, &in, (voidf)FILEFlush, &fd);
+    then try(FILEFlushAll, &fd);
+    u8bUnMap(FILE_BUFS[fd]);
+    done;
+}
+
+a_cstr(VERB_JDR, "jdr");
+a_cstr(VERB_MERJ, "merj");
+ok64 CmdJDR(rdxg inputs) { return CmdY(inputs, RDX_FMT_JDR); }
+
+a_cstr(VERB_Q, "q");
+a_cstr(VERB_QUERY, "query");
+ok64 CmdQuery(rdxg inputs) {
+    sane(rdxgOK(inputs) && rdxgLeftLen(inputs));
+    done;
+}
+
+a_cstr(VERB_HASH, "hash");
+ok64 CmdHash(rdxg inputs) {
+    sane(rdxgOK(inputs) && rdxgLeftLen(inputs));
+    rdx in = {};
+    if (rdxgLeftLen(inputs) == 1) {
+        in = rdxsAt(rdxgLeft(inputs), 0);
+    } else {
+        in.format = RDX_FMT_Y;
+        rdxgMv(in.ins, inputs);
     }
-    test(rdxbDataLen(pad), NODATA);
-    return FindPath(rdxbData(pad), locus, path);
+    blake256 blake = {};
+    call(rdxHashBlake, &in, &blake);
+    a_rawc(hash, blake);
+    a_pad(u8, hex, 65);
+    HEXfeed(hex_idle, hash);
+    u8sFeed1(hex_idle, 0);
+    printf("Simple BLAKE256: %s\n", *hex_data);
+    done;
+}
+
+a_cstr(VERB_Y, "y");
+a_cstr(VERB_MERGE, "merge");
+a_cstr(VERB_TLV, "tlv");
+a_cstr(VERB_STRIP, "strip");
+
+ok64 CmdStrip(rdxg inputs) {
+    sane(rdxgOK(inputs) && rdxgLeftLen(inputs));
+    done;
 }
 
 ok64 rdxcli() {
@@ -63,24 +125,40 @@ ok64 rdxcli() {
         FILEerr(USAGE);
         fail(BADARG);
     }
+
+    if (u8csHasSuffix(*u8csbAtP(STD_ARGS, 0), EXT_JDR)) {
+        RDX_FMT_DEFAULT = RDX_FMT_JDR;
+    } else if (u8csHasSuffix(*u8csbAtP(STD_ARGS, 0), EXT_TLV)) {
+        RDX_FMT_DEFAULT = RDX_FMT_TLV;
+    } else if (u8csHasSuffix(*u8csbAtP(STD_ARGS, 0), EXT_SKIL)) {
+        RDX_FMT_DEFAULT = RDX_FMT_SKIL;
+    }
+
+    // rdx merge|hash|strip|jdr|tlv|etc inputs*
+
+    u8csp verb = *u8csbAtP(STD_ARGS, 1);
+
     a_pad0(rdx, inputs, 64);
-    a_pad0(rdx, locus, 64);
-    rdx qpath = {};
-    rdx in = {.format = RDX_FMT_Y};
-    rdx out = {.format = RDX_FMT_JDR | RDX_FMT_WRITE};
+    a_rest(u8cs, inn, u8csbData(STD_ARGS), 2);
+    $for(u8cs, arg, inn) call(AddInput, inputs, *arg);
 
-    int fd = STDOUT_FILENO;
-    call(u8bMap, FILE_BUFS[fd], GB * 2);
-
-    a_pad(u8, path, 256);
-    call(u8bFeed, path, *u8csbAtP(args, 1));
-    call(OpenRepo, inputs, path);
-    call(FindPath, rdxbData(inputs), rdxbIdle(locus), &qpath);
-    rdxgMv(in.ins, rdxbDataIdle(locus));
-    call(rdxCopyF, &out, &in, (voidf)FILEFlush, &fd);
-    call(FILEFlushAll, &fd);
-
-    call(u8bUnMap, FILE_BUFS[fd]);
+    if ($eq(verb, VERB_JDR)) {
+        call(CmdY, rdxbDataIdle(inputs), RDX_FMT_JDR);
+    } else if ($eq(verb, VERB_Q)) {
+        call(CmdQuery, rdxbDataIdle(inputs));
+    } else if ($eq(verb, VERB_HASH)) {
+        call(CmdHash, rdxbDataIdle(inputs));
+    } else if ($eq(verb, VERB_QUERY)) {
+        call(CmdQuery, rdxbDataIdle(inputs));
+    } else if ($eq(verb, VERB_MERGE)) {
+        call(CmdY, rdxbDataIdle(inputs), RDX_FMT_DEFAULT);
+    } else if ($eq(verb, VERB_TLV)) {
+        call(CmdY, rdxbDataIdle(inputs), RDX_FMT_TLV);
+    } else if ($eq(verb, VERB_MERJ)) {
+        call(CmdY, rdxbDataIdle(inputs), RDX_FMT_JDR);
+    } else {
+        fprintf(stderr, "Unknown command %s.\n%s", *verb, *USAGE);
+    }
 
     done;
 }

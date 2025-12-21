@@ -313,12 +313,8 @@ ok64 rdxHash(sha256p hash, rdxp root) {
     done;
 }
 
-ok64 rdxHashBlake(rdxp of, blake256* hash);
-
-ok64 rdxHashBlake1(rdxp of, blake256* hash) {
-    sane(of && hash);
-    blake0 state = {};
-    NACLBlakeInit(&state);
+ok64 rdxHashBlake1(rdxp of, blake0* state) {
+    sane(of && state);
     w64 head = {};
     a_rawc(raw, head);
     head._32[0] = of->type;
@@ -329,66 +325,51 @@ ok64 rdxHashBlake1(rdxp of, blake256* hash) {
         case RDX_TYPE_EULER:
         case RDX_TYPE_MULTIX: {
             head._32[1] = 32;
-            NACLBlakeUpdate(&state, rawid);
-            NACLBlakeUpdate(&state, raw);
+            NACLBlakeUpdate(state, rawid);
+            NACLBlakeUpdate(state, raw);
             rdx c = {.format = of->format};
             call(rdxInto, &c, of);
             blake256 chash;
             a_rawc(craw, chash);
             call(rdxHashBlake, &c, &chash);
-            NACLBlakeUpdate(&state, craw);
+            NACLBlakeUpdate(state, craw);
             break;
         }
         case RDX_TYPE_INT:
         case RDX_TYPE_FLOAT: {
             a_rawc(raw, of->f);
             head._32[1] = 8;
-            NACLBlakeUpdate(&state, rawid);
-            NACLBlakeUpdate(&state, raw);
+            NACLBlakeUpdate(state, rawid);
+            NACLBlakeUpdate(state, raw);
             break;
         }
         case RDX_TYPE_REF: {
             a_rawc(raw, of->r);
             head._32[1] = 16;
-            NACLBlakeUpdate(&state, rawid);
-            NACLBlakeUpdate(&state, raw);
+            NACLBlakeUpdate(state, rawid);
+            NACLBlakeUpdate(state, raw);
             break;
         }
         case RDX_TYPE_STRING:
         case RDX_TYPE_TERM: {
             head._32[1] = $len(of->s);
-            NACLBlakeUpdate(&state, rawid);
-            NACLBlakeUpdate(&state, of->s);
+            NACLBlakeUpdate(state, rawid);
+            NACLBlakeUpdate(state, of->s);
             // FIXME this ignores escaping issues
             break;
         }
         default:
             fail(NOTIMPLYET);
     }
-    NACLBlakeFinal(&state, hash);
     done;
 }
 
 ok64 rdxHashBlake(rdxp of, blake256* hash) {
     sane(of && hash);
-    blake256 pad[32] = {};
-    scan(rdxNext, of) {
-        blake256 one;
-        call(rdxHashBlake1, of, hash);
-        u8 hi = ctz64(one._64[0] | (1UL << 31));
-        blake0 state = {};
-        NACLBlakeInit(&state);
-        u8cs raw = {(u8*)pad, ((hi + 1) * sizeof(blake256)) + (u8*)pad};
-        NACLBlakeUpdate(&state, raw);
-        a_rawc(oneraw, one);
-        NACLBlakeUpdate(&state, oneraw);
-        NACLBlakeFinal(&state, &pad[hi]);
-        for (int i = 0; i < hi; ++i) zero(pad[i]);
-    }
-    blake0 outer;
-    NACLBlakeInit(&outer);
-    u8cs raw = {(u8*)pad, (32 * sizeof(blake256)) + (u8*)pad};
-    NACLBlakeUpdate(&outer, raw);
-    NACLBlakeFinal(&outer, hash);
+    blake0 state = {};
+    NACLBlakeInit(&state);
+    scan(rdxNext, of) call(rdxHashBlake1, of, &state);
+    seen(END);
+    NACLBlakeFinal(&state, hash);
     done;
 }
