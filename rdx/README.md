@@ -1,39 +1,100 @@
-#   Replicated Data eXchange format
+#   Replicated Data eXchange format (RDX)
 
-Today's popular data formats are either "one-way" or "RPC".
-"One-way" is something like CSV or JSON.
-I can dump my data into such format, send it to somebody, never see it again.
-If they send me back my JSON with some changes, that might be a problem.
-["RPC"][p] formats are likes of Protobuf, Capnproto, etc.
-Those are "I tell you, you tell me" formats to exchange pre-agreed messages.
+RDX is a syncable data format that is very similar to JSON in look and feel,
+but has a formal data model and a formal mutation model, so any implementations
+can interpret the data identically and keep replicas in perfect sync with no
+global consensus.
 
-RDX is a versioned format for **data synchronization**.
-It is designed to send around data patches.
+RDX is influenced by JSON, relational model, LSM key-value stores and CRDTs,
+and it can express these data models at least on the 80/20 basis. The RDX
+formal model can guarantee that RDX implementations map 1:1 to one another.
+The mutation model can guarantee that the same update merged to the same data
+produces the same result, irrespectively of the implementation or the format
+variant being used. Compare that to e.g. JSON where parsers may diverge in
+interpretation and note that no "binary JSON" format maps to JSON 1:1.
 
-RDX is the greatest-common-denominator data format.
-Systems should be able to import/export data from/to RDX,
-be it the entire state or separate patches.
+````
+    # 10.0 is 10.0 irrespectively of the notation
+    $ rdx hash '1e1'
+    e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+    $ rdx hash '10.0'
+    e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
 
-RDX has a formal *mutation semantics*.
-In other words, the [spec][X] says exactly what the result should be if we merge A and B.
+    # here we play with a set
+    $ rdx hash '{1 2 1 4 3 five}'
+    629243be731e5348220fc07bb6caf48a37996ee8e752074d34320dd70701c850
+    $ rdx hash '{five 1 2 3 4}'
+    629243be731e5348220fc07bb6caf48a37996ee8e752074d34320dd70701c850
 
-RDX is a very algebraic data format on the inside.
-First, it employs [CRDTs][T], Conflict-free Replicated Data Types.
-That means, any two versions of an object can *merge deterministically*.
-Second, its basic constructs are neatly orthogonal and *arbitrarily composable*.
-For example, `{"a":"map"}` is not a primitive, it is `{"a","set"}` `"of":"tuples"`.
-Tuples `"can":"be":"standalone"`, or they `<"can":"nest"> : <"in":"other"> : "tuples"` or `[{"any"}, <"other":"containers">]`.
+    # here we play with subsets of that set
+    $ rdx merge '{1 2 3}' '{4 five}' | rdx hash
+    629243be731e5348220fc07bb6caf48a37996ee8e752074d34320dd70701c850
+    $ rdx merge '{1 2 3}' '{4}' '{1 2 five}' | rdx hash
+    629243be731e5348220fc07bb6caf48a37996ee8e752074d34320dd70701c850
+````
 
-RDX has a text variant [RDX-JDR][J] "JSON Done Right".
-There is also a binary variant [RDX-TLV][X] which is the most straightforward [Type-Length-Value][L].
-Variants correspond 1:1.
+The RDX data change model is defined through the merge operation:
+updates get merged into the preexisting state, producing the resulting state.
+The difference between "state", "update", "patch", or "operation" is the one
+of quantity, not quality. Those are chunks of RDX, big and small.
+To enable deterministic merges, RDX allows for element versioning metadata.
 
-`librdx` is a low-level [RDX][X] system library implemented in [ABC C][A].
+````
+    # here we merge versions of a tuple
+    $ rdx merge '(1 2 4)' '(1 2 3@2 5)' '(1 2 4 5@1)'
+    (1, 2, 3@2, 5@1)
+    # odd revision numbers are tombstones (deleted elements)
+    $ rdx merge '(1 2 3@2 5)' '(1 2 4 5@1)' '(1 2 4 5)'
+    (1, 2, 3@2, 5@1)
 
-[A]: ../abc/
-[X]: ./RDX.md
-[J]: ./JDR.md
-[c]: http://github.com/drpcorg/chotki/rdx
-[p]: https://en.wikipedia.org/wiki/Remote_procedure_call
-[T]: http://en.wikipedia.org/wiki/CRDT
-[L]: https://en.wikipedia.org/wiki/Type-length-value
+    # here we strip the metadata and the deleted element
+    $ rdx strip '(1 2 3@2 5@1)'
+    (1, 2, 3)
+````
+
+An RDX documents consists of *elements*. Five primitive elements types are:
+
+ 1. Float: 64 bit IEEE float known as `double` in most languages,
+ 2. Integer: `int64_t` little-endian, two's complement,
+ 3. Reference: 128-bit identifier, a Lamport time stamp,
+ 4. String: UTF-8,
+ 5. Term: `true`, `null` and suchlike.
+
+On top of that, there are four collection types which allow for
+arbitrary nesting:
+
+ 1. x-Ples (tuples: doubles, triples, quadruples, etc),
+ 2. Linear collections (arrays, editable texts),
+ 3. Eulerian collections (ordered sets, maps), and
+ 4. multipleXed collections (counters, version vectors).
+
+RDX makes no attempt to innovate on the syntax; everything is JSON like.
+For the FIRST elements, the notation is identical to JSON. Similarly,
+Linear and Eulerian collections use the same brackets, `[]` and `{}`.
+JSON has rudimentary tuples, like `"key":"value"`; RDX generalizes that
+to an arbitrary number of elements, e.g. 
+`TEL555230975:"John":"Smith":"johnsmith@gmail.com"`.
+RDX tuples not only turn Eulerian sets into maps; they also express 
+relational records. Alternatively to the colon notation, RDX tuples 
+can go in brackets like the other collection types:
+`(TEL555230975, "John", "Smith", "johnsmith@gmail.com")`.
+Finally, multiplexed collections can store version vectors, distributed
+counters and similar types. They use angled brackets `<>`.
+
+Overall, the syntax is trying to follow the rule of least surprise.
+
+The last, but not the least important aspect of RDX is the *invariants*.
+For all the format varieties, there is a guarantee that any valid document
+in one version of the format can be converted into another version and back
+with no corruption. For example, the JSON-like text format to the in-memory
+representation in whatever language and back. That is the *round-trip*
+guarantee.
+With the merge operation, the invariants are pretty standard: idempotence,
+commutativity, associativity. Namely, having RDX documents `A, B, C` and `+` 
+being the merge operation, it is guaranteed that:
+
+ 1. `A+A = A`
+ 2. `A+B = B+A`
+ 3. `A + (B + C) = (A + B) + C`
+
+ These invariants are easy to formalize, analyze, prove, test and fuzz.

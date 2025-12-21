@@ -1,6 +1,6 @@
 #include "abc/01.h"
 #include "abc/TEST.h"
-#include "rdx2/RDX.h"
+#include "rdx/RDX.h"
 
 ok64 SKILTest1() {
     con int length = 100;

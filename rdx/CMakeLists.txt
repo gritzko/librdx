@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(rdx C)
+project(rdx2 C)
 
 set(CMAKE_C_STANDARD 23)
 
@@ -22,21 +22,30 @@ set(TEST_LDD_FLAGS "-g")
 set(BENCH_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -v")
 set(BENCH_LDD_FLAGS benchmark::benchmark)
 
-list(APPEND RDX_HEADERS 
-    RDX2.h
-    JDR2.h
-    BRIX2.h
+list(APPEND RDX_HEADERS
+    RDX.h
+    DIFF.h
+    JDR.h
 )
 
-list(APPEND RDX_SOURCES 
-    RDX2.c
+list(APPEND RDX_SOURCES
+    RDX.c
+    MEM.c
     JDR.rl.c
-    JDR2.c
-    BRIX2.c
+    JDR.c
+    WAL.c
+    TLV.c
+    UTF8.c
+    DIFF.c
+    SKIL.c
+    Y.c
 )
 
-add_library(rdx STATIC ${RDX_HEADERS} ${RDX_SOURCES} MAN.h DIFF.c RDOM.h)
-target_link_libraries(rdx abc sodium)
+add_library(rdx2 STATIC ${RDX_HEADERS} ${RDX_SOURCES})
+target_link_libraries(rdx2 abc sodium)
+
+add_executable(rdx RDX.cli.c)
+target_link_libraries(rdx rdx2)
 
 add_subdirectory(test)
 

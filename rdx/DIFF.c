@@ -1,149 +1,130 @@
-//
-// Created by gritzko on 11/5/25.
-//
-#include "RDX2.h"
+#include "RDX.h"
+#include "abc/01.h"
 #include "abc/KV.h"
+#include "abc/MMAP.h"
 #include "abc/PRO.h"
 
-typedef enum {
-    DIFF_ACTION_EQ = 0,
-    DIFF_ACTION_RM = 1,
-    DIFF_ACTION_IN = 2,
-    DIFF_ACTION_UP = 3,
-} DIFF_ACTION;
-
-typedef enum {
-    REL2_EQUAL = 0,
-    REL2_LESSER = 1,
-    REL2_GREATER = 2,
-    REL2_INCOMP = 3,
-} REL2;
-
 typedef struct {
-    u32 adv, rev;
-    u32 cost, rcost;
-} diff128;
-
-fun int diff128cmp(diff128 const* a, diff128 const* b) { return 0; }
-
-#define X(M, name) M##diff128##name
-#include "abc/Bx.h"
-#include "abc/HEAPx.h"
-#undef X
-
-fun int diff128pcmp(diff128p const* a, diff128p const* b) { return 0; }
-
-#define X(M, name) M##diff128p##name
-#include "abc/Bx.h"
-#include "abc/HEAPx.h"
-#undef X
-
-typedef struct {
-    u8cs a, b;        // raw
-    u32b atoc, btoc;  // off+2
-    diff128b adv;
-    diff128pb heap;
-} differ;
-
-u8 DIFFz(u32 andx, u32 bndx) {}  // enc shit V
-u8 DIFFType(u32 ndx) {}
-
-ok64 DIFFMakeToC(u8cs x, kv32bp toc) { return notimplyet; }
-
-rdxZ RDXTypeZ(u8 type) {
-    switch (type) {
-        case RDX_TUPLE:
-            return rdxTupleZ;
-        case RDX_LINEAR:
-            return rdxLinearZ;
-        case RDX_EULER:
-            return rdxEulerZ;
-        case RDX_MULTIX:
-            return rdxMultixZ;
-        default:
-            return NULL;
-    }
-}
-
-ok64 TLVkv32Peek(kv32p range, u8cs tlv) {}
-ok64 TLVkv32Set(kv32 range, u8csp set, u8csc tlv) {}
-ok64 TLVkv32Get(kv32p range, u8csc get, u8csc tlv) {}
-
-ok64 DIFFTerm(u8cs tlv, u32p term, u32 off) {  // todo ranges
-    sane(tlv != NULL && $len(tlv) >= off && term != NULL);
-    u8cs t2 = {tlv[0] + off, tlv[1]};
-    u8cs rec = {};
-    call(TLVDrain$, rec, t2);
-    *term = rec[1] - tlv[0];
-    done;
-}
-
-ok64 DIFFStep(rdxp r, u32 pos) {}
-
-ok64 DIFFNext(differ* d) {
-    sane(d != NULL);
-    diff128p top = **d->heap;
-    u32 terma, termb;
-    u32 posa, posb;
-    call(DIFFTerm, d->a, &terma, posa);
-    call(DIFFTerm, d->b, &termb, posb);
-    a_pad(diff128, next, 4);
-    u32 anext, bnext;
-    rdx a, b;
-    rdx pa, pb;
-    u8cs aval, bval;
-    u8 at, bt;
+    u32 pos;
     u8 ptype;
-    // noa, nob => outo
-    rdxZ z = RDXTypeZ(ptype);
-    ok64 zab = !bnext || z(&a, &b);
-    ok64 zba = !anext || z(&b, &a);
-    // z?
-    // neq? rdxEmpty(a b)?
-    if (zab) {  // rm
-    }
-    if (zba) {  // in
-    }
-    if (!zab && !zba) {                                        // eq? up?
-        if (at == bt && RDXisFIRST(at) && $cmp(aval, bval)) {  //      eq
+    u8 type;
+    u8 deep;
+    b8 keep;
+} diff64;
 
-        } else {  //      into
+int diff64cmp(diff64 const* a, diff64 const* b) { return 0; }
+
+#define X(M, name) M##diff64##name
+#include "abc/Bx.h"
+#undef X
+
+fun b8 diff64Eq(diff64cp a, diff64cp b) { return *(u64c*)a == *(u64c*)b; }
+fun b8 diff64In(diff64cp a, diff64cp b) {}
+fun b8 diff64Rm(diff64cp a, diff64cp b) {}
+fun b8 diff64Nx(diff64cp a, diff64cp b) {}
+
+ok64 diff64bDrawMap(diff64b map, rdxp it, u8 deep) {
+    sane(diff64bOK(map) && it);
+    scan(rdxNext, it) {
+        diff64 n = {
+            .pos = u8csLen(it->data),
+            .ptype = it->ptype,
+            .type = it->type,
+            .deep = deep,
+        };
+        if (rdxTypePlex(it)) {
+            call(diff64bFeed1, map, n);
+            rdx inner = {};
+            call(rdxInto, &inner, it);
+            call(diff64bDrawMap, map, &inner, deep + 1);
+            call(rdxOuto, &inner, it);
+            call(diff64bFeed1, map, n);
+        } else {
+            call(diff64bFeed1, map, n);
         }
     }
-    // over? break
+    seen(END);
     done;
 }
 
-ok64 DIFFRun(differ* d) {
-    sane(d != NULL);
-    // step 0
-    scan(DIFFNext, d);
-    seen(nodata);
-    return notimplyet;
+ok64 u64bFindPath(u64cs oldmap, u64cs neumap, kv32bp wave) {
+    sane(u64csOK(oldmap) && u64csOK(neumap) && kv32bOK(wave));
+    u32 ol = u64csLen(oldmap);
+    u32 nl = u64csLen(neumap);
+    i32 d = (i64)ol - (i64)nl;
+    u32 u = i64Zig(d);
+    call(kv32bFed, wave, u + 1);
+    kv32bAtP(wave, 0)->key = nl;
+    kv32bAtP(wave, d)->val = nl;
+    u64c* om = *oldmap;
+    u64c* nm = *neumap;
+    kv32* wv = *kv32bData(wave);
+    for (u32 c = 0; c < ol + nl; c++) {
+        u32 zl = kv32bDataLen(wave);
+        for (u64 u = 0; u <= zl; ++u) {
+            kv32 dfwd = kv32bAt(wave, u);
+            d = u64Zag(u);
+            u32 fwdneux = nl - dfwd.key;
+            u32 fwdoldx = dfwd.val;
+            while (om[nl - wv[u].key] == nm[wv[u].key]) wv[u].key++;  // 1 1
+            diff64 od = *(diff64*)(om + nl - wv[u].key);
+            diff64 nd = *(diff64*)(nm + wv[u].key);
+            // for eq
+            if (od.deep < nd.deep) {
+                // 0 0 0 0 0
+            } else if (od.deep > nd.deep) {
+                // 0 0 0 0 0
+            } else if (1) {
+            }
+
+            // for rmin
+        }
+        call(kv32bFed, wave, 2);
+    }
+    done;
 }
 
-ok64 DIFFDerive(differ* d, u8bp diff) { return notimplyet; }
+// 30x30
+ok64 u64sMarkByRange(u64sp whole, u64sp part, u64p mark) {}
+ok64 u64SetRangeByMark(u64sp whole, u64sp part, u64cp mark) {}
 
-ok64 RDXu8bDiff(u8b diff, u8cs a, u8cs b) {
-    differ d = {};
-    // set up  todo alloc/mmap
-    u8csDup(d.a, a);
-    u8csDup(d.b, b);
+ok64 rdxDiffMakeMap(u64b map, rdxp was, rdxp is) {
+    sane(u64bOK(map) && was && is);
+    // todo copy it
+    // scan, recur
+    // scan, make
+    done;
+}
 
-    diff128bAllocate(d.adv, ($len(a) + $len(b)) * 2);  // todo
-    u32bAllocate(d.atoc, $len(a));
-    u32bAllocate(d.btoc, $len(b));
-    diff128pbAllocate(d.heap, DIFF_MAX_STEPS);
+ok64 rdxDiffFindPath(u64p weight, u64b map, rdxp was, rdxp is) {
+    sane(weight && u64bOK(map));
+    // myers
+    // todo HEAP and FRONT
+    // lefts
+    // rights
+    // heap
 
-    // run
-    ok64 o = DIFFRun(&d);
-    // derive?
-    if (o == OK) o = DIFFDerive(&d, diff);
+    done;
+}
 
-    diff128pbFree(d.heap);
-    u32bFree(d.btoc);
-    u32bFree(d.atoc);
-    diff128bFree(d.adv);
+ok64 rdxDiffDrawPath(rdxp into, u64b map, rdxp was, rdxp is) {
+    sane(into && (into->format & RDX_FMT_WRITE) && u64bOK(map));
+    //
+    done;
+}
 
-    return notimplyet;
+ok64 rdxDiff(rdxp into, rdxp was, rdxp is) {
+    sane(into && was && is);
+    u64b map = {};
+    u64 weight = 0;
+    u64 len = 0;  // fixme max(u8cgDoneLen(was->datag), u8cgDoneLen(is->datag));
+    len = roundup(len, PAGESIZE / 8);
+    // call(MMAPu64open, map, len);
+
+    ok64 o = rdxDiffMakeMap(map, was, is);
+    if (o == OK) o = rdxDiffFindPath(&weight, map, was, is);
+    if (o == OK) o = rdxDiffDrawPath(into, map, was, is);
+
+    // call(MMAPu64close, map);
+    return o;
 }

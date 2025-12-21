@@ -1,180 +1,152 @@
-#ifndef ABC_JDR_H
-#define ABC_JDR_H
+//
+// Created by gritzko on 11/20/25.
+//
 #include "RDX.h"
-#include "RDXC.h"
-#include "abc/01.h"
-#include "abc/FILE.h"
-#include "abc/OK.h"
-#include "abc/UTF8.h"
-#define RYU_OPTIMIZE_SIZE
-#include "abc/ryu/ryu.h"
 
-#define JDRenum 0
+typedef rdx JDRstate;
 
-con ok64 JDRbad = 0x4cd6e6968;
-con ok64 JDRfail = 0x1335baa5b70;
-con ok64 JDRbadF = 0x1335b9a5a0f;
-con ok64 JDRbadI = 0x1335b9a5a12;
-con ok64 JDRbadR = 0x1335b9a5a1b;
-con ok64 JDRbadS = 0x1335b9a5a1c;
-con ok64 JDRbadT = 0x1335b9a5a1d;
-con ok64 JDRbadnest = 0x4cd6e6968ca9df8;
-con ok64 JDRnoroom = 0x1335bcb3db3cf1;
-con ok64 JDRsyntax = 0x1335bdfdcb897c;
+con ok64 JDRBAD = 0x4cd6cb28d;
 
-typedef struct {
-    u8c$ text;
-    u8$ tlv;
+fun u8 JDRPeek(utf8cs tok, rdxp x) { return tok[1] < x->data[1] ? *tok[1] : 0; }
 
-    u8pbp stack;
-
-    u32 line;
-    u32 col;
-
-    u8cs val;
-    u8 pre;
-} JDRstate;
-
-fun ok64 RDXid128feed($u8 txt, id128 id) {
-
+// user functions (callbacks) for the parser
+fun ok64 JDRonNL(utf8cs tok, rdxp x) { return OK; }
+fun ok64 JDRonUtf8cp1(utf8cs tok, rdxp x) { return OK; }
+fun ok64 JDRonUtf8cp2(utf8cs tok, rdxp x) { return OK; }
+fun ok64 JDRonUtf8cp3(utf8cs tok, rdxp x) { return OK; }
+fun ok64 JDRonUtf8cp4(utf8cs tok, rdxp x) { return OK; }
+fun ok64 JDRonInt(utf8cs tok, rdxp x) {
+    x->type = RDX_TYPE_INT;
+    i64decdrain(&x->i, tok);
+    return OK;
 }
-
-fun ok64 RDXid128drain(id128* id, $cu8c txt) {
+fun ok64 JDRonFloat(utf8cs tok, rdxp x) {
+    u64 l = $len(tok);
+    if (unlikely(l > 32)) return RDXBAD;
+    utf8sDrainFloat(tok, &x->f);
+    x->type = RDX_TYPE_FLOAT;
+    return OK;
 }
-
-fun ok64 RDXFtxt2tlv($u8 tlv, $cu8c txt, id128 time) {
-    sane($ok(tlv) && $ok(txt));
-    size_t tl = $len(txt);
-    test(tl < 32, RDXbad);
-    u8 str[32];
-    memcpy(str, *txt, tl);
-    str[tl] = 0;
-    double d = strtod((char*)str, NULL);
-    call(RDXCfeedF, tlv, d, time);
-    done;
+fun ok64 JDRonTerm(utf8cs tok, rdxp x) {
+    x->type = RDX_TYPE_TERM;
+    $mv(x->t, tok);
+    return OK;
 }
-
-fun ok64 RDXFtlv2txt($u8 txt, $cu8c tlv) {
+fun ok64 JDRonRef(utf8cs tok, rdxp x) {
+    x->type = RDX_TYPE_REF;
+    RDXutf8sDrainID(tok, &x->r);
+    return OK;
 }
-
-fun ok64 RDXItxt2tlv($u8 tlv, $cu8c txt, id128 time) {
-    sane($ok(tlv) && $ok(txt));
-    size_t tl = $len(txt);
-    test(tl < 32, RDXbad);
-    u8 str[32];
-    memcpy(str, *txt, tl);
-    str[tl] = 0;
-    i64 i = strtol((char*)str, NULL, 10);
-    call(RDXCfeedI, tlv, i, time);
-    done;
+fun ok64 JDRonString(utf8cs tok, rdxp x) {
+    ++tok[0];  // "
+    --tok[1];  // "
+    $mv(x->s, tok);
+    x->type = RDX_TYPE_STRING;
+    x->cformat = RDX_UTF_ENC_UTF8_ESC;
+    return OK;
 }
-
-fun ok64 RDXItlv2txt($u8 txt, $cu8c tlv) {
-    sane($ok(txt) && $ok(tlv));
-    RDXint v = 0;
-    id128 time = {};
-    call(RDXCdrainI, &v, &time, tlv);
-    u8 res[32];
-    int len = sprintf((char*)res, "%li", v);
-    u8cs $res = {res, res + len};
-    call(u8sFeed, txt, $res);
-    done;
+fun ok64 JDRonMLString(utf8cs tok, rdxp x) {
+    $mv(x->s, tok);
+    x->type = RDX_TYPE_STRING;
+    x->cformat = RDX_UTF_ENC_UTF8_ESC_ML;  // ?
+    return OK;
 }
-
-fun ok64 RDXRtxt2tlv($u8 tlv, $cu8c txt, id128 time) {
-    sane($ok(tlv) && $ok(txt));
-    id128 id = {};
-    call(RDXid128drain, &id, txt);
-    call(RDXCfeedR, tlv, id, time);
-    done;
+fun ok64 JDRonStamp(utf8cs tok, rdxp x) {
+    ++*tok;  // @
+    return RDXutf8sDrainID(tok, &x->id);
 }
-
-fun ok64 RDXRtlv2txt($u8 txt, $cu8c tlv) {
-    sane($ok(txt) && $ok(tlv));
-    id128 time;
-    RDXref v = {};
-    a$dup(u8c, dup, tlv);
-    call(RDXCdrainR, &v, &time, dup);
-    if (id128src(v) == 0) call(u8sFeed1, txt, '0');
-    call(RDXid128feed, txt, v);
-    done;
+fun ok64 JDRonNoStamp(utf8cs tok, rdxp x) {
+    zero(x->id);
+    return OK;
 }
-
-ok64 JDRfeedSesc($u8 tlv, u8cs txt);
-
-ok64 JDRdrainSesc($u8 txt, u8cs tlv);
-
-fun ok64 JDRdrainS($u8 txt, u8cs tlv) {
-    sane($ok(txt) && $ok(tlv));
-    call(u8sFeed1, txt, '"');
-    call(JDRdrainSesc, txt, tlv);
-    call(u8sFeed1, txt, '"');
-    done;
-}
-
-ok64 JDRlexer(JDRstate* state);
-
-fun ok64 JDRparse($u8 tlv, $u8 errmsg, u8cs jdr) {
-    aBcpad(u8p, stack, RDX_MAX_NEST);
-    a$dup(u8c, j, jdr);
-    JDRstate state = {
-        .text = j,
-        .stack = (u8pbp)stackbuf,
-        .tlv = tlv,
-    };
-    ok64 o = JDRlexer(&state);
-    if (o != OK) {
-        size_t off = j[0] - jdr[0];
-        u8cp p = *j;
-        u8cs line = {p, p};
-        while (line[0] > jdr[0] && $len(line) < 32 && *(line[0] - 1) != '\n')
-            --line[0];
-        size_t n = $len(line);
-        while (line[1] < jdr[1] && $len(line) < 64 && *(line[1]) != '\n')
-            ++line[1];
-        u8sFeed(errmsg, line);
-        u8sFeedcn(errmsg, ' ', n);
-        u8sFeed2(errmsg, '^', '\n');
+fun ok64 JDRonInlineComma(utf8cs tok, rdxp x) { return RDXBADNEST; }
+fun ok64 JDRonComma(utf8cs tok, rdxp x) {
+    if (x->format == RDX_FMT_JDR_PIN) return JDRonInlineComma(tok, x);
+    if (x->len & 1) {
+        x->type = 0;
+        x->len += 1;
+        return OK;
+    } else {
+        x->type = RDX_TYPE_TUPLE;
+        x->cformat = RDX_FMT_JDR_PIN;
+        x->len += 2;
+        $null(x->plex);
+        return NEXT;
     }
-    return o;
 }
-
-fun ok64 JDRdrain($u8 tlv, u8cs jdr) {
-    sane($ok(tlv) && $ok(jdr));
-    aBcpad(u8p, stack, RDX_MAX_NEST);
-    JDRstate state = {
-        .text = jdr,
-        .stack = (u8pbp)stackbuf,
-        .tlv = tlv,
-    };
-    call(JDRlexer, &state);
-    done;
+fun ok64 JDRonInlineColon(utf8cs tok, rdxp x) {
+    if (x->len & 1) {
+        x->type = 0;
+        x->len += 1;
+        return OK;
+    } else {
+        x->type = RDX_TYPE_TUPLE;
+        x->cformat = RDX_FMT_JDR_PIN;
+        x->len += 2;
+        $null(x->plex);
+        return NEXT;
+    }
 }
-
-ok64 JDRfeed1($u8 jdr, u8cs tlv, u64 style);
-
-fun ok64 JDRfeed($u8 jdr, u8cs tlv) {
-    sane($ok(jdr) && $ok(tlv));
-    do {
-        call(JDRfeed1, jdr, tlv, 0);
-        if (!$empty(tlv)) call(u8sFeed2, jdr, ',', '\n');
-    } while (!$empty(tlv));
-    done;
+fun ok64 JDRonColon(utf8cs tok, rdxp x) {
+    if (x->format == RDX_FMT_JDR_PIN) return JDRonInlineColon(tok, x);
+    x->type = RDX_TYPE_TUPLE;
+    x->cformat = RDX_FMT_JDR_PIN;
+    x->len = (x->len & 0xfffffffe) + 2;
+    $null(x->plex);
+    return NEXT;
 }
-
-enum {
-    StyleStampSpace = 1 << 8,
-    StyleStamps = 1 << 9,
-    StyleCommaNL = 1 << 10,
-    StyleTopCommaNL = 1 << 11,
-    StyleIndentTab = 1 << 12,
-    StyleIndentSpace4 = 1 << 13,
-    StyleTrailingComma = 1 << 14,
-    StyleBracketTuples = 1 << 15,
-    StyleSkipComma = 1 << 16,
-};
-
-static const int StyleCommaSpacers =
-    StyleCommaNL | StyleIndentSpace4 | StyleIndentTab;
-
-#endif
+fun ok64 JDRonInlineOpen(utf8cs tok, rdxp x) { return NOTIMPLYET; }
+fun ok64 JDRonOpen(utf8cs tok, rdxp x) {
+    if (x->format == RDX_FMT_JDR_PIN) {
+        if (x->len == 0) return RDXBAD;
+    }
+    x->type = RDX_TYPE_BRACKET_REV[**tok];
+    x->plexc[0] = tok[1];
+    x->plexc[1] = x->data[1];
+    x->cformat = RDX_FMT_JDR;
+    return NEXT;
+}
+fun ok64 JDRonInlineClose(utf8cs tok, rdxp x) {  // ????
+    x->data[0] = tok[0];                         // backtrack
+    x->type = 0;
+    return END;
+}
+fun ok64 JDRonClose(utf8cs tok, rdxp x) {
+    if (x->format == RDX_FMT_JDR_PIN) {
+        return RDXBADNEST;  //?
+    }
+    if (x->ptype != RDX_TYPE_BRACKET_REV[**tok]) {
+        return RDXBADNEST;
+    }
+    x->type = 0;
+    // FIXME peek?  test   1:(2, 3) vs 1:(2, 3):4:5
+    return END;
+}
+fun ok64 JDRonInter(utf8cs tok, rdxp x) { return OK; }
+fun ok64 JDRonInlineFIRST(utf8cs tok, rdxp x) {
+    if (x->len & 1) {
+        return RDXBAD;  // ?
+    }
+    if (JDRPeek(tok, x) != ':') {
+        x->data[1] = tok[1];
+    }
+    x->len += 1;
+    return NEXT;
+}
+fun ok64 JDRonFIRST(utf8cs tok, rdxp x) {
+    if (x->format == RDX_FMT_JDR_PIN) return JDRonInlineFIRST(tok, x);
+    if (x->len & 1) {
+        x->len += 2;
+    } else {
+        x->len += 1;
+    }
+    if (JDRPeek(tok, x) == ':') {
+        x->data[0] = tok[0];
+        x->type = RDX_TYPE_TUPLE;
+        x->cformat = RDX_FMT_JDR_PIN;
+        x->plexc[0] = tok[0];
+        x->plexc[1] = x->data[1];
+    }
+    return NEXT;
+}
+fun ok64 JDRonRoot(utf8cs tok, rdxp x) { return OK; }
