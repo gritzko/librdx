@@ -71,7 +71,9 @@ ok64 CmdY(rdxg inputs, u8 fmt) {
     rdx out = {.format = fmt | RDX_FMT_WRITE};
     int fd = STDOUT_FILENO;
     call(u8bMap, FILE_BUFS[fd], GB * 2);
+    $mv(out.into, u8bIdle(FILE_BUFS[fd]));  // FIXME
     try(rdxCopyF, &out, &in, (voidf)FILEFlush, &fd);
+    $mv(u8bIdle(FILE_BUFS[fd]), out.into);  // FIXME
     then try(FILEFlushAll, &fd);
     u8bUnMap(FILE_BUFS[fd]);
     done;
