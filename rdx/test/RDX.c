@@ -210,6 +210,7 @@ ok64 RDXTestY(u8cs test[][8]) {
         }
         rdxsFed1(rdxbData(inputs));
         a_pad(u8, res, PAGESIZE);
+        u8bZero(res);
         rdx w = {.format = RDX_FMT_JDR | RDX_FMT_WRITE};
         u8sFork(res_idle, w.into);
         call(rdxMerge, &w, rdxbDataIdle(inputs));

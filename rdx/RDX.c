@@ -233,7 +233,10 @@ ok64 rdxMerge(rdxp into, rdxg inputs) {
                 call(rdxInto, *sub_idle, q);
                 rdxgFed1(sub);
             }
-            call(rdxNorm, sub);
+            if ((**wins).type != RDX_TYPE_TUPLE &&
+                (**wins).type != RDX_TYPE_LINEAR) {
+                call(rdxNorm, sub);
+            }
             a_dup(rdx, fc, sub_data);
             call(rdxMerge, &c, sub);
             call(rdxOuto, &c, into);
