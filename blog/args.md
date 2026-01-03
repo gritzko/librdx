@@ -1,6 +1,6 @@
 #   Arguments for a syncable data exchange format
 
-After spending about quarter a century intermittently in the academia and 
+After spending about quarter a century intermittently between academia and 
 industry I feel the urge to share the progress of my current project as well 
 as my views on what I call "the last bottleneck of the internet".
 
@@ -22,7 +22,8 @@ immensely powerful. Finally, we can generate plausibly working code by megabytes
 just in case there is nothing readily available on GitHub.
 
 Still, when I do a check-out in the Auchan supermarket, my device needs time to
-recall my client bar code (if it manages to). Which I must say never ever changed.
+fetch my client bar code (which never changes). Sometimes that fails after a wait.
+On a grander scale, this strange computer behavior has much bigger consequences.
 Some routine mishaps in AWS or Cloudflare lead to solid chunks of the internet
 just falling flat in a giant domino effect. It seems that the network designed 
 to withstand a nuclear holocaust can not withstand a misplaced comma nowadays.
@@ -51,6 +52,7 @@ whom they are talking to and what they should be doing. Once no one is respondin
 and basically on any significant glitch in the chain of command, the entire thing
 collapses like the Sauron's kingdom with amnesic orcs.
 
+What if the paradigm changes to "tell me how the things are, so I remember"?
 Everyone acting on the best available information is a good baseline strategy.
 One aspect preventing that is the lack of data versioning by default. Data rots.
 Immediately. The best shot so far was adding the expiration time, and it helps.
