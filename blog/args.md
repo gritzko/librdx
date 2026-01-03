@@ -1,10 +1,10 @@
 #   Arguments for a syncable data exchange format
 
 After spending about quarter a century intermittently between academia and 
-industry I feel the urge to share the progress of my current project as well 
+industry I feel the urge to share the progress of [my current project][r] as well 
 as my views on what I call "the last bottleneck of the internet".
 
-I dare to go a step further than my colleagues from Ink&Switch, who started
+I dare to go a step further than my colleagues from [Ink&Switch][i], who started
 the entire "local-first" movement. Or maybe I want to refine their approach.
 In my opinion, the problem starts several steps earlier than developers
 picking the architecture for their future app. It starts with the mental model
@@ -24,7 +24,7 @@ just in case there is nothing readily available on GitHub.
 Still, when I do a check-out in the Auchan supermarket, my device needs time to
 fetch my client bar code (which never changes). Sometimes that fails after a wait.
 On a grander scale, this strange computer behavior has much bigger consequences.
-Some routine mishaps in AWS or Cloudflare lead to solid chunks of the internet
+Some routine mishaps in [AWS][a] or [Cloudflare][c] lead to solid chunks of the internet
 just falling flat in a giant domino effect. It seems that the network designed 
 to withstand a nuclear holocaust can not withstand a misplaced comma nowadays.
 Overall, it all increasingly feels like one of those projects Google can cancel
@@ -66,14 +66,14 @@ I pick JSON as an easy target, although most of the arguments apply to many othe
 formats equally well. JSON is a notation, so there is some guarantee that the other
 side will parse the syntax, but there is no guarantee the document will be seen
 the same. I do not even speak about "onthologies". Consider the case of a repeated
-key in a map, for example. JSON has many such cases. 
+key in a map, for example. JSON has [many such cases][m]. 
 
 Now, let's consider data mutations (edits, updates, etc). In theory, there are "JSON
 patch" formats, but in fact, the outcome of (repeated) patching is not well defined,
 especially in a distributed system that is more complicated than "one client, one
 server".
 
-Replicated Data Exchange format (RDX) is a JSON superset that has a formal
+[Replicated Data Exchange][r] format (RDX) is a JSON superset that has a formal
 document model and a formal merge model defined. Precisely, down to the bit.
 So, not only implementations understand each piece of data the same, 
 they can merge them identically. That makes the format syncable: we can always 
@@ -138,3 +138,9 @@ Third, we may start talking about some meaningful use of all the computational
 capacity we actually have. Not internet-of-shit level things, but actually
 useful *and reliable* stuff. Putting smileys on photos is one thing, but anything
 with mass and velocity better be very very reliable.
+
+[m]: https://seriot.ch/software/parsing_json.html
+[i]: https://www.inkandswitch.com/
+[r]: https://github.com/gritzko/librdx
+[a]: https://aws.amazon.com/premiumsupport/technology/pes/
+[c]: https://www.cloudflarestatus.com/history
