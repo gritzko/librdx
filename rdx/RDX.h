@@ -432,6 +432,8 @@ ok64 rdxbOuto(rdxb its);
 
 ok64 rdxCopy(rdxp into, rdxp from);
 
+ok64 rdxStrip(rdxp into, rdxp from);
+
 ok64 rdxHashBlake(rdxp of, blake256* hash);
 
 #endif

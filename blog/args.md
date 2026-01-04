@@ -52,7 +52,7 @@ whom they are talking to and what they should be doing. Once no one is respondin
 and basically on any significant glitch in the chain of command, the entire thing
 collapses like the Sauron's kingdom with amnesic orcs.
 
-What if the paradigm changes to "tell me how the things are, so I remember"?
+What if the paradigm changes to "tell me the facts, so I remember"?
 Everyone acting on the best available information is a good baseline strategy.
 One aspect preventing that is the lack of data versioning by default. Data rots.
 Immediately. The best shot so far was adding the expiration time, and it helps.
@@ -114,8 +114,8 @@ in choosing where to store which data, as long as we know how to merge it back.
 This can be compared to running a Cassandra-like database "inside-out".
 
 In fact, that is more. Not only updates can be implemented through merges, 
-but also sharding, snapshotting and versioning, and even access control (data of
-different access levels being stored to different shards). Merges allow for
+but also sharding, snapshotting and branching, and even access control (data of
+different access levels being stored to different branches). Merges allow for
 incremental querying, when we reveal the data landscape gradually like a map
 in a computer game. Why start from scratch each time? (Why being amnesic?)
 

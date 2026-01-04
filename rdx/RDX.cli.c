@@ -133,6 +133,15 @@ ok64 CmdNorm(rdxg inputs) {
 
 ok64 CmdStrip(rdxg inputs) {
     sane(rdxgOK(inputs) && rdxgLeftLen(inputs));
+    int fd = STDOUT_FILENO;
+    call(u8bMap, FILE_BUFS[fd], GB * 2);
+    rdx out = {.format = RDX_FMT_DEFAULT | RDX_FMT_WRITE};
+    $mv(out.into, u8bIdle(FILE_BUFS[fd]));
+    call(rdxStrip, &out, *inputs);
+    $mv(u8bIdle(FILE_BUFS[fd]), out.into);
+    u8bFeed1(FILE_BUFS[fd], '\n');
+    try(FILEFlushAll, &fd);
+    u8bUnMap(FILE_BUFS[fd]);
     done;
 }
 
@@ -186,6 +195,8 @@ ok64 rdxcli() {
         call(CmdNow, 0);
     } else if ($eq(verb, VERB_NORM)) {
         call(CmdNorm, rdxbDataIdle(inputs));
+    } else if ($eq(verb, VERB_STRIP)) {
+        call(CmdStrip, rdxbDataIdle(inputs));
     } else {
         fprintf(stderr, "Unknown command %s.\n%s", *verb, *USAGE);
     }

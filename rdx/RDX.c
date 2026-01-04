@@ -40,6 +40,30 @@ ok64 rdxEulerZ(rdxcp a, rdxcp b) {
     return rdx1Z(a, b);
 }
 
+ok64 rdxStrip(rdxp into, rdxp from) {
+    sane(into && from && rdxWritable(into) && !rdxWritable(from));
+    scan(rdxNext, from) {
+        if (from->id.seq & 1) continue;
+        into->type = from->type;
+        into->cformat = from->cformat;
+        zero(into->id);
+        into->r = from->r;
+        call(rdxNext, into);
+        if (rdxTypePlex(from)) {
+            rdx cinto = {};
+            rdx cfrom = {};
+            call(rdxInto, &cinto, into);
+            call(rdxInto, &cfrom, from);
+            call(rdxStrip, &cinto, &cfrom);
+            call(rdxOuto, &cinto, into);
+            call(rdxOuto, &cfrom, from);
+        }
+    }
+    seen(END);
+    into->type = 0;
+    done;
+}
+
 ok64 rdxCopy(rdxp into, rdxp from) {
     sane(into && from && rdxWritable(into) && !rdxWritable(from));
     scan(rdxNext, from) {
