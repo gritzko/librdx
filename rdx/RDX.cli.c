@@ -116,12 +116,27 @@ a_cstr(VERB_TLV, "tlv");
 a_cstr(VERB_STRIP, "strip");
 a_cstr(VERB_NOW, "now");
 a_cstr(VERB_NORM, "norm");
+a_cstr(VERB_CAT, "cat");
 
 ok64 CmdNorm(rdxg inputs) {
     sane(rdxgOK(inputs) && rdxgLeftLen(inputs));
     int fd = STDOUT_FILENO;
     call(u8bMap, FILE_BUFS[fd], GB * 2);
     rdx out = {.format = RDX_FMT_DEFAULT | RDX_FMT_WRITE};
+    $mv(out.into, u8bIdle(FILE_BUFS[fd]));
+    call(rdxMerge, &out, inputs);
+    $mv(u8bIdle(FILE_BUFS[fd]), out.into);
+    u8bFeed1(FILE_BUFS[fd], '\n');
+    try(FILEFlushAll, &fd);
+    u8bUnMap(FILE_BUFS[fd]);
+    done;
+}
+
+ok64 CmdCat(rdxg inputs) {
+    sane(rdxgOK(inputs) && rdxgLeftLen(inputs));
+    int fd = STDOUT_FILENO;
+    call(u8bMap, FILE_BUFS[fd], GB * 2);
+    rdx out = {.format = RDX_FMT_JDR | RDX_FMT_WRITE};
     $mv(out.into, u8bIdle(FILE_BUFS[fd]));
     call(rdxMerge, &out, inputs);
     $mv(u8bIdle(FILE_BUFS[fd]), out.into);
@@ -199,6 +214,8 @@ ok64 rdxcli() {
         call(CmdNorm, din);
     } else if ($eq(verb, VERB_STRIP)) {
         call(CmdStrip, din);
+    } else if ($eq(verb, VERB_CAT)) {
+        call(CmdCat, din);
     } else {
         fprintf(stderr, "Unknown command %s.\n%s", *verb, *USAGE);
     }
