@@ -6,6 +6,11 @@
 
 ok64 rdxNextTLV(rdxp x) {
     sane(x);
+    if (!$empty(x->data) && SKIL_LIT == (**x->data & ~TLVaA)) {
+        u8 lit;
+        u8cs val;
+        call(TLVu8sDrain, x->data, &lit, val);
+    }
     u8csp data = x->data;
     if ($empty(data)) {
         x->type = 0;

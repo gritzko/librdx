@@ -140,6 +140,9 @@ fun ok64 X(, bAllocate)(X(, bp) buf, size_t len) {
     memset((void *)*buf, 0, sz);
     return OK;
 }
+fun ok64 X(, bAlloc)(X(, bp) buf, size_t len) {
+    return X(, bAllocate)(buf, len);
+}
 
 fun ok64 X(, bFree)(X(, bp) buf) { return Bfree((void **)buf); }
 
@@ -280,13 +283,14 @@ fun ok64 X(, bReMap)(X(, bp) buf, size_t new_len) {
     size_t old_size = X(, bSize)(buf);
     size_t new_size = new_len * sizeof(T);
 #ifdef MREMAP_MAYMOVE
-    u8 *new_mem = (u8 *)mremap(buf[0], old_size, new_size, MREMAP_MAYMOVE);
+    u8 *new_mem =
+        (u8 *)mremap((void *)buf[0], old_size, new_size, MREMAP_MAYMOVE);
     if (new_mem == MAP_FAILED) return MMAPFAIL;
 #else
     void *new_mem = mmap(NULL, new_size, PROT_READ | PROT_WRITE,
                          MAP_ANONYMOUS | MAP_SHARED, -1, 0);
     if (new_mem == MAP_FAILED) return MMAPFAIL;
-    memmove(new_mem, (void *)buf[0], old_size);  // TODO linux mremap
+    memmove(new_mem, (void *)buf[0], old_size);
     int rc = munmap((void *)buf[0], old_size);
     if (rc != 0) return MMAPFAIL;
 #endif

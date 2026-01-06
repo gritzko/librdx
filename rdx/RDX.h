@@ -34,6 +34,7 @@ typedef enum {
 static const u8 RDX_TYPE_LIT[] = {
     0, 'P', 'L', 'E', 'X', 'F', 'I', 'R', 'S', 'T', 'B',
 };
+#define SKIL_LIT 'K'
 extern const u8 RDX_TYPE_LIT_REV[];
 extern const u8 RDX_TYPE_BRACKET_REV[];
 static const char* RDX_TYPE_BRACKET_OPEN = " ([{<";
@@ -185,9 +186,7 @@ typedef rdxp** rdxppp;
     (**n).format = fmt | RDX_FMT_WRITE; \
     u8gOf((**n).intog, s);
 
-fun RDX_TYPE rdxTypePlex(rdxcp p) {
-    return p->type && p->type < RDX_TYPE_PLEX_LEN;
-}
+fun b8 rdxTypePlex(rdxcp p) { return p->type && p->type < RDX_TYPE_PLEX_LEN; }
 
 fun b8 rdxWritable(rdxcp p) { return p->format & RDX_FMT_WRITE; }
 
@@ -210,12 +209,8 @@ fun ok64 rdxZ(rdxcp a, rdxcp b);
 #undef X
 
 fun int rdxpcmp(rdxp const* a, rdxp const* b) { return rdxcmp(*a, *b); }
-static const rdxz ZTABLE[RDX_TYPE_PLEX_LEN];
 
-fun ok64 rdxZ(rdxcp a, rdxcp b) {
-    rdxz Z = ZTABLE[a->ptype];
-    return Z(a, b);
-}
+fun ok64 rdxZ(rdxcp a, rdxcp b);
 
 fun ok64 rdxpZ(rdxpcp a, rdxpcp b) { return rdxZ(*a, *b); }
 
@@ -367,6 +362,10 @@ fun ok64 rdxMultixZ(rdxcp a, rdxcp b) { return u64Z(&a->id.src, &b->id.src); }
 static const rdxz ZTABLE[RDX_TYPE_PLEX_LEN] = {
     rdxRootZ, rdxTupleZ, rdxLinearZ, rdxEulerZ, rdxMultixZ,
 };
+fun ok64 rdxZ(rdxcp a, rdxcp b) {
+    rdxz Z = ZTABLE[a->ptype];
+    return Z(a, b);
+}
 fun ok64 rdxWinZ(rdxcp a, rdxcp b) {
     // sane(a && b && a->ptype == b->ptype);
     u64 aseq = a->id.seq & id128SeqMask;

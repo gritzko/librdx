@@ -54,8 +54,8 @@
 
 #define a_tailf(T, n, orig, f)                 \
     T##s n = {(T *)(orig[1]), (T *)(orig[1])}; \
-    while (--n[0] >= orig[0] && (f));          \
-    ++n[0];
+    while ((--*(n) >= *(orig)) && (f));        \
+    ++*(n);
 
 #define a_head(T, n, orig, len)                        \
     T##s n = {(T *)(orig[0]), (T *)(orig[0]) + (len)}; \

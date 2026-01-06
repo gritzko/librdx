@@ -53,10 +53,10 @@ target_link_libraries(rdx.skil rdx2)
 
 add_subdirectory(test)
 
-#if (WITH_BENCH)
-#add_subdirectory(bench EXCLUDE_FROM_ALL)
-#endif()
-#
+if (WITH_BENCH)
+add_subdirectory(bench)
+endif()
+
 if (WITH_FUZZ)
 add_subdirectory(fuzz)
 endif()

@@ -3,22 +3,24 @@
 #include "abc/PRO.h"
 #include "abc/ZINT.h"
 
-u8 SKIL_LIT = 'K';  // Exported for testing
+fun u64 SKILBlock(u64 pos) { return (pos + 0x7f) >> 7; }
+u64 SKILRank(u64 pos) {
+    u64 b = SKILBlock(pos);
+    return b ^ (b - 1);
+}
+#define SKIL_MIN_RANK 7
+
 con ok64 SKILBAD = 0x1c51254b28d;
 
 ok64 rdxNextSKIL(rdxp x) {
     sane(x);
-    if (!$empty(x->data) && SKIL_LIT == (**x->data & ~TLVaA)) {
-        u8 lit;
-        u8cs val;
-        call(TLVu8sDrain, x->data, &lit, val);
-    }
     return rdxNextTLV(x);
 }
 
 ok64 rdxIntoSKIL(rdxp c, rdxp p) {
     sane(c && p);
     a_dup(u8c, data, p->plexc);
+    p->cformat = RDX_FMT_SKIL;
     if ($len(data) <= 0xff || c->type == 0) return rdxIntoTLV(c, p);
     a_pad(u64, skipb, 248);  // fixme :)
     u8 flen = *u8csLast(data);
@@ -34,13 +36,14 @@ ok64 rdxIntoSKIL(rdxp c, rdxp p) {
     rdxz Z = ZTABLE[p->type];
 
     // Iterate backwards through skip pointers
-    for (u64c *sp = u64csTerm(skipb_datac) - 1; sp >= *skipb_datac; --sp) {
+    // for (u64c *sp = u64csTerm(skipb_datac) - 1; sp >= *skipb_datac; --sp) {
+    $for(u64c, sp, skipb_datac) {
         u64 pos = *sp;
         a_rest(u8c, back, data, pos);
         if (!u8csLen(back)) continue;
         u8 lit;
         u8cs blocks2 = {};
-        if (**back == (SKIL_LIT | TLVaA)) {
+        if (**back == (SKIL_LIT | TLVaA) || **back == SKIL_LIT) {
             pos += u8csLen(back);
             call(TLVu8sDrain, back, &lit, blocks2);
             pos -= u8csLen(back);
@@ -52,37 +55,42 @@ ok64 rdxIntoSKIL(rdxp c, rdxp p) {
         if (Z(&rec, c)) {
             // rec < c: target is after this position, keep searching
             from = pos;
+            // printf("<%lu(%lu)", pos, SKILRank(pos));
+            continue;
         } else if (Z(c, &rec)) {
-            u64bReset(skipb);
             // c < rec: target is before this position
             // Load sub-skip-list and restart search in narrower range
-            call(ZINTu8sDrainBlocked, blocks2, skipb_idle);
-            if (u64csLen(skipb_datac) > 0) {
-                sp = u64csTerm(skipb_datac);
+            if (*blocks2) {
+                u64bReset(skipb);
+                call(ZINTu8sDrainBlocked, blocks2, skipb_idle);
+                if (u64csLen(skipb_datac) == 0) break;  // mishap?
+                // sp = u64csTerm(skipb_datac);
+                sp = u64csHead(skipb_datac) - 1;
+                // printf(">%lu(%lu)", pos, SKILRank(pos));
                 continue;
+            } else {
+                // No sub-skip-list available, use current position
+                // printf("x%lu(%lu)", pos, SKILRank(pos));
+                break;
             }
-            // No sub-skip-list available, use current position
-            break;
         } else {
             // Equal: found exact match
             from = pos;
+            // printf("=");
             break;
         }
     }
+    // printf(" (%lu)\n", from);
 
-    u8csMv(c->data, p->plexc);
-    call(u8csUsed, c->data, from);
-    call(rdxIntoTLV, c, p);
-    done;
+    a_rest(u8c, rest, data, from);
+    $mv(p->plexc, rest);
+    ok64 o = rdxIntoTLV(c, p);
+    $mv(p->plexc, data);
+
+    return o;
 }
 
 ok64 rdxOutoSKIL(rdxp c, rdxp p) { return rdxOutoTLV(c, p); }
-
-fun u64 SKILBlock(u64 pos) { return (pos + 0xff) >> 8; }
-u64 SKILRank(u64 pos) {
-    u64 b = SKILBlock(pos);
-    return b ^ (b - 1);
-}
 
 ok64 rdxWriteSKIL(rdxp x, u64 len) {
     sane(x && len && x->extra);
@@ -90,26 +98,25 @@ ok64 rdxWriteSKIL(rdxp x, u64 len) {
     u64sp skips = u64bData(skipb);
     // test(u64sLen(skips), BADARG);
     if (!u64sLen(skips)) {
-        // call(u64bFeed1, skipb, len);
-        done;
+        call(u64bFeed1, skipb, 0);
     }
-    u64 pos = *u64sLast(skips) + len;
-    printf("pos %lu idle %lu sum %lu\n", pos, u8sLen(x->into),
-           pos + u8sLen(x->into));
-    u8 rank = SKILRank(pos);
+    u64 prev = **skips;
+    u64 pos = prev + len;
+    **skips = pos;
+    if (SKILBlock(prev) == SKILBlock(pos)) done;
+    u64 rank = SKILRank(pos);
     a_tailf(u64c, drain, skips, (SKILRank(**drain) < rank));
-    if (u64csLen(drain)) {
-        printf("skips len %lu\n", u64csLen(drain));
+    size_t dl = u64csLen(drain);
+    if (rank >= SKIL_MIN_RANK && dl > 0) {
         a_pad(u8, rec, 256);
         call(ZINTu8sFeedBlocked, rec_idle, drain);
         u64 l = u8sLen(x->into);
         call(TLVu8sFeed, x->into, SKIL_LIT, rec_datac);
         l -= u8sLen(x->into);
-        pos += l;
-        u64sShed(skips, u64csLen(drain));
-
-        call(u64bFeed1, skipb, pos);
+        **skips += l;
+        u64sShed(skips, dl);
     }
+    call(u64bFeed1, skipb, pos);
     done;
 }
 
@@ -142,7 +149,7 @@ ok64 rdxWriteOutoSKIL(rdxp c, rdxp p) {
     u64bp skips = (u64bp)c->extra;
     // fixme 0xff if (u64bDataLen(skips) && *u64bLast(skips))
     a_pad(u8, rec, 256);
-    printf("skips flush len %lu\n", u64bDataLen(skips));
+    u64sFed1(u64bData(skips));
     call(ZINTu8sFeedBlocked, rec_idle, u64bDataC(skips));
     call(u8sFeed1, rec_idle, u8sLen(rec_data));
     call(TLVu8sFeed, c->into, SKIL_LIT, rec_datac);
