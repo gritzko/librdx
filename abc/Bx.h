@@ -210,7 +210,7 @@ fun ok64 X(B, mark)(X(B, ) const buf, range64 *range) {
     return OK;
 }
 
-fun void X(B, reset)(X(, b) buf) {
+fun void X(, bReset)(X(, b) buf) {
     T **b = (T **)buf;
     b[1] = b[0];
     b[2] = b[0];
@@ -255,11 +255,6 @@ fun ok64 X(B, rewind$)(X(B, ) buf, X($, ) slice, range64 range) {
     slice[0] = buf[0] + range.from;
     slice[1] = buf[0] + range.till;
     return OK;
-}
-
-fun T const *X(B, top)(X(B, ) buf) {
-    assert(buf[2] > buf[1]);
-    return buf[2] - 1;
 }
 
 fun ok64 X(, bPop)(X(, b) buf) {

@@ -156,10 +156,10 @@ pro(MARKHTMLtest) {
     for (int i = 0; o == OK && i < MARK1cases; i++) {
         MARKstate state = {};
         aBpad(u8, into, 1024);
-        Bu8cpreset(lines);
-        Bu64reset(divs);
-        Bu64reset(blocks);
-        Bu8reset(fmt);
+        u8cpbReset(lines);
+        u64bReset(divs);
+        u64bReset(blocks);
+        u8bReset(fmt);
         zerob(fmt);
         state.lineB = (u8cpbp)lines;
         state.divB = (u64bp)divs;

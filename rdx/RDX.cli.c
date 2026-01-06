@@ -104,7 +104,7 @@ ok64 CmdHash(rdxg inputs) {
     call(rdxHashBlake, &in, &blake);
     a_rawc(hash, blake);
     a_pad(u8, hex, 65);
-    HEXfeed(hex_idle, hash);
+    HEXFeed(hex_idle, hash);
     u8sFeed1(hex_idle, 0);
     printf("Simple BLAKE256: %s\n", *hex_data);
     done;
@@ -177,26 +177,28 @@ ok64 rdxcli() {
     a_rest(u8cs, inn, u8csbData(STD_ARGS), 2);
     $for(u8cs, arg, inn) call(AddInput, inputs, *arg);
 
+    rdxgp din = rdxbDataIdle(inputs);
+
     if ($eq(verb, VERB_JDR)) {
-        call(CmdY, rdxbDataIdle(inputs), RDX_FMT_JDR);
+        call(CmdY, din, RDX_FMT_JDR);
     } else if ($eq(verb, VERB_Q)) {
-        call(CmdQuery, rdxbDataIdle(inputs));
+        call(CmdQuery, din);
     } else if ($eq(verb, VERB_HASH)) {
-        call(CmdHash, rdxbDataIdle(inputs));
+        call(CmdHash, din);
     } else if ($eq(verb, VERB_QUERY)) {
-        call(CmdQuery, rdxbDataIdle(inputs));
+        call(CmdQuery, din);
     } else if ($eq(verb, VERB_MERGE)) {
-        call(CmdY, rdxbDataIdle(inputs), RDX_FMT_DEFAULT);
+        call(CmdY, din, RDX_FMT_DEFAULT);
     } else if ($eq(verb, VERB_TLV)) {
-        call(CmdY, rdxbDataIdle(inputs), RDX_FMT_TLV);
+        call(CmdY, din, RDX_FMT_TLV);
     } else if ($eq(verb, VERB_MERJ)) {
-        call(CmdY, rdxbDataIdle(inputs), RDX_FMT_JDR);
+        call(CmdY, din, RDX_FMT_JDR);
     } else if ($eq(verb, VERB_NOW)) {
         call(CmdNow, 0);
     } else if ($eq(verb, VERB_NORM)) {
-        call(CmdNorm, rdxbDataIdle(inputs));
+        call(CmdNorm, din);
     } else if ($eq(verb, VERB_STRIP)) {
-        call(CmdStrip, rdxbDataIdle(inputs));
+        call(CmdStrip, din);
     } else {
         fprintf(stderr, "Unknown command %s.\n%s", *verb, *USAGE);
     }

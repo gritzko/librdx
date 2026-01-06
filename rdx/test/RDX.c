@@ -20,10 +20,10 @@ ok64 u8csTestEq(u8cs a, u8cs b) {
     a_cstr(wantmsg, "want:\t");
     a_cstr(factmsg, "fact:\t");
     call(u8bFeed, msg, wantmsg);
-    call(HEXput, msg_idle, a);
+    call(HEXPut, msg_idle, a);
     call(u8bFeed1, msg, '\n');
     call(u8bFeed, msg, factmsg);
-    call(HEXput, msg_idle, b);
+    call(HEXPut, msg_idle, b);
     call(u8bFeed1, msg, '\n');
 
     call(u8bFeed, msg, wantmsg);

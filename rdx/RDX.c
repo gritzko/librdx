@@ -169,8 +169,8 @@ fun ok64 rdxStringZ(rdxcp a, rdxcp b) {
         call(bre, butf_idle, bs);
         int z = $cmp(autf_datac, butf_datac);
         if (z != 0) return z < 0;
-        Breset(autf);
-        Breset(butf);
+        u8bReset(autf);
+        u8bReset(butf);
     }
     return u8csLen(as) < u8csLen(bs);
 }
@@ -278,7 +278,7 @@ ok64 rdxStringLength(rdxp str, u32p len) {
     do {
         o = re(pad_idle, from);
         *len += u8csLen(pad_datac);
-        Breset(pad);
+        u8bReset(pad);
     } while (o == NOROOM);  // todo ok64Is()
     return o;
 }

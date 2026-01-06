@@ -72,7 +72,7 @@ pro(HTTPtest1) {
     $testeq(conn, val);
 
     HTTPstate resstate = {};
-    Breset(parsebuf);
+    u8csbReset(parsebuf);
     $mv(resstate.text, res);
     resstate.parsed = parseidle;
     call(HTTPlexer, &resstate);

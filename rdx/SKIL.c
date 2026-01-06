@@ -52,7 +52,7 @@ ok64 rdxIntoSKIL(rdxp c, rdxp p) {
         if (Z(&rec, c)) {
             from = pos;  //...
         } else if (Z(c, &rec)) {
-            Breset(skipb);
+            u64bReset(skipb);
             call(ZINTu8sDrainBlocked, blocks2, skipb_idle);
             p = u64csTerm(skipb_datac);
             // before/after/none

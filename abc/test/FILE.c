@@ -43,7 +43,7 @@ pro(FILE3) {
     a_cstr(text, "Hello world!");
     Bu8 buf = {};
     call(FILEMapCreate, buf, path, PAGESIZE);
-    Breset(buf);
+    u8bReset(buf);
     call(u8bFeed, buf, text);
     call(FILEUnMap, buf);
     Bu8 buf2 = {};
