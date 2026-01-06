@@ -103,18 +103,18 @@ ok64 SKILTestSkipPointers() {
     test(e2.type == RDX_TYPE_EULER, RDXBAD);
 
     // Read all records sequentially and verify
+    rdx i2 = {};
+    call(rdxInto, &i2, &e2);  // Enter container once
     for (int j = 0; j < length; j++) {
-        rdx i2 = {};
-        call(rdxInto, &i2, &e2);
-        call(rdxNext, &i2);
+        call(rdxNext, &i2);  // Read next record
         test(i2.type == RDX_TYPE_INT, RDXBAD);
         if (i2.i != j) {
             printf("Mismatch at index %d: expected %d, got %ld\n", j, j, i2.i);
         }
         testeq(i2.i, j);
         testeq(i2.id.seq, j);
-        call(rdxOuto, &i2, &e2);
     }
+    call(rdxOuto, &i2, &e2);  // Exit container once
 
     done;
 }
@@ -160,14 +160,14 @@ ok64 SKILTestLargeDataset() {
     call(rdxNext, &e2);
 
     // Read all records
+    rdx i2 = {};
+    call(rdxInto, &i2, &e2);  // Enter container once
     for (int j = 0; j < length; j++) {
-        rdx i2 = {};
-        call(rdxInto, &i2, &e2);
-        call(rdxNext, &i2);
+        call(rdxNext, &i2);  // Read next record
         test(i2.type == RDX_TYPE_INT, RDXBAD);
         testeq(i2.i, j);
-        call(rdxOuto, &i2, &e2);
     }
+    call(rdxOuto, &i2, &e2);  // Exit container once
 
     done;
 }
