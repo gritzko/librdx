@@ -108,9 +108,6 @@ ok64 SKILTestSkipPointers() {
     for (int j = 0; j < length; j++) {
         call(rdxNext, &i2);  // Read next record
         test(i2.type == RDX_TYPE_INT, RDXBAD);
-        if (i2.i != j) {
-            printf("Mismatch at index %d: expected %d, got %ld\n", j, j, i2.i);
-        }
         testeq(i2.i, j);
         testeq(i2.id.seq, j);
     }
@@ -122,9 +119,49 @@ ok64 SKILTestSkipPointers() {
 ok64 SKILTestBinarySearch() {
     sane(1);
 
-    // TODO: Binary search has a bug causing infinite loops
-    // Test disabled until rdxIntoSKIL is fixed
-    // See: infinite "try at 0" loop in rdxIntoSKIL
+    // Test seeking to specific positions using SKIL binary search
+    con int length = 1000;
+    a_pad(u8, pad, PAGESIZE * 16);
+    a_pad(u64, tabs, PAGESIZE);
+
+    rdx e = {.format = RDX_FMT_SKIL | RDX_FMT_WRITE, .extra = (void*)tabs};
+    $mv(e.into, pad_idle);
+    e.type = RDX_TYPE_EULER;
+    call(rdxNext, &e);
+
+    rdx i = {};
+    call(rdxInto, &i, &e);
+    // Write multiples of 10: 0, 10, 20, 30, ..., 9990
+    for (int j = 0; j < length; j++) {
+        i.type = RDX_TYPE_INT;
+        i.i = j * 10;
+        i.id.seq = j * 10;
+        i.id.src = 0;
+        call(rdxNext, &i);
+    }
+    call(rdxOuto, &i, &e);
+    $mv(pad_idle, e.into);
+
+    // Read back and verify using binary search
+    rdx e2 = {.format = RDX_FMT_SKIL};
+    $mv(e2.data, pad_data);
+    call(rdxNext, &e2);
+    test(e2.type == RDX_TYPE_EULER, RDXBAD);
+
+    // Test seeking to various positions
+    int test_values[] = {0, 100, 500, 5000, 9990};
+    for (int k = 0; k < 5; k++) {
+        rdx target = {};
+        target.type = RDX_TYPE_INT;
+        target.i = test_values[k];
+
+        call(rdxInto, &target, &e2);
+        // Should find the exact value
+        test(target.type == RDX_TYPE_INT, RDXBAD);
+        test(target.i == test_values[k], NOEQ);
+        test(target.id.seq == test_values[k], NOEQ);
+        call(rdxOuto, &target, &e2);
+    }
 
     done;
 }

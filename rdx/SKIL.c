@@ -33,11 +33,12 @@ ok64 rdxIntoSKIL(rdxp c, rdxp p) {
     u64 from = 0;
     rdxz Z = ZTABLE[p->type];
 
-    $rof(u64c, p, skipb_datac) {
-        u64 pos = *p;
-        printf("try at %lu\n", pos);
+restart:
+    // Iterate backwards through skip pointers
+    for (u64c *sp = u64csTerm(skipb_datac) - 1; sp >= *skipb_datac; --sp) {
+        u64 pos = *sp;
         a_rest(u8c, back, data, pos);
-        if (!u8csLen(back)) continue;  // fixme
+        if (!u8csLen(back)) continue;
         u8 lit;
         u8cs blocks2 = {};
         if (**back == (SKIL_LIT | TLVaA)) {
@@ -45,18 +46,25 @@ ok64 rdxIntoSKIL(rdxp c, rdxp p) {
             call(TLVu8sDrain, back, &lit, blocks2);
             pos -= u8csLen(back);
         }
-        if (!u8csLen(back)) continue;  // fixme
+        if (!u8csLen(back)) continue;
         rdx rec = {.format = RDX_FMT_SKIL};
         $mv(rec.data, back);
         call(rdxNextTLV, &rec);
         if (Z(&rec, c)) {
-            from = pos;  //...
+            // rec < c: target is after this position, keep searching
+            from = pos;
         } else if (Z(c, &rec)) {
+            // c < rec: target is before this position
+            // Load sub-skip-list and restart search in narrower range
             Breset(skipb);
             call(ZINTu8sDrainBlocked, blocks2, skipb_idle);
-            p = u64csTerm(skipb_datac);
-            // before/after/none
+            if (u64csLen(skipb_datac) > 0) {
+                goto restart;  // Restart with new skip list
+            }
+            // No sub-skip-list available, use current position
+            break;
         } else {
+            // Equal: found exact match
             from = pos;
             break;
         }
