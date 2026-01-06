@@ -116,6 +116,7 @@ a_cstr(VERB_TLV, "tlv");
 a_cstr(VERB_STRIP, "strip");
 a_cstr(VERB_NOW, "now");
 a_cstr(VERB_NORM, "norm");
+a_cstr(VERB_CAT, "cat");
 
 ok64 CmdNorm(rdxg inputs) {
     sane(rdxgOK(inputs) && rdxgLeftLen(inputs));
@@ -177,7 +178,9 @@ ok64 rdxcli() {
     a_rest(u8cs, inn, u8csbData(STD_ARGS), 2);
     $for(u8cs, arg, inn) call(AddInput, inputs, *arg);
 
-    if ($eq(verb, VERB_JDR)) {
+    if ($eq(verb, VERB_CAT)) {
+        call(CmdY, rdxbDataIdle(inputs), RDX_FMT_DEFAULT);
+    } else if ($eq(verb, VERB_JDR)) {
         call(CmdY, rdxbDataIdle(inputs), RDX_FMT_JDR);
     } else if ($eq(verb, VERB_Q)) {
         call(CmdQuery, rdxbDataIdle(inputs));
