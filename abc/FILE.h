@@ -142,6 +142,11 @@ ok64 FILESync(int const *fd);
 ok64 FILEFlush(int const *fd);
 ok64 FILEFlushAll(int const *fd);
 
+// Streaming I/O primitives (caller-provided buffers)
+ok64 FILEFlushThreshold(int fd, u8b buf, size_t threshold);
+ok64 FILEEnsureSoft(int fd, u8b buf, size_t needed);
+ok64 FILEEnsureHard(int fd, u8b buf, size_t needed);
+
 ok64 FILEClose(int *fd);
 
 // ok64 FILEExists(path8 path);

@@ -179,6 +179,52 @@ ok64 FILEFlushAll(int const *fd) {
     Breset(buf);
     done;
 }
+
+// Streaming I/O primitives (caller-provided buffers)
+
+ok64 FILEFlushThreshold(int fd, u8b buf, size_t threshold) {
+    sane(fd >= 0 && Bok(buf));
+    if (u8bDataLen(buf) >= threshold) {
+        ssize_t written = write(fd, *u8bData(buf), u8bDataLen(buf));
+        if (written < 0) return FILEerror;
+        Bate(buf);  // Move data -> past
+    }
+    done;
+}
+
+ok64 FILEEnsureSoft(int fd, u8b buf, size_t needed) {
+    sane(fd >= 0 && Bok(buf));
+    while (u8bDataLen(buf) < needed && u8bIdleLen(buf) > 0) {
+        ssize_t n = read(fd, *u8bIdle(buf), u8bIdleLen(buf));
+        if (n < 0) return FILEerror;
+        if (n == 0) break;  // EOF
+        Bump(buf, n);
+    }
+    done;
+}
+
+ok64 FILEEnsureHard(int fd, u8b buf, size_t needed) {
+    sane(fd >= 0 && Bok(buf));
+
+    // First, try to compact if needed
+    if (u8bIdleLen(buf) < needed && u8bPastLen(buf) > 0) {
+        u8bShift(buf, 0);  // Use existing buffer compaction
+    }
+
+    // Check if buffer can even hold 'needed' bytes
+    test(Bsize(buf) >= needed, NOROOM);
+
+    // Read until we have enough
+    while (u8bDataLen(buf) < needed) {
+        test(u8bIdleLen(buf) > 0, NOROOM);
+        ssize_t n = read(fd, *u8bIdle(buf), u8bIdleLen(buf));
+        if (n < 0) return FILEerror;
+        test(n > 0, FILEend);  // EOF before getting needed bytes
+        Bump(buf, n);
+    }
+    done;
+}
+
 ok64 FILENoteMap(int const *fd, u8bp buf, b8 rw) {
     sane(*fd > FILE_CLOSED && u8bOK(buf));
     call(FILEInit);
