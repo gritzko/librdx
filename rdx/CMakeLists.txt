@@ -46,6 +46,10 @@ target_link_libraries(rdx2 abc sodium)
 
 add_executable(rdx RDX.cli.c)
 target_link_libraries(rdx rdx2)
+add_executable(rdx.tlv RDX.cli.c)
+target_link_libraries(rdx.tlv rdx2)
+add_executable(rdx.skil RDX.cli.c)
+target_link_libraries(rdx.skil rdx2)
 
 add_subdirectory(test)
 
