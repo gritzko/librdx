@@ -3,7 +3,7 @@
 #include "abc/PRO.h"
 #include "abc/ZINT.h"
 
-con u8 SKIL_LIT = 'K';
+u8 SKIL_LIT = 'K';  // Exported for testing
 con ok64 SKILBAD = 0x1c51254b28d;
 
 ok64 rdxNextSKIL(rdxp x) {

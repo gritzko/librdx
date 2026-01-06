@@ -84,8 +84,8 @@ pro(FILEtest5) {
     // Create test file
     int wfd;
     call(FILECreate, &wfd, path);
-    u8cs data = testdata;
-    call(FILEFeedall, wfd, &data);
+    a_dup(u8 const, data, testdata);
+    call(FILEFeedall, wfd, data);
     call(FILEClose, &wfd);
 
     // Test FILEEnsureSoft
