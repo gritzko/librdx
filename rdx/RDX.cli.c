@@ -196,6 +196,8 @@ ok64 rdxcli() {
 
     if ($eq(verb, VERB_JDR)) {
         call(CmdY, din, RDX_FMT_JDR);
+    } else if ($eq(verb, VERB_JDR)) {
+        call(CmdY, rdxbDataIdle(inputs), RDX_FMT_JDR);
     } else if ($eq(verb, VERB_Q)) {
         call(CmdQuery, din);
     } else if ($eq(verb, VERB_HASH)) {

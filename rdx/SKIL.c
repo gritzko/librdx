@@ -3,7 +3,7 @@
 #include "abc/PRO.h"
 #include "abc/ZINT.h"
 
-con u8 SKIL_LIT = 'K';
+u8 SKIL_LIT = 'K';  // Exported for testing
 con ok64 SKILBAD = 0x1c51254b28d;
 
 ok64 rdxNextSKIL(rdxp x) {
@@ -33,11 +33,11 @@ ok64 rdxIntoSKIL(rdxp c, rdxp p) {
     u64 from = 0;
     rdxz Z = ZTABLE[p->type];
 
-    $rof(u64c, p, skipb_datac) {
-        u64 pos = *p;
-        printf("try at %lu\n", pos);
+    // Iterate backwards through skip pointers
+    for (u64c *sp = u64csTerm(skipb_datac) - 1; sp >= *skipb_datac; --sp) {
+        u64 pos = *sp;
         a_rest(u8c, back, data, pos);
-        if (!u8csLen(back)) continue;  // fixme
+        if (!u8csLen(back)) continue;
         u8 lit;
         u8cs blocks2 = {};
         if (**back == (SKIL_LIT | TLVaA)) {
@@ -45,18 +45,26 @@ ok64 rdxIntoSKIL(rdxp c, rdxp p) {
             call(TLVu8sDrain, back, &lit, blocks2);
             pos -= u8csLen(back);
         }
-        if (!u8csLen(back)) continue;  // fixme
+        if (!u8csLen(back)) continue;
         rdx rec = {.format = RDX_FMT_SKIL};
         $mv(rec.data, back);
         call(rdxNextTLV, &rec);
         if (Z(&rec, c)) {
-            from = pos;  //...
+            // rec < c: target is after this position, keep searching
+            from = pos;
         } else if (Z(c, &rec)) {
             u64bReset(skipb);
+            // c < rec: target is before this position
+            // Load sub-skip-list and restart search in narrower range
             call(ZINTu8sDrainBlocked, blocks2, skipb_idle);
-            p = u64csTerm(skipb_datac);
-            // before/after/none
+            if (u64csLen(skipb_datac) > 0) {
+                sp = u64csTerm(skipb_datac);
+                continue;
+            }
+            // No sub-skip-list available, use current position
+            break;
         } else {
+            // Equal: found exact match
             from = pos;
             break;
         }
@@ -71,7 +79,7 @@ ok64 rdxIntoSKIL(rdxp c, rdxp p) {
 ok64 rdxOutoSKIL(rdxp c, rdxp p) { return rdxOutoTLV(c, p); }
 
 fun u64 SKILBlock(u64 pos) { return (pos + 0xff) >> 8; }
-fun u64 SKILRank(u64 pos) {
+u64 SKILRank(u64 pos) {
     u64 b = SKILBlock(pos);
     return b ^ (b - 1);
 }
