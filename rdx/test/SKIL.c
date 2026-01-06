@@ -1,6 +1,11 @@
 #include "abc/01.h"
 #include "abc/TEST.h"
+#include "abc/TLV.h"
 #include "rdx/RDX.h"
+
+// Defined in SKIL.c
+extern u8 SKIL_LIT;
+extern u64 SKILRank(u64 pos);
 
 ok64 SKILTest1() {
     con int length = 100;
@@ -40,9 +45,243 @@ ok64 SKILTest1() {
     done;
 }
 
+ok64 SKILTestRankFunction() {
+    sane(1);
+
+    // Test rank function produces correct values
+    // Rank = b ^ (b-1) where b is the block number (pos / 256)
+
+    testeq(SKILRank(255), 1);      // Block 1: 1 ^ 0 = 1
+    testeq(SKILRank(511), 3);      // Block 2: 2 ^ 1 = 3
+    testeq(SKILRank(767), 1);      // Block 3: 3 ^ 2 = 1
+    testeq(SKILRank(1023), 7);     // Block 4: 4 ^ 3 = 7
+    testeq(SKILRank(1279), 1);     // Block 5: 5 ^ 4 = 1
+    testeq(SKILRank(1535), 3);     // Block 6: 6 ^ 5 = 3
+    testeq(SKILRank(2047), 15);    // Block 8: 8 ^ 7 = 15
+    testeq(SKILRank(4095), 31);    // Block 16: 16 ^ 15 = 31
+
+    // Verify logarithmic distribution: high ranks are rare
+    int high_rank_count = 0;
+    for (int i = 0; i < 10000; i += 256) {
+        if (SKILRank(i) >= 7) high_rank_count++;
+    }
+    want(high_rank_count < 10);  // Very few rank >= 7
+
+    done;
+}
+
+ok64 SKILTestSkipPointers() {
+    sane(1);
+
+    // Write 1000 records and verify skip pointers are generated
+    con int length = 1000;
+    a_pad(u8, pad, PAGESIZE * 16);
+    a_pad(u64, tabs, PAGESIZE);
+
+    rdx e = {.format = RDX_FMT_SKIL | RDX_FMT_WRITE, .extra = (void*)tabs};
+    $mv(e.into, pad_idle);
+    e.type = RDX_TYPE_EULER;
+    call(rdxNext, &e);
+
+    rdx i = {};
+    call(rdxInto, &i, &e);
+    for (int j = 0; j < length; j++) {
+        i.type = RDX_TYPE_INT;
+        i.i = j;
+        i.id.seq = j;
+        i.id.src = 0;
+        call(rdxNext, &i);
+    }
+    call(rdxOuto, &i, &e);
+    $mv(pad_idle, e.into);
+
+    // Count skip pointer records ('K' type)
+    int skip_count = 0;
+    int total_records = 0;
+    a_dup(u8c, scan, pad_data);
+
+    while (!$empty(scan)) {
+        u8 lit = 0;
+        u8cs val = {};
+        ok64 o = TLVu8sDrain(scan, &lit, val);
+        if (o != OK) break;
+
+        total_records++;
+        if (lit == SKIL_LIT) skip_count++;
+    }
+
+    // Should have skip pointers (O(log n) of them)
+    want(skip_count > 0);
+    want(skip_count < 100);  // Much less than total records
+
+    // Skip pointers should be small fraction of total
+    want(skip_count * 10 < total_records);
+
+    done;
+}
+
+ok64 SKILTestBinarySearch() {
+    sane(1);
+
+    // Test seeking to specific positions
+    con int length = 1000;
+    a_pad(u8, pad, PAGESIZE * 16);
+    a_pad(u64, tabs, PAGESIZE);
+
+    rdx e = {.format = RDX_FMT_SKIL | RDX_FMT_WRITE, .extra = (void*)tabs};
+    $mv(e.into, pad_idle);
+    e.type = RDX_TYPE_EULER;
+    call(rdxNext, &e);
+
+    rdx i = {};
+    call(rdxInto, &i, &e);
+    // Write multiples of 10: 0, 10, 20, 30, ..., 9990
+    for (int j = 0; j < length; j++) {
+        i.type = RDX_TYPE_INT;
+        i.i = j * 10;
+        i.id.seq = j * 10;
+        i.id.src = 0;
+        call(rdxNext, &i);
+    }
+    call(rdxOuto, &i, &e);
+    $mv(pad_idle, e.into);
+
+    // Read back and verify
+    rdx e2 = {.format = RDX_FMT_SKIL};
+    $mv(e2.data, pad_data);
+    call(rdxNext, &e2);
+    test(e2.type == RDX_TYPE_EULER, RDXBAD);
+
+    // Seek to middle element (value 5000)
+    rdx target = {};
+    target.type = RDX_TYPE_INT;
+    target.i = 5000;
+    call(rdxInto, &target, &e2);
+
+    // Should find value 5000 (at index 500)
+    testeq(target.i, 5000);
+    testeq(target.id.seq, 5000);
+
+    call(rdxOuto, &target, &e2);
+
+    done;
+}
+
+ok64 SKILTestLargeDataset() {
+    sane(1);
+
+    // Test with larger dataset (10K records)
+    con int length = 10000;
+    a_pad(u8, pad, PAGESIZE * 256);  // Need larger buffer
+    a_pad(u64, tabs, PAGESIZE * 4);
+
+    rdx e = {.format = RDX_FMT_SKIL | RDX_FMT_WRITE, .extra = (void*)tabs};
+    $mv(e.into, pad_idle);
+    e.type = RDX_TYPE_EULER;
+    call(rdxNext, &e);
+
+    rdx i = {};
+    call(rdxInto, &i, &e);
+    for (int j = 0; j < length; j++) {
+        i.type = RDX_TYPE_INT;
+        i.i = j;
+        i.id.seq = j;
+        i.id.src = 0;
+        call(rdxNext, &i);
+    }
+    call(rdxOuto, &i, &e);
+    $mv(pad_idle, e.into);
+
+    // Verify we can read it back
+    rdx e2 = {.format = RDX_FMT_SKIL};
+    $mv(e2.data, pad_data);
+    call(rdxNext, &e2);
+
+    // Spot check: seek to various positions
+    int test_positions[] = {0, 100, 5000, 9999};
+    for (int k = 0; k < 4; k++) {
+        rdx target = {};
+        target.type = RDX_TYPE_INT;
+        target.i = test_positions[k];
+
+        call(rdxInto, &target, &e2);
+        testeq(target.i, test_positions[k]);
+        call(rdxOuto, &target, &e2);
+    }
+
+    done;
+}
+
+ok64 SKILTestEdgeCases() {
+    sane(1);
+
+    // Test empty collection
+    a_pad(u8, pad1, PAGESIZE);
+    a_pad(u64, tabs1, PAGESIZE);
+    rdx e1 = {.format = RDX_FMT_SKIL | RDX_FMT_WRITE, .extra = (void*)tabs1};
+    $mv(e1.into, pad1_idle);
+    e1.type = RDX_TYPE_EULER;
+    call(rdxNext, &e1);
+    rdx i1 = {};
+    call(rdxInto, &i1, &e1);
+    call(rdxOuto, &i1, &e1);  // No elements written
+    $mv(pad1_idle, e1.into);
+
+    rdx e1r = {.format = RDX_FMT_SKIL};
+    $mv(e1r.data, pad1_data);
+    call(rdxNext, &e1r);
+    test(e1r.type == RDX_TYPE_EULER, RDXBAD);
+
+    // Test single element
+    a_pad(u8, pad2, PAGESIZE);
+    a_pad(u64, tabs2, PAGESIZE);
+    rdx e2 = {.format = RDX_FMT_SKIL | RDX_FMT_WRITE, .extra = (void*)tabs2};
+    $mv(e2.into, pad2_idle);
+    e2.type = RDX_TYPE_EULER;
+    call(rdxNext, &e2);
+    rdx i2 = {};
+    call(rdxInto, &i2, &e2);
+    i2.type = RDX_TYPE_INT;
+    i2.i = 42;
+    i2.id.seq = 42;
+    i2.id.src = 0;
+    call(rdxNext, &i2);
+    call(rdxOuto, &i2, &e2);
+    $mv(pad2_idle, e2.into);
+
+    rdx e2r = {.format = RDX_FMT_SKIL};
+    $mv(e2r.data, pad2_data);
+    call(rdxNext, &e2r);
+    rdx i2r = {};
+    call(rdxInto, &i2r, &e2r);
+    call(rdxNext, &i2r);
+    testeq(i2r.i, 42);
+    call(rdxOuto, &i2r, &e2r);
+
+    done;
+}
+
 ok64 SKILTests() {
     sane(1);
+
+    // Basic functionality
     call(SKILTest1);
+
+    // Rank function correctness
+    call(SKILTestRankFunction);
+
+    // Skip pointer generation
+    call(SKILTestSkipPointers);
+
+    // Binary search correctness
+    call(SKILTestBinarySearch);
+
+    // Large dataset handling
+    call(SKILTestLargeDataset);
+
+    // Edge cases
+    call(SKILTestEdgeCases);
+
     done;
 }
 

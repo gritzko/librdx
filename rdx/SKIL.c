@@ -71,7 +71,7 @@ ok64 rdxIntoSKIL(rdxp c, rdxp p) {
 ok64 rdxOutoSKIL(rdxp c, rdxp p) { return rdxOutoTLV(c, p); }
 
 fun u64 SKILBlock(u64 pos) { return (pos + 0xff) >> 8; }
-fun u64 SKILRank(u64 pos) {
+u64 SKILRank(u64 pos) {
     u64 b = SKILBlock(pos);
     return b ^ (b - 1);
 }
