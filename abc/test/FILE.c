@@ -75,12 +75,63 @@ pro(FILEtest4) {
     done;
 }
 
+pro(FILEtest5) {
+    sane(1);
+    // Test streaming I/O primitives
+    a_path(path, "/tmp/FILEtest5.txt");
+    a_cstr(testdata, "The quick brown fox jumps over the lazy dog");
+
+    // Create test file
+    int wfd;
+    call(FILECreate, &wfd, path);
+    u8cs data = testdata;
+    call(FILEFeedall, wfd, &data);
+    call(FILEClose, &wfd);
+
+    // Test FILEEnsureSoft
+    int rfd;
+    call(FILEOpen, &rfd, path, O_RDONLY);
+    aBpad2(u8, buf, 64);
+    call(FILEEnsureSoft, rfd, bufbuf, 10);
+    testeq(u8bDataLen(bufbuf), 10);  // Should have read at least 10 bytes
+
+    // Test FILEEnsureHard
+    call(FILEEnsureHard, rfd, bufbuf, 20);
+    want(u8bDataLen(bufbuf) >= 20);  // Must have exactly 20 bytes
+
+    // Test FILEEnsureHard with buffer too small (should fail)
+    aBpad2(u8, smallbuf, 8);
+    ok64 err = FILEEnsureHard(rfd, smallbufbuf, 100);
+    want(err != OK);  // Should fail - buffer too small
+
+    call(FILEClose, &rfd);
+
+    // Test FILEFlushThreshold
+    int wfd2;
+    call(FILECreate, &wfd2, path);
+    aBpad2(u8, outbuf, 64);
+    call(u8bFeed, outbufbuf, testdata);
+
+    // Flush should not trigger (below threshold)
+    call(FILEFlushThreshold, wfd2, outbufbuf, 100);
+    want(u8bDataLen(outbufbuf) > 0);  // Still has data
+
+    // Flush should trigger (above threshold)
+    call(FILEFlushThreshold, wfd2, outbufbuf, 10);
+    testeq(u8bPastLen(outbufbuf), u8csLen(testdata));  // Data moved to past
+
+    call(FILEClose, &wfd2);
+    call(FILEunlink, path);
+    done;
+}
+
 pro(FILEtest) {
     sane(1);
     call(FILEtest1);
     call(FILEtest2);
     call(FILE3);
     call(FILEtest4);
+    call(FILEtest5);
     done;
 }
 
