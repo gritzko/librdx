@@ -186,19 +186,22 @@ ok64 FILEFlushThreshold(int fd, u8b buf, size_t threshold) {
     sane(fd >= 0 && Bok(buf));
     if (u8bDataLen(buf) >= threshold) {
         ssize_t written = write(fd, *u8bData(buf), u8bDataLen(buf));
-        if (written < 0) return FILEerror;
-        Bate(buf);  // Move data -> past
+        if (written < 0) return FILEerror;  // TODO vocabulary
+        Bate(buf);                          // Move data -> past
     }
     done;
 }
 
 ok64 FILEEnsureSoft(int fd, u8b buf, size_t needed) {
     sane(fd >= 0 && Bok(buf));
+    if (u8bPastLen(buf) > u8bDataLen(buf)) {
+        u8bShift(buf, 0);
+    }
     while (u8bDataLen(buf) < needed && u8bIdleLen(buf) > 0) {
         ssize_t n = read(fd, *u8bIdle(buf), u8bIdleLen(buf));
         if (n < 0) return FILEerror;
         if (n == 0) break;  // EOF
-        Bump(buf, n);
+        u8bFed(buf, n);
     }
     done;
 }
@@ -206,13 +209,13 @@ ok64 FILEEnsureSoft(int fd, u8b buf, size_t needed) {
 ok64 FILEEnsureHard(int fd, u8b buf, size_t needed) {
     sane(fd >= 0 && Bok(buf));
 
-    // First, try to compact if needed
-    if (u8bIdleLen(buf) < needed && u8bPastLen(buf) > 0) {
-        u8bShift(buf, 0);  // Use existing buffer compaction
-    }
-
     // Check if buffer can even hold 'needed' bytes
-    test(Bsize(buf) >= needed, NOROOM);
+    test(u8bLen(buf) >= needed, NOROOM);
+
+    // First, try to compact if needed
+    if (u8bIdleLen(buf) + u8bDataLen(buf) < needed && u8bPastLen(buf) > 0) {
+        u8bShift(buf, 0);
+    }
 
     // Read until we have enough
     while (u8bDataLen(buf) < needed) {

@@ -93,7 +93,8 @@ pro(FILEtest5) {
     call(FILEOpen, &rfd, path, O_RDONLY);
     aBpad2(u8, buf, 64);
     call(FILEEnsureSoft, rfd, bufbuf, 10);
-    testeq(u8bDataLen(bufbuf), 10);  // Should have read at least 10 bytes
+    test(u8bDataLen(bufbuf) >= 10,
+         BADPOS);  // Should have read at least 10 bytes
 
     // Test FILEEnsureHard
     call(FILEEnsureHard, rfd, bufbuf, 20);

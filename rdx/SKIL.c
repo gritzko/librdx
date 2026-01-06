@@ -33,7 +33,6 @@ ok64 rdxIntoSKIL(rdxp c, rdxp p) {
     u64 from = 0;
     rdxz Z = ZTABLE[p->type];
 
-restart:
     // Iterate backwards through skip pointers
     for (u64c *sp = u64csTerm(skipb_datac) - 1; sp >= *skipb_datac; --sp) {
         u64 pos = *sp;
@@ -59,7 +58,8 @@ restart:
             Breset(skipb);
             call(ZINTu8sDrainBlocked, blocks2, skipb_idle);
             if (u64csLen(skipb_datac) > 0) {
-                goto restart;  // Restart with new skip list
+                sp = u64csTerm(skipb_datac) - 1;
+                continue;
             }
             // No sub-skip-list available, use current position
             break;
