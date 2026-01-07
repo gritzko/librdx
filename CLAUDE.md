@@ -1,6 +1,8 @@
 #   Coding guidelines
 
 0.  Dependencies: libsodium, gtest, google-benchmark.
+    Recommended debug build with tracing enabled: 
+    `CFLAGS="-DABC_TRACE=ON" cmake -DCMAKE_BUILD_TYPE=Debug ..`
 1.  Please follow the ABC coding style:
       - no pointer arithmetics, use slices where possible
       - prefer typed slice functions over generic (e.g. u8bReset() vs Breset())

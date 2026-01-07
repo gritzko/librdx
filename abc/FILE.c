@@ -25,10 +25,11 @@ ok64 FILEErr(ok64 def) {
 }
 
 ok64 path8Push(path8 path, u8csc part) {
-    sane(path8Sane(path) && $ok(part) && !$empty(part));
+    sane(u8bOK(path) && $ok(part) && !$empty(part));
     call(u8bFeed1, path, FILE_PATH_SEP);
-    u8sUsedAll(u8bData(path));
+    size_t dl = u8bDataLen(path);
     call(u8bFeed, path, part);
+    u8sUsed(u8bData(path), dl);
     done;
 }
 

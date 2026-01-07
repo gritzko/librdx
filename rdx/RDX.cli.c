@@ -24,13 +24,13 @@ ok64 AddFileInput(voidp arg, path8p path) {
     rdxbp inputs = (rdxbp)arg;
     rdxp n = 0;
     call(rdxbFedP, inputs, &n);
-    if (u8csHasSuffix(arg, EXT_JDR)) {
+    if (u8csHasSuffix(u8bDataC(path), EXT_JDR)) {
         n->format = RDX_FMT_JDR;
     } else {
         done;
     }
     int fd = FILE_CLOSED;
-    u8bp buf = {};
+    u8b buf = {};
     call(FILEMapRO, buf, path);
     $mv(n->data, u8bData(buf));
     done;
