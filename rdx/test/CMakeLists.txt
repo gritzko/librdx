@@ -20,6 +20,12 @@ target_compile_options(RDXtest PRIVATE ${TEST_CXX_FLAGS})
 target_link_libraries(RDXtest abc rdx2)
 add_test(NAME RDXtest COMMAND RDXtest)
 
+add_executable(VFYtest VFY.c)
+target_link_options(VFYtest PRIVATE ${TEST_LDD_FLAGS})
+target_compile_options(VFYtest PRIVATE ${TEST_CXX_FLAGS})
+target_link_libraries(VFYtest abc rdx2)
+add_test(NAME VFYtest COMMAND VFYtest)
+
 add_executable(SKILtest SKIL.c)
 target_link_options(SKILtest PRIVATE ${TEST_LDD_FLAGS})
 target_compile_options(SKILtest PRIVATE ${TEST_CXX_FLAGS})

@@ -38,6 +38,7 @@ list(APPEND RDX_SOURCES
     UTF8.c
     DIFF.c
     SKIL.c
+    VFY.c
     Y.c
 )
 

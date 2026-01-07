@@ -24,3 +24,4 @@
         get fed back into property tests to prevent regressions. Use clang/libfuzzer.
       - benchmarks: test important performance parameters, preferably in a way 
         that makes regressions brutally obvious.
+4.  When summarizing texts and reporting the state of things, write 1 paragraph, no more.

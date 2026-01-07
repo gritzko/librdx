@@ -430,6 +430,8 @@ ok64 rdxbNext(rdxb b);
 ok64 rdxbOuto(rdxb its);
 
 ok64 rdxCopy(rdxp into, rdxp from);
+ok64 rdxVerify(rdxp x);
+ok64 rdxVerifyAll(rdxp from);
 
 ok64 rdxStrip(rdxp into, rdxp from);
 
