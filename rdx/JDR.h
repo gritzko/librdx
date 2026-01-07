@@ -59,7 +59,10 @@ fun ok64 JDRonNoStamp(utf8cs tok, rdxp x) {
     zero(x->id);
     return OK;
 }
-fun ok64 JDRonInlineComma(utf8cs tok, rdxp x) { return RDXBADNEST; }
+fun ok64 JDRonInlineComma(utf8cs tok, rdxp x) {
+    // forgot to end i tuple?
+    return RDXBADNEST;
+}
 fun ok64 JDRonComma(utf8cs tok, rdxp x) {
     if (x->format == RDX_FMT_JDR_PIN) return JDRonInlineComma(tok, x);
     if (x->len & 1) {
@@ -106,14 +109,14 @@ fun ok64 JDRonOpen(utf8cs tok, rdxp x) {
     x->cformat = RDX_FMT_JDR;
     return NEXT;
 }
-fun ok64 JDRonInlineClose(utf8cs tok, rdxp x) {  // ????
-    x->data[0] = tok[0];                         // backtrack
+fun ok64 JDRonInlineClose(utf8cs tok, rdxp x) {
+    x->data[0] = tok[0];  // backtrack
     x->type = 0;
     return END;
 }
 fun ok64 JDRonClose(utf8cs tok, rdxp x) {
     if (x->format == RDX_FMT_JDR_PIN) {
-        return RDXBADNEST;  //?
+        return JDRonInlineClose(tok, x);
     }
     if (x->ptype != RDX_TYPE_BRACKET_REV[**tok]) {
         return RDXBADNEST;
