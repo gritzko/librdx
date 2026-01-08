@@ -126,6 +126,92 @@ pro(FILEtest5) {
     done;
 }
 
+pro(FILEtest6) {
+    sane(1);
+    // Test FILEMakeDir and FILERmDir (non-recursive)
+    a_path(dirpath, "/tmp/FILEtest6_dir");
+    
+    // Create directory
+    call(FILEMakeDir, dirpath);
+    
+    // Verify it exists
+    struct stat s = {};
+    test(OK == FILEStat(&s, dirpath), FILEfail);
+    test((s.st_mode & S_IFMT) == S_IFDIR, FILEfail);
+    
+    // Remove directory (non-recursive)
+    call(FILERmDir, dirpath, false);
+    
+    // Verify it's gone
+    test(OK != FILEStat(&s, dirpath), FILEfail);
+    
+    done;
+}
+
+pro(FILEtest7) {
+    sane(1);
+    // Test FILERmDir fails on non-empty directory when non-recursive
+    a_path(dirpath, "/tmp/FILEtest7_dir");
+    a_path(filepath, "/tmp/FILEtest7_dir/file.txt");
+    
+    // Create directory and file
+    call(FILEMakeDir, dirpath);
+    int fd;
+    call(FILECreate, &fd, filepath);
+    call(FILEClose, &fd);
+    
+    // FILERmDir should fail on non-empty dir when non-recursive
+    ok64 err = FILERmDir(dirpath, false);
+    test(err != OK, FILEfail);
+    
+    // Clean up with recursive delete
+    call(FILERmDir, dirpath, true);
+    
+    // Verify it's gone
+    struct stat s = {};
+    test(OK != FILEStat(&s, dirpath), FILEfail);
+    
+    done;
+}
+
+pro(FILEtest8) {
+    sane(1);
+    // Test FILERmDir recursive on nested structure
+    a_path(base, "/tmp/FILEtest8_dir");
+    a_path(sub1, "/tmp/FILEtest8_dir/sub1");
+    a_path(sub2, "/tmp/FILEtest8_dir/sub1/sub2");
+    a_path(file1, "/tmp/FILEtest8_dir/file1.txt");
+    a_path(file2, "/tmp/FILEtest8_dir/sub1/file2.txt");
+    a_path(file3, "/tmp/FILEtest8_dir/sub1/sub2/file3.txt");
+    
+    // Create nested structure
+    call(FILEMakeDir, base);
+    call(FILEMakeDir, sub1);
+    call(FILEMakeDir, sub2);
+    
+    int fd;
+    call(FILECreate, &fd, file1);
+    call(FILEClose, &fd);
+    call(FILECreate, &fd, file2);
+    call(FILEClose, &fd);
+    call(FILECreate, &fd, file3);
+    call(FILEClose, &fd);
+    
+    // Verify structure exists
+    struct stat s = {};
+    test(OK == FILEStat(&s, file3), FILEfail);
+    
+    // Delete recursively
+    call(FILERmDir, base, true);
+    
+    // Verify everything is gone
+    test(OK != FILEStat(&s, base), FILEfail);
+    test(OK != FILEStat(&s, sub1), FILEfail);
+    test(OK != FILEStat(&s, file1), FILEfail);
+    
+    done;
+}
+
 pro(FILEtest) {
     sane(1);
     call(FILEtest1);
@@ -133,6 +219,9 @@ pro(FILEtest) {
     call(FILE3);
     call(FILEtest4);
     call(FILEtest5);
+    call(FILEtest6);
+    call(FILEtest7);
+    call(FILEtest8);
     done;
 }
 

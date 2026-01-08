@@ -278,6 +278,8 @@ fun proc Fpread(int fd, path into, size_t offset) {
 
 ok64 FILEMakeDir(path8 path);
 
+ok64 FILERmDir(path8 path, bool recursive);
+
 ok64 FILErmrf(path8 name);
 
 ok64 FILEunlink(path8 name);

@@ -40,6 +40,66 @@ ok64 FILEMakeDir(path8 path) {
     done;
 }
 
+// Remove directory. If recursive=true, delete contents first (rm -rf style).
+ok64 FILERmDir(path8 path, bool recursive) {
+    sane(path8Sane(path));
+    
+    // Save the original path as a C string for final rmdir
+    // (path8 buffer gets modified during recursive traversal)
+    a_pad(u8, saved, FILE_PATH_MAX_LEN);
+    u8c const* pstart = path[0];
+    u8c const* pend = *u8bDataC(path) + u8bDataLen(path);
+    u8cs orig = {pstart, pend};
+    u8sFeed(saved_idle, orig);
+    u8sFeed1(saved_idle, 0);
+    
+    if (recursive) {
+        // Open directory and delete contents
+        DIR *dir = opendir((char*)*saved_data);
+        if (dir == NULL) {
+            testc(errno == ENOENT, FILEfail);  // OK if doesn't exist
+            done;
+        }
+        
+        u64 dl = u8bDataLen(path);
+        u8gUsedAll(u8bPastData(path));
+        struct dirent *entry = 0;
+        ok64 o = OK;
+        
+        while (o == OK && (entry = readdir(dir))) {
+            // Skip . and ..
+            if (entry->d_name[0] == '.') {
+                if (entry->d_name[1] == 0) continue;
+                if (entry->d_name[1] == '.' && entry->d_name[2] == 0) continue;
+            }
+            
+            a_cstr(fn, entry->d_name);
+            o = path8Push(path, fn);
+            if (o != OK) break;
+            
+            switch (entry->d_type) {
+                case DT_DIR:
+                    o = FILERmDir(path, true);  // recurse
+                    break;
+                case DT_REG:
+                case DT_LNK:
+                default:
+                    o = FILEunlink(path);
+                    break;
+            }
+            u8bShedAll(path);
+        }
+        
+        u8gShed(u8bPastData(path), dl);
+        closedir(dir);
+        if (o != OK) return o;
+    }
+    
+    int rc = rmdir((char*)*saved_data);
+    testc(rc == 0, FILEfail);
+    done;
+}
+
 ok64 FILEunlink(path8 path) {
     sane(path8Sane(path));
     int rc = unlink(path8CStr(path));
