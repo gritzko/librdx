@@ -68,6 +68,7 @@ ok64 FILERmDir(path8 path, bool recursive) {
     a_pad(u8, saved, FILE_PATH_MAX_LEN);
     u8c const* pstart = path[0];
     u8c const* pend = *u8bDataC(path) + u8bDataLen(path);
+    size_t orig_len = pend - pstart;
     u8cs orig = {pstart, pend};
     u8sFeed(saved_idle, orig);
     u8sFeed1(saved_idle, 0);
@@ -80,8 +81,6 @@ ok64 FILERmDir(path8 path, bool recursive) {
             done;
         }
         
-        u64 dl = u8bDataLen(path);
-        u8gUsedAll(u8bPastData(path));
         struct dirent *entry = 0;
         ok64 o = OK;
         
@@ -106,10 +105,15 @@ ok64 FILERmDir(path8 path, bool recursive) {
                     o = FILEunlink(path);
                     break;
             }
-            u8bShedAll(path);
+            
+            // Restore path to original length
+            // After path8Push, path[1]=DATA start, path[2]=DATA end
+            // To restore: set both to original end, making DATA empty
+            u8* orig_end = path[0] + orig_len;
+            ((u8**)path)[1] = orig_end;
+            ((u8**)path)[2] = orig_end;
         }
         
-        u8gShed(u8bPastData(path), dl);
         closedir(dir);
         if (o != OK) return o;
     }
