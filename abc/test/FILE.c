@@ -212,6 +212,26 @@ pro(FILEtest8) {
     done;
 }
 
+// Test FILEerrno translation
+pro(FILEtest9) {
+    sane(1);
+    
+    // FILEStat on non-existent file should return FILENOENT
+    a_path(nofile, "/tmp/FILEtest9_nonexistent_file");
+    struct stat s = {};
+    ok64 res = FILEStat(&s, nofile);
+    test(res == FILENOENT, FILEfail);
+    
+    // Verify FILEerrno translates correctly
+    test(FILEerrno(ENOENT) == FILENOENT, FILEfail);
+    test(FILEerrno(EACCES) == FILEACCES, FILEfail);
+    test(FILEerrno(EEXIST) == FILEEXIST, FILEfail);
+    test(FILEerrno(0) == OK, FILEfail);
+    test(FILEerrno(9999) == FILEfail, FILEfail);  // unknown errno
+    
+    done;
+}
+
 pro(FILEtest) {
     sane(1);
     call(FILEtest1);
@@ -222,6 +242,7 @@ pro(FILEtest) {
     call(FILEtest6);
     call(FILEtest7);
     call(FILEtest8);
+    call(FILEtest9);
     done;
 }
 

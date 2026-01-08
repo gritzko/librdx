@@ -55,7 +55,7 @@ ok64 path8Pop(path8 path) {
 ok64 FILEMakeDir(path8 path) {
     sane(path8Sane(path));
     int rc = mkdir(path8CStr(path), S_IRWXU);
-    testc(rc == 0, FILEfail);
+    FILETestC(rc == 0);
     done;
 }
 
@@ -119,21 +119,21 @@ ok64 FILERmDir(path8 path, bool recursive) {
     }
     
     int rc = rmdir((char*)*saved_data);
-    testc(rc == 0, FILEfail);
+    FILETestC(rc == 0);
     done;
 }
 
 ok64 FILEunlink(path8 path) {
     sane(path8Sane(path));
     int rc = unlink(path8CStr(path));
-    testc(rc == 0, FILEfail);
+    FILETestC(rc == 0);
     done;
 }
 
 ok64 FILEHardLink(path8 dst, path8 src) {
     sane(path8Sane(dst) && path8Sane(src));
     int rc = link(path8CStr(src), path8CStr(dst));
-    testc(rc == 0, FILEfail);
+    FILETestC(rc == 0);
     done;
 }
 
@@ -190,22 +190,7 @@ ok64 FILEOpenAt(int *fd, int const dirfd, path8 path, int flags) {
 ok64 FILEStat(struct stat *ret, path8 path) {
     sane(ret != NULL && path8Sane(path));
     int rc = stat(path8CStr(path), ret);
-    if (rc == 0) done;
-    switch (errno) {
-        case ENOENT:
-            fail(FILEnone);
-        case EACCES:
-            fail(FILEaccess);
-        case ENOTDIR:
-            fail(FILEbad);
-        case ELOOP:
-            fail(FILEloop);
-        case ENAMETOOLONG:
-            fail(FILEname);
-        default:
-            fail(FILEfail);
-    }
-    testc(rc == 0, FILEnostat);
+    FILETestC(rc == 0);
     done;
 }
 
@@ -226,7 +211,7 @@ ok64 FILEResize(int const *fd, size_t new_size) {
 
 ok64 FILERename(path8 old, path8 neu) {
     sane(path8Sane(old) && path8Sane(neu));
-    testc(0 == rename(path8CStr(old), path8CStr(neu)), FILEfail);
+    FILETestC(0 == rename(path8CStr(old), path8CStr(neu)));
     done;
 }
 
@@ -238,7 +223,7 @@ fun int unlink_cb(const char *fname, const struct stat *sb, int typeflag,
 ok64 FILERmRF(path8 path) {
     sane(path8Sane(path));
     int rc = nftw(path8CStr(path), unlink_cb, 64, FTW_DEPTH | FTW_PHYS);
-    testc(rc == 0, FILEfail);
+    FILETestC(rc == 0);
     done;
 }
 
@@ -374,7 +359,7 @@ ok64 FILEMapFD(u8bp buf, int const *fd, int mode) {
     size_t size;
     call(FILESize, &size, fd);
     u8 *map = (u8 *)mmap(NULL, size, mode, MAP_FILE | MAP_SHARED, *fd, 0);
-    testc(map != MAP_FAILED, FILEfail);
+    FILETestC(map != MAP_FAILED);
     uint8_t **b = (uint8_t **)buf;
     b[0] = b[1] = b[2] = b[3] = map;
     b[3] += size;
@@ -448,7 +433,7 @@ ok64 FILEReMap(u8bp buf, size_t new_size) {
 ok64 FILEUnMapFD(u8b buf, int const *fd) {
     sane(Bok(buf));
     u8c **b = (u8c **)buf;
-    testc(-1 != munmap(buf[0], Blen(b)), FILEfail);
+    FILETestC(-1 != munmap(buf[0], Blen(b)));
     int fd2 = FILE_CLOSED;
     FILEDropMap(&fd2, buf);  // if any
     b[0] = b[1] = b[2] = b[3] = NULL;

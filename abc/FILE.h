@@ -19,6 +19,7 @@
 
 #include "ftw.h"
 
+// Generic FILE error codes
 con ok64 FILEagain = 0xf4953a5ae5b72;
 con ok64 FILEerror = 0xf4953a9db6cf6;
 con ok64 FILEbadarg = 0x3d254e9a5a25dab;
@@ -36,7 +37,68 @@ con ok64 FILEloop = 0x3d254ec33cf4;
 con ok64 FILEname = 0x3d254eca5c69;
 con ok64 FILEbad = 0xf4953a6968;
 
+// errno ok64 codes (FILE + E* from errno.h, E doubled to single)
+con ok64 FILEACCES = 0xf49538a30c39c;         // EACCES: permission denied
+con ok64 FILEAGAIN = 0xf49538a40a497;         // EAGAIN: resource temporarily unavailable
+con ok64 FILEBADF = 0x3d254e2ca34f;           // EBADF: bad file descriptor
+con ok64 FILEBUSY = 0x3d254e2de722;           // EBUSY: device or resource busy
+con ok64 FILEEXIST = 0xf49538e85271d;         // EEXIST: file exists
+con ok64 FILEFAULT = 0xf49538f29e55d;         // EFAULT: bad address
+con ok64 FILEFBIG = 0x3d254e3cb490;           // EFBIG: file too large
+con ok64 FILEINTR = 0x3d254e49775b;           // EINTR: interrupted system call
+con ok64 FILEINVAL = 0xf4953925df295;         // EINVAL: invalid argument
+con ok64 FILEIO = 0x3d254e498;                // EIO: I/O error
+con ok64 FILEISDIR = 0xf49539270d49b;         // EISDIR: is a directory
+con ok64 FILELOOP = 0x3d254e558619;           // ELOOP: too many symbolic links
+con ok64 FILEMFILE = 0xf4953963d254e;         // EMFILE: too many open files
+con ok64 FILE2LONG = 0xf4953825585d0;         // ENAMETOOLONG: filename too long
+con ok64 FILENFILE = 0xf4953973d254e;         // ENFILE: file table overflow
+con ok64 FILENODEV = 0xf49539760d39f;         // ENODEV: no such device
+con ok64 FILENOENT = 0xf49539760e5dd;         // ENOENT: no such file or directory
+con ok64 FILENOMEM = 0xf495397616396;         // ENOMEM: out of memory
+con ok64 FILENOSPC = 0xf49539761c64c;         // ENOSPC: no space left on device
+con ok64 FILENOTDIR = 0x3d254e5d874d49b;      // ENOTDIR: not a directory
+con ok64 FILENOTEMP = 0x3d254e5d874e599;      // ENOTEMPTY: directory not empty
+con ok64 FILEPERM = 0xf49538e64e6d6;          // EPERM: operation not permitted
+con ok64 FILEROFS = 0x3d254e6d83dc;           // EROFS: read-only file system
+con ok64 FILEXDEV = 0x3d254e84d39f;           // EXDEV: cross-device link
+
+// Translate errno to ok64
+fun ok64 FILEerrno(int e) {
+    switch (e) {
+        case 0:            return OK;
+        case EACCES:       return FILEACCES;
+        case EAGAIN:       return FILEAGAIN;
+        case EBADF:        return FILEBADF;
+        case EBUSY:        return FILEBUSY;
+        case EEXIST:       return FILEEXIST;
+        case EFAULT:       return FILEFAULT;
+        case EFBIG:        return FILEFBIG;
+        case EINTR:        return FILEINTR;
+        case EINVAL:       return FILEINVAL;
+        case EIO:          return FILEIO;
+        case EISDIR:       return FILEISDIR;
+        case ELOOP:        return FILELOOP;
+        case EMFILE:       return FILEMFILE;
+        case ENAMETOOLONG: return FILE2LONG;
+        case ENFILE:       return FILENFILE;
+        case ENODEV:       return FILENODEV;
+        case ENOENT:       return FILENOENT;
+        case ENOMEM:       return FILENOMEM;
+        case ENOSPC:       return FILENOSPC;
+        case ENOTDIR:      return FILENOTDIR;
+        case ENOTEMPTY:    return FILENOTEMP;
+        case EPERM:        return FILEPERM;
+        case EROFS:        return FILEROFS;
+        case EXDEV:        return FILEXDEV;
+        default:           return FILEfail;
+    }
+}
+
 #define FILEok(fd) (fd >= 0)
+
+// Test syscall return; on failure return errno as ok64
+#define FILETestC(cond) do { if (!(cond)) return FILEerrno(errno); } while(0)
 
 extern u8p *FILE_BUFS[4];
 extern u8 *FILE_RW[4];
@@ -120,15 +182,6 @@ fun void path8ResetToCWD(path8 path) {
 }
 
 fun void path8ResetToRoot(path8 path) { Breset(path); }
-
-fun ok64 FILEerrno() {
-    switch (errno) {
-        case EAGAIN:
-            return FILEagain;
-        default:
-            return FILEerror;
-    }
-}
 
 ok64 FILECreate(int *fd, path8 path);
 
