@@ -33,6 +33,25 @@ ok64 path8Push(path8 path, u8csc part) {
     done;
 }
 
+ok64 path8Pop(path8 path) {
+    sane(path8Sane(path));
+    // Find last separator and truncate there
+    // For path8, full path is from path[0] to DATA end
+    u8* start = path[0];
+    u8* data_end = path[2];  // DATA end / IDLE start
+    u8* last_sep = NULL;
+    for (u8* p = start; p < data_end; p++) {
+        if (*p == FILE_PATH_SEP) last_sep = p;
+    }
+    if (last_sep == NULL || last_sep == start) {
+        // No separator or at root - can't pop
+        fail(FILEfail);
+    }
+    // Truncate: move DATA end back to the separator
+    ((u8**)path)[2] = last_sep;
+    done;
+}
+
 ok64 FILEMakeDir(path8 path) {
     sane(path8Sane(path));
     int rc = mkdir(path8CStr(path), S_IRWXU);
@@ -103,6 +122,13 @@ ok64 FILERmDir(path8 path, bool recursive) {
 ok64 FILEunlink(path8 path) {
     sane(path8Sane(path));
     int rc = unlink(path8CStr(path));
+    testc(rc == 0, FILEfail);
+    done;
+}
+
+ok64 FILEHardLink(path8 dst, path8 src) {
+    sane(path8Sane(dst) && path8Sane(src));
+    int rc = link(path8CStr(src), path8CStr(dst));
     testc(rc == 0, FILEfail);
     done;
 }

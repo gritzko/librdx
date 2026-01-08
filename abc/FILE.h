@@ -76,6 +76,20 @@ typedef u8b path8;
 typedef u8bp path8p;
 typedef ok64 (*path8f)(voidp arg, path8p path);
 
+/*
+ * path8 buffer invariant:
+ *   PAST = directory prefix (e.g. "/home/user/dir/")
+ *   DATA = filename component (e.g. "file.txt")
+ *   Full path = PAST + DATA = path[0] to DATA end
+ *
+ * path8Push() maintains this: adds "/" to PAST, puts new name in DATA.
+ * path8Name() returns DATA (the filename).
+ * path8Dir() returns PAST (the directory with trailing /).
+ * path8CStr() returns full path from buffer start.
+ *
+ * Note: path8Push expects a single component, not "a/b/c".
+ */
+
 #define a_path(n, p)                 \
     a_pad(u8, n, FILE_PATH_MAX_LEN); \
     u8sFeedCStr(n##_idle, p);
@@ -90,9 +104,15 @@ fun ok64 path8Sane(path8 path) {
 
 fun const char *path8CStr(path8 path) { return (char *)(path[0]); }
 
+// Returns pointer to filename slice (DATA portion)
+fun u8csp path8Name(path8 path) { return u8bDataC(path); }
+
+// Returns pointer to directory slice (PAST portion, includes trailing /)
+fun u8csp path8Dir(path8 path) { return (u8csp)u8bPastC(path); }
+
 ok64 path8Push(path8 path, u8csc part);
 
-ok64 path8Pop(path8 path);  // todo
+ok64 path8Pop(path8 path);
 
 fun void path8ResetToCWD(path8 path) {
     Breset(path);
@@ -279,6 +299,8 @@ fun proc Fpread(int fd, path into, size_t offset) {
 ok64 FILEMakeDir(path8 path);
 
 ok64 FILERmDir(path8 path, bool recursive);
+
+ok64 FILEHardLink(path8 dst, path8 src);
 
 ok64 FILErmrf(path8 name);
 

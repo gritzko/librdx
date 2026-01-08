@@ -19,11 +19,79 @@ a_cstr(EXT_TLV, ".tlv");
 a_cstr(EXT_SKIL, ".skil");
 
 // Repository structure constants
-a_cstr(RDX_DIR, ".rdx");
+a_cstr(RDX_DIR_NAME, ".rdx");
 a_cstr(RDX_KEY_FILE, "key");
 a_cstr(RDX_BRANCHES_DIR, "branches");
 a_cstr(RDX_MAIN_BRANCH, "main");
 a_cstr(RDX_CURRENT_LINK, "current");  // symlink to current branch
+
+// Cached path to .rdx directory (found by searching up from cwd)
+static u8 g_rdx_root_buf[FILE_PATH_MAX_LEN];
+static u8cs g_rdx_root = {0};
+
+// Find .rdx directory by searching current dir and parents.
+// Caches result in g_rdx_root. Returns slice to the path via root param.
+ok64 FindRdxRoot(u8csp root) {
+    sane(root);
+    
+    // Return cached if already found
+    if (g_rdx_root[0] != NULL) {
+        root[0] = g_rdx_root[0];
+        root[1] = g_rdx_root[1];
+        done;
+    }
+    
+    // Get current working directory
+    char cwd[FILE_PATH_MAX_LEN];
+    test(getcwd(cwd, sizeof(cwd)) != NULL, FILEfail);
+    
+    // Search up the directory tree
+    a_path(check, "");
+    a_cstr(cwdstr, cwd);
+    call(u8bFeed, check, cwdstr);
+    
+    while (1) {
+        // Try .rdx in this directory
+        a_path(try_path, "");
+        u8c const* start = check[0];
+        u8c const* end = *u8bDataC(check) + u8bDataLen(check);
+        u8cs checkstr = {start, end};
+        call(u8bFeed, try_path, checkstr);
+        call(path8Push, try_path, RDX_DIR_NAME);
+        
+        struct stat s = {};
+        if (OK == FILEStat(&s, try_path) && (s.st_mode & S_IFMT) == S_IFDIR) {
+            // Found it - cache and return
+            u8c const* pstart = try_path[0];
+            u8c const* pend = *u8bDataC(try_path) + u8bDataLen(try_path);
+            size_t len = pend - pstart;
+            memcpy(g_rdx_root_buf, pstart, len);
+            g_rdx_root_buf[len] = 0;
+            g_rdx_root[0] = g_rdx_root_buf;
+            g_rdx_root[1] = g_rdx_root_buf + len;
+            root[0] = g_rdx_root[0];
+            root[1] = g_rdx_root[1];
+            done;
+        }
+        
+        // Go to parent directory
+        ok64 pop = path8Pop(check);
+        if (pop != OK || u8bDataLen(check) == 0) {
+            // Reached root without finding .rdx
+            fail(RDXBADARG);
+        }
+    }
+}
+
+// Get path to .rdx (for commands that require existing repo)
+// Writes full path to buffer, e.g. "/home/user/project/.rdx"
+ok64 GetRdxPath(path8 path) {
+    sane(u8bOK(path));
+    u8cs root = {};
+    call(FindRdxRoot, root);
+    call(u8bFeed, path, root);
+    done;
+}
 
 u8 RDX_FMT_DEFAULT = RDX_FMT_JDR;
 
@@ -48,12 +116,12 @@ ok64 AddFileInput(voidp arg, path8p path) {
     done;
 }
 
-// Expand @branchname to .rdx/branches/branchname/
+// Expand @branchname to <rdx_root>/branches/branchname/
 ok64 ExpandBranchPath(path8 path, u8csp arg) {
     sane(u8bOK(path) && u8csOK(arg));
     if (u8csLen(arg) > 1 && **arg == '@') {
-        // @branch syntax - expand to .rdx/branches/branch/
-        call(u8bFeed, path, RDX_DIR);
+        // @branch syntax - expand to <rdx_root>/branches/branch/
+        call(GetRdxPath, path);
         call(path8Push, path, RDX_BRANCHES_DIR);
         a_rest(u8c, branchname, arg, 1);  // skip '@'
         call(path8Push, path, branchname);
@@ -215,14 +283,14 @@ fun ok64 ReplicaIDFromPubKey(u8s into, edpub256 const* pubkey) {
 ok64 CmdInit(rdxg inputs) {
     sane(1);
 
-    // Build .rdx path
+    // Build .rdx path in current directory
     a_path(rdx_path, "");
-    call(u8bFeed, rdx_path, RDX_DIR);
+    call(u8bFeed, rdx_path, RDX_DIR_NAME);
 
     // Check if already initialized
     struct stat s = {};
     if (OK == FILEStat(&s, rdx_path)) {
-        fprintf(stderr, "Repository already initialized at %s\n", *RDX_DIR);
+        fprintf(stderr, "Repository already initialized at %s\n", *RDX_DIR_NAME);
         fail(RDXBADARG);
     }
 
@@ -236,7 +304,7 @@ ok64 CmdInit(rdxg inputs) {
 
     // Save keypair (secret key followed by public key, 64+32=96 bytes)
     a_path(key_path, "");
-    call(u8bFeed, key_path, RDX_DIR);
+    call(u8bFeed, key_path, RDX_DIR_NAME);
     call(path8Push, key_path, RDX_KEY_FILE);
     int fd = FILE_CLOSED;
     call(FILECreate, &fd, key_path);
@@ -248,16 +316,30 @@ ok64 CmdInit(rdxg inputs) {
 
     // Create branches directory
     a_path(branches_path, "");
-    call(u8bFeed, branches_path, RDX_DIR);
+    call(u8bFeed, branches_path, RDX_DIR_NAME);
     call(path8Push, branches_path, RDX_BRANCHES_DIR);
     call(FILEMakeDir, branches_path);
 
     // Create main branch directory
     a_path(main_path, "");
-    call(u8bFeed, main_path, RDX_DIR);
+    call(u8bFeed, main_path, RDX_DIR_NAME);
     call(path8Push, main_path, RDX_BRANCHES_DIR);
     call(path8Push, main_path, RDX_MAIN_BRANCH);
     call(FILEMakeDir, main_path);
+
+    // Create current symlink pointing to main
+    a_path(link_path, "");
+    call(u8bFeed, link_path, RDX_DIR_NAME);
+    call(path8Push, link_path, RDX_CURRENT_LINK);
+    
+    a_pad(u8, target, 64);
+    call(u8sFeed, target_idle, RDX_BRANCHES_DIR);
+    u8sFeed1(target_idle, '/');
+    call(u8sFeed, target_idle, RDX_MAIN_BRANCH);
+    u8sFeed1(target_idle, 0);
+    
+    int ret = symlink((char*)*target_data, path8CStr(link_path));
+    testc(ret == 0, FILEfail);
 
     // Print replica ID (60 bits of pubkey as RON Base64)
     a_pad(u8, repid, 16);
@@ -272,7 +354,7 @@ ok64 CmdInit(rdxg inputs) {
 ok64 LoadReplicaID(ron60* id) {
     sane(id);
     a_path(key_path, "");
-    call(u8bFeed, key_path, RDX_DIR);
+    call(GetRdxPath, key_path);
     call(path8Push, key_path, RDX_KEY_FILE);
 
     u8b buf = {};
@@ -297,7 +379,7 @@ ok64 GetCurrentBranch(u8b namebuf) {
     sane(u8bOK(namebuf));
     
     a_path(link_path, "");
-    call(u8bFeed, link_path, RDX_DIR);
+    call(GetRdxPath, link_path);
     call(path8Push, link_path, RDX_CURRENT_LINK);
     
     a_pad(u8, target, FILE_PATH_MAX_LEN);
@@ -343,9 +425,9 @@ ok64 CmdAdd(rdxg inputs) {
     a_pad(u8, branchname, 64);
     call(GetCurrentBranch, branchname);
     
-    // Build path: .rdx/branches/<current>/<filename>
+    // Build path: <rdx_root>/branches/<current>/<filename>
     a_path(filepath, "");
-    call(u8bFeed, filepath, RDX_DIR);
+    call(GetRdxPath, filepath);
     call(path8Push, filepath, RDX_BRANCHES_DIR);
     call(path8Push, filepath, branchname_datac);
     call(path8Push, filepath, fname_datac);
@@ -396,7 +478,7 @@ ok64 PrintBranchName(voidp arg, path8p path) {
 ok64 CmdBranch(rdxg inputs) {
     sane(rdxgOK(inputs));
     a_path(branches_path, "");
-    call(u8bFeed, branches_path, RDX_DIR);
+    call(GetRdxPath, branches_path);
     call(path8Push, branches_path, RDX_BRANCHES_DIR);
     printf("Branches:\n");
     call(FILEScan, branches_path, FILE_SCAN_DIRS, PrintBranchName, NULL);
@@ -415,7 +497,7 @@ ok64 CmdDrop(u8css rawargs) {
     test(!$eq(name, RDX_MAIN_BRANCH), RDXBADARG);
     
     a_path(branch_path, "");
-    call(u8bFeed, branch_path, RDX_DIR);
+    call(GetRdxPath, branch_path);
     call(path8Push, branch_path, RDX_BRANCHES_DIR);
     call(path8Push, branch_path, name);
     
@@ -436,26 +518,18 @@ ok64 HardLinkFile(voidp arg, path8p src) {
     sane(arg && path8Sane(src));
     path8p dest_dir = (path8p)arg;
     
-    // Get filename from source path (last component after final '/')
-    u8c const* src_path_start = dest_dir[0];  // buffer start
-    u8c const* src_path_end = *u8bDataC(src) + u8bDataLen(src);  // end of DATA
+    // Get filename from source path using path8Name (DATA = filename per invariant)
+    u8csp filename = path8Name(src);
     
-    u8csp srcdata = u8bDataC(src);
-    u8c const* fname = *srcdata;
-    $for(u8c, p, srcdata) if (*p == '/') fname = p + 1;
-    u8cs filename = {fname, u8csTerm(srcdata)};
-    
-    // Build dest path: copy full dest_dir path, then append filename
+    // Build dest path: copy dest_dir path, then append filename
     a_path(dest, "");
-    // Full path is from buffer start to end of data
     u8c const* dest_start = dest_dir[0];
     u8c const* dest_end = *u8bDataC(dest_dir) + u8bDataLen(dest_dir);
     u8cs dest_full = {dest_start, dest_end};
     call(u8bFeed, dest, dest_full);
     call(path8Push, dest, filename);
     
-    int ret = link(path8CStr(src), path8CStr(dest));
-    testc(ret == 0, FILEfail);
+    call(FILEHardLink, dest, src);
     done;
 }
 
@@ -472,7 +546,7 @@ ok64 CmdFork(u8css args) {
     
     // Create new branch directory
     a_path(new_path, "");
-    call(u8bFeed, new_path, RDX_DIR);
+    call(GetRdxPath, new_path);
     call(path8Push, new_path, RDX_BRANCHES_DIR);
     call(path8Push, new_path, newname);
     
@@ -496,7 +570,7 @@ ok64 CmdFork(u8css args) {
         if (u8csLen(srcarg) > 1 && **srcarg == '@') {
             a_rest(u8c, srcname, srcarg, 1);
             a_path(src_path, "");
-            call(u8bFeed, src_path, RDX_DIR);
+            call(GetRdxPath, src_path);
             call(path8Push, src_path, RDX_BRANCHES_DIR);
             call(path8Push, src_path, srcname);
             
@@ -567,7 +641,7 @@ ok64 CmdUse(u8css rawargs) {
     sane(1);
     
     a_path(link_path, "");
-    call(u8bFeed, link_path, RDX_DIR);
+    call(GetRdxPath, link_path);
     call(path8Push, link_path, RDX_CURRENT_LINK);
     
     if (u8cssLen(rawargs) == 0) {
@@ -596,7 +670,7 @@ ok64 CmdUse(u8css rawargs) {
     
     // Verify branch exists
     a_path(branch_path, "");
-    call(u8bFeed, branch_path, RDX_DIR);
+    call(GetRdxPath, branch_path);
     call(path8Push, branch_path, RDX_BRANCHES_DIR);
     call(path8Push, branch_path, name);
     
