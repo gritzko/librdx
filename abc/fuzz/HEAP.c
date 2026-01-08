@@ -13,17 +13,17 @@ fuzz(u32, HEAPfuzz) {
     if ($len(input) > 1024) input[1] = input[0] + 1024;
 
     aBpad(u32, sorted, 1024);
-    call(u32Bfeed$, sorted, input);
-    $sort(Bu32data(sorted), &u32cmp);
+    call(u32bFeed, sorted, input);
+    $sort(u32bDataC(sorted), &u32cmp);
 
     aBpad(u32, heap, 1024);
     aBpad(u32, heaped, 1024);
     $for(u32c, p, input) call(HEAPu32Push1, heap, *p);
-    u32 **from = Bu32data(heap);
+    u32 **from = u32bData(heap);
     while (!$empty(from)) {
         u32 v = 0;
         call(HEAPu32Pop, &v, heap);
-        call(u32BFeed1, heaped, v);
+        call(u32bFeed1, heaped, v);
     }
 
     assert(0 == $cmp(Bdata(heaped), Bdata(sorted)));

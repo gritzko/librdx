@@ -29,32 +29,32 @@ int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
     if (Size < 2) return 0;
     srandom(*Data);
     Bu32 dictbuf = {};
-    Bu32alloc(dictbuf, 16);
-    u32$ dict = Bu32data(dictbuf);
+    u32bAlloc(dictbuf, 16);
+    u32$ dict = u32bData(dictbuf);
     void **b = (void **)dictbuf;
     b[2] = b[3];
     Bu32 copybuf = {};
-    Bu32alloc(copybuf, 16);
+    u32bAlloc(copybuf, 16);
 
     u8 *ins = (u8 *)malloc(Size);
     memcpy(ins, Data, Size);
 
     Play(dict, ins, Size);
 
-    $u32feedall(Bu32idle(copybuf),Bu32cdata(dictbuf));
+    $u32feedall(u32bIdle(copybuf), u32bDataC(dictbuf));
 
     for (int j = 0; j < 1000; ++j) {
-        Bzero(dictbuf);
+        u32bZero(dictbuf);
         int p = random() % (Size - 1);
-        if (ins[p] != (128 ^ ins[p + 1])) u8swap(ins + p, ins + p + 1);
+        if (ins[p] != (128 ^ ins[p + 1])) u8Swap(ins + p, ins + p + 1);
 
         Play(dict, ins, Size);
 
-        assert($eq(Bu32data(dictbuf), Bu32data(copybuf)));
+        assert($eq(u32bData(dictbuf), u32bData(copybuf)));
     }
 
-    Bu32free(dictbuf);
-    Bu32free(copybuf);
+    u32bFree(dictbuf);
+    u32bFree(copybuf);
     free(ins);
 
     return 0;

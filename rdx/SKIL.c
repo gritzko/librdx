@@ -14,6 +14,11 @@ con ok64 SKILBAD = 0x1c51254b28d;
 
 ok64 rdxNextSKIL(rdxp x) {
     sane(x);
+    if (!u8csEmpty(x->data) && SKIL_LIT == (**x->data & ~TLVaA)) {
+        u8 lit;
+        u8cs val;
+        call(TLVu8sDrain, x->data, &lit, val);
+    }
     return rdxNextTLV(x);
 }
 
@@ -83,10 +88,16 @@ ok64 rdxIntoSKIL(rdxp c, rdxp p) {
     // printf(" (%lu)\n", from);
 
     a_rest(u8c, rest, data, from);
-    $mv(p->plexc, rest);
-    ok64 o = rdxIntoTLV(c, p);
-    $mv(p->plexc, data);
-
+    c->format = p->cformat;
+    u8csMv(c->data, rest);
+    c->ptype = p->type;
+    c->cformat = 0;
+    rdx c2 = *c;
+    ok64 o = OK;
+    do {
+        o = rdxNextSKIL(c);
+    } while (o == OK && rdxZ(c, &c2));
+    if (o == END || rdxZ(&c2, c)) o = NONE;
     return o;
 }
 

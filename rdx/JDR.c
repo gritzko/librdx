@@ -138,14 +138,34 @@ ok64 rdxWriteOutoJDR(rdxp c, rdxp p) {
 
 ok64 RDXutf8sFeedID(utf8s into, id128cp ref) {
     if (unlikely($len(into) < 24)) return NOROOM;
+    u8* start = *into;
     RONutf8sFeed64(into, ron60Max & ref->src);
+    u8* after_src = *into;
     utf8sFeed1(into, '-');
     RONutf8sFeed64(into, ron60Max & ref->seq);
+    u8* end = *into;
+    // Check if result looks like float (e.g., "1e-0", "E-5")
+    // Pattern: src ends with 'e'/'E', seq starts with digit
+    u8 src_last = *(after_src - 1);
+    u8 seq_first = *(after_src + 1);  // skip '-'
+    if ((src_last == 'e' || src_last == 'E') && 
+        (seq_first >= '0' && seq_first <= '9')) {
+        // Prepend "00" - floats can't have leading zeros
+        size_t len = end - start;
+        memmove(start + 2, start, len);
+        start[0] = '0';
+        start[1] = '0';
+        *into += 2;
+    }
     return OK;
 }
 
 ok64 RDXutf8sDrainID(utf8cs from, id128p ref) {
     a_dup(u8c, t, from);
+    // Skip leading zeros (added to disambiguate from floats)
+    while ($len(t) > 0 && **t == '0' && $len(t) > 1 && (*t)[1] != '-') {
+        t[0]++;
+    }
     u8 DELIM = '-';
     u8c* p = $u8find(t, &DELIM);
     ok64 o = OK;
@@ -165,7 +185,7 @@ ok64 RDXutf8sDrainID(utf8cs from, id128p ref) {
     return o;
 }
 
-const u8 RDX_TYPE_LIT_REV[] = {
+const u8 RDX_TYPE_LIT_REV[128] = {
     ['P'] = RDX_TYPE_TUPLE,  ['L'] = RDX_TYPE_LINEAR, ['E'] = RDX_TYPE_EULER,
     ['X'] = RDX_TYPE_MULTIX, ['F'] = RDX_TYPE_FLOAT,  ['I'] = RDX_TYPE_INT,
     ['R'] = RDX_TYPE_REF,    ['S'] = RDX_TYPE_STRING, ['T'] = RDX_TYPE_TERM,

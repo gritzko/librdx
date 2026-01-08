@@ -6,21 +6,31 @@
 
 ok64 rdxNextTLV(rdxp x) {
     sane(x);
-    if (!$empty(x->data) && SKIL_LIT == (**x->data & ~TLVaA)) {
-        u8 lit;
-        u8cs val;
-        call(TLVu8sDrain, x->data, &lit, val);
-    }
     u8csp data = x->data;
     if ($empty(data)) {
         x->type = 0;
         return END;
     }
+    // Check original type byte before TLVDrainKeyVal normalizes it
+    u8 orig_lit = **data;
     u8cs idbody = {};
     u8cs value = {};
     u8 lit = 0;
     call(TLVDrainKeyVal, &lit, idbody, value, data);
+    size_t payload = $len(idbody) + $len(value);
+    // Reject non-canonical TLV forms:
+    // - Huge form (1-9 byte header) when payload < 4GB
+    // - Long form (1-5 byte header) when payload <= 255 bytes
+    if (TLVhuge(orig_lit)) {
+        if (payload <= 0xFFFFFFFF) fail(RDXBAD);  // Should have used long form
+    } else if (TLVlong(orig_lit)) {
+        if (payload <= 255) fail(RDXBAD);  // Should have used short form
+    }
+    if (lit >= 128) fail(RDXBAD);  // Out of bounds
     x->type = RDX_TYPE_LIT_REV[lit];
+    if (x->type == 0) fail(RDXBAD);  // Unknown type literal
+    // Validate idbody slice before using it
+    if (!u8csOK(idbody)) fail(RDXBAD);
     call(ZINTu8sDrain128, idbody, &x->id.seq, &x->id.src);
     switch (x->type) {  //
         case RDX_TYPE_TUPLE:
@@ -46,8 +56,6 @@ ok64 rdxNextTLV(rdxp x) {
         case RDX_TYPE_TERM:
             $mv(x->t, value);
             break;
-        case 0:
-            fail(END);
         default:
             fail(RDXBAD);
     }

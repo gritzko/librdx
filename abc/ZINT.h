@@ -23,6 +23,25 @@ fun u32 ZINTlen(u64 n) {
     return 8;
 }
 
+// Compute canonical length for a ZINT128 pair (big, lil)
+fun u32 ZINT128len(u64 big, u64 lil) {
+    if (lil <= B1) {
+        u32 biglen = (big <= B1) ? (big != 0 || lil != 0 ? 1 : 0)
+                   : (big <= B2) ? 2
+                   : (big <= B4) ? 4 : 8;
+        u32 lillen = (lil != 0 || big > B1) ? 1 : 0;
+        return biglen + lillen;
+    } else if (lil <= B2) {
+        u32 biglen = (big <= B2) ? 2 : (big <= B4) ? 4 : 8;
+        return biglen + 2;
+    } else if (lil <= B4) {
+        u32 biglen = (big <= B4) ? 4 : 8;
+        return biglen + 4;
+    } else {
+        return 16;
+    }
+}
+
 fun ok64 ZINTu64feed($u8 into, u64 n) {
     if ($len(into) < 8) return ZINTNOROOM;
     if (n <= B1) {
@@ -40,30 +59,34 @@ fun ok64 ZINTu64feed($u8 into, u64 n) {
 fun ok64 ZINTu64drain(u64* n, $cu8c zip) {
     *n = 0;
     a_dup(u8c, from, zip);
-    switch ($len(from)) {
+    u32 len = $len(from);
+    switch (len) {
         case 0:
             return OK;
         case 1:
             u8sDrain8(from, (u8*)n);
-            return OK;
+            break;
         case 2:
             u8sDrain16(from, (u16*)n);
-            return OK;
+            break;
         case 3:
             return ZINTBAD;
         case 4:
             u8sDrain32(from, (u32*)n);
-            return OK;
+            break;
         case 5:
         case 6:
         case 7:
             return ZINTBAD;
         case 8:
             u8sDrain64(from, n);
-            return OK;
+            break;
         default:
             return ZINTBAD;
     }
+    // Verify canonical encoding
+    if (ZINTlen(*n) != len) return ZINTBAD;
+    return OK;
 }
 
 // Packs a pair of uint64 into a byte string.

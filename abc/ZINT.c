@@ -182,5 +182,7 @@ ok64 ZINTu8sDrain128(u8cs from, u64* big, u64* lil) {
         default:
             return ZINTBAD;
     }
+    // Verify canonical encoding (no overlong)
+    if (ZINT128len(*big, *lil) != len) return ZINTBAD;
     return OK;
 }

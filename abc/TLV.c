@@ -120,7 +120,9 @@ ok64 TLVDrainKeyVal(u8* type, u8cs key, $u8c val, u8cs tlv) {
     u64 blen = 0;
     call(TLVprobe, type, &hlen, &blen, tlv);
     u8cs body = {tlv[0] + hlen, tlv[0] + hlen + blen};
-    test($len(body) > 0 && $len(body) >= **body, TLVbadkv);
+    // idlen byte + id data + value must fit in body
+    // body[0] is idlen, need at least 1 + idlen bytes
+    test($len(body) > 0 && $len(body) > **body, TLVbadkv);
     key[0] = body[0] + 1;
     key[1] = key[0] + **body;
     val[0] = key[1];

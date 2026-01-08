@@ -19,9 +19,9 @@ static bool init = false;
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
     Bkv32 hashbuf = {};
-    Bkv32alloc(hashbuf, 1024);
-    kv32$ hashmap = Bkv32idle(hashbuf);
-    ok status;
+    kv32bAlloc(hashbuf, 1024);
+    kv32sp hashmap = kv32bIdle(hashbuf);
+    ok64 status;
 
     std::unordered_map<uint32_t, uint32_t> ref{};
 
@@ -72,7 +72,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
     }*/
 
     free(str);
-    Bkv32free(hashbuf);
+    kv32bFree(hashbuf);
     ref.clear();
 
     return 0;
