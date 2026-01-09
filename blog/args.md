@@ -1,14 +1,17 @@
 #   Arguments for a syncable data exchange format
 
-After spending about quarter a century intermittently between academia and 
-industry I feel the urge to share the progress of [my current project][r] as well 
-as my views on what I call "the last bottleneck of the internet".
+If you spent quarter a century in this industry, you probably know one or
+two billionaires. You may also know one or two guys who "broke the internet"
+with some ridiculous bug. I've met a guy who did it twice, at least.
+Internet-scale outages are sort of normal in today's highly concentrated
+landscape. That is what I call "the last bottleneck of the internet".
 
 I dare to go a step further than my colleagues from [Ink&Switch][i], who started
-the entire "local-first" movement. Or maybe I want to refine their approach.
+the entire *local-first* movement. Or maybe I want to refine the approach.
 In my opinion, the problem starts several steps earlier than developers
 picking the architecture for their future app. It starts with the mental model
 and the languages we use to coordinate computers. 
+
 Everything else is downstream from that.
 
 ##  The internet's bottlenecks
@@ -50,7 +53,7 @@ for immediate consumption. That in turn led to "amnesic computing" where most
 computers on the internet need to ask somebody else to know their own name,
 whom they are talking to and what they should be doing. Once no one is responding,
 and basically on any significant glitch in the chain of command, the entire thing
-collapses like the Sauron's kingdom with amnesic orcs.
+collapses like the Sauron's kingdom where orcs are amnesic.
 
 What if the paradigm changes to "tell me the facts, so I remember"?
 Everyone acting on the best available information is a good baseline strategy.
