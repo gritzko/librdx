@@ -360,6 +360,6 @@ contributed feedback and ideas for this draft.
 
 **Part V. The Vision.**
 
-[1]: https://gist.github.com/gritzko/6e81b5391eacb585ae207f5e634db07e
+[1]: partI.md
 [j]: https://spl.hevs.io/spl-docs/tools/git/img/git-cheatsheet.svg
 [c]: https://git-scm.com/book/en/v2/Git-Internals-Git-Objects
