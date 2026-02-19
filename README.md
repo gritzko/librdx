@@ -6,8 +6,8 @@ When RDX replicas sync, they sync precisely to the last bit and they do it very 
 
 This repo contains an RDX implementation in C:
 
-  - the [ABC C dialect][A], aka Algebraic Bricklaying C,
-  - the [RDX format][R] per se, binary and text varieties,
+  - the [ABC C dialect][A], aka ABstractionless C or Algebraic Bricklaying C,
+  - the [RDX format][R] per se, several binary and text varieties,
   - a generic [RDX syncing store][B],
   - an RDX based [revision control system][F], and
   - a [handbook][B] of basic use cases for the new users.

@@ -232,7 +232,8 @@ There are aliases/combos for typical cases, e.g.
 
   * `be come ?twig`                make the worktree version into a twig
   * `be diff`                      diff to the head (default, 3way)
-  * `be lay`                       make a waypoint commit (`be post ?timedate`)
+  * `be lay`                       make a waypoint commit
+  * `be mark "Comment" "Story..."` make a "classic" verbose commit
   * `be moan`                      rollback one post
   * `be rate`                      mark the current commit
   * `be fit`                       merge into the head (`be post ?head`)
@@ -306,6 +307,84 @@ release branch head bypassing the working tree (reckless).
 
 Overall, verbless use allows non-standard/advanced use patterns.
 
+
+##  Navigating the history
+
+Beagle's commit model is supposed to resolve git's common pain
+points and ossified workarounds. git's ideal commit model sees
+a commit as something eternal; an [unbroken Merkle chain][s] of
+commits goes back to version 0, blockchain-like. But real life
+is messy, so we have a number of workarounds to avoid enshrining
+everyday hacks in project's "blockchain". Those are rebase, 
+squash or (my favorite, `-m fix`) learning to live with disorderly 
+histories. History rewriting in git is an advanced and extensive
+topic, a yardstick of developer's expertise. As it often happens,
+workarounds may need workarounds of their own, and so on.
+
+<img align=right width="40%" src="./img/nav.jpg"/>
+Beagle unifies in-repo "buckets": staging or stashing is done by
+the same kind of an RDX container, no different from commit,
+branch, or tag, except for the labelling. Beagle makes unnamed
+inter-commit states (waypoints) shareable, and all commits in
+general aggregatable, so rebasing and squashing become part of
+the vanilla model, not an override. CRDTs ease that a lot.
+The idea of Beagle commits is to be "undo-redo, but persistent".
+If Ctrl+S triggers a commit, there is nothing wrong about it.
+
+On the technical side, Beagle's twigs are very much like git's
+tags, just labels for hashes pointing at system states. Here,
+things do not differ from git that much.  The `head` twig is the
+public version of the branch. `get ?head` or `get ?feature`
+switches the worktree to a different twig.
+
+Beagle's [Merkle structure][m] is aligned with its [LSM][l] structure.
+A project's state is technically a stack of RDX SST files in a
+repo. Each (newer, smaller) file references the hash of the
+previous (older, larger) file. When pulling changes from other
+replica, we can verify that this Tower of Hanoi is mostly
+unchanged, except for some smaller files on the top that are
+easy to inspect. A full chain-of-commits history is inspectable,
+in theory, if all the historical commit files are preserved
+somewhere (likely S3).
+
+Waypoint commits are RDX SST files with no tag attached. One can
+address them by time or hash, but their replication to other
+replicas is not guaranteed. Those are of local interest and
+might be compacted into larger files and garbage collected. That
+is the standard LSM way of things.  Important commits are marked
+with "sticky notes" (twigs and tags). Those are preserved.
+
+Finally, a CHANGELOG RDX document lists all the regular commits
+and their attributes: times, dates, comments, authors, hashes,
+signatures. These are produced by `be mark` (changelog insert +
+`be post` combo). The mission of a changelog is to explain the
+rationale behind the changes, as the changes themselves can be
+cheaply calculated. Then, changelog changes would serve as 
+commit descriptions.
+
+Beagle's model is not exactly real-time, but more like
+"continuous", especially if compared to git's commit chains.
+Want to send the current uncommited version to CI? Go ahead.
+
+One performance bonus of this architecture is that old deleted
+data is not tied in the repo forever. It gradually fades away,
+unless intentionally preserved. No replica is required to
+maintain full history.
+
+All versions are recoverable (if files can still be found), so
+`be get ?26219b4L5j` would recover worktree to a historical
+version by a timestamp (base64 coded in this case) or a
+hash(let), e.g. `be get ?4d2130` (hex sha256 prefix) or `be get
+?4d213077e2bdd7d83e101a82ed070934cd8e2af6d8ded3dc64905736f8a820cb`.
+The system will do its best to interpret informal inputs, like
+`be get ?head,15:50` or `be get ?head,"skiplist"` based on the
+CHANGELOG document and the existing waypoint commits.
+
+Overall, Beagle reworks the model for the LLM age commit volume
+and frequency, mainly by borrowing tricks from the most scalable
+databases.
+
+
 ##  Querying the AST* tree
 
 What Beagle internally processes is not exactly AST but RDX, a
@@ -314,7 +393,7 @@ CRDT JSON superset, tree-ish document format. Beagle employs
 queries have to rely on generic document tree structure.
 The exact codec machinery may vary, e.g. a `*.c` file may be
 im/exported with: general text codec, tree-sitter based codec,
-`clang` AST based codec or blob fallback. Changing the codec 
+`clang` AST based codec or "git mode" fallback. Changing the codec 
 resets file's history. Apart from the tree structure per se, 
 codecs may *tag* nodes (the bit budget is rather tight there).
 That way, queries may distinguish function from a class,
@@ -361,5 +440,8 @@ contributed feedback and ideas for this draft.
 **Part V. The Vision.**
 
 [1]: partI.md
-[j]: https://spl.hevs.io/spl-docs/tools/git/img/git-cheatsheet.svg
+[j]: https://wizardzines.com/comics/git-cheat-sheet
 [c]: https://git-scm.com/book/en/v2/Git-Internals-Git-Objects
+[s]: https://www.youtube.com/watch?v=tVIM2xLbQBs
+[l]: https://www.cs.umb.edu/~poneil/lsmtree.pdf
+[m]: https://en.wikipedia.org/wiki/Merkle_tree
