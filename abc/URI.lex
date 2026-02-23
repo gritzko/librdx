@@ -22,7 +22,12 @@ slash = "/" | "\\";
 
 path_char = pchar - ("?" | "#");
 
-Path = slash ( path_char+ ( slash path_char* )* )? ;
+Segment = path_char*;
+Segment_nz = path_char+;
+segment_nz_nc = (path_char - ":")+;
+
+Path = slash ( Segment_nz ( slash Segment )* )? ;
+PathNoscheme = segment_nz_nc ( slash Segment )*;
 
 drivePath = (slash|(alpha ":" slash)) ( path_char+ ( slash path_char* )* )? ;
 
@@ -34,23 +39,23 @@ IPvFuture  = "v" xdigit+ "." ( unreserved | sub_delims | ":" )+;
 IPv6address = (":" | xdigit)+ IPv4address?;
 IP_literal = "[" ( IPv6address | IPvFuture  ) "]";
 
-reg_name = ( unreserved | pct_encoded | sub_delims )+;
+reg_name = ( unreserved | pct_encoded | sub_delims )*;
 
 User    = ( unreserved | pct_encoded | sub_delims | ":" | "@" )*;
 Host        = IP_literal | IPv4address | reg_name ;
 Port        = (pchar - ("/" | "?" | "#")){1,5} ;
-authority   = "//" ( ( User "@" )? Host ( ":" Port )? ) ;
+Authority   = "//" ( ( User "@" )? Host ( ":" Port )? ) ;
 
 Fragment = ( pchar | "/" | "?" )* ;
 
 Query = (pchar - "#")* ;
 
-full_ref = Path ( "?" Query )? ( "#" Fragment )?;
-relative_ref = Path ( "?" Query )? ( "#" Fragment )?;
-absolute_hier_part = authority? full_ref?;
-hier_part = authority? relative_ref?;
+PathRootless = Segment_nz ( slash Segment )*;
 
-absolute_URI = Scheme? absolute_hier_part;
+hier_part = Authority Path? | Path | PathRootless;
+
+absolute_URI = Scheme hier_part? ("?" Query)? ("#" Fragment)?;
+relative_ref = ( Authority Path? | ( Path | PathNoscheme )? ) ( "?" Query )? ( "#" Fragment )?;
 URI = absolute_URI | relative_ref ;
 
 Root = URI;

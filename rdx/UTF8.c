@@ -25,18 +25,21 @@ ok64 UTF8Escape(u8s txt, u8cs val) {
         case '\\':
             call(u8sFeed2, txt, '\\', '\\');
             break;
-        case '/':
-            call(u8sFeed2, txt, '\\', '/');
-            break;
+        // Note: '/' escaping is optional in JSON/JDR, skip it for roundtrip consistency
         case '"':
             call(u8sFeed2, txt, '\\', '"');
             break;
-        case 0:
-            call(u8sFeed2, txt, '\\', '0');
-            break;
-            // TODO \u etc
         default:
-            call(u8sFeed1, txt, **val);
+            if (**val < 0x20) {
+                // Control characters: use \u00XX escape
+                static const char hex[] = "0123456789abcdef";
+                u8 c = **val;
+                call(u8sFeed2, txt, '\\', 'u');
+                call(u8sFeed2, txt, '0', '0');
+                call(u8sFeed2, txt, hex[c >> 4], hex[c & 0xf]);
+            } else {
+                call(u8sFeed1, txt, **val);
+            }
     }
     ++*val;
     done;
@@ -44,7 +47,7 @@ ok64 UTF8Escape(u8s txt, u8cs val) {
 
 ok64 UTF8UnEscape(u8s tlv, u8cs txt) {
     if ($empty(tlv)) return NOROOM;
-    if ($empty(txt)) return RDXBAD;
+    if ($empty(txt)) return ok64sub(RDXBAD, RON_r);
     if (**txt != '\\') {
         **tlv = **txt;
         ++*tlv;
@@ -52,7 +55,7 @@ ok64 UTF8UnEscape(u8s tlv, u8cs txt) {
         return OK;
     }
     ++*txt;
-    if ($empty(txt)) return RDXBAD;
+    if ($empty(txt)) return ok64sub(RDXBAD, RON_s);
     switch (**txt) {
         case 't':
             **tlv = '\t';
@@ -82,18 +85,19 @@ ok64 UTF8UnEscape(u8s tlv, u8cs txt) {
             **tlv = '"';
             break;
         case 'u': {
-            if ($len(txt) < 5) return HEXnodata;
+            if ($len(txt) < 5) return HEXNODATA;
             u8cs hex = {*txt + 1, *txt + 5};
             *txt += 4;
             u64 cp = 0;
             ok64 o = u64hexdrain(&cp, hex);
-            if (o == OK) o = utf8sFeed32(tlv, cp);
-            --*tlv;
             if (o != OK) return o;
+            o = utf8sFeed32(tlv, cp);
+            if (o != OK) return o;
+            --*tlv;
             break;
         }
         default:
-            return RDXBAD;
+            return ok64sub(RDXBAD, RON_t);
     }
     ++*tlv;
     ++*txt;
@@ -127,3 +131,17 @@ ok64 UTF8EscTick(u8s into, u8cs from) { return NOTIMPLYET; }
 ok64 UTF8UnEscTick(u8s into, u8cs from) { return NOTIMPLYET; }
 ok64 UTF8EscTickAll(u8s into, u8cs from) { return NOTIMPLYET; }
 ok64 UTF8UnEscTickAll(u8s into, u8cs from) { return NOTIMPLYET; }
+
+ok64 UTFRecodeCB(u8cs from, u8 enc, u8 coder, u8csCB cb, voidp ctx) {
+    sane(u8csOK(from) && enc < RDX_UTF_ENC_LEN && coder < UTF8_CODER_LEN && cb);
+    a_pad(u8, pad, 256);
+    UTFRecode re = UTABLE[enc][coder];
+    a_dup(u8c, src, from);
+    ok64 o = OK;
+    do {
+        o = re(pad_idle, src);
+        if ($len(pad_data)) call(cb, pad_datac, ctx);
+        u8bReset(pad);
+    } while (o == NOROOM);
+    return o;
+}

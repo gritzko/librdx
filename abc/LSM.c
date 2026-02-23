@@ -1,19 +1,15 @@
 #include "LSM.h"
 
-#include "SKIP.h"
 #include "abc/OK.h"
 #include "abc/S.h"
-#include "abc/TLV.h"
 
-ok64 LSMnext(u8s into, u8css lsm, u8csz z, u8ys y) {
-    sane(u8sOK(into) && u8cssOK(lsm) && z && y);
-    u8cs next = {}, _;
+ok64 LSMNext(u8s into, u8css lsm, u8xs x, u8csz z, u8ys y) {
+    sane(u8sOK(into) && u8cssOK(lsm) && x && z && y);
+    u8cs next = {};
     a_pad(u8cs, in, LSM_MAX_INPUTS);
 
     do {
-        call(TLVDrain$, next, **lsm);
-        while (!$empty(**lsm) && (~TLVaA & ****lsm) == SKIP_TLV_TYPE)
-            call(TLVDrain$, _, **lsm);
+        call(x, next, **lsm);
         call(u8cssFeedP, in_idle, &next);
         if ($empty(**lsm)) {
             u8csSwap($head(lsm), $last(lsm));
@@ -31,51 +27,51 @@ ok64 LSMnext(u8s into, u8css lsm, u8csz z, u8ys y) {
     done;
 }
 
-ok64 LSMdrainruns(u8csb heap, u8cs input, u8csz cmp) {
-    sane(Bok(heap) && $ok(input) && u8csbHasRoom(heap) && cmp != NULL);
+ok64 LSMDrainRuns(u8csb heap, u8cs input, u8xs x, u8csz z) {
+    sane(Bok(heap) && $ok(input) && u8csbHasRoom(heap) && x != NULL && z != NULL);
     u8cs last = {};
-    call(TLVDrain$, last, input);
+    call(x, last, input);
     a_dup(u8c, run, last);
     while (!$empty(input) && $len(u8csbIdle(heap)) > 1) {
         u8cs rec;
-        call(TLVDrain$, rec, input);
-        int z = cmp(&last, &rec);
-        if (z >= 0) {
-            call(HEAPu8csPushZ, heap, &run, cmp);
+        call(x, rec, input);
+        b8 less = z(&last, &rec);
+        if (!less) {  // last >= rec, start new run
+            call(HEAPu8csPushZ, heap, &run, z);
             $mv(run, rec);
         } else {
             run[1] = rec[1];
         }
         $mv(last, rec);
     }
-    call(HEAPu8csPushZ, heap, &run, cmp);
+    call(HEAPu8csPushZ, heap, &run, z);
     done;
 }
 
-ok64 LSMsort1(size_t* runs, u8s into, u8cs data, u8csz cmp, u8ys mrg) {
-    sane($ok(into) && $ok(data) && $len(into) >= $len(data) && cmp != NULL &&
-         mrg != NULL);
+ok64 LSMSort1(size_t* runs, u8s into, u8cs data, u8xs x, u8csz z, u8ys y) {
+    sane($ok(into) && $ok(data) && $len(into) >= $len(data) && x != NULL &&
+         z != NULL && y != NULL);
     *runs = 0;
     while (!$empty(data)) {
-        aBpad2(u8cs, runs, LSM_MAX_INPUTS);
-        call(LSMdrainruns, runsbuf, data, cmp);
-        if ($len(runsdata) == 1 && *runs == 0) return OK;
-        while (!$empty(runsdata)) {
-            call(LSMnext, into, runsdata, cmp, mrg);
+        aBpad2(u8cs, heap, LSM_MAX_INPUTS);
+        call(LSMDrainRuns, heapbuf, data, x, z);
+        if ($len(heapdata) == 1 && *runs == 0) return OK;
+        while (!$empty(heapdata)) {
+            call(LSMNext, into, heapdata, x, z, y);
         }
         ++*runs;
     }
     done;
 }
 
-ok64 LSMsort(u8s data, u8csz cmp, u8ys mrg, u8s tmp) {
-    sane($ok(tmp) && $ok(data) && $len(tmp) >= $len(data) && cmp != NULL &&
-         mrg != NULL);
+ok64 LSMSort(u8s data, u8xs x, u8csz z, u8ys y, u8s tmp) {
+    sane($ok(tmp) && $ok(data) && $len(tmp) >= $len(data) && x != NULL &&
+         z != NULL && y != NULL);
     size_t runs = 0;
     do {
         a_dup(u8, out, tmp);
         a_dup(u8c, in, data);
-        call(LSMsort1, &runs, out, in, cmp, mrg);
+        call(LSMSort1, &runs, out, in, x, z, y);
         if (runs == 0) return OK;
         u8cs in2 = {tmp[0], out[0]};
         $u8 out2 = {data[0], data[0] + $len(in2)};
@@ -84,7 +80,7 @@ ok64 LSMsort(u8s data, u8csz cmp, u8ys mrg, u8s tmp) {
             u8sCopy(data, in2);
             return OK;
         }
-        call(LSMsort1, &runs, out2, in2, cmp, mrg);
+        call(LSMSort1, &runs, out2, in2, x, z, y);
         data[1] = out2[0];
     } while (runs > 1);
     done;

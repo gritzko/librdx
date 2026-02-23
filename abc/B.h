@@ -17,9 +17,9 @@ con ok64 BisNULL = 0x2eddf2b70;
 con ok64 Bnotmap = 0xbcb3e31974;
 con ok64 Ballocfail = 0x2e5c30ce7aa5b70;
 con ok64 Bnotalloc = 0xbcb3e25c30ce7;
-con ok64 Bnoroom = 0xbcb3db3cf1;
-con ok64 Bnodata = 0xbcb3a25e25;
-con ok64 Bbadarg = 0xb9a5a25dab;
+con ok64 BNOROOM = 0xb5d86d8616;
+con ok64 BNODATA = 0xb5d834a74a;
+con ok64 BBADARG = 0xb2ca34a6d0;
 con ok64 Bmiss = 0xbc6ddf7;
 
 #define B_MAX_LEN_BITS 48
@@ -86,6 +86,10 @@ typedef void **voidbp;
     a_pad(T, n, l);     \
     zerob(n);
 
+#define s_pad(T, n, l)                              \
+    static T _##n[(l)];                             \
+    static T *n[4] = {_##n, _##n, _##n, _##n + (l)}
+
 #define aBcpad(T, n, l)                           \
     T _##n[(l)];                                  \
     B##T n##buf = {_##n, _##n, _##n, _##n + (l)}; \
@@ -99,6 +103,8 @@ typedef void **voidbp;
     T **name##idle = name##buf + 2;
 
 #define aBusy(T, name, buf) T *name[2] = {buf[0], buf[2]};
+
+#define a_fake(T, name, s) T *name[4] = {s[0], s[0], s[1], s[1]};
 
 #define zerob(buf) memset(buf[0], 0, Bsize(buf))
 

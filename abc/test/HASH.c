@@ -1,5 +1,6 @@
 
 #include "HASH.h"
+#include "RAP.h"
 
 #include <stdint.h>
 #include <unistd.h>
@@ -21,7 +22,7 @@ fun u64 u32hash(u32 const *v) { return mix32(*v); }
 #include "HASHx.h"
 #undef X
 
-pro(HASH0) {
+ok64 HASH0() {
     sane(1);
     a_pad(u32, pad, 1024);
     zerob(pad);
@@ -33,7 +34,7 @@ pro(HASH0) {
     done;
 }
 
-pro(HASH1) {
+ok64 HASH1() {
     sane(1);
     a_pad(u32, pad, 1024 + 128);
     zerob(pad);
@@ -66,7 +67,7 @@ pro(HASH1) {
     done;
 }
 
-pro(HASH3) {
+ok64 HASH3() {
     sane(1);
     Bkv32 dictbuf = {};
     kv32bAllocate(dictbuf, 1024);
@@ -97,7 +98,7 @@ pro(HASH3) {
 
 #define LENd 24
 
-pro(HASHd) {
+ok64 HASHd() {
     sane(1);
     Bu32 dictbuf = {};
     u32bAllocate(dictbuf, 16);
@@ -173,12 +174,40 @@ pro(HASHd) {
     done;
 }
 
-pro(HASH) {
+ok64 RAPtest() {
+    sane(1);
+    u8c hello[] = "hello world";
+    u8cs data = {hello, hello + 11};
+
+    u64 h1 = RAPHash(data);
+    u64 h2 = RAPMicro(data);
+    u64 h3 = RAPNano(data);
+
+    // Different variants may produce different hashes
+    test(h1 != 0, FAIL);
+    test(h2 != 0, FAIL);
+    test(h3 != 0, FAIL);
+
+    // Same input same hash
+    test(h1 == RAPHash(data), FAIL);
+    test(h2 == RAPMicro(data), FAIL);
+    test(h3 == RAPNano(data), FAIL);
+
+    // Seed changes hash
+    test(h1 != RAPHashSeed(data, 42), FAIL);
+    test(h2 != RAPMicroSeed(data, 42), FAIL);
+    test(h3 != RAPNanoSeed(data, 42), FAIL);
+
+    done;
+}
+
+ok64 HASH() {
     sane(1);
     call(HASH0);
     call(HASH1);
     call(HASH3);
     call(HASHd);
+    call(RAPtest);
     done;
 }
 

@@ -17,7 +17,7 @@ void garble($u8 data) {
     }
 }
 
-pro(TCPtest1) {
+ok64 TCPtest1() {
     sane(1);
 
     a_cstr(addr, "tcp://127.0.0.1:12345");
@@ -46,7 +46,7 @@ pro(TCPtest1) {
     done;
 }
 
-pro(TCPtest) {
+ok64 TCPtest() {
     sane(1);
     call(TCPtest1);
     done;

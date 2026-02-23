@@ -15,7 +15,7 @@ typedef struct poller {
     pollcb callback;
     void* payload;
     u64 deadline;  // event timeout, ns
-    u32 timeout_ms;
+    int tofd;      // >0: file descriptor, <0: -period_ms for timers
     u16 events, revents;
 } poller;
 
@@ -38,9 +38,10 @@ ok64 POLTrackTime(timercb callback);
 // wake the timer earlier than previously set (prior POLTimer is mandatory)
 ok64 POLAddTime(int ms);
 // cancel the timer completely
-fun ok64 POLIgnoreTime() { return POLTrackTime(NULL); }
+ok64 POLIgnoreTime();
 
 ok64 POLLoop(u64 ns);
+ok64 POLStop();
 ok64 POLSleep(u64 ns);
 
 #define POLNanosPerSec 1000000000UL

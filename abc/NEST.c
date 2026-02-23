@@ -79,7 +79,7 @@ ok64 NESTscanvar(ok64* var, u8cs input) {
     b8 bracket = (*p == '{');
     if (bracket) ++p;
     u8cs name = {p};
-    while (p < input[1] && BASEron64rev[*p] != 0xff) ++p;
+    while (p < input[1] && RON64_REV[*p] != 0xff) ++p;
     if (bracket) {
         test(p < input[1] && *p == '}', NESTbad);
         name[1] = p;

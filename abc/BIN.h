@@ -126,7 +126,7 @@ fun b8 bin64contains(bin64 a, bin64 b) {
 }
 
 fun bin64 bin64find_peak(u64 base_bin, u64 length) {
-    must(base_bin < length);
+    assert(base_bin < length);
     u64 x = base_bin ^ length;
     u64 m = 64 - (clz64(x) + 1);
     return bin64of(m, base_bin >> m);
@@ -142,7 +142,7 @@ fun b8 bin64is_son(bin64 b) { return bin64offset(b) & 1; }
 fun b8 bin64is_base(bin64 b) { return !(b & 1); }
 
 fun b8 bin64patch_midpeak(bin64 *midpeak, u64 len, u64 newlen) {
-    must(newlen > len);
+    assert(newlen > len);
     u64 flips = len ^ newlen;
     u64 b = clz64(flips);
     u8 level = 63 - b;
@@ -158,7 +158,7 @@ fun void bin64patch_peaks(Bins& bins, u64 oldlen, u64 newlen) {
 }*/
 
 fun bin64 bin64patch_prev(u64 *len, u64 oldlen) {
-    must(oldlen < *len);
+    assert(oldlen < *len);
     bin64 b = bin64of(0, *len - 1);
     while (bin64is_son(b)) {
         u64 p = bin64parent(b);
@@ -170,7 +170,7 @@ fun bin64 bin64patch_prev(u64 *len, u64 oldlen) {
 }
 
 fun bin64 bin64patch_next(u64 *len, u64 newlen) {
-    must(newlen > *len);
+    assert(newlen > *len);
     bin64 b = bin64of(0, *len);
     while (!bin64is_son(b)) {  // TODO formula
         u64 p = bin64parent(b);
@@ -197,7 +197,7 @@ fun int bin64cmp(bin64 const *a, bin64 const *b) {
 #include "Bx.h"
 #undef X
 
-fun ok64 BINpeaks($bin64 bins, size_t len) {
+fun ok64 BINPeaks($bin64 bins, size_t len) {
     // 00101 -> 001000, 000011
     ok64 o = OK;
     while (len && o == OK) {
@@ -211,7 +211,7 @@ fun ok64 BINpeaks($bin64 bins, size_t len) {
     return o;
 }
 
-fun ok64 BINpath($bin64 bins, size_t len, bin64 b) {
+fun ok64 BINPath($bin64 bins, size_t len, bin64 b) {
     ok64 o = OK;
     while (bin64term(b) < len && o == OK) {
         bin64 sibling = bin64sibling(b);

@@ -4,6 +4,7 @@
 #include "01.h"
 #include "BUF.h"
 #include "OK.h"
+#include "PATH.h"
 
 #ifndef _XOPEN_SOURCE
 #define _XOPEN_SOURCE 500
@@ -22,7 +23,7 @@
 // Generic FILE error codes
 con ok64 FILEagain = 0xf4953a5ae5b72;
 con ok64 FILEerror = 0xf4953a9db6cf6;
-con ok64 FILEbadarg = 0x3d254e9a5a25dab;
+con ok64 FILEBADARG = 0x3d254e2ca34a6d0;
 con ok64 FILEfail = 0x3d254eaa5b70;
 con ok64 FILEnosync = 0x3d254ecb3dfdca7;
 con ok64 FILEnoopen = 0x3d254ecb3cf4a72;
@@ -36,72 +37,110 @@ con ok64 FILEaccess = 0x3d254e9679e9df7;
 con ok64 FILEloop = 0x3d254ec33cf4;
 con ok64 FILEname = 0x3d254eca5c69;
 con ok64 FILEbad = 0xf4953a6968;
+con ok64 FILEskip = 0xf4953adc2d4;  // Skip this directory (don't recurse)
+con ok64 FILEnobook = 0x3d254ecb36f24ab;  // Not a booked mapping
 
 // errno ok64 codes (FILE + E* from errno.h, E doubled to single)
-con ok64 FILEACCES = 0xf49538a30c39c;         // EACCES: permission denied
-con ok64 FILEAGAIN = 0xf49538a40a497;         // EAGAIN: resource temporarily unavailable
-con ok64 FILEBADF = 0x3d254e2ca34f;           // EBADF: bad file descriptor
-con ok64 FILEBUSY = 0x3d254e2de722;           // EBUSY: device or resource busy
-con ok64 FILEEXIST = 0xf49538e85271d;         // EEXIST: file exists
-con ok64 FILEFAULT = 0xf49538f29e55d;         // EFAULT: bad address
-con ok64 FILEFBIG = 0x3d254e3cb490;           // EFBIG: file too large
-con ok64 FILEINTR = 0x3d254e49775b;           // EINTR: interrupted system call
-con ok64 FILEINVAL = 0xf4953925df295;         // EINVAL: invalid argument
-con ok64 FILEIO = 0x3d254e498;                // EIO: I/O error
-con ok64 FILEISDIR = 0xf49539270d49b;         // EISDIR: is a directory
-con ok64 FILELOOP = 0x3d254e558619;           // ELOOP: too many symbolic links
-con ok64 FILEMFILE = 0xf4953963d254e;         // EMFILE: too many open files
-con ok64 FILE2LONG = 0xf4953825585d0;         // ENAMETOOLONG: filename too long
-con ok64 FILENFILE = 0xf4953973d254e;         // ENFILE: file table overflow
-con ok64 FILENODEV = 0xf49539760d39f;         // ENODEV: no such device
-con ok64 FILENOENT = 0xf49539760e5dd;         // ENOENT: no such file or directory
-con ok64 FILENOMEM = 0xf495397616396;         // ENOMEM: out of memory
-con ok64 FILENOSPC = 0xf49539761c64c;         // ENOSPC: no space left on device
-con ok64 FILENOTDIR = 0x3d254e5d874d49b;      // ENOTDIR: not a directory
-con ok64 FILENOTEMP = 0x3d254e5d874e599;      // ENOTEMPTY: directory not empty
-con ok64 FILEPERM = 0xf49538e64e6d6;          // EPERM: operation not permitted
-con ok64 FILEROFS = 0x3d254e6d83dc;           // EROFS: read-only file system
-con ok64 FILEXDEV = 0x3d254e84d39f;           // EXDEV: cross-device link
+con ok64 FILEACCES = 0xf49538a30c39c;  // EACCES: permission denied
+con ok64 FILEAGAIN =
+    0xf49538a40a497;                 // EAGAIN: resource temporarily unavailable
+con ok64 FILEBADF = 0x3d254e2ca34f;  // EBADF: bad file descriptor
+con ok64 FILEBUSY = 0x3d254e2de722;  // EBUSY: device or resource busy
+con ok64 FILEEXIST = 0xf49538e85271d;     // EEXIST: file exists
+con ok64 FILEFAULT = 0xf49538f29e55d;     // EFAULT: bad address
+con ok64 FILEFBIG = 0x3d254e3cb490;       // EFBIG: file too large
+con ok64 FILEINTR = 0x3d254e49775b;       // EINTR: interrupted system call
+con ok64 FILEINVAL = 0xf4953925df295;     // EINVAL: invalid argument
+con ok64 FILEIO = 0x3d254e498;            // EIO: I/O error
+con ok64 FILEISDIR = 0xf49539270d49b;     // EISDIR: is a directory
+con ok64 FILELOOP = 0x3d254e558619;       // ELOOP: too many symbolic links
+con ok64 FILEMFILE = 0xf4953963d254e;     // EMFILE: too many open files
+con ok64 FILE2LONG = 0xf4953825585d0;     // ENAMETOOLONG: filename too long
+con ok64 FILENFILE = 0xf4953973d254e;     // ENFILE: file table overflow
+con ok64 FILENODEV = 0xf49539760d39f;     // ENODEV: no such device
+con ok64 FILENOENT = 0xf49539760e5dd;     // ENOENT: no such file or directory
+con ok64 FILENOMEM = 0xf495397616396;     // ENOMEM: out of memory
+con ok64 FILENOSPC = 0xf49539761c64c;     // ENOSPC: no space left on device
+con ok64 FILENOTDIR = 0x3d254e5d874d49b;  // ENOTDIR: not a directory
+con ok64 FILENOTEMP = 0x3d254e5d874e599;  // ENOTEMPTY: directory not empty
+con ok64 FILEPERM = 0xf49538e64e6d6;      // EPERM: operation not permitted
+con ok64 FILEROFS = 0x3d254e6d83dc;       // EROFS: read-only file system
+con ok64 FILEXDEV = 0x3d254e84d39f;       // EXDEV: cross-device link
+con ok64 FILENAMEBAD = 0xf49539729638b28d;
 
 // Translate errno to ok64
 fun ok64 FILEerrno(int e) {
     switch (e) {
-        case 0:            return OK;
-        case EACCES:       return FILEACCES;
-        case EAGAIN:       return FILEAGAIN;
-        case EBADF:        return FILEBADF;
-        case EBUSY:        return FILEBUSY;
-        case EEXIST:       return FILEEXIST;
-        case EFAULT:       return FILEFAULT;
-        case EFBIG:        return FILEFBIG;
-        case EINTR:        return FILEINTR;
-        case EINVAL:       return FILEINVAL;
-        case EIO:          return FILEIO;
-        case EISDIR:       return FILEISDIR;
-        case ELOOP:        return FILELOOP;
-        case EMFILE:       return FILEMFILE;
-        case ENAMETOOLONG: return FILE2LONG;
-        case ENFILE:       return FILENFILE;
-        case ENODEV:       return FILENODEV;
-        case ENOENT:       return FILENOENT;
-        case ENOMEM:       return FILENOMEM;
-        case ENOSPC:       return FILENOSPC;
-        case ENOTDIR:      return FILENOTDIR;
-        case ENOTEMPTY:    return FILENOTEMP;
-        case EPERM:        return FILEPERM;
-        case EROFS:        return FILEROFS;
-        case EXDEV:        return FILEXDEV;
-        default:           return FILEfail;
+        case 0:
+            return OK;
+        case EACCES:
+            return FILEACCES;
+        case EAGAIN:
+            return FILEAGAIN;
+        case EBADF:
+            return FILEBADF;
+        case EBUSY:
+            return FILEBUSY;
+        case EEXIST:
+            return FILEEXIST;
+        case EFAULT:
+            return FILEFAULT;
+        case EFBIG:
+            return FILEFBIG;
+        case EINTR:
+            return FILEINTR;
+        case EINVAL:
+            return FILEINVAL;
+        case EIO:
+            return FILEIO;
+        case EISDIR:
+            return FILEISDIR;
+        case ELOOP:
+            return FILELOOP;
+        case EMFILE:
+            return FILEMFILE;
+        case ENAMETOOLONG:
+            return FILE2LONG;
+        case ENFILE:
+            return FILENFILE;
+        case ENODEV:
+            return FILENODEV;
+        case ENOENT:
+            return FILENOENT;
+        case ENOMEM:
+            return FILENOMEM;
+        case ENOSPC:
+            return FILENOSPC;
+        case ENOTDIR:
+            return FILENOTDIR;
+        case ENOTEMPTY:
+            return FILENOTEMP;
+        case EPERM:
+            return FILEPERM;
+        case EROFS:
+            return FILEROFS;
+        case EXDEV:
+            return FILEXDEV;
+        default:
+            return FILEfail;
     }
 }
 
 #define FILEok(fd) (fd >= 0)
 
 // Test syscall return; on failure return errno as ok64
-#define FILETestC(cond) do { if (!(cond)) return FILEerrno(errno); } while(0)
+#define FILETestC(cond)                       \
+    do {                                      \
+        if (!(cond)) return FILEerrno(errno); \
+    } while (0)
 
-extern u8p *FILE_BUFS[4];
 extern u8 *FILE_RW[4];
+extern u8p *FILE_BOOK[4];       // Booked VA range ends
+extern Bu8 *FILE_WANT_BUFS;   // Per-fd booked buffer slots [FILE_MAX_OPEN]
+
+// Stream-mode callback: rw=YES → ensure idle (flush/grow), rw=NO → ensure data (read)
+typedef ok64 (*u8bwantf)(u8bp buf, b8 rw, size_t need);
+extern u8bwantf FILE_WANTS[];   // [FILE_MAX_OPEN], parallel to FILE_WANT_BUFS
 
 /*
 typedef int *FILE;
@@ -134,23 +173,10 @@ typedef int *FILE;
 #define FILE_MAX_OPEN 1024
 #endif
 
+// Legacy path8 buffer type (for code that needs to own/modify paths)
 typedef u8b path8;
 typedef u8bp path8p;
 typedef ok64 (*path8f)(voidp arg, path8p path);
-
-/*
- * path8 buffer invariant:
- *   PAST = directory prefix (e.g. "/home/user/dir/")
- *   DATA = filename component (e.g. "file.txt")
- *   Full path = PAST + DATA = path[0] to DATA end
- *
- * path8Push() maintains this: adds "/" to PAST, puts new name in DATA.
- * path8Name() returns DATA (the filename).
- * path8Dir() returns PAST (the directory with trailing /).
- * path8CStr() returns full path from buffer start.
- *
- * Note: path8Push expects a single component, not "a/b/c".
- */
 
 #define a_path(n, p)                 \
     a_pad(u8, n, FILE_PATH_MAX_LEN); \
@@ -164,34 +190,16 @@ fun ok64 path8Sane(path8 path) {
     return YES;
 }
 
-fun const char *path8CStr(path8 path) { return (char *)(path[0]); }
+ok64 FILECreate(int *fd, path8cg path);
 
-// Returns pointer to filename slice (DATA portion)
-fun u8csp path8Name(path8 path) { return u8bDataC(path); }
-
-// Returns pointer to directory slice (PAST portion, includes trailing /)
-fun u8csp path8Dir(path8 path) { return (u8csp)u8bPastC(path); }
-
-ok64 path8Push(path8 path, u8csc part);
-
-ok64 path8Pop(path8 path);
-
-fun void path8ResetToCWD(path8 path) {
-    Breset(path);
-    u8bFeed1(path, FILE_PATH_CWD);
-}
-
-fun void path8ResetToRoot(path8 path) { Breset(path); }
-
-ok64 FILECreate(int *fd, path8 path);
-
-ok64 FILEOpen(int *fd, path8 path, int flags);
-ok64 FILEOpenAt(int *fd, int const dirfd, path8 path, int flags);
-fun ok64 FILEOpenDir(int *fd, path8 path) {
-    return FILEOpen(fd, path, O_DIRECTORY);
+ok64 FILEOpen(int *fd, path8cg path, int flags);
+ok64 FILEOpenAt(int *fd, int const dirfd, path8cg path, int flags);
+fun ok64 FILEOpenDir(int *fd, path8cg path) {
+    return FILEOpen(fd, path, O_RDONLY | O_DIRECTORY);
 }
 // dir entries have / appended
 
+// scan modes
 typedef enum {
     FILE_SCAN_DEEP = 1,
     FILE_SCAN_FILES = 2,
@@ -199,15 +207,89 @@ typedef enum {
     FILE_SCAN_LINKS = 8,
     FILE_SCAN_ALL = 14,
 } FILE_SCAN;
-ok64 FILEScan(path8 path, FILE_SCAN mode, path8f f, voidp arg);
-fun ok64 FILEScanDir(path8 path, path8f f, voidp arg) {
+ok64 FILEScan(path8p path, FILE_SCAN mode, path8f f, voidp arg);
+
+// File tree iterator (into/next/outo pattern)
+// Usage:
+//   fileit it = {};
+//   call(FILEIterOpen, &it, path);
+//   scan(FILENext, &it) {
+//       if (it.type == DT_DIR) {
+//           fileit child = {};
+//           call(FILEInto, &child, &it);
+//           // ... recurse ...
+//           call(FILEOuto, &child, &it);
+//       }
+//   }
+//   call(FILEIterClose, &it);
+//
+// For sorted traversal, provide buffer and comparator (inherited by children).
+// Buffer is used as a stack: each level uses space after parent's sorted
+// entries. Uses LSMSort for sorting, stream-based iteration (no slice array
+// overhead).
+typedef struct fileit {
+    u8 type;       // DT_REG, DT_DIR, DT_LNK, etc (from dirent.h)
+    u8 flags;      // reserved
+    u8p dirend;    // saved path end (dir portion, before entry name)
+    voidp dir;     // DIR* handle (void* to avoid dirent.h in header)
+    path8gp path;  // shared path gauge
+    // Sorted mode fields (NULL = unsorted):
+    u8csz sort;    // comparator (inherited by children)
+    u8bp buf;      // shared buffer for entries (inherited)
+    u8p buf_mark;  // buffer position when this level started (for stack pop)
+    u8cs stream;   // position in sorted entry stream [type][name\0]...
+} fileit;
+typedef fileit *fileitp;
+typedef fileit const *fileitcp;
+
+// Entry comparator for sorted iteration (compares [type][len][name] slices)
+// Default: alphabetical by name
+fun b8 FILEentryZ(u8cscp a, u8cscp b) {
+    // Skip type and len bytes, compare names
+    u8cs na = {(*a)[0] + 2, (*a)[1]};
+    u8cs nb = {(*b)[0] + 2, (*b)[1]};
+    return $cmp(na, nb) < 0;
+}
+
+// Entry slicer for LSMSort - extracts [type][len][name] record from stream
+// TLV-like format: O(1) slicing, no null scan
+fun ok64 FILEentryX(u8csp rec, u8cs stream) {
+    if ($len(stream) < 2) return NODATA;
+    size_t reclen = 2 + stream[0][1];  // type + len + name
+    if ($len(stream) < reclen) return NODATA;
+    rec[0] = stream[0];
+    rec[1] = stream[0] + reclen;
+    stream[0] += reclen;
+    return OK;
+}
+
+// Entry merger for LSMSort - pass through (no duplicates expected in dirs)
+fun ok64 FILEentryY(u8s into, u8css recs) { return u8sFeed(into, **recs); }
+
+// Open iterator on directory path
+ok64 FILEIterOpen(fileitp it, path8gp path);
+// Open sorted iterator (buf holds entries, z compares them)
+ok64 FILEIterOpenSorted(fileitp it, path8gp path, u8bp buf, u8csz z);
+// Close iterator
+ok64 FILEIterClose(fileitp it);
+// Next entry in current directory (returns END when exhausted)
+ok64 FILENext(fileitp it);
+// Descend into directory (current entry must be DT_DIR)
+ok64 FILEInto(fileitp child, fileitp parent);
+// Ascend from directory
+ok64 FILEOuto(fileitp child, fileitp parent);
+fun ok64 FILEScanDir(path8p path, path8f f, voidp arg) {
     return FILEScan(path, FILE_SCAN_ALL, f, arg);
 }
-fun ok64 FILEScanFiles(path8 path, path8f f, voidp arg) {
+fun ok64 FILEScanFiles(path8p path, path8f f, voidp arg) {
     return FILEScan(path, FILE_SCAN_FILES, f, arg);
 }
-fun ok64 FILEDeepScanDir(path8 path, path8f f, voidp arg) {
-    return FILEScan(path, FILE_SCAN_ALL | FILE_SCAN_DEEP, f, arg);
+fun ok64 FILEDeepScanFiles(path8p path, path8f f, voidp arg) {
+    return FILEScan(path, (FILE_SCAN)(FILE_SCAN_FILES | FILE_SCAN_DEEP), f,
+                    arg);
+}
+fun ok64 FILEDeepScanDir(path8p path, path8f f, voidp arg) {
+    return FILEScan(path, (FILE_SCAN)(FILE_SCAN_ALL | FILE_SCAN_DEEP), f, arg);
 }
 
 ok64 FILESync(int const *fd);
@@ -224,15 +306,15 @@ ok64 FILEClose(int *fd);
 
 // ok64 FILEExists(path8 path);
 
-ok64 FILEStat(struct stat *ret, path8 path);
+ok64 FILEStat(struct stat *ret, path8cg path);
 
 ok64 FILESize(size_t *size, int const *fd);
 
-ok64 FILEisdir(path8 path);
+ok64 FILEisdir(path8cg path);
 
 ok64 FILEResize(int const *fd, size_t new_size);
 
-ok64 FILERename(path8 oldname, path8 newname);
+ok64 FILERename(path8cg oldname, path8cg newname);
 
 // Drains the data to the file; if the slice is non empty on return, see errno!
 fun ok64 FILEFeed(int fd, u8 const **data) {
@@ -276,7 +358,7 @@ fun ok64 FILEFeedv(int fd, u8css datav) {
 }
 
 fun ok64 FILEFeedall(int fd, uint8_t const *const *data) {
-    if (!FILEok(fd) || !$ok(data)) return FILEbadarg;
+    if (!FILEok(fd) || !$ok(data)) return FILEBADARG;
     a_dup(u8 const, d, data);
     ok64 ret = OK;
     while (!$empty(d) && OK == ret) {
@@ -290,6 +372,17 @@ fun ok64 FILEdrain(u8 **into, int fd) {
     if (ret <= 0) {
         if (ret == 0) return FILEend;
         return FILEfail;  // TODO
+    }
+    *into += ret;
+    return OK;
+}
+
+// FILEDrain: read from fd into slice (fd-first arg order, matches FILEFeed)
+fun ok64 FILEDrain(int fd, $u8 into) {
+    ssize_t ret = read(fd, *into, $len(into));
+    if (ret <= 0) {
+        if (ret == 0) return FILEend;
+        return FILEfail;
     }
     *into += ret;
     return OK;
@@ -349,15 +442,15 @@ fun proc Fpread(int fd, path into, size_t offset) {
 }
 */
 
-ok64 FILEMakeDir(path8 path);
+ok64 FILEMakeDir(path8cg path);
 
-ok64 FILERmDir(path8 path, bool recursive);
+ok64 FILERmDir(path8cg path, bool recursive);
 
-ok64 FILEHardLink(path8 dst, path8 src);
+ok64 FILEHardLink(path8cg dst, path8cg src);
 
-ok64 FILErmrf(path8 name);
+ok64 FILErmrf(path8cg name);
 
-ok64 FILEunlink(path8 name);
+ok64 FILEUnLink(path8cg name);
 
 fun int flags2prot(int flags) {
     int prot = PROT_READ;
@@ -367,26 +460,24 @@ fun int flags2prot(int flags) {
 
 // . . . . . . . . mmapped buffers . . . . . . . .
 
-ok64 FILEMapFD(u8bp buf, int const *fd, int mode);
+ok64 FILEMapFD(u8bp *buf, int const *fd, int mode);
 
 ok64 FILEUnMapFD(u8b buf, int const *fd);
 
-ok64 FILEMapRO(u8bp buf, path8 path);
+ok64 FILEMapRO(u8bp *buf, path8cg path);
 
-ok64 FILEMapROAt(u8bp buf, int dir, path8 path);
-
-// ? fun ok64 FILEMapTmp(u8bp buf) {}
+ok64 FILEMapROAt(u8bp *buf, int dir, path8cg path);
 
 // Memory-map a file for reading and writing.
-ok64 FILEMapRW(u8bp buf, path8 path);
+ok64 FILEMapRW(u8bp *buf, path8cg path);
 
 // Create and map a file for reading and writing.
-ok64 FILEMapCreate(u8bp buf, path8 path, size_t size);
+ok64 FILEMapCreate(u8bp *buf, path8cg path, size_t size);
 
-ok64 FILEMapCreateAt(u8bp buf, int dir, path8 path, size_t size);
+ok64 FILEMapCreateAt(u8bp *buf, int dir, path8cg path, size_t size);
 
-// Unmaps the buffer.
-ok64 FILEUnMap(u8b buf);
+// Unmaps the buffer (buf must point into FILE_WANT_BUFS).
+ok64 FILEUnMap(u8bp buf);
 
 // Resize the file and update the mapping.
 ok64 FILEReMap(u8bp buf, size_t new_size);
@@ -406,12 +497,78 @@ fun ok64 FILEremap125(Bu8 buf) {
     return FILEReMap(buf, new_size);
 }
 
+// . . . . . . . . booked mmapped buffers . . . . . . . .
+//
+// Book reserves a large VA range but only maps the file at the start.
+// When more space is needed, extend the file and mapping without changing
+// the base address - all pointers remain valid.
+//
+// Typical usage:
+//   FILEBookCreate(buf, path, 1*GB, 4*KB);  // reserve 1GB, start with 4KB
+//   ... write data ...
+//   if (need more) FILEBookExtend(buf, new_size);
+//   ... pointers into buf still valid ...
+//   FILEUnBook(buf);
+
+// Book VA range and map existing file at start
+ok64 FILEBook(u8bp *buf, path8cg path, size_t book_size);
+
+// Book VA range and map existing file at dir
+ok64 FILEBookAt(u8bp *buf, int dir, path8cg path, size_t book_size);
+
+// Create file, book VA range, map with initial size
+ok64 FILEBookCreate(u8bp *buf, path8cg path, size_t book_size, size_t init_size);
+
+// Create file at dir, book VA range, map with initial size
+ok64 FILEBookCreateAt(u8bp *buf, int dir, path8cg path, size_t book_size,
+                      size_t init_size);
+
+// Extend file and mapping within booked range (base address unchanged)
+ok64 FILEBookExtend(u8bp buf, size_t new_size);
+
+// Grow booked buffer to accommodate 'need' idle bytes (slow path)
+ok64 FILEBookGrow(u8bp buf, size_t need);
+
+// Ensure at least 'need' idle bytes in booked buffer (inline fast path)
+fun ok64 FILEBookEnsure(u8bp buf, size_t need) {
+    if (u8bIdleLen(buf) >= need) return OK;
+    return FILEBookGrow(buf, need);
+}
+
+// Sync mapped region to disk
+ok64 FILEMSync(u8bp buf);
+
+// O(1) fd lookup for booked buffers (buf points into FILE_WANT_BUFS)
+fun int FILEBookedFD(u8bp buf) {
+    if (!FILE_WANT_BUFS || !buf) return FILE_CLOSED;
+    size_t off = (u8cp)buf - (u8cp)FILE_WANT_BUFS;
+    if (off % sizeof(Bu8) != 0) return FILE_CLOSED;
+    size_t idx = off / sizeof(Bu8);
+    if (idx >= FILE_MAX_OPEN) return FILE_CLOSED;
+    return (int)idx;
+}
+
+// Check if buffer is booked
+fun b8 FILEIsBooked(u8bp buf) {
+    return FILEBookedFD(buf) >= 0;
+}
+
+// Unmap booked buffer and close file
+ok64 FILEUnBook(u8bp buf);
+
+// Truncate booked file to actual data length
+ok64 FILETrimBook(u8bp buf);
+
+// . . . . . . . .
+
 ok64 FILECloseAll();
+ok64 FILEBookInit();
 
 fun ok64 FILEInit() {
-    if (*FILE_BUFS != NULL) return OK;
-    ok64 o = u8pbAllocate(FILE_BUFS, FILE_MAX_OPEN);
-    if (o == OK) o = u8bAllocate(FILE_RW, roundup(FILE_MAX_OPEN >> 3, 64));
+    if (*FILE_RW != NULL) return OK;
+    ok64 o = u8bAllocate(FILE_RW, roundup(FILE_MAX_OPEN >> 3, 64));
+    if (o == OK) o = u8pbAllocate(FILE_BOOK, FILE_MAX_OPEN);
+    if (o == OK) o = FILEBookInit();
     return o;
 }
 // . . . . . . . .

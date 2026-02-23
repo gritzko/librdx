@@ -19,7 +19,7 @@
 #define SCALE (64 * KB)
 //(KB * 128)
 
-pro(SKIP0) {
+ok64 SKIP0() {
     sane(1);
     SKIPu8tab skips = {};
     testeq(0, SKIPu8pos(&skips, 0));
@@ -40,7 +40,7 @@ pro(SKIP0) {
     done;
 }
 
-pro(SKIPcheck, u8bp buf, u8bp checked, SKIPu8tab const* k) {
+ok64 SKIPcheck(u8bp buf, u8bp checked, SKIPu8tab const* k) {
     sane(1);
     for (int h = SKIPu8len(k->pos) - 1; h >= 0; --h) {
         if (k->off[h] == 0xff) continue;
@@ -59,7 +59,7 @@ pro(SKIPcheck, u8bp buf, u8bp checked, SKIPu8tab const* k) {
     done;
 }
 
-pro(SKIP1) {
+ok64 SKIP1() {
     sane(1);
     a_pad(u8, check, SCALE / 8);
     a_pad(u8, pad, SCALE);
@@ -79,13 +79,13 @@ pro(SKIP1) {
     done;
 }
 
-pro(SKIP2) {
+ok64 SKIP2() {
     sane(1);
     a_path(path, "/tmp/SKIP2.txt");
-    FILEunlink(path);
-    u8b pad = {};
+    FILEUnLink(path8cgIn(path));
+    u8bp pad = NULL;
     a_pad(u8, check, SCALE);
-    call(FILEMapCreate, pad, path, SCALE);
+    call(FILEMapCreate, &pad, path8cgIn(path), SCALE);
     COMBinit(pad);
     SKIPu8tab k = {};
     for (u64 i = 0; i < 8; ++i) {
@@ -106,7 +106,7 @@ pro(SKIP2) {
         zerob(check);
         call(SKIPcheck, pad, check, &k);
     }
-    call(FILEunlink, path);
+    call(FILEUnLink, path8cgIn(path));
     done;
 }
 
@@ -117,7 +117,7 @@ fun int cmp($cc a, $cc b) {
     return u64cmp(aa, bb);
 }
 
-pro(SKIP3) {
+ok64 SKIP3() {
     sane(1);
     a_pad(u8, pad, SCALE);
     a_pad(u8, check, SCALE);
@@ -148,7 +148,7 @@ fun int tlvcmp($cc a, $cc b) {
     return u64cmp(aa, bb);
 }
 
-pro(SKIP4) {
+ok64 SKIP4() {
     sane(1);
     a_pad(u8, pad, SCALE);
     a_pad(u8, check, SCALE);
@@ -177,7 +177,7 @@ pro(SKIP4) {
     done;
 }
 
-pro(SKIPtest) {
+ok64 SKIPtest() {
     sane(1);
     call(SKIP0);
     call(SKIP1);

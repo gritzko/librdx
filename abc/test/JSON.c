@@ -3,7 +3,7 @@
 #include "B.h"
 #include "TEST.h"
 
-pro(RDXtest1) {
+ok64 RDXtest1() {
     sane(1);
     a$str(json, "{\"a\":1,\"b\":[2]}");
     aBcpad(u64, pad, 1024);
@@ -17,7 +17,7 @@ pro(RDXtest1) {
     call(u64bFeedP, state.json, (u64*)&child);
     call(u32bFeed1, state.stack, 0);
 
-    call(JSONlexer, &state);
+    call(JSONLexer, &state);
 
     for (u64* p = padbuf[0]; p < padbuf[2]; ++p) {
         js64* j = (js64*)p;
@@ -28,7 +28,7 @@ pro(RDXtest1) {
     done;
 }
 
-pro(RDXtest) {
+ok64 RDXtest() {
     sane(1);
     call(RDXtest1);
     done;

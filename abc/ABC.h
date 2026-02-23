@@ -3,6 +3,7 @@
 
 #include "BUF.h"
 #include "FILE.h"
+#include "HTTP.h"
 #include "INT.h"
 #include "MMAP.h"
 #include "NACL.h"

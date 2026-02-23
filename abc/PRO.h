@@ -3,6 +3,7 @@
 
 // It is not recommended to include this header from
 // public .h files. It pollutes the namespace for non-ABC code.
+// PRO.h use implies use of MAIN(), TEST() or fuzz() macros in executables.
 
 #include <errno.h>
 #include <stdint.h>
@@ -21,13 +22,14 @@ con char *_pro_indent =
 
 #define PROindent (_pro_indent + 32 - (_pro_depth & 31))
 
-#define pro(name, ...) ok64 name(__VA_ARGS__)
-
 // Mandatory sanity checks; might be disabled in Release mode.
 #ifndef ABC_INSANE
-#define sane(c)                            \
-    trace("%s>%s\n", PROindent, __func__); \
-    if (!(c)) return FAILsanity;           \
+#define sane(c)                                                           \
+    trace("%s>%s\n", PROindent, __func__);                                \
+    if (!(c)) {                                                           \
+        trace("%s<FAILsanity at %s:%i\n", PROindent, __func__, __LINE__); \
+        return FAILsanity;                                                \
+    }                                                                     \
     ok64 __ = OK;
 #else
 #define sane(c) ok64 __ = OK;
@@ -97,7 +99,7 @@ con char *_pro_indent =
     }
 
 #define test(c, f) \
-    if (!(c)) fail(f);
+    if (!likely(c)) fail(f);
 
 #define testsafe(c, f, cleanup) \
     if (!(c)) {                 \
@@ -160,6 +162,13 @@ con char *_pro_indent =
         }                                                                      \
     }
 
+#define must(cond, msg)                                                 \
+    if (!(cond)) {                                                      \
+        fprintf(stderr, "%s assert fail %s at %s:%i\n", PROindent, msg, \
+                __func__, __LINE__);                                    \
+        __builtin_trap();                                               \
+    }
+
 #define $testeq(a, b)                                                         \
     {                                                                         \
         if (!likely($size(a) == $size(b) && 0 == memcmp(*a, *b, $size(a)))) { \
@@ -185,19 +194,55 @@ fun void _parse_args(int argn, char **args) {
     STD_ARGS[2] = STD_ARGS[3] = _STD_ARGS + argn;
 }
 
-#define $arglen $len(Bu8csData(STD_ARGS))
+#define $arglen $len(u8csbData(STD_ARGS))
 
-#define $arg(i) (*u8cssatp(u8csbData(STD_ARGS), i))
+#define $arg(i) (*u8cssAtP(u8csbData(STD_ARGS), i))
 
 #define a$rg(name, i) \
     u8cs name = {};   \
     $mv(name, *u8cssAtP(u8csbData(STD_ARGS), i));
+
+#define an_arg(name, i) \
+    u8cs name = {};     \
+    if ($arglen > (i)) $mv(name, *u8cssAtP(u8csbData(STD_ARGS), i));
+
+// Redirect stderr to file for tracing
+// If ABC_TRACE env var is set to a filename, use that; otherwise
+// /tmp/name-pid.err Prints path to stderr before redirecting, returns OK on
+// success
+fun ok64 PROStderrToFile(char const *name) {
+    char const *env = getenv("ABC_TRACE");
+    char path[256];
+    if (env && *env && *env != '1') {
+        // ABC_TRACE=filename - use as-is
+        int n = snprintf(path, sizeof(path), "%s", env);
+        if (n < 0 || n >= (int)sizeof(path)) return NOROOM;
+    } else {
+        // Default: /tmp/basename-pid.err
+        char const *base = name;
+        for (char const *p = name; *p; p++) {
+            if (*p == '/') base = p + 1;
+        }
+        int n = snprintf(path, sizeof(path), "/tmp/%s-%d.err", base, getpid());
+        if (n < 0 || n >= (int)sizeof(path)) return NOROOM;
+    }
+    fprintf(stderr, "stderr: %s\n", path);
+    if (!freopen(path, "w", stderr)) return FAILsanity;
+    return OK;
+}
+
+#ifdef ABC_TRACE
+#define _PRO_TRACE_INIT(name) PROStderrToFile(name)
+#else
+#define _PRO_TRACE_INIT(name)
+#endif
 
 #define MAIN(f)                                                          \
     uint8_t _pro_depth = 0;                                              \
     u8cs _STD_ARGS[64] = {};                                             \
     u8cs *STD_ARGS[4] = {};                                              \
     int main(int argn, char **args) {                                    \
+        _PRO_TRACE_INIT(args[0]);                                        \
         _parse_args(argn, args);                                         \
         ok64 ret = f();                                                  \
         if (ret != OK) {                                                 \

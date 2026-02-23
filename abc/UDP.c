@@ -8,7 +8,9 @@ ok64 UDPBind(int *fd, u8cs addr) {
     int s, sfd;
     struct addrinfo *result = NULL, *rp;
 
-    call(NETParseAddress, &result, addr, NO);
+    URIstate uri = {};
+    call(URIutf8Drain, addr, &uri);
+    call(NETResolve, &result, &uri, NO);
 
     for (rp = result; rp != NULL; rp = rp->ai_next) {
         sfd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
@@ -16,9 +18,9 @@ ok64 UDPBind(int *fd, u8cs addr) {
 
         int rc = bind(sfd, rp->ai_addr, rp->ai_addrlen);
         if (rc != 0) {
-            trace("getadd: %s\n", gai_strerror(s));
+            trace("bind failed: %s\n", strerror(errno));
             if (result) NETFreeAddress(&result);
-            return UDPfail;
+            return UDPFAIL;
         }
         if (rc == 0) break;
 
@@ -27,7 +29,7 @@ ok64 UDPBind(int *fd, u8cs addr) {
 
     NETFreeAddress(&result);
 
-    test(sfd != -1, UDPfail);
+    test(sfd != -1, UDPFAIL);
 
     *fd = sfd;
     done;
@@ -40,21 +42,23 @@ ok64 UDPConnect(int *fd, u8cs addr) {
     ssize_t nread;
     struct addrinfo *result = NULL, *rp;
 
-    call(NETParseAddress, &result, addr, NO);
+    URIstate uri = {};
+    call(URIutf8Drain, addr, &uri);
+    call(NETResolve, &result, &uri, NO);
 
     for (rp = result; rp != NULL; rp = rp->ai_next) {
         sfd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
         if (sfd == -1) continue;
 
         if (connect(sfd, rp->ai_addr, rp->ai_addrlen) != -1)
-            break; /* Success */
+            break;  // Success
 
         close(sfd);
     }
 
     NETFreeAddress(&result);
 
-    if (rp == NULL) return UDPfail;
+    if (rp == NULL) return UDPFAIL;
     *fd = sfd;
     return OK;
 }

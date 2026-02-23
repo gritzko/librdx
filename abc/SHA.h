@@ -15,17 +15,17 @@ fun b8 sha256empty(sha256 const* sha) {
 
 typedef crypto_hash_sha256_state SHAstate;
 
-fun void SHAsum(sha256* hash, $cu8c from) {
+fun void SHASum(sha256* hash, $cu8c from) {
     crypto_hash_sha256(hash->data, *from, $len(from));
 }
 
-fun void SHAopen(SHAstate* state) { crypto_hash_sha256_init(state); }
+fun void SHAOpen(SHAstate* state) { crypto_hash_sha256_init(state); }
 
-fun void SHAfeed(SHAstate* state, $cu8c data) {
+fun void SHAFeed(SHAstate* state, $cu8c data) {
     crypto_hash_sha256_update(state, *data, $len(data));
 }
 
-fun void SHAclose(SHAstate* state, sha256* hash) {
+fun void SHAClose(SHAstate* state, sha256* hash) {
     crypto_hash_sha256_final(state, hash->data);
 }
 

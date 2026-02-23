@@ -38,7 +38,7 @@ u8cs FIRSTY_TEST[][8] = {
         0,
     },
     {
-        u8csOf("\"s\tring\""),  // todo escaping  esc->esc
+        u8csOf("\"s\\tring\""),  // todo escaping  esc->esc
         u8csOf("\"s\tring\""),
         u8csOf("\"s\\tring\""),
         0,

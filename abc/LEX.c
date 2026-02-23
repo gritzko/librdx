@@ -29,7 +29,7 @@ const u8c *LEX_TEMPL[LEX_TEMPL_LANG_LEN][LEX_TEMPL_LEN][2] = {
                "    }\n"
                "}\n"),
         $u8str("\t$mod$act = ${mod}enum+$actno,\n"),
-        $u8str("ok64 ${mod}on$act (utf8cs tok, ${mod}state* state);\n"),
+        $u8str("ok64 ${mod}on$act (u8cs tok, ${mod}state* state);\n"),
         $u8str("$mod$act = ( "),
         $u8str(" )  >$mod${act}0 %$mod${act}1;\n"),
         $u8str(" ); # no $act callback\n"),
@@ -66,7 +66,7 @@ const u8c *LEX_TEMPL[LEX_TEMPL_LANG_LEN][LEX_TEMPL_LEN][2] = {
                "%%write data;\n"
                "\n"
                "// the public API function\n"
-               "ok64 ${mod}lexer(${mod}state* state) {\n"
+               "ok64 ${mod}Lexer(${mod}state* state) {\n"
                "\n"
                "    a_dup(u8c, data, state->data);\n"
                "    sane($$ok(data));\n"
@@ -78,7 +78,7 @@ const u8c *LEX_TEMPL[LEX_TEMPL_LANG_LEN][LEX_TEMPL_LEN][2] = {
                "    u64 mark0[64] = {};\n"
                "    ok64 o = OK;\n"
                "\n"
-               "    utf8cs tok = {p, p};\n"
+               "    u8cs tok = {p, p};\n"
                "\n"
                "    %% write init;\n"
                "    %% write exec;\n"
@@ -137,7 +137,7 @@ const u8c *LEX_TEMPL[LEX_TEMPL_LANG_LEN][LEX_TEMPL_LEN][2] = {
                "%%write data;\n"
                "\n"
                "// the public API function\n"
-               "func ${mod}lexer (state *${mod}state) (err error) {\n"
+               "func ${mod}Lexer (state *${mod}state) (err error) {\n"
                "\n"
                "    data := state.data\n"
                "    var mark0 [64]int\n"
@@ -201,7 +201,7 @@ ok64 LEXonEq($cu8c tok, LEXstate *state) {
     done;
 }
 
-pro(LEXonRuleName, $cu8c tok, LEXstate *state) {
+ok64 LEXonRuleName($cu8c tok, LEXstate *state) {
     sane($ok(tok) && state != NULL);
     $set(state->cur, tok);
     state->ruleno++;
@@ -254,7 +254,7 @@ ok64 LEXonRoot($cu8c tok, LEXstate *state) {
     done;
 }
 
-pro(lex2rl, u8cs mod, $u8c lang) {
+ok64 lex2rl(u8cs mod, $u8c lang) {
     sane($ok(mod));
 
     a_pad(u8, name, KB);
@@ -262,7 +262,7 @@ pro(lex2rl, u8cs mod, $u8c lang) {
     u8cs $namet = $u8str("$s.lex");
     $feedf(name_idle, $namet, mod);
     int fd;
-    call(FILEOpen, &fd, name, O_RDONLY);
+    call(FILEOpen, &fd, path8cgIn(name), O_RDONLY);
     call(FILEdrainall, lex_idle, fd);
     call(FILEClose, &fd);
 
@@ -287,14 +287,14 @@ pro(lex2rl, u8cs mod, $u8c lang) {
     call(NESTFeed, ct, LEX_TEMPL[nlang][LEX_TEMPL_FILE]);
 
     a_pad(u8, rl, MB);
-    call(LEXlexer, &state);
+    call(LEXLexer, &state);
     call(NESTRender, rl_idle, ct);
 
     a_pad(u8, rlname, KB);
     u8cs $rnamet = $u8str("$s.$s.rl");
     $feedf(rlname_idle, $rnamet, mod, LEX_TEMPL[nlang][LEX_TEMPL_L]);
     int rfd;
-    call(FILECreate, &rfd, rlname);
+    call(FILECreate, &rfd, path8cgIn(rlname));
     call(FILEFeedall, rfd, rl_datac);
     call(FILEClose, &rfd);
 

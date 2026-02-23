@@ -8,7 +8,7 @@
 
 #define LEN1 917
 
-pro(SORT1) {
+ok64 SORT1() {
     sane(1);
     aBpad2(u64, ints, LEN1);
     aBpad2(u64, ints2, LEN1);
@@ -27,7 +27,7 @@ pro(SORT1) {
     done;
 }
 
-pro(SORTtest) {
+ok64 SORTtest() {
     sane(1);
     call(SORT1);
     done;

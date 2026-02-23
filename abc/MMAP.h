@@ -3,13 +3,13 @@
 #include "01.h"
 #include "B.h"
 
-con ok64 MMAPbadarg = 0x5962999a5a25dab;
-con ok64 MMAPfail = 0x596299aa5b70;
+con ok64 MMAPBADARG = 0x5962992ca34a6d0;
+// MMAPFAIL defined in B.h
 
 ok64 MMAPopen(voidb buf, size_t size);
 
 fun ok64 MMAPclose(voidb buf) {
-    if (buf == NULL || *buf == NULL) return MMAPbadarg;
+    if (buf == NULL || *buf == NULL) return MMAPBADARG;
     munmap(buf[0], Bsize(buf));
     memset((void **)buf, 0, sizeof(voidb));
     return OK;

@@ -2,7 +2,7 @@
 
 #include "TEST.h"
 
-fuzz(u64, ZINTfuzz) {
+FUZZ(u64, ZINTfuzz) {
     sane(1);
     if ($len(input) & 1) --input[1];
     a_dup(u64c, tozip, input);

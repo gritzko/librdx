@@ -7,7 +7,7 @@
 #include "HEX.h"
 #include "TEST.h"
 
-pro(SHAtest1) {
+ok64 SHAtest1() {
     sane(1);
     u8cs value1 = $u8str("Good morning!\n");
     u8cs value2 = $u8str("Hello world!\n");
@@ -17,7 +17,7 @@ pro(SHAtest1) {
         "0ba904eae8773b70c75333db4de2f3ac45a8ad4ddba1b242f0b3cfc199391dd8");
 
     sha256 hash1 = {};
-    SHAsum(&hash1, value1);
+    SHASum(&hash1, value1);
     aBpad(u8, hex1b, 64);
     call(HEXsha256Put, u8bIdle(hex1b), &hash1);
     testeq(YES, $eq(hex1, u8bData(hex1b)));
@@ -25,9 +25,9 @@ pro(SHAtest1) {
     sha256 hash2;
     aBpad(u8, hex2b, 64);
     SHAstate state;
-    SHAopen(&state);
-    SHAfeed(&state, value2);
-    SHAclose(&state, &hash2);
+    SHAOpen(&state);
+    SHAFeed(&state, value2);
+    SHAClose(&state, &hash2);
     a$(u8c, hs2, hash2.data);
     HEXPut(u8bIdle(hex2b), hs2);
     testeq(YES, $eq(u8bData(hex2b), hex2));
@@ -35,7 +35,7 @@ pro(SHAtest1) {
     done;
 }
 
-pro(SHAtest) {
+ok64 SHAtest() {
     sane(1);
     call(SHAtest1);
     done;

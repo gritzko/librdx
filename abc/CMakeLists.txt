@@ -10,23 +10,15 @@ include(CTest)
 include_directories(.. . ryu)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}")
-find_library(sodium 
-	NAMES sodium 
-	HINTs /usr /usr/local 
+find_library(sodium
+	NAMES sodium
+	HINTs /usr /usr/local
 	REQUIRED)
 
-option(WITH_ASAN "build with ASAN" OFF)
-if (WITH_ASAN)
-    set(ASAN_FLAGS "-g -O1 -fsanitize=address -fno-omit-frame-pointer -fno-optimize-sibling-calls")
-    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${ASAN_FLAGS}")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${ASAN_FLAGS}")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${ASAN_FLAGS}")
-endif ()
+find_package(CURL REQUIRED)
 
-set(TEST_CXX_FLAGS "-g")
-set(TEST_LDD_FLAGS "-g")
-set(BENCH_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -v")
-set(BENCH_LDD_FLAGS benchmark::benchmark)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(LZ4 REQUIRED liblz4)
 
 list(APPEND ABC_HEADERS 
 S.h
@@ -54,19 +46,25 @@ LEX.h
 MMAP.h
 NEST.h
 OK.h
+PAGE.h
 PRO.h
 SHA.h
 SKIP.h
 SKIPx.h
+SLOG.h
 SORT.h
 TEST.h
 TLV.h
+TTY.h
 UTF8.h
 ZINT.h
 URI.h
 NET.h
 UDP.h
 HTTP.h
+CURL.h
+PACK.h
+PATH.h
 )
 
 list(APPEND ABC_SOURCES 
@@ -79,7 +77,10 @@ LEX.c
 LEX.rl.c
 LSM.c
 MMAP.c
+PAGE.c
 POL.c
+RON.c
+SLOG.c
 SORT.c
 URI.rl.c
 URI.c
@@ -88,14 +89,18 @@ HTTP.rl.c
 HTTP.c
 TCP.c
 TLV.c
+TTY.c
 UDP.c
 UTF8.c
 ZINT.c
+CURL.c
+PACK.c
+PATH.c
 ryu/d2s.c
 )
 
 add_library(abc STATIC ${ABC_HEADERS} ${ABC_SOURCES})
-target_link_libraries(abc sodium)
+target_link_libraries(abc sodium CURL::libcurl ${LZ4_LIBRARIES})
 
 add_executable(ok64 OK.cli.c)
 target_link_libraries(ok64 abc)

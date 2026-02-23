@@ -84,7 +84,7 @@ ok64 rdxFindByLSMIndex(rdxp p, u64p pos, id128 id) {
 
 ok64 rdxIntoLSM(rdxp c, rdxp p) {
     sane(c && p);
-    /*c->format = p->cformat;
+    /*c->format = p->flags;
     u8cgOf(c->datag, p->plexc);
     c->ptype = p->type;
     if (p->type != RDX_TYPE_EULER) done;
@@ -101,7 +101,7 @@ ok64 rdxIntoLSM(rdxp c, rdxp p) {
 
 ok64 rdxOutoLSM(rdxp c, rdxp p) {
     sane(c && c->format == RDX_FMT_TLV);
-    p->len = 0;
+    p->loc = 0;
     done;
 }
 
@@ -113,18 +113,18 @@ ok64 rdxWriteNextLSM(rdxp x) {
     call(TLVu8sStartHuge, x->into, plex, RDX_TYPE_LIT[x->type]);
     call(u8sFeed1, plex, $len(id_data));
     call(u8sFeed, plex, id_datac);
-    x->cformat = RDX_FMT_TLV | RDX_FMT_WRITE;
+    x->flags = RDX_FMT_TLV | RDX_FMT_WRITE;
     done;
 }
 
 ok64 rdxWriteIntoLSM(rdxp c, rdxp p) {
-    sane(c && p && p->type && p->cformat);
-    c->format = p->cformat;
+    sane(c && p && p->type && p->flags);
+    c->format = p->flags;
     u8sFork(p->plex, c->into);
     c->ptype = p->type;
     c->type = 0;
-    c->cformat = 0;
-    c->len = 0;
+    c->flags = 0;
+    c->loc = 0;
     zero(c->r);
     done;
 }

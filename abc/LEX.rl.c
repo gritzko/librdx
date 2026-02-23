@@ -729,7 +729,7 @@ static const int LEX_en_main = 247;
 #line 159 "LEX.rl"
 
 // the public API function
-pro(LEXlexer, LEXstate* state) {
+ok64 LEXLexer(LEXstate* state) {
     a_dup(u8c, data, state->data);
     sane($ok(data));
 
@@ -1023,7 +1023,7 @@ pro(LEXlexer, LEXstate* state) {
 
     state->data[0] = p;
     if (p != data[1] || cs < LEX_first_final) {
-        return LEXfail;
+        return LEXFAIL;
     }
     done;
 }

@@ -8,7 +8,7 @@
 #include "HEAPx.h"
 #undef X
 
-fuzz(u32, HEAPfuzz) {
+FUZZ(u32, HEAPfuzz) {
     sane(1);
     if ($len(input) > 1024) input[1] = input[0] + 1024;
 
@@ -26,6 +26,6 @@ fuzz(u32, HEAPfuzz) {
         call(u32bFeed1, heaped, v);
     }
 
-    assert(0 == $cmp(Bdata(heaped), Bdata(sorted)));
+    must(0 == $cmp(Bdata(heaped), Bdata(sorted)), "heap order mismatch");
     done;
 }

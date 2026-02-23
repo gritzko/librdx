@@ -8,7 +8,7 @@
 #include "PRO.h"
 #include "TEST.h"
 
-pro(COMBtest1) {
+ok64 COMBtest1() {
     sane(1);
     aBcpad(u8, pad, PAGESIZE);
     COMBinit(padbuf);
@@ -26,14 +26,14 @@ pro(COMBtest1) {
 // #include "COMBx.h"
 // #undef X
 
-pro(COMBtest2) {
+ok64 COMBtest2() {
     sane(1);
     aBcpad(u8, pad, PAGESIZE);
     // call(COMBu8init, padbuf);
     done;
 }
 
-pro(COMBtest) {
+ok64 COMBtest() {
     sane(1);
     call(COMBtest1);
     // call(COMBtest2);

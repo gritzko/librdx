@@ -19,13 +19,13 @@ typedef u256 blake256;
 #define edpub256cmp u256cmp
 #define edsig512cmp u512cmp
 
-con ok64 NACLbad = 0x1728c566968;
-con ok64 NACLfail = 0x5ca315aa5b70;
-con ok64 NACLfail0 = 0x1728c56a96dc00;
+con ok64 NACLBAD = 0x1728c54b28d;
+con ok64 NACLFAIL = 0x5ca3153ca495;
+con ok64 NACLFAIL0 = 0x1728c56a96dc00;
 
 fun ok64 NACLed25519create(edpub256 *publicKey, edsec512 *secretKey) {
     int ret = crypto_sign_ed25519_keypair((u8 *)publicKey, (u8 *)secretKey);
-    return ret == 0 ? OK : NACLfail0 + ret;
+    return ret == 0 ? OK : NACLFAIL0 + ret;
 }
 
 typedef unsigned long long int nacl_size_t;
@@ -35,8 +35,8 @@ fun ok64 NACLed25519sign(edsig512 *sign, const sha256 *hash,
     nacl_size_t slen;
     int ret = crypto_sign_detached((u8 *)sign, &slen, (u8 *)hash,
                                    sizeof(sha256), (u8 *)seckey);
-    must(slen == sizeof(edsig512));
-    return ret == 0 ? OK : NACLfail0 + ret;
+    assert(slen == sizeof(edsig512));
+    return ret == 0 ? OK : NACLFAIL0 + ret;
 }
 
 fun ok64 NACLed25519verify(const edsig512 *signature, const sha256 *hash,
@@ -44,7 +44,7 @@ fun ok64 NACLed25519verify(const edsig512 *signature, const sha256 *hash,
     int ret = crypto_sign_ed25519_verify_detached(
         (const u8 *)signature, (const u8 *)hash, sizeof(sha256),
         (const u8 *)pubkey);
-    return ret == 0 ? OK : NACLbad;
+    return ret == 0 ? OK : NACLBAD;
 }
 
 fun ok64 NACLBlakeInit(blake0 *state) {

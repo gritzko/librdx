@@ -256,7 +256,7 @@ JDRUtf8cp2 = (     JDRutf8lead2  JDRutf8cont )  >JDRUtf8cp20 %JDRUtf8cp21;
 JDRUtf8cp3 = (     JDRutf8lead3  JDRutf8cont  JDRutf8cont )  >JDRUtf8cp30 %JDRUtf8cp31;
 JDRUtf8cp4 = (     JDRutf8lead4  JDRutf8cont  JDRutf8cont  JDRutf8cont )  >JDRUtf8cp40 %JDRUtf8cp41;
 JDRutf8cp = (   JDRUtf8cp1  |  JDRUtf8cp2  |  JDRUtf8cp3  |  JDRUtf8cp4 ); # no utf8cp callback
-JDResc = (   [\\]  ["\\/bfnrt] ); # no esc callback
+JDResc = (   [\\]  ["\\/bfnrt0] ); # no esc callback
 JDRhexEsc = (     "\\u"  JDRhex{4} ); # no hexEsc callback
 JDRutf8esc = (   (JDRutf8cp  -  ["\\\r\n])  |  JDResc  |  JDRhexEsc ); # no utf8esc callback
 JDRid128 = (   JDRron64s  ("-"  JDRron64s)? ); # no id128 callback
@@ -285,9 +285,9 @@ main := JDRRoot;
 %%write data;
 
 // the public API function
-ok64 JDRlexer(JDRstate* state) {
+ok64 JDRLexer(JDRstate* state) {
 
-    a_dup(u8c, data, state->data);
+    u8cs data = {state->next, state->opt};
     sane($ok(data));
 
     int cs = 0;
@@ -302,8 +302,8 @@ ok64 JDRlexer(JDRstate* state) {
     %% write init;
     %% write exec;
 
-    state->data[0] = p;
-    if (o==OK && cs < JDR_first_final) 
+    if (o != BACK) state->next = (u8p)p;
+    if (o==OK && cs < JDR_first_final)
         o = JDRBAD;
     
     return o;

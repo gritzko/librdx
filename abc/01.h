@@ -8,9 +8,6 @@
 #define fun static inline
 #define funi static __always_inline
 #define con static const
-#define record typedef struct
-
-#define must(c) assert(c)
 
 typedef void *$[2];
 typedef void *const $c[2];
@@ -114,9 +111,9 @@ con ok64 BADSTAT = 0xb28d71d29d;
 con ok64 MISS = 0x59271c;
 
 con ok64 $miss = 0x3fc6ddf7;
-con ok64 $nodata = 0x3fcb3a25e25;
-con ok64 $noroom = 0x3fcb3db3cf1;
-con ok64 $badarg = 0x3f9a5a25dab;
+con ok64 SNODATA = 0x1c5d834a74a;
+con ok64 SNOROOM = 0x1c5d86d8616;
+con ok64 SBADARG = 0x1c2ca34a6d0;
 
 #define WORDS(k)        \
     union {             \
@@ -372,14 +369,14 @@ fun ok64 u64decfeed(u8 **dec, u64 x) {
         x /= 10;
     } while (x);
     size_t sz = e - to;
-    if (dec[1] - dec[0] < sz) return $noroom;
+    if (dec[1] - dec[0] < sz) return SNOROOM;
     memcpy(*dec, to, sz);
     *dec += sz;
     return OK;
 }
 
 fun ok64 u64decdrain(u64 *x, u8c **dec) {
-    if (*dec >= dec[1] || **dec < '0' || **dec > '9') return $badarg;
+    if (*dec >= dec[1] || **dec < '0' || **dec > '9') return SBADARG;
     u64 a = **dec - '0';
     ++*dec;
     while (*dec < dec[1]) {
@@ -409,14 +406,14 @@ typedef ok64 (*OKcallback)(void *);
 #define f64MaxValue DBL_MAX
 #define f64MinValue -DBL_MAX
 
-fun ok64 f32Z(f32 const *a, f32 const *b) { return *a < *b; }
-fun ok64 f64Z(f64 const *a, f64 const *b) { return *a < *b; }
-fun ok64 u16Z(u16cp a, u16cp b) { return *a < *b; }
-fun ok64 u32Z(u32cp a, u32cp b) { return *a < *b; }
-fun ok64 u64Z(u64cp a, u64cp b) { return *a < *b; }
-fun ok64 i32Z(i32cp a, i32cp b) { return *a < *b; }
-fun ok64 i64Z(i64cp a, i64cp b) { return *a < *b; }
-fun ok64 u8Z(u8cp a, u8cp b) { return *a < *b; }
+fun b8 f32Z(f32 const *a, f32 const *b) { return *a < *b; }
+fun b8 f64Z(f64 const *a, f64 const *b) { return *a < *b; }
+fun b8 u16Z(u16cp a, u16cp b) { return *a < *b; }
+fun b8 u32Z(u32cp a, u32cp b) { return *a < *b; }
+fun b8 u64Z(u64cp a, u64cp b) { return *a < *b; }
+fun b8 i32Z(i32cp a, i32cp b) { return *a < *b; }
+fun b8 i64Z(i64cp a, i64cp b) { return *a < *b; }
+fun b8 u8Z(u8cp a, u8cp b) { return *a < *b; }
 
 fun u64 i64Zig(i64 i) { return (u64)(i * 2) ^ (u64)(i >> 63); }
 

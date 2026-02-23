@@ -81,6 +81,7 @@ typedef u8b const *u8bcp;
 #define u8csOf(str) {(u8c *)str, (u8c *)str + strlen(str)}
 
 #define a$raw(n, v) $u8 n = {(u8 *)&(v), (u8 *)(&v) + sizeof(v)}
+#define a_raw(n, v) $u8 n = {(u8 *)&(v), (u8 *)(&v) + sizeof(v)}
 #define a_rawc(n, v) u8cs n = {(u8 *)&(v), (u8 *)(&v) + sizeof(v)}
 #define a$rawp(n, p) $u8 n = {(u8 *)(p), (u8 *)(p) + sizeof(*p)}
 #define a_rawcp(n, p) u8cs n = {(u8 const *)(p), (u8 const *)(p) + sizeof(*p)}
@@ -103,21 +104,21 @@ typedef u8b const *u8bcp;
 fun b8 BitAt(u8b buf, size_t ndx) {
     size_t thebyte = ndx >> 3;
     size_t thebit = ndx & 7;
-    must(thebyte < Bsize(buf));
+    assert(thebyte < Bsize(buf));
     return (Bat(buf, thebyte) >> thebit) & 1;
 }
 
 fun void BitSet(u8b buf, size_t ndx) {
     size_t thebyte = ndx >> 3;
     size_t thebit = ndx & 7;
-    must(thebyte < Bsize(buf));
+    assert(thebyte < Bsize(buf));
     Bat(buf, thebyte) |= 1 << thebit;
 }
 
 fun void BitUnset(u8b buf, size_t ndx) {
     size_t thebyte = ndx >> 3;
     size_t thebit = ndx & 7;
-    must(thebyte < Bsize(buf));
+    assert(thebyte < Bsize(buf));
     Bat(buf, thebyte) |= ~(1 << thebit);
 }
 
@@ -155,36 +156,36 @@ fun ok64 $$feedf($u8 into, u8cs tmpl, u8css args) {
         if (**t < '1' || **t > '9') return Badtemplte;
         int n = **t - '1';
         ++*t;
-        if (n >= $len(args)) return Bnodata;
+        if (n >= $len(args)) return BNODATA;
         o = u8sFeed(into, $at(args, n));
     }
-    return $empty(t) ? OK : Bnoroom;
+    return $empty(t) ? OK : BNOROOM;
 }
 
 fun ok64 u8sFeedCStr($u8 into, const char *str) {
     int l = strlen(str);
-    if ($len(into) < l) return $noroom;
+    if ($len(into) < l) return SNOROOM;
     memcpy(*into, str, l);
     *into += l;
     return OK;
 }
 
 fun ok64 u8sFeedn($u8 into, u8c *what, size_t n) {
-    if (unlikely($len(into) < n)) return $noroom;
+    if (unlikely($len(into) < n)) return SNOROOM;
     memcpy(*into, what, n);
     *into += n;
     return OK;
 }
 
 fun ok64 u8sFeed1xN($u8 into, u8 what, size_t n) {
-    if ($len(into) < n) return Bnoroom;
+    if ($len(into) < n) return BNOROOM;
     memset(*into, what, n);
     *into += n;
     return OK;
 }
 
 fun ok64 u8sPop1(u8cs s, u8p last) {
-    if (unlikely($len(s) <= 0)) return $nodata;
+    if (unlikely($len(s) <= 0)) return SNODATA;
     --s[1];
     *last = *s[1];
     return OK;
@@ -192,20 +193,26 @@ fun ok64 u8sPop1(u8cs s, u8p last) {
 
 fun ok64 u8sPop(u8cs s, u8sc into) {
     size_t len = $len(into);
-    if (unlikely(len > $len(s))) return $nodata;
+    if (unlikely(len > $len(s))) return SNODATA;
     memcpy(*into, *s, len * sizeof(u8));
     s[1] -= len;
     return OK;
 }
 
 fun ok64 u8sPop32(u8cs s, u32p last) {
-    if (unlikely($len(s) < 4)) return $nodata;
+    if (unlikely($len(s) < 4)) return SNODATA;
     s[1] -= 4;
     memcpy(last, s[1], 4);
     return OK;
 }
 
-fun ok64 u8csZ(u8cscp a, u8cscp b) {
+// Stream-mode gateway: ensure idle/data space for file-backed buffers.
+// For booked buffers: extends file+mapping. For streaming: flushes/reads.
+// Plain allocated buffers return BNOROOM/BNODATA.
+ok64 u8bWantIdleLen(u8bp buf, size_t need);
+ok64 u8bWantDataLen(u8bp buf, size_t need);
+
+fun b8 u8csZ(u8cscp a, u8cscp b) {
     size_t sza = u8csLen(*a), szb = u8csLen(*b);
     size_t sz = sza < szb ? sza : szb;
     int ret = memcmp(**a, **b, sz);

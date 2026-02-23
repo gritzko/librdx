@@ -18,7 +18,7 @@ Utf8cp4 =  utf8lead4 utf8cont utf8cont utf8cont;
 
 utf8cp = Utf8cp1 | Utf8cp2 | Utf8cp3 | Utf8cp4;
 
-esc = [\\] ["\\/bfnrt];
+esc = [\\] ["\\/bfnrt0];
 hexEsc =  "\\u" hex{4};
 utf8esc = (utf8cp - ["\\\r\n]) | esc | hexEsc;
 

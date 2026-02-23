@@ -4,7 +4,7 @@
 #include "PRO.h"
 #include "TEST.h"
 
-pro(MMAPtest1) {
+ok64 MMAPtest1() {
     sane(1);
     u8b buf8 = {};
     call(u8bMap, buf8, 4096);
@@ -16,7 +16,7 @@ pro(MMAPtest1) {
     Bat(buf8, 1) = 0xbb;
     Bat(buf8, 2) = 0xcc;
     Bat(buf8, 3) = 0xdd;
-    $copy(wordidle, Bidle(buf8));
+    $copy(wordidle, u8bIdle(buf8));
     testeq(Bat(wordbuf, 0), 0xddccbbaa);
 
     call(Bremap2, buf8);
@@ -27,7 +27,7 @@ pro(MMAPtest1) {
     Bat(buf8, 8189) = 0xbb;
     Bat(buf8, 8190) = 0xcc;
     Bat(buf8, 8191) = 0xee;
-    $copy(Bidle(wordbuf), Bidle(buf8));
+    $copy(u32bIdle(wordbuf), u8bIdle(buf8));
     testeq(Bat(wordbuf, 2047), 0xeeccbbaa);
     testeq(Bat(wordbuf, 0), 0xddccbbaa);
 
@@ -36,7 +36,7 @@ pro(MMAPtest1) {
     done;
 }
 
-pro(MMAPtest) {
+ok64 MMAPtest() {
     sane(1);
     call(MMAPtest1);
     done;

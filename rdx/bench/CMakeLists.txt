@@ -12,7 +12,11 @@ set(BENCH_LDD_FLAGS -pthread benchmark::benchmark)
 include_directories(..)
 #find_package(sodium CONFIG)
 
-add_executable(SKILbench SKIL.cpp)
-target_compile_options(SKILbench PRIVATE ${BENCH_CXX_FLAGS})
-target_link_libraries(SKILbench PRIVATE ${BENCH_LDD_FLAGS} abc rdx2)
+#add_executable(SKILbench SKIL.cpp)
+#target_compile_options(SKILbench PRIVATE ${BENCH_CXX_FLAGS})
+#target_link_libraries(SKILbench PRIVATE ${BENCH_LDD_FLAGS} abc rdx2)
+
+add_executable(SLIKbench SLIK.cpp)
+target_compile_options(SLIKbench PRIVATE ${BENCH_CXX_FLAGS})
+target_link_libraries(SLIKbench PRIVATE ${BENCH_LDD_FLAGS} abc rdx2)
 

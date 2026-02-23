@@ -227,7 +227,7 @@ static const int JSON_en_main = 20;
 
 #line 138 "JSON.rl"
 
-pro(JSONlexer, JSONstate* state) {
+ok64 JSONLexer(JSONstate* state) {
     a_dup(u8c, text, state->text);
     sane($ok(text));
 
@@ -564,7 +564,7 @@ _again:
 
     state->text[0] = p;
     if (p!=text[1] || cs < JSON_first_final) {
-        return JSONfail;
+        return JSONFAIL;
     }
     done;
 }

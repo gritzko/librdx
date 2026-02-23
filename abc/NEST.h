@@ -9,7 +9,7 @@
 #define NESTdatac(b) ((u8c**)b + 0)
 
 con ok64 NESTnoroom = 0x5ce71dcb3db3cf1;
-con ok64 NESTnodata = 0x5ce71dcb3a25e25;
+con ok64 NESTNODATA = 0x5ce71d5d834a74a;
 con ok64 NESTbad = 0x1739c766968;
 con ok64 NESTnone = 0x5ce71dcb3ca9;
 

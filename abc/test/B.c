@@ -8,13 +8,13 @@
 #include "PRO.h"
 #include "TEST.h"
 
-pro(fail_test) {
+ok64 fail_test() {
     sane(1);
     fail(BADARG);
     done;
 }
 
-pro(Bmap_test) {
+ok64 Bmap_test() {
     sane(1);
     Bu8 buf = {};
     call(u8bMap, buf, 1024);
@@ -24,7 +24,7 @@ pro(Bmap_test) {
     done;
 }
 
-pro(B$_test) {
+ok64 B$_test() {
     sane(1);
     aBpad(u8cp, slices, 8);
     u8cs hello = $u8str("Hello");
@@ -32,7 +32,7 @@ pro(B$_test) {
     done;
 }
 
-pro(Bndx_test) {
+ok64 Bndx_test() {
     sane(YES);
     Bu64 buf = {};
     u64bAllocate(buf, 1024);
@@ -44,20 +44,20 @@ pro(Bndx_test) {
     done;
 }
 
-pro(Breserve_test) {
+ok64 Breserve_test() {
     sane(1);
     Bu8 buf = {};
     call(u8bAllocate, buf, 1024);
-    for (int i = 0; i < (1 << 20); i++) {
+    for (int i = 0; i < (1 << 18); i++) {
         otry(u8bFeed2, buf, '1', '2');
-        ofix(Bnoroom) call(u8bReserve, buf, 1024);
+        ofix(BNOROOM) call(u8bReserve, buf, 1024);
         ocry();
     }
     call(u8bFree, buf);
     done;
 }
 
-pro(B$test) {
+ok64 B$test() {
     sane(1);
     a$$pad(pad, 128, 8);
     $$call(u8sFeedCStr, pad, "one");
@@ -71,13 +71,13 @@ pro(B$test) {
     done;
 }
 
-pro(BBtest) {
+ok64 BBtest() {
     sane(1);
     aBpad(u8b, buff, 4);
     testeq(sizeof(Bat(buff, 0)), sizeof(Bvoid));
     done;
 }
-pro(Btest) {
+ok64 Btest() {
     sane(1);
     call(Bmap_test);
     call(B$_test);

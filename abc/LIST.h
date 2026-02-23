@@ -8,7 +8,7 @@
 #include "S.h"
 
 con ok64 LISTnoroom = 0x55271dcb3db3cf1;
-con ok64 LISTnodata = 0x55271dcb3a25e25;
+con ok64 LISTNODATA = 0x55271d5d834a74a;
 con ok64 LISTend = 0x1549c769ca8;
 con ok64 LISTbadndx = 0x55271d9a5a32a3c;
 

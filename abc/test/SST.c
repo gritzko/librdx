@@ -47,7 +47,7 @@ fun ok64 latest($u8 into, u8css from) {
 
 con ok64 SrcAlice = 0x299edc0a;
 
-pro(SST0) {
+ok64 SST0() {
     sane(1);
 #define ITER 10000
     Bu8 sst = {};
@@ -72,12 +72,14 @@ pro(SST0) {
         a$rawc(nval, n);
         $testeq(val, nval);
     }
+    call(SSTu128close, sst);
+    unlink((char const *)path[0]);
     done;
 }
 
 fun ok64 nomerge($u8 into, u8css from) { return u8sFeed(into, **from); }
 
-pro(SSTtest) {
+ok64 SSTtest() {
     sane(1);
     call(SST0);
     done;

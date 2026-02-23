@@ -19,7 +19,7 @@ ok64 funIcount(POLLctl* ctl) {
     return POLLfeed(ctl, $n);
 }
 
-pro(POLLtest1) {
+ok64 POLLtest1() {
     sane(1);
     a_cstr(addr, "tcp://127.0.0.1:23456");
     int sfd;
@@ -54,7 +54,7 @@ pro(POLLtest1) {
     done;
 }
 
-pro(POLLtest) {
+ok64 POLLtest() {
     sane(1);
     call(POLLtest1);
     done;

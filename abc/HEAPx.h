@@ -54,7 +54,7 @@ fun ok64 X(, sDown)(X($c, ) heap) { return X(, sDownAt)(heap, 0); }
 
 fun ok64 X(HEAP, Pop)(T *v, X(, bp) buf) {
     T **data = X(, bData)(buf);
-    if ($empty(data)) return Bnodata;
+    if ($empty(data)) return BNODATA;
     X(, mv)(v, $head(data));
     X(, Swap)($head(data), $last(data));
     --$term(data);
@@ -76,7 +76,7 @@ fun ok64 X(HEAP, Push1)(X(, bp) buf, T v) {
 
 fun ok64 X(HEAP, PopZ)(T *v, X(, bp) buf, X(, z) z) {
     T **data = X(, bData)(buf);
-    if ($empty(data)) return Bnodata;
+    if ($empty(data)) return BNODATA;
     X(, mv)(v, $head(data));
     X(, Swap)($head(data), $last(data));
     --$term(data);
@@ -93,6 +93,22 @@ fun ok64 X(HEAP, Push1Z)(X(, bp) buf, T v, X(, z) z) {
     ok64 o = X(, bFeed1)(buf, v);
     if (o != OK) return o;
     return X(, sUpZ)(X(, bData)(buf), z);
+}
+
+fun ok64 X(, sEjectAtZ)(X(, sp) heap, size_t at, X(, z) z) {
+    size_t len = $len(heap);
+    if (at >= len) return MISS;
+    X(, Swap)(*heap + at, $last(heap));
+    --$term(heap);
+    if (at < $len(heap)) {
+        X(, sUpAtZ)(heap, at, z);
+        X(, sDownAtZ)(heap, at, z);
+    }
+    return OK;
+}
+
+fun ok64 X(HEAP, EjectAtZ)(X(, bp) buf, size_t at, X(, z) z) {
+    return X(, sEjectAtZ)(X(, bData)(buf), at, z);
 }
 
 fun ok64 X(, sTopsZ)(X(, sc) heap, X(, sp) eqs, X(, z) z) {

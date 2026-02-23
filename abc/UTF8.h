@@ -17,7 +17,7 @@ con u8 UTF8LEAD4 = 128 | 64 | 32 | 16;
 con u32 MAX_UNICODE_CODEPOINT = 0x10FFFF;
 con u8 MAX_UTF8_SIZE = 4;
 
-con ok64 UTF8nodata = 0x79d3c8cb3a25e25;
+con ok64 UTF8NODATA = 0x79d3c85d834a74a;
 con ok64 UTF8noroom = 0x79d3c8cb3db3cf1;
 con ok64 UTF8bad = 0x1e74f226968;
 con ok64 UTF8badnum = 0x79d3c89a5a32e71;
@@ -37,7 +37,7 @@ fun ok64 utf8sFeed32(utf8s into, u32 cp) {
 ok64 _utf8sDrain32(u32 *cp, utf8cs data);
 
 fun ok64 utf8sDrain32(u32 *cp, utf8cs utf8) {
-    if ($empty(utf8)) return UTF8nodata;
+    if ($empty(utf8)) return UTF8NODATA;
     if (**utf8 >= 0x80) return _utf8sDrain32(cp, utf8);
     *cp = **utf8;
     ++*utf8;
@@ -46,8 +46,17 @@ fun ok64 utf8sDrain32(u32 *cp, utf8cs utf8) {
 
 static u8 UTF8_LEN[16] = {1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 4};
 
+// Count codepoints in a UTF-8 slice
+fun size_t utf8CPLen(utf8csc txt) {
+    size_t count = 0;
+    for (utf8c *p = txt[0]; p < txt[1]; p++) {
+        if ((*p & 0xC0) != 0x80) count++;
+    }
+    return count;
+}
+
 fun ok64 utf8sDrain1utf8(utf8s into, utf8cs from) {
-    if ($empty(from)) return UTF8nodata;
+    if ($empty(from)) return UTF8NODATA;
     u8 len = UTF8_LEN[**from >> 4];
     return utf8sFeedN(into, from, len);
 }

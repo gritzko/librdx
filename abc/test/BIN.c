@@ -3,7 +3,7 @@
 #include "PRO.h"
 #include "TEST.h"
 
-pro(BINtest1) {
+ok64 BINtest1() {
     sane(1);
     testeq(YES, bin64contains(bin64of(2, 0), bin64of(0, 2)));
     testeq(bin64daughter(11), 9);
@@ -13,7 +13,7 @@ pro(BINtest1) {
     done;
 }
 
-pro(BINtest) {
+ok64 BINtest() {
     sane(1);
     call(BINtest1);
     done;

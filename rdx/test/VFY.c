@@ -16,6 +16,7 @@ con ok64 VFYBADFL = 0x7cf88b28d3d5;       // NaN or invalid float
 con ok64 VFYBADREF = 0x1f3e22ca35b38f;    // invalid reference
 con ok64 VFYBADNEST = 0x7cf88b28d5ce71d;  // bad nesting
 con ok64 VFYBADORD = 0x1f3e22ca3586cd;    // incorrect element order
+con ok64 VFYNULLOUT = 0x1f3e22ca397bf;    // empty tuple outside tuple
 
 // Error codes from abc (already defined in headers, just reference here)
 // RDXBAD, TLVbadkv, ZINTBAD are used in test cases
@@ -60,6 +61,12 @@ con VFYcase VERIFY_CASES[] = {
 
     // Empty string
     {{0x73, 0x01, 0x00}, 3, OK, "string empty"},
+
+    // String with overlong id encoding (idlen=1, id=0x00 should be idlen=0)
+    {{0x73, 0x02, 0x01, 0x00}, 4, RDXOVERBAD, "string overlong id"},
+
+    // String with control characters (SOH + NUL are valid UTF-8)
+    {{0x73, 0x03, 0x00, 0x01, 0x00}, 5, OK, "string ctrl"},
 
     // String "Hi" (ASCII, valid UTF-8)
     {{0x73, 0x03, 0x00, 'H', 'i'}, 5, OK, "string Hi"},
@@ -133,23 +140,27 @@ con VFYcase VERIFY_CASES[] = {
     // Float -Infinity: 0xfff0000000000000 -> flipped -> zip 2 bytes: ff f0
     {{0x66, 0x03, 0x00, 0xff, 0xf0}, 5, VFYBADFL, "float -Inf"},
 
+    // Float -0: 0x8000000000000000 -> flipped -> zip 1 byte: 80
+    // -0 breaks merge commutativity since 0 == -0 but bits differ
+    {{0x66, 0x02, 0x00, 0x80}, 4, VFYBADFL, "float -0"},
+
     // === FUZZER-DISCOVERED CASES ===
 
     // Invalid type literal 'c' (0x63) - not a valid RDX type
-    {{0x63, 0x02, 0x00, 0x23}, 4, RDXBAD, "fuzz: invalid type 'c'"},
+    {{0x63, 0x02, 0x00, 0x23}, 4, ok64sub(RDXBAD, RON_o), "fuzz: invalid type 'c'"},
 
     // Empty term (terms cannot be empty)
     {{0x74, 0x01, 0x00}, 3, VFYBADTERM, "fuzz: empty term"},
 
     // Non-canonical: long form 'R' when short 'r' would work
     // R(0x52) len=0x01000000(LE)=1, idlen=0 - payload 1 byte, should use short
-    {{0x52, 0x01, 0x00, 0x00, 0x00, 0x00}, 6, RDXBAD, "fuzz: overlong TLV"},
+    {{0x52, 0x01, 0x00, 0x00, 0x00, 0x00}, 6, RDXOVERBAD, "fuzz: overlong TLV"},
 
     // Non-canonical: huge form when long would work
     // '2'(0x32) is huge form of 'R', 8-byte LE len=2, small payload
     {{0x32, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
      11,
-     RDXBAD,
+     RDXOVERBAD,
      "fuzz: huge form"},
 
     // Invalid TLV: idlen claims more bytes than available
@@ -204,6 +215,34 @@ con VFYcase VERIFYALL_CASES[] = {
      OK,
      "nested valid"},
 
+    // Tuple with container as first element (key must be FIRST type)
+    // tuple( linear() ) - key is LINEAR which is invalid
+    {{0x70, 0x04, 0x00, 0x6c, 0x01, 0x00}, 6, VFYBADTYPE, "tuple container key"},
+
+    // Empty tuple inside EULER (invalid - null only valid in tuple)
+    // euler( tuple() ) - empty tuple in euler is not normalized
+    {{0x65, 0x04, 0x00, 0x70, 0x01, 0x00}, 6, VFYNULLOUT, "empty tuple in euler"},
+
+    // Empty tuple inside LINEAR (invalid - null only valid in tuple)
+    // linear( tuple() )
+    {{0x6c, 0x04, 0x00, 0x70, 0x01, 0x00}, 6, VFYNULLOUT, "empty tuple in linear"},
+
+    // Empty tuple inside TUPLE (valid - this is a null placeholder)
+    // tuple( int(1), tuple() ) - second element is null
+    {{0x70, 0x08, 0x00, 0x69, 0x02, 0x00, 0x02, 0x70, 0x01, 0x00},
+     10,
+     OK,
+     "empty tuple in tuple (null)"},
+
+    // Multiple empty tuples in tuple (valid - sparse array with nulls)
+    // tuple( int(1), tuple(), tuple(), int(2) )
+    // body len = 15 = idlen(1) + id(0) + children(14)
+    {{0x70, 0x0f, 0x00, 0x69, 0x02, 0x00, 0x02, 0x70, 0x01, 0x00, 0x70, 0x01,
+      0x00, 0x69, 0x02, 0x00, 0x04},
+     17,
+     OK,
+     "multiple nulls in tuple"},
+
     // Sentinel
     {{0}, 0, 0, NULL},
 };
@@ -218,40 +257,42 @@ fun ok64 VFYroundtrip(u8c const* data, u8 len, char const* desc) {
     a_pad(u8, tlv_buf, PAGESIZE);
 
     // Step 1: TLV -> JDR
+    // TLV reader: next=position, opt=range_end, bulk=NULL
     rdx tlv_read = {.format = RDX_FMT_TLV};
-    u8cs tlv_in = {data, data + len};
-    u8csMv(tlv_read.data, tlv_in);
+    tlv_read.next = data;
+    tlv_read.opt = (u8p)(data + len);
+    tlv_read.bulk = NULL;
 
-    rdx jdr_write = {.format = RDX_FMT_JDR | RDX_FMT_WRITE};
-    u8sFork(jdr_buf_idle, jdr_write.into);
+    rdx jdr_write = {};
+    rdxWriteInit(&jdr_write, RDX_FMT_JDR, jdr_buf);
 
     ok64 o = rdxCopy(&jdr_write, &tlv_read);
     if (o != OK) {
         trace("FAIL[rt] %s: TLV->JDR copy failed: %s\n", desc, ok64str(o));
         return o;
     }
-    call(u8sJoin, jdr_buf_idle, jdr_write.into);
 
     // Step 2: JDR -> TLV
     rdx jdr_read = {.format = RDX_FMT_JDR};
-    u8csFork(jdr_buf_datac, jdr_read.data);
+    jdr_read.next = jdr_buf_datac[0];
+    jdr_read.opt = (u8p)jdr_buf_datac[1];
 
+    // TLV writer: bulk points to buffer
     rdx tlv_write = {.format = RDX_FMT_TLV | RDX_FMT_WRITE};
-    u8sFork(tlv_buf_idle, tlv_write.into);
+    tlv_write.bulk = tlv_buf;
 
     o = rdxCopy(&tlv_write, &jdr_read);
     if (o != OK) {
         trace("FAIL[rt] %s: JDR->TLV copy failed: %s\n", desc, ok64str(o));
         return o;
     }
-    call(u8sJoin, tlv_buf_idle, tlv_write.into);
 
     // Step 3: Compare original TLV with roundtripped TLV
     u8cs original = {data, data + len};
     if ($len(tlv_buf_datac) != $len(original)) {
         trace("FAIL[rt] %s: length mismatch: orig=%zu, got=%zu\n", desc,
               $len(original), $len(tlv_buf_datac));
-        return TESTfail;
+        return TESTFAIL;
     }
 
     if (memcmp(*original, *tlv_buf_datac, len) != 0) {
@@ -262,7 +303,7 @@ fun ok64 VFYroundtrip(u8c const* data, u8 len, char const* desc) {
         for (size_t i = 0; i < $len(tlv_buf_datac); i++)
             trace("%02x ", tlv_buf_datac[0][i]);
         trace("\n");
-        return TESTfail;
+        return TESTFAIL;
     }
 
     trace("PASS[rt] %s\n", desc);
@@ -278,12 +319,16 @@ ok64 VERIFYtest() {
 
         // Setup iterator with test data
         u8c const* data = tc->data;
-        u8cs slice = {data, data + tc->len};
+        u8cs bounds = {data, data + tc->len};
 
+        // TLV reader: next=position, opt=range_end, bulk=NULL (no PAGE)
         rdx it = {.format = RDX_FMT_TLV};
-        u8csMv(it.data, slice);
+        it.next = bounds[0];
+        it.opt = (u8p)bounds[1];
+        it.bulk = NULL;
 
-        // Parse the element first
+        // Save record position before parsing
+        u8cp rec = it.next;
         ok64 parse_result = rdxNext(&it);
 
         ok64 result;
@@ -292,14 +337,14 @@ ok64 VERIFYtest() {
             result = parse_result;
         } else {
             // Parse succeeded - verify current element
-            result = rdxVerify(&it);
+            result = rdxVerify(&it, rec);
         }
 
         // Check result matches expectation
         if (result != tc->expect) {
             trace("FAIL[%d] %s: got %s", i, tc->desc, ok64str(result));
             trace(", want %s\n", ok64str(tc->expect));
-            fail(TESTfail);
+            fail(TESTFAIL);
         }
         trace("PASS[%d] %s\n", i, tc->desc);
     }
@@ -309,17 +354,20 @@ ok64 VERIFYtest() {
         VFYcase const* tc = &VERIFYALL_CASES[i];
 
         u8c const* data = tc->data;
-        u8cs slice = {data, data + tc->len};
+        u8cs bounds = {data, data + tc->len};
 
+        // TLV reader: next=position, opt=range_end, bulk=NULL (no PAGE)
         rdx it = {.format = RDX_FMT_TLV};
-        u8csMv(it.data, slice);
+        it.next = bounds[0];
+        it.opt = (u8p)bounds[1];
+        it.bulk = NULL;
 
         ok64 result = rdxVerifyAll(&it);
 
         if (result != tc->expect) {
             trace("FAIL[all:%d] %s: got %s", i, tc->desc, ok64str(result));
             trace(", want %s\n", ok64str(tc->expect));
-            fail(TESTfail);
+            fail(TESTFAIL);
         }
         trace("PASS[all:%d] %s\n", i, tc->desc);
     }
@@ -331,7 +379,7 @@ ok64 VERIFYtest() {
         if (tc->expect != OK) continue;
 
         ok64 o = VFYroundtrip(tc->data, tc->len, tc->desc);
-        if (o != OK) fail(TESTfail);
+        if (o != OK) fail(TESTFAIL);
     }
 
     // Also test the valid nested cases
@@ -340,7 +388,7 @@ ok64 VERIFYtest() {
         if (tc->expect != OK) continue;
 
         ok64 o = VFYroundtrip(tc->data, tc->len, tc->desc);
-        if (o != OK) fail(TESTfail);
+        if (o != OK) fail(TESTFAIL);
     }
 
     done;

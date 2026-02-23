@@ -12,13 +12,14 @@ con ok64 SRC_ABC = 0x259a7;
 ok64 LSMTestBasics() {
     sane(1);
     a_path(path, "/tmp/LSMTestBasics");
-    u8b buf = {};
-    call(FILEMapCreate, buf, path, MB);
+    u8bp buf = NULL;
+    call(FILEMapCreate, &buf, path, MB);
 
     // rdx lsm = {.format=RDX_FMT_LSM, .host=buf};
     a_cstr(jdrstr, "{@abc-120 one:1 two:2.0 three:\"3\"}");
     rdx jdr = {.format = RDX_FMT_JDR};
-    u8csFork(jdrstr, jdr.data);
+    jdr.next = jdrstr[0];
+    jdr.opt = (u8p)jdrstr[1];
     rdx lsm = {.format = RDX_FMT_LSM};
     u8sFork(u8bIdle(buf), lsm.into);
 
@@ -36,13 +37,12 @@ ok64 LSMTestBasics() {
 
     call(FILETrimMap, buf);
     call(FILEUnMap, buf);
-
-    // todo open, read
+    call(FILEUnLink, path);
 
     done;
 }
 
-pro(RDXtest) {
+ok64 RDXtest() {
     sane(1);
     call(LSMTestBasics);
     done;

@@ -11,7 +11,10 @@ ok64 TCPConnect(int *fd, u8csc address, b8 nonblocking) {
     int sfd, s;
     struct addrinfo *result = NULL, *rp;
 
-    call(NETParseAddress, &result, address, YES);
+    URIstate uri = {};
+    a_dup(u8c, addr, address);
+    call(URIutf8Drain, addr, &uri);
+    call(NETResolve, &result, &uri, YES);
 
     for (rp = result; rp != NULL; rp = rp->ai_next) {
         sfd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
@@ -26,17 +29,19 @@ ok64 TCPConnect(int *fd, u8csc address, b8 nonblocking) {
 
     NETFreeAddress(&result);
 
-    if (rp == NULL) return TCPfail;
+    if (rp == NULL) return TCPFAIL;
     *fd = sfd;
     return OK;
 }
 
-pro(TCPListen, int *fd, u8cs addr) {
+ok64 TCPListen(int *fd, u8cs addr) {
     sane(fd != NULL && !$empty(addr));
     int s, sfd;
     struct addrinfo *result = NULL, *rp;
 
-    call(NETParseAddress, &result, addr, YES);
+    URIstate uri = {};
+    call(URIutf8Drain, addr, &uri);
+    call(NETResolve, &result, &uri, YES);
 
     for (rp = result; rp != NULL; rp = rp->ai_next) {
         sfd = socket(rp->ai_family, rp->ai_socktype, 0);
@@ -44,9 +49,9 @@ pro(TCPListen, int *fd, u8cs addr) {
 
         int rc = bind(sfd, rp->ai_addr, rp->ai_addrlen);
         if (rc != 0) {
-            trace("getadd: %s\n", gai_strerror(s));
+            trace("bind failed: %s\n", strerror(errno));
             if (result) NETFreeAddress(&result);
-            return TCPfail;
+            return TCPFAIL;
         }
         if (rc == 0) break;
 
@@ -55,11 +60,11 @@ pro(TCPListen, int *fd, u8cs addr) {
 
     NETFreeAddress(&result);
 
-    test(sfd != -1, TCPfail);
+    test(sfd != -1, TCPFAIL);
     int lrc = listen(sfd, 128);
     if (lrc != 0) {
         close(sfd);
-        fail(TCPfail);
+        fail(TCPFAIL);
     }
 
     *fd = sfd;

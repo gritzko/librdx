@@ -4,7 +4,7 @@
 #include "NET.h"
 #include "PRO.h"
 
-pro(UDPtest1) {
+ok64 UDPtest1() {
     sane(1);
 
     a$str(addr, "udp://127.0.0.1:3456");
@@ -20,14 +20,14 @@ pro(UDPtest1) {
 
     aBpad2(u8, read, 128);
     aNETraw(sndaddr);
-    call(UDPdrain, readidle, sndaddr, fd);
+    call(UDPDrain, readidle, sndaddr, fd);
     $testeq(bubu, readdata);
 
-    call(UDPclose, fd);
+    call(UDPClose, fd);
     done;
 }
 
-pro(UDPtest) {
+ok64 UDPtest() {
     sane(1);
     call(UDPtest1);
     done;

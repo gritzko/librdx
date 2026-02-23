@@ -57,8 +57,10 @@ fun size_t X(, cbDataLen)(X(, cb) buf) { return $len((T **)buf + 1); }
 fun size_t X(, cbIdleLen)(X(, cb) buf) { return $len((T **)buf + 2); }
 
 fun T *X(, bHead)(X(, b) b) {
-    assert(!$empty(b + 1));
-    return b[1];
+    return b[0];
+}
+fun T *X(, bTerm)(X(, b) b) {
+    return b[3];
 }
 
 fun b8 X(, bHasRoom)(X(, bp) buf) { return !$empty(X(, bIdle)(buf)); }
@@ -82,6 +84,17 @@ fun T *X(, bAtP)(X(, b) buf, size_t ndx) {
     T *p = buf[0] + ndx;
     assert(p < buf[3]);
     return p;
+}
+
+fun T *X(, bDataAtP)(X(, b) buf, size_t ndx) {
+    T *p = buf[1] + ndx;
+    assert(p < buf[3]);
+    return p;
+}
+
+fun size_t X(, bIdx)(X(, b) buf, X(, cp) p) {
+    assert(p >= buf[0] && p < buf[3]);
+    return (size_t)(p - buf[0]);
 }
 
 #ifndef ABC_X_$
@@ -113,7 +126,12 @@ fun ok64 X(, bShedAll)(X(, b) buf) {
     return X(, gShedAll)(X(, bDataIdle)(buf));
 }
 fun ok64 X(, bUsedAll)(X(, b) buf) {
-    return X(, gUsedAll)(X(, bDataIdle)(buf));
+    return X(, gUsedAll)(X(, bPastData)(buf));
+}
+// Consume data from buffer start (advance buf[1])
+// This is the counterpart to bShed which removes from end
+fun ok64 X(, bUsed)(X(, b) buf, size_t len) {
+    return X(, gUsed)(X(, bPastData)(buf), len);
 }
 
 fun ok64 X(, bFed1)(X(, b) buf) { return X(, sFed)(X(, bIdle)(buf), 1); }
@@ -187,7 +205,7 @@ fun ok64 X(, bFeed2)(X(, bp) buf, T a, T b) {
     // ok64 re = X(B, reserve)(buf, 2);
     // f (re != OK) return re;
     T **idle = X(, bIdle)(buf);
-    if ($len(idle) < 2) return Bnoroom;
+    if ($len(idle) < 2) return BNOROOM;
     memcpy((void *)*idle, &a, sizeof(T));
     ++*idle;
     memcpy((void *)*idle, &b, sizeof(T));
@@ -201,7 +219,7 @@ fun ok64 X(, bFeed1)(X(, bp) buf, T one) {
 
 fun ok64 X(, bFeed)(X(, b) buf, X(, csc) from) {
     T **into = X(, bIdle)(buf);
-    if ($len(into) < $len(from)) return Bnoroom;
+    if ($len(into) < $len(from)) return BNOROOM;
     X(, sCopy)(into, from);
     *into += $len(from);
     return OK;
@@ -261,7 +279,7 @@ fun ok64 X(B, rewind$)(X(B, ) buf, X($, ) slice, range64 range) {
 }
 
 fun ok64 X(, bPop)(X(, b) buf) {
-    if (buf[2] <= buf[1]) return Bnodata;
+    if (buf[2] <= buf[1]) return BNODATA;
     T const **b = (T const **)buf;
     --b[2];
     return OK;
@@ -270,7 +288,7 @@ fun ok64 X(, bPop)(X(, b) buf) {
 fun ok64 X(, bMap)(X(, b) buf, size_t len) {
     size_t size = len * sizeof(T);
     T *map = (T *)mmap(NULL, size, PROT_READ | PROT_WRITE,
-                       MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+                       MAP_ANONYMOUS | MAP_PRIVATE | MAP_NORESERVE, -1, 0);
     if (map == MAP_FAILED) return MMAPFAIL;
     T **b = (T **)buf;
     b[0] = b[1] = b[2] = b[3] = map;

@@ -7,6 +7,7 @@
 #include "INT.h"
 #include "OK.h"
 #include "PRO.h"
+#include "RON.h"
 
 fun int pollercmp(poller const* a, poller const* b) {
     if (a->callback == NULL || b->callback == NULL) {
@@ -15,89 +16,100 @@ fun int pollercmp(poller const* a, poller const* b) {
     return u64cmp(&a->deadline, &b->deadline);
 }
 
+fun b8 pollerZ(poller const* a, poller const* b) {
+    if (a->callback == NULL) return NO;
+    if (b->callback == NULL) return YES;
+    return a->deadline < b->deadline;
+}
+
 #define X(M, name) M##poller##name
 #include "Bx.h"
 #undef X
 
-#define X(M, name) M##i32##name
+#define X(M, name) M##poller##name
 #include "HEAPx.h"
 #undef X
 
-thread_local Bpoller POL_FILES = {};
-thread_local poller POL_TIMER = {};
-thread_local Bi32 POL_QUEUE = {};
-thread_local struct pollfd* POL_VEC;
+thread_local Bpoller POL_QUEUE = {};
+thread_local b8 POL_STOP = NO;
+thread_local int POL_MAXFD = 0;
 
-const u64 POLTimeMask = (1UL << 48) - 1;
+int POLMaxFiles() { return POL_MAXFD; }
 
-fun poller* POLAt(i32 fd) { return fd < 0 ? &POL_TIMER : Batp(POL_FILES, fd); }
-
-int POLMaxFiles() { return Blen(POL_FILES); }
-
-fun int fd32cmp(const i32* a, const i32* b) {
-    u64 ans = POLAt(*a)->deadline;
-    u64 bns = POLAt(*b)->deadline;
-    return ans < bns ? -1 : 1;
-}
-
-b8 POLAny() { return !Bempty(POL_FILES) || !Bempty(POL_QUEUE); }
+b8 POLAny() { return !pollerbEmpty(POL_QUEUE); }
 
 ok64 POLInit(int max_fd) {
-    pollerbAllocate(POL_FILES, max_fd);
-    zerob(POL_FILES);
-    POL_FILES[2] = POL_FILES[3];
-    zero(POL_TIMER);
-    POL_VEC = malloc(max_fd);
-    i32bAllocate(POL_QUEUE, max_fd);
+    pollerbAllocate(POL_QUEUE, max_fd);
+    POL_MAXFD = max_fd;
     return OK;
 }
 
 ok64 POLFree() {
-    pollerbFree(POL_FILES);
-    i32bFree(POL_QUEUE);
-    free(POL_VEC);
-    POL_VEC = NULL;
+    pollerbFree(POL_QUEUE);
+    POL_STOP = NO;
+    POL_MAXFD = 0;
     return OK;
 }
 
-ok64 POLTrackEvents(int fd, poller poller) {
-    sane(poller.callback != NULL && poller.timeout_ms != 0);
-    u64 now = POLNow();
-    b8 preex = 1;
-    if (fd < 0) {
-        preex = POL_TIMER.callback != NULL;
-        POL_TIMER = poller;
-        fd = -1;
-    } else if (fd < Blen(POL_FILES)) {
-        preex = Bat(POL_FILES, fd).callback != NULL;
-        Bat(POL_FILES, fd) = poller;
-    } else {
-        return POLnone;
+ok64 POLStop() {
+    POL_STOP = YES;
+    return OK;
+}
+
+// Find poller by tofd in heap, returns index or -1
+fun int POLFind(int tofd) {
+    poller** data = pollerbData(POL_QUEUE);
+    size_t len = $len(data);
+    for (size_t i = 0; i < len; i++) {
+        if ((*data)[i].tofd == tofd) return (int)i;
     }
-    if (poller.callback != NULL && !preex) {
-        call(HEAPi32Push1, POL_QUEUE, fd);
+    return -1;
+}
+
+ok64 POLTrackEvents(int fd, poller p) {
+    sane(p.callback != NULL);  // tofd can be 0 for stdin
+    u64 now = POLNow();
+    p.deadline = now + (p.tofd < 0 ? -p.tofd : 1000) * POLNanosPerMSec;
+
+    // Check if already tracked
+    int idx = POLFind(p.tofd);
+    if (idx >= 0) {
+        // Update existing entry
+        poller** data = pollerbData(POL_QUEUE);
+        (*data)[idx] = p;
+        pollersUpAtZ(data, idx, pollerZ);
+        pollersDownAtZ(data, idx, pollerZ);
+    } else {
+        // Add new entry
+        call(HEAPpollerPushZ, POL_QUEUE, &p, pollerZ);
     }
     done;
 }
 
 ok64 POLAddEvents(int fd, short events) {
-    if (fd >= Blen(POL_FILES) || Bat(POL_FILES, fd).callback == NULL)
-        return POLnone;
-    Bat(POL_FILES, fd).events |= events;
+    int idx = POLFind(fd);
+    if (idx < 0) return POLnone;
+    poller** data = pollerbData(POL_QUEUE);
+    (*data)[idx].events |= events;
     return OK;
 }
 
 ok64 POLIgnoreEvents(int fd) {
-    sane(fd < 0 || fd >= Blen(POL_FILES));
-    zerop(Batp(POL_FILES, fd));
-    done;
+    int idx = POLFind(fd);
+    if (idx < 0) return POLnone;
+    return HEAPpollerEjectAtZ(POL_QUEUE, idx, pollerZ);
 }
 
 short POLTimer(int fd, struct poller* p) {
-    if (p->callback == NULL) return 0;
+    if (p->callback == NULL || p->payload == NULL) return 0;
     timercb timer = p->payload;
-    int ms = timer(p->deadline);
-    p->timeout_ms = ms;
+    u32 ms = timer(p->deadline);
+    // If timer returns >= 1 hour, treat as "never" - remove from queue
+    if (ms >= 3600000) {
+        p->callback = NULL;
+        return 0;
+    }
+    p->tofd = -(int)ms;  // negative for timer period
     return 0;
 }
 
@@ -105,22 +117,50 @@ ok64 POLTrackTime(timercb callback) {
     poller t = {
         .callback = &POLTimer,
         .payload = callback,
-        .timeout_ms = 1,
+        .tofd = -1,  // -1ms initial
     };
     return POLTrackEvents(-1, t);
 }
 
+// Find timer by callback payload (since timers use POLTimer as callback)
+fun int POLFindTimer(void* payload) {
+    poller** data = pollerbData(POL_QUEUE);
+    size_t len = $len(data);
+    for (size_t i = 0; i < len; i++) {
+        if ((*data)[i].callback == POLTimer && (*data)[i].payload == payload)
+            return (int)i;
+    }
+    return -1;
+}
+
 ok64 POLAddTime(int ms) {
-    if (POL_TIMER.callback == NULL) return POLnone;
-    POL_TIMER.timeout_ms = ms;
-    u64 now = POLNow();
-    u64 deadline = now + ms * POLNanosPerMSec;
-    if (POL_TIMER.deadline < deadline) return OK;
-    POL_TIMER.deadline = deadline;
-    int ndx = 0;
-    while (ndx < Bdatalen(POL_QUEUE) && Bat(POL_QUEUE, ndx) != -1) ndx++;
-    i32sUpAtZ(POL_QUEUE, ndx, i32Z);
-    return OK;
+    // For legacy single-timer API, find any timer
+    poller** data = pollerbData(POL_QUEUE);
+    size_t len = $len(data);
+    for (size_t i = 0; i < len; i++) {
+        if ((*data)[i].tofd >= 0) continue;  // skip file pollers
+        poller* t = &(*data)[i];
+        t->tofd = -ms;
+        u64 now = POLNow();
+        u64 deadline = now + ms * POLNanosPerMSec;
+        if (t->deadline < deadline) return OK;
+        t->deadline = deadline;
+        pollersUpAtZ(data, i, pollerZ);
+        return OK;
+    }
+    return POLnone;
+}
+
+ok64 POLIgnoreTime() {
+    // Remove first timer found
+    poller** data = pollerbData(POL_QUEUE);
+    size_t len = $len(data);
+    for (size_t i = 0; i < len; i++) {
+        if ((*data)[i].tofd < 0) {
+            return HEAPpollerEjectAtZ(POL_QUEUE, i, pollerZ);
+        }
+    }
+    return POLnone;
 }
 
 ok64 POLSleep(u64 ns) {
@@ -130,46 +170,100 @@ ok64 POLSleep(u64 ns) {
     return OK;
 }
 
-// @return OK/POLnone/etc
 ok64 POLLoop(u64 timens) {
     u64 now = POLNow();
     u64 till = timens == POLNever ? POLNever : now + timens;
-    while (now < till && !Bempty(POL_QUEUE)) {
+
+    // Local poll vector - exactly POL_MAXFD entries
+    struct pollfd* vec = calloc(POL_MAXFD, sizeof(struct pollfd));
+    if (!vec) return NOROOM;
+
+    while (now < till && !pollerbEmpty(POL_QUEUE) && !POL_STOP) {
         now = POLNow();
-        // deliver timeouts
-        poller* at = POLAt(**POL_QUEUE);
-        while (at->deadline <= now) {
+        poller** data = pollerbData(POL_QUEUE);
+
+        // Deliver timeouts and remove dead pollers
+        while (!$empty(data) && (*data)->deadline <= now) {
+            poller* at = *data;
+            if (at->callback == NULL) {
+                poller dummy;
+                HEAPpollerPopZ(&dummy, POL_QUEUE, pollerZ);
+                data = pollerbData(POL_QUEUE);
+                continue;
+            }
             at->deadline = now;
-            at->callback(**POL_QUEUE, at);
-            at->deadline = now + at->timeout_ms * (POLNanosPerSec / 1000);
-            i32sDownZ(POL_QUEUE, i32Z);
-            at = POLAt(**POL_QUEUE);
+            at->callback(at->tofd, at);
+            // Remove if callback cleared itself
+            if (at->callback == NULL) {
+                poller dummy;
+                HEAPpollerPopZ(&dummy, POL_QUEUE, pollerZ);
+                data = pollerbData(POL_QUEUE);
+                continue;
+            }
+            int period_ms = at->tofd < 0 ? -at->tofd : 1000;
+            at->deadline = now + period_ms * POLNanosPerMSec;
+            pollersDownZ(data, pollerZ);
         }
-        u64 next_timeout = at->deadline;
+
+        if ($empty(data)) break;
+
+        // Remove file pollers with no events
+        for (size_t i = 0; i < $len(data);) {
+            poller* p = *data + i;
+            if (p->tofd >= 0 && p->events == 0) {
+                HEAPpollerEjectAtZ(POL_QUEUE, i, pollerZ);
+                data = pollerbData(POL_QUEUE);
+            } else {
+                i++;
+            }
+        }
+        if ($empty(data)) break;
+
+        u64 next_timeout = (*data)->deadline;
+
+        // Build poll vector from file descriptors (positive tofd)
+        size_t len = $len(data);
         int pollscount = 0;
-        eatB(poller, j, POL_FILES) {
-            if (0 == j->events) continue;
-            struct pollfd p = {.fd = j - *POL_FILES, .events = j->events};
-            POL_VEC[pollscount++] = p;
+        for (size_t i = 0; i < len && pollscount < POL_MAXFD; i++) {
+            poller* p = *data + i;
+            if (p->tofd < 0 || p->events == 0) continue;
+            vec[pollscount++] = (struct pollfd){.fd = p->tofd, .events = p->events};
         }
+
         if (pollscount == 0) {
-            if (POL_TIMER.callback == NULL) break;
+            // No file descriptors, just timers
             u64 sleep = next_timeout - now;
             if (sleep > POLNanosPerMonth) break;
             POLSleep(sleep);
             continue;
         }
-        int pollms = (next_timeout - now) / (POLNanosPerSec / 1000);
-        poll(POL_VEC, pollscount, pollms);
+
+        int pollms = (next_timeout - now) / POLNanosPerMSec;
+        poll(vec, pollscount, pollms);
+
+        // Process poll results
         for (int i = 0; i < pollscount; i++) {
-            if (!POL_VEC[i].revents) continue;
-            int fd = POL_VEC[i].fd;
-            at = Batp(POL_FILES, fd);
-            at->revents = POL_VEC[i].revents;
-            at->events = at->callback(fd, at);
-            at->deadline = now + at->timeout_ms * (POLNanosPerSec / 1000);
+            if (!vec[i].revents) continue;
+            int fd = vec[i].fd;
+            int idx = POLFind(fd);
+            if (idx < 0) continue;
+            data = pollerbData(POL_QUEUE);
+            poller* at = *data + idx;
+            if (at->callback == NULL) continue;
+            at->revents = vec[i].revents;
+            short events = at->callback(fd, at);
+            // Remove if callback cleared itself or no events requested
+            if (at->callback == NULL || (at->tofd >= 0 && events == 0)) {
+                HEAPpollerEjectAtZ(POL_QUEUE, idx, pollerZ);
+            } else {
+                at->events = events;
+                int period_ms = at->tofd < 0 ? -at->tofd : 1000;
+                at->deadline = now + period_ms * POLNanosPerMSec;
+            }
         }
+
     }
+    free(vec);
     return OK;
 }
 
@@ -177,16 +271,9 @@ ron60 RONNow() {
     struct timespec ts;
     clock_gettime(CLOCK_REALTIME, &ts);
     struct tm* now = localtime(&ts.tv_sec);
-    u64 t = 0;
-    u64 y = now->tm_year - 100;
-    t = t | ((y / 10) << (9 * 6));
-    t = t | ((y % 10) << (8 * 6));
-    t = t | ((u64)(now->tm_mon) << (7 * 6));
-    t = t | ((u64)(now->tm_mday) << (6 * 6));
-    t = t | ((u64)(now->tm_hour) << (5 * 6));
-    t = t | ((u64)(now->tm_min) << (4 * 6));
-    t = t | ((u64)(now->tm_sec) << (3 * 6));
+    ron60 t = 0;
+    RONOfTime(&t, now);
     u64 ns = ts.tv_nsec % POLNanosPerSec;
-    t = t | ((u64)(ns >> 2));
+    t |= (ns >> 12);
     return t;
 }

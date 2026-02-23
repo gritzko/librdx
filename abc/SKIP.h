@@ -10,7 +10,7 @@
 con ok64 SKIPnotyet = 0x714499cb3e3da78;
 con ok64 SKIPbad = 0x1c512666968;
 con ok64 SKIPmiss = 0x714499c6ddf7;
-con ok64 SKIPnodata = 0x714499cb3a25e25;
+con ok64 SKIPNODATA = 0x7144995d834a74a;
 con ok64 SKIPtoofar = 0x714499e33cea976;
 con ok64 SKIPbof = 0x1c512666cea;
 con ok64 SKIPnone = 0x714499cb3ca9;

@@ -38,19 +38,17 @@ list(APPEND RDX_SOURCES
     UTF8.c
     DIFF.c
     SKIL.c
+    SLIK.c
     VFY.c
     Y.c
+    RB.c
+    STRIP.c
+    RAP.c
 )
 
 add_library(rdx2 STATIC ${RDX_HEADERS} ${RDX_SOURCES})
 target_link_libraries(rdx2 abc sodium)
 
-add_executable(rdx RDX.cli.c)
-target_link_libraries(rdx rdx2)
-add_executable(rdx.tlv RDX.cli.c)
-target_link_libraries(rdx.tlv rdx2)
-add_executable(rdx.skil RDX.cli.c)
-target_link_libraries(rdx.skil rdx2)
 
 add_subdirectory(test)
 
@@ -60,4 +58,8 @@ endif()
 
 if (WITH_FUZZ)
 add_subdirectory(fuzz)
+endif()
+
+if (WITH_PERF)
+add_subdirectory(perf)
 endif()

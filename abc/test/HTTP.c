@@ -5,7 +5,7 @@
 #include "TEST.h"
 #include "URI.h"
 
-pro(HTTPtest1) {
+ok64 HTTPtest1() {
     sane(1);
     a$str(
         req,
@@ -56,38 +56,143 @@ pro(HTTPtest1) {
         "X-Content-Type-Options: nosniff\r\n"
         "X-Frame-Options: DENY\r\n\r\n");
 
+    // Test request parsing
     HTTPstate reqstate = {};
-    aBpad2(u8cs, parse, 32);
-    $mv(reqstate.text, req);
-    reqstate.parsed = parseidle;
-    call(HTTPlexer, &reqstate);
+    aBpad2(u8cs, hdrs, 32);
+    reqstate.headers = hdrsidle;
+    call(HTTPutf8Drain, req, &reqstate);
+
     a$str(method, "GET");
-    $testeq(method, $at(parsedata, 0));
+    $testeq(reqstate.method, method);
     a$str(path, "/");
-    $testeq(path, $at(parsedata, 1));
+    $testeq(reqstate.uri, path);
+    a$str(ver, "HTTP/1.1");
+    $testeq(reqstate.version, ver);
+
     a$str(key, "Connection");
     a$str(val, "keep-alive");
     u8cs conn = {};
-    call(HTTPfind, conn, key, parsedata);
+    call(HTTPfind, &conn, key, hdrsdata);
     $testeq(conn, val);
 
+    // Test response parsing
     HTTPstate resstate = {};
-    u8csbReset(parsebuf);
-    $mv(resstate.text, res);
-    resstate.parsed = parseidle;
-    call(HTTPlexer, &resstate);
+    u8csbReset(hdrsbuf);
+    resstate.headers = hdrsidle;
+    call(HTTPutf8Drain, res, &resstate);
+
+    a$str(code, "200");
+    $testeq(resstate.status_code, code);
+    a$str(reason, "Ok");
+    $testeq(resstate.reason, reason);
+
     a$str(key2, "Content-Encoding");
     a$str(val2, "gzip");
-    u8cs conn2 = {};
-    call(HTTPfind, conn2, key2, parsedata);
-    $testeq(conn2, val2);
+    u8cs enc = {};
+    call(HTTPfind, &enc, key2, hdrsdata);
+    $testeq(enc, val2);
 
     done;
 }
 
-pro(HTTPtest) {
+// Real HTTP request captured via netcat (to rfc-editor.org)
+ok64 HTTPtest2() {
+    sane(1);
+    a$str(
+        req,
+        "GET /rfc/rfc3986 HTTP/1.1\r\n"
+        "Host: www.rfc-editor.org\r\n"
+        "Accept: text/html\r\n"
+        "User-Agent: librdx/1.0\r\n\r\n");
+
+    HTTPstate state = {};
+    aBpad2(u8cs, hdrs, 16);
+    state.headers = hdrsidle;
+    call(HTTPutf8Drain, req, &state);
+
+    a$str(method, "GET");
+    $testeq(state.method, method);
+    a$str(path, "/rfc/rfc3986");
+    $testeq(state.uri, path);
+    a$str(ver, "HTTP/1.1");
+    $testeq(state.version, ver);
+
+    a$str(k1, "Host");
+    a$str(v1, "www.rfc-editor.org");
+    u8cs host = {};
+    call(HTTPfind, &host, k1, hdrsdata);
+    $testeq(host, v1);
+
+    a$str(k2, "User-Agent");
+    a$str(v2, "librdx/1.0");
+    u8cs ua = {};
+    call(HTTPfind, &ua, k2, hdrsdata);
+    $testeq(ua, v2);
+
+    done;
+}
+
+// Real HTTP response from rfc-editor.org (RFC 3986)
+ok64 HTTPtest3() {
+    sane(1);
+    a$str(
+        res,
+        "HTTP/1.1 200 OK\r\n"
+        "Date: Fri, 09 Jan 2026 16:12:58 GMT\r\n"
+        "Content-Type: text/html; charset=UTF-8\r\n"
+        "Connection: keep-alive\r\n"
+        "CF-RAY: 9bb53822f8e71c42-FRA\r\n"
+        "Vary: Accept-Encoding\r\n"
+        "Strict-Transport-Security: max-age=31536000; includeSubDomains\r\n"
+        "X-Frame-Options: SAMEORIGIN\r\n"
+        "X-Xss-Protection: 1; mode=block\r\n"
+        "X-Content-Type-Options: nosniff\r\n"
+        "Last-Modified: Tue, 06 Jan 2026 23:17:00 GMT\r\n"
+        "CF-Cache-Status: HIT\r\n"
+        "Age: 232120\r\n"
+        "Expires: Fri, 09 Jan 2026 16:32:58 GMT\r\n"
+        "Cache-Control: public, max-age=1200\r\n"
+        "Server: cloudflare\r\n"
+        "alt-svc: h3=\":443\"; ma=86400\r\n\r\n");
+
+    HTTPstate state = {};
+    aBpad2(u8cs, hdrs, 64);
+    state.headers = hdrsidle;
+    call(HTTPutf8Drain, res, &state);
+
+    a$str(code, "200");
+    $testeq(state.status_code, code);
+    a$str(reason, "OK");
+    $testeq(state.reason, reason);
+    a$str(ver, "HTTP/1.1");
+    $testeq(state.version, ver);
+
+    a$str(k1, "Content-Type");
+    a$str(v1, "text/html; charset=UTF-8");
+    u8cs ct = {};
+    call(HTTPfind, &ct, k1, hdrsdata);
+    $testeq(ct, v1);
+
+    a$str(k2, "Server");
+    a$str(v2, "cloudflare");
+    u8cs srv = {};
+    call(HTTPfind, &srv, k2, hdrsdata);
+    $testeq(srv, v2);
+
+    a$str(k3, "Cache-Control");
+    a$str(v3, "public, max-age=1200");
+    u8cs cc = {};
+    call(HTTPfind, &cc, k3, hdrsdata);
+    $testeq(cc, v3);
+
+    done;
+}
+
+ok64 HTTPtest() {
     sane(1);
     call(HTTPtest1);
+    call(HTTPtest2);
+    call(HTTPtest3);
     done;
 }
 

@@ -5,8 +5,8 @@
 
 #define JSONenum 0
 
-con ok64 JSONbad = 0x137185e6968;
-con ok64 JSONfail = 0x4dc617aa5b70;
+con ok64 JSONBAD = 0x137185cb28d;
+con ok64 JSONFAIL = 0x4dc6173ca495;
 
 typedef enum {
     JSON_NODE_ROOT = 0,
@@ -30,6 +30,6 @@ typedef struct {
     u8cs text;
 } JSONstate;
 
-ok64 JSONlexer(JSONstate* state);
+ok64 JSONLexer(JSONstate* state);
 
 #endif

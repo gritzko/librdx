@@ -158,7 +158,7 @@ main := LEXRoot;
 %%write data;
 
 // the public API function
-pro(LEXlexer, LEXstate* state) {
+pro(LEXLexer, LEXstate* state) {
 
     a$dup(u8c, text, state->text);
     sane($ok(text));

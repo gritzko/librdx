@@ -10,6 +10,7 @@
 #include <unistd.h>
 
 #include "INT.h"
+#include "URI.h"
 
 con ok64 NETbadaddr = 0x5ce766968968a36;
 con ok64 NETnospace = 0x5ce772cf7d259e9;
@@ -36,7 +37,7 @@ typedef Bu8 NETaddr;
         memcpy(name[1], port, pl);            \
     }
 
-fun ok64 NETinfo(NETaddr text, NETaddr raw) {
+fun ok64 NETInfo(NETaddr text, NETaddr raw) {
     char host[NETmaxhost], service[NETmaxserv];
     u8$ addr = NETraw(raw);
     int s = getnameinfo((struct sockaddr*)addr[0], $len(addr), host, NETmaxhost,
@@ -52,17 +53,16 @@ fun ok64 NETinfo(NETaddr text, NETaddr raw) {
     return OK;
 }
 
-fun int NETrandomport() {
+fun int NETRandomPort() {
     int ret = 10000;
     ret += (int)(time(NULL) % 10000);
     ret += 10 * (getpid() % 1000);
     return ret;
 }
 
-//  tcp://1.2.3.4:8080
-//  udp://5.5.5.5:domain
-//  http://server/path
-ok64 NETParseAddress(struct addrinfo** result, u8csc address, b8 stream);
+//  Resolve host:port from URIstate to addrinfo
+//  Example: parse "tcp://1.2.3.4:8080" with URIutf8Drain first, then call this
+ok64 NETResolve(struct addrinfo** result, URIstate const* uri, b8 stream);
 
 fun ok64 NETFreeAddress(struct addrinfo** addr) {
     if (*addr == NULL) return NETnone;

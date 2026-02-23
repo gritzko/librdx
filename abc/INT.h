@@ -11,6 +11,12 @@
 #include "B.h"
 #include "BUF.h"
 
+// Slice from static array: a_u64cs(nums, MY_ARRAY)
+#define a_u64cs(n, arr) u64c *n[2] = {(arr), (arr) + sizeof(arr)/sizeof(arr[0])}
+#define a_u32cs(n, arr) u32c *n[2] = {(arr), (arr) + sizeof(arr)/sizeof(arr[0])}
+#define a_i64cs(n, arr) i64c *n[2] = {(arr), (arr) + sizeof(arr)/sizeof(arr[0])}
+#define a_i32cs(n, arr) i32c *n[2] = {(arr), (arr) + sizeof(arr)/sizeof(arr[0])}
+
 con ok64 INTbad = 0x497766968;
 
 #define I64_MAX INT64_MAX
@@ -81,6 +87,20 @@ fun int u512cmp(u512 const *a, u512 const *b) {
 #include "Bx.h"
 #undef X
 
+fun int u64bcmp(u64b const *a, u64b const *b) {
+    if ((*a)[0] == (*b)[0]) return 0;
+    return (*a)[0] < (*b)[0] ? -1 : 1;
+}
+
+// u64bcp needed by Bx-generated u64bbIdx; ABC_X_$ skips it in Sx.h
+typedef u64b const *u64bcp;
+
+#define X(M, name) M##u64b##name
+#define ABC_X_$
+#include "Bx.h"
+#undef ABC_X_$
+#undef X
+
 #define X(M, name) M##u128##name
 #include "Bx.h"
 #undef X
@@ -112,7 +132,7 @@ fun int u512cmp(u512 const *a, u512 const *b) {
     }
 
 fun ok64 put32(u8s into, u32 x) {
-    if ($len(into) < 4) return Bnoroom;
+    if ($len(into) < 4) return BNOROOM;
     **into = x;
     ++*into;
     **into = x >> 8;

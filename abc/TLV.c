@@ -4,27 +4,27 @@
 #include "PRO.h"
 
 fun ok64 TLVprobe(u8* t, u8* hlen, u64* blen, $cu8c data) {
-    if ($empty(data)) return TLVnodata;
+    if ($empty(data)) return TLVNODATA;
     if (TLVshort(**data)) {
-        if ($len(data) < 2) return TLVnodata;
+        if ($len(data) < 2) return TLVNODATA;
         *t = **data - TLVaA;
         *hlen = 2;
         *blen = (*data)[1];
     } else if (TLVlong(**data)) {
-        if ($len(data) < 5) return TLVnodata;
+        if ($len(data) < 5) return TLVNODATA;
         *t = **data;
         *hlen = 5;
         *blen = $at(data, 1) | ($at(data, 2) << 8) | ($at(data, 3) << 16) |
                 ($at(data, 4) << 24);
     } else if (TLVhuge(**data)) {
-        if ($len(data) < 9) return TLVnodata;
+        if ($len(data) < 9) return TLVNODATA;
         *t = **data + TLVaA;
         *hlen = 9;
         *blen = *(u64*)(*data + 1);
     } else {
         return TLVbadrec;
     }
-    return (*hlen + *blen) <= $len(data) ? OK : TLVnodata;
+    return (*hlen + *blen) <= $len(data) ? OK : TLVNODATA;
 }
 
 ok64 _TLVu8sDrain(u8cs from, u8p type, u8csp value) {
@@ -53,7 +53,7 @@ ok64 _TLVu8sFeed(u8s into, u8 type, u8csc value) {
     done;
 }
 
-ok64 TLVopen($u8 tlv, u8 type, u32** len) {
+ok64 TLVOpen($u8 tlv, u8 type, u32** len) {
     sane($ok(tlv) && len != NULL && TLVlong(type));
     test($len(tlv) >= 5, TLVnoroom);
     **tlv = type;
@@ -64,7 +64,7 @@ ok64 TLVopen($u8 tlv, u8 type, u32** len) {
     done;
 }
 
-ok64 TLVclose($u8 tlv, u8 type, u32* const* len) {
+ok64 TLVClose($u8 tlv, u8 type, u32* const* len) {
     sane($ok(tlv) && TLVlong(type) && len != NULL && *len != NULL &&
          (u8*)*len < *tlv && *(*((u8**)len) - 1) == type);
     size_t d = *tlv - (u8*)*len;
@@ -87,7 +87,7 @@ ok64 TLVclose($u8 tlv, u8 type, u32* const* len) {
 ok64 TLVFeedKeyVal($u8 tlv, u8c type, u8cs key, $cu8c val) {
     sane($ok(tlv) && $ok(key) && ($empty(val) || $ok(val)));
     size_t keylen = $len(key);
-    test(keylen < 0x100, TLVbadarg);
+    test(keylen < 0x100, TLVBADARG);
     u64 blen = keylen + $len(val) + 1;
     test($len(tlv) >= blen + 4 + 1, TLVnoroom);
     if (blen < 0x100) {
@@ -130,14 +130,14 @@ ok64 TLVDrainKeyVal(u8* type, u8cs key, $u8c val, u8cs tlv) {
     tlv[0] = body[1];
     done;
 }
-ok64 TLVinitshort($u8 tlv, u8 type, Bu8p stack) {
+ok64 TLVInitShort($u8 tlv, u8 type, Bu8p stack) {
     sane($ok(tlv) && Bok(stack) && TLVlong(type));
     call(u8pbPush, stack, &$head(tlv));
     call(u8sFeed2, tlv, type | TLVaA, 0);
     done;
 }
 
-ok64 TLVinitlong($u8 tlv, u8 type, Bu8p stack) {
+ok64 TLVInitLong($u8 tlv, u8 type, Bu8p stack) {
     sane($ok(tlv) && Bok(stack) && TLVlong(type));
     call(u8pbPush, stack, &$head(tlv));
     u8 head[] = {type & ~TLVaA, 0, 0, 0, 0};
@@ -146,7 +146,7 @@ ok64 TLVinitlong($u8 tlv, u8 type, Bu8p stack) {
     done;
 }
 
-ok64 TLVendany($u8 tlv, u8 type, Bu8p stack) {
+ok64 TLVEndAny($u8 tlv, u8 type, Bu8p stack) {
     sane($ok(tlv) && Bok(stack) && !Bempty(stack) &&
          *Btop(stack) + 2 <= $head(tlv));
     u8* start = *Btop(stack);

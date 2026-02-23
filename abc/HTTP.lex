@@ -28,7 +28,7 @@ Method =   "OPTIONS" |
             "DELETE" |
             "TRACE" |
             "CONNECT";
-RequestURI = [^ \t\r\n];
+RequestURI = [^ \t\r\n]+;
 HTTPVersion = "HTTP/" digit "." digit;
 RequestLine = Method sp RequestURI sp HTTPVersion crlf ;
 FieldName = token ;

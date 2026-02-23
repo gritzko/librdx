@@ -11,12 +11,12 @@ ok64 NACLtest() {
     call(NACLed25519create, &publicKey2, &secretKey2);
     u8cs value = $u8str("Hello world!\n");
     sha256 hash = {};
-    SHAsum(&hash, value);
+    SHASum(&hash, value);
     edsig512 sign;
     call(NACLed25519sign, &sign, &hash, &secretKey);
     call(NACLed25519verify, &sign, &hash, &publicKey);
     ok64 o = NACLed25519verify(&sign, &hash, &publicKey2);
-    testeq(o, NACLbad);
+    testeq(o, NACLBAD);
     done;
 }
 

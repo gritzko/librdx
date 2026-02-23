@@ -32,7 +32,7 @@ fun ok64 X(SST, init)(X(SST, ) sst, int* fd, u8cs path, size_t size) {
 }
 
 fun ok64 X(SST, open)(X(SST, ) sst, u8cs path) {
-    ok64 o = FILEmapro(sst, path);
+    ok64 o = FILEmaok64 sst(path);
     if (o != OK) return o;
     SSTheader const* head = (SSTheader const*)sst[0];
     if (Blen(sst) < sizeof(SSTheader) || head->magic != X(SST, magic) ||
@@ -59,7 +59,7 @@ fun ok64 X(SST, initshort)(X(SST, ) sst, u8 type, Key const* key, Bu8p stack) {
     u8$ into = u8bIdle(sst);
     aBcpad(u8, raw, sizeof(Key));
     X(, pack)(rawidle, key);
-    TLVinitshort(into, type, stack);
+    TLVInitShort(into, type, stack);
     u8sFeed1(into, sizeof(Key));
     return u8sFeed(into, rawdata);
 }
@@ -68,13 +68,13 @@ fun ok64 X(SST, initlong)(X(SST, ) sst, u8 type, Key const* key, Bu8p stack) {
     u8$ into = u8bIdle(sst);
     aBcpad(u8, raw, sizeof(Key));
     X(, pack)(rawidle, key);
-    TLVinitlong(u8bIdle(sst), type, stack);
+    TLVInitLong(u8bIdle(sst), type, stack);
     u8sFeed1(into, sizeof(Key));
     return u8sFeed(into, rawdata);
 }
 
 fun ok64 X(SST, endany)(X(SST, ) sst, u8 type, SSTab* tab, Bu8p stack) {
-    ok64 o = TLVendany(u8bIdle(sst), type, stack);
+    ok64 o = TLVEndAny(u8bIdle(sst), type, stack);
     if (o == OK) o = SKIPu8mayfeed(sst, tab);
     return o;
 }

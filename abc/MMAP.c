@@ -18,14 +18,14 @@ ok64 MMAPresize(voidb buf, size_t new_size) {
     size_t old_size = Bsize(buf);
 #ifdef MREMAP_MAYMOVE
     u8 *new_mem = (u8 *)mremap(buf[0], Bsize(buf), new_size, MREMAP_MAYMOVE);
-    testc(new_mem != MAP_FAILED, MMAPfail);
+    testc(new_mem != MAP_FAILED, MMAPFAIL);
 #else
     u8 *new_mem = (u8 *)mmap(NULL, new_size, PROT_READ | PROT_WRITE,
                              MAP_ANONYMOUS | MAP_SHARED, -1, 0);
-    testc(new_mem != MAP_FAILED, MMAPfail);
+    testc(new_mem != MAP_FAILED, MMAPFAIL);
     memmove(new_mem, buf[0], old_size);  // TODO linux mremap
     int rc = munmap(buf[0], old_size);
-    testc(rc == 0, MMAPfail);
+    testc(rc == 0, MMAPFAIL);
 #endif
     _Brebase(buf, new_mem, new_size);
     done;

@@ -42,14 +42,14 @@ fun size_t X(SKIP, pos)(X(SKIP, tab) const* k, u8 hi) {
     return (was << SKIP_BLK_HI) + off;
 }
 
-fun pro(X(SKIP, feed), u8bp buf, X(SKIP, tab) * k) {
+fun ok64 X(SKIP, feed)(u8bp buf, X(SKIP, tab) * k) {
     sane(Bok(buf) && k != NULL);
     size_t pos = Bdatalen(buf);
     size_t last = k->pos;
     size_t blk = X(SKIP, blk)(pos);
     size_t lastblk = X(SKIP, blk)(last);
     T off = X(SKIP, off)(pos);
-    test(off != SKIP_NONE, SKIPbad);  // TODO fuzzer must find this
+    test(off != SKIP_NONE, SKIPbad);  // TODO fuzzer assert find this
 
     T preoff = X(SKIP, off)(k->pos);
     for (u8 h = 0; h <= X(SKIP, hi)(k->pos); ++h) {
@@ -65,8 +65,8 @@ fun pro(X(SKIP, feed), u8bp buf, X(SKIP, tab) * k) {
     }
 
     u8cs w = {(u8c*)(k->off), (u8c*)(k->off + X(SKIP, len)(pos))};
-    must($ok(w));
-    must($ok(u8bIdle(buf)));
+    assert($ok(w));
+    assert($ok(u8bIdle(buf)));
     call(TLVu8sFeed, u8bIdle(buf), SKIP_TLV_TYPE, w);
 
     k->pos = pos;
@@ -74,7 +74,7 @@ fun pro(X(SKIP, feed), u8bp buf, X(SKIP, tab) * k) {
     done;
 }
 
-fun pro(X(SKIP, drain), X(SKIP, tab) * hop, u8bp buf, size_t pos) {
+fun ok64 X(SKIP, drain)(X(SKIP, tab) * hop, u8bp buf, size_t pos) {
     sane(hop != NULL && Bok(buf) && pos > 0);
     a$(T, into, hop->off);
     a$tail(u8c, data, u8bDataC(buf), pos);
@@ -91,7 +91,7 @@ fun pro(X(SKIP, drain), X(SKIP, tab) * hop, u8bp buf, size_t pos) {
     done;
 }
 
-fun pro(X(SKIP, finish), u8bp buf, X(SKIP, tab) * k) {
+fun ok64 X(SKIP, finish)(u8bp buf, X(SKIP, tab) * k) {
     sane(Bok(buf) && k != NULL && k->pos < Bdatalen(buf));
     size_t pos = Bdatalen(buf);
     if (k->pos != 0 && X(SKIP, blk)(pos) == X(SKIP, blk)(k->pos)) {
@@ -108,7 +108,7 @@ fun pro(X(SKIP, finish), u8bp buf, X(SKIP, tab) * k) {
     done;
 }
 
-fun pro(X(SKIP, load), X(SKIP, tab) * k, u8bp buf) {
+fun ok64 X(SKIP, load)(X(SKIP, tab) * k, u8bp buf) {
     sane(k != NULL && Bok(buf));
     zerop(k);
     size_t len = Bdatalen(buf);
@@ -172,7 +172,7 @@ fun ok64 X(SKIP, mayfeed)(u8bp buf, X(SKIP, tab) * skips) {
 
 ok64 X(SKIP, load)(X(SKIP, tab) * k, u8bp buf);
 
-fun pro(X(SKIP, find), u8c$ range, u8b hay, u8cs needle, $cmpfn cmp) {
+fun ok64 X(SKIP, find)(u8c$ range, u8b hay, u8cs needle, $cmpfn cmp) {
     sane(range != NULL && Bok(hay) && $ok(needle) && cmp != NULL);
     X(SKIP, tab) k = {};
     call(X(SKIP, load), &k, hay);

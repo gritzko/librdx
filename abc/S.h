@@ -32,6 +32,7 @@
 
 #define a_dup(T, n, s) T *n[2] = {(s)[0], (s)[1]}
 #define $dup(s) {(s)[0], (s)[1]}
+#define zero$(s) s[0] = s[1] = NULL;
 
 #define gauged(s) {(s)[0], (s)[0], (s)[1]}
 
@@ -44,10 +45,12 @@
     assert(old[1] == neu[1] && old[0] <= neu[0]); \
     T *n[2] = {old[0], neu[0]};
 
+// a_rest: slice from offset to end [orig+off, end)
 #define a_rest(T, n, orig, off)                        \
     T##s n = {(T *)(orig[0]) + (off), (T *)(orig[1])}; \
     assert($size(n) <= $size(orig));
 
+// a_tail: last len elements [end-len, end)
 #define a_tail(T, n, orig, len)                        \
     T##s n = {(T *)(orig[1]) - (len), (T *)(orig[1])}; \
     assert($size(n) <= $size(orig));
@@ -57,6 +60,7 @@
     while ((--*(n) >= *(orig)) && (f));        \
     ++*(n);
 
+// a_head: first len elements [start, start+len)
 #define a_head(T, n, orig, len)                        \
     T##s n = {(T *)(orig[0]), (T *)(orig[0]) + (len)}; \
     assert($size(n) <= $size(orig));
@@ -168,7 +172,7 @@ fun ok64 $feedf(u8 **into, u8 const *const *tmpl, ...) {
             continue;
         }
         ++*p;
-        if ($empty(p)) return $badarg;
+        if ($empty(p)) return SBADARG;
         switch (**p) {
             case 's':
                 sarg = va_arg(ap, u8 const **);
@@ -184,19 +188,19 @@ fun ok64 $feedf(u8 **into, u8 const *const *tmpl, ...) {
                 ++*p;
                 break;
             case '$':
-                if ($len(into) < 2) return $noroom;
+                if ($len(into) < 2) return SNOROOM;
                 **into = '$';
                 ++*into;
                 ++*p;
                 break;
             default:
-                if ($len(into) < 1) return $noroom;
+                if ($len(into) < 1) return SNOROOM;
                 **into = '$';
                 ++*into;
         }
     }
     va_end(ap);
-    return $empty(p) ? OK : $noroom;
+    return $empty(p) ? OK : SNOROOM;
 }
 
 #define $tailshift(s, off, rm)                             \

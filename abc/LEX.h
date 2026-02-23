@@ -3,7 +3,7 @@
 
 #include "BUF.h"
 
-con ok64 LEXfail = 0x153a1aa5b70;
+con ok64 LEXFAIL = 0x153a13ca495;
 con ok64 LEXnoroom = 0x153a1cb3db3cf1;
 
 #define LEXenum 0
@@ -27,6 +27,6 @@ typedef struct {
     u32 ruleno;
 } LEXstate;
 
-ok64 LEXlexer(LEXstate *state);
+ok64 LEXLexer(LEXstate *state);
 
 #endif

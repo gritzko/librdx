@@ -18,7 +18,7 @@ ok64 JSONonLiteral($cu8c tok, JSONstate* state) {
     test((prnt->node == JSON_NODE_OBJECT && (prnt->toks & 1) == 0) ||
              (prnt->node == JSON_NODE_ARRAY && (prnt->toks & 1) == 0) ||
              (prnt->node == JSON_NODE_ROOT && prnt->toks == 0),
-         JSONbad);
+         JSONBAD);
     ++prnt->toks;
     js64 child = {.pos = $u8offset(state->text, tok),
                   .node = JSON_NODE_LITERAL};
@@ -33,7 +33,7 @@ ok64 JSONonString($cu8c tok, JSONstate* state) {
     test((prnt->node == JSON_NODE_OBJECT && (prnt->toks & 1) == 0) ||
              (prnt->node == JSON_NODE_ARRAY && (prnt->toks & 1) == 0) ||
              (prnt->node == JSON_NODE_ROOT && prnt->toks == 0),
-         JSONbad);
+         JSONBAD);
     ++prnt->toks;
     js64 child = {.pos = $u8offset(state->text, tok), .node = JSON_NODE_STRING};
     call(u64bFeedP, state->json, (u64*)&child);
@@ -47,7 +47,7 @@ ok64 JSONonNumber($cu8c tok, JSONstate* state) {
     test((prnt->node == JSON_NODE_OBJECT && (prnt->toks & 3) == 2) ||
              (prnt->node == JSON_NODE_ARRAY && (prnt->toks & 1) == 0) ||
              (prnt->node == JSON_NODE_ROOT && prnt->toks == 0),
-         JSONbad);
+         JSONBAD);
     ++prnt->toks;
     js64 child = {.pos = $u8offset(state->text, tok), .node = JSON_NODE_NUMBER};
     call(u64bFeedP, state->json, (u64*)&child);
@@ -61,7 +61,7 @@ ok64 JSONonOpen($cu8c tok, JSONstate* state, int node) {
     test((prnt->node == JSON_NODE_OBJECT && (prnt->toks & 3) == 2) ||
              (prnt->node == JSON_NODE_ARRAY && (prnt->toks & 1) == 0) ||
              (prnt->node == JSON_NODE_ROOT && prnt->toks == 0),
-         JSONbad);
+         JSONBAD);
     ++prnt->toks;
     js64 child = {.pos = $u8offset(state->text, tok), .node = node};
     u32 toklen = Bdatalen(state->json);
@@ -102,7 +102,7 @@ ok64 JSONonComma($cu8c tok, JSONstate* state) {
     js64* prnt = (js64*)Batp(state->json, ndx);
     test((prnt->node == JSON_NODE_OBJECT && (prnt->toks & 3) == 3) ||
              (prnt->node == JSON_NODE_ARRAY && (prnt->toks & 1) == 1),
-         JSONbad);
+         JSONBAD);
     ++prnt->toks;
     done;
 }
@@ -111,7 +111,7 @@ ok64 JSONonColon($cu8c tok, JSONstate* state) {
     sane($ok(tok) && state != NULL);
     u32 ndx = Blast(state->stack);
     js64* prnt = (js64*)Batp(state->json, ndx);
-    test((prnt->node == JSON_NODE_OBJECT && (prnt->toks & 3) == 1), JSONbad);
+    test((prnt->node == JSON_NODE_OBJECT && (prnt->toks & 3) == 1), JSONBAD);
     ++prnt->toks;
     done;
 }
