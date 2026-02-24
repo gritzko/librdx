@@ -13,7 +13,7 @@ cryptographically protected record we all rewrite daily to do the
 most basic stuff.
 
 `git` is a *filesystem*, it says so [on the box][c] and it stores
-*blobs*. That makes it rather dull when it comes to merging the
+*blobs*. That makes it rather blunt when it comes to merging the
 changes. That is the reason behind lots of git ceremony and
 limitations. With LLMs, generating code is cheap; sorting it all
 out is more work though. Here, git distracts and limits developers.
@@ -42,8 +42,8 @@ ensure semantic correctness, but at least one can iterate on it faster.
 
 CRDT's non-intrusive merges give lots of freedom in slicing and dicing larger
 repos into branches, overlays, submodules, and so on. If you can merge, you
-can split. Want to keep all comments in a separate overlay? No problem. Want
-to keep LLM .md files in a separate branch, only make them visible on request?
+can split. Want to keep a subdir both here and as a separate project? No problem. 
+Want to keep LLM .md files in a separate overlay, only make them visible on request?
 Also easy. CRDT gives the freedom in splitting and joining along all the axes.
 
 The classic approach to complexity: minimize primitives, but make them
