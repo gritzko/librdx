@@ -2,68 +2,83 @@
 
 [**Part I. SCM as a database for the code**][1]
 
-The outer interface of a revision control system is often
-complex.  In particular, git's CLI is easy to pick on because of
-the way it grew unconstrained into a [jungle][j] of commands,
-options and syntaxes with overlapping concerns. Git UI ceremony
-distracts and limits velocity to a very noticeable degree.
+Despite L.Torvalds initially described git as "information manager
+from hell", it was a very innovative revision control system. 
+That was 20 years ago and the architecture shows its age, its core 
+limitations causing heaps of accidental complexity. A jungle of
+commands, options and syntaxes with overlapping concerns,
+combinatorial maneuvers between worktree, stash, staging, commits,
+local and remote branches, and finally the abstraction of eternal 
+cryptographically protected record we all rewrite daily to do the
+most basic stuff.
 
-Fundamentally, SCM moves changes between worktrees and the
-repo, but git's multilevel system makes things look rather
-complex.  With `k` types of buckets, we have `k*k` kinds of
-bucket-to-bucket moves. With remote branches different from
-local branches, staging and stash different from commits, plus
-the worktree, we get 6x6=36 kinds of potential data *maneuvers*.
-Ideally, this should be 2x2=4, *worktree* and *repo*. Is that
-realistic? In short, yes.
+`git` is a *filesystem*, it says so [on the box][c] and it stores
+*blobs*. That makes it rather dull when it comes to merging the
+changes. That is the reason behind lots of git ceremony and
+limitations. With LLMs, generating code is cheap; sorting it all
+out is more work though. Here, git distracts and limits developers.
 
-We can also look at this from the other side: what useful
-functions do we get at the cost of that complexity? It is way
-above trivial as git codebase is 310KLoC of C code and about the
-same amount of sh/perl/tcl. That is x15 more than LevelDB, /3
-less than PostgreSQL, and generally in the ballpark of 
-a general-purpose database.
+Beagle is a *database* for your code, it stores coarse AST (abstract
+syntax tree), so it can do merges deterministically, non-intrusively,
+and fully aware of the syntax. It can address and describe changes
+in terms of symbols (functions, classes), not just files and hunks.
+Blob-level versioning remains as a fallback only. For Beagle, there
+is a file tree and AST trees of individual files with named nodes.
+"How did this function look a month ago"? "What new calls did my
+function accrete in a week?" This model allows to build much sharper
+tools. Remember that git codebase is 310KLoC of C code and about the
+same amount of sh/perl/tcl. That is x15 more than LevelDB, a third
+of PostgreSQL, about three SQLites, and generally in the ballpark of
+a general-purpose database. But, the underlying model limits greatly 
+what we can query git about. Beagle's model is less limiting.
 
-Still, we can not query the branches and the trees in any ways
-more advanced than grep. Author's personal experience is that
-with no issue tracker, branches get stale and forgotten even
-in solo development mode, sadly. LLMs add to that, as now we
-have no solo mode, and LLMs just love to reimplement things,
-each time very imperfectly. The awareness is lacking.
+Technically, Beagle is able to version and merge AST trees as CRDTs. That
+differentiates it from other stack-of-patches VCSes, such as Pijul, Darcs and
+others. Fundamentally, CRDTs add some metadata to avoid lots of guessing
+later on. (Diff is algorithmic guessing, 3-way merge too.) Data units get ids
+and/or timestamps, become addressable, so merges become deterministic and
+non-intrusive. One can attach and detach branches by a checkbox. That does not
+ensure semantic correctness, but at least one can iterate on it faster.
 
-Finally, the ability to split and join content is critical in
-managing the mass of code. Apart from submodule/ monorepo
-aspect, there is the method of *overlays* where we split a
-worktree into distinct layers (e.g. code, prompts and configs)
-able to work with them jointly or separately, depending on
-circumstances. That is like Photoshop layers. This idea
-circulated in CRDT community for quite some years.
+CRDT's non-intrusive merges give lots of freedom in slicing and dicing larger
+repos into branches, overlays, submodules, and so on. If you can merge, you
+can split. Want to keep all comments in a separate overlay? No problem. Want
+to keep LLM .md files in a separate branch, only make them visible on request?
+Also easy. CRDT gives the freedom in splitting and joining along all the axes.
 
-Overall, things better be more structured, but less complicated.
-As AIs are piling up the code, we have to keep track of it and
-maintain the structure.
+The classic approach to complexity: minimize primitives, but make them
+composable. Fundamentally, Beagle moves changes between worktrees and the repo,
+with 2x2=4 potential data maneuvers (repo to repo, repo to worktree, worktree to
+repo, within worktree). That is way lower than git's 6x6=36 (local and remote
+branches, commits, stash, staging and worktree). At the *plumbing* layer, the 3
+maneuvers involving Beagle are served by commands PUT, GET, POST respectively
+(yes, HTTP vocabulary on the command line).
 
-`git` is a filesystem, it says so [on the box][c] and it stores
-blobs. Beagle is a *database* for your code, it stores AST\*.
-That allows to address not only specific files for diffing/
-querying/ merging/ cherry-picking, but also specific symbols
-and AST\* subtrees. That allows for complex querying of
-versioned sources and text. Beagle is useful for users and 
-LLMs alike when one has to juggle a dozen branches at a time.
+The smallest unit of repo *change* is a waypoint, which is a nameless 
+Ctrl+S type of event. The most basic workflow is just a trail of Ctrl+S/Ctrl+Z
+events creating a set of AST changes. Post-factum, changes can be selected,
+recombined and declared a new commit or branch, or added to an existing one. Any
+*porcelain* command is a mosaic of GET/POST/PUT over some subset/union of
+changes. The difference between snapshot, branch, staging, stash or overlay is
+all but non-existant. These are named groupings of changes. An overlay is a
+"permanent editable changeset" that can be attached/detached to/from a branch.
+A twig is a short-lived stack of changes forked off a branch. Technically,
+either of them is just a set of delta files (SSTs) producing some state of
+the worktree. git-style and Beagle-style porcelain can be used in parallel.
 
-The next section talks about Beagle's project/ branch/ twig/
-overlay model which is slightly different from git's: branches
-are closer to git repos, twigs are like git branches, but
-lighter and overlays have no parallel in git at all.  CRDT
-merges are deterministic and non-intrusive, so one can merge
-left and right, using worktree as a palette for blending.
+The next section talks about Beagle's porcelain project/ branch/ twig/ overlay
+model which is slightly different from git's: branches are closer to git repos,
+twigs are like git branches, but lighter and overlays have no parallel in git
+at all.  CRDT merges are deterministic and non-intrusive, so one can merge left
+and right, using worktree as a palette for blending. In fact, the entire
+porcelain story is a way to sort changes into orderly boxes of different colors
+(branches, twigs, overlays, snapshots) with different labels on them.
 
-The section after that talks about Beagle's core/plumbing
-commands: `GET`, `POST`, `PUT` and `DELETE`. Yes, like HTTP.
+The section after that talks about Beagle's core/plumbing commands: `GET`,
+`POST`, `PUT` and `DELETE`.
 
-Skip next two sections if you want to see the resulting UX
-first.  Long story short: mainly the same four commands plus
-URI-based syntax for everything.
+Skip next two sections if you want to see the resulting UX first.  Long story
+short: mainly the same four commands plus URI-based syntax for everything.
 
 ##  Beagle SCM: repos, branches and twigs
 
