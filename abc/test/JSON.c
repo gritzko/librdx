@@ -93,10 +93,174 @@ ok64 JSONEscapeTest() {
     done;
 }
 
+ok64 JSONIteratorTest() {
+    sane(1);
+
+    // Object with two keys
+    {
+        a_pad(u8, buf, 1 << 16);
+        a_pad(u64, stk, 1 << 12);
+        u8c json_str[] = "{\"a\":1,\"b\":\"hello\"}";
+        u8cs json = {json_str, json_str + sizeof(json_str) - 1};
+        call(JSONParse, buf, stk, json);
+
+        a_pad(u64, rstk, 1 << 10);
+        slit it = {};
+        call(JSONOpen, &it, buf, rstk);
+
+        ok64 o = JSONNext(&it);
+        want(o == OK && it.lit == BASON_O);
+
+        call(JSONInto, &it);
+
+        o = JSONNext(&it);
+        want(o == OK && it.lit == BASON_N);
+        u8cs ka = {(u8c *)"a", (u8c *)"a" + 1};
+        want(u8csEq(it.key, ka));
+        u8cs va = {(u8c *)"1", (u8c *)"1" + 1};
+        want(u8csEq(it.val, va));
+
+        o = JSONNext(&it);
+        want(o == OK && it.lit == BASON_S);
+        u8cs kb = {(u8c *)"b", (u8c *)"b" + 1};
+        want(u8csEq(it.key, kb));
+        u8cs vb = {(u8c *)"hello", (u8c *)"hello" + 5};
+        want(u8csEq(it.val, vb));
+
+        o = JSONNext(&it);
+        want(o == END);
+        call(JSONOuto, &it);
+
+        o = JSONNext(&it);
+        want(o == END);
+    }
+
+    // Empty object
+    {
+        a_pad(u8, buf, 1 << 16);
+        a_pad(u64, stk, 1 << 12);
+        u8c json_str[] = "{}";
+        u8cs json = {json_str, json_str + sizeof(json_str) - 1};
+        call(JSONParse, buf, stk, json);
+
+        a_pad(u64, rstk, 1 << 10);
+        slit it = {};
+        call(JSONOpen, &it, buf, rstk);
+
+        ok64 o = JSONNext(&it);
+        want(o == OK && it.lit == BASON_O);
+        call(JSONInto, &it);
+        o = JSONNext(&it);
+        want(o == END);
+        call(JSONOuto, &it);
+    }
+
+    // Nested: {"a":{"b":2}}
+    {
+        a_pad(u8, buf, 1 << 16);
+        a_pad(u64, stk, 1 << 12);
+        u8c json_str[] = "{\"a\":{\"b\":2}}";
+        u8cs json = {json_str, json_str + sizeof(json_str) - 1};
+        call(JSONParse, buf, stk, json);
+
+        a_pad(u64, rstk, 1 << 10);
+        slit it = {};
+        call(JSONOpen, &it, buf, rstk);
+
+        ok64 o = JSONNext(&it);
+        want(o == OK && it.lit == BASON_O);
+        call(JSONInto, &it);
+
+        o = JSONNext(&it);
+        want(o == OK && it.lit == BASON_O);
+        u8cs ka = {(u8c *)"a", (u8c *)"a" + 1};
+        want(u8csEq(it.key, ka));
+
+        call(JSONInto, &it);
+        o = JSONNext(&it);
+        want(o == OK && it.lit == BASON_N);
+        u8cs kb = {(u8c *)"b", (u8c *)"b" + 1};
+        want(u8csEq(it.key, kb));
+        u8cs vb = {(u8c *)"2", (u8c *)"2" + 1};
+        want(u8csEq(it.val, vb));
+
+        o = JSONNext(&it);
+        want(o == END);
+        call(JSONOuto, &it);
+
+        o = JSONNext(&it);
+        want(o == END);
+        call(JSONOuto, &it);
+
+        o = JSONNext(&it);
+        want(o == END);
+    }
+
+    // Array [1,2,3]
+    {
+        a_pad(u8, buf, 1 << 16);
+        a_pad(u64, stk, 1 << 12);
+        u8c json_str[] = "[1,2,3]";
+        u8cs json = {json_str, json_str + sizeof(json_str) - 1};
+        call(JSONParse, buf, stk, json);
+
+        a_pad(u64, rstk, 1 << 10);
+        slit it = {};
+        call(JSONOpen, &it, buf, rstk);
+
+        ok64 o = JSONNext(&it);
+        want(o == OK && it.lit == BASON_A);
+        call(JSONInto, &it);
+
+        o = JSONNext(&it);
+        want(o == OK && it.lit == BASON_N);
+        u8cs v1 = {(u8c *)"1", (u8c *)"1" + 1};
+        want(u8csEq(it.val, v1));
+
+        o = JSONNext(&it);
+        want(o == OK && it.lit == BASON_N);
+        u8cs v2 = {(u8c *)"2", (u8c *)"2" + 1};
+        want(u8csEq(it.val, v2));
+
+        o = JSONNext(&it);
+        want(o == OK && it.lit == BASON_N);
+        u8cs v3 = {(u8c *)"3", (u8c *)"3" + 1};
+        want(u8csEq(it.val, v3));
+
+        o = JSONNext(&it);
+        want(o == END);
+        call(JSONOuto, &it);
+    }
+
+    // Scalar root
+    {
+        a_pad(u8, buf, 1 << 16);
+        a_pad(u64, stk, 1 << 12);
+        u8c json_str[] = "42";
+        u8cs json = {json_str, json_str + sizeof(json_str) - 1};
+        call(JSONParse, buf, stk, json);
+
+        a_pad(u64, rstk, 1 << 10);
+        slit it = {};
+        call(JSONOpen, &it, buf, rstk);
+
+        ok64 o = JSONNext(&it);
+        want(o == OK && it.lit == BASON_N);
+        u8cs v = {(u8c *)"42", (u8c *)"42" + 2};
+        want(u8csEq(it.val, v));
+
+        o = JSONNext(&it);
+        want(o == END);
+    }
+
+    done;
+}
+
 ok64 JSONtest() {
     sane(1);
     call(JSONEscapeTest);
     call(JSONRoundtripTest);
+    call(JSONIteratorTest);
     done;
 }
 

@@ -39,8 +39,8 @@ typedef struct {
 
 // Write path
 ok64 JSONWriteNext(slit *it);
-ok64 JSONWriteInto(slit *it);
-ok64 JSONWriteOuto(slit *it);
+ok64 JSONWriteInto(slit *it, u64 saved);
+ok64 JSONWriteOuto(slit *it, u64p saved);
 
 // Read path
 ok64 JSONOpen(slit *it, u8bp buf, u64bp stack);

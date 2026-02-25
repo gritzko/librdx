@@ -9,44 +9,145 @@
 
 ok64 JSONWriteNext(slit *it) {
     sane(it != NULL && it->buf != NULL);
-    if (it->plit == 0) {
-        // root level: plain TLV, no key
-        u8cs v = {it->val[0], it->val[1]};
-        call(TLVu8sFeed, u8bIdle(it->buf), it->lit, v);
-    } else {
-        u8cs k = {it->key[0], it->key[1]};
-        u8cs v = {it->val[0], it->val[1]};
-        call(TLVFeedKeyVal, u8bIdle(it->buf), it->lit, k, v);
+    call(TLVFeedKeyVal, u8bIdle(it->buf), it->lit, it->key, it->val);
+    if (it->plit != 0) {
+        call(SLOGSample, &it->stack[1], &it->buf[1]);
     }
     done;
 }
 
-ok64 JSONWriteInto(slit *it) {
+ok64 JSONWriteInto(slit *it, u64 saved) {
     sane(it != NULL && it->buf != NULL);
-    // push parent plit
+    // push frame: [saved, plit]
+    call(u64bFeed1, it->stack, saved);
     u64 plit64 = it->plit;
     call(u64bFeed1, it->stack, plit64);
-    // open TLV container
+    // open TLV container (buf DATA->PAST)
     call(TLVu8bInto, it->buf, it->lit);
-    // if keyed (parent is O or A), write key prefix
+    // write key prefix (empty at root)
+    u8 klen = (u8)u8csLen(it->key);
+    call(u8bFeed1, it->buf, klen);
+    call(u8bFeed, it->buf, it->key);
+    it->plit = it->lit;
+    // SLOG: push DataLen, stack DATA->PAST, create gauge
+    u64 sdl = u64bDataLen(it->stack);
+    call(u64bFeed1, it->stack, sdl);
+    ((u64**)it->stack)[1] = it->stack[2];
+    call(SLOGCreate, &it->stack[1], &it->buf[1]);
+    done;
+}
+
+ok64 JSONWriteOuto(slit *it, u64p saved) {
+    sane(it != NULL && it->buf != NULL);
+    u8 saved_lit = it->lit;
+    // SLOG: close skip list
+    u64p base = it->stack[1];
+    call(SLOGClose, &it->stack[1], &it->buf[1]);
+    // recover stack from DATA->PAST
+    u64pp sp = (u64**)it->stack;
+    sp[1] = base - 1;
+    u64 sdl = *sp[1];
+    sp[2] = sp[1];
+    sp[1] -= sdl;
+    // close TLV container
+    call(TLVu8bOuto, it->buf, saved_lit);
+    // pop frame: [plit, saved]
+    u64 pplit = *u64bLast(it->stack);
+    call(u64bPop, it->stack);
+    it->plit = (u8)pplit;
+    *saved = *u64bLast(it->stack);
+    call(u64bPop, it->stack);
+    // sample on parent SLOG
     if (it->plit != 0) {
-        u8 klen = (u8)u8csLen(it->key);
-        call(u8bFeed1, it->buf, klen);
-        call(u8bFeed, it->buf, it->key);
+        call(SLOGSample, &it->stack[1], &it->buf[1]);
     }
+    done;
+}
+
+// --- Read path ---
+
+// Skip SLOG K records, return END on C record, OK on data record.
+static ok64 JSONSkipSLOG(u8cs body) {
+    for (;;) {
+        if ($empty(body)) return END;
+        u8cs peek = {body[0], body[1]};
+        u8 typ = 0;
+        u8cs pval = {};
+        ok64 o = TLVu8sDrain(peek, &typ, pval);
+        if (o != OK) return o;
+        if (typ == SLOG_K_N) {
+            body[0] = peek[0];
+            continue;
+        }
+        if (typ == SLOG_C_N) {
+            body[0] = peek[0];
+            return END;
+        }
+        return OK;
+    }
+}
+
+ok64 JSONOpen(slit *it, u8bp buf, u64bp stack) {
+    sane(it != NULL && buf != NULL && stack != NULL);
+    it->buf = buf;
+    it->stack = stack;
+    it->plit = 0;
+    it->lit = 0;
+    it->key[0] = it->key[1] = NULL;
+    it->val[0] = it->val[1] = NULL;
+    done;
+}
+
+ok64 JSONNext(slit *it) {
+    sane(it != NULL && it->buf != NULL);
+    u8cs body = {it->buf[1], it->buf[2]};
+    ok64 skip = JSONSkipSLOG(body);
+    if (skip == END) {
+        ((u8 **)it->buf)[1] = (u8p)body[0];
+        it->lit = 0;
+        return END;
+    }
+    if (skip != OK) return skip;
+    u8 typ = 0;
+    u8cs key = {};
+    u8cs val = {};
+    call(TLVDrainKeyVal, &typ, key, val, body);
+    it->lit = typ;
+    u8csMv(it->key, key);
+    u8csMv(it->val, val);
+    ((u8 **)it->buf)[1] = (u8p)body[0];
+    done;
+}
+
+ok64 JSONInto(slit *it) {
+    sane(it != NULL && it->buf != NULL && it->stack != NULL &&
+         (it->lit == BASON_O || it->lit == BASON_A));
+    // Push: plit, read position, scope end
+    u64 plit64 = it->plit;
+    call(u64bFeed1, it->stack, plit64);
+    u64 pos = (u64)(uintptr_t)it->buf[1];
+    call(u64bFeed1, it->stack, pos);
+    u64 end = (u64)(uintptr_t)it->buf[2];
+    call(u64bFeed1, it->stack, end);
+    // Scope into container body
+    ((u8 **)it->buf)[1] = (u8p)it->val[0];
+    ((u8 **)it->buf)[2] = (u8p)it->val[1];
     it->plit = it->lit;
     done;
 }
 
-ok64 JSONWriteOuto(slit *it) {
-    sane(it != NULL && it->buf != NULL);
-    u8 saved_lit = it->lit;
-    // close TLV container
-    call(TLVu8bOuto, it->buf, saved_lit);
-    // pop parent plit
-    u64 pplit = *u64bLast(it->stack);
+ok64 JSONOuto(slit *it) {
+    sane(it != NULL && it->buf != NULL && it->stack != NULL);
+    // Pop: scope end, read position, plit
+    u64 end = *u64bLast(it->stack);
     call(u64bPop, it->stack);
-    it->plit = (u8)pplit;
+    ((u8 **)it->buf)[2] = (u8p)(uintptr_t)end;
+    u64 pos = *u64bLast(it->stack);
+    call(u64bPop, it->stack);
+    ((u8 **)it->buf)[1] = (u8p)(uintptr_t)pos;
+    u64 plit64 = *u64bLast(it->stack);
+    call(u64bPop, it->stack);
+    it->plit = (u8)plit64;
     done;
 }
 
@@ -81,6 +182,17 @@ static ok64 JSONSetKey(JSONstate *state) {
 
 // --- Lexer callbacks ---
 
+static ok64 JSONonLeaf(u8cs val, u8 lit, JSONstate *state) {
+    sane($ok(val) && state != NULL);
+    call(JSONSetKey, state);
+    state->it.lit = lit;
+    state->it.val[0] = val[0];
+    state->it.val[1] = val[1];
+    call(JSONWriteNext, &state->it);
+    if (state->it.plit == BASON_O) state->obj_state = 0;
+    done;
+}
+
 ok64 JSONonString(u8cs tok, JSONstate *state) {
     sane($ok(tok) && state != NULL);
     u8cs inner = {tok[0] + 1, tok[1] - 1};
@@ -92,51 +204,24 @@ ok64 JSONonString(u8cs tok, JSONstate *state) {
         state->obj_state = 1;
         done;
     }
-    call(JSONSetKey, state);
-    state->it.lit = BASON_S;
-    // unescape into a temp area, then write TLKV
-    a_pad(u8, tmp, 4096);
-    u8s vbuf = {tmp[1], tmp[3]};
-    call(JSONUnEscapeAll, vbuf, inner);
-    u8cs unesc = {tmp[1], vbuf[0]};
-    state->it.val[0] = unesc[0];
-    state->it.val[1] = unesc[1];
-    call(JSONWriteNext, &state->it);
-    if (state->it.plit == BASON_O) state->obj_state = 0;
-    done;
+    return JSONonLeaf(inner, BASON_S, state);
 }
 
 ok64 JSONonNumber(u8cs tok, JSONstate *state) {
-    sane($ok(tok) && state != NULL);
-    call(JSONSetKey, state);
-    state->it.lit = BASON_N;
-    state->it.val[0] = tok[0];
-    state->it.val[1] = tok[1];
-    call(JSONWriteNext, &state->it);
-    if (state->it.plit == BASON_O) state->obj_state = 0;
-    done;
+    return JSONonLeaf(tok, BASON_N, state);
 }
 
 ok64 JSONonLiteral(u8cs tok, JSONstate *state) {
-    sane($ok(tok) && state != NULL);
-    call(JSONSetKey, state);
-    state->it.lit = BASON_B;
-    state->it.val[0] = tok[0];
-    state->it.val[1] = tok[1];
-    call(JSONWriteNext, &state->it);
-    if (state->it.plit == BASON_O) state->obj_state = 0;
-    done;
+    return JSONonLeaf(tok, BASON_B, state);
 }
 
 ok64 JSONonOpenObject(u8cs tok, JSONstate *state) {
     sane($ok(tok) && state != NULL);
     call(JSONSetKey, state);
     state->it.lit = BASON_O;
-    // save obj_state + arr_index
     u64 saved = ((u64)state->obj_state << 32) |
                 (u64)(state->arr_index & 0xFFFFFFFF);
-    call(u64bFeed1, state->it.stack, saved);
-    call(JSONWriteInto, &state->it);
+    call(JSONWriteInto, &state->it, saved);
     state->obj_state = 0;
     state->arr_index = 0;
     done;
@@ -145,10 +230,8 @@ ok64 JSONonOpenObject(u8cs tok, JSONstate *state) {
 ok64 JSONonCloseObject(u8cs tok, JSONstate *state) {
     sane($ok(tok) && state != NULL);
     state->it.lit = BASON_O;
-    call(JSONWriteOuto, &state->it);
-    // restore saved state
-    u64 saved = *u64bLast(state->it.stack);
-    call(u64bPop, state->it.stack);
+    u64 saved = 0;
+    call(JSONWriteOuto, &state->it, &saved);
     state->obj_state = (u8)(saved >> 32);
     state->arr_index = saved & 0xFFFFFFFF;
     if (state->it.plit == BASON_O) state->obj_state = 0;
@@ -161,8 +244,7 @@ ok64 JSONonOpenArray(u8cs tok, JSONstate *state) {
     state->it.lit = BASON_A;
     u64 saved = ((u64)state->obj_state << 32) |
                 (u64)(state->arr_index & 0xFFFFFFFF);
-    call(u64bFeed1, state->it.stack, saved);
-    call(JSONWriteInto, &state->it);
+    call(JSONWriteInto, &state->it, saved);
     state->obj_state = 0;
     state->arr_index = 0;
     done;
@@ -171,9 +253,8 @@ ok64 JSONonOpenArray(u8cs tok, JSONstate *state) {
 ok64 JSONonCloseArray(u8cs tok, JSONstate *state) {
     sane($ok(tok) && state != NULL);
     state->it.lit = BASON_A;
-    call(JSONWriteOuto, &state->it);
-    u64 saved = *u64bLast(state->it.stack);
-    call(u64bPop, state->it.stack);
+    u64 saved = 0;
+    call(JSONWriteOuto, &state->it, &saved);
     state->obj_state = (u8)(saved >> 32);
     state->arr_index = saved & 0xFFFFFFFF;
     if (state->it.plit == BASON_O) state->obj_state = 0;
@@ -257,7 +338,7 @@ static ok64 JSONExportValue(u8s json, u8cs body, u8 lit) {
         call(JSONExportContainer, json, body, lit);
     } else if (lit == BASON_S) {
         call(u8sFeed1, json, '"');
-        call(JSONEscapeAll, json, body);
+        call(u8sFeed, json, body);
         call(u8sFeed1, json, '"');
     } else {
         call(u8sFeed, json, body);
@@ -270,8 +351,9 @@ ok64 JSONExport(u8s json, u8cs bason) {
     u8cs body = {bason[0], bason[1]};
     while (!$empty(body)) {
         u8 typ = 0;
+        u8cs key = {};
         u8cs val = {};
-        call(TLVu8sDrain, body, &typ, val);
+        call(TLVDrainKeyVal, &typ, key, val, body);
         call(JSONExportValue, json, val, typ);
     }
     done;
