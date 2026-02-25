@@ -33,6 +33,34 @@ ok64 JSONRoundtripTest() {
         {"-42", "-42"},
         {"3.14", "3.14"},
         {"1e10", "1e10"},
+        // unicode escapes
+        {"\"\\u0041\"", "\"A\""},
+        {"\"\\u00e9\"", "\"\xc3\xa9\""},
+        // control chars re-escaped
+        {"\"a\\u0000b\"", "\"a\\u0000b\""},
+        {"\"\\b\\f\"", "\"\\b\\f\""},
+        // slash passthrough
+        {"\"a\\/b\"", "\"a/b\""},
+        // backslash roundtrip
+        {"\"\\\\\"", "\"\\\\\""},
+        // empty string
+        {"\"\"", "\"\""},
+        // nested arrays
+        {"[[[]]]", "[[[]]]"},
+        // mixed nesting
+        {"{\"a\":[{\"b\":1},2]}", "{\"a\":[{\"b\":1},2]}"},
+        // deeply nested
+        {"{\"a\":{\"b\":{\"c\":{\"d\":4}}}}", "{\"a\":{\"b\":{\"c\":{\"d\":4}}}}"},
+        // whitespace variants
+        {" [ 1 , 2 ] ", "[1,2]"},
+        {"\t{\n\"k\"\t:\r1\n}", "{\"k\":1}"},
+        // empty array in object
+        {"{\"a\":[]}", "{\"a\":[]}"},
+        // numbers
+        {"-0", "-0"},
+        {"0.5", "0.5"},
+        {"-1.23e+4", "-1.23e+4"},
+        {"1E10", "1E10"},
     };
     int ncases = sizeof(cases) / sizeof(cases[0]);
 

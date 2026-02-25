@@ -9,7 +9,16 @@
 
 ok64 JSONWriteNext(slit *it) {
     sane(it != NULL && it->buf != NULL);
-    call(TLVFeedKeyVal, u8bIdle(it->buf), it->lit, it->key, it->val);
+    if (it->lit == BASON_S) {
+        call(TLVu8bInto, it->buf, it->lit);
+        u8 klen = (u8)u8csLen(it->key);
+        call(u8bFeed1, it->buf, klen);
+        call(u8bFeed, it->buf, it->key);
+        call(JSONUnEscapeAll, u8bIdle(it->buf), it->val);
+        call(TLVu8bOuto, it->buf, it->lit);
+    } else {
+        call(TLVFeedKeyVal, u8bIdle(it->buf), it->lit, it->key, it->val);
+    }
     if (it->plit != 0) {
         call(SLOGSample, &it->stack[1], &it->buf[1]);
     }
@@ -338,7 +347,7 @@ static ok64 JSONExportValue(u8s json, u8cs body, u8 lit) {
         call(JSONExportContainer, json, body, lit);
     } else if (lit == BASON_S) {
         call(u8sFeed1, json, '"');
-        call(u8sFeed, json, body);
+        call(JSONEscapeAll, json, body);
         call(u8sFeed1, json, '"');
     } else {
         call(u8sFeed, json, body);
