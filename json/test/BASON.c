@@ -5,8 +5,10 @@
 #include <string.h>
 
 #include "abc/FILE.h"
+#include "abc/JSON.h"
 #include "abc/NUM.h"
 #include "abc/PRO.h"
+#include "abc/RON.h"
 #include "abc/TEST.h"
 
 // Helper: build BASON data into a pad buffer, stack for reading
@@ -490,6 +492,500 @@ ok64 BASONtestSeekAll() {
     done;
 }
 
+// --- JSON → BASON parse tests ---
+
+// 12. Parse scalar string
+ok64 BASONtestParseString() {
+    sane(1);
+    BASON_SETUP(1024, 32);
+    u64 _idx[64];
+    u64b idx = {_idx, _idx, _idx, _idx + 64};
+
+    u8cs json = $u8str("\"hello\"");
+    call(BASONParseJSON, pad, idx, json);
+
+    u8cs dat = {pad[1], pad[2]};
+    call(BASONOpen, stk, dat);
+    u8 type; u8cs key, val;
+    call(BASONDrain, stk, dat, &type, key, val);
+    testeq(type, 'S');
+    testeq((size_t)$len(key), (size_t)0);
+    u8cs exp = $u8str("hello");
+    testeq(0, $cmp(exp, val));
+
+    ok64 o = BASONDrain(stk, dat, &type, key, val);
+    testeq(o, BASONEND);
+    done;
+}
+
+// 13. Parse scalar number
+ok64 BASONtestParseNumber() {
+    sane(1);
+    BASON_SETUP(1024, 32);
+    u64 _idx[64];
+    u64b idx = {_idx, _idx, _idx, _idx + 64};
+
+    u8cs json = $u8str("42");
+    call(BASONParseJSON, pad, idx, json);
+
+    u8cs dat = {pad[1], pad[2]};
+    call(BASONOpen, stk, dat);
+    u8 type; u8cs key, val;
+    call(BASONDrain, stk, dat, &type, key, val);
+    testeq(type, 'N');
+    testeq((size_t)$len(key), (size_t)0);
+    u8cs exp = $u8str("42");
+    testeq(0, $cmp(exp, val));
+    done;
+}
+
+// 14. Parse literals: true, false, null
+ok64 BASONtestParseLiterals() {
+    sane(1);
+    u8 type; u8cs key, val;
+
+    // true
+    {
+        BASON_SETUP(1024, 32);
+        u64 _idx[64];
+        u64b idx = {_idx, _idx, _idx, _idx + 64};
+        u8cs json = $u8str("true");
+        call(BASONParseJSON, pad, idx, json);
+        u8cs dat = {pad[1], pad[2]};
+        call(BASONOpen, stk, dat);
+        call(BASONDrain, stk, dat, &type, key, val);
+        testeq(type, 'B');
+        u8cs exp = $u8str("true");
+        testeq(0, $cmp(exp, val));
+    }
+    // false
+    {
+        BASON_SETUP(1024, 32);
+        u64 _idx[64];
+        u64b idx = {_idx, _idx, _idx, _idx + 64};
+        u8cs json = $u8str("false");
+        call(BASONParseJSON, pad, idx, json);
+        u8cs dat = {pad[1], pad[2]};
+        call(BASONOpen, stk, dat);
+        call(BASONDrain, stk, dat, &type, key, val);
+        testeq(type, 'B');
+        u8cs exp = $u8str("false");
+        testeq(0, $cmp(exp, val));
+    }
+    // null → type 'B', empty value
+    {
+        BASON_SETUP(1024, 32);
+        u64 _idx[64];
+        u64b idx = {_idx, _idx, _idx, _idx + 64};
+        u8cs json = $u8str("null");
+        call(BASONParseJSON, pad, idx, json);
+        u8cs dat = {pad[1], pad[2]};
+        call(BASONOpen, stk, dat);
+        call(BASONDrain, stk, dat, &type, key, val);
+        testeq(type, 'B');
+        testeq((size_t)$len(val), (size_t)0);
+    }
+    done;
+}
+
+// 15. Flat object
+ok64 BASONtestParseObject() {
+    sane(1);
+    BASON_SETUP(1024, 32);
+    u64 _idx[64];
+    u64b idx = {_idx, _idx, _idx, _idx + 64};
+
+    u8cs json = $u8str("{\"a\":\"b\",\"c\":\"d\"}");
+    call(BASONParseJSON, pad, idx, json);
+
+    u8cs dat = {pad[1], pad[2]};
+    call(BASONOpen, stk, dat);
+    u8 type; u8cs key, val;
+
+    call(BASONDrain, stk, dat, &type, key, val);
+    testeq(type, 'O');
+    testeq((size_t)$len(key), (size_t)0);
+
+    call(BASONInto, stk, dat, val);
+
+    call(BASONDrain, stk, dat, &type, key, val);
+    testeq(type, 'S');
+    u8cs ka = $u8str("a"), vb = $u8str("b");
+    testeq(0, $cmp(ka, key));
+    testeq(0, $cmp(vb, val));
+
+    call(BASONDrain, stk, dat, &type, key, val);
+    testeq(type, 'S');
+    u8cs kc = $u8str("c"), vd = $u8str("d");
+    testeq(0, $cmp(kc, key));
+    testeq(0, $cmp(vd, val));
+
+    ok64 o = BASONDrain(stk, dat, &type, key, val);
+    testeq(o, BASONEND);
+    done;
+}
+
+// 16. Array with RON64 keys
+ok64 BASONtestParseArray() {
+    sane(1);
+    BASON_SETUP(1024, 32);
+    u64 _idx[64];
+    u64b idx = {_idx, _idx, _idx, _idx + 64};
+
+    u8cs json = $u8str("[1,2,3]");
+    call(BASONParseJSON, pad, idx, json);
+
+    u8cs dat = {pad[1], pad[2]};
+    call(BASONOpen, stk, dat);
+    u8 type; u8cs key, val;
+
+    call(BASONDrain, stk, dat, &type, key, val);
+    testeq(type, 'A');
+
+    call(BASONInto, stk, dat, val);
+
+    // Element 0 → key "0"
+    call(BASONDrain, stk, dat, &type, key, val);
+    testeq(type, 'N');
+    u8cs k0 = $u8str("0");
+    testeq(0, $cmp(k0, key));
+    u8cs v1 = $u8str("1");
+    testeq(0, $cmp(v1, val));
+
+    // Element 1 → key "1"
+    call(BASONDrain, stk, dat, &type, key, val);
+    testeq(type, 'N');
+    u8cs k1 = $u8str("1");
+    testeq(0, $cmp(k1, key));
+    u8cs v2 = $u8str("2");
+    testeq(0, $cmp(v2, val));
+
+    // Element 2 → key "2"
+    call(BASONDrain, stk, dat, &type, key, val);
+    testeq(type, 'N');
+    u8cs k2 = $u8str("2");
+    testeq(0, $cmp(k2, key));
+    u8cs v3 = $u8str("3");
+    testeq(0, $cmp(v3, val));
+
+    ok64 o = BASONDrain(stk, dat, &type, key, val);
+    testeq(o, BASONEND);
+    done;
+}
+
+// 17. Nested: {"arr":[1,{"x":true}]}
+ok64 BASONtestParseNested() {
+    sane(1);
+    BASON_SETUP(2048, 32);
+    u64 _idx[128];
+    u64b idx = {_idx, _idx, _idx, _idx + 128};
+
+    u8cs json = $u8str("{\"arr\":[1,{\"x\":true}]}");
+    call(BASONParseJSON, pad, idx, json);
+
+    u8cs dat = {pad[1], pad[2]};
+    call(BASONOpen, stk, dat);
+    u8 type; u8cs key, val;
+
+    // Top-level object
+    call(BASONDrain, stk, dat, &type, key, val);
+    testeq(type, 'O');
+    call(BASONInto, stk, dat, val);
+
+    // "arr" → array
+    call(BASONDrain, stk, dat, &type, key, val);
+    testeq(type, 'A');
+    u8cs karr = $u8str("arr");
+    testeq(0, $cmp(karr, key));
+    call(BASONInto, stk, dat, val);
+
+    // [0] → 1
+    call(BASONDrain, stk, dat, &type, key, val);
+    testeq(type, 'N');
+    u8cs k0 = $u8str("0");
+    testeq(0, $cmp(k0, key));
+
+    // [1] → {"x":true}
+    call(BASONDrain, stk, dat, &type, key, val);
+    testeq(type, 'O');
+    u8cs k1 = $u8str("1");
+    testeq(0, $cmp(k1, key));
+    call(BASONInto, stk, dat, val);
+
+    // "x" → true
+    call(BASONDrain, stk, dat, &type, key, val);
+    testeq(type, 'B');
+    u8cs kx = $u8str("x");
+    testeq(0, $cmp(kx, key));
+    u8cs vtrue = $u8str("true");
+    testeq(0, $cmp(vtrue, val));
+
+    ok64 o = BASONDrain(stk, dat, &type, key, val);
+    testeq(o, BASONEND);
+    call(BASONOuto, stk);  // out of {"x":true}
+
+    o = BASONDrain(stk, dat, &type, key, val);
+    testeq(o, BASONEND);
+    call(BASONOuto, stk);  // out of array
+
+    o = BASONDrain(stk, dat, &type, key, val);
+    testeq(o, BASONEND);
+    call(BASONOuto, stk);  // out of top object
+
+    o = BASONDrain(stk, dat, &type, key, val);
+    testeq(o, BASONEND);
+    done;
+}
+
+// 18. Escape handling
+ok64 BASONtestParseEscapes() {
+    sane(1);
+    BASON_SETUP(1024, 32);
+    u64 _idx[64];
+    u64b idx = {_idx, _idx, _idx, _idx + 64};
+
+    u8cs json = $u8str("{\"k\":\"a\\tb\"}");
+    call(BASONParseJSON, pad, idx, json);
+
+    u8cs dat = {pad[1], pad[2]};
+    call(BASONOpen, stk, dat);
+    u8 type; u8cs key, val;
+
+    call(BASONDrain, stk, dat, &type, key, val);
+    testeq(type, 'O');
+    call(BASONInto, stk, dat, val);
+
+    call(BASONDrain, stk, dat, &type, key, val);
+    testeq(type, 'S');
+    u8cs kk = $u8str("k");
+    testeq(0, $cmp(kk, key));
+    // Value should be "a\tb" (with literal tab)
+    testeq((size_t)$len(val), (size_t)3);
+    testeq(*val[0], 'a');
+    testeq(*(val[0] + 1), '\t');
+    testeq(*(val[0] + 2), 'b');
+    done;
+}
+
+// 19. Roundtrip: parse JSON → BASON → iterate all and verify
+ok64 BASONtestParseRoundtrip() {
+    sane(1);
+    BASON_SETUP(4096, 64);
+    u64 _idx[128];
+    u64b idx = {_idx, _idx, _idx, _idx + 128};
+
+    u8cs json = $u8str(
+        "{\"name\":\"Alice\",\"age\":30,\"active\":true,"
+        "\"scores\":[100,200,300],\"addr\":{\"city\":\"NYC\"},\"x\":null}");
+    call(BASONParseJSON, pad, idx, json);
+
+    u8cs dat = {pad[1], pad[2]};
+    call(BASONOpen, stk, dat);
+    u8 type; u8cs key, val;
+
+    // Root object
+    call(BASONDrain, stk, dat, &type, key, val);
+    testeq(type, 'O');
+    call(BASONInto, stk, dat, val);
+
+    // "name" → "Alice"
+    call(BASONDrain, stk, dat, &type, key, val);
+    testeq(type, 'S');
+    u8cs kname = $u8str("name"), valice = $u8str("Alice");
+    testeq(0, $cmp(kname, key));
+    testeq(0, $cmp(valice, val));
+
+    // "age" → 30
+    call(BASONDrain, stk, dat, &type, key, val);
+    testeq(type, 'N');
+    u8cs kage = $u8str("age"), v30 = $u8str("30");
+    testeq(0, $cmp(kage, key));
+    testeq(0, $cmp(v30, val));
+
+    // "active" → true
+    call(BASONDrain, stk, dat, &type, key, val);
+    testeq(type, 'B');
+    u8cs kact = $u8str("active"), vtrue = $u8str("true");
+    testeq(0, $cmp(kact, key));
+    testeq(0, $cmp(vtrue, val));
+
+    // "scores" → array
+    call(BASONDrain, stk, dat, &type, key, val);
+    testeq(type, 'A');
+    u8cs kscores = $u8str("scores");
+    testeq(0, $cmp(kscores, key));
+    call(BASONInto, stk, dat, val);
+
+    // [0]=100, [1]=200, [2]=300
+    call(BASONDrain, stk, dat, &type, key, val);
+    testeq(type, 'N');
+    u8cs v100 = $u8str("100");
+    testeq(0, $cmp(v100, val));
+
+    call(BASONDrain, stk, dat, &type, key, val);
+    testeq(type, 'N');
+    u8cs v200 = $u8str("200");
+    testeq(0, $cmp(v200, val));
+
+    call(BASONDrain, stk, dat, &type, key, val);
+    testeq(type, 'N');
+    u8cs v300 = $u8str("300");
+    testeq(0, $cmp(v300, val));
+
+    ok64 o = BASONDrain(stk, dat, &type, key, val);
+    testeq(o, BASONEND);
+    call(BASONOuto, stk);
+
+    // "addr" → object with "city":"NYC"
+    call(BASONDrain, stk, dat, &type, key, val);
+    testeq(type, 'O');
+    u8cs kaddr = $u8str("addr");
+    testeq(0, $cmp(kaddr, key));
+    call(BASONInto, stk, dat, val);
+
+    call(BASONDrain, stk, dat, &type, key, val);
+    testeq(type, 'S');
+    u8cs kcity = $u8str("city"), vnyc = $u8str("NYC");
+    testeq(0, $cmp(kcity, key));
+    testeq(0, $cmp(vnyc, val));
+
+    o = BASONDrain(stk, dat, &type, key, val);
+    testeq(o, BASONEND);
+    call(BASONOuto, stk);
+
+    // "x" → null (type B, empty value)
+    call(BASONDrain, stk, dat, &type, key, val);
+    testeq(type, 'B');
+    u8cs kx = $u8str("x");
+    testeq(0, $cmp(kx, key));
+    testeq((size_t)$len(val), (size_t)0);
+
+    o = BASONDrain(stk, dat, &type, key, val);
+    testeq(o, BASONEND);
+    call(BASONOuto, stk);
+
+    o = BASONDrain(stk, dat, &type, key, val);
+    testeq(o, BASONEND);
+    done;
+}
+
+// --- BASON → JSON export tests ---
+
+// 20. Export flat object
+ok64 BASONtestExportObject() {
+    sane(1);
+    BASON_SETUP(1024, 32);
+    u64 _idx[64];
+    u64b idx = {_idx, _idx, _idx, _idx + 64};
+
+    u8cs json = $u8str("{\"a\":\"b\",\"c\":\"d\"}");
+    call(BASONParseJSON, pad, idx, json);
+
+    u8cs dat = {pad[1], pad[2]};
+    u8 _out[1024];
+    u8s out = {_out, _out + sizeof(_out)};
+    call(BASONExportJSON, out, stk, dat);
+
+    u8cs result = {(u8cp)_out, (u8cp)out[0]};
+    testeq(0, $cmp(json, result));
+    done;
+}
+
+// 21. Export array
+ok64 BASONtestExportArray() {
+    sane(1);
+    BASON_SETUP(1024, 32);
+    u64 _idx[64];
+    u64b idx = {_idx, _idx, _idx, _idx + 64};
+
+    u8cs json = $u8str("[1,2,3]");
+    call(BASONParseJSON, pad, idx, json);
+
+    u8cs dat = {pad[1], pad[2]};
+    u8 _out[1024];
+    u8s out = {_out, _out + sizeof(_out)};
+    call(BASONExportJSON, out, stk, dat);
+
+    u8cs result = {(u8cp)_out, (u8cp)out[0]};
+    testeq(0, $cmp(json, result));
+    done;
+}
+
+// 22. Export with escapes
+ok64 BASONtestExportEscapes() {
+    sane(1);
+    BASON_SETUP(1024, 32);
+    u64 _idx[64];
+    u64b idx = {_idx, _idx, _idx, _idx + 64};
+
+    u8cs json = $u8str("{\"k\":\"a\\tb\"}");
+    call(BASONParseJSON, pad, idx, json);
+
+    u8cs dat = {pad[1], pad[2]};
+    u8 _out[1024];
+    u8s out = {_out, _out + sizeof(_out)};
+    call(BASONExportJSON, out, stk, dat);
+
+    u8cs result = {(u8cp)_out, (u8cp)out[0]};
+    testeq(0, $cmp(json, result));
+    done;
+}
+
+// 23. Full roundtrip: JSON → BASON → JSON, compare compact forms
+ok64 BASONtestJSONRoundtrip() {
+    sane(1);
+
+    u8cs cases[] = {
+        $u8str("\"hello\""),
+        $u8str("42"),
+        $u8str("-3.14"),
+        $u8str("true"),
+        $u8str("false"),
+        $u8str("null"),
+        $u8str("[]"),
+        $u8str("{}"),
+        $u8str("[1,2,3]"),
+        $u8str("{\"a\":\"b\"}"),
+        $u8str("{\"name\":\"Alice\",\"age\":30,\"active\":true,"
+               "\"scores\":[100,200,300],\"addr\":{\"city\":\"NYC\"},\"x\":null}"),
+        $u8str("{\"a\":[1,[2,[3]]],\"b\":{\"c\":{\"d\":\"e\"}}}"),
+        $u8str("{\"esc\":\"a\\tb\\nc\\\\d\\\"\"}"),
+        $u8str("[{},{},{}]"),
+        $u8str("{\"empty_arr\":[],\"empty_obj\":{}}"),
+    };
+    size_t ncases = sizeof(cases) / sizeof(cases[0]);
+
+    for (size_t i = 0; i < ncases; i++) {
+        // Compact-format the original (normalize whitespace)
+        u8 _fmt[4096];
+        u8s fmt = {_fmt, _fmt + sizeof(_fmt)};
+        u8cs indent = {(u8cp)"", (u8cp)""};
+        call(JSONFmt, fmt, cases[i], indent);
+        u8cs expected = {(u8cp)_fmt, (u8cp)fmt[0]};
+
+        // Parse JSON → BASON
+        BASON_SETUP(4096, 64);
+        u64 _idx[128];
+        u64b idx = {_idx, _idx, _idx, _idx + 128};
+        call(BASONParseJSON, pad, idx, cases[i]);
+
+        // Export BASON → JSON
+        u8cs dat = {pad[1], pad[2]};
+        u8 _out[4096];
+        u8s out = {_out, _out + sizeof(_out)};
+        call(BASONExportJSON, out, stk, dat);
+
+        u8cs result = {(u8cp)_out, (u8cp)out[0]};
+        if ($cmp(expected, result) != 0) {
+            fprintf(stderr, "roundtrip[%zu] mismatch:\n  expected: %.*s\n  got:      %.*s\n",
+                    i, (int)$len(expected), expected[0],
+                    (int)$len(result), result[0]);
+            fail(TESTFAIL);
+        }
+    }
+    done;
+}
+
 ok64 BASONtest() {
     sane(1);
     call(BASONtestNextFlat);
@@ -503,6 +999,18 @@ ok64 BASONtest() {
     call(BASONtestWriteSeek);
     call(BASONtestSkipIndex);
     call(BASONtestSeekAll);
+    call(BASONtestParseString);
+    call(BASONtestParseNumber);
+    call(BASONtestParseLiterals);
+    call(BASONtestParseObject);
+    call(BASONtestParseArray);
+    call(BASONtestParseNested);
+    call(BASONtestParseEscapes);
+    call(BASONtestParseRoundtrip);
+    call(BASONtestExportObject);
+    call(BASONtestExportArray);
+    call(BASONtestExportEscapes);
+    call(BASONtestJSONRoundtrip);
     done;
 }
 

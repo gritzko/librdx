@@ -52,6 +52,10 @@ ok64 BASONFeedInto(u64bp idx, u8bp buf, u8 type, u8csc key);
 ok64 BASONFeed(u64bp idx, u8bp buf, u8 type, u8csc key, u8csc val);
 ok64 BASONFeedOuto(u64bp idx, u8bp buf);
 
+// --- JSON ↔ BASON ---
+ok64 BASONParseJSON(u8bp buf, u64bp idx, u8cs json);
+ok64 BASONExportJSON(u8s out, u64bp stack, u8csc data);
+
 // --- API B: cursor struct, delegates to API A ---
 
 typedef struct bason {
@@ -105,6 +109,10 @@ fun ok64 basonFeed(basonp x, u8 type, u8csc key, u8csc val) {
 
 fun ok64 basonFeedOuto(basonp x) {
     return BASONFeedOuto(x->stack, x->data);
+}
+
+fun ok64 basonParseJSON(basonp x, u8cs json) {
+    return BASONParseJSON(x->data, x->stack, json);
 }
 
 #endif

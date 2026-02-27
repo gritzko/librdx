@@ -1,6 +1,8 @@
 #include "BASON.h"
 
+#include "abc/JSON.h"
 #include "abc/PRO.h"
+#include "abc/RON.h"
 
 // --- Read path ---
 
@@ -183,5 +185,244 @@ ok64 BASONFeedOuto(u64bp idx, u8bp buf) {
         call(u64bDigup, idx);
     }
     call(TLKVOuto, buf);
+    done;
+}
+
+// --- JSON → BASON parser ---
+
+#define BASON_PARSE_DEPTH 32
+
+typedef struct {
+    u8bp  buf;
+    u64bp idx;
+    u8    depth;
+    struct {
+        u8  ptype;      // 'O' or 'A'
+        u32 aidx;       // array element counter
+        b8  have_key;   // object: key has been buffered
+    } frame[BASON_PARSE_DEPTH];
+    u8  keybuf[256];
+    u8  keylen;
+} BASONparse;
+
+// Resolve key for the current context into p->keybuf/keylen.
+// Must be called before emitting any value.
+static void BASONpResolveKey(BASONparse *p) {
+    if (p->depth == 0) {
+        p->keylen = 0;
+        return;
+    }
+    if (p->frame[p->depth - 1].ptype == 'O') {
+        p->frame[p->depth - 1].have_key = NO;
+        return;  // keybuf/keylen already set by on_string
+    }
+    // Array: generate RON64 index key
+    u8 tmp[11];
+    u8 *into = tmp;
+    RONutf8sFeed(&into, p->frame[p->depth - 1].aidx++);
+    p->keylen = (u8)(into - tmp);
+    memcpy(p->keybuf, tmp, p->keylen);
+}
+
+// Set key slice from keybuf/keylen
+#define BASONpKey(p, k) do { \
+    (k)[0] = (u8cp)(p)->keybuf; \
+    (k)[1] = (u8cp)(p)->keybuf + (p)->keylen; \
+} while(0)
+
+// Check if a JSON string body (without quotes) contains backslash
+static b8 BASONpHasEscape(u8cs body) {
+    for (u8cp q = body[0]; q < body[1]; ++q) {
+        if (*q == '\\') return YES;
+    }
+    return NO;
+}
+
+static ok64 BASONpOnString(u8cs tok, void *ctx) {
+    sane($ok(tok) && ctx != NULL);
+    BASONparse *p = (BASONparse *)ctx;
+    u8cs body = {tok[0] + 1, tok[1] - 1};
+    // In object context, first string is a key
+    if (p->depth > 0 && p->frame[p->depth - 1].ptype == 'O' &&
+        !p->frame[p->depth - 1].have_key) {
+        if (BASONpHasEscape(body)) {
+            u8s dst = {p->keybuf, p->keybuf + 255};
+            call(JSONUnEscapeAll, dst, body);
+            p->keylen = (u8)(dst[0] - p->keybuf);
+        } else {
+            size_t n = $len(body);
+            if (n > 255) n = 255;
+            memcpy(p->keybuf, body[0], n);
+            p->keylen = (u8)n;
+        }
+        p->frame[p->depth - 1].have_key = YES;
+        done;
+    }
+    BASONpResolveKey(p);
+    u8cs key; BASONpKey(p, key);
+    if (BASONpHasEscape(body)) {
+        u8 tmp[4096];
+        u8s dst = {tmp, tmp + sizeof(tmp)};
+        call(JSONUnEscapeAll, dst, body);
+        u8cs val = {(u8cp)tmp, (u8cp)dst[0]};
+        call(BASONFeed, p->idx, p->buf, 'S', key, val);
+    } else {
+        call(BASONFeed, p->idx, p->buf, 'S', key, body);
+    }
+    done;
+}
+
+static ok64 BASONpOnNumber(u8cs tok, void *ctx) {
+    sane($ok(tok) && ctx != NULL);
+    BASONparse *p = (BASONparse *)ctx;
+    BASONpResolveKey(p);
+    u8cs key; BASONpKey(p, key);
+    call(BASONFeed, p->idx, p->buf, 'N', key, tok);
+    done;
+}
+
+static ok64 BASONpOnLiteral(u8cs tok, void *ctx) {
+    sane($ok(tok) && ctx != NULL);
+    BASONparse *p = (BASONparse *)ctx;
+    BASONpResolveKey(p);
+    u8cs key; BASONpKey(p, key);
+    if ($len(tok) == 4 && *tok[0] == 'n') {
+        u8cs empty = {(u8cp)p->keybuf, (u8cp)p->keybuf};
+        call(BASONFeed, p->idx, p->buf, 'B', key, empty);
+    } else {
+        call(BASONFeed, p->idx, p->buf, 'B', key, tok);
+    }
+    done;
+}
+
+static ok64 BASONpOnOpenObject(u8cs tok, void *ctx) {
+    sane($ok(tok) && ctx != NULL);
+    BASONparse *p = (BASONparse *)ctx;
+    test(p->depth < BASON_PARSE_DEPTH, BASONBAD);
+    BASONpResolveKey(p);
+    u8cs key; BASONpKey(p, key);
+    call(BASONFeedInto, p->idx, p->buf, 'O', key);
+    p->frame[p->depth].ptype = 'O';
+    p->frame[p->depth].aidx = 0;
+    p->frame[p->depth].have_key = NO;
+    p->depth++;
+    done;
+}
+
+static ok64 BASONpOnCloseObject(u8cs tok, void *ctx) {
+    sane($ok(tok) && ctx != NULL);
+    BASONparse *p = (BASONparse *)ctx;
+    test(p->depth > 0, BASONBAD);
+    p->depth--;
+    call(BASONFeedOuto, p->idx, p->buf);
+    done;
+}
+
+static ok64 BASONpOnOpenArray(u8cs tok, void *ctx) {
+    sane($ok(tok) && ctx != NULL);
+    BASONparse *p = (BASONparse *)ctx;
+    test(p->depth < BASON_PARSE_DEPTH, BASONBAD);
+    BASONpResolveKey(p);
+    u8cs key; BASONpKey(p, key);
+    call(BASONFeedInto, p->idx, p->buf, 'A', key);
+    p->frame[p->depth].ptype = 'A';
+    p->frame[p->depth].aidx = 0;
+    p->frame[p->depth].have_key = NO;
+    p->depth++;
+    done;
+}
+
+static ok64 BASONpOnCloseArray(u8cs tok, void *ctx) {
+    sane($ok(tok) && ctx != NULL);
+    BASONparse *p = (BASONparse *)ctx;
+    test(p->depth > 0, BASONBAD);
+    p->depth--;
+    call(BASONFeedOuto, p->idx, p->buf);
+    done;
+}
+
+// --- BASON → JSON export ---
+
+// Emit a JSON-escaped string (with surrounding quotes) into out.
+static ok64 BASONxString(u8s out, u8cs val) {
+    sane(u8sOK(out));
+    call(u8sFeed1, out, '"');
+    call(JSONEscapeAll, out, val);
+    call(u8sFeed1, out, '"');
+    done;
+}
+
+// Recursive: export one BASON element (already drained) + its children.
+static ok64 BASONxOne(u8s out, u64bp stack, u8csc data,
+                      u8 type, u8cs val) {
+    sane(u8sOK(out));
+    if (type == 'O') {
+        call(u8sFeed1, out, '{');
+        call(BASONInto, stack, data, val);
+        u8 ct; u8cs ck, cv;
+        b8 first = YES;
+        while (BASONDrain(stack, data, &ct, ck, cv) == OK) {
+            if (!first) call(u8sFeed1, out, ',');
+            first = NO;
+            call(BASONxString, out, ck);
+            call(u8sFeed1, out, ':');
+            call(BASONxOne, out, stack, data, ct, cv);
+        }
+        call(BASONOuto, stack);
+        call(u8sFeed1, out, '}');
+    } else if (type == 'A') {
+        call(u8sFeed1, out, '[');
+        call(BASONInto, stack, data, val);
+        u8 ct; u8cs ck, cv;
+        b8 first = YES;
+        while (BASONDrain(stack, data, &ct, ck, cv) == OK) {
+            if (!first) call(u8sFeed1, out, ',');
+            first = NO;
+            call(BASONxOne, out, stack, data, ct, cv);
+        }
+        call(BASONOuto, stack);
+        call(u8sFeed1, out, ']');
+    } else if (type == 'S') {
+        call(BASONxString, out, val);
+    } else if (type == 'N') {
+        call(u8sFeed, out, val);
+    } else if (type == 'B') {
+        if ($len(val) == 0) {
+            u8cs null_lit = {(u8cp)"null", (u8cp)"null" + 4};
+            call(u8sFeed, out, null_lit);
+        } else {
+            call(u8sFeed, out, val);
+        }
+    }
+    done;
+}
+
+ok64 BASONExportJSON(u8s out, u64bp stack, u8csc data) {
+    sane(u8sOK(out) && stack != NULL && $ok(data));
+    call(BASONOpen, stack, data);
+    u8 type; u8cs key, val;
+    while (BASONDrain(stack, data, &type, key, val) == OK) {
+        call(BASONxOne, out, stack, data, type, val);
+    }
+    done;
+}
+
+// --- JSON → BASON parser ---
+
+ok64 BASONParseJSON(u8bp buf, u64bp idx, u8cs json) {
+    sane(buf != NULL && $ok(json));
+    BASONparse p = {.buf = buf, .idx = idx, .depth = 0};
+    JSONstate state = {
+        .data = {json[0], json[1]},
+        .ctx = &p,
+        .on_string = BASONpOnString,
+        .on_number = BASONpOnNumber,
+        .on_literal = BASONpOnLiteral,
+        .on_open_object = BASONpOnOpenObject,
+        .on_close_object = BASONpOnCloseObject,
+        .on_open_array = BASONpOnOpenArray,
+        .on_close_array = BASONpOnCloseArray,
+    };
+    call(JSONLexer, &state);
     done;
 }
