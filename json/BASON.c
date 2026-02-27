@@ -11,7 +11,7 @@ ok64 BASONOpen(u64bp stack, u8csc data) {
     done;
 }
 
-ok64 BASONNext(u64bp stack, u8csc data, u8p type, u8cs key, u8cs val) {
+ok64 BASONDrain(u64bp stack, u8csc data, u8p type, u8cs key, u8cs val) {
     sane(stack != NULL && $ok(data) && type != NULL);
     test(u64bDataLen(stack) >= 2, BASONBAD);
     u64 *top = u64bLast(stack);
@@ -110,7 +110,7 @@ ok64 BASONSeek(u64bp stack, u8csc data, u8csc target) {
 // --- Write helpers ---
 
 // Sample record position for the current index level.
-fun ok64 BASONwSample(u64bp idx, u8bp buf, u8csc key) {
+fun ok64 BASONSample(u64bp idx, u8bp buf, u8csc key) {
     sane(idx != NULL && buf != NULL);
     u64 write_base = idx[1][0];  // first entry = children start offset
     u64 rec_off = (u64)u8bDataLen(buf) - write_base;
@@ -126,11 +126,11 @@ fun ok64 BASONwSample(u64bp idx, u8bp buf, u8csc key) {
     done;
 }
 
-ok64 BASONwInto(u64bp idx, u8bp buf, u8 type, u8csc key) {
+ok64 BASONFeedInto(u64bp idx, u8bp buf, u8 type, u8csc key) {
     sane(buf != NULL);
     if (idx != NULL && u64bDataLen(idx) > 0) {
         // Sample this container for parent's index (before bury)
-        call(BASONwSample, idx, buf, key);
+        call(BASONSample, idx, buf, key);
     }
     call(TLKVInto, buf, type, key);
     if (idx != NULL) {
@@ -140,16 +140,16 @@ ok64 BASONwInto(u64bp idx, u8bp buf, u8 type, u8csc key) {
     done;
 }
 
-ok64 BASONwFeed(u64bp idx, u8bp buf, u8 type, u8csc key, u8csc val) {
+ok64 BASONFeed(u64bp idx, u8bp buf, u8 type, u8csc key, u8csc val) {
     sane(buf != NULL);
     if (idx != NULL) {
-        call(BASONwSample, idx, buf, key);
+        call(BASONSample, idx, buf, key);
     }
     call(TLKVFeed, u8bIdle(buf), type, key, val);
     done;
 }
 
-ok64 BASONwOuto(u64bp idx, u8bp buf) {
+ok64 BASONFeedOuto(u64bp idx, u8bp buf) {
     sane(buf != NULL);
     if (idx != NULL) {
         size_t n = u64bDataLen(idx) - 1;  // entries (exclude base)

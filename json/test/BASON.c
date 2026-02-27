@@ -31,20 +31,20 @@ ok64 BASONtestNextFlat() {
     call(BASONOpen, stk, dat);
 
     u8 type; u8cs key, val;
-    call(BASONNext, stk, dat, &type, key, val);
+    call(BASONDrain, stk, dat, &type, key, val);
     testeq(type, 'S');
     testeq(0, $cmp(k1, key));
     testeq(0, $cmp(v1, val));
 
-    call(BASONNext, stk, dat, &type, key, val);
+    call(BASONDrain, stk, dat, &type, key, val);
     testeq(type, 'N');
     testeq(0, $cmp(k2, key));
 
-    call(BASONNext, stk, dat, &type, key, val);
+    call(BASONDrain, stk, dat, &type, key, val);
     testeq(type, 'B');
     testeq(0, $cmp(k3, key));
 
-    ok64 o = BASONNext(stk, dat, &type, key, val);
+    ok64 o = BASONDrain(stk, dat, &type, key, val);
     testeq(o, BASONEND);
     done;
 }
@@ -64,23 +64,23 @@ ok64 BASONtestIntoOuto() {
     call(BASONOpen, stk, dat);
     u8 type; u8cs key, val;
 
-    call(BASONNext, stk, dat, &type, key, val);
+    call(BASONDrain, stk, dat, &type, key, val);
     testeq(type, 'O');
     testeq(0, $cmp(objkey, key));
 
     call(BASONInto, stk, dat, val);
 
-    call(BASONNext, stk, dat, &type, key, val);
+    call(BASONDrain, stk, dat, &type, key, val);
     testeq(type, 'S');
     testeq(0, $cmp(ckey, key));
     testeq(0, $cmp(cval, val));
 
-    ok64 o = BASONNext(stk, dat, &type, key, val);
+    ok64 o = BASONDrain(stk, dat, &type, key, val);
     testeq(o, BASONEND);
 
     call(BASONOuto, stk);
 
-    o = BASONNext(stk, dat, &type, key, val);
+    o = BASONDrain(stk, dat, &type, key, val);
     testeq(o, BASONEND);
     done;
 }
@@ -102,22 +102,22 @@ ok64 BASONtestSibling() {
     call(BASONOpen, stk, dat);
     u8 type; u8cs key, val;
 
-    call(BASONNext, stk, dat, &type, key, val);
+    call(BASONDrain, stk, dat, &type, key, val);
     testeq(type, 'O');
     call(BASONInto, stk, dat, val);
-    call(BASONNext, stk, dat, &type, key, val);
+    call(BASONDrain, stk, dat, &type, key, val);
     testeq(type, 'S');
     testeq(0, $cmp(ckey, key));
-    ok64 o = BASONNext(stk, dat, &type, key, val);
+    ok64 o = BASONDrain(stk, dat, &type, key, val);
     testeq(o, BASONEND);
     call(BASONOuto, stk);
 
-    call(BASONNext, stk, dat, &type, key, val);
+    call(BASONDrain, stk, dat, &type, key, val);
     testeq(type, 'S');
     testeq(0, $cmp(sk, key));
     testeq(0, $cmp(sv, val));
 
-    o = BASONNext(stk, dat, &type, key, val);
+    o = BASONDrain(stk, dat, &type, key, val);
     testeq(o, BASONEND);
     done;
 }
@@ -141,30 +141,30 @@ ok64 BASONtestNested() {
     call(BASONOpen, stk, dat);
     u8 type; u8cs key, val;
 
-    call(BASONNext, stk, dat, &type, key, val);
+    call(BASONDrain, stk, dat, &type, key, val);
     testeq(type, 'O');
     testeq(0, $cmp(okey, key));
     call(BASONInto, stk, dat, val);
 
-    call(BASONNext, stk, dat, &type, key, val);
+    call(BASONDrain, stk, dat, &type, key, val);
     testeq(type, 'A');
     testeq(0, $cmp(akey, key));
     call(BASONInto, stk, dat, val);
 
-    call(BASONNext, stk, dat, &type, key, val);
+    call(BASONDrain, stk, dat, &type, key, val);
     testeq(type, 'N');
     testeq(0, $cmp(lkey, key));
     testeq(0, $cmp(lval, val));
 
-    ok64 o = BASONNext(stk, dat, &type, key, val);
+    ok64 o = BASONDrain(stk, dat, &type, key, val);
     testeq(o, BASONEND);
     call(BASONOuto, stk);
 
-    o = BASONNext(stk, dat, &type, key, val);
+    o = BASONDrain(stk, dat, &type, key, val);
     testeq(o, BASONEND);
     call(BASONOuto, stk);
 
-    o = BASONNext(stk, dat, &type, key, val);
+    o = BASONDrain(stk, dat, &type, key, val);
     testeq(o, BASONEND);
     done;
 }
@@ -190,15 +190,15 @@ ok64 BASONtestEarlyOuto() {
     call(BASONOpen, stk, dat);
     u8 type; u8cs key, val;
 
-    call(BASONNext, stk, dat, &type, key, val);
+    call(BASONDrain, stk, dat, &type, key, val);
     testeq(type, 'O');
     call(BASONInto, stk, dat, val);
-    call(BASONNext, stk, dat, &type, key, val);
+    call(BASONDrain, stk, dat, &type, key, val);
     testeq(type, 'S');
     testeq(0, $cmp(k1, key));
     call(BASONOuto, stk);
 
-    call(BASONNext, stk, dat, &type, key, val);
+    call(BASONDrain, stk, dat, &type, key, val);
     testeq(type, 'S');
     testeq(0, $cmp(sk, key));
     testeq(0, $cmp(sv, val));
@@ -220,24 +220,24 @@ ok64 BASONtestStructAPI() {
 
     call(basonOpen, &x);
 
-    call(basonNext, &x);
+    call(basonDrain, &x);
     testeq(x.type, 'O');
     testeq(0, $cmp(objkey, x.key));
 
     call(basonInto, &x);
     testeq(x.ptype, 'O');
 
-    call(basonNext, &x);
+    call(basonDrain, &x);
     testeq(x.type, 'S');
     testeq(0, $cmp(ckey, x.key));
     testeq(0, $cmp(cval, x.val));
 
-    ok64 o = basonNext(&x);
+    ok64 o = basonDrain(&x);
     testeq(o, BASONEND);
 
     call(basonOuto, &x);
 
-    o = basonNext(&x);
+    o = basonDrain(&x);
     testeq(o, BASONEND);
     done;
 }
@@ -264,39 +264,39 @@ ok64 BASONtestNestedSiblings() {
     call(BASONOpen, stk, dat);
     u8 type; u8cs key, val;
 
-    call(BASONNext, stk, dat, &type, key, val);
+    call(BASONDrain, stk, dat, &type, key, val);
     testeq(type, 'O');
     call(BASONInto, stk, dat, val);
 
-    call(BASONNext, stk, dat, &type, key, val);
+    call(BASONDrain, stk, dat, &type, key, val);
     testeq(type, 'A');
     testeq(0, $cmp(akey, key));
     call(BASONInto, stk, dat, val);
 
-    call(BASONNext, stk, dat, &type, key, val);
+    call(BASONDrain, stk, dat, &type, key, val);
     testeq(type, 'N');
     testeq(0, $cmp(n0k, key));
     testeq(0, $cmp(n0v, val));
 
-    call(BASONNext, stk, dat, &type, key, val);
+    call(BASONDrain, stk, dat, &type, key, val);
     testeq(type, 'N');
     testeq(0, $cmp(n1k, key));
     testeq(0, $cmp(n1v, val));
 
-    ok64 o = BASONNext(stk, dat, &type, key, val);
+    ok64 o = BASONDrain(stk, dat, &type, key, val);
     testeq(o, BASONEND);
     call(BASONOuto, stk);
 
-    call(BASONNext, stk, dat, &type, key, val);
+    call(BASONDrain, stk, dat, &type, key, val);
     testeq(type, 'S');
     testeq(0, $cmp(zk, key));
     testeq(0, $cmp(zv, val));
 
-    o = BASONNext(stk, dat, &type, key, val);
+    o = BASONDrain(stk, dat, &type, key, val);
     testeq(o, BASONEND);
     call(BASONOuto, stk);
 
-    o = BASONNext(stk, dat, &type, key, val);
+    o = BASONDrain(stk, dat, &type, key, val);
     testeq(o, BASONEND);
     done;
 }
@@ -314,16 +314,16 @@ ok64 BASONtestEmptyContainer() {
     call(BASONOpen, stk, dat);
     u8 type; u8cs key, val;
 
-    call(BASONNext, stk, dat, &type, key, val);
+    call(BASONDrain, stk, dat, &type, key, val);
     testeq(type, 'O');
     testeq((size_t)$len(val), (size_t)0);
 
     call(BASONInto, stk, dat, val);
-    ok64 o = BASONNext(stk, dat, &type, key, val);
+    ok64 o = BASONDrain(stk, dat, &type, key, val);
     testeq(o, BASONEND);
     call(BASONOuto, stk);
 
-    o = BASONNext(stk, dat, &type, key, val);
+    o = BASONDrain(stk, dat, &type, key, val);
     testeq(o, BASONEND);
     done;
 }
@@ -339,7 +339,7 @@ ok64 BASONtestWriteSeek() {
 
     // Write an Object with sorted keys using BASONw helpers
     u8cs okey = $u8str("root");
-    call(BASONwInto, idx, buf, 'O', okey);
+    call(BASONFeedInto, idx, buf, 'O', okey);
 
     char kbuf[4], vbuf[8];
     for (int i = 0; i < 50; i++) {
@@ -347,17 +347,17 @@ ok64 BASONtestWriteSeek() {
         int vn = snprintf(vbuf, sizeof(vbuf), "val%03d", i);
         u8cs k = {(u8c *)kbuf, (u8c *)kbuf + kn};
         u8cs v = {(u8c *)vbuf, (u8c *)vbuf + vn};
-        call(BASONwFeed, idx, buf, 'S', k, v);
+        call(BASONFeed, idx, buf, 'S', k, v);
     }
 
-    call(BASONwOuto, idx, buf);
+    call(BASONFeedOuto, idx, buf);
 
     // Read back: open, read container, Into, then seek
     u8cs dat = {buf[1], buf[2]};
     call(BASONOpen, rstk, dat);
 
     u8 type; u8cs key, val;
-    call(BASONNext, rstk, dat, &type, key, val);
+    call(BASONDrain, rstk, dat, &type, key, val);
     testeq(type, 'O');
     call(BASONInto, rstk, dat, val);
 
@@ -366,20 +366,20 @@ ok64 BASONtestWriteSeek() {
     call(BASONSeek, rstk, dat, target);
 
     // Read record at seek position — should be a data record
-    call(BASONNext, rstk, dat, &type, key, val);
+    call(BASONDrain, rstk, dat, &type, key, val);
     testeq(type, 'S');
 
     // Continue iterating — should work normally after seek
-    ok64 o = BASONNext(rstk, dat, &type, key, val);
+    ok64 o = BASONDrain(rstk, dat, &type, key, val);
     test(o == OK || o == BASONEND, BASONBAD);
 
     call(BASONOuto, rstk);
-    o = BASONNext(rstk, dat, &type, key, val);
+    o = BASONDrain(rstk, dat, &type, key, val);
     testeq(o, BASONEND);
     done;
 }
 
-// 10. BASONNext skips index X records
+// 10. BASONDrain skips index X records
 ok64 BASONtestSkipIndex() {
     sane(1);
     a_pad(u8, buf, 4096);
@@ -390,7 +390,7 @@ ok64 BASONtestSkipIndex() {
 
     // Write Object with enough children to generate index
     u8cs okey = $u8str("obj");
-    call(BASONwInto, idx, buf, 'O', okey);
+    call(BASONFeedInto, idx, buf, 'O', okey);
     char kbuf[4], vbuf[8];
     int count = 0;
     for (int i = 0; i < 50; i++) {
@@ -398,22 +398,22 @@ ok64 BASONtestSkipIndex() {
         int vn = snprintf(vbuf, sizeof(vbuf), "val%03d", i);
         u8cs k = {(u8c *)kbuf, (u8c *)kbuf + kn};
         u8cs v = {(u8c *)vbuf, (u8c *)vbuf + vn};
-        call(BASONwFeed, idx, buf, 'S', k, v);
+        call(BASONFeed, idx, buf, 'S', k, v);
         count++;
     }
-    call(BASONwOuto, idx, buf);
+    call(BASONFeedOuto, idx, buf);
 
     // Read back and count data records (should skip X index)
     u8cs dat = {buf[1], buf[2]};
     call(BASONOpen, rstk, dat);
     u8 type; u8cs key, val;
 
-    call(BASONNext, rstk, dat, &type, key, val);
+    call(BASONDrain, rstk, dat, &type, key, val);
     testeq(type, 'O');
     call(BASONInto, rstk, dat, val);
 
     int read_count = 0;
-    while (BASONNext(rstk, dat, &type, key, val) == OK) {
+    while (BASONDrain(rstk, dat, &type, key, val) == OK) {
         testeq(type, 'S');
         read_count++;
     }
@@ -433,7 +433,7 @@ ok64 BASONtestSeekAll() {
 
     int N = 30000;
     u8cs okey = $u8str("nums");
-    call(BASONwInto, idx, buf, 'O', okey);
+    call(BASONFeedInto, idx, buf, 'O', okey);
 
     char kbuf[8];
     u8 vpad[128];
@@ -443,9 +443,9 @@ ok64 BASONtestSeekAll() {
         u8s vs = {vpad, vpad + sizeof(vpad)};
         call(NUMu8sFeed, vs, (u64)i);
         u8cs v = {(u8c *)vpad, (u8c *)vs[0]};
-        call(BASONwFeed, idx, buf, 'S', k, v);
+        call(BASONFeed, idx, buf, 'S', k, v);
     }
-    call(BASONwOuto, idx, buf);
+    call(BASONFeedOuto, idx, buf);
 
     // Verify >= 1MB
     test(u8bDataLen(buf) >= 1024 * 1024, BASONBAD);
@@ -459,7 +459,7 @@ ok64 BASONtestSeekAll() {
 
         call(BASONOpen, stk, dat);
         u8 type; u8cs key, val;
-        call(BASONNext, stk, dat, &type, key, val);
+        call(BASONDrain, stk, dat, &type, key, val);
         testeq(type, 'O');
         call(BASONInto, stk, dat, val);
 
@@ -469,7 +469,7 @@ ok64 BASONtestSeekAll() {
 
         // Scan forward to exact match
         b8 found = NO;
-        while (BASONNext(stk, dat, &type, key, val) == OK) {
+        while (BASONDrain(stk, dat, &type, key, val) == OK) {
             if ($len(key) == (size_t)kn &&
                 memcmp(key[0], kbuf, kn) == 0) {
                 found = YES;

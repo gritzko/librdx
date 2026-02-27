@@ -101,6 +101,26 @@ typedef u64b const *u64bcp;
 #undef ABC_X_$
 #undef X
 
+// Bury: save data to past, push data length as sentinel.
+// After bury, data region is empty, idle is available.
+fun ok64 u64bBury(u64bp buf) {
+    if (u64bIdleLen(buf) < 1) return BNOROOM;
+    u64 dl = (u64)u64bDataLen(buf);
+    u64bFeed1(buf, dl);
+    ((u64 **)buf)[1] = buf[2];
+    return OK;
+}
+
+// Digup: discard current data, restore buried data from past.
+fun ok64 u64bDigup(u64bp buf) {
+    if (u64bPastLen(buf) < 1) return BNODATA;
+    u64 dl = *(buf[1] - 1);
+    if (u64bPastLen(buf) < dl + 1) return BNODATA;
+    ((u64 **)buf)[1] -= dl + 1;
+    ((u64 **)buf)[2] = buf[1] + dl;
+    return OK;
+}
+
 #define X(M, name) M##u128##name
 #include "Bx.h"
 #undef X

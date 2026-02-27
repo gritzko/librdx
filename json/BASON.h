@@ -37,7 +37,7 @@ fun u64 BASONKeyPrefix(u8csc key) {
 // Data buffer is never modified by the reader.
 
 ok64 BASONOpen(u64bp stack, u8csc data);
-ok64 BASONNext(u64bp stack, u8csc data, u8p type, u8cs key, u8cs val);
+ok64 BASONDrain(u64bp stack, u8csc data, u8p type, u8cs key, u8cs val);
 ok64 BASONInto(u64bp stack, u8csc data, u8csc val);
 ok64 BASONOuto(u64bp stack);
 
@@ -48,9 +48,9 @@ ok64 BASONSeek(u64bp stack, u8csc data, u8csc target);
 // --- Write helpers: TLKV + page index ---
 // idx may be NULL (no index written).
 
-ok64 BASONwInto(u64bp idx, u8bp buf, u8 type, u8csc key);
-ok64 BASONwFeed(u64bp idx, u8bp buf, u8 type, u8csc key, u8csc val);
-ok64 BASONwOuto(u64bp idx, u8bp buf);
+ok64 BASONFeedInto(u64bp idx, u8bp buf, u8 type, u8csc key);
+ok64 BASONFeed(u64bp idx, u8bp buf, u8 type, u8csc key, u8csc val);
+ok64 BASONFeedOuto(u64bp idx, u8bp buf);
 
 // --- API B: cursor struct, delegates to API A ---
 
@@ -70,10 +70,10 @@ fun ok64 basonOpen(basonp x) {
     return BASONOpen(x->stack, d);
 }
 
-fun ok64 basonNext(basonp x) {
+fun ok64 basonDrain(basonp x) {
     x->ptype = x->type;
     u8cs d = {x->data[1], x->data[2]};
-    return BASONNext(x->stack, d, &x->type, x->key, x->val);
+    return BASONDrain(x->stack, d, &x->type, x->key, x->val);
 }
 
 fun ok64 basonInto(basonp x) {
@@ -91,6 +91,20 @@ fun ok64 basonOuto(basonp x) {
 fun ok64 basonSeek(basonp x, u8csc target) {
     u8cs d = {x->data[1], x->data[2]};
     return BASONSeek(x->stack, d, target);
+}
+
+// --- Write path wrappers ---
+
+fun ok64 basonFeedInto(basonp x, u8 type, u8csc key) {
+    return BASONFeedInto(x->stack, x->data, type, key);
+}
+
+fun ok64 basonFeed(basonp x, u8 type, u8csc key, u8csc val) {
+    return BASONFeed(x->stack, x->data, type, key, val);
+}
+
+fun ok64 basonFeedOuto(basonp x) {
+    return BASONFeedOuto(x->stack, x->data);
 }
 
 #endif
