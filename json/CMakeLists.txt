@@ -14,6 +14,11 @@ set(TEST_LDD_FLAGS "-g")
 
 list(APPEND JSON_HEADERS
     TLKV.h
+    BASON.h
+)
+
+list(APPEND JSON_SOURCES
+    BASON.c
 )
 
 add_subdirectory(test)
