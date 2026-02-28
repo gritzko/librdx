@@ -119,6 +119,48 @@ ok64 RONu8sFeedPad(u8** into, ok64 val, u8 width) {
     return OK;
 }
 
+ok64 RONu8sFeedInc(u8** into, u32 val) {
+    // Self-describing width: top digit determines key length.
+    // Width 1: top 0-31,  width 2: top 32-47, width 3: top 48-55,
+    // width 4: top 56-59, width 5: top 60-61, width 6: top 62.
+    // Lex-sortable: shorter keys use lower top digits.
+    u8 width;
+    u32 top_base;
+    if (val < 32) {
+        width = 1; top_base = 0;
+    } else {
+        val -= 32; top_base = 32;
+        if (val < 16 * 64) {
+            width = 2;
+        } else {
+            val -= 16 * 64; top_base = 48;
+            if (val < 8 * 64 * 64) {
+                width = 3;
+            } else {
+                val -= 8 * 64 * 64; top_base = 56;
+                if (val < 4 * 64 * 64 * 64) {
+                    width = 4;
+                } else {
+                    val -= 4 * 64 * 64 * 64; top_base = 60;
+                    if (val < 2 * 64 * 64 * 64 * 64) {
+                        width = 5;
+                    } else {
+                        return SBADARG;
+                    }
+                }
+            }
+        }
+    }
+    if ($len(into) < width) return SNOROOM;
+    for (u8 i = width - 1; i > 0; i--) {
+        into[0][i] = RON64_CHARS[val & 63];
+        val >>= 6;
+    }
+    into[0][0] = RON64_CHARS[top_base + val];
+    into[0] += width;
+    return OK;
+}
+
 ok64 RONSpliceBase(ok64 *base, u8 *width, u64 rand, u64 prob, ok64 n) {
     if (n == 0 || prob == 0) return SBADARG;
     u64 need = 2 * prob * n;

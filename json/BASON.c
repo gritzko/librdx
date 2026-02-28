@@ -200,6 +200,7 @@ typedef struct {
         u8  ptype;      // 'O' or 'A'
         u32 aidx;       // array element counter
         b8  have_key;   // object: key has been buffered
+        b8  need_comma; // expect comma before next element
     } frame[BASON_PARSE_DEPTH];
     u8  keybuf[256];
     u8  keylen;
@@ -207,21 +208,27 @@ typedef struct {
 
 // Resolve key for the current context into p->keybuf/keylen.
 // Must be called before emitting any value.
-static void BASONpResolveKey(BASONparse *p) {
+static ok64 BASONpResolveKey(BASONparse *p) {
+    sane(p != NULL);
     if (p->depth == 0) {
         p->keylen = 0;
-        return;
+        done;
     }
     if (p->frame[p->depth - 1].ptype == 'O') {
+        test(p->frame[p->depth - 1].have_key, BASONBAD);
         p->frame[p->depth - 1].have_key = NO;
-        return;  // keybuf/keylen already set by on_string
+        p->frame[p->depth - 1].need_comma = YES;
+        done;  // keybuf/keylen already set by on_string
     }
-    // Array: generate RON64 index key
-    u8 tmp[11];
-    u8s into = {tmp, tmp + 11};
-    RONutf8sFeed(into, p->frame[p->depth - 1].aidx++);
-    p->keylen = (u8)(into[0] - tmp);
-    memcpy(p->keybuf, tmp, p->keylen);
+    // Array: require comma between elements (not before first)
+    test(!p->frame[p->depth - 1].need_comma, BASONBAD);
+    p->frame[p->depth - 1].need_comma = YES;
+    // Array: generate lex-sortable RON64 index key
+    u8s into = {p->keybuf, p->keybuf + 11};
+    u8p start = into[0];
+    call(RONu8sFeedInc, into, p->frame[p->depth - 1].aidx++);
+    p->keylen = (u8)(into[0] - start);
+    done;
 }
 
 // Set key slice from keybuf/keylen
@@ -238,6 +245,15 @@ static b8 BASONpHasEscape(u8cs body) {
     return NO;
 }
 
+static ok64 BASONpOnComma(u8cs tok, void *ctx) {
+    sane($ok(tok) && ctx != NULL);
+    BASONparse *p = (BASONparse *)ctx;
+    test(p->depth > 0, BASONBAD);
+    test(p->frame[p->depth - 1].need_comma, BASONBAD);
+    p->frame[p->depth - 1].need_comma = NO;
+    done;
+}
+
 static ok64 BASONpOnString(u8cs tok, void *ctx) {
     sane($ok(tok) && ctx != NULL);
     BASONparse *p = (BASONparse *)ctx;
@@ -245,6 +261,8 @@ static ok64 BASONpOnString(u8cs tok, void *ctx) {
     // In object context, first string is a key
     if (p->depth > 0 && p->frame[p->depth - 1].ptype == 'O' &&
         !p->frame[p->depth - 1].have_key) {
+        // Require comma between key:value pairs (not before first)
+        test(!p->frame[p->depth - 1].need_comma, BASONBAD);
         if (BASONpHasEscape(body)) {
             u8s dst = {p->keybuf, p->keybuf + 255};
             call(JSONUnEscapeAll, dst, body);
@@ -258,7 +276,7 @@ static ok64 BASONpOnString(u8cs tok, void *ctx) {
         p->frame[p->depth - 1].have_key = YES;
         done;
     }
-    BASONpResolveKey(p);
+    call(BASONpResolveKey, p);
     u8cs key; BASONpKey(p, key);
     if (BASONpHasEscape(body)) {
         u8 tmp[4096];
@@ -275,7 +293,7 @@ static ok64 BASONpOnString(u8cs tok, void *ctx) {
 static ok64 BASONpOnNumber(u8cs tok, void *ctx) {
     sane($ok(tok) && ctx != NULL);
     BASONparse *p = (BASONparse *)ctx;
-    BASONpResolveKey(p);
+    call(BASONpResolveKey, p);
     u8cs key; BASONpKey(p, key);
     call(BASONFeed, p->idx, p->buf, 'N', key, tok);
     done;
@@ -284,7 +302,7 @@ static ok64 BASONpOnNumber(u8cs tok, void *ctx) {
 static ok64 BASONpOnLiteral(u8cs tok, void *ctx) {
     sane($ok(tok) && ctx != NULL);
     BASONparse *p = (BASONparse *)ctx;
-    BASONpResolveKey(p);
+    call(BASONpResolveKey, p);
     u8cs key; BASONpKey(p, key);
     if ($len(tok) == 4 && *tok[0] == 'n') {
         u8cs empty = {(u8cp)p->keybuf, (u8cp)p->keybuf};
@@ -299,12 +317,13 @@ static ok64 BASONpOnOpenObject(u8cs tok, void *ctx) {
     sane($ok(tok) && ctx != NULL);
     BASONparse *p = (BASONparse *)ctx;
     test(p->depth < BASON_PARSE_DEPTH, BASONBAD);
-    BASONpResolveKey(p);
+    call(BASONpResolveKey, p);
     u8cs key; BASONpKey(p, key);
     call(BASONFeedInto, p->idx, p->buf, 'O', key);
     p->frame[p->depth].ptype = 'O';
     p->frame[p->depth].aidx = 0;
     p->frame[p->depth].have_key = NO;
+    p->frame[p->depth].need_comma = NO;
     p->depth++;
     done;
 }
@@ -313,6 +332,7 @@ static ok64 BASONpOnCloseObject(u8cs tok, void *ctx) {
     sane($ok(tok) && ctx != NULL);
     BASONparse *p = (BASONparse *)ctx;
     test(p->depth > 0, BASONBAD);
+    test(p->frame[p->depth - 1].ptype == 'O', BASONBAD);
     p->depth--;
     call(BASONFeedOuto, p->idx, p->buf);
     done;
@@ -322,12 +342,13 @@ static ok64 BASONpOnOpenArray(u8cs tok, void *ctx) {
     sane($ok(tok) && ctx != NULL);
     BASONparse *p = (BASONparse *)ctx;
     test(p->depth < BASON_PARSE_DEPTH, BASONBAD);
-    BASONpResolveKey(p);
+    call(BASONpResolveKey, p);
     u8cs key; BASONpKey(p, key);
     call(BASONFeedInto, p->idx, p->buf, 'A', key);
     p->frame[p->depth].ptype = 'A';
     p->frame[p->depth].aidx = 0;
     p->frame[p->depth].have_key = NO;
+    p->frame[p->depth].need_comma = NO;
     p->depth++;
     done;
 }
@@ -336,6 +357,7 @@ static ok64 BASONpOnCloseArray(u8cs tok, void *ctx) {
     sane($ok(tok) && ctx != NULL);
     BASONparse *p = (BASONparse *)ctx;
     test(p->depth > 0, BASONBAD);
+    test(p->frame[p->depth - 1].ptype == 'A', BASONBAD);
     p->depth--;
     call(BASONFeedOuto, p->idx, p->buf);
     done;
@@ -422,7 +444,9 @@ ok64 BASONParseJSON(u8bp buf, u64bp idx, u8cs json) {
         .on_close_object = BASONpOnCloseObject,
         .on_open_array = BASONpOnOpenArray,
         .on_close_array = BASONpOnCloseArray,
+        .on_comma = BASONpOnComma,
     };
     call(JSONLexer, &state);
+    test(p.depth == 0, BASONBAD);
     done;
 }
