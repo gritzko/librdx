@@ -33,3 +33,7 @@ add_executable(biff biff.cli.c BIFF.c BASON.c ../abc/TLV.c)
 target_link_libraries(biff abc)
 
 add_subdirectory(test)
+
+if (WITH_FUZZ)
+add_subdirectory(fuzz)
+endif()

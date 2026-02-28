@@ -409,6 +409,88 @@ ok64 BIFFtestDiffArray() {
     done;
 }
 
+// --- Fuzz repro table: roundtrip merge(old, diff(old, new)) == new ---
+
+typedef struct {
+    char const *old_json;
+    char const *new_json;
+} BIFFRoundtripCase;
+
+static BIFFRoundtripCase BIFF_FUZZ_REPROS[] = {
+    {"[]", "[]"},
+    {"{}", "{}"},
+    {"[1]", "[1]"},
+    {"{\"a\":1}", "{\"a\":1}"},
+    {"[1,2]", "[1]"},
+    {"[1]", "[1,2]"},
+    {"[1,2,3]", "[1,4,3]"},
+    {"{\"a\":1}", "{\"b\":2}"},
+    {"{\"a\":1,\"b\":2}", "{\"a\":1}"},
+    {"{\"a\":{\"x\":1}}", "{\"a\":{\"x\":2}}"},
+};
+
+ok64 BIFFtestFuzzRepros() {
+    sane(1);
+    size_t n = sizeof(BIFF_FUZZ_REPROS) / sizeof(BIFF_FUZZ_REPROS[0]);
+    for (size_t i = 0; i < n; i++) {
+        BIFFRoundtripCase *tc = &BIFF_FUZZ_REPROS[i];
+
+        BIFF_SETUP(old, 4096, tc->old_json);
+        BIFF_SETUP(neu, 4096, tc->new_json);
+
+        u8cs od = {old_buf[1], old_buf[2]};
+        u8cs nd = {neu_buf[1], neu_buf[2]};
+
+        // diff(old, new)
+        u8  _dp[4096];
+        u8b dbuf = {_dp, _dp, _dp, _dp + 4096};
+        u64 _di[64];
+        u64b didx = {_di, _di, _di, _di + 64};
+        u64 _os[64];
+        u64b os = {_os, _os, _os, _os + 64};
+        u64 _ns[64];
+        u64b ns = {_ns, _ns, _ns, _ns + 64};
+
+        call(BASONDiff, dbuf, didx, os, od, ns, nd);
+        u8cs dd = {dbuf[1], dbuf[2]};
+
+        if ($len(dd) == 0) {
+            // empty diff: old == new in BASON bytes
+            test($len(od) == $len(nd), TESTFAIL);
+            test(memcmp(od[0], nd[0], $len(od)) == 0, TESTFAIL);
+            continue;
+        }
+
+        // merge(old, diff)
+        u8  _mp[4096];
+        u8b mbuf = {_mp, _mp, _mp, _mp + 4096};
+        u64 _mi[64];
+        u64b midx = {_mi, _mi, _mi, _mi + 64};
+        u64 _ls[64];
+        u64b ls = {_ls, _ls, _ls, _ls + 64};
+        u64 _rs[64];
+        u64b rs = {_rs, _rs, _rs, _rs + 64};
+
+        call(BASONMerge, mbuf, midx, ls, od, rs, dd);
+        u8cs md = {mbuf[1], mbuf[2]};
+
+        // verify: merge result == new (BASON bytes)
+        if ($len(md) != $len(nd) ||
+            memcmp(md[0], nd[0], $len(nd)) != 0) {
+            fprintf(stderr, "  repro[%zu] FAIL: old=%s new=%s\n",
+                    i, tc->old_json, tc->new_json);
+            // show what we got
+            u8 _jb[4096];
+            u8b jb = {_jb, _jb, _jb, _jb + 4096};
+            BIFFExportJSON(jb, md);
+            u8cs got = {jb[1], jb[2]};
+            fprintf(stderr, "  got: %.*s\n", (int)$len(got), got[0]);
+            fail(TESTFAIL);
+        }
+    }
+    done;
+}
+
 ok64 BIFFtestAll() {
     sane(1);
     call(BIFFtestMergeIdentityLeft);
@@ -426,6 +508,7 @@ ok64 BIFFtestAll() {
     call(BIFFtestDiffRoundtripDel);
     call(BIFFtestDiffNested);
     call(BIFFtestDiffArray);
+    call(BIFFtestFuzzRepros);
     done;
 }
 
