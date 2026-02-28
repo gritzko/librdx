@@ -360,3 +360,18 @@ ok64 ROCKIterClose(ROCKiterp it) {
     it->db = NULL;
     return OK;
 }
+
+ok64 ROCKCheckpoint(ROCKdbp db, path8cg dest) {
+    sane(db != NULL && db->db != NULL);
+    char pbuf[4096];
+    call(ROCKPath, pbuf, sizeof(pbuf), dest);
+    char *err = NULL;
+    rocksdb_checkpoint_t *cp =
+        rocksdb_checkpoint_object_create(db->db, &err);
+    ok64 o = ROCKerr(err);
+    if (o != OK) return o;
+    rocksdb_checkpoint_create(cp, pbuf, 0, &err);
+    o = ROCKerr(err);
+    rocksdb_checkpoint_object_destroy(cp);
+    return o;
+}

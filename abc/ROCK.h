@@ -75,4 +75,7 @@ void ROCKIterKey(ROCKiterp it, u8csp out);
 void ROCKIterVal(ROCKiterp it, u8csp out);
 ok64 ROCKIterClose(ROCKiterp it);
 
+// Checkpoint (hard-link SSTs for branching)
+ok64 ROCKCheckpoint(ROCKdbp db, path8cg dest);
+
 #endif  // ABC_ROCK_H
