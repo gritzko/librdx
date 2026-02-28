@@ -196,6 +196,110 @@ ok64 RONTestNowMonotone() {
     done;
 }
 
+ok64 RONTestFeedPad() {
+    sane(1);
+    con char* cases[][3] = {
+        {"0", "1", "0"},
+        {"0", "2", "00"},
+        {"0", "3", "000"},
+        {"1", "2", "01"},
+        {"~", "1", "~"},
+        {"10", "2", "10"},
+        {"~~", "2", "~~"},
+        {"100", "3", "100"},
+    };
+    u8 count = sizeof(cases) / sizeof(cases[0]);
+    for (u8 i = 0; i < count; i++) {
+        ok64 val = _r60(cases[i][0]);
+        u8 width = (u8)atoi(cases[i][1]);
+        const char* expected = cases[i][2];
+        u8 buf[16] = {};
+        u8s into = {buf, buf + sizeof(buf)};
+        call(RONu8sFeedPad, into, val, width);
+        u8c* exp_s = (u8c*)expected;
+        u8c* exp_sl[2] = {exp_s, exp_s + strlen(expected)};
+        u8c* got_sl[2] = {buf, buf + width};
+        want($cmp(got_sl, exp_sl) == 0);
+    }
+    // overflow: val=64 ("10"), width=1 should fail
+    u8 buf2[16];
+    u8s into2 = {buf2, buf2 + sizeof(buf2)};
+    want(RONu8sFeedPad(into2, 64, 1) != OK);
+    done;
+}
+
+ok64 RONTestSpliceBase() {
+    sane(1);
+    ok64 base = 0;
+    u8 width = 0;
+    // prob=1000, n=100: need=200000, 64^3=262144 -> width >= 3
+    call(RONSpliceBase, &base, &width, 12345, 1000, 100);
+    want(width >= 3);
+    u64 space = 1;
+    for (u8 i = 0; i < width; i++) space *= 64;
+    want(base + 100 <= space);
+    // prob=64, n=1: need=128, 64^2=4096 -> width >= 2
+    call(RONSpliceBase, &base, &width, 99999, 64, 1);
+    want(width >= 2);
+    // different rand -> different base
+    ok64 base1 = 0, base2 = 0;
+    u8 w1 = 0, w2 = 0;
+    call(RONSpliceBase, &base1, &w1, 111, 1000, 10);
+    call(RONSpliceBase, &base2, &w2, 999, 1000, 10);
+    want(base1 != base2);
+    // n=0 -> error
+    want(RONSpliceBase(&base, &width, 0, 1000, 0) != OK);
+    // prob=0 -> error
+    want(RONSpliceBase(&base, &width, 0, 0, 10) != OK);
+    done;
+}
+
+ok64 RONTestSpliceKeyOrder() {
+    sane(1);
+    con ok64 n = 50;
+    ok64 base = 0;
+    u8 width = 0;
+    call(RONSpliceBase, &base, &width, 42, 1000, n);
+    u8 keys[50][12] = {};
+    for (ok64 i = 0; i < n; i++) {
+        u8s into = {keys[i], keys[i] + sizeof(keys[i])};
+        call(RONu8sFeedPad, into, base + i, width);
+    }
+    for (ok64 i = 0; i + 1 < n; i++) {
+        u8c* a[2] = {keys[i], keys[i] + width};
+        u8c* b[2] = {keys[i + 1], keys[i + 1] + width};
+        want($cmp(a, b) < 0);
+    }
+    done;
+}
+
+ok64 RONTestSpliceIsolation() {
+    sane(1);
+    con ok64 n = 10;
+    con u64 prob = 1000;
+    con int trials = 10000;
+    ok64 bases[trials];
+    u8 width = 0;
+    for (int i = 0; i < trials; i++) {
+        // simple LCG for deterministic pseudo-random
+        u64 rand = (u64)i * 6364136223846793005UL + 1442695040888963407UL;
+        call(RONSpliceBase, &bases[i], &width, rand, prob, n);
+    }
+    int overlaps = 0;
+    // check first 1000 pairs for overlaps
+    for (int i = 0; i < 1000; i++) {
+        for (int j = i + 1; j < 1000; j++) {
+            ok64 lo1 = bases[i], hi1 = bases[i] + n;
+            ok64 lo2 = bases[j], hi2 = bases[j] + n;
+            if (lo1 < hi2 && lo2 < hi1) overlaps++;
+        }
+    }
+    // expect overlap rate < 2/prob ~ 0.2% of pairs
+    // 1000*999/2 = 499500 pairs, 2/prob = 0.002, so expect < ~999 overlaps
+    want(overlaps < (int)(2 * 499500 / prob));
+    done;
+}
+
 ok64 RONtest() {
     sane(1);
     call(RONTestFromTm);
@@ -206,6 +310,10 @@ ok64 RONtest() {
     call(RONTestNormInk);
     call(RONTestInk);
     call(RONTestNowMonotone);
+    call(RONTestFeedPad);
+    call(RONTestSpliceBase);
+    call(RONTestSpliceKeyOrder);
+    call(RONTestSpliceIsolation);
     done;
 }
 

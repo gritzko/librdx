@@ -374,19 +374,11 @@ static ok64 BASONxOne(u8s out, u64bp stack, u8csc data,
         call(u8sFeed1, out, '[');
         call(BASONInto, stack, data, val);
         u8 ct; u8cs ck, cv;
-        ok64 seq = 0;
+        b8 first = YES;
         while (BASONDrain(stack, data, &ct, ck, cv) == OK) {
-            ok64 idx = 0;
-            call(RONutf8sDrain, &idx, ck);
-            while (seq < idx) {
-                if (seq > 0) call(u8sFeed1, out, ',');
-                u8cs null_lit = {(u8cp)"null", (u8cp)"null" + 4};
-                call(u8sFeed, out, null_lit);
-                seq++;
-            }
-            if (seq > 0) call(u8sFeed1, out, ',');
+            if (!first) call(u8sFeed1, out, ',');
+            first = NO;
             call(BASONxOne, out, stack, data, ct, cv);
-            seq++;
         }
         call(BASONOuto, stack);
         call(u8sFeed1, out, ']');

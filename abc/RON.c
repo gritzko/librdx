@@ -107,3 +107,29 @@ ok64 RONVerify(u8c** txt) {
     }
     return OK;
 }
+
+ok64 RONu8sFeedPad(u8** into, ok64 val, u8 width) {
+    if ($len(into) < width) return SNOROOM;
+    u8p p = into[0] + width;
+    for (u8 i = 0; i < width; i++) {
+        *--p = RON64_CHARS[val & 63];
+        val >>= 6;
+    }
+    if (val != 0) return SBADARG;
+    return OK;
+}
+
+ok64 RONSpliceBase(ok64 *base, u8 *width, u64 rand, u64 prob, ok64 n) {
+    if (n == 0 || prob == 0) return SBADARG;
+    u64 need = 2 * prob * n;
+    u8 w = 1;
+    u64 space = 64;
+    while (space < need && w < 10) {
+        space *= 64;
+        w++;
+    }
+    *width = w;
+    u64 avail = space - n;
+    *base = rand % avail;
+    return OK;
+}

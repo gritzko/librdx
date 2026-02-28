@@ -409,6 +409,146 @@ ok64 BIFFtestDiffArray() {
     done;
 }
 
+// --- Array diff tests (Myers + splice keys) ---
+
+// Insert roundtrip: old=[1,2,3], new=[1,9,2,3]
+ok64 BIFFtestDiffArrayInsert() {
+    sane(1);
+    char const *old_json = "[1,2,3]";
+    char const *new_json = "[1,9,2,3]";
+
+    BIFF_SETUP(old, 2048, old_json);
+    BIFF_SETUP(neu, 2048, new_json);
+
+    u8  _diff_pad[4096];
+    u8b diff_buf = {_diff_pad, _diff_pad, _diff_pad, _diff_pad + 4096};
+    u64 _diff_idx[64];
+    u64b diff_idx = {_diff_idx, _diff_idx, _diff_idx, _diff_idx + 64};
+    u64 _ostk[64];
+    u64b ostk = {_ostk, _ostk, _ostk, _ostk + 64};
+    u64 _nstk[64];
+    u64b nstk = {_nstk, _nstk, _nstk, _nstk + 64};
+
+    u8cs od = {old_buf[1], old_buf[2]};
+    u8cs nd = {neu_buf[1], neu_buf[2]};
+    call(BASONDiff, diff_buf, diff_idx, ostk, od, nstk, nd);
+
+    // merge(old, diff) should equal new
+    u8  _merge_pad[4096];
+    u8b merge_buf = {_merge_pad, _merge_pad, _merge_pad, _merge_pad + 4096};
+    u64 _merge_idx[64];
+    u64b merge_idx = {_merge_idx, _merge_idx, _merge_idx, _merge_idx + 64};
+    u64 _lstk2[64];
+    u64b lstk2 = {_lstk2, _lstk2, _lstk2, _lstk2 + 64};
+    u64 _rstk2[64];
+    u64b rstk2 = {_rstk2, _rstk2, _rstk2, _rstk2 + 64};
+
+    u8cs od2 = {old_buf[1], old_buf[2]};
+    u8cs dd = {diff_buf[1], diff_buf[2]};
+
+    call(BASONMerge, merge_buf, merge_idx, lstk2, od2, rstk2, dd);
+
+    u8cs md = {merge_buf[1], merge_buf[2]};
+    call(BIFFCheckJSON, md, new_json);
+    done;
+}
+
+// Append roundtrip: old=[1,2], new=[1,2,3]
+ok64 BIFFtestDiffArrayAppend() {
+    sane(1);
+    char const *old_json = "[1,2]";
+    char const *new_json = "[1,2,3]";
+
+    BIFF_SETUP(old, 2048, old_json);
+    BIFF_SETUP(neu, 2048, new_json);
+
+    u8  _diff_pad[4096];
+    u8b diff_buf = {_diff_pad, _diff_pad, _diff_pad, _diff_pad + 4096};
+    u64 _diff_idx[64];
+    u64b diff_idx = {_diff_idx, _diff_idx, _diff_idx, _diff_idx + 64};
+    u64 _ostk[64];
+    u64b ostk = {_ostk, _ostk, _ostk, _ostk + 64};
+    u64 _nstk[64];
+    u64b nstk = {_nstk, _nstk, _nstk, _nstk + 64};
+
+    u8cs od = {old_buf[1], old_buf[2]};
+    u8cs nd = {neu_buf[1], neu_buf[2]};
+    call(BASONDiff, diff_buf, diff_idx, ostk, od, nstk, nd);
+
+    u8  _merge_pad[4096];
+    u8b merge_buf = {_merge_pad, _merge_pad, _merge_pad, _merge_pad + 4096};
+    u64 _merge_idx[64];
+    u64b merge_idx = {_merge_idx, _merge_idx, _merge_idx, _merge_idx + 64};
+    u64 _lstk2[64];
+    u64b lstk2 = {_lstk2, _lstk2, _lstk2, _lstk2 + 64};
+    u64 _rstk2[64];
+    u64b rstk2 = {_rstk2, _rstk2, _rstk2, _rstk2 + 64};
+
+    u8cs od2 = {old_buf[1], old_buf[2]};
+    u8cs dd = {diff_buf[1], diff_buf[2]};
+    call(BASONMerge, merge_buf, merge_idx, lstk2, od2, rstk2, dd);
+
+    u8cs md = {merge_buf[1], merge_buf[2]};
+    call(BIFFCheckJSON, md, new_json);
+    done;
+}
+
+// Delete roundtrip: old=[1,2,3], new=[1,3]
+ok64 BIFFtestDiffArrayDelete() {
+    sane(1);
+    char const *old_json = "[1,2,3]";
+    char const *new_json = "[1,3]";
+
+    BIFF_SETUP(old, 2048, old_json);
+    BIFF_SETUP(neu, 2048, new_json);
+
+    u8  _diff_pad[4096];
+    u8b diff_buf = {_diff_pad, _diff_pad, _diff_pad, _diff_pad + 4096};
+    u64 _diff_idx[64];
+    u64b diff_idx = {_diff_idx, _diff_idx, _diff_idx, _diff_idx + 64};
+    u64 _ostk[64];
+    u64b ostk = {_ostk, _ostk, _ostk, _ostk + 64};
+    u64 _nstk[64];
+    u64b nstk = {_nstk, _nstk, _nstk, _nstk + 64};
+
+    u8cs od = {old_buf[1], old_buf[2]};
+    u8cs nd = {neu_buf[1], neu_buf[2]};
+    call(BASONDiff, diff_buf, diff_idx, ostk, od, nstk, nd);
+
+    u8  _merge_pad[4096];
+    u8b merge_buf = {_merge_pad, _merge_pad, _merge_pad, _merge_pad + 4096};
+    u64 _merge_idx[64];
+    u64b merge_idx = {_merge_idx, _merge_idx, _merge_idx, _merge_idx + 64};
+    u64 _lstk2[64];
+    u64b lstk2 = {_lstk2, _lstk2, _lstk2, _lstk2 + 64};
+    u64 _rstk2[64];
+    u64b rstk2 = {_rstk2, _rstk2, _rstk2, _rstk2 + 64};
+
+    u8cs od2 = {old_buf[1], old_buf[2]};
+    u8cs dd = {diff_buf[1], diff_buf[2]};
+    call(BASONMerge, merge_buf, merge_idx, lstk2, od2, rstk2, dd);
+
+    u8cs md = {merge_buf[1], merge_buf[2]};
+    call(BIFFCheckJSON, md, new_json);
+    done;
+}
+
+// Identical arrays -> empty diff
+ok64 BIFFtestDiffArrayIdentical() {
+    sane(1);
+    BIFF_SETUP(old, 1024, "[1,2,3]");
+    BIFF_SETUP(neu, 1024, "[1,2,3]");
+    BIFF_MERGE_SETUP(2048);
+
+    u8cs od = {old_buf[1], old_buf[2]};
+    u8cs nd = {neu_buf[1], neu_buf[2]};
+    call(BASONDiff, out_buf, out_idx, lstk, od, rstk, nd);
+
+    size_t diff_len = u8bDataLen(out_buf);
+    testeq(diff_len, (size_t)0);
+    done;
+}
+
 // --- Fuzz repro table: roundtrip merge(old, diff(old, new)) == new ---
 
 typedef struct {
@@ -454,14 +594,7 @@ ok64 BIFFtestFuzzRepros() {
         call(BASONDiff, dbuf, didx, os, od, ns, nd);
         u8cs dd = {dbuf[1], dbuf[2]};
 
-        if ($len(dd) == 0) {
-            // empty diff: old == new in BASON bytes
-            test($len(od) == $len(nd), TESTFAIL);
-            test(memcmp(od[0], nd[0], $len(od)) == 0, TESTFAIL);
-            continue;
-        }
-
-        // merge(old, diff)
+        // merge(old, diff) — even if diff is empty
         u8  _mp[4096];
         u8b mbuf = {_mp, _mp, _mp, _mp + 4096};
         u64 _mi[64];
@@ -474,19 +607,8 @@ ok64 BIFFtestFuzzRepros() {
         call(BASONMerge, mbuf, midx, ls, od, rs, dd);
         u8cs md = {mbuf[1], mbuf[2]};
 
-        // verify: merge result == new (BASON bytes)
-        if ($len(md) != $len(nd) ||
-            memcmp(md[0], nd[0], $len(nd)) != 0) {
-            fprintf(stderr, "  repro[%zu] FAIL: old=%s new=%s\n",
-                    i, tc->old_json, tc->new_json);
-            // show what we got
-            u8 _jb[4096];
-            u8b jb = {_jb, _jb, _jb, _jb + 4096};
-            BIFFExportJSON(jb, md);
-            u8cs got = {jb[1], jb[2]};
-            fprintf(stderr, "  got: %.*s\n", (int)$len(got), got[0]);
-            fail(TESTFAIL);
-        }
+        // verify via JSON comparison (splice keys differ from sequential)
+        call(BIFFCheckJSON, md, tc->new_json);
     }
     done;
 }
@@ -508,6 +630,10 @@ ok64 BIFFtestAll() {
     call(BIFFtestDiffRoundtripDel);
     call(BIFFtestDiffNested);
     call(BIFFtestDiffArray);
+    call(BIFFtestDiffArrayInsert);
+    call(BIFFtestDiffArrayAppend);
+    call(BIFFtestDiffArrayDelete);
+    call(BIFFtestDiffArrayIdentical);
     call(BIFFtestFuzzRepros);
     done;
 }

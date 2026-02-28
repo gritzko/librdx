@@ -49,6 +49,12 @@ con ok64 RONBAD = 0xe2a2a61cf1;
 // Verify string contains only valid RON64 characters (non-empty)
 ok64 RONVerify(u8c** txt);
 
+// Fixed-width zero-padded RON64 encoding (big-endian, left-padded with '0')
+ok64 RONu8sFeedPad(u8** into, ok64 val, u8 width);
+
+// Compute random base offset and key width for a splice of n elements
+ok64 RONSpliceBase(ok64 *base, u8 *width, u64 rand, u64 prob, ok64 n);
+
 // Left-align a short ron60 to fill the 60-bit space.
 // ron60Z(0x25_01) = 0x25_01_00_00_00_00_00_00_00  ("a1" -> "a100000000")
 fun ron60 ron60Norm(ron60 r) {
