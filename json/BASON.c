@@ -155,7 +155,7 @@ ok64 BASONFeedOuto(u64bp idx, u8bp buf) {
     sane(buf != NULL);
     if (idx != NULL) {
         size_t n = u64bDataLen(idx) - 1;  // entries (exclude base)
-        if (n > 0) {
+        if (n > 1) {
             u64 *entries = idx[1] + 1;
             size_t entries_bytes = n * 8;
             size_t body_len = entries_bytes + 2;
