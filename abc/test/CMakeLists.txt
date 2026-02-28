@@ -257,3 +257,11 @@ target_compile_options(path8gtest PRIVATE ${TEST_CXX_FLAGS})
 target_link_libraries(path8gtest abc)
 add_test(NAME path8gtest COMMAND path8gtest)
 
+if (WITH_ROCKS)
+add_executable(ROCKtest ROCK.c ../ROCK.c)
+target_link_options(ROCKtest PRIVATE ${TEST_LDD_FLAGS})
+target_compile_options(ROCKtest PRIVATE ${TEST_CXX_FLAGS})
+target_link_libraries(ROCKtest abc)
+add_test(NAME ROCKtest COMMAND ROCKtest)
+endif()
+

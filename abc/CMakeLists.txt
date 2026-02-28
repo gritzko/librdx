@@ -19,8 +19,11 @@ find_package(CURL REQUIRED)
 
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(LZ4 REQUIRED liblz4)
+if (WITH_ROCKS)
+pkg_check_modules(ROCKSDB REQUIRED rocksdb)
+endif()
 
-list(APPEND ABC_HEADERS 
+list(APPEND ABC_HEADERS
 S.h
 Sx.h
 01.h
@@ -67,7 +70,7 @@ PACK.h
 PATH.h
 )
 
-list(APPEND ABC_SOURCES 
+list(APPEND ABC_SOURCES
 NEST.c
 FILE.c
 INT.c
@@ -99,8 +102,17 @@ PATH.c
 ryu/d2s.c
 )
 
+if (WITH_ROCKS)
+list(APPEND ABC_HEADERS ROCK.h)
+list(APPEND ABC_SOURCES ROCK.c)
+endif()
+
 add_library(abc STATIC ${ABC_HEADERS} ${ABC_SOURCES})
 target_link_libraries(abc sodium CURL::libcurl ${LZ4_LIBRARIES})
+
+if (WITH_ROCKS)
+target_link_libraries(abc ${ROCKSDB_LIBRARIES})
+endif()
 
 add_executable(ok64 OK.cli.c)
 target_link_libraries(ok64 abc)
