@@ -15,10 +15,21 @@ set(TEST_LDD_FLAGS "-g")
 list(APPEND JSON_HEADERS
     TLKV.h
     BASON.h
+    BIFF.h
 )
 
 list(APPEND JSON_SOURCES
     BASON.c
+    BIFF.c
 )
+
+add_executable(bason bason.cli.c BASON.c ../abc/TLV.c)
+target_link_libraries(bason abc)
+
+add_executable(borge borge.cli.c BIFF.c BASON.c ../abc/TLV.c)
+target_link_libraries(borge abc)
+
+add_executable(biff biff.cli.c BIFF.c BASON.c ../abc/TLV.c)
+target_link_libraries(biff abc)
 
 add_subdirectory(test)

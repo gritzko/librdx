@@ -218,9 +218,9 @@ static void BASONpResolveKey(BASONparse *p) {
     }
     // Array: generate RON64 index key
     u8 tmp[11];
-    u8 *into = tmp;
-    RONutf8sFeed(&into, p->frame[p->depth - 1].aidx++);
-    p->keylen = (u8)(into - tmp);
+    u8s into = {tmp, tmp + 11};
+    RONutf8sFeed(into, p->frame[p->depth - 1].aidx++);
+    p->keylen = (u8)(into[0] - tmp);
     memcpy(p->keybuf, tmp, p->keylen);
 }
 
@@ -374,11 +374,19 @@ static ok64 BASONxOne(u8s out, u64bp stack, u8csc data,
         call(u8sFeed1, out, '[');
         call(BASONInto, stack, data, val);
         u8 ct; u8cs ck, cv;
-        b8 first = YES;
+        ok64 seq = 0;
         while (BASONDrain(stack, data, &ct, ck, cv) == OK) {
-            if (!first) call(u8sFeed1, out, ',');
-            first = NO;
+            ok64 idx = 0;
+            call(RONutf8sDrain, &idx, ck);
+            while (seq < idx) {
+                if (seq > 0) call(u8sFeed1, out, ',');
+                u8cs null_lit = {(u8cp)"null", (u8cp)"null" + 4};
+                call(u8sFeed, out, null_lit);
+                seq++;
+            }
+            if (seq > 0) call(u8sFeed1, out, ',');
             call(BASONxOne, out, stack, data, ct, cv);
+            seq++;
         }
         call(BASONOuto, stack);
         call(u8sFeed1, out, ']');
