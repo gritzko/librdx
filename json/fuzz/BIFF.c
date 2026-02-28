@@ -18,7 +18,7 @@ static ok64 BIFFFuzzNoDupKeys(u64bp stk, u8csc data,
     u8 ct; u8cs ck, cv;
     u8cs prev_key = {NULL, NULL};
     while (BASONDrain(stk, data, &ct, ck, cv) == OK) {
-        if (prev_key[0] != NULL && $cmp(prev_key, ck) == 0)
+        if (prev_key[0] != NULL && $cmp(prev_key, ck) >= 0)
             return BADARG;
         prev_key[0] = ck[0];
         prev_key[1] = ck[1];
@@ -67,16 +67,12 @@ FUZZ(u8, BIFFfuzz) {
     u8csc old_raw = {input[0], input[0] + mid};
     u8csc new_raw = {input[0] + mid, input[1]};
 
-    // Parse old and new (with dup-key check)
+    // Parse old and new (with dup-key check, no index)
     a_pad(u8, obuf, FUZZ_BUF);
-    u64 _oidx[256];
-    u64b oidx = {_oidx, _oidx, _oidx, _oidx + 256};
-    if (BIFFFuzzParse(obuf, oidx, old_raw) != OK) done;
+    if (BIFFFuzzParse(obuf, NULL, old_raw) != OK) done;
 
     a_pad(u8, nbuf, FUZZ_BUF);
-    u64 _nidx[256];
-    u64b nidx = {_nidx, _nidx, _nidx, _nidx + 256};
-    if (BIFFFuzzParse(nbuf, nidx, new_raw) != OK) done;
+    if (BIFFFuzzParse(nbuf, NULL, new_raw) != OK) done;
 
     u8cp od0 = obuf[1], od1 = obuf[2];
     u8cs odata = {od0, od1};
@@ -86,22 +82,18 @@ FUZZ(u8, BIFFfuzz) {
     // must be same root type (both already validated as single plex root)
     if ((odata[0][0] & ~TLVaA) != (ndata[0][0] & ~TLVaA)) done;
 
-    // Diff: patch = diff(old, new)
+    // Diff: patch = diff(old, new) — no index (NULL idx)
     a_pad(u8, pbuf, FUZZ_BUF);
-    u64 _pidx[256];
-    u64b pidx = {_pidx, _pidx, _pidx, _pidx + 256};
     u64 _ostk[256];
     u64b ostk = {_ostk, _ostk, _ostk, _ostk + 256};
     u64 _nstk[256];
     u64b nstk = {_nstk, _nstk, _nstk, _nstk + 256};
 
-    ok64 o = BASONDiff(pbuf, pidx, ostk, odata, nstk, ndata);
+    ok64 o = BASONDiff(pbuf, NULL, ostk, odata, nstk, ndata);
     must(o == OK, "BASONDiff failed");
 
-    // Merge: result = merge(old, patch)
+    // Merge: result = merge(old, patch) — no index (NULL idx)
     a_pad(u8, rbuf, FUZZ_BUF);
-    u64 _ridx[256];
-    u64b ridx = {_ridx, _ridx, _ridx, _ridx + 256};
     u64 _lstk[256];
     u64b lstk = {_lstk, _lstk, _lstk, _lstk + 256};
     u64 _rstk[256];
@@ -117,7 +109,7 @@ FUZZ(u8, BIFFfuzz) {
         done;
     }
 
-    o = BASONMerge(rbuf, ridx, lstk, odata, rstk, pdata);
+    o = BASONMerge(rbuf, NULL, lstk, odata, rstk, pdata);
     must(o == OK, "BASONMerge failed");
 
     // Verify: merge(old, patch) == new

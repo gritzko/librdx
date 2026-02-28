@@ -52,6 +52,10 @@ ok64 BASONFeedInto(u64bp idx, u8bp buf, u8 type, u8csc key);
 ok64 BASONFeed(u64bp idx, u8bp buf, u8 type, u8csc key, u8csc val);
 ok64 BASONFeedOuto(u64bp idx, u8bp buf);
 
+// Sort TLKV children by key inside an open container (between TLKVInto and
+// TLKVOuto).  Uses idle space as scratch.  Invalidates idx entries if non-NULL.
+ok64 BASONSortChildren(u8bp buf, u64bp idx);
+
 // --- JSON ↔ BASON ---
 ok64 BASONParseJSON(u8bp buf, u64bp idx, u8cs json);
 ok64 BASONExportJSON(u8s out, u64bp stack, u8csc data);

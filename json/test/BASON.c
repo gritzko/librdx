@@ -788,12 +788,31 @@ ok64 BASONtestParseRoundtrip() {
     testeq(type, 'O');
     call(BASONInto, stk, dat, val);
 
-    // "name" → "Alice"
+    // Keys are lex-sorted: active, addr, age, name, scores, x
+
+    // "active" → true
+    call(BASONDrain, stk, dat, &type, key, val);
+    testeq(type, 'B');
+    u8cs kact = $u8str("active"), vtrue = $u8str("true");
+    testeq(0, $cmp(kact, key));
+    testeq(0, $cmp(vtrue, val));
+
+    // "addr" → object with "city":"NYC"
+    call(BASONDrain, stk, dat, &type, key, val);
+    testeq(type, 'O');
+    u8cs kaddr = $u8str("addr");
+    testeq(0, $cmp(kaddr, key));
+    call(BASONInto, stk, dat, val);
+
     call(BASONDrain, stk, dat, &type, key, val);
     testeq(type, 'S');
-    u8cs kname = $u8str("name"), valice = $u8str("Alice");
-    testeq(0, $cmp(kname, key));
-    testeq(0, $cmp(valice, val));
+    u8cs kcity = $u8str("city"), vnyc = $u8str("NYC");
+    testeq(0, $cmp(kcity, key));
+    testeq(0, $cmp(vnyc, val));
+
+    ok64 o = BASONDrain(stk, dat, &type, key, val);
+    testeq(o, BASONEND);
+    call(BASONOuto, stk);
 
     // "age" → 30
     call(BASONDrain, stk, dat, &type, key, val);
@@ -802,12 +821,12 @@ ok64 BASONtestParseRoundtrip() {
     testeq(0, $cmp(kage, key));
     testeq(0, $cmp(v30, val));
 
-    // "active" → true
+    // "name" → "Alice"
     call(BASONDrain, stk, dat, &type, key, val);
-    testeq(type, 'B');
-    u8cs kact = $u8str("active"), vtrue = $u8str("true");
-    testeq(0, $cmp(kact, key));
-    testeq(0, $cmp(vtrue, val));
+    testeq(type, 'S');
+    u8cs kname = $u8str("name"), valice = $u8str("Alice");
+    testeq(0, $cmp(kname, key));
+    testeq(0, $cmp(valice, val));
 
     // "scores" → array
     call(BASONDrain, stk, dat, &type, key, val);
@@ -831,23 +850,6 @@ ok64 BASONtestParseRoundtrip() {
     testeq(type, 'N');
     u8cs v300 = $u8str("300");
     testeq(0, $cmp(v300, val));
-
-    ok64 o = BASONDrain(stk, dat, &type, key, val);
-    testeq(o, BASONEND);
-    call(BASONOuto, stk);
-
-    // "addr" → object with "city":"NYC"
-    call(BASONDrain, stk, dat, &type, key, val);
-    testeq(type, 'O');
-    u8cs kaddr = $u8str("addr");
-    testeq(0, $cmp(kaddr, key));
-    call(BASONInto, stk, dat, val);
-
-    call(BASONDrain, stk, dat, &type, key, val);
-    testeq(type, 'S');
-    u8cs kcity = $u8str("city"), vnyc = $u8str("NYC");
-    testeq(0, $cmp(kcity, key));
-    testeq(0, $cmp(vnyc, val));
 
     o = BASONDrain(stk, dat, &type, key, val);
     testeq(o, BASONEND);
@@ -946,8 +948,8 @@ ok64 BASONtestJSONRoundtrip() {
         $u8str("{}"),
         $u8str("[1,2,3]"),
         $u8str("{\"a\":\"b\"}"),
-        $u8str("{\"name\":\"Alice\",\"age\":30,\"active\":true,"
-               "\"scores\":[100,200,300],\"addr\":{\"city\":\"NYC\"},\"x\":null}"),
+        $u8str("{\"active\":true,\"addr\":{\"city\":\"NYC\"},\"age\":30,"
+               "\"name\":\"Alice\",\"scores\":[100,200,300],\"x\":null}"),
         $u8str("{\"a\":[1,[2,[3]]],\"b\":{\"c\":{\"d\":\"e\"}}}"),
         $u8str("{\"esc\":\"a\\tb\\nc\\\\d\\\"\"}"),
         $u8str("[{},{},{}]"),
