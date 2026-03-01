@@ -133,6 +133,202 @@ ok64 BASONMerge(u8bp out, u64bp idx,
     done;
 }
 
+// --- N-way merge: heap-based ---
+
+#define BIFFN_MAX 64
+#define BIFFN_STK 32
+
+typedef struct {
+    u64 *stk[4];
+    u8c *data[2];
+    u8   type;
+    u8c *key[2];
+    u8c *val[2];
+} BIFFcur;
+
+static _Thread_local BIFFcur *_biff_curs;
+
+static b8 BIFFcurZ(u32cp a, u32cp b) {
+    BIFFcur *cs = _biff_curs;
+    int cmp = $cmp(cs[*a].key, cs[*b].key);
+    if (cmp != 0) return cmp < 0;
+    return *a < *b;
+}
+
+#define X(M, name) M##u32##name
+#include "abc/HEAPx.h"
+#undef X
+
+// PopZ returns MISS when popping the last element (sDown on empty).
+// The value is still extracted correctly; treat MISS as OK.
+static ok64 BIFFHeapPop(u32p v, u32bp buf) {
+    ok64 o = HEAPu32PopZ(v, buf, BIFFcurZ);
+    if (o == MISS) return OK;
+    return o;
+}
+
+static ok64 u32bBury(u32bp buf) {
+    sane(buf != NULL);
+    test(u32bIdleLen(buf) >= 1, BNOROOM);
+    u32 dl = (u32)u32bDataLen(buf);
+    call(u32bFeed1, buf, dl);
+    ((u32 **)buf)[1] = buf[2];
+    done;
+}
+
+static ok64 u32bDigup(u32bp buf) {
+    sane(buf != NULL);
+    test(u32bPastLen(buf) >= 1, BNODATA);
+    u32 dl = *(buf[1] - 1);
+    test(u32bPastLen(buf) >= (size_t)dl + 1, BNODATA);
+    ((u32 **)buf)[1] -= dl + 1;
+    ((u32 **)buf)[2] = buf[1] + dl;
+    done;
+}
+
+static ok64 BIFFMergeLevelN(u8bp out, u64bp idx, u32bp heap) {
+    sane(out != NULL && heap != NULL);
+    BIFFcur *cs = _biff_curs;
+
+    while (u32bDataLen(heap) > 0) {
+        // Pop minimum and all same-key entries
+        u32 popped[BIFFN_MAX];
+        u32 npop = 0;
+        u32 first;
+        call(BIFFHeapPop, &first, heap);
+        popped[npop++] = first;
+
+        while (u32bDataLen(heap) > 0) {
+            u32cp top = heap[1];
+            if ($cmp(cs[first].key, cs[*top].key) != 0) break;
+            u32 next;
+            call(BIFFHeapPop, &next, heap);
+            popped[npop++] = next;
+        }
+
+        // Winner = highest index (last input wins)
+        u32 wi = popped[npop - 1];
+
+        if (npop == 1) {
+            if (!BIFFIsNull(cs[wi].type, cs[wi].val)) {
+                call(BIFFCopy, out, idx, cs[wi].type, cs[wi].key,
+                     cs[wi].val, cs[wi].stk, cs[wi].data);
+            } else {
+                call(BIFFSkip, cs[wi].stk, cs[wi].data,
+                     cs[wi].type, cs[wi].val);
+            }
+        } else if (BIFFIsNull(cs[wi].type, cs[wi].val)) {
+            for (u32 j = 0; j < npop; j++) {
+                u32 i = popped[j];
+                call(BIFFSkip, cs[i].stk, cs[i].data,
+                     cs[i].type, cs[i].val);
+            }
+        } else {
+            b8 recurse = BASONPlex(cs[wi].type) ? YES : NO;
+            u8 wtype = cs[wi].type;
+            if (recurse) {
+                for (u32 j = 0; j < npop; j++) {
+                    if (cs[popped[j]].type != wtype) {
+                        recurse = NO;
+                        break;
+                    }
+                }
+            }
+
+            if (recurse) {
+                call(BASONFeedInto, idx, out, wtype, cs[wi].key);
+                for (u32 j = 0; j < npop; j++) {
+                    u32 i = popped[j];
+                    call(BASONInto, cs[i].stk, cs[i].data, cs[i].val);
+                }
+                call(u32bBury, heap);
+                for (u32 j = 0; j < npop; j++) {
+                    u32 i = popped[j];
+                    ok64 o = BASONDrain(cs[i].stk, cs[i].data,
+                                        &cs[i].type, cs[i].key,
+                                        cs[i].val);
+                    if (o == OK) {
+                        call(HEAPu32Push1Z, heap, i, BIFFcurZ);
+                    }
+                }
+                call(BIFFMergeLevelN, out, idx, heap);
+                for (u32 j = 0; j < npop; j++) {
+                    call(BASONOuto, cs[popped[j]].stk);
+                }
+                call(u32bDigup, heap);
+                call(BASONFeedOuto, idx, out);
+            } else {
+                for (u32 j = 0; j < npop; j++) {
+                    u32 i = popped[j];
+                    if (i == wi) {
+                        call(BIFFCopy, out, idx, cs[i].type, cs[i].key,
+                             cs[i].val, cs[i].stk, cs[i].data);
+                    } else {
+                        call(BIFFSkip, cs[i].stk, cs[i].data,
+                             cs[i].type, cs[i].val);
+                    }
+                }
+            }
+        }
+
+        for (u32 j = 0; j < npop; j++) {
+            u32 i = popped[j];
+            ok64 o = BASONDrain(cs[i].stk, cs[i].data,
+                                &cs[i].type, cs[i].key, cs[i].val);
+            if (o == OK) {
+                call(HEAPu32Push1Z, heap, i, BIFFcurZ);
+            }
+        }
+    }
+    done;
+}
+
+ok64 BASONMergeN(u8bp out, u64bp idx, u8css inputs) {
+    sane(out != NULL && inputs != NULL);
+    u32 n = (u32)$len(inputs);
+    if (n == 0) done;
+    if (n > BIFFN_MAX) fail(BASONBAD);
+
+    BIFFcur curs[BIFFN_MAX];
+    u64 _stks[BIFFN_MAX * BIFFN_STK];
+    _biff_curs = curs;
+
+    u32 _heap[4096];
+    u32b heap = {_heap, _heap, _heap, _heap + 4096};
+
+    for (u32 i = 0; i < n; i++) {
+        u64 *base = _stks + i * BIFFN_STK;
+        curs[i].stk[0] = base;
+        curs[i].stk[1] = base;
+        curs[i].stk[2] = base;
+        curs[i].stk[3] = base + BIFFN_STK;
+        curs[i].data[0] = inputs[0][i][0];
+        curs[i].data[1] = inputs[0][i][1];
+
+        if (curs[i].data[0] >= curs[i].data[1]) continue;
+
+        call(BASONOpen, curs[i].stk, curs[i].data);
+        ok64 o = BASONDrain(curs[i].stk, curs[i].data,
+                            &curs[i].type, curs[i].key, curs[i].val);
+        if (o == OK) {
+            call(HEAPu32Push1Z, heap, i, BIFFcurZ);
+        }
+    }
+
+    call(BIFFMergeLevelN, out, idx, heap);
+
+    _biff_curs = NULL;
+    done;
+}
+
+ok64 BASONMergeY(u8s into, u8css inputs) {
+    sane(u8sOK(into));
+    u8b out = {into[0], into[0], into[0], into[1]};
+    call(BASONMergeN, out, NULL, inputs);
+    into[0] = out[2];
+    done;
+}
+
 // --- Diff: hash + Myers + marker-driven scan ---
 
 // Hash layout: [63:62 type][61:56 depth][55:2 hash][1:0 markers]

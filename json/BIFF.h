@@ -11,6 +11,15 @@ ok64 BASONMerge(u8bp out, u64bp idx,
                 u64bp lstk, u8csc ldata,
                 u64bp rstk, u8csc rdata);
 
+// N-way merge using iterator heap. inputs ordered oldest-to-newest.
+// Objects: sorted-key heap walk, same-type containers recurse.
+// Arrays: positional walk by key, tail of longest appended.
+// Scalars: last input wins. Null tombstone (type B, empty val) deletes.
+ok64 BASONMergeN(u8bp out, u64bp idx, u8css inputs);
+
+// u8ys-compatible wrapper for rocksdb merge operator.
+ok64 BASONMergeY(u8s into, u8css inputs);
+
 // Diff: produce patch such that merge(old, patch) == new.
 // Deletions represented as null (type B, empty val).
 // Added/changed keys emitted as-is.

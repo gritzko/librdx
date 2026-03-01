@@ -922,6 +922,175 @@ ok64 BIFFtestCrashC5b66() {
     done;
 }
 
+// --- N-way merge tests ---
+
+// Helper: parse N JSON strings into BASON, build u8css, run BASONMergeN
+#define BIFFN_SETUP(outsize, nmax)                            \
+    u8  _nout_pad[outsize];                                   \
+    u8b nout_buf = {_nout_pad, _nout_pad,                     \
+                    _nout_pad, _nout_pad + outsize};          \
+    u64 _nout_idx[64];                                        \
+    u64b nout_idx = {_nout_idx, _nout_idx,                    \
+                     _nout_idx, _nout_idx + 64};              \
+    u8cs _ninputs[nmax];                                      \
+    (void)_ninputs; (void)nout_idx;
+
+// Single input: identity
+ok64 BIFFtestMergeNSingle() {
+    sane(1);
+    BIFF_SETUP(a, 1024, "{\"a\":1,\"b\":2}");
+    BIFFN_SETUP(2048, 4);
+    u8cs ad = {a_buf[1], a_buf[2]};
+    _ninputs[0][0] = ad[0]; _ninputs[0][1] = ad[1];
+    u8css inputs = {_ninputs, _ninputs + 1};
+    call(BASONMergeN, nout_buf, nout_idx, inputs);
+    u8cs od = {nout_buf[1], nout_buf[2]};
+    call(BIFFCheckJSON, od, "{\"a\":1,\"b\":2}");
+    done;
+}
+
+// Two inputs: should match 2-way merge
+ok64 BIFFtestMergeN2way() {
+    sane(1);
+    BIFF_SETUP(a, 1024, "{\"a\":1,\"b\":2}");
+    BIFF_SETUP(b, 1024, "{\"a\":3,\"c\":4}");
+    BIFFN_SETUP(2048, 4);
+    u8cs ad = {a_buf[1], a_buf[2]};
+    u8cs bd = {b_buf[1], b_buf[2]};
+    _ninputs[0][0] = ad[0]; _ninputs[0][1] = ad[1];
+    _ninputs[1][0] = bd[0]; _ninputs[1][1] = bd[1];
+    u8css inputs = {_ninputs, _ninputs + 2};
+    call(BASONMergeN, nout_buf, nout_idx, inputs);
+    u8cs od = {nout_buf[1], nout_buf[2]};
+    call(BIFFCheckJSON, od, "{\"a\":3,\"b\":2,\"c\":4}");
+    done;
+}
+
+// Three inputs: last wins
+ok64 BIFFtestMergeN3way() {
+    sane(1);
+    BIFF_SETUP(a, 1024, "{\"a\":1,\"b\":2}");
+    BIFF_SETUP(b, 1024, "{\"a\":3,\"c\":4}");
+    BIFF_SETUP(c, 1024, "{\"a\":5,\"d\":6}");
+    BIFFN_SETUP(2048, 4);
+    u8cs ad = {a_buf[1], a_buf[2]};
+    u8cs bd = {b_buf[1], b_buf[2]};
+    u8cs cd = {c_buf[1], c_buf[2]};
+    _ninputs[0][0] = ad[0]; _ninputs[0][1] = ad[1];
+    _ninputs[1][0] = bd[0]; _ninputs[1][1] = bd[1];
+    _ninputs[2][0] = cd[0]; _ninputs[2][1] = cd[1];
+    u8css inputs = {_ninputs, _ninputs + 3};
+    call(BASONMergeN, nout_buf, nout_idx, inputs);
+    u8cs od = {nout_buf[1], nout_buf[2]};
+    call(BIFFCheckJSON, od, "{\"a\":5,\"b\":2,\"c\":4,\"d\":6}");
+    done;
+}
+
+// Nested object recursion across 3 inputs
+ok64 BIFFtestMergeNNested() {
+    sane(1);
+    BIFF_SETUP(a, 1024, "{\"o\":{\"x\":1}}");
+    BIFF_SETUP(b, 1024, "{\"o\":{\"y\":2}}");
+    BIFF_SETUP(c, 1024, "{\"o\":{\"z\":3}}");
+    BIFFN_SETUP(2048, 4);
+    u8cs ad = {a_buf[1], a_buf[2]};
+    u8cs bd = {b_buf[1], b_buf[2]};
+    u8cs cd = {c_buf[1], c_buf[2]};
+    _ninputs[0][0] = ad[0]; _ninputs[0][1] = ad[1];
+    _ninputs[1][0] = bd[0]; _ninputs[1][1] = bd[1];
+    _ninputs[2][0] = cd[0]; _ninputs[2][1] = cd[1];
+    u8css inputs = {_ninputs, _ninputs + 3};
+    call(BASONMergeN, nout_buf, nout_idx, inputs);
+    u8cs od = {nout_buf[1], nout_buf[2]};
+    call(BIFFCheckJSON, od, "{\"o\":{\"x\":1,\"y\":2,\"z\":3}}");
+    done;
+}
+
+// Null tombstone in middle input, last input restores
+ok64 BIFFtestMergeNNull() {
+    sane(1);
+    BIFF_SETUP(a, 1024, "{\"a\":1,\"b\":2}");
+    BIFF_SETUP(b, 1024, "{\"a\":null}");
+    BIFF_SETUP(c, 1024, "{\"a\":9}");
+    BIFFN_SETUP(2048, 4);
+    u8cs ad = {a_buf[1], a_buf[2]};
+    u8cs bd = {b_buf[1], b_buf[2]};
+    u8cs cd = {c_buf[1], c_buf[2]};
+    _ninputs[0][0] = ad[0]; _ninputs[0][1] = ad[1];
+    _ninputs[1][0] = bd[0]; _ninputs[1][1] = bd[1];
+    _ninputs[2][0] = cd[0]; _ninputs[2][1] = cd[1];
+    u8css inputs = {_ninputs, _ninputs + 3};
+    call(BASONMergeN, nout_buf, nout_idx, inputs);
+    u8cs od = {nout_buf[1], nout_buf[2]};
+    call(BIFFCheckJSON, od, "{\"a\":9,\"b\":2}");
+    done;
+}
+
+// Null tombstone is last: key deleted
+ok64 BIFFtestMergeNNullLast() {
+    sane(1);
+    BIFF_SETUP(a, 1024, "{\"a\":1,\"b\":2}");
+    BIFF_SETUP(b, 1024, "{\"a\":null}");
+    BIFFN_SETUP(2048, 4);
+    u8cs ad = {a_buf[1], a_buf[2]};
+    u8cs bd = {b_buf[1], b_buf[2]};
+    _ninputs[0][0] = ad[0]; _ninputs[0][1] = ad[1];
+    _ninputs[1][0] = bd[0]; _ninputs[1][1] = bd[1];
+    u8css inputs = {_ninputs, _ninputs + 2};
+    call(BASONMergeN, nout_buf, nout_idx, inputs);
+    u8cs od = {nout_buf[1], nout_buf[2]};
+    call(BIFFCheckJSON, od, "{\"b\":2}");
+    done;
+}
+
+// Array positional merge, 3 inputs
+ok64 BIFFtestMergeNArray() {
+    sane(1);
+    BIFF_SETUP(a, 1024, "[1,2,3]");
+    BIFF_SETUP(b, 1024, "[4]");
+    BIFF_SETUP(c, 1024, "[10,20]");
+    BIFFN_SETUP(2048, 4);
+    u8cs ad = {a_buf[1], a_buf[2]};
+    u8cs bd = {b_buf[1], b_buf[2]};
+    u8cs cd = {c_buf[1], c_buf[2]};
+    _ninputs[0][0] = ad[0]; _ninputs[0][1] = ad[1];
+    _ninputs[1][0] = bd[0]; _ninputs[1][1] = bd[1];
+    _ninputs[2][0] = cd[0]; _ninputs[2][1] = cd[1];
+    u8css inputs = {_ninputs, _ninputs + 3};
+    call(BASONMergeN, nout_buf, nout_idx, inputs);
+    u8cs od = {nout_buf[1], nout_buf[2]};
+    call(BIFFCheckJSON, od, "[10,20,3]");
+    done;
+}
+
+// BASONMergeY wrapper test
+ok64 BIFFtestMergeY() {
+    sane(1);
+    BIFF_SETUP(a, 1024, "{\"a\":1}");
+    BIFF_SETUP(b, 1024, "{\"b\":2}");
+    u8cs ad = {a_buf[1], a_buf[2]};
+    u8cs bd = {b_buf[1], b_buf[2]};
+    u8cs recs[2] = {{ad[0], ad[1]}, {bd[0], bd[1]}};
+    u8css inputs = {recs, recs + 2};
+    u8 _ybuf[4096];
+    u8s yout = {_ybuf, _ybuf + 4096};
+    u8cp ystart = yout[0];
+    call(BASONMergeY, yout, inputs);
+    u8cs yd = {ystart, yout[0]};
+    call(BIFFCheckJSON, yd, "{\"a\":1,\"b\":2}");
+    done;
+}
+
+// Empty inputs
+ok64 BIFFtestMergeNEmpty() {
+    sane(1);
+    BIFFN_SETUP(2048, 4);
+    u8css inputs = {_ninputs, _ninputs};
+    call(BASONMergeN, nout_buf, nout_idx, inputs);
+    testeq(u8bDataLen(nout_buf), (size_t)0);
+    done;
+}
+
 ok64 BIFFtestAll() {
     sane(1);
     call(BIFFtestCrashC5b66);
@@ -946,6 +1115,15 @@ ok64 BIFFtestAll() {
     call(BIFFtestDiffArrayDelete);
     call(BIFFtestDiffArrayIdentical);
     call(BIFFtestFuzzRepros);
+    call(BIFFtestMergeNSingle);
+    call(BIFFtestMergeN2way);
+    call(BIFFtestMergeN3way);
+    call(BIFFtestMergeNNested);
+    call(BIFFtestMergeNNull);
+    call(BIFFtestMergeNNullLast);
+    call(BIFFtestMergeNArray);
+    call(BIFFtestMergeY);
+    call(BIFFtestMergeNEmpty);
     done;
 }
 
