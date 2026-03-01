@@ -64,6 +64,12 @@ ok64 ROCKBatchMerge(ROCKbatchp wb, u8cs key, u8cs val);
 ok64 ROCKBatchWrite(ROCKdbp db, ROCKbatchp wb);
 ok64 ROCKBatchClose(ROCKbatchp wb);
 
+// Prefix scan callback: return OK to continue, non-OK to stop
+typedef ok64 (*ROCKscanf)(voidp arg, u8cs key, u8cs val);
+
+// Scan all keys with given prefix, calling f(arg, key, val) for each
+ok64 ROCKScan(ROCKdbp db, u8cs prefix, ROCKscanf f, voidp arg);
+
 // Iterator
 ok64 ROCKIterOpen(ROCKiterp it, ROCKdbp db);
 ok64 ROCKIterSeek(ROCKiterp it, u8cs key);

@@ -265,6 +265,82 @@ ok64 ROCKtest7() {
     done;
 }
 
+// Test 8: ROCKScan prefix callback
+typedef struct {
+    int count;
+    u8cs last_key;
+    u8cs last_val;
+} ScanCtx;
+
+static ok64 ScanCB(voidp arg, u8cs key, u8cs val) {
+    ScanCtx *ctx = (ScanCtx *)arg;
+    ctx->count++;
+    $mv(ctx->last_key, key);
+    $mv(ctx->last_val, val);
+    return OK;
+}
+
+static ok64 ScanStopCB(voidp arg, u8cs key, u8cs val) {
+    ScanCtx *ctx = (ScanCtx *)arg;
+    ctx->count++;
+    if (ctx->count >= 2) return ROCKFAIL;  // stop after 2
+    return OK;
+}
+
+ok64 ROCKtest8() {
+    sane(1);
+    a_path(path, "/tmp");
+    a_cstr(tmpl, "ROCKtest8_XXXXXX");
+    call(path8gAddTmp, path8gIn(path), tmpl);
+    ROCKdb db = {};
+    call(ROCKOpen, &db, path8cgIn(path));
+
+    // Insert keys with two prefixes
+    u8cs k1 = $u8str("proj/aaa");
+    u8cs k2 = $u8str("proj/bbb");
+    u8cs k3 = $u8str("proj/ccc");
+    u8cs k4 = $u8str("other/ddd");
+    u8cs v1 = $u8str("v1");
+    u8cs v2 = $u8str("v2");
+    u8cs v3 = $u8str("v3");
+    u8cs v4 = $u8str("v4");
+    call(ROCKPut, &db, k1, v1);
+    call(ROCKPut, &db, k2, v2);
+    call(ROCKPut, &db, k3, v3);
+    call(ROCKPut, &db, k4, v4);
+
+    // Scan "proj/" prefix — should get 3 entries
+    u8cs pfx = $u8str("proj/");
+    ScanCtx ctx = {};
+    call(ROCKScan, &db, pfx, ScanCB, &ctx);
+    same(ctx.count, 3);
+    want($eq(ctx.last_key, k3));
+    want($eq(ctx.last_val, v3));
+
+    // Scan "other/" prefix — should get 1 entry
+    u8cs pfx2 = $u8str("other/");
+    ScanCtx ctx2 = {};
+    call(ROCKScan, &db, pfx2, ScanCB, &ctx2);
+    same(ctx2.count, 1);
+    want($eq(ctx2.last_key, k4));
+
+    // Scan "nope/" prefix — should get 0 entries
+    u8cs pfx3 = $u8str("nope/");
+    ScanCtx ctx3 = {};
+    call(ROCKScan, &db, pfx3, ScanCB, &ctx3);
+    same(ctx3.count, 0);
+
+    // Early stop: callback returns non-OK after 2
+    ScanCtx ctx4 = {};
+    ok64 o = ROCKScan(&db, pfx, ScanStopCB, &ctx4);
+    same(ctx4.count, 2);
+    same(o, ROCKFAIL);
+
+    call(ROCKClose, &db);
+    call(FILErmrf, path8cgIn(path));
+    done;
+}
+
 ok64 maintest() {
     sane(1);
     call(ROCKtest1);
@@ -274,6 +350,7 @@ ok64 maintest() {
     call(ROCKtest5);
     call(ROCKtest6);
     call(ROCKtest7);
+    call(ROCKtest8);
     done;
 }
 

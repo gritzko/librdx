@@ -299,6 +299,31 @@ ok64 ROCKBatchClose(ROCKbatchp wb) {
     return OK;
 }
 
+// Prefix scan with callback
+ok64 ROCKScan(ROCKdbp db, u8cs prefix, ROCKscanf f, voidp arg) {
+    sane(db != NULL && db->db != NULL && f != NULL);
+    ROCKiter it = {};
+    call(ROCKIterOpen, &it, db);
+    call(ROCKIterSeek, &it, prefix);
+    while (ROCKIterValid(&it)) {
+        u8cs k = {};
+        ROCKIterKey(&it, k);
+        if ($len(k) < $len(prefix) ||
+            memcmp(k[0], prefix[0], $len(prefix)) != 0)
+            break;
+        u8cs v = {};
+        ROCKIterVal(&it, v);
+        ok64 o = f(arg, k, v);
+        if (o != OK) {
+            ROCKIterClose(&it);
+            return o;
+        }
+        call(ROCKIterNext, &it);
+    }
+    call(ROCKIterClose, &it);
+    done;
+}
+
 // Iterator
 ok64 ROCKIterOpen(ROCKiterp it, ROCKdbp db) {
     if (it == NULL || db == NULL || db->db == NULL) return ROCKBAD;
