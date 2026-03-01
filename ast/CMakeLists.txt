@@ -37,3 +37,5 @@ target_link_libraries(bast abc ${TREE_SITTER_LIB})
 add_executable(bast-cli BAST.cli.c)
 target_link_libraries(bast-cli bast abc ${TREE_SITTER_LIB})
 set_target_properties(bast-cli PROPERTIES OUTPUT_NAME bast)
+
+add_subdirectory(test)

@@ -83,6 +83,61 @@ const TSLanguage *BASTLanguage(u8csc ext) {
     return NULL;
 }
 
+// --- Plain-text tokenizer (fallback for unknown extensions) ---
+// Tokens: \s*\w+ (whitespace + word), \s*\d+ (whitespace + number),
+// or individual punctuation chars.  Concatenating all tokens = original.
+
+fun b8 BASTIsWord(u8 c) {
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_';
+}
+
+fun b8 BASTIsDigit(u8 c) { return c >= '0' && c <= '9'; }
+
+fun b8 BASTIsBlank(u8 c) { return c == ' ' || c == '\t'; }
+
+static ok64 BASTParseText(u8bp buf, u64bp idx, u8csc source) {
+    sane(buf != NULL);
+    u8cs nokey = {(u8cp) "", (u8cp) ""};
+    call(BASONFeedInto, idx, buf, 'A', nokey);
+
+    u8cp p = source[0];
+    u8cp end = source[1];
+    u64 ci = 0;
+
+    while (p < end) {
+        u8cp start = p;
+
+        if (*p == '\n' || *p == '\r') {
+            // newline as its own token (\r\n together)
+            if (*p == '\r' && p + 1 < end && *(p + 1) == '\n') p++;
+            p++;
+        } else {
+            // consume leading blanks (spaces/tabs)
+            while (p < end && BASTIsBlank(*p)) p++;
+
+            if (p < end && (BASTIsWord(*p) || BASTIsDigit(*p))) {
+                // consume word/number
+                while (p < end && (BASTIsWord(*p) || BASTIsDigit(*p)))
+                    p++;
+            } else if (p == start) {
+                // single punctuation / non-word byte
+                p++;
+            }
+            // else: blank-only tail, p advanced past it
+        }
+
+        u8 kb[11];
+        u8s ki = {kb, kb + 11};
+        call(RONutf8sFeed, ki, ci++);
+        u8cs ck = {(u8cp)kb, (u8cp)ki[0]};
+        u8cs val = {start, p};
+        call(BASONFeed, idx, buf, 'S', ck, val);
+    }
+
+    call(BASONFeedOuto, idx, buf);
+    done;
+}
+
 // --- Tree-to-BASON conversion ---
 
 // Emit one named node as BASON.
@@ -145,7 +200,8 @@ static ok64 BASTFeedNode(u8bp buf, u64bp idx, u8csc src, TSNode node,
 ok64 BASTParse(u8bp buf, u64bp idx, u8csc source, u8csc ext) {
     sane(buf != NULL);
     const TSLanguage *lang = BASTLanguage(ext);
-    test(lang != NULL, BADARG);
+
+    if (lang == NULL) return BASTParseText(buf, idx, source);
 
     TSParser *parser = ts_parser_new();
     test(parser != NULL, FAILsanity);
