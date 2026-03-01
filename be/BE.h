@@ -70,6 +70,9 @@ ok64 BEOpen(BEp be, path8cg worktree);
 // Close DB, zero struct
 ok64 BEClose(BEp be);
 
+// Switch to a new branch: rebuild URI, reparse, rewrite .be file
+ok64 BESwitchBranch(BEp be, u8cs branch);
+
 // --- CRUD ---
 
 // POST: worktree files → repo (commit)

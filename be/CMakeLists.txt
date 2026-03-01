@@ -14,7 +14,7 @@ find_library(TREE_SITTER_LIB NAMES tree-sitter REQUIRED)
 add_library(beagle STATIC BE.c ../json/BIFF.c)
 target_link_libraries(beagle bast abc ${TREE_SITTER_LIB})
 
-add_executable(be-cli be.cli.c)
+add_executable(be-cli BE.cli.c)
 target_link_libraries(be-cli beagle bast abc ${TREE_SITTER_LIB})
 set_target_properties(be-cli PROPERTIES OUTPUT_NAME be)
 

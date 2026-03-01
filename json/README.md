@@ -1,4 +1,4 @@
-# BASON: Binary Adaptation of Structured Object Notation
+# BASON: binary JSON
 
 **Version:** 0.1  
 **Status:** Draft  
@@ -102,19 +102,6 @@ Lowercase (short form):  b  a  s  o  n
 Uppercase (long form):   B  A  S  O  N
                          0x42 0x41 0x53 0x4F 0x4E
 ```
-
-| Tag   | Type    | Form  |
-|-------|---------|-------|
-| `b`   | Boolean | Short |
-| `B`   | Boolean | Long  |
-| `a`   | Array   | Short |
-| `A`   | Array   | Long  |
-| `s`   | String  | Short |
-| `S`   | String  | Long  |
-| `o`   | Object  | Short |
-| `O`   | Object  | Long  |
-| `n`   | Number  | Short |
-| `N`   | Number  | Long  |
 
 ### 4.2. Short Record Layout
 

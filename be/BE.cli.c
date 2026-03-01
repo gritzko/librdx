@@ -39,6 +39,20 @@ static ok64 BEOpenCwd(BEp be) {
     done;
 }
 
+// ROCKScan callback: count head keys (no '?')
+typedef struct {
+    int count;
+    size_t pfxlen;
+} BECountCtx;
+
+static ok64 BECountHeadCB(voidp arg, u8cs key, u8cs val) {
+    BECountCtx *ctx = (BECountCtx *)arg;
+    u8cs rest = {key[0] + ctx->pfxlen, key[1]};
+    u8cs qs = {rest[0], rest[1]};
+    if (u8csFind(qs, '?') != OK) ctx->count++;
+    return OK;
+}
+
 // Print status info
 static ok64 BEStatus(BEp be) {
     sane(be != NULL);
@@ -73,34 +87,11 @@ static ok64 BEStatus(BEp be) {
     u8sFeed1(pfx, '/');
     u8cs prefix = {pfxbuf, pfx[0]};
 
-    int count = 0;
-    ROCKiter it = {};
-    call(ROCKIterOpen, &it, &be->db);
-    call(ROCKIterSeek, &it, prefix);
-    while (ROCKIterValid(&it)) {
-        u8cs k = {};
-        ROCKIterKey(&it, k);
-        if ($len(k) < $len(prefix) ||
-            memcmp(k[0], prefix[0], $len(prefix)) != 0)
-            break;
-        // Count only head keys (no '?' in the rest)
-        u8cs rest = {k[0] + $len(prefix), k[1]};
-        b8 has_q = NO;
-        u8cp rp = rest[0];
-        while (rp < rest[1]) {
-            if (*rp == '?') {
-                has_q = YES;
-                break;
-            }
-            rp++;
-        }
-        if (!has_q) count++;
-        call(ROCKIterNext, &it);
-    }
-    call(ROCKIterClose, &it);
+    BECountCtx cctx = {0, $len(prefix)};
+    call(ROCKScan, &be->db, prefix, BECountHeadCB, &cctx);
 
     u8 cbuf[64];
-    int clen = snprintf((char *)cbuf, sizeof(cbuf), "  files: %d\n", count);
+    int clen = snprintf((char *)cbuf, sizeof(cbuf), "  files: %d\n", cctx.count);
     u8cs cline = {cbuf, cbuf + clen};
     call(FILEout, cline);
     done;
@@ -222,48 +213,6 @@ static ok64 BECLIDelete(int argc) {
     a$rg(target, 2);
     call(BEDelete, &be, target);
     call(BEClose, &be);
-    done;
-}
-
-// Rewrite .be file with new branch query
-static ok64 BESwitchBranch(BEp be, u8cs branch) {
-    sane(be != NULL && $ok(branch) && !$empty(branch));
-    // Build new URI in temp buffer to avoid aliasing
-    u8 tmp[512];
-    u8s uri_s = {tmp, tmp + sizeof(tmp)};
-    if ($ok(be->loc.scheme) && !$empty(be->loc.scheme)) {
-        call(u8sFeed, uri_s, be->loc.scheme);
-        a_cstr(sep, "://");
-        call(u8sFeed, uri_s, sep);
-    }
-    if ($ok(be->loc.host) && !$empty(be->loc.host)) {
-        call(u8sFeed, uri_s, be->loc.host);
-    }
-    if ($ok(be->loc.path) && !$empty(be->loc.path)) {
-        if (be->loc.path[0][0] != '/') u8sFeed1(uri_s, '/');
-        call(u8sFeed, uri_s, be->loc.path);
-    }
-    a_cstr(qy, "?y=");
-    call(u8sFeed, uri_s, qy);
-    call(u8sFeed, uri_s, branch);
-    size_t ulen = uri_s[0] - tmp;
-    test(ulen < sizeof(be->loc_buf), BEBAD);
-    memcpy(be->loc_buf, tmp, ulen);
-    be->loc.data[0] = be->loc_buf;
-    be->loc.data[1] = be->loc_buf + ulen;
-    call(URILexer, &be->loc);
-
-    // Rewrite .be file
-    u8 dbuf[FILE_PATH_MAX_LEN];
-    path8 dpath = {dbuf, dbuf, dbuf, dbuf + FILE_PATH_MAX_LEN};
-    call(path8gDup, path8gIn(dpath), path8cgIn(be->work_pp));
-    a_cstr(dotbe, ".be");
-    call(path8gPush, path8gIn(dpath), dotbe);
-    u8cs new_uri = {be->loc_buf, be->loc_buf + ulen};
-    int fd = 0;
-    call(FILECreate, &fd, path8cgIn(dpath));
-    call(FILEFeedall, fd, new_uri);
-    call(FILEClose, &fd);
     done;
 }
 
