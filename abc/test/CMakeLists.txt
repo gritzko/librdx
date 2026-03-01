@@ -257,6 +257,12 @@ target_compile_options(path8gtest PRIVATE ${TEST_CXX_FLAGS})
 target_link_libraries(path8gtest abc)
 add_test(NAME path8gtest COMMAND path8gtest)
 
+add_executable(BSDtest BSD.c ../BSD.c)
+target_link_options(BSDtest PRIVATE ${TEST_LDD_FLAGS})
+target_compile_options(BSDtest PRIVATE ${TEST_CXX_FLAGS})
+target_link_libraries(BSDtest abc)
+add_test(NAME BSDtest COMMAND BSDtest)
+
 if (WITH_ROCKS)
 add_executable(ROCKtest ROCK.c ../ROCK.c)
 target_link_options(ROCKtest PRIVATE ${TEST_LDD_FLAGS})

@@ -68,6 +68,7 @@ HTTP.h
 CURL.h
 PACK.h
 PATH.h
+BSD.h
 )
 
 list(APPEND ABC_SOURCES
@@ -99,6 +100,7 @@ ZINT.c
 CURL.c
 PACK.c
 PATH.c
+BSD.c
 ryu/d2s.c
 )
 
