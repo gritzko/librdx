@@ -13,3 +13,6 @@ set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${FUZZ_LDD_FLAGS}")
 
 add_executable(BIFFfuzz BIFF.c ../BIFF.c ../BASON.c ../../abc/TLV.c)
 target_link_libraries(BIFFfuzz abc)
+
+add_executable(BIFFNfuzz BIFFN.c ../BIFF.c ../BASON.c ../../abc/TLV.c)
+target_link_libraries(BIFFNfuzz abc)
