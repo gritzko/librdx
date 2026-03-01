@@ -5,9 +5,10 @@
 
 #include "PRO.h"
 
-// Internal: set up default options (bloom filter, LRU cache, create_if_missing)
-static ok64 ROCKInitOpts(ROCKdbp db, b8 create) {
+// Alloc default options (bloom filter, LRU cache)
+ok64 ROCKInit(ROCKdbp db, b8 create) {
     sane(db != NULL);
+    memset(db, 0, sizeof(ROCKdb));
     db->opt = rocksdb_options_create();
     test(db->opt != NULL, ROCKFAIL);
 
@@ -43,10 +44,9 @@ static ok64 ROCKPath(char *buf, size_t bufsz, path8cg path) {
     return OK;
 }
 
-ok64 ROCKOpen(ROCKdbp db, path8cg path) {
-    sane(db != NULL && path != NULL && path[0] != NULL);
-    memset(db, 0, sizeof(ROCKdb));
-    call(ROCKInitOpts, db, YES);
+// Open DB with current options
+ok64 ROCKOpenDB(ROCKdbp db, path8cg path) {
+    sane(db != NULL && db->opt != NULL && path != NULL && path[0] != NULL);
     char pbuf[4096];
     call(ROCKPath, pbuf, sizeof(pbuf), path);
     char *err = NULL;
@@ -59,10 +59,16 @@ ok64 ROCKOpen(ROCKdbp db, path8cg path) {
     done;
 }
 
+// Convenience: init defaults + open
+ok64 ROCKOpen(ROCKdbp db, path8cg path) {
+    sane(db != NULL && path != NULL && path[0] != NULL);
+    call(ROCKInit, db, YES);
+    return ROCKOpenDB(db, path);
+}
+
 ok64 ROCKOpenRO(ROCKdbp db, path8cg path) {
     sane(db != NULL && path != NULL && path[0] != NULL);
-    memset(db, 0, sizeof(ROCKdb));
-    call(ROCKInitOpts, db, NO);
+    call(ROCKInit, db, NO);
     char pbuf[4096];
     call(ROCKPath, pbuf, sizeof(pbuf), path);
     char *err = NULL;
@@ -160,8 +166,7 @@ static char *ROCKmerge_partial(void *state, const char *key,
 
 ok64 ROCKOpenMerge(ROCKdbp db, path8cg path, u8ys merge) {
     sane(db != NULL && path != NULL && path[0] != NULL && merge != NULL);
-    memset(db, 0, sizeof(ROCKdb));
-    call(ROCKInitOpts, db, YES);
+    call(ROCKInit, db, YES);
 
     ROCKmerge_state *ms = malloc(sizeof(ROCKmerge_state));
     test(ms != NULL, ROCKFAIL);
@@ -173,16 +178,7 @@ ok64 ROCKOpenMerge(ROCKdbp db, path8cg path, u8ys merge) {
     test(db->mop != NULL, ROCKFAIL);
     rocksdb_options_set_merge_operator(db->opt, db->mop);
 
-    char pbuf[4096];
-    call(ROCKPath, pbuf, sizeof(pbuf), path);
-    char *err = NULL;
-    db->db = rocksdb_open(db->opt, pbuf, &err);
-    ok64 o = ROCKerr(err);
-    if (o != OK || db->db == NULL) {
-        ROCKClose(db);
-        fail(o != OK ? o : ROCKFAIL);
-    }
-    done;
+    return ROCKOpenDB(db, path);
 }
 
 ok64 ROCKClose(ROCKdbp db) {

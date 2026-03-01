@@ -184,6 +184,41 @@ static ok64 BEFindDotBe(path8g result, path8cg start) {
     fail(BEnone);
 }
 
+// Open RocksDB with VCS-tuned options
+static ok64 BEOpenDB(ROCKdbp db, path8cg path) {
+    sane(db != NULL && path != NULL);
+    call(ROCKInit, db, YES);
+
+    // Compression: snappy for L0-L1 (fast), zstd for L2+ (good ratio)
+    int compression[7] = {
+        rocksdb_snappy_compression,  // L0
+        rocksdb_snappy_compression,  // L1
+        rocksdb_zstd_compression,    // L2
+        rocksdb_zstd_compression,    // L3
+        rocksdb_zstd_compression,    // L4
+        rocksdb_zstd_compression,    // L5
+        rocksdb_zstd_compression,    // L6
+    };
+    rocksdb_options_set_num_levels(db->opt, 7);
+    rocksdb_options_set_compression_per_level(db->opt, compression, 7);
+
+    // Auto-size levels as data grows
+    rocksdb_options_set_level_compaction_dynamic_level_bytes(db->opt, 1);
+
+    // Allow parallel compaction
+    rocksdb_options_set_max_background_jobs(db->opt, 2);
+
+    // No WAL — worktree is the source of truth
+    rocksdb_writeoptions_disable_WAL(db->wopt, 1);
+
+    // Larger cache for BASON ASTs
+    if (db->cache) {
+        rocksdb_cache_set_capacity(db->cache, 128 * MB);
+    }
+
+    return ROCKOpenDB(db, path);
+}
+
 static ok64 BEScratchInit(BEp be) {
     sane(be != NULL);
     for (int i = 0; i < BE_SCRATCH; i++) {
@@ -233,7 +268,7 @@ ok64 BEInit(BEp be, u8cs be_uri, path8cg worktree) {
     call(BEWriteFile, path8cgIn(dotbe_path), be_uri);
 
     // Open DB
-    call(ROCKOpen, &be->db, path8cgIn(be->repo_pp));
+    call(BEOpenDB, &be->db, path8cgIn(be->repo_pp));
     call(BEScratchInit, be);
     done;
 }
@@ -273,7 +308,7 @@ ok64 BEOpen(BEp be, path8cg worktree) {
     call(BERepoPath, path8gIn(be->repo_pp), be->loc.host);
 
     // Open DB
-    call(ROCKOpen, &be->db, path8cgIn(be->repo_pp));
+    call(BEOpenDB, &be->db, path8cgIn(be->repo_pp));
     call(BEScratchInit, be);
     done;
 }

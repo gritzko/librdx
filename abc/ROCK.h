@@ -45,7 +45,9 @@ typedef struct {
 typedef ROCKbatch *ROCKbatchp;
 
 // Database lifecycle
-ok64 ROCKOpen(ROCKdbp db, path8cg path);
+ok64 ROCKInit(ROCKdbp db, b8 create);       // alloc default options
+ok64 ROCKOpenDB(ROCKdbp db, path8cg path);  // open with current options
+ok64 ROCKOpen(ROCKdbp db, path8cg path);    // init+open (convenience)
 ok64 ROCKOpenRO(ROCKdbp db, path8cg path);
 ok64 ROCKOpenMerge(ROCKdbp db, path8cg path, u8ys merge);
 ok64 ROCKClose(ROCKdbp db);
