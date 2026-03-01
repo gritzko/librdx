@@ -525,3 +525,102 @@ ok64 BASONDiff(u8bp out, u64bp idx,
 
     done;
 }
+
+// --- Diff rendering: colored leaf-value output ---
+
+// Emit all leaf values of a BASON subtree (no color).
+static ok64 BIFFRenderLeaves(u8s out, u64bp stk, u8csc data,
+                              u8 type, u8cs val) {
+    sane(u8sOK(out));
+    if (BASONPlex(type)) {
+        call(BASONInto, stk, data, val);
+        u8 ct; u8cs ck, cv;
+        while (BASONDrain(stk, data, &ct, ck, cv) == OK) {
+            call(BIFFRenderLeaves, out, stk, data, ct, cv);
+        }
+        call(BASONOuto, stk);
+    } else if (type != 'B' || $len(val) > 0) {
+        call(u8sFeed, out, val);
+    }
+    done;
+}
+
+// Parallel walk of old + patch at one level, emit colored text.
+static ok64 BIFFRenderLevel(u8s out,
+                             u64bp ostk, u8csc odata,
+                             u64bp pstk, u8csc pdata) {
+    sane(u8sOK(out));
+    u8cs DEL = $u8str("\033[9;31m");
+    u8cs ADD = $u8str("\033[32m");
+    u8cs RST = $u8str("\033[0m");
+
+    u8 ot = 0, pt = 0;
+    u8cs ok, ov, pk, pv;
+    ok64 oo = BASONDrain(ostk, odata, &ot, ok, ov);
+    ok64 po = BASONDrain(pstk, pdata, &pt, pk, pv);
+
+    while (oo == OK && po == OK) {
+        int cmp = $cmp(ok, pk);
+        if (cmp < 0) {
+            call(BIFFRenderLeaves, out, ostk, odata, ot, ov);
+            oo = BASONDrain(ostk, odata, &ot, ok, ov);
+        } else if (cmp > 0) {
+            call(u8sFeed, out, ADD);
+            call(BIFFRenderLeaves, out, pstk, pdata, pt, pv);
+            call(u8sFeed, out, RST);
+            po = BASONDrain(pstk, pdata, &pt, pk, pv);
+        } else {
+            if (BIFFIsNull(pt, pv)) {
+                call(u8sFeed, out, DEL);
+                call(BIFFRenderLeaves, out, ostk, odata, ot, ov);
+                call(u8sFeed, out, RST);
+            } else if (BASONPlex(ot) && BASONPlex(pt) && ot == pt) {
+                call(BASONInto, ostk, odata, ov);
+                call(BASONInto, pstk, pdata, pv);
+                call(BIFFRenderLevel, out, ostk, odata, pstk, pdata);
+                call(BASONOuto, ostk);
+                call(BASONOuto, pstk);
+            } else {
+                call(u8sFeed, out, DEL);
+                call(BIFFRenderLeaves, out, ostk, odata, ot, ov);
+                call(u8sFeed, out, RST);
+                call(u8sFeed, out, ADD);
+                call(BIFFRenderLeaves, out, pstk, pdata, pt, pv);
+                call(u8sFeed, out, RST);
+            }
+            oo = BASONDrain(ostk, odata, &ot, ok, ov);
+            po = BASONDrain(pstk, pdata, &pt, pk, pv);
+        }
+    }
+
+    while (oo == OK) {
+        call(BIFFRenderLeaves, out, ostk, odata, ot, ov);
+        oo = BASONDrain(ostk, odata, &ot, ok, ov);
+    }
+
+    while (po == OK) {
+        call(u8sFeed, out, ADD);
+        call(BIFFRenderLeaves, out, pstk, pdata, pt, pv);
+        call(u8sFeed, out, RST);
+        po = BASONDrain(pstk, pdata, &pt, pk, pv);
+    }
+
+    done;
+}
+
+ok64 BASONDiffRender(u8s out,
+                     u64bp ostk, u8csc odata,
+                     u64bp pstk, u8csc pdata) {
+    sane(u8sOK(out));
+    call(BASONOpen, ostk, odata);
+    if ($len(pdata) == 0) {
+        u8 type; u8cs key, val;
+        while (BASONDrain(ostk, odata, &type, key, val) == OK) {
+            call(BIFFRenderLeaves, out, ostk, odata, type, val);
+        }
+        done;
+    }
+    call(BASONOpen, pstk, pdata);
+    call(BIFFRenderLevel, out, ostk, odata, pstk, pdata);
+    done;
+}

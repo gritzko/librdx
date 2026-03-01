@@ -5,10 +5,10 @@
 #include "abc/FILE.h"
 #include "abc/PRO.h"
 
-// biff: diff two files, produce JSON patch.
-// merge(old, biff(old, new)) == new
-// Input: JSON or BASON (auto-detected). Output: JSON patch to stdout.
-// Usage: biff <old> <new>
+// biff: diff two files.
+// Usage: biff <old> <new>            → JSON patch to stdout
+//        biff <old> <new> <patch>    → BASON patch to file, colored to stdout
+// Input: JSON or BASON (auto-detected).
 
 #define BIFF_BUF_LEN (4 * 1024 * 1024)
 
@@ -41,7 +41,7 @@ static ok64 biffLoadFile(u8bp bson, u64bp idx,
 
 ok64 biffcli() {
     sane(1);
-    test($arglen == 3, BADARG);
+    test($arglen >= 3 && $arglen <= 4, BADARG);
 
     call(FILEInit);
 
@@ -78,21 +78,49 @@ ok64 biffcli() {
 
     u8cp df0 = out[1], df1 = out[2];
     u8cs diff = {df0, df1};
-    if ($len(diff) == 0) {
-        u8cs empty = $u8str("{}\n");
-        call(FILEFeedall, STDOUT_FILENO, empty);
+
+    if ($arglen == 4) {
+        // Write BASON patch to file
+        a$rg(parg, 3);
+        a_pad(u8, ppath, FILE_PATH_MAX_LEN);
+        call(u8bFeed, ppath, parg);
+        u8bFeed1(ppath, 0);
+        u8bShed1(ppath);
+        int pfd;
+        call(FILECreate, &pfd, path8cgIn(ppath));
+        if ($len(diff) > 0)
+            call(FILEFeedall, pfd, diff);
+        close(pfd);
+
+        // Render colored diff to stdout
+        u8b rbuf = {};
+        call(u8bMap, rbuf, BIFF_BUF_LEN * 2);
+        u64 _rs1[256], _rs2[256];
+        u64b rs1 = {_rs1, _rs1, _rs1, _rs1 + 256};
+        u64b rs2 = {_rs2, _rs2, _rs2, _rs2 + 256};
+        call(BASONDiffRender, u8bIdle(rbuf), rs1, od, rs2, diff);
+        u8cp r0 = rbuf[1], r1 = rbuf[2];
+        u8cs rout = {r0, r1};
+        call(FILEFeedall, STDOUT_FILENO, rout);
+        u8bUnMap(rbuf);
     } else {
-        u8b jbuf = {};
-        call(u8bMap, jbuf, BIFF_BUF_LEN);
-        u64 _jstk[256];
-        u64b jstk = {_jstk, _jstk, _jstk, _jstk + 256};
-        call(BASONExportJSON, u8bIdle(jbuf), jstk, diff);
-        u8cp j0 = jbuf[1], j1 = jbuf[2];
-        u8cs jout = {j0, j1};
-        call(FILEFeedall, STDOUT_FILENO, jout);
-        u8cs nl = $u8str("\n");
-        call(FILEFeedall, STDOUT_FILENO, nl);
-        u8bUnMap(jbuf);
+        // JSON patch to stdout
+        if ($len(diff) == 0) {
+            u8cs empty = $u8str("{}\n");
+            call(FILEFeedall, STDOUT_FILENO, empty);
+        } else {
+            u8b jbuf = {};
+            call(u8bMap, jbuf, BIFF_BUF_LEN);
+            u64 _jstk[256];
+            u64b jstk = {_jstk, _jstk, _jstk, _jstk + 256};
+            call(BASONExportJSON, u8bIdle(jbuf), jstk, diff);
+            u8cp j0 = jbuf[1], j1 = jbuf[2];
+            u8cs jout = {j0, j1};
+            call(FILEFeedall, STDOUT_FILENO, jout);
+            u8cs nl = $u8str("\n");
+            call(FILEFeedall, STDOUT_FILENO, nl);
+            u8bUnMap(jbuf);
+        }
     }
 
     call(FILEUnMap, omap);

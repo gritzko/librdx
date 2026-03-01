@@ -19,4 +19,10 @@ ok64 BASONDiff(u8bp out, u64bp idx,
                u64bp ostk, u8csc odata,
                u64bp nstk, u8csc ndata);
 
+// Render colored diff: walk old BASON + patch in parallel,
+// emit leaf values with ANSI colors (red+strike=del, green=add).
+ok64 BASONDiffRender(u8s out,
+                     u64bp ostk, u8csc odata,
+                     u64bp pstk, u8csc pdata);
+
 #endif
