@@ -28,6 +28,7 @@ typedef struct {
     rocksdb_writeoptions_t *wopt;
     rocksdb_mergeoperator_t *mop;
     rocksdb_cache_t *cache;
+    const rocksdb_snapshot_t *snap;
 } ROCKdb;
 typedef ROCKdb *ROCKdbp;
 
@@ -85,5 +86,22 @@ ok64 ROCKIterClose(ROCKiterp it);
 
 // Checkpoint (hard-link SSTs for branching)
 ok64 ROCKCheckpoint(ROCKdbp db, path8cg dest);
+
+// Snapshot: pin SST files from compaction
+ok64 ROCKSnapshotCreate(ROCKdbp db);
+ok64 ROCKSnapshotRelease(ROCKdbp db);
+
+// Disable/enable file deletions (pin SSTs for serving)
+ok64 ROCKDisableFileDeletions(ROCKdbp db);
+ok64 ROCKEnableFileDeletions(ROCKdbp db);
+
+// Live file listing callback: (arg, filename, size)
+typedef ok64 (*ROCKfilef)(voidp arg, u8cs filename, u64 size);
+
+// Enumerate live SST/metadata files, calling f for each
+ok64 ROCKLiveFiles(ROCKdbp db, ROCKfilef f, voidp arg);
+
+// Get DB directory path (null-terminated) into buffer
+ok64 ROCKGetPath(ROCKdbp db, path8g out);
 
 #endif  // ABC_ROCK_H

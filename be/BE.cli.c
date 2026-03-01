@@ -1,4 +1,5 @@
 #include "BE.h"
+#include "BESYNC.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -136,6 +137,19 @@ static ok64 BECLIPost(int argc) {
 // ---- verb: get ----
 static ok64 BECLIGet(int argc) {
     sane(1);
+
+    // Check if first arg is a remote URL
+    if (argc > 2) {
+        a$rg(first_arg, 2);
+        if (BESyncIsRemote(first_arg)) {
+            // Clone from remote
+            a_pad(u8, cpath, FILE_PATH_MAX_LEN);
+            call(BECwd, path8gIn(cpath));
+            call(BESyncClone, first_arg, path8cgIn(cpath));
+            done;
+        }
+    }
+
     BE be = {};
     call(BEOpenCwd, &be);
 

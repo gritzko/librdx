@@ -264,6 +264,7 @@ ok64 BEInit(BEp be, u8cs be_uri, path8cg worktree) {
     // Write .be file in worktree
     a_path(dotbe_path, "");
     call(path8gDup, path8gIn(dotbe_path), worktree);
+    a_cstr(dotbe, ".be");
     call(path8gPush, path8gIn(dotbe_path), dotbe);
     call(BEWriteFile, path8cgIn(dotbe_path), be_uri);
 
