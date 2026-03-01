@@ -32,8 +32,8 @@ ok64 BEKeyVer(u8s into, u8cs project, u8cs path, ron60 stamp) {
     done;
 }
 
-ok64 BEKeyTwig(u8s into, u8cs project, u8cs path, u8cs twig) {
-    sane($ok(into) && $ok(project) && $ok(twig));
+ok64 BEKeyBranch(u8s into, u8cs project, u8cs path, u8cs branch) {
+    sane($ok(into) && $ok(project) && $ok(branch));
     call(u8sFeed, into, project);
     u8sFeed1(into, '/');
     if ($ok(path) && !$empty(path)) {
@@ -41,7 +41,7 @@ ok64 BEKeyTwig(u8s into, u8cs project, u8cs path, u8cs twig) {
     }
     a_cstr(qy, "?y=");
     call(u8sFeed, into, qy);
-    call(u8sFeed, into, twig);
+    call(u8sFeed, into, branch);
     done;
 }
 
@@ -55,12 +55,12 @@ ok64 BEKeyCommit(u8s into, u8cs project, ron60 stamp) {
     done;
 }
 
-ok64 BEKeyTwigPtr(u8s into, u8cs project, u8cs twig) {
-    sane($ok(into) && $ok(project) && $ok(twig));
+ok64 BEKeyBranchPtr(u8s into, u8cs project, u8cs branch) {
+    sane($ok(into) && $ok(project) && $ok(branch));
     call(u8sFeed, into, project);
     a_cstr(sep, "/?y=");
     call(u8sFeed, into, sep);
-    call(u8sFeed, into, twig);
+    call(u8sFeed, into, branch);
     done;
 }
 
@@ -78,12 +78,12 @@ ok64 BEKeyConf(u8s into, u8cs project, u8cs confkey) {
 ok64 BEKeyCur(u8s into, BEp be, u8cs path) {
     sane(be != NULL && $ok(into));
     if ($ok(be->loc.query) && !$empty(be->loc.query)) {
-        // twig mode: query contains "y=<twig>"
+        // branch mode: query contains "y=<branch>"
         u8cs q = {be->loc.query[0], be->loc.query[1]};
         // skip "y=" prefix
         if ($len(q) > 2 && q[0][0] == 'y' && q[0][1] == '=') {
-            u8cs twig = {q[0] + 2, q[1]};
-            return BEKeyTwig(into, be->loc.path, path, twig);
+            u8cs branch = {q[0] + 2, q[1]};
+            return BEKeyBranch(into, be->loc.path, path, branch);
         }
     }
     return BEKeyHead(into, be->loc.path, path);
@@ -121,26 +121,6 @@ ok64 BASTExport(u8s out, u64bp stack, u8csc data) {
 }
 
 // ---- Internal helpers ----
-
-// Make directory path recursively (like mkdir -p)
-static ok64 BEMakeDirP(path8cg path) {
-    sane(path != NULL);
-    // Try direct first
-    ok64 o = FILEMakeDir(path);
-    if (o == OK || o == FILEEXIST) return OK;
-    // Parent might not exist, try creating it
-    u8 pbuf[FILE_PATH_MAX_LEN];
-    path8 parent = {pbuf, pbuf, pbuf, pbuf + FILE_PATH_MAX_LEN};
-    u8cs dir = {};
-    path8gDir(dir, path);
-    if ($empty(dir) || $len(dir) == 0) return o;
-    call(u8sFeed, u8bIdle(parent), dir);
-    call(path8gTerm, path8gIn(parent));
-    call(BEMakeDirP, path8cgIn(parent));
-    o = FILEMakeDir(path);
-    if (o == FILEEXIST) return OK;
-    return o;
-}
 
 // Write data to a file, creating it
 static ok64 BEWriteFile(path8cg path, u8cs data) {
@@ -185,6 +165,24 @@ static ok64 BEFindDotBe(path8g result, path8cg start) {
     fail(BEnone);
 }
 
+static ok64 BEScratchInit(BEp be) {
+    sane(be != NULL);
+    for (int i = 0; i < BE_SCRATCH; i++) {
+        call(u8bMap, be->scratch[i], BE_SCRATCH_LEN);
+    }
+    done;
+}
+
+static ok64 BEScratchFree(BEp be) {
+    sane(be != NULL);
+    for (int i = 0; i < BE_SCRATCH; i++) {
+        if (be->scratch[i][0] != NULL) {
+            u8bUnMap(be->scratch[i]);
+        }
+    }
+    done;
+}
+
 // ---- Lifecycle ----
 
 ok64 BEInit(BEp be, u8cs be_uri, path8cg worktree) {
@@ -200,17 +198,11 @@ ok64 BEInit(BEp be, u8cs be_uri, path8cg worktree) {
     call(URILexer, &be->loc);
 
     // Setup worktree path
-    be->work_pp[0] = be->work_pbuf;
-    be->work_pp[1] = be->work_pbuf;
-    be->work_pp[2] = be->work_pbuf;
-    be->work_pp[3] = be->work_pbuf + FILE_PATH_MAX_LEN;
+    call(path8bAlloc, be->work_pp);
     call(path8gDup, path8gIn(be->work_pp), worktree);
 
-    // Build repo path: $HOME/.be/<branch>/
-    be->repo_pp[0] = be->repo_pbuf;
-    be->repo_pp[1] = be->repo_pbuf;
-    be->repo_pp[2] = be->repo_pbuf;
-    be->repo_pp[3] = be->repo_pbuf + FILE_PATH_MAX_LEN;
+    // Build repo path: $HOME/.be/<repo>/
+    call(path8bAlloc, be->repo_pp);
     const char *home = getenv("HOME");
     test(home != NULL, BEFAIL);
     a_cstr(homecs, home);
@@ -218,23 +210,22 @@ ok64 BEInit(BEp be, u8cs be_uri, path8cg worktree) {
     call(path8gTerm, path8gIn(be->repo_pp));
     a_cstr(dotbe, ".be");
     call(path8gPush, path8gIn(be->repo_pp), dotbe);
-    // branch = loc.host
+    // repo = loc.host
     test($ok(be->loc.host) && !$empty(be->loc.host), BEBAD);
     call(path8gPush, path8gIn(be->repo_pp), be->loc.host);
 
     // Create directories
-    call(BEMakeDirP, path8cgIn(be->repo_pp));
+    call(FILEMakeDirP, path8cgIn(be->repo_pp));
 
     // Write .be file in worktree
-    u8 dotbe_pbuf[FILE_PATH_MAX_LEN];
-    path8 dotbe_path = {dotbe_pbuf, dotbe_pbuf, dotbe_pbuf,
-                        dotbe_pbuf + FILE_PATH_MAX_LEN};
+    a_path(dotbe_path, "");
     call(path8gDup, path8gIn(dotbe_path), worktree);
     call(path8gPush, path8gIn(dotbe_path), dotbe);
     call(BEWriteFile, path8cgIn(dotbe_path), be_uri);
 
     // Open DB
     call(ROCKOpen, &be->db, path8cgIn(be->repo_pp));
+    call(BEScratchInit, be);
     done;
 }
 
@@ -243,18 +234,13 @@ ok64 BEOpen(BEp be, path8cg worktree) {
     memset(be, 0, sizeof(BE));
 
     // Setup worktree path
-    be->work_pp[0] = be->work_pbuf;
-    be->work_pp[1] = be->work_pbuf;
-    be->work_pp[2] = be->work_pbuf;
-    be->work_pp[3] = be->work_pbuf + FILE_PATH_MAX_LEN;
+    call(path8bAlloc, be->work_pp);
 
     // Find .be file
     call(BEFindDotBe, path8gIn(be->work_pp), worktree);
 
     // Read .be file
-    u8 dotbe_pbuf[FILE_PATH_MAX_LEN];
-    path8 dotbe_path = {dotbe_pbuf, dotbe_pbuf, dotbe_pbuf,
-                        dotbe_pbuf + FILE_PATH_MAX_LEN};
+    a_path(dotbe_path, "");
     call(path8gDup, path8gIn(dotbe_path), path8cgIn(be->work_pp));
     a_cstr(dotbe, ".be");
     call(path8gPush, path8gIn(dotbe_path), dotbe);
@@ -272,11 +258,8 @@ ok64 BEOpen(BEp be, path8cg worktree) {
     be->loc.data[1] = be->loc_buf + ulen;
     call(URILexer, &be->loc);
 
-    // Build repo path: $HOME/.be/<branch>/
-    be->repo_pp[0] = be->repo_pbuf;
-    be->repo_pp[1] = be->repo_pbuf;
-    be->repo_pp[2] = be->repo_pbuf;
-    be->repo_pp[3] = be->repo_pbuf + FILE_PATH_MAX_LEN;
+    // Build repo path: $HOME/.be/<repo>/
+    call(path8bAlloc, be->repo_pp);
     const char *home = getenv("HOME");
     test(home != NULL, BEFAIL);
     a_cstr(homecs, home);
@@ -289,12 +272,16 @@ ok64 BEOpen(BEp be, path8cg worktree) {
 
     // Open DB
     call(ROCKOpen, &be->db, path8cgIn(be->repo_pp));
+    call(BEScratchInit, be);
     done;
 }
 
 ok64 BEClose(BEp be) {
     if (be == NULL) return OK;
     ROCKClose(&be->db);
+    BEScratchFree(be);
+    path8bFree(be->repo_pp);
+    path8bFree(be->work_pp);
     memset(be, 0, sizeof(BE));
     return OK;
 }
@@ -343,10 +330,15 @@ static ok64 BEPostFile(BEp be, ROCKbatchp wb, ron60 stamp, path8cg filepath) {
     u8cs ext = {};
     BEExtOf(ext, basename);
 
-    // Parse to BASON
-    aBpad(u8, nbuf, 65536);
+    // Parse to BASON (skip files with unknown extensions)
+    u8bp nbuf = be->scratch[BE_PARSE];
+    u8bReset(nbuf);
     aBpad(u64, nidx, 4096);
     ok64 o = BASTParse(nbuf, nidx, source, ext);
+    if (o == BADARG) {
+        FILEUnMap(mapbuf);
+        done;
+    }
     if (o != OK) {
         FILEUnMap(mapbuf);
         fail(o);
@@ -360,13 +352,15 @@ static ok64 BEPostFile(BEp be, ROCKbatchp wb, ron60 stamp, path8cg filepath) {
     u8cs head_key = {kbuf, key[0]};
 
     // Get old BASON from DB
-    aBpad(u8, obuf, 65536);
+    u8bp obuf = be->scratch[BE_READ];
+    u8bReset(obuf);
     ok64 go = ROCKGet(&be->db, obuf, head_key);
 
     if (go == OK) {
         // Diff old vs new
         u8cs old_bason = {obuf[1], obuf[2]};
-        aBpad(u8, dbuf, 65536);
+        u8bp dbuf = be->scratch[BE_PATCH];
+        u8bReset(dbuf);
         aBpad(u64, didx, 4096);
         aBpad(u64, ostk, 256);
         aBpad(u64, nstk, 256);
@@ -392,16 +386,16 @@ static ok64 BEPostFile(BEp be, ROCKbatchp wb, ron60 stamp, path8cg filepath) {
     // Store new head
     call(ROCKBatchPut, wb, head_key, new_bason);
 
-    // If twig mode, also store twig key
+    // If branch mode, also store branch key
     if ($ok(be->loc.query) && !$empty(be->loc.query) &&
         $len(be->loc.query) > 2 && be->loc.query[0][0] == 'y' &&
         be->loc.query[0][1] == '=') {
-        u8cs twig = {be->loc.query[0] + 2, be->loc.query[1]};
+        u8cs branch = {be->loc.query[0] + 2, be->loc.query[1]};
         u8 tkbuf[512];
         u8s tkey = {tkbuf, tkbuf + sizeof(tkbuf)};
-        call(BEKeyTwig, tkey, be->loc.path, rel, twig);
-        u8cs twig_key = {tkbuf, tkey[0]};
-        call(ROCKBatchPut, wb, twig_key, new_bason);
+        call(BEKeyBranch, tkey, be->loc.path, rel, branch);
+        u8cs branch_key = {tkbuf, tkey[0]};
+        call(ROCKBatchPut, wb, branch_key, new_bason);
     }
 
     FILEUnMap(mapbuf);
@@ -461,17 +455,17 @@ ok64 BEPost(BEp be, int pathc, u8cs *paths, u8cs message) {
         call(ROCKBatchPut, &wb, commit_key, empty);
     }
 
-    // Update twig pointer if in twig mode
+    // Update branch pointer if in branch mode
     if ($ok(be->loc.query) && !$empty(be->loc.query) &&
         $len(be->loc.query) > 2 && be->loc.query[0][0] == 'y' &&
         be->loc.query[0][1] == '=') {
-        u8cs twig = {be->loc.query[0] + 2, be->loc.query[1]};
+        u8cs branch = {be->loc.query[0] + 2, be->loc.query[1]};
         u8 tpbuf[512];
         u8s tpkey = {tpbuf, tpbuf + sizeof(tpbuf)};
-        call(BEKeyTwigPtr, tpkey, be->loc.path, twig);
-        u8cs twigptr_key = {tpbuf, tpkey[0]};
+        call(BEKeyBranchPtr, tpkey, be->loc.path, branch);
+        u8cs branchptr_key = {tpbuf, tpkey[0]};
         u8cs stamp_raw = {(u8cp)&stamp, (u8cp)&stamp + sizeof(stamp)};
-        call(ROCKBatchPut, &wb, twigptr_key, stamp_raw);
+        call(ROCKBatchPut, &wb, branchptr_key, stamp_raw);
     }
 
     call(ROCKBatchWrite, &be->db, &wb);
@@ -481,61 +475,98 @@ ok64 BEPost(BEp be, int pathc, u8cs *paths, u8cs message) {
 
 // ---- GET (repo → worktree) ----
 
+// Export BASON value to a file in worktree
+static ok64 BEExportFile(BEp be, u8cs relpath, u8cs bason) {
+    sane(be != NULL && $ok(relpath) && $ok(bason));
+    u8bp out = be->scratch[BE_RENDER];
+    u8bReset(out);
+    aBpad(u64, stk, 256);
+    call(BASTExport, u8bIdle(out), stk, bason);
+    u8cs source = {out[1], out[2]};
+
+    a_path(fpath, "");
+    call(path8gDup, path8gIn(fpath), path8cgIn(be->work_pp));
+    call(path8gPush, path8gIn(fpath), relpath);
+
+    u8cs dir = {};
+    path8gDir(dir, path8cgIn(fpath));
+    if (!$empty(dir)) {
+        a_path(dpath, "");
+        call(u8sFeed, u8bIdle(dpath), dir);
+        call(path8gTerm, path8gIn(dpath));
+        FILEMakeDirP(path8cgIn(dpath));
+    }
+    call(BEWriteFile, path8cgIn(fpath), source);
+    done;
+}
+
 static ok64 BEGetFile(BEp be, u8cs relpath) {
     sane(be != NULL);
-    // Build key
     u8 kbuf[512];
     u8s key = {kbuf, kbuf + sizeof(kbuf)};
     call(BEKeyCur, key, be, relpath);
     u8cs db_key = {kbuf, key[0]};
 
-    // Get BASON from DB
-    aBpad(u8, vbuf, 65536);
+    u8bp vbuf = be->scratch[BE_READ];
+    u8bReset(vbuf);
     ok64 go = ROCKGet(&be->db, vbuf, db_key);
     if (go == ROCKnone) return BEnone;
     if (go != OK) return go;
-
     u8cs bason = {vbuf[1], vbuf[2]};
-
-    // Export to source text
-    aBpad(u8, out, 65536);
-    aBpad(u64, stk, 256);
-    call(BASTExport, u8bIdle(out), stk, bason);
-
-    u8cs source = {out[1], out[2]};
-
-    // Build worktree file path
-    u8 fpbuf[FILE_PATH_MAX_LEN];
-    path8 fpath = {fpbuf, fpbuf, fpbuf, fpbuf + FILE_PATH_MAX_LEN};
-    call(path8gDup, path8gIn(fpath), path8cgIn(be->work_pp));
-    call(path8gPush, path8gIn(fpath), relpath);
-
-    // Ensure parent directory exists
-    u8cs dir = {};
-    path8gDir(dir, path8cgIn(fpath));
-    if (!$empty(dir)) {
-        u8 dpbuf[FILE_PATH_MAX_LEN];
-        path8 dpath = {dpbuf, dpbuf, dpbuf, dpbuf + FILE_PATH_MAX_LEN};
-        call(u8sFeed, u8bIdle(dpath), dir);
-        call(path8gTerm, path8gIn(dpath));
-        BEMakeDirP(path8cgIn(dpath));
-    }
-
-    // Write file
-    call(BEWriteFile, path8cgIn(fpath), source);
+    call(BEExportFile, be, relpath, bason);
     done;
 }
 
-ok64 BEGet(BEp be, int pathc, u8cs *paths, u8cs twig) {
+// Get all head files for a project from DB into worktree
+static ok64 BEGetProject(BEp be, u8cs project) {
+    sane(be != NULL && $ok(project));
+    u8 pfxbuf[512];
+    u8s pfx = {pfxbuf, pfxbuf + sizeof(pfxbuf)};
+    call(u8sFeed, pfx, project);
+    u8sFeed1(pfx, '/');
+    u8cs prefix = {pfxbuf, pfx[0]};
+
+    ROCKiter it = {};
+    call(ROCKIterOpen, &it, &be->db);
+    call(ROCKIterSeek, &it, prefix);
+    while (ROCKIterValid(&it)) {
+        u8cs k = {};
+        ROCKIterKey(&it, k);
+        if ($len(k) < $len(prefix) ||
+            memcmp(k[0], prefix[0], $len(prefix)) != 0)
+            break;
+        // Skip query keys (? = waypoints, branches, config)
+        u8cs rest = {k[0] + $len(prefix), k[1]};
+        b8 has_query = NO;
+        u8cp rp = rest[0];
+        while (rp < rest[1]) {
+            if (*rp == '?') {
+                has_query = YES;
+                break;
+            }
+            rp++;
+        }
+        if (!has_query && !$empty(rest)) {
+            u8cs bason = {};
+            ROCKIterVal(&it, bason);
+            u8cs relpath = {rest[0], rest[1]};
+            call(BEExportFile, be, relpath, bason);
+        }
+        call(ROCKIterNext, &it);
+    }
+    call(ROCKIterClose, &it);
+    done;
+}
+
+ok64 BEGet(BEp be, int pathc, u8cs *paths, u8cs branch) {
     sane(be != NULL);
 
-    // If twig specified, switch to that twig
-    if ($ok(twig) && !$empty(twig)) {
-        // Rebuild URI with new query
-        size_t ulen = 0;
-        u8 *p = be->loc_buf;
-        u8s uri_s = {p, p + sizeof(be->loc_buf)};
-        // scheme://host/path?y=twig
+    // If branch specified, switch to that branch
+    if ($ok(branch) && !$empty(branch)) {
+        // Rebuild URI with new query (copy parts first to avoid aliasing)
+        u8 tmp[512];
+        u8s uri_s = {tmp, tmp + sizeof(tmp)};
+        // scheme://host/path?y=branch
         if ($ok(be->loc.scheme) && !$empty(be->loc.scheme)) {
             call(u8sFeed, uri_s, be->loc.scheme);
             a_cstr(sep, "://");
@@ -545,13 +576,15 @@ ok64 BEGet(BEp be, int pathc, u8cs *paths, u8cs twig) {
             call(u8sFeed, uri_s, be->loc.host);
         }
         if ($ok(be->loc.path) && !$empty(be->loc.path)) {
-            u8sFeed1(uri_s, '/');
+            if (be->loc.path[0][0] != '/') u8sFeed1(uri_s, '/');
             call(u8sFeed, uri_s, be->loc.path);
         }
         a_cstr(qy, "?y=");
         call(u8sFeed, uri_s, qy);
-        call(u8sFeed, uri_s, twig);
-        ulen = uri_s[0] - be->loc_buf;
+        call(u8sFeed, uri_s, branch);
+        size_t ulen = uri_s[0] - tmp;
+        test(ulen < sizeof(be->loc_buf), BEBAD);
+        memcpy(be->loc_buf, tmp, ulen);
         be->loc.data[0] = be->loc_buf;
         be->loc.data[1] = be->loc_buf + ulen;
         call(URILexer, &be->loc);
@@ -571,56 +604,22 @@ ok64 BEGet(BEp be, int pathc, u8cs *paths, u8cs twig) {
             call(BEGetFile, be, paths[i]);
         }
     } else {
-        // Get all: iterate DB prefix
-        u8 pfxbuf[512];
-        u8s pfx = {pfxbuf, pfxbuf + sizeof(pfxbuf)};
-        call(u8sFeed, pfx, be->loc.path);
-        u8sFeed1(pfx, '/');
-        u8cs prefix = {pfxbuf, pfx[0]};
-
-        ROCKiter it = {};
-        call(ROCKIterOpen, &it, &be->db);
-        call(ROCKIterSeek, &it, prefix);
-        while (ROCKIterValid(&it)) {
-            u8cs k = {};
-            ROCKIterKey(&it, k);
-            // Check prefix match
-            if ($len(k) < $len(prefix) ||
-                memcmp(k[0], prefix[0], $len(prefix)) != 0)
-                break;
-            // Skip query keys (? = waypoints, twigs, config)
-            u8cs rest = {k[0] + $len(prefix), k[1]};
-            b8 has_query = NO;
-            u8cp rp = rest[0];
-            while (rp < rest[1]) {
-                if (*rp == '?') {
-                    has_query = YES;
-                    break;
-                }
-                rp++;
-            }
-            if (!has_query) {
-                // bare path = head file, extract relative path
-                u8cs relpath = {rest[0], rest[1]};
-                call(BEGetFile, be, relpath);
-            }
-            call(ROCKIterNext, &it);
-        }
-        call(ROCKIterClose, &it);
+        // Get all files for this project
+        call(BEGetProject, be, be->loc.path);
     }
     done;
 }
 
-// ---- PUT (merge twig/branch into head) ----
+// ---- PUT (merge branch into head) ----
 
-ok64 BEPut(BEp be, u8cs source_twig, u8cs message) {
-    sane(be != NULL && $ok(source_twig) && !$empty(source_twig));
+ok64 BEPut(BEp be, u8cs source_branch, u8cs message) {
+    sane(be != NULL && $ok(source_branch) && !$empty(source_branch));
     ron60 stamp = RONNow();
 
     ROCKbatch wb = {};
     call(ROCKBatchOpen, &wb);
 
-    // Iterate source twig keys
+    // Iterate source branch keys
     u8 pfxbuf[512];
     u8s pfx = {pfxbuf, pfxbuf + sizeof(pfxbuf)};
     call(u8sFeed, pfx, be->loc.path);
@@ -639,11 +638,11 @@ ok64 BEPut(BEp be, u8cs source_twig, u8cs message) {
             memcmp(k[0], project_prefix[0], $len(project_prefix)) != 0)
             break;
 
-        // Only process twig keys matching source_twig
+        // Only process branch keys matching source_branch
         u8cs rest = {k[0] + $len(project_prefix), k[1]};
-        // Look for ?y=<source_twig>
+        // Look for ?y=<source_branch>
         u8cp qp = rest[0];
-        b8 is_twig_key = NO;
+        b8 is_branch_key = NO;
         u8cs filepath = {};
         while (qp < rest[1]) {
             if (*qp == '?') {
@@ -653,18 +652,18 @@ ok64 BEPut(BEp be, u8cs source_twig, u8cs message) {
                 if ($len(query) > 2 && query[0][0] == 'y' &&
                     query[0][1] == '=') {
                     u8cs tw = {query[0] + 2, query[1]};
-                    if ($eq(tw, source_twig)) is_twig_key = YES;
+                    if ($eq(tw, source_branch)) is_branch_key = YES;
                 }
                 break;
             }
             qp++;
         }
-        if (!is_twig_key) {
+        if (!is_branch_key) {
             call(ROCKIterNext, &it);
             continue;
         }
 
-        // Get source (twig) BASON
+        // Get source (branch) BASON
         u8cs src_bason = {};
         ROCKIterVal(&it, src_bason);
 
@@ -674,7 +673,8 @@ ok64 BEPut(BEp be, u8cs source_twig, u8cs message) {
         call(BEKeyHead, hkey, be->loc.path, filepath);
         u8cs head_key = {hkbuf, hkey[0]};
 
-        aBpad(u8, tbuf, 65536);
+        u8bp tbuf = be->scratch[BE_READ];
+        u8bReset(tbuf);
         ok64 go = ROCKGet(&be->db, tbuf, head_key);
         u8cs target_bason = {};
         if (go == OK) {
@@ -684,7 +684,8 @@ ok64 BEPut(BEp be, u8cs source_twig, u8cs message) {
 
         if ($ok(target_bason) && !$empty(target_bason)) {
             // Merge
-            aBpad(u8, mbuf, 65536);
+            u8bp mbuf = be->scratch[BE_PARSE];
+            u8bReset(mbuf);
             aBpad(u64, midx, 4096);
             aBpad(u64, lstk, 256);
             aBpad(u64, rstk, 256);
@@ -693,7 +694,8 @@ ok64 BEPut(BEp be, u8cs source_twig, u8cs message) {
             u8cs merged = {mbuf[1], mbuf[2]};
 
             // Diff for waypoint
-            aBpad(u8, dbuf, 65536);
+            u8bp dbuf = be->scratch[BE_PATCH];
+            u8bReset(dbuf);
             aBpad(u64, didx, 4096);
             aBpad(u64, ostk, 256);
             aBpad(u64, nstk, 256);
@@ -741,13 +743,13 @@ ok64 BEDelete(BEp be, u8cs target) {
     sane(be != NULL && $ok(target));
 
     // Parse target to determine what to delete
-    // If target contains '?y=', delete twig
+    // If target contains '?y=', delete branch
     // Otherwise delete file head key
     u8cp qp = target[0];
     while (qp < target[1] && *qp != '?') qp++;
 
     if (qp < target[1]) {
-        // Has query — delete twig keys by prefix scan
+        // Has query — delete branch keys by prefix scan
         u8 pfxbuf[512];
         u8s pfx = {pfxbuf, pfxbuf + sizeof(pfxbuf)};
         call(u8sFeed, pfx, be->loc.path);
@@ -755,10 +757,10 @@ ok64 BEDelete(BEp be, u8cs target) {
         u8cs project_prefix = {pfxbuf, pfx[0]};
 
         u8cs query = {qp + 1, target[1]};
-        // Expect y=<twig>
+        // Expect y=<branch>
         test($len(query) > 2 && query[0][0] == 'y' && query[0][1] == '=',
              BEBAD);
-        u8cs twig = {query[0] + 2, query[1]};
+        u8cs branch = {query[0] + 2, query[1]};
 
         ROCKbatch wb = {};
         call(ROCKBatchOpen, &wb);
@@ -772,15 +774,15 @@ ok64 BEDelete(BEp be, u8cs target) {
             if ($len(k) < $len(project_prefix) ||
                 memcmp(k[0], project_prefix[0], $len(project_prefix)) != 0)
                 break;
-            // Check if key ends with ?y=<twig>
+            // Check if key ends with ?y=<branch>
             u8cs rest = {k[0] + $len(project_prefix), k[1]};
             u8cp kqp = rest[0];
             while (kqp < rest[1] && *kqp != '?') kqp++;
             if (kqp < rest[1]) {
                 u8cs kq = {kqp + 1, rest[1]};
                 if ($len(kq) > 2 && kq[0][0] == 'y' && kq[0][1] == '=') {
-                    u8cs ktwig = {kq[0] + 2, kq[1]};
-                    if ($eq(ktwig, twig)) {
+                    u8cs kbranch = {kq[0] + 2, kq[1]};
+                    if ($eq(kbranch, branch)) {
                         call(ROCKBatchDel, &wb, k);
                     }
                 }
@@ -789,12 +791,12 @@ ok64 BEDelete(BEp be, u8cs target) {
         }
         call(ROCKIterClose, &it);
 
-        // Also delete twig pointer
+        // Also delete branch pointer
         u8 tpbuf[512];
         u8s tpkey = {tpbuf, tpbuf + sizeof(tpbuf)};
-        call(BEKeyTwigPtr, tpkey, be->loc.path, twig);
-        u8cs twigptr_key = {tpbuf, tpkey[0]};
-        call(ROCKBatchDel, &wb, twigptr_key);
+        call(BEKeyBranchPtr, tpkey, be->loc.path, branch);
+        u8cs branchptr_key = {tpbuf, tpkey[0]};
+        call(ROCKBatchDel, &wb, branchptr_key);
 
         call(ROCKBatchWrite, &be->db, &wb);
         call(ROCKBatchClose, &wb);
@@ -818,11 +820,100 @@ ok64 BEDelete(BEp be, u8cs target) {
     done;
 }
 
-// ---- Checkpoint (branch) ----
+// ---- GET deps (.beget) ----
 
-ok64 BECheckpoint(BEp be, u8cs new_branch) {
-    sane(be != NULL && $ok(new_branch) && !$empty(new_branch));
-    // Build dest path: $HOME/.be/<new_branch>/
+ok64 BEGetDeps(BEp be, b8 include_opt) {
+    sane(be != NULL);
+
+    // Build path to .beget
+    u8 bpbuf[FILE_PATH_MAX_LEN];
+    path8 bpath = {bpbuf, bpbuf, bpbuf, bpbuf + FILE_PATH_MAX_LEN};
+    call(path8gDup, path8gIn(bpath), path8cgIn(be->work_pp));
+    a_cstr(beget, ".beget");
+    call(path8gPush, path8gIn(bpath), beget);
+
+    // No .beget = no deps, that's OK
+    struct stat st;
+    ok64 o = FILEStat(&st, path8cgIn(bpath));
+    if (o != OK) done;
+
+    u8bp mapbuf = NULL;
+    call(FILEMapRO, &mapbuf, path8cgIn(bpath));
+    u8cp m0 = mapbuf[1], m1 = mapbuf[2];
+    u8cs content = {m0, m1};
+
+    // section: 0=none, 1=deps, 2=opt
+    int section = 0;
+    u8cp pos = content[0];
+
+    while (pos < content[1]) {
+        // Find line boundaries
+        u8cp line_end = pos;
+        while (line_end < content[1] && *line_end != '\n') line_end++;
+        u8cs line = {pos, line_end};
+        pos = line_end < content[1] ? line_end + 1 : line_end;
+
+        // Skip blank
+        if ($empty(line)) continue;
+
+        // Trim leading whitespace
+        u8cp lp = line[0];
+        while (lp < line[1] && (*lp == ' ' || *lp == '\t')) lp++;
+        if (lp >= line[1]) continue;
+
+        // Skip comments
+        if (*lp == '#') continue;
+
+        // Trim trailing whitespace
+        u8cp le = line[1];
+        while (le > lp && (le[-1] == ' ' || le[-1] == '\t' || le[-1] == '\r'))
+            le--;
+        if (le <= lp) continue;
+
+        // Section header
+        if (*lp == '[') {
+            a_cstr(deps_hdr, "[deps]");
+            a_cstr(opt_hdr, "[opt]");
+            u8cs sec = {lp, le};
+            if ($eq(sec, deps_hdr))
+                section = 1;
+            else if ($eq(sec, opt_hdr))
+                section = 2;
+            continue;
+        }
+
+        // Skip if no section, or opt not requested
+        if (section == 0) continue;
+        if (section == 2 && !include_opt) continue;
+
+        // Parse dep URI to extract project path
+        u8cs dep_uri = {lp, le};
+        uri dep_loc = {};
+        u8 dep_buf[512];
+        size_t dlen = $len(dep_uri);
+        test(dlen < sizeof(dep_buf), BEBAD);
+        memcpy(dep_buf, dep_uri[0], dlen);
+        dep_loc.data[0] = dep_buf;
+        dep_loc.data[1] = dep_buf + dlen;
+        o = URILexer(&dep_loc);
+        if (o != OK) continue;
+
+        u8cs dep_project = {dep_loc.path[0], dep_loc.path[1]};
+        if (!$ok(dep_project) || $empty(dep_project)) continue;
+
+        // Get all files for this project (same repo for now)
+        call(BEGetProject, be, dep_project);
+    }
+
+    call(FILEUnMap, mapbuf);
+    done;
+}
+
+// ---- Checkpoint (fork repo) ----
+
+ok64 BECheckpoint(BEp be, u8cs new_repo) {
+    sane(be != NULL && $ok(new_repo) && !$empty(new_repo));
+    // Build dest path: $HOME/.be/<new_repo>/
     u8 dpbuf[FILE_PATH_MAX_LEN];
     path8 dpath = {dpbuf, dpbuf, dpbuf, dpbuf + FILE_PATH_MAX_LEN};
     const char *home = getenv("HOME");
@@ -832,7 +923,7 @@ ok64 BECheckpoint(BEp be, u8cs new_branch) {
     call(path8gTerm, path8gIn(dpath));
     a_cstr(dotbe, ".be");
     call(path8gPush, path8gIn(dpath), dotbe);
-    call(path8gPush, path8gIn(dpath), new_branch);
+    call(path8gPush, path8gIn(dpath), new_repo);
     call(ROCKCheckpoint, &be->db, path8cgIn(dpath));
     done;
 }

@@ -34,6 +34,24 @@ ok64 FILEMakeDir(path8cg path) {
     done;
 }
 
+ok64 FILEMakeDirP(path8cg path) {
+    sane(path8cgOK(path));
+    ok64 o = FILEMakeDir(path);
+    if (o == OK || o == FILEEXIST) return OK;
+    // Parent might not exist, try creating it first
+    u8 pbuf[FILE_PATH_MAX_LEN];
+    path8 parent = {pbuf, pbuf, pbuf, pbuf + FILE_PATH_MAX_LEN};
+    u8cs dir = {};
+    path8gDir(dir, path);
+    if ($empty(dir) || $len(dir) <= 1) return o;
+    call(u8sFeed, u8bIdle(parent), dir);
+    call(path8gTerm, path8gIn(parent));
+    call(FILEMakeDirP, path8cgIn(parent));
+    o = FILEMakeDir(path);
+    if (o == FILEEXIST) return OK;
+    return o;
+}
+
 // Remove directory. If recursive=true, delete contents first (rm -rf style).
 ok64 FILERmDir(path8cg path, bool recursive) {
     sane(path8cgOK(path));

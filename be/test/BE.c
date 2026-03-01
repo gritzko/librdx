@@ -16,10 +16,10 @@ ok64 BEtest1() {
     typedef struct {
         const char *project;
         const char *path;
-        const char *twig;
+        const char *branch;
         ron60 stamp;
         const char *expected;
-        int which;  // 0=head, 1=ver, 2=twig, 3=commit, 4=twigptr
+        int which;  // 0=head, 1=ver, 2=branch, 3=commit, 4=branchptr
     } keycase;
 
     keycase cases[] = {
@@ -39,10 +39,10 @@ ok64 BEtest1() {
             path[0] = (u8cp)cases[i].path;
             path[1] = (u8cp)cases[i].path + strlen(cases[i].path);
         }
-        u8cs twig = {};
-        if (cases[i].twig) {
-            twig[0] = (u8cp)cases[i].twig;
-            twig[1] = (u8cp)cases[i].twig + strlen(cases[i].twig);
+        u8cs branch = {};
+        if (cases[i].branch) {
+            branch[0] = (u8cp)cases[i].branch;
+            branch[1] = (u8cp)cases[i].branch + strlen(cases[i].branch);
         }
 
         ok64 o = OK;
@@ -51,10 +51,10 @@ ok64 BEtest1() {
                 o = BEKeyHead(key, proj, path);
                 break;
             case 2:
-                o = BEKeyTwig(key, proj, path, twig);
+                o = BEKeyBranch(key, proj, path, branch);
                 break;
             case 4:
-                o = BEKeyTwigPtr(key, proj, twig);
+                o = BEKeyBranchPtr(key, proj, branch);
                 break;
         }
         want(o == OK);
@@ -151,8 +151,8 @@ ok64 BEtest4() {
     call(FILEUnLink, path8cgIn(fpath));
 
     // GET
-    u8cs empty_twig = {};
-    call(BEGet, &be, 1, paths, empty_twig);
+    u8cs empty_branch = {};
+    call(BEGet, &be, 1, paths, empty_branch);
 
     // Verify file restored
     u8bp mapbuf = NULL;
@@ -163,8 +163,7 @@ ok64 BEtest4() {
     call(FILEUnMap, mapbuf);
 
     // Cleanup — save repo path before close zeroes it
-    u8 rpbuf[FILE_PATH_MAX_LEN];
-    path8 rpath = {rpbuf, rpbuf, rpbuf, rpbuf + FILE_PATH_MAX_LEN};
+    a_path(rpath, "");
     call(path8gDup, path8gIn(rpath), path8cgIn(be.repo_pp));
     call(BEClose, &be);
     call(FILErmrf, path8cgIn(wpath));
@@ -237,8 +236,7 @@ ok64 BEtest5() {
     // Should have at least 1 waypoint (second POST generates delta)
     want(wp_count >= 1);
 
-    u8 rpbuf5[FILE_PATH_MAX_LEN];
-    path8 rpath5 = {rpbuf5, rpbuf5, rpbuf5, rpbuf5 + FILE_PATH_MAX_LEN};
+    a_path(rpath5, "");
     call(path8gDup, path8gIn(rpath5), path8cgIn(be.repo_pp));
     call(BEClose, &be);
     call(FILErmrf, path8cgIn(wpath));
@@ -296,8 +294,7 @@ ok64 BEtest6() {
     go = ROCKGet(&be.db, vbuf2, head_key2);
     same(go, ROCKnone);
 
-    u8 rpbuf6[FILE_PATH_MAX_LEN];
-    path8 rpath6 = {rpbuf6, rpbuf6, rpbuf6, rpbuf6 + FILE_PATH_MAX_LEN};
+    a_path(rpath6, "");
     call(path8gDup, path8gIn(rpath6), path8cgIn(be.repo_pp));
     call(BEClose, &be);
     call(FILErmrf, path8cgIn(wpath));
@@ -334,11 +331,11 @@ ok64 BEtest7() {
     u8cs msg = $u8str("before checkpoint");
     call(BEPost, &be, 1, paths, msg);
 
-    // Checkpoint to new branch
-    u8cs new_branch = $u8str("BEtest7cp");
-    call(BECheckpoint, &be, new_branch);
+    // Checkpoint to new repo
+    u8cs new_repo = $u8str("BEtest7cp");
+    call(BECheckpoint, &be, new_repo);
 
-    // Verify new branch DB can be opened read-only
+    // Verify new repo DB can be opened read-only
     u8 dpbuf[FILE_PATH_MAX_LEN];
     path8 dpath = {dpbuf, dpbuf, dpbuf, dpbuf + FILE_PATH_MAX_LEN};
     const char *home = getenv("HOME");
@@ -348,7 +345,7 @@ ok64 BEtest7() {
     call(path8gTerm, path8gIn(dpath));
     a_cstr(dotbe, ".be");
     call(path8gPush, path8gIn(dpath), dotbe);
-    call(path8gPush, path8gIn(dpath), new_branch);
+    call(path8gPush, path8gIn(dpath), new_repo);
 
     ROCKdb cpdb = {};
     call(ROCKOpenRO, &cpdb, path8cgIn(dpath));
@@ -363,13 +360,139 @@ ok64 BEtest7() {
     same(go, OK);
 
     call(ROCKClose, &cpdb);
-    u8 rpbuf7[FILE_PATH_MAX_LEN];
-    path8 rpath7 = {rpbuf7, rpbuf7, rpbuf7, rpbuf7 + FILE_PATH_MAX_LEN};
+    a_path(rpath7, "");
     call(path8gDup, path8gIn(rpath7), path8cgIn(be.repo_pp));
     call(BEClose, &be);
     call(FILErmrf, path8cgIn(wpath));
     call(FILErmrf, path8cgIn(rpath7));
     call(FILErmrf, path8cgIn(dpath));
+    done;
+}
+
+// ---- Test 8: BEGetDeps ----
+
+ok64 BEtest8() {
+    sane(1);
+
+    // Create worktree with two "projects": proj and dep
+    a_path(wpath, "/tmp");
+    a_cstr(tmpl, "BEtest8_XXXXXX");
+    call(path8gAddTmp, path8gIn(wpath), tmpl);
+    call(FILEMakeDir, path8cgIn(wpath));
+
+    // Write a source file for main project
+    a_path(fpath, "");
+    call(path8gDup, path8gIn(fpath), path8cgIn(wpath));
+    a_cstr(fname, "main.c");
+    call(path8gPush, path8gIn(fpath), fname);
+    u8cs main_src = $u8str("int main() { return 0; }\n");
+    int fd = 0;
+    call(FILECreate, &fd, path8cgIn(fpath));
+    call(FILEFeedall, fd, main_src);
+    call(FILEClose, &fd);
+
+    // Init BE for main project
+    BE be = {};
+    u8cs uri = $u8str("be://BEtest8/@test/proj");
+    call(BEInit, &be, uri, path8cgIn(wpath));
+
+    // Post main project
+    u8cs relpath = $u8str("main.c");
+    u8cs *paths = &relpath;
+    u8cs msg = $u8str("init");
+    call(BEPost, &be, 1, paths, msg);
+
+    // Manually store a dep project's file in the same repo DB
+    // Simulate: project @test/deplib has a file "util.c"
+    u8cs dep_proj = $u8str("/@test/deplib");
+    u8cs dep_file = $u8str("util.c");
+    u8 dkbuf[512];
+    u8s dkey = {dkbuf, dkbuf + sizeof(dkbuf)};
+    call(BEKeyHead, dkey, dep_proj, dep_file);
+    u8cs dep_key = {dkbuf, dkey[0]};
+
+    // Parse "int util() {}\n" to BASON so BEGetFile can export it
+    u8cs dep_src = $u8str("int util() {}\n");
+    u8cs dep_ext = $u8str(".c");
+    aBpad(u8, dbuf, 65536);
+    aBpad(u64, didx, 4096);
+    call(BASTParse, dbuf, didx, dep_src, dep_ext);
+    u8cs dep_bason = {dbuf[1], dbuf[2]};
+    call(ROCKPut, &be.db, dep_key, dep_bason);
+
+    // Also store an optional dep: @test/optlib/extra.c
+    u8cs opt_proj = $u8str("/@test/optlib");
+    u8cs opt_file = $u8str("extra.c");
+    u8 okbuf[512];
+    u8s okey = {okbuf, okbuf + sizeof(okbuf)};
+    call(BEKeyHead, okey, opt_proj, opt_file);
+    u8cs opt_key = {okbuf, okey[0]};
+
+    u8cs opt_src = $u8str("void extra() {}\n");
+    aBpad(u8, obuf2, 65536);
+    aBpad(u64, oidx, 4096);
+    call(BASTParse, obuf2, oidx, opt_src, dep_ext);
+    u8cs opt_bason = {obuf2[1], obuf2[2]};
+    call(ROCKPut, &be.db, opt_key, opt_bason);
+
+    // Write .beget file
+    a_path(bgpath, "");
+    call(path8gDup, path8gIn(bgpath), path8cgIn(wpath));
+    a_cstr(bgname, ".beget");
+    call(path8gPush, path8gIn(bgpath), bgname);
+    u8cs beget_content = $u8str(
+        "# test deps\n"
+        "[deps]\n"
+        "/@test/deplib\n"
+        "\n"
+        "[opt]\n"
+        "/@test/optlib\n");
+    fd = 0;
+    call(FILECreate, &fd, path8cgIn(bgpath));
+    call(FILEFeedall, fd, beget_content);
+    call(FILEClose, &fd);
+
+    // --- Test: get required deps only ---
+    call(BEGetDeps, &be, NO);
+
+    // util.c should exist
+    a_path(upath, "");
+    call(path8gDup, path8gIn(upath), path8cgIn(wpath));
+    a_cstr(uname, "util.c");
+    call(path8gPush, path8gIn(upath), uname);
+    u8bp umap = NULL;
+    call(FILEMapRO, &umap, path8cgIn(upath));
+    u8cp u0 = umap[1], u1 = umap[2];
+    u8cs util_got = {u0, u1};
+    want($eq(util_got, dep_src));
+    call(FILEUnMap, umap);
+
+    // extra.c should NOT exist (opt not requested)
+    a_path(epath, "");
+    call(path8gDup, path8gIn(epath), path8cgIn(wpath));
+    a_cstr(ename, "extra.c");
+    call(path8gPush, path8gIn(epath), ename);
+    struct stat est;
+    ok64 eo = FILEStat(&est, path8cgIn(epath));
+    want(eo != OK);
+
+    // --- Test: get with opt ---
+    call(BEGetDeps, &be, YES);
+
+    // Now extra.c should exist
+    u8bp emap = NULL;
+    call(FILEMapRO, &emap, path8cgIn(epath));
+    u8cp e0 = emap[1], e1 = emap[2];
+    u8cs extra_got = {e0, e1};
+    want($eq(extra_got, opt_src));
+    call(FILEUnMap, emap);
+
+    // Cleanup
+    a_path(rpath8, "");
+    call(path8gDup, path8gIn(rpath8), path8cgIn(be.repo_pp));
+    call(BEClose, &be);
+    call(FILErmrf, path8cgIn(wpath));
+    call(FILErmrf, path8cgIn(rpath8));
     done;
 }
 
@@ -382,6 +505,7 @@ ok64 maintest() {
     call(BEtest5);
     call(BEtest6);
     call(BEtest7);
+    call(BEtest8);
     done;
 }
 

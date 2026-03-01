@@ -48,7 +48,7 @@ static ok64 BEStatus(BEp be) {
     call(FILEout, NL);
 
     if ($ok(be->loc.host) && !$empty(be->loc.host)) {
-        a_cstr(lbl, "  branch: ");
+        a_cstr(lbl, "  repo: ");
         call(FILEout, lbl);
         call(FILEout, be->loc.host);
         call(FILEout, NL);
@@ -60,7 +60,7 @@ static ok64 BEStatus(BEp be) {
         call(FILEout, NL);
     }
     if ($ok(be->loc.query) && !$empty(be->loc.query)) {
-        a_cstr(lbl, "  twig: ");
+        a_cstr(lbl, "  branch: ");
         call(FILEout, lbl);
         call(FILEout, be->loc.query);
         call(FILEout, NL);
@@ -148,16 +148,16 @@ static ok64 BECLIGet(int argc) {
     BE be = {};
     call(BEOpenCwd, &be);
 
-    u8cs twig = {};
+    u8cs branch = {};
     u8cs file_args[64] = {};
     int filec = 0;
 
     for (int i = 2; i < argc; i++) {
         a$rg(arg, i);
         if ($len(arg) > 0 && arg[0][0] == '?') {
-            // Twig: strip leading '?'
-            twig[0] = arg[0] + 1;
-            twig[1] = arg[1];
+            // Branch: strip leading '?'
+            branch[0] = arg[0] + 1;
+            branch[1] = arg[1];
         } else {
             test(filec < 64, BEBAD);
             $mv(file_args[filec], arg);
@@ -165,7 +165,27 @@ static ok64 BECLIGet(int argc) {
         }
     }
 
-    call(BEGet, &be, filec, filec > 0 ? file_args : NULL, twig);
+    call(BEGet, &be, filec, filec > 0 ? file_args : NULL, branch);
+    // Also get deps when fetching all files
+    if (filec == 0) {
+        call(BEGetDeps, &be, NO);
+    }
+    call(BEClose, &be);
+    done;
+}
+
+// ---- verb: deps ----
+static ok64 BECLIDeps(int argc) {
+    sane(1);
+    BE be = {};
+    call(BEOpenCwd, &be);
+    b8 include_opt = NO;
+    if (argc > 2) {
+        a$rg(arg, 2);
+        a_cstr(all, "all");
+        if ($eq(arg, all)) include_opt = YES;
+    }
+    call(BEGetDeps, &be, include_opt);
     call(BEClose, &be);
     done;
 }
@@ -176,19 +196,19 @@ static ok64 BECLIPut(int argc) {
     BE be = {};
     call(BEOpenCwd, &be);
 
-    u8cs twig = {};
+    u8cs branch = {};
     if (argc > 2) {
         a$rg(arg, 2);
         if ($len(arg) > 0 && arg[0][0] == '?') {
-            twig[0] = arg[0] + 1;
-            twig[1] = arg[1];
+            branch[0] = arg[0] + 1;
+            branch[1] = arg[1];
         } else {
-            $mv(twig, arg);
+            $mv(branch, arg);
         }
     }
-    test($ok(twig) && !$empty(twig), BEBAD);
+    test($ok(branch) && !$empty(branch), BEBAD);
     u8cs empty = {};
-    call(BEPut, &be, twig, empty);
+    call(BEPut, &be, branch, empty);
     call(BEClose, &be);
     done;
 }
@@ -205,9 +225,9 @@ static ok64 BECLIDelete(int argc) {
     done;
 }
 
-// Rewrite .be file with new twig query
-static ok64 BESwitchTwig(BEp be, u8cs twig) {
-    sane(be != NULL && $ok(twig) && !$empty(twig));
+// Rewrite .be file with new branch query
+static ok64 BESwitchBranch(BEp be, u8cs branch) {
+    sane(be != NULL && $ok(branch) && !$empty(branch));
     // Build new URI in temp buffer to avoid aliasing
     u8 tmp[512];
     u8s uri_s = {tmp, tmp + sizeof(tmp)};
@@ -225,7 +245,7 @@ static ok64 BESwitchTwig(BEp be, u8cs twig) {
     }
     a_cstr(qy, "?y=");
     call(u8sFeed, uri_s, qy);
-    call(u8sFeed, uri_s, twig);
+    call(u8sFeed, uri_s, branch);
     size_t ulen = uri_s[0] - tmp;
     test(ulen < sizeof(be->loc_buf), BEBAD);
     memcpy(be->loc_buf, tmp, ulen);
@@ -255,21 +275,21 @@ static ok64 BECLICome(int argc) {
     call(BEOpenCwd, &be);
 
     a$rg(arg, 2);
-    u8cs twig = {};
+    u8cs branch = {};
     if ($len(arg) > 0 && arg[0][0] == '?') {
-        twig[0] = arg[0] + 1;
-        twig[1] = arg[1];
+        branch[0] = arg[0] + 1;
+        branch[1] = arg[1];
     } else {
-        $mv(twig, arg);
+        $mv(branch, arg);
     }
-    test($ok(twig) && !$empty(twig), BEBAD);
+    test($ok(branch) && !$empty(branch), BEBAD);
 
     // Post current state to head
     u8cs empty = {};
     call(BEPost, &be, 0, NULL, empty);
-    // Switch .be to new twig
-    call(BESwitchTwig, &be, twig);
-    // Post again to populate twig keys
+    // Switch .be to new branch
+    call(BESwitchBranch, &be, branch);
+    // Post again to populate branch keys
     call(BEPost, &be, 0, NULL, empty);
     call(BEClose, &be);
     done;
@@ -303,14 +323,14 @@ static ok64 BECLIFit() {
     sane(1);
     BE be = {};
     call(BEOpenCwd, &be);
-    // Extract current twig from loc.query
+    // Extract current branch from loc.query
     test($ok(be.loc.query) && !$empty(be.loc.query), BEBAD);
     u8cs q = {be.loc.query[0], be.loc.query[1]};
-    // query is "y=<twig>", skip "y="
+    // query is "y=<branch>", skip "y="
     test($len(q) > 2 && q[0][0] == 'y' && q[0][1] == '=', BEBAD);
-    u8cs twig = {q[0] + 2, q[1]};
+    u8cs branch = {q[0] + 2, q[1]};
     u8cs empty = {};
-    call(BEPut, &be, twig, empty);
+    call(BEPut, &be, branch, empty);
     call(BEClose, &be);
     done;
 }
@@ -340,6 +360,7 @@ ok64 becli() {
     a_cstr(v_lay, "lay");
     a_cstr(v_mark, "mark");
     a_cstr(v_fit, "fit");
+    a_cstr(v_deps, "deps");
 
     if ($eq(verb, v_post)) {
         call(BECLIPost, argc);
@@ -357,6 +378,8 @@ ok64 becli() {
         call(BECLIMark, argc);
     } else if ($eq(verb, v_fit)) {
         call(BECLIFit);
+    } else if ($eq(verb, v_deps)) {
+        call(BECLIDeps, argc);
     } else {
         a_cstr(err, "unknown verb: ");
         call(FILEerr, err);

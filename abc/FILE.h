@@ -190,6 +190,12 @@ fun ok64 path8Sane(path8 path) {
     return YES;
 }
 
+fun ok64 path8bAlloc(path8p path) {
+    return u8bAllocate(path, FILE_PATH_MAX_LEN);
+}
+
+fun ok64 path8bFree(path8p path) { return u8bFree(path); }
+
 ok64 FILECreate(int *fd, path8cg path);
 
 ok64 FILEOpen(int *fd, path8cg path, int flags);
@@ -443,6 +449,9 @@ fun proc Fpread(int fd, path into, size_t offset) {
 */
 
 ok64 FILEMakeDir(path8cg path);
+
+// Create directory and parents recursively (like mkdir -p)
+ok64 FILEMakeDirP(path8cg path);
 
 ok64 FILERmDir(path8cg path, bool recursive);
 
