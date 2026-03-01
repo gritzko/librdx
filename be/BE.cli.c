@@ -40,17 +40,22 @@ static ok64 BEOpenCwd(BEp be) {
     done;
 }
 
-// ROCKScan callback: count head keys (no '?')
+// Count base keys and waypoints per branch
 typedef struct {
-    int count;
+    int base_count;
+    int wp_count;
     size_t pfxlen;
-} BECountCtx;
+} BEStatusCtx;
 
-static ok64 BECountHeadCB(voidp arg, u8cs key, u8cs val) {
-    BECountCtx *ctx = (BECountCtx *)arg;
+static ok64 BEStatusCB(voidp arg, u8cs key, u8cs val) {
+    BEStatusCtx *ctx = (BEStatusCtx *)arg;
     u8cs rest = {key[0] + ctx->pfxlen, key[1]};
     u8cs qs = {rest[0], rest[1]};
-    if (u8csFind(qs, '?') != OK) ctx->count++;
+    if (u8csFind(qs, '?') != OK) {
+        ctx->base_count++;
+    } else {
+        ctx->wp_count++;
+    }
     return OK;
 }
 
@@ -74,25 +79,39 @@ static ok64 BEStatus(BEp be) {
         call(FILEout, be->loc.path);
         call(FILEout, NL);
     }
-    if ($ok(be->loc.query) && !$empty(be->loc.query)) {
-        a_cstr(lbl, "  branch: ");
+
+    // Show branches
+    if (be->branchc > 0) {
+        a_cstr(lbl, "  branches: ");
         call(FILEout, lbl);
-        call(FILEout, be->loc.query);
+        for (int i = 0; i < be->branchc; i++) {
+            if (i > 0) {
+                a_cstr(sep, ", ");
+                call(FILEout, sep);
+            }
+            if (i == be->active_branch) {
+                a_cstr(star, "*");
+                call(FILEout, star);
+            }
+            call(FILEout, be->branches[i]);
+        }
         call(FILEout, NL);
     }
 
-    // Count files in DB under project prefix
+    // Count files and waypoints
     u8 pfxbuf[512];
     u8s pfx = {pfxbuf, pfxbuf + sizeof(pfxbuf)};
     call(u8sFeed, pfx, be->loc.path);
     u8sFeed1(pfx, '/');
     u8cs prefix = {pfxbuf, pfx[0]};
 
-    BECountCtx cctx = {0, $len(prefix)};
-    call(ROCKScan, &be->db, prefix, BECountHeadCB, &cctx);
+    BEStatusCtx cctx = {0, 0, $len(prefix)};
+    call(ROCKScan, &be->db, prefix, BEStatusCB, &cctx);
 
-    u8 cbuf[64];
-    int clen = snprintf((char *)cbuf, sizeof(cbuf), "  files: %d\n", cctx.count);
+    u8 cbuf[128];
+    int clen = snprintf((char *)cbuf, sizeof(cbuf),
+                        "  base files: %d, waypoints: %d\n",
+                        cctx.base_count, cctx.wp_count);
     u8cs cline = {cbuf, cbuf + clen};
     call(FILEout, cline);
     done;
@@ -101,7 +120,6 @@ static ok64 BEStatus(BEp be) {
 // ---- verb: post ----
 static ok64 BECLIPost(int argc) {
     sane(1);
-    // Scan args 2..argc-1: last URI arg → init uri; rest → file paths
     u8cs uri_arg = {};
     u8cs file_args[64] = {};
     int filec = 0;
@@ -119,7 +137,6 @@ static ok64 BECLIPost(int argc) {
 
     BE be = {};
     if ($ok(uri_arg) && !$empty(uri_arg)) {
-        // Init new repo
         a_pad(u8, cpath, FILE_PATH_MAX_LEN);
         call(BECwd, path8gIn(cpath));
         call(BEInit, &be, uri_arg, path8cgIn(cpath));
@@ -138,11 +155,9 @@ static ok64 BECLIPost(int argc) {
 static ok64 BECLIGet(int argc) {
     sane(1);
 
-    // Check if first arg is a remote URL
     if (argc > 2) {
         a$rg(first_arg, 2);
         if (BESyncIsRemote(first_arg)) {
-            // Clone from remote
             a_pad(u8, cpath, FILE_PATH_MAX_LEN);
             call(BECwd, path8gIn(cpath));
             call(BESyncClone, first_arg, path8cgIn(cpath));
@@ -160,7 +175,6 @@ static ok64 BECLIGet(int argc) {
     for (int i = 2; i < argc; i++) {
         a$rg(arg, i);
         if ($len(arg) > 0 && arg[0][0] == '?') {
-            // Branch: strip leading '?'
             branch[0] = arg[0] + 1;
             branch[1] = arg[1];
         } else {
@@ -171,7 +185,6 @@ static ok64 BECLIGet(int argc) {
     }
 
     call(BEGet, &be, filec, filec > 0 ? file_args : NULL, branch);
-    // Also get deps when fetching all files
     if (filec == 0) {
         call(BEGetDeps, &be, NO);
     }
@@ -230,7 +243,7 @@ static ok64 BECLIDelete(int argc) {
     done;
 }
 
-// ---- verb: come ----
+// ---- verb: come (add/switch branch) ----
 static ok64 BECLICome(int argc) {
     sane(1);
     test(argc > 2, BEBAD);
@@ -247,13 +260,7 @@ static ok64 BECLICome(int argc) {
     }
     test($ok(branch) && !$empty(branch), BEBAD);
 
-    // Post current state to head
-    u8cs empty = {};
-    call(BEPost, &be, 0, NULL, empty);
-    // Switch .be to new branch
-    call(BESwitchBranch, &be, branch);
-    // Post again to populate branch keys
-    call(BEPost, &be, 0, NULL, empty);
+    call(BESetActive, &be, branch);
     call(BEClose, &be);
     done;
 }
@@ -269,31 +276,40 @@ static ok64 BECLILay() {
     done;
 }
 
-// ---- verb: mark ----
+// ---- verb: mark (milestone) ----
 static ok64 BECLIMark(int argc) {
     sane(1);
-    test(argc > 2, BEBAD);
     BE be = {};
     call(BEOpenCwd, &be);
-    a$rg(message, 2);
-    call(BEPost, &be, 0, NULL, message);
+    u8cs name = {};
+    if (argc > 2) {
+        a$rg(arg, 2);
+        $mv(name, arg);
+    }
+    call(BEMilestone, &be, name);
     call(BEClose, &be);
     done;
 }
 
-// ---- verb: fit ----
-static ok64 BECLIFit() {
+// ---- verb: fit (merge branch into main) ----
+static ok64 BECLIFit(int argc) {
     sane(1);
     BE be = {};
     call(BEOpenCwd, &be);
-    // Extract current branch from loc.query
-    test($ok(be.loc.query) && !$empty(be.loc.query), BEBAD);
-    u8cs q = {be.loc.query[0], be.loc.query[1]};
-    // query is "y=<branch>", skip "y="
-    test($len(q) > 2 && q[0][0] == 'y' && q[0][1] == '=', BEBAD);
-    u8cs branch = {q[0] + 2, q[1]};
+
+    u8cs source = {};
+    if (argc > 2) {
+        a$rg(arg, 2);
+        if ($len(arg) > 0 && arg[0][0] == '?') {
+            source[0] = arg[0] + 1;
+            source[1] = arg[1];
+        } else {
+            $mv(source, arg);
+        }
+    }
+    test($ok(source) && !$empty(source), BEBAD);
     u8cs empty = {};
-    call(BEPut, &be, branch, empty);
+    call(BEPut, &be, source, empty);
     call(BEClose, &be);
     done;
 }
@@ -305,7 +321,6 @@ ok64 becli() {
     int argc = $arglen;
 
     if (argc < 2) {
-        // No verb: status
         BE be = {};
         call(BEOpenCwd, &be);
         call(BEStatus, &be);
@@ -340,7 +355,7 @@ ok64 becli() {
     } else if ($eq(verb, v_mark)) {
         call(BECLIMark, argc);
     } else if ($eq(verb, v_fit)) {
-        call(BECLIFit);
+        call(BECLIFit, argc);
     } else if ($eq(verb, v_deps)) {
         call(BECLIDeps, argc);
     } else {

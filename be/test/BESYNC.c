@@ -49,7 +49,7 @@ ok64 BESYNCtest1() {
 
     // Init source repo and POST
     BE src_be = {};
-    u8cs uri = $u8str("be://BESYNCtest1/@test/proj");
+    u8cs uri = $u8str("be://BESYNCtest1/@test/proj?main");
     call(BEInit, &src_be, uri, path8cgIn(src_work));
     u8cs relpath = $u8str("hello.c");
     u8cs *paths = &relpath;
@@ -108,15 +108,21 @@ ok64 BESYNCtest1() {
     ok64 ro = ROCKOpenRO(&clonedb, path8cgIn(clone_repo));
     want(ro == OK);
 
-    // Check for the head key
+    // Check for waypoint keys (prefix scan)
     u8 kbuf[512];
     u8s key = {kbuf, kbuf + sizeof(kbuf)};
     u8cs proj = $u8str("/@test/proj");
-    call(BEKeyHead, key, proj, relpath);
-    u8cs head_key = {kbuf, key[0]};
-    aBpad(u8, vbuf, 65536);
-    ok64 go = ROCKGet(&clonedb, vbuf, head_key);
-    want(go == OK);
+    call(BEKeyFilePrefix, key, proj, relpath);
+    u8cs wp_prefix = {kbuf, key[0]};
+    ROCKiter cit = {};
+    call(ROCKIterOpen, &cit, &clonedb);
+    call(ROCKIterSeek, &cit, wp_prefix);
+    want(ROCKIterValid(&cit));
+    u8cs ck = {};
+    ROCKIterKey(&cit, ck);
+    want($len(ck) >= $len(wp_prefix));
+    want(memcmp(ck[0], wp_prefix[0], $len(wp_prefix)) == 0);
+    call(ROCKIterClose, &cit);
 
     call(ROCKClose, &clonedb);
 

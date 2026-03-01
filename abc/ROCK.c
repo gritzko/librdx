@@ -341,6 +341,12 @@ ok64 ROCKIterSeek(ROCKiterp it, u8cs key) {
     return OK;
 }
 
+ok64 ROCKIterSeekForPrev(ROCKiterp it, u8cs key) {
+    if (it == NULL || it->it == NULL) return ROCKBAD;
+    rocksdb_iter_seek_for_prev(it->it, (const char *)key[0], $size(key));
+    return OK;
+}
+
 ok64 ROCKIterSeekFirst(ROCKiterp it) {
     if (it == NULL || it->it == NULL) return ROCKBAD;
     rocksdb_iter_seek_to_first(it->it);

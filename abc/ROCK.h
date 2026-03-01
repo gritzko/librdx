@@ -76,6 +76,7 @@ ok64 ROCKScan(ROCKdbp db, u8cs prefix, ROCKscanf f, voidp arg);
 // Iterator
 ok64 ROCKIterOpen(ROCKiterp it, ROCKdbp db);
 ok64 ROCKIterSeek(ROCKiterp it, u8cs key);
+ok64 ROCKIterSeekForPrev(ROCKiterp it, u8cs key);
 ok64 ROCKIterSeekFirst(ROCKiterp it);
 ok64 ROCKIterNext(ROCKiterp it);
 ok64 ROCKIterPrev(ROCKiterp it);

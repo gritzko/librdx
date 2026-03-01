@@ -25,6 +25,9 @@ enum {
 };
 #define BE_SCRATCH_LEN (1UL << 30)  // 1GB
 
+// Max branches in .be URI query
+#define BE_MAX_BRANCHES 16
+
 // Beagle SCM handle
 typedef struct {
     ROCKdb db;
@@ -33,31 +36,34 @@ typedef struct {
     u8p repo_pp[4];                   // $HOME/.be/<repo>/
     u8p work_pp[4];                   // worktree root
     u8p scratch[BE_SCRATCH][4];       // scratch buffers
+    // Multi-branch: parsed from query "branch1&branch2&main"
+    u8cs branches[BE_MAX_BRANCHES];
+    int branchc;
+    int active_branch;  // index into branches[] for POST
 } BE;
 typedef BE *BEp;
 
-// --- Key builders (project/path?qualifier) ---
+// --- Key builders (project/path?TIMESTAMP-branch) ---
 
-// "<project>/<path>"
-ok64 BEKeyHead(u8s into, u8cs project, u8cs path);
+// Base key: "<project>/<path>"
+ok64 BEKeyBase(u8s into, u8cs project, u8cs path);
 
-// "<project>/<path>?v=<pad10_stamp>"
-ok64 BEKeyVer(u8s into, u8cs project, u8cs path, ron60 stamp);
+// Waypoint key: "<project>/<path>?<pad10_stamp>-<branch>"
+ok64 BEKeyWaypoint(u8s into, u8cs project, u8cs path,
+                   ron60 stamp, u8cs branch);
 
-// "<project>/<path>?y=<branch>"
-ok64 BEKeyBranch(u8s into, u8cs project, u8cs path, u8cs branch);
+// File prefix for scanning: "<project>/<path>?"
+ok64 BEKeyFilePrefix(u8s into, u8cs project, u8cs path);
 
-// "<project>/?v=<pad10_stamp>"
-ok64 BEKeyCommit(u8s into, u8cs project, ron60 stamp);
+// Metadata key: "<project>/?<pad10_stamp>-<branch>#<meta>"
+ok64 BEKeyMeta(u8s into, u8cs project, ron60 stamp,
+               u8cs branch, u8cs meta);
 
-// "<project>/?y=<branch>"
-ok64 BEKeyBranchPtr(u8s into, u8cs project, u8cs branch);
+// Extract branch suffix from waypoint key (after last '-' in query part)
+ok64 BEKeyBranchSuffix(u8csp branch, u8cs key);
 
-// "<project>/?conf.<key>"  or  "?conf.<key>"
-ok64 BEKeyConf(u8s into, u8cs project, u8cs confkey);
-
-// Build key for current state (head or branch based on loc.query)
-ok64 BEKeyCur(u8s into, BEp be, u8cs path);
+// Extract timestamp from waypoint key (10 chars after '?')
+ok64 BEKeyStamp(ron60 *stamp, u8cs key);
 
 // --- Lifecycle ---
 
@@ -70,21 +76,25 @@ ok64 BEOpen(BEp be, path8cg worktree);
 // Close DB, zero struct
 ok64 BEClose(BEp be);
 
-// Switch to a new branch: rebuild URI, reparse, rewrite .be file
-ok64 BESwitchBranch(BEp be, u8cs branch);
+// Add/remove branch in .be URI
+ok64 BEAddBranch(BEp be, u8cs branch);
+ok64 BERemoveBranch(BEp be, u8cs branch);
+
+// Set active branch for POST (must be in branches list)
+ok64 BESetActive(BEp be, u8cs branch);
 
 // --- CRUD ---
 
-// POST: worktree files → repo (commit)
+// POST: worktree files -> repo (independent waypoint)
 ok64 BEPost(BEp be, int pathc, u8cs *paths, u8cs message);
 
-// GET: repo → worktree files (checkout)
+// GET: repo -> worktree files (merge base + waypoints)
 ok64 BEGet(BEp be, int pathc, u8cs *paths, u8cs branch);
 
-// PUT: merge branch into head
+// PUT: merge source branch waypoints into active branch
 ok64 BEPut(BEp be, u8cs source_branch, u8cs message);
 
-// DELETE: file, branch, or repo
+// DELETE: file (empty waypoint tombstone), or branch waypoints
 ok64 BEDelete(BEp be, u8cs target);
 
 // GET deps from .beget file (same repo for now)
@@ -92,6 +102,9 @@ ok64 BEGetDeps(BEp be, b8 include_opt);
 
 // Checkpoint (fork repo)
 ok64 BECheckpoint(BEp be, u8cs new_repo);
+
+// Milestone: fold main waypoints into base, delete folded
+ok64 BEMilestone(BEp be, u8cs name);
 
 // --- Export ---
 
