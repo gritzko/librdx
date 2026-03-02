@@ -946,11 +946,42 @@ ok64 BEPost(BEp be, int pathc, u8cs *paths, u8cs message) {
         for (int i = 0; i < pathc; i++) {
             a_path(apath, "");
             call(path8gDup, path8gIn(apath), path8cgIn(be->work_pp));
-            call(path8gPush, path8gIn(apath), paths[i]);
-            ok64 o = BEPostFile(be, &wb, stamp, path8cgIn(apath));
-            if (o != OK) {
-                ROCKBatchClose(&wb);
-                fail(o);
+            // Check if arg contains '/' — use path8gAdd for multi-component
+            u8cs argscan = {paths[i][0], paths[i][1]};
+            if (u8csFind(argscan, '/') == OK) {
+                // Strip trailing '/' if present
+                u8cs arg = {paths[i][0], paths[i][1]};
+                while (!$empty(arg) && *(arg[1] - 1) == '/') arg[1]--;
+                a_path(rp, "");
+                call(u8sFeed, u8bIdle(rp), arg);
+                call(path8gTerm, path8gIn(rp));
+                call(path8gAdd, path8gIn(apath), path8cgIn(rp));
+            } else {
+                call(path8gPush, path8gIn(apath), paths[i]);
+            }
+            // Check if directory — scan it
+            struct stat dst;
+            ok64 so = FILEStat(&dst, path8cgIn(apath));
+            if (so == OK && S_ISDIR(dst.st_mode)) {
+                igno gi = {};
+                u8cs workdir = {be->work_pp[1], be->work_pp[2]};
+                IGNOLoad(&gi, workdir);
+                BEPostCtx ctx = {be, &wb, stamp, &gi};
+                ok64 o = FILEScan(apath,
+                                  (FILE_SCAN)(FILE_SCAN_FILES | FILE_SCAN_DIRS |
+                                              FILE_SCAN_DEEP),
+                                  BEPostScanCB, &ctx);
+                IGNOFree(&gi);
+                if (o != OK) {
+                    ROCKBatchClose(&wb);
+                    fail(o);
+                }
+            } else {
+                ok64 o = BEPostFile(be, &wb, stamp, path8cgIn(apath));
+                if (o != OK) {
+                    ROCKBatchClose(&wb);
+                    fail(o);
+                }
             }
         }
     } else {
@@ -1121,75 +1152,141 @@ ok64 BEPut(BEp be, u8cs source_branch, u8cs message) {
 
 // ---- DELETE ----
 
-ok64 BEDelete(BEp be, u8cs target) {
-    sane(be != NULL && $ok(target));
+// Check if any waypoint key in the project has a matching branch suffix
+static b8 BEHasBranch(BEp be, u8cs name) {
+    u8 pfxbuf[512];
+    u8s pfx = {pfxbuf, pfxbuf + sizeof(pfxbuf)};
+    if (u8sFeed(pfx, be->loc.path) != OK) return NO;
+    u8sFeed1(pfx, '/');
+    u8cs project_prefix = {pfxbuf, pfx[0]};
 
-    // Check if target is a branch name (no path separators)
-    u8cs tscan = {target[0], target[1]};
-    b8 has_slash = (u8csFind(tscan, '/') == OK);
-
-    if (!has_slash) {
-        // Delete all waypoints for this branch
-        u8 pfxbuf[512];
-        u8s pfx = {pfxbuf, pfxbuf + sizeof(pfxbuf)};
-        call(u8sFeed, pfx, be->loc.path);
-        u8sFeed1(pfx, '/');
-        u8cs project_prefix = {pfxbuf, pfx[0]};
-
-        ROCKbatch wb = {};
-        call(ROCKBatchOpen, &wb);
-
-        ROCKiter it = {};
-        call(ROCKIterOpen, &it, &be->db);
-        call(ROCKIterSeek, &it, project_prefix);
-
-        while (ROCKIterValid(&it)) {
-            u8cs k = {};
-            ROCKIterKey(&it, k);
-            if ($len(k) < $len(project_prefix) ||
-                memcmp(k[0], project_prefix[0], $len(project_prefix)) != 0)
-                break;
-
-            u8cs branch = {};
-            ok64 o = BEKeyBranchSuffix(branch, k);
-            if (o == OK && $eq(branch, target)) {
-                call(ROCKBatchDel, &wb, k);
-            }
-            call(ROCKIterNext, &it);
-        }
-        call(ROCKIterClose, &it);
-
-        call(ROCKBatchWrite, &be->db, &wb);
-        call(ROCKBatchClose, &wb);
-    } else {
-        // Delete file: write meta-only waypoint (tombstone)
-        ron60 stamp = RONNow();
-        u8cs active = {be->branches[0][0],
-                   be->branches[0][1]};
-        u8 dpbuf[256];
-        u8s dps = {dpbuf, dpbuf + sizeof(dpbuf)};
-        call(u8sFeed, dps, be->loc.path);
-        u8sFeed1(dps, '/');
-        call(u8sFeed, dps, target);
-        u8 dqbuf[128];
-        u8s dqs = {dqbuf, dqbuf + sizeof(dqbuf)};
-        call(BEQueryBuild, dqs, stamp, active);
-        uri du = {};
-        u8cs dp = {dpbuf, dps[0]};
-        u8cs dq = {dqbuf, dqs[0]};
-        u8csMv(du.path, dp);
-        u8csMv(du.query, dq);
-        u8 wkbuf[512];
-        u8s wkey = {wkbuf, wkbuf + sizeof(wkbuf)};
-        call(URIutf8Feed, wkey, &du);
-        u8cs wp_key = {wkbuf, wkey[0]};
-        u8 mbuf[BE_META_SIZE];
-        u8s ms = {mbuf, mbuf + BE_META_SIZE};
-        BEmeta zero = {};
-        call(BEMetaPack, ms, zero);
-        u8cs tomb = {mbuf, ms[0]};
-        call(ROCKPut, &be->db, wp_key, tomb);
+    ROCKiter it = {};
+    if (ROCKIterOpen(&it, &be->db) != OK) return NO;
+    if (ROCKIterSeek(&it, project_prefix) != OK) {
+        ROCKIterClose(&it);
+        return NO;
     }
+
+    b8 found = NO;
+    while (ROCKIterValid(&it)) {
+        u8cs k = {};
+        ROCKIterKey(&it, k);
+        if ($len(k) < $len(project_prefix) ||
+            memcmp(k[0], project_prefix[0], $len(project_prefix)) != 0)
+            break;
+        u8cs branch = {};
+        ok64 o = BEKeyBranchSuffix(branch, k);
+        if (o == OK && $eq(branch, name)) {
+            found = YES;
+            break;
+        }
+        ROCKIterNext(&it);
+    }
+    ROCKIterClose(&it);
+    return found;
+}
+
+static ok64 BEDeleteBranch(BEp be, u8cs name) {
+    sane(be != NULL && $ok(name) && !$empty(name));
+
+    u8 pfxbuf[512];
+    u8s pfx = {pfxbuf, pfxbuf + sizeof(pfxbuf)};
+    call(u8sFeed, pfx, be->loc.path);
+    u8sFeed1(pfx, '/');
+    u8cs project_prefix = {pfxbuf, pfx[0]};
+
+    ROCKbatch wb = {};
+    call(ROCKBatchOpen, &wb);
+
+    ROCKiter it = {};
+    call(ROCKIterOpen, &it, &be->db);
+    call(ROCKIterSeek, &it, project_prefix);
+
+    while (ROCKIterValid(&it)) {
+        u8cs k = {};
+        ROCKIterKey(&it, k);
+        if ($len(k) < $len(project_prefix) ||
+            memcmp(k[0], project_prefix[0], $len(project_prefix)) != 0)
+            break;
+        u8cs branch = {};
+        ok64 o = BEKeyBranchSuffix(branch, k);
+        if (o == OK && $eq(branch, name)) {
+            call(ROCKBatchDel, &wb, k);
+        }
+        call(ROCKIterNext, &it);
+    }
+    call(ROCKIterClose, &it);
+
+    call(ROCKBatchWrite, &be->db, &wb);
+    call(ROCKBatchClose, &wb);
+    done;
+}
+
+static ok64 BEDeleteFile(BEp be, u8cs target) {
+    sane(be != NULL && $ok(target) && !$empty(target));
+
+    ron60 stamp = RONNow();
+    u8cs active = {be->branches[0][0], be->branches[0][1]};
+    u8 dpbuf[256];
+    u8s dps = {dpbuf, dpbuf + sizeof(dpbuf)};
+    call(u8sFeed, dps, be->loc.path);
+    u8sFeed1(dps, '/');
+    call(u8sFeed, dps, target);
+    u8 dqbuf[128];
+    u8s dqs = {dqbuf, dqbuf + sizeof(dqbuf)};
+    call(BEQueryBuild, dqs, stamp, active);
+    uri du = {};
+    u8cs dp = {dpbuf, dps[0]};
+    u8cs dq = {dqbuf, dqs[0]};
+    u8csMv(du.path, dp);
+    u8csMv(du.query, dq);
+    u8 wkbuf[512];
+    u8s wkey = {wkbuf, wkbuf + sizeof(wkbuf)};
+    call(URIutf8Feed, wkey, &du);
+    u8cs wp_key = {wkbuf, wkey[0]};
+    u8 mbuf[BE_META_SIZE];
+    u8s ms = {mbuf, mbuf + BE_META_SIZE};
+    BEmeta zero = {};
+    call(BEMetaPack, ms, zero);
+    u8cs tomb = {mbuf, ms[0]};
+    call(ROCKPut, &be->db, wp_key, tomb);
+    done;
+}
+
+ok64 BEDelete(BEp be, u8cs target) {
+    sane(be != NULL && $ok(target) && !$empty(target));
+
+    // ?prefix → explicit branch
+    if (target[0][0] == '?') {
+        u8cs name = {target[0] + 1, target[1]};
+        call(BEDeleteBranch, be, name);
+        done;
+    }
+
+    // stat() the worktree path — if it exists, it's a file
+    a_path(fpath, "");
+    call(path8gDup, path8gIn(fpath), path8cgIn(be->work_pp));
+    // Use path8gAdd for multi-component paths (may contain /)
+    a_path(rpath, "");
+    call(u8sFeed, u8bIdle(rpath), target);
+    call(path8gTerm, path8gIn(rpath));
+    call(path8gAdd, path8gIn(fpath), path8cgIn(rpath));
+
+    struct stat st;
+    ok64 so = FILEStat(&st, path8cgIn(fpath));
+    if (so == OK) {
+        call(BEDeleteFile, be, target);
+        done;
+    }
+
+    // Not on disk — check if a branch with this name exists in the DB
+    if (BEHasBranch(be, target)) {
+        call(BEDeleteBranch, be, target);
+        done;
+    }
+
+    // Default: treat as file tombstone
+    call(BEDeleteFile, be, target);
     done;
 }
 

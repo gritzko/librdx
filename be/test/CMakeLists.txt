@@ -15,6 +15,9 @@ target_compile_options(BEtest PRIVATE ${TEST_CXX_FLAGS})
 target_link_libraries(BEtest beagle bast abc ${TREE_SITTER_LIB})
 add_test(NAME BEtest COMMAND BEtest)
 
+add_test(NAME BEclitest COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/cli-test.sh
+         $<TARGET_FILE:be-cli>)
+
 if (WITH_INET)
 add_executable(BESYNCtest BESYNC.c ../../be/BESRV.c)
 target_link_options(BESYNCtest PRIVATE ${TEST_LDD_FLAGS})

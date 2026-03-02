@@ -1,5 +1,6 @@
 # Build directories
 build/
+build-*/
 cmake-build-*/
 
 # Build artifacts
@@ -24,6 +25,7 @@ Makefile
 
 # Test outputs
 Testing/
+corpus/
 
 # Generated files
 *.log

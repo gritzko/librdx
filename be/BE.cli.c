@@ -137,11 +137,28 @@ static ok64 BECLIPost(int argc) {
 
     BE be = {};
     if ($ok(uri_arg) && !$empty(uri_arg)) {
-        a_pad(u8, cpath, FILE_PATH_MAX_LEN);
-        call(BECwd, path8gIn(cpath));
-        call(BEInit, &be, uri_arg, path8cgIn(cpath));
-        u8cs empty = {};
-        call(BEPost, &be, filec, filec > 0 ? file_args : NULL, empty);
+        // Parse URI to check if host-only (checkpoint) or has path (init)
+        u8 ubuf[512];
+        size_t ulen = $len(uri_arg);
+        test(ulen < sizeof(ubuf), BEBAD);
+        memcpy(ubuf, uri_arg[0], ulen);
+        uri u = {};
+        u.data[0] = ubuf;
+        u.data[1] = ubuf + ulen;
+        call(URILexer, &u);
+
+        if ($empty(u.path)) {
+            // //newrepo — checkpoint (fork) into new depot
+            call(BEOpenCwd, &be);
+            call(BECheckpoint, &be, u.host);
+        } else {
+            // //repo/project — init new project
+            a_pad(u8, cpath, FILE_PATH_MAX_LEN);
+            call(BECwd, path8gIn(cpath));
+            call(BEInit, &be, uri_arg, path8cgIn(cpath));
+            u8cs empty = {};
+            call(BEPost, &be, filec, filec > 0 ? file_args : NULL, empty);
+        }
     } else {
         call(BEOpenCwd, &be);
         u8cs empty = {};
@@ -161,6 +178,18 @@ static ok64 BECLIGet(int argc) {
             a_pad(u8, cpath, FILE_PATH_MAX_LEN);
             call(BECwd, path8gIn(cpath));
             call(BESyncClone, first_arg, path8cgIn(cpath));
+            done;
+        }
+        // //repo/project — local depot checkout
+        if ($len(first_arg) > 2 &&
+            first_arg[0][0] == '/' && first_arg[0][1] == '/') {
+            a_pad(u8, cpath, FILE_PATH_MAX_LEN);
+            call(BECwd, path8gIn(cpath));
+            BE be = {};
+            call(BEInit, &be, first_arg, path8cgIn(cpath));
+            u8cs empty = {};
+            call(BEGet, &be, 0, NULL, empty);
+            call(BEClose, &be);
             done;
         }
     }
