@@ -1,4 +1,3 @@
-
 #line 1 "LEX.rl"
 #include "LEX.h"
 

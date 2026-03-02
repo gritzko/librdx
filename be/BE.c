@@ -624,8 +624,7 @@ static ok64 BEGetFileMerged(BEp be, u8cs relpath, u8bp result) {
     }
 
     u8css in_css = {inputs, inputs + total};
-    aBpad(u64, midx, 4096);
-    call(BASONMergeN, result, midx, in_css);
+    call(BASONMergeN, result, NULL, in_css);
     done;
 }
 
@@ -637,13 +636,20 @@ static ok64 BEGetFile(BEp be, u8cs relpath) {
 
     ok64 go = BEGetFileMerged(be, relpath, mbuf);
     if (go == BEnone) return BEnone;
-    if (go != OK) return go;
+    if (go != OK) {
+        fprintf(stderr, "MERGED %.*s\n", (int)$len(relpath), relpath[0]);
+        return go;
+    }
 
     u8cs merged = {mbuf[1], mbuf[2]};
     // Empty or meta-only = tombstone, file is deleted
     if ($len(merged) <= BE_META_SIZE) return BEnone;
 
-    call(BEExportFile, be, relpath, merged);
+    ok64 eo = BEExportFile(be, relpath, merged);
+    if (eo != OK) {
+        fprintf(stderr, "EXPORT %.*s\n", (int)$len(relpath), relpath[0]);
+        return eo;
+    }
     done;
 }
 
@@ -712,7 +718,15 @@ static ok64 BEGetProject(BEp be, u8cs project) {
     }
     // Second pass: export each file
     for (int i = 0; i < ctx.count; i++) {
-        BEGetFile(be, filepaths[i]);
+        ok64 fo = BEGetFile(be, filepaths[i]);
+        if (fo != OK) {
+            u8 errbuf[12] = {};
+            u8s es = {errbuf, errbuf + 11};
+            RONutf8sFeed(es, fo);
+            fprintf(stderr, "FAIL %.*s (%.*s)\n",
+                    (int)$len(filepaths[i]), filepaths[i][0],
+                    (int)(es[0] - errbuf), errbuf);
+        }
     }
     free(filepaths);
     done;
@@ -756,14 +770,6 @@ static ok64 BEPostFile(BEp be, ROCKbatchp wb, ron60 stamp, path8cg filepath) {
     struct stat fst;
     call(FILEStat, &fst, filepath);
 
-    // Skip empty files (mmap fails on size 0)
-    if (fst.st_size == 0) done;
-
-    // Map source file
-    u8bp mapbuf = NULL;
-    call(FILEMapRO, &mapbuf, filepath);
-    u8cs source = {mapbuf[1], mapbuf[2]};
-
     // Get extension for parser
     u8cs basename = {};
     path8gBase(basename, filepath);
@@ -777,12 +783,28 @@ static ok64 BEPostFile(BEp be, ROCKbatchp wb, ron60 stamp, path8cg filepath) {
     // Parse to BASON
     u8bp nbuf = be->scratch[BE_PARSE];
     u8bReset(nbuf);
-    aBpad(u64, nidx, 4096);
-    ok64 o = BASTParse(nbuf, nidx, source, ext);
-    if (o != OK) {
-        // Skip unparseable files (binary, unsupported format, etc)
-        FILEUnMap(mapbuf);
-        done;
+    u8bp mapbuf = NULL;
+    ok64 o = OK;
+
+    if (fst.st_size == 0) {
+        // Empty file: store as empty container
+        u8cs nokey = {(u8cp)"", (u8cp)""};
+        call(BASONFeedInto, NULL, nbuf, 'A', nokey);
+        call(BASONFeedOuto, NULL, nbuf);
+    } else {
+        call(FILEMapRO, &mapbuf, filepath);
+        u8cs source = {mapbuf[1], mapbuf[2]};
+        o = BASTParse(nbuf, NULL, source, ext);
+        if (o != OK) {
+            u8 errbuf[12] = {};
+            u8s es = {errbuf, errbuf + 11};
+            RONutf8sFeed(es, o);
+            fprintf(stderr, "SKIP %.*s (%.*s)\n",
+                    (int)$len(rel), rel[0],
+                    (int)(es[0] - errbuf), errbuf);
+            FILEUnMap(mapbuf);
+            done;
+        }
     }
     u8cp nb0 = nbuf[1], nb1 = nbuf[2];
     u8cs new_bason = {nb0, nb1};
@@ -834,18 +856,17 @@ static ok64 BEPostFile(BEp be, ROCKbatchp wb, ron60 stamp, path8cg filepath) {
     if ($ok(old_bason) && !$empty(old_bason)) {
         // Diff old merged vs new parsed
         u8bReset(obuf);  // reuse for diff output
-        aBpad(u64, didx, 4096);
         aBpad(u64, ostk, 256);
         aBpad(u64, nstk, 256);
-        o = BASONDiff(obuf, didx, ostk, old_bason, nstk, new_bason);
+        o = BASONDiff(obuf, NULL, ostk, old_bason, nstk, new_bason);
         if (o != OK) {
-            FILEUnMap(mapbuf);
+            if (mapbuf) FILEUnMap(mapbuf);
             fail(o);
         }
         u8cs delta = {obuf[1], obuf[2]};
         if ($empty(delta)) {
             // No change
-            FILEUnMap(mapbuf);
+            if (mapbuf) FILEUnMap(mapbuf);
             done;
         }
         // Build [meta][delta] in wrap buffer
@@ -865,7 +886,7 @@ static ok64 BEPostFile(BEp be, ROCKbatchp wb, ron60 stamp, path8cg filepath) {
         call(ROCKBatchPut, wb, wp_key, wp_val);
     }
 
-    FILEUnMap(mapbuf);
+    if (mapbuf) FILEUnMap(mapbuf);
     done;
 }
 
@@ -898,7 +919,20 @@ static ok64 BEPostScanCB(voidp arg, path8p path) {
             if (IGNOMatch(ctx->ig, rel, NO)) return OK;
         }
     }
-    return BEPostFile(ctx->be, ctx->wb, ctx->stamp, path8cgIn(path));
+    ok64 po = BEPostFile(ctx->be, ctx->wb, ctx->stamp, path8cgIn(path));
+    if (po != OK) {
+        a_path(relpath, "");
+        path8gRelative(path8gIn(relpath), path8cgIn(ctx->be->work_pp),
+                        path8cgIn(path));
+        u8cs rel = {relpath[1], relpath[2]};
+        u8 errbuf[12] = {};
+        u8s es = {errbuf, errbuf + 11};
+        RONutf8sFeed(es, po);
+        fprintf(stderr, "FAIL %.*s (%.*s)\n",
+                (int)$len(rel), rel[0],
+                (int)(es[0] - errbuf), errbuf);
+    }
+    return OK;
 }
 
 ok64 BEPost(BEp be, int pathc, u8cs *paths, u8cs message) {
@@ -1431,8 +1465,7 @@ ok64 BEMilestone(BEp be, u8cs name) {
         call(BEMetaPack, u8bIdle(mbuf), latest_meta);
 
         u8css in_css = {inputs, inputs + total};
-        aBpad(u64, midx, 4096);
-        call(BASONMergeN, mbuf, midx, in_css);
+        call(BASONMergeN, mbuf, NULL, in_css);
         u8cs merged = {mbuf[1], mbuf[2]};
 
         // Write new base (meta + merged BASON)

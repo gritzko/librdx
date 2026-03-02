@@ -1,4 +1,3 @@
-
 #include "NET.h"
 
 con ok64 UDPFAIL = 0x1e3593ca495;

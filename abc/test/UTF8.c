@@ -1,4 +1,3 @@
-
 #include "UTF8.h"
 
 #include <assert.h>

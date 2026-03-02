@@ -1,4 +1,3 @@
-
 #line 1 "HTTP.c.rl"
 #include "abc/INT.h"
 #include "abc/PRO.h"

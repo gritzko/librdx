@@ -1,4 +1,3 @@
-
 #include "S.h"
 
 #include <assert.h>

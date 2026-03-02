@@ -1,4 +1,3 @@
-
 #include "SKIP.h"
 
 #include <stdint.h>

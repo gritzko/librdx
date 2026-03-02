@@ -136,7 +136,7 @@ ok64 BASONMerge(u8bp out, u64bp idx,
 // --- N-way merge: heap-based ---
 
 #define BIFFN_MAX 64
-#define BIFFN_STK 32
+#define BIFFN_STK 128
 
 typedef struct {
     u64 *stk[4];

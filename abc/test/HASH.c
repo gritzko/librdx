@@ -1,4 +1,3 @@
-
 #include "HASH.h"
 #include "RAP.h"
 

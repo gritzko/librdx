@@ -1,4 +1,3 @@
-
 #include "ZINT.h"
 
 #include <stdint.h>

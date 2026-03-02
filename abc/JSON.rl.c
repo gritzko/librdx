@@ -1,4 +1,3 @@
-
 /* #line 1 "/home/gritzko/librdx/abc/JSON.c.rl" */
 #include "abc/INT.h"
 #include "abc/PRO.h"

@@ -1,4 +1,3 @@
-
 #include "COMB.h"
 
 #include <unistd.h>
