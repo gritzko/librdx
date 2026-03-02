@@ -62,17 +62,18 @@ recombined and declared a new commit or branch, or added to an existing one. Any
 changes. The difference between snapshot, branch, staging, stash or overlay is
 all but non-existant. These are named groupings of changes. An overlay is a
 "permanent editable changeset" that can be attached/detached to/from a branch.
-A twig is a short-lived stack of changes forked off a branch. Technically,
+A branch is a short-lived stack of changes forked off the head. Technically,
 either of them is just a set of delta files (SSTs) producing some state of
 the worktree. git-style and Beagle-style porcelain can be used in parallel.
 
-The next section talks about Beagle's porcelain project/ branch/ twig/ overlay
-model which is slightly different from git's: branches are closer to git repos,
-twigs are like git branches, but lighter and overlays have no parallel in git
-at all.  CRDT merges are deterministic and non-intrusive, so one can merge left
-and right, using worktree as a palette for blending. In fact, the entire
-porcelain story is a way to sort changes into orderly boxes of different colors
-(branches, twigs, overlays, snapshots) with different labels on them.
+The next section talks about Beagle's porcelain project/ repo/ branch/ overlay
+model which is slightly different from git's: repos are closer to git repos
+(but one level up), branches are like git branches but lighter, and overlays
+have no parallel in git at all.  CRDT merges are deterministic and
+non-intrusive, so one can merge left and right, using worktree as a palette
+for blending. In fact, the entire porcelain story is a way to sort changes
+into orderly boxes of different colors (repos, branches, overlays, snapshots)
+with different labels on them.
 
 The section after that talks about Beagle's core/plumbing commands: `GET`,
 `POST`, `PUT` and `DELETE`.
@@ -80,7 +81,7 @@ The section after that talks about Beagle's core/plumbing commands: `GET`,
 Skip next two sections if you want to see the resulting UX first.  Long story
 short: mainly the same four commands plus URI-based syntax for everything.
 
-##  Beagle SCM: repos, branches and twigs
+##  Beagle SCM: repos, projects and branches
 
 How to make a command/ referral language flexible enough to
 express all the use cases by composing a minimal number of plain
@@ -109,19 +110,19 @@ We assume the current worktree is linked to one fixed place in
 the repo.  Things look a bit too primitive so far. Then, we
 chalk the repo into squares:
 
- 1. repo is divided into *branches* which have public identity,
-    their names are FQDN-like, e.g. `branch.team.company.com` or
+ 1. there are *repos* which have public identity,
+    their names are FQDN-like, e.g. `main.team.company.com` or
     `release.product.entity.org`;
- 2. orthogonally, the repo is divided into *projects*, also with public
+ 2. orthogonally, repos are divided into *projects*, also with public
     identity, e.g. `@gritzko/librdx` (like a GitHub path).
     So a full URI is like `http://main.replicated.live/@gritzko/librdx`
 
 Here the maneuver #4 gets subdivided into submaneuvers, the most frequent
-case being changeset exchange between branches. Note that branches are
-not scoped to a repo or even to a project. When we create a branch, we
+case being changeset exchange between repos. Note that repos are
+not scoped to a project. When we create a repo, we
 "fork the world". That mostly makes sense because projects form their own
 dependency graphs anyway, so version *alpha* of project *A* needs version
-*beta* of project *B* and so on. Once we create a branch, we *may* put in
+*beta* of project *B* and so on. Once we create a repo, we *may* put in
 all the relevant code. With syntax-aware CRDT merge, we can be a bit
 bolder in forking things, as we retain enough metadata to ease merges.
 
@@ -136,16 +137,16 @@ repo, `@gritzko/librdx` vs `@gritzko/librdx.ai`. We can work with the
 source, we can add the AI work docs, or we can deal with prompts and
 logs separately from sources.
 
-The last caveat for those familiar with `git` (all of us) is *twigs*.
-Apart from the *head*, a branch can have multiple marked *twigs*, which
-are supposed to merge in near future. The distinction here is that twigs
-are scoped to a project/branch/repo, and have no public identity.
+The last caveat for those familiar with `git` (all of us) is *branches*.
+Apart from the *head*, a project can have multiple marked *branches*,
+which are supposed to merge in near future. The distinction here is that
+branches are scoped to a project/repo, and have no public identity.
 When each developer teams up with AI, cheaper transient branching is
-necessary, locally and within a team. So public branches are heavier
-than `git` branches and twigs are somewhat lighter. While a twig is
-essentially a sticky note on a hash, CRDT merges are deterministic and
-non-intrusive, so merging (blending) twigs invokes much less work and
-ceremony than merging git branches.
+necessary, locally and within a team. Beagle branches are somewhat
+lighter than `git` branches. While a branch is essentially a sticky note
+on a hash, CRDT merges are deterministic and non-intrusive, so merging
+(blending) branches invokes much less work and ceremony than merging
+git branches.
 
 
 ##  Plumbing: `GET POST PUT DELETE`
@@ -155,34 +156,34 @@ language and 4 HTTP verbs are sufficient to express the operations we want.
 GET, POST, PUT and DELETE correspond to maneuvers #2, #1, #4, #4 resp.
 Maneuver #3 is `cp`, `rm`, `vim`, etc.
 
- 1. `GET http://branch.team.entity.org/project?twigA` simple checkout
-    of a particular twig version (may need to clone first);
- 2. `GET //branch2` switching the branch;
+ 1. `GET http://repo.team.entity.org/project?branchA` simple checkout
+    of a particular branch version (may need to clone first);
+ 2. `GET //repo2` switching the repo;
  3. `GET /project/dir/file.txt` checkout one file;
  4. `POST ./file.txt` stage one file (it gets imported into the repo,
-    but the twig does not move yet);
+    but the branch does not move yet);
  5. `DELETE somefile.txt` delete;
- 6. `PUT ./file.txt?twigB` merge in file changes from other twig;
- 7. `GET ?twigB` switch the twig;
+ 6. `PUT ./file.txt?branchB` merge in file changes from other branch;
+ 7. `GET ?branchB` switch the branch;
  8. `GET ?timestamp-origin` checkout a version by its timestamp;
  9. `GET ?4d2130` checkout a version by its hash;
-10. `GET ?twigA#has(x)` list all uses of symbol `x` in `twigA`;
-11. `POST /project?twigA` commit all changes to a twig;
-12. `PUT //branch2?twigC` merge a twig of another branch;
-13. `POST ?stash; GET ?twigA` stash the changes;
-14. `POST ?twigA` commit changes (import, move the twig);
-15. `GET ?twigA#has(int,getX)` from the twig, list all AST* nodes that
+10. `GET ?branchA#has(x)` list all uses of symbol `x` in `branchA`;
+11. `POST /project?branchA` commit all changes to a branch;
+12. `PUT //repo2?branchC` merge a branch of another repo;
+13. `POST ?stash; GET ?branchA` stash the changes;
+14. `POST ?branchA` commit changes (import, move the branch);
+15. `GET ?branchA#has(int,getX)` from the branch, list all AST* nodes that
     have children `int` and `getX` (likely declaration and definition
     of `int getX()`;
-16. `GET //branch/project/dir#has(int,getX)` same but fancier;
-17. `PUT http://remote.branch.team.entity.org` big time pull;
+16. `GET //repo/project/dir#has(int,getX)` same but fancier;
+17. `PUT http://remote.repo.team.entity.org` big time pull;
 
 In fact, most everyday commands would break down into several
 `GET`, `POST`, `PUT`, `DELETE` calls as, for example, refreshing
 the work tree also requres temporary stash of worktree changes
 and their merge back into the refreshed version. Similarly, push
-to a remote branch is first a `POST` to a local copy and then
-`PUT` to a remote server.
+to a remote repo is first a `POST` to a local copy and then `PUT`
+to a remote server.
 
 While it is handy that the plumbing layer of CLI is virtually
 identical to the HTTP interface, for user convenience we need
@@ -215,26 +216,26 @@ Same as plumbing, porcelain commands implement three maneuvers:
 There are some shortcuts for combos, but most of work is get,
 post, put. The most straightforward linear workflow looks like:
 
- 1. `be get //branch/project`      clone/checkout a worktree
- 2. `be come ?twig`                fork off a twig (combo of `be post ?twig` +
-                                  `be get ?twig`)
+ 1. `be get //repo/project`         clone/checkout a worktree
+ 2. `be come ?branch`              fork off a branch (combo of `be post` +
+                                  `be get ?branch`)
  3. ...                            do some work
- 4. `be post`                      commit/stage all twig changes
- 5. `be put`                       merge in the branch head (or
-                                   `be get ?head ?twig ... be post`,
+ 4. `be post`                      commit/stage all branch changes
+ 5. `be put`                       merge in the head (or
+                                   `be get ?head ?branch ... be post`,
 				   a subtly more delicate way to
 				   achieve same result)
  6. ...                            verify things work as intended
  7. `be post ?head`                merge into the head
  8. ...go p.3
 
-Mixing branches or twigs is done by the same `get` verb but with
-multiple arguments. Use worktree as a palette where you mix and
-blend colors. Once satisfied, lay the paint on the canvas (post
-it back to the repo).
+Mixing branches is done by the same `get` verb but with multiple
+arguments. Use worktree as a palette where you mix and blend
+colors. Once satisfied, lay the paint on the canvas (post it back
+to the repo).
 
-  * `be get ?twigA ?twigB ?head`
-  * `be post ?twigABH`
+  * `be get ?branchA ?branchB ?head`
+  * `be post ?branchABH`
 
 CRDT merge never fails, technically. That does not guarantee
 that your worktree would build or run correctly. Semantics is
@@ -245,7 +246,7 @@ undo/ juggle changes quickly. That is the best thing SCM can do.
 
 There are aliases/combos for typical cases, e.g.
 
-  * `be come ?twig`                make the worktree version into a twig
+  * `be come ?branch`              make the worktree version into a branch
   * `be diff`                      diff to the head (default, 3way)
   * `be lay`                       make a waypoint commit
   * `be mark "Comment" "Story..."` make a "classic" verbose commit
@@ -255,15 +256,15 @@ There are aliases/combos for typical cases, e.g.
   * `be`                           overview of the current state (more than `status`)
 
 Some shells treat `?` as a special symbol, we may skip it most of
-the time.  There is risk of URI ?query being confused for a file
+the time.  There is risk of URI `?query` being confused for a file
 name and other things, so in this doc `?` is never skipped. Still,
-`be get featureA tweakB` should be OK (most of the time).
+`be get ?featureA ?tweakB` should be OK (most of the time).
 
 ### Git equivalents
 
 Beagle is balanced differently than `git`. There is one Beagle
-repo per system, Beagle branches are between git branches and
-git repos, while Beagle twigs are lighter than git branches (may
+repo per system, Beagle repos are between git branches and
+git repos, while Beagle branches are lighter than git branches (may
 see them as patch stacks). Approximate command equivalents:
 
   * `git init dir/`               `be post dir/`
@@ -271,12 +272,12 @@ see them as patch stacks). Approximate command equivalents:
                                    and any other commit, so `be post ?mystash`
                                    is enough
   * `git add a.txt b.txt`          same, `be post a.txt b.txt`
-  * `git clone http://uri`        `be get http://branch.team.entity.org`
-  * `git push origin a:b`         `be post http://branch` branch names are FQDNs
-  * `git pull origin b:a`         `be get http://branch ? && be post` where `?`
+  * `git clone http://uri`        `be get http://repo.team.entity.org`
+  * `git push origin a:b`         `be post http://repo` repo names are FQDNs
+  * `git pull origin b:a`         `be get http://repo ? && be post` where `?`
                                    is the expression for the current worktree's
-				   branch/twig formula
-  * `git merge xxx`               `be get ?twigA ?twigB`
+				   repo/branch formula
+  * `git merge xxx`               `be get ?branchA ?branchB`
   * `git status`                  `be`
 
 Beagle (will) implement combos for key git commands.
@@ -294,21 +295,21 @@ Here are some examples of less trivial Beagle commands.
 
   * `be get /project /project.ai`  blend project and its prompt overlay
                                    (technically, a separate project)
-  * `be get ?head ?twig`           blend head and twig (no repo changes)
-  * `be put ?twig#DoThing`         cherry pick a symbol from a twig
+  * `be get ?head ?branch`         blend head and branch (no repo changes)
+  * `be put ?branch#DoThing`       cherry pick a symbol from a branch
                                    (will extract a patch based on the AST* tree)
-  * `be get ?twig#DoThing`         same, but no commit, worktree only
-  * `be put ./file.txt?twig`       cherry pick a file from a twig
-  * `be get ./file.txt?twig`       get a file from a twig (no commit)
-  * `be get ./file.txt?twig#Some`  cherry pick a symbol in a file
-  * `be put ?featureA&featureB`    merge in two twigs
-  * `be post ?newtwig`             fork
-  * `be post //newbranch`          big time fork
+  * `be get ?branch#DoThing`       same, but no commit, worktree only
+  * `be put ./file.txt?branch`     cherry pick a file from a branch
+  * `be get ./file.txt?branch`     get a file from a branch (no commit)
+  * `be get ./file.txt?branch#Some`  cherry pick a symbol in a file
+  * `be put ?featureA&featureB`    merge in two branches
+  * `be post ?newbranch`           fork
+  * `be post //newrepo`            big time fork
   * `be diff ?head#SomeClass`      find any changes to SomeClass since `head`
                                    (prints out patches)
   * `be diff ./file.txt?v1.2`      find all changes to file.txt since v1.2
   * `be diff #has(DoThing,int)`    diff `int DoThing()` specifically
-  * `be get ?#todo(asan)`          find things to sanitize, any twig
+  * `be get ?#todo(asan)`          find things to sanitize, any branch
 
 ### Verbless syntax
 
@@ -316,9 +317,9 @@ In fact, the semantic load on the verbs of `be` CLI is to give
 the direction data moves in. We may also use a convention with
 no verbs at all: `be uri_dest uri_src1 uri_src2...`
 
-That way, `be - ?twigA //branchB` is a merge into a working
+That way, `be - ?branchA //repoB` is a merge into a working
 tree, while `be //release ?head ?tweaks` is a merge into the
-release branch head bypassing the working tree (reckless).
+release repo head bypassing the working tree (reckless).
 
 Overall, verbless use allows non-standard/advanced use patterns.
 
@@ -338,7 +339,7 @@ workarounds may need workarounds of their own, and so on.
 
 <img align=right width="40%" src="./img/nav.jpg"/>
 Beagle unifies in-repo "buckets": staging or stashing is done by
-the same kind of an RDX container, no different from commit,
+the same kind of a data container, no different from commit,
 branch, or tag, except for the labelling. Beagle makes unnamed
 inter-commit states (waypoints) shareable, and all commits in
 general aggregatable, so rebasing and squashing become part of
@@ -346,14 +347,14 @@ the vanilla model, not an override. CRDTs ease that a lot.
 The idea of Beagle commits is to be "undo-redo, but persistent".
 If Ctrl+S triggers a commit, there is nothing wrong about it.
 
-On the technical side, Beagle's twigs are very much like git's
+On the technical side, Beagle's branches are very much like git's
 tags, just labels for hashes pointing at system states. Here,
-things do not differ from git that much.  The `head` twig is the
-public version of the branch. `get ?head` or `get ?feature`
-switches the worktree to a different twig.
+things do not differ from git that much.  The `head` branch is the
+main public version. `get ?head` or `get ?feature`
+switches the worktree to a different branch.
 
 Beagle's [Merkle structure][m] is aligned with its [LSM][l] structure.
-A project's state is technically a stack of RDX SST files in a
+A project's state is technically a stack of SST files in a
 repo. Each (newer, smaller) file references the hash of the
 previous (older, larger) file. When pulling changes from other
 replica, we can verify that this Tower of Hanoi is mostly
@@ -362,14 +363,14 @@ easy to inspect. A full chain-of-commits history is inspectable,
 in theory, if all the historical commit files are preserved
 somewhere (likely S3).
 
-Waypoint commits are RDX SST files with no tag attached. One can
+Waypoint commits are write transactions with no tag attached. One can
 address them by time or hash, but their replication to other
 replicas is not guaranteed. Those are of local interest and
 might be compacted into larger files and garbage collected. That
 is the standard LSM way of things.  Important commits are marked
-with "sticky notes" (twigs and tags). Those are preserved.
+with "sticky notes" (branches and tags). Those are preserved.
 
-Finally, a CHANGELOG RDX document lists all the regular commits
+Finally, a CHANGELOG document lists all the regular commits
 and their attributes: times, dates, comments, authors, hashes,
 signatures. These are produced by `be mark` (changelog insert +
 `be post` combo). The mission of a changelog is to explain the
@@ -402,14 +403,14 @@ databases.
 
 ##  Querying the AST* tree
 
-What Beagle internally processes is not exactly AST but RDX, a
-CRDT JSON superset, tree-ish document format. Beagle employs 
-*codecs* to import and export files into/from RDX. Hence, most
+What Beagle internally processes is not exactly AST but BASON, a
+binary JSON format (a budget variant of [RDX][r]). Beagle employs
+*codecs* to import and export files into/from BASON. Hence, most
 queries have to rely on generic document tree structure.
 The exact codec machinery may vary, e.g. a `*.c` file may be
 im/exported with: general text codec, tree-sitter based codec,
-`clang` AST based codec or "git mode" fallback. Changing the codec 
-resets file's history. Apart from the tree structure per se, 
+`clang` AST based codec or "git mode" fallback. Changing the codec
+resets file's history. Apart from the tree structure per se,
 codecs may *tag* nodes (the bit budget is rather tight there).
 That way, queries may distinguish function from a class,
 invocation from declaration, and so on.
@@ -421,8 +422,11 @@ do you grep for a function body?). Still, this may fall short
 of full IDE capabilities. For an inquiring agent, that might be
 just right though. 
 
+ * `be grep "search"` trigram-accelerated substring search:
+   the trigram index narrows candidates to ~1/4096 of files
+   before reading any content, making search nearly instant
+   even for large repos
  * `mdp(worktree)` grep for markdown paragraphs (not lines)
- * `grep("search")` grep-like generic search
  * `has(int,getLen)` find nodes having children `int` and
    `getLen` (e.g. a typical C function definition)
  * `fn(int,getLen)` find specifically tagged function definitions
@@ -460,3 +464,4 @@ contributed feedback and ideas for this draft.
 [s]: https://www.youtube.com/watch?v=tVIM2xLbQBs
 [l]: https://www.cs.umb.edu/~poneil/lsmtree.pdf
 [m]: https://en.wikipedia.org/wiki/Merkle_tree
+[r]: https://replicated.wiki/rdx/
