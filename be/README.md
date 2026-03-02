@@ -337,7 +337,7 @@ histories. History rewriting in git is an advanced and extensive
 topic, a yardstick of developer's expertise. As it often happens,
 workarounds may need workarounds of their own, and so on.
 
-<img align=right width="40%" src="./img/nav.jpg"/>
+<img align=right width="40%" src="../blog/img/nav.jpg"/>
 Beagle unifies in-repo "buckets": staging or stashing is done by
 the same kind of a data container, no different from commit,
 branch, or tag, except for the labelling. Beagle makes unnamed
