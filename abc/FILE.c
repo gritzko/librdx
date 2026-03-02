@@ -701,8 +701,20 @@ ok64 FILEScan(path8 path, FILE_SCAN mode, path8f f, voidp arg) {
             *idle = saved_end;
             continue;
         }
-        switch (entry->d_type) {
-            case DT_DIR:  // todo _BSD_SOURCE
+        unsigned char dtype = entry->d_type;
+        if (dtype == DT_UNKNOWN) {
+            struct stat st;
+            if (lstat((const char *)*path, &st) == 0) {
+                if (S_ISREG(st.st_mode))
+                    dtype = DT_REG;
+                else if (S_ISDIR(st.st_mode))
+                    dtype = DT_DIR;
+                else if (S_ISLNK(st.st_mode))
+                    dtype = DT_LNK;
+            }
+        }
+        switch (dtype) {
+            case DT_DIR:
                 if (o == OK && (mode & FILE_SCAN_DIRS)) o = f(arg, path);
                 if (o == FILEskip)
                     o = OK;  // Skip recursion but continue scan

@@ -89,7 +89,7 @@ static ok64 BEStatus(BEp be) {
                 a_cstr(sep, ", ");
                 call(FILEout, sep);
             }
-            if (i == be->active_branch) {
+            if (i == 0) {
                 a_cstr(star, "*");
                 call(FILEout, star);
             }

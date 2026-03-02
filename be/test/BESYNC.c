@@ -49,8 +49,8 @@ ok64 BESYNCtest1() {
 
     // Init source repo and POST
     BE src_be = {};
-    u8cs uri = $u8str("be://BESYNCtest1/@test/proj?main");
-    call(BEInit, &src_be, uri, path8cgIn(src_work));
+    u8cs be_uri = $u8str("be://BESYNCtest1/@test/proj?main");
+    call(BEInit, &src_be, be_uri, path8cgIn(src_work));
     u8cs relpath = $u8str("hello.c");
     u8cs *paths = &relpath;
     u8cs msg = $u8str("initial");
@@ -112,7 +112,17 @@ ok64 BESYNCtest1() {
     u8 kbuf[512];
     u8s key = {kbuf, kbuf + sizeof(kbuf)};
     u8cs proj = $u8str("/@test/proj");
-    call(BEKeyFilePrefix, key, proj, relpath);
+    // Build file prefix key via URI API
+    u8 ppbuf[256];
+    u8s pp = {ppbuf, ppbuf + sizeof(ppbuf)};
+    uri pu = {};
+    call(u8sFeed, pp, proj);
+    u8sFeed1(pp, '/');
+    call(u8sFeed, pp, relpath);
+    u8cs ppath = {ppbuf, pp[0]};
+    u8csMv(pu.path, ppath);
+    call(URIutf8Feed, key, &pu);
+    u8sFeed1(key, '?');
     u8cs wp_prefix = {kbuf, key[0]};
     ROCKiter cit = {};
     call(ROCKIterOpen, &cit, &clonedb);

@@ -14,4 +14,10 @@ ok64 BASTParse(u8bp buf, u64bp idx, u8csc source, u8csc ext);
 struct TSLanguage;
 const struct TSLanguage *BASTLanguage(u8csc ext);
 
+// Extension to 18-bit ftype (3 RON64 chars packed).
+// ext includes the dot, e.g. ".c". Unknown → 0.
+u32 BASTFtype(u8csc ext);
+// 18-bit ftype → extension (with dot) into buffer. ftype 0 → empty.
+ok64 BASTFtypeExt(u8s ext, u32 ftype);
+
 #endif

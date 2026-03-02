@@ -15,13 +15,29 @@ con ok64 BEFAIL = 0x2ce3ca495;
 con ok64 BEBAD = 0xb38b28d;
 con ok64 BEnone = 0x2cecb3ca9;
 
+// File metadata prefix (8 bytes prepended to every stored value)
+#define BE_META_SIZE 8
+
+typedef struct {
+    u32 mtime;       // unix seconds (LE)
+    u32 modeftype;   // mode(12) | ftype(18) | spare(2)
+} BEmeta;
+
+// Pack metadata into 8-byte buffer
+ok64 BEMetaPack(u8s into, BEmeta m);
+// Unpack metadata from 8-byte buffer
+ok64 BEMetaUnpack(BEmeta *m, u8cs from);
+// Fill metadata from stat + extension
+ok64 BEMetaFromStat(BEmeta *m, struct stat *st, u8cs ext);
+
 // Scratch buffer slots (1GB anonymous mmap each, lazy-paged)
 enum {
     BE_READ = 0,   // ROCKGet results
     BE_RENDER = 1, // BASTExport output
     BE_PARSE = 2,  // BASTParse output
     BE_PATCH = 3,  // diff/merge intermediates
-    BE_SCRATCH = 4
+    BE_WRAP = 4,   // meta+bason concatenation
+    BE_SCRATCH = 5
 };
 #define BE_SCRATCH_LEN (1UL << 30)  // 1GB
 
@@ -39,30 +55,23 @@ typedef struct {
     // Multi-branch: parsed from query "branch1&branch2&main"
     u8cs branches[BE_MAX_BRANCHES];
     int branchc;
-    int active_branch;  // index into branches[] for POST
 } BE;
 typedef BE *BEp;
 
-// --- Key builders (project/path?TIMESTAMP-branch) ---
+// --- BE key format: path?query#fragment (URI) ---
+// Keys are URIs. Build via uri struct + URIutf8Feed.
+// Parse via URIutf8Drain. Query sub-structure: "STAMP-branch".
 
-// Base key: "<project>/<path>"
-ok64 BEKeyBase(u8s into, u8cs project, u8cs path);
+// Build query sub-structure "pad10_stamp-branch" into buffer
+ok64 BEQueryBuild(u8s into, ron60 stamp, u8cs branch);
 
-// Waypoint key: "<project>/<path>?<pad10_stamp>-<branch>"
-ok64 BEKeyWaypoint(u8s into, u8cs project, u8cs path,
-                   ron60 stamp, u8cs branch);
+// Parse query sub-structure into stamp + branch
+ok64 BEQueryParse(ron60 *stamp, u8csp branch, u8cs query);
 
-// File prefix for scanning: "<project>/<path>?"
-ok64 BEKeyFilePrefix(u8s into, u8cs project, u8cs path);
-
-// Metadata key: "<project>/?<pad10_stamp>-<branch>#<meta>"
-ok64 BEKeyMeta(u8s into, u8cs project, ron60 stamp,
-               u8cs branch, u8cs meta);
-
-// Extract branch suffix from waypoint key (after last '-' in query part)
+// Extract branch from key's query part (via URIutf8Drain + BEQueryParse)
 ok64 BEKeyBranchSuffix(u8csp branch, u8cs key);
 
-// Extract timestamp from waypoint key (10 chars after '?')
+// Extract timestamp from key's query part (via URIutf8Drain + BEQueryParse)
 ok64 BEKeyStamp(ron60 *stamp, u8cs key);
 
 // --- Lifecycle ---

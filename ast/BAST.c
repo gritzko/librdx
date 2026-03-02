@@ -83,6 +83,37 @@ const TSLanguage *BASTLanguage(u8csc ext) {
     return NULL;
 }
 
+u32 BASTFtype(u8csc ext) {
+    if (!$ok(ext) || $empty(ext)) return 0;
+    u8cp p = ext[0];
+    if (*p == '.') p++;
+    size_t n = ext[1] - p;
+    if (n == 0 || n > 3) return 0;
+    u8 chars[3] = {0, 0, 0};
+    for (size_t i = 0; i < n; i++) {
+        u8 v = RON64_REV[p[i]];
+        if (v == 0xff) return 0;
+        chars[i] = v;
+    }
+    return ((u32)chars[0] << 12) | ((u32)chars[1] << 6) | (u32)chars[2];
+}
+
+ok64 BASTFtypeExt(u8s ext, u32 ftype) {
+    if (ftype == 0) return OK;
+    u8 c0 = (ftype >> 12) & 0x3f;
+    u8 c1 = (ftype >> 6) & 0x3f;
+    u8 c2 = ftype & 0x3f;
+    u8sFeed1(ext, '.');
+    u8sFeed1(ext, RON64_CHARS[c0]);
+    if (c1 != 0 || c2 != 0) {
+        u8sFeed1(ext, RON64_CHARS[c1]);
+        if (c2 != 0) {
+            u8sFeed1(ext, RON64_CHARS[c2]);
+        }
+    }
+    return OK;
+}
+
 // --- Plain-text tokenizer (fallback for unknown extensions) ---
 // Tokens: \s*\w+ (whitespace + word), \s*\d+ (whitespace + number),
 // or individual punctuation chars.  Concatenating all tokens = original.
