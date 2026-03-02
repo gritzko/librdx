@@ -3,6 +3,7 @@
 
 #include "abc/FILE.h"
 #include "abc/PATH.h"
+#include "abc/RAP.h"
 #include "abc/ROCK.h"
 #include "abc/RON.h"
 #include "abc/URI.h"
@@ -15,20 +16,29 @@ con ok64 BEFAIL = 0x2ce3ca495;
 con ok64 BEBAD = 0xb38b28d;
 con ok64 BEnone = 0x2cecb3ca9;
 
-// File metadata prefix (8 bytes prepended to every stored value)
-#define BE_META_SIZE 8
+// --- Key scheme prefixes ---
+// stat:  → file metadata (BASON: mtime, mode, ftype)
+// be:    → BASON tree / patch content
+// tri:   → trigram posting lists (BASON object, merge = set-union)
+#define BE_SCHEME_STAT "stat"
+#define BE_SCHEME_BE   "be"
+#define BE_SCHEME_TRI  "tri"
 
+// File metadata stored as BASON object in stat: values
 typedef struct {
-    u32 mtime;       // unix seconds (LE)
+    u32 mtime;       // unix seconds
     u32 modeftype;   // mode(12) | ftype(18) | spare(2)
 } BEmeta;
 
-// Pack metadata into 8-byte buffer
-ok64 BEMetaPack(u8s into, BEmeta m);
-// Unpack metadata from 8-byte buffer
-ok64 BEMetaUnpack(BEmeta *m, u8cs from);
+// Build BASON metadata value from BEmeta
+ok64 BEMetaFeedBason(u8bp buf, u64bp idx, BEmeta m);
+// Drain BASON metadata value into BEmeta
+ok64 BEMetaDrainBason(BEmeta *m, u8cs bason);
 // Fill metadata from stat + extension
 ok64 BEMetaFromStat(BEmeta *m, struct stat *st, u8cs ext);
+
+// Build a scheme-prefixed key: scheme:path?query#fragment
+ok64 BEKeyBuild(u8s into, u8cs scheme, u8cs path, u8cs query, u8cs fragment);
 
 // Scratch buffer slots (1GB anonymous mmap each, lazy-paged)
 enum {
@@ -36,8 +46,9 @@ enum {
     BE_RENDER = 1, // BASTExport output
     BE_PARSE = 2,  // BASTParse output
     BE_PATCH = 3,  // diff/merge intermediates
-    BE_WRAP = 4,   // meta+bason concatenation
-    BE_SCRATCH = 5
+    BE_WRAP = 4,   // metadata BASON staging
+    BE_PATHS = 5,  // collected relpaths in BEGetProject
+    BE_SCRATCH = 6
 };
 #define BE_SCRATCH_LEN (1UL << 30)  // 1GB
 
@@ -119,5 +130,21 @@ ok64 BEMilestone(BEp be, u8cs name);
 
 // Flatten BASON tree back to source text
 ok64 BASTExport(u8s out, u64bp stack, u8csc data);
+
+// --- Trigram index ---
+
+// Compute 2-char RON64 hashlet from file path (12 bits = 4096 buckets)
+ok64 BEHashlet(u8s into, u8cs path);
+
+// Extract ASCII trigrams from BASON string leaves, call cb for each unique
+typedef ok64 (*BETriCBf)(voidp arg, u8cs trigram);
+ok64 BETriExtract(u8csc bason, BETriCBf cb, voidp arg);
+
+// Grep result callback: filepath, line number (1-based), matching line
+typedef ok64 (*BEGrepCBf)(voidp arg, u8cs filepath, int lineno, u8cs line);
+
+// Search: URI fragment = substring, query = branch filter (optional)
+// be grep substr == be grep #substr == be grep //repo/proj?branch#substr
+ok64 BEGrep(BEp be, uricp grep_uri, BEGrepCBf result_cb, voidp arg);
 
 #endif  // LIBRDX_BE_H

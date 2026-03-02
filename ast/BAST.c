@@ -169,6 +169,72 @@ static ok64 BASTParseText(u8bp buf, u64bp idx, u8csc source) {
     done;
 }
 
+// --- AST node type tagging ---
+//
+// BASON keys get a suffix letter indicating the AST node type:
+//   'f' = function/method definition
+//   'c' = class/struct/type declaration
+//   'b' = block/compound statement (bracketed)
+// If the RON64 key naturally ends with a reserved letter, '0' is
+// appended first to disambiguate.  So the last character of the
+// final key tells the type: 'f'/'c'/'b' = tagged, anything else = untagged.
+//
+// Tree-sitter node type strings are language-dependent.  No cross-language
+// conflicts exist, so one flat table covers all supported languages.
+
+#define BAST_TAG_FUNC  'f'
+#define BAST_TAG_CLASS 'c'
+#define BAST_TAG_BLOCK 'b'
+
+typedef struct {
+    const char *tstype;
+    u8 tag;
+} BASTTagEntry;
+
+static const BASTTagEntry bast_tags[] = {
+    // --- functions (f) ---
+    {"function_definition", BAST_TAG_FUNC},   // C, C++, Python, Bash
+    {"function_declaration", BAST_TAG_FUNC},   // Go
+    {"function_item", BAST_TAG_FUNC},          // Rust
+    {"method_declaration", BAST_TAG_FUNC},     // Java, C#, Go
+    {"method", BAST_TAG_FUNC},                 // Ruby
+    // --- classes / type decls (c) ---
+    {"struct_specifier", BAST_TAG_CLASS},       // C, C++
+    {"union_specifier", BAST_TAG_CLASS},        // C
+    {"enum_specifier", BAST_TAG_CLASS},         // C, C++
+    {"class_specifier", BAST_TAG_CLASS},        // C++
+    {"class_definition", BAST_TAG_CLASS},       // Python
+    {"class_declaration", BAST_TAG_CLASS},      // Java, C#
+    {"type_declaration", BAST_TAG_CLASS},       // Go
+    {"struct_item", BAST_TAG_CLASS},            // Rust
+    {"enum_item", BAST_TAG_CLASS},              // Rust
+    {"impl_item", BAST_TAG_CLASS},              // Rust
+    {"trait_item", BAST_TAG_CLASS},             // Rust
+    {"class", BAST_TAG_CLASS},                  // Ruby
+    {"module", BAST_TAG_CLASS},                 // Ruby
+    // --- blocks (b) ---
+    {"compound_statement", BAST_TAG_BLOCK},     // C, C++, Bash
+    {"block", BAST_TAG_BLOCK},                  // Python, Go, Rust
+    {NULL, 0}
+};
+
+static u8 BASTNodeTag(const char *tstype) {
+    for (const BASTTagEntry *e = bast_tags; e->tstype; e++) {
+        if (strcmp(e->tstype, tstype) == 0) return e->tag;
+    }
+    return 0;
+}
+
+fun b8 BASTReserved(u8 ch) {
+    return ch == BAST_TAG_FUNC || ch == BAST_TAG_CLASS || ch == BAST_TAG_BLOCK;
+}
+
+// Append disambiguation '0' if needed, then type tag suffix.
+fun void BASTKeySuffix(u8s ki, u8 tag) {
+    if (BASTReserved(*(ki[0] - 1))) *(ki[0])++ = '0';
+    if (tag) *(ki[0])++ = tag;
+}
+
 // --- Tree-to-BASON conversion ---
 
 // Emit one named node as BASON.
@@ -196,18 +262,20 @@ static ok64 BASTFeedNode(u8bp buf, u64bp idx, u8csc src, TSNode node,
         uint32_t cs = ts_node_start_byte(child);
 
         if (cs > pos) {
-            u8 kb[11];
-            u8s ki = {kb, kb + 11};
+            u8 kb[14];
+            u8s ki = {kb, kb + sizeof(kb)};
             call(RONutf8sFeed, ki, ci++);
+            BASTKeySuffix(ki, 0);
             u8cs ck = {(u8cp)kb, (u8cp)ki[0]};
             u8cs gap = {src[0] + pos, src[0] + cs};
             call(BASONFeed, idx, buf, 'S', ck, gap);
         }
 
         {
-            u8 kb[11];
-            u8s ki = {kb, kb + 11};
+            u8 kb[14];
+            u8s ki = {kb, kb + sizeof(kb)};
             call(RONutf8sFeed, ki, ci++);
+            BASTKeySuffix(ki, BASTNodeTag(ts_node_type(child)));
             u8cs ck = {(u8cp)kb, (u8cp)ki[0]};
             call(BASTFeedNode, buf, idx, src, child, ck);
         }
@@ -216,9 +284,10 @@ static ok64 BASTFeedNode(u8bp buf, u64bp idx, u8csc src, TSNode node,
     }
 
     if (e > pos) {
-        u8 kb[11];
-        u8s ki = {kb, kb + 11};
+        u8 kb[14];
+        u8s ki = {kb, kb + sizeof(kb)};
         call(RONutf8sFeed, ki, ci++);
+        BASTKeySuffix(ki, 0);
         u8cs ck = {(u8cp)kb, (u8cp)ki[0]};
         u8cs gap = {src[0] + pos, src[0] + e};
         call(BASONFeed, idx, buf, 'S', ck, gap);

@@ -185,6 +185,21 @@ pass "local depot checkout"
 cd "$WORK"
 
 # =============================================================
+echo "--- 9.a: be grep (substring search) ---"
+cd "$WORK"
+OUT=$("$BE" grep "int a")
+echo "$OUT" | grep -q "a.c:.*int a" || fail "grep did not find a.c with line"
+pass "be grep bare text (file:line format)"
+
+OUT=$("$BE" grep "#int b")
+echo "$OUT" | grep -q "b.c:.*int b" || fail "grep #fragment did not find b.c"
+pass "be grep #fragment"
+
+OUT=$("$BE" grep "nonexistent_zzz_qqq")
+test -z "$OUT" || fail "grep found phantom match"
+pass "be grep no match"
+
+# =============================================================
 # Skipped: not yet implemented
 echo "--- SKIP: 3.a PUT file.sst (SST ingest) ---"
 echo "--- SKIP: 3.c PUT //repo (cross-depot ingest) ---"

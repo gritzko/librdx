@@ -422,8 +422,11 @@ do you grep for a function body?). Still, this may fall short
 of full IDE capabilities. For an inquiring agent, that might be
 just right though. 
 
+ * `be grep "search"` trigram-accelerated substring search:
+   the trigram index narrows candidates to ~1/4096 of files
+   before reading any content, making search nearly instant
+   even for large repos
  * `mdp(worktree)` grep for markdown paragraphs (not lines)
- * `grep("search")` grep-like generic search
  * `has(int,getLen)` find nodes having children `int` and
    `getLen` (e.g. a typical C function definition)
  * `fn(int,getLen)` find specifically tagged function definitions

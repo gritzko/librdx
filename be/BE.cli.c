@@ -98,9 +98,12 @@ static ok64 BEStatus(BEp be) {
         call(FILEout, NL);
     }
 
-    // Count files and waypoints
+    // Count files and waypoints (scan stat: for lightweight listing)
+    a_cstr(sch_stat, BE_SCHEME_STAT);
     u8 pfxbuf[512];
     u8s pfx = {pfxbuf, pfxbuf + sizeof(pfxbuf)};
+    call(u8sFeed, pfx, sch_stat);
+    u8sFeed1(pfx, ':');
     call(u8sFeed, pfx, be->loc.path);
     u8sFeed1(pfx, '/');
     u8cs prefix = {pfxbuf, pfx[0]};
@@ -320,6 +323,46 @@ static ok64 BECLIMark(int argc) {
     done;
 }
 
+// ---- verb: grep ----
+static ok64 BEGrepCB(voidp arg, u8cs filepath, int lineno, u8cs line) {
+    ok64 __ = OK;
+    call(FILEout, filepath);
+    u8 nbuf[16];
+    int nlen = snprintf((char *)nbuf, sizeof(nbuf), ":%d:", lineno);
+    u8cs ns = {nbuf, nbuf + nlen};
+    call(FILEout, ns);
+    call(FILEout, line);
+    call(FILEout, NL);
+    return OK;
+}
+
+static ok64 BECLIGrep(int argc) {
+    sane(1);
+    test(argc > 2, BEBAD);
+    BE be = {};
+    call(BEOpenCwd, &be);
+    a$rg(arg, 2);
+
+    // Parse as URI: bare text → treat as fragment (#substr)
+    // Also handles #substr, ?branch#substr, //repo/proj?branch#substr
+    u8 ubuf[512];
+    u8s us = {ubuf, ubuf + sizeof(ubuf)};
+    u8cp a = arg[0];
+    if (*a != '#' && *a != '?' && !(*a == '/' && $len(arg) > 1 && a[1] == '/')) {
+        // bare text: prepend #
+        u8sFeed1(us, '#');
+    }
+    call(u8sFeed, us, arg);
+    uri gu = {};
+    gu.data[0] = ubuf;
+    gu.data[1] = us[0];
+    call(URILexer, &gu);
+
+    call(BEGrep, &be, &gu, BEGrepCB, NULL);
+    call(BEClose, &be);
+    done;
+}
+
 // ---- verb: fit (merge branch into main) ----
 static ok64 BECLIFit(int argc) {
     sane(1);
@@ -368,6 +411,7 @@ ok64 becli() {
     a_cstr(v_mark, "mark");
     a_cstr(v_fit, "fit");
     a_cstr(v_deps, "deps");
+    a_cstr(v_grep, "grep");
 
     if ($eq(verb, v_post)) {
         call(BECLIPost, argc);
@@ -387,6 +431,8 @@ ok64 becli() {
         call(BECLIFit, argc);
     } else if ($eq(verb, v_deps)) {
         call(BECLIDeps, argc);
+    } else if ($eq(verb, v_grep)) {
+        call(BECLIGrep, argc);
     } else {
         a_cstr(err, "unknown verb: ");
         call(FILEerr, err);

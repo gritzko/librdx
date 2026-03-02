@@ -13,49 +13,34 @@
 ok64 BEtest1() {
     sane(1);
 
-    // Test base key (path-only URI)
-    u8cs proj = $u8str("librdx");
-    u8cs path = $u8str("src/main.c");
-    u8 ppbuf[256];
-    u8s pp = {ppbuf, ppbuf + sizeof(ppbuf)};
-    call(u8sFeed, pp, proj);
-    u8sFeed1(pp, '/');
-    call(u8sFeed, pp, path);
-    u8cs fpath = {ppbuf, pp[0]};
-
-    uri u = {};
-    u8csMv(u.path, fpath);
+    // Test BEKeyBuild with be: scheme
+    u8cs fpath = $u8str("librdx/src/main.c");
+    a_cstr(sch_be, BE_SCHEME_BE);
+    u8cs empty_q = {};
+    u8cs empty_f = {};
     u8 kbuf[512];
     u8s key = {kbuf, kbuf + sizeof(kbuf)};
-    call(URIutf8Feed, key, &u);
+    call(BEKeyBuild, key, sch_be, fpath, empty_q, empty_f);
     u8cs got = {kbuf, key[0]};
-    u8cs expected = $u8str("librdx/src/main.c");
+    u8cs expected = $u8str("be:librdx/src/main.c");
     want($eq(got, expected));
 
-    // Test base key with empty path
-    u8 ppbuf2[256];
-    u8s pp2 = {ppbuf2, ppbuf2 + sizeof(ppbuf2)};
-    call(u8sFeed, pp2, proj);
-    u8sFeed1(pp2, '/');
-    uri u2 = {};
-    u8cs fpath2 = {ppbuf2, pp2[0]};
-    u8csMv(u2.path, fpath2);
+    // Test stat: scheme
+    a_cstr(sch_stat, BE_SCHEME_STAT);
     key[0] = kbuf;
-    call(URIutf8Feed, key, &u2);
+    call(BEKeyBuild, key, sch_stat, fpath, empty_q, empty_f);
     got[0] = kbuf;
     got[1] = key[0];
-    u8cs exp2 = $u8str("librdx/");
+    u8cs exp2 = $u8str("stat:librdx/src/main.c");
     want($eq(got, exp2));
 
-    // Test file prefix (path + '?')
-    uri u3 = {};
-    u8csMv(u3.path, fpath);
+    // Test with query
+    u8cs query = $u8str("0000000123-main");
     key[0] = kbuf;
-    call(URIutf8Feed, key, &u3);
-    u8sFeed1(key, '?');
+    call(BEKeyBuild, key, sch_be, fpath, query, empty_f);
     got[0] = kbuf;
     got[1] = key[0];
-    u8cs exp3 = $u8str("librdx/src/main.c?");
+    u8cs exp3 = $u8str("be:librdx/src/main.c?0000000123-main");
     want($eq(got, exp3));
 
     done;
@@ -65,32 +50,24 @@ ok64 BEtest1() {
 
 ok64 BEtest2() {
     sane(1);
-    u8cs proj = $u8str("librdx");
-    u8cs path = $u8str("src/main.c");
+    u8cs fpath = $u8str("librdx/src/main.c");
     u8cs branch = $u8str("main");
     ron60 stamp = 0x123;
 
-    // Build waypoint key via URI API
-    u8 ppbuf[256];
-    u8s pp = {ppbuf, ppbuf + sizeof(ppbuf)};
-    call(u8sFeed, pp, proj);
-    u8sFeed1(pp, '/');
-    call(u8sFeed, pp, path);
+    // Build waypoint key with scheme
+    a_cstr(sch_be, BE_SCHEME_BE);
     u8 qqbuf[128];
     u8s qq = {qqbuf, qqbuf + sizeof(qqbuf)};
     call(BEQueryBuild, qq, stamp, branch);
-    uri u = {};
-    u8cs up = {ppbuf, pp[0]};
-    u8cs uq = {qqbuf, qq[0]};
-    u8csMv(u.path, up);
-    u8csMv(u.query, uq);
+    u8cs query = {qqbuf, qq[0]};
+    u8cs empty_f = {};
     u8 kbuf[512];
     u8s key = {kbuf, kbuf + sizeof(kbuf)};
-    call(URIutf8Feed, key, &u);
+    call(BEKeyBuild, key, sch_be, fpath, query, empty_f);
     u8cs got = {kbuf, key[0]};
 
-    // Should contain "librdx/src/main.c?" + 10-char timestamp + "-main"
-    a_cstr(prefix, "librdx/src/main.c?");
+    // Should start with "be:librdx/src/main.c?"
+    a_cstr(prefix, "be:librdx/src/main.c?");
     want($len(got) > $len(prefix));
     want(memcmp(got[0], prefix[0], $len(prefix)) == 0);
     // Should end with "-main"
@@ -99,7 +76,7 @@ ok64 BEtest2() {
     u8cs tail = {got[1] - $len(suffix), got[1]};
     want($eq(tail, suffix));
 
-    // Extract branch suffix
+    // Extract branch suffix (URIutf8Drain handles scheme)
     u8cs extracted_branch = {};
     call(BEKeyBranchSuffix, extracted_branch, got);
     want($eq(extracted_branch, branch));
@@ -114,8 +91,8 @@ ok64 BEtest2() {
 
 // ---- Test 3: Key ordering (timestamps sort correctly) ----
 
-// Helper: build waypoint URI key into buffer
-static ok64 TestWaypoint(u8s into, u8cs proj, u8cs path,
+// Helper: build waypoint URI key into buffer (with scheme prefix)
+static ok64 TestWaypoint(u8s into, u8cs scheme, u8cs proj, u8cs path,
                          ron60 stamp, u8cs branch) {
     sane($ok(into));
     u8 ppbuf[256];
@@ -126,34 +103,32 @@ static ok64 TestWaypoint(u8s into, u8cs proj, u8cs path,
     u8 qqbuf[128];
     u8s qq = {qqbuf, qqbuf + sizeof(qqbuf)};
     call(BEQueryBuild, qq, stamp, branch);
-    uri u = {};
     u8cs up = {ppbuf, pp[0]};
     u8cs uq = {qqbuf, qq[0]};
-    u8csMv(u.path, up);
-    u8csMv(u.query, uq);
-    call(URIutf8Feed, into, &u);
+    u8cs empty_f = {};
+    call(BEKeyBuild, into, scheme, up, uq, empty_f);
     done;
 }
 
-// Helper: build base URI key (path only)
-static ok64 TestBase(u8s into, u8cs proj, u8cs path) {
+// Helper: build base URI key (scheme:path)
+static ok64 TestBase(u8s into, u8cs scheme, u8cs proj, u8cs path) {
     sane($ok(into));
     u8 ppbuf[256];
     u8s pp = {ppbuf, ppbuf + sizeof(ppbuf)};
     call(u8sFeed, pp, proj);
     u8sFeed1(pp, '/');
     if ($ok(path) && !$empty(path)) call(u8sFeed, pp, path);
-    uri u = {};
     u8cs up = {ppbuf, pp[0]};
-    u8csMv(u.path, up);
-    call(URIutf8Feed, into, &u);
+    u8cs empty_q = {};
+    u8cs empty_f = {};
+    call(BEKeyBuild, into, scheme, up, empty_q, empty_f);
     done;
 }
 
-// Helper: build file prefix key (path + '?')
-static ok64 TestFilePrefix(u8s into, u8cs proj, u8cs path) {
+// Helper: build file prefix key (scheme:path?)
+static ok64 TestFilePrefix(u8s into, u8cs scheme, u8cs proj, u8cs path) {
     sane($ok(into));
-    call(TestBase, into, proj, path);
+    call(TestBase, into, scheme, proj, path);
     u8sFeed1(into, '?');
     done;
 }
@@ -163,15 +138,16 @@ ok64 BEtest3() {
     u8cs proj = $u8str("proj");
     u8cs path = $u8str("file.c");
     u8cs branch = $u8str("main");
+    a_cstr(sch_be, BE_SCHEME_BE);
 
     u8 k1buf[512], k2buf[512], k3buf[512];
     u8s k1 = {k1buf, k1buf + sizeof(k1buf)};
     u8s k2 = {k2buf, k2buf + sizeof(k2buf)};
     u8s k3 = {k3buf, k3buf + sizeof(k3buf)};
 
-    call(TestWaypoint, k1, proj, path, 100, branch);
-    call(TestWaypoint, k2, proj, path, 200, branch);
-    call(TestWaypoint, k3, proj, path, 300, branch);
+    call(TestWaypoint, k1, sch_be, proj, path, 100, branch);
+    call(TestWaypoint, k2, sch_be, proj, path, 200, branch);
+    call(TestWaypoint, k3, sch_be, proj, path, 300, branch);
 
     u8cs s1 = {k1buf, k1[0]};
     u8cs s2 = {k2buf, k2[0]};
@@ -187,13 +163,14 @@ ok64 BEtest3() {
     u8cs b2 = $u8str("feat");
     u8 k4buf[512];
     u8s k4 = {k4buf, k4buf + sizeof(k4buf)};
-    call(TestWaypoint, k4, proj, path, 200, b2);
+    call(TestWaypoint, k4, sch_be, proj, path, 200, b2);
     u8cs s4 = {k4buf, k4[0]};
+    want(!$empty(s4));  // feat waypoint key exists
 
     // Base key sorts before all waypoint keys for same path
     u8 bkbuf[512];
     u8s bk = {bkbuf, bkbuf + sizeof(bkbuf)};
-    call(TestBase, bk, proj, path);
+    call(TestBase, bk, sch_be, proj, path);
     u8cs sbase = {bkbuf, bk[0]};
     // base is shorter prefix, so base < waypoint in lexicographic order
     want($len(sbase) < $len(s2));
@@ -320,10 +297,11 @@ ok64 BEtest6() {
     u8cs msg2 = $u8str("v2");
     call(BEPost, &be, 1, paths, msg2);
 
-    // Verify waypoint keys exist with new format
+    // Verify waypoint keys exist with new format (be: scheme)
+    a_cstr(sch_be, BE_SCHEME_BE);
     u8 pfxbuf[512];
     u8s pfx = {pfxbuf, pfxbuf + sizeof(pfxbuf)};
-    call(TestFilePrefix, pfx, be.loc.path, relpath);
+    call(TestFilePrefix, pfx, sch_be, be.loc.path, relpath);
     u8cs prefix = {pfxbuf, pfx[0]};
 
     ROCKiter it = {};
@@ -486,10 +464,11 @@ ok64 BEtest8() {
     u8cs msg2 = $u8str("ms v2");
     call(BEPost, &be, 1, paths, msg2);
 
-    // Count waypoints before milestone
+    // Count waypoints before milestone (be: scheme)
+    a_cstr(sch_be, BE_SCHEME_BE);
     u8 pfxbuf[512];
     u8s pfx = {pfxbuf, pfxbuf + sizeof(pfxbuf)};
-    call(TestFilePrefix, pfx, be.loc.path, relpath);
+    call(TestFilePrefix, pfx, sch_be, be.loc.path, relpath);
     u8cs prefix = {pfxbuf, pfx[0]};
 
     ROCKiter it = {};
@@ -528,10 +507,10 @@ ok64 BEtest8() {
     call(ROCKIterClose, &it);
     same(wp_after, 0);
 
-    // Base key should exist with merged state
+    // Base key should exist with merged state (be: scheme)
     u8 bkbuf[512];
     u8s bkey = {bkbuf, bkbuf + sizeof(bkbuf)};
-    call(TestBase, bkey, be.loc.path, relpath);
+    call(TestBase, bkey, sch_be, be.loc.path, relpath);
     u8cs base_key = {bkbuf, bkey[0]};
     aBpad(u8, vbuf, 65536);
     ok64 go = ROCKGet(&be.db, vbuf, base_key);
@@ -713,24 +692,37 @@ ok64 BEtest11() {
     u8cs msg = $u8str("init");
     call(BEPost, &be, 1, paths, msg);
 
-    // Store a dep project's file directly in DB (base key)
+    // Store a dep project's file directly in DB (be: + stat: keys)
     u8cs dep_proj = $u8str("/@test/deplib");
     u8cs dep_file = $u8str("util.c");
+    a_cstr(sch_be, BE_SCHEME_BE);
+    a_cstr(sch_stat, BE_SCHEME_STAT);
+
+    // be: key with BASON content
     u8 dkbuf[512];
     u8s dkey = {dkbuf, dkbuf + sizeof(dkbuf)};
-    call(TestBase, dkey, dep_proj, dep_file);
+    call(TestBase, dkey, sch_be, dep_proj, dep_file);
     u8cs dep_key = {dkbuf, dkey[0]};
 
     u8cs dep_src = $u8str("int util() {}\n");
     u8cs dep_ext = $u8str(".c");
     aBpad(u8, dbuf, 65536);
     aBpad(u64, didx, 4096);
-    // Prepend zero metadata to the base value
-    BEmeta dep_meta = {};
-    call(BEMetaPack, u8bIdle(dbuf), dep_meta);
     call(BASTParse, dbuf, didx, dep_src, dep_ext);
     u8cs dep_val = {dbuf[1], dbuf[2]};
     call(ROCKPut, &be.db, dep_key, dep_val);
+
+    // stat: key with BASON metadata
+    u8 skbuf[512];
+    u8s skey = {skbuf, skbuf + sizeof(skbuf)};
+    call(TestBase, skey, sch_stat, dep_proj, dep_file);
+    u8cs stat_key = {skbuf, skey[0]};
+    aBpad(u8, mbuf, 256);
+    aBpad(u64, midx, 32);
+    BEmeta dep_meta = {};
+    call(BEMetaFeedBason, mbuf, midx, dep_meta);
+    u8cs meta_val = {mbuf[1], mbuf[2]};
+    call(ROCKPut, &be.db, stat_key, meta_val);
 
     // Write .beget file
     a_path(bgpath, "");
@@ -865,14 +857,15 @@ ok64 BEtest13() {
     u32 ft_empty = BASTFtype(ext_empty);
     same(ft_empty, 0);
 
-    // BEmeta pack/unpack roundtrip
+    // BEmeta BASON roundtrip
     BEmeta m = {.mtime = 1234567890, .modeftype = (0755 << 20) | (ft_c << 2)};
-    u8 mbuf[BE_META_SIZE];
-    u8s ms = {mbuf, mbuf + BE_META_SIZE};
-    call(BEMetaPack, ms, m);
+    aBpad(u8, mbuf, 256);
+    aBpad(u64, midx, 32);
+    call(BEMetaFeedBason, mbuf, midx, m);
+    u8cs mcs = {mbuf[1], mbuf[2]};
+    want(!$empty(mcs));
     BEmeta m2 = {};
-    u8cs mcs = {mbuf, mbuf + BE_META_SIZE};
-    call(BEMetaUnpack, &m2, mcs);
+    call(BEMetaDrainBason, &m2, mcs);
     same(m.mtime, m2.mtime);
     same(m.modeftype, m2.modeftype);
     // Verify field extraction
@@ -881,6 +874,172 @@ ok64 BEtest13() {
     u32 ftype = (m2.modeftype >> 2) & 0x3FFFF;
     same(ftype, ft_c);
 
+    done;
+}
+
+// ---- Test 14: Trigram extraction ----
+
+typedef struct {
+    int count;
+    u8 trigrams[256][3];
+} TriCollect;
+
+static ok64 TriCollectCB(voidp arg, u8cs trigram) {
+    TriCollect *tc = (TriCollect *)arg;
+    test($len(trigram) == 3, BEBAD);
+    test(tc->count < 256, BEBAD);
+    memcpy(tc->trigrams[tc->count], trigram[0], 3);
+    tc->count++;
+    return OK;
+}
+
+ok64 BEtest14() {
+    sane(1);
+
+    // Parse a source string into BASON, extract trigrams
+    u8cs source = $u8str("int foo = bar;\n");
+    u8cs ext = $u8str(".c");
+    aBpad(u8, buf, 65536);
+    aBpad(u64, idx, 4096);
+    call(BASTParse, buf, idx, source, ext);
+    u8cs bason = {buf[1], buf[2]};
+    want(!$empty(bason));
+
+    TriCollect tc = {};
+    call(BETriExtract, bason, TriCollectCB, &tc);
+
+    // Should find "int", "foo", "bar" at minimum
+    want(tc.count >= 3);
+
+    // Verify "foo" is among extracted trigrams
+    b8 found_foo = NO;
+    for (int i = 0; i < tc.count; i++) {
+        if (tc.trigrams[i][0] == 'f' &&
+            tc.trigrams[i][1] == 'o' &&
+            tc.trigrams[i][2] == 'o') {
+            found_foo = YES;
+        }
+    }
+    want(found_foo);
+
+    done;
+}
+
+// ---- Test 15: Hashlet determinism ----
+
+ok64 BEtest15() {
+    sane(1);
+
+    u8cs path1 = $u8str("src/main.c");
+    u8cs path2 = $u8str("src/util.c");
+
+    u8 h1buf[4], h2buf[4], h3buf[4];
+    u8s h1 = {h1buf, h1buf + sizeof(h1buf)};
+    u8s h2 = {h2buf, h2buf + sizeof(h2buf)};
+    u8s h3 = {h3buf, h3buf + sizeof(h3buf)};
+
+    call(BEHashlet, h1, path1);
+    call(BEHashlet, h2, path2);
+    call(BEHashlet, h3, path1);
+
+    u8cs s1 = {h1buf, h1[0]};
+    u8cs s3 = {h3buf, h3[0]};
+    // Same path → same hashlet
+    want($eq(s1, s3));
+    // Hashlet should be 2 chars
+    same((int)$len(s1), 2);
+
+    done;
+}
+
+// ---- Test 16: Trigram search roundtrip (POST + grep) ----
+
+typedef struct {
+    int count;
+    u8cs paths[16];
+} GrepResult;
+
+static ok64 GrepCollectCB(voidp arg, u8cs filepath, int lineno, u8cs line) {
+    GrepResult *gr = (GrepResult *)arg;
+    test(gr->count < 16, BEBAD);
+    u8csMv(gr->paths[gr->count], filepath);
+    gr->count++;
+    return OK;
+}
+
+ok64 BEtest16() {
+    sane(1);
+
+    a_path(wpath, "/tmp");
+    a_cstr(tmpl, "BEtestG_XXXXXX");
+    call(path8gAddTmp, path8gIn(wpath), tmpl);
+    call(FILEMakeDir, path8cgIn(wpath));
+
+    // Create two files with different content
+    a_path(fpath1, "");
+    call(path8gDup, path8gIn(fpath1), path8cgIn(wpath));
+    a_cstr(fname1, "alpha.c");
+    call(path8gPush, path8gIn(fpath1), fname1);
+    u8cs src1 = $u8str("int unique_xyz = 1;\n");
+    int fd = 0;
+    call(FILECreate, &fd, path8cgIn(fpath1));
+    call(FILEFeedall, fd, src1);
+    call(FILEClose, &fd);
+
+    a_path(fpath2, "");
+    call(path8gDup, path8gIn(fpath2), path8cgIn(wpath));
+    a_cstr(fname2, "beta.c");
+    call(path8gPush, path8gIn(fpath2), fname2);
+    u8cs src2 = $u8str("int other_abc = 2;\n");
+    fd = 0;
+    call(FILECreate, &fd, path8cgIn(fpath2));
+    call(FILEFeedall, fd, src2);
+    call(FILEClose, &fd);
+
+    // Init + POST both files
+    BE be = {};
+    u8cs be_uri = $u8str("be://BEtestG/@test/proj?main");
+    call(BEInit, &be, be_uri, path8cgIn(wpath));
+    u8cs msg = $u8str("test trigrams");
+    call(BEPost, &be, 0, NULL, msg);
+
+    // Grep for "unique_xyz" — should find alpha.c only
+    u8cs f1 = $u8str("unique_xyz");
+    uri gu1 = {};
+    gu1.fragment[0] = f1[0]; gu1.fragment[1] = f1[1];
+    GrepResult gr1 = {};
+    call(BEGrep, &be, &gu1, GrepCollectCB, &gr1);
+    same(gr1.count, 1);
+
+    // Grep for "other_abc" — should find beta.c only
+    u8cs f2 = $u8str("other_abc");
+    uri gu2 = {};
+    gu2.fragment[0] = f2[0]; gu2.fragment[1] = f2[1];
+    GrepResult gr2 = {};
+    call(BEGrep, &be, &gu2, GrepCollectCB, &gr2);
+    same(gr2.count, 1);
+
+    // Grep for "int" — should find both files
+    u8cs f3 = $u8str("int");
+    uri gu3 = {};
+    gu3.fragment[0] = f3[0]; gu3.fragment[1] = f3[1];
+    GrepResult gr3 = {};
+    call(BEGrep, &be, &gu3, GrepCollectCB, &gr3);
+    want(gr3.count >= 2);
+
+    // Grep for "nonexistent_term" — should find nothing
+    u8cs f4 = $u8str("nonexistent_term");
+    uri gu4 = {};
+    gu4.fragment[0] = f4[0]; gu4.fragment[1] = f4[1];
+    GrepResult gr4 = {};
+    call(BEGrep, &be, &gu4, GrepCollectCB, &gr4);
+    same(gr4.count, 0);
+
+    a_path(rpath, "");
+    call(path8gDup, path8gIn(rpath), path8cgIn(be.repo_pp));
+    call(BEClose, &be);
+    call(FILErmrf, path8cgIn(wpath));
+    call(FILErmrf, path8cgIn(rpath));
     done;
 }
 
@@ -899,6 +1058,9 @@ ok64 maintest() {
     call(BEtest11);
     call(BEtest12);
     call(BEtest13);
+    call(BEtest14);
+    call(BEtest15);
+    call(BEtest16);
     done;
 }
 
