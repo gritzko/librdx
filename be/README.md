@@ -339,7 +339,7 @@ workarounds may need workarounds of their own, and so on.
 
 <img align=right width="40%" src="./img/nav.jpg"/>
 Beagle unifies in-repo "buckets": staging or stashing is done by
-the same kind of an RDX container, no different from commit,
+the same kind of a data container, no different from commit,
 branch, or tag, except for the labelling. Beagle makes unnamed
 inter-commit states (waypoints) shareable, and all commits in
 general aggregatable, so rebasing and squashing become part of
@@ -354,7 +354,7 @@ main public version. `get ?head` or `get ?feature`
 switches the worktree to a different branch.
 
 Beagle's [Merkle structure][m] is aligned with its [LSM][l] structure.
-A project's state is technically a stack of RDX SST files in a
+A project's state is technically a stack of SST files in a
 repo. Each (newer, smaller) file references the hash of the
 previous (older, larger) file. When pulling changes from other
 replica, we can verify that this Tower of Hanoi is mostly
@@ -363,14 +363,14 @@ easy to inspect. A full chain-of-commits history is inspectable,
 in theory, if all the historical commit files are preserved
 somewhere (likely S3).
 
-Waypoint commits are RDX SST files with no tag attached. One can
+Waypoint commits are write transactions with no tag attached. One can
 address them by time or hash, but their replication to other
 replicas is not guaranteed. Those are of local interest and
 might be compacted into larger files and garbage collected. That
 is the standard LSM way of things.  Important commits are marked
 with "sticky notes" (branches and tags). Those are preserved.
 
-Finally, a CHANGELOG RDX document lists all the regular commits
+Finally, a CHANGELOG document lists all the regular commits
 and their attributes: times, dates, comments, authors, hashes,
 signatures. These are produced by `be mark` (changelog insert +
 `be post` combo). The mission of a changelog is to explain the
@@ -403,14 +403,14 @@ databases.
 
 ##  Querying the AST* tree
 
-What Beagle internally processes is not exactly AST but RDX, a
-CRDT JSON superset, tree-ish document format. Beagle employs 
-*codecs* to import and export files into/from RDX. Hence, most
+What Beagle internally processes is not exactly AST but BASON, a
+binary JSON format (a budget variant of [RDX][r]). Beagle employs
+*codecs* to import and export files into/from BASON. Hence, most
 queries have to rely on generic document tree structure.
 The exact codec machinery may vary, e.g. a `*.c` file may be
 im/exported with: general text codec, tree-sitter based codec,
-`clang` AST based codec or "git mode" fallback. Changing the codec 
-resets file's history. Apart from the tree structure per se, 
+`clang` AST based codec or "git mode" fallback. Changing the codec
+resets file's history. Apart from the tree structure per se,
 codecs may *tag* nodes (the bit budget is rather tight there).
 That way, queries may distinguish function from a class,
 invocation from declaration, and so on.
@@ -461,3 +461,4 @@ contributed feedback and ideas for this draft.
 [s]: https://www.youtube.com/watch?v=tVIM2xLbQBs
 [l]: https://www.cs.umb.edu/~poneil/lsmtree.pdf
 [m]: https://en.wikipedia.org/wiki/Merkle_tree
+[r]: https://replicated.wiki/rdx/

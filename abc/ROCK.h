@@ -47,6 +47,7 @@ typedef ROCKbatch *ROCKbatchp;
 
 // Database lifecycle
 ok64 ROCKInit(ROCKdbp db, b8 create);       // alloc default options
+ok64 ROCKSetMerge(ROCKdbp db, u8ys merge);  // set merge op (after Init, before OpenDB)
 ok64 ROCKOpenDB(ROCKdbp db, path8cg path);  // open with current options
 ok64 ROCKOpen(ROCKdbp db, path8cg path);    // init+open (convenience)
 ok64 ROCKOpenRO(ROCKdbp db, path8cg path);

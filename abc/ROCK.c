@@ -181,6 +181,19 @@ ok64 ROCKOpenMerge(ROCKdbp db, path8cg path, u8ys merge) {
     return ROCKOpenDB(db, path);
 }
 
+ok64 ROCKSetMerge(ROCKdbp db, u8ys merge) {
+    sane(db != NULL && db->opt != NULL && merge != NULL);
+    ROCKmerge_state *ms = malloc(sizeof(ROCKmerge_state));
+    test(ms != NULL, ROCKFAIL);
+    ms->merge = merge;
+    db->mop = rocksdb_mergeoperator_create(ms, ROCKmerge_destroy,
+                                           ROCKmerge_full, ROCKmerge_partial,
+                                           ROCKmerge_delval, ROCKmerge_name);
+    test(db->mop != NULL, ROCKFAIL);
+    rocksdb_options_set_merge_operator(db->opt, db->mop);
+    done;
+}
+
 ok64 ROCKClose(ROCKdbp db) {
     if (db == NULL) return OK;
     if (db->db) {
