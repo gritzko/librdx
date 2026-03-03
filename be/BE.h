@@ -126,6 +126,36 @@ ok64 BECheckpoint(BEp be, u8cs new_repo);
 // Milestone: fold main waypoints into base, delete folded
 ok64 BEMilestone(BEp be, u8cs name);
 
+// --- Branch formula ---
+
+// Revision point: timestamp + branch origin
+typedef struct { ron60 time; ron60 origin; } BERev;
+
+// Parsed branch formula: array of revision points
+typedef struct {
+    BERev entries[BE_MAX_BRANCHES];
+    int count;
+} BEForm;
+typedef BEForm *BEFormp;
+
+// Parse formula "branchA&stamp-branchB&stamp+branchC" into BEForm
+// Each entry: just origin (time=0, all waypoints) or time-origin / time+origin
+ok64 BEFormParse(BEFormp form, u8cs query);
+
+// Check if waypoint with given stamp+origin matches formula
+b8 BEFormMatch(BEFormp form, BERev wp);
+
+// --- Scan ---
+
+// Scan callback: relpath, merged BASON, metadata
+typedef ok64 (*BEScanCBf)(voidp arg, u8cs relpath, u8cs bason, BEmeta meta);
+
+// Scan all files under loc->path, merge base+waypoints per loc->query formula
+ok64 BEScan(BEp be, uricp loc, BEScanCBf cb, voidp arg);
+
+// Same but only files that have waypoints matching the formula
+ok64 BEScanChanged(BEp be, uricp loc, BEScanCBf cb, voidp arg);
+
 // --- Export ---
 
 // Flatten BASON tree back to source text

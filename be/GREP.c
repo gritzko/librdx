@@ -57,47 +57,6 @@ ok64 BETriExtract(u8csc bason, BETriCBf cb, voidp arg) {
 
 // ---- Grep: trigram-accelerated search ----
 
-// Verify substring match in a file, call back per matching line
-static ok64 BEGrepVerify(BEp be, u8cs frel, u8cs query,
-                          BEGrepCBf cb, voidp arg) {
-    sane(be != NULL && cb != NULL);
-    u8bp mbuf = be->scratch[BE_PATCH];
-    u8bReset(mbuf);
-    BEmeta meta = {};
-    ok64 go = BEGetFileMerged(be, be->loc.path, frel, mbuf, &meta);
-    if (go != OK) done;
-    u8bp out = be->scratch[BE_RENDER];
-    u8bReset(out);
-    aBpad(u64, stk, 256);
-    u8cs bdata = {mbuf[1], mbuf[2]};
-    if (BASTExport(u8bIdle(out), stk, bdata) != OK) done;
-    u8cs txt = {out[1], out[2]};
-    size_t qlen = $len(query);
-    if ($len(txt) < qlen) done;
-    u8cp ls = txt[0];
-    int ln = 1;
-    while (ls < txt[1]) {
-        u8cp le = ls;
-        while (le < txt[1] && *le != '\n') le++;
-        size_t ll = (size_t)(le - ls);
-        if (ll >= qlen) {
-            u8cp sp = ls;
-            u8cp se = ls + ll - qlen + 1;
-            while (sp <= se) {
-                if (memcmp(sp, query[0], qlen) == 0) {
-                    u8cs line = {ls, le};
-                    cb(arg, frel, ln, line);
-                    break;
-                }
-                sp++;
-            }
-        }
-        ls = (le < txt[1]) ? le + 1 : le;
-        ln++;
-    }
-    done;
-}
-
 // Extract RON64 trigrams from query string, returns count
 static int BEGrepTrigrams(u8cs query, u8cs trigrams[256]) {
     int tric = 0;
@@ -113,16 +72,6 @@ static int BEGrepTrigrams(u8cs query, u8cs trigrams[256]) {
         p++;
     }
     return tric;
-}
-
-// Check if key passes branch filter
-static b8 BEGrepBranchOk(u8cs branch_filter, uri *ku) {
-    if (!($ok(branch_filter) && !$empty(branch_filter))) return 1;
-    u8cs q = {ku->query[0], ku->query[1]};
-    if ($empty(q)) return 0;
-    u8cs br = {};
-    if (BEQueryParse(NULL, br, q) != OK) return 0;
-    return $eq(br, branch_filter);
 }
 
 // Lookup each trigram key, decode BASON hashlet objects, intersect into bitset
@@ -168,63 +117,74 @@ static ok64 BEGrepBitset(BEp be, u8 bitset[512], u8cs *trigrams, int tric) {
     done;
 }
 
-// Scan stat: keys with dedup, optionally filter by bitset
-// bitset=NULL means full scan (no trigram filtering)
-static ok64 BEGrepScan(BEp be, u8cs prefix, size_t path_off, u8cs query,
-                        u8cs branch_filter, u8 *bitset,
-                        BEGrepCBf cb, voidp arg) {
-    sane(be != NULL && cb != NULL);
-    a_pad(u8, prev_pad, 512);
-    u8cs prev_frel = {};
-    ROCKiter it = {};
-    call(ROCKIterOpen, &it, &be->db);
-    call(ROCKIterSeek, &it, prefix);
-    while (ROCKIterValid(&it)) {
-        u8cs k = {};
-        ROCKIterKey(&it, k);
-        if ($len(k) < $len(prefix) ||
-            memcmp(k[0], prefix[0], $len(prefix)) != 0)
-            break;
-        uri ku = {};
-        if (URIutf8Drain(k, &ku) != OK || !BEGrepBranchOk(branch_filter, &ku)) {
-            call(ROCKIterNext, &it);
-            continue;
-        }
-        u8cs frel = {ku.path[0] + path_off, ku.path[1]};
-        if ($empty(frel) || ($ok(prev_frel) && $eq(frel, prev_frel))) {
-            call(ROCKIterNext, &it);
-            continue;
-        }
-        // Copy relpath to stable buffer (iter keys are transient)
-        u8bReset(prev_pad);
-        u8sFeed(u8bIdle(prev_pad), frel);
-        u8csMv(prev_frel, u8bData(prev_pad));
+// BEScan callback context for grep
+typedef struct {
+    BEp be;
+    u8cs query;
+    u8 *bitset;        // NULL = no filtering
+    BEGrepCBf result_cb;
+    voidp result_arg;
+} BEGrepScanCtx;
 
-        if (bitset != NULL) {
-            // Compute hashlet, check bitset
-            u8 fpbuf[256];
-            u8s fps = {fpbuf, fpbuf + sizeof(fpbuf)};
-            call(u8sFeed, fps, be->loc.path);
-            u8sFeed1(fps, '/');
-            call(u8sFeed, fps, frel);
-            u8cs full_path = {fpbuf, fps[0]};
+static ok64 BEGrepScanCB(voidp arg, u8cs relpath, u8cs bason, BEmeta meta) {
+    ok64 __ = OK;
+    BEGrepScanCtx *ctx = (BEGrepScanCtx *)arg;
+    BEp be = ctx->be;
 
-            u8 hlbuf[4];
-            u8s hls = {hlbuf, hlbuf + sizeof(hlbuf)};
-            call(BEHashlet, hls, full_path);
-            u16 bucket =
-                (u16)(RON64_REV[hlbuf[0]] | (RON64_REV[hlbuf[1]] << 6));
-            if (!(bitset[bucket >> 3] & (1 << (bucket & 7)))) {
-                call(ROCKIterNext, &it);
-                continue;
+    // Trigram bitset check: compute hashlet, skip if not in bitset
+    if (ctx->bitset != NULL) {
+        u8 fpbuf[256];
+        u8s fps = {fpbuf, fpbuf + sizeof(fpbuf)};
+        __ = u8sFeed(fps, be->loc.path);
+        if (__ != OK) return __;
+        u8sFeed1(fps, '/');
+        __ = u8sFeed(fps, relpath);
+        if (__ != OK) return __;
+        u8cs full_path = {fpbuf, fps[0]};
+
+        u8 hlbuf[4];
+        u8s hls = {hlbuf, hlbuf + sizeof(hlbuf)};
+        __ = BEHashlet(hls, full_path);
+        if (__ != OK) return __;
+        u16 bucket =
+            (u16)(RON64_REV[hlbuf[0]] | (RON64_REV[hlbuf[1]] << 6));
+        if (!(ctx->bitset[bucket >> 3] & (1 << (bucket & 7)))) {
+            return OK;  // filtered out by trigram index
+        }
+    }
+
+    // Export BASON to text (use BE_RENDER, free after BEScan merge)
+    u8bp out = be->scratch[BE_RENDER];
+    u8bReset(out);
+    aBpad(u64, stk, 256);
+    if (BASTExport(u8bIdle(out), stk, bason) != OK) return OK;
+    u8cs txt = {out[1], out[2]};
+    size_t qlen = $len(ctx->query);
+    if ($len(txt) < qlen) return OK;
+
+    // Search for substring matches line by line
+    u8cp ls = txt[0];
+    int ln = 1;
+    while (ls < txt[1]) {
+        u8cp le = ls;
+        while (le < txt[1] && *le != '\n') le++;
+        size_t ll = (size_t)(le - ls);
+        if (ll >= qlen) {
+            u8cp sp = ls;
+            u8cp se = ls + ll - qlen + 1;
+            while (sp <= se) {
+                if (memcmp(sp, ctx->query[0], qlen) == 0) {
+                    u8cs line = {ls, le};
+                    ctx->result_cb(ctx->result_arg, relpath, ln, line);
+                    break;
+                }
+                sp++;
             }
         }
-
-        call(BEGrepVerify, be, frel, query, cb, arg);
-        call(ROCKIterNext, &it);
+        ls = (le < txt[1]) ? le + 1 : le;
+        ln++;
     }
-    call(ROCKIterClose, &it);
-    done;
+    return OK;
 }
 
 ok64 BEGrep(BEp be, uricp grep_uri, BEGrepCBf result_cb, voidp arg) {
@@ -233,19 +193,11 @@ ok64 BEGrep(BEp be, uricp grep_uri, BEGrepCBf result_cb, voidp arg) {
     u8cs query = {grep_uri->fragment[0], grep_uri->fragment[1]};
     test($ok(query) && !$empty(query), BEBAD);
 
-    // Optional branch filter from URI query part
-    u8cs branch_filter = {grep_uri->query[0], grep_uri->query[1]};
-
-    // Build stat: prefix for scanning
-    a_cstr(sch_stat, BE_SCHEME_STAT);
-    u8 pfxbuf[512];
-    u8s pfx = {pfxbuf, pfxbuf + sizeof(pfxbuf)};
-    call(u8sFeed, pfx, sch_stat);
-    u8sFeed1(pfx, ':');
-    call(u8sFeed, pfx, be->loc.path);
-    u8sFeed1(pfx, '/');
-    u8cs prefix = {pfxbuf, pfx[0]};
-    size_t path_off = $len(be->loc.path) + 1;
+    // Build scan URI: use grep_uri's query as branch formula
+    uri scan_loc = be->loc;
+    if ($ok(grep_uri->query) && !$empty(grep_uri->query)) {
+        $mv(scan_loc.query, grep_uri->query);
+    }
 
     // Extract trigrams from search pattern
     u8cs trigrams[256];
@@ -253,14 +205,16 @@ ok64 BEGrep(BEp be, uricp grep_uri, BEGrepCBf result_cb, voidp arg) {
 
     if (tric == 0) {
         // No trigrams — full scan
-        call(BEGrepScan, be, prefix, path_off, query, branch_filter,
-             NULL, result_cb, arg);
+        BEGrepScanCtx ctx = {be, {query[0], query[1]},
+                              NULL, result_cb, arg};
+        call(BEScan, be, &scan_loc, BEGrepScanCB, &ctx);
     } else {
         // Build bitset from trigram index, then filtered scan
         u8 bitset[512];
         call(BEGrepBitset, be, bitset, trigrams, tric);
-        call(BEGrepScan, be, prefix, path_off, query, branch_filter,
-             bitset, result_cb, arg);
+        BEGrepScanCtx ctx = {be, {query[0], query[1]},
+                              bitset, result_cb, arg};
+        call(BEScan, be, &scan_loc, BEGrepScanCB, &ctx);
     }
     done;
 }
