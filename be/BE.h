@@ -131,6 +131,10 @@ ok64 BEMilestone(BEp be, u8cs name);
 // Flatten BASON tree back to source text
 ok64 BASTExport(u8s out, u64bp stack, u8csc data);
 
+// GET single file: read metadata from stat:, content from be:, merge
+ok64 BEGetFileMerged(BEp be, u8cs project, u8cs relpath,
+                     u8bp result, BEmeta *meta_out);
+
 // --- Trigram index ---
 
 // Compute 2-char RON64 hashlet from file path (12 bits = 4096 buckets)
