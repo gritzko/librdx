@@ -487,6 +487,18 @@ ok64 URIu8sUnesc(u8s into, u8cs esc) {
     done;
 }
 
+ok64 URIMake(u8s into, u8cs scheme, u8cs auth, u8cs path, u8cs query, u8cs fragm) {
+    sane($ok(into));
+    uri u = {};
+    if (scheme) u8csMv(u.scheme, scheme);
+    if (auth) u8csMv(u.authority, auth);
+    if (path) u8csMv(u.path, path);
+    if (query) u8csMv(u.query, query);
+    if (fragm) u8csMv(u.fragment, fragm);
+    call(URIutf8Feed, into, &u);
+    done;
+}
+
 // Return bitmask of which URI components are defined (non-empty)
 u8 URIPattern(uricp u) {
     u8 p = 0;

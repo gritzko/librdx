@@ -66,4 +66,15 @@ ok64 URIu8sUnesc(u8s into, u8cs esc);
 // Return bitmask of which URI components are defined (non-empty)
 u8 URIPattern(uricp u);
 
+// Build URI string from component slices (pass 0 to omit a component)
+ok64 URIMake(u8s into, u8cs scheme, u8cs auth, u8cs path, u8cs query, u8cs fragm);
+
+// Make URI on-stack: a_uri(name, scheme, auth, path, query, fragm)
+// Result: u8cs `name` with the serialized URI
+#define a_uri(n, sc, au, pa, qu, fr)                                      \
+    u8 _##n##_pad[1024];                                                   \
+    u8s _##n##_g = {_##n##_pad, _##n##_pad + sizeof(_##n##_pad)};          \
+    URIMake(_##n##_g, (sc), (au), (pa), (qu), (fr));                       \
+    u8cs n = {_##n##_pad, _##n##_g[0]}
+
 #endif
