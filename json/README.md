@@ -286,15 +286,6 @@ Strict      = 0x7FF  (2047, bits 0-10)
   deduplication, and structural comparison.
 ```
 
-### 7.3. Strictness Negotiation
-
-When two systems exchange BASON data, they MAY negotiate strictness:
-
-- Encoder advertises a bitmask of guarantees it provides.
-- Decoder advertises a bitmask of requirements it enforces.
-- The encoder's mask MUST be a superset of the decoder's mask (i.e.,
-  `encoder_mask & decoder_mask == decoder_mask`).
-
 ## 8. Canonical Encoding
 
 When Strict mode (0x7FF) is in effect, the encoding of any given JSON

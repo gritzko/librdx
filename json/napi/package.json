@@ -1,0 +1,13 @@
+{
+  "name": "bason",
+  "version": "0.1.0",
+  "description": "BASON binary JSON — parse, merge, diff",
+  "main": "index.js",
+  "scripts": {
+    "install": "cmake-js compile",
+    "test": "node --test test/test.mjs"
+  },
+  "devDependencies": {
+    "cmake-js": "^7"
+  }
+}
