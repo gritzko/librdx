@@ -157,6 +157,9 @@ ok64 BEScan(BEp be, uricp loc, BEScanCBf cb, voidp arg);
 // Same but only files that have waypoints matching the formula
 ok64 BEScanChanged(BEp be, uricp loc, BEScanCBf cb, voidp arg);
 
+// --- Status ---
+ok64 BEStatusFiles(BEp be);
+
 // --- Export ---
 
 // Flatten BASON tree back to source text

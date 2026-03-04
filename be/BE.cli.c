@@ -117,6 +117,7 @@ static ok64 BEStatus(BEp be) {
                         cctx.base_count, cctx.wp_count);
     u8cs cline = {cbuf, cbuf + clen};
     call(FILEout, cline);
+    call(BEStatusFiles, be);
     done;
 }
 

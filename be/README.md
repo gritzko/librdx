@@ -20,6 +20,10 @@ Further reading:
 
 ````
     $ be post //replicated.live/@gritzko/librdx
+    $ be
+    $ cd /some/other/dir
+    $ be get //replicated.live/@gritzko/librdx
+    $ be
 ````
 
 

@@ -1092,6 +1092,83 @@ ok64 BEGet(BEp be, int pathc, u8cs *paths, u8cs branch) {
     done;
 }
 
+// ---- STATUS (compare worktree vs DB) ----
+
+ok64 BEStatusFiles(BEp be) {
+    sane(be != NULL);
+
+    // Build stat: prefix for this project
+    a_cstr(sch_stat, BE_SCHEME_STAT);
+    u8 spfxbuf[512];
+    u8s spfx = {spfxbuf, spfxbuf + sizeof(spfxbuf)};
+    call(u8sFeed, spfx, sch_stat);
+    u8sFeed1(spfx, ':');
+    call(u8sFeed, spfx, be->loc.path);
+    u8sFeed1(spfx, '/');
+    u8cs stat_prefix = {spfxbuf, spfx[0]};
+
+    ROCKiter sit = {};
+    call(ROCKIterOpen, &sit, &be->db);
+    call(ROCKIterSeek, &sit, stat_prefix);
+    while (ROCKIterValid(&sit)) {
+        u8cs sk = {};
+        ROCKIterKey(&sit, sk);
+        if ($len(sk) < $len(stat_prefix) ||
+            memcmp(sk[0], stat_prefix[0], $len(stat_prefix)) != 0)
+            break;
+
+        // Parse the stat: URI key
+        uri sku = {};
+        ok64 o = URIutf8Drain(sk, &sku);
+        if (o != OK || !$empty(sku.query)) {
+            ROCKIterNext(&sit);
+            continue;  // skip waypoints, only base keys
+        }
+
+        // Extract relpath: strip project prefix from path
+        u8cs relpath = {};
+        u8cp rp = sku.path[0] + $len(be->loc.path);
+        if (rp < sku.path[1] && *rp == '/') rp++;
+        relpath[0] = rp;
+        relpath[1] = sku.path[1];
+        if ($empty(relpath)) {
+            ROCKIterNext(&sit);
+            continue;
+        }
+
+        // Get stored mtime
+        u8cs sv = {};
+        ROCKIterVal(&sit, sv);
+        BEmeta meta = {};
+        BEMetaDrainBason(&meta, sv);
+
+        // Get extension for report
+        u8cs basename = {};
+        path8gBase(basename, (path8cg){relpath[0], relpath[1], relpath[1]});
+        u8cs ext = {};
+        BEExtOf(ext, basename);
+
+        // Build worktree path and stat
+        a_path(fpath, "");
+        call(path8gDup, path8gIn(fpath), path8cgIn(be->work_pp));
+        a_path(rp_path, "");
+        call(u8sFeed, u8bIdle(rp_path), relpath);
+        call(path8gTerm, path8gIn(rp_path));
+        call(path8gAdd, path8gIn(fpath), path8cgIn(rp_path));
+
+        struct stat fst;
+        if (FILEStat(&fst, path8cgIn(fpath)) != OK) {
+            BEPostReport(relpath, ext, "DELETED", DARK_RED);
+        } else if ((u32)fst.st_mtime != meta.mtime) {
+            BEPostReport(relpath, ext, "MODIFIED", DARK_YELLOW);
+        }
+
+        ROCKIterNext(&sit);
+    }
+    ROCKIterClose(&sit);
+    done;
+}
+
 // ---- POST (worktree -> repo) ----
 
 typedef struct {
