@@ -5,6 +5,7 @@
 #include <sys/stat.h>
 #include <utime.h>
 
+#include "abc/ANSI.h"
 #include "abc/POL.h"
 #include "abc/PRO.h"
 #include "IGNO.h"
@@ -233,9 +234,11 @@ static ok64 BEOpenDB(ROCKdbp db, path8cg path) {
     rocksdb_options_set_compression_per_level(db->opt, compression, 7);
     rocksdb_options_set_level_compaction_dynamic_level_bytes(db->opt, 1);
     rocksdb_options_set_max_background_jobs(db->opt, 2);
+    rocksdb_options_set_write_buffer_size(db->opt, 16 * MB);
+    rocksdb_options_set_max_write_buffer_number(db->opt, 2);
     rocksdb_writeoptions_disable_WAL(db->wopt, 1);
     if (db->cache) {
-        rocksdb_cache_set_capacity(db->cache, 128 * MB);
+        rocksdb_cache_set_capacity(db->cache, 64 * MB);
     }
     return ROCKOpenDB(db, path);
 }
@@ -703,6 +706,7 @@ ok64 BEInit(BEp be, u8cs be_uri, path8cg worktree) {
 
     call(BEOpenDB, &be->db, path8cgIn(be->repo_pp));
     call(BEScratchInit, be);
+    be->initial = YES;
     done;
 }
 
@@ -1079,6 +1083,32 @@ typedef struct {
     ignop ig;
 } BEPostCtx;
 
+// Report POST result for a file: "relpath\tcodec\tSTATUS\n"
+static void BEPostReport(u8cs rel, u8cs ext, const char *status, u8 color) {
+    u8 lbuf[512];
+    u8s ls = {lbuf, lbuf + sizeof(lbuf)};
+    u8sFeed(ls, rel);
+    u8sFeed1(ls, '\t');
+    escfeed(ls, GRAY);
+    if (!$empty(ext)) {
+        u8cp ce = ext[0];
+        if (*ce == '.') ce++;
+        u8cs codec = {ce, ext[1]};
+        u8sFeed(ls, codec);
+    } else {
+        u8cs tc = {(u8cp)"text", (u8cp)"text" + 4};
+        u8sFeed(ls, tc);
+    }
+    escfeed(ls, 0);
+    u8sFeed1(ls, '\t');
+    escfeed(ls, color);
+    while (*status) u8sFeed1(ls, (u8)*status++);
+    escfeed(ls, 0);
+    u8sFeed1(ls, '\n');
+    u8cs line = {lbuf, ls[0]};
+    FILEout(line);
+}
+
 static ok64 BEPostFile(BEp be, ROCKbatchp wb, ron60 stamp, path8cg filepath) {
     sane(be != NULL && wb != NULL);
     // Compute relative path from worktree root
@@ -1115,12 +1145,7 @@ static ok64 BEPostFile(BEp be, ROCKbatchp wb, ron60 stamp, path8cg filepath) {
         u8cs source = {mapbuf[1], mapbuf[2]};
         o = BASTParse(nbuf, NULL, source, ext);
         if (o != OK) {
-            u8 errbuf[12] = {};
-            u8s es = {errbuf, errbuf + 11};
-            RONutf8sFeed(es, o);
-            fprintf(stderr, "SKIP %.*s (%.*s)\n",
-                    (int)$len(rel), rel[0],
-                    (int)(es[0] - errbuf), errbuf);
+            BEPostReport(rel, ext, "SKIP", DARK_YELLOW);
             FILEUnMap(mapbuf);
             done;
         }
@@ -1154,12 +1179,21 @@ static ok64 BEPostFile(BEp be, ROCKbatchp wb, ron60 stamp, path8cg filepath) {
         old_bason[1] = md1;
     }
 
-    // Build be: waypoint key
     a_cstr(sch_be, BE_SCHEME_BE);
-    a_uri(wp_key, sch_be, 0, fpath, wquery, 0);
+    a_cstr(sch_stat, BE_SCHEME_STAT);
 
-    if ($ok(old_bason) && !$empty(old_bason)) {
-        // Diff old merged vs new parsed
+    if (be->initial) {
+        // Initial import: write base keys (no query)
+        a_uri(be_key, sch_be, 0, fpath, 0, 0);
+        call(ROCKBatchPut, wb, be_key, new_bason);
+        a_uri(stat_key, sch_stat, 0, fpath, 0, 0);
+        u8bp mbuf = be->scratch[BE_WRAP];
+        u8bReset(mbuf);
+        call(BEMetaFeedBason, mbuf, NULL, meta);
+        u8cs stat_val = {mbuf[1], mbuf[2]};
+        call(ROCKBatchPut, wb, stat_key, stat_val);
+    } else if ($ok(old_bason) && !$empty(old_bason)) {
+        // Existing file changed: diff and write waypoint
         u8bp obuf = be->scratch[BE_READ];
         u8bReset(obuf);
         aBpad(u64, ostk, 256);
@@ -1174,24 +1208,43 @@ static ok64 BEPostFile(BEp be, ROCKbatchp wb, ron60 stamp, path8cg filepath) {
             if (mapbuf) FILEUnMap(mapbuf);
             done;
         }
-        // Write be: waypoint with delta
+        a_uri(wp_key, sch_be, 0, fpath, wquery, 0);
         call(ROCKBatchPut, wb, wp_key, delta);
+        a_uri(stat_key, sch_stat, 0, fpath, wquery, 0);
+        u8bp mbuf = be->scratch[BE_WRAP];
+        u8bReset(mbuf);
+        call(BEMetaFeedBason, mbuf, NULL, meta);
+        u8cs stat_val = {mbuf[1], mbuf[2]};
+        call(ROCKBatchPut, wb, stat_key, stat_val);
     } else {
-        // No existing state; store full BASON as waypoint
+        // New file after initial import: full BASON as waypoint
+        a_uri(wp_key, sch_be, 0, fpath, wquery, 0);
         call(ROCKBatchPut, wb, wp_key, new_bason);
+        a_uri(stat_key, sch_stat, 0, fpath, wquery, 0);
+        u8bp mbuf = be->scratch[BE_WRAP];
+        u8bReset(mbuf);
+        call(BEMetaFeedBason, mbuf, NULL, meta);
+        u8cs stat_val = {mbuf[1], mbuf[2]};
+        call(ROCKBatchPut, wb, stat_key, stat_val);
     }
-
-    // Write stat: waypoint with metadata BASON
-    a_cstr(sch_stat, BE_SCHEME_STAT);
-    a_uri(stat_key, sch_stat, 0, fpath, wquery, 0);
-    u8bp mbuf = be->scratch[BE_WRAP];
-    u8bReset(mbuf);
-    call(BEMetaFeedBason, mbuf, NULL, meta);
-    u8cs stat_val = {mbuf[1], mbuf[2]};
-    call(ROCKBatchPut, wb, stat_key, stat_val);
 
     // Extract trigrams and write tri: keys
     call(BETriPost, be, wb, new_bason, fpath);
+
+    // Commit per file to bound memory
+    call(ROCKBatchWrite, &be->db, wb);
+    rocksdb_writebatch_clear(wb->wb);
+
+    // Force memtable flush to prevent merge-operand buildup
+    rocksdb_flushoptions_t *fopt = rocksdb_flushoptions_create();
+    if (fopt) {
+        char *ferr = NULL;
+        rocksdb_flush(be->db.db, fopt, &ferr);
+        if (ferr) free(ferr);
+        rocksdb_flushoptions_destroy(fopt);
+    }
+
+    BEPostReport(rel, ext, "OK", DARK_GREEN);
 
     if (mapbuf) FILEUnMap(mapbuf);
     done;
@@ -1212,7 +1265,11 @@ static ok64 BEPostScanCB(voidp arg, path8p path) {
             call(path8gRelative, path8gIn(relpath), path8cgIn(ctx->be->work_pp),
                  path8cgIn(path));
             u8cs rel = {relpath[1], relpath[2]};
-            if (IGNOMatch(ctx->ig, rel, YES)) return FILEskip;
+            if (IGNOMatch(ctx->ig, rel, YES)) {
+                u8cs noext = {};
+                BEPostReport(rel, noext, "IGNORE", DARK_YELLOW);
+                return FILEskip;
+            }
         }
         return OK;
     }
@@ -1223,7 +1280,14 @@ static ok64 BEPostScanCB(voidp arg, path8p path) {
                                   path8cgIn(path));
         if (ro == OK) {
             u8cs rel = {relpath[1], relpath[2]};
-            if (IGNOMatch(ctx->ig, rel, NO)) return OK;
+            if (IGNOMatch(ctx->ig, rel, NO)) {
+                u8cs basename = {};
+                path8gBase(basename, path8cgIn(path));
+                u8cs ext = {};
+                BEExtOf(ext, basename);
+                BEPostReport(rel, ext, "IGNORE", DARK_YELLOW);
+                return OK;
+            }
         }
     }
     ok64 po = BEPostFile(ctx->be, ctx->wb, ctx->stamp, path8cgIn(path));
@@ -1232,12 +1296,11 @@ static ok64 BEPostScanCB(voidp arg, path8p path) {
         path8gRelative(path8gIn(relpath), path8cgIn(ctx->be->work_pp),
                         path8cgIn(path));
         u8cs rel = {relpath[1], relpath[2]};
-        u8 errbuf[12] = {};
-        u8s es = {errbuf, errbuf + 11};
-        RONutf8sFeed(es, po);
-        fprintf(stderr, "FAIL %.*s (%.*s)\n",
-                (int)$len(rel), rel[0],
-                (int)(es[0] - errbuf), errbuf);
+        u8cs basename = {};
+        path8gBase(basename, path8cgIn(path));
+        u8cs ext = {};
+        BEExtOf(ext, basename);
+        BEPostReport(rel, ext, "FAIL", DARK_RED);
     }
     return OK;
 }
@@ -1333,6 +1396,7 @@ ok64 BEPost(BEp be, int pathc, u8cs *paths, u8cs message) {
 
     call(ROCKBatchWrite, &be->db, &wb);
     call(ROCKBatchClose, &wb);
+    be->initial = NO;
     done;
 }
 

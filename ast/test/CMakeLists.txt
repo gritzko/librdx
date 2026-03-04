@@ -15,6 +15,6 @@ set(TEST_LDD_FLAGS "-g")
 add_executable(BASTtest BAST.c)
 target_link_options(BASTtest PRIVATE ${TEST_LDD_FLAGS})
 target_compile_options(BASTtest PRIVATE ${TEST_CXX_FLAGS})
-target_link_libraries(BASTtest bast abc ${TREE_SITTER_LIB})
+target_link_libraries(BASTtest bast abc)
 add_test(NAME BASTtest COMMAND BASTtest)
 

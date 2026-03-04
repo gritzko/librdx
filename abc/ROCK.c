@@ -112,8 +112,16 @@ static char *ROCKmerge_full(void *state, const char *key, size_t key_length,
         return calloc(1, 1);
     }
 
-    // Build u8css from existing_value + operands
-    u8cs recs[total];
+    // Build u8css from existing_value + operands (heap for large counts)
+    u8cs stack_recs[64];
+    u8cs *recs = stack_recs;
+    if (total > 64) {
+        recs = malloc(total * sizeof(u8cs));
+        if (recs == NULL) {
+            *success = 0;
+            return NULL;
+        }
+    }
     int ri = 0;
     if (existing_value != NULL) {
         recs[ri][0] = (u8cp)existing_value;
@@ -135,12 +143,14 @@ static char *ROCKmerge_full(void *state, const char *key, size_t key_length,
 
     char *out = malloc(cap);
     if (out == NULL) {
+        if (recs != stack_recs) free(recs);
         *success = 0;
         return NULL;
     }
     u8s merged = {(u8p)out, (u8p)out + cap};
 
     ok64 o = ms->merge(merged, records);
+    if (recs != stack_recs) free(recs);
     if (o != OK) {
         free(out);
         *success = 0;

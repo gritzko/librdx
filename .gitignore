@@ -2,6 +2,7 @@
 build/
 build-*/
 cmake-build-*/
+node_modules/
 
 # Build artifacts
 *.o

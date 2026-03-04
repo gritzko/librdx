@@ -299,6 +299,14 @@ static ok64 BASTFeedNode(u8bp buf, u64bp idx, u8csc src, TSNode node,
 
 ok64 BASTParse(u8bp buf, u64bp idx, u8csc source, u8csc ext) {
     sane(buf != NULL);
+
+    // Reject binary files: check for null bytes in first 256 bytes
+    size_t check = $len(source);
+    if (check > 256) check = 256;
+    for (size_t i = 0; i < check; i++) {
+        if (source[0][i] == 0) fail(FAILsanity);
+    }
+
     const TSLanguage *lang = BASTLanguage(ext);
 
     if (lang == NULL) return BASTParseText(buf, idx, source);

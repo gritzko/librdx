@@ -117,11 +117,9 @@ ok64 IGNOLoad(ignop out, u8cs dir_path) {
 
     // Build path to .gitignore
     a_path(gi_path, "");
-    call(u8bFeed, gi_path, dir_path);
-    if (!$empty(dir_path) && dir_path[1][-1] != '/') {
-        u8bFeed1(gi_path, '/');
-    }
-    call(u8bFeed, gi_path, GITIGNORE_NAME);
+    call(u8sFeed, u8bIdle(gi_path), dir_path);
+    call(path8gTerm, path8gIn(gi_path));
+    call(path8gPush, path8gIn(gi_path), GITIGNORE_NAME);
 
     // Try to load file
     ok64 o = FILEMapRO(&out->buf, path8cgIn(gi_path));

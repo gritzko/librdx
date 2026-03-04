@@ -9,18 +9,16 @@ if (NOT WITH_ROCKS)
     return()
 endif()
 
-find_library(TREE_SITTER_LIB NAMES tree-sitter REQUIRED)
-
 add_library(beagle STATIC BE.c BESYNC.c IGNO.c GREP.c ../json/BIFF.c)
-target_link_libraries(beagle bast abc ${TREE_SITTER_LIB})
+target_link_libraries(beagle bast abc)
 
 add_executable(be-cli BE.cli.c)
-target_link_libraries(be-cli beagle bast abc ${TREE_SITTER_LIB})
+target_link_libraries(be-cli beagle bast abc)
 set_target_properties(be-cli PROPERTIES OUTPUT_NAME be)
 
 if (WITH_INET)
 add_executable(be-srv BE.http.c BESRV.c)
-target_link_libraries(be-srv beagle bast abc ${TREE_SITTER_LIB})
+target_link_libraries(be-srv beagle bast abc)
 endif()
 
 add_subdirectory(test)

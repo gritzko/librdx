@@ -66,6 +66,7 @@ typedef struct {
     // Multi-branch: parsed from query "branch1&branch2&main"
     u8cs branches[BE_MAX_BRANCHES];
     int branchc;
+    b8 initial;  // YES during first post after BEInit
 } BE;
 typedef BE *BEp;
 
