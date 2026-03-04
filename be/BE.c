@@ -1019,8 +1019,15 @@ ok64 BEGetFileMerged(BEp be, u8cs project, u8cs relpath,
     done;
 }
 
+static void BEPostReport(u8cs rel, u8cs ext, const char *status, u8 color);
+
 static ok64 BEGetFile(BEp be, u8cs relpath) {
     sane(be != NULL);
+
+    u8cs basename = {};
+    path8gBase(basename, (path8cg){relpath[0], relpath[1], relpath[1]});
+    u8cs ext = {};
+    BEExtOf(ext, basename);
 
     u8bp mbuf = be->scratch[BE_PATCH];
     u8bReset(mbuf);
@@ -1029,7 +1036,7 @@ static ok64 BEGetFile(BEp be, u8cs relpath) {
     ok64 go = BEGetFileMerged(be, be->loc.path, relpath, mbuf, &meta);
     if (go == BEnone) return BEnone;
     if (go != OK) {
-        fprintf(stderr, "MERGED %.*s\n", (int)$len(relpath), relpath[0]);
+        BEPostReport(relpath, ext, "FAIL", DARK_RED);
         return go;
     }
 
@@ -1038,15 +1045,26 @@ static ok64 BEGetFile(BEp be, u8cs relpath) {
 
     ok64 eo = BEExportFile(be, relpath, merged, meta);
     if (eo != OK) {
-        fprintf(stderr, "EXPORT %.*s\n", (int)$len(relpath), relpath[0]);
+        BEPostReport(relpath, ext, "FAIL", DARK_RED);
         return eo;
     }
+    BEPostReport(relpath, ext, "OK", DARK_GREEN);
     done;
 }
 
 // BEScan callback for GET: export each file to worktree
 static ok64 BEExportCB(voidp arg, u8cs relpath, u8cs bason, BEmeta meta) {
-    return BEExportFile((BEp)arg, relpath, bason, meta);
+    BEp be = (BEp)arg;
+    u8cs basename = {};
+    path8gBase(basename, (path8cg){relpath[0], relpath[1], relpath[1]});
+    u8cs ext = {};
+    BEExtOf(ext, basename);
+    ok64 o = BEExportFile(be, relpath, bason, meta);
+    if (o == OK)
+        BEPostReport(relpath, ext, "OK", DARK_GREEN);
+    else
+        BEPostReport(relpath, ext, "FAIL", DARK_RED);
+    return o;
 }
 
 static ok64 BEGetProject(BEp be, u8cs project) {

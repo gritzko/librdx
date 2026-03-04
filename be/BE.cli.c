@@ -186,8 +186,23 @@ static ok64 BECLIGet(int argc) {
         // //repo/project — local depot checkout
         if ($len(first_arg) > 2 &&
             first_arg[0][0] == '/' && first_arg[0][1] == '/') {
+            // Extract project name from URI path for directory
+            u8 ubuf[512];
+            size_t ulen = $len(first_arg);
+            test(ulen < sizeof(ubuf), BEBAD);
+            memcpy(ubuf, first_arg[0], ulen);
+            uri u = {};
+            u.data[0] = ubuf;
+            u.data[1] = ubuf + ulen;
+            call(URILexer, &u);
+            u8cs projname = {};
+            path8gBase(projname, (path8cg){u.path[0], u.path[1], u.path[1]});
+            test(!$empty(projname), BEBAD);
+            // Create project directory and cd into it
             a_pad(u8, cpath, FILE_PATH_MAX_LEN);
             call(BECwd, path8gIn(cpath));
+            call(path8gPush, path8gIn(cpath), projname);
+            call(FILEMakeDir, path8cgIn(cpath));
             BE be = {};
             call(BEInit, &be, first_arg, path8cgIn(cpath));
             u8cs empty = {};
