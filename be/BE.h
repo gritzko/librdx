@@ -160,6 +160,10 @@ ok64 BEScanChanged(BEp be, uricp loc, BEScanCBf cb, voidp arg);
 // --- Status ---
 ok64 BEStatusFiles(BEp be);
 
+// --- Diff ---
+// Colored diff of worktree changes vs repo state (all tracked files)
+ok64 BEDiffFiles(BEp be, int pathc, u8cs *paths);
+
 // --- Export ---
 
 // Flatten BASON tree back to source text
@@ -177,6 +181,31 @@ ok64 BEHashlet(u8s into, u8cs path);
 // Extract ASCII trigrams from BASON string leaves, call cb for each unique
 typedef ok64 (*BETriCBf)(voidp arg, u8cs trigram);
 ok64 BETriExtract(u8csc bason, BETriCBf cb, voidp arg);
+
+// AST node filter callback for BASTGrepNodes
+// Return YES to include this node's source lines in output
+typedef b8 (*BASTNodeCBf)(const bason *node, void *ctx);
+
+// Walk BASON tree, select nodes via callback, output matching source lines
+// with k context lines. Non-contiguous groups separated by "--\n".
+ok64 BASTGrepNodes(u8s out, u8cs bason_data, int k,
+                   BASTNodeCBf cb, void *ctx);
+
+// Build unified diff BASON from old BASON + patch (from BASONDiff).
+// Keys get 1-byte status prefix: '=' equal, '-' removed, '+' added,
+// '~' container with changed children.
+ok64 BASTDiffBuild(u8bp out, u64bp idx,
+                   u64bp ostk, u8csc odata,
+                   u64bp pstk, u8csc pdata);
+
+// Render unified diff BASON (from BASTDiffBuild) with k context lines.
+// Only changed lines (+ and -) shown, with ANSI colors.
+// Non-contiguous groups separated by "--\n".
+ok64 BASTDiffRender(u8s out, u8cs bason_data, int k);
+
+// Line-level diff of two texts with k context lines.
+// Deleted lines in red, added lines in green.
+ok64 BASTTextDiff(u8s out, u8cs old_text, u8cs new_text, int k);
 
 // Grep result callback: filepath, line number (1-based), matching line
 typedef ok64 (*BEGrepCBf)(voidp arg, u8cs filepath, int lineno, u8cs line);

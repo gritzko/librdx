@@ -1043,6 +1043,238 @@ ok64 BEtest16() {
     done;
 }
 
+// ---- Test 17: BASTGrepNodes (AST-aware line selection) ----
+
+// Callback: select function definition nodes (key ends with 'f')
+static b8 SelectFunctions(const bason *node, void *ctx) {
+    (void)ctx;
+    u8 raw = node->type & ~0x20;
+    if (raw != 'A') return NO;
+    if ($empty(node->key)) return NO;
+    u8 last = node->key[1][-1];
+    return last == 'f' ? YES : NO;
+}
+
+ok64 BEtest17() {
+    sane(1);
+
+    // Multi-function source with blank lines between
+    const char *src_str =
+        "#include <stdio.h>\n"
+        "\n"
+        "int add(int a, int b) {\n"
+        "    return a + b;\n"
+        "}\n"
+        "\n"
+        "int mul(int a, int b) {\n"
+        "    return a * b;\n"
+        "}\n"
+        "\n"
+        "int main() {\n"
+        "    return 0;\n"
+        "}\n";
+    u8cs source = $u8str(src_str);
+    u8cs ext = $u8str(".c");
+
+    // Parse to BASON
+    aBpad(u8, pbuf, 65536);
+    aBpad(u64, pidx, 4096);
+    call(BASTParse, pbuf, pidx, source, ext);
+    u8cs bason_data = {pbuf[1], pbuf[2]};
+    want(!$empty(bason_data));
+
+    // Test 1: Select functions with k=0 (no context)
+    aBpad(u8, obuf, 65536);
+    call(BASTGrepNodes, u8bIdle(obuf), bason_data, 0,
+         SelectFunctions, NULL);
+    u8cs result = {obuf[1], obuf[2]};
+    want(!$empty(result));
+
+    // Should contain "int add" and "int mul" and "int main"
+    a_cstr(add_str, "int add");
+    a_cstr(mul_str, "int mul");
+    a_cstr(main_str, "int main");
+    // Check substrings present
+    b8 has_add = NO, has_mul = NO, has_main = NO;
+    for (u32 i = 0; i + $len(add_str) <= (u32)$len(result); i++) {
+        if (memcmp(result[0] + i, add_str[0], $len(add_str)) == 0)
+            has_add = YES;
+        if (memcmp(result[0] + i, mul_str[0], $len(mul_str)) == 0)
+            has_mul = YES;
+        if (memcmp(result[0] + i, main_str[0], $len(main_str)) == 0)
+            has_main = YES;
+    }
+    want(has_add);
+    want(has_mul);
+    want(has_main);
+
+    // Should have "--\n" separators between non-contiguous groups
+    a_cstr(sep, "--\n");
+    int sep_count = 0;
+    for (u32 i = 0; i + $len(sep) <= (u32)$len(result); i++) {
+        if (memcmp(result[0] + i, sep[0], $len(sep)) == 0)
+            sep_count++;
+    }
+    want(sep_count >= 2);  // 3 functions → at least 2 separators
+
+    // Should NOT contain "#include" (no context, it's not a function)
+    a_cstr(inc_str, "#include");
+    b8 has_inc = NO;
+    for (u32 i = 0; i + $len(inc_str) <= (u32)$len(result); i++) {
+        if (memcmp(result[0] + i, inc_str[0], $len(inc_str)) == 0)
+            has_inc = YES;
+    }
+    want(!has_inc);
+
+    // Test 2: With k=1 context, functions separated by 1 blank line
+    // should merge adjacent groups
+    u8bReset(obuf);
+    call(BASTGrepNodes, u8bIdle(obuf), bason_data, 1,
+         SelectFunctions, NULL);
+    u8cs result2 = {obuf[1], obuf[2]};
+    want(!$empty(result2));
+    // With k=1, the blank line between add and mul gets included as
+    // context from both sides, so they merge into one group
+    // Count separators: should be fewer than k=0 case
+    int sep_count2 = 0;
+    for (u32 i = 0; i + $len(sep) <= (u32)$len(result2); i++) {
+        if (memcmp(result2[0] + i, sep[0], $len(sep)) == 0)
+            sep_count2++;
+    }
+    want(sep_count2 < sep_count);
+
+    done;
+}
+
+// ---- Test 18: BASTDiffBuild + BASTGrepNodes (diff with context) ----
+
+// Callback: select nodes with '-' or '+' status prefix in key
+static b8 SelectChanged(const bason *node, void *ctx) {
+    (void)ctx;
+    if ($empty(node->key)) return NO;
+    u8 status = node->key[0][0];
+    return status == '-' || status == '+';
+}
+
+ok64 BEtest18() {
+    sane(1);
+
+    u8cs old_src = $u8str(
+        "int x = 1;\n"
+        "int y = 2;\n"
+        "int z = 3;\n");
+    u8cs new_src = $u8str(
+        "int x = 1;\n"
+        "int y = 99;\n"
+        "int z = 3;\n");
+    u8cs ext = $u8str(".c");
+
+    // Parse both to BASON
+    aBpad(u8, obuf, 65536);
+    aBpad(u64, oidx, 4096);
+    call(BASTParse, obuf, oidx, old_src, ext);
+    u8cp o0 = obuf[1], o1 = obuf[2];
+    u8cs old_bason = {o0, o1};
+    want(!$empty(old_bason));
+
+    aBpad(u8, nbuf, 65536);
+    aBpad(u64, nidx, 4096);
+    call(BASTParse, nbuf, nidx, new_src, ext);
+    u8cp n0 = nbuf[1], n1 = nbuf[2];
+    u8cs new_bason = {n0, n1};
+    want(!$empty(new_bason));
+
+    // Compute diff (patch)
+    aBpad(u8, dbuf, 65536);
+    aBpad(u64, dstk1, 256);
+    aBpad(u64, dstk2, 256);
+    call(BASONDiff, dbuf, NULL, dstk1, old_bason, dstk2, new_bason);
+    u8cp d0 = dbuf[1], d1 = dbuf[2];
+    u8cs patch = {d0, d1};
+    want(!$empty(patch));
+
+    // Build unified diff BASON
+    aBpad(u8, ubuf, 65536);
+    aBpad(u64, ustk1, 256);
+    aBpad(u64, ustk2, 256);
+    call(BASTDiffBuild, ubuf, NULL, ustk1, old_bason, ustk2, patch);
+    u8cp u0 = ubuf[1], u1 = ubuf[2];
+    u8cs unified = {u0, u1};
+    want(!$empty(unified));
+
+    // Walk unified BASON, verify status prefixes exist
+    aBpad(u64, vstk, 256);
+    call(BASONOpen, vstk, unified);
+    int n_eq = 0, n_del = 0, n_add = 0, n_chg = 0;
+    int depth = 0;
+    for (;;) {
+        u8 type = 0;
+        u8cs key = {}, val = {};
+        ok64 o = BASONDrain(vstk, unified, &type, key, val);
+        if (o != OK) {
+            if (depth <= 0) break;
+            call(BASONOuto, vstk);
+            depth--;
+            continue;
+        }
+        if (!$empty(key)) {
+            u8 st = key[0][0];
+            if (st == '=') n_eq++;
+            else if (st == '-') n_del++;
+            else if (st == '+') n_add++;
+            else if (st == '~') n_chg++;
+        }
+        u8 raw = type & ~0x20;
+        if (raw == 'A' || raw == 'O') {
+            call(BASONInto, vstk, unified, val);
+            depth++;
+        }
+    }
+    // Must have equal, deleted, and added nodes
+    want(n_eq > 0);
+    want(n_del > 0);
+    want(n_add > 0);
+
+    // Select changed nodes with BASTGrepNodes, k=0
+    aBpad(u8, rbuf, 65536);
+    call(BASTGrepNodes, u8bIdle(rbuf), unified, 0, SelectChanged, NULL);
+    u8cp r0 = rbuf[1], r1 = rbuf[2];
+    u8cs result = {r0, r1};
+    want(!$empty(result));
+    // Changed line has "y" (old "2" and new "99" concatenated)
+    a_cstr(y_str, "int y");
+    b8 has_y = NO;
+    for (u32 i = 0; i + $len(y_str) <= (u32)$len(result); i++) {
+        if (memcmp(result[0] + i, y_str[0], $len(y_str)) == 0)
+            has_y = YES;
+    }
+    want(has_y);
+    // Unchanged lines should NOT appear with k=0
+    a_cstr(x_str, "x = 1");
+    a_cstr(z_str, "z = 3");
+    b8 has_x = NO, has_z = NO;
+    for (u32 i = 0; i + $len(x_str) <= (u32)$len(result); i++) {
+        if (memcmp(result[0] + i, x_str[0], $len(x_str)) == 0)
+            has_x = YES;
+    }
+    for (u32 i = 0; i + $len(z_str) <= (u32)$len(result); i++) {
+        if (memcmp(result[0] + i, z_str[0], $len(z_str)) == 0)
+            has_z = YES;
+    }
+    want(!has_x);
+    want(!has_z);
+
+    // With k=1, context should include adjacent lines
+    u8bReset(rbuf);
+    call(BASTGrepNodes, u8bIdle(rbuf), unified, 1, SelectChanged, NULL);
+    r0 = rbuf[1]; r1 = rbuf[2];
+    u8cs result2 = {r0, r1};
+    want(!$empty(result2));
+    want($len(result2) > $len(result));
+
+    done;
+}
+
 ok64 maintest() {
     sane(1);
     call(BEtest1);
@@ -1061,6 +1293,8 @@ ok64 maintest() {
     call(BEtest14);
     call(BEtest15);
     call(BEtest16);
+    call(BEtest17);
+    call(BEtest18);
     done;
 }
 

@@ -379,6 +379,26 @@ static ok64 BECLIGrep(int argc) {
     done;
 }
 
+// ---- verb: diff ----
+static ok64 BECLIDiff(int argc) {
+    sane(1);
+    BE be = {};
+    call(BEOpenCwd, &be);
+
+    u8cs file_args[64] = {};
+    int filec = 0;
+    for (int i = 2; i < argc; i++) {
+        a$rg(arg, i);
+        test(filec < 64, BEBAD);
+        $mv(file_args[filec], arg);
+        filec++;
+    }
+
+    call(BEDiffFiles, &be, filec, filec > 0 ? file_args : NULL);
+    call(BEClose, &be);
+    done;
+}
+
 // ---- verb: fit (merge branch into main) ----
 static ok64 BECLIFit(int argc) {
     sane(1);
@@ -428,6 +448,7 @@ ok64 becli() {
     a_cstr(v_fit, "fit");
     a_cstr(v_deps, "deps");
     a_cstr(v_grep, "grep");
+    a_cstr(v_diff, "diff");
 
     if ($eq(verb, v_post)) {
         call(BECLIPost, argc);
@@ -449,6 +470,8 @@ ok64 becli() {
         call(BECLIDeps, argc);
     } else if ($eq(verb, v_grep)) {
         call(BECLIGrep, argc);
+    } else if ($eq(verb, v_diff)) {
+        call(BECLIDiff, argc);
     } else {
         a_cstr(err, "unknown verb: ");
         call(FILEerr, err);

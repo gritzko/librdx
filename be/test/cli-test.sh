@@ -200,6 +200,33 @@ test -z "$OUT" || fail "grep found phantom match"
 pass "be grep no match"
 
 # =============================================================
+echo "--- be diff (colored worktree diff) ---"
+cd "$WORK"
+# First ensure clean state
+"$BE" post
+# Modify a file
+echo "int a = 999;" > "$WORK/a.c"
+OUT=$("$BE" diff 2>&1)
+echo "$OUT" | grep -q "a.c" || fail "diff did not show a.c header"
+echo "$OUT" | grep -q "999" || fail "diff did not show new value 999"
+pass "be diff all files"
+
+# Diff specific file
+OUT=$("$BE" diff a.c 2>&1)
+echo "$OUT" | grep -q "a.c" || fail "diff a.c did not show header"
+echo "$OUT" | grep -q "999" || fail "diff a.c did not show new value"
+pass "be diff specific file"
+
+# No diff for unmodified file
+OUT=$("$BE" diff b.c 2>&1)
+test -z "$OUT" || fail "diff b.c should be empty"
+pass "be diff no changes"
+
+# Restore
+"$BE" get
+pass "diff tests done"
+
+# =============================================================
 # Skipped: not yet implemented
 echo "--- SKIP: 3.a PUT file.sst (SST ingest) ---"
 echo "--- SKIP: 3.c PUT //repo (cross-depot ingest) ---"

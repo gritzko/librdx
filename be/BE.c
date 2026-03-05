@@ -1158,9 +1158,176 @@ ok64 BEStatusFiles(BEp be) {
 
         struct stat fst;
         if (FILEStat(&fst, path8cgIn(fpath)) != OK) {
-            BEPostReport(relpath, ext, "DELETED", DARK_RED);
+            BEPostReport(relpath, ext, "DEL", DARK_RED);
         } else if ((u32)fst.st_mtime != meta.mtime) {
-            BEPostReport(relpath, ext, "MODIFIED", DARK_YELLOW);
+            BEPostReport(relpath, ext, "MOD", DARK_YELLOW);
+        }
+
+        ROCKIterNext(&sit);
+    }
+    ROCKIterClose(&sit);
+    done;
+}
+
+// ---- DIFF (worktree vs repo, colored output) ----
+
+// Check if relpath matches one of the given filter paths
+static b8 BEDiffPathMatch(u8cs relpath, int pathc, u8cs *paths) {
+    if (pathc == 0 || paths == NULL) return YES;
+    for (int i = 0; i < pathc; i++) {
+        if ($eq(relpath, paths[i])) return YES;
+    }
+    return NO;
+}
+
+ok64 BEDiffFiles(BEp be, int pathc, u8cs *paths) {
+    sane(be != NULL);
+
+    // Build stat: prefix for this project
+    a_cstr(sch_stat, BE_SCHEME_STAT);
+    u8 spfxbuf[512];
+    u8s spfx = {spfxbuf, spfxbuf + sizeof(spfxbuf)};
+    call(u8sFeed, spfx, sch_stat);
+    u8sFeed1(spfx, ':');
+    call(u8sFeed, spfx, be->loc.path);
+    u8sFeed1(spfx, '/');
+    u8cs stat_prefix = {spfxbuf, spfx[0]};
+
+    u8cs HDRESC = $u8str("\033[1m");
+    u8cs DELESC = $u8str("\033[9;31m");
+    u8cs RST = $u8str("\033[0m");
+    u8cs SEP = $u8str("\033[34m---\033[0m\n");
+
+    b8 any_output = NO;
+
+    ROCKiter sit = {};
+    call(ROCKIterOpen, &sit, &be->db);
+    call(ROCKIterSeek, &sit, stat_prefix);
+    while (ROCKIterValid(&sit)) {
+        u8cs sk = {};
+        ROCKIterKey(&sit, sk);
+        if ($len(sk) < $len(stat_prefix) ||
+            memcmp(sk[0], stat_prefix[0], $len(stat_prefix)) != 0)
+            break;
+
+        // Parse the stat: URI key — skip waypoints (only base keys)
+        uri sku = {};
+        ok64 o = URIutf8Drain(sk, &sku);
+        if (o != OK || !$empty(sku.query)) {
+            ROCKIterNext(&sit);
+            continue;
+        }
+
+        // Extract relpath
+        u8cs relpath = {};
+        u8cp rp = sku.path[0] + $len(be->loc.path);
+        if (rp < sku.path[1] && *rp == '/') rp++;
+        relpath[0] = rp;
+        relpath[1] = sku.path[1];
+        if ($empty(relpath)) {
+            ROCKIterNext(&sit);
+            continue;
+        }
+
+        // Filter by requested paths
+        if (!BEDiffPathMatch(relpath, pathc, paths)) {
+            ROCKIterNext(&sit);
+            continue;
+        }
+
+        // Get stored mtime
+        u8cs sv = {};
+        ROCKIterVal(&sit, sv);
+        BEmeta meta = {};
+        BEMetaDrainBason(&meta, sv);
+
+        // Build worktree path and stat
+        a_path(fpath, "");
+        call(path8gDup, path8gIn(fpath), path8cgIn(be->work_pp));
+        a_path(rp_path, "");
+        call(u8sFeed, u8bIdle(rp_path), relpath);
+        call(path8gTerm, path8gIn(rp_path));
+        call(path8gAdd, path8gIn(fpath), path8cgIn(rp_path));
+
+        struct stat fst;
+        b8 deleted = NO;
+        b8 modified = NO;
+        if (FILEStat(&fst, path8cgIn(fpath)) != OK) {
+            deleted = YES;
+        } else if ((u32)fst.st_mtime != meta.mtime) {
+            modified = YES;
+        }
+
+        if (!deleted && !modified) {
+            ROCKIterNext(&sit);
+            continue;
+        }
+
+        // Get old BASON from repo (use BE_PATHS to avoid conflict
+        // with BE_READ which BEGetFileMerged uses internally)
+        u8bp obuf = be->scratch[BE_PATHS];
+        u8bReset(obuf);
+        ok64 go = BEGetFileMerged(be, be->loc.path, relpath, obuf, NULL);
+        u8cs old_bason = {};
+        if (go == OK) {
+            u8cp ob0 = obuf[1], ob1 = obuf[2];
+            old_bason[0] = ob0;
+            old_bason[1] = ob1;
+        }
+
+        // File header
+        if (any_output) call(FILEout, SEP);
+        call(FILEout, HDRESC);
+        call(FILEout, relpath);
+        call(FILEout, RST);
+        call(FILEout, NL);
+        any_output = YES;
+
+        if (deleted) {
+            // Show entire old content in red strikethrough
+            if (!$empty(old_bason)) {
+                u8bp rbuf = be->scratch[BE_RENDER];
+                u8bReset(rbuf);
+                aBpad(u64, stk, 256);
+                call(BASTExport, u8bIdle(rbuf), stk, old_bason);
+                u8cp r0 = rbuf[1], r1 = rbuf[2];
+                u8cs rendered = {r0, r1};
+                call(FILEout, DELESC);
+                call(FILEout, rendered);
+                call(FILEout, RST);
+                call(FILEout, NL);
+            }
+        } else {
+            // Modified: line-level diff of old text vs worktree
+            u8bp mapbuf = NULL;
+            call(FILEMapRO, &mapbuf, path8cgIn(fpath));
+            u8cs new_text = {mapbuf[1], mapbuf[2]};
+
+            // Export old BASON to text
+            u8cs old_text = {};
+            if (!$empty(old_bason)) {
+                u8bp rbuf = be->scratch[BE_RENDER];
+                u8bReset(rbuf);
+                aBpad(u64, stk, 256);
+                call(BASTExport, u8bIdle(rbuf), stk, old_bason);
+                u8cp r0 = rbuf[1], r1 = rbuf[2];
+                old_text[0] = r0;
+                old_text[1] = r1;
+            }
+
+            // Line-level diff with 3 context lines
+            u8bp dbuf = be->scratch[BE_PATCH];
+            u8bReset(dbuf);
+            call(BASTTextDiff, u8bIdle(dbuf), old_text, new_text, 3);
+            u8cp d0 = dbuf[1], d1 = dbuf[2];
+            u8cs rendered = {d0, d1};
+            if (!$empty(rendered)) {
+                call(FILEout, rendered);
+                if (rendered[1][-1] != '\n')
+                    call(FILEout, NL);
+            }
+
+            FILEUnMap(mapbuf);
         }
 
         ROCKIterNext(&sit);
@@ -1178,27 +1345,41 @@ typedef struct {
     ignop ig;
 } BEPostCtx;
 
-// Report POST result for a file: "relpath\tcodec\tSTATUS\n"
+// Report file status: "STAT codc path\n" (4+1+4+1 = 10 char prefix)
 static void BEPostReport(u8cs rel, u8cs ext, const char *status, u8 color) {
     u8 lbuf[512];
     u8s ls = {lbuf, lbuf + sizeof(lbuf)};
-    u8sFeed(ls, rel);
-    u8sFeed1(ls, '\t');
+    // Status: up to 4 chars, colored, padded
+    escfeed(ls, color);
+    int si = 0;
+    while (status[si] && si < 4) {
+        u8sFeed1(ls, (u8)status[si]);
+        si++;
+    }
+    escfeed(ls, 0);
+    while (si < 4) { u8sFeed1(ls, ' '); si++; }
+    u8sFeed1(ls, ' ');
+    // Codec: up to 4 chars, gray, padded
     escfeed(ls, GRAY);
+    int ci = 0;
     if (!$empty(ext)) {
         u8cp ce = ext[0];
         if (*ce == '.') ce++;
-        u8cs codec = {ce, ext[1]};
-        u8sFeed(ls, codec);
+        while (ce < ext[1] && ci < 4) {
+            u8sFeed1(ls, *ce);
+            ce++;
+            ci++;
+        }
     } else {
         u8cs tc = {(u8cp)"text", (u8cp)"text" + 4};
         u8sFeed(ls, tc);
+        ci = 4;
     }
     escfeed(ls, 0);
-    u8sFeed1(ls, '\t');
-    escfeed(ls, color);
-    while (*status) u8sFeed1(ls, (u8)*status++);
-    escfeed(ls, 0);
+    while (ci < 4) { u8sFeed1(ls, ' '); ci++; }
+    u8sFeed1(ls, ' ');
+    // Path
+    u8sFeed(ls, rel);
     u8sFeed1(ls, '\n');
     u8cs line = {lbuf, ls[0]};
     FILEout(line);
@@ -1362,7 +1543,7 @@ static ok64 BEPostScanCB(voidp arg, path8p path) {
             u8cs rel = {relpath[1], relpath[2]};
             if (IGNOMatch(ctx->ig, rel, YES)) {
                 u8cs noext = {};
-                BEPostReport(rel, noext, "IGNORE", DARK_YELLOW);
+                BEPostReport(rel, noext, "IGN", DARK_YELLOW);
                 return FILEskip;
             }
         }
@@ -1380,7 +1561,7 @@ static ok64 BEPostScanCB(voidp arg, path8p path) {
                 path8gBase(basename, path8cgIn(path));
                 u8cs ext = {};
                 BEExtOf(ext, basename);
-                BEPostReport(rel, ext, "IGNORE", DARK_YELLOW);
+                BEPostReport(rel, ext, "IGN", DARK_YELLOW);
                 return OK;
             }
         }
