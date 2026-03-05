@@ -357,7 +357,7 @@ static ok64 BIFFHashes(u64bp hashes, u64bp stk, u8csc data,
     u64 dbits = BIFF_DEPTH(depth);
     u8 ct; u8cs ck, cv;
     while (BASONDrain(stk, data, &ct, ck, cv) == OK) {
-        if (ptype == 'A') {
+        if (ptype != 'O' && ptype != 0) {
             u64 h = RAPHashSeed(cv, (u64)ct);
             h = (h & BIFF_HASH_MASK) | BIFF_HASH_FIRST | dbits;
             call(u64bFeed1, hashes, h);

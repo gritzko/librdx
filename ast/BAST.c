@@ -171,20 +171,19 @@ static ok64 BASTParseText(u8bp buf, u64bp idx, u8csc source) {
 
 // --- AST node type tagging ---
 //
-// BASON keys get a suffix letter indicating the AST node type:
-//   'f' = function/method definition
-//   'c' = class/struct/type declaration
-//   'b' = block/compound statement (bracketed)
-// If the RON64 key naturally ends with a reserved letter, '0' is
-// appended first to disambiguate.  So the last character of the
-// final key tells the type: 'f'/'c'/'b' = tagged, anything else = untagged.
+// The TLKV type letter carries the AST node kind:
+//   'F' = function/method definition
+//   'T' = class/struct/type declaration
+//   'D' = block/compound statement
+//   'A' = default (untagged named node)
+// Any letter outside BASON (B,A,S,O,N) is treated as array.
 //
 // Tree-sitter node type strings are language-dependent.  No cross-language
 // conflicts exist, so one flat table covers all supported languages.
 
-#define BAST_TAG_FUNC  'f'
-#define BAST_TAG_CLASS 'c'
-#define BAST_TAG_BLOCK 'b'
+#define BAST_TAG_FUNC  'F'
+#define BAST_TAG_CLASS 'T'
+#define BAST_TAG_BLOCK 'D'
 
 typedef struct {
     const char *tstype;
@@ -225,23 +224,14 @@ static u8 BASTNodeTag(const char *tstype) {
     return 0;
 }
 
-fun b8 BASTReserved(u8 ch) {
-    return ch == BAST_TAG_FUNC || ch == BAST_TAG_CLASS || ch == BAST_TAG_BLOCK;
-}
-
-// Append disambiguation '0' if needed, then type tag suffix.
-fun void BASTKeySuffix(u8s ki, u8 tag) {
-    if (BASTReserved(*(ki[0] - 1))) *(ki[0])++ = '0';
-    if (tag) *(ki[0])++ = tag;
-}
-
 // --- Tree-to-BASON conversion ---
 
 // Emit one named node as BASON.
 // Leaf (no named children): string with source text.
 // Branch: array of interleaved text gaps and child arrays.
+// The TLKV type letter carries the node tag (F/C/K or A for untagged).
 static ok64 BASTFeedNode(u8bp buf, u64bp idx, u8csc src, TSNode node,
-                         u8cs key) {
+                         u8cs key, u8 tag) {
     sane(buf != NULL);
     uint32_t ncc = ts_node_named_child_count(node);
     uint32_t s = ts_node_start_byte(node);
@@ -253,7 +243,7 @@ static ok64 BASTFeedNode(u8bp buf, u64bp idx, u8csc src, TSNode node,
         done;
     }
 
-    call(BASONFeedInto, idx, buf, 'A', key);
+    call(BASONFeedInto, idx, buf, tag, key);
     uint32_t pos = s;
     u64 ci = 0;
 
@@ -262,32 +252,31 @@ static ok64 BASTFeedNode(u8bp buf, u64bp idx, u8csc src, TSNode node,
         uint32_t cs = ts_node_start_byte(child);
 
         if (cs > pos) {
-            u8 kb[14];
+            u8 kb[11];
             u8s ki = {kb, kb + sizeof(kb)};
             call(RONutf8sFeed, ki, ci++);
-            BASTKeySuffix(ki, 0);
             u8cs ck = {(u8cp)kb, (u8cp)ki[0]};
             u8cs gap = {src[0] + pos, src[0] + cs};
             call(BASONFeed, idx, buf, 'S', ck, gap);
         }
 
         {
-            u8 kb[14];
+            u8 kb[11];
             u8s ki = {kb, kb + sizeof(kb)};
             call(RONutf8sFeed, ki, ci++);
-            BASTKeySuffix(ki, BASTNodeTag(ts_node_type(child)));
             u8cs ck = {(u8cp)kb, (u8cp)ki[0]};
-            call(BASTFeedNode, buf, idx, src, child, ck);
+            u8 ctag = BASTNodeTag(ts_node_type(child));
+            if (ctag == 0) ctag = 'A';
+            call(BASTFeedNode, buf, idx, src, child, ck, ctag);
         }
 
         pos = ts_node_end_byte(child);
     }
 
     if (e > pos) {
-        u8 kb[14];
+        u8 kb[11];
         u8s ki = {kb, kb + sizeof(kb)};
         call(RONutf8sFeed, ki, ci++);
-        BASTKeySuffix(ki, 0);
         u8cs ck = {(u8cp)kb, (u8cp)ki[0]};
         u8cs gap = {src[0] + pos, src[0] + e};
         call(BASONFeed, idx, buf, 'S', ck, gap);
@@ -329,7 +318,7 @@ ok64 BASTParse(u8bp buf, u64bp idx, u8csc source, u8csc ext) {
 
     TSNode root = ts_tree_root_node(tree);
     u8cs key = {(u8cp)"", (u8cp)""};
-    __ = BASTFeedNode(buf, idx, source, root, key);
+    __ = BASTFeedNode(buf, idx, source, root, key, 'A');
 
     ts_tree_delete(tree);
     ts_parser_delete(parser);

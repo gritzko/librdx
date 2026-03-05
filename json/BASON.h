@@ -8,7 +8,9 @@ con ok64 BASONEND = 0x1c5584dcf0;
 con ok64 BASONBAD = 0x1c5584de8d;
 
 // Container types: Array and Object
-fun b8 BASONPlex(u8 type) { return type == 'A' || type == 'O'; }
+fun b8 BASONPlex(u8 type) {
+    return type != 'B' && type != 'S' && type != 'N' && type != 0;
+}
 
 // Page size for index sampling (one entry per page)
 #define BASON_PAGE 512

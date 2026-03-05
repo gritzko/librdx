@@ -146,10 +146,9 @@ static ok64 BASTExportRec(u8s out, u64bp stack, u8csc data) {
     u8cs key = {};
     u8cs val = {};
     while (BASONDrain(stack, data, &type, key, val) == OK) {
-        u8 raw = type & ~0x20;  // uppercase
-        if (raw == 'S') {
+        if (type == 'S') {
             call(u8sFeed, out, val);
-        } else if (raw == 'A' || raw == 'O') {
+        } else if (BASONPlex(type)) {
             call(BASONInto, stack, data, val);
             call(BASTExportRec, out, stack, data);
             call(BASONOuto, stack);

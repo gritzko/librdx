@@ -466,18 +466,6 @@ static ok64 BASONxOne(u8s out, u64bp stack, u8csc data,
         }
         call(BASONOuto, stack);
         call(u8sFeed1, out, '}');
-    } else if (type == 'A') {
-        call(u8sFeed1, out, '[');
-        call(BASONInto, stack, data, val);
-        u8 ct; u8cs ck, cv;
-        b8 first = YES;
-        while (BASONDrain(stack, data, &ct, ck, cv) == OK) {
-            if (!first) call(u8sFeed1, out, ',');
-            first = NO;
-            call(BASONxOne, out, stack, data, ct, cv);
-        }
-        call(BASONOuto, stack);
-        call(u8sFeed1, out, ']');
     } else if (type == 'S') {
         call(BASONxString, out, val);
     } else if (type == 'N') {
@@ -489,6 +477,19 @@ static ok64 BASONxOne(u8s out, u64bp stack, u8csc data,
         } else {
             call(u8sFeed, out, val);
         }
+    } else {
+        // 'A' or any unknown type letter: treat as array
+        call(u8sFeed1, out, '[');
+        call(BASONInto, stack, data, val);
+        u8 ct; u8cs ck, cv;
+        b8 first = YES;
+        while (BASONDrain(stack, data, &ct, ck, cv) == OK) {
+            if (!first) call(u8sFeed1, out, ',');
+            first = NO;
+            call(BASONxOne, out, stack, data, ct, cv);
+        }
+        call(BASONOuto, stack);
+        call(u8sFeed1, out, ']');
     }
     done;
 }

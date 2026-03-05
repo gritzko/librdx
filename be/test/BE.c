@@ -297,6 +297,16 @@ ok64 BEtest6() {
     u8cs msg2 = $u8str("v2");
     call(BEPost, &be, 1, paths, msg2);
 
+    // Third edit (need 3 posts: initial=base, 2nd+3rd=waypoints)
+    call(FILEUnLink, path8cgIn(fpath));
+    u8cs v3 = $u8str("int x = 3;\n");
+    fd = 0;
+    call(FILECreate, &fd, path8cgIn(fpath));
+    call(FILEFeedall, fd, v3);
+    call(FILEClose, &fd);
+    u8cs msg3 = $u8str("v3");
+    call(BEPost, &be, 1, paths, msg3);
+
     // Verify waypoint keys exist with new format (be: scheme)
     a_cstr(sch_be, BE_SCHEME_BE);
     u8 pfxbuf[512];
@@ -335,7 +345,7 @@ ok64 BEtest6() {
     call(FILEMapRO, &mapbuf, path8cgIn(fpath));
     u8cp r0 = mapbuf[1], r1 = mapbuf[2];
     u8cs restored = {r0, r1};
-    want($eq(restored, v2));
+    want($eq(restored, v3));
     call(FILEUnMap, mapbuf);
 
     a_path(rpath, "");
@@ -464,6 +474,16 @@ ok64 BEtest8() {
     u8cs msg2 = $u8str("ms v2");
     call(BEPost, &be, 1, paths, msg2);
 
+    // Third edit (need 3 posts: initial=base, 2nd+3rd=waypoints)
+    call(FILEUnLink, path8cgIn(fpath));
+    u8cs src3 = $u8str("int y = 3;\n");
+    fd = 0;
+    call(FILECreate, &fd, path8cgIn(fpath));
+    call(FILEFeedall, fd, src3);
+    call(FILEClose, &fd);
+    u8cs msg3 = $u8str("ms v3");
+    call(BEPost, &be, 1, paths, msg3);
+
     // Count waypoints before milestone (be: scheme)
     a_cstr(sch_be, BE_SCHEME_BE);
     u8 pfxbuf[512];
@@ -525,7 +545,7 @@ ok64 BEtest8() {
     call(FILEMapRO, &mapbuf, path8cgIn(fpath));
     u8cp r0 = mapbuf[1], r1 = mapbuf[2];
     u8cs restored = {r0, r1};
-    want($eq(restored, src2));
+    want($eq(restored, src3));
     call(FILEUnMap, mapbuf);
 
     a_path(rpath, "");
@@ -1045,14 +1065,10 @@ ok64 BEtest16() {
 
 // ---- Test 17: BASTGrepNodes (AST-aware line selection) ----
 
-// Callback: select function definition nodes (key ends with 'f')
+// Callback: select function definition nodes (type letter 'F')
 static b8 SelectFunctions(const bason *node, void *ctx) {
     (void)ctx;
-    u8 raw = node->type & ~0x20;
-    if (raw != 'A') return NO;
-    if ($empty(node->key)) return NO;
-    u8 last = node->key[1][-1];
-    return last == 'f' ? YES : NO;
+    return (node->type & ~0x20) == 'F' ? YES : NO;
 }
 
 ok64 BEtest17() {
@@ -1224,8 +1240,7 @@ ok64 BEtest18() {
             else if (st == '+') n_add++;
             else if (st == '~') n_chg++;
         }
-        u8 raw = type & ~0x20;
-        if (raw == 'A' || raw == 'O') {
+        if (BASONPlex(type)) {
             call(BASONInto, vstk, unified, val);
             depth++;
         }

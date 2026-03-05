@@ -145,7 +145,7 @@ static napi_value ValueToJS(napi_env env, u8 type, u8cs val,
         } else {
             NAPI_OK(env, napi_get_boolean(env, false, &result));
         }
-    } else if (type == 'A' || type == 'O') {
+    } else if (BASONPlex(type)) {
         BasonView *vw = (BasonView *)malloc(sizeof(BasonView));
         if (!vw) NAPI_THROW(env, "out of memory");
         vw->children[0] = val[0];
