@@ -9,7 +9,7 @@ if (NOT WITH_ROCKS)
     return()
 endif()
 
-add_library(beagle STATIC BE.c BESYNC.c IGNO.c GREP.c ../json/BIFF.c)
+add_library(beagle STATIC BE.c VER.c BESYNC.c IGNO.c GREP.c ../json/BIFF.c)
 target_link_libraries(beagle bast abc)
 
 add_executable(be-cli BE.cli.c)

@@ -298,81 +298,10 @@ static b8 BEBranchVisible(BEp be, u8cs branch) {
     return NO;
 }
 
-// ---- Branch formula parsing ----
-
-ok64 BEFormParse(BEFormp form, u8cs query) {
-    sane(form != NULL);
-    form->count = 0;
-    if (!$ok(query) || $empty(query)) done;
-    u8cp p = query[0];
-    u8cp end = query[1];
-    while (p < end && form->count < BE_MAX_BRANCHES) {
-        u8cp start = p;
-        while (p < end && *p != '&') p++;
-        if (p > start) {
-            u8cs entry = {start, p};
-            // Scan for '-' or '+' separator (not in RON64 alphabet)
-            u8cp sep = start;
-            while (sep < p && *sep != '-' && *sep != '+') sep++;
-            if (sep < p && sep > start) {
-                // time-origin or time+origin
-                u8cs ts = {start, sep};
-                u8cs orig = {sep + 1, p};
-                ron60 time_val = 0;
-                ron60 orig_val = 0;
-                ok64 o = RONutf8sDrain(&time_val, ts);
-                if (o == OK) o = RONutf8sDrain(&orig_val, orig);
-                if (o == OK) {
-                    form->entries[form->count].time = time_val;
-                    form->entries[form->count].origin = orig_val;
-                    form->count++;
-                }
-            } else {
-                // Just origin, time=0 (match all waypoints)
-                ron60 orig_val = 0;
-                ok64 o = RONutf8sDrain(&orig_val, entry);
-                if (o == OK) {
-                    form->entries[form->count].time = 0;
-                    form->entries[form->count].origin = orig_val;
-                    form->count++;
-                }
-            }
-        }
-        if (p < end) p++;  // skip '&'
-    }
-    done;
-}
-
-// Build BEForm from be->branches[] (time=0 for all = match all waypoints)
-static ok64 BEFormFromBranches(BEFormp form, BEp be) {
-    sane(form != NULL && be != NULL);
-    form->count = 0;
-    for (int i = 0; i < be->branchc && form->count < BE_MAX_BRANCHES; i++) {
-        ron60 orig = 0;
-        ok64 o = RONutf8sDrain(&orig, be->branches[i]);
-        if (o == OK) {
-            form->entries[form->count].time = 0;
-            form->entries[form->count].origin = orig;
-            form->count++;
-        }
-    }
-    done;
-}
-
-b8 BEFormMatch(BEFormp form, BERev wp) {
-    for (int i = 0; i < form->count; i++) {
-        if (form->entries[i].origin == wp.origin) {
-            if (form->entries[i].time == 0) return YES;
-            if (wp.time <= form->entries[i].time) return YES;
-        }
-    }
-    return NO;
-}
-
 // ---- BEScan / BEScanChanged ----
 
 // Internal: flush accumulated base + waypoints for one file
-static ok64 BEScanFlush(BEp be, BEFormp form, u8cs relpath,
+static ok64 BEScanFlush(BEp be, ron120cs form, u8cs relpath,
                          b8 has_base, int wpc, u8cs *waypoints,
                          BEScanCBf cb, voidp arg) {
     sane(be != NULL && cb != NULL);
@@ -457,8 +386,7 @@ static ok64 BEScanFlush(BEp be, BEFormp form, u8cs relpath,
                 ron60 br_val = 0;
                 ok64 o2 = RONutf8sDrain(&br_val, br);
                 if (o2 == OK) {
-                    BERev wp_id = {stamp, br_val};
-                    if (BEFormMatch(form, wp_id)) {
+                    if (VERFormMatch(form, stamp, br_val)) {
                         u8cs sv = {};
                         ROCKIterVal(&sit, sv);
                         BEMetaDrainBason(&meta, sv);
@@ -480,13 +408,15 @@ static ok64 BEScanCore(BEp be, uricp loc, BEScanCBf cb, voidp arg,
     sane(be != NULL && loc != NULL && cb != NULL);
 
     // Parse formula from loc->query (or be->branches[])
-    BEForm form = {};
+    ron120 fbuf[VER_MAX];
+    ron120s form = {fbuf, fbuf + VER_MAX};
     u8cs locq = {loc->query[0], loc->query[1]};
     if ($ok(locq) && !$empty(locq)) {
-        call(BEFormParse, &form, locq);
+        call(VERFormParse, form, locq);
     } else {
-        call(BEFormFromBranches, &form, be);
+        call(VERFormFromBranches, form, be->branchc, be->branches);
     }
+    ron120cs formcs = {fbuf, form[0]};
 
     // Build be:<path>/ prefix
     a_cstr(sch_be, BE_SCHEME_BE);
@@ -543,7 +473,7 @@ static ok64 BEScanCore(BEp be, uricp loc, BEScanCBf cb, voidp arg,
         // Check if relpath changed → flush previous
         if ($ok(cur_relpath) && !$empty(cur_relpath) && !$eq(relpath, cur_relpath)) {
             if (!changed_only || cur_wpc > 0) {
-                ok64 fo = BEScanFlush(be, &form, cur_relpath,
+                ok64 fo = BEScanFlush(be, formcs, cur_relpath,
                                        cur_has_base, cur_wpc,
                                        cur_waypoints, cb, arg);
                 if (fo != OK && fo != BEnone) {
@@ -590,8 +520,7 @@ static ok64 BEScanCore(BEp be, uricp loc, BEScanCBf cb, voidp arg,
                 ron60 br_val = 0;
                 ok64 o2 = RONutf8sDrain(&br_val, branch);
                 if (o2 == OK) {
-                    BERev wp_id = {stamp, br_val};
-                    if (BEFormMatch(&form, wp_id) && cur_wpc < 256) {
+                    if (VERFormMatch(formcs, stamp, br_val) && cur_wpc < 256) {
                         u8cs v = {};
                         ROCKIterVal(&it, v);
                         u8cp start = wpbuf[2];
@@ -613,7 +542,7 @@ static ok64 BEScanCore(BEp be, uricp loc, BEScanCBf cb, voidp arg,
     // Flush last file
     if ($ok(cur_relpath) && !$empty(cur_relpath)) {
         if (!changed_only || cur_wpc > 0) {
-            call(BEScanFlush, be, &form, cur_relpath,
+            call(BEScanFlush, be, formcs, cur_relpath,
                  cur_has_base, cur_wpc,
                  cur_waypoints, cb, arg);
         }

@@ -13,6 +13,12 @@ target_compile_options(BEtest PRIVATE ${TEST_CXX_FLAGS})
 target_link_libraries(BEtest beagle bast abc)
 add_test(NAME BEtest COMMAND BEtest)
 
+add_executable(VERtest VER.c)
+target_link_options(VERtest PRIVATE ${TEST_LDD_FLAGS})
+target_compile_options(VERtest PRIVATE ${TEST_CXX_FLAGS})
+target_link_libraries(VERtest beagle bast abc)
+add_test(NAME VERtest COMMAND VERtest)
+
 add_test(NAME BEclitest COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/cli-test.sh
          $<TARGET_FILE:be-cli>)
 
