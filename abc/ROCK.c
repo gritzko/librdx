@@ -460,7 +460,11 @@ ok64 ROCKDisableFileDeletions(ROCKdbp db) {
 ok64 ROCKEnableFileDeletions(ROCKdbp db) {
     sane(db != NULL && db->db != NULL);
     char *err = NULL;
+#if ROCKSDB_MAJOR > 8 || (ROCKSDB_MAJOR == 8 && ROCKSDB_MINOR >= 0)
+    rocksdb_enable_file_deletions(db->db, 1, &err);
+#else
     rocksdb_enable_file_deletions(db->db, &err);
+#endif
     return ROCKerr(err);
 }
 
