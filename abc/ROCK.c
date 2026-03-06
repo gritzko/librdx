@@ -450,42 +450,6 @@ ok64 ROCKSnapshotRelease(ROCKdbp db) {
     done;
 }
 
-ok64 ROCKDisableFileDeletions(ROCKdbp db) {
-    sane(db != NULL && db->db != NULL);
-    char *err = NULL;
-    rocksdb_disable_file_deletions(db->db, &err);
-    return ROCKerr(err);
-}
-
-ok64 ROCKEnableFileDeletions(ROCKdbp db) {
-    sane(db != NULL && db->db != NULL);
-    char *err = NULL;
-    rocksdb_enable_file_deletions(db->db, &err);
-    return ROCKerr(err);
-}
-
-ok64 ROCKLiveFiles(ROCKdbp db, ROCKfilef f, voidp arg) {
-    sane(db != NULL && db->db != NULL && f != NULL);
-    const rocksdb_livefiles_t *lf = rocksdb_livefiles(db->db);
-    test(lf != NULL, ROCKFAIL);
-    int count = rocksdb_livefiles_count(lf);
-    for (int i = 0; i < count; i++) {
-        const char *name = rocksdb_livefiles_name(lf, i);
-        size_t size = rocksdb_livefiles_size(lf, i);
-        // name includes leading /, skip it
-        if (name[0] == '/') name++;
-        size_t nlen = strlen(name);
-        u8cs fname = {(u8cp)name, (u8cp)name + nlen};
-        ok64 o = f(arg, fname, (u64)size);
-        if (o != OK) {
-            rocksdb_livefiles_destroy(lf);
-            return o;
-        }
-    }
-    rocksdb_livefiles_destroy(lf);
-    done;
-}
-
 ok64 ROCKGetPath(ROCKdbp db, path8g out) {
     sane(db != NULL && db->db != NULL && out != NULL);
     char *path = rocksdb_property_value(db->db, "rocksdb.dbname");
