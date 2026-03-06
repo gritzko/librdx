@@ -153,6 +153,17 @@ ok64 BEDiffFiles(BEp be, int pathc, u8cs *paths);
 // Flatten BASON tree back to source text
 ok64 BASTExport(u8s out, u64bp stack, u8csc data);
 
+// File record callback: called for base and each matching waypoint
+typedef ok64 (*BEFileCBf)(voidp arg, u8cs key, u8cs val);
+
+// Scan base + formula-matching waypoints for a single file
+ok64 BEScanFile(ROCKdbp db, u8cs project, u8cs relpath,
+                ron120cs formcs, BEFileCBf cb, voidp arg);
+
+// Merge file content: formula-filtered, thread-safe (allocates own buffers)
+ok64 BEMergeFile(ROCKdbp db, u8cs project, u8cs relpath,
+                 ron120cs formcs, u8bp result);
+
 // GET single file: read metadata from stat:, content from be:, merge
 ok64 BEGetFileMerged(BEp be, u8cs project, u8cs relpath,
                      u8bp result, BEmeta *meta_out);

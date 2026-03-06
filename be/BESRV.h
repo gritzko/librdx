@@ -2,37 +2,51 @@
 #define LIBRDX_BESRV_H
 
 #include "BE.h"
+#include "VER.h"
+#include "abc/ROCK.h"
 
 con ok64 BESRVFAIL = 0x2ce1b6d53ca495;
 con ok64 BESRVBAD = 0x2ce1b6d54b28d;
 
-// Cached file entry for serving
+#define BESRV_WBUF_SIZE (1 << 16)
+
+#define BESRV_MODE_BASON 0
+#define BESRV_MODE_STATE 1
+#define BESRV_MODE_RAW   2
+#define BESRV_MODE_DIR   3
+
+// Per-client streaming state
 typedef struct {
-    u8cs name;     // filename (points into names_buf)
-    u64 size;      // file size
-} BESRVfile;
+    ROCKiter it;           // ROCK iterator (independent per client)
+    ron120 form[VER_MAX];  // formula entries
+    ron120cs formcs;       // formula slice (into form[])
+    u8 pfxbuf[512];        // scan prefix storage
+    u8cs prefix;           // scan prefix slice
+    int fd;                // client socket
+    u8p wbuf[4];           // write buffer
+    u8cs pending;          // un-sent data in wbuf
+    b8 iter_done;          // iterator exhausted
+} BEClient;
+typedef BEClient *BEClientp;
 
 // Server context
 typedef struct {
-    BEp be;                    // open repo
-    int listen_fd;             // TCP listen socket
-    BESRVfile files[256];      // cached file list
-    int filec;                 // file count
-    u8p names_buf[4];         // buffer for file names
-    u8p repo_path_pp[4];     // DB directory path
+    BEp be;
+    int listen_fd;
+    int stop_pipe[2];  // write end [1] to signal stop, read end [0] in POL
 } BESRVctx;
 typedef BESRVctx *BESRVctxp;
 
-// Initialize server: take snapshot, cache file list, bind port
+// Initialize server: bind port, set up POL
 ok64 BESRVInit(BESRVctxp ctx, BEp be, int port);
 
-// Run blocking event loop
+// Run POL event loop
 ok64 BESRVRun(BESRVctxp ctx);
 
 // Stop the event loop
 ok64 BESRVStop(BESRVctxp ctx);
 
-// Cleanup: release snapshot, close socket
+// Cleanup: close socket
 ok64 BESRVFree(BESRVctxp ctx);
 
 #endif  // LIBRDX_BESRV_H

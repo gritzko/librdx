@@ -9,6 +9,8 @@ include(CTest)
 
 include_directories(.)
 
+option(WITH_ROCKS "build with RocksDB" ON)
+
 option(WITH_ASAN "build with ASAN" OFF)
 if (WITH_ASAN)
     set(ASAN_FLAGS "-g -O1 -fsanitize=address -fno-omit-frame-pointer -fno-optimize-sibling-calls")

@@ -49,6 +49,7 @@ ok64 besrv() {
     // Setup signal handler for clean shutdown
     signal(SIGINT, besrv_sigint);
     signal(SIGTERM, besrv_sigint);
+    signal(SIGPIPE, SIG_IGN);
 
     // Init and run server
     call(BESRVInit, &g_srv, &be, port);

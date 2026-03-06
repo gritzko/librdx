@@ -23,6 +23,12 @@ add_test(NAME BEclitest COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/cli-test.sh
          $<TARGET_FILE:be-cli>)
 
 if (WITH_INET)
+add_executable(BESRVtest BESRV.c ../../be/BESRV.c)
+target_link_options(BESRVtest PRIVATE ${TEST_LDD_FLAGS})
+target_compile_options(BESRVtest PRIVATE ${TEST_CXX_FLAGS})
+target_link_libraries(BESRVtest beagle bast abc)
+add_test(NAME BESRVtest COMMAND BESRVtest)
+
 add_executable(BESYNCtest BESYNC.c ../../be/BESRV.c)
 target_link_options(BESYNCtest PRIVATE ${TEST_LDD_FLAGS})
 target_compile_options(BESYNCtest PRIVATE ${TEST_CXX_FLAGS})

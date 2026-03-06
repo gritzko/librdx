@@ -268,6 +268,8 @@ ok64 ROCKtest7() {
 // Test 8: ROCKScan prefix callback
 typedef struct {
     int count;
+    u8 keybuf[256];
+    u8 valbuf[256];
     u8cs last_key;
     u8cs last_val;
 } ScanCtx;
@@ -275,8 +277,16 @@ typedef struct {
 static ok64 ScanCB(voidp arg, u8cs key, u8cs val) {
     ScanCtx *ctx = (ScanCtx *)arg;
     ctx->count++;
-    $mv(ctx->last_key, key);
-    $mv(ctx->last_val, val);
+    size_t kl = $len(key);
+    if (kl > sizeof(ctx->keybuf)) kl = sizeof(ctx->keybuf);
+    memcpy(ctx->keybuf, key[0], kl);
+    ctx->last_key[0] = ctx->keybuf;
+    ctx->last_key[1] = ctx->keybuf + kl;
+    size_t vl = $len(val);
+    if (vl > sizeof(ctx->valbuf)) vl = sizeof(ctx->valbuf);
+    memcpy(ctx->valbuf, val[0], vl);
+    ctx->last_val[0] = ctx->valbuf;
+    ctx->last_val[1] = ctx->valbuf + vl;
     return OK;
 }
 

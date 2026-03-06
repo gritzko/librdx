@@ -179,8 +179,8 @@ WORK2="$TMPDIR/work2"
 mkdir -p "$WORK2"
 cd "$WORK2"
 "$BE" get //testrepo/@me/proj
-test -f "$WORK2/.be" || fail ".be not created in work2"
-grep -q "int a = 99" "$WORK2/a.c" || fail "a.c not checked out"
+test -f "$WORK2/proj/.be" || fail ".be not created in work2/proj"
+grep -q "int a = 99" "$WORK2/proj/a.c" || fail "a.c not checked out"
 pass "local depot checkout"
 cd "$WORK"
 
