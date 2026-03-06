@@ -204,6 +204,7 @@ echo "--- be diff (colored worktree diff) ---"
 cd "$WORK"
 # First ensure clean state
 "$BE" post
+sleep 1
 # Modify a file
 echo "int a = 999;" > "$WORK/a.c"
 OUT=$("$BE" diff 2>&1)
