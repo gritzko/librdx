@@ -903,18 +903,10 @@ ok64 BEMergeFile(ROCKdbp db, u8cs project, u8cs relpath,
                  ron120cs formcs, u8bp result) {
     sane(db != NULL && result != NULL);
 
-    // Extend formula with 0-0 entry to include base key in merge
-    size_t flen = formcs[1] - formcs[0];
-    ron120 mform[VER_MAX + 1];
-    if (flen > VER_MAX) flen = VER_MAX;
-    memcpy(mform, formcs[0], flen * sizeof(ron120));
-    mform[flen] = VERMake(0, 0, VER_ANY);
-    ron120cs mformcs = {mform, mform + flen + 1};
-
     BEMergeCtx_ ctx = {};
     call(u8bAllocate, ctx.buf, 1 << 18);
 
-    ok64 o = BEScanFile(db, project, relpath, mformcs, BEMergeCB_, &ctx);
+    ok64 o = BEScanFile(db, project, relpath, formcs, BEMergeCB_, &ctx);
     if (o != OK) {
         u8bFree(ctx.buf);
         return o;

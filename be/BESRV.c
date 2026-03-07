@@ -84,28 +84,19 @@ static ok64 BESRVFillBuf(BEClientp cl) {
             continue;
         }
 
-        if ($empty(ku.query)) {
-            // Base key: always include
+        // Match base (stamp=0, origin=0) and waypoints uniformly
+        ron60 stamp = 0;
+        ron60 br_val = 0;
+        if (!$empty(ku.query)) {
+            u8cs branch = {};
+            o = BEQueryParse(&stamp, branch, ku.query);
+            if (o == OK) RONutf8sDrain(&br_val, branch);
+        }
+        if (VERFormMatch(cl->formcs, stamp, br_val)) {
             u8cs v = {};
             ROCKIterVal(&cl->it, v);
             if (!$empty(v)) {
                 BESRVRewriteRoot(cl->wbuf, k, v);
-            }
-        } else {
-            // Waypoint key: check formula match
-            ron60 stamp = 0;
-            u8cs branch = {};
-            o = BEQueryParse(&stamp, branch, ku.query);
-            if (o == OK) {
-                ron60 br_val = 0;
-                ok64 o2 = RONutf8sDrain(&br_val, branch);
-                if (o2 == OK && VERFormMatch(cl->formcs, stamp, br_val)) {
-                    u8cs v = {};
-                    ROCKIterVal(&cl->it, v);
-                    if (!$empty(v)) {
-                        BESRVRewriteRoot(cl->wbuf, k, v);
-                    }
-                }
             }
         }
 

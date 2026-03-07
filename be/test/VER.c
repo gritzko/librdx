@@ -63,12 +63,12 @@ ok64 VERtest3() {
         int count;
         u8 ops[4];
     } cases[] = {
-        {"main", 1, {VER_ANY}},
-        {"abc-main", 1, {VER_LE}},
-        {"abc+main", 1, {VER_GT}},
-        {"abc=main", 1, {VER_EQ}},
-        {"main&feat", 2, {VER_ANY, VER_ANY}},
-        {"abc-main&feat", 2, {VER_LE, VER_ANY}},
+        {"main", 2, {VER_ANY, VER_ANY}},          // +base
+        {"abc-main", 2, {VER_LE, VER_ANY}},        // +base
+        {"abc+main", 1, {VER_GT}},                 // no base
+        {"abc=main", 1, {VER_EQ}},                 // no base
+        {"main&feat", 3, {VER_ANY, VER_ANY, VER_ANY}}, // +base
+        {"abc-main&feat", 3, {VER_LE, VER_ANY, VER_ANY}}, // +base
         {"", 0, {}},
     };
     int n = sizeof(cases) / sizeof(cases[0]);
@@ -163,7 +163,7 @@ ok64 VERtest5() {
     u8cs q_main = {(u8cp)"main", (u8cp)"main" + 4};
     call(RONutf8sDrain, &main_ron, q_main);
 
-    // VER_LE roundtrip
+    // VER_LE roundtrip (+base entry)
     ron120 v = VERMake(0x123, main_ron, VER_LE);
     u8 buf[64];
     u8s into = {buf, buf + sizeof(buf)};
@@ -174,12 +174,14 @@ ok64 VERtest5() {
     ron120 fbuf[VER_MAX];
     ron120s form = {fbuf, fbuf + VER_MAX};
     call(VERFormParse, form, text);
-    same((int)(form[0] - fbuf), 1);
+    same((int)(form[0] - fbuf), 2);
     same(VERTime(&fbuf[0]), 0x123);
     same(VEROrigin(&fbuf[0]), main_ron);
     same(VEROp(&fbuf[0]), VER_LE);
+    same(VEROrigin(&fbuf[1]), 0);
+    same(VEROp(&fbuf[1]), VER_ANY);
 
-    // VER_GT roundtrip
+    // VER_GT roundtrip (no base entry)
     ron120 v2 = VERMake(0x456, main_ron, VER_GT);
     into[0] = buf;
     call(VERutf8Feed, into, &v2);
@@ -190,7 +192,7 @@ ok64 VERtest5() {
     same(VERTime(&fbuf[0]), 0x456);
     same(VEROp(&fbuf[0]), VER_GT);
 
-    // VER_EQ roundtrip
+    // VER_EQ roundtrip (no base entry)
     ron120 v3 = VERMake(0x789, main_ron, VER_EQ);
     into[0] = buf;
     call(VERutf8Feed, into, &v3);
@@ -201,17 +203,61 @@ ok64 VERtest5() {
     same(VERTime(&fbuf[0]), 0x789);
     same(VEROp(&fbuf[0]), VER_EQ);
 
-    // VER_ANY (time=0, just origin)
+    // VER_ANY (time=0, just origin) (+base entry)
     ron120 v4 = VERMake(0, main_ron, VER_ANY);
     into[0] = buf;
     call(VERutf8Feed, into, &v4);
     u8cs text4 = {buf, into[0]};
     form[0] = fbuf;
     call(VERFormParse, form, text4);
-    same((int)(form[0] - fbuf), 1);
+    same((int)(form[0] - fbuf), 2);
     same(VEROrigin(&fbuf[0]), main_ron);
     same(VEROp(&fbuf[0]), VER_ANY);
 
+    done;
+}
+
+// ---- Test 6: Base key (0,0) inclusion via formula ----
+
+ok64 VERtest6() {
+    sane(1);
+    struct {
+        const char *query;
+        b8 base_included;
+    } cases[] = {
+        {"main", YES},              // ANY → base included
+        {"main&feat", YES},         // all ANY → base included
+        {"abc-main", YES},          // LE → base included
+        {"abc-main&feat", YES},     // LE + ANY → base included
+        {"abc+main", NO},           // GT only → no base
+        {"abc=main", NO},           // EQ only → no base
+        {"abc+main&def=feat", NO},  // GT + EQ → no base
+        {"abc+main&feat", YES},     // GT + ANY → base included
+        {"abc-main&def+feat", YES}, // LE + GT → base included
+    };
+    int n = sizeof(cases) / sizeof(cases[0]);
+    for (int i = 0; i < n; i++) {
+        ron120 fbuf[VER_MAX];
+        ron120s form = {fbuf, fbuf + VER_MAX};
+        u8cs q = {(u8cp)cases[i].query,
+                  (u8cp)cases[i].query + strlen(cases[i].query)};
+        call(VERFormParse, form, q);
+        b8 got = VERFormMatch((ron120cs){fbuf, form[0]}, 0, 0);
+        want(got == cases[i].base_included);
+    }
+
+    // VERFormFromBranches: all-ANY, base included
+    {
+        ron60 main_ron = 0;
+        u8cs q_main = $u8str("main");
+        call(RONutf8sDrain, &main_ron, q_main);
+        u8cs branches[1];
+        $mv(branches[0], q_main);
+        ron120 fbuf[VER_MAX];
+        ron120s form = {fbuf, fbuf + VER_MAX};
+        call(VERFormFromBranches, form, 1, branches);
+        want(VERFormMatch((ron120cs){fbuf, form[0]}, 0, 0) == YES);
+    }
     done;
 }
 
@@ -222,6 +268,7 @@ ok64 maintest() {
     call(VERtest3);
     call(VERtest4);
     call(VERtest5);
+    call(VERtest6);
     done;
 }
 
