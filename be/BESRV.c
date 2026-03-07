@@ -17,11 +17,11 @@
 // Forward declarations
 static short BESRVClientCB(int fd, poller *p);
 
-// Stop pipe callback: when signaled, call POLStop from the POL thread
+// Stop pipe callback: when signaled, call POLStop from the POL thread.
+// Pipe is non-blocking; timeout delivery may fire this without data.
 static short BESRVStopCB(int fd, poller *p) {
     u8 buf[1];
-    read(fd, buf, 1);
-    POLStop();
+    if (read(fd, buf, 1) == 1) POLStop();
     return 0;
 }
 
@@ -600,8 +600,11 @@ ok64 BESRVInit(BESRVctxp ctx, BEp be, int port) {
     ctx->stop_pipe[0] = -1;
     ctx->stop_pipe[1] = -1;
 
-    // Create stop pipe for cross-thread signaling
+    // Create stop pipe for cross-thread signaling (non-blocking so
+    // timeout-driven callback reads don't block the event loop)
     test(pipe(ctx->stop_pipe) == 0, BESRVFAIL);
+    fcntl(ctx->stop_pipe[0], F_SETFL,
+          fcntl(ctx->stop_pipe[0], F_GETFL, 0) | O_NONBLOCK);
 
     // Listen on port
     char addr[64];

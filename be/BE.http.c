@@ -46,9 +46,11 @@ ok64 besrv() {
         FILEerr(msgcs);
     }
 
-    // Setup signal handler for clean shutdown
-    signal(SIGINT, besrv_sigint);
-    signal(SIGTERM, besrv_sigint);
+    // Setup signal handler for clean shutdown (no SA_RESTART so poll
+    // returns EINTR and the stop-pipe byte gets picked up)
+    struct sigaction sa = {.sa_handler = besrv_sigint};
+    sigaction(SIGINT, &sa, NULL);
+    sigaction(SIGTERM, &sa, NULL);
     signal(SIGPIPE, SIG_IGN);
 
     // Init and run server
