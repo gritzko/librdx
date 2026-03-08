@@ -72,6 +72,7 @@ pass "come switched to feat"
 echo "--- 6.b on branch: post on feat ---"
 echo "int f = 1;" > "$WORK/feat.c"
 echo "int a = 99;" > "$WORK/a.c"
+"$BE" post feat.c
 "$BE" post
 pass "post on feat branch"
 

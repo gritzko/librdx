@@ -4,10 +4,10 @@ Beagle is a source code management system that stores AST trees, not binary blob
 The general idea is *a database for the code* as a hub of all code-related activities
 and storage for all the related data (tickets, CI results, whatsnot).
 The backing store is virtually any key-value database (rocksdb as of now).
-The data format [AST BASON][j] is CRDT-ish.
+The data format is [basically JSON][j] (but binary and mergeable).
 
 Beagle is early stage and experimental.
-It host itself, the rest is not guaranteed.
+It hosts itself, the rest is not guaranteed.
 Use at your own risk.
 
 Further reading: 

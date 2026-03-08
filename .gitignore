@@ -27,6 +27,11 @@ Makefile
 # Test outputs
 Testing/
 corpus/
+Corpus/
 
 # Generated files
 *.log
+
+# SCM files
+.git
+.be
