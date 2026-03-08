@@ -14,6 +14,9 @@ ok64 BASTParse(u8bp buf, u64bp idx, u8csc source, u8csc ext);
 struct TSLanguage;
 const struct TSLanguage *BASTLanguage(u8csc ext);
 
+// Get codec name for file extension ("c", "py", "text", etc).
+void BASTCodec(u8csp codec, u8csc ext);
+
 // Extension to 18-bit ftype (3 RON64 chars packed).
 // ext includes the dot, e.g. ".c". Unknown → 0.
 u32 BASTFtype(u8csc ext);

@@ -19,11 +19,41 @@ Further reading:
 ##  Examples of use
 
 ````
+    # Initial POST of a project. We specify repo, project path.
+    # Absence of http: or ssh: makes it local to the store in $HOME/.be
     $ be post //replicated.live/@gritzko/librdx
+    ...
+    OK   h    ast/tree-sitter/point.h
+    OK   h    ast/tree-sitter/parser.h
+    OK   c    ast/tree-sitter/query.c
+    OK   text ast/verilog/LICENSE
+    ...million more lines...
+
+    # Inspect RocksDB inners just out of curiosity.
+    $ ls $HOME/.be/replicated.live/
+    # Inspect worktree/repo state
+    $ cat .be
+    //replicated.live/@gritzko/librdx
     $ be
+    repo: replicated.live
+    project: /@gritzko/librdx
+    branches: *main
+    base files: 574, waypoints: 0
+
     $ cd /some/other/dir
     $ be get //replicated.live/@gritzko/librdx
+    ...a million lines...
+    OK   h    rdx/test/YX.h
+    OK   h    rdx/test/ZE.h
+    OK   sh   rdx/test/http-test.sh
+    OK   sh   rdx/test/query-test.sh
+    OK   sh   scripts/ci-fast.sh
+    $ cd librdx
     $ be
+    repo: replicated.live
+    project: /@gritzko/librdx
+    branches: *main
+    base files: 574, waypoints: 0
 ````
 
 

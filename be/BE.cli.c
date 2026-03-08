@@ -5,6 +5,7 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "abc/ANSI.h"
 #include "abc/FILE.h"
 #include "abc/PRO.h"
 
@@ -59,43 +60,54 @@ static ok64 BEStatusCB(voidp arg, u8cs key, u8cs val) {
     return OK;
 }
 
+// Print gray label + value + newline
+static ok64 BEStatusLine(u8cs label, u8cs value) {
+    u8 lbuf[512];
+    u8s ls = {lbuf, lbuf + sizeof(lbuf)};
+    escfeed(ls, GRAY);
+    u8sFeed(ls, label);
+    u8sFeed(ls, value);
+    escfeed(ls, 0);
+    u8sFeed1(ls, '\n');
+    u8cs line = {lbuf, ls[0]};
+    return FILEout(line);
+}
+
 // Print status info
 static ok64 BEStatus(BEp be) {
     sane(be != NULL);
-    a_cstr(hdr, "beagle: ");
-    call(FILEout, hdr);
-    call(FILEout, be->loc.data);
-    call(FILEout, NL);
 
     if ($ok(be->loc.host) && !$empty(be->loc.host)) {
-        a_cstr(lbl, "  repo: ");
-        call(FILEout, lbl);
-        call(FILEout, be->loc.host);
-        call(FILEout, NL);
+        a_cstr(lbl_repo, "repo: ");
+        call(BEStatusLine, lbl_repo, be->loc.host);
     }
     if ($ok(be->loc.path) && !$empty(be->loc.path)) {
-        a_cstr(lbl, "  project: ");
-        call(FILEout, lbl);
-        call(FILEout, be->loc.path);
-        call(FILEout, NL);
+        a_cstr(lbl_proj, "project: ");
+        call(BEStatusLine, lbl_proj, be->loc.path);
     }
 
     // Show branches
     if (be->branchc > 0) {
-        a_cstr(lbl, "  branches: ");
-        call(FILEout, lbl);
+        u8 lbuf[512];
+        u8s ls = {lbuf, lbuf + sizeof(lbuf)};
+        escfeed(ls, GRAY);
+        a_cstr(lbl, "branches: ");
+        u8sFeed(ls, lbl);
         for (int i = 0; i < be->branchc; i++) {
             if (i > 0) {
                 a_cstr(sep, ", ");
-                call(FILEout, sep);
+                u8sFeed(ls, sep);
             }
             if (i == 0) {
                 a_cstr(star, "*");
-                call(FILEout, star);
+                u8sFeed(ls, star);
             }
-            call(FILEout, be->branches[i]);
+            u8sFeed(ls, be->branches[i]);
         }
-        call(FILEout, NL);
+        escfeed(ls, 0);
+        u8sFeed1(ls, '\n');
+        u8cs line = {lbuf, ls[0]};
+        call(FILEout, line);
     }
 
     // Count files and waypoints (scan stat: for lightweight listing)
@@ -111,11 +123,16 @@ static ok64 BEStatus(BEp be) {
     BEStatusCtx cctx = {0, 0, $len(prefix)};
     call(ROCKScan, &be->db, prefix, BEStatusCB, &cctx);
 
-    u8 cbuf[128];
-    int clen = snprintf((char *)cbuf, sizeof(cbuf),
-                        "  base files: %d, waypoints: %d\n",
+    u8 cbuf[256];
+    u8s cs = {cbuf, cbuf + sizeof(cbuf)};
+    escfeed(cs, GRAY);
+    int clen = snprintf((char *)cs[0], (size_t)(cs[1] - cs[0]),
+                        "base files: %d, waypoints: %d",
                         cctx.base_count, cctx.wp_count);
-    u8cs cline = {cbuf, cbuf + clen};
+    cs[0] += clen;
+    escfeed(cs, 0);
+    u8sFeed1(cs, '\n');
+    u8cs cline = {cbuf, cs[0]};
     call(FILEout, cline);
     call(BEStatusFiles, be);
     done;

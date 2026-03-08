@@ -751,7 +751,7 @@ static void BEExtOf(u8csp ext, u8cs filename) {
     ext[0] = NULL;
     ext[1] = NULL;
     u8cp p = filename[1];
-    while (p > filename[0]) {
+    while (p > filename[0] + 1) {
         --p;
         if (*p == '.') {
             ext[0] = p;
@@ -997,7 +997,7 @@ ok64 BEGetFileMerged(BEp be, u8cs project, u8cs relpath,
     done;
 }
 
-static void BEPostReport(u8cs rel, u8cs ext, const char *status, u8 color);
+static void BEPostReport(u8cs rel, u8cs codec, const char *status, u8 color);
 
 static ok64 BEGetFile(BEp be, u8cs relpath) {
     sane(be != NULL);
@@ -1006,6 +1006,8 @@ static ok64 BEGetFile(BEp be, u8cs relpath) {
     path8gBase(basename, (path8cg){relpath[0], relpath[1], relpath[1]});
     u8cs ext = {};
     BEExtOf(ext, basename);
+    u8cs codec = {};
+    BASTCodec(codec, ext);
 
     u8bp mbuf = be->scratch[BE_PATCH];
     u8bReset(mbuf);
@@ -1014,7 +1016,7 @@ static ok64 BEGetFile(BEp be, u8cs relpath) {
     ok64 go = BEGetFileMerged(be, be->loc.path, relpath, mbuf, &meta);
     if (go == BEnone) return BEnone;
     if (go != OK) {
-        BEPostReport(relpath, ext, "FAIL", DARK_RED);
+        BEPostReport(relpath, codec, "FAIL", DARK_RED);
         return go;
     }
 
@@ -1023,10 +1025,10 @@ static ok64 BEGetFile(BEp be, u8cs relpath) {
 
     ok64 eo = BEExportFile(be, relpath, merged, meta);
     if (eo != OK) {
-        BEPostReport(relpath, ext, "FAIL", DARK_RED);
+        BEPostReport(relpath, codec, "FAIL", DARK_RED);
         return eo;
     }
-    BEPostReport(relpath, ext, "OK", DARK_GREEN);
+    BEPostReport(relpath, codec, "OK", DARK_GREEN);
     done;
 }
 
@@ -1037,11 +1039,13 @@ static ok64 BEExportCB(voidp arg, u8cs relpath, u8cs bason, BEmeta meta) {
     path8gBase(basename, (path8cg){relpath[0], relpath[1], relpath[1]});
     u8cs ext = {};
     BEExtOf(ext, basename);
+    u8cs codec = {};
+    BASTCodec(codec, ext);
     ok64 o = BEExportFile(be, relpath, bason, meta);
     if (o == OK)
-        BEPostReport(relpath, ext, "OK", DARK_GREEN);
+        BEPostReport(relpath, codec, "OK", DARK_GREEN);
     else
-        BEPostReport(relpath, ext, "FAIL", DARK_RED);
+        BEPostReport(relpath, codec, "FAIL", DARK_RED);
     return o;
 }
 
@@ -1122,11 +1126,13 @@ ok64 BEStatusFiles(BEp be) {
         BEmeta meta = {};
         BEMetaDrainBason(&meta, sv);
 
-        // Get extension for report
+        // Get codec for report
         u8cs basename = {};
         path8gBase(basename, (path8cg){relpath[0], relpath[1], relpath[1]});
         u8cs ext = {};
         BEExtOf(ext, basename);
+        u8cs codec = {};
+        BASTCodec(codec, ext);
 
         // Build worktree path and stat
         a_path(fpath, "");
@@ -1138,9 +1144,9 @@ ok64 BEStatusFiles(BEp be) {
 
         struct stat fst;
         if (FILEStat(&fst, path8cgIn(fpath)) != OK) {
-            BEPostReport(relpath, ext, "DEL", DARK_RED);
+            BEPostReport(relpath, codec, "DEL", DARK_RED);
         } else if ((u32)fst.st_mtime != meta.mtime) {
-            BEPostReport(relpath, ext, "MOD", DARK_YELLOW);
+            BEPostReport(relpath, codec, "MOD", DARK_YELLOW);
         }
 
         ROCKIterNext(&sit);
@@ -1328,7 +1334,7 @@ typedef struct {
 } BEPostCtx;
 
 // Report file status: "STAT codc path\n" (4+1+4+1 = 10 char prefix)
-static void BEPostReport(u8cs rel, u8cs ext, const char *status, u8 color) {
+static void BEPostReport(u8cs rel, u8cs codec, const char *status, u8 color) {
     u8 lbuf[512];
     u8s ls = {lbuf, lbuf + sizeof(lbuf)};
     // Status: up to 4 chars, colored, padded
@@ -1344,18 +1350,11 @@ static void BEPostReport(u8cs rel, u8cs ext, const char *status, u8 color) {
     // Codec: up to 4 chars, gray, padded
     escfeed(ls, GRAY);
     int ci = 0;
-    if (!$empty(ext)) {
-        u8cp ce = ext[0];
-        if (*ce == '.') ce++;
-        while (ce < ext[1] && ci < 4) {
-            u8sFeed1(ls, *ce);
-            ce++;
-            ci++;
-        }
-    } else {
-        u8cs tc = {(u8cp)"text", (u8cp)"text" + 4};
-        u8sFeed(ls, tc);
-        ci = 4;
+    u8cp ce = codec[0];
+    while (ce < codec[1] && ci < 4) {
+        u8sFeed1(ls, *ce);
+        ce++;
+        ci++;
     }
     escfeed(ls, 0);
     while (ci < 4) { u8sFeed1(ls, ' '); ci++; }
@@ -1378,11 +1377,13 @@ static ok64 BEPostFile(BEp be, ROCKbatchp wb, ron60 stamp, path8cg filepath) {
     struct stat fst;
     call(FILEStat, &fst, filepath);
 
-    // Get extension for parser
+    // Get extension and codec
     u8cs basename = {};
     path8gBase(basename, filepath);
     u8cs ext = {};
     BEExtOf(ext, basename);
+    u8cs codec = {};
+    BASTCodec(codec, ext);
 
     // Build metadata
     BEmeta meta = {};
@@ -1403,7 +1404,7 @@ static ok64 BEPostFile(BEp be, ROCKbatchp wb, ron60 stamp, path8cg filepath) {
         u8cs source = {mapbuf[1], mapbuf[2]};
         o = BASTParse(nbuf, NULL, source, ext);
         if (o != OK) {
-            BEPostReport(rel, ext, "SKIP", DARK_YELLOW);
+            BEPostReport(rel, codec, "SKIP", DARK_YELLOW);
             FILEUnMap(mapbuf);
             done;
         }
@@ -1502,7 +1503,7 @@ static ok64 BEPostFile(BEp be, ROCKbatchp wb, ron60 stamp, path8cg filepath) {
         rocksdb_flushoptions_destroy(fopt);
     }
 
-    BEPostReport(rel, ext, "OK", DARK_GREEN);
+    BEPostReport(rel, codec, "OK", DARK_GREEN);
 
     if (mapbuf) FILEUnMap(mapbuf);
     done;
@@ -1524,8 +1525,8 @@ static ok64 BEPostScanCB(voidp arg, path8p path) {
                  path8cgIn(path));
             u8cs rel = {relpath[1], relpath[2]};
             if (IGNOMatch(ctx->ig, rel, YES)) {
-                u8cs noext = {};
-                BEPostReport(rel, noext, "IGN", DARK_YELLOW);
+                u8cs dircodec = {(u8cp)"dir", (u8cp)"dir" + 3};
+                BEPostReport(rel, dircodec, "IGN", DARK_YELLOW);
                 return FILEskip;
             }
         }
@@ -1543,7 +1544,9 @@ static ok64 BEPostScanCB(voidp arg, path8p path) {
                 path8gBase(basename, path8cgIn(path));
                 u8cs ext = {};
                 BEExtOf(ext, basename);
-                BEPostReport(rel, ext, "IGN", DARK_YELLOW);
+                u8cs codec = {};
+                BASTCodec(codec, ext);
+                BEPostReport(rel, codec, "IGN", DARK_YELLOW);
                 return OK;
             }
         }
@@ -1558,7 +1561,9 @@ static ok64 BEPostScanCB(voidp arg, path8p path) {
         path8gBase(basename, path8cgIn(path));
         u8cs ext = {};
         BEExtOf(ext, basename);
-        BEPostReport(rel, ext, "FAIL", DARK_RED);
+        u8cs codec = {};
+        BASTCodec(codec, ext);
+        BEPostReport(rel, codec, "FAIL", DARK_RED);
     }
     return OK;
 }

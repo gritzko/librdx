@@ -37,40 +37,41 @@ extern const TSLanguage *tree_sitter_verilog(void);
 
 typedef struct {
     char ext[8];
+    char codec[8];
     const TSLanguage *(*lang)(void);
 } BASTLangMap;
 
 static const BASTLangMap BAST_LANGS[] = {
-    {".agda", tree_sitter_agda},
-    {".sh", tree_sitter_bash},
-    {".bash", tree_sitter_bash},
-    {".c", tree_sitter_c},
-    {".h", tree_sitter_c},
-    {".cs", tree_sitter_c_sharp},
-    {".cpp", tree_sitter_cpp},
-    {".cc", tree_sitter_cpp},
-    {".cxx", tree_sitter_cpp},
-    {".hpp", tree_sitter_cpp},
-    {".css", tree_sitter_css},
-    {".erb", tree_sitter_embedded_template},
-    {".go", tree_sitter_go},
-    {".hs", tree_sitter_haskell},
-    {".html", tree_sitter_html},
-    {".htm", tree_sitter_html},
-    {".java", tree_sitter_java},
-    {".js", tree_sitter_javascript},
-    {".jsx", tree_sitter_javascript},
-    {".mjs", tree_sitter_javascript},
-    {".json", tree_sitter_json},
-    {".jl", tree_sitter_julia},
-    {".ml", tree_sitter_ocaml},
-    {".mli", tree_sitter_ocaml_interface},
-    {".php", tree_sitter_php},
-    {".py", tree_sitter_python},
-    {".rb", tree_sitter_ruby},
-    {".rs", tree_sitter_rust},
-    {".v", tree_sitter_verilog},
-    {".sv", tree_sitter_verilog},
+    {".agda", "agda", tree_sitter_agda},
+    {".sh", "bash", tree_sitter_bash},
+    {".bash", "bash", tree_sitter_bash},
+    {".c", "c", tree_sitter_c},
+    {".h", "c", tree_sitter_c},
+    {".cs", "cs", tree_sitter_c_sharp},
+    {".cpp", "cpp", tree_sitter_cpp},
+    {".cc", "cpp", tree_sitter_cpp},
+    {".cxx", "cpp", tree_sitter_cpp},
+    {".hpp", "cpp", tree_sitter_cpp},
+    {".css", "css", tree_sitter_css},
+    {".erb", "erb", tree_sitter_embedded_template},
+    {".go", "go", tree_sitter_go},
+    {".hs", "hs", tree_sitter_haskell},
+    {".html", "html", tree_sitter_html},
+    {".htm", "html", tree_sitter_html},
+    {".java", "java", tree_sitter_java},
+    {".js", "js", tree_sitter_javascript},
+    {".jsx", "js", tree_sitter_javascript},
+    {".mjs", "js", tree_sitter_javascript},
+    {".json", "json", tree_sitter_json},
+    {".jl", "jl", tree_sitter_julia},
+    {".ml", "ml", tree_sitter_ocaml},
+    {".mli", "ml", tree_sitter_ocaml_interface},
+    {".php", "php", tree_sitter_php},
+    {".py", "py", tree_sitter_python},
+    {".rb", "rb", tree_sitter_ruby},
+    {".rs", "rust", tree_sitter_rust},
+    {".v", "v", tree_sitter_verilog},
+    {".sv", "v", tree_sitter_verilog},
 };
 
 const TSLanguage *BASTLanguage(u8csc ext) {
@@ -81,6 +82,21 @@ const TSLanguage *BASTLanguage(u8csc ext) {
             return BAST_LANGS[i].lang();
     }
     return NULL;
+}
+
+void BASTCodec(u8csp codec, u8csc ext) {
+    size_t elen = $len(ext);
+    for (size_t i = 0; i < sizeof(BAST_LANGS) / sizeof(BAST_LANGS[0]); i++) {
+        size_t mlen = strlen(BAST_LANGS[i].ext);
+        if (mlen == elen && memcmp(ext[0], BAST_LANGS[i].ext, mlen) == 0) {
+            const char *c = BAST_LANGS[i].codec;
+            codec[0] = (u8cp)c;
+            codec[1] = (u8cp)c + strlen(c);
+            return;
+        }
+    }
+    codec[0] = (u8cp)"text";
+    codec[1] = (u8cp)"text" + 4;
 }
 
 u32 BASTFtype(u8csc ext) {
