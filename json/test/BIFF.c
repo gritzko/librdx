@@ -609,6 +609,14 @@ static BIFFRoundtripCase BIFF_FUZZ_REPROS[] = {
     // fuzz: duplicate inner content across containers (cross-container match)
     {"{\"a\":{\"x\":[1,0]},\"b\":{\"x\":[1,0]}}",
      "{\"a\":{\"x\":[1,0]},\"b\":{\"y\":[2,0]}}"},
+    // array: prepend
+    {"[1,2,3]", "[0,1,2,3]"},
+    // array: multi-insert middle
+    {"[1,5]", "[1,2,3,4,5]"},
+    // array: full replace
+    {"[1,2,3]", "[4,5,6]"},
+    // array: nested array in object
+    {"{\"a\":[1,2,3]}", "{\"a\":[1,9,2,3]}"},
 };
 
 // Compare two BASON trees via JSON export (handles sorted keys, splice keys)
@@ -735,47 +743,8 @@ ok64 BIFFtestFromRaw(u8csc raw) {
     call(BASONMerge, mbuf, NULL, ls, odata, rs, dd);
     u8cp md0 = mbuf[1], md1 = mbuf[2];
     u8cs md = {md0, md1};
-    if ($len(md) != $len(ndata) ||
-        memcmp(md[0], ndata[0], $len(ndata)) != 0) {
-        // Show JSON for debugging
-        u8 _aj[8192], _bj[8192];
-        u8b abuf = {_aj, _aj, _aj, _aj + 8192};
-        u8b bbuf = {_bj, _bj, _bj, _bj + 8192};
-        BIFFExportJSON(abuf, md);
-        BIFFExportJSON(bbuf, ndata);
-        u8cs aj = {abuf[1], abuf[2]};
-        u8cs bj = {bbuf[1], bbuf[2]};
-        fprintf(stderr, "  BASON size: got=%zu exp=%zu\n", $len(md), $len(ndata));
-        fprintf(stderr, "  got json:  %.*s\n", (int)$len(aj), aj[0]);
-        fprintf(stderr, "  exp json:  %.*s\n", (int)$len(bj), bj[0]);
-        // Skip root header (6 bytes), find first content diff
-        size_t minl = $len(md) < $len(ndata) ? $len(md) : $len(ndata);
-        for (size_t i = 6; i < minl; i++) {
-            if (md[0][i] != ndata[0][i]) {
-                fprintf(stderr, "  content diff at byte %zu: got=0x%02x exp=0x%02x\n",
-                        i, md[0][i], ndata[0][i]);
-                size_t s = i > 20 ? i - 20 : 6;
-                size_t e = i + 40 < $len(md) ? i + 40 : $len(md);
-                size_t ee = i + 40 < $len(ndata) ? i + 40 : $len(ndata);
-                fprintf(stderr, "  got[%zu..%zu]:", s, e);
-                for (size_t j = s; j < e; j++)
-                    fprintf(stderr, " %02x", md[0][j]);
-                fprintf(stderr, "\n  exp[%zu..%zu]:", s, ee);
-                for (size_t j = s; j < ee; j++)
-                    fprintf(stderr, " %02x", ndata[0][j]);
-                fprintf(stderr, "\n");
-                break;
-            }
-        }
-        if (minl == $len(ndata) && $len(md) > $len(ndata)) {
-            fprintf(stderr, "  got has %zu extra bytes at end\n", $len(md) - $len(ndata));
-            fprintf(stderr, "  got tail:");
-            for (size_t j = $len(ndata); j < $len(md); j++)
-                fprintf(stderr, " %02x", md[0][j]);
-            fprintf(stderr, "\n");
-        }
-        fail(TESTFAIL);
-    }
+    // Compare via JSON (splice keys may differ from sequential keys)
+    call(BIFFCheckJSONEqual, md, ndata);
     done;
 }
 

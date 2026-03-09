@@ -58,6 +58,31 @@ ok64 BASONFeedOuto(u64bp idx, u8bp buf);
 // TLKVOuto).  Uses idle space as scratch.  Invalidates idx entries if non-NULL.
 ok64 BASONSortChildren(u8bp buf, u64bp idx);
 
+// --- Array key helpers ---
+
+// Minimum RON64 width to represent n sequential keys (0..n-1).
+fun u8 BASONKeyWidth(u64 n) {
+    u8 w = 1;
+    u64 cap = 64;
+    while (cap < n && w < 10) { cap *= 64; w++; }
+    return w;
+}
+
+// Increment a RON64 bigint key, feed result into slice.
+// Output has same width as orig. Fails on overflow (all '~').
+ok64 BASONFeedInc(u8s into, u8cs orig);
+
+// Compute a midpoint key between left and right for array splicing.
+// Ensures room for len insertions with collision probability 1/pcoll.
+// Empty left/right means no bound (start/end of keyspace).
+ok64 BASONFindMid(u8s into, u8cs left, u8cs right,
+                  u64 len, u64 pcoll, u64 random);
+
+// Incremental key generator for sequential parsing (unknown count).
+// First digit determines increment position P via width thresholds.
+// Subsequent digits use full 0..63 range. Empty prev produces "0".
+ok64 BASONFeedInfInc(u8s into, u8cs prev);
+
 // --- JSON ↔ BASON ---
 ok64 BASONParseJSON(u8bp buf, u64bp idx, u8cs json);
 ok64 BASONExportJSON(u8s out, u64bp stack, u8csc data);

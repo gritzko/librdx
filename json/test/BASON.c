@@ -644,27 +644,27 @@ ok64 BASONtestParseArray() {
 
     call(BASONInto, stk, dat, val);
 
-    // Element 0 → key "0"
-    call(BASONDrain, stk, dat, &type, key, val);
-    testeq(type, 'N');
-    u8cs k0 = $u8str("0");
-    testeq(0, $cmp(k0, key));
-    u8cs v1 = $u8str("1");
-    testeq(0, $cmp(v1, val));
-
-    // Element 1 → key "1"
+    // Element 0 → key "1"
     call(BASONDrain, stk, dat, &type, key, val);
     testeq(type, 'N');
     u8cs k1 = $u8str("1");
     testeq(0, $cmp(k1, key));
-    u8cs v2 = $u8str("2");
-    testeq(0, $cmp(v2, val));
+    u8cs v1 = $u8str("1");
+    testeq(0, $cmp(v1, val));
 
-    // Element 2 → key "2"
+    // Element 1 → key "2"
     call(BASONDrain, stk, dat, &type, key, val);
     testeq(type, 'N');
     u8cs k2 = $u8str("2");
     testeq(0, $cmp(k2, key));
+    u8cs v2 = $u8str("2");
+    testeq(0, $cmp(v2, val));
+
+    // Element 2 → key "3"
+    call(BASONDrain, stk, dat, &type, key, val);
+    testeq(type, 'N');
+    u8cs k3 = $u8str("3");
+    testeq(0, $cmp(k3, key));
     u8cs v3 = $u8str("3");
     testeq(0, $cmp(v3, val));
 
@@ -702,14 +702,14 @@ ok64 BASONtestParseNested() {
     // [0] → 1
     call(BASONDrain, stk, dat, &type, key, val);
     testeq(type, 'N');
-    u8cs k0 = $u8str("0");
-    testeq(0, $cmp(k0, key));
+    u8cs k1 = $u8str("1");
+    testeq(0, $cmp(k1, key));
 
     // [1] → {"x":true}
     call(BASONDrain, stk, dat, &type, key, val);
     testeq(type, 'O');
-    u8cs k1 = $u8str("1");
-    testeq(0, $cmp(k1, key));
+    u8cs k2 = $u8str("2");
+    testeq(0, $cmp(k2, key));
     call(BASONInto, stk, dat, val);
 
     // "x" → true
@@ -988,6 +988,186 @@ ok64 BASONtestJSONRoundtrip() {
     done;
 }
 
+// 24. BASONFeedInc — fixed-width increment
+ok64 BASONtestFeedInc() {
+    sane(1);
+    u8 _out[16];
+    u8s out;
+    u8cs result;
+
+    // Single char: "0" → "1"
+    out[0] = _out; out[1] = _out + sizeof(_out);
+    u8cs k0 = $u8str("0");
+    call(BASONFeedInc, out, k0);
+    result[0] = (u8cp)_out; result[1] = (u8cp)out[0];
+    u8cs exp1 = $u8str("1");
+    testeq(0, $cmp(exp1, result));
+
+    // "A" → "B"
+    out[0] = _out; out[1] = _out + sizeof(_out);
+    u8cs kA = $u8str("A");
+    call(BASONFeedInc, out, kA);
+    result[0] = (u8cp)_out; result[1] = (u8cp)out[0];
+    u8cs expB = $u8str("B");
+    testeq(0, $cmp(expB, result));
+
+    // Two chars with carry: "0~" → "10"
+    out[0] = _out; out[1] = _out + sizeof(_out);
+    u8cs k0t = $u8str("0~");
+    call(BASONFeedInc, out, k0t);
+    result[0] = (u8cp)_out; result[1] = (u8cp)out[0];
+    u8cs exp10 = $u8str("10");
+    testeq(0, $cmp(exp10, result));
+
+    // Overflow: "~" → SBADARG
+    out[0] = _out; out[1] = _out + sizeof(_out);
+    u8cs kt = $u8str("~");
+    ok64 o = BASONFeedInc(out, kt);
+    testeq(o, SBADARG);
+
+    // Overflow: "~~" → SBADARG
+    out[0] = _out; out[1] = _out + sizeof(_out);
+    u8cs ktt = $u8str("~~");
+    o = BASONFeedInc(out, ktt);
+    testeq(o, SBADARG);
+
+    done;
+}
+
+// 25. BASONFeedInfInc — variable-width sequential increment
+ok64 BASONtestFeedInfInc() {
+    sane(1);
+    u8 _out[32];
+    u8s out;
+    u8cs result;
+
+    // Empty → "1"
+    out[0] = _out; out[1] = _out + sizeof(_out);
+    u8cs empty = {NULL, NULL};
+    call(BASONFeedInfInc, out, empty);
+    result[0] = (u8cp)_out; result[1] = (u8cp)out[0];
+    u8cs exp1 = $u8str("1");
+    testeq(0, $cmp(exp1, result));
+
+    // "1" → "2"
+    out[0] = _out; out[1] = _out + sizeof(_out);
+    call(BASONFeedInfInc, out, exp1);
+    result[0] = (u8cp)_out; result[1] = (u8cp)out[0];
+    u8cs exp2 = $u8str("2");
+    testeq(0, $cmp(exp2, result));
+
+    // "V" → "W" (width-1 max → width-2 prefix)
+    out[0] = _out; out[1] = _out + sizeof(_out);
+    u8cs kV = $u8str("V");
+    call(BASONFeedInfInc, out, kV);
+    result[0] = (u8cp)_out; result[1] = (u8cp)out[0];
+    u8cs expW = $u8str("W");
+    testeq(0, $cmp(expW, result));
+
+    // "W" → "W0" (short key padded to width 2)
+    out[0] = _out; out[1] = _out + sizeof(_out);
+    call(BASONFeedInfInc, out, expW);
+    result[0] = (u8cp)_out; result[1] = (u8cp)out[0];
+    u8cs expW0 = $u8str("W0");
+    testeq(0, $cmp(expW0, result));
+
+    // "W0" → "W1"
+    out[0] = _out; out[1] = _out + sizeof(_out);
+    call(BASONFeedInfInc, out, expW0);
+    result[0] = (u8cp)_out; result[1] = (u8cp)out[0];
+    u8cs expW1 = $u8str("W1");
+    testeq(0, $cmp(expW1, result));
+
+    // "W~" → "X" (digit[1] overflow → increment digit[0], trim)
+    out[0] = _out; out[1] = _out + sizeof(_out);
+    u8cs kWt = $u8str("W~");
+    call(BASONFeedInfInc, out, kWt);
+    result[0] = (u8cp)_out; result[1] = (u8cp)out[0];
+    u8cs expX = $u8str("X");
+    testeq(0, $cmp(expX, result));
+
+    // "X" → "X0"
+    out[0] = _out; out[1] = _out + sizeof(_out);
+    call(BASONFeedInfInc, out, expX);
+    result[0] = (u8cp)_out; result[1] = (u8cp)out[0];
+    u8cs expX0 = $u8str("X0");
+    testeq(0, $cmp(expX0, result));
+
+    // Trim: "W5Z" (3 chars, but P=1, W=2) → "W6" (trim extra)
+    out[0] = _out; out[1] = _out + sizeof(_out);
+    u8cs kW5Z = $u8str("W5Z");
+    call(BASONFeedInfInc, out, kW5Z);
+    result[0] = (u8cp)_out; result[1] = (u8cp)out[0];
+    u8cs expW6 = $u8str("W6");
+    testeq(0, $cmp(expW6, result));
+
+    // Monotonicity: generate 2000 sequential keys, verify strictly increasing
+    u8 keys[2000][8];
+    u8 lens[2000];
+    u8cs prevk = {NULL, NULL};
+    for (int i = 0; i < 2000; i++) {
+        out[0] = keys[i]; out[1] = keys[i] + 8;
+        call(BASONFeedInfInc, out, prevk);
+        lens[i] = (u8)(out[0] - keys[i]);
+        u8cs curk = {(u8cp)keys[i], (u8cp)keys[i] + lens[i]};
+        if (i > 0) {
+            test($cmp(prevk, curk) < 0, TESTFAIL);
+        }
+        prevk[0] = (u8cp)keys[i];
+        prevk[1] = (u8cp)keys[i] + lens[i];
+    }
+    // After 2000 keys should be in width-2 territory
+    test(lens[1999] >= 2, TESTFAIL);
+
+    done;
+}
+
+// 26. BASONFindMid — midpoint key between bounds
+ok64 BASONtestFindMid() {
+    sane(1);
+    u8 _out[32];
+    u8s out;
+    u8cs result;
+    u8cs no = {NULL, NULL};
+
+    // Between empty bounds
+    out[0] = _out; out[1] = _out + sizeof(_out);
+    call(BASONFindMid, out, no, no, 1, 2, 12345);
+    result[0] = (u8cp)_out; result[1] = (u8cp)out[0];
+    test($len(result) > 0, TESTFAIL);
+
+    // Between "A" and "Z": result strictly between
+    out[0] = _out; out[1] = _out + sizeof(_out);
+    u8cs loA = $u8str("A"), hiZ = $u8str("Z");
+    call(BASONFindMid, out, loA, hiZ, 1, 2, 42);
+    result[0] = (u8cp)_out; result[1] = (u8cp)out[0];
+    test($cmp(loA, result) < 0, TESTFAIL);
+    test($cmp(result, hiZ) < 0, TESTFAIL);
+
+    // Left-open: between nothing and "V"
+    out[0] = _out; out[1] = _out + sizeof(_out);
+    u8cs hiV = $u8str("V");
+    call(BASONFindMid, out, no, hiV, 1, 2, 99);
+    result[0] = (u8cp)_out; result[1] = (u8cp)out[0];
+    test($cmp(result, hiV) < 0, TESTFAIL);
+
+    // Right-open: between "V" and nothing
+    out[0] = _out; out[1] = _out + sizeof(_out);
+    call(BASONFindMid, out, hiV, no, 1, 2, 99);
+    result[0] = (u8cp)_out; result[1] = (u8cp)out[0];
+    test($cmp(hiV, result) < 0, TESTFAIL);
+
+    // Multi-char bounds: between "W0" and "W~"
+    out[0] = _out; out[1] = _out + sizeof(_out);
+    u8cs loW0 = $u8str("W0"), hiWt = $u8str("W~");
+    call(BASONFindMid, out, loW0, hiWt, 1, 2, 777);
+    result[0] = (u8cp)_out; result[1] = (u8cp)out[0];
+    test($cmp(loW0, result) < 0, TESTFAIL);
+    test($cmp(result, hiWt) < 0, TESTFAIL);
+
+    done;
+}
+
 ok64 BASONtest() {
     sane(1);
     call(BASONtestNextFlat);
@@ -1013,6 +1193,9 @@ ok64 BASONtest() {
     call(BASONtestExportArray);
     call(BASONtestExportEscapes);
     call(BASONtestJSONRoundtrip);
+    call(BASONtestFeedInc);
+    call(BASONtestFeedInfInc);
+    call(BASONtestFindMid);
     done;
 }
 

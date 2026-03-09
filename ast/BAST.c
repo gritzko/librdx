@@ -149,7 +149,8 @@ static ok64 BASTParseText(u8bp buf, u64bp idx, u8csc source) {
 
     u8cp p = source[0];
     u8cp end = source[1];
-    u64 ci = 0;
+    u8 kb[11];
+    u8cs prevk = {NULL, NULL};
 
     while (p < end) {
         u8cp start = p;
@@ -173,10 +174,11 @@ static ok64 BASTParseText(u8bp buf, u64bp idx, u8csc source) {
             // else: blank-only tail, p advanced past it
         }
 
-        u8 kb[11];
-        u8s ki = {kb, kb + 11};
-        call(RONutf8sFeed, ki, ci++);
+        u8s ki = {kb, kb + sizeof(kb)};
+        call(BASONFeedInfInc, ki, prevk);
         u8cs ck = {(u8cp)kb, (u8cp)ki[0]};
+        prevk[0] = (u8cp)kb;
+        prevk[1] = (u8cp)ki[0];
         u8cs val = {start, p};
         call(BASONFeed, idx, buf, 'S', ck, val);
     }
@@ -261,26 +263,29 @@ static ok64 BASTFeedNode(u8bp buf, u64bp idx, u8csc src, TSNode node,
 
     call(BASONFeedInto, idx, buf, tag, key);
     uint32_t pos = s;
-    u64 ci = 0;
+    u8 kb[11];
+    u8cs prevk = {NULL, NULL};
 
     for (uint32_t i = 0; i < ncc; i++) {
         TSNode child = ts_node_named_child(node, i);
         uint32_t cs = ts_node_start_byte(child);
 
         if (cs > pos) {
-            u8 kb[11];
             u8s ki = {kb, kb + sizeof(kb)};
-            call(RONutf8sFeed, ki, ci++);
+            call(BASONFeedInfInc, ki, prevk);
             u8cs ck = {(u8cp)kb, (u8cp)ki[0]};
+            prevk[0] = (u8cp)kb;
+            prevk[1] = (u8cp)ki[0];
             u8cs gap = {src[0] + pos, src[0] + cs};
             call(BASONFeed, idx, buf, 'S', ck, gap);
         }
 
         {
-            u8 kb[11];
             u8s ki = {kb, kb + sizeof(kb)};
-            call(RONutf8sFeed, ki, ci++);
+            call(BASONFeedInfInc, ki, prevk);
             u8cs ck = {(u8cp)kb, (u8cp)ki[0]};
+            prevk[0] = (u8cp)kb;
+            prevk[1] = (u8cp)ki[0];
             u8 ctag = BASTNodeTag(ts_node_type(child));
             if (ctag == 0) ctag = 'A';
             call(BASTFeedNode, buf, idx, src, child, ck, ctag);
@@ -290,9 +295,8 @@ static ok64 BASTFeedNode(u8bp buf, u64bp idx, u8csc src, TSNode node,
     }
 
     if (e > pos) {
-        u8 kb[11];
         u8s ki = {kb, kb + sizeof(kb)};
-        call(RONutf8sFeed, ki, ci++);
+        call(BASONFeedInfInc, ki, prevk);
         u8cs ck = {(u8cp)kb, (u8cp)ki[0]};
         u8cs gap = {src[0] + pos, src[0] + e};
         call(BASONFeed, idx, buf, 'S', ck, gap);

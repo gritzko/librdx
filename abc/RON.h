@@ -52,10 +52,6 @@ ok64 RONVerify(u8c** txt);
 // Fixed-width zero-padded RON64 encoding (big-endian, left-padded with '0')
 ok64 RONu8sFeedPad(u8** into, ok64 val, u8 width);
 
-// Lex-sortable variable-width RON64 encoding.
-// Top digit encodes width: 0-31 → w1, 32-47 → w2, 48-55 → w3, ...
-ok64 RONu8sFeedInc(u8** into, u32 val);
-
 // Compute random base offset and key width for a splice of n elements
 ok64 RONSpliceBase(ok64 *base, u8 *width, u64 rand, u64 prob, ok64 n);
 

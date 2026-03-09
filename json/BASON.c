@@ -190,6 +190,199 @@ ok64 BASONFeedOuto(u64bp idx, u8bp buf) {
     done;
 }
 
+// --- Array key helpers ---
+
+ok64 BASONFeedInc(u8s into, u8cs orig) {
+    sane(u8sOK(into) && $ok(orig));
+    size_t w = $len(orig);
+    test(w > 0, SBADARG);
+    test($len(into) >= w, SNOROOM);
+    memcpy(into[0], orig[0], w);
+    for (size_t i = w; i > 0;) {
+        i--;
+        u8 v = RON64_REV[into[0][i]];
+        test(v != 0xff, SBADARG);
+        if (v < 63) {
+            into[0][i] = RON64_CHARS[v + 1];
+            into[0] += w;
+            done;
+        }
+        into[0][i] = RON64_CHARS[0];
+    }
+    fail(SBADARG);
+}
+
+ok64 BASONFeedInfInc(u8s into, u8cs prev) {
+    sane(u8sOK(into));
+    size_t pl = $ok(prev) ? $len(prev) : 0;
+    if (pl == 0) {
+        test($len(into) >= 1, SNOROOM);
+        into[0][0] = RON64_CHARS[1];
+        into[0] += 1;
+        done;
+    }
+    u8 d0 = RON64_REV[prev[0][0]];
+    test(d0 != 0xff, SBADARG);
+    u8 P;
+    if (d0 < 32) P = 0;
+    else if (d0 < 48) P = 1;
+    else if (d0 < 56) P = 2;
+    else if (d0 < 60) P = 3;
+    else if (d0 < 62) P = 4;
+    else P = 5;
+    u8 W = P + 1;
+    // Key shorter than needed width: pad with '0' (padded > prev by $cmp)
+    if (pl < W) {
+        test($len(into) >= W, SNOROOM);
+        memcpy(into[0], prev[0], pl);
+        for (size_t i = pl; i < W; i++)
+            into[0][i] = RON64_CHARS[0];
+        into[0] += W;
+        done;
+    }
+    // Copy first W chars, trim any trailing
+    test($len(into) >= W, SNOROOM);
+    memcpy(into[0], prev[0], W);
+    u8 dP = RON64_REV[into[0][P]];
+    test(dP != 0xff, SBADARG);
+    if (dP < 63) {
+        into[0][P] = RON64_CHARS[dP + 1];
+        into[0] += W;
+        done;
+    }
+    // Overflow: cascade backward, increment first non-63 digit, trim
+    for (i8 i = (i8)P - 1; i >= 0; i--) {
+        u8 di = RON64_REV[into[0][i]];
+        test(di != 0xff, SBADARG);
+        if (di < 63) {
+            into[0][i] = RON64_CHARS[di + 1];
+            into[0] += (size_t)(i + 1);
+            done;
+        }
+    }
+    fail(SBADARG);
+}
+
+#define BASON_MAX_KWIDTH 20
+
+ok64 BASONFindMid(u8s into, u8cs left, u8cs right,
+                  u64 len, u64 pcoll, u64 random) {
+    sane(u8sOK(into));
+    u64 need = len > 0 ? len * pcoll : pcoll;
+    if (need == 0) need = 1;
+    size_t wl = $ok(left) ? $len(left) : 0;
+    size_t wr = $ok(right) ? $len(right) : 0;
+    test(wl <= BASON_MAX_KWIDTH && wr <= BASON_MAX_KWIDTH, SBADARG);
+    // Decode to digit arrays
+    u8 ld[BASON_MAX_KWIDTH] = {};
+    u8 rd[BASON_MAX_KWIDTH] = {};
+    for (size_t i = 0; i < wl; i++) {
+        u8 v = RON64_REV[left[0][i]];
+        test(v != 0xff, SBADARG);
+        ld[i] = v;
+    }
+    for (size_t i = 0; i < wr; i++) {
+        u8 v = RON64_REV[right[0][i]];
+        test(v != 0xff, SBADARG);
+        rd[i] = v;
+    }
+    u8 w = (u8)(wl > wr ? wl : wr);
+    if (w == 0) w = 1;
+    for (; w <= BASON_MAX_KWIDTH; w++) {
+        // Build left_w: first width-w key > left
+        u8 lw[BASON_MAX_KWIDTH] = {};
+        for (u8 i = 0; i < wl && i < w; i++) lw[i] = ld[i];
+        if (wl >= w) {
+            // Same width or longer: increment by 1
+            i8 carry = 1;
+            for (i8 i = (i8)w - 1; i >= 0 && carry; i--) {
+                u8 sum = lw[i] + carry;
+                if (sum >= 64) { lw[i] = 0; carry = 1; }
+                else { lw[i] = sum; carry = 0; }
+            }
+            if (carry) continue;
+        }
+        // else wl < w: lw = ld padded with 0s, already > left in $cmp
+        // Build right_w: last width-w key < right
+        u8 rw[BASON_MAX_KWIDTH] = {};
+        if (wr == 0) {
+            for (u8 i = 0; i < w; i++) rw[i] = 63;
+        } else {
+            for (u8 i = 0; i < wr && i < w; i++) rw[i] = rd[i];
+            // Subtract 1 (right padded with 0s, minus 1)
+            i8 borrow = 1;
+            for (i8 i = (i8)w - 1; i >= 0 && borrow; i--) {
+                i8 d = (i8)rw[i] - borrow;
+                if (d < 0) { rw[i] = 63; borrow = 1; }
+                else { rw[i] = (u8)d; borrow = 0; }
+            }
+            if (borrow) continue;
+        }
+        // Check lw <= rw
+        b8 valid = YES;
+        for (u8 i = 0; i < w; i++) {
+            if (lw[i] < rw[i]) break;
+            if (lw[i] > rw[i]) { valid = NO; break; }
+        }
+        if (!valid) continue;
+        // Compute gap = rw - lw as digit array
+        u8 gap[BASON_MAX_KWIDTH] = {};
+        i8 borrow2 = 0;
+        for (i8 i = (i8)w - 1; i >= 0; i--) {
+            i8 d = (i8)rw[i] - (i8)lw[i] - borrow2;
+            if (d < 0) { gap[i] = (u8)(d + 64); borrow2 = 1; }
+            else { gap[i] = (u8)d; borrow2 = 0; }
+        }
+        // Count significant digits to check if gap fits u64
+        u8 sig = 0;
+        for (u8 i = 0; i < w; i++) {
+            if (gap[i] != 0) { sig = w - i; break; }
+        }
+        // 10 base-64 digits = 60 bits, fits u64
+        if (sig > 10) {
+            // Gap is enormous (>2^60), plenty of room
+            // Add random offset (capped at 60 bits) to lw
+            u64 offset = random & 0x0FFFFFFFFFFFFFFFull;
+            u8 start[BASON_MAX_KWIDTH];
+            memcpy(start, lw, w);
+            u64 carry2 = offset;
+            for (i8 i = (i8)w - 1; i >= 0 && carry2 > 0; i--) {
+                u64 sum = (u64)start[i] + carry2;
+                start[i] = (u8)(sum & 63);
+                carry2 = sum >> 6;
+            }
+            test($len(into) >= w, SNOROOM);
+            for (u8 i = 0; i < w; i++)
+                into[0][i] = RON64_CHARS[start[i]];
+            into[0] += w;
+            done;
+        }
+        // Convert gap to u64
+        u64 gap_val = 0;
+        for (u8 i = 0; i < w; i++)
+            gap_val = gap_val * 64 + gap[i];
+        if (gap_val + 1 < need) continue;
+        // Pick random offset within valid range
+        u64 range = gap_val + 1 - need;
+        u64 offset = (range > 0) ? random % (range + 1) : 0;
+        // start = lw + offset
+        u8 start[BASON_MAX_KWIDTH];
+        memcpy(start, lw, w);
+        u64 carry2 = offset;
+        for (i8 i = (i8)w - 1; i >= 0 && carry2 > 0; i--) {
+            u64 sum = (u64)start[i] + carry2;
+            start[i] = (u8)(sum & 63);
+            carry2 = sum >> 6;
+        }
+        test($len(into) >= w, SNOROOM);
+        for (u8 i = 0; i < w; i++)
+            into[0][i] = RON64_CHARS[start[i]];
+        into[0] += w;
+        done;
+    }
+    fail(SBADARG);
+}
+
 // --- Sort TLKV children by key (shared by parser and diff) ---
 
 // TLKV raw-bytes slicer for LSMSort
@@ -253,7 +446,8 @@ typedef struct {
     u8    depth;
     struct {
         u8  ptype;      // 'O' or 'A'
-        u32 aidx;       // array element counter
+        u8cs akey;      // previous array key ({NULL,NULL} if none)
+        u8  akbuf[8];   // backing store for akey
         b8  have_key;   // object: key has been buffered
         b8  need_comma; // expect comma before next element
         b8  need_colon; // expect colon after key
@@ -281,10 +475,13 @@ static ok64 BASONpResolveKey(BASONparse *p) {
     test(!p->frame[p->depth - 1].need_comma, BASONBAD);
     p->frame[p->depth - 1].need_comma = YES;
     // Array: generate lex-sortable RON64 index key
+    u8 fi = p->depth - 1;
     u8s into = {p->keybuf, p->keybuf + 11};
-    u8p start = into[0];
-    call(RONu8sFeedInc, into, p->frame[p->depth - 1].aidx++);
-    p->keylen = (u8)(into[0] - start);
+    call(BASONFeedInfInc, into, p->frame[fi].akey);
+    p->keylen = (u8)(into[0] - p->keybuf);
+    memcpy(p->frame[fi].akbuf, p->keybuf, p->keylen);
+    p->frame[fi].akey[0] = (u8cp)p->frame[fi].akbuf;
+    p->frame[fi].akey[1] = (u8cp)p->frame[fi].akbuf + p->keylen;
     done;
 }
 
@@ -349,10 +546,9 @@ static ok64 BASONpOnString(u8cs tok, void *ctx) {
     call(BASONpResolveKey, p);
     u8cs key; BASONpKey(p, key);
     if (BASONpHasEscape(body)) {
-        u8 tmp[4096];
-        u8s dst = {tmp, tmp + sizeof(tmp)};
-        call(JSONUnEscapeAll, dst, body);
-        u8cs val = {(u8cp)tmp, (u8cp)dst[0]};
+        a_pad(u8, tmp, 4096);
+        call(JSONUnEscapeAll, tmp_idle, body);
+        u8cs val = {(u8cp)_tmp, (u8cp)tmp_idle[0]};
         call(BASONFeed, p->idx, p->buf, 'S', key, val);
     } else {
         call(BASONFeed, p->idx, p->buf, 'S', key, body);
@@ -391,7 +587,8 @@ static ok64 BASONpOnOpenObject(u8cs tok, void *ctx) {
     u8cs key; BASONpKey(p, key);
     call(BASONFeedInto, p->idx, p->buf, 'O', key);
     p->frame[p->depth].ptype = 'O';
-    p->frame[p->depth].aidx = 0;
+    p->frame[p->depth].akey[0] = NULL;
+    p->frame[p->depth].akey[1] = NULL;
     p->frame[p->depth].have_key = NO;
     p->frame[p->depth].need_comma = NO;
     p->frame[p->depth].need_colon = NO;
@@ -419,7 +616,8 @@ static ok64 BASONpOnOpenArray(u8cs tok, void *ctx) {
     u8cs key; BASONpKey(p, key);
     call(BASONFeedInto, p->idx, p->buf, 'A', key);
     p->frame[p->depth].ptype = 'A';
-    p->frame[p->depth].aidx = 0;
+    p->frame[p->depth].akey[0] = NULL;
+    p->frame[p->depth].akey[1] = NULL;
     p->frame[p->depth].have_key = NO;
     p->frame[p->depth].need_comma = NO;
     p->frame[p->depth].need_colon = NO;
