@@ -1295,36 +1295,45 @@ ok64 BEDiffFiles(BEp be, int pathc, u8cs *paths) {
                 call(FILEout, NL);
             }
         } else {
-            // Modified: line-level diff of old text vs worktree
+            // Modified: diff→merge→render pipeline
+            u8cs ext = {};
+            BEExtOf(ext, relpath);
+            u8bp nbuf = be->scratch[BE_PARSE];
             u8bp mapbuf = NULL;
-            call(FILEMapRO, &mapbuf, path8cgIn(fpath));
-            u8cs new_text = {mapbuf[1], mapbuf[2]};
+            call(BEParseFile, nbuf, &mapbuf, path8cgIn(fpath), &fst, ext);
+            u8cp n0 = nbuf[1], n1 = nbuf[2];
+            u8cs new_bason = {n0, n1};
 
-            // Export old BASON to text
-            u8cs old_text = {};
-            if (!$empty(old_bason)) {
-                u8bp rbuf = be->scratch[BE_RENDER];
-                u8bReset(rbuf);
-                aBpad(u64, stk, 256);
-                call(BASTExport, u8bIdle(rbuf), stk, old_bason);
-                u8cp r0 = rbuf[1], r1 = rbuf[2];
-                old_text[0] = r0;
-                old_text[1] = r1;
-            }
-
-            // Line-level diff with 3 context lines
-            u8bp dbuf = be->scratch[BE_PATCH];
+            // Step 1: diff(old, new) → patch
+            u8bp dbuf = be->scratch[BE_READ];
             u8bReset(dbuf);
-            call(BASTTextDiff, u8bIdle(dbuf), old_text, new_text, 3);
+            aBpad(u64, ostk, 256);
+            aBpad(u64, nstk, 256);
+            call(BASONDiff, dbuf, NULL, ostk, old_bason, nstk, new_bason);
             u8cp d0 = dbuf[1], d1 = dbuf[2];
-            u8cs rendered = {d0, d1};
+            u8cs patch = {d0, d1};
+
+            // Step 2: merge(old, patch) → merged
+            u8bp mbuf = be->scratch[BE_PATCH];
+            u8bReset(mbuf);
+            aBpad(u64, lstk, 256);
+            aBpad(u64, rstk, 256);
+            call(BASONMerge, mbuf, NULL, lstk, old_bason, rstk, patch);
+            u8cp m0 = mbuf[1], m1 = mbuf[2];
+            u8cs merged = {m0, m1};
+
+            // Step 3: render old vs merged (same key space)
+            u8bp rbuf = be->scratch[BE_RENDER];
+            u8bReset(rbuf);
+            call(BASONDiffPrint, u8bIdle(rbuf), old_bason, merged, 3);
+            u8cp r0 = rbuf[1], r1 = rbuf[2];
+            u8cs rendered = {r0, r1};
             if (!$empty(rendered)) {
                 call(FILEout, rendered);
                 if (rendered[1][-1] != '\n')
                     call(FILEout, NL);
             }
-
-            FILEUnMap(mapbuf);
+            if (mapbuf) FILEUnMap(mapbuf);
         }
 
         ROCKIterNext(&sit);

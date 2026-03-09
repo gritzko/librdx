@@ -4,6 +4,7 @@
 #include "abc/PRO.h"
 #include "abc/RAP.h"
 #include "abc/RON.h"
+#include "PASS.h"
 
 #define X(M, name) M##u64##name
 #include "abc/DIFFx.h"
@@ -506,11 +507,17 @@ static ok64 BIFFDiffArray(u8bp out, u64bp idx,
             u8cs empty = {(u8cp)ok_[0], (u8cp)ok_[0]};
             call(BASONFeed, idx, out, 'B', ok_, empty);
             call(BIFFSkip, ostk, odata, ot, ov);
-            // Don't update left_key on deletion
+            // Update left_key to deleted key so subsequent INS
+            // splice keys sort AFTER all deletions (red before green)
+            size_t kl = $len(ok_);
+            if (kl > BIFF_MAX_KWIDTH) kl = BIFF_MAX_KWIDTH;
+            memcpy(_lk_buf, ok_[0], kl);
+            left_key[0] = (u8cp)_lk_buf;
+            left_key[1] = (u8cp)_lk_buf + kl;
             oh[1]++;
             oo = BASONDrain(ostk, odata, &ot, ok_, ov);
         } else if (!oc && nc) {
-            // INS: generate key between left_key and current old key
+            // INS: generate key between left_key and next old key
             u8s mid_into = {_mk_buf, _mk_buf + BIFF_MAX_KWIDTH};
             call(BASONFindMid, mid_into, left_key, ok_, 1, 16, 0);
             u8cs mid_key = {(u8cp)_mk_buf, (u8cp)mid_into[0]};
@@ -967,5 +974,234 @@ ok64 BASONDiffRender(u8s out,
     }
     call(BASONOpen, pstk, pdata);
     call(BIFFRenderLevel, out, ostk, odata, pstk, pdata);
+    done;
+}
+
+// --- PASS-based colored diff ---
+
+// Render all leaf values of a BASON element (self-contained stack).
+// Unlike BIFFRenderLeaves, this allocates its own stack because
+// PASS has already advanced past the element.
+static ok64 BIFFPrintLeaves(u8s out, u8 type, u8cs val) {
+    sane(u8sOK(out));
+    if (BASONPlex(type)) {
+        aBpad(u64, stk, 64);
+        call(BASONOpen, stk, val);
+        u8 ct; u8cs ck, cv;
+        while (BASONDrain(stk, val, &ct, ck, cv) == OK) {
+            call(BIFFPrintLeaves, out, ct, cv);
+        }
+    } else if (type != 'B' || $len(val) > 0) {
+        call(u8sFeed, out, val);
+    }
+    done;
+}
+
+// Forward declaration
+static ok64 BIFFPrintLevel(u8s out, u8csc odata, u8csc ndata);
+
+// Flush buffered del/add segments: all red first, then all green.
+static ok64 BIFFPrintFlush(u8s out, u8s del, u8p d0, u8s add, u8p a0) {
+    sane(u8sOK(out));
+    u8cs DEL = $u8str("\033[9;31m");
+    u8cs ADD = $u8str("\033[32m");
+    u8cs RST = $u8str("\033[0m");
+    u8cs ds = {(u8cp)d0, (u8cp)del[0]};
+    u8cs as = {(u8cp)a0, (u8cp)add[0]};
+    if (!$empty(ds)) {
+        call(u8sFeed, out, DEL);
+        call(u8sFeed, out, ds);
+        call(u8sFeed, out, RST);
+    }
+    if (!$empty(as)) {
+        call(u8sFeed, out, ADD);
+        call(u8sFeed, out, as);
+        call(u8sFeed, out, RST);
+    }
+    done;
+}
+
+// Parallel walk with red/green buffering.
+// Consecutive changes are accumulated in del_buf/add_buf,
+// then flushed (all red before all green) at each unchanged element.
+static ok64 BIFFPrintLevel(u8s out, u8csc odata, u8csc ndata) {
+    sane(u8sOK(out));
+    aBpad(u64, ostk, 64);
+    aBpad(u64, nstk, 64);
+    call(BASONOpen, ostk, odata);
+    call(BASONOpen, nstk, ndata);
+
+    // Temp buffers for accumulating red/green segments
+    a_pad(u8, dbuf, 4096);
+    u8s del = {_dbuf, _dbuf + 4096};
+    u8p d0 = del[0];
+    a_pad(u8, abuf, 4096);
+    u8s add = {_abuf, _abuf + 4096};
+    u8p a0 = add[0];
+
+    // Manual parallel walk: drain both, compare keys
+    u8 ot = 0, nt = 0;
+    u8cs ok, ov, nk, nv;
+    ok64 oo = BASONDrain(ostk, odata, &ot, ok, ov);
+    ok64 no = BASONDrain(nstk, ndata, &nt, nk, nv);
+
+    while (oo == OK || no == OK) {
+        b8 oonly = NO, nonly = NO, both = NO;
+        if (oo == OK && no == OK) {
+            int cmp = $cmp(ok, nk);
+            if (cmp < 0) oonly = YES;
+            else if (cmp > 0) nonly = YES;
+            else both = YES;
+        } else if (oo == OK) {
+            oonly = YES;
+        } else {
+            nonly = YES;
+        }
+
+        if (oonly) {
+            // old only → buffer as deletion
+            call(BIFFPrintLeaves, del, ot, ov);
+            call(BIFFSkip, ostk, odata, ot, ov);
+            oo = BASONDrain(ostk, odata, &ot, ok, ov);
+        } else if (nonly) {
+            // new only → buffer as addition
+            call(BIFFPrintLeaves, add, nt, nv);
+            call(BIFFSkip, nstk, ndata, nt, nv);
+            no = BASONDrain(nstk, ndata, &nt, nk, nv);
+        } else {
+            // both have this key
+            b8 same = NO;
+            if (ot == nt && !BASONPlex(ot)) {
+                if ($len(ov) == $len(nv) && $len(ov) == 0) same = YES;
+                else if ($len(ov) == $len(nv) &&
+                         memcmp(ov[0], nv[0], $len(ov)) == 0)
+                    same = YES;
+            }
+
+            if (same) {
+                // Unchanged: flush buffered changes, then output plain
+                call(BIFFPrintFlush, out, del, d0, add, a0);
+                del[0] = d0;
+                add[0] = a0;
+                call(BIFFPrintLeaves, out, ot, ov);
+                call(BIFFSkip, ostk, odata, ot, ov);
+                call(BIFFSkip, nstk, ndata, nt, nv);
+            } else if (BASONPlex(ot) && BASONPlex(nt) && ot == nt) {
+                // Same-type containers: flush, recurse
+                call(BIFFPrintFlush, out, del, d0, add, a0);
+                del[0] = d0;
+                add[0] = a0;
+                call(BIFFPrintLevel, out, ov, nv);
+                call(BIFFSkip, ostk, odata, ot, ov);
+                call(BIFFSkip, nstk, ndata, nt, nv);
+            } else {
+                // Different values: buffer old as del, new as add
+                call(BIFFPrintLeaves, del, ot, ov);
+                call(BIFFPrintLeaves, add, nt, nv);
+                call(BIFFSkip, ostk, odata, ot, ov);
+                call(BIFFSkip, nstk, ndata, nt, nv);
+            }
+            oo = BASONDrain(ostk, odata, &ot, ok, ov);
+            no = BASONDrain(nstk, ndata, &nt, nk, nv);
+        }
+    }
+
+    // Flush remaining buffered changes
+    call(BIFFPrintFlush, out, del, d0, add, a0);
+    done;
+}
+
+// Trim colored text to show only ctx lines around changed lines.
+// Changed lines are detected by presence of ESC (\033).
+// Output always <= input, safe for in-place use.
+static ok64 BIFFTrimContext(u8s out, u8cs text, u32 ctx) {
+    sane(u8sOK(out));
+    // Count lines
+    u32 nlines = 0;
+    {
+        u8cp p = text[0];
+        while (p < text[1]) {
+            if (*p == '\n') nlines++;
+            p++;
+        }
+        if (text[1] > text[0] && *(text[1] - 1) != '\n') nlines++;
+    }
+    if (nlines == 0) done;
+
+    // Build line start/end array on stack (capped)
+    u32 maxlines = nlines < 8192 ? nlines : 8192;
+    u8cp starts[maxlines];
+    u8cp ends[maxlines];
+    b8 changed[maxlines];
+    {
+        u32 li = 0;
+        u8cp p = text[0];
+        starts[0] = p;
+        changed[0] = NO;
+        while (p < text[1] && li < maxlines) {
+            if (*p == '\033') changed[li] = YES;
+            if (*p == '\n') {
+                ends[li] = p + 1;
+                li++;
+                if (li < maxlines) {
+                    starts[li] = p + 1;
+                    changed[li] = NO;
+                }
+            }
+            p++;
+        }
+        if (li < maxlines && starts[li] < text[1]) {
+            ends[li] = text[1];
+            li++;
+        }
+        nlines = li;
+    }
+
+    // Mark lines to keep (within ctx of any changed line)
+    b8 keep[nlines];
+    for (u32 i = 0; i < nlines; i++) keep[i] = NO;
+    for (u32 i = 0; i < nlines; i++) {
+        if (!changed[i]) continue;
+        u32 lo = (i >= ctx) ? i - ctx : 0;
+        u32 hi = (i + ctx < nlines) ? i + ctx : nlines - 1;
+        for (u32 j = lo; j <= hi; j++) keep[j] = YES;
+    }
+
+    // Output kept lines, insert separator between non-adjacent hunks
+    // Uses memmove because source and dest may overlap (in-place trim)
+    u8cs SEP = $u8str("---\n");
+    i32 last_kept = -1;
+    for (u32 i = 0; i < nlines; i++) {
+        if (!keep[i]) continue;
+        if (last_kept >= 0 && i > (u32)last_kept + 1) {
+            size_t sl = $len(SEP);
+            if ((size_t)(out[1] - out[0]) < sl) fail(SNOROOM);
+            memmove(out[0], SEP[0], sl);
+            out[0] += sl;
+        }
+        size_t ll = (size_t)(ends[i] - starts[i]);
+        if ((size_t)(out[1] - out[0]) < ll) fail(SNOROOM);
+        memmove(out[0], starts[i], ll);
+        out[0] += ll;
+        last_kept = (i32)i;
+    }
+    done;
+}
+
+ok64 BASONDiffPrint(u8s out, u8csc odata, u8csc ndata, u32 ctx) {
+    sane(u8sOK(out));
+    if ($empty(odata) && $empty(ndata)) done;
+
+    u8p start = out[0];
+    call(BIFFPrintLevel, out, odata, ndata);
+
+    if (ctx > 0) {
+        u8cs full = {(u8cp)start, (u8cp)out[0]};
+        if ($empty(full)) done;
+        // Reset cursor, trim in-place (output always <= input)
+        out[0] = start;
+        call(BIFFTrimContext, out, full, ctx);
+    }
+
     done;
 }

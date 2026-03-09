@@ -24,7 +24,7 @@ target_compile_options(BASONtest PRIVATE ${TEST_CXX_FLAGS})
 target_link_libraries(BASONtest abc)
 add_test(NAME BASONtest COMMAND BASONtest)
 
-add_executable(BIFFtest BIFF.c ../BIFF.c ../BASON.c ../../abc/TLV.c)
+add_executable(BIFFtest BIFF.c ../BIFF.c ../PASS.c ../BASON.c ../../abc/TLV.c)
 target_link_options(BIFFtest PRIVATE ${TEST_LDD_FLAGS})
 target_compile_options(BIFFtest PRIVATE ${TEST_CXX_FLAGS})
 target_link_libraries(BIFFtest abc)

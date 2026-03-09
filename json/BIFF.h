@@ -2,6 +2,7 @@
 #define LIBRDX_BIFF_H
 
 #include "BASON.h"
+#include "PASS.h"
 
 // Merge two BASONs (right-wins). Result written to out buf+idx.
 // Objects: sorted-key parallel walk, same container type recurses.
@@ -33,5 +34,10 @@ ok64 BASONDiff(u8bp out, u64bp idx,
 ok64 BASONDiffRender(u8s out,
                      u64bp ostk, u8csc odata,
                      u64bp pstk, u8csc pdata);
+
+// PASS-based colored diff: walk two BASON states in parallel,
+// emit colored output with context-line trimming.
+// ctx=0 means no trimming (show all lines).
+ok64 BASONDiffPrint(u8s out, u8csc odata, u8csc ndata, u32 ctx);
 
 #endif

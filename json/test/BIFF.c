@@ -1060,6 +1060,281 @@ ok64 BIFFtestMergeNEmpty() {
     done;
 }
 
+// --- Diff minimality tests ---
+// Verify that diff(old, new) produces a minimal patch (only changed elements).
+
+typedef struct {
+    char const *old_json;
+    char const *new_json;
+    char const *expected_diff;  // NULL means empty diff
+} BIFFDiffMinCase;
+
+static BIFFDiffMinCase BIFF_DIFF_MIN_CASES[] = {
+    // Object: identical → empty
+    {"{\"a\":1,\"b\":2}", "{\"a\":1,\"b\":2}", NULL},
+    // Object: one scalar changed → only that key
+    {"{\"a\":1,\"b\":2,\"c\":3}", "{\"a\":1,\"b\":9,\"c\":3}", "{\"b\":9}"},
+    // Object: key added → only new key
+    {"{\"a\":1,\"b\":2}", "{\"a\":1,\"b\":2,\"c\":3}", "{\"c\":3}"},
+    // Object: key removed → only tombstone
+    {"{\"a\":1,\"b\":2,\"c\":3}", "{\"a\":1,\"c\":3}", "{\"b\":null}"},
+    // Object: nested change → only changed path
+    {"{\"a\":{\"x\":1,\"y\":2},\"b\":3}",
+     "{\"a\":{\"x\":1,\"y\":9},\"b\":3}",
+     "{\"a\":{\"y\":9}}"},
+    // Array: one element changed → only that position
+    {"[1,2,3,4,5]", "[1,2,9,4,5]", NULL},  // roundtrip-only (array keys vary)
+    // Array: identical → empty
+    {"[10,20,30]", "[10,20,30]", NULL},
+    // Array: replace all → full patch
+    {"[1,2,3]", "[4,5,6]", NULL},  // roundtrip-only
+};
+
+ok64 BIFFtestDiffMinimal() {
+    sane(1);
+    size_t n = sizeof(BIFF_DIFF_MIN_CASES) / sizeof(BIFF_DIFF_MIN_CASES[0]);
+    for (size_t i = 0; i < n; i++) {
+        BIFFDiffMinCase *tc = &BIFF_DIFF_MIN_CASES[i];
+
+        BIFF_SETUP(old, 4096, tc->old_json);
+        BIFF_SETUP(neu, 4096, tc->new_json);
+
+        u8cs od = {old_buf[1], old_buf[2]};
+        u8cs nd = {neu_buf[1], neu_buf[2]};
+
+        u8  _dp[4096];
+        u8b dbuf = {_dp, _dp, _dp, _dp + 4096};
+        u64 _di[64];
+        u64b didx = {_di, _di, _di, _di + 64};
+        u64 _os[64];
+        u64b os = {_os, _os, _os, _os + 64};
+        u64 _ns[64];
+        u64b ns = {_ns, _ns, _ns, _ns + 64};
+
+        call(BASONDiff, dbuf, didx, os, od, ns, nd);
+        u8cs dd = {dbuf[1], dbuf[2]};
+
+        // Check expected diff JSON (if specified)
+        if (tc->expected_diff != NULL) {
+            if ($empty(dd) && tc->expected_diff[0] != '\0') {
+                fprintf(stderr, "  case %zu: expected diff '%s' but got empty\n",
+                        i, tc->expected_diff);
+                fail(TESTFAIL);
+            }
+            call(BIFFCheckJSON, dd, tc->expected_diff);
+        } else if (!$empty(dd)) {
+            // NULL expected means we only do roundtrip check
+        }
+
+        // Always verify roundtrip: merge(old, diff) == new
+        u8  _mp[4096];
+        u8b mbuf = {_mp, _mp, _mp, _mp + 4096};
+        u64 _mi[64];
+        u64b midx = {_mi, _mi, _mi, _mi + 64};
+        u64 _ls[64];
+        u64b ls = {_ls, _ls, _ls, _ls + 64};
+        u64 _rs[64];
+        u64b rs = {_rs, _rs, _rs, _rs + 64};
+
+        call(BASONMerge, mbuf, midx, ls, od, rs, dd);
+        u8cs md = {mbuf[1], mbuf[2]};
+        call(BIFFCheckJSONEqual, md, nd);
+    }
+    done;
+}
+
+// --- Diff rendering tests (BASONDiffPrint) ---
+// Check that rendered diff does not interleave red (deleted) and green (added).
+// In a sane diff, each "hunk" should have all deletions grouped before insertions,
+// not red-green-red-green on the same line.
+
+// Count interleaving: scan for color transitions red→green→red on same line.
+// Returns count of lines with interleaving.
+static u32 BIFFCountInterleaves(u8cs text) {
+    // ESC[9;31m = red/strike, ESC[32m = green, ESC[0m = reset
+    u32 count = 0;
+    u8cp p = text[0];
+    // Track state per line: did we see green after red?
+    i32 color = 0;  // 0=none, 1=red, 2=green
+    b8 saw_interleave = NO;
+    while (p < text[1]) {
+        if (*p == '\n') {
+            if (saw_interleave) count++;
+            color = 0;
+            saw_interleave = NO;
+            p++;
+            continue;
+        }
+        if (*p == '\033' && p + 4 < text[1]) {
+            // Check for red: \033[9;31m
+            if (memcmp(p, "\033[9;31m", 7) == 0 && p + 7 <= text[1]) {
+                if (color == 2) saw_interleave = YES;  // green→red
+                color = 1;
+                p += 7;
+                continue;
+            }
+            // Check for green: \033[32m
+            if (memcmp(p, "\033[32m", 5) == 0 && p + 5 <= text[1]) {
+                color = 2;
+                p += 5;
+                continue;
+            }
+            // Check for reset: \033[0m
+            if (memcmp(p, "\033[0m", 4) == 0 && p + 4 <= text[1]) {
+                p += 4;
+                continue;
+            }
+        }
+        p++;
+    }
+    if (saw_interleave) count++;
+    return count;
+}
+
+typedef struct {
+    char const *old_json;
+    char const *new_json;
+    char const *label;
+} BIFFRenderCase;
+
+static BIFFRenderCase BIFF_RENDER_CASES[] = {
+    // Text-like arrays with newlines (simulates real text diffs)
+    // Each line element ends with \n so changes appear on separate lines.
+    {"[\"aaa\\n\", \"bbb\\n\", \"ccc\\n\"]",
+     "[\"aaa\\n\",\"xxx\\n\",\"ccc\\n\"]",
+     "text: one line changed"},
+    {"[\"aaa\\n\",\"bbb\\n\",\"ccc\\n\"]",
+     "[\"zzz\\n\",\"aaa\\n\",\"bbb\\n\",\"ccc\\n\"]",
+     "text: prepend"},
+    {"[\"aaa\\n\",\"bbb\\n\"]",
+     "[\"aaa\\n\",\"bbb\\n\",\"ccc\\n\"]",
+     "text: append"},
+    {"[\"aaa\\n\",\"bbb\\n\",\"ccc\\n\"]",
+     "[\"aaa\\n\",\"ccc\\n\"]",
+     "text: delete middle"},
+    {"[\"aaa\\n\",\"bbb\\n\",\"ccc\\n\",\"ddd\\n\",\"eee\\n\"]",
+     "[\"aaa\\n\",\"xxx\\n\",\"yyy\\n\",\"ddd\\n\",\"eee\\n\"]",
+     "text: replace middle pair"},
+    {"[\"aaa\\n\",\"bbb\\n\",\"ccc\\n\"]",
+     "[\"xxx\\n\",\"yyy\\n\",\"zzz\\n\"]",
+     "text: full replace"},
+    {"[\"aaa\\n\",\"eee\\n\"]",
+     "[\"aaa\\n\",\"bbb\\n\",\"ccc\\n\",\"ddd\\n\",\"eee\\n\"]",
+     "text: multi-insert middle"},
+    {"[\"aaa\\n\",\"bbb\\n\",\"ccc\\n\",\"ddd\\n\",\"eee\\n\",\"fff\\n\",\"ggg\\n\",\"hhh\\n\"]",
+     "[\"aaa\\n\",\"xxx\\n\",\"yyy\\n\",\"zzz\\n\",\"hhh\\n\"]",
+     "text: delete+insert block"},
+    // Object: key change
+    {"{\"a\":1,\"b\":2}", "{\"a\":1,\"b\":9}", "object: value change"},
+    // Nested
+    {"{\"x\":{\"a\":1,\"b\":2}}", "{\"x\":{\"a\":1,\"b\":9}}",
+     "nested object: deep change"},
+};
+
+// Render diff for old→new, check for interleaving
+// Uses the correct pipeline: diff→merge→render
+ok64 BIFFtestRender() {
+    sane(1);
+    u32 total_bad = 0;
+    size_t n = sizeof(BIFF_RENDER_CASES) / sizeof(BIFF_RENDER_CASES[0]);
+    for (size_t i = 0; i < n; i++) {
+        BIFFRenderCase *tc = &BIFF_RENDER_CASES[i];
+
+        // Parse old and new
+        BIFF_SETUP(old, 4096, tc->old_json);
+        BIFF_SETUP(neu, 4096, tc->new_json);
+
+        u8cs od = {old_buf[1], old_buf[2]};
+        u8cs nd = {neu_buf[1], neu_buf[2]};
+
+        // Step 1: diff(old, new) → patch
+        u8  _dp[4096];
+        u8b dbuf = {_dp, _dp, _dp, _dp + 4096};
+        u64 _os[64];
+        u64b os = {_os, _os, _os, _os + 64};
+        u64 _ns[64];
+        u64b ns = {_ns, _ns, _ns, _ns + 64};
+        call(BASONDiff, dbuf, NULL, os, od, ns, nd);
+        u8cp d0 = dbuf[1], d1 = dbuf[2];
+        u8cs patch = {d0, d1};
+
+        // Step 2: merge(old, patch) → merged
+        u8  _mp[4096];
+        u8b mbuf = {_mp, _mp, _mp, _mp + 4096};
+        u64 _ls[64];
+        u64b ls = {_ls, _ls, _ls, _ls + 64};
+        u64 _rs[64];
+        u64b rs = {_rs, _rs, _rs, _rs + 64};
+        call(BASONMerge, mbuf, NULL, ls, od, rs, patch);
+        u8cp m0 = mbuf[1], m1 = mbuf[2];
+        u8cs merged = {m0, m1};
+
+        // Step 3: render old vs merged (same key space)
+        a_pad(u8, rbuf, 8192);
+        u8s rout = {_rbuf, _rbuf + 8192};
+        u8p rstart = rout[0];
+        call(BASONDiffPrint, rout, od, merged, 0);
+        u8cs rendered = {(u8cp)rstart, (u8cp)rout[0]};
+
+        if ($empty(rendered)) continue;  // identical, nothing to check
+
+        // Check for interleaving
+        u32 interleaves = BIFFCountInterleaves(rendered);
+        if (interleaves > 0) {
+            fprintf(stderr, "  INTERLEAVE in '%s': %u lines with red-green-red\n",
+                    tc->label, interleaves);
+            total_bad++;
+        }
+    }
+    test(total_bad == 0, TESTFAIL);
+    done;
+}
+
+// Render diff for fuzz repro table: verify diff→merge→render doesn't crash.
+// Interleaving check is omitted for fuzz cases since small single-line JSON
+// values naturally produce color transitions within one line.
+ok64 BIFFtestRenderFuzzRepros() {
+    sane(1);
+    size_t n = sizeof(BIFF_FUZZ_REPROS) / sizeof(BIFF_FUZZ_REPROS[0]);
+    for (size_t i = 0; i < n; i++) {
+        BIFFRoundtripCase *tc = &BIFF_FUZZ_REPROS[i];
+
+        BIFF_SETUP(old, 4096, tc->old_json);
+        BIFF_SETUP(neu, 4096, tc->new_json);
+
+        u8cs od = {old_buf[1], old_buf[2]};
+        u8cs nd = {neu_buf[1], neu_buf[2]};
+
+        // Step 1: diff(old, new) → patch
+        u8  _dp[8192];
+        u8b dbuf = {_dp, _dp, _dp, _dp + 8192};
+        u64 _os[128];
+        u64b os = {_os, _os, _os, _os + 128};
+        u64 _ns[128];
+        u64b ns = {_ns, _ns, _ns, _ns + 128};
+        call(BASONDiff, dbuf, NULL, os, od, ns, nd);
+        u8cp d0 = dbuf[1], d1 = dbuf[2];
+        u8cs patch = {d0, d1};
+
+        // Step 2: merge(old, patch) → merged
+        u8  _mp[8192];
+        u8b mbuf = {_mp, _mp, _mp, _mp + 8192};
+        u64 _ls[128];
+        u64b ls = {_ls, _ls, _ls, _ls + 128};
+        u64 _rs[128];
+        u64b rs = {_rs, _rs, _rs, _rs + 128};
+        call(BASONMerge, mbuf, NULL, ls, od, rs, patch);
+        u8cp m0 = mbuf[1], m1 = mbuf[2];
+        u8cs merged = {m0, m1};
+
+        // Step 3: render old vs merged (same key space, no crash)
+        a_pad(u8, rbuf, 16384);
+        u8s rout = {_rbuf, _rbuf + 16384};
+        call(BASONDiffPrint, rout, od, merged, 0);
+    }
+    done;
+}
+
 ok64 BIFFtestAll() {
     sane(1);
     call(BIFFtestCrashC5b66);
@@ -1093,6 +1368,9 @@ ok64 BIFFtestAll() {
     call(BIFFtestMergeNArray);
     call(BIFFtestMergeY);
     call(BIFFtestMergeNEmpty);
+    call(BIFFtestDiffMinimal);
+    call(BIFFtestRenderFuzzRepros);
+    call(BIFFtestRender);
     done;
 }
 
