@@ -1104,71 +1104,34 @@ ok64 BEGet(BEp be, int pathc, u8cs *paths, u8cs branch) {
 
 // ---- STATUS (compare worktree vs DB) ----
 
+typedef ok64 (*BEStatCBf)(voidp arg, u8cs relpath, BEmeta merged);
+static ok64 BEScanStatMerged(BEp be, u8cs prefix_filter,
+                              BEStatCBf cb, voidp arg);
+
+static ok64 BEStatusCB(voidp arg, u8cs relpath, BEmeta merged_meta) {
+    sane(arg != NULL);
+    BEp be = (BEp)arg;
+
+    u8cs ext = {};
+    u8cs codec = {};
+    BEFileInfo(ext, codec, relpath);
+
+    a_path(fpath, "");
+    call(BEWorkPath, path8gIn(fpath), be, relpath);
+
+    struct stat fst;
+    if (FILEStat(&fst, path8cgIn(fpath)) != OK) {
+        BEPostReport(relpath, codec, "DEL", DARK_RED);
+    } else if ((u32)fst.st_mtime != merged_meta.mtime) {
+        BEPostReport(relpath, codec, "MOD", DARK_YELLOW);
+    }
+    done;
+}
+
 ok64 BEStatusFiles(BEp be) {
     sane(be != NULL);
-
-    // Build stat: prefix for this project
-    a_cstr(sch_stat, BE_SCHEME_STAT);
-    a_pad(u8, fp, 256);
-    u8cs norp = {};
-    call(BEProjPath, fp_idle, be->loc.path, norp);
-    a_pad(u8, spfx, 512);
-    call(BEKeyBuild, spfx_idle, sch_stat, fp_datac, 0, 0);
-
-    ROCKiter sit = {};
-    call(ROCKIterOpen, &sit, &be->db);
-    call(ROCKIterSeek, &sit, spfx_datac);
-    while (ROCKIterValid(&sit)) {
-        u8cs sk = {};
-        ROCKIterKey(&sit, sk);
-        if ($len(sk) < $len(spfx_datac) ||
-            memcmp(sk[0], spfx_datac[0], $len(spfx_datac)) != 0)
-            break;
-
-        // Parse the stat: URI key
-        uri sku = {};
-        ok64 o = URIutf8Drain(sk, &sku);
-        if (o != OK || !$empty(sku.query)) {
-            ROCKIterNext(&sit);
-            continue;  // skip waypoints, only base keys
-        }
-
-        // Extract relpath: strip project prefix from path
-        u8cs relpath = {};
-        u8cp rp = sku.path[0] + $len(be->loc.path);
-        if (rp < sku.path[1] && *rp == '/') rp++;
-        relpath[0] = rp;
-        relpath[1] = sku.path[1];
-        if ($empty(relpath)) {
-            ROCKIterNext(&sit);
-            continue;
-        }
-
-        // Get stored mtime
-        u8cs sv = {};
-        ROCKIterVal(&sit, sv);
-        BEmeta meta = {};
-        BEMetaDrainBason(&meta, sv);
-
-        // Get codec for report
-        u8cs ext = {};
-        u8cs codec = {};
-        BEFileInfo(ext, codec, relpath);
-
-        // Build worktree path and stat
-        a_path(fpath, "");
-        call(BEWorkPath, path8gIn(fpath), be, relpath);
-
-        struct stat fst;
-        if (FILEStat(&fst, path8cgIn(fpath)) != OK) {
-            BEPostReport(relpath, codec, "DEL", DARK_RED);
-        } else if ((u32)fst.st_mtime != meta.mtime) {
-            BEPostReport(relpath, codec, "MOD", DARK_YELLOW);
-        }
-
-        ROCKIterNext(&sit);
-    }
-    ROCKIterClose(&sit);
+    u8cs empty_pfx = {};
+    call(BEScanStatMerged, be, empty_pfx, BEStatusCB, be);
     done;
 }
 
@@ -1183,177 +1146,140 @@ static b8 BEDiffPathMatch(u8cs relpath, int pathc, u8cs *paths) {
     return NO;
 }
 
-ok64 BEDiffFiles(BEp be, int pathc, u8cs *paths) {
-    sane(be != NULL);
+typedef struct {
+    BEp be;
+    int pathc;
+    u8cs *paths;
+    b8 any_output;
+} BEDiffCtx;
 
-    // Build stat: prefix for this project
-    a_cstr(sch_stat, BE_SCHEME_STAT);
-    a_pad(u8, fp, 256);
-    u8cs norp = {};
-    call(BEProjPath, fp_idle, be->loc.path, norp);
-    a_pad(u8, spfx, 512);
-    call(BEKeyBuild, spfx_idle, sch_stat, fp_datac, 0, 0);
+static ok64 BEDiffCB(voidp arg, u8cs relpath, BEmeta merged_meta) {
+    sane(arg != NULL);
+    BEDiffCtx *ctx = (BEDiffCtx *)arg;
+    BEp be = ctx->be;
 
     u8cs HDRESC = $u8str("\033[1m");
     u8cs DELESC = $u8str("\033[9;31m");
     u8cs RST = $u8str("\033[0m");
+    u8cs NL = $u8str("\n");
     u8cs SEP = $u8str("\033[34m---\033[0m\n");
 
-    b8 any_output = NO;
+    // Filter by requested paths
+    if (!BEDiffPathMatch(relpath, ctx->pathc, ctx->paths))
+        return OK;
 
-    ROCKiter sit = {};
-    call(ROCKIterOpen, &sit, &be->db);
-    call(ROCKIterSeek, &sit, spfx_datac);
-    while (ROCKIterValid(&sit)) {
-        u8cs sk = {};
-        ROCKIterKey(&sit, sk);
-        if ($len(sk) < $len(spfx_datac) ||
-            memcmp(sk[0], spfx_datac[0], $len(spfx_datac)) != 0)
-            break;
+    // Build worktree path and stat
+    a_path(fpath, "");
+    call(BEWorkPath, path8gIn(fpath), be, relpath);
 
-        // Parse the stat: URI key — skip waypoints (only base keys)
-        uri sku = {};
-        ok64 o = URIutf8Drain(sk, &sku);
-        if (o != OK || !$empty(sku.query)) {
-            ROCKIterNext(&sit);
-            continue;
-        }
+    struct stat fst;
+    b8 deleted = NO;
+    b8 modified = NO;
+    if (FILEStat(&fst, path8cgIn(fpath)) != OK) {
+        deleted = YES;
+    } else if ((u32)fst.st_mtime != merged_meta.mtime) {
+        modified = YES;
+    }
 
-        // Extract relpath
-        u8cs relpath = {};
-        u8cp rp = sku.path[0] + $len(be->loc.path);
-        if (rp < sku.path[1] && *rp == '/') rp++;
-        relpath[0] = rp;
-        relpath[1] = sku.path[1];
-        if ($empty(relpath)) {
-            ROCKIterNext(&sit);
-            continue;
-        }
+    if (!deleted && !modified) return OK;
 
-        // Filter by requested paths
-        if (!BEDiffPathMatch(relpath, pathc, paths)) {
-            ROCKIterNext(&sit);
-            continue;
-        }
+    // Get old BASON from repo (use BE_PATHS to avoid conflict
+    // with BE_READ which BEGetFileMerged uses internally)
+    u8bp obuf = be->scratch[BE_PATHS];
+    u8bReset(obuf);
+    ok64 go = BEGetFileMerged(be, be->loc.path, relpath, obuf, NULL);
+    u8cs old_bason = {};
+    if (go == OK) {
+        u8cp ob0 = obuf[1], ob1 = obuf[2];
+        old_bason[0] = ob0;
+        old_bason[1] = ob1;
+    }
 
-        // Get stored mtime
-        u8cs sv = {};
-        ROCKIterVal(&sit, sv);
-        BEmeta meta = {};
-        BEMetaDrainBason(&meta, sv);
-
-        // Build worktree path and stat
-        a_path(fpath, "");
-        call(BEWorkPath, path8gIn(fpath), be, relpath);
-
-        struct stat fst;
-        b8 deleted = NO;
-        b8 modified = NO;
-        if (FILEStat(&fst, path8cgIn(fpath)) != OK) {
-            deleted = YES;
-        } else if ((u32)fst.st_mtime != meta.mtime) {
-            modified = YES;
-        }
-
-        if (!deleted && !modified) {
-            ROCKIterNext(&sit);
-            continue;
-        }
-
-        // Get old BASON from repo (use BE_PATHS to avoid conflict
-        // with BE_READ which BEGetFileMerged uses internally)
-        u8bp obuf = be->scratch[BE_PATHS];
-        u8bReset(obuf);
-        ok64 go = BEGetFileMerged(be, be->loc.path, relpath, obuf, NULL);
-        u8cs old_bason = {};
-        if (go == OK) {
-            u8cp ob0 = obuf[1], ob1 = obuf[2];
-            old_bason[0] = ob0;
-            old_bason[1] = ob1;
-        }
-
-        if (deleted) {
-            // Show entire old content in red strikethrough
-            if (!$empty(old_bason)) {
-                u8bp rbuf = be->scratch[BE_RENDER];
-                u8bReset(rbuf);
-                if (any_output) call(u8bFeed, rbuf, SEP);
-                call(u8bFeed, rbuf, HDRESC);
-                call(u8bFeed, rbuf, relpath);
-                call(u8bFeed, rbuf, RST);
-                call(u8bFeed, rbuf, NL);
-                call(u8bFeed, rbuf, DELESC);
-                aBpad(u64, stk, 256);
-                call(BASTExport, u8bIdle(rbuf), stk, old_bason);
-                call(u8bFeed, rbuf, RST);
-                call(u8bFeed, rbuf, NL);
-                any_output = YES;
-                u8cp r0 = rbuf[1], r1 = rbuf[2];
-                u8cs rendered = {r0, r1};
-                call(FILEout, rendered);
-            }
-        } else {
-            // Modified: diff→merge→render pipeline
-            u8cs ext = {};
-            BEExtOf(ext, relpath);
-            u8bp nbuf = be->scratch[BE_PARSE];
-            u8bp mapbuf = NULL;
-            call(BEParseFile, nbuf, &mapbuf, path8cgIn(fpath), &fst, ext);
-            u8cp n0 = nbuf[1], n1 = nbuf[2];
-            u8cs new_bason = {n0, n1};
-
-            // Step 1: diff(old, new) → patch
-            u8bp dbuf = be->scratch[BE_READ];
-            u8bReset(dbuf);
-            u8bp wbuf = be->scratch[BE_WRAP];
-            u8bReset(wbuf);
-            u64b hb = {(u64p)wbuf[0], (u64p)wbuf[1],
-                       (u64p)wbuf[2], (u64p)wbuf[3]};
-            aBpad(u64, ostk, 256);
-            aBpad(u64, nstk, 256);
-            call(BASONDiff, dbuf, NULL, ostk, old_bason, nstk,
-                 new_bason, hb);
-            u8cp d0 = dbuf[1], d1 = dbuf[2];
-            u8cs patch = {d0, d1};
-
-            // Step 2: merge(old, patch) → merged
-            u8bp mbuf = be->scratch[BE_PATCH];
-            u8bReset(mbuf);
-            aBpad(u64, lstk, 256);
-            aBpad(u64, rstk, 256);
-            call(BASONMerge, mbuf, NULL, lstk, old_bason, rstk, patch);
-            u8cp m0 = mbuf[1], m1 = mbuf[2];
-            u8cs merged = {m0, m1};
-
-            // Step 3: render old vs merged (same key space)
+    if (deleted) {
+        // Show entire old content in red strikethrough
+        if (!$empty(old_bason)) {
             u8bp rbuf = be->scratch[BE_RENDER];
             u8bReset(rbuf);
-            call(BASONDiffPrint, u8bIdle(rbuf), old_bason, merged, 3,
-                 relpath);
+            if (ctx->any_output) call(u8bFeed, rbuf, SEP);
+            call(u8bFeed, rbuf, HDRESC);
+            call(u8bFeed, rbuf, relpath);
+            call(u8bFeed, rbuf, RST);
+            call(u8bFeed, rbuf, NL);
+            call(u8bFeed, rbuf, DELESC);
+            aBpad(u64, stk, 256);
+            call(BASTExport, u8bIdle(rbuf), stk, old_bason);
+            call(u8bFeed, rbuf, RST);
+            call(u8bFeed, rbuf, NL);
+            ctx->any_output = YES;
             u8cp r0 = rbuf[1], r1 = rbuf[2];
             u8cs rendered = {r0, r1};
-            if (!$empty(rendered)) {
-                // Assemble header + rendered into BE_WRAP
-                u8bp obuf = be->scratch[BE_WRAP];
-                u8bReset(obuf);
-                if (any_output) call(u8bFeed, obuf, SEP);
-                call(u8bFeed, obuf, HDRESC);
-                call(u8bFeed, obuf, relpath);
-                call(u8bFeed, obuf, RST);
-                call(u8bFeed, obuf, NL);
-                call(u8bFeed, obuf, rendered);
-                if (rendered[1][-1] != '\n')
-                    call(u8bFeed, obuf, NL);
-                any_output = YES;
-                u8cs out = {obuf[1], obuf[2]};
-                call(FILEout, out);
-            }
-            if (mapbuf) FILEUnMap(mapbuf);
+            call(FILEout, rendered);
         }
+    } else {
+        // Modified: diff→merge→render pipeline
+        u8cs ext = {};
+        BEExtOf(ext, relpath);
+        u8bp nbuf = be->scratch[BE_PARSE];
+        u8bp mapbuf = NULL;
+        call(BEParseFile, nbuf, &mapbuf, path8cgIn(fpath), &fst, ext);
+        u8cp n0 = nbuf[1], n1 = nbuf[2];
+        u8cs new_bason = {n0, n1};
 
-        ROCKIterNext(&sit);
+        // Step 1: diff(old, new) → patch
+        u8bp dbuf = be->scratch[BE_READ];
+        u8bReset(dbuf);
+        u8bp wbuf = be->scratch[BE_WRAP];
+        u8bReset(wbuf);
+        u64b hb = {(u64p)wbuf[0], (u64p)wbuf[1],
+                   (u64p)wbuf[2], (u64p)wbuf[3]};
+        aBpad(u64, ostk, 256);
+        aBpad(u64, nstk, 256);
+        call(BASONDiff, dbuf, NULL, ostk, old_bason, nstk,
+             new_bason, hb);
+        u8cp d0 = dbuf[1], d1 = dbuf[2];
+        u8cs patch = {d0, d1};
+
+        // Step 2: merge(old, patch) → merged
+        u8bp mbuf = be->scratch[BE_PATCH];
+        u8bReset(mbuf);
+        aBpad(u64, lstk, 256);
+        aBpad(u64, rstk, 256);
+        call(BASONMerge, mbuf, NULL, lstk, old_bason, rstk, patch);
+        u8cp m0 = mbuf[1], m1 = mbuf[2];
+        u8cs merged = {m0, m1};
+
+        // Step 3: render old vs merged (same key space)
+        u8bp rbuf = be->scratch[BE_RENDER];
+        u8bReset(rbuf);
+        call(BASONDiffPrint, u8bIdle(rbuf), old_bason, merged, 3,
+             relpath);
+        u8cp r0 = rbuf[1], r1 = rbuf[2];
+        u8cs rendered = {r0, r1};
+        if (!$empty(rendered)) {
+            // Assemble header + rendered into BE_WRAP
+            u8bReset(wbuf);
+            if (ctx->any_output) call(u8bFeed, wbuf, SEP);
+            call(u8bFeed, wbuf, HDRESC);
+            call(u8bFeed, wbuf, relpath);
+            call(u8bFeed, wbuf, RST);
+            call(u8bFeed, wbuf, NL);
+            call(u8bFeed, wbuf, rendered);
+            if (rendered[1][-1] != '\n')
+                call(u8bFeed, wbuf, NL);
+            ctx->any_output = YES;
+            u8cs out = {wbuf[1], wbuf[2]};
+            call(FILEout, out);
+        }
+        if (mapbuf) FILEUnMap(mapbuf);
     }
-    ROCKIterClose(&sit);
+    done;
+}
+
+ok64 BEDiffFiles(BEp be, int pathc, u8cs *paths) {
+    sane(be != NULL);
+    BEDiffCtx ctx = {.be = be, .pathc = pathc, .paths = paths};
+    u8cs empty_pfx = {};
+    call(BEScanStatMerged, be, empty_pfx, BEDiffCB, &ctx);
     done;
 }
 
@@ -1584,8 +1510,6 @@ static ok64 BEPostScanCB(voidp arg, path8p path) {
 
 // ---- stat: iterator with formula merge (cases 2, 3a) ----
 
-typedef ok64 (*BEStatCBf)(voidp arg, u8cs relpath, BEmeta merged);
-
 // Iterate stat: keys, group by relpath, merge metadata via branch formula,
 // call cb for each file. prefix_filter limits to a relpath subtree.
 static ok64 BEScanStatMerged(BEp be, u8cs prefix_filter,
@@ -1726,6 +1650,10 @@ static ok64 BEPostDiffCB(voidp arg, u8cs relpath, BEmeta merged_meta) {
     BEmeta meta = {};
     BEMetaFromStat(&meta, &fst, ext);
 
+    // Fast-path: skip if mtime unchanged
+    if (merged_meta.mtime > 0 && meta.mtime == merged_meta.mtime)
+        return OK;
+
     // Parse new file to BASON
     u8bp nbuf = be->scratch[BE_PARSE];
     u8bReset(nbuf);
@@ -1785,6 +1713,16 @@ static ok64 BEPostDiffCB(voidp arg, u8cs relpath, BEmeta merged_meta) {
         }
         u8cs delta = {obuf[1], obuf[2]};
         if ($empty(delta)) {
+            // Content unchanged but mtime differs — update stat: mtime
+            a_cstr(sch_stat, BE_SCHEME_STAT);
+            a_uri(stat_key, sch_stat, 0, kp_datac, wq_datac, 0);
+            u8bp sbuf = be->scratch[BE_WRAP];
+            u8bReset(sbuf);
+            call(BEMetaFeedBason, sbuf, NULL, meta);
+            u8cp s0 = sbuf[1], s1 = sbuf[2];
+            u8cs stat_val = {s0, s1};
+            call(ROCKBatchPut, ctx->wb, stat_key, stat_val);
+            call(BEBatchFlush, be, ctx->wb);
             if (mapbuf) FILEUnMap(mapbuf);
             return OK;
         }

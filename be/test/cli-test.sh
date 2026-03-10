@@ -36,12 +36,24 @@ pass "init created .be and depot"
 
 # =============================================================
 echo "--- 6.a: be post (all files) ---"
+sleep 1
 echo "int a = 10;" > "$WORK/a.c"
 "$BE" post
 pass "post all files"
 
 # =============================================================
+echo "--- 6.a2: be post (unchanged files not re-posted) ---"
+sleep 1
+OUT=$("$BE" post 2>&1)
+if echo "$OUT" | grep -q "OK"; then
+    echo "$OUT"
+    fail "unchanged files were re-posted"
+fi
+pass "post skips unchanged files"
+
+# =============================================================
 echo "--- 6.b: be post file.c (specific file) ---"
+sleep 1
 echo "int b = 20;" > "$WORK/b.c"
 "$BE" post b.c
 pass "post specific file"
