@@ -89,7 +89,7 @@ FUZZ(u8, BIFFfuzz) {
     u64 _nstk[256];
     u64b nstk = {_nstk, _nstk, _nstk, _nstk + 256};
 
-    ok64 o = BASONDiff(pbuf, NULL, ostk, odata, nstk, ndata);
+    ok64 o = BASONDiff(pbuf, NULL, ostk, odata, nstk, ndata, NULL);
     must(o == OK, "BASONDiff failed");
 
     // Merge: result = merge(old, patch) — no index (NULL idx)

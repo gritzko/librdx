@@ -74,7 +74,7 @@ ok64 biffcli() {
     u8cp nd0 = nbuf[1], nd1 = nbuf[2];
     u8cs od = {od0, od1};
     u8cs nd = {nd0, nd1};
-    call(BASONDiff, out, didx, ostk, od, nstk, nd);
+    call(BASONDiff, out, didx, ostk, od, nstk, nd, NULL);
 
     u8cp df0 = out[1], df1 = out[2];
     u8cs diff = {df0, df1};

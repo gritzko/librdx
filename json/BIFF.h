@@ -25,9 +25,11 @@ ok64 BASONMergeY(u8s into, u8css inputs);
 // Deletions represented as null (type B, empty val).
 // Added/changed keys emitted as-is.
 // Identical subtrees omitted.
+// hbuf: scratch buffer for hashes/work; if NULL, malloc'd internally.
 ok64 BASONDiff(u8bp out, u64bp idx,
                u64bp ostk, u8csc odata,
-               u64bp nstk, u8csc ndata);
+               u64bp nstk, u8csc ndata,
+               u64bp hbuf);
 
 // Render colored diff: walk old BASON + patch in parallel,
 // emit leaf values with ANSI colors (red+strike=del, green=add).
@@ -38,6 +40,7 @@ ok64 BASONDiffRender(u8s out,
 // PASS-based colored diff: walk two BASON states in parallel,
 // emit colored output with context-line trimming.
 // ctx=0 means no trimming (show all lines).
-ok64 BASONDiffPrint(u8s out, u8csc odata, u8csc ndata, u32 ctx);
+ok64 BASONDiffPrint(u8s out, u8csc odata, u8csc ndata, u32 ctx,
+                     u8cs name);
 
 #endif

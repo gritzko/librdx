@@ -1204,7 +1204,7 @@ ok64 BEtest18() {
     aBpad(u8, dbuf, 65536);
     aBpad(u64, dstk1, 256);
     aBpad(u64, dstk2, 256);
-    call(BASONDiff, dbuf, NULL, dstk1, old_bason, dstk2, new_bason);
+    call(BASONDiff, dbuf, NULL, dstk1, old_bason, dstk2, new_bason, NULL);
     u8cp d0 = dbuf[1], d1 = dbuf[2];
     u8cs patch = {d0, d1};
     want(!$empty(patch));

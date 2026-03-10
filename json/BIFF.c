@@ -344,8 +344,7 @@ ok64 BASONMergeY(u8s into, u8css inputs) {
 #define BIFF_MARK_CHANGED(h) ((h) | 1)
 #define BIFF_CHILD_CHANGED(h) ((h) & 2)
 #define BIFF_MARK_CHILD_CHANGED(h) ((h) | 2)
-#define BIFF_MAX_NESTING 32
-#define BIFF_MAX_HASHES 1024
+#define BIFF_MAX_NESTING 64
 
 // Hash a BASON subtree into a flat u64 array.
 // ptype: parent type ('A' for array children, else BRACKET mode).
@@ -816,46 +815,56 @@ static ok64 BIFFDiffScan(u8bp out, u64bp idx,
     done;
 }
 
-ok64 BASONDiff(u8bp out, u64bp idx,
-               u64bp ostk, u8csc odata,
-               u64bp nstk, u8csc ndata) {
-    sane(out != NULL);
+// Core diff logic using pre-allocated memory.
+// mem layout: [0,hcap) old hashes, [hcap,2*hcap) new hashes,
+// [2*hcap,...) Myers work (i32) and edl (e32).
+static ok64 BIFFDiffCore(u8bp out, u64bp idx,
+                          u64bp ostk, u8csc odata,
+                          u64bp nstk, u8csc ndata,
+                          u64p mem, size_t hcap) {
+    sane(out != NULL && mem != NULL);
 
     // Step 1: Open both streams
     call(BASONOpen, ostk, odata);
     call(BASONOpen, nstk, ndata);
 
     // Step 2: Hash both trees
-    u64 _oh[BIFF_MAX_HASHES], _nh[BIFF_MAX_HASHES];
-    u64b ohb = {_oh, _oh, _oh, _oh + BIFF_MAX_HASHES};
-    u64b nhb = {_nh, _nh, _nh, _nh + BIFF_MAX_HASHES};
+    u64p oh = mem;
+    u64p nh = mem + hcap;
+    u64b ohb = {oh, oh, oh, oh + hcap};
+    u64b nhb = {nh, nh, nh, nh + hcap};
 
-    // Separate stacks for hash pass
     u64 _hs1[64], _hs2[64];
     u64b hs1 = {_hs1, _hs1, _hs1, _hs1 + 64};
     u64b hs2 = {_hs2, _hs2, _hs2, _hs2 + 64};
     call(BASONOpen, hs1, odata);
     call(BASONOpen, hs2, ndata);
-    call(BIFFHashes, ohb, hs1, odata, 0, 0);
-    call(BIFFHashes, nhb, hs2, ndata, 0, 0);
+    // Hash overflow → too many elements, skip diff (empty patch)
+    if (BIFFHashes(ohb, hs1, odata, 0, 0) != OK) done;
+    if (BIFFHashes(nhb, hs2, ndata, 0, 0) != OK) done;
 
     u64 olen = u64bDataLen(ohb);
     u64 nlen = u64bDataLen(nhb);
 
     // Step 3: Clear bits 0-1
-    for (u64 i = 0; i < olen; i++) _oh[i] &= ~3ULL;
-    for (u64 i = 0; i < nlen; i++) _nh[i] &= ~3ULL;
+    for (u64 i = 0; i < olen; i++) oh[i] &= ~3ULL;
+    for (u64 i = 0; i < nlen; i++) nh[i] &= ~3ULL;
 
-    // Step 4: Myers diff
-    u64cs ohs = {(u64cp)_oh, (u64cp)(_oh + olen)};
-    u64cs nhs = {(u64cp)_nh, (u64cp)(_nh + nlen)};
+    // Step 4: Myers diff — work/edl carved from mem after hashes
+    u64cs ohs = {(u64cp)oh, (u64cp)(oh + olen)};
+    u64cs nhs = {(u64cp)nh, (u64cp)(nh + nlen)};
     u64 wsize = DIFFWorkSize(olen, nlen);
     u64 emax = DIFFEdlMaxEntries(olen, nlen);
-    i32 workbuf[8192];
-    e32 edlbuf[2048];
-    if (wsize > 8192 || emax > 2048) done;
-    i32s work = {workbuf, workbuf + 8192};
-    e32g edl = {edlbuf, edlbuf + 2048, edlbuf};
+
+    size_t work_u64 = 4 * hcap + 1;
+    i32p workp = (i32p)(mem + 2 * hcap);
+    size_t work_cap = work_u64 * 2;
+    e32 *edlp = (e32 *)(workp + work_cap);
+    size_t edl_cap = hcap * 2;
+
+    if (wsize > work_cap || emax > edl_cap) done;
+    i32s work = {workp, workp + work_cap};
+    e32g edl = {edlp, edlp + edl_cap, edlp};
     ok64 dro = DIFFu64s(edl, work, ohs, nhs);
     if (dro != OK) done;
 
@@ -865,17 +874,46 @@ ok64 BASONDiff(u8bp out, u64bp idx,
 
     // Step 6: Mark hashes
     e32cs edlcs = {edl[2], edl[0]};
-    u64s ohm = {_oh, _oh + olen};
-    u64s nhm = {_nh, _nh + nlen};
+    u64s ohm = {oh, oh + olen};
+    u64s nhm = {nh, nh + nlen};
     call(BIFFMarkHashes, ohm, nhm, edlcs);
 
     // Step 7: Scan with hash gauges
-    u64g ohg = {_oh, _oh, _oh + olen};
-    u64g nhg = {_nh, _nh, _nh + nlen};
+    u64g ohg = {oh, oh, oh + olen};
+    u64g nhg = {nh, nh, nh + nlen};
     call(BIFFDiffScan, out, idx, ostk, odata, nstk, ndata,
          ohg, nhg);
 
     done;
+}
+
+ok64 BASONDiff(u8bp out, u64bp idx,
+               u64bp ostk, u8csc odata,
+               u64bp nstk, u8csc ndata,
+               u64bp hbuf) {
+    sane(out != NULL);
+
+    // Estimate hash capacity from input sizes
+    size_t hest = ($len(odata) + $len(ndata)) / 2;
+    if (hest < 256) hest = 256;
+    // Need: 2*hest (hashes) + 4*hest+1 (work) + hest (edl) = 7*hest+1
+    size_t total = 7 * hest + 16;
+
+    u64p mem = NULL;
+    b8 need_free = NO;
+    if (hbuf && u64bIdleLen(hbuf) >= total) {
+        mem = hbuf[2];
+    } else {
+        mem = (u64p)malloc(total * sizeof(u64));
+        if (!mem) done;
+        need_free = YES;
+    }
+
+    ok64 o = BIFFDiffCore(out, idx, ostk, odata, nstk, ndata,
+                           mem, hest);
+
+    if (need_free) free(mem);
+    return o;
 }
 
 // --- Diff rendering: colored leaf-value output ---
@@ -998,46 +1036,69 @@ static ok64 BIFFPrintLeaves(u8s out, u8 type, u8cs val) {
 }
 
 // Forward declaration
-static ok64 BIFFPrintLevel(u8s out, u8csc odata, u8csc ndata);
+static ok64 BIFFPrintLevel(u8s out, u8s del, u8s add,
+                            u8csc odata, u8csc ndata);
 
-// Flush buffered del/add segments: all red first, then all green.
-static ok64 BIFFPrintFlush(u8s out, u8s del, u8p d0, u8s add, u8p a0) {
+// Emit colored text with per-line escape codes so each line
+// is self-contained (ESC+text+RST before each newline).
+static ok64 BIFFPrintColored(u8s out, u8cs text, u8cs esc) {
     sane(u8sOK(out));
-    u8cs DEL = $u8str("\033[9;31m");
-    u8cs ADD = $u8str("\033[32m");
     u8cs RST = $u8str("\033[0m");
-    u8cs ds = {(u8cp)d0, (u8cp)del[0]};
-    u8cs as = {(u8cp)a0, (u8cp)add[0]};
-    if (!$empty(ds)) {
-        call(u8sFeed, out, DEL);
-        call(u8sFeed, out, ds);
-        call(u8sFeed, out, RST);
+    u8cs NL = $u8str("\n");
+    u8cp p = text[0];
+    u8cp seg = p;
+    while (p < text[1]) {
+        if (*p == '\n') {
+            u8cs chunk = {seg, p};
+            if (!$empty(chunk)) {
+                call(u8sFeed, out, esc);
+                call(u8sFeed, out, chunk);
+                call(u8sFeed, out, RST);
+            }
+            call(u8sFeed, out, NL);
+            seg = p + 1;
+        }
+        p++;
     }
-    if (!$empty(as)) {
-        call(u8sFeed, out, ADD);
-        call(u8sFeed, out, as);
+    u8cs tail = {seg, text[1]};
+    if (!$empty(tail)) {
+        call(u8sFeed, out, esc);
+        call(u8sFeed, out, tail);
         call(u8sFeed, out, RST);
     }
     done;
 }
 
-// Parallel walk with red/green buffering.
-// Consecutive changes are accumulated in del_buf/add_buf,
-// then flushed (all red before all green) at each unchanged element.
-static ok64 BIFFPrintLevel(u8s out, u8csc odata, u8csc ndata) {
+// Flush buffered del/add segments: all red first, then all green.
+// del0/add0 are the base positions (start of buffered data).
+// Resets del/add cursors back to their base positions.
+static ok64 BIFFPrintFlush(u8s out, u8s del, u8p del0,
+                            u8s add, u8p add0) {
     sane(u8sOK(out));
+    u8cs DELESC = $u8str("\033[9;31m");
+    u8cs ADDESC = $u8str("\033[32m");
+    u8cs ds = {(u8cp)del0, (u8cp)del[0]};
+    u8cs as = {(u8cp)add0, (u8cp)add[0]};
+    if (!$empty(ds)) call(BIFFPrintColored, out, ds, DELESC);
+    if (!$empty(as)) call(BIFFPrintColored, out, as, ADDESC);
+    del[0] = del0;
+    add[0] = add0;
+    done;
+}
+
+// Parallel walk with red/green buffering.
+// del/add are scratch buffers for accumulating deletion/addition text.
+// [0] is the write cursor (advances on BIFFPrintLeaves), [1] is capacity end.
+// Base pointers (del0/add0) saved at entry; flush reads data from base to cursor.
+static ok64 BIFFPrintLevel(u8s out, u8s del, u8s add,
+                            u8csc odata, u8csc ndata) {
+    sane(u8sOK(out));
+    u8p del0 = del[0];
+    u8p add0 = add[0];
     aBpad(u64, ostk, 64);
     aBpad(u64, nstk, 64);
     call(BASONOpen, ostk, odata);
     call(BASONOpen, nstk, ndata);
-
-    // Temp buffers for accumulating red/green segments
-    a_pad(u8, dbuf, 4096);
-    u8s del = {_dbuf, _dbuf + 4096};
-    u8p d0 = del[0];
-    a_pad(u8, abuf, 4096);
-    u8s add = {_abuf, _abuf + 4096};
-    u8p a0 = add[0];
 
     // Manual parallel walk: drain both, compare keys
     u8 ot = 0, nt = 0;
@@ -1059,17 +1120,14 @@ static ok64 BIFFPrintLevel(u8s out, u8csc odata, u8csc ndata) {
         }
 
         if (oonly) {
-            // old only → buffer as deletion
             call(BIFFPrintLeaves, del, ot, ov);
             call(BIFFSkip, ostk, odata, ot, ov);
             oo = BASONDrain(ostk, odata, &ot, ok, ov);
         } else if (nonly) {
-            // new only → buffer as addition
             call(BIFFPrintLeaves, add, nt, nv);
             call(BIFFSkip, nstk, ndata, nt, nv);
             no = BASONDrain(nstk, ndata, &nt, nk, nv);
         } else {
-            // both have this key
             b8 same = NO;
             if (ot == nt && !BASONPlex(ot)) {
                 if ($len(ov) == $len(nv) && $len(ov) == 0) same = YES;
@@ -1079,23 +1137,16 @@ static ok64 BIFFPrintLevel(u8s out, u8csc odata, u8csc ndata) {
             }
 
             if (same) {
-                // Unchanged: flush buffered changes, then output plain
-                call(BIFFPrintFlush, out, del, d0, add, a0);
-                del[0] = d0;
-                add[0] = a0;
+                call(BIFFPrintFlush, out, del, del0, add, add0);
                 call(BIFFPrintLeaves, out, ot, ov);
                 call(BIFFSkip, ostk, odata, ot, ov);
                 call(BIFFSkip, nstk, ndata, nt, nv);
             } else if (BASONPlex(ot) && BASONPlex(nt) && ot == nt) {
-                // Same-type containers: flush, recurse
-                call(BIFFPrintFlush, out, del, d0, add, a0);
-                del[0] = d0;
-                add[0] = a0;
-                call(BIFFPrintLevel, out, ov, nv);
+                call(BIFFPrintFlush, out, del, del0, add, add0);
+                call(BIFFPrintLevel, out, del, add, ov, nv);
                 call(BIFFSkip, ostk, odata, ot, ov);
                 call(BIFFSkip, nstk, ndata, nt, nv);
             } else {
-                // Different values: buffer old as del, new as add
                 call(BIFFPrintLeaves, del, ot, ov);
                 call(BIFFPrintLeaves, add, nt, nv);
                 call(BIFFSkip, ostk, odata, ot, ov);
@@ -1106,15 +1157,14 @@ static ok64 BIFFPrintLevel(u8s out, u8csc odata, u8csc ndata) {
         }
     }
 
-    // Flush remaining buffered changes
-    call(BIFFPrintFlush, out, del, d0, add, a0);
+    call(BIFFPrintFlush, out, del, del0, add, add0);
     done;
 }
 
 // Trim colored text to show only ctx lines around changed lines.
 // Changed lines are detected by presence of ESC (\033).
 // Output always <= input, safe for in-place use.
-static ok64 BIFFTrimContext(u8s out, u8cs text, u32 ctx) {
+static ok64 BIFFTrimContext(u8s out, u8cs text, u32 ctx, u8cs name) {
     sane(u8sOK(out));
     // Count lines
     u32 nlines = 0;
@@ -1169,15 +1219,20 @@ static ok64 BIFFTrimContext(u8s out, u8cs text, u32 ctx) {
 
     // Output kept lines, insert separator between non-adjacent hunks
     // Uses memmove because source and dest may overlap (in-place trim)
-    u8cs SEP = $u8str("---\n");
+    u8cs GREY = $u8str("\033[90m");
+    u8cs RST = $u8str("\033[0m");
+    u8cs DASHES = $u8str("---");
+    u8cs NL = $u8str("\n");
     i32 last_kept = -1;
     for (u32 i = 0; i < nlines; i++) {
         if (!keep[i]) continue;
         if (last_kept >= 0 && i > (u32)last_kept + 1) {
-            size_t sl = $len(SEP);
-            if ((size_t)(out[1] - out[0]) < sl) fail(SNOROOM);
-            memmove(out[0], SEP[0], sl);
-            out[0] += sl;
+            call(u8sFeed, out, GREY);
+            call(u8sFeed, out, DASHES);
+            call(u8sFeed, out, name);
+            call(u8sFeed, out, DASHES);
+            call(u8sFeed, out, RST);
+            call(u8sFeed, out, NL);
         }
         size_t ll = (size_t)(ends[i] - starts[i]);
         if ((size_t)(out[1] - out[0]) < ll) fail(SNOROOM);
@@ -1188,19 +1243,30 @@ static ok64 BIFFTrimContext(u8s out, u8cs text, u32 ctx) {
     done;
 }
 
-ok64 BASONDiffPrint(u8s out, u8csc odata, u8csc ndata, u32 ctx) {
+ok64 BASONDiffPrint(u8s out, u8csc odata, u8csc ndata, u32 ctx,
+                     u8cs name) {
     sane(u8sOK(out));
     if ($empty(odata) && $empty(ndata)) done;
 
-    u8p start = out[0];
-    call(BIFFPrintLevel, out, odata, ndata);
+    // Carve del/add scratch buffers from end of output space
+    size_t total = (size_t)(out[1] - out[0]);
+    size_t scratch = total / 4;
+    u8p del_start = out[1] - 2 * scratch;
+    u8p add_start = out[1] - scratch;
+    u8s del = {del_start, del_start + scratch};
+    u8s add = {add_start, add_start + scratch};
+    u8s wout = {out[0], del_start};
+
+    u8p start = wout[0];
+    call(BIFFPrintLevel, wout, del, add, odata, ndata);
+    out[0] = wout[0];
 
     if (ctx > 0) {
         u8cs full = {(u8cp)start, (u8cp)out[0]};
         if ($empty(full)) done;
         // Reset cursor, trim in-place (output always <= input)
         out[0] = start;
-        call(BIFFTrimContext, out, full, ctx);
+        call(BIFFTrimContext, out, full, ctx, name);
     }
 
     done;

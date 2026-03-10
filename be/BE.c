@@ -1272,27 +1272,25 @@ ok64 BEDiffFiles(BEp be, int pathc, u8cs *paths) {
             old_bason[1] = ob1;
         }
 
-        // File header
-        if (any_output) call(FILEout, SEP);
-        call(FILEout, HDRESC);
-        call(FILEout, relpath);
-        call(FILEout, RST);
-        call(FILEout, NL);
-        any_output = YES;
-
         if (deleted) {
             // Show entire old content in red strikethrough
             if (!$empty(old_bason)) {
                 u8bp rbuf = be->scratch[BE_RENDER];
                 u8bReset(rbuf);
+                if (any_output) call(u8bFeed, rbuf, SEP);
+                call(u8bFeed, rbuf, HDRESC);
+                call(u8bFeed, rbuf, relpath);
+                call(u8bFeed, rbuf, RST);
+                call(u8bFeed, rbuf, NL);
+                call(u8bFeed, rbuf, DELESC);
                 aBpad(u64, stk, 256);
                 call(BASTExport, u8bIdle(rbuf), stk, old_bason);
+                call(u8bFeed, rbuf, RST);
+                call(u8bFeed, rbuf, NL);
+                any_output = YES;
                 u8cp r0 = rbuf[1], r1 = rbuf[2];
                 u8cs rendered = {r0, r1};
-                call(FILEout, DELESC);
                 call(FILEout, rendered);
-                call(FILEout, RST);
-                call(FILEout, NL);
             }
         } else {
             // Modified: diff→merge→render pipeline
@@ -1307,9 +1305,14 @@ ok64 BEDiffFiles(BEp be, int pathc, u8cs *paths) {
             // Step 1: diff(old, new) → patch
             u8bp dbuf = be->scratch[BE_READ];
             u8bReset(dbuf);
+            u8bp wbuf = be->scratch[BE_WRAP];
+            u8bReset(wbuf);
+            u64b hb = {(u64p)wbuf[0], (u64p)wbuf[1],
+                       (u64p)wbuf[2], (u64p)wbuf[3]};
             aBpad(u64, ostk, 256);
             aBpad(u64, nstk, 256);
-            call(BASONDiff, dbuf, NULL, ostk, old_bason, nstk, new_bason);
+            call(BASONDiff, dbuf, NULL, ostk, old_bason, nstk,
+                 new_bason, hb);
             u8cp d0 = dbuf[1], d1 = dbuf[2];
             u8cs patch = {d0, d1};
 
@@ -1325,13 +1328,25 @@ ok64 BEDiffFiles(BEp be, int pathc, u8cs *paths) {
             // Step 3: render old vs merged (same key space)
             u8bp rbuf = be->scratch[BE_RENDER];
             u8bReset(rbuf);
-            call(BASONDiffPrint, u8bIdle(rbuf), old_bason, merged, 3);
+            call(BASONDiffPrint, u8bIdle(rbuf), old_bason, merged, 3,
+                 relpath);
             u8cp r0 = rbuf[1], r1 = rbuf[2];
             u8cs rendered = {r0, r1};
             if (!$empty(rendered)) {
-                call(FILEout, rendered);
+                // Assemble header + rendered into BE_WRAP
+                u8bp obuf = be->scratch[BE_WRAP];
+                u8bReset(obuf);
+                if (any_output) call(u8bFeed, obuf, SEP);
+                call(u8bFeed, obuf, HDRESC);
+                call(u8bFeed, obuf, relpath);
+                call(u8bFeed, obuf, RST);
+                call(u8bFeed, obuf, NL);
+                call(u8bFeed, obuf, rendered);
                 if (rendered[1][-1] != '\n')
-                    call(FILEout, NL);
+                    call(u8bFeed, obuf, NL);
+                any_output = YES;
+                u8cs out = {obuf[1], obuf[2]};
+                call(FILEout, out);
             }
             if (mapbuf) FILEUnMap(mapbuf);
         }
@@ -1484,7 +1499,8 @@ static ok64 BEPostFile(BEp be, ROCKbatchp wb, ron60 stamp,
             u8bReset(obuf);
             aBpad(u64, ostk, 256);
             aBpad(u64, nstk, 256);
-            o = BASONDiff(obuf, NULL, ostk, old_bason, nstk, new_bason);
+            o = BASONDiff(obuf, NULL, ostk, old_bason, nstk,
+                          new_bason, NULL);
             if (o != OK) {
                 if (mapbuf) FILEUnMap(mapbuf);
                 fail(o);
@@ -1761,7 +1777,8 @@ static ok64 BEPostDiffCB(voidp arg, u8cs relpath, BEmeta merged_meta) {
         u8bReset(obuf);
         aBpad(u64, ostk, 256);
         aBpad(u64, nstk, 256);
-        __ = BASONDiff(obuf, NULL, ostk, old_bason, nstk, new_bason);
+        __ = BASONDiff(obuf, NULL, ostk, old_bason, nstk,
+                       new_bason, NULL);
         if (__ != OK) {
             if (mapbuf) FILEUnMap(mapbuf);
             return __;

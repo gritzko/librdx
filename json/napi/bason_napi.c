@@ -375,7 +375,7 @@ static napi_value BasonDiff(napi_env env, napi_callback_info info) {
     u8cs odata = {(u8cp)odoc->data, (u8cp)odoc->data + odoc->data_len};
     u8cs ndata = {(u8cp)ndoc->data, (u8cp)ndoc->data + ndoc->data_len};
 
-    ok64 o = BASONDiff(out, idx, ostk, odata, nstk, ndata);
+    ok64 o = BASONDiff(out, idx, ostk, odata, nstk, ndata, NULL);
     if (o != OK) { free(obuf); NAPI_THROW(env, "diff failed"); }
 
     size_t dlen = (size_t)(out[2] - out[1]);

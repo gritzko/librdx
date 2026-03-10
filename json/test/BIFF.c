@@ -193,7 +193,7 @@ ok64 BIFFtestDiffIdentical() {
 
     u8cs od = {old_buf[1], old_buf[2]};
     u8cs nd = {neu_buf[1], neu_buf[2]};
-    call(BASONDiff, out_buf, out_idx, lstk, od, rstk, nd);
+    call(BASONDiff, out_buf, out_idx, lstk, od, rstk, nd, NULL);
 
     // empty diff: no data written
     size_t diff_len = u8bDataLen(out_buf);
@@ -210,7 +210,7 @@ ok64 BIFFtestDiffScalar() {
 
     u8cs od = {old_buf[1], old_buf[2]};
     u8cs nd = {neu_buf[1], neu_buf[2]};
-    call(BASONDiff, out_buf, out_idx, lstk, od, rstk, nd);
+    call(BASONDiff, out_buf, out_idx, lstk, od, rstk, nd, NULL);
 
     u8cs dd = {out_buf[1], out_buf[2]};
     call(BIFFCheckJSON, dd, "{\"b\":3}");
@@ -226,7 +226,7 @@ ok64 BIFFtestDiffAdded() {
 
     u8cs od = {old_buf[1], old_buf[2]};
     u8cs nd = {neu_buf[1], neu_buf[2]};
-    call(BASONDiff, out_buf, out_idx, lstk, od, rstk, nd);
+    call(BASONDiff, out_buf, out_idx, lstk, od, rstk, nd, NULL);
 
     u8cs dd = {out_buf[1], out_buf[2]};
     call(BIFFCheckJSON, dd, "{\"b\":2}");
@@ -242,7 +242,7 @@ ok64 BIFFtestDiffDeleted() {
 
     u8cs od = {old_buf[1], old_buf[2]};
     u8cs nd = {neu_buf[1], neu_buf[2]};
-    call(BASONDiff, out_buf, out_idx, lstk, od, rstk, nd);
+    call(BASONDiff, out_buf, out_idx, lstk, od, rstk, nd, NULL);
 
     u8cs dd = {out_buf[1], out_buf[2]};
     call(BIFFCheckJSON, dd, "{\"b\":null}");
@@ -271,7 +271,7 @@ ok64 BIFFtestDiffRoundtrip() {
 
     u8cs od = {old_buf[1], old_buf[2]};
     u8cs nd = {neu_buf[1], neu_buf[2]};
-    call(BASONDiff, diff_buf, diff_idx, ostk, od, nstk, nd);
+    call(BASONDiff, diff_buf, diff_idx, ostk, od, nstk, nd, NULL);
 
     // merge(old, diff) should equal new
     u8  _merge_pad[4096];
@@ -313,7 +313,7 @@ ok64 BIFFtestDiffRoundtripDel() {
 
     u8cs od = {old_buf[1], old_buf[2]};
     u8cs nd = {neu_buf[1], neu_buf[2]};
-    call(BASONDiff, diff_buf, diff_idx, ostk, od, nstk, nd);
+    call(BASONDiff, diff_buf, diff_idx, ostk, od, nstk, nd, NULL);
 
     // merge(old, diff)
     u8  _merge_pad[4096];
@@ -354,7 +354,7 @@ ok64 BIFFtestDiffNested() {
 
     u8cs od = {old_buf[1], old_buf[2]};
     u8cs nd = {neu_buf[1], neu_buf[2]};
-    call(BASONDiff, diff_buf, diff_idx, ostk, od, nstk, nd);
+    call(BASONDiff, diff_buf, diff_idx, ostk, od, nstk, nd, NULL);
 
     // diff should have nested changes
     u8cs dd = {diff_buf[1], diff_buf[2]};
@@ -387,7 +387,7 @@ ok64 BIFFtestDiffArray() {
 
     u8cs od = {old_buf[1], old_buf[2]};
     u8cs nd = {neu_buf[1], neu_buf[2]};
-    call(BASONDiff, out_buf, out_idx, lstk, od, rstk, nd);
+    call(BASONDiff, out_buf, out_idx, lstk, od, rstk, nd, NULL);
 
     // Only element at index 1 changed
     u8cs dd = {out_buf[1], out_buf[2]};
@@ -431,7 +431,7 @@ ok64 BIFFtestDiffArrayInsert() {
 
     u8cs od = {old_buf[1], old_buf[2]};
     u8cs nd = {neu_buf[1], neu_buf[2]};
-    call(BASONDiff, diff_buf, diff_idx, ostk, od, nstk, nd);
+    call(BASONDiff, diff_buf, diff_idx, ostk, od, nstk, nd, NULL);
 
     // merge(old, diff) should equal new
     u8  _merge_pad[4096];
@@ -473,7 +473,7 @@ ok64 BIFFtestDiffArrayAppend() {
 
     u8cs od = {old_buf[1], old_buf[2]};
     u8cs nd = {neu_buf[1], neu_buf[2]};
-    call(BASONDiff, diff_buf, diff_idx, ostk, od, nstk, nd);
+    call(BASONDiff, diff_buf, diff_idx, ostk, od, nstk, nd, NULL);
 
     u8  _merge_pad[4096];
     u8b merge_buf = {_merge_pad, _merge_pad, _merge_pad, _merge_pad + 4096};
@@ -513,7 +513,7 @@ ok64 BIFFtestDiffArrayDelete() {
 
     u8cs od = {old_buf[1], old_buf[2]};
     u8cs nd = {neu_buf[1], neu_buf[2]};
-    call(BASONDiff, diff_buf, diff_idx, ostk, od, nstk, nd);
+    call(BASONDiff, diff_buf, diff_idx, ostk, od, nstk, nd, NULL);
 
     u8  _merge_pad[4096];
     u8b merge_buf = {_merge_pad, _merge_pad, _merge_pad, _merge_pad + 4096};
@@ -542,7 +542,7 @@ ok64 BIFFtestDiffArrayIdentical() {
 
     u8cs od = {old_buf[1], old_buf[2]};
     u8cs nd = {neu_buf[1], neu_buf[2]};
-    call(BASONDiff, out_buf, out_idx, lstk, od, rstk, nd);
+    call(BASONDiff, out_buf, out_idx, lstk, od, rstk, nd, NULL);
 
     size_t diff_len = u8bDataLen(out_buf);
     testeq(diff_len, (size_t)0);
@@ -659,7 +659,7 @@ ok64 BIFFtestFuzzRepros() {
         u64 _ns[64];
         u64b ns = {_ns, _ns, _ns, _ns + 64};
 
-        call(BASONDiff, dbuf, didx, os, od, ns, nd);
+        call(BASONDiff, dbuf, didx, os, od, ns, nd, NULL);
         u8cs dd = {dbuf[1], dbuf[2]};
 
         // merge(old, diff) — even if diff is empty
@@ -715,7 +715,7 @@ ok64 BIFFtestFromRaw(u8csc raw) {
     u64b os = {_os, _os, _os, _os + 256};
     u64 _ns[256];
     u64b ns = {_ns, _ns, _ns, _ns + 256};
-    call(BASONDiff, dbuf, NULL, os, odata, ns, ndata);
+    call(BASONDiff, dbuf, NULL, os, odata, ns, ndata, NULL);
     u8cp dd0 = dbuf[1], dd1 = dbuf[2];
     u8cs dd = {dd0, dd1};
 
@@ -1111,7 +1111,7 @@ ok64 BIFFtestDiffMinimal() {
         u64 _ns[64];
         u64b ns = {_ns, _ns, _ns, _ns + 64};
 
-        call(BASONDiff, dbuf, didx, os, od, ns, nd);
+        call(BASONDiff, dbuf, didx, os, od, ns, nd, NULL);
         u8cs dd = {dbuf[1], dbuf[2]};
 
         // Check expected diff JSON (if specified)
@@ -1254,7 +1254,7 @@ ok64 BIFFtestRender() {
         u64b os = {_os, _os, _os, _os + 64};
         u64 _ns[64];
         u64b ns = {_ns, _ns, _ns, _ns + 64};
-        call(BASONDiff, dbuf, NULL, os, od, ns, nd);
+        call(BASONDiff, dbuf, NULL, os, od, ns, nd, NULL);
         u8cp d0 = dbuf[1], d1 = dbuf[2];
         u8cs patch = {d0, d1};
 
@@ -1273,7 +1273,8 @@ ok64 BIFFtestRender() {
         a_pad(u8, rbuf, 8192);
         u8s rout = {_rbuf, _rbuf + 8192};
         u8p rstart = rout[0];
-        call(BASONDiffPrint, rout, od, merged, 0);
+        u8cs noname = {};
+        call(BASONDiffPrint, rout, od, merged, 0, noname);
         u8cs rendered = {(u8cp)rstart, (u8cp)rout[0]};
 
         if ($empty(rendered)) continue;  // identical, nothing to check
@@ -1312,7 +1313,7 @@ ok64 BIFFtestRenderFuzzRepros() {
         u64b os = {_os, _os, _os, _os + 128};
         u64 _ns[128];
         u64b ns = {_ns, _ns, _ns, _ns + 128};
-        call(BASONDiff, dbuf, NULL, os, od, ns, nd);
+        call(BASONDiff, dbuf, NULL, os, od, ns, nd, NULL);
         u8cp d0 = dbuf[1], d1 = dbuf[2];
         u8cs patch = {d0, d1};
 
@@ -1330,7 +1331,8 @@ ok64 BIFFtestRenderFuzzRepros() {
         // Step 3: render old vs merged (same key space, no crash)
         a_pad(u8, rbuf, 16384);
         u8s rout = {_rbuf, _rbuf + 16384};
-        call(BASONDiffPrint, rout, od, merged, 0);
+        u8cs noname = {};
+        call(BASONDiffPrint, rout, od, merged, 0, noname);
     }
     done;
 }
