@@ -1290,6 +1290,66 @@ ok64 BEtest18() {
     done;
 }
 
+// ---- Test 19: Symbol extraction from BASON ----
+
+typedef struct {
+    int count;
+    u8cs syms[64];
+} SymCollect;
+
+static ok64 SymCollectCB(voidp arg, u8cs symbol) {
+    SymCollect *sc = (SymCollect *)arg;
+    test(sc->count < 64, BEBAD);
+    sc->syms[sc->count][0] = symbol[0];
+    sc->syms[sc->count][1] = symbol[1];
+    sc->count++;
+    return OK;
+}
+
+ok64 BEtest19() {
+    sane(1);
+
+    // Parse C source with function + struct into BASON
+    u8cs source = $u8str(
+        "int foo(int x) { return x; }\n"
+        "struct MyStruct { int a; };\n");
+    u8cs ext = $u8str(".c");
+    aBpad(u8, buf, 65536);
+    aBpad(u64, idx, 4096);
+    call(BASTParse, buf, idx, source, ext);
+    u8cs bason = {buf[1], buf[2]};
+    want(!$empty(bason));
+
+    // Extract symbols
+    SymCollect sc = {};
+    call(BESymExtract, bason, SymCollectCB, &sc);
+
+    // Should find at least "foo" and "MyStruct"
+    want(sc.count >= 2);
+
+    b8 found_foo = NO;
+    b8 found_MyStruct = NO;
+    for (int i = 0; i < sc.count; i++) {
+        size_t slen = (size_t)$len(sc.syms[i]);
+        if (slen == 3 && memcmp(sc.syms[i][0], "foo", 3) == 0)
+            found_foo = YES;
+        if (slen == 8 && memcmp(sc.syms[i][0], "MyStruct", 8) == 0)
+            found_MyStruct = YES;
+    }
+    want(found_foo);
+    want(found_MyStruct);
+
+    // Verify BASTExport roundtrip still works with 'B' nodes
+    a_pad(u8, out, 65536);
+    aBpad(u64, stk, 256);
+    call(BASTExport, out_idle, stk, bason);
+    u8cs result = {out[1], out[2]};
+    want($len(result) == $len(source));
+    want(memcmp(result[0], source[0], $len(source)) == 0);
+
+    done;
+}
+
 ok64 maintest() {
     sane(1);
     call(BEtest1);
@@ -1310,6 +1370,7 @@ ok64 maintest() {
     call(BEtest16);
     call(BEtest17);
     call(BEtest18);
+    call(BEtest19);
     done;
 }
 

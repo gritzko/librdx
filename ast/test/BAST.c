@@ -106,10 +106,96 @@ ok64 BASTtestTextTokens() {
     done;
 }
 
+// Verify 'B' name tags are emitted for function/struct names in C code
+ok64 BASTtestNameTag() {
+    sane(1);
+    BAST_SETUP(65536, 64, 1024);
+
+    static const char input[] =
+        "int foo(int x) { return x; }\n"
+        "struct MyStruct { int a; };\n";
+    u8csc src = {(u8cp)input, (u8cp)input + strlen(input)};
+    u8cs ext = $u8str(".c");
+    call(BASTParse, pad, idx, src, ext);
+
+    // Walk entire BASON tree, collect 'B' leaf values
+    u8cs dat = {pad[1], pad[2]};
+    call(BASONOpen, stk, dat);
+
+    int b_count = 0;
+    b8 found_foo = NO;
+    b8 found_MyStruct = NO;
+    int depth = 0;
+
+    for (;;) {
+        u8 type = 0;
+        u8cs key = {};
+        u8cs val = {};
+        ok64 o = BASONDrain(stk, dat, &type, key, val);
+        if (o != OK) {
+            if (depth <= 0) break;
+            BASONOuto(stk);
+            depth--;
+            continue;
+        }
+        if (type == 'B') {
+            b_count++;
+            if ($len(val) == 3 && memcmp(val[0], "foo", 3) == 0)
+                found_foo = YES;
+            if ($len(val) == 8 && memcmp(val[0], "MyStruct", 8) == 0)
+                found_MyStruct = YES;
+        } else if (BASONPlex(type)) {
+            BASONInto(stk, dat, val);
+            depth++;
+        }
+    }
+
+    test(b_count >= 2, FAILsanity);
+    test(found_foo == YES, FAILsanity);
+    test(found_MyStruct == YES, FAILsanity);
+
+    // Verify roundtrip: concatenating all S+B leaves reproduces source
+    u8bReset(pad);
+    u64bReset(stk);
+    u64bReset(idx);
+    call(BASTParse, pad, idx, src, ext);
+
+    u8cs dat2 = {pad[1], pad[2]};
+    call(BASONOpen, stk, dat2);
+
+    a_pad(u8, cat, 65536);
+    int depth2 = 0;
+    for (;;) {
+        u8 type = 0;
+        u8cs key = {};
+        u8cs val = {};
+        ok64 o = BASONDrain(stk, dat2, &type, key, val);
+        if (o != OK) {
+            if (depth2 <= 0) break;
+            BASONOuto(stk);
+            depth2--;
+            continue;
+        }
+        if (type == 'S' || type == 'B') {
+            call(u8bFeed, cat, val);
+        } else if (BASONPlex(type)) {
+            BASONInto(stk, dat2, val);
+            depth2++;
+        }
+    }
+
+    u8cs result = {cat[1], cat[2]};
+    testeq((size_t)$len(result), (size_t)$len(src));
+    testeq(0, memcmp(result[0], src[0], $len(src)));
+
+    done;
+}
+
 ok64 BASTtest() {
     sane(1);
     call(BASTtestTextRoundtrip);
     call(BASTtestTextTokens);
+    call(BASTtestNameTag);
     done;
 }
 

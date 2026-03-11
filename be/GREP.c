@@ -36,7 +36,7 @@ ok64 BETriExtract(u8csc bason, BETriCBf cb, voidp arg) {
             depth--;
             continue;
         }
-        if (type == 'S' && $len(val) >= 3) {
+        if ((type == 'S' || type == BAST_TAG_NAME) && $len(val) >= 3) {
             u8cp p = val[0];
             u8cp end = val[1] - 2;
             while (p <= end) {
@@ -46,6 +46,34 @@ ok64 BETriExtract(u8csc bason, BETriCBf cb, voidp arg) {
                 }
                 p++;
             }
+        } else if (BASONPlex(type)) {
+            call(BASONInto, stk, bason, val);
+            depth++;
+        }
+    }
+    done;
+}
+
+// Extract symbol names from BASON 'B'-tagged leaves
+ok64 BESymExtract(u8csc bason, BESymCBf cb, voidp arg) {
+    sane($ok(bason) && cb != NULL);
+    if ($empty(bason)) done;
+    aBpad(u64, stk, 64);
+    call(BASONOpen, stk, bason);
+    int depth = 0;
+    for (;;) {
+        u8 type = 0;
+        u8cs key = {};
+        u8cs val = {};
+        ok64 o = BASONDrain(stk, bason, &type, key, val);
+        if (o != OK) {
+            if (depth <= 0) break;
+            call(BASONOuto, stk);
+            depth--;
+            continue;
+        }
+        if (type == BAST_TAG_NAME && !$empty(val)) {
+            call(cb, arg, val);
         } else if (BASONPlex(type)) {
             call(BASONInto, stk, bason, val);
             depth++;
@@ -123,7 +151,7 @@ ok64 BASTGrepNodes(u8s out, u8cs bason_data, int k,
             depth--;
             continue;
         }
-        if (type == 'S') {
+        if (type == 'S' || type == BAST_TAG_NAME) {
             u32 len = (u32)$len(val);
             u32 node_start = offset;
             // Build line table from leaf content
@@ -198,7 +226,7 @@ ok64 BASTGrepNodes(u8s out, u8cs bason_data, int k,
             depth2--;
             continue;
         }
-        if (type == 'S') {
+        if (type == 'S' || type == BAST_TAG_NAME) {
             u8cp p = val[0];
             while (p < val[1]) {
                 u8cp nl = memchr(p, '\n', (size_t)(val[1] - p));
@@ -372,7 +400,7 @@ ok64 BASTDiffRender(u8s out, u8cs bason_data, int k) {
             depth--;
             continue;
         }
-        if (type == 'S') {
+        if (type == 'S' || type == BAST_TAG_NAME) {
             u32 len = (u32)$len(val);
             u32 node_start = offset;
             for (u32 i = 0; i < len && nlines < 65536; i++) {
@@ -429,7 +457,7 @@ ok64 BASTDiffRender(u8s out, u8cs bason_data, int k) {
             depth2--;
             continue;
         }
-        if (type == 'S') {
+        if (type == 'S' || type == BAST_TAG_NAME) {
             u8 status = (!$empty(key)) ? key[0][0] : '=';
             u8cp p = val[0];
             while (p < val[1]) {

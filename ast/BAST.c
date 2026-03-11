@@ -244,20 +244,48 @@ static u8 BASTNodeTag(const char *tstype) {
 
 // --- Tree-to-BASON conversion ---
 
+// Chase tree-sitter "name" / "declarator" fields down to the identifier leaf.
+static TSNode BASTFindName(TSNode node) {
+    TSNode n = ts_node_child_by_field_name(node, "name", 4);
+    if (!ts_node_is_null(n)) {
+        if (ts_node_named_child_count(n) == 0) return n;
+        return BASTFindName(n);
+    }
+    n = ts_node_child_by_field_name(node, "declarator", 10);
+    if (!ts_node_is_null(n)) {
+        if (ts_node_named_child_count(n) == 0) return n;
+        return BASTFindName(n);
+    }
+    return (TSNode){{0}, NULL, NULL};
+}
+
 // Emit one named node as BASON.
 // Leaf (no named children): string with source text.
 // Branch: array of interleaved text gaps and child arrays.
 // The TLKV type letter carries the node tag (F/C/K or A for untagged).
+// name_s/name_e: byte range of the symbol name leaf (from enclosing F/T).
 static ok64 BASTFeedNode(u8bp buf, u64bp idx, u8csc src, TSNode node,
-                         u8cs key, u8 tag) {
+                         u8cs key, u8 tag,
+                         uint32_t name_s, uint32_t name_e) {
     sane(buf != NULL);
     uint32_t ncc = ts_node_named_child_count(node);
     uint32_t s = ts_node_start_byte(node);
     uint32_t e = ts_node_end_byte(node);
 
+    // When entering F/T node, find the name identifier range
+    if (tag == BAST_TAG_FUNC || tag == BAST_TAG_CLASS) {
+        TSNode nm = BASTFindName(node);
+        if (!ts_node_is_null(nm)) {
+            name_s = ts_node_start_byte(nm);
+            name_e = ts_node_end_byte(nm);
+        }
+    }
+
     if (ncc == 0) {
+        u8 lt = 'S';
+        if (name_s < name_e && s == name_s && e == name_e) lt = BAST_TAG_NAME;
         u8cs val = {src[0] + s, src[0] + e};
-        call(BASONFeed, idx, buf, 'S', key, val);
+        call(BASONFeed, idx, buf, lt, key, val);
         done;
     }
 
@@ -288,7 +316,8 @@ static ok64 BASTFeedNode(u8bp buf, u64bp idx, u8csc src, TSNode node,
             prevk[1] = (u8cp)ki[0];
             u8 ctag = BASTNodeTag(ts_node_type(child));
             if (ctag == 0) ctag = 'A';
-            call(BASTFeedNode, buf, idx, src, child, ck, ctag);
+            call(BASTFeedNode, buf, idx, src, child, ck, ctag,
+                 name_s, name_e);
         }
 
         pos = ts_node_end_byte(child);
@@ -338,7 +367,7 @@ ok64 BASTParse(u8bp buf, u64bp idx, u8csc source, u8csc ext) {
 
     TSNode root = ts_tree_root_node(tree);
     u8cs key = {(u8cp)"", (u8cp)""};
-    __ = BASTFeedNode(buf, idx, source, root, key, 'A');
+    __ = BASTFeedNode(buf, idx, source, root, key, 'A', 0, 0);
 
     ts_tree_delete(tree);
     ts_parser_delete(parser);

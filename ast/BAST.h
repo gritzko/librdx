@@ -23,4 +23,7 @@ u32 BASTFtype(u8csc ext);
 // 18-bit ftype → extension (with dot) into buffer. ftype 0 → empty.
 ok64 BASTFtypeExt(u8s ext, u32 ftype);
 
+// BAST node tag for symbol name leaf (the identifier inside F/T nodes)
+#define BAST_TAG_NAME 'B'
+
 #endif

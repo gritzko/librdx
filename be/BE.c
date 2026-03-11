@@ -117,6 +117,8 @@ ok64 BEQueryParse(ron60 *stamp, u8csp branch, u8cs query) {
 
 // Forward declaration: trigram POST helper
 static ok64 BETriPost(BEp be, ROCKbatchp wb, u8cs bason, u8cs fpath);
+// Forward declaration: symbol index POST helper
+static ok64 BESymPost(BEp be, ROCKbatchp wb, u8cs bason, u8cs fpath);
 
 // ---- Key parsers ----
 
@@ -146,7 +148,7 @@ static ok64 BASTExportRec(u8s out, u64bp stack, u8csc data) {
     u8cs key = {};
     u8cs val = {};
     while (BASONDrain(stack, data, &type, key, val) == OK) {
-        if (type == 'S') {
+        if (type == 'S' || type == BAST_TAG_NAME) {
             call(u8sFeed, out, val);
         } else if (BASONPlex(type)) {
             call(BASONInto, stack, data, val);
@@ -1444,6 +1446,8 @@ static ok64 BEPostFile(BEp be, ROCKbatchp wb, ron60 stamp,
 
     // Extract trigrams and write tri: keys
     call(BETriPost, be, wb, new_bason, fp_datac);
+    // Extract symbol names and write sym: keys
+    call(BESymPost, be, wb, new_bason, fp_datac);
 
     // Commit per file to bound memory
     call(BEBatchFlush, be, wb);
@@ -1738,6 +1742,9 @@ static ok64 BEPostDiffCB(voidp arg, u8cs relpath, BEmeta merged_meta) {
     // Extract trigrams
     __ = BETriPost(be, ctx->wb, new_bason, kp_datac);
     if (__ != OK) { if (mapbuf) FILEUnMap(mapbuf); return __; }
+    // Extract symbols
+    __ = BESymPost(be, ctx->wb, new_bason, kp_datac);
+    if (__ != OK) { if (mapbuf) FILEUnMap(mapbuf); return __; }
 
     // Commit per file to bound memory
     __ = BEBatchFlush(be, ctx->wb);
@@ -2026,6 +2033,8 @@ ok64 BEPostData(BEp be, u8cs relpath, u8cs source, u8cs branch, u8cs message) {
 
     // Extract trigrams
     call(BETriPost, be, &wb, new_bason, fp_datac);
+    // Extract symbols
+    call(BESymPost, be, &wb, new_bason, fp_datac);
 
     // Commit metadata: be:project/?stamp-branch#commit
     a_pad(u8, cp, 256);
@@ -2502,5 +2511,49 @@ static ok64 BETriPost(BEp be, ROCKbatchp wb, u8cs bason, u8cs fpath) {
     $mv(ctx.hashlet, hl_datac);
 
     call(BETriExtract, bason, BETriCB, &ctx);
+    done;
+}
+
+// ---- Symbol index (POST-time indexing) ----
+
+typedef struct {
+    BEp be;
+    ROCKbatchp wb;
+    u8cs hashlet;
+} BESymCtx;
+
+static ok64 BESymCB(voidp arg, u8cs symbol) {
+    ok64 __ = OK;
+    BESymCtx *ctx = (BESymCtx *)arg;
+
+    // Build sym: key with symbol in query slot for prefix scan
+    a_cstr(sch_sym, BE_SCHEME_SYM);
+    a_uri(sym_key, sch_sym, 0, ctx->be->loc.path, symbol, 0);
+
+    // Build BASON object { hashlet: "" } as merge operand
+    aBpad(u8, obj, 128);
+    u8cs noval = {(u8cp)"", (u8cp)""};
+    call(BASONFeedInto, NULL, obj, 'O', noval);
+    call(BASONFeed, NULL, obj, 'S', ctx->hashlet, noval);
+    call(BASONFeedOuto, NULL, obj);
+    u8cs obj_val = {obj[1], obj[2]};
+
+    call(ROCKBatchMerge, ctx->wb, sym_key, obj_val);
+    return OK;
+}
+
+static ok64 BESymPost(BEp be, ROCKbatchp wb, u8cs bason, u8cs fpath) {
+    sane(be != NULL && wb != NULL);
+    if ($empty(bason)) done;
+
+    a_pad(u8, hl, 4);
+    call(BEHashlet, hl_idle, fpath);
+
+    BESymCtx ctx = {};
+    ctx.be = be;
+    ctx.wb = wb;
+    $mv(ctx.hashlet, hl_datac);
+
+    call(BESymExtract, bason, BESymCB, &ctx);
     done;
 }

@@ -24,6 +24,7 @@ con ok64 BEnone = 0x2cecb3ca9;
 #define BE_SCHEME_STAT "stat"
 #define BE_SCHEME_BE   "be"
 #define BE_SCHEME_TRI  "tri"
+#define BE_SCHEME_SYM  "sym"
 
 // File metadata stored as BASON object in stat: values
 typedef struct {
@@ -180,6 +181,10 @@ ok64 BEHashlet(u8s into, u8cs path);
 // Extract ASCII trigrams from BASON string leaves, call cb for each unique
 typedef ok64 (*BETriCBf)(voidp arg, u8cs trigram);
 ok64 BETriExtract(u8csc bason, BETriCBf cb, voidp arg);
+
+// Extract symbol names from BASON 'B'-tagged leaves, call cb for each
+typedef ok64 (*BESymCBf)(voidp arg, u8cs symbol);
+ok64 BESymExtract(u8csc bason, BESymCBf cb, voidp arg);
 
 // AST node filter callback for BASTGrepNodes
 // Return YES to include this node's source lines in output
