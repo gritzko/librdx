@@ -443,6 +443,93 @@ ok64 BESRVtest5() {
     done;
 }
 
+// Helper: HTTP POST, return status code
+static ok64 TestHTTPPost(int *status, int port, const char *path,
+                          u8cs body) {
+    sane(status != NULL && path != NULL);
+    char addr[64];
+    snprintf(addr, sizeof(addr), "tcp://127.0.0.1:%d", port);
+    a_cstr(addrcs, addr);
+    int fd = -1;
+    call(TCPConnect, &fd, addrcs, NO);
+
+    char req[512];
+    int rlen = snprintf(req, sizeof(req),
+                        "POST %s HTTP/1.1\r\n"
+                        "Host: localhost\r\n"
+                        "Content-Length: %zu\r\n"
+                        "Connection: close\r\n"
+                        "\r\n",
+                        path, $len(body));
+    u8cs reqcs = {(u8cp)req, (u8cp)req + rlen};
+    call(FILEFeedall, fd, reqcs);
+    if (!$empty(body)) {
+        call(FILEFeedall, fd, body);
+    }
+
+    // Read response
+    u8 tmp[4096];
+    u8p resp[4] = {};
+    call(u8bAllocate, resp, 1 << 16);
+    for (;;) {
+        ssize_t n = read(fd, tmp, sizeof(tmp));
+        if (n <= 0) break;
+        u8cs chunk = {tmp, tmp + n};
+        call(u8bFeed, resp, chunk);
+    }
+    close(fd);
+
+    // Parse status code from "HTTP/1.1 NNN ..."
+    u8cp d0 = resp[1];
+    u8cp d1 = resp[2];
+    *status = 0;
+    if (d1 - d0 >= 12) {
+        // Skip "HTTP/1.1 " (9 chars), parse 3 digits
+        for (int i = 9; i < 12 && d0[i] >= '0' && d0[i] <= '9'; i++) {
+            *status = *status * 10 + (d0[i] - '0');
+        }
+    }
+    u8bFree(resp);
+    done;
+}
+
+// ---- Test 6: HTTP POST roundtrip ----
+ok64 BESRVtest6() {
+    sane(1);
+    u8cs fname = $u8str("hello.c");
+    u8cs content = $u8str("int x = 42;\n");
+    u8cs be_uri = $u8str("be://BESRVtest6/@test/p6?main");
+
+    BE be = {};
+    u8p work_pp[4] = {};
+    call(TestSetupRepo, &be, work_pp, be_uri, 1, &fname, &content);
+
+    SrvThread st = {};
+    pthread_t tid;
+    call(TestStartSrv, &st, &be, &tid);
+
+    // POST new content for hello.c
+    u8cs new_content = $u8str("int x = 99;\n");
+    int status = 0;
+    call(TestHTTPPost, &status, st.port, "/hello.c", new_content);
+    want(status == 200);
+
+    // GET it back in RAW mode
+    u8p resp[4] = {};
+    call(u8bAllocate, resp, 1 << 20);
+    call(TestHTTPGet, resp, st.port, "/hello.c");
+    want(u8bDataLen(resp) > 0);
+
+    u8cs raw = {resp[1], resp[2]};
+    a_cstr(expected, "int x = 99;\n");
+    want($len(raw) == $len(expected));
+    want(memcmp(raw[0], expected[0], $len(expected)) == 0);
+
+    u8bFree(resp);
+    call(TestCleanup, &st, tid, &be, work_pp);
+    done;
+}
+
 ok64 maintest() {
     sane(1);
     signal(SIGPIPE, SIG_IGN);
@@ -452,6 +539,7 @@ ok64 maintest() {
     call(BESRVtest3);
     call(BESRVtest4);
     call(BESRVtest5);
+    call(BESRVtest6);
     done;
 }
 

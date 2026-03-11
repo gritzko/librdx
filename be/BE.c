@@ -1931,6 +1931,121 @@ ok64 BEPost(BEp be, int pathc, u8cs *paths, u8cs message) {
     done;
 }
 
+// ---- POST data (HTTP / programmatic) ----
+
+ok64 BEPostData(BEp be, u8cs relpath, u8cs source, u8cs branch, u8cs message) {
+    sane(be != NULL && $ok(relpath) && !$empty(relpath));
+    ron60 stamp = RONNow();
+
+    // Resolve branch: use provided or fall back to active
+    u8cs active = {};
+    if ($ok(branch) && !$empty(branch)) {
+        $mv(active, branch);
+    } else {
+        active[0] = be->branches[0][0];
+        active[1] = be->branches[0][1];
+    }
+
+    ROCKbatch wb = {};
+    call(ROCKBatchOpen, &wb);
+
+    // Get extension and codec
+    u8cs ext = {};
+    u8cs codec = {};
+    BEFileInfo(ext, codec, relpath);
+
+    // Parse source to BASON
+    u8bp nbuf = be->scratch[BE_PARSE];
+    u8bReset(nbuf);
+    if ($empty(source)) {
+        u8cs nokey = {(u8cp)"", (u8cp)""};
+        call(BASONFeedInto, NULL, nbuf, 'A', nokey);
+        call(BASONFeedOuto, NULL, nbuf);
+    } else {
+        ok64 po = BASTParse(nbuf, NULL, source, ext);
+        if (po != OK) {
+            ROCKBatchClose(&wb);
+            fail(po);
+        }
+    }
+    u8cp nb0 = nbuf[1], nb1 = nbuf[2];
+    u8cs new_bason = {nb0, nb1};
+
+    // Get old merged BASON from repo
+    u8bp pbuf = be->scratch[BE_PATCH];
+    u8bReset(pbuf);
+    ok64 go = BEGetFileMerged(be, be->loc.path, relpath, pbuf, NULL);
+    u8cs old_bason = {};
+    if (go == OK) {
+        u8cp md0 = pbuf[1], md1 = pbuf[2];
+        old_bason[0] = md0;
+        old_bason[1] = md1;
+    }
+
+    // Build file path component for keys
+    a_pad(u8, fp, 256);
+    call(BEProjPath, fp_idle, be->loc.path, relpath);
+
+    // Build query: stamp-branch
+    a_pad(u8, wq, 128);
+    call(BEQueryBuild, wq_idle, stamp, active);
+
+    // Determine content: diff delta or full BASON
+    u8cs content = {};
+    if ($ok(old_bason) && !$empty(old_bason)) {
+        u8bp obuf = be->scratch[BE_READ];
+        u8bReset(obuf);
+        aBpad(u64, ostk, 256);
+        aBpad(u64, nstk, 256);
+        ok64 do_ = BASONDiff(obuf, NULL, ostk, old_bason, nstk,
+                             new_bason, NULL);
+        if (do_ != OK) {
+            ROCKBatchClose(&wb);
+            fail(do_);
+        }
+        u8cs delta = {obuf[1], obuf[2]};
+        if ($empty(delta)) {
+            // No content change
+            ROCKBatchClose(&wb);
+            done;
+        }
+        $mv(content, delta);
+    } else {
+        $mv(content, new_bason);
+    }
+
+    // Build metadata: current time, 0644, ftype from ext
+    BEmeta meta = {};
+    meta.mtime = (u32)stamp;
+    u32 mode = 0644;
+    u32 ftype = BASTFtype(ext);
+    meta.modeftype = (mode << 20) | ((ftype & 0x3FFFF) << 2);
+
+    // Write be: and stat: keys
+    call(BEPostWriteKeys, be, &wb, fp_datac, wq_datac, content, meta);
+
+    // Extract trigrams
+    call(BETriPost, be, &wb, new_bason, fp_datac);
+
+    // Commit metadata: be:project/?stamp-branch#commit
+    a_pad(u8, cp, 256);
+    u8cs norp = {};
+    call(BEProjPath, cp_idle, be->loc.path, norp);
+    a_cstr(sch_be, BE_SCHEME_BE);
+    a_cstr(meta_commit, "commit");
+    a_uri(commit_key, sch_be, 0, cp_datac, wq_datac, meta_commit);
+    if ($ok(message) && !$empty(message)) {
+        call(ROCKBatchPut, &wb, commit_key, message);
+    } else {
+        u8cs empty = {NULL, NULL};
+        call(ROCKBatchPut, &wb, commit_key, empty);
+    }
+
+    call(ROCKBatchWrite, &be->db, &wb);
+    call(ROCKBatchClose, &wb);
+    done;
+}
+
 // ---- PUT (merge source branch into active) ----
 
 // Helper: re-key all waypoints of a scheme from source branch to active branch

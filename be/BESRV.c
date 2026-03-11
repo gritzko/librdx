@@ -484,6 +484,128 @@ static int BESRVDetectMode(u8cs *path) {
     return BESRV_MODE_RAW;
 }
 
+// POST handler: read body, parse source, post to repo
+static short BESRVAcceptPost(BESRVctxp ctx, int cfd, u8cs http_path,
+                              u8cs req_query, u8cs request) {
+    // Find Content-Length header
+    u8cs cl_val = {};
+    a_cstr(cl_key, "Content-Length");
+    u8cs hdr_data = {request[0], request[1]};
+    HTTPstate hparse = {};
+    u8cs hdr_pairs[32] = {};
+    u8csb hdr_store = {hdr_pairs, hdr_pairs, hdr_pairs, hdr_pairs + 32};
+    hparse.headers = u8csbIdle(hdr_store);
+    HTTPutf8Drain(hdr_data, &hparse);
+    u8css hdrs = {hdr_pairs, hdr_store[2]};
+    ok64 o = HTTPfind(&cl_val, cl_key, hdrs);
+    if (o != OK || $empty(cl_val)) {
+        a_cstr(err,
+               "HTTP/1.1 411 Length Required\r\nConnection: close\r\n\r\n");
+        FILEFeedall(cfd, err);
+        close(cfd);
+        return POLLIN;
+    }
+
+    // Parse content length
+    size_t content_len = 0;
+    for (u8cp p = cl_val[0]; p < cl_val[1]; p++) {
+        if (*p < '0' || *p > '9') break;
+        content_len = content_len * 10 + (*p - '0');
+    }
+    if (content_len == 0 || content_len > (1 << 24)) {
+        a_cstr(err,
+               "HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n");
+        FILEFeedall(cfd, err);
+        close(cfd);
+        return POLLIN;
+    }
+
+    // Find end of headers (\r\n\r\n) in request data
+    u8cp body_start = NULL;
+    for (u8cp p = request[0]; p + 3 < request[1]; p++) {
+        if (p[0] == '\r' && p[1] == '\n' && p[2] == '\r' && p[3] == '\n') {
+            body_start = p + 4;
+            break;
+        }
+    }
+    if (body_start == NULL) {
+        a_cstr(err,
+               "HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n");
+        FILEFeedall(cfd, err);
+        close(cfd);
+        return POLLIN;
+    }
+
+    // Allocate body buffer
+    u8p bodybuf[4] = {};
+    o = u8bAllocate(bodybuf, content_len + 1);
+    if (o != OK) {
+        a_cstr(err,
+               "HTTP/1.1 500 Internal Server Error\r\nConnection: close\r\n\r\n");
+        FILEFeedall(cfd, err);
+        close(cfd);
+        return POLLIN;
+    }
+
+    // Copy bytes already past headers
+    size_t have = (size_t)(request[1] - body_start);
+    if (have > content_len) have = content_len;
+    if (have > 0) {
+        u8cs chunk = {body_start, body_start + have};
+        u8bFeed(bodybuf, chunk);
+    }
+
+    // Read remaining body
+    while (u8bDataLen(bodybuf) < content_len) {
+        size_t need = content_len - u8bDataLen(bodybuf);
+        u8 tmp[4096];
+        size_t rdsz = need < sizeof(tmp) ? need : sizeof(tmp);
+        ssize_t n = read(cfd, tmp, rdsz);
+        if (n <= 0) break;
+        u8cs chunk = {tmp, tmp + n};
+        u8bFeed(bodybuf, chunk);
+    }
+
+    if (u8bDataLen(bodybuf) < content_len) {
+        u8bFree(bodybuf);
+        a_cstr(err,
+               "HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n");
+        FILEFeedall(cfd, err);
+        close(cfd);
+        return POLLIN;
+    }
+
+    u8cp bd0 = bodybuf[1], bd1 = bodybuf[2];
+    u8cs source = {bd0, bd1};
+
+    // Parse optional ?branch from URL query
+    u8cs branch = {};
+    if ($ok(req_query) && !$empty(req_query)) {
+        $mv(branch, req_query);
+    }
+
+    u8cs empty_msg = {};
+    o = BEPostData(ctx->be, http_path, source, branch, empty_msg);
+    u8bFree(bodybuf);
+
+    if (o != OK) {
+        a_cstr(err,
+               "HTTP/1.1 500 Internal Server Error\r\nConnection: close\r\n\r\n");
+        FILEFeedall(cfd, err);
+        close(cfd);
+        return POLLIN;
+    }
+
+    a_cstr(resp,
+           "HTTP/1.1 200 OK\r\n"
+           "Content-Length: 0\r\n"
+           "Connection: close\r\n"
+           "\r\n");
+    FILEFeedall(cfd, resp);
+    close(cfd);
+    return POLLIN;
+}
+
 // Accept callback: handle new connection
 static short BESRVAcceptCB(int fd, poller *p) {
     BESRVctxp ctx = (BESRVctxp)p->payload;
@@ -530,7 +652,8 @@ headers_done:;
     }
 
     a_cstr(get_method, "GET");
-    if (!$eq(http.method, get_method)) {
+    a_cstr(post_method, "POST");
+    if (!$eq(http.method, get_method) && !$eq(http.method, post_method)) {
         a_cstr(err,
                "HTTP/1.1 405 Method Not Allowed\r\nConnection: close\r\n\r\n");
         FILEFeedall(cfd, err);
@@ -552,6 +675,11 @@ headers_done:;
     u8cs http_path = {req_uri.path[0], req_uri.path[1]};
     if (!$empty(http_path) && *http_path[0] == '/') {
         http_path[0]++;
+    }
+
+    // POST: accept body, post to repo
+    if ($eq(http.method, post_method)) {
+        return BESRVAcceptPost(ctx, cfd, http_path, req_uri.query, request);
     }
 
     // Detect mode from suffix (modifies http_path to strip suffix)

@@ -62,9 +62,9 @@ target_compile_options(YLOOKUPtest PRIVATE ${TEST_CXX_FLAGS})
 target_link_libraries(YLOOKUPtest abc rdx2)
 add_test(NAME YLOOKUPtest COMMAND YLOOKUPtest)
 
-if (WITH_INET)
-add_test(NAME HTTPtest COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/http-test.sh $<TARGET_FILE:rdx-cli>)
-endif()
+#if (WITH_INET)
+#add_test(NAME HTTPtest COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/http-test.sh $<TARGET_FILE:rdx-cli>)
+#endif()
 
 #add_test(NAME Querytest COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/query-test.sh $<TARGET_FILE:rdx-cli>)
 

@@ -110,6 +110,10 @@ ok64 BESetActive(BEp be, u8cs branch);
 // POST: worktree files -> repo (independent waypoint)
 ok64 BEPost(BEp be, int pathc, u8cs *paths, u8cs message);
 
+// POST data: parse source text, diff against DB, create waypoint.
+// If branch is empty, uses be->branches[0].
+ok64 BEPostData(BEp be, u8cs relpath, u8cs source, u8cs branch, u8cs message);
+
 // GET: repo -> worktree files (merge base + waypoints)
 ok64 BEGet(BEp be, int pathc, u8cs *paths, u8cs branch);
 
