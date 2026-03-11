@@ -1106,9 +1106,7 @@ ok64 BEGet(BEp be, int pathc, u8cs *paths, u8cs branch) {
 
 // ---- STATUS (compare worktree vs DB) ----
 
-typedef ok64 (*BEStatCBf)(voidp arg, u8cs relpath, BEmeta merged);
-static ok64 BEScanStatMerged(BEp be, u8cs prefix_filter,
-                              BEStatCBf cb, voidp arg);
+// BEStatCBf and BEScanStatMerged declared in BE.h
 
 static ok64 BEStatusCB(voidp arg, u8cs relpath, BEmeta merged_meta) {
     sane(arg != NULL);
@@ -1516,8 +1514,8 @@ static ok64 BEPostScanCB(voidp arg, path8p path) {
 
 // Iterate stat: keys, group by relpath, merge metadata via branch formula,
 // call cb for each file. prefix_filter limits to a relpath subtree.
-static ok64 BEScanStatMerged(BEp be, u8cs prefix_filter,
-                              BEStatCBf cb, voidp arg) {
+ok64 BEScanStatMerged(BEp be, u8cs prefix_filter,
+                      BEStatCBf cb, voidp arg) {
     sane(be != NULL && cb != NULL);
 
     // Build branch formula
@@ -2515,11 +2513,13 @@ static ok64 BETriPost(BEp be, ROCKbatchp wb, u8cs bason, u8cs fpath) {
 }
 
 // ---- Symbol index (POST-time indexing) ----
+// Values are BASON objects { relpath: "" } — relpaths as keys, merge = union.
+// A single ROCKGet on sym:project/?symbol gives the file list directly.
 
 typedef struct {
     BEp be;
     ROCKbatchp wb;
-    u8cs hashlet;
+    u8cs relpath;
 } BESymCtx;
 
 static ok64 BESymCB(voidp arg, u8cs symbol) {
@@ -2530,11 +2530,11 @@ static ok64 BESymCB(voidp arg, u8cs symbol) {
     a_cstr(sch_sym, BE_SCHEME_SYM);
     a_uri(sym_key, sch_sym, 0, ctx->be->loc.path, symbol, 0);
 
-    // Build BASON object { hashlet: "" } as merge operand
-    aBpad(u8, obj, 128);
+    // Build BASON object { relpath: "" } as merge operand
+    aBpad(u8, obj, 512);
     u8cs noval = {(u8cp)"", (u8cp)""};
     call(BASONFeedInto, NULL, obj, 'O', noval);
-    call(BASONFeed, NULL, obj, 'S', ctx->hashlet, noval);
+    call(BASONFeed, NULL, obj, 'S', ctx->relpath, noval);
     call(BASONFeedOuto, NULL, obj);
     u8cs obj_val = {obj[1], obj[2]};
 
@@ -2546,13 +2546,15 @@ static ok64 BESymPost(BEp be, ROCKbatchp wb, u8cs bason, u8cs fpath) {
     sane(be != NULL && wb != NULL);
     if ($empty(bason)) done;
 
-    a_pad(u8, hl, 4);
-    call(BEHashlet, hl_idle, fpath);
+    // Extract relpath from fpath (skip "project/" prefix)
+    size_t projlen = $len(be->loc.path);
+    u8cs relpath = {fpath[0] + projlen + 1, fpath[1]};
+    if ($empty(relpath)) done;
 
     BESymCtx ctx = {};
     ctx.be = be;
     ctx.wb = wb;
-    $mv(ctx.hashlet, hl_datac);
+    $mv(ctx.relpath, relpath);
 
     call(BESymExtract, bason, BESymCB, &ctx);
     done;

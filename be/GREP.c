@@ -711,18 +711,19 @@ static ok64 BEGrepBitset(BEp be, u8 bitset[512], u8cs *trigrams, int tric) {
     done;
 }
 
-// BEScan callback context for grep
+// BEScanStatMerged callback context for grep
 typedef struct {
     BEp be;
     u8cs query;
     u8 *bitset;        // NULL = no filtering
     BEGrepCBf result_cb;
     voidp result_arg;
-} BEGrepScanCtx;
+} BEGrepStatCtx;
 
-static ok64 BEGrepScanCB(voidp arg, u8cs relpath, u8cs bason, BEmeta meta) {
+// Stat-only callback: filter by trigram bitset, then point-get survivors
+static ok64 BEGrepStatCB(voidp arg, u8cs relpath, BEmeta merged) {
     ok64 __ = OK;
-    BEGrepScanCtx *ctx = (BEGrepScanCtx *)arg;
+    BEGrepStatCtx *ctx = (BEGrepStatCtx *)arg;
     BEp be = ctx->be;
 
     // Trigram bitset check: compute hashlet, skip if not in bitset
@@ -747,12 +748,22 @@ static ok64 BEGrepScanCB(voidp arg, u8cs relpath, u8cs bason, BEmeta meta) {
         }
     }
 
-    // Export BASON to text (use BE_RENDER, free after BEScan merge)
-    u8bp out = be->scratch[BE_RENDER];
-    u8bReset(out);
+    // Point-get: merge be: content for this file only
+    u8bp mbuf = be->scratch[BE_PATCH];
+    u8bReset(mbuf);
+    ok64 go = BEGetFileMerged(be, be->loc.path, relpath, mbuf, NULL);
+    if (go != OK) return OK;  // skip on error
+    u8cp m0 = mbuf[1], m1 = mbuf[2];
+    u8cs bason = {m0, m1};
+    if ($empty(bason)) return OK;
+
+    // Export BASON to text
+    u8bp rbuf = be->scratch[BE_RENDER];
+    u8bReset(rbuf);
     aBpad(u64, stk, 256);
-    if (BASTExport(u8bIdle(out), stk, bason) != OK) return OK;
-    u8cs txt = {out[1], out[2]};
+    if (BASTExport(u8bIdle(rbuf), stk, bason) != OK) return OK;
+    u8cp t0 = rbuf[1], t1 = rbuf[2];
+    u8cs txt = {t0, t1};
     size_t qlen = $len(ctx->query);
     if ($len(txt) < qlen) return OK;
 
@@ -760,22 +771,22 @@ static ok64 BEGrepScanCB(voidp arg, u8cs relpath, u8cs bason, BEmeta meta) {
     u8cp ls = txt[0];
     int ln = 1;
     while (ls < txt[1]) {
-        u8cp le = ls;
-        while (le < txt[1] && *le != '\n') le++;
-        size_t ll = (size_t)(le - ls);
+        u8cp le = memchr(ls, '\n', (size_t)(txt[1] - ls));
+        u8cp chunk_end = le ? le : txt[1];
+        size_t ll = (size_t)(chunk_end - ls);
         if (ll >= qlen) {
             u8cp sp = ls;
             u8cp se = ls + ll - qlen + 1;
             while (sp <= se) {
                 if (memcmp(sp, ctx->query[0], qlen) == 0) {
-                    u8cs line = {ls, le};
+                    u8cs line = {ls, chunk_end};
                     ctx->result_cb(ctx->result_arg, relpath, ln, line);
                     break;
                 }
                 sp++;
             }
         }
-        ls = (le < txt[1]) ? le + 1 : le;
+        ls = le ? le + 1 : chunk_end;
         ln++;
     }
     return OK;
@@ -787,28 +798,24 @@ ok64 BEGrep(BEp be, uricp grep_uri, BEGrepCBf result_cb, voidp arg) {
     u8cs query = {grep_uri->fragment[0], grep_uri->fragment[1]};
     test($ok(query) && !$empty(query), BEBAD);
 
-    // Build scan URI: use grep_uri's query as branch formula
-    uri scan_loc = be->loc;
-    if ($ok(grep_uri->query) && !$empty(grep_uri->query)) {
-        $mv(scan_loc.query, grep_uri->query);
-    }
-
     // Extract trigrams from search pattern
     u8cs trigrams[256];
     int tric = BEGrepTrigrams(query, trigrams);
 
     if (tric == 0) {
-        // No trigrams — full scan
-        BEGrepScanCtx ctx = {be, {query[0], query[1]},
+        // No trigrams — full scan (stat + point-get every file)
+        u8cs empty_pfx = {};
+        BEGrepStatCtx ctx = {be, {query[0], query[1]},
                               NULL, result_cb, arg};
-        call(BEScan, be, &scan_loc, BEGrepScanCB, &ctx);
+        call(BEScanStatMerged, be, empty_pfx, BEGrepStatCB, &ctx);
     } else {
-        // Build bitset from trigram index, then filtered scan
+        // Build bitset from trigram index, then filtered stat scan
         u8 bitset[512];
         call(BEGrepBitset, be, bitset, trigrams, tric);
-        BEGrepScanCtx ctx = {be, {query[0], query[1]},
+        u8cs empty_pfx = {};
+        BEGrepStatCtx ctx = {be, {query[0], query[1]},
                               bitset, result_cb, arg};
-        call(BEScan, be, &scan_loc, BEGrepScanCB, &ctx);
+        call(BEScanStatMerged, be, empty_pfx, BEGrepStatCB, &ctx);
     }
     done;
 }

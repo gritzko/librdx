@@ -146,6 +146,13 @@ ok64 BEScan(BEp be, uricp loc, BEScanCBf cb, voidp arg);
 // Same but only files that have waypoints matching the formula
 ok64 BEScanChanged(BEp be, uricp loc, BEScanCBf cb, voidp arg);
 
+// Stat-only scan callback: relpath + merged metadata (no content)
+typedef ok64 (*BEStatCBf)(voidp arg, u8cs relpath, BEmeta merged);
+
+// Iterate stat: keys, merge metadata per branch formula, call cb per file
+ok64 BEScanStatMerged(BEp be, u8cs prefix_filter,
+                      BEStatCBf cb, voidp arg);
+
 // --- Status ---
 ok64 BEStatusFiles(BEp be);
 
