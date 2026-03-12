@@ -152,23 +152,17 @@ static char *ROCKmerge_full(void *state, const char *key, size_t key_length,
     ok64 o = ms->merge(merged, records);
     if (recs != stack_recs) free(recs);
 
-    size_t wrote = (o == OK) ? (size_t)((u8p)merged[0] - (u8p)out) : 0;
-    if (o != OK || wrote > cap) {
-        // Fallback: return last operand to avoid poisoning the DB
-        const char *last = operands_list[num_operands - 1];
-        size_t llen = operands_list_length[num_operands - 1];
-        if (llen > cap) {
-            free(out);
-            out = malloc(llen);
-            if (out == NULL) {
-                *success = 0;
-                return NULL;
-            }
-        }
-        memcpy(out, last, llen);
-        *success = 1;
-        *new_value_length = llen;
-        return out;
+    if (o != OK) {
+        free(out);
+        *success = 0;
+        return NULL;
+    }
+
+    size_t wrote = (u8p)merged[0] - (u8p)out;
+    if (wrote > cap) {
+        free(out);
+        *success = 0;
+        return NULL;
     }
     *success = 1;
     *new_value_length = wrote;
