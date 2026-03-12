@@ -105,10 +105,10 @@ static char *ROCKmerge_full(void *state, const char *key, size_t key_length,
                             int num_operands, unsigned char *success,
                             size_t *new_value_length) {
     ROCKmerge_state *ms = (ROCKmerge_state *)state;
+    *new_value_length = 0;
     int total = num_operands + (existing_value != NULL ? 1 : 0);
     if (total == 0) {
         *success = 1;
-        *new_value_length = 0;
         return calloc(1, 1);
     }
 
@@ -151,14 +151,27 @@ static char *ROCKmerge_full(void *state, const char *key, size_t key_length,
 
     ok64 o = ms->merge(merged, records);
     if (recs != stack_recs) free(recs);
-    if (o != OK) {
-        free(out);
-        *success = 0;
-        return NULL;
-    }
 
+    size_t wrote = (o == OK) ? (size_t)((u8p)merged[0] - (u8p)out) : 0;
+    if (o != OK || wrote > cap) {
+        // Fallback: return last operand to avoid poisoning the DB
+        const char *last = operands_list[num_operands - 1];
+        size_t llen = operands_list_length[num_operands - 1];
+        if (llen > cap) {
+            free(out);
+            out = malloc(llen);
+            if (out == NULL) {
+                *success = 0;
+                return NULL;
+            }
+        }
+        memcpy(out, last, llen);
+        *success = 1;
+        *new_value_length = llen;
+        return out;
+    }
     *success = 1;
-    *new_value_length = (u8p)merged[0] - (u8p)out;
+    *new_value_length = wrote;
     return out;
 }
 

@@ -192,12 +192,11 @@ static void BEFlushDB(BEp be) {
     }
 }
 
-// Batch write + clear + DB flush
+// Batch write + clear (no per-file flush; let RocksDB manage compaction)
 static ok64 BEBatchFlush(BEp be, ROCKbatchp wb) {
     sane(be != NULL && wb != NULL);
     call(ROCKBatchWrite, &be->db, wb);
     rocksdb_writebatch_clear(wb->wb);
-    BEFlushDB(be);
     done;
 }
 
@@ -1291,6 +1290,7 @@ typedef struct {
     ron60 stamp;
     ignop ig;
     b8 is_base;
+    u32 file_count;
 } BEPostCtx;
 
 // Report file status: "STAT codc path\n" (4+1+4+1 = 10 char prefix)
@@ -1498,6 +1498,7 @@ static ok64 BEPostScanCB(voidp arg, path8p path) {
     ok64 po = BEPostFile(ctx->be, ctx->wb, ctx->stamp, ctx->is_base, NO,
                          path8cgIn(path));
     if (po != OK) {
+        rocksdb_writebatch_clear(ctx->wb->wb);
         a_path(relpath, "");
         path8gRelative(path8gIn(relpath), path8cgIn(ctx->be->work_pp),
                         path8cgIn(path));
@@ -1506,6 +1507,8 @@ static ok64 BEPostScanCB(voidp arg, path8p path) {
         u8cs codec = {};
         BEFileInfo(ext, codec, rel);
         BEPostReport(rel, codec, "FAIL", DARK_RED);
+    } else if (++ctx->file_count % 64 == 0) {
+        BEFlushDB(ctx->be);
     }
     return OK;
 }
