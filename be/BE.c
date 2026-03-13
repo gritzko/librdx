@@ -882,6 +882,9 @@ ok64 BEScanFile(ROCKdbp db, u8cs project, u8cs relpath,
         if ($len(k) < $len(base_key) ||
             memcmp(k[0], base_key[0], $len(base_key)) != 0)
             break;
+        // Exact match or ?query — reject longer paths (BAST.c vs BAST.cli.c)
+        if ($len(k) > $len(base_key) && k[0][$len(base_key)] != '?')
+            break;
 
         uri ku = {};
         ok64 o = URIutf8Drain(k, &ku);
@@ -959,7 +962,6 @@ ok64 BEMergeFile(ROCKdbp db, u8cs project, u8cs relpath,
         u8bFree(ctx.buf);
         return o;
     }
-
     if (ctx.count == 1) {
         o = u8sFeed(u8bIdle(result), ctx.pieces[0]);
         u8bFree(ctx.buf);
