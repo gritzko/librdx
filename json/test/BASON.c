@@ -1064,19 +1064,19 @@ ok64 BASONtestFeedInfInc() {
     u8cs expW = $u8str("W");
     testeq(0, $cmp(expW, result));
 
-    // "W" → "W0" (short key padded to width 2)
+    // "W" → "W1" (short key padded to width 2, trailing zero banned)
     out[0] = _out; out[1] = _out + sizeof(_out);
     call(BASONFeedInfInc, out, expW);
     result[0] = (u8cp)_out; result[1] = (u8cp)out[0];
-    u8cs expW0 = $u8str("W0");
-    testeq(0, $cmp(expW0, result));
-
-    // "W0" → "W1"
-    out[0] = _out; out[1] = _out + sizeof(_out);
-    call(BASONFeedInfInc, out, expW0);
-    result[0] = (u8cp)_out; result[1] = (u8cp)out[0];
     u8cs expW1 = $u8str("W1");
     testeq(0, $cmp(expW1, result));
+
+    // "W1" → "W2"
+    out[0] = _out; out[1] = _out + sizeof(_out);
+    call(BASONFeedInfInc, out, expW1);
+    result[0] = (u8cp)_out; result[1] = (u8cp)out[0];
+    u8cs expW2 = $u8str("W2");
+    testeq(0, $cmp(expW2, result));
 
     // "W~" → "X" (digit[1] overflow → increment digit[0], trim)
     out[0] = _out; out[1] = _out + sizeof(_out);
@@ -1086,12 +1086,12 @@ ok64 BASONtestFeedInfInc() {
     u8cs expX = $u8str("X");
     testeq(0, $cmp(expX, result));
 
-    // "X" → "X0"
+    // "X" → "X1" (trailing zero banned)
     out[0] = _out; out[1] = _out + sizeof(_out);
     call(BASONFeedInfInc, out, expX);
     result[0] = (u8cp)_out; result[1] = (u8cp)out[0];
-    u8cs expX0 = $u8str("X0");
-    testeq(0, $cmp(expX0, result));
+    u8cs expX1 = $u8str("X1");
+    testeq(0, $cmp(expX1, result));
 
     // Trim: "W5Z" (3 chars, but P=1, W=2) → "W6" (trim extra)
     out[0] = _out; out[1] = _out + sizeof(_out);

@@ -516,10 +516,17 @@ static ok64 BIFFDiffArray(u8bp out, u64bp idx,
             oh[1]++;
             oo = BASONDrain(ostk, odata, &ot, ok_, ov);
         } else if (!oc && nc) {
-            // INS: generate key between left_key and next old key
+            // INS: generate key after left_key, must sort before ok_
             u8s mid_into = {_mk_buf, _mk_buf + BIFF_MAX_KWIDTH};
-            call(BASONFindMid, mid_into, left_key, ok_, 1, 16, 0);
+            call(BASONFeedInfInc, mid_into, left_key);
             u8cs mid_key = {(u8cp)_mk_buf, (u8cp)mid_into[0]};
+            if ($cmp(mid_key, ok_) >= 0) {
+                // Overshot right bound: use BASONFindMid
+                mid_into[0] = _mk_buf;
+                call(BASONFindMid, mid_into, left_key, ok_, 1, 1, 0);
+                mid_key[0] = (u8cp)_mk_buf;
+                mid_key[1] = (u8cp)mid_into[0];
+            }
             call(BIFFCopy, out, idx, nt, mid_key, nv, nstk, ndata);
             // Update left_key to mid_key
             size_t kl = $len(mid_key);
@@ -576,11 +583,10 @@ static ok64 BIFFDiffArray(u8bp out, u64bp idx,
         oo = BASONDrain(ostk, odata, &ot, ok_, ov);
     }
 
-    // Trailing new: all INS with right_key = NULL (end of keyspace)
+    // Trailing new: all INS via sequential increment
     while (no == OK) {
-        u8cs right_null = {NULL, NULL};
         u8s mid_into = {_mk_buf, _mk_buf + BIFF_MAX_KWIDTH};
-        call(BASONFindMid, mid_into, left_key, right_null, 1, 16, 0);
+        call(BASONFeedInfInc, mid_into, left_key);
         u8cs mid_key = {(u8cp)_mk_buf, (u8cp)mid_into[0]};
         call(BIFFCopy, out, idx, nt, mid_key, nv, nstk, ndata);
         // Update left_key

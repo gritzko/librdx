@@ -568,6 +568,7 @@ static BIFFRoundtripCase BIFF_FUZZ_REPROS[] = {
     {"{\"a\":1,\"b\":2}", "{\"a\":1}"},
     {"{\"a\":{\"x\":1}}", "{\"a\":{\"x\":2}}"},
     // fuzz: empty array vs non-empty
+    {"[]", "[1]"},
     {"[]", "[0]"},
     {"[]", "[1,2,3]"},
     {"[0]", "[]"},
@@ -617,6 +618,9 @@ static BIFFRoundtripCase BIFF_FUZZ_REPROS[] = {
     {"[1,2,3]", "[4,5,6]"},
     // array: nested array in object
     {"{\"a\":[1,2,3]}", "{\"a\":[1,9,2,3]}"},
+    // fuzz: large array with many empty sub-arrays (BASONDiff failed)
+    {"[0,6,1,[],2,2,[],2,3,[],[],2,[],3,6,1,[],2,2,[],2,[],2,3,1,2,3,2,3,1,[],[],2]",
+     "[6,[],2,[],3,[],2,[],2,1,[2],2,[],2,[],2,[],[],2,[],2,[],[],2,[],2,[],3,2]"},
 };
 
 // Compare two BASON trees via JSON export (handles sorted keys, splice keys)

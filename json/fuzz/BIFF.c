@@ -9,6 +9,68 @@
 
 #define FUZZ_BUF (64 * 1024)
 
+// Recursively compare two BASON trees, ignoring array keys.
+// Both cursors must be inside a container (after BASONInto).
+// is_array: if YES, skip key comparison for children.
+static ok64 BIFFFuzzTreeEq(u64bp astk, u8csc adata,
+                            u64bp bstk, u8csc bdata,
+                            b8 is_array) {
+    sane(astk != NULL && bstk != NULL);
+    u8 at, bt;
+    u8cs ak, av, bk, bv;
+    ok64 ao = BASONDrain(astk, adata, &at, ak, av);
+    ok64 bo = BASONDrain(bstk, bdata, &bt, bk, bv);
+    while (ao == OK && bo == OK) {
+        must(at == bt, "type mismatch");
+        if (!is_array) {
+            must($len(ak) == $len(bk) &&
+                 ($len(ak) == 0 || memcmp(ak[0], bk[0], $len(ak)) == 0),
+                 "key mismatch");
+        }
+        if (BASONPlex(at)) {
+            b8 child_arr = (at == 'A');
+            call(BASONInto, astk, adata, av);
+            call(BASONInto, bstk, bdata, bv);
+            call(BIFFFuzzTreeEq, astk, adata, bstk, bdata, child_arr);
+            call(BASONOuto, astk);
+            call(BASONOuto, bstk);
+        } else {
+            must($len(av) == $len(bv) &&
+                 ($len(av) == 0 || memcmp(av[0], bv[0], $len(av)) == 0),
+                 "value mismatch");
+        }
+        ao = BASONDrain(astk, adata, &at, ak, av);
+        bo = BASONDrain(bstk, bdata, &bt, bk, bv);
+    }
+    must(ao != OK && bo != OK, "child count mismatch");
+    done;
+}
+
+// Compare two BASON trees semantically (ignores array keys).
+static ok64 BIFFFuzzCompare(u8csc adata, u8csc bdata) {
+    sane($ok(adata) && $ok(bdata));
+    u64 _as[256], _bs[256];
+    u64b astk = {_as, _as, _as, _as + 256};
+    u64b bstk = {_bs, _bs, _bs, _bs + 256};
+    call(BASONOpen, astk, adata);
+    call(BASONOpen, bstk, bdata);
+    // Top level is always an array or object — check root type
+    u8 at, bt;
+    u8cs ak, av, bk, bv;
+    must(BASONDrain(astk, adata, &at, ak, av) == OK, "empty a");
+    must(BASONDrain(bstk, bdata, &bt, bk, bv) == OK, "empty b");
+    must(at == bt, "root type mismatch");
+    if (BASONPlex(at)) {
+        b8 is_arr = (at == 'A');
+        call(BASONInto, astk, adata, av);
+        call(BASONInto, bstk, bdata, bv);
+        call(BIFFFuzzTreeEq, astk, adata, bstk, bdata, is_arr);
+        call(BASONOuto, astk);
+        call(BASONOuto, bstk);
+    }
+    done;
+}
+
 // Recursively check that no level has duplicate keys.
 static ok64 BIFFFuzzNoDupKeys(u64bp stk, u8csc data,
                                u8 type, u8cs val) {
@@ -112,12 +174,11 @@ FUZZ(u8, BIFFfuzz) {
     o = BASONMerge(rbuf, NULL, lstk, odata, rstk, pdata);
     must(o == OK, "BASONMerge failed");
 
-    // Verify: merge(old, patch) == new
+    // Verify: merge(old, patch) == new (semantic, ignoring array keys)
     u8cp rd0 = rbuf[1], rd1 = rbuf[2];
     u8cs rdata = {rd0, rd1};
-    must($len(rdata) == $len(ndata), "roundtrip size mismatch");
-    must(memcmp(rdata[0], ndata[0], $len(ndata)) == 0,
-         "roundtrip data mismatch");
+    o = BIFFFuzzCompare(rdata, ndata);
+    must(o == OK, "roundtrip tree mismatch");
 
     done;
 }

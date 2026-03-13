@@ -231,12 +231,12 @@ ok64 BASONFeedInfInc(u8s into, u8cs prev) {
     else if (d0 < 62) P = 4;
     else P = 5;
     u8 W = P + 1;
-    // Key shorter than needed width: pad with '0' (padded > prev by $cmp)
+    // Key shorter than needed width: pad with '1' (ban trailing zero)
     if (pl < W) {
         test($len(into) >= W, SNOROOM);
         memcpy(into[0], prev[0], pl);
         for (size_t i = pl; i < W; i++)
-            into[0][i] = RON64_CHARS[0];
+            into[0][i] = RON64_CHARS[1];
         into[0] += W;
         done;
     }
