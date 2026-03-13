@@ -9,18 +9,6 @@
 #include "abc/FILE.h"
 #include "abc/PRO.h"
 
-// Detect URI vs file path: starts with "be://", "//", or "?"
-static b8 BEIsURI(u8cs arg) {
-    if (!$ok(arg) || $empty(arg)) return NO;
-    u8cp p = arg[0];
-    if (*p == '?') return YES;
-    if (*p == '/' && $len(arg) > 1 && p[1] == '/') return YES;
-    a_cstr(scheme, "be://");
-    if ($len(arg) >= $len(scheme) && memcmp(p, scheme[0], $len(scheme)) == 0)
-        return YES;
-    return NO;
-}
-
 // Get cwd into a path buffer
 static ok64 BECwd(path8g path) {
     sane(path != NULL);
@@ -139,118 +127,96 @@ static ok64 BEStatus(BEp be) {
 }
 
 // ---- verb: post ----
-static ok64 BECLIPost(int argc) {
+static ok64 BECLIPost(uricp u) {
     sane(1);
-    u8cs uri_arg = {};
-    u8cs file_args[64] = {};
-    int filec = 0;
-
-    for (int i = 2; i < argc; i++) {
-        a$rg(arg, i);
-        if (BEIsURI(arg)) {
-            $mv(uri_arg, arg);
-        } else {
-            test(filec < 64, BEBAD);
-            $mv(file_args[filec], arg);
-            filec++;
-        }
-    }
 
     BE be = {};
-    if ($ok(uri_arg) && !$empty(uri_arg)) {
-        // Parse URI to check if host-only (checkpoint) or has path (init)
-        u8 ubuf[512];
-        size_t ulen = $len(uri_arg);
-        test(ulen < sizeof(ubuf), BEBAD);
-        memcpy(ubuf, uri_arg[0], ulen);
-        uri u = {};
-        u.data[0] = ubuf;
-        u.data[1] = ubuf + ulen;
-        call(URILexer, &u);
-
-        if ($empty(u.path)) {
+    if (!$empty(u->host)) {
+        if ($empty(u->path)) {
             // //newrepo — checkpoint (fork) into new depot
             call(BEOpenCwd, &be);
-            call(BECheckpoint, &be, u.host);
+            u8cs repo = {};
+            $mv(repo, u->host);
+            call(BECheckpoint, &be, repo);
         } else {
             // //repo/project — init new project
             a_pad(u8, cpath, FILE_PATH_MAX_LEN);
             call(BECwd, path8gIn(cpath));
-            call(BEInit, &be, uri_arg, path8cgIn(cpath));
+            u8cs udata = {};
+            $mv(udata, u->data);
+            call(BEInit, &be, udata, path8cgIn(cpath));
             u8cs empty = {};
-            call(BEPost, &be, filec, filec > 0 ? file_args : NULL, empty);
+            call(BEPost, &be, 0, NULL, empty);
         }
     } else {
         call(BEOpenCwd, &be);
         u8cs empty = {};
-        call(BEPost, &be, filec, filec > 0 ? file_args : NULL, empty);
+        if (!$empty(u->path)) {
+            u8cs paths[1] = {};
+            $mv(paths[0], u->path);
+            call(BEPost, &be, 1, paths, empty);
+        } else {
+            call(BEPost, &be, 0, NULL, empty);
+        }
     }
     call(BEClose, &be);
     done;
 }
 
 // ---- verb: get ----
-static ok64 BECLIGet(int argc) {
+static ok64 BECLIGet(uricp u) {
     sane(1);
 
-    if (argc > 2) {
-        a$rg(first_arg, 2);
-        if (BESyncIsRemote(first_arg)) {
-            a_pad(u8, cpath, FILE_PATH_MAX_LEN);
-            call(BECwd, path8gIn(cpath));
-            call(BESyncClone, first_arg, path8cgIn(cpath));
-            done;
-        }
-        // //repo/project — local depot checkout
-        if ($len(first_arg) > 2 &&
-            first_arg[0][0] == '/' && first_arg[0][1] == '/') {
-            // Extract project name from URI path for directory
-            u8 ubuf[512];
-            size_t ulen = $len(first_arg);
-            test(ulen < sizeof(ubuf), BEBAD);
-            memcpy(ubuf, first_arg[0], ulen);
-            uri u = {};
-            u.data[0] = ubuf;
-            u.data[1] = ubuf + ulen;
-            call(URILexer, &u);
-            u8cs projname = {};
-            path8gBase(projname, (path8cg){u.path[0], u.path[1], u.path[1]});
-            test(!$empty(projname), BEBAD);
-            // Create project directory and cd into it
-            a_pad(u8, cpath, FILE_PATH_MAX_LEN);
-            call(BECwd, path8gIn(cpath));
-            call(path8gPush, path8gIn(cpath), projname);
-            call(FILEMakeDir, path8cgIn(cpath));
-            BE be = {};
-            call(BEInit, &be, first_arg, path8cgIn(cpath));
-            u8cs empty = {};
-            call(BEGet, &be, 0, NULL, empty);
-            call(BEClose, &be);
-            done;
-        }
+    a_cstr(std_scheme, "std");
+    a_cstr(http_scheme, "http");
+    a_cstr(https_scheme, "https");
+
+    // Remote clone
+    if ($eq(u->scheme, http_scheme) || $eq(u->scheme, https_scheme)) {
+        a_pad(u8, cpath, FILE_PATH_MAX_LEN);
+        call(BECwd, path8gIn(cpath));
+        u8cs udata = {};
+        $mv(udata, u->data);
+        call(BESyncClone, udata, path8cgIn(cpath));
+        done;
+    }
+
+    // //repo/project — local depot checkout
+    if (!$empty(u->host) && !$empty(u->path)) {
+        u8cs projname = {};
+        path8gBase(projname, (path8cg){u->path[0], u->path[1], u->path[1]});
+        test(!$empty(projname), BEBAD);
+        a_pad(u8, cpath, FILE_PATH_MAX_LEN);
+        call(BECwd, path8gIn(cpath));
+        call(path8gPush, path8gIn(cpath), projname);
+        call(FILEMakeDir, path8cgIn(cpath));
+        BE be = {};
+        u8cs udata = {};
+        $mv(udata, u->data);
+        call(BEInit, &be, udata, path8cgIn(cpath));
+        u8cs empty = {};
+        call(BEGet, &be, 0, NULL, empty);
+        call(BEClose, &be);
+        done;
     }
 
     BE be = {};
     call(BEOpenCwd, &be);
 
-    u8cs branch = {};
-    u8cs file_args[64] = {};
-    int filec = 0;
-
-    for (int i = 2; i < argc; i++) {
-        a$rg(arg, i);
-        if ($len(arg) > 0 && arg[0][0] == '?') {
-            branch[0] = arg[0] + 1;
-            branch[1] = arg[1];
-        } else {
-            test(filec < 64, BEBAD);
-            $mv(file_args[filec], arg);
-            filec++;
-        }
+    // std: scheme → output to stdout
+    if ($eq(u->scheme, std_scheme)) {
+        be.to_stdout = YES;
     }
 
-    call(BEGet, &be, filec, filec > 0 ? file_args : NULL, branch);
-    if (filec == 0) {
+    u8cs branch = {};
+    $mv(branch, u->query);
+
+    if (!$empty(u->path)) {
+        u8cs paths[1] = {};
+        $mv(paths[0], u->path);
+        call(BEGet, &be, 1, paths, branch);
+    } else {
+        call(BEGet, &be, 0, NULL, branch);
         call(BEGetDeps, &be, NO);
     }
     call(BEClose, &be);
@@ -258,36 +224,28 @@ static ok64 BECLIGet(int argc) {
 }
 
 // ---- verb: deps ----
-static ok64 BECLIDeps(int argc) {
+static ok64 BECLIDeps(uricp u) {
     sane(1);
     BE be = {};
     call(BEOpenCwd, &be);
     b8 include_opt = NO;
-    if (argc > 2) {
-        a$rg(arg, 2);
-        a_cstr(all, "all");
-        if ($eq(arg, all)) include_opt = YES;
-    }
+    a_cstr(all, "all");
+    if ($eq(u->path, all)) include_opt = YES;
     call(BEGetDeps, &be, include_opt);
     call(BEClose, &be);
     done;
 }
 
 // ---- verb: put ----
-static ok64 BECLIPut(int argc) {
+static ok64 BECLIPut(uricp u) {
     sane(1);
     BE be = {};
     call(BEOpenCwd, &be);
-
     u8cs branch = {};
-    if (argc > 2) {
-        a$rg(arg, 2);
-        if ($len(arg) > 0 && arg[0][0] == '?') {
-            branch[0] = arg[0] + 1;
-            branch[1] = arg[1];
-        } else {
-            $mv(branch, arg);
-        }
+    if (!$empty(u->query)) {
+        $mv(branch, u->query);
+    } else {
+        $mv(branch, u->path);
     }
     test($ok(branch) && !$empty(branch), BEBAD);
     u8cs empty = {};
@@ -297,41 +255,41 @@ static ok64 BECLIPut(int argc) {
 }
 
 // ---- verb: delete ----
-static ok64 BECLIDelete(int argc) {
+static ok64 BECLIDelete(uricp u) {
     sane(1);
-    test(argc > 2, BEBAD);
+    u8cs target = {};
+    if (!$empty(u->query)) {
+        $mv(target, u->query);
+    } else {
+        $mv(target, u->path);
+    }
+    test(!$empty(target), BEBAD);
     BE be = {};
     call(BEOpenCwd, &be);
-    a$rg(target, 2);
     call(BEDelete, &be, target);
     call(BEClose, &be);
     done;
 }
 
 // ---- verb: come (add/switch branch) ----
-static ok64 BECLICome(int argc) {
+static ok64 BECLICome(uricp u) {
     sane(1);
-    test(argc > 2, BEBAD);
     BE be = {};
     call(BEOpenCwd, &be);
-
-    a$rg(arg, 2);
     u8cs branch = {};
-    if ($len(arg) > 0 && arg[0][0] == '?') {
-        branch[0] = arg[0] + 1;
-        branch[1] = arg[1];
+    if (!$empty(u->query)) {
+        $mv(branch, u->query);
     } else {
-        $mv(branch, arg);
+        $mv(branch, u->path);
     }
     test($ok(branch) && !$empty(branch), BEBAD);
-
     call(BESetActive, &be, branch);
     call(BEClose, &be);
     done;
 }
 
 // ---- verb: lay ----
-static ok64 BECLILay() {
+static ok64 BECLILay(uricp u) {
     sane(1);
     BE be = {};
     call(BEOpenCwd, &be);
@@ -342,15 +300,12 @@ static ok64 BECLILay() {
 }
 
 // ---- verb: mark (milestone) ----
-static ok64 BECLIMark(int argc) {
+static ok64 BECLIMark(uricp u) {
     sane(1);
     BE be = {};
     call(BEOpenCwd, &be);
     u8cs name = {};
-    if (argc > 2) {
-        a$rg(arg, 2);
-        $mv(name, arg);
-    }
+    $mv(name, u->path);
     call(BEMilestone, &be, name);
     call(BEClose, &be);
     done;
@@ -369,27 +324,17 @@ static ok64 BEGrepCB(voidp arg, u8cs filepath, int lineno, u8cs line) {
     return OK;
 }
 
-static ok64 BECLIGrep(int argc) {
+static ok64 BECLIGrep(uricp u) {
     sane(1);
-    test(argc > 2, BEBAD);
     BE be = {};
     call(BEOpenCwd, &be);
-    a$rg(arg, 2);
 
-    // Parse as URI: bare text → treat as fragment (#substr)
-    // Also handles #substr, ?branch#substr, //repo/proj?branch#substr
-    u8 ubuf[512];
-    u8s us = {ubuf, ubuf + sizeof(ubuf)};
-    u8cp a = arg[0];
-    if (*a != '#' && *a != '?' && !(*a == '/' && $len(arg) > 1 && a[1] == '/')) {
-        // bare text: prepend #
-        u8sFeed1(us, '#');
+    // If no fragment, treat path as the search text (bare word)
+    uri gu = *u;
+    if ($empty(gu.fragment) && !$empty(gu.path)) {
+        $mv(gu.fragment, gu.path);
+        gu.path[0] = gu.path[1] = NULL;
     }
-    call(u8sFeed, us, arg);
-    uri gu = {};
-    gu.data[0] = ubuf;
-    gu.data[1] = us[0];
-    call(URILexer, &gu);
 
     call(BEGrep, &be, &gu, BEGrepCB, NULL);
     call(BEClose, &be);
@@ -397,18 +342,18 @@ static ok64 BECLIGrep(int argc) {
 }
 
 // ---- verb: diff ----
-static ok64 BECLIDiff(int argc) {
+static ok64 BECLIDiff(uricp u) {
     sane(1);
     BE be = {};
     call(BEOpenCwd, &be);
 
-    u8cs file_args[64] = {};
+    u8cs *file_args_p = NULL;
+    u8cs file_args[1] = {};
     int filec = 0;
-    for (int i = 2; i < argc; i++) {
-        a$rg(arg, i);
-        test(filec < 64, BEBAD);
-        $mv(file_args[filec], arg);
-        filec++;
+    if (!$empty(u->path)) {
+        $mv(file_args[0], u->path);
+        file_args_p = file_args;
+        filec = 1;
     }
 
     FILE *pager = NULL;
@@ -423,7 +368,7 @@ static ok64 BECLIDiff(int argc) {
         }
     }
 
-    ok64 o = BEDiffFiles(&be, filec, filec > 0 ? file_args : NULL);
+    ok64 o = BEDiffFiles(&be, filec, file_args_p);
 
     if (pager != NULL) {
         fflush(stdout);
@@ -438,20 +383,15 @@ static ok64 BECLIDiff(int argc) {
 }
 
 // ---- verb: fit (merge branch into main) ----
-static ok64 BECLIFit(int argc) {
+static ok64 BECLIFit(uricp u) {
     sane(1);
     BE be = {};
     call(BEOpenCwd, &be);
-
     u8cs source = {};
-    if (argc > 2) {
-        a$rg(arg, 2);
-        if ($len(arg) > 0 && arg[0][0] == '?') {
-            source[0] = arg[0] + 1;
-            source[1] = arg[1];
-        } else {
-            $mv(source, arg);
-        }
+    if (!$empty(u->query)) {
+        $mv(source, u->query);
+    } else {
+        $mv(source, u->path);
     }
     test($ok(source) && !$empty(source), BEBAD);
     u8cs empty = {};
@@ -476,6 +416,20 @@ ok64 becli() {
 
     a$rg(verb, 1);
 
+    // Parse arg[2] as URI (URIutf8Drain consumes data, so restore it)
+    uri u = {};
+    if (argc > 2) {
+        a$rg(arg, 2);
+        ok64 uo = URIutf8Drain(arg, &u);
+        if (uo == OK) {
+            $mv(u.data, arg);
+        } else {
+            zerop(&u);
+            $mv(u.data, arg);
+            $mv(u.path, arg);
+        }
+    }
+
     a_cstr(v_post, "post");
     a_cstr(v_get, "get");
     a_cstr(v_put, "put");
@@ -489,27 +443,27 @@ ok64 becli() {
     a_cstr(v_diff, "diff");
 
     if ($eq(verb, v_post)) {
-        call(BECLIPost, argc);
+        call(BECLIPost, &u);
     } else if ($eq(verb, v_get)) {
-        call(BECLIGet, argc);
+        call(BECLIGet, &u);
     } else if ($eq(verb, v_put)) {
-        call(BECLIPut, argc);
+        call(BECLIPut, &u);
     } else if ($eq(verb, v_delete)) {
-        call(BECLIDelete, argc);
+        call(BECLIDelete, &u);
     } else if ($eq(verb, v_come)) {
-        call(BECLICome, argc);
+        call(BECLICome, &u);
     } else if ($eq(verb, v_lay)) {
-        call(BECLILay);
+        call(BECLILay, &u);
     } else if ($eq(verb, v_mark)) {
-        call(BECLIMark, argc);
+        call(BECLIMark, &u);
     } else if ($eq(verb, v_fit)) {
-        call(BECLIFit, argc);
+        call(BECLIFit, &u);
     } else if ($eq(verb, v_deps)) {
-        call(BECLIDeps, argc);
+        call(BECLIDeps, &u);
     } else if ($eq(verb, v_grep)) {
-        call(BECLIGrep, argc);
+        call(BECLIGrep, &u);
     } else if ($eq(verb, v_diff)) {
-        call(BECLIDiff, argc);
+        call(BECLIDiff, &u);
     } else {
         a_cstr(err, "unknown verb: ");
         call(FILEerr, err);

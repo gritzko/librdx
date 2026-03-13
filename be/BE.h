@@ -69,6 +69,7 @@ typedef struct {
     u8cs branches[BE_MAX_BRANCHES];
     int branchc;
     b8 initial;  // YES during first post after BEInit
+    b8 to_stdout;  // YES → BEExportFile writes to stdout
 } BE;
 typedef BE *BEp;
 

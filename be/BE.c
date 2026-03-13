@@ -821,6 +821,13 @@ static ok64 BEExportFile(BEp be, u8cs relpath, u8cs bason, BEmeta meta) {
     call(BASTExport, u8bIdle(out), stk, bason);
     u8cs source = {out[1], out[2]};
 
+    if (be->to_stdout) {
+        if (!$empty(source)) {
+            fwrite(source[0], 1, $len(source), stdout);
+        }
+        done;
+    }
+
     a_path(fpath, "");
     call(BEWorkPath, path8gIn(fpath), be, relpath);
 
