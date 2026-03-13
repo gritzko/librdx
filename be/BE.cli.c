@@ -411,7 +411,28 @@ static ok64 BECLIDiff(int argc) {
         filec++;
     }
 
-    call(BEDiffFiles, &be, filec, filec > 0 ? file_args : NULL);
+    FILE *pager = NULL;
+    int saved_stdout = -1;
+    if (isatty(STDOUT_FILENO)) {
+        char const *cmd = getenv("PAGER");
+        if (cmd == NULL) cmd = "less -R";
+        pager = popen(cmd, "w");
+        if (pager != NULL) {
+            saved_stdout = dup(STDOUT_FILENO);
+            dup2(fileno(pager), STDOUT_FILENO);
+        }
+    }
+
+    ok64 o = BEDiffFiles(&be, filec, filec > 0 ? file_args : NULL);
+
+    if (pager != NULL) {
+        fflush(stdout);
+        dup2(saved_stdout, STDOUT_FILENO);
+        close(saved_stdout);
+        pclose(pager);
+    }
+
+    test(o == OK, o);
     call(BEClose, &be);
     done;
 }
