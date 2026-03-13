@@ -34,6 +34,8 @@ list(APPEND BAST_HEADERS
 
 list(APPEND BAST_SOURCES
     BAST.c
+    sm/SM.c
+    sm/SM.rl.c
     ../json/BASON.c
     ${PARSER_SOURCES}
 )
@@ -46,3 +48,4 @@ target_link_libraries(bast-cli bast abc tree-sitter)
 set_target_properties(bast-cli PROPERTIES OUTPUT_NAME bast)
 
 add_subdirectory(test)
+add_subdirectory(sm/test)

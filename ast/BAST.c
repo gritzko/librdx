@@ -5,6 +5,7 @@
 
 #include "abc/PRO.h"
 #include "abc/RON.h"
+#include "sm/SM.h"
 
 // --- Tree-sitter language declarations ---
 
@@ -72,6 +73,7 @@ static const BASTLangMap BAST_LANGS[] = {
     {".rs", "rust", tree_sitter_rust},
     {".v", "v", tree_sitter_verilog},
     {".sv", "v", tree_sitter_verilog},
+    {".mkd", "mkd", NULL},
 };
 
 const TSLanguage *BASTLanguage(u8csc ext) {
@@ -344,6 +346,10 @@ ok64 BASTParse(u8bp buf, u64bp idx, u8csc source, u8csc ext) {
     for (size_t i = 0; i < check; i++) {
         if (source[0][i] == 0) fail(FAILsanity);
     }
+
+    // StrictMark: custom parser, no tree-sitter
+    if ($len(ext) == 4 && memcmp(ext[0], ".mkd", 4) == 0)
+        return SMParse(buf, idx, source);
 
     const TSLanguage *lang = BASTLanguage(ext);
 
