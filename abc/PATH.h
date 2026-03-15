@@ -113,4 +113,8 @@ void path8gBase(u8csp out, path8cg path);
 // Returns view into path, "." for no directory component
 void path8gDir(u8csp out, path8cg path);
 
+// Extract file extension (after last dot in basename, without the dot)
+// Returns view into path, empty slice for no extension
+void path8gExt(u8csp out, path8cg path);
+
 #endif  // ABC_PATH_H

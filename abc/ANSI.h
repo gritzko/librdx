@@ -50,4 +50,19 @@ fun ok64 escfeed($u8 data, u8 esc) {
     return OK;
 }
 
+// 256-color background: \033[48;5;Nm
+fun ok64 escfeedBG256($u8 data, u8 color) {
+    if (!$ok(data) || $size(data) < 12) return BADARG;
+    u8sFeed1(data, 033);
+    u8sFeed1(data, '[');
+    u8sFeed1(data, '4');
+    u8sFeed1(data, '8');
+    u8sFeed1(data, ';');
+    u8sFeed1(data, '5');
+    u8sFeed1(data, ';');
+    u64decfeed(data, color);
+    u8sFeed1(data, 'm');
+    return OK;
+}
+
 #endif

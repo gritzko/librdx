@@ -1,5 +1,6 @@
 #include "BIFF.h"
 
+#include "ast/HILI.h"
 #include "abc/DIFF.h"
 #include "abc/PRO.h"
 #include "abc/RAP.h"
@@ -1041,37 +1042,61 @@ static ok64 BIFFPrintLeaves(u8s out, u8 type, u8cs val) {
     done;
 }
 
+// Emit leaves with syntax highlighting (for equal/context lines in diff).
+static ok64 BIFFPrintStyledLeaves(u8s out, u8 type, u8cs val,
+                                   u8 *cstk, int depth) {
+    sane(u8sOK(out));
+    if (BASONPlex(type)) {
+        int d = depth < HILI_MAXDEPTH ? depth : HILI_MAXDEPTH - 1;
+        cstk[d] = type;
+        HILIContainer(out, type);
+        aBpad(u64, stk, 64);
+        call(BASONOpen, stk, val);
+        u8 ct; u8cs ck, cv;
+        while (BASONDrain(stk, val, &ct, ck, cv) == OK) {
+            call(BIFFPrintStyledLeaves, out, ct, cv, cstk, depth + 1);
+        }
+        HILIRestore(out, cstk, depth);
+    } else if (type != 'B' || $len(val) > 0) {
+        b8 styled = HILILeaf(out, type);
+        call(u8sFeed, out, val);
+        if (styled) HILIRestore(out, cstk, depth);
+    }
+    done;
+}
+
 // Forward declaration
 static ok64 BIFFPrintLevel(u8s out, u8s del, u8s add,
                             u8csc odata, u8csc ndata);
 
-// Emit colored text with per-line escape codes so each line
-// is self-contained (ESC+text+RST before each newline).
-static ok64 BIFFPrintColored(u8s out, u8cs text, u8cs esc) {
+// Emit styled text with background overlay.
+// Text may contain syntax ESCs (\033[...m).  Background is re-emitted
+// at the start of each line and after every \033[0m reset within a line.
+static ok64 BIFFPrintColored(u8s out, u8cs text, u8cs bgesc) {
     sane(u8sOK(out));
     u8cs RST = $u8str("\033[0m");
-    u8cs NL = $u8str("\n");
     u8cp p = text[0];
-    u8cp seg = p;
+    b8 bg_on = NO;
     while (p < text[1]) {
         if (*p == '\n') {
-            u8cs chunk = {seg, p};
-            if (!$empty(chunk)) {
-                call(u8sFeed, out, esc);
-                call(u8sFeed, out, chunk);
-                call(u8sFeed, out, RST);
-            }
-            call(u8sFeed, out, NL);
-            seg = p + 1;
+            if (bg_on) { call(u8sFeed, out, RST); bg_on = NO; }
+            u8sFeed1(out, '\n');
+            p++;
+            continue;
         }
+        if (!bg_on) { call(u8sFeed, out, bgesc); bg_on = YES; }
+        // Detect \033[0m — re-emit bg after it
+        if (*p == '\033' && p + 3 < text[1] &&
+            p[1] == '[' && p[2] == '0' && p[3] == 'm') {
+            call(u8sFeed, out, RST);
+            call(u8sFeed, out, bgesc);
+            p += 4;
+            continue;
+        }
+        u8sFeed1(out, *p);
         p++;
     }
-    u8cs tail = {seg, text[1]};
-    if (!$empty(tail)) {
-        call(u8sFeed, out, esc);
-        call(u8sFeed, out, tail);
-        call(u8sFeed, out, RST);
-    }
+    if (bg_on) call(u8sFeed, out, RST);
     done;
 }
 
@@ -1081,8 +1106,12 @@ static ok64 BIFFPrintColored(u8s out, u8cs text, u8cs esc) {
 static ok64 BIFFPrintFlush(u8s out, u8s del, u8p del0,
                             u8s add, u8p add0) {
     sane(u8sOK(out));
-    u8cs DELESC = $u8str("\033[9;31m");
-    u8cs ADDESC = $u8str("\033[32m");
+    a_pad(u8, _de, 16);
+    escfeedBG256(_de_idle, HILI_DEL_BG);
+    u8cs DELESC = {_de[1], _de[2]};
+    a_pad(u8, _ae, 16);
+    escfeedBG256(_ae_idle, HILI_ADD_BG);
+    u8cs ADDESC = {_ae[1], _ae[2]};
     u8cs ds = {(u8cp)del0, (u8cp)del[0]};
     u8cs as = {(u8cp)add0, (u8cp)add[0]};
     if (!$empty(ds)) call(BIFFPrintColored, out, ds, DELESC);
@@ -1126,11 +1155,13 @@ static ok64 BIFFPrintLevel(u8s out, u8s del, u8s add,
         }
 
         if (oonly) {
-            call(BIFFPrintLeaves, del, ot, ov);
+            u8 ds[64] = {};
+            call(BIFFPrintStyledLeaves, del, ot, ov, ds, 0);
             call(BIFFSkip, ostk, odata, ot, ov);
             oo = BASONDrain(ostk, odata, &ot, ok, ov);
         } else if (nonly) {
-            call(BIFFPrintLeaves, add, nt, nv);
+            u8 as[64] = {};
+            call(BIFFPrintStyledLeaves, add, nt, nv, as, 0);
             call(BIFFSkip, nstk, ndata, nt, nv);
             no = BASONDrain(nstk, ndata, &nt, nk, nv);
         } else {
@@ -1144,7 +1175,8 @@ static ok64 BIFFPrintLevel(u8s out, u8s del, u8s add,
 
             if (same) {
                 call(BIFFPrintFlush, out, del, del0, add, add0);
-                call(BIFFPrintLeaves, out, ot, ov);
+                u8 cstk[64] = {};
+                call(BIFFPrintStyledLeaves, out, ot, ov, cstk, 0);
                 call(BIFFSkip, ostk, odata, ot, ov);
                 call(BIFFSkip, nstk, ndata, nt, nv);
             } else if (BASONPlex(ot) && BASONPlex(nt) && ot == nt) {
@@ -1153,8 +1185,9 @@ static ok64 BIFFPrintLevel(u8s out, u8s del, u8s add,
                 call(BIFFSkip, ostk, odata, ot, ov);
                 call(BIFFSkip, nstk, ndata, nt, nv);
             } else {
-                call(BIFFPrintLeaves, del, ot, ov);
-                call(BIFFPrintLeaves, add, nt, nv);
+                u8 ds[64] = {}, as[64] = {};
+                call(BIFFPrintStyledLeaves, del, ot, ov, ds, 0);
+                call(BIFFPrintStyledLeaves, add, nt, nv, as, 0);
                 call(BIFFSkip, ostk, odata, ot, ov);
                 call(BIFFSkip, nstk, ndata, nt, nv);
             }
@@ -1168,7 +1201,7 @@ static ok64 BIFFPrintLevel(u8s out, u8s del, u8s add,
 }
 
 // Trim colored text to show only ctx lines around changed lines.
-// Changed lines are detected by presence of ESC (\033).
+// Changed lines are detected by 256-color background ESC (\033[48;).
 // Output always <= input, safe for in-place use.
 static ok64 BIFFTrimContext(u8s out, u8cs text, u32 ctx, u8cs name) {
     sane(u8sOK(out));
@@ -1195,7 +1228,9 @@ static ok64 BIFFTrimContext(u8s out, u8cs text, u32 ctx, u8cs name) {
         starts[0] = p;
         changed[0] = NO;
         while (p < text[1] && li < maxlines) {
-            if (*p == '\033') changed[li] = YES;
+            if (*p == '\033' && p + 4 < text[1] &&
+                p[1] == '[' && p[2] == '4' && p[3] == '8' && p[4] == ';')
+                changed[li] = YES;
             if (*p == '\n') {
                 ends[li] = p + 1;
                 li++;

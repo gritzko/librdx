@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include "abc/PRO.h"
+#include "ast/HILI.h"
 
 // Check if char is a RON64 character (alphanumeric + _ ~)
 #define BETriChar(c) (RON64_REV[(u8)(c)] != 0xff)
@@ -372,8 +373,12 @@ ok64 BASTDiffRender(u8s out, u8cs bason_data, int k) {
     sane($ok(out) && $ok(bason_data));
     if ($empty(bason_data)) done;
 
-    u8cs DEL = $u8str("\033[9;31m");
-    u8cs ADD = $u8str("\033[32m");
+    a_pad(u8, _de, 16);
+    escfeedBG256(_de_idle, HILI_DEL_BG);
+    u8cs DEL = {_de[1], _de[2]};
+    a_pad(u8, _ae, 16);
+    escfeedBG256(_ae_idle, HILI_ADD_BG);
+    u8cs ADD = {_ae[1], _ae[2]};
     u8cs RST = $u8str("\033[0m");
 
     // === Pass 1: build line table + mark changed lines ===
@@ -525,8 +530,12 @@ static void BASTMatchLines(int *match, u8cs *old, int oldn,
 ok64 BASTTextDiff(u8s out, u8cs old_text, u8cs new_text, int k) {
     sane($ok(out));
 
-    u8cs DEL = $u8str("\033[9;31m");
-    u8cs ADD = $u8str("\033[32m");
+    a_pad(u8, _de, 16);
+    escfeedBG256(_de_idle, HILI_DEL_BG);
+    u8cs DEL = {_de[1], _de[2]};
+    a_pad(u8, _ae, 16);
+    escfeedBG256(_ae_idle, HILI_ADD_BG);
+    u8cs ADD = {_ae[1], _ae[2]};
     u8cs RST = $u8str("\033[0m");
     u8cs SEP = $u8str("\033[34m--\033[0m\n");
 

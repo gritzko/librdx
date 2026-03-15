@@ -314,6 +314,24 @@ void path8gDir(u8csp out, path8cg path) {
     out[1] = end;
 }
 
+void path8gExt(u8csp out, path8cg path) {
+    u8cs base = {};
+    path8gBase(base, path);
+    if ($empty(base)) {
+        out[0] = out[1] = NULL;
+        return;
+    }
+    u8cp p = base[1];
+    while (p > base[0] && *(p - 1) != '.') p--;
+    if (p <= base[0] || p == base[0] + 1) {
+        // no dot, or dot is the first char (e.g. .gitignore)
+        out[0] = out[1] = NULL;
+        return;
+    }
+    out[0] = p;
+    out[1] = base[1];
+}
+
 ok64 path8gNorm(path8g norm, path8cg orig) {
     sane($ok(norm) && $ok(orig));
 

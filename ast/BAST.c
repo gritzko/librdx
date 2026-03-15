@@ -493,7 +493,11 @@ static ok64 BASTFeedMDInline(u8bp buf, u64bp idx, u8csc src,
             lt = 'P';  // delimiters: *, **, ~~, `, [, ] etc
         } else {
             lt = BASTLeafTag(ts_node_type(node));
-            if (lt == 'S') lt = style;  // inherit style if no specific tag
+            if (lt == 'S') {
+                // Check inline style (e.g. link_text leaf → 'T')
+                u8 ms = BASTMDInlineStyle(ts_node_type(node));
+                lt = ms ? ms : style;
+            }
         }
         u8cs val = {src[0] + s, src[0] + e};
         call(BASONFeed, idx, buf, lt, key, val);

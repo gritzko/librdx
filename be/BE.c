@@ -6,6 +6,7 @@
 #include <utime.h>
 
 #include "abc/ANSI.h"
+#include "ast/HILI.h"
 #include "abc/POL.h"
 #include "abc/PRO.h"
 #include "IGNO.h"
@@ -158,38 +159,6 @@ ok64 BASTExport(u8s out, u64bp stack, u8csc data) {
 
 // ---- BASTCat: syntax-highlighted export ----
 
-static b8 BASTCatStyle(u8s out, u8 type) {
-    switch (type) {
-        case 'F': escfeed(out, BOLD); escfeed(out, DARK_YELLOW); return YES;
-        case 'W': escfeed(out, HIGHLIGHT); return YES;
-        case 'R': escfeed(out, DARK_RED); return YES;
-        case 'D': escfeed(out, GRAY); return YES;
-        case 'G': escfeed(out, DARK_GREEN); return YES;
-        case 'L': escfeed(out, DARK_CYAN); return YES;
-        case 'T': escfeed(out, LIGHT_BLUE); return YES;
-        case 'H': escfeed(out, DARK_PINK); return YES;
-        case 'P': escfeed(out, GRAY); return YES;
-        case 'V': escfeed(out, BOLD); return YES;
-        case 'J': escfeed(out, STRIKETHROUGH); return YES;
-        default:  return NO;
-    }
-}
-
-// Container types that apply SGR to all children.
-static b8 BASTCatContainerStyle(u8s out, u8 type) {
-    if (type == 'Y') { escfeed(out, BOLD); return YES; }
-    return NO;
-}
-
-// Re-emit container styles after a leaf reset.
-static void BASTCatRestore(u8s out, u8 *cstk, int depth) {
-    escfeed(out, 0);
-    for (int i = 0; i < depth; i++)
-        BASTCatContainerStyle(out, cstk[i]);
-}
-
-#define BAST_CAT_MAXDEPTH 64
-
 static ok64 BASTCatRec(u8s out, u64bp stack, u8csc data,
                         u8 *cstk, int depth) {
     sane(1);
@@ -198,17 +167,17 @@ static ok64 BASTCatRec(u8s out, u64bp stack, u8csc data,
     u8cs val = {};
     while (BASONDrain(stack, data, &type, key, val) == OK) {
         if (!BASONPlex(type)) {
-            b8 styled = BASTCatStyle(out, type);
+            b8 styled = HILILeaf(out, type);
             call(u8sFeed, out, val);
-            if (styled) BASTCatRestore(out, cstk, depth);
+            if (styled) HILIRestore(out, cstk, depth);
         } else {
-            int d = depth < BAST_CAT_MAXDEPTH ? depth : BAST_CAT_MAXDEPTH - 1;
+            int d = depth < HILI_MAXDEPTH ? depth : HILI_MAXDEPTH - 1;
             cstk[d] = type;
-            BASTCatContainerStyle(out, type);
+            HILIContainer(out, type);
             call(BASONInto, stack, data, val);
             call(BASTCatRec, out, stack, data, cstk, depth + 1);
             call(BASONOuto, stack);
-            BASTCatRestore(out, cstk, depth);
+            HILIRestore(out, cstk, depth);
         }
     }
     done;
@@ -218,7 +187,7 @@ ok64 BASTCat(u8s out, u64bp stack, u8csc data) {
     sane($ok(out) && stack != NULL && $ok(data));
     if ($empty(data)) done;
     call(BASONOpen, stack, data);
-    u8 cstk[BAST_CAT_MAXDEPTH];
+    u8 cstk[HILI_MAXDEPTH];
     memset(cstk, 0, sizeof(cstk));
     call(BASTCatRec, out, stack, data, cstk, 0);
     done;
@@ -1236,7 +1205,9 @@ static ok64 BEDiffCB(voidp arg, u8cs relpath, BEmeta merged_meta) {
     BEp be = ctx->be;
 
     u8cs HDRESC = $u8str("\033[1m");
-    u8cs DELESC = $u8str("\033[9;31m");
+    a_pad(u8, _delesc, 16);
+    escfeedBG256(_delesc_idle, HILI_DEL_BG);
+    u8cs DELESC = {_delesc[1], _delesc[2]};
     u8cs RST = $u8str("\033[0m");
     u8cs NL = $u8str("\n");
     u8cs SEP = $u8str("\033[34m---\033[0m\n");
