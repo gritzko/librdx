@@ -33,6 +33,8 @@ extern const TSLanguage *tree_sitter_regex(void);
 extern const TSLanguage *tree_sitter_ruby(void);
 extern const TSLanguage *tree_sitter_rust(void);
 extern const TSLanguage *tree_sitter_verilog(void);
+extern const TSLanguage *tree_sitter_markdown(void);
+extern const TSLanguage *tree_sitter_markdown_inline(void);
 
 // --- Extension-to-language mapping ---
 
@@ -73,6 +75,7 @@ static const BASTLangMap BAST_LANGS[] = {
     {".rs", "rust", tree_sitter_rust},
     {".v", "v", tree_sitter_verilog},
     {".sv", "v", tree_sitter_verilog},
+    {".md", "md", tree_sitter_markdown},
     {".mkd", "mkd", NULL},
 };
 
@@ -237,6 +240,23 @@ static const BASTTagEntry bast_tags[] = {
     {"trait_item", BAST_TAG_CLASS},             // Rust
     {"class", BAST_TAG_CLASS},                  // Ruby
     {"module", BAST_TAG_CLASS},                 // Ruby
+    // --- Markdown block ---
+    {"atx_heading", 'E'},                         // heading
+    {"setext_heading", 'E'},                      // heading
+    {"block_quote", 'I'},                         // quote
+    {"fenced_code_block", 'I'},                   // code block
+    {"indented_code_block", 'I'},                 // code block
+    {"list", 'U'},                                // list
+    // --- Markdown inline ---
+    {"emphasis", 'A'},                            // container for styled text
+    {"strong_emphasis", 'A'},
+    {"strikethrough", 'A'},
+    {"code_span", 'A'},
+    {"inline_link", 'A'},
+    {"shortcut_link", 'A'},
+    {"full_reference_link", 'A'},
+    {"collapsed_reference_link", 'A'},
+    {"image", 'A'},
     {NULL, 0}
 };
 
@@ -292,6 +312,32 @@ static const BASTLeafEntry bast_leaf_tags[] = {
     {"sized_type_specifier", 'T'},
     // Preprocessor
     {"preproc_arg", 'H'},
+    // Markdown block leaves
+    {"code_fence_content", 'G'},
+    {"info_string", 'T'},
+    {"atx_h1_marker", 'P'},
+    {"atx_h2_marker", 'P'},
+    {"atx_h3_marker", 'P'},
+    {"atx_h4_marker", 'P'},
+    {"atx_h5_marker", 'P'},
+    {"atx_h6_marker", 'P'},
+    {"setext_h1_underline", 'P'},
+    {"setext_h2_underline", 'P'},
+    {"fenced_code_block_delimiter", 'P'},
+    {"block_quote_marker", 'P'},
+    {"list_marker_minus", 'P'},
+    {"list_marker_plus", 'P'},
+    {"list_marker_star", 'P'},
+    {"list_marker_dot", 'P'},
+    {"list_marker_parenthesis", 'P'},
+    {"block_continuation", 'S'},
+    // Markdown inline leaves
+    {"code_span_delimiter", 'P'},
+    {"emphasis_delimiter", 'P'},
+    {"link_destination", 'P'},
+    {"link_title", 'P'},
+    {"uri_autolink", 'T'},
+    {"email_autolink", 'T'},
     {NULL, 0}
 };
 
@@ -419,6 +465,286 @@ static ok64 BASTFeedNode(u8bp buf, u64bp idx, u8csc src, TSNode node,
     done;
 }
 
+// --- Markdown two-pass walker ---
+
+// Map inline container type to style tag for leaf children.
+static u8 BASTMDInlineStyle(const char *tstype) {
+    if (strcmp(tstype, "emphasis") == 0) return 'W';
+    if (strcmp(tstype, "strong_emphasis") == 0) return 'V';
+    if (strcmp(tstype, "strikethrough") == 0) return 'J';
+    if (strcmp(tstype, "code_span") == 0) return 'G';
+    if (strcmp(tstype, "link_text") == 0) return 'T';
+    return 0;
+}
+
+// Walk the inline parse tree, emitting styled leaves.
+// style: inherited style from enclosing container (default 'S').
+static ok64 BASTFeedMDInline(u8bp buf, u64bp idx, u8csc src,
+                              TSNode node, u8cs key, u8 style) {
+    sane(buf != NULL);
+    uint32_t cc = ts_node_child_count(node);
+    uint32_t s = ts_node_start_byte(node);
+    uint32_t e = ts_node_end_byte(node);
+
+    if (cc == 0) {
+        // Leaf node
+        u8 lt;
+        if (!ts_node_is_named(node)) {
+            lt = 'P';  // delimiters: *, **, ~~, `, [, ] etc
+        } else {
+            lt = BASTLeafTag(ts_node_type(node));
+            if (lt == 'S') lt = style;  // inherit style if no specific tag
+        }
+        u8cs val = {src[0] + s, src[0] + e};
+        call(BASONFeed, idx, buf, lt, key, val);
+        done;
+    }
+
+    // Container: check if it defines a new style
+    u8 child_style = BASTMDInlineStyle(ts_node_type(node));
+    if (child_style == 0) child_style = style;
+
+    // Check for link containers: link_destination/link_label → 'P'
+    const char *ttype = ts_node_type(node);
+    b8 is_link_meta = (strcmp(ttype, "link_destination") == 0 ||
+                       strcmp(ttype, "link_title") == 0 ||
+                       strcmp(ttype, "link_label") == 0 ||
+                       strcmp(ttype, "image_description") == 0);
+    if (is_link_meta) child_style = 'P';
+
+    u8 ctag = BASTNodeTag(ttype);
+    if (ctag == 0) ctag = 'A';
+
+    call(BASONFeedInto, idx, buf, ctag, key);
+    uint32_t pos = s;
+    u8 kb[11];
+    u8cs prevk = {NULL, NULL};
+
+    for (uint32_t i = 0; i < cc; i++) {
+        TSNode child = ts_node_child(node, i);
+        uint32_t cs = ts_node_start_byte(child);
+
+        if (cs > pos) {
+            u8s ki = {kb, kb + sizeof(kb)};
+            call(BASONFeedInfInc, ki, prevk);
+            u8cs ck = {(u8cp)kb, (u8cp)ki[0]};
+            prevk[0] = (u8cp)kb;
+            prevk[1] = (u8cp)ki[0];
+            u8cs gap = {src[0] + pos, src[0] + cs};
+            call(BASONFeed, idx, buf, child_style, ck, gap);
+        }
+
+        {
+            u8s ki = {kb, kb + sizeof(kb)};
+            call(BASONFeedInfInc, ki, prevk);
+            u8cs ck = {(u8cp)kb, (u8cp)ki[0]};
+            prevk[0] = (u8cp)kb;
+            prevk[1] = (u8cp)ki[0];
+            call(BASTFeedMDInline, buf, idx, src, child, ck, child_style);
+        }
+
+        pos = ts_node_end_byte(child);
+    }
+
+    if (e > pos) {
+        u8s ki = {kb, kb + sizeof(kb)};
+        call(BASONFeedInfInc, ki, prevk);
+        u8cs ck = {(u8cp)kb, (u8cp)ki[0]};
+        u8cs gap = {src[0] + pos, src[0] + e};
+        call(BASONFeed, idx, buf, child_style, ck, gap);
+    }
+
+    call(BASONFeedOuto, idx, buf);
+    done;
+}
+
+// Walk the block-level markdown tree.  When an "inline" node is found,
+// re-parse its byte range with the inline grammar and walk that tree.
+static ok64 BASTFeedMDNode(u8bp buf, u64bp idx, u8csc src, TSNode node,
+                            u8cs key, u8 tag,
+                            const TSLanguage *inline_lang) {
+    sane(buf != NULL);
+    uint32_t cc = ts_node_child_count(node);
+    uint32_t s = ts_node_start_byte(node);
+    uint32_t e = ts_node_end_byte(node);
+
+    // Detect "inline" node — re-parse with inline grammar
+    if (strcmp(ts_node_type(node), "inline") == 0 && inline_lang != NULL) {
+        TSParser *ip = ts_parser_new();
+        if (ip == NULL) fail(FAILsanity);
+        if (!ts_parser_set_language(ip, inline_lang)) {
+            ts_parser_delete(ip);
+            fail(FAILsanity);
+        }
+        u8cp range_start = src[0] + s;
+        uint32_t range_len = e - s;
+        TSTree *itree = ts_parser_parse_string(
+            ip, NULL, (const char *)range_start, range_len);
+        if (itree == NULL) {
+            ts_parser_delete(ip);
+            fail(FAILsanity);
+        }
+        TSNode iroot = ts_tree_root_node(itree);
+        // The inline parser wraps everything in an "inline" root node.
+        // We need to offset: inline tree positions are 0-based relative
+        // to range_start, but src positions are absolute.
+        // We create a shifted source slice for the inline walker.
+        u8cs isrc = {src[0], src[1]};
+        // However, inline parser positions start at 0, not at s.
+        // So we shift the source base back by s bytes so that
+        // inline position 0 maps to src[0]+s.
+        // Actually, the inline parser returns byte offsets relative
+        // to the input it received (range_start), starting from 0.
+        // We pass range_start as the source base.
+        u8cs inline_src = {range_start, range_start + range_len};
+        // Walk inline tree children (skip the root "inline" node wrapper)
+        uint32_t icc = ts_node_child_count(iroot);
+        if (icc > 0) {
+            call(BASONFeedInto, idx, buf, tag, key);
+            uint32_t ipos = 0;
+            u8 ikb[11];
+            u8cs iprevk = {NULL, NULL};
+            for (uint32_t i = 0; i < icc; i++) {
+                TSNode ichild = ts_node_child(iroot, i);
+                uint32_t ics = ts_node_start_byte(ichild);
+                if (ics > ipos) {
+                    u8s iki = {ikb, ikb + sizeof(ikb)};
+                    call(BASONFeedInfInc, iki, iprevk);
+                    u8cs ick = {(u8cp)ikb, (u8cp)iki[0]};
+                    iprevk[0] = (u8cp)ikb;
+                    iprevk[1] = (u8cp)iki[0];
+                    u8cs gap = {inline_src[0] + ipos, inline_src[0] + ics};
+                    call(BASONFeed, idx, buf, 'S', ick, gap);
+                }
+                {
+                    u8s iki = {ikb, ikb + sizeof(ikb)};
+                    call(BASONFeedInfInc, iki, iprevk);
+                    u8cs ick = {(u8cp)ikb, (u8cp)iki[0]};
+                    iprevk[0] = (u8cp)ikb;
+                    iprevk[1] = (u8cp)iki[0];
+                    call(BASTFeedMDInline, buf, idx, inline_src, ichild,
+                         ick, 'S');
+                }
+                ipos = ts_node_end_byte(ichild);
+            }
+            uint32_t iend = ts_node_end_byte(iroot);
+            if (iend > ipos) {
+                u8s iki = {ikb, ikb + sizeof(ikb)};
+                call(BASONFeedInfInc, iki, iprevk);
+                u8cs ick = {(u8cp)ikb, (u8cp)iki[0]};
+                u8cs gap = {inline_src[0] + ipos, inline_src[0] + iend};
+                call(BASONFeed, idx, buf, 'S', ick, gap);
+            }
+            call(BASONFeedOuto, idx, buf);
+        } else {
+            // Empty inline — emit as leaf
+            u8cs val = {range_start, range_start + range_len};
+            call(BASONFeed, idx, buf, 'S', key, val);
+        }
+        ts_tree_delete(itree);
+        ts_parser_delete(ip);
+        done;
+    }
+
+    if (cc == 0) {
+        // Terminal leaf
+        u8 lt;
+        if (ts_node_is_named(node)) {
+            lt = BASTLeafTag(ts_node_type(node));
+        } else {
+            lt = BASTAnonTag(ts_node_type(node));
+        }
+        u8cs val = {src[0] + s, src[0] + e};
+        call(BASONFeed, idx, buf, lt, key, val);
+        done;
+    }
+
+    call(BASONFeedInto, idx, buf, tag, key);
+    uint32_t pos = s;
+    u8 kb[11];
+    u8cs prevk = {NULL, NULL};
+
+    for (uint32_t i = 0; i < cc; i++) {
+        TSNode child = ts_node_child(node, i);
+        uint32_t cs = ts_node_start_byte(child);
+
+        if (cs > pos) {
+            u8s ki = {kb, kb + sizeof(kb)};
+            call(BASONFeedInfInc, ki, prevk);
+            u8cs ck = {(u8cp)kb, (u8cp)ki[0]};
+            prevk[0] = (u8cp)kb;
+            prevk[1] = (u8cp)ki[0];
+            u8cs gap = {src[0] + pos, src[0] + cs};
+            call(BASONFeed, idx, buf, 'S', ck, gap);
+        }
+
+        {
+            u8s ki = {kb, kb + sizeof(kb)};
+            call(BASONFeedInfInc, ki, prevk);
+            u8cs ck = {(u8cp)kb, (u8cp)ki[0]};
+            prevk[0] = (u8cp)kb;
+            prevk[1] = (u8cp)ki[0];
+
+            uint32_t child_cc = ts_node_child_count(child);
+            u8 ctag;
+            if (child_cc > 0) {
+                ctag = BASTNodeTag(ts_node_type(child));
+                if (ctag == 0) ctag = 'A';
+            } else {
+                if (ts_node_is_named(child)) {
+                    ctag = BASTLeafTag(ts_node_type(child));
+                } else {
+                    ctag = BASTAnonTag(ts_node_type(child));
+                }
+            }
+            call(BASTFeedMDNode, buf, idx, src, child, ck, ctag,
+                 inline_lang);
+        }
+
+        pos = ts_node_end_byte(child);
+    }
+
+    if (e > pos) {
+        u8s ki = {kb, kb + sizeof(kb)};
+        call(BASONFeedInfInc, ki, prevk);
+        u8cs ck = {(u8cp)kb, (u8cp)ki[0]};
+        u8cs gap = {src[0] + pos, src[0] + e};
+        call(BASONFeed, idx, buf, 'S', ck, gap);
+    }
+
+    call(BASONFeedOuto, idx, buf);
+    done;
+}
+
+static ok64 BASTParseMarkdown(u8bp buf, u64bp idx, u8csc source) {
+    sane(buf != NULL);
+    TSParser *parser = ts_parser_new();
+    test(parser != NULL, FAILsanity);
+
+    const TSLanguage *block_lang = tree_sitter_markdown();
+    if (!ts_parser_set_language(parser, block_lang)) {
+        ts_parser_delete(parser);
+        fail(FAILsanity);
+    }
+
+    TSTree *tree = ts_parser_parse_string(parser, NULL,
+                                          (const char *)source[0],
+                                          (uint32_t)$len(source));
+    if (tree == NULL) {
+        ts_parser_delete(parser);
+        fail(FAILsanity);
+    }
+
+    TSNode root = ts_tree_root_node(tree);
+    u8cs key = {(u8cp)"", (u8cp)""};
+    const TSLanguage *inline_lang = tree_sitter_markdown_inline();
+    __ = BASTFeedMDNode(buf, idx, source, root, key, 'A', inline_lang);
+
+    ts_tree_delete(tree);
+    ts_parser_delete(parser);
+    done;
+}
+
 ok64 BASTParse(u8bp buf, u64bp idx, u8csc source, u8csc ext) {
     sane(buf != NULL);
 
@@ -432,6 +758,10 @@ ok64 BASTParse(u8bp buf, u64bp idx, u8csc source, u8csc ext) {
     // StrictMark: custom parser, no tree-sitter
     if ($len(ext) == 4 && memcmp(ext[0], ".mkd", 4) == 0)
         return SMParse(buf, idx, source);
+
+    // Markdown: two-pass parser (block + inline)
+    if ($len(ext) == 3 && memcmp(ext[0], ".md", 3) == 0)
+        return BASTParseMarkdown(buf, idx, source);
 
     const TSLanguage *lang = BASTLanguage(ext);
 

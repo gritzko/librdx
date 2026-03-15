@@ -191,11 +191,147 @@ ok64 BASTtestNameTag() {
     done;
 }
 
+// --- Markdown tests ---
+
+// Roundtrip: concatenating all leaves reproduces original .md text
+ok64 BASTtestMDRoundtrip() {
+    sane(1);
+
+    static const char *cases[] = {
+        "# Hello\n",
+        "plain text\n",
+        "# Heading\n\nA paragraph.\n",
+        "**bold** and *italic*\n",
+        "Some `inline code` here\n",
+        "- item 1\n- item 2\n",
+        "> a quote\n",
+        "```\ncode block\n```\n",
+        "[link text](http://example.com)\n",
+        "~~struck~~\n",
+        "",
+    };
+    size_t ncases = sizeof(cases) / sizeof(cases[0]);
+
+    for (size_t t = 0; t < ncases; t++) {
+        BAST_SETUP(65536, 64, 1024);
+        u8csc src = {(u8cp)cases[t], (u8cp)cases[t] + strlen(cases[t])};
+        u8cs ext = $u8str(".md");
+
+        call(BASTParse, pad, idx, src, ext);
+
+        u8cs dat = {pad[1], pad[2]};
+        call(BASONOpen, stk, dat);
+
+        a_pad(u8, cat, 65536);
+        int depth = 0;
+        for (;;) {
+            u8 type = 0;
+            u8cs key = {};
+            u8cs val = {};
+            ok64 o = BASONDrain(stk, dat, &type, key, val);
+            if (o != OK) {
+                if (depth <= 0) break;
+                BASONOuto(stk);
+                depth--;
+                continue;
+            }
+            if (!BASONPlex(type)) {
+                call(u8bFeed, cat, val);
+            } else {
+                BASONInto(stk, dat, val);
+                depth++;
+            }
+        }
+
+        u8cs result = {cat[1], cat[2]};
+        testeq((size_t)$len(result), (size_t)$len(src));
+        if ($len(src) > 0)
+            testeq(0, memcmp(result[0], src[0], $len(src)));
+    }
+    done;
+}
+
+// Structure: verify heading→E, emphasis→W, bold→V, code span→G, link text→T
+ok64 BASTtestMDStructure() {
+    sane(1);
+    BAST_SETUP(65536, 64, 1024);
+
+    static const char input[] =
+        "# Title\n\n**bold** *italic* `code` [link](url) ~~struck~~\n";
+    u8csc src = {(u8cp)input, (u8cp)input + strlen(input)};
+    u8cs ext = $u8str(".md");
+    call(BASTParse, pad, idx, src, ext);
+
+    u8cs dat = {pad[1], pad[2]};
+    call(BASONOpen, stk, dat);
+
+    b8 found_E = NO;   // heading
+    b8 found_W = NO;   // italic text
+    b8 found_V = NO;   // bold text
+    b8 found_G = NO;   // code span text
+    b8 found_T = NO;   // link text
+    b8 found_J = NO;   // strikethrough text
+    b8 found_P = NO;   // punctuation/delimiter
+    int depth = 0;
+
+    for (;;) {
+        u8 type = 0;
+        u8cs key = {};
+        u8cs val = {};
+        ok64 o = BASONDrain(stk, dat, &type, key, val);
+        if (o != OK) {
+            if (depth <= 0) break;
+            BASONOuto(stk);
+            depth--;
+            continue;
+        }
+        if (type == 'E') found_E = YES;
+        if (type == 'W') {
+            if ($len(val) == 6 && memcmp(val[0], "italic", 6) == 0)
+                found_W = YES;
+        }
+        if (type == 'V') {
+            if ($len(val) == 4 && memcmp(val[0], "bold", 4) == 0)
+                found_V = YES;
+        }
+        if (type == 'G') {
+            if ($len(val) == 4 && memcmp(val[0], "code", 4) == 0)
+                found_G = YES;
+        }
+        if (type == 'T') {
+            if ($len(val) == 4 && memcmp(val[0], "link", 4) == 0)
+                found_T = YES;
+        }
+        if (type == 'J') {
+            if ($len(val) == 6 && memcmp(val[0], "struck", 6) == 0)
+                found_J = YES;
+        }
+        if (type == 'P') found_P = YES;
+
+        if (BASONPlex(type)) {
+            BASONInto(stk, dat, val);
+            depth++;
+        }
+    }
+
+    test(found_E == YES, FAILsanity);  // heading
+    test(found_W == YES, FAILsanity);  // italic
+    test(found_V == YES, FAILsanity);  // bold
+    test(found_G == YES, FAILsanity);  // code
+    test(found_T == YES, FAILsanity);  // link
+    test(found_J == YES, FAILsanity);  // strikethrough
+    test(found_P == YES, FAILsanity);  // delimiters
+
+    done;
+}
+
 ok64 BASTtest() {
     sane(1);
     call(BASTtestTextRoundtrip);
     call(BASTtestTextTokens);
     call(BASTtestNameTag);
+    call(BASTtestMDRoundtrip);
+    call(BASTtestMDStructure);
     done;
 }
 
