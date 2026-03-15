@@ -163,6 +163,9 @@ ok64 BEDiffFiles(BEp be, int pathc, u8cs *paths);
 // Flatten BASON tree back to source text
 ok64 BASTExport(u8s out, u64bp stack, u8csc data);
 
+// Flatten BASON tree with ANSI syntax highlighting
+ok64 BASTCat(u8s out, u64bp stack, u8csc data);
+
 // File record callback: called for base and each matching waypoint
 typedef ok64 (*BEFileCBf)(voidp arg, u8cs key, u8cs val);
 

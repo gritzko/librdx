@@ -8,6 +8,7 @@ typedef enum {
     WEAK = 2,
     HIGHLIGHT = 3,
     UNDERLINE = 4,
+    STRIKETHROUGH = 9,
     BLACK = 30,
     DARK_RED = 31,
     DARK_GREEN = 32,

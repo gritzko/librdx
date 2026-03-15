@@ -1,4 +1,5 @@
 #include "SM.h"
+#include "SMI.h"
 
 #include <string.h>
 
@@ -88,39 +89,6 @@ static ok64 SMFeedOuto(SMstate* st) {
     call(BASONFeedOuto, st->idx, st->buf);
     // Pop key level
     if (st->klevel > 0) st->klevel--;
-    done;
-}
-
-// Tokenize a text span into words.
-// Heading content uses 'B' tags, other text uses 'S'.
-fun b8 SMIsWord(u8 c) {
-    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_';
-}
-
-fun b8 SMIsDigit(u8 c) { return c >= '0' && c <= '9'; }
-
-fun b8 SMIsBlank(u8 c) { return c == ' ' || c == '\t'; }
-
-static ok64 SMTokenize(SMstate* st, u8csc text, b8 heading) {
-    sane(st != NULL);
-    u8cp p = text[0];
-    u8cp end = text[1];
-
-    while (p < end) {
-        u8cp start = p;
-
-        // consume leading blanks
-        while (p < end && SMIsBlank(*p)) p++;
-
-        if (p < end && (SMIsWord(*p) || SMIsDigit(*p))) {
-            while (p < end && (SMIsWord(*p) || SMIsDigit(*p))) p++;
-        } else if (p == start) {
-            p++;
-        }
-
-        u8cs val = {start, p};
-        call(SMFeedLeaf, st, heading ? SM_NAME : SM_TEXT, val);
-    }
     done;
 }
 
@@ -214,6 +182,171 @@ ok64 SMonDiv(u8cs tok, SMstate* state) {
     return OK;
 }
 
+// --- Inline markup (SMI) callbacks ---
+
+static u8 SMILeafType(SMIstate *st) {
+    if (st->mode & SMI_CODE)   return 'G';
+    if (st->link_phase == 1)   return 'T';  // display text: link color
+    if (st->link_phase == 3)   return 'P';  // ref tag: gray
+    if (st->mode & SMI_BOLD)   return 'V';
+    if (st->mode & SMI_STRIKE) return 'J';
+    if (st->mode & SMI_ITALIC) return 'W';
+    return st->base;
+}
+
+// Open: space/SOL before, non-space after
+static b8 smi_can_open(u8cs tok, SMIstate *st) {
+    b8 sp_b = (tok[0] == st->data_start) ||
+              tok[0][-1] == ' ' || tok[0][-1] == '\t';
+    b8 sp_a = (tok[1] >= st->data_end) ||
+              tok[1][0] == ' ' || tok[1][0] == '\t';
+    return sp_b && !sp_a;
+}
+
+// Close: non-space before, space/EOL after
+static b8 smi_can_close(u8cs tok, SMIstate *st) {
+    b8 sp_b = (tok[0] == st->data_start) ||
+              tok[0][-1] == ' ' || tok[0][-1] == '\t';
+    b8 sp_a = (tok[1] >= st->data_end) ||
+              tok[1][0] == ' ' || tok[1][0] == '\t';
+    return !sp_b && sp_a;
+}
+
+// Stars callback: handle *, **, ***, etc.
+// Length 1 = italic toggle, length 2 = bold toggle, other = literal
+ok64 SMIonStars(u8cs tok, SMIstate* st) {
+    sane(st != NULL);
+    size_t len = tok[1] - tok[0];
+    if (!(st->mode & SMI_CODE)) {
+        if (len == 2) {
+            // Bold toggle
+            if (!(st->mode & SMI_BOLD) && smi_can_open(tok, st)) {
+                st->mode |= SMI_BOLD;
+                call(SMFeedLeaf, st->sm, 'P', tok);
+                done;
+            }
+            if ((st->mode & SMI_BOLD) && smi_can_close(tok, st)) {
+                st->mode &= ~SMI_BOLD;
+                call(SMFeedLeaf, st->sm, 'P', tok);
+                done;
+            }
+        } else if (len == 1) {
+            // Italic toggle
+            if (!(st->mode & SMI_ITALIC) && smi_can_open(tok, st)) {
+                st->mode |= SMI_ITALIC;
+                call(SMFeedLeaf, st->sm, 'P', tok);
+                done;
+            }
+            if ((st->mode & SMI_ITALIC) && smi_can_close(tok, st)) {
+                st->mode &= ~SMI_ITALIC;
+                call(SMFeedLeaf, st->sm, 'P', tok);
+                done;
+            }
+        }
+    }
+    // Literal: emit as current leaf type
+    call(SMFeedLeaf, st->sm, SMILeafType(st), tok);
+    done;
+}
+
+// Tildes callback: handle ~, ~~, etc.
+// Length 2 = strikethrough toggle, other = literal
+ok64 SMIonTildes(u8cs tok, SMIstate* st) {
+    sane(st != NULL);
+    size_t len = tok[1] - tok[0];
+    if (!(st->mode & SMI_CODE)) {
+        if (len == 2) {
+            if (!(st->mode & SMI_STRIKE) && smi_can_open(tok, st)) {
+                st->mode |= SMI_STRIKE;
+                call(SMFeedLeaf, st->sm, 'P', tok);
+                done;
+            }
+            if ((st->mode & SMI_STRIKE) && smi_can_close(tok, st)) {
+                st->mode &= ~SMI_STRIKE;
+                call(SMFeedLeaf, st->sm, 'P', tok);
+                done;
+            }
+        }
+    }
+    call(SMFeedLeaf, st->sm, SMILeafType(st), tok);
+    done;
+}
+
+ok64 SMIonCode(u8cs tok, SMIstate* st) {
+    sane(st != NULL);
+    // Code toggles unconditionally (no boundary rules)
+    if (st->mode & SMI_CODE) {
+        st->mode &= ~SMI_CODE;
+    } else {
+        st->mode |= SMI_CODE;
+    }
+    call(SMFeedLeaf, st->sm, 'P', tok);
+    done;
+}
+
+ok64 SMIonWord(u8cs tok, SMIstate* st) {
+    sane(st != NULL);
+    call(SMFeedLeaf, st->sm, SMILeafType(st), tok);
+    done;
+}
+
+ok64 SMIonSpace(u8cs tok, SMIstate* st) {
+    sane(st != NULL);
+    call(SMFeedLeaf, st->sm, SMILeafType(st), tok);
+    done;
+}
+
+ok64 SMIonOpen(u8cs tok, SMIstate* st) {
+    sane(st != NULL);
+    if (st->mode & SMI_CODE) {
+        call(SMFeedLeaf, st->sm, 'G', tok);
+        done;
+    }
+    if (st->link_phase == 0) {
+        // Start display text: [
+        st->link_phase = 1;
+        call(SMFeedLeaf, st->sm, 'P', tok);
+        done;
+    }
+    if (st->link_phase == 2) {
+        // Start ref tag: ][
+        st->link_phase = 3;
+        call(SMFeedLeaf, st->sm, 'P', tok);
+        done;
+    }
+    // Unexpected [ — emit literal, reset
+    st->link_phase = 0;
+    call(SMFeedLeaf, st->sm, SMILeafType(st), tok);
+    done;
+}
+
+ok64 SMIonClose(u8cs tok, SMIstate* st) {
+    sane(st != NULL);
+    if (st->mode & SMI_CODE) {
+        call(SMFeedLeaf, st->sm, 'G', tok);
+        done;
+    }
+    if (st->link_phase == 1) {
+        // End display text: ]
+        st->link_phase = 2;
+        call(SMFeedLeaf, st->sm, 'P', tok);
+        done;
+    }
+    if (st->link_phase == 3) {
+        // End ref tag: ]
+        st->link_phase = 0;
+        call(SMFeedLeaf, st->sm, 'P', tok);
+        done;
+    }
+    // Unexpected ] — emit literal
+    call(SMFeedLeaf, st->sm, SMILeafType(st), tok);
+    done;
+}
+
+ok64 SMIonRoot(u8cs tok, SMIstate* st) {
+    return OK;
+}
+
 ok64 SMonLine(u8cs tok, SMstate* st) {
     sane(st != NULL);
 
@@ -258,14 +391,14 @@ ok64 SMonLine(u8cs tok, SMstate* st) {
             // Code-closing fence
             st->incode = NO;
             u8cs val = {linestart, lineend};
-            call(SMFeedLeaf, st, SM_TEXT, val);
+            call(SMFeedLeaf, st, 'P', val);
             call(SMCloseContainers, st, 0);
             st->prevdepth = 0;
             memset(st->prevdiv, 0, sizeof(st->prevdiv));
         } else {
             // Raw line inside code block
             u8cs val = {linestart, lineend};
-            call(SMFeedLeaf, st, SM_TEXT, val);
+            call(SMFeedLeaf, st, 'G', val);
         }
         st->depth = 0;
         done;
@@ -275,10 +408,11 @@ ok64 SMonLine(u8cs tok, SMstate* st) {
     if (st->depth > 0 && st->divstack[st->depth - 1] == 'C') {
         call(SMCloseContainers, st, keep);
         call(SMOpenContainers, st, keep);
-        // Emit the opening fence line as text
+        // Emit the opening fence line as punctuation
         u8cs val = {linestart, lineend};
-        call(SMFeedLeaf, st, SM_TEXT, val);
+        call(SMFeedLeaf, st, 'P', val);
         st->incode = YES;
+        st->inline_mode = 0;
         memcpy(st->prevdiv, st->divstack, sizeof(st->prevdiv));
         st->prevdepth = st->depth;
         st->depth = 0;
@@ -292,6 +426,7 @@ ok64 SMonLine(u8cs tok, SMstate* st) {
             st->prevdepth = 0;
             memset(st->prevdiv, 0, sizeof(st->prevdiv));
         }
+        st->inline_mode = 0;
         u8cs val = {linestart, lineend};
         call(SMFeedLeaf, st, SM_TEXT, val);
         st->depth = 0;
@@ -302,16 +437,20 @@ ok64 SMonLine(u8cs tok, SMstate* st) {
     call(SMCloseContainers, st, keep);
     call(SMOpenContainers, st, keep);
 
-    // Emit div markup as first 'S' token (if any)
+    // Emit div markup as 'P' (punctuation) token
     if (divchars > 0 && linestart + divchars <= lineend) {
         u8cs divval = {linestart, linestart + divchars};
-        call(SMFeedLeaf, st, SM_TEXT, divval);
+        call(SMFeedLeaf, st, 'P', divval);
     }
 
-    // Determine if heading content
-    b8 heading = NO;
+    // Determine leaf type from context
+    u8 leaf = SM_TEXT;
     if (st->depth > 0 && st->divstack[st->depth - 1] == 'H') {
-        heading = YES;
+        leaf = SM_NAME;
+    } else {
+        for (int i = 0; i < st->depth; i++) {
+            if (st->divstack[i] == 'Q') { leaf = 'W'; break; }
+        }
     }
 
     // Tokenize content (after div markup, before newline)
@@ -319,8 +458,16 @@ ok64 SMonLine(u8cs tok, SMstate* st) {
     if (nlpos > linestart && *(nlpos - 1) == '\n') nlpos--;
 
     if (content < nlpos) {
-        u8cs body = {content, nlpos};
-        call(SMTokenize, st, body, heading);
+        SMIstate smi = {};
+        smi.data[0] = content;
+        smi.data[1] = nlpos;
+        smi.data_start = content;
+        smi.data_end = nlpos;
+        smi.sm = st;
+        smi.mode = st->inline_mode;
+        smi.base = leaf;
+        call(SMILexer, &smi);
+        st->inline_mode = smi.mode;
     }
 
     // Emit trailing newline as separate token

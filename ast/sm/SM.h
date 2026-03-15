@@ -24,6 +24,7 @@ typedef struct {
     SMkeyframe kframes[SM_MAXDEPTH];
     int klevel;
     b8 incode;
+    u8 inline_mode;
 } SMstate;
 
 ok64 SMLexer(SMstate* state);

@@ -36,6 +36,7 @@ list(APPEND BAST_SOURCES
     BAST.c
     sm/SM.c
     sm/SM.rl.c
+    sm/SMI.rl.c
     ../json/BASON.c
     ${PARSER_SOURCES}
 )

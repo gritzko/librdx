@@ -30,6 +30,13 @@ ok64 SMtestRoundtrip() {
         "    indented line\n",
         "-   list item\n    continued\n",
         "#   Title\n\n##  Sub\n\nBody text.\n\n-   a\n-   b\n",
+        "Hello *world* end\n",
+        "2*2=4\n",
+        "use `code` here\n",
+        "**bold** text\n",
+        "~~gone~~ text\n",
+        "*a* and **b** and `c` end\n",
+        "See [display text][R] here\n",
     };
     size_t ncases = sizeof(cases) / sizeof(cases[0]);
 
@@ -102,14 +109,14 @@ ok64 SMtestHeading() {
     testeq(type, (u8)'E');
     call(BASONInto, stk, dat, val);
 
-    // Inside heading: first token is div markup 'S', then 'F' name tokens
-    b8 found_s = NO;
+    // Inside heading: 'P' div markup, 'F' name tokens, 'S' whitespace
+    b8 found_p = NO;
     b8 found_f = NO;
     while (BASONDrain(stk, dat, &type, key, val) == OK) {
-        if (type == 'S') found_s = YES;
+        if (type == 'P') found_p = YES;
         if (type == 'F') found_f = YES;
     }
-    test(found_s == YES, SMFAIL);
+    test(found_p == YES, SMFAIL);
     test(found_f == YES, SMFAIL);
 
     done;
@@ -223,6 +230,77 @@ ok64 SMtestEmpty() {
     done;
 }
 
+// Helper: check if type tag appears in leaf types of parsed markup
+static ok64 SMCheckType(const char *input, u8 want, b8 *found) {
+    sane(input != NULL);
+    SM_SETUP(65536, 64, 256);
+    u8csc src = {(u8cp)input, (u8cp)input + strlen(input)};
+    call(SMParse, pad, idx, src);
+    u8cs dat = {pad[1], pad[2]};
+    call(BASONOpen, stk, dat);
+    *found = NO;
+    int depth = 0;
+    for (;;) {
+        u8 type = 0;
+        u8cs key = {};
+        u8cs val = {};
+        ok64 o = BASONDrain(stk, dat, &type, key, val);
+        if (o != OK) {
+            if (depth <= 0) break;
+            BASONOuto(stk);
+            depth--;
+            continue;
+        }
+        if (!BASONPlex(type)) {
+            if (type == want) *found = YES;
+        } else {
+            BASONInto(stk, dat, val);
+            depth++;
+        }
+    }
+    done;
+}
+
+// Inline markup: verify type tags for styled text
+ok64 SMtestInline() {
+    sane(1);
+    b8 found = NO;
+
+    // *word* → W for italic content, P for delimiters
+    call(SMCheckType, "Hello *world* end\n", 'W', &found);
+    test(found == YES, SMFAIL);
+    call(SMCheckType, "Hello *world* end\n", 'P', &found);
+    test(found == YES, SMFAIL);
+
+    // 2*2=4 → no italic (boundary rule fails)
+    call(SMCheckType, "2*2=4\n", 'W', &found);
+    test(found == NO, SMFAIL);
+
+    // `code` → G for code content, P for delimiters
+    call(SMCheckType, "use `code` here\n", 'G', &found);
+    test(found == YES, SMFAIL);
+    call(SMCheckType, "use `code` here\n", 'P', &found);
+    test(found == YES, SMFAIL);
+
+    // **bold** → V for bold content, P for delimiters
+    call(SMCheckType, "**bold** text\n", 'V', &found);
+    test(found == YES, SMFAIL);
+    call(SMCheckType, "**bold** text\n", 'P', &found);
+    test(found == YES, SMFAIL);
+
+    // ~~strike~~ → J for struck content, P for delimiters
+    call(SMCheckType, "~~gone~~ text\n", 'J', &found);
+    test(found == YES, SMFAIL);
+    call(SMCheckType, "~~gone~~ text\n", 'P', &found);
+    test(found == YES, SMFAIL);
+
+    // [display][R] → T for display text, P for brackets/ref
+    call(SMCheckType, "See [display text][R] here\n", 'T', &found);
+    test(found == YES, SMFAIL);
+
+    done;
+}
+
 ok64 SMtest() {
     sane(1);
     call(SMtestRoundtrip);
@@ -231,6 +309,7 @@ ok64 SMtest() {
     call(SMtestQuote);
     call(SMtestCode);
     call(SMtestEmpty);
+    call(SMtestInline);
     done;
 }
 

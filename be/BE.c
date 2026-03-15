@@ -156,6 +156,52 @@ ok64 BASTExport(u8s out, u64bp stack, u8csc data) {
     done;
 }
 
+// ---- BASTCat: syntax-highlighted export ----
+
+static b8 BASTCatStyle(u8s out, u8 type) {
+    switch (type) {
+        case 'F': escfeed(out, BOLD); escfeed(out, DARK_YELLOW); return YES;
+        case 'W': escfeed(out, HIGHLIGHT); return YES;
+        case 'R': escfeed(out, DARK_RED); return YES;
+        case 'D': escfeed(out, GRAY); return YES;
+        case 'G': escfeed(out, DARK_GREEN); return YES;
+        case 'L': escfeed(out, DARK_CYAN); return YES;
+        case 'T': escfeed(out, LIGHT_BLUE); return YES;
+        case 'H': escfeed(out, DARK_PINK); return YES;
+        case 'P': escfeed(out, GRAY); return YES;
+        case 'V': escfeed(out, BOLD); return YES;
+        case 'J': escfeed(out, STRIKETHROUGH); return YES;
+        default:  return NO;
+    }
+}
+
+static ok64 BASTCatRec(u8s out, u64bp stack, u8csc data) {
+    sane(1);
+    u8 type = 0;
+    u8cs key = {};
+    u8cs val = {};
+    while (BASONDrain(stack, data, &type, key, val) == OK) {
+        if (!BASONPlex(type)) {
+            b8 styled = BASTCatStyle(out, type);
+            call(u8sFeed, out, val);
+            if (styled) escfeed(out, 0);
+        } else {
+            call(BASONInto, stack, data, val);
+            call(BASTCatRec, out, stack, data);
+            call(BASONOuto, stack);
+        }
+    }
+    done;
+}
+
+ok64 BASTCat(u8s out, u64bp stack, u8csc data) {
+    sane($ok(out) && stack != NULL && $ok(data));
+    if ($empty(data)) done;
+    call(BASONOpen, stack, data);
+    call(BASTCatRec, out, stack, data);
+    done;
+}
+
 // ---- Internal helpers ----
 
 // Forward declaration

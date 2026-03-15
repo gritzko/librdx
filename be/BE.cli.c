@@ -382,6 +382,64 @@ static ok64 BECLIDiff(uricp u) {
     done;
 }
 
+// ---- verb: cat (syntax-highlighted file view) ----
+static ok64 BECLICat(uricp u) {
+    sane(1);
+    test(!$empty(u->path), BEBAD);
+    BE be = {};
+    call(BEOpenCwd, &be);
+
+    u8cs relpath = {};
+    $mv(relpath, u->path);
+
+    u8bp result = be.scratch[BE_READ];
+    u8bReset(result);
+    BEmeta meta = {};
+    call(BEGetFileMerged, &be, be.loc.path, relpath, result, &meta);
+
+    u8cs bason = {result[1], result[2]};
+
+    u8bp out = be.scratch[BE_RENDER];
+    u8bReset(out);
+    aBpad(u64, stk, 256);
+
+    b8 use_color = isatty(STDOUT_FILENO) || getenv("BE_COLOR") != NULL;
+
+    if (use_color) {
+        call(BASTCat, u8bIdle(out), stk, bason);
+    } else {
+        call(BASTExport, u8bIdle(out), stk, bason);
+    }
+
+    u8cs source = {out[1], out[2]};
+
+    FILE *pager = NULL;
+    int saved_stdout = -1;
+    if (use_color) {
+        char const *cmd = getenv("PAGER");
+        if (cmd == NULL) cmd = "less -R";
+        pager = popen(cmd, "w");
+        if (pager != NULL) {
+            saved_stdout = dup(STDOUT_FILENO);
+            dup2(fileno(pager), STDOUT_FILENO);
+        }
+    }
+
+    if (!$empty(source)) {
+        fwrite(source[0], 1, $len(source), stdout);
+    }
+
+    if (pager != NULL) {
+        fflush(stdout);
+        dup2(saved_stdout, STDOUT_FILENO);
+        close(saved_stdout);
+        pclose(pager);
+    }
+
+    call(BEClose, &be);
+    done;
+}
+
 // ---- verb: fit (merge branch into main) ----
 static ok64 BECLIFit(uricp u) {
     sane(1);
@@ -441,6 +499,7 @@ ok64 becli() {
     a_cstr(v_deps, "deps");
     a_cstr(v_grep, "grep");
     a_cstr(v_diff, "diff");
+    a_cstr(v_cat, "cat");
 
     if ($eq(verb, v_post)) {
         call(BECLIPost, &u);
@@ -464,6 +523,8 @@ ok64 becli() {
         call(BECLIGrep, &u);
     } else if ($eq(verb, v_diff)) {
         call(BECLIDiff, &u);
+    } else if ($eq(verb, v_cat)) {
+        call(BECLICat, &u);
     } else {
         a_cstr(err, "unknown verb: ");
         call(FILEerr, err);
