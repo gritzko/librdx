@@ -34,7 +34,7 @@ ok64 BEMetaFeedBason(u8bp buf, u64bp idx, BEmeta m) {
     mbytes[2] = (m.mtime >> 16) & 0xff;
     mbytes[3] = (m.mtime >> 24) & 0xff;
     u8cs mv = {mbytes, mbytes + 4};
-    call(BASONFeed, idx, buf, 'I', mk, mv);
+    call(BASONFeed, idx, buf, 'N', mk, mv);
     // modeftype
     u8cs fk = {(u8cp)"f", (u8cp)"f" + 1};
     u8 fbytes[4];
@@ -43,7 +43,7 @@ ok64 BEMetaFeedBason(u8bp buf, u64bp idx, BEmeta m) {
     fbytes[2] = (m.modeftype >> 16) & 0xff;
     fbytes[3] = (m.modeftype >> 24) & 0xff;
     u8cs fv = {fbytes, fbytes + 4};
-    call(BASONFeed, idx, buf, 'I', fk, fv);
+    call(BASONFeed, idx, buf, 'N', fk, fv);
     call(BASONFeedOuto, idx, buf);
     done;
 }
@@ -65,7 +65,7 @@ ok64 BEMetaDrainBason(BEmeta *m, u8cs bason) {
     call(BASONInto, stk, bason, val);
     // Drain children
     while (BASONDrain(stk, bason, &type, key, val) == OK) {
-        if (type == 'I' && $len(val) == 4) {
+        if (type == 'N' && $len(val) == 4) {
             u32 v = val[0][0] | ((u32)val[0][1] << 8) |
                     ((u32)val[0][2] << 16) | ((u32)val[0][3] << 24);
             if ($len(key) == 1 && key[0][0] == 'm') {
@@ -137,9 +137,9 @@ static ok64 BASTExportRec(u8s out, u64bp stack, u8csc data) {
     u8cs key = {};
     u8cs val = {};
     while (BASONDrain(stack, data, &type, key, val) == OK) {
-        if (type == 'S' || type == BAST_TAG_NAME) {
+        if (!BASONPlex(type)) {
             call(u8sFeed, out, val);
-        } else if (BASONPlex(type)) {
+        } else {
             call(BASONInto, stack, data, val);
             call(BASTExportRec, out, stack, data);
             call(BASONOuto, stack);

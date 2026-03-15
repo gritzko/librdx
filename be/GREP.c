@@ -36,7 +36,7 @@ ok64 BETriExtract(u8csc bason, BETriCBf cb, voidp arg) {
             depth--;
             continue;
         }
-        if ((type == 'S' || type == BAST_TAG_NAME) && $len(val) >= 3) {
+        if (!BASONPlex(type) && $len(val) >= 3) {
             u8cp p = val[0];
             u8cp end = val[1] - 2;
             while (p <= end) {
@@ -54,7 +54,7 @@ ok64 BETriExtract(u8csc bason, BETriCBf cb, voidp arg) {
     done;
 }
 
-// Extract symbol names from BASON 'B'-tagged leaves
+// Extract symbol names from BASON 'F'-tagged leaves (definition names)
 ok64 BESymExtract(u8csc bason, BESymCBf cb, voidp arg) {
     sane($ok(bason) && cb != NULL);
     if ($empty(bason)) done;
@@ -151,7 +151,7 @@ ok64 BASTGrepNodes(u8s out, u8cs bason_data, int k,
             depth--;
             continue;
         }
-        if (type == 'S' || type == BAST_TAG_NAME) {
+        if (!BASONPlex(type)) {
             u32 len = (u32)$len(val);
             u32 node_start = offset;
             // Build line table from leaf content
@@ -172,7 +172,7 @@ ok64 BASTGrepNodes(u8s out, u8cs bason_data, int k,
             if (cb(&node, ctx)) {
                 BASTMarkLines(_match, nlines, _line_off, node_start, offset);
             }
-        } else if (BASONPlex(type)) {
+        } else {
             bason node = {
                 .type = type, .ptype = 0,
                 .data = NULL, .stack = NULL,
@@ -226,7 +226,7 @@ ok64 BASTGrepNodes(u8s out, u8cs bason_data, int k,
             depth2--;
             continue;
         }
-        if (type == 'S' || type == BAST_TAG_NAME) {
+        if (!BASONPlex(type)) {
             u8cp p = val[0];
             while (p < val[1]) {
                 u8cp nl = memchr(p, '\n', (size_t)(val[1] - p));
@@ -248,7 +248,7 @@ ok64 BASTGrepNodes(u8s out, u8cs bason_data, int k,
                 }
                 p = chunk_end;
             }
-        } else if (BASONPlex(type)) {
+        } else {
             call(BASONInto, stk2, bason_data, val);
             depth2++;
         }
@@ -400,7 +400,7 @@ ok64 BASTDiffRender(u8s out, u8cs bason_data, int k) {
             depth--;
             continue;
         }
-        if (type == 'S' || type == BAST_TAG_NAME) {
+        if (!BASONPlex(type)) {
             u32 len = (u32)$len(val);
             u32 node_start = offset;
             for (u32 i = 0; i < len && nlines < 65536; i++) {
@@ -414,7 +414,7 @@ ok64 BASTDiffRender(u8s out, u8cs bason_data, int k) {
             if (!$empty(key) && (key[0][0] == '-' || key[0][0] == '+')) {
                 BASTMarkLines(_match, nlines, _line_off, node_start, offset);
             }
-        } else if (BASONPlex(type)) {
+        } else {
             call(BASONInto, stk, bason_data, val);
             depth++;
         }
@@ -457,7 +457,7 @@ ok64 BASTDiffRender(u8s out, u8cs bason_data, int k) {
             depth2--;
             continue;
         }
-        if (type == 'S' || type == BAST_TAG_NAME) {
+        if (!BASONPlex(type)) {
             u8 status = (!$empty(key)) ? key[0][0] : '=';
             u8cp p = val[0];
             while (p < val[1]) {
@@ -490,7 +490,7 @@ ok64 BASTDiffRender(u8s out, u8cs bason_data, int k) {
                 }
                 p = chunk_end;
             }
-        } else if (BASONPlex(type)) {
+        } else {
             call(BASONInto, stk2, bason_data, val);
             depth2++;
         }

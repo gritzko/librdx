@@ -191,19 +191,25 @@ static ok64 BASTParseText(u8bp buf, u64bp idx, u8csc source) {
 
 // --- AST node type tagging ---
 //
+// Vowels = containers, consonants = leaves.
 // The TLKV type letter carries the AST node kind:
-//   'F' = function/method definition
-//   'T' = class/struct/type declaration
-//   'D' = block/compound statement
-//   'A' = default (untagged named node)
-// Any letter outside BASON (B,A,S,O,N) is treated as array.
+//   'E' = function/method definition (Entry)
+//   'I' = class/struct/type declaration (Implementation)
+//   'A' = default container
 //
-// Tree-sitter node type strings are language-dependent.  No cross-language
-// conflicts exist, so one flat table covers all supported languages.
+// Leaf consonant tags (from BASTLeafTag / BASTAnonTag):
+//   'F' = definition name identifier
+//   'D' = comment
+//   'G' = string literal
+//   'L' = number literal
+//   'T' = type name
+//   'H' = preprocessor
+//   'R' = reserved word / keyword
+//   'P' = punctuation / operator
+//   'S' = plain source text (default)
 
-#define BAST_TAG_FUNC  'F'
-#define BAST_TAG_CLASS 'T'
-#define BAST_TAG_BLOCK 'D'
+#define BAST_TAG_FUNC  'E'
+#define BAST_TAG_CLASS 'I'
 
 typedef struct {
     const char *tstype;
@@ -211,13 +217,13 @@ typedef struct {
 } BASTTagEntry;
 
 static const BASTTagEntry bast_tags[] = {
-    // --- functions (f) ---
+    // --- functions ---
     {"function_definition", BAST_TAG_FUNC},   // C, C++, Python, Bash
     {"function_declaration", BAST_TAG_FUNC},   // Go
     {"function_item", BAST_TAG_FUNC},          // Rust
     {"method_declaration", BAST_TAG_FUNC},     // Java, C#, Go
     {"method", BAST_TAG_FUNC},                 // Ruby
-    // --- classes / type decls (c) ---
+    // --- classes / type decls ---
     {"struct_specifier", BAST_TAG_CLASS},       // C, C++
     {"union_specifier", BAST_TAG_CLASS},        // C
     {"enum_specifier", BAST_TAG_CLASS},         // C, C++
@@ -231,9 +237,6 @@ static const BASTTagEntry bast_tags[] = {
     {"trait_item", BAST_TAG_CLASS},             // Rust
     {"class", BAST_TAG_CLASS},                  // Ruby
     {"module", BAST_TAG_CLASS},                 // Ruby
-    // --- blocks (b) ---
-    {"compound_statement", BAST_TAG_BLOCK},     // C, C++, Bash
-    {"block", BAST_TAG_BLOCK},                  // Python, Go, Rust
     {NULL, 0}
 };
 
@@ -242,6 +245,61 @@ static u8 BASTNodeTag(const char *tstype) {
         if (strcmp(e->tstype, tstype) == 0) return e->tag;
     }
     return 0;
+}
+
+// --- Leaf classification ---
+
+// Classify anonymous (unnamed) tree-sitter nodes.
+// All-alphabetic → 'R' (reserved word/keyword), otherwise → 'P' (punctuation).
+static u8 BASTAnonTag(const char *type) {
+    for (const char *p = type; *p; p++) {
+        u8 c = (u8)*p;
+        if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_'))
+            return 'P';
+    }
+    return 'R';
+}
+
+// Classify named leaf nodes by tree-sitter type string.
+typedef struct {
+    const char *tstype;
+    u8 tag;
+} BASTLeafEntry;
+
+static const BASTLeafEntry bast_leaf_tags[] = {
+    // Comments
+    {"comment", 'D'},
+    {"line_comment", 'D'},
+    {"block_comment", 'D'},
+    // String literals
+    {"string_literal", 'G'},
+    {"string", 'G'},
+    {"string_content", 'G'},
+    {"char_literal", 'G'},
+    {"raw_string_literal", 'G'},
+    {"interpreted_string_literal", 'G'},
+    {"rune_literal", 'G'},
+    {"template_string", 'G'},
+    // Number literals
+    {"number_literal", 'L'},
+    {"integer_literal", 'L'},
+    {"float_literal", 'L'},
+    {"integer", 'L'},
+    // Type names
+    {"type_identifier", 'T'},
+    {"primitive_type", 'T'},
+    {"builtin_type", 'T'},
+    {"sized_type_specifier", 'T'},
+    // Preprocessor
+    {"preproc_arg", 'H'},
+    {NULL, 0}
+};
+
+static u8 BASTLeafTag(const char *tstype) {
+    for (const BASTLeafEntry *e = bast_leaf_tags; e->tstype; e++) {
+        if (strcmp(e->tstype, tstype) == 0) return e->tag;
+    }
+    return 'S';
 }
 
 // --- Tree-to-BASON conversion ---
@@ -261,20 +319,19 @@ static TSNode BASTFindName(TSNode node) {
     return (TSNode){{0}, NULL, NULL};
 }
 
-// Emit one named node as BASON.
-// Leaf (no named children): string with source text.
-// Branch: array of interleaved text gaps and child arrays.
-// The TLKV type letter carries the node tag (F/C/K or A for untagged).
-// name_s/name_e: byte range of the symbol name leaf (from enclosing F/T).
+// Emit one node as BASON, walking ALL children (named + anonymous).
+// Containers (nodes with children) get vowel tags.
+// Leaves (no children) get consonant tags based on classification.
+// name_s/name_e: byte range of the symbol name leaf (from enclosing E/I).
 static ok64 BASTFeedNode(u8bp buf, u64bp idx, u8csc src, TSNode node,
                          u8cs key, u8 tag,
                          uint32_t name_s, uint32_t name_e) {
     sane(buf != NULL);
-    uint32_t ncc = ts_node_named_child_count(node);
+    uint32_t cc = ts_node_child_count(node);
     uint32_t s = ts_node_start_byte(node);
     uint32_t e = ts_node_end_byte(node);
 
-    // When entering F/T node, find the name identifier range
+    // When entering E/I node, find the name identifier range
     if (tag == BAST_TAG_FUNC || tag == BAST_TAG_CLASS) {
         TSNode nm = BASTFindName(node);
         if (!ts_node_is_null(nm)) {
@@ -283,9 +340,16 @@ static ok64 BASTFeedNode(u8bp buf, u64bp idx, u8csc src, TSNode node,
         }
     }
 
-    if (ncc == 0) {
-        u8 lt = 'S';
-        if (name_s < name_e && s == name_s && e == name_e) lt = BAST_TAG_NAME;
+    if (cc == 0) {
+        // Terminal leaf — classify by type
+        u8 lt;
+        if (name_s < name_e && s == name_s && e == name_e) {
+            lt = BAST_TAG_NAME;
+        } else if (ts_node_is_named(node)) {
+            lt = BASTLeafTag(ts_node_type(node));
+        } else {
+            lt = BASTAnonTag(ts_node_type(node));
+        }
         u8cs val = {src[0] + s, src[0] + e};
         call(BASONFeed, idx, buf, lt, key, val);
         done;
@@ -296,10 +360,11 @@ static ok64 BASTFeedNode(u8bp buf, u64bp idx, u8csc src, TSNode node,
     u8 kb[11];
     u8cs prevk = {NULL, NULL};
 
-    for (uint32_t i = 0; i < ncc; i++) {
-        TSNode child = ts_node_named_child(node, i);
+    for (uint32_t i = 0; i < cc; i++) {
+        TSNode child = ts_node_child(node, i);
         uint32_t cs = ts_node_start_byte(child);
 
+        // Gap text (whitespace between children)
         if (cs > pos) {
             u8s ki = {kb, kb + sizeof(kb)};
             call(BASONFeedInfInc, ki, prevk);
@@ -316,8 +381,25 @@ static ok64 BASTFeedNode(u8bp buf, u64bp idx, u8csc src, TSNode node,
             u8cs ck = {(u8cp)kb, (u8cp)ki[0]};
             prevk[0] = (u8cp)kb;
             prevk[1] = (u8cp)ki[0];
-            u8 ctag = BASTNodeTag(ts_node_type(child));
-            if (ctag == 0) ctag = 'A';
+
+            uint32_t child_cc = ts_node_child_count(child);
+            u8 ctag;
+            if (child_cc > 0) {
+                // Container child — get tag from table or default 'A'
+                ctag = BASTNodeTag(ts_node_type(child));
+                if (ctag == 0) ctag = 'A';
+            } else {
+                // Leaf child — classify
+                if (name_s < name_e &&
+                    ts_node_start_byte(child) == name_s &&
+                    ts_node_end_byte(child) == name_e) {
+                    ctag = BAST_TAG_NAME;
+                } else if (ts_node_is_named(child)) {
+                    ctag = BASTLeafTag(ts_node_type(child));
+                } else {
+                    ctag = BASTAnonTag(ts_node_type(child));
+                }
+            }
             call(BASTFeedNode, buf, idx, src, child, ck, ctag,
                  name_s, name_e);
         }

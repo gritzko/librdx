@@ -1075,10 +1075,10 @@ ok64 BEtest16() {
 
 // ---- Test 17: BASTGrepNodes (AST-aware line selection) ----
 
-// Callback: select function definition nodes (type letter 'F')
+// Callback: select function definition nodes (type letter 'E')
 static b8 SelectFunctions(const bason *node, void *ctx) {
     (void)ctx;
-    return (node->type & ~0x20) == 'F' ? YES : NO;
+    return (node->type & ~0x20) == 'E' ? YES : NO;
 }
 
 ok64 BEtest17() {
@@ -1349,7 +1349,7 @@ ok64 BEtest19() {
     want(found_foo);
     want(found_MyStruct);
 
-    // Verify BASTExport roundtrip still works with 'B' nodes
+    // Verify BASTExport roundtrip still works with name nodes
     a_pad(u8, out, 65536);
     aBpad(u64, stk, 256);
     call(BASTExport, out_idle, stk, bason);

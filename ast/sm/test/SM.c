@@ -14,7 +14,7 @@
     u64 _idx[idxsize];                                \
     u64b idx = {_idx, _idx, _idx, _idx + idxsize};
 
-// Roundtrip: parse .mkd, concat all S+B leaves, compare with original
+// Roundtrip: parse .mkd, concat all leaf nodes, compare with original
 ok64 SMtestRoundtrip() {
     sane(1);
 
@@ -39,7 +39,7 @@ ok64 SMtestRoundtrip() {
 
         call(SMParse, pad, idx, src);
 
-        // Read back and concatenate all S+B leaves
+        // Read back and concatenate all leaf nodes
         u8cs dat = {pad[1], pad[2]};
         call(BASONOpen, stk, dat);
 
@@ -56,9 +56,9 @@ ok64 SMtestRoundtrip() {
                 depth--;
                 continue;
             }
-            if (type == 'S' || type == 'B') {
+            if (!BASONPlex(type)) {
                 call(u8bFeed, cat, val);
-            } else if (BASONPlex(type)) {
+            } else {
                 BASONInto(stk, dat, val);
                 depth++;
             }
@@ -97,20 +97,20 @@ ok64 SMtestHeading() {
     testeq(type, (u8)'A');
     call(BASONInto, stk, dat, val);
 
-    // First child should be 'H' (heading container)
+    // First child should be 'E' (heading container)
     call(BASONDrain, stk, dat, &type, key, val);
-    testeq(type, (u8)'H');
+    testeq(type, (u8)'E');
     call(BASONInto, stk, dat, val);
 
-    // Inside heading: first token is div markup 'S', then 'B' name tokens
+    // Inside heading: first token is div markup 'S', then 'F' name tokens
     b8 found_s = NO;
-    b8 found_b = NO;
+    b8 found_f = NO;
     while (BASONDrain(stk, dat, &type, key, val) == OK) {
         if (type == 'S') found_s = YES;
-        if (type == 'B') found_b = YES;
+        if (type == 'F') found_f = YES;
     }
     test(found_s == YES, SMFAIL);
-    test(found_b == YES, SMFAIL);
+    test(found_f == YES, SMFAIL);
 
     done;
 }
@@ -162,9 +162,9 @@ ok64 SMtestQuote() {
     testeq(type, (u8)'A');
     call(BASONInto, stk, dat, val);
 
-    // First child should be 'Q' (blockquote)
+    // First child should be 'I' (blockquote)
     call(BASONDrain, stk, dat, &type, key, val);
-    testeq(type, (u8)'Q');
+    testeq(type, (u8)'I');
 
     done;
 }
@@ -189,9 +189,9 @@ ok64 SMtestCode() {
     testeq(type, (u8)'A');
     call(BASONInto, stk, dat, val);
 
-    // First child should be 'G' (code block)
+    // First child should be 'I' (code block)
     call(BASONDrain, stk, dat, &type, key, val);
-    testeq(type, (u8)'G');
+    testeq(type, (u8)'I');
 
     done;
 }

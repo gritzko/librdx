@@ -7,9 +7,10 @@
 con ok64 BASONEND = 0x1c5584dcf0;
 con ok64 BASONBAD = 0x1c5584de8d;
 
-// Container types: Array and Object
+// Container types: vowels are containers, consonants are leaves
 fun b8 BASONPlex(u8 type) {
-    return type != 'B' && type != 'S' && type != 'N' && type != 0;
+    return type == 'A' || type == 'E' || type == 'I' ||
+           type == 'O' || type == 'U';
 }
 
 // Page size for index sampling (one entry per page)

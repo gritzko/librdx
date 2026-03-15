@@ -5,18 +5,18 @@
 #include "abc/PRO.h"
 #include "abc/RON.h"
 
-// BASON type tags for StrictMark blocks
+// BASON type tags for StrictMark blocks (vowels = containers)
 #define SM_DOC   'A'
-#define SM_HEAD  'H'
-#define SM_PARA  'P'
-#define SM_QUOTE 'Q'
+#define SM_HEAD  'E'
+#define SM_PARA  'A'
+#define SM_QUOTE 'I'
 #define SM_ULIST 'U'
-#define SM_OLIST 'R'
-#define SM_ITEM  'L'
-#define SM_CODE  'G'
-#define SM_DIV   'D'
+#define SM_OLIST 'U'
+#define SM_ITEM  'A'
+#define SM_CODE  'I'
+#define SM_DIV   'A'
 #define SM_TEXT  'S'
-#define SM_NAME  'B'
+#define SM_NAME  'F'
 
 // Map div markup to BASON container type
 fun u8 SMDivType(u8 div) {

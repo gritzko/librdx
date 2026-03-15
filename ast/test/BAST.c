@@ -106,7 +106,7 @@ ok64 BASTtestTextTokens() {
     done;
 }
 
-// Verify 'B' name tags are emitted for function/struct names in C code
+// Verify 'F' name tags are emitted for function/struct names in C code
 ok64 BASTtestNameTag() {
     sane(1);
     BAST_SETUP(65536, 64, 1024);
@@ -118,11 +118,11 @@ ok64 BASTtestNameTag() {
     u8cs ext = $u8str(".c");
     call(BASTParse, pad, idx, src, ext);
 
-    // Walk entire BASON tree, collect 'B' leaf values
+    // Walk entire BASON tree, collect 'F' (name) leaf values
     u8cs dat = {pad[1], pad[2]};
     call(BASONOpen, stk, dat);
 
-    int b_count = 0;
+    int f_count = 0;
     b8 found_foo = NO;
     b8 found_MyStruct = NO;
     int depth = 0;
@@ -138,8 +138,8 @@ ok64 BASTtestNameTag() {
             depth--;
             continue;
         }
-        if (type == 'B') {
-            b_count++;
+        if (type == BAST_TAG_NAME) {
+            f_count++;
             if ($len(val) == 3 && memcmp(val[0], "foo", 3) == 0)
                 found_foo = YES;
             if ($len(val) == 8 && memcmp(val[0], "MyStruct", 8) == 0)
@@ -150,11 +150,11 @@ ok64 BASTtestNameTag() {
         }
     }
 
-    test(b_count >= 2, FAILsanity);
+    test(f_count >= 2, FAILsanity);
     test(found_foo == YES, FAILsanity);
     test(found_MyStruct == YES, FAILsanity);
 
-    // Verify roundtrip: concatenating all S+B leaves reproduces source
+    // Verify roundtrip: concatenating all leaf nodes reproduces source
     u8bReset(pad);
     u64bReset(stk);
     u64bReset(idx);
@@ -176,9 +176,9 @@ ok64 BASTtestNameTag() {
             depth2--;
             continue;
         }
-        if (type == 'S' || type == 'B') {
+        if (!BASONPlex(type)) {
             call(u8bFeed, cat, val);
-        } else if (BASONPlex(type)) {
+        } else {
             BASONInto(stk, dat2, val);
             depth2++;
         }

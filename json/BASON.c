@@ -664,19 +664,8 @@ static ok64 BASONxOne(u8s out, u64bp stack, u8csc data,
         }
         call(BASONOuto, stack);
         call(u8sFeed1, out, '}');
-    } else if (type == 'S') {
-        call(BASONxString, out, val);
-    } else if (type == 'N') {
-        call(u8sFeed, out, val);
-    } else if (type == 'B') {
-        if ($len(val) == 0) {
-            u8cs null_lit = {(u8cp)"null", (u8cp)"null" + 4};
-            call(u8sFeed, out, null_lit);
-        } else {
-            call(u8sFeed, out, val);
-        }
-    } else {
-        // 'A' or any unknown type letter: treat as array
+    } else if (BASONPlex(type)) {
+        // A, E, I, U — array containers
         call(u8sFeed1, out, '[');
         call(BASONInto, stack, data, val);
         u8 ct; u8cs ck, cv;
@@ -688,6 +677,18 @@ static ok64 BASONxOne(u8s out, u64bp stack, u8csc data,
         }
         call(BASONOuto, stack);
         call(u8sFeed1, out, ']');
+    } else if (type == 'N') {
+        call(u8sFeed, out, val);
+    } else if (type == 'B') {
+        if ($len(val) == 0) {
+            u8cs null_lit = {(u8cp)"null", (u8cp)"null" + 4};
+            call(u8sFeed, out, null_lit);
+        } else {
+            call(u8sFeed, out, val);
+        }
+    } else {
+        // S and all consonant leaf types: string
+        call(BASONxString, out, val);
     }
     done;
 }
