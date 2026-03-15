@@ -241,8 +241,8 @@ static const BASTTagEntry bast_tags[] = {
     {"class", BAST_TAG_CLASS},                  // Ruby
     {"module", BAST_TAG_CLASS},                 // Ruby
     // --- Markdown block ---
-    {"atx_heading", 'E'},                         // heading
-    {"setext_heading", 'E'},                      // heading
+    {"atx_heading", 'Y'},                         // heading (bold)
+    {"setext_heading", 'Y'},                      // heading (bold)
     {"block_quote", 'I'},                         // quote
     {"fenced_code_block", 'I'},                   // code block
     {"indented_code_block", 'I'},                 // code block

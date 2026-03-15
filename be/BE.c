@@ -175,7 +175,23 @@ static b8 BASTCatStyle(u8s out, u8 type) {
     }
 }
 
-static ok64 BASTCatRec(u8s out, u64bp stack, u8csc data) {
+// Container types that apply SGR to all children.
+static b8 BASTCatContainerStyle(u8s out, u8 type) {
+    if (type == 'Y') { escfeed(out, BOLD); return YES; }
+    return NO;
+}
+
+// Re-emit container styles after a leaf reset.
+static void BASTCatRestore(u8s out, u8 *cstk, int depth) {
+    escfeed(out, 0);
+    for (int i = 0; i < depth; i++)
+        BASTCatContainerStyle(out, cstk[i]);
+}
+
+#define BAST_CAT_MAXDEPTH 64
+
+static ok64 BASTCatRec(u8s out, u64bp stack, u8csc data,
+                        u8 *cstk, int depth) {
     sane(1);
     u8 type = 0;
     u8cs key = {};
@@ -184,11 +200,15 @@ static ok64 BASTCatRec(u8s out, u64bp stack, u8csc data) {
         if (!BASONPlex(type)) {
             b8 styled = BASTCatStyle(out, type);
             call(u8sFeed, out, val);
-            if (styled) escfeed(out, 0);
+            if (styled) BASTCatRestore(out, cstk, depth);
         } else {
+            int d = depth < BAST_CAT_MAXDEPTH ? depth : BAST_CAT_MAXDEPTH - 1;
+            cstk[d] = type;
+            BASTCatContainerStyle(out, type);
             call(BASONInto, stack, data, val);
-            call(BASTCatRec, out, stack, data);
+            call(BASTCatRec, out, stack, data, cstk, depth + 1);
             call(BASONOuto, stack);
+            BASTCatRestore(out, cstk, depth);
         }
     }
     done;
@@ -198,7 +218,9 @@ ok64 BASTCat(u8s out, u64bp stack, u8csc data) {
     sane($ok(out) && stack != NULL && $ok(data));
     if ($empty(data)) done;
     call(BASONOpen, stack, data);
-    call(BASTCatRec, out, stack, data);
+    u8 cstk[BAST_CAT_MAXDEPTH];
+    memset(cstk, 0, sizeof(cstk));
+    call(BASTCatRec, out, stack, data, cstk, 0);
     done;
 }
 

@@ -265,7 +265,7 @@ ok64 BASTtestMDStructure() {
     u8cs dat = {pad[1], pad[2]};
     call(BASONOpen, stk, dat);
 
-    b8 found_E = NO;   // heading
+    b8 found_Y = NO;   // heading (bold)
     b8 found_W = NO;   // italic text
     b8 found_V = NO;   // bold text
     b8 found_G = NO;   // code span text
@@ -285,7 +285,7 @@ ok64 BASTtestMDStructure() {
             depth--;
             continue;
         }
-        if (type == 'E') found_E = YES;
+        if (type == 'Y') found_Y = YES;
         if (type == 'W') {
             if ($len(val) == 6 && memcmp(val[0], "italic", 6) == 0)
                 found_W = YES;
@@ -314,7 +314,7 @@ ok64 BASTtestMDStructure() {
         }
     }
 
-    test(found_E == YES, FAILsanity);  // heading
+    test(found_Y == YES, FAILsanity);  // heading (bold)
     test(found_W == YES, FAILsanity);  // italic
     test(found_V == YES, FAILsanity);  // bold
     test(found_G == YES, FAILsanity);  // code
