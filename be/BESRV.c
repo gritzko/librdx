@@ -8,6 +8,7 @@
 
 #include "abc/FILE.h"
 #include "abc/HTTP.h"
+#include "abc/MIME.h"
 #include "abc/POL.h"
 #include "abc/PRO.h"
 #include "abc/TCP.h"
@@ -308,14 +309,15 @@ static short BESRVAcceptRaw(BESRVctxp ctx, int cfd, u8cs http_path,
     // Send HTTP 200 with Content-Length
     u8cp s0 = outbuf[1], s1 = outbuf[2];
     size_t bodylen = (size_t)(s1 - s0);
+    const char *mime = MIMEByPath(http_path);
     char hdrbuf[256];
     int hlen = snprintf(hdrbuf, sizeof(hdrbuf),
                         "HTTP/1.1 200 OK\r\n"
-                        "Content-Type: text/plain\r\n"
+                        "Content-Type: %s\r\n"
                         "Content-Length: %zu\r\n"
                         "Connection: close\r\n"
                         "\r\n",
-                        bodylen);
+                        mime, bodylen);
     u8cs hdr = {(u8cp)hdrbuf, (u8cp)hdrbuf + hlen};
     FILEFeedall(cfd, hdr);
     u8cs body = {s0, s1};
