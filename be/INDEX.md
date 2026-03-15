@@ -58,8 +58,8 @@ Diff building:
 
 Key helpers:
   - `BEKeyBuild`    scheme:path?query#fragment
-  - `BEQueryBuild` / `BEQueryParse` — stamp-branch format
-  - `BEKeyBranchSuffix` / `BEKeyStamp`
+  - `BEQueryBuild` — stamp-branch format
+  - `BEKeyBranch` / `BEKeyStamp` (via `VERParse`)
   - `BEMetaFeedBason` / `BEMetaDrainBason` / `BEMetaFromStat`
 
 ### VER.h — version formulas
@@ -68,6 +68,7 @@ Type: `ron120` (u128: time in MS word, origin in LS word, op in bits 60-63).
 Operators: `VER_ANY`(0), `VER_LE`(1), `VER_GT`(2), `VER_EQ`(3).
 
   - `VERMake` / `VERPoint` / `VERTime` / `VEROrigin` / `VEROp` — inline accessors
+  - `VERParse`            parse single "time-origin" entry → ron120
   - `VERFormParse`        parse "brA&stamp-brB&stamp+brC"
   - `VERFormFromBranches` build all-ANY formula from branch list
   - `VERFormMatch`        check waypoint against formula

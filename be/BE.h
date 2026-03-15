@@ -61,12 +61,12 @@ enum {
 typedef struct {
     ROCKdb db;
     uri loc;                          // parsed .be URI
-    u8 loc_buf[512];                  // URI string backing store
-    u8p repo_pp[4];                   // $HOME/.be/<repo>/
-    u8p work_pp[4];                   // worktree root
+    u8b loc_buf;                      // URI string backing store
+    path8b repo_pp;                   // $HOME/.be/<repo>/
+    path8b work_pp;                   // worktree root
     u8p scratch[BE_SCRATCH][4];       // scratch buffers
     // Multi-branch: parsed from query "branch1&branch2&main"
-    u8cs branches[BE_MAX_BRANCHES];
+    ron120 branches[BE_MAX_BRANCHES];
     int branchc;
     b8 initial;  // YES during first post after BEInit
     b8 to_stdout;  // YES → BEExportFile writes to stdout
@@ -78,15 +78,12 @@ typedef BE *BEp;
 // Parse via URIutf8Drain. Query sub-structure: "STAMP-branch".
 
 // Build query sub-structure "pad10_stamp-branch" into buffer
-ok64 BEQueryBuild(u8s into, ron60 stamp, u8cs branch);
+ok64 BEQueryBuild(u8s into, ron60 stamp, ron60 branch);
 
-// Parse query sub-structure into stamp + branch
-ok64 BEQueryParse(ron60 *stamp, u8csp branch, u8cs query);
+// Extract branch origin from key's query part (via VERParse)
+ok64 BEKeyBranch(ron60 *branch, u8cs key);
 
-// Extract branch from key's query part (via URIutf8Drain + BEQueryParse)
-ok64 BEKeyBranchSuffix(u8csp branch, u8cs key);
-
-// Extract timestamp from key's query part (via URIutf8Drain + BEQueryParse)
+// Extract timestamp from key's query part (via VERParse)
 ok64 BEKeyStamp(ron60 *stamp, u8cs key);
 
 // --- Lifecycle ---

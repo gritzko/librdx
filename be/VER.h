@@ -11,8 +11,8 @@
 typedef u128 ron120;
 typedef ron120 *ron120p;
 typedef ron120 const *ron120cp;
-typedef ron120p ron120s[2];
-typedef ron120cp ron120cs[2];
+typedef u128s ron120s;
+typedef u128cs ron120cs;
 
 // Operator constants (stored in bits 60-63 of _64[1])
 #define VER_ANY 0
@@ -49,13 +49,16 @@ fun u8 VEROp(ron120cp v) {
 
 // --- Functions (VER.c) ---
 
-// Parse formula "branchA&stamp-branchB&stamp+branchC&stamp=branchD"
+// Parse single version entry "time-origin" / "time+origin" / "time=origin" / "origin"
 // Operators: '-' -> VER_LE, '+' -> VER_GT, '=' -> VER_EQ, none -> VER_ANY
+ok64 VERParse(ron120p into, u8cs text);
+
+// Parse formula "branchA&stamp-branchB&stamp+branchC&stamp=branchD"
 // Feeds entries into slice, advancing into[0].
 ok64 VERFormParse(ron120s into, u8cs query);
 
-// Build all-ANY formula from branch text slices
-ok64 VERFormFromBranches(ron120s into, int branchc, u8cs *branches);
+// Build formula from parsed branch entries (copies + appends base)
+ok64 VERFormFromBranches(ron120s into, int branchc, ron120cp branches);
 
 // Check if waypoint with given stamp+origin matches formula
 b8 VERFormMatch(ron120cs form, ron60 time, ron60 origin);

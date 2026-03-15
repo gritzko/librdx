@@ -88,9 +88,12 @@ static ok64 BESRVFillBuf(BEClientp cl) {
         ron60 stamp = 0;
         ron60 br_val = 0;
         if (!$empty(ku.query)) {
-            u8cs branch = {};
-            o = BEQueryParse(&stamp, branch, ku.query);
-            if (o == OK) RONutf8sDrain(&br_val, branch);
+            ron120 ver = {};
+            o = VERParse(&ver, ku.query);
+            if (o == OK) {
+                stamp = VERTime(&ver);
+                br_val = VEROrigin(&ver);
+            }
         }
         if (VERFormMatch(cl->formcs, stamp, br_val)) {
             u8cs v = {};

@@ -90,7 +90,7 @@ static ok64 BEStatus(BEp be) {
                 a_cstr(star, "*");
                 u8sFeed(ls, star);
             }
-            u8sFeed(ls, be->branches[i]);
+            RONutf8sFeed(ls, VEROrigin(&be->branches[i]));
         }
         escfeed(ls, 0);
         u8sFeed1(ls, '\n');

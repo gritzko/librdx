@@ -89,28 +89,13 @@ ok64 BEKeyBuild(u8s into, u8cs scheme, u8cs path, u8cs query, u8cs fragment) {
 
 // ---- Query sub-structure helpers ----
 
-ok64 BEQueryBuild(u8s into, ron60 stamp, u8cs branch) {
+ok64 BEQueryBuild(u8s into, ron60 stamp, ron60 branch) {
     sane($ok(into));
     call(RONu8sFeedPad, into, stamp, 10);
     into[0] += 10;
     u8sFeed1(into, '-');
-    if ($ok(branch) && !$empty(branch)) {
-        call(u8sFeed, into, branch);
-    }
-    done;
-}
-
-ok64 BEQueryParse(ron60 *stamp, u8csp branch, u8cs query) {
-    sane($ok(query));
-    if ($len(query) < 11) fail(BEnone);
-    if (stamp != NULL) {
-        u8cs ts = {query[0], query[0] + 10};
-        call(RONutf8sDrain, stamp, ts);
-    }
-    if (query[0][10] != '-') fail(BEnone);
-    if (branch != NULL) {
-        branch[0] = query[0] + 11;
-        branch[1] = query[1];
+    if (branch != 0) {
+        call(RONutf8sFeed, into, branch);
     }
     done;
 }
@@ -122,12 +107,14 @@ static ok64 BESymPost(BEp be, ROCKbatchp wb, u8cs bason, u8cs fpath);
 
 // ---- Key parsers ----
 
-ok64 BEKeyBranchSuffix(u8csp branch, u8cs key) {
+ok64 BEKeyBranch(ron60 *branch, u8cs key) {
     sane(branch != NULL && $ok(key));
     uri u = {};
     call(URIutf8Drain, key, &u);
     if ($empty(u.query)) fail(BEnone);
-    call(BEQueryParse, NULL, branch, u.query);
+    ron120 ver = {};
+    call(VERParse, &ver, u.query);
+    *branch = VEROrigin(&ver);
     done;
 }
 
@@ -136,7 +123,9 @@ ok64 BEKeyStamp(ron60 *stamp, u8cs key) {
     uri u = {};
     call(URIutf8Drain, key, &u);
     if ($empty(u.query)) fail(BEnone);
-    call(BEQueryParse, stamp, NULL, u.query);
+    ron120 ver = {};
+    call(VERParse, &ver, u.query);
+    *stamp = VERTime(&ver);
     done;
 }
 
@@ -221,12 +210,9 @@ static void BEFileInfo(u8csp ext, u8csp codec, u8cs relpath) {
 
 // Check if a key's query matches branch formula
 static b8 BEWaypointMatch(ron120cs formcs, u8cs query) {
-    ron60 stamp = 0;
-    u8cs branch = {};
-    if (BEQueryParse(&stamp, branch, query) != OK) return NO;
-    ron60 br_val = 0;
-    if (RONutf8sDrain(&br_val, branch) != OK) return NO;
-    return VERFormMatch(formcs, stamp, br_val);
+    ron120 ver = {};
+    if (VERParse(&ver, query) != OK) return NO;
+    return VERFormMatch(formcs, VERTime(&ver), VEROrigin(&ver));
 }
 
 // Parse file to BASON (empty file → empty array, else BASTParse)
@@ -349,8 +335,9 @@ static ok64 BEParseBranches(BEp be) {
     if (!$ok(be->loc.query) || $empty(be->loc.query)) {
         // No query = just main
         a_cstr(m, "main");
-        be->branches[0][0] = m[0];
-        be->branches[0][1] = m[1];
+        ron60 origin = 0;
+        call(RONutf8sDrain, &origin, m);
+        be->branches[0] = VERMake(0, origin, VER_ANY);
         be->branchc = 1;
         done;
     }
@@ -360,9 +347,13 @@ static ok64 BEParseBranches(BEp be) {
         u8cp start = p;
         while (p < end && *p != '&') p++;
         if (p > start) {
-            be->branches[be->branchc][0] = start;
-            be->branches[be->branchc][1] = p;
-            be->branchc++;
+            u8cs entry = {start, p};
+            ron60 origin = 0;
+            ok64 o = RONutf8sDrain(&origin, entry);
+            if (o == OK) {
+                be->branches[be->branchc] = VERMake(0, origin, VER_ANY);
+                be->branchc++;
+            }
         }
         if (p < end) p++;  // skip '&'
     }
@@ -370,10 +361,10 @@ static ok64 BEParseBranches(BEp be) {
     done;
 }
 
-// Check if a branch name is in the branch filter list
-static b8 BEBranchVisible(BEp be, u8cs branch) {
+// Check if a branch origin is in the branch filter list
+static b8 BEBranchVisible(BEp be, ron60 origin) {
     for (int i = 0; i < be->branchc; i++) {
-        if ($eq(be->branches[i], branch)) return YES;
+        if (VEROrigin(&be->branches[i]) == origin) return YES;
     }
     return NO;
 }
@@ -628,7 +619,7 @@ static ok64 BEBuildURI(u8s into, BEp be) {
         u8sFeed1(into, '?');
         for (int i = 0; i < be->branchc; i++) {
             if (i > 0) u8sFeed1(into, '&');
-            call(u8sFeed, into, be->branches[i]);
+            call(RONutf8sFeed, into, VEROrigin(&be->branches[i]));
         }
     }
     done;
@@ -639,11 +630,9 @@ static ok64 BERewriteDotBe(BEp be) {
     sane(be != NULL);
     a_pad(u8, ubuf, 512);
     call(BEBuildURI, ubuf_idle, be);
-    size_t ulen = $len(ubuf_datac);
-    test(ulen < sizeof(be->loc_buf), BEBAD);
-    memcpy(be->loc_buf, ubuf_datac[0], ulen);
-    be->loc.data[0] = be->loc_buf;
-    be->loc.data[1] = be->loc_buf + ulen;
+    u8bReset(be->loc_buf);
+    call(u8bFeed, be->loc_buf, ubuf_datac);
+    u8csMv(be->loc.data, u8bDataC(be->loc_buf));
     call(URILexer, &be->loc);
     call(BEParseBranches, be);
     // Write file
@@ -651,7 +640,8 @@ static ok64 BERewriteDotBe(BEp be) {
     call(path8gDup, path8gIn(dpath), path8cgIn(be->work_pp));
     a_cstr(dotbe, ".be");
     call(path8gPush, path8gIn(dpath), dotbe);
-    u8cs new_uri = {be->loc_buf, be->loc_buf + ulen};
+    u8cs new_uri;
+    u8csMv(new_uri, u8bDataC(be->loc_buf));
     call(BEWriteFile, path8cgIn(dpath), new_uri);
     done;
 }
@@ -662,11 +652,9 @@ ok64 BEInit(BEp be, u8cs be_uri, path8cg worktree) {
     sane(be != NULL && $ok(be_uri) && worktree != NULL);
     memset(be, 0, sizeof(BE));
 
-    size_t ulen = $len(be_uri);
-    test(ulen < sizeof(be->loc_buf), BEBAD);
-    memcpy(be->loc_buf, be_uri[0], ulen);
-    be->loc.data[0] = be->loc_buf;
-    be->loc.data[1] = be->loc_buf + ulen;
+    call(u8bAllocate, be->loc_buf, 512);
+    call(u8bFeed, be->loc_buf, be_uri);
+    u8csMv(be->loc.data, u8bDataC(be->loc_buf));
     call(URILexer, &be->loc);
     call(BEParseBranches, be);
 
@@ -706,13 +694,11 @@ ok64 BEOpen(BEp be, path8cg worktree) {
     call(FILEMapRO, &mapbuf, path8cgIn(dotbe_path));
     u8cp md0 = mapbuf[1], md1 = mapbuf[2];
     u8cs mapped = {md0, md1};
-    size_t ulen = $len(mapped);
-    test(ulen < sizeof(be->loc_buf), BEBAD);
-    memcpy(be->loc_buf, mapped[0], ulen);
+    call(u8bAllocate, be->loc_buf, 512);
+    call(u8bFeed, be->loc_buf, mapped);
     call(FILEUnMap, mapbuf);
 
-    be->loc.data[0] = be->loc_buf;
-    be->loc.data[1] = be->loc_buf + ulen;
+    u8csMv(be->loc.data, u8bDataC(be->loc_buf));
     call(URILexer, &be->loc);
     call(BEParseBranches, be);
 
@@ -731,23 +717,19 @@ ok64 BEClose(BEp be) {
     BEScratchFree(be);
     path8bFree(be->repo_pp);
     path8bFree(be->work_pp);
+    u8bFree(be->loc_buf);
     memset(be, 0, sizeof(BE));
     return OK;
 }
 
 ok64 BEAddBranch(BEp be, u8cs branch) {
     sane(be != NULL && $ok(branch) && !$empty(branch));
+    ron60 origin = 0;
+    call(RONutf8sDrain, &origin, branch);
     // Check not already present
-    if (BEBranchVisible(be, branch)) done;
+    if (BEBranchVisible(be, origin)) done;
     test(be->branchc < BE_MAX_BRANCHES, BEBAD);
-    // Copy branch name into loc_buf (append after existing URI data)
-    size_t blen = $len(branch);
-    u8cp loc_end = be->loc.data[1];
-    size_t used = loc_end - be->loc_buf;
-    test(used + 1 + blen < sizeof(be->loc_buf), BEBAD);
-    memcpy(be->loc_buf + used, branch[0], blen);
-    be->branches[be->branchc][0] = be->loc_buf + used;
-    be->branches[be->branchc][1] = be->loc_buf + used + blen;
+    be->branches[be->branchc] = VERMake(0, origin, VER_ANY);
     be->branchc++;
     call(BERewriteDotBe, be);
     done;
@@ -755,13 +737,12 @@ ok64 BEAddBranch(BEp be, u8cs branch) {
 
 ok64 BERemoveBranch(BEp be, u8cs branch) {
     sane(be != NULL && $ok(branch) && !$empty(branch));
+    ron60 origin = 0;
+    call(RONutf8sDrain, &origin, branch);
     for (int i = 0; i < be->branchc; i++) {
-        if ($eq(be->branches[i], branch)) {
-            // Shift remaining
-            for (int j = i; j + 1 < be->branchc; j++) {
-                be->branches[j][0] = be->branches[j + 1][0];
-                be->branches[j][1] = be->branches[j + 1][1];
-            }
+        if (VEROrigin(&be->branches[i]) == origin) {
+            for (int j = i; j + 1 < be->branchc; j++)
+                be->branches[j] = be->branches[j + 1];
             be->branchc--;
             call(BERewriteDotBe, be);
             done;
@@ -772,13 +753,14 @@ ok64 BERemoveBranch(BEp be, u8cs branch) {
 
 ok64 BESetActive(BEp be, u8cs branch) {
     sane(be != NULL && $ok(branch) && !$empty(branch));
+    ron60 origin = 0;
+    call(RONutf8sDrain, &origin, branch);
     for (int i = 0; i < be->branchc; i++) {
-        if ($eq(be->branches[i], branch)) {
-            // Swap to position 0
+        if (VEROrigin(&be->branches[i]) == origin) {
             if (i != 0) {
-                u8cs tmp = {be->branches[0][0], be->branches[0][1]};
-                $mv(be->branches[0], be->branches[i]);
-                $mv(be->branches[i], tmp);
+                ron120 tmp = be->branches[0];
+                be->branches[0] = be->branches[i];
+                be->branches[i] = tmp;
             }
             done;
         }
@@ -787,9 +769,9 @@ ok64 BESetActive(BEp be, u8cs branch) {
     call(BEAddBranch, be, branch);
     int last = be->branchc - 1;
     if (last != 0) {
-        u8cs tmp = {be->branches[0][0], be->branches[0][1]};
-        $mv(be->branches[0], be->branches[last]);
-        $mv(be->branches[last], tmp);
+        ron120 tmp = be->branches[0];
+        be->branches[0] = be->branches[last];
+        be->branches[last] = tmp;
     }
     done;
 }
@@ -903,10 +885,11 @@ ok64 BEScanFile(ROCKdbp db, u8cs project, u8cs relpath,
         ron60 stamp = 0;
         ron60 br_val = 0;
         if (!$empty(ku.query)) {
-            u8cs branch = {};
-            o = BEQueryParse(&stamp, branch, ku.query);
+            ron120 ver = {};
+            o = VERParse(&ver, ku.query);
             if (o == OK) {
-                RONutf8sDrain(&br_val, branch);
+                stamp = VERTime(&ver);
+                br_val = VEROrigin(&ver);
             }
         }
 
@@ -1024,9 +1007,9 @@ ok64 BEGetFileMerged(BEp be, u8cs project, u8cs relpath,
             uri sku = {};
             ok64 o = URIutf8Drain(sk, &sku);
             if (o == OK && !$empty(sku.query)) {
-                u8cs br = {};
-                o = BEQueryParse(NULL, br, sku.query);
-                if (o == OK && BEBranchVisible(be, br)) {
+                ron120 ver = {};
+                o = VERParse(&ver, sku.query);
+                if (o == OK && BEBranchVisible(be, VEROrigin(&ver))) {
                     u8cs sv = {};
                     ROCKIterVal(&sit, sv);
                     BEMetaDrainBason(&latest_meta, sv);
@@ -1097,9 +1080,27 @@ static ok64 BEGetProject(BEp be, u8cs project) {
 ok64 BEGet(BEp be, int pathc, u8cs *paths, u8cs branch) {
     sane(be != NULL);
 
-    // If branch specified, set it as active
+    // If branch specified, set it as active (may be "&"-separated list)
     if ($ok(branch) && !$empty(branch)) {
-        call(BESetActive, be, branch);
+        // Reset branch list, parse all entries from query
+        be->branchc = 0;
+        u8cp p = branch[0];
+        u8cp end = branch[1];
+        while (p < end && be->branchc < BE_MAX_BRANCHES) {
+            u8cp start = p;
+            while (p < end && *p != '&') p++;
+            if (p > start) {
+                u8cs entry = {start, p};
+                ron60 origin = 0;
+                ok64 o = RONutf8sDrain(&origin, entry);
+                if (o == OK) {
+                    be->branches[be->branchc] = VERMake(0, origin, VER_ANY);
+                    be->branchc++;
+                }
+            }
+            if (p < end) p++;
+        }
+        call(BERewriteDotBe, be);
     }
 
     if (pathc > 0 && paths != NULL) {
@@ -1409,8 +1410,7 @@ static ok64 BEPostFile(BEp be, ROCKbatchp wb, ron60 stamp,
     u8cs query = {};
     a_pad(u8, wq, 128);
     if (!is_base) {
-        u8cs active = {be->branches[0][0], be->branches[0][1]};
-        call(BEQueryBuild, wq_idle, stamp, active);
+        call(BEQueryBuild, wq_idle, stamp, VEROrigin(&be->branches[0]));
         query[0] = wq_datac[0];
         query[1] = wq_datac[1];
     }
@@ -1707,7 +1707,7 @@ static ok64 BEPostDiffCB(voidp arg, u8cs relpath, BEmeta merged_meta) {
     if (__ != OK) { if (mapbuf) FILEUnMap(mapbuf); return __; }
 
     // Build query: stamp-branch
-    u8cs active = {be->branches[0][0], be->branches[0][1]};
+    ron60 active = VEROrigin(&be->branches[0]);
     a_pad(u8, wq, 128);
     __ = BEQueryBuild(wq_idle, ctx->stamp, active);
     if (__ != OK) { if (mapbuf) FILEUnMap(mapbuf); return __; }
@@ -1815,7 +1815,8 @@ ok64 BEPost(BEp be, int pathc, u8cs *paths, u8cs message) {
     if (be->initial) {
         // CASE 1: Initial import — FS scan, base keys
         igno gi = {};
-        u8cs workdir = {be->work_pp[1], be->work_pp[2]};
+        u8cs workdir;
+        u8csMv(workdir, u8bDataC(be->work_pp));
         IGNOLoad(&gi, workdir);
         BEPostCtx ctx = {be, &wb, stamp, &gi, YES};
         if (pathc > 0 && paths != NULL) {
@@ -1898,7 +1899,8 @@ ok64 BEPost(BEp be, int pathc, u8cs *paths, u8cs message) {
                 } else {
                     // CASE 3b: New prefix — FS scan, waypoint keys
                     igno gi = {};
-                    u8cs workdir = {be->work_pp[1], be->work_pp[2]};
+                    u8cs workdir;
+                    u8csMv(workdir, u8bDataC(be->work_pp));
                     IGNOLoad(&gi, workdir);
                     BEPostCtx ctx = {be, &wb, stamp, &gi, NO};
                     ok64 o = FILEScan(
@@ -1925,8 +1927,7 @@ ok64 BEPost(BEp be, int pathc, u8cs *paths, u8cs message) {
     }
 
     // Store commit metadata: be:project/?stamp-branch#commit
-    u8cs active = {be->branches[0][0],
-                   be->branches[0][1]};
+    ron60 active = VEROrigin(&be->branches[0]);
     a_pad(u8, cp, 256);
     u8cs norp = {};
     call(BEProjPath, cp_idle, be->loc.path, norp);
@@ -1955,12 +1956,11 @@ ok64 BEPostData(BEp be, u8cs relpath, u8cs source, u8cs branch, u8cs message) {
     ron60 stamp = RONNow();
 
     // Resolve branch: use provided or fall back to active
-    u8cs active = {};
+    ron60 active = 0;
     if ($ok(branch) && !$empty(branch)) {
-        $mv(active, branch);
+        call(RONutf8sDrain, &active, branch);
     } else {
-        active[0] = be->branches[0][0];
-        active[1] = be->branches[0][1];
+        active = VEROrigin(&be->branches[0]);
     }
 
     ROCKbatch wb = {};
@@ -2069,7 +2069,7 @@ ok64 BEPostData(BEp be, u8cs relpath, u8cs source, u8cs branch, u8cs message) {
 
 // Helper: re-key all waypoints of a scheme from source branch to active branch
 static ok64 BEPutScheme(BEp be, ROCKbatchp wb, u8cs scheme,
-                         u8cs source_branch, u8cs active) {
+                         ron60 src_val, ron60 active) {
     sane(be != NULL && wb != NULL);
     a_pad(u8, fp, 256);
     u8cs norp = {};
@@ -2095,10 +2095,10 @@ static ok64 BEPutScheme(BEp be, ROCKbatchp wb, u8cs scheme,
             continue;
         }
 
-        u8cs branch = {};
-        ron60 wp_stamp = 0;
-        o = BEQueryParse(&wp_stamp, branch, ku.query);
-        if (o != OK || !$eq(branch, source_branch)) {
+        ron120 ver = {};
+        o = VERParse(&ver, ku.query);
+        ron60 wp_stamp = VERTime(&ver);
+        if (o != OK || VEROrigin(&ver) != src_val) {
             call(ROCKIterNext, &it);
             continue;
         }
@@ -2122,8 +2122,7 @@ static ok64 BEPutScheme(BEp be, ROCKbatchp wb, u8cs scheme,
 ok64 BEPut(BEp be, u8cs source_branch, u8cs message) {
     sane(be != NULL && $ok(source_branch) && !$empty(source_branch));
     ron60 stamp = RONNow();
-    u8cs active = {be->branches[0][0],
-                   be->branches[0][1]};
+    ron60 active = VEROrigin(&be->branches[0]);
 
     ROCKbatch wb = {};
     call(ROCKBatchOpen, &wb);
@@ -2131,8 +2130,10 @@ ok64 BEPut(BEp be, u8cs source_branch, u8cs message) {
     // Re-key both stat: and be: waypoints from source → active
     a_cstr(sch_be, BE_SCHEME_BE);
     a_cstr(sch_stat, BE_SCHEME_STAT);
-    call(BEPutScheme, be, &wb, sch_be, source_branch, active);
-    call(BEPutScheme, be, &wb, sch_stat, source_branch, active);
+    ron60 src_val = 0;
+    call(RONutf8sDrain, &src_val, source_branch);
+    call(BEPutScheme, be, &wb, sch_be, src_val, active);
+    call(BEPutScheme, be, &wb, sch_stat, src_val, active);
 
     // Merge metadata: be:project/?stamp-branch#merge
     a_pad(u8, mp, 256);
@@ -2165,6 +2166,9 @@ static b8 BEHasBranch(BEp be, u8cs name) {
     a_pad(u8, pfx, 512);
     if (BEKeyBuild(pfx_idle, sch_be, fp_datac, 0, 0) != OK) return NO;
 
+    ron60 name_val = 0;
+    if (RONutf8sDrain(&name_val, name) != OK) return NO;
+
     ROCKiter it = {};
     if (ROCKIterOpen(&it, &be->db) != OK) return NO;
     if (ROCKIterSeek(&it, pfx_datac) != OK) {
@@ -2182,9 +2186,9 @@ static b8 BEHasBranch(BEp be, u8cs name) {
         uri ku = {};
         ok64 o = URIutf8Drain(k, &ku);
         if (o == OK && !$empty(ku.query)) {
-            u8cs branch = {};
-            o = BEQueryParse(NULL, branch, ku.query);
-            if (o == OK && $eq(branch, name)) {
+            ron120 ver = {};
+            o = VERParse(&ver, ku.query);
+            if (o == OK && VEROrigin(&ver) == name_val) {
                 found = YES;
                 break;
             }
@@ -2207,6 +2211,9 @@ static ok64 BEDeleteBranchScheme(BEp be, ROCKbatchp wb,
     a_pad(u8, pfx, 512);
     call(BEKeyBuild, pfx_idle, scheme, fp_datac, 0, 0);
 
+    ron60 name_val = 0;
+    call(RONutf8sDrain, &name_val, name);
+
     ROCKiter it = {};
     call(ROCKIterOpen, &it, &be->db);
     call(ROCKIterSeek, &it, pfx_datac);
@@ -2220,9 +2227,9 @@ static ok64 BEDeleteBranchScheme(BEp be, ROCKbatchp wb,
         ok64 o = URIutf8Drain(k, &ku);
         if (o == OK && !$empty(ku.query)) {
             if (!keep_frags || $empty(ku.fragment)) {
-                u8cs branch = {};
-                o = BEQueryParse(NULL, branch, ku.query);
-                if (o == OK && $eq(branch, name)) {
+                ron120 ver = {};
+                o = VERParse(&ver, ku.query);
+                if (o == OK && VEROrigin(&ver) == name_val) {
                     call(ROCKBatchDel, wb, k);
                 }
             }
@@ -2250,7 +2257,7 @@ static ok64 BEDeleteFile(BEp be, u8cs target) {
     sane(be != NULL && $ok(target) && !$empty(target));
 
     ron60 stamp = RONNow();
-    u8cs active = {be->branches[0][0], be->branches[0][1]};
+    ron60 active = VEROrigin(&be->branches[0]);
 
     // Build path component
     a_pad(u8, dp, 256);
@@ -2455,7 +2462,9 @@ ok64 BEMilestone(BEp be, u8cs name) {
         u8cs norp = {};
         call(BEProjPath, msp_idle, be->loc.path, norp);
         a_pad(u8, msq, 128);
-        call(BEQueryBuild, msq_idle, stamp, main_branch);
+        ron60 main_val = 0;
+        RONutf8sDrain(&main_val, main_branch);
+        call(BEQueryBuild, msq_idle, stamp, main_val);
         a_cstr(meta_milestone, "milestone");
         a_uri(ms_key, sch_be, 0, msp_datac, msq_datac, meta_milestone);
         call(ROCKBatchPut, &wb, ms_key, name);

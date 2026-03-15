@@ -2,6 +2,33 @@
 
 #include "abc/PRO.h"
 
+ok64 VERParse(ron120p into, u8cs text) {
+    sane(into != NULL && $ok(text) && !$empty(text));
+    // Scan for operator separator: '-', '+', '='
+    u8cp sep = text[0];
+    while (sep < text[1] && *sep != '-' && *sep != '+' && *sep != '=') sep++;
+    if (sep < text[1] && sep > text[0]) {
+        // time<op>origin
+        u8cs ts = {text[0], sep};
+        u8cs orig = {sep + 1, text[1]};
+        u8 op = VER_ANY;
+        if (*sep == '-') op = VER_LE;
+        else if (*sep == '+') op = VER_GT;
+        else if (*sep == '=') op = VER_EQ;
+        ron60 time_val = 0;
+        ron60 orig_val = 0;
+        call(RONutf8sDrain, &time_val, ts);
+        call(RONutf8sDrain, &orig_val, orig);
+        *into = VERMake(time_val, orig_val, op);
+    } else {
+        // Just origin, VER_ANY
+        ron60 orig_val = 0;
+        call(RONutf8sDrain, &orig_val, text);
+        *into = VERMake(0, orig_val, VER_ANY);
+    }
+    done;
+}
+
 ok64 VERFormParse(ron120s into, u8cs query) {
     sane(into != NULL);
     if (!$ok(query) || $empty(query)) done;
@@ -12,66 +39,32 @@ ok64 VERFormParse(ron120s into, u8cs query) {
         u8cp start = p;
         while (p < end && *p != '&') p++;
         if (p > start) {
-            // Scan for operator separator: '-', '+', '='
-            u8cp sep = start;
-            while (sep < p && *sep != '-' && *sep != '+' && *sep != '=') sep++;
-            if (sep < p && sep > start) {
-                // time<op>origin
-                u8cs ts = {start, sep};
-                u8cs orig = {sep + 1, p};
-                u8 op = VER_ANY;
-                if (*sep == '-') op = VER_LE;
-                else if (*sep == '+') op = VER_GT;
-                else if (*sep == '=') op = VER_EQ;
-                ron60 time_val = 0;
-                ron60 orig_val = 0;
-                ok64 o = RONutf8sDrain(&time_val, ts);
-                if (o == OK) o = RONutf8sDrain(&orig_val, orig);
-                if (o == OK) {
-                    *into[0] = VERMake(time_val, orig_val, op);
-                    into[0]++;
-                }
-            } else {
-                // Just origin, VER_ANY (match all waypoints)
-                u8cs entry = {start, p};
-                ron60 orig_val = 0;
-                ok64 o = RONutf8sDrain(&orig_val, entry);
-                if (o == OK) {
-                    *into[0] = VERMake(0, orig_val, VER_ANY);
-                    into[0]++;
-                }
-            }
+            u8cs entry = {start, p};
+            ron120 ver = {};
+            ok64 o = VERParse(&ver, entry);
+            if (o == OK) u128sFeed1(into, ver);
         }
         if (p < end) p++;  // skip '&'
     }
     // Append base entry (0,0) if any entry is ANY or LE
-    if (into[0] < into[1]) {
-        for (ron120cp e = start_pos; e < into[0]; e++) {
-            u8 op = VEROp(e);
-            if (op == VER_ANY || op == VER_LE) {
-                *into[0] = VERMake(0, 0, VER_ANY);
-                into[0]++;
-                break;
-            }
+    for (ron120cp e = start_pos; e < into[0]; e++) {
+        u8 op = VEROp(e);
+        if (op == VER_ANY || op == VER_LE) {
+            u128sFeed1(into, VERMake(0, 0, VER_ANY));
+            break;
         }
     }
     done;
 }
 
-ok64 VERFormFromBranches(ron120s into, int branchc, u8cs *branches) {
+ok64 VERFormFromBranches(ron120s into, int branchc, ron120cp branches) {
     sane(into != NULL);
-    for (int i = 0; i < branchc && into[0] < into[1]; i++) {
-        ron60 orig = 0;
-        ok64 o = RONutf8sDrain(&orig, branches[i]);
-        if (o == OK) {
-            *into[0] = VERMake(0, orig, VER_ANY);
-            into[0]++;
-        }
+    for (int i = 0; i < branchc; i++) {
+        call(u128sFeed1, into, branches[i]);
     }
-    // All-ANY formula always includes base
-    if (branchc > 0 && into[0] < into[1]) {
-        *into[0] = VERMake(0, 0, VER_ANY);
-        into[0]++;
+    // Always includes base
+    if (branchc > 0) {
+        call(u128sFeed1, into, VERMake(0, 0, VER_ANY));
     }
     done;
 }

@@ -251,8 +251,8 @@ ok64 VERtest6() {
         ron60 main_ron = 0;
         u8cs q_main = $u8str("main");
         call(RONutf8sDrain, &main_ron, q_main);
-        u8cs branches[1];
-        $mv(branches[0], q_main);
+        ron120 branches[1];
+        branches[0] = VERMake(0, main_ron, VER_ANY);
         ron120 fbuf[VER_MAX];
         ron120s form = {fbuf, fbuf + VER_MAX};
         call(VERFormFromBranches, form, 1, branches);

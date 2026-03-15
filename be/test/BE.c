@@ -52,13 +52,15 @@ ok64 BEtest2() {
     sane(1);
     u8cs fpath = $u8str("librdx/src/main.c");
     u8cs branch = $u8str("main");
+    ron60 branch_r60 = 0;
+    RONutf8sDrain(&branch_r60, branch);
     ron60 stamp = 0x123;
 
     // Build waypoint key with scheme
     a_cstr(sch_be, BE_SCHEME_BE);
     u8 qqbuf[128];
     u8s qq = {qqbuf, qqbuf + sizeof(qqbuf)};
-    call(BEQueryBuild, qq, stamp, branch);
+    call(BEQueryBuild, qq, stamp, branch_r60);
     u8cs query = {qqbuf, qq[0]};
     u8cs empty_f = {};
     u8 kbuf[512];
@@ -76,10 +78,12 @@ ok64 BEtest2() {
     u8cs tail = {got[1] - $len(suffix), got[1]};
     want($eq(tail, suffix));
 
-    // Extract branch suffix (URIutf8Drain handles scheme)
-    u8cs extracted_branch = {};
-    call(BEKeyBranchSuffix, extracted_branch, got);
-    want($eq(extracted_branch, branch));
+    // Extract branch origin (URIutf8Drain handles scheme)
+    ron60 extracted_branch = 0;
+    call(BEKeyBranch, &extracted_branch, got);
+    ron60 branch_val = 0;
+    RONutf8sDrain(&branch_val, branch);
+    same(extracted_branch, branch_val);
 
     // Extract timestamp
     ron60 extracted_stamp = 0;
@@ -93,7 +97,7 @@ ok64 BEtest2() {
 
 // Helper: build waypoint URI key into buffer (with scheme prefix)
 static ok64 TestWaypoint(u8s into, u8cs scheme, u8cs proj, u8cs path,
-                         ron60 stamp, u8cs branch) {
+                         ron60 stamp, ron60 branch) {
     sane($ok(into));
     u8 ppbuf[256];
     u8s pp = {ppbuf, ppbuf + sizeof(ppbuf)};
@@ -137,7 +141,9 @@ ok64 BEtest3() {
     sane(1);
     u8cs proj = $u8str("proj");
     u8cs path = $u8str("file.c");
-    u8cs branch = $u8str("main");
+    u8cs branch_s = $u8str("main");
+    ron60 branch = 0;
+    RONutf8sDrain(&branch, branch_s);
     a_cstr(sch_be, BE_SCHEME_BE);
 
     u8 k1buf[512], k2buf[512], k3buf[512];
@@ -160,7 +166,9 @@ ok64 BEtest3() {
     want(memcmp(s2[0], s3[0], len23) < 0);
 
     // Different branches at same timestamp: both after base prefix
-    u8cs b2 = $u8str("feat");
+    u8cs b2_s = $u8str("feat");
+    ron60 b2 = 0;
+    RONutf8sDrain(&b2, b2_s);
     u8 k4buf[512];
     u8s k4 = {k4buf, k4buf + sizeof(k4buf)};
     call(TestWaypoint, k4, sch_be, proj, path, 200, b2);
@@ -324,12 +332,14 @@ ok64 BEtest6() {
         if ($len(k) < $len(prefix) ||
             memcmp(k[0], prefix[0], $len(prefix)) != 0)
             break;
-        // Verify branch suffix is "main"
-        u8cs branch = {};
-        ok64 o = BEKeyBranchSuffix(branch, k);
+        // Verify branch is "main"
+        ron60 branch = 0;
+        ok64 o = BEKeyBranch(&branch, k);
         want(o == OK);
         a_cstr(main_br, "main");
-        want($eq(branch, main_br));
+        ron60 main_val = 0;
+        RONutf8sDrain(&main_val, main_br);
+        same(branch, main_val);
         wp_count++;
         call(ROCKIterNext, &it);
     }
