@@ -14,7 +14,15 @@
 
 ok64 bastcli() {
     sane(1);
-    test($arglen >= 2 && $arglen <= 3, BADARG);
+    if ($arglen < 2 || $arglen > 3) {
+        a_cstr(u1, "Usage: bast <file.ext>             JSON to stdout\n");
+        a_cstr(u2, "       bast <file.ext> <out.bason> BASON to file\n");
+        a_cstr(u3, "       bast <file.ext> <out.json>  JSON to file\n");
+        FILEerr(u1);
+        FILEerr(u2);
+        FILEerr(u3);
+        fail(BADARG);
+    }
     call(FILEInit);
 
     a$rg(arg, 1);

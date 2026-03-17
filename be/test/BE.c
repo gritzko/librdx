@@ -1250,7 +1250,7 @@ ok64 BEtest18() {
             else if (st == '+') n_add++;
             else if (st == '~') n_chg++;
         }
-        if (BASONPlex(type)) {
+        if (BASONCollection(type)) {
             call(BASONInto, vstk, unified, val);
             depth++;
         }

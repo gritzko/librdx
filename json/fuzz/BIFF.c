@@ -27,7 +27,7 @@ static ok64 BIFFFuzzTreeEq(u64bp astk, u8csc adata,
                  ($len(ak) == 0 || memcmp(ak[0], bk[0], $len(ak)) == 0),
                  "key mismatch");
         }
-        if (BASONPlex(at)) {
+        if (BASONCollection(at)) {
             b8 child_arr = (at == 'A');
             call(BASONInto, astk, adata, av);
             call(BASONInto, bstk, bdata, bv);
@@ -60,7 +60,7 @@ static ok64 BIFFFuzzCompare(u8csc adata, u8csc bdata) {
     must(BASONDrain(astk, adata, &at, ak, av) == OK, "empty a");
     must(BASONDrain(bstk, bdata, &bt, bk, bv) == OK, "empty b");
     must(at == bt, "root type mismatch");
-    if (BASONPlex(at)) {
+    if (BASONCollection(at)) {
         b8 is_arr = (at == 'A');
         call(BASONInto, astk, adata, av);
         call(BASONInto, bstk, bdata, bv);
@@ -75,7 +75,7 @@ static ok64 BIFFFuzzCompare(u8csc adata, u8csc bdata) {
 static ok64 BIFFFuzzNoDupKeys(u64bp stk, u8csc data,
                                u8 type, u8cs val) {
     sane(stk != NULL);
-    if (!BASONPlex(type)) done;
+    if (!BASONCollection(type)) done;
     call(BASONInto, stk, data, val);
     u8 ct; u8cs ck, cv;
     u8cs prev_key = {NULL, NULL};
@@ -111,7 +111,7 @@ static ok64 BIFFFuzzParse(u8bp buf, u64bp idx, u8csc raw) {
     if (BASONOpen(ts, data) != OK) return BADARG;
     u8 t; u8cs k, v;
     if (BASONDrain(ts, data, &t, k, v) != OK) return BADARG;
-    if (!BASONPlex(t)) return BADARG;
+    if (!BASONCollection(t)) return BADARG;
     ok64 o = BIFFFuzzNoDupKeys(ts, data, t, v);
     if (o != OK) return o;
     // must be the only top-level element

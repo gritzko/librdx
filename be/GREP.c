@@ -37,7 +37,7 @@ ok64 BETriExtract(u8csc bason, BETriCBf cb, voidp arg) {
             depth--;
             continue;
         }
-        if (!BASONPlex(type) && $len(val) >= 3) {
+        if (!BASONCollection(type) && $len(val) >= 3) {
             u8cp p = val[0];
             u8cp end = val[1] - 2;
             while (p <= end) {
@@ -47,7 +47,7 @@ ok64 BETriExtract(u8csc bason, BETriCBf cb, voidp arg) {
                 }
                 p++;
             }
-        } else if (BASONPlex(type)) {
+        } else if (BASONCollection(type)) {
             call(BASONInto, stk, bason, val);
             depth++;
         }
@@ -75,7 +75,7 @@ ok64 BESymExtract(u8csc bason, BESymCBf cb, voidp arg) {
         }
         if (type == BAST_TAG_NAME && !$empty(val)) {
             call(cb, arg, val);
-        } else if (BASONPlex(type)) {
+        } else if (BASONCollection(type)) {
             call(BASONInto, stk, bason, val);
             depth++;
         }
@@ -152,7 +152,7 @@ ok64 BASTGrepNodes(u8s out, u8cs bason_data, int k,
             depth--;
             continue;
         }
-        if (!BASONPlex(type)) {
+        if (!BASONCollection(type)) {
             u32 len = (u32)$len(val);
             u32 node_start = offset;
             // Build line table from leaf content
@@ -227,7 +227,7 @@ ok64 BASTGrepNodes(u8s out, u8cs bason_data, int k,
             depth2--;
             continue;
         }
-        if (!BASONPlex(type)) {
+        if (!BASONCollection(type)) {
             u8cp p = val[0];
             while (p < val[1]) {
                 u8cp nl = memchr(p, '\n', (size_t)(val[1] - p));
@@ -272,7 +272,7 @@ static ok64 BASTDiffEmitAll(u8bp out, u64bp idx,
     if (klen > 0) memcpy(kbuf + 1, key[0], klen);
     u8cs pkey = {kbuf, kbuf + 1 + klen};
 
-    if (BASONPlex(type)) {
+    if (BASONCollection(type)) {
         call(BASONFeedInto, idx, out, type, pkey);
         call(BASONInto, stk, data, val);
         u8 ct = 0;
@@ -312,7 +312,7 @@ static ok64 BASTDiffLevel(u8bp out, u64bp idx,
             if (pt == 'B' && $len(pv) == 0) {
                 // deleted (null tombstone)
                 call(BASTDiffEmitAll, out, idx, ostk, odata, ot, ok, ov, '-');
-            } else if (BASONPlex(ot) && BASONPlex(pt) && ot == pt) {
+            } else if (BASONCollection(ot) && BASONCollection(pt) && ot == pt) {
                 // both containers, same type → recurse
                 u8 kbuf[512];
                 size_t klen =
@@ -405,7 +405,7 @@ ok64 BASTDiffRender(u8s out, u8cs bason_data, int k) {
             depth--;
             continue;
         }
-        if (!BASONPlex(type)) {
+        if (!BASONCollection(type)) {
             u32 len = (u32)$len(val);
             u32 node_start = offset;
             for (u32 i = 0; i < len && nlines < 65536; i++) {
@@ -462,7 +462,7 @@ ok64 BASTDiffRender(u8s out, u8cs bason_data, int k) {
             depth2--;
             continue;
         }
-        if (!BASONPlex(type)) {
+        if (!BASONCollection(type)) {
             u8 status = (!$empty(key)) ? key[0][0] : '=';
             u8cp p = val[0];
             while (p < val[1]) {

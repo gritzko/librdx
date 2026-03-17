@@ -679,6 +679,7 @@ ok64 BIFFtestFuzzRepros() {
         call(BASONMerge, mbuf, midx, ls, od, rs, dd);
         u8cs md = {mbuf[1], mbuf[2]};
 
+        fprintf(stderr, "  fuzz[%zu] ok: %s → %s\n", i, tc->old_json, tc->new_json);
         // verify via JSON export comparison (handles sorted keys + splice keys)
         call(BIFFCheckJSONEqual, md, nd);
     }
@@ -1092,6 +1093,10 @@ static BIFFDiffMinCase BIFF_DIFF_MIN_CASES[] = {
     {"[10,20,30]", "[10,20,30]", NULL},
     // Array: replace all → full patch
     {"[1,2,3]", "[4,5,6]", NULL},  // roundtrip-only
+    // Nested arrays: insert + append → minimal patch
+    {"[[\"a\",\"b\"],[\"1\",\"2\",\"3\",\"4\",\"5\",\"6\",\"7\",\"8\"]]",
+     "[[\"a\",\"b\"],[\"X\",\"Y\"],[\"1\",\"2\",\"3\",\"4\",\"5\",\"6\",\"7\",\"8\",\"9\"]]",
+     "[[\"X\",\"Y\"],[\"9\"]]"},
 };
 
 ok64 BIFFtestDiffMinimal() {
@@ -1341,8 +1346,366 @@ ok64 BIFFtestRenderFuzzRepros() {
     done;
 }
 
+// Count bytes of uncolored text in rendered diff output.
+// Uncolored = not inside a 256-color BG escape sequence block.
+static u64 BIFFCountPlain(u8cs text) {
+    u64 plain = 0;
+    b8 colored = NO;
+    u8cp p = text[0];
+    while (p < text[1]) {
+        // Detect BG256 start: \033[48;5;
+        if (*p == '\033' && p + 7 < text[1] &&
+            memcmp(p, "\033[48;5;", 7) == 0) {
+            colored = YES;
+            p += 7;
+            continue;
+        }
+        // Detect reset: \033[0m
+        if (*p == '\033' && p + 3 < text[1] &&
+            p[1] == '[' && p[2] == '0' && p[3] == 'm') {
+            colored = NO;
+            p += 4;
+            continue;
+        }
+        // Skip other ESC sequences
+        if (*p == '\033') { p++; continue; }
+        if (!colored && *p != '\n' && *p != ' ') plain++;
+        p++;
+    }
+    return plain;
+}
+
+// Test: a barely-changed array should render mostly as uncolored context.
+// If BIFFTrivialEQ fires incorrectly, the whole array becomes del+add.
+typedef struct {
+    char const *old_json;
+    char const *new_json;
+    char const *label;
+} BIFFContextCase;
+
+static BIFFContextCase BIFF_CONTEXT_CASES[] = {
+    // Flat array, one element changed out of 10
+    {"[\"aaa\\n\",\"bbb\\n\",\"ccc\\n\",\"ddd\\n\",\"eee\\n\","
+     "\"fff\\n\",\"ggg\\n\",\"hhh\\n\",\"iii\\n\",\"jjj\\n\"]",
+     "[\"aaa\\n\",\"bbb\\n\",\"ccc\\n\",\"ddd\\n\",\"XXX\\n\","
+     "\"fff\\n\",\"ggg\\n\",\"hhh\\n\",\"iii\\n\",\"jjj\\n\"]",
+     "flat: 1/10 changed"},
+    // Nested: array of arrays, one inner element changed
+    {"[[\"aaa\",\"bbb\"],[\"ccc\",\"ddd\"],[\"eee\",\"fff\"]]",
+     "[[\"aaa\",\"bbb\"],[\"ccc\",\"XXX\"],[\"eee\",\"fff\"]]",
+     "nested: 1 leaf in 3 containers"},
+    // Object with one value changed out of many
+    {"{\"a\":\"aaa\",\"b\":\"bbb\",\"c\":\"ccc\",\"d\":\"ddd\","
+     "\"e\":\"eee\",\"f\":\"fff\",\"g\":\"ggg\",\"h\":\"hhh\"}",
+     "{\"a\":\"aaa\",\"b\":\"bbb\",\"c\":\"ccc\",\"d\":\"XXX\","
+     "\"e\":\"eee\",\"f\":\"fff\",\"g\":\"ggg\",\"h\":\"hhh\"}",
+     "object: 1/8 changed"},
+    // Asymmetric: small leaves + one big changed container.
+    // Simulates header file: small comments + one huge #ifndef block.
+    // The big container changes internally but small siblings are EQ.
+    // BIFFTrivialEQ must NOT fire here — the small matches are real.
+    {"[\"a\\n\","
+     "[\"L01\\n\",\"L02\\n\",\"L03\\n\",\"L04\\n\",\"L05\\n\","
+      "\"L06\\n\",\"L07\\n\",\"L08\\n\",\"L09\\n\",\"L10\\n\","
+      "\"L11\\n\",\"L12\\n\",\"L13\\n\",\"L14\\n\",\"L15\\n\","
+      "\"L16\\n\",\"L17\\n\",\"L18\\n\",\"L19\\n\",\"L20\\n\","
+      "\"L21\\n\",\"L22\\n\",\"L23\\n\",\"L24\\n\",\"L25\\n\","
+      "\"L26\\n\",\"L27\\n\",\"L28\\n\",\"L29\\n\",\"L30\\n\","
+      "\"L31\\n\",\"L32\\n\",\"L33\\n\",\"L34\\n\",\"L35\\n\","
+      "\"L36\\n\",\"L37\\n\",\"L38\\n\",\"L39\\n\",\"L40\\n\"],"
+     "\"b\\n\"]",
+     "[\"a\\n\","
+     "[\"L01\\n\",\"L02\\n\",\"L03\\n\",\"L04\\n\",\"L05\\n\","
+      "\"L06\\n\",\"L07\\n\",\"L08\\n\",\"L09\\n\",\"L10\\n\","
+      "\"L11\\n\",\"L12\\n\",\"L13\\n\",\"L14\\n\",\"L15\\n\","
+      "\"L16\\n\",\"L17\\n\",\"L18\\n\",\"L19\\n\",\"XXX\\n\","
+      "\"L21\\n\",\"L22\\n\",\"L23\\n\",\"L24\\n\",\"L25\\n\","
+      "\"L26\\n\",\"L27\\n\",\"L28\\n\",\"L29\\n\",\"L30\\n\","
+      "\"L31\\n\",\"L32\\n\",\"L33\\n\",\"L34\\n\",\"L35\\n\","
+      "\"L36\\n\",\"L37\\n\",\"L38\\n\",\"L39\\n\",\"L40\\n\"],"
+     "\"b\\n\"]",
+     "asymmetric: small leaves + big changed container"},
+};
+
+ok64 BIFFtestTrivialEQContext() {
+    sane(1);
+    u32 fails = 0;
+    size_t n = sizeof(BIFF_CONTEXT_CASES) / sizeof(BIFF_CONTEXT_CASES[0]);
+    for (size_t i = 0; i < n; i++) {
+        BIFFContextCase *tc = &BIFF_CONTEXT_CASES[i];
+
+        // Parse
+        BIFF_SETUP(old, 4096, tc->old_json);
+        BIFF_SETUP(neu, 4096, tc->new_json);
+        u8cs od = {old_buf[1], old_buf[2]};
+        u8cs nd = {neu_buf[1], neu_buf[2]};
+
+        // Step 1: diff
+        u8  _dp[4096];
+        u8b dbuf = {_dp, _dp, _dp, _dp + 4096};
+        u64 _os[64];
+        u64b os = {_os, _os, _os, _os + 64};
+        u64 _ns[64];
+        u64b ns = {_ns, _ns, _ns, _ns + 64};
+        call(BASONDiff, dbuf, NULL, os, od, ns, nd, NULL);
+        u8cp d0 = dbuf[1], d1 = dbuf[2];
+        u8cs patch = {d0, d1};
+
+        // Step 2: merge
+        u8  _mp[4096];
+        u8b mbuf = {_mp, _mp, _mp, _mp + 4096};
+        u64 _ls[64];
+        u64b ls = {_ls, _ls, _ls, _ls + 64};
+        u64 _rs[64];
+        u64b rs = {_rs, _rs, _rs, _rs + 64};
+        call(BASONMerge, mbuf, NULL, ls, od, rs, patch);
+        u8cp m0 = mbuf[1], m1 = mbuf[2];
+        u8cs merged = {m0, m1};
+
+        // Step 3: render (ctx=0 for full output)
+        a_pad(u8, rbuf, 16384);
+        u8s rout = {_rbuf, _rbuf + 16384};
+        u8p rstart = rout[0];
+        u8cs noname = {};
+        call(BASONDiffPrint, rout, od, merged, 0, noname);
+        u8cs rendered = {(u8cp)rstart, (u8cp)rout[0]};
+
+        if ($empty(rendered)) {
+            fprintf(stderr, "  '%s': empty render (identical?)\n", tc->label);
+            fails++;
+            continue;
+        }
+
+        u64 plain = BIFFCountPlain(rendered);
+        u64 total_text = $len(rendered);
+        // A barely-changed structure should have >25% plain text
+        if (plain * 4 < total_text) {
+            fprintf(stderr, "  FAIL '%s': too little plain text "
+                    "(plain=%lu total=%lu)\n",
+                    tc->label, (unsigned long)plain,
+                    (unsigned long)total_text);
+            u32 show = total_text > 400 ? 400 : (u32)total_text;
+            fprintf(stderr, "  rendered: %.*s\n", show, rendered[0]);
+            fails++;
+        } else {
+            fprintf(stderr, "  '%s': OK (plain=%lu total=%lu)\n",
+                    tc->label, (unsigned long)plain,
+                    (unsigned long)total_text);
+        }
+    }
+    test(fails == 0, TESTFAIL);
+    done;
+}
+
+// Noise EQ cleanup: small accidental matches between large edits
+// should not fragment the diff. Verify roundtrip still works.
+typedef struct {
+    char const *label;
+    char const *old_json;
+    char const *new_json;
+} BIFFNoiseCase;
+
+static BIFFNoiseCase BIFF_NOISE_CASES[] = {
+    // Single "0" matches noise between different long arrays
+    {"single_zero",
+     "[10,20,0,30,40,50]",
+     "[\"aa\",\"bb\",0,\"cc\",\"dd\",\"ee\"]"},
+    // Single short element among many changed
+    {"short_among_long",
+     "[100,200,300,1,400,500,600]",
+     "[\"alpha\",\"beta\",\"gamma\",1,\"delta\",\"epsilon\",\"zeta\"]"},
+    // Multiple noise matches scattered
+    {"multi_noise",
+     "[\"abc\",1,\"def\",2,\"ghi\"]",
+     "[\"XXX\",1,\"YYY\",2,\"ZZZ\"]"},
+    // Object with small value match surrounded by changes
+    {"object_noise",
+     "{\"a\":\"long_value_1\",\"b\":0,\"c\":\"long_value_2\"}",
+     "{\"a\":\"changed_val\",\"b\":0,\"c\":\"other_change\"}"},
+};
+
+ok64 BIFFtestDiffNoiseEQ() {
+    sane(1);
+    size_t n = sizeof(BIFF_NOISE_CASES) / sizeof(BIFF_NOISE_CASES[0]);
+    for (size_t i = 0; i < n; i++) {
+        BIFFNoiseCase *tc = &BIFF_NOISE_CASES[i];
+
+        BIFF_SETUP(old, 4096, tc->old_json);
+        BIFF_SETUP(neu, 4096, tc->new_json);
+
+        u8cs od = {old_buf[1], old_buf[2]};
+        u8cs nd = {neu_buf[1], neu_buf[2]};
+
+        u8  _dp[4096];
+        u8b dbuf = {_dp, _dp, _dp, _dp + 4096};
+        u64 _di[64];
+        u64b didx = {_di, _di, _di, _di + 64};
+        u64 _os[64];
+        u64b os = {_os, _os, _os, _os + 64};
+        u64 _ns[64];
+        u64b ns = {_ns, _ns, _ns, _ns + 64};
+
+        call(BASONDiff, dbuf, didx, os, od, ns, nd, NULL);
+        u8cs dd = {dbuf[1], dbuf[2]};
+
+        // Roundtrip: merge(old, diff) must equal new
+        u8  _mp[4096];
+        u8b mbuf = {_mp, _mp, _mp, _mp + 4096};
+        u64 _mi[64];
+        u64b midx = {_mi, _mi, _mi, _mi + 64};
+        u64 _ls[64];
+        u64b ls = {_ls, _ls, _ls, _ls + 64};
+        u64 _rs[64];
+        u64b rs = {_rs, _rs, _rs, _rs + 64};
+
+        call(BASONMerge, mbuf, midx, ls, od, rs, dd);
+        u8cs md = {mbuf[1], mbuf[2]};
+        call(BIFFCheckJSONEqual, md, nd);
+    }
+    done;
+}
+
+static ok64 BIFFDumpText(char const *label, u8csc data) {
+    sane(data[0] != NULL);
+    u8 _tb[8192];
+    u8b tbuf = {_tb, _tb, _tb, _tb + 8192};
+    u64 _ts[64];
+    u64b tstk = {_ts, _ts, _ts, _ts + 64};
+    call(BASONExportText, u8bIdle(tbuf), tstk, data);
+    u8cs t = {tbuf[1], tbuf[2]};
+    fprintf(stderr, "--- %s ---\n%.*s\n", label, (int)$len(t), t[0]);
+    done;
+}
+
+extern b8 _biff_debug;
+
+ok64 BIFFtestEmptyArrays() {
+    sane(1);
+    _biff_debug = YES;
+    char const *old_json =
+        "[0,6,1,[],2,2,[],2,3,[],[],2,[],3,6,1,[],2,2,[],2,[],2,3,1,2,3,2,3,1,[],[],2]";
+    char const *new_json =
+        "[6,[],2,[],3,[],2,[],2,1,[2],2,[],2,[],2,[],[],2,[],2,[],[],2,[],2,[],3,2]";
+
+    BIFF_SETUP(old, 4096, old_json);
+    BIFF_SETUP(neu, 4096, new_json);
+    u8cs od = {old_buf[1], old_buf[2]};
+    u8cs nd = {neu_buf[1], neu_buf[2]};
+
+    call(BIFFDumpText, "OLD", od);
+    call(BIFFDumpText, "NEW", nd);
+
+    u8  _dp[4096];
+    u8b dbuf = {_dp, _dp, _dp, _dp + 4096};
+    u64 _di[64];
+    u64b didx = {_di, _di, _di, _di + 64};
+    u64 _os[64];
+    u64b os = {_os, _os, _os, _os + 64};
+    u64 _ns[64];
+    u64b ns = {_ns, _ns, _ns, _ns + 64};
+
+    call(BASONDiff, dbuf, didx, os, od, ns, nd, NULL);
+    u8cs dd = {dbuf[1], dbuf[2]};
+
+    call(BIFFDumpText, "PATCH", dd);
+
+    // Merge
+    u8  _mp[4096];
+    u8b mbuf = {_mp, _mp, _mp, _mp + 4096};
+    u64 _mi[64];
+    u64b midx = {_mi, _mi, _mi, _mi + 64};
+    u64 _ls[64];
+    u64b ls = {_ls, _ls, _ls, _ls + 64};
+    u64 _rs[64];
+    u64b rs = {_rs, _rs, _rs, _rs + 64};
+
+    call(BASONMerge, mbuf, midx, ls, od, rs, dd);
+    u8cs md = {mbuf[1], mbuf[2]};
+
+    call(BIFFDumpText, "MERGED", md);
+    _biff_debug = NO;
+    call(BIFFCheckJSONEqual, md, nd);
+    done;
+}
+
+ok64 BIFFtestExportText() {
+    sane(1);
+    BIFF_SETUP(d, 2048, "{\"name\":\"John\",\"age\":30,\"items\":[\"a\",\"b\"]}");
+    u8 _tbuf[4096];
+    u8b tbuf = {_tbuf, _tbuf, _tbuf, _tbuf + 4096};
+    u64 _tstk[64];
+    u64b tstk = {_tstk, _tstk, _tstk, _tstk + 64};
+    call(BASONExportText, u8bIdle(tbuf), tstk, BIFF_DATA(d));
+    u8cs got = {tbuf[1], tbuf[2]};
+    // Object keys are sorted, so: age, items, name
+    char const *expected =
+        "O\n"
+        "  N\tage\t30\n"
+        "  A\titems\n"
+        "    S\t1\ta\n"
+        "    S\t2\tb\n"
+        "  S\tname\tJohn\n";
+    u8cs exp = $u8str(expected);
+    if ($len(got) != $len(exp) || memcmp(got[0], exp[0], $len(exp)) != 0) {
+        fprintf(stderr, "ExportText expected:\n%s", expected);
+        fprintf(stderr, "ExportText got:\n%.*s", (int)$len(got), got[0]);
+        fail(TESTFAIL);
+    }
+    done;
+}
+
+ok64 BIFFtestNestedArrayMinimal() {
+    sane(1);
+    _biff_debug = YES;
+    char const *old_json =
+        "[[\"a\",\"b\"],[\"1\",\"2\",\"3\",\"4\",\"5\",\"6\",\"7\",\"8\"]]";
+    char const *new_json =
+        "[[\"a\",\"b\"],[\"X\",\"Y\"],[\"1\",\"2\",\"3\",\"4\",\"5\",\"6\",\"7\",\"8\",\"9\"]]";
+
+    BIFF_SETUP(old, 4096, old_json);
+    BIFF_SETUP(neu, 4096, new_json);
+    u8cs od = {old_buf[1], old_buf[2]};
+    u8cs nd = {neu_buf[1], neu_buf[2]};
+
+    call(BIFFDumpText, "OLD", od);
+    call(BIFFDumpText, "NEW", nd);
+
+    u8  _dp[4096];
+    u8b dbuf = {_dp, _dp, _dp, _dp + 4096};
+    u64 _di[64];
+    u64b didx = {_di, _di, _di, _di + 64};
+    u64 _os[64];
+    u64b os = {_os, _os, _os, _os + 64};
+    u64 _ns[64];
+    u64b ns = {_ns, _ns, _ns, _ns + 64};
+
+    call(BASONDiff, dbuf, didx, os, od, ns, nd, NULL);
+    u8cs dd = {dbuf[1], dbuf[2]};
+
+    call(BIFFDumpText, "PATCH", dd);
+
+    // Merge
+    u8  _mp[4096];
+    u8b mbuf = {_mp, _mp, _mp, _mp + 4096};
+    u64 _mi[64];
+    u64b midx = {_mi, _mi, _mi, _mi + 64};
+    u64 _ls[64];
+    u64b ls = {_ls, _ls, _ls, _ls + 64};
+    u64 _rs[64];
+    u64b rs = {_rs, _rs, _rs, _rs + 64};
+
+    call(BASONMerge, mbuf, midx, ls, od, rs, dd);
+    u8cs md = {mbuf[1], mbuf[2]};
+
+    call(BIFFDumpText, "MERGED", md);
+    _biff_debug = NO;
+    call(BIFFCheckJSONEqual, md, nd);
+    done;
+}
+
 ok64 BIFFtestAll() {
     sane(1);
+    call(BIFFtestExportText);
     call(BIFFtestCrashC5b66);
     call(BIFFtestCrash6af3a);
     call(BIFFtestMergeIdentityLeft);
@@ -1364,7 +1727,10 @@ ok64 BIFFtestAll() {
     call(BIFFtestDiffArrayAppend);
     call(BIFFtestDiffArrayDelete);
     call(BIFFtestDiffArrayIdentical);
+    call(BIFFtestEmptyArrays);
+    fprintf(stderr, "PASSED: EmptyArrays\n");
     call(BIFFtestFuzzRepros);
+    fprintf(stderr, "PASSED: up to FuzzRepros\n");
     call(BIFFtestMergeNSingle);
     call(BIFFtestMergeN2way);
     call(BIFFtestMergeN3way);
@@ -1374,9 +1740,18 @@ ok64 BIFFtestAll() {
     call(BIFFtestMergeNArray);
     call(BIFFtestMergeY);
     call(BIFFtestMergeNEmpty);
+    fprintf(stderr, "PASSED: up to MergeNEmpty\n");
+    call(BIFFtestNestedArrayMinimal);
+    fprintf(stderr, "PASSED: NestedArrayMinimal\n");
     call(BIFFtestDiffMinimal);
+    fprintf(stderr, "PASSED: DiffMinimal\n");
+    call(BIFFtestDiffNoiseEQ);
+    fprintf(stderr, "PASSED: DiffNoiseEQ\n");
     call(BIFFtestRenderFuzzRepros);
+    fprintf(stderr, "PASSED: RenderFuzzRepros\n");
     call(BIFFtestRender);
+    fprintf(stderr, "PASSED: Render\n");
+    call(BIFFtestTrivialEQContext);
     done;
 }
 

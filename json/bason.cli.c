@@ -5,10 +5,11 @@
 #include "abc/FILE.h"
 #include "abc/PRO.h"
 
-// bason: convert JSON->BASON or BASON->JSON depending on input.
-// If input starts with '{' or '[' (after whitespace), it's JSON -> BASON.
-// Otherwise it's BASON -> JSON.
-// Usage: bason <file>
+// bason: convert between JSON, BASON binary, and BASON text dump.
+// Usage: bason <input> [output]
+// Input format auto-detected (JSON if starts with '{' or '[', else BASON).
+// Output format determined by extension: .json .bason .txt
+// No output arg: JSON input → BASON to stdout, BASON input → text to stdout.
 
 #define BASON_BUF_LEN (4 * 1024 * 1024)
 
@@ -20,9 +21,24 @@ static b8 basonIsJSON(u8csc data) {
     return *p == '{' || *p == '[';
 }
 
+// 0=bason, 1=json, 2=txt
+static u8 basonOutFmt(u8csc name) {
+    size_t n = $len(name);
+    if (n >= 5 && memcmp(name[1] - 5, ".json", 5) == 0) return 1;
+    if (n >= 6 && memcmp(name[1] - 6, ".bason", 6) == 0) return 0;
+    if (n >= 4 && memcmp(name[1] - 4, ".txt", 4) == 0) return 2;
+    return 0;  // default: binary bason
+}
+
 ok64 basoncli() {
     sane(1);
-    test($arglen == 2, BADARG);
+    if ($arglen < 2 || $arglen > 3) {
+        a_cstr(u1, "Usage: bason <input> [output]\n");
+        a_cstr(u2, "Output ext: .json .bason .txt\n");
+        FILEerr(u1);
+        FILEerr(u2);
+        fail(BADARG);
+    }
 
     call(FILEInit);
 
@@ -37,30 +53,83 @@ ok64 basoncli() {
     u8cp i0 = mapped[1], i1 = mapped[2];
     u8cs indata = {i0, i1};
 
-    if (basonIsJSON(indata)) {
-        u8b bson = {};
+    // Determine output format
+    u8 ofmt;
+    if ($arglen == 3) {
+        a$rg(oarg, 2);
+        ofmt = basonOutFmt(oarg);
+    } else {
+        ofmt = basonIsJSON(indata) ? 0 : 2;  // json→bason, bason→txt
+    }
+
+    // Parse JSON input to BASON if needed
+    b8 is_json = basonIsJSON(indata);
+    u8b bson = {};
+    u8cs bdata;
+    if (is_json) {
         call(u8bMap, bson, BASON_BUF_LEN);
         u64 _idx[256];
         u64b idx = {_idx, _idx, _idx, _idx + 256};
         call(BASONParseJSON, bson, idx, indata);
-        u8cp o0 = bson[1], o1 = bson[2];
-        u8cs out = {o0, o1};
-        call(FILEFeedall, STDOUT_FILENO, out);
-        u8bUnMap(bson);
+        u8cp b0 = bson[1], b1 = bson[2];
+        bdata[0] = b0;
+        bdata[1] = b1;
     } else {
-        u8b jbuf = {};
-        call(u8bMap, jbuf, BASON_BUF_LEN);
-        u64 _stk[256];
-        u64b stk = {_stk, _stk, _stk, _stk + 256};
-        call(BASONExportJSON, u8bIdle(jbuf), stk, indata);
-        u8cp o0 = jbuf[1], o1 = jbuf[2];
-        u8cs out = {o0, o1};
-        call(FILEFeedall, STDOUT_FILENO, out);
-        u8cs nl = $u8str("\n");
-        call(FILEFeedall, STDOUT_FILENO, nl);
-        u8bUnMap(jbuf);
+        bdata[0] = indata[0];
+        bdata[1] = indata[1];
     }
 
+    // Produce output
+    u8b outbuf = {};
+    if (ofmt == 0) {
+        // binary BASON
+        if ($arglen == 3) {
+            a$rg(oarg, 2);
+            a_pad(u8, opath, FILE_PATH_MAX_LEN);
+            call(u8bFeed, opath, oarg);
+            u8bFeed1(opath, 0);
+            u8bShed1(opath);
+            int ofd;
+            call(FILECreate, &ofd, path8cgIn(opath));
+            if ($len(bdata) > 0)
+                call(FILEFeedall, ofd, bdata);
+            close(ofd);
+        } else {
+            call(FILEFeedall, STDOUT_FILENO, bdata);
+        }
+    } else {
+        // text or json export
+        call(u8bMap, outbuf, BASON_BUF_LEN);
+        u64 _stk[256];
+        u64b stk = {_stk, _stk, _stk, _stk + 256};
+        if (ofmt == 1) {
+            call(BASONExportJSON, u8bIdle(outbuf), stk, bdata);
+        } else {
+            call(BASONExportText, u8bIdle(outbuf), stk, bdata);
+        }
+        u8cp o0 = outbuf[1], o1 = outbuf[2];
+        u8cs out = {o0, o1};
+        if ($arglen == 3) {
+            a$rg(oarg, 2);
+            a_pad(u8, opath, FILE_PATH_MAX_LEN);
+            call(u8bFeed, opath, oarg);
+            u8bFeed1(opath, 0);
+            u8bShed1(opath);
+            int ofd;
+            call(FILECreate, &ofd, path8cgIn(opath));
+            call(FILEFeedall, ofd, out);
+            close(ofd);
+        } else {
+            call(FILEFeedall, STDOUT_FILENO, out);
+            if (ofmt == 1) {
+                u8cs nl = $u8str("\n");
+                call(FILEFeedall, STDOUT_FILENO, nl);
+            }
+        }
+        u8bUnMap(outbuf);
+    }
+
+    if (is_json) u8bUnMap(bson);
     call(FILEUnMap, mapped);
     done;
 }

@@ -8,9 +8,17 @@ con ok64 BASONEND = 0x1c5584dcf0;
 con ok64 BASONBAD = 0x1c5584de8d;
 
 // Container types: vowels are containers, consonants are leaves
-fun b8 BASONPlex(u8 type) {
+fun b8 BASONCollection(u8 type) {
     return type == 'A' || type == 'E' || type == 'I' ||
            type == 'O' || type == 'U' || type == 'Y';
+}
+
+// Object containers: children keyed by name (sorted merge diff)
+fun b8 BASONObject(u8 type) { return type == 'O'; }
+
+// Array containers: children keyed by position (Myers diff)
+fun b8 BASONArray(u8 type) {
+    return BASONCollection(type) && !BASONObject(type);
 }
 
 // Page size for index sampling (one entry per page)
@@ -87,6 +95,7 @@ ok64 BASONFeedInfInc(u8s into, u8cs prev);
 // --- JSON ↔ BASON ---
 ok64 BASONParseJSON(u8bp buf, u64bp idx, u8cs json);
 ok64 BASONExportJSON(u8s out, u64bp stack, u8csc data);
+ok64 BASONExportText(u8s out, u64bp stack, u8csc data);
 
 // --- API B: cursor struct, delegates to API A ---
 
@@ -113,7 +122,7 @@ fun ok64 basonDrain(basonp x) {
 }
 
 fun ok64 basonInto(basonp x) {
-    if (!BASONPlex(x->type)) return BASONBAD;
+    if (!BASONCollection(x->type)) return BASONBAD;
     u8cs d = {x->data[1], x->data[2]};
     ok64 o = BASONInto(x->stack, d, x->val);
     if (o == OK) x->ptype = x->type;

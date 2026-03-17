@@ -138,7 +138,7 @@ static ok64 BASTExportRec(u8s out, u64bp stack, u8csc data) {
     u8cs key = {};
     u8cs val = {};
     while (BASONDrain(stack, data, &type, key, val) == OK) {
-        if (!BASONPlex(type)) {
+        if (!BASONCollection(type)) {
             call(u8sFeed, out, val);
         } else {
             call(BASONInto, stack, data, val);
@@ -166,7 +166,7 @@ static ok64 BASTCatRec(u8s out, u64bp stack, u8csc data,
     u8cs key = {};
     u8cs val = {};
     while (BASONDrain(stack, data, &type, key, val) == OK) {
-        if (!BASONPlex(type)) {
+        if (!BASONCollection(type)) {
             b8 styled = HILILeaf(out, type);
             call(u8sFeed, out, val);
             if (styled) HILIRestore(out, cstk, depth);

@@ -63,7 +63,7 @@ ok64 SMtestRoundtrip() {
                 depth--;
                 continue;
             }
-            if (!BASONPlex(type)) {
+            if (!BASONCollection(type)) {
                 call(u8bFeed, cat, val);
             } else {
                 BASONInto(stk, dat, val);
@@ -251,7 +251,7 @@ static ok64 SMCheckType(const char *input, u8 want, b8 *found) {
             depth--;
             continue;
         }
-        if (!BASONPlex(type)) {
+        if (!BASONCollection(type)) {
             if (type == want) *found = YES;
         } else {
             BASONInto(stk, dat, val);

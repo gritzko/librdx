@@ -144,7 +144,7 @@ ok64 BASTtestNameTag() {
                 found_foo = YES;
             if ($len(val) == 8 && memcmp(val[0], "MyStruct", 8) == 0)
                 found_MyStruct = YES;
-        } else if (BASONPlex(type)) {
+        } else if (BASONCollection(type)) {
             BASONInto(stk, dat, val);
             depth++;
         }
@@ -176,7 +176,7 @@ ok64 BASTtestNameTag() {
             depth2--;
             continue;
         }
-        if (!BASONPlex(type)) {
+        if (!BASONCollection(type)) {
             call(u8bFeed, cat, val);
         } else {
             BASONInto(stk, dat2, val);
@@ -235,7 +235,7 @@ ok64 BASTtestMDRoundtrip() {
                 depth--;
                 continue;
             }
-            if (!BASONPlex(type)) {
+            if (!BASONCollection(type)) {
                 call(u8bFeed, cat, val);
             } else {
                 BASONInto(stk, dat, val);
@@ -308,7 +308,7 @@ ok64 BASTtestMDStructure() {
         }
         if (type == 'P') found_P = YES;
 
-        if (BASONPlex(type)) {
+        if (BASONCollection(type)) {
             BASONInto(stk, dat, val);
             depth++;
         }

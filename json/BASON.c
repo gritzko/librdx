@@ -664,7 +664,7 @@ static ok64 BASONxOne(u8s out, u64bp stack, u8csc data,
         }
         call(BASONOuto, stack);
         call(u8sFeed1, out, '}');
-    } else if (BASONPlex(type)) {
+    } else if (BASONCollection(type)) {
         // A, E, I, U — array containers
         call(u8sFeed1, out, '[');
         call(BASONInto, stack, data, val);
@@ -699,6 +699,51 @@ ok64 BASONExportJSON(u8s out, u64bp stack, u8csc data) {
     u8 type; u8cs key, val;
     while (BASONDrain(stack, data, &type, key, val) == OK) {
         call(BASONxOne, out, stack, data, type, val);
+    }
+    done;
+}
+
+// --- BASON → text dump ---
+
+// Recursive: emit one element as indented text line + children.
+static ok64 BASONxText1(u8s out, u64bp stack, u8csc data,
+                        u8 type, u8cs key, u8cs val, u32 depth) {
+    sane(u8sOK(out));
+    // indent
+    for (u32 i = 0; i < depth; i++) {
+        call(u8sFeed1, out, ' ');
+        call(u8sFeed1, out, ' ');
+    }
+    // type char
+    call(u8sFeed1, out, type);
+    // TAB + key
+    if ($len(key) > 0) {
+        call(u8sFeed1, out, '\t');
+        call(u8sFeed, out, key);
+    }
+    if (BASONCollection(type)) {
+        call(u8sFeed1, out, '\n');
+        call(BASONInto, stack, data, val);
+        u8 ct; u8cs ck, cv;
+        while (BASONDrain(stack, data, &ct, ck, cv) == OK) {
+            call(BASONxText1, out, stack, data, ct, ck, cv, depth + 1);
+        }
+        call(BASONOuto, stack);
+    } else {
+        // TAB + value
+        call(u8sFeed1, out, '\t');
+        call(u8sFeed, out, val);
+        call(u8sFeed1, out, '\n');
+    }
+    done;
+}
+
+ok64 BASONExportText(u8s out, u64bp stack, u8csc data) {
+    sane(u8sOK(out) && stack != NULL && $ok(data));
+    call(BASONOpen, stack, data);
+    u8 type; u8cs key, val;
+    while (BASONDrain(stack, data, &type, key, val) == OK) {
+        call(BASONxText1, out, stack, data, type, key, val, 0);
     }
     done;
 }
