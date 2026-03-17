@@ -621,6 +621,27 @@ static BIFFRoundtripCase BIFF_FUZZ_REPROS[] = {
     // fuzz: large array with many empty sub-arrays (BASONDiff failed)
     {"[0,6,1,[],2,2,[],2,3,[],[],2,[],3,6,1,[],2,2,[],2,[],2,3,1,2,3,2,3,1,[],[],2]",
      "[6,[],2,[],3,[],2,[],2,1,[2],2,[],2,[],2,[],[],2,[],2,[],[],2,[],2,[],3,2]"},
+    // fuzz: both-MOD same-type container needs descent not flat copy (crash-514da)
+    {"[0,1,[2,3]]", "[1,[4]]"},
+    {"[1,2,3,[4,5,6]]", "[3,[0]]"},
+    // fuzz: pure-MOD vs mixed-EQ type mismatch needs separate consume (crash-ea5a)
+    {"[0,[2,1],1]", "[[2,1,0],1]"},
+    // fuzz: false pure-EQ from identical array OPEN hashes (crash-42b)
+    {"[[1,0],[1,0]]", "[[1,0,1]]"},
+    {"[2,[1,0],2,0,0,[2,1],162,0,1,[1,0],3]",
+     "[102,21,12,8,[10211,2,2.0,10,3,1,5,3,2,0],3,2,0,11]"},
+    // fuzz: split-bracket false EQ from PropagateFlags AND→OR (crash-933e)
+    {"[[1,1],2,3]", "[[1,0],[1],2,3]"},
+    {"[2,162,77,0,22,2,2,2,[1,1],161,0,2,0,6,12,8,3,1]",
+     "[104,21,12,162,0,[1,0],0,1,[1],162,0,2,0,5,12,6,1,3]"},
+    // fuzz: hash lockstep desync after cross-container descent (crash-1eed)
+    {"[[5],[2,3],7,8,9]", "[[2,3,7,8,9],7,8]"},
+    {"[2,162,77,0,222,6,[5],0,[1,1],1,2,0,6,12,1,6,1]",
+     "[102,21,12,1002,6,[1,1,2.0,6,12,6,1,1],6,12,6,1,3]"},
+    // fuzz: empty container cascading bits=0 in PropagateFlags (crash-054b)
+    {"[99,[{}],2,[],4]", "[12,77,2,[{}],[1],4]"},
+    {"[27.4,[{}],22,2,2,[],90,0,103,4,6,3,1]",
+     "[12,2,38,177.1,2,[{}],90,0,[1,0],32,21,4]"},
 };
 
 // Compare two BASON trees via JSON export (handles sorted keys, splice keys)
@@ -1577,11 +1598,8 @@ static ok64 BIFFDumpText(char const *label, u8csc data) {
     done;
 }
 
-extern b8 _biff_debug;
-
 ok64 BIFFtestEmptyArrays() {
     sane(1);
-    _biff_debug = YES;
     char const *old_json =
         "[0,6,1,[],2,2,[],2,3,[],[],2,[],3,6,1,[],2,2,[],2,[],2,3,1,2,3,2,3,1,[],[],2]";
     char const *new_json =
@@ -1623,7 +1641,6 @@ ok64 BIFFtestEmptyArrays() {
     u8cs md = {mbuf[1], mbuf[2]};
 
     call(BIFFDumpText, "MERGED", md);
-    _biff_debug = NO;
     call(BIFFCheckJSONEqual, md, nd);
     done;
 }
@@ -1656,7 +1673,6 @@ ok64 BIFFtestExportText() {
 
 ok64 BIFFtestNestedArrayMinimal() {
     sane(1);
-    _biff_debug = YES;
     char const *old_json =
         "[[\"a\",\"b\"],[\"1\",\"2\",\"3\",\"4\",\"5\",\"6\",\"7\",\"8\"]]";
     char const *new_json =
@@ -1698,7 +1714,6 @@ ok64 BIFFtestNestedArrayMinimal() {
     u8cs md = {mbuf[1], mbuf[2]};
 
     call(BIFFDumpText, "MERGED", md);
-    _biff_debug = NO;
     call(BIFFCheckJSONEqual, md, nd);
     done;
 }

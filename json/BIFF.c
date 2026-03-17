@@ -432,8 +432,9 @@ static void BIFFPropagateFlags(u64p h, u64 len) {
             if (depth > 0) depth--;
             if (depth < BIFF_MAX_NESTING) {
                 u64 close_mod = bits & 1;
-                u64 bracket_mod = open_mod[depth] & close_mod;
+                u64 bracket_mod = open_mod[depth] | close_mod;
                 u64 child_bits = acc[depth] | bracket_mod;
+                if (!child_bits) child_bits = 2;  // empty EQ container
                 *open_pos[depth] = (*open_pos[depth] & ~3ULL) | child_bits;
                 h[i] = (h[i] & ~3ULL) | child_bits;
                 if (depth > 0) acc[depth - 1] |= child_bits;
@@ -464,15 +465,70 @@ static void BIFFSkipHash(u64g h) {
     }
 }
 
-
-b8 _biff_debug = NO;
-
 #define BIFF_MAX_KWIDTH 20
 
-// Forward declaration for BIFFDiffArray → BIFFDiffObject recursion
+// Emit tombstone: type 'B' with empty value at the given key.
+static ok64 BIFFFeedTombstone(u64bp idx, u8bp out, u8cs key) {
+    sane(out != NULL);
+    u8cs empty = {(u8cp)key[0], (u8cp)key[0]};
+    return BASONFeed(idx, out, 'B', key, empty);
+}
+
+// Save key into left_key tracking buffer for BASONFindMid.
+static void BIFFSaveLeftKey(u8p lk_buf, u8cs left_key, u8cs key) {
+    size_t kl = $len(key);
+    if (kl > BIFF_MAX_KWIDTH) kl = BIFF_MAX_KWIDTH;
+    memcpy(lk_buf, key[0], kl);
+    left_key[0] = (u8cp)lk_buf;
+    left_key[1] = (u8cp)lk_buf + kl;
+}
+
+// Forward declarations for mutual recursion
 static ok64 BIFFDiffObject(u8bp out, u64bp idx,
                             u64bp ostk, u8csc odata,
                             u64bp nstk, u8csc ndata);
+static ok64 BIFFDiffArray(u8bp out, u64bp idx,
+                           u64bp ostk, u8csc odata,
+                           u64bp nstk, u8csc ndata,
+                           u64g oh, u64g nh);
+
+// Descend into same-type containers on both sides, diff recursively,
+// elide the container if the diff produced no children.
+// oh/nh non-NULL: use hash-guided dispatch (Array vs Object).
+// oh/nh NULL: always use BIFFDiffObject (no hash context).
+static ok64 BIFFDiffDescend(u8bp out, u64bp idx,
+                             u64bp ostk, u8csc odata, u8cs ov,
+                             u64bp nstk, u8csc ndata, u8cs nv,
+                             u8 type, u8cs key,
+                             u64g oh, u64g nh) {
+    sane(out != NULL);
+    size_t before = u8bDataLen(out);
+    call(BASONFeedInto, idx, out, type, key);
+    call(BASONInto, ostk, odata, ov);
+    call(BASONInto, nstk, ndata, nv);
+    if (oh && nh && BASONArray(type)) {
+        oh[1]++;
+        nh[1]++;
+        call(BIFFDiffArray, out, idx, ostk, odata, nstk, ndata, oh, nh);
+        oh[1]++;
+        nh[1]++;
+    } else {
+        if (oh) BIFFSkipHash(oh);
+        if (nh) BIFFSkipHash(nh);
+        call(BIFFDiffObject, out, idx, ostk, odata, nstk, ndata);
+    }
+    call(BASONOuto, ostk);
+    call(BASONOuto, nstk);
+    call(BASONFeedOuto, idx, out);
+    size_t after = u8bDataLen(out);
+    u8cs from2 = {out[1] + before, out[1] + after};
+    u8 ct2; u8cs ck2, cv2;
+    ok64 dr = TLKVDrain(from2, &ct2, ck2, cv2);
+    if (dr == OK && $len(cv2) == 0) {
+        ((u8 **)out)[2] = out[1] + before;
+    }
+    done;
+}
 
 // Hash-guided array diff. Called after BASONInto on both sides.
 // Hash gauges oh/nh are positioned at first child's FIRST hash
@@ -499,12 +555,6 @@ static ok64 BIFFDiffArray(u8bp out, u64bp idx,
         b8 n_mod = (nh[1] < nh[2]) ? BIFF_MOD(*nh[1]) : NO;
         b8 n_eq  = (nh[1] < nh[2]) ? BIFF_EQ(*nh[1])  : NO;
 
-        // Empty containers (0 flags) need special handling:
-        //   0 vs 0:        skip (identical empties)
-        //   0 vs MOD:      replace at old key (filled)
-        //   0 vs EQ[|MOD]: tombstone old (old empty removed)
-        //   MOD vs 0:      replace at old key (emptied)
-        //   EQ[|MOD] vs 0: insert new (new empty inserted)
         b8 o_empty = !o_mod && !o_eq;
         b8 n_empty = !n_mod && !n_eq;
 
@@ -522,105 +572,46 @@ static ok64 BIFFDiffArray(u8bp out, u64bp idx,
                  BASONBAD);
         }
 
-        if (_biff_debug) {
-            fprintf(stderr, "ARR o=%c k=", ot);
-            fwrite(ok_[0], 1, $len(ok_) < 20 ? $len(ok_) : 20, stderr);
-            fprintf(stderr, " [%s%s] n=%c k=",
-                    o_mod?"M":"", o_eq?"E":"", nt);
-            fwrite(nk[0], 1, $len(nk) < 20 ? $len(nk) : 20, stderr);
-            fprintf(stderr, " [%s%s]",
-                    n_mod?"M":"", n_eq?"E":"");
-        }
-
         if (o_empty && n_empty) {
-            if (_biff_debug) fprintf(stderr, " -> skip\n");
             // Both empty: skip both
             call(BIFFSkip, ostk, odata, ot, ov);
             call(BIFFSkip, nstk, ndata, nt, nv);
             BIFFSkipHash(oh);
             BIFFSkipHash(nh);
-            size_t kl = $len(ok_);
-            if (kl > BIFF_MAX_KWIDTH) kl = BIFF_MAX_KWIDTH;
-            memcpy(_lk_buf, ok_[0], kl);
-            left_key[0] = (u8cp)_lk_buf;
-            left_key[1] = (u8cp)_lk_buf + kl;
+            BIFFSaveLeftKey(_lk_buf, left_key, ok_);
             oo = BASONDrain(ostk, odata, &ot, ok_, ov);
             no = BASONDrain(nstk, ndata, &nt, nk, nv);
         } else if (o_empty && !n_eq) {
-            if (_biff_debug) fprintf(stderr, " -> 0vMOD\n");
             // 0 vs pure MOD: replace at old key (filled)
             call(BIFFSkip, ostk, odata, ot, ov);
             call(BIFFCopy, out, idx, nt, ok_, nv, nstk, ndata);
             BIFFSkipHash(oh);
             BIFFSkipHash(nh);
-            size_t kl = $len(ok_);
-            if (kl > BIFF_MAX_KWIDTH) kl = BIFF_MAX_KWIDTH;
-            memcpy(_lk_buf, ok_[0], kl);
-            left_key[0] = (u8cp)_lk_buf;
-            left_key[1] = (u8cp)_lk_buf + kl;
+            BIFFSaveLeftKey(_lk_buf, left_key, ok_);
             oo = BASONDrain(ostk, odata, &ot, ok_, ov);
             no = BASONDrain(nstk, ndata, &nt, nk, nv);
         } else if (o_empty) {
-            if (_biff_debug) fprintf(stderr, " -> 0vEQ_tomb\n");
             // 0 vs EQ or EQ|MOD: tombstone old (old empty removed)
-            u8cs empty = {(u8cp)ok_[0], (u8cp)ok_[0]};
-            call(BASONFeed, idx, out, 'B', ok_, empty);
+            call(BIFFFeedTombstone, idx, out, ok_);
             call(BIFFSkip, ostk, odata, ot, ov);
-            size_t kl = $len(ok_);
-            if (kl > BIFF_MAX_KWIDTH) kl = BIFF_MAX_KWIDTH;
-            memcpy(_lk_buf, ok_[0], kl);
-            left_key[0] = (u8cp)_lk_buf;
-            left_key[1] = (u8cp)_lk_buf + kl;
+            BIFFSaveLeftKey(_lk_buf, left_key, ok_);
             BIFFSkipHash(oh);
             oo = BASONDrain(ostk, odata, &ot, ok_, ov);
         } else if (n_empty && !o_eq) {
-            if (_biff_debug) fprintf(stderr, " -> MODv0\n");
             // pure MOD vs 0: emptied
             if (BASONCollection(ot) && BASONCollection(nt) && ot == nt) {
-                // Same-type containers: descend to produce tombstones
-                size_t before = u8bDataLen(out);
-                call(BASONFeedInto, idx, out, nt, ok_);
-                call(BASONInto, ostk, odata, ov);
-                call(BASONInto, nstk, ndata, nv);
-                if (BASONArray(ot)) {
-                    oh[1]++;
-                    nh[1]++;
-                    call(BIFFDiffArray, out, idx,
-                         ostk, odata, nstk, ndata, oh, nh);
-                    oh[1]++;
-                    nh[1]++;
-                } else {
-                    BIFFSkipHash(oh);
-                    BIFFSkipHash(nh);
-                    call(BIFFDiffObject, out, idx,
-                         ostk, odata, nstk, ndata);
-                }
-                call(BASONOuto, ostk);
-                call(BASONOuto, nstk);
-                call(BASONFeedOuto, idx, out);
-                size_t after = u8bDataLen(out);
-                u8cs from2 = {out[1] + before, out[1] + after};
-                u8 ct2; u8cs ck2, cv2;
-                ok64 dr = TLKVDrain(from2, &ct2, ck2, cv2);
-                if (dr == OK && $len(cv2) == 0) {
-                    ((u8 **)out)[2] = out[1] + before;
-                }
+                call(BIFFDiffDescend, out, idx, ostk, odata, ov,
+                     nstk, ndata, nv, nt, ok_, oh, nh);
             } else {
-                // Different types: replace at old key
                 call(BIFFSkip, ostk, odata, ot, ov);
                 call(BIFFCopy, out, idx, nt, ok_, nv, nstk, ndata);
                 BIFFSkipHash(oh);
                 BIFFSkipHash(nh);
             }
-            size_t kl = $len(ok_);
-            if (kl > BIFF_MAX_KWIDTH) kl = BIFF_MAX_KWIDTH;
-            memcpy(_lk_buf, ok_[0], kl);
-            left_key[0] = (u8cp)_lk_buf;
-            left_key[1] = (u8cp)_lk_buf + kl;
+            BIFFSaveLeftKey(_lk_buf, left_key, ok_);
             oo = BASONDrain(ostk, odata, &ot, ok_, ov);
             no = BASONDrain(nstk, ndata, &nt, nk, nv);
         } else if (n_empty) {
-            if (_biff_debug) fprintf(stderr, " -> EQv0_ins\n");
             // EQ or EQ|MOD vs 0: insert new empty, keep old
             u8s mid_into = {_mk_buf, _mk_buf + BIFF_MAX_KWIDTH};
             call(BASONFeedInfInc, mid_into, left_key);
@@ -639,79 +630,51 @@ static ok64 BIFFDiffArray(u8bp out, u64bp idx,
             BIFFSkipHash(nh);
             no = BASONDrain(nstk, ndata, &nt, nk, nv);
         } else if (!o_mod && !n_mod) {
-            if (_biff_debug) fprintf(stderr, " -> EQ_EQ\n");
-            // Both pure EQ: skip both
-            call(BIFFSkip, ostk, odata, ot, ov);
-            call(BIFFSkip, nstk, ndata, nt, nv);
-            BIFFSkipHash(oh);
-            BIFFSkipHash(nh);
-            size_t kl = $len(ok_);
-            if (kl > BIFF_MAX_KWIDTH) kl = BIFF_MAX_KWIDTH;
-            memcpy(_lk_buf, ok_[0], kl);
-            left_key[0] = (u8cp)_lk_buf;
-            left_key[1] = (u8cp)_lk_buf + kl;
-            oo = BASONDrain(ostk, odata, &ot, ok_, ov);
-            no = BASONDrain(nstk, ndata, &nt, nk, nv);
-        } else if (ot == nt && ((o_mod && o_eq) || (n_mod && n_eq))) {
-            if (_biff_debug) fprintf(stderr, " -> MIXED %c\n", ot);
-            // At least one side mixed: descend into container
-            if (BASONCollection(ot) && BASONCollection(nt) && ot == nt) {
-                size_t before = u8bDataLen(out);
-                call(BASONFeedInto, idx, out, nt, ok_);
-                call(BASONInto, ostk, odata, ov);
-                call(BASONInto, nstk, ndata, nv);
-                if (BASONArray(ot)) {
-                    oh[1]++;  // skip OPEN hash
-                    nh[1]++;
-                    call(BIFFDiffArray, out, idx,
-                         ostk, odata, nstk, ndata, oh, nh);
-                    oh[1]++;  // skip CLOSE hash
-                    nh[1]++;
-                } else {
-                    BIFFSkipHash(oh);
-                    BIFFSkipHash(nh);
-                    call(BIFFDiffObject, out, idx,
-                         ostk, odata, nstk, ndata);
-                }
-                call(BASONOuto, ostk);
-                call(BASONOuto, nstk);
-                call(BASONFeedOuto, idx, out);
-                size_t after = u8bDataLen(out);
-                u8cs from2 = {out[1] + before, out[1] + after};
-                u8 ct2; u8cs ck2, cv2;
-                ok64 dr = TLKVDrain(from2, &ct2, ck2, cv2);
-                if (dr == OK && $len(cv2) == 0) {
-                    ((u8 **)out)[2] = out[1] + before;
-                }
+            // Both pure EQ: skip both (verify content matches)
+            b8 content_eq = (ot == nt) &&
+                ($len(ov) == $len(nv)) &&
+                ($len(ov) == 0 || memcmp(ov[0], nv[0], $len(ov)) == 0);
+            if (content_eq) {
+                call(BIFFSkip, ostk, odata, ot, ov);
+                call(BIFFSkip, nstk, ndata, nt, nv);
+                BIFFSkipHash(oh);
+                BIFFSkipHash(nh);
+            } else if (ot == nt && BASONCollection(ot)) {
+                // Same-type container, content differs: descend.
+                call(BIFFDiffDescend, out, idx, ostk, odata, ov,
+                     nstk, ndata, nv, nt, ok_, oh, nh);
             } else {
-                // Not same-type containers: replace
+                // Type or value mismatch: replace.
                 call(BIFFSkip, ostk, odata, ot, ov);
                 call(BIFFCopy, out, idx, nt, ok_, nv, nstk, ndata);
                 BIFFSkipHash(oh);
                 BIFFSkipHash(nh);
             }
-            size_t kl = $len(ok_);
-            if (kl > BIFF_MAX_KWIDTH) kl = BIFF_MAX_KWIDTH;
-            memcpy(_lk_buf, ok_[0], kl);
-            left_key[0] = (u8cp)_lk_buf;
-            left_key[1] = (u8cp)_lk_buf + kl;
+            BIFFSaveLeftKey(_lk_buf, left_key, ok_);
+            oo = BASONDrain(ostk, odata, &ot, ok_, ov);
+            no = BASONDrain(nstk, ndata, &nt, nk, nv);
+        } else if (ot == nt && ((o_mod && o_eq) || (n_mod && n_eq))) {
+            // At least one side mixed: descend into container
+            if (BASONCollection(ot)) {
+                call(BIFFDiffDescend, out, idx, ostk, odata, ov,
+                     nstk, ndata, nv, nt, ok_, oh, nh);
+            } else {
+                call(BIFFSkip, ostk, odata, ot, ov);
+                call(BIFFCopy, out, idx, nt, ok_, nv, nstk, ndata);
+                BIFFSkipHash(oh);
+                BIFFSkipHash(nh);
+            }
+            BIFFSaveLeftKey(_lk_buf, left_key, ok_);
             oo = BASONDrain(ostk, odata, &ot, ok_, ov);
             no = BASONDrain(nstk, ndata, &nt, nk, nv);
         } else if (o_mod && !n_mod) {
-            if (_biff_debug) fprintf(stderr, " -> DEL\n");
             // Old pure-MOD: tombstone, advance old only
-            u8cs empty = {(u8cp)ok_[0], (u8cp)ok_[0]};
-            call(BASONFeed, idx, out, 'B', ok_, empty);
+            call(BIFFFeedTombstone, idx, out, ok_);
             call(BIFFSkip, ostk, odata, ot, ov);
-            size_t kl = $len(ok_);
-            if (kl > BIFF_MAX_KWIDTH) kl = BIFF_MAX_KWIDTH;
-            memcpy(_lk_buf, ok_[0], kl);
-            left_key[0] = (u8cp)_lk_buf;
-            left_key[1] = (u8cp)_lk_buf + kl;
+            BIFFSaveLeftKey(_lk_buf, left_key, ok_);
             BIFFSkipHash(oh);
             oo = BASONDrain(ostk, odata, &ot, ok_, ov);
         } else if (!o_mod && n_mod) {
-            if (_biff_debug) fprintf(stderr, " -> INS\n");
             // New pure-MOD: generate splice key, copy new, advance new only
             u8s mid_into = {_mk_buf, _mk_buf + BIFF_MAX_KWIDTH};
             call(BASONFeedInfInc, mid_into, left_key);
@@ -729,18 +692,43 @@ static ok64 BIFFDiffArray(u8bp out, u64bp idx,
             left_key[1] = (u8cp)_lk_buf + kl;
             BIFFSkipHash(nh);
             no = BASONDrain(nstk, ndata, &nt, nk, nv);
-        } else {
-            if (_biff_debug) fprintf(stderr, " -> REPL\n");
-            // Both pure-MOD: replace, use old key
+        } else if (o_mod && !o_eq && n_eq) {
+            // Old pure-MOD, new has EQ (types differ): DEL old only
+            call(BIFFFeedTombstone, idx, out, ok_);
             call(BIFFSkip, ostk, odata, ot, ov);
-            call(BIFFCopy, out, idx, nt, ok_, nv, nstk, ndata);
+            BIFFSaveLeftKey(_lk_buf, left_key, ok_);
             BIFFSkipHash(oh);
-            BIFFSkipHash(nh);
-            size_t kl = $len(ok_);
-            if (kl > BIFF_MAX_KWIDTH) kl = BIFF_MAX_KWIDTH;
-            memcpy(_lk_buf, ok_[0], kl);
+            oo = BASONDrain(ostk, odata, &ot, ok_, ov);
+        } else if (n_mod && !n_eq && o_eq) {
+            // New pure-MOD, old has EQ (types differ): INS new only
+            u8s mid_into = {_mk_buf, _mk_buf + BIFF_MAX_KWIDTH};
+            call(BASONFeedInfInc, mid_into, left_key);
+            u8cs mid_key = {(u8cp)_mk_buf, (u8cp)mid_into[0]};
+            if ($cmp(mid_key, ok_) >= 0) {
+                mid_into[0] = _mk_buf;
+                call(BASONFindMid, mid_into, left_key, ok_, 1, 1, 0);
+                mid_key[0] = (u8cp)_mk_buf;
+                mid_key[1] = (u8cp)mid_into[0];
+            }
+            call(BIFFCopy, out, idx, nt, mid_key, nv, nstk, ndata);
+            size_t kl = $len(mid_key);
+            memcpy(_lk_buf, _mk_buf, kl);
             left_key[0] = (u8cp)_lk_buf;
             left_key[1] = (u8cp)_lk_buf + kl;
+            BIFFSkipHash(nh);
+            no = BASONDrain(nstk, ndata, &nt, nk, nv);
+        } else {
+            // Both pure-MOD: replace, use old key
+            if (BASONCollection(ot) && ot == nt) {
+                call(BIFFDiffDescend, out, idx, ostk, odata, ov,
+                     nstk, ndata, nv, nt, ok_, oh, nh);
+            } else {
+                call(BIFFSkip, ostk, odata, ot, ov);
+                call(BIFFCopy, out, idx, nt, ok_, nv, nstk, ndata);
+                BIFFSkipHash(oh);
+                BIFFSkipHash(nh);
+            }
+            BIFFSaveLeftKey(_lk_buf, left_key, ok_);
             oo = BASONDrain(ostk, odata, &ot, ok_, ov);
             no = BASONDrain(nstk, ndata, &nt, nk, nv);
         }
@@ -748,8 +736,7 @@ static ok64 BIFFDiffArray(u8bp out, u64bp idx,
 
     // Trailing old: all tombstones
     while (oo == OK) {
-        u8cs empty = {(u8cp)ok_[0], (u8cp)ok_[0]};
-        call(BASONFeed, idx, out, 'B', ok_, empty);
+        call(BIFFFeedTombstone, idx, out, ok_);
         call(BIFFSkip, ostk, odata, ot, ov);
         BIFFSkipHash(oh);
         oo = BASONDrain(ostk, odata, &ot, ok_, ov);
@@ -761,7 +748,6 @@ static ok64 BIFFDiffArray(u8bp out, u64bp idx,
         call(BASONFeedInfInc, mid_into, left_key);
         u8cs mid_key = {(u8cp)_mk_buf, (u8cp)mid_into[0]};
         call(BIFFCopy, out, idx, nt, mid_key, nv, nstk, ndata);
-        // Update left_key
         size_t kl = $len(mid_key);
         memcpy(_lk_buf, _mk_buf, kl);
         left_key[0] = (u8cp)_lk_buf;
@@ -788,8 +774,7 @@ static ok64 BIFFDiffObject(u8bp out, u64bp idx,
     while (oo == OK && no == OK) {
         int cmp = $cmp(ok, nk);
         if (cmp < 0) {
-            u8cs empty = {(u8cp)ok[0], (u8cp)ok[0]};
-            call(BASONFeed, idx, out, 'B', ok, empty);
+            call(BIFFFeedTombstone, idx, out, ok);
             call(BIFFSkip, ostk, odata, ot, ov);
             oo = BASONDrain(ostk, odata, &ot, ok, ov);
         } else if (cmp > 0) {
@@ -800,22 +785,8 @@ static ok64 BIFFDiffObject(u8bp out, u64bp idx,
                 call(BIFFSkip, ostk, odata, ot, ov);
                 call(BIFFSkip, nstk, ndata, nt, nv);
             } else if (BASONCollection(ot) && BASONCollection(nt) && ot == nt) {
-                size_t before = u8bDataLen(out);
-                call(BASONFeedInto, idx, out, nt, nk);
-                call(BASONInto, ostk, odata, ov);
-                call(BASONInto, nstk, ndata, nv);
-                call(BIFFDiffObject, out, idx,
-                     ostk, odata, nstk, ndata);
-                call(BASONOuto, ostk);
-                call(BASONOuto, nstk);
-                call(BASONFeedOuto, idx, out);
-                size_t after = u8bDataLen(out);
-                u8cs from2 = {out[1] + before, out[1] + after};
-                u8 ct2; u8cs ck2, cv2;
-                ok64 dr = TLKVDrain(from2, &ct2, ck2, cv2);
-                if (dr == OK && $len(cv2) == 0) {
-                    ((u8 **)out)[2] = out[1] + before;
-                }
+                call(BIFFDiffDescend, out, idx, ostk, odata, ov,
+                     nstk, ndata, nv, nt, nk, NULL, NULL);
             } else {
                 call(BIFFSkip, ostk, odata, ot, ov);
                 call(BIFFCopy, out, idx, nt, nk, nv, nstk, ndata);
@@ -826,8 +797,7 @@ static ok64 BIFFDiffObject(u8bp out, u64bp idx,
     }
 
     while (oo == OK) {
-        u8cs empty = {(u8cp)ok[0], (u8cp)ok[0]};
-        call(BASONFeed, idx, out, 'B', ok, empty);
+        call(BIFFFeedTombstone, idx, out, ok);
         call(BIFFSkip, ostk, odata, ot, ov);
         oo = BASONDrain(ostk, odata, &ot, ok, ov);
     }
@@ -839,12 +809,6 @@ static ok64 BIFFDiffObject(u8bp out, u64bp idx,
 
     done;
 }
-
-// Forward declaration for mutual recursion
-static ok64 BIFFDiffScan(u8bp out, u64bp idx,
-                          u64bp ostk, u8csc odata,
-                          u64bp nstk, u8csc ndata,
-                          u64g oh, u64g nh);
 
 // Marker-driven parallel walk of both BASON streams + hash gauges.
 // Objects use BIFFDiffObject, arrays use BIFFDiffArray.
@@ -884,18 +848,7 @@ static ok64 BIFFDiffScan(u8bp out, u64bp idx,
                  BASONBAD);
         }
 
-        if (_biff_debug) {
-            fprintf(stderr, "SCAN o=%c k=", ot);
-            fwrite(ok[0], 1, $len(ok) < 20 ? $len(ok) : 20, stderr);
-            fprintf(stderr, " [%s%s] n=%c k=",
-                    o_mod?"M":"", o_eq?"E":"", nt);
-            fwrite(nk[0], 1, $len(nk) < 20 ? $len(nk) : 20, stderr);
-            fprintf(stderr, " [%s%s]",
-                    n_mod?"M":"", n_eq?"E":"");
-        }
-
         if (o_empty && n_empty) {
-            if (_biff_debug) fprintf(stderr, " -> SKIP_BOTH\n");
             // Both empty: skip
             call(BIFFSkip, ostk, odata, ot, ov);
             call(BIFFSkip, nstk, ndata, nt, nv);
@@ -904,7 +857,6 @@ static ok64 BIFFDiffScan(u8bp out, u64bp idx,
             oo = BASONDrain(ostk, odata, &ot, ok, ov);
             no = BASONDrain(nstk, ndata, &nt, nk, nv);
         } else if (o_empty && !n_eq) {
-            if (_biff_debug) fprintf(stderr, " -> 0_vs_MOD\n");
             // 0 vs pure MOD: replace (filled)
             call(BIFFSkip, ostk, odata, ot, ov);
             call(BIFFCopy, out, idx, nt, nk, nv, nstk, ndata);
@@ -913,47 +865,17 @@ static ok64 BIFFDiffScan(u8bp out, u64bp idx,
             oo = BASONDrain(ostk, odata, &ot, ok, ov);
             no = BASONDrain(nstk, ndata, &nt, nk, nv);
         } else if (o_empty) {
-            if (_biff_debug) fprintf(stderr, " -> 0_vs_EQ_tomb\n");
             // 0 vs EQ[|MOD]: tombstone old (removed)
-            u8cs empty = {(u8cp)ok[0], (u8cp)ok[0]};
-            call(BASONFeed, idx, out, 'B', ok, empty);
+            call(BIFFFeedTombstone, idx, out, ok);
             call(BIFFSkip, ostk, odata, ot, ov);
             BIFFSkipHash(oh);
             oo = BASONDrain(ostk, odata, &ot, ok, ov);
         } else if (n_empty && !o_eq) {
-            if (_biff_debug) fprintf(stderr, " -> MOD_vs_0\n");
             // pure MOD vs 0: emptied
             if (BASONCollection(ot) && BASONCollection(nt) && ot == nt) {
-                // Same-type containers: descend to produce tombstones
-                size_t before = u8bDataLen(out);
-                call(BASONFeedInto, idx, out, nt, nk);
-                call(BASONInto, ostk, odata, ov);
-                call(BASONInto, nstk, ndata, nv);
-                if (BASONArray(ot)) {
-                    oh[1]++;
-                    nh[1]++;
-                    call(BIFFDiffArray, out, idx,
-                         ostk, odata, nstk, ndata, oh, nh);
-                    oh[1]++;
-                    nh[1]++;
-                } else {
-                    BIFFSkipHash(oh);
-                    BIFFSkipHash(nh);
-                    call(BIFFDiffObject, out, idx,
-                         ostk, odata, nstk, ndata);
-                }
-                call(BASONOuto, ostk);
-                call(BASONOuto, nstk);
-                call(BASONFeedOuto, idx, out);
-                size_t after = u8bDataLen(out);
-                u8cs from2 = {out[1] + before, out[1] + after};
-                u8 ct2; u8cs ck2, cv2;
-                ok64 dr = TLKVDrain(from2, &ct2, ck2, cv2);
-                if (dr == OK && $len(cv2) == 0) {
-                    ((u8 **)out)[2] = out[1] + before;
-                }
+                call(BIFFDiffDescend, out, idx, ostk, odata, ov,
+                     nstk, ndata, nv, nt, nk, oh, nh);
             } else {
-                // Different types: replace
                 call(BIFFSkip, ostk, odata, ot, ov);
                 call(BIFFCopy, out, idx, nt, nk, nv, nstk, ndata);
                 BIFFSkipHash(oh);
@@ -962,53 +884,39 @@ static ok64 BIFFDiffScan(u8bp out, u64bp idx,
             oo = BASONDrain(ostk, odata, &ot, ok, ov);
             no = BASONDrain(nstk, ndata, &nt, nk, nv);
         } else if (n_empty) {
-            if (_biff_debug) fprintf(stderr, " -> EQ_vs_0_ins\n");
             // EQ[|MOD] vs 0: insert new empty
             call(BIFFCopy, out, idx, nt, nk, nv, nstk, ndata);
             BIFFSkipHash(nh);
             no = BASONDrain(nstk, ndata, &nt, nk, nv);
         } else if (!o_mod && !n_mod) {
-            if (_biff_debug) fprintf(stderr, " -> EQ_EQ_skip\n");
-            // Both pure EQ: skip both
-            call(BIFFSkip, ostk, odata, ot, ov);
-            call(BIFFSkip, nstk, ndata, nt, nv);
-            BIFFSkipHash(oh);
-            BIFFSkipHash(nh);
+            // Both pure EQ: skip both (verify content matches)
+            b8 content_eq = (ot == nt) &&
+                ($len(ov) == $len(nv)) &&
+                ($len(ov) == 0 || memcmp(ov[0], nv[0], $len(ov)) == 0);
+            if (content_eq) {
+                call(BIFFSkip, ostk, odata, ot, ov);
+                call(BIFFSkip, nstk, ndata, nt, nv);
+                BIFFSkipHash(oh);
+                BIFFSkipHash(nh);
+            } else if (ot == nt && BASONCollection(ot)) {
+                // Same-type container, content differs: descend.
+                call(BIFFDiffDescend, out, idx, ostk, odata, ov,
+                     nstk, ndata, nv, nt, nk, oh, nh);
+            } else {
+                // Type or value mismatch: replace.
+                call(BIFFSkip, ostk, odata, ot, ov);
+                call(BIFFCopy, out, idx, nt, nk, nv, nstk, ndata);
+                BIFFSkipHash(oh);
+                BIFFSkipHash(nh);
+            }
             oo = BASONDrain(ostk, odata, &ot, ok, ov);
             no = BASONDrain(nstk, ndata, &nt, nk, nv);
         } else if (ot == nt && ((o_mod && o_eq) || (n_mod && n_eq))) {
-            if (_biff_debug) fprintf(stderr, " -> MIXED_descend %c\n", ot);
             // At least one side mixed: descend into container
-            if (BASONCollection(ot) && BASONCollection(nt) && ot == nt) {
-                size_t before = u8bDataLen(out);
-                call(BASONFeedInto, idx, out, nt, nk);
-                call(BASONInto, ostk, odata, ov);
-                call(BASONInto, nstk, ndata, nv);
-                if (BASONArray(ot)) {
-                    oh[1]++;  // skip OPEN hash
-                    nh[1]++;
-                    call(BIFFDiffArray, out, idx,
-                         ostk, odata, nstk, ndata, oh, nh);
-                    oh[1]++;  // skip CLOSE hash
-                    nh[1]++;
-                } else {
-                    BIFFSkipHash(oh);
-                    BIFFSkipHash(nh);
-                    call(BIFFDiffObject, out, idx,
-                         ostk, odata, nstk, ndata);
-                }
-                call(BASONOuto, ostk);
-                call(BASONOuto, nstk);
-                call(BASONFeedOuto, idx, out);
-                size_t after = u8bDataLen(out);
-                u8cs from2 = {out[1] + before, out[1] + after};
-                u8 ct2; u8cs ck2, cv2;
-                ok64 dr = TLKVDrain(from2, &ct2, ck2, cv2);
-                if (dr == OK && $len(cv2) == 0) {
-                    ((u8 **)out)[2] = out[1] + before;
-                }
+            if (BASONCollection(ot)) {
+                call(BIFFDiffDescend, out, idx, ostk, odata, ov,
+                     nstk, ndata, nv, nt, nk, oh, nh);
             } else {
-                // Not same-type containers: replace
                 call(BIFFSkip, ostk, odata, ot, ov);
                 call(BIFFCopy, out, idx, nt, nk, nv, nstk, ndata);
                 BIFFSkipHash(oh);
@@ -1017,43 +925,25 @@ static ok64 BIFFDiffScan(u8bp out, u64bp idx,
             oo = BASONDrain(ostk, odata, &ot, ok, ov);
             no = BASONDrain(nstk, ndata, &nt, nk, nv);
         } else if (o_mod && !n_mod) {
-            if (_biff_debug) fprintf(stderr, " -> DEL_old\n");
             // Old pure-MOD: tombstone old, advance old only
-            u8cs empty = {(u8cp)ok[0], (u8cp)ok[0]};
-            call(BASONFeed, idx, out, 'B', ok, empty);
+            call(BIFFFeedTombstone, idx, out, ok);
             call(BIFFSkip, ostk, odata, ot, ov);
             BIFFSkipHash(oh);
             oo = BASONDrain(ostk, odata, &ot, ok, ov);
         } else if (!o_mod && n_mod) {
-            if (_biff_debug) fprintf(stderr, " -> INS_new\n");
             // New pure-MOD: copy new, advance new only
             call(BIFFCopy, out, idx, nt, nk, nv, nstk, ndata);
             BIFFSkipHash(nh);
             no = BASONDrain(nstk, ndata, &nt, nk, nv);
         } else {
-            if (_biff_debug) fprintf(stderr, " -> BOTH_MOD cmp=%d\n", $cmp(ok,nk));
             // Both pure-MOD: nothing shared, recurse for tombstones
             int cmp = $cmp(ok, nk);
             if (cmp == 0) {
                 if (BASONCollection(ot) && BASONCollection(nt) && ot == nt) {
-                    size_t before = u8bDataLen(out);
-                    call(BASONFeedInto, idx, out, nt, nk);
-                    call(BASONInto, ostk, odata, ov);
-                    call(BASONInto, nstk, ndata, nv);
                     BIFFSkipHash(oh);
                     BIFFSkipHash(nh);
-                    call(BIFFDiffObject, out, idx,
-                         ostk, odata, nstk, ndata);
-                    call(BASONOuto, ostk);
-                    call(BASONOuto, nstk);
-                    call(BASONFeedOuto, idx, out);
-                    size_t after = u8bDataLen(out);
-                    u8cs from2 = {out[1] + before, out[1] + after};
-                    u8 ct2; u8cs ck2, cv2;
-                    ok64 dr = TLKVDrain(from2, &ct2, ck2, cv2);
-                    if (dr == OK && $len(cv2) == 0) {
-                        ((u8 **)out)[2] = out[1] + before;
-                    }
+                    call(BIFFDiffDescend, out, idx, ostk, odata, ov,
+                         nstk, ndata, nv, nt, nk, NULL, NULL);
                 } else {
                     call(BIFFSkip, ostk, odata, ot, ov);
                     call(BIFFCopy, out, idx, nt, nk, nv, nstk, ndata);
@@ -1063,8 +953,7 @@ static ok64 BIFFDiffScan(u8bp out, u64bp idx,
                 oo = BASONDrain(ostk, odata, &ot, ok, ov);
                 no = BASONDrain(nstk, ndata, &nt, nk, nv);
             } else if (cmp < 0) {
-                u8cs empty = {(u8cp)ok[0], (u8cp)ok[0]};
-                call(BASONFeed, idx, out, 'B', ok, empty);
+                call(BIFFFeedTombstone, idx, out, ok);
                 call(BIFFSkip, ostk, odata, ot, ov);
                 BIFFSkipHash(oh);
                 oo = BASONDrain(ostk, odata, &ot, ok, ov);
@@ -1076,8 +965,7 @@ static ok64 BIFFDiffScan(u8bp out, u64bp idx,
         }
         continue;
         trailing_old: {
-            u8cs empty = {(u8cp)ok[0], (u8cp)ok[0]};
-            call(BASONFeed, idx, out, 'B', ok, empty);
+            call(BIFFFeedTombstone, idx, out, ok);
             call(BIFFSkip, ostk, odata, ot, ov);
             BIFFSkipHash(oh);
             oo = BASONDrain(ostk, odata, &ot, ok, ov);
@@ -1089,44 +977,6 @@ static ok64 BIFFDiffScan(u8bp out, u64bp idx,
         }
     }
     done;
-}
-
-// moved earlier
-
-static void BIFFDumpHashSeq(char const *label, u64cp h, u64 len) {
-    fprintf(stderr, "--- %s hashes (%llu) ---\n", label, (unsigned long long)len);
-    for (u64 i = 0; i < len; i++) {
-        u64 v = h[i];
-        u64 marker = v & (3ULL << 62);
-        u32 depth = (u32)((v >> 56) & 63);
-        u64 hash = v & BIFF_HASH_MASK;
-        u8 eq = (v & 2) ? 1 : 0;
-        u8 mod = (v & 1) ? 1 : 0;
-        char const *mtype = (marker == BIFF_HASH_OPEN) ? "OPEN " :
-                            (marker == BIFF_HASH_CLOSE) ? "CLOSE" : "FIRST";
-        fprintf(stderr, "  [%2llu] %s d=%u h=%04llx %s%s\n",
-                (unsigned long long)i, mtype, depth,
-                (unsigned long long)(hash >> 2) & 0xffff,
-                eq ? "EQ " : "",
-                mod ? "MOD" : "");
-    }
-}
-
-static void BIFFDumpEDL(e32c const *edl, i32 len) {
-    fprintf(stderr, "--- EDL (%d entries) ---\n", len);
-    i32 oi = 0, ni = 0;
-    for (i32 i = 0; i < len; i++) {
-        u8 kind = DIFF_OP(edl[i]);
-        u32 l = DIFF_LEN(edl[i]);
-        char const *op = (kind == DIFF_EQ) ? "EQ " :
-                         (kind == DIFF_DEL) ? "DEL" : "INS";
-        fprintf(stderr, "  %s %u  (old %d..%d, new %d..%d)\n",
-                op, l,
-                oi, (kind != DIFF_INS) ? oi + (int)l - 1 : oi - 1,
-                ni, (kind != DIFF_DEL) ? ni + (int)l - 1 : ni - 1);
-        if (kind != DIFF_INS) oi += l;
-        if (kind != DIFF_DEL) ni += l;
-    }
 }
 
 // Core diff logic using pre-allocated memory.
@@ -1193,14 +1043,6 @@ static ok64 BIFFDiffCore(u8bp out, u64bp idx,
     call(BIFFMarkHashes, ohm, nhm, edlcs);
     BIFFPropagateFlags(oh, olen);
     BIFFPropagateFlags(nh, nlen);
-
-    if (_biff_debug != NO) {
-        fprintf(stderr, "=== BIFF DEBUG (edllen=%d, olen=%llu, nlen=%llu) ===\n",
-                edllen, (unsigned long long)olen, (unsigned long long)nlen);
-        BIFFDumpEDL(edl[2], edllen);
-        BIFFDumpHashSeq("OLD", oh, olen);
-        BIFFDumpHashSeq("NEW", nh, nlen);
-    }
 
     // Step 7: Scan with hash gauges
     u64g ohg = {oh, oh, oh + olen};
