@@ -350,7 +350,8 @@ static u8 BASTLeafTag(const char *tstype) {
 
 // --- Tree-to-BASON conversion ---
 
-// Chase tree-sitter "name" / "declarator" fields down to the identifier leaf.
+// Chase tree-sitter "name" / "declarator" / "function" fields down to the
+// identifier leaf.
 static TSNode BASTFindName(TSNode node) {
     TSNode n = ts_node_child_by_field_name(node, "name", 4);
     if (!ts_node_is_null(n)) {
@@ -362,27 +363,39 @@ static TSNode BASTFindName(TSNode node) {
         if (ts_node_named_child_count(n) == 0) return n;
         return BASTFindName(n);
     }
+    n = ts_node_child_by_field_name(node, "function", 8);
+    if (!ts_node_is_null(n)) {
+        if (ts_node_named_child_count(n) == 0) return n;
+        return BASTFindName(n);
+    }
     return (TSNode){{0}, NULL, NULL};
 }
 
 // Emit one node as BASON, walking ALL children (named + anonymous).
 // Containers (nodes with children) get vowel tags.
 // Leaves (no children) get consonant tags based on classification.
-// name_s/name_e: byte range of the symbol name leaf (from enclosing E/I).
+// name_s/name_e: byte range of the symbol name leaf.
+// name_tag: 'F' for definitions (E/I), 'V' for references (decls/calls).
 static ok64 BASTFeedNode(u8bp buf, u64bp idx, u8csc src, TSNode node,
                          u8cs key, u8 tag,
-                         uint32_t name_s, uint32_t name_e) {
+                         uint32_t name_s, uint32_t name_e,
+                         u8 name_tag) {
     sane(buf != NULL);
     uint32_t cc = ts_node_child_count(node);
     uint32_t s = ts_node_start_byte(node);
     uint32_t e = ts_node_end_byte(node);
 
-    // When entering E/I node, find the name identifier range
-    if (tag == BAST_TAG_FUNC || tag == BAST_TAG_CLASS) {
+    // For E/I containers, find the definition name ('F').
+    // For any other container, try to find a reference name ('V').
+    if (cc > 0 && name_s == 0 && name_e == 0) {
         TSNode nm = BASTFindName(node);
         if (!ts_node_is_null(nm)) {
             name_s = ts_node_start_byte(nm);
             name_e = ts_node_end_byte(nm);
+            if (tag == BAST_TAG_FUNC || tag == BAST_TAG_CLASS)
+                name_tag = BAST_TAG_NAME;
+            else
+                name_tag = 'V';
         }
     }
 
@@ -390,7 +403,7 @@ static ok64 BASTFeedNode(u8bp buf, u64bp idx, u8csc src, TSNode node,
         // Terminal leaf — classify by type
         u8 lt;
         if (name_s < name_e && s == name_s && e == name_e) {
-            lt = BAST_TAG_NAME;
+            lt = name_tag;
         } else if (ts_node_is_named(node)) {
             lt = BASTLeafTag(ts_node_type(node));
         } else {
@@ -439,7 +452,7 @@ static ok64 BASTFeedNode(u8bp buf, u64bp idx, u8csc src, TSNode node,
                 if (name_s < name_e &&
                     ts_node_start_byte(child) == name_s &&
                     ts_node_end_byte(child) == name_e) {
-                    ctag = BAST_TAG_NAME;
+                    ctag = name_tag;
                 } else if (ts_node_is_named(child)) {
                     ctag = BASTLeafTag(ts_node_type(child));
                 } else {
@@ -447,7 +460,7 @@ static ok64 BASTFeedNode(u8bp buf, u64bp idx, u8csc src, TSNode node,
                 }
             }
             call(BASTFeedNode, buf, idx, src, child, ck, ctag,
-                 name_s, name_e);
+                 name_s, name_e, name_tag);
         }
 
         pos = ts_node_end_byte(child);
@@ -789,7 +802,7 @@ ok64 BASTParse(u8bp buf, u64bp idx, u8csc source, u8csc ext) {
 
     TSNode root = ts_tree_root_node(tree);
     u8cs key = {(u8cp)"", (u8cp)""};
-    __ = BASTFeedNode(buf, idx, source, root, key, 'A', 0, 0);
+    __ = BASTFeedNode(buf, idx, source, root, key, 'A', 0, 0, 0);
 
     ts_tree_delete(tree);
     ts_parser_delete(parser);

@@ -18,3 +18,9 @@ target_compile_options(BASTtest PRIVATE ${TEST_CXX_FLAGS})
 target_link_libraries(BASTtest bast abc)
 add_test(NAME BASTtest COMMAND BASTtest)
 
+add_executable(CSStest CSS.c)
+target_link_options(CSStest PRIVATE ${TEST_LDD_FLAGS})
+target_compile_options(CSStest PRIVATE ${TEST_CXX_FLAGS})
+target_link_libraries(CSStest bast abc)
+add_test(NAME CSStest COMMAND CSStest)
+

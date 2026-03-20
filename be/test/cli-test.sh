@@ -241,6 +241,56 @@ pass "be diff no changes"
 pass "diff tests done"
 
 # =============================================================
+echo "--- 10: be cat with CSS selectors (#fragment) ---"
+cd "$WORK"
+# Create a richer C file for CSS testing
+cat > "$WORK/css.c" << 'CSRC'
+int foo(int x) {
+    return x + 1;
+}
+
+// a comment here
+int bar(int y) {
+    return y * 2;
+}
+CSRC
+"$BE" post css.c
+
+# Test: be cat with type selector #fn (functions)
+OUT=$(BE_COLOR="" "$BE" cat 'css.c#fn' 2>&1)
+echo "$OUT" | grep -q "foo" || fail "cat #fn did not find foo"
+echo "$OUT" | grep -q "bar" || fail "cat #fn did not find bar"
+pass "be cat css.c#fn"
+
+# Test: be cat with name selector #fn.foo
+OUT=$(BE_COLOR="" "$BE" cat 'css.c#fn.foo' 2>&1)
+echo "$OUT" | grep -q "foo" || fail "cat #fn.foo did not find foo"
+echo "$OUT" | grep -q "bar" && fail "cat #fn.foo should not find bar"
+pass "be cat css.c#fn.foo"
+
+# Test: be cat with name selector #fn.bar
+OUT=$(BE_COLOR="" "$BE" cat 'css.c#fn.bar' 2>&1)
+echo "$OUT" | grep -q "bar" || fail "cat #fn.bar did not find bar"
+echo "$OUT" | grep -q "foo" && fail "cat #fn.bar should not find foo"
+pass "be cat css.c#fn.bar"
+
+# Test: be cat with comment selector #cmt
+OUT=$(BE_COLOR="" "$BE" cat 'css.c#cmt' 2>&1)
+echo "$OUT" | grep -q "comment" || fail "cat #cmt did not find comment"
+echo "$OUT" | grep -q "return" && fail "cat #cmt should not include code"
+pass "be cat css.c#cmt"
+
+# Test: be cat with line range #L2-3
+OUT=$(BE_COLOR="" "$BE" cat 'css.c#L2-3' 2>&1)
+echo "$OUT" | grep -q "return x" || fail "cat #L2-3 did not find line 2"
+pass "be cat css.c#L2-3"
+
+# Test: be cat with text match (non-kind word)
+OUT=$(BE_COLOR="" "$BE" cat 'css.c#comment' 2>&1)
+echo "$OUT" | grep -q "comment" || fail "cat #comment text match failed"
+pass "be cat css.c#comment (text match)"
+
+# =============================================================
 # Skipped: not yet implemented
 echo "--- SKIP: 3.a PUT file.sst (SST ingest) ---"
 echo "--- SKIP: 3.c PUT //repo (cross-depot ingest) ---"

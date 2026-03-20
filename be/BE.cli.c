@@ -8,6 +8,7 @@
 #include "abc/ANSI.h"
 #include "abc/FILE.h"
 #include "abc/PRO.h"
+#include "ast/CSS.h"
 
 // Get cwd into a path buffer
 static ok64 BECwd(path8g path) {
@@ -405,7 +406,16 @@ static ok64 BECLICat(uricp u) {
 
     b8 use_color = isatty(STDOUT_FILENO) || getenv("BE_COLOR") != NULL;
 
-    if (use_color) {
+    if (!$empty(u->fragment)) {
+        // CSS selector filtering via #fragment
+        aBpad(u8, qbuf, 4096);
+        aBpad(u64, qidx, 256);
+        u8cs frag = {u->fragment[0], u->fragment[1]};
+        call(CSSParse, qbuf, qidx, frag);
+        u8cp qd0 = qbuf[1], qd1 = qbuf[2];
+        u8cs query = {qd0, qd1};
+        call(CSSMatch, u8bIdle(out), bason, query, 0);
+    } else if (use_color) {
         call(BASTCat, u8bIdle(out), stk, bason);
     } else {
         call(BASTExport, u8bIdle(out), stk, bason);

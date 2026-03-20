@@ -34,6 +34,8 @@ list(APPEND BAST_HEADERS
 
 list(APPEND BAST_SOURCES
     BAST.c
+    CSS.c
+    CSS.rl.c
     sm/SM.c
     sm/SM.rl.c
     sm/SMI.rl.c
