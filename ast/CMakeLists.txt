@@ -52,3 +52,7 @@ set_target_properties(bast-cli PROPERTIES OUTPUT_NAME bast)
 
 add_subdirectory(test)
 add_subdirectory(sm/test)
+
+if (WITH_FUZZ)
+    add_subdirectory(fuzz)
+endif()
