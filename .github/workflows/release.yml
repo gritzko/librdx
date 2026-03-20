@@ -1,0 +1,60 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get -y install ninja-build libsodium-dev \
+          libcurl4-gnutls-dev librocksdb-dev liblz4-dev
+    - name: Configure
+      run: >
+        cmake -B build -DCMAKE_BUILD_TYPE=Release
+        -DCMAKE_C_COMPILER=clang -DWITH_INET=OFF -GNinja
+    - name: Build
+      run: ninja -C build be/be
+    - name: Package
+      run: tar czf be-linux-x86_64.tar.gz -C build/be be
+    - uses: actions/upload-artifact@v4
+      with:
+        name: be-linux-x86_64
+        path: be-linux-x86_64.tar.gz
+
+  macos:
+    runs-on: macos-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install dependencies
+      run: brew install rocksdb libsodium curl lz4 ninja
+    - name: Configure
+      run: >
+        cmake -B build -DCMAKE_BUILD_TYPE=Release
+        -DWITH_INET=OFF -GNinja
+    - name: Build
+      run: ninja -C build be/be
+    - name: Package
+      run: tar czf be-macos-arm64.tar.gz -C build/be be
+    - uses: actions/upload-artifact@v4
+      with:
+        name: be-macos-arm64
+        path: be-macos-arm64.tar.gz
+
+  release:
+    needs: [linux, macos]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+    - uses: actions/download-artifact@v4
+    - uses: softprops/action-gh-release@v2
+      with:
+        files: |
+          be-linux-x86_64/be-linux-x86_64.tar.gz
+          be-macos-arm64/be-macos-arm64.tar.gz
