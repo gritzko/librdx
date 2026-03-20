@@ -404,7 +404,8 @@ static ok64 BECLICat(uricp u) {
     u8bReset(out);
     aBpad(u64, stk, 256);
 
-    b8 use_color = isatty(STDOUT_FILENO) || getenv("BE_COLOR") != NULL;
+    char const *be_color = getenv("BE_COLOR");
+    b8 use_color = be_color ? be_color[0] != '\0' : isatty(STDOUT_FILENO);
 
     if (!$empty(u->fragment)) {
         // CSS selector filtering via #fragment
@@ -414,7 +415,7 @@ static ok64 BECLICat(uricp u) {
         call(CSSParse, qbuf, qidx, frag);
         u8cp qd0 = qbuf[1], qd1 = qbuf[2];
         u8cs query = {qd0, qd1};
-        call(CSSMatch, u8bIdle(out), bason, query, 0);
+        call(CSSMatch, u8bIdle(out), bason, query, 0, use_color);
     } else if (use_color) {
         call(BASTCat, u8bIdle(out), stk, bason);
     } else {

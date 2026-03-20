@@ -259,7 +259,7 @@ ok64 CSStestMatchType() {
 
     // Match
     a_pad(u8, out, 65536);
-    call(CSSMatch, out_idle, bason_data, query, 0);
+    call(CSSMatch, out_idle, bason_data, query, 0, NO);
 
     // Should have selected some output (function definitions match 'E')
     u8cs result = {out[1], out[2]};
@@ -297,7 +297,7 @@ ok64 CSStestMatchLine() {
 
     // Match
     a_pad(u8, out, 65536);
-    call(CSSMatch, out_idle, bason_data, query, 0);
+    call(CSSMatch, out_idle, bason_data, query, 0, NO);
 
     u8cs result = {out[1], out[2]};
     // Should have lines 2 and 3
@@ -346,7 +346,7 @@ ok64 CSStestMatchText() {
 
     // Match
     a_pad(u8, out, 65536);
-    call(CSSMatch, out_idle, bason_data, query, 0);
+    call(CSSMatch, out_idle, bason_data, query, 0, NO);
 
     u8cs result = {out[1], out[2]};
     // "comment" is not a known kind, so it becomes a text search (S)
@@ -382,7 +382,7 @@ ok64 CSStestMatchName() {
 
     // Match
     a_pad(u8, out, 65536);
-    call(CSSMatch, out_idle, bason_data, query, 0);
+    call(CSSMatch, out_idle, bason_data, query, 0, NO);
 
     u8cs result = {out[1], out[2]};
     // Should match only foo, not bar
@@ -418,7 +418,7 @@ ok64 CSStestMatchCmt() {
 
     // Match
     a_pad(u8, out, 65536);
-    call(CSSMatch, out_idle, bason_data, query, 0);
+    call(CSSMatch, out_idle, bason_data, query, 0, NO);
 
     u8cs result = {out[1], out[2]};
     test(!$empty(result), FAILsanity);

@@ -56,6 +56,37 @@ Further reading:
     base files: 574, waypoints: 0
 ````
 
+##  CSS-like AST selectors
+
+`be cat` supports CSS-like selectors via URL fragments (`file#selector`)
+to filter code by structure. Since Beagle stores ASTs, not blobs, you
+can query by node type, definition name, line range, or text content.
+
+````
+    # Show all function definitions in a file
+    $ be cat main.c#fn
+    int main(int argc, char **argv) {
+        ...
+    }
+
+    # Show a specific function by name
+    $ be cat main.c#fn.main
+    int main(int argc, char **argv) {
+        ...
+    }
+
+    # Show only comments
+    $ be cat main.c#cmt
+    // Main entry point
+    --
+    /* Calculates the factorial of n */
+````
+
+Available type selectors: `fn` (functions), `class`, `cmt` (comments),
+`str` (string literals), `kw` (keywords), `num` (number literals),
+`type` (type names), `def` (definition names), `block`, `obj`, `args`.
+Line ranges use GitHub convention: `#L10-20`.
+Plain words are text search: `#malloc` finds all lines mentioning malloc.
 
 [2]: https://replicated.wiki/blog/partII
 [y]: https://replicated.wiki/be/STORE

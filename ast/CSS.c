@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include "abc/PRO.h"
+#include "ast/HILI.h"
 #include "json/BASON.h"
 
 // Kind-name to BASON type mapping
@@ -378,7 +379,7 @@ static void CSSMarkLines(u8 *match, int nlines, u32 *line_off,
 }
 
 ok64 CSSMatch(u8s out, u8cs bason_data, u8cs query,
-              int context_lines) {
+              int context_lines, b8 use_color) {
     sane($ok(out) && $ok(bason_data));
     if ($empty(bason_data)) done;
     if (!$ok(query) || $empty(query)) done;
@@ -606,8 +607,10 @@ ok64 CSSMatch(u8s out, u8cs bason_data, u8cs query,
                         a_cstr(sep, "--\n");
                         call(u8sFeed, out, sep);
                     }
+                    b8 styled = use_color ? HILILeaf(out, type) : NO;
                     u8cs chunk = {p, chunk_end};
                     call(u8sFeed, out, chunk);
+                    if (styled) escfeed(out, 0);
                     prev_sel = YES;
                     any_out = YES;
                 }

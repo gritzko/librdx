@@ -19,6 +19,6 @@ ok64 CSSLexer(CSSstate *state);
 ok64 CSSParse(u8bp qbuf, u64bp qidx, u8cs selector);
 
 ok64 CSSMatch(u8s out, u8cs bason_data, u8cs query,
-              int context_lines);
+              int context_lines, b8 use_color);
 
 #endif

@@ -49,7 +49,7 @@ FUZZ(u8, CSSfuzz) {
 
     // Match — must not crash
     u8b out = {_out, _out, _out, _out + FUZZ_BUF};
-    CSSMatch(u8bIdle(out), bason, query, 0);
+    CSSMatch(u8bIdle(out), bason, query, 0, NO);
 
     done;
 }
