@@ -290,6 +290,19 @@ OUT=$(BE_COLOR="" "$BE" cat 'css.c#comment' 2>&1)
 echo "$OUT" | grep -q "comment" || fail "cat #comment text match failed"
 pass "be cat css.c#comment (text match)"
 
+# Test: be get with bare # outputs to stdout (full file)
+OUT=$(BE_COLOR="" "$BE" get 'css.c#' 2>&1)
+echo "$OUT" | grep -q "foo" || fail "get css.c# did not output foo"
+echo "$OUT" | grep -q "bar" || fail "get css.c# did not output bar"
+echo "$OUT" | grep -q "OK" && fail "get css.c# should not save to disk"
+pass "be get css.c# (stdout)"
+
+# Test: be get with CSS selector outputs to stdout
+OUT=$(BE_COLOR="" "$BE" get 'css.c#fn.foo' 2>&1)
+echo "$OUT" | grep -q "foo" || fail "get css.c#fn.foo did not find foo"
+echo "$OUT" | grep -q "bar" && fail "get css.c#fn.foo should not find bar"
+pass "be get css.c#fn.foo (stdout + CSS)"
+
 # =============================================================
 # Skipped: not yet implemented
 echo "--- SKIP: 3.a PUT file.sst (SST ingest) ---"

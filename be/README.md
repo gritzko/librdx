@@ -58,25 +58,26 @@ Further reading:
 
 ##  CSS-like AST selectors
 
-`be cat` supports CSS-like selectors via URL fragments (`file#selector`)
-to filter code by structure. Since Beagle stores ASTs, not blobs, you
-can query by node type, definition name, line range, or text content.
+Both `be get` and `be cat` support CSS-like selectors via URL fragments
+(`file#selector`). A `#` means "output to stdout" — no partial file
+gets saved. Since Beagle stores ASTs, not blobs, you can query by node
+type, definition name, line range, or text content.
 
 ````
     # Show all function definitions in a file
-    $ be cat main.c#fn
+    $ be get main.c#fn
     int main(int argc, char **argv) {
         ...
     }
 
     # Show a specific function by name
-    $ be cat main.c#fn.main
+    $ be get main.c#fn.main
     int main(int argc, char **argv) {
         ...
     }
 
     # Show only comments
-    $ be cat main.c#cmt
+    $ be get main.c#cmt
     // Main entry point
     --
     /* Calculates the factorial of n */

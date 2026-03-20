@@ -121,7 +121,6 @@ ok64 CSStestParseHas() {
     call(BASONInto, stk, qdata, val);
 
     // Inside :has: S val="malloc" (text match — "malloc" not in kind table)
-    // Actually "malloc" is an ident not in CSS_KINDS, so it becomes 'S' text match
     call(BASONDrain, stk, qdata, &type, key, val);
     testeq(type, 'S');
     testeq((size_t)$len(val), (size_t)6);
@@ -257,11 +256,16 @@ ok64 CSStestMatchType() {
     call(CSSParse, qbuf, qidx, sel);
     u8cs query = {qbuf[1], qbuf[2]};
 
-    // Match
-    a_pad(u8, out, 65536);
-    call(CSSMatch, out_idle, bason_data, query, 0, NO);
+    // Match into BASON buffer
+    aBpad(u8, fbuf, 65536);
+    call(CSSMatch, fbuf, bason_data, query);
+    u8cp fd0 = fbuf[1], fd1 = fbuf[2];
+    u8cs filtered = {fd0, fd1};
+    test(!$empty(filtered), FAILsanity);
 
-    // Should have selected some output (function definitions match 'E')
+    // Export to text and check
+    a_pad(u8, out, 65536);
+    call(CSSExport, out_idle, filtered);
     u8cs result = {out[1], out[2]};
     test(!$empty(result), FAILsanity);
 
@@ -295,10 +299,15 @@ ok64 CSStestMatchLine() {
     call(CSSParse, qbuf, qidx, sel);
     u8cs query = {qbuf[1], qbuf[2]};
 
-    // Match
-    a_pad(u8, out, 65536);
-    call(CSSMatch, out_idle, bason_data, query, 0, NO);
+    // Match into BASON buffer
+    aBpad(u8, fbuf, 65536);
+    call(CSSMatch, fbuf, bason_data, query);
+    u8cp fd0 = fbuf[1], fd1 = fbuf[2];
+    u8cs filtered = {fd0, fd1};
 
+    // Export to text
+    a_pad(u8, out, 65536);
+    call(CSSExport, out_idle, filtered);
     u8cs result = {out[1], out[2]};
     // Should have lines 2 and 3
     test(!$empty(result), FAILsanity);
@@ -344,10 +353,15 @@ ok64 CSStestMatchText() {
     call(CSSParse, qbuf, qidx, sel);
     u8cs query = {qbuf[1], qbuf[2]};
 
-    // Match
-    a_pad(u8, out, 65536);
-    call(CSSMatch, out_idle, bason_data, query, 0, NO);
+    // Match into BASON buffer
+    aBpad(u8, fbuf, 65536);
+    call(CSSMatch, fbuf, bason_data, query);
+    u8cp fd0 = fbuf[1], fd1 = fbuf[2];
+    u8cs filtered = {fd0, fd1};
 
+    // Export to text
+    a_pad(u8, out, 65536);
+    call(CSSExport, out_idle, filtered);
     u8cs result = {out[1], out[2]};
     // "comment" is not a known kind, so it becomes a text search (S)
     // Should find "comment" in the comment line
@@ -380,10 +394,15 @@ ok64 CSStestMatchName() {
     call(CSSParse, qbuf, qidx, sel);
     u8cs query = {qbuf[1], qbuf[2]};
 
-    // Match
-    a_pad(u8, out, 65536);
-    call(CSSMatch, out_idle, bason_data, query, 0, NO);
+    // Match into BASON buffer
+    aBpad(u8, fbuf, 65536);
+    call(CSSMatch, fbuf, bason_data, query);
+    u8cp fd0 = fbuf[1], fd1 = fbuf[2];
+    u8cs filtered = {fd0, fd1};
 
+    // Export to text
+    a_pad(u8, out, 65536);
+    call(CSSExport, out_idle, filtered);
     u8cs result = {out[1], out[2]};
     // Should match only foo, not bar
     test(!$empty(result), FAILsanity);
@@ -416,10 +435,15 @@ ok64 CSStestMatchCmt() {
     call(CSSParse, qbuf, qidx, sel);
     u8cs query = {qbuf[1], qbuf[2]};
 
-    // Match
-    a_pad(u8, out, 65536);
-    call(CSSMatch, out_idle, bason_data, query, 0, NO);
+    // Match into BASON buffer
+    aBpad(u8, fbuf, 65536);
+    call(CSSMatch, fbuf, bason_data, query);
+    u8cp fd0 = fbuf[1], fd1 = fbuf[2];
+    u8cs filtered = {fd0, fd1};
 
+    // Export to text
+    a_pad(u8, out, 65536);
+    call(CSSExport, out_idle, filtered);
     u8cs result = {out[1], out[2]};
     test(!$empty(result), FAILsanity);
     test(CSSContainsStr(result, "comment"), FAILsanity);

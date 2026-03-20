@@ -26,7 +26,7 @@ Dependencies: C compiler, cmake, librocksdb, libsodium, libcurl, liblz4.
     brew install rocksdb libsodium curl lz4 ninja
 
     # Build
-    cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang -GNinja
+    cmake -B build -DCMAKE_BUILD_TYPE=Release -GNinja
     ninja -C build be/be
     cp build/be/be ~/.local/bin/
 

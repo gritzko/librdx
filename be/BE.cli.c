@@ -127,6 +127,8 @@ static ok64 BEStatus(BEp be) {
     done;
 }
 
+static ok64 BECLICat(uricp u);
+
 // ---- verb: post ----
 static ok64 BECLIPost(uricp u) {
     sane(1);
@@ -168,9 +170,47 @@ static ok64 BECLIPost(uricp u) {
 static ok64 BECLIGet(uricp u) {
     sane(1);
 
-    a_cstr(std_scheme, "std");
     a_cstr(http_scheme, "http");
     a_cstr(https_scheme, "https");
+
+    // Fragment present (#selector or bare #) → plain text to stdout
+    if (u->fragment[0] != NULL) {
+        test(!$empty(u->path), BEBAD);
+        BE be = {};
+        call(BEOpenCwd, &be);
+        u8cs relpath = {};
+        $mv(relpath, u->path);
+        u8bp result = be.scratch[BE_READ];
+        u8bReset(result);
+        BEmeta meta = {};
+        call(BEGetFileMerged, &be, be.loc.path, relpath, result, &meta);
+        u8cs bason = {result[1], result[2]};
+        u8bp out = be.scratch[BE_RENDER];
+        u8bReset(out);
+        if (!$empty(u->fragment)) {
+            aBpad(u8, qbuf, 4096);
+            aBpad(u64, qidx, 256);
+            u8cs frag = {u->fragment[0], u->fragment[1]};
+            call(CSSParse, qbuf, qidx, frag);
+            u8cp qd0 = qbuf[1], qd1 = qbuf[2];
+            u8cs query = {qd0, qd1};
+            u8bp fbuf = be.scratch[BE_PARSE];
+            u8bReset(fbuf);
+            call(CSSMatch, fbuf, bason, query);
+            u8cp fd0 = fbuf[1], fd1 = fbuf[2];
+            u8cs filtered = {fd0, fd1};
+            call(CSSExport, u8bIdle(out), filtered);
+        } else {
+            aBpad(u64, stk, 256);
+            call(BASTExport, u8bIdle(out), stk, bason);
+        }
+        u8cs source = {out[1], out[2]};
+        if (!$empty(source)) {
+            fwrite(source[0], 1, $len(source), stdout);
+        }
+        call(BEClose, &be);
+        done;
+    }
 
     // Remote clone
     if ($eq(u->scheme, http_scheme) || $eq(u->scheme, https_scheme)) {
@@ -203,11 +243,6 @@ static ok64 BECLIGet(uricp u) {
 
     BE be = {};
     call(BEOpenCwd, &be);
-
-    // std: scheme → output to stdout
-    if ($eq(u->scheme, std_scheme)) {
-        be.to_stdout = YES;
-    }
 
     u8cs branch = {};
     $mv(branch, u->query);
@@ -415,7 +450,17 @@ static ok64 BECLICat(uricp u) {
         call(CSSParse, qbuf, qidx, frag);
         u8cp qd0 = qbuf[1], qd1 = qbuf[2];
         u8cs query = {qd0, qd1};
-        call(CSSMatch, u8bIdle(out), bason, query, 0, use_color);
+        // Filter BASON into scratch buffer
+        u8bp fbuf = be.scratch[BE_PARSE];
+        u8bReset(fbuf);
+        call(CSSMatch, fbuf, bason, query);
+        u8cp fd0 = fbuf[1], fd1 = fbuf[2];
+        u8cs filtered = {fd0, fd1};
+        if (use_color) {
+            call(CSSCat, u8bIdle(out), filtered, relpath);
+        } else {
+            call(CSSExport, u8bIdle(out), filtered);
+        }
     } else if (use_color) {
         call(BASTCat, u8bIdle(out), stk, bason);
     } else {

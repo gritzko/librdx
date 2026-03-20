@@ -192,10 +192,7 @@ ok64 CSSParse(u8bp qbuf, u64bp qidx, u8cs selector) {
     done;
 }
 
-// ---- CSSMatch ----
-
-// Check if a BASON node matches a query predicate tree.
-// query is the parsed query BASON data; we walk it in parallel with the data.
+// ---- CSSMatch: single-pass recursive filter producing BASON output ----
 
 // Helper: check if text contains substring
 static b8 CSSContains(u8cs haystack, u8cs needle) {
@@ -218,7 +215,6 @@ static b8 CSSNameMatch(u8cs name, u8cs pattern) {
     size_t plen = (size_t)$len(pattern);
     if (plen == 0) return YES;
     if (plen > 0 && pattern[0][plen - 1] == '*') {
-        // Prefix match
         size_t pfxlen = plen - 1;
         if (nlen < pfxlen) return NO;
         return memcmp(name[0], pattern[0], pfxlen) == 0 ? YES : NO;
@@ -227,17 +223,7 @@ static b8 CSSNameMatch(u8cs name, u8cs pattern) {
     return memcmp(name[0], pattern[0], nlen) == 0 ? YES : NO;
 }
 
-// Match context for recursive walk
-typedef struct {
-    u8cs query;      // query BASON data
-    u8 *match_bits;  // per-line match bitset
-    u32 *line_off;   // line offset table
-    int nlines;      // number of lines
-} CSSMatchCtx;
-
-// Check if a single data node (with its subtree) matches the query predicates.
-// qstk/qdata walk the query; dstk/ddata walk the data.
-// Returns YES if all query predicates at this level are satisfied.
+// Check if a single data node matches the query predicates.
 static b8 CSSCheckNode(u64bp qstk, u8cs qdata,
                         u8 data_type, u8cs data_name,
                         u64bp dstk, u8cs ddata) {
@@ -247,15 +233,12 @@ static b8 CSSCheckNode(u64bp qstk, u8cs qdata,
 
     while (BASONDrain(qstk, qdata, &qt, qk, qv) == OK) {
         if (qt == 'T') {
-            // Type match: qv[0] is the expected BASON type letter
             if ($len(qv) != 1 || qv[0][0] != data_type)
                 matched = NO;
         } else if (qt == 'F') {
-            // Name match: qv is the expected name
             if (!CSSNameMatch(data_name, qv))
                 matched = NO;
         } else if (qt == 'S') {
-            // Text match: search for qv substring in data subtree leaves
             b8 found = NO;
             aBpad(u64, sstk, 256);
             ok64 so = BASONOpen(sstk, ddata);
@@ -284,18 +267,13 @@ static b8 CSSCheckNode(u64bp qstk, u8cs qdata,
             }
             if (!found) matched = NO;
         } else if (qt == 'P') {
-            // Combinator: skip for now (handled at higher level)
             (void)qv;
         } else if (qt == 'N') {
-            // Line range: handled separately
             (void)qv;
         } else if (BASONCollection(qt)) {
-            // :has() or :not() container
             b8 negated = ($ok(qk) && !$empty(qk) && qk[0][0] == '!');
             ok64 io = BASONInto(qstk, qdata, qv);
             if (io != OK) { matched = NO; continue; }
-
-            // Walk data subtree looking for match
             b8 has_found = NO;
             aBpad(u64, hstk, 256);
             ok64 ho = BASONOpen(hstk, ddata);
@@ -312,17 +290,13 @@ static b8 CSSCheckNode(u64bp qstk, u8cs qdata,
                         continue;
                     }
                     if (BASONCollection(ht)) {
-                        // Check container: find its name from first F child
                         u8cs cname = {};
                         aBpad(u64, nstk, 64);
                         BASONInto(nstk, ddata, hv);
-                        // Peek for F child (name)
-                        // Actually we need to build the full sub-data
-                        // For simplicity, check type match
                         aBpad(u64, qstk2, 256);
                         BASONOpen(qstk2, qdata);
-                        // Re-walk query predicates against this child
                         u8cs child_data = {hv[0], hv[1]};
+                        (void)child_data;
                         if (CSSCheckNode(qstk2, qdata, ht, cname,
                                          hstk, ddata)) {
                             has_found = YES;
@@ -330,7 +304,6 @@ static b8 CSSCheckNode(u64bp qstk, u8cs qdata,
                         BASONInto(hstk, ddata, hv);
                         hd++;
                     } else {
-                        // Leaf: check text match against has-query predicates
                         aBpad(u64, qstk2, 256);
                         ok64 qo2 = BASONOpen(qstk2, qdata);
                         if (qo2 == OK) {
@@ -345,7 +318,6 @@ static b8 CSSCheckNode(u64bp qstk, u8cs qdata,
                 }
             }
             BASONOuto(qstk);
-
             if (negated) has_found = !has_found;
             if (!has_found) matched = NO;
         }
@@ -353,34 +325,197 @@ static b8 CSSCheckNode(u64bp qstk, u8cs qdata,
     return matched;
 }
 
-// Binary search: find line index for byte offset
-static int CSSOffsetToLine(u32 *line_off, int nlines, u32 off) {
-    int lo = 0, hi = nlines;
-    while (lo < hi) {
-        int mid = lo + (hi - lo) / 2;
-        if (line_off[mid] <= off)
-            lo = mid + 1;
-        else
-            hi = mid;
+// Copy one BASON element (leaf or container subtree) to output buffer
+static ok64 CSSCopyElement(u8bp out, u8 type, u8cs key, u8cs val,
+                            u64bp stk, u8cs data) {
+    sane(out != NULL);
+    if (BASONCollection(type)) {
+        call(BASONFeedInto, NULL, out, type, key);
+        call(BASONInto, stk, data, val);
+        u8 ct = 0;
+        u8cs ck = {}, cv = {};
+        while (BASONDrain(stk, data, &ct, ck, cv) == OK) {
+            call(CSSCopyElement, out, ct, ck, cv, stk, data);
+        }
+        call(BASONOuto, stk);
+        call(BASONFeedOuto, NULL, out);
+    } else {
+        call(BASONFeed, NULL, out, type, key, val);
     }
-    return lo - 1;
+    done;
 }
 
-// Mark lines in bitset
-static void CSSMarkLines(u8 *match, int nlines, u32 *line_off,
-                          u32 start, u32 end) {
-    if (end == 0) return;
-    int l0 = CSSOffsetToLine(line_off, nlines, start);
-    int l1 = CSSOffsetToLine(line_off, nlines, end - 1);
-    if (l0 < 0) l0 = 0;
-    if (l1 >= nlines) l1 = nlines - 1;
-    for (int li = l0; li <= l1; li++)
-        match[li >> 3] |= (u8)(1 << (li & 7));
+// Count lines in a slice (for line-range matching)
+static int CSSCountLines(u8cs data) {
+    int n = 0;
+    $for(u8c, p, data) {
+        if (*p == '\n') n++;
+    }
+    return n;
 }
 
-ok64 CSSMatch(u8s out, u8cs bason_data, u8cs query,
-              int context_lines, b8 use_color) {
-    sane($ok(out) && $ok(bason_data));
+// Recursive match: walk BASON, copy matching elements to out
+static ok64 CSSMatchRec(u8bp out, u64bp dstk, u8cs ddata,
+                         u8cs qdata, int npreds,
+                         u8 *pred_types, u8cs *pred_vals, u8cs *pred_keys,
+                         b8 has_line, u32 line_start, u32 line_end,
+                         b8 has_name, int *cur_line) {
+    sane(out != NULL);
+    u8 type = 0;
+    u8cs key = {}, val = {};
+    while (BASONDrain(dstk, ddata, &type, key, val) == OK) {
+        if (BASONCollection(type)) {
+            // Check if this container matches predicates
+            b8 type_ok = NO;
+            b8 has_type_pred = NO;
+            for (int pi = 0; pi < npreds; pi++) {
+                if (pred_types[pi] == 'T' && $len(pred_vals[pi]) == 1) {
+                    has_type_pred = YES;
+                    if (pred_vals[pi][0][0] == type)
+                        type_ok = YES;
+                }
+            }
+
+            if (has_type_pred && type_ok) {
+                // Container type matches. Check name if needed.
+                // We need to peek into children for F-leaf name.
+                // Use CSSCheckNode for full predicate check.
+                aBpad(u64, qstk, 256);
+                call(BASONOpen, qstk, qdata);
+                u8 qt = 0;
+                u8cs qk = {}, qv = {};
+                ok64 qo = BASONDrain(qstk, qdata, &qt, qk, qv);
+                if (qo == OK && qt == 'A') {
+                    call(BASONInto, qstk, qdata, qv);
+
+                    // Find container's name by peeking at children (recursive)
+                    u8cs cname = {};
+                    aBpad(u64, pstk, 256);
+                    call(BASONOpen, pstk, ddata);
+                    call(BASONInto, pstk, ddata, val);
+                    int pd = 0;
+                    u8 pt = 0;
+                    u8cs pk = {}, pv = {};
+                    while (1) {
+                        ok64 po = BASONDrain(pstk, ddata, &pt, pk, pv);
+                        if (po != OK) {
+                            if (pd <= 0) break;
+                            BASONOuto(pstk);
+                            pd--;
+                            continue;
+                        }
+                        if (pt == 'F') {
+                            $mv(cname, pv);
+                            break;
+                        }
+                        if (BASONCollection(pt)) {
+                            BASONInto(pstk, ddata, pv);
+                            pd++;
+                        }
+                    }
+                    if (CSSCheckNode(qstk, qdata, type, cname,
+                                     NULL, (u8cs){})) {
+                        // Full match — check line range if present
+                        b8 line_ok = YES;
+                        if (has_line) {
+                            // Count lines in container text to check overlap
+                            // For now, accept if container starts in range
+                            line_ok = NO;
+                            int start_line = *cur_line + 1;  // 1-based
+                            // Peek container text size for line counting
+                            aBpad(u64, lstk, 256);
+                            call(BASONOpen, lstk, ddata);
+                            call(BASONInto, lstk, ddata, val);
+                            int container_lines = 0;
+                            u8 lt = 0;
+                            u8cs lk = {}, lv = {};
+                            while (BASONDrain(lstk, ddata, &lt, lk, lv) == OK) {
+                                if (!BASONCollection(lt)) {
+                                    container_lines += CSSCountLines(lv);
+                                } else {
+                                    // Just count via recursive walk
+                                    int ld = 1;
+                                    BASONInto(lstk, ddata, lv);
+                                    while (ld > 0) {
+                                        ok64 lo = BASONDrain(lstk, ddata, &lt, lk, lv);
+                                        if (lo != OK) {
+                                            BASONOuto(lstk);
+                                            ld--;
+                                        } else if (!BASONCollection(lt)) {
+                                            container_lines += CSSCountLines(lv);
+                                        } else {
+                                            BASONInto(lstk, ddata, lv);
+                                            ld++;
+                                        }
+                                    }
+                                }
+                            }
+                            int end_line = start_line + container_lines;
+                            if (end_line >= (int)line_start &&
+                                start_line <= (int)line_end) {
+                                line_ok = YES;
+                            }
+                        }
+                        if (line_ok) {
+                            // Copy entire container to output
+                            call(CSSCopyElement, out, type, key, val,
+                                 dstk, ddata);
+                            // CSSCopyElement consumed children via BASONInto,
+                            // dstk is back at this level, continue to next
+                            // sibling. Update line count.
+                            // (We don't need precise line tracking after copy)
+                            continue;
+                        }
+                    }
+                }
+            }
+            // Not matched at this level — recurse into children
+            call(BASONInto, dstk, ddata, val);
+            call(CSSMatchRec, out, dstk, ddata, qdata, npreds,
+                 pred_types, pred_vals, pred_keys,
+                 has_line, line_start, line_end, has_name, cur_line);
+            call(BASONOuto, dstk);
+        } else {
+            // Leaf matching
+            b8 leaf_match = YES;
+            b8 has_type_pred = NO;
+            for (int pi = 0; pi < npreds; pi++) {
+                if (pred_types[pi] == 'T') {
+                    has_type_pred = YES;
+                    if ($len(pred_vals[pi]) != 1 ||
+                        pred_vals[pi][0][0] != type) {
+                        leaf_match = NO;
+                    }
+                } else if (pred_types[pi] == 'S') {
+                    if (!CSSContains(val, pred_vals[pi]))
+                        leaf_match = NO;
+                } else if (pred_types[pi] == 'F') {
+                    // Name predicates don't apply to leaves
+                    leaf_match = NO;
+                }
+            }
+            // If no type pred and has_name, leaves don't match
+            if (!has_type_pred && has_name) leaf_match = NO;
+            // Line range check
+            if (leaf_match && has_line) {
+                int leaf_line = *cur_line + 1;  // 1-based
+                int leaf_lines = CSSCountLines(val);
+                int leaf_end = leaf_line + leaf_lines;
+                if (leaf_end < (int)line_start || leaf_line > (int)line_end)
+                    leaf_match = NO;
+            }
+            if (leaf_match) {
+                call(BASONFeed, NULL, out, type, key, val);
+            }
+            // Track line count
+            *cur_line += CSSCountLines(val);
+        }
+    }
+    done;
+}
+
+ok64 CSSMatch(u8bp out, u8cs bason_data, u8cs query) {
+    sane(out != NULL && $ok(bason_data));
     if ($empty(bason_data)) done;
     if (!$ok(query) || $empty(query)) done;
 
@@ -399,7 +534,7 @@ ok64 CSSMatch(u8s out, u8cs bason_data, u8cs query,
     u8cs pred_keys[32];
     int npreds = 0;
     b8 has_line = NO;
-    b8 has_name = NO;  // whether an F (name) predicate exists
+    b8 has_name = NO;
     u32 line_start = 0, line_end = 0;
 
     {
@@ -413,7 +548,6 @@ ok64 CSSMatch(u8s out, u8cs bason_data, u8cs query,
             while (npreds < 32 &&
                    BASONDrain(qs2, query, &q2t, q2k, q2v) == OK) {
                 if (q2t == 'N' && $len(q2v) == 8) {
-                    // Line range predicate
                     has_line = YES;
                     line_start = ((u32)q2v[0][0] << 24) |
                                  ((u32)q2v[0][1] << 16) |
@@ -436,195 +570,119 @@ ok64 CSSMatch(u8s out, u8cs bason_data, u8cs query,
         }
     }
 
-    // Pass 1: walk data BASON, build line table + match bitset
-    u32 _line_off[65536];
-    int nlines = 1;
-    _line_off[0] = 0;
-
-    u8 _match[8192];
-    memset(_match, 0, sizeof(_match));
-
+    // Walk data BASON, copy matching elements to output
     aBpad(u64, dstk, 256);
     call(BASONOpen, dstk, bason_data);
-
-    u32 off_stk[256];
-    int off_top = 0;
-    u32 offset = 0;
-    int depth = 0;
-
-    // Track container type match (bit 31 = full match, bit 30 = type matched awaiting name)
-    // off_stk stores: offset | 0x80000000 (matched) | 0x40000000 (type ok, name pending)
-
-    for (;;) {
-        u8 type = 0;
-        u8cs key = {}, val = {};
-        ok64 o = BASONDrain(dstk, bason_data, &type, key, val);
-        if (o != OK) {
-            if (depth <= 0) break;
-            // Pop container: check if it was marked to match
-            if (off_top > 0) {
-                off_top--;
-                u32 entry = off_stk[off_top];
-                if (entry & 0x80000000u) {
-                    u32 start = entry & 0x3FFFFFFFu;
-                    CSSMarkLines(_match, nlines, _line_off, start, offset);
-                }
-            }
-            call(BASONOuto, dstk);
-            depth--;
-            continue;
-        }
-
-        if (!BASONCollection(type)) {
-            u32 len = (u32)$len(val);
-            u32 node_start = offset;
-            // Build line table
-            for (u32 i = 0; i < len && nlines < 65536; i++) {
-                if (val[0][i] == '\n') {
-                    _line_off[nlines] = offset + i + 1;
-                    nlines++;
-                }
-            }
-            offset += len;
-
-            // Check leaf against predicates
-            for (int pi = 0; pi < npreds; pi++) {
-                if (pred_types[pi] == 'S') {
-                    // Text match: search for substring in leaf value
-                    if (CSSContains(val, pred_vals[pi])) {
-                        CSSMarkLines(_match, nlines, _line_off,
-                                     node_start, offset);
-                    }
-                } else if (pred_types[pi] == 'T' &&
-                           $len(pred_vals[pi]) == 1) {
-                    // Type match: check leaf type
-                    if (pred_vals[pi][0][0] == type) {
-                        CSSMarkLines(_match, nlines, _line_off,
-                                     node_start, offset);
-                    }
-                }
-            }
-            // Name match: if this is an F leaf, find ancestor with name pending
-            if (type == 'F') {
-                for (int si = off_top - 1; si >= 0; si--) {
-                    if (off_stk[si] & 0x40000000u) {
-                        for (int pi = 0; pi < npreds; pi++) {
-                            if (pred_types[pi] == 'F' &&
-                                CSSNameMatch(val, pred_vals[pi])) {
-                                off_stk[si] |= 0x80000000u;
-                                off_stk[si] &= ~0x40000000u;
-                            }
-                        }
-                        break;
-                    }
-                }
-            }
-        } else {
-            // Container: check type/name predicates
-            b8 type_ok = NO;
-
-            // Check type predicates
-            for (int pi = 0; pi < npreds; pi++) {
-                if (pred_types[pi] == 'T' && $len(pred_vals[pi]) == 1) {
-                    if (pred_vals[pi][0][0] == type) {
-                        type_ok = YES;
-                    }
-                }
-            }
-
-            u32 flags = 0;
-            if (type_ok && has_name) {
-                // Type matched, but name check pending → bit 30
-                flags = 0x40000000u;
-            } else if (type_ok) {
-                // Type matched, no name needed → fully matched
-                flags = 0x80000000u;
-            }
-
-            if (off_top < 256) {
-                off_stk[off_top] = offset | flags;
-                off_top++;
-            }
-            call(BASONInto, dstk, bason_data, val);
-            depth++;
-        }
-    }
-
-    // Handle line range predicate
-    if (has_line && nlines > 0) {
-        // Line numbers are 1-based in the selector
-        int ls = (int)line_start - 1;
-        int le = (int)line_end - 1;
-        if (ls < 0) ls = 0;
-        if (le >= nlines) le = nlines - 1;
-        for (int i = ls; i <= le; i++)
-            _match[i >> 3] |= (u8)(1 << (i & 7));
-    }
-
-    // Trim trailing empty line
-    if (nlines > 1 && _line_off[nlines - 1] >= offset) nlines--;
-
-    // Expand match bitset by context_lines
-    u8 _out[8192];
-    memset(_out, 0, sizeof(_out));
-    for (int i = 0; i < nlines; i++) {
-        if (_match[i >> 3] & (1 << (i & 7))) {
-            int lo = i - context_lines;
-            if (lo < 0) lo = 0;
-            int hi = i + context_lines;
-            if (hi >= nlines) hi = nlines - 1;
-            for (int j = lo; j <= hi; j++)
-                _out[j >> 3] |= (u8)(1 << (j & 7));
-        }
-    }
-
-    // Pass 2: re-walk BASON, output selected lines
-    aBpad(u64, stk2, 256);
-    call(BASONOpen, stk2, bason_data);
-    int depth2 = 0;
     int cur_line = 0;
-    b8 prev_sel = NO;
-    b8 any_out = NO;
+    call(CSSMatchRec, out, dstk, bason_data, query, npreds,
+         pred_types, pred_vals, pred_keys,
+         has_line, line_start, line_end, has_name, &cur_line);
 
-    for (;;) {
-        u8 type = 0;
-        u8cs key = {}, val = {};
-        ok64 o = BASONDrain(stk2, bason_data, &type, key, val);
-        if (o != OK) {
-            if (depth2 <= 0) break;
-            call(BASONOuto, stk2);
-            depth2--;
-            continue;
-        }
+    done;
+}
+
+// ---- CSSExport: plain text rendering of filtered BASON ----
+
+static ok64 CSSExportRec(u8s out, u64bp stk, u8cs data) {
+    sane(1);
+    u8 type = 0;
+    u8cs key = {}, val = {};
+    while (BASONDrain(stk, data, &type, key, val) == OK) {
         if (!BASONCollection(type)) {
-            u8cp p = val[0];
-            while (p < val[1]) {
-                u8cp nl = memchr(p, '\n', (size_t)(val[1] - p));
-                u8cp chunk_end = nl ? nl + 1 : val[1];
-                b8 sel = (_out[cur_line >> 3] >> (cur_line & 7)) & 1;
-                if (sel) {
-                    if (!prev_sel && any_out) {
-                        a_cstr(sep, "--\n");
-                        call(u8sFeed, out, sep);
-                    }
-                    b8 styled = use_color ? HILILeaf(out, type) : NO;
-                    u8cs chunk = {p, chunk_end};
-                    call(u8sFeed, out, chunk);
-                    if (styled) escfeed(out, 0);
-                    prev_sel = YES;
-                    any_out = YES;
-                }
-                if (nl) {
-                    prev_sel = sel;
-                    cur_line++;
-                }
-                p = chunk_end;
-            }
+            call(u8sFeed, out, val);
         } else {
-            call(BASONInto, stk2, bason_data, val);
-            depth2++;
+            call(BASONInto, stk, data, val);
+            call(CSSExportRec, out, stk, data);
+            call(BASONOuto, stk);
         }
     }
+    done;
+}
 
+ok64 CSSExport(u8s out, u8cs filtered) {
+    sane($ok(out));
+    if (!$ok(filtered) || $empty(filtered)) done;
+    aBpad(u64, stk, 256);
+    call(BASONOpen, stk, filtered);
+
+    u8 type = 0;
+    u8cs key = {}, val = {};
+    b8 had_container = NO;
+    while (BASONDrain(stk, filtered, &type, key, val) == OK) {
+        if (!BASONCollection(type)) {
+            call(u8sFeed, out, val);
+        } else {
+            if (had_container) {
+                call(u8sFeed1, out, '\n');
+            }
+            had_container = YES;
+            call(BASONInto, stk, filtered, val);
+            call(CSSExportRec, out, stk, filtered);
+            call(BASONOuto, stk);
+        }
+    }
+    done;
+}
+
+// ---- CSSCat: syntax-highlighted rendering with separators ----
+
+static ok64 CSSCatRec(u8s out, u64bp stk, u8cs data,
+                       u8 *cstk, int depth) {
+    sane(1);
+    u8 type = 0;
+    u8cs key = {}, val = {};
+    while (BASONDrain(stk, data, &type, key, val) == OK) {
+        if (!BASONCollection(type)) {
+            b8 styled = HILILeaf(out, type);
+            call(u8sFeed, out, val);
+            if (styled) HILIRestore(out, cstk, depth);
+        } else {
+            int d = depth < HILI_MAXDEPTH ? depth : HILI_MAXDEPTH - 1;
+            cstk[d] = type;
+            HILIContainer(out, type);
+            call(BASONInto, stk, data, val);
+            call(CSSCatRec, out, stk, data, cstk, depth + 1);
+            call(BASONOuto, stk);
+            HILIRestore(out, cstk, depth);
+        }
+    }
+    done;
+}
+
+ok64 CSSCat(u8s out, u8cs filtered, u8cs relpath) {
+    sane($ok(out));
+    if (!$ok(filtered) || $empty(filtered)) done;
+    aBpad(u64, stk, 256);
+    call(BASONOpen, stk, filtered);
+
+    u8 cstack[HILI_MAXDEPTH];
+    memset(cstack, 0, sizeof(cstack));
+
+    u8 type = 0;
+    u8cs key = {}, val = {};
+    b8 had_container = NO;
+    while (BASONDrain(stk, filtered, &type, key, val) == OK) {
+        if (!BASONCollection(type)) {
+            b8 styled = HILILeaf(out, type);
+            call(u8sFeed, out, val);
+            if (styled) escfeed(out, 0);
+        } else {
+            if (had_container) {
+                // Gray separator: -- relpath --
+                escfeed(out, GRAY);
+                a_cstr(sep_pre, "-- ");
+                call(u8sFeed, out, sep_pre);
+                if ($ok(relpath) && !$empty(relpath))
+                    call(u8sFeed, out, relpath);
+                a_cstr(sep_post, " --\n");
+                call(u8sFeed, out, sep_post);
+                escfeed(out, 0);
+            }
+            had_container = YES;
+            call(BASONInto, stk, filtered, val);
+            call(CSSCatRec, out, stk, filtered, cstack, 0);
+            call(BASONOuto, stk);
+        }
+    }
     done;
 }

@@ -26,7 +26,7 @@ separate, never merged back.
 | `stat:` | metadata (mtime, mode)   | `stat:proj/src/main.c` |
 | `tri:`  | trigram posting list     | `tri:proj?Ab` |
 | `sym:`  | symbol name posting list | `sym:proj?funcName` |
-| `std:`  | stdout redirect (CLI)    | `std:///file.c` |
+| `#`     | stdout redirect (CLI)    | `file.c#` or `file.c#fn` |
 
 A `stat:` prefix scan gives fast file listing without
 touching BASON content. Index schemes (`tri:`, `sym:`) store
@@ -187,7 +187,8 @@ back to plain path.
 | `be get ?branch` | switch + export |
 | `be get //repo/proj` | local checkout |
 | `be get http://h/p` | clone from remote |
-| `be get std:///f.c` | export to stdout |
+| `be get f.c#` | export to stdout |
+| `be get f.c#fn` | CSS-filtered to stdout |
 | `be put ?branch` | merge branch into active |
 | `be come branch` | switch active branch |
 | `be delete file.c` | tombstone file |

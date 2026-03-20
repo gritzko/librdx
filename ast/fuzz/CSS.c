@@ -10,6 +10,7 @@
 
 static u8 _pad[FUZZ_BUF];
 static u64 _idx[1024];
+static u8 _fbuf[FUZZ_BUF];
 static u8 _out[FUZZ_BUF];
 
 FUZZ(u8, CSSfuzz) {
@@ -48,8 +49,14 @@ FUZZ(u8, CSSfuzz) {
     u8cs bason = {bd0, bd1};
 
     // Match — must not crash
+    u8b fbuf = {_fbuf, _fbuf, _fbuf, _fbuf + FUZZ_BUF};
+    CSSMatch(fbuf, bason, query);
+
+    // Export — must not crash
+    u8cp fd0 = fbuf[1], fd1 = fbuf[2];
+    u8cs filtered = {fd0, fd1};
     u8b out = {_out, _out, _out, _out + FUZZ_BUF};
-    CSSMatch(u8bIdle(out), bason, query, 0, NO);
+    CSSExport(u8bIdle(out), filtered);
 
     done;
 }
