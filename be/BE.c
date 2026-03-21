@@ -11,68 +11,63 @@
 #include "abc/PRO.h"
 #include "IGNO.h"
 
-// ---- File metadata helpers (BASON-based) ----
+// ---- Local stat cache helpers (BASON-based) ----
 
-ok64 BEMetaFromStat(BEmeta *m, struct stat *st, u8cs ext) {
-    sane(m != NULL && st != NULL);
-    m->mtime = (u32)st->st_mtime;
-    u32 mode = st->st_mode & 07777;
-    u32 ftype = BASTFtype(ext);
-    m->modeftype = (mode << 20) | ((ftype & 0x3FFFF) << 2);
+ok64 BEStatFromFile(BEstat *s, struct stat *st, u8cs content) {
+    sane(s != NULL && st != NULL);
+    s->mtime = (u64)st->st_mtim.tv_sec * 1000000ULL +
+               (u64)(st->st_mtim.tv_nsec / 1000);
+    s->hash = $empty(content) ? 0 : RAPHash(content);
     done;
 }
 
-// Build BASON object { "m": <mtime>, "f": <modeftype> }
-ok64 BEMetaFeedBason(u8bp buf, u64bp idx, BEmeta m) {
+// Build BASON object { "m": <ron64 mtime>, "h": <ron64 hash> }
+ok64 BEStatFeedBason(u8bp buf, u64bp idx, BEstat s) {
     sane(buf != NULL);
     u8cs nokey = {(u8cp)"", (u8cp)""};
     call(BASONFeedInto, idx, buf, 'O', nokey);
-    // mtime
+    // mtime as RON64 text
     u8cs mk = {(u8cp)"m", (u8cp)"m" + 1};
-    u8 mbytes[4];
-    mbytes[0] = m.mtime & 0xff;
-    mbytes[1] = (m.mtime >> 8) & 0xff;
-    mbytes[2] = (m.mtime >> 16) & 0xff;
-    mbytes[3] = (m.mtime >> 24) & 0xff;
-    u8cs mv = {mbytes, mbytes + 4};
-    call(BASONFeed, idx, buf, 'N', mk, mv);
-    // modeftype
-    u8cs fk = {(u8cp)"f", (u8cp)"f" + 1};
-    u8 fbytes[4];
-    fbytes[0] = m.modeftype & 0xff;
-    fbytes[1] = (m.modeftype >> 8) & 0xff;
-    fbytes[2] = (m.modeftype >> 16) & 0xff;
-    fbytes[3] = (m.modeftype >> 24) & 0xff;
-    u8cs fv = {fbytes, fbytes + 4};
-    call(BASONFeed, idx, buf, 'N', fk, fv);
+    u8 mtmp[11];
+    u8s ms = {mtmp, mtmp + sizeof(mtmp)};
+    call(RONutf8sFeed, ms, (ron60)s.mtime);
+    u8cs mv = {mtmp, ms[0]};
+    call(BASONFeed, idx, buf, 'S', mk, mv);
+    // hash as RON64 text
+    u8cs hk = {(u8cp)"h", (u8cp)"h" + 1};
+    u8 htmp[11];
+    u8s hs = {htmp, htmp + sizeof(htmp)};
+    call(RONutf8sFeed, hs, (ron60)s.hash);
+    u8cs hv = {htmp, hs[0]};
+    call(BASONFeed, idx, buf, 'S', hk, hv);
     call(BASONFeedOuto, idx, buf);
     done;
 }
 
-// Drain BASON metadata object into BEmeta
-ok64 BEMetaDrainBason(BEmeta *m, u8cs bason) {
-    sane(m != NULL && $ok(bason));
-    m->mtime = 0;
-    m->modeftype = 0;
+// Drain BASON stat object into BEstat
+ok64 BEStatDrainBason(BEstat *s, u8cs bason) {
+    sane(s != NULL && $ok(bason));
+    s->mtime = 0;
+    s->hash = 0;
     if ($empty(bason)) done;
     aBpad(u64, stk, 32);
     call(BASONOpen, stk, bason);
-    // First drain: expect Object container
     u8 type = 0;
     u8cs key = {};
     u8cs val = {};
     test(BASONDrain(stk, bason, &type, key, val) == OK, BEBAD);
     test(type == 'O', BEBAD);
     call(BASONInto, stk, bason, val);
-    // Drain children
     while (BASONDrain(stk, bason, &type, key, val) == OK) {
-        if (type == 'N' && $len(val) == 4) {
-            u32 v = val[0][0] | ((u32)val[0][1] << 8) |
-                    ((u32)val[0][2] << 16) | ((u32)val[0][3] << 24);
-            if ($len(key) == 1 && key[0][0] == 'm') {
-                m->mtime = v;
-            } else if ($len(key) == 1 && key[0][0] == 'f') {
-                m->modeftype = v;
+        if ($len(key) == 1 && !$empty(val)) {
+            if (key[0][0] == 'm') {
+                ron60 v = 0;
+                if (RONutf8sDrain(&v, val) == OK)
+                    s->mtime = (u64)v;
+            } else if (key[0][0] == 'h') {
+                ron60 v = 0;
+                if (RONutf8sDrain(&v, val) == OK)
+                    s->hash = (u64)v;
             }
         }
     }
@@ -410,7 +405,8 @@ static b8 BEBranchVisible(BEp be, ron60 origin) {
 
 // Internal: flush accumulated base + waypoints for one file
 static ok64 BEScanFlush(BEp be, ron120cs form, u8cs relpath,
-                         b8 has_base, int wpc, u8cs *waypoints,
+                         b8 has_base, b8 is_exec,
+                         int wpc, u8cs *waypoints,
                          BEScanCBf cb, voidp arg) {
     sane(be != NULL && cb != NULL);
     u8cs base_bason = {};
@@ -449,48 +445,7 @@ static ok64 BEScanFlush(BEp be, ron120cs form, u8cs relpath,
     u8cs merged = {m0, m1};
     if ($empty(merged)) done;
 
-    // Fetch stat: metadata (base + matching waypoints)
-    BEmeta meta = {};
-    a_pad(u8, fp, 256);
-    call(BEProjPath, fp_idle, be->loc.path, relpath);
-
-    a_cstr(sch_stat, BE_SCHEME_STAT);
-    // Read stat: base
-    a_uri(stat_base, sch_stat, 0, fp_datac, 0, 0);
-    u8bp sbuf = be->scratch[BE_WRAP];
-    u8bReset(sbuf);
-    if (ROCKGet(&be->db, sbuf, stat_base) == OK) {
-        u8cp s0 = sbuf[1], s1 = sbuf[2];
-        u8cs sv = {s0, s1};
-        BEMetaDrainBason(&meta, sv);
-    }
-    // Prefix scan stat: waypoints
-    a_pad(u8, spfx, 512);
-    call(BEKeyBuild, spfx_idle, sch_stat, fp_datac, 0, 0);
-    u8sFeed1(spfx_idle, '?');
-
-    ROCKiter sit = {};
-    call(ROCKIterOpen, &sit, &be->db);
-    call(ROCKIterSeek, &sit, spfx_datac);
-    while (ROCKIterValid(&sit)) {
-        u8cs sk = {};
-        ROCKIterKey(&sit, sk);
-        if ($len(sk) < $len(spfx_datac) ||
-            memcmp(sk[0], spfx_datac[0], $len(spfx_datac)) != 0)
-            break;
-        uri sku = {};
-        ok64 o = URIutf8Drain(sk, &sku);
-        if (o == OK && !$empty(sku.query) &&
-            BEWaypointMatch(form, sku.query)) {
-            u8cs sv = {};
-            ROCKIterVal(&sit, sv);
-            BEMetaDrainBason(&meta, sv);
-        }
-        call(ROCKIterNext, &sit);
-    }
-    call(ROCKIterClose, &sit);
-
-    call(cb, arg, relpath, merged, meta);
+    call(cb, arg, relpath, merged, is_exec);
     done;
 }
 
@@ -524,6 +479,7 @@ static ok64 BEScanCore(BEp be, uricp loc, BEScanCBf cb, voidp arg,
     u8s cur_rp_s = {cur_rp_buf, cur_rp_buf + sizeof(cur_rp_buf)};
     u8cs cur_relpath = {};
     b8 cur_has_base = NO;
+    b8 cur_is_exec = NO;
     u8cs cur_waypoints[256];
     int cur_wpc = 0;
 
@@ -553,18 +509,24 @@ static ok64 BEScanCore(BEp be, uricp loc, BEScanCBf cb, voidp arg,
             continue;
         }
 
-        // Extract relpath from path component
+        // Extract relpath from path component, strip '*' exec suffix
         if ($len(ku.path) <= path_off) {
             call(ROCKIterNext, &it);
             continue;
         }
         u8cs relpath = {ku.path[0] + path_off, ku.path[1]};
+        b8 key_exec = NO;
+        if (!$empty(relpath) && relpath[1][-1] == '*') {
+            relpath[1]--;
+            key_exec = YES;
+        }
 
         // Check if relpath changed → flush previous
         if ($ok(cur_relpath) && !$empty(cur_relpath) && !$eq(relpath, cur_relpath)) {
             if (!changed_only || cur_wpc > 0) {
                 ok64 fo = BEScanFlush(be, formcs, cur_relpath,
-                                       cur_has_base, cur_wpc,
+                                       cur_has_base, cur_is_exec,
+                                       cur_wpc,
                                        cur_waypoints, cb, arg);
                 if (fo != OK && fo != BEnone) {
                     ROCKIterClose(&it);
@@ -575,6 +537,7 @@ static ok64 BEScanCore(BEp be, uricp loc, BEScanCBf cb, voidp arg,
             cur_relpath[0] = NULL;
             cur_relpath[1] = NULL;
             cur_has_base = NO;
+            cur_is_exec = NO;
             cur_wpc = 0;
         }
 
@@ -589,10 +552,12 @@ static ok64 BEScanCore(BEp be, uricp loc, BEScanCBf cb, voidp arg,
             cur_relpath[0] = cur_rp_buf;
             cur_relpath[1] = cur_rp_s[0];
             cur_has_base = NO;
+            cur_is_exec = NO;
             cur_wpc = 0;
             u8bReset(readbuf);
             u8bReset(wpbuf);
         }
+        if (key_exec) cur_is_exec = YES;
 
         if ($empty(ku.query)) {
             // Base key: copy value into BE_READ
@@ -624,7 +589,8 @@ static ok64 BEScanCore(BEp be, uricp loc, BEScanCBf cb, voidp arg,
     if ($ok(cur_relpath) && !$empty(cur_relpath)) {
         if (!changed_only || cur_wpc > 0) {
             call(BEScanFlush, be, formcs, cur_relpath,
-                 cur_has_base, cur_wpc,
+                 cur_has_base, cur_is_exec,
+                 cur_wpc,
                  cur_waypoints, cb, arg);
         }
     }
@@ -680,6 +646,11 @@ static ok64 BERewriteDotBe(BEp be) {
     u8cs new_uri;
     u8csMv(new_uri, u8bDataC(be->loc_buf));
     call(BEWriteFile, path8cgIn(dpath), new_uri);
+    // Invalidate stat: cache for .be — forces re-check on next post
+    // (mtime=0 bypasses the mtime fast-path in BEPostDiffCB)
+    a_cstr(dotbe_rel, ".be");
+    BEstat invalid = {0, 0};
+    BEStatUpdate(be, dotbe_rel, invalid);
     done;
 }
 
@@ -830,8 +801,8 @@ static void BEExtOf(u8csp ext, u8cs filename) {
     }
 }
 
-// Export BASON content + metadata to a file in worktree
-static ok64 BEExportFile(BEp be, u8cs relpath, u8cs bason, BEmeta meta) {
+// Export BASON content to a file in worktree. Exec bit from key.
+static ok64 BEExportFile(BEp be, u8cs relpath, u8cs bason, b8 is_exec) {
     sane(be != NULL && $ok(relpath) && $ok(bason));
 
     u8bp out = be->scratch[BE_RENDER];
@@ -860,16 +831,20 @@ static ok64 BEExportFile(BEp be, u8cs relpath, u8cs bason, BEmeta meta) {
     }
     call(BEWriteFile, path8cgIn(fpath), source);
 
-    // Restore file metadata (path is 0-terminated by path8gPush)
-    u32 mode = meta.modeftype >> 20;
-    if (mode != 0) {
-        chmod((const char *)fpath[1], mode);
+    // Set exec bit from key
+    if (is_exec) {
+        chmod((const char *)fpath[1], 0755);
+    } else {
+        chmod((const char *)fpath[1], 0644);
     }
-    if (meta.mtime != 0) {
-        struct utimbuf ut;
-        ut.actime = time(NULL);
-        ut.modtime = meta.mtime;
-        utime((const char *)fpath[1], &ut);
+
+    // Update stat: cache with real mtime + hash (1-second mtime race
+    // is accepted, same as git's "racy git" limitation)
+    struct stat wst;
+    if (FILEStat(&wst, path8cgIn(fpath)) == OK) {
+        BEstat st_cache = {};
+        BEStatFromFile(&st_cache, &wst, source);
+        BEStatUpdate(be, relpath, st_cache);
     }
     done;
 }
@@ -901,9 +876,11 @@ ok64 BEScanFile(ROCKdbp db, u8cs project, u8cs relpath,
         if ($len(k) < $len(base_key) ||
             memcmp(k[0], base_key[0], $len(base_key)) != 0)
             break;
-        // Exact match or ?query — reject longer paths (BAST.c vs BAST.cli.c)
-        if ($len(k) > $len(base_key) && k[0][$len(base_key)] != '?')
-            break;
+        // Exact match, *exec suffix, or ?query — reject longer paths
+        if ($len(k) > $len(base_key)) {
+            u8 nc = k[0][$len(base_key)];
+            if (nc != '?' && nc != '*') break;
+        }
 
         uri ku = {};
         ok64 o = URIutf8Drain(k, &ku);
@@ -994,10 +971,10 @@ ok64 BEMergeFile(ROCKdbp db, u8cs project, u8cs relpath,
     return o;
 }
 
-// GET single file: read metadata from stat:, content from be:, merge
-// result receives pure BASON. meta_out receives latest metadata.
+// GET single file: content from be:, merge.
+// Exec bit is derived from be: key trailing '*'.
 ok64 BEGetFileMerged(BEp be, u8cs project, u8cs relpath,
-                     u8bp result, BEmeta *meta_out) {
+                     u8bp result, b8 *is_exec_out) {
     sane(be != NULL);
 
     // Build formula from branches
@@ -1006,57 +983,40 @@ ok64 BEGetFileMerged(BEp be, u8cs project, u8cs relpath,
     call(VERFormFromBranches, form_s, be->branchc, be->branches);
     ron120cs formcs = {form, form_s[0]};
 
-    // Merge be: content
+    // Merge be: content (BEScanFile now handles * suffix in keys)
     call(BEMergeFile, &be->db, project, relpath, formcs, result);
 
-    // Scan stat: metadata if requested
-    if (meta_out) {
+    // Detect exec bit: check if be:project/relpath* base key exists
+    if (is_exec_out) {
+        *is_exec_out = NO;
         a_pad(u8, fp, 256);
         call(BEProjPath, fp_idle, project, relpath);
-
-        a_cstr(sch_stat, BE_SCHEME_STAT);
-        BEmeta latest_meta = {};
-
-        // Read stat: base key
-        a_uri(stat_key, sch_stat, 0, fp_datac, 0, 0);
-        u8bp sbuf = be->scratch[BE_WRAP];
-        u8bReset(sbuf);
-        if (ROCKGet(&be->db, sbuf, stat_key) == OK) {
-            u8cp s0 = sbuf[1], s1 = sbuf[2];
-            u8cs stat_val = {s0, s1};
-            BEMetaDrainBason(&latest_meta, stat_val);
-        }
-
-        // Scan stat: waypoints
-        a_pad(u8, spfx, 512);
-        call(BEKeyBuild, spfx_idle, sch_stat, fp_datac, 0, 0);
-        u8sFeed1(spfx_idle, '?');
-
-        ROCKiter sit = {};
-        call(ROCKIterOpen, &sit, &be->db);
-        call(ROCKIterSeek, &sit, spfx_datac);
-        while (ROCKIterValid(&sit)) {
-            u8cs sk = {};
-            ROCKIterKey(&sit, sk);
-            if ($len(sk) < $len(spfx_datac) ||
-                memcmp(sk[0], spfx_datac[0], $len(spfx_datac)) != 0)
-                break;
-            uri sku = {};
-            ok64 o = URIutf8Drain(sk, &sku);
-            if (o == OK && !$empty(sku.query)) {
-                ron120 ver = {};
-                o = VERParse(&ver, sku.query);
-                if (o == OK && BEBranchVisible(be, VEROrigin(&ver))) {
-                    u8cs sv = {};
-                    ROCKIterVal(&sit, sv);
-                    BEMetaDrainBason(&latest_meta, sv);
+        a_pad(u8, xfp, 256);
+        call(u8sFeed, xfp_idle, fp_datac);
+        u8sFeed1(xfp_idle, '*');
+        a_cstr(sch_be, BE_SCHEME_BE);
+        // Check base key with * suffix
+        a_uri(exec_base, sch_be, 0, xfp_datac, 0, 0);
+        u8bp xbuf = be->scratch[BE_WRAP];
+        u8bReset(xbuf);
+        if (ROCKGet(&be->db, xbuf, exec_base) == OK) {
+            *is_exec_out = YES;
+        } else {
+            // Also check waypoint keys with * suffix
+            u8sFeed1(xfp_idle, '?');
+            ROCKiter xit = {};
+            if (ROCKIterOpen(&xit, &be->db) == OK) {
+                if (ROCKIterSeek(&xit, xfp_datac) == OK &&
+                    ROCKIterValid(&xit)) {
+                    u8cs xk = {};
+                    ROCKIterKey(&xit, xk);
+                    if ($len(xk) >= $len(xfp_datac) &&
+                        memcmp(xk[0], xfp_datac[0], $len(xfp_datac)) == 0)
+                        *is_exec_out = YES;
                 }
+                ROCKIterClose(&xit);
             }
-            call(ROCKIterNext, &sit);
         }
-        call(ROCKIterClose, &sit);
-
-        *meta_out = latest_meta;
     }
     done;
 }
@@ -1073,8 +1033,8 @@ static ok64 BEGetFile(BEp be, u8cs relpath) {
     u8bp mbuf = be->scratch[BE_PATCH];
     u8bReset(mbuf);
 
-    BEmeta meta = {};
-    ok64 go = BEGetFileMerged(be, be->loc.path, relpath, mbuf, &meta);
+    b8 is_exec = NO;
+    ok64 go = BEGetFileMerged(be, be->loc.path, relpath, mbuf, &is_exec);
     if (go == BEnone) return BEnone;
     if (go != OK) {
         BEPostReport(relpath, codec, "FAIL", DARK_RED);
@@ -1084,7 +1044,7 @@ static ok64 BEGetFile(BEp be, u8cs relpath) {
     u8cs merged = {mbuf[1], mbuf[2]};
     if ($empty(merged)) return BEnone;
 
-    ok64 eo = BEExportFile(be, relpath, merged, meta);
+    ok64 eo = BEExportFile(be, relpath, merged, is_exec);
     if (eo != OK) {
         BEPostReport(relpath, codec, "FAIL", DARK_RED);
         return eo;
@@ -1094,12 +1054,12 @@ static ok64 BEGetFile(BEp be, u8cs relpath) {
 }
 
 // BEScan callback for GET: export each file to worktree
-static ok64 BEExportCB(voidp arg, u8cs relpath, u8cs bason, BEmeta meta) {
+static ok64 BEExportCB(voidp arg, u8cs relpath, u8cs bason, b8 is_exec) {
     BEp be = (BEp)arg;
     u8cs ext = {};
     u8cs codec = {};
     BEFileInfo(ext, codec, relpath);
-    ok64 o = BEExportFile(be, relpath, bason, meta);
+    ok64 o = BEExportFile(be, relpath, bason, is_exec);
     if (o == OK)
         BEPostReport(relpath, codec, "OK", DARK_GREEN);
     else
@@ -1118,6 +1078,7 @@ ok64 BEGet(BEp be, int pathc, u8cs *paths, u8cs branch) {
     sane(be != NULL);
 
     // If branch specified, set it as active (may be "&"-separated list)
+    b8 branch_changed = NO;
     if ($ok(branch) && !$empty(branch)) {
         // Reset branch list, parse all entries from query
         be->branchc = 0;
@@ -1137,7 +1098,7 @@ ok64 BEGet(BEp be, int pathc, u8cs *paths, u8cs branch) {
             }
             if (p < end) p++;
         }
-        call(BERewriteDotBe, be);
+        branch_changed = YES;
     }
 
     if (pathc > 0 && paths != NULL) {
@@ -1147,14 +1108,18 @@ ok64 BEGet(BEp be, int pathc, u8cs *paths, u8cs branch) {
     } else {
         call(BEGetProject, be, be->loc.path);
     }
+
+    // Rewrite .be AFTER export so it's not overwritten by DB content
+    if (branch_changed)
+        call(BERewriteDotBe, be);
     done;
 }
 
 // ---- STATUS (compare worktree vs DB) ----
 
-// BEStatCBf and BEScanStatMerged declared in BE.h
+// BEStatCBf and BEScanStat declared in BE.h
 
-static ok64 BEStatusCB(voidp arg, u8cs relpath, BEmeta merged_meta) {
+static ok64 BEStatusCB(voidp arg, u8cs relpath, BEstat cached) {
     sane(arg != NULL);
     BEp be = (BEp)arg;
 
@@ -1168,16 +1133,37 @@ static ok64 BEStatusCB(voidp arg, u8cs relpath, BEmeta merged_meta) {
     struct stat fst;
     if (FILEStat(&fst, path8cgIn(fpath)) != OK) {
         BEPostReport(relpath, codec, "DEL", DARK_RED);
-    } else if ((u32)fst.st_mtime != merged_meta.mtime) {
-        BEPostReport(relpath, codec, "MOD", DARK_YELLOW);
+        done;
     }
+    u64 cur_mtime = (u64)fst.st_mtim.tv_sec * 1000000ULL +
+                     (u64)(fst.st_mtim.tv_nsec / 1000);
+    if (cached.mtime > 0 && cur_mtime == cached.mtime)
+        done;
+    // mtime differs — hash the file to check content
+    u8bp mapbuf = NULL;
+    u8cs file_content = {};
+    if (fst.st_size > 0) {
+        call(FILEMapRO, &mapbuf, path8cgIn(fpath));
+        u8cp fc0 = mapbuf[1], fc1 = mapbuf[2];
+        file_content[0] = fc0;
+        file_content[1] = fc1;
+    }
+    u64 cur_hash = $empty(file_content) ? 0 : RAPHash(file_content);
+    if (mapbuf) FILEUnMap(mapbuf);
+    if (cached.hash != 0 && cur_hash == cached.hash) {
+        // Content unchanged — silently update mtime in cache
+        BEstat updated = {cur_mtime, cur_hash};
+        BEStatUpdate(be, relpath, updated);
+        done;
+    }
+    BEPostReport(relpath, codec, "MOD", DARK_YELLOW);
     done;
 }
 
 ok64 BEStatusFiles(BEp be) {
     sane(be != NULL);
     u8cs empty_pfx = {};
-    call(BEScanStatMerged, be, empty_pfx, BEStatusCB, be);
+    call(BEScanStat, be, empty_pfx, BEStatusCB, be);
     done;
 }
 
@@ -1199,7 +1185,7 @@ typedef struct {
     b8 any_output;
 } BEDiffCtx;
 
-static ok64 BEDiffCB(voidp arg, u8cs relpath, BEmeta merged_meta) {
+static ok64 BEDiffCB(voidp arg, u8cs relpath, BEstat cached) {
     sane(arg != NULL);
     BEDiffCtx *ctx = (BEDiffCtx *)arg;
     BEp be = ctx->be;
@@ -1225,7 +1211,31 @@ static ok64 BEDiffCB(voidp arg, u8cs relpath, BEmeta merged_meta) {
     b8 modified = NO;
     if (FILEStat(&fst, path8cgIn(fpath)) != OK) {
         deleted = YES;
-    } else if ((u32)fst.st_mtime != merged_meta.mtime) {
+    } else {
+        u64 cur_mtime = (u64)fst.st_mtim.tv_sec * 1000000ULL +
+                     (u64)(fst.st_mtim.tv_nsec / 1000);
+        if (cached.mtime > 0 && cur_mtime == cached.mtime) {
+            // mtime match → skip
+            return OK;
+        }
+        // mtime differs → hash
+        u8bp hmap = NULL;
+        u8cs hcontent = {};
+        if (fst.st_size > 0) {
+            if (FILEMapRO(&hmap, path8cgIn(fpath)) == OK) {
+                u8cp hc0 = hmap[1], hc1 = hmap[2];
+                hcontent[0] = hc0;
+                hcontent[1] = hc1;
+            }
+        }
+        u64 cur_hash = $empty(hcontent) ? 0 : RAPHash(hcontent);
+        if (hmap) FILEUnMap(hmap);
+        if (cached.hash != 0 && cur_hash == cached.hash) {
+            // Content unchanged — update mtime in cache
+            BEstat updated = {cur_mtime, cur_hash};
+            BEStatUpdate(be, relpath, updated);
+            return OK;
+        }
         modified = YES;
     }
 
@@ -1327,7 +1337,7 @@ ok64 BEDiffFiles(BEp be, int pathc, u8cs *paths) {
     sane(be != NULL);
     BEDiffCtx ctx = {.be = be, .pathc = pathc, .paths = paths};
     u8cs empty_pfx = {};
-    call(BEScanStatMerged, be, empty_pfx, BEDiffCB, &ctx);
+    call(BEScanStat, be, empty_pfx, BEDiffCB, &ctx);
     done;
 }
 
@@ -1373,22 +1383,25 @@ static void BEPostReport(u8cs rel, u8cs codec, const char *status, u8 color) {
     FILEout(lb_datac);
 }
 
-// Write be: and stat: keys for a file.
+// Write be: key for a file (exec bit encoded as '*' suffix in path).
 // query empty → base key; non-empty → waypoint key.
+// stat: is written separately via BEStatUpdate (local cache only).
 static ok64 BEPostWriteKeys(BEp be, ROCKbatchp wb,
                              u8cs fpath, u8cs query,
-                             u8cs content, BEmeta meta) {
+                             u8cs content, b8 is_exec) {
     sane(be != NULL && wb != NULL);
     a_cstr(sch_be, BE_SCHEME_BE);
-    a_cstr(sch_stat, BE_SCHEME_STAT);
-    a_uri(be_key, sch_be, 0, fpath, query, 0);
-    call(ROCKBatchPut, wb, be_key, content);
-    a_uri(stat_key, sch_stat, 0, fpath, query, 0);
-    u8bp mbuf = be->scratch[BE_WRAP];
-    u8bReset(mbuf);
-    call(BEMetaFeedBason, mbuf, NULL, meta);
-    u8cs stat_val = {mbuf[1], mbuf[2]};
-    call(ROCKBatchPut, wb, stat_key, stat_val);
+    if (is_exec) {
+        // Append '*' to fpath for be: key
+        a_pad(u8, xp, 512);
+        call(u8sFeed, xp_idle, fpath);
+        u8sFeed1(xp_idle, '*');
+        a_uri(be_key, sch_be, 0, xp_datac, query, 0);
+        call(ROCKBatchPut, wb, be_key, content);
+    } else {
+        a_uri(be_key, sch_be, 0, fpath, query, 0);
+        call(ROCKBatchPut, wb, be_key, content);
+    }
     done;
 }
 
@@ -1414,15 +1427,15 @@ static ok64 BEPostFile(BEp be, ROCKbatchp wb, ron60 stamp,
     u8cs codec = {};
     BASTCodec(codec, ext);
 
-    // Build metadata
-    BEmeta meta = {};
-    BEMetaFromStat(&meta, &fst, ext);
+    // Exec bit from file mode
+    b8 is_exec = (fst.st_mode & 0111) != 0;
 
     // Parse to BASON
     u8bp nbuf = be->scratch[BE_PARSE];
     u8bReset(nbuf);
     u8bp mapbuf = NULL;
     ok64 o = OK;
+    u8cs file_content = {};
 
     if (fst.st_size == 0) {
         u8cs nokey = {(u8cp)"", (u8cp)""};
@@ -1431,6 +1444,8 @@ static ok64 BEPostFile(BEp be, ROCKbatchp wb, ron60 stamp,
     } else {
         call(FILEMapRO, &mapbuf, filepath);
         u8cs source = {mapbuf[1], mapbuf[2]};
+        file_content[0] = source[0];
+        file_content[1] = source[1];
         o = BASTParse(nbuf, NULL, source, ext);
         if (o != OK) {
             BEPostReport(rel, codec, "SKIP", DARK_YELLOW);
@@ -1488,7 +1503,12 @@ static ok64 BEPostFile(BEp be, ROCKbatchp wb, ron60 stamp,
         }
     }
 
-    call(BEPostWriteKeys, be, wb, fp_datac, query, content, meta);
+    call(BEPostWriteKeys, be, wb, fp_datac, query, content, is_exec);
+
+    // Update local stat: cache (no waypoints)
+    BEstat st_cache = {};
+    BEStatFromFile(&st_cache, &fst, file_content);
+    call(BEStatUpdate, be, rel, st_cache);
 
     // Extract trigrams and write tri: keys
     call(BETriPost, be, wb, new_bason, fp_datac);
@@ -1561,19 +1581,13 @@ static ok64 BEPostScanCB(voidp arg, path8p path) {
     return OK;
 }
 
-// ---- stat: iterator with formula merge (cases 2, 3a) ----
+// ---- stat: local cache iterator (no waypoints) ----
 
-// Iterate stat: keys, group by relpath, merge metadata via branch formula,
-// call cb for each file. prefix_filter limits to a relpath subtree.
-ok64 BEScanStatMerged(BEp be, u8cs prefix_filter,
-                      BEStatCBf cb, voidp arg) {
+// Iterate stat: keys (one per file, no waypoints), call cb per file.
+// prefix_filter limits to a relpath subtree. Skips old waypoint keys.
+ok64 BEScanStat(BEp be, u8cs prefix_filter,
+                BEStatCBf cb, voidp arg) {
     sane(be != NULL && cb != NULL);
-
-    // Build branch formula
-    ron120 fbuf[VER_MAX];
-    ron120s form = {fbuf, fbuf + VER_MAX};
-    call(VERFormFromBranches, form, be->branchc, be->branches);
-    ron120cs formcs = {fbuf, form[0]};
 
     // Build stat:<project>/ prefix
     a_cstr(sch_stat, BE_SCHEME_STAT);
@@ -1582,12 +1596,6 @@ ok64 BEScanStatMerged(BEp be, u8cs prefix_filter,
     a_pad(u8, pfx, 512);
     call(BEKeyBuild, pfx_idle, sch_stat, fp_datac, 0, 0);
     size_t path_off = $len(be->loc.path) + 1;  // skip "project/"
-
-    // Current file state
-    u8 cur_rp_buf[512];
-    u8s cur_rp_s = {cur_rp_buf, cur_rp_buf + sizeof(cur_rp_buf)};
-    u8cs cur_relpath = {};
-    BEmeta cur_meta = {};
 
     ROCKiter it = {};
     call(ROCKIterOpen, &it, &be->db);
@@ -1606,8 +1614,8 @@ ok64 BEScanStatMerged(BEp be, u8cs prefix_filter,
             call(ROCKIterNext, &it);
             continue;
         }
-        // Skip fragment keys (commits, milestones)
-        if (!$empty(ku.fragment)) {
+        // Skip old waypoint keys and fragment keys
+        if (!$empty(ku.query) || !$empty(ku.fragment)) {
             call(ROCKIterNext, &it);
             continue;
         }
@@ -1619,54 +1627,35 @@ ok64 BEScanStatMerged(BEp be, u8cs prefix_filter,
         }
         u8cs relpath = {ku.path[0] + path_off, ku.path[1]};
 
-        // New file → flush previous
-        if ($ok(cur_relpath) && !$empty(cur_relpath) &&
-            !$eq(relpath, cur_relpath)) {
-            ok64 fo = cb(arg, cur_relpath, cur_meta);
-            if (fo != OK && fo != BEnone) {
-                ROCKIterClose(&it);
-                fail(fo);
-            }
-            cur_relpath[0] = NULL;
-            cur_relpath[1] = NULL;
-            cur_meta = (BEmeta){};
-        }
-
-        // Start new file
-        if (!$ok(cur_relpath) || $empty(cur_relpath)) {
-            cur_rp_s[0] = cur_rp_buf;
-            o = u8sFeed(cur_rp_s, relpath);
-            if (o != OK) {
-                call(ROCKIterNext, &it);
-                continue;
-            }
-            cur_relpath[0] = cur_rp_buf;
-            cur_relpath[1] = cur_rp_s[0];
-            cur_meta = (BEmeta){};
-        }
-
-        // Drain metadata
+        // Drain stat value
         u8cs v = {};
         ROCKIterVal(&it, v);
-        if ($empty(ku.query)) {
-            // Base key: initialize metadata
-            BEMetaDrainBason(&cur_meta, v);
-        } else {
-            // Waypoint: check formula match
-            if (BEWaypointMatch(formcs, ku.query)) {
-                BEMetaDrainBason(&cur_meta, v);
-            }
+        BEstat cached = {};
+        BEStatDrainBason(&cached, v);
+
+        ok64 fo = cb(arg, relpath, cached);
+        if (fo != OK && fo != BEnone) {
+            ROCKIterClose(&it);
+            fail(fo);
         }
 
         call(ROCKIterNext, &it);
     }
     call(ROCKIterClose, &it);
+    done;
+}
 
-    // Flush last file
-    if ($ok(cur_relpath) && !$empty(cur_relpath)) {
-        ok64 fo = cb(arg, cur_relpath, cur_meta);
-        if (fo != OK && fo != BEnone) fail(fo);
-    }
+// Update local stat: cache for a file (overwrite in place, no waypoints)
+ok64 BEStatUpdate(BEp be, u8cs relpath, BEstat s) {
+    sane(be != NULL && $ok(relpath));
+    a_pad(u8, fp, 256);
+    call(BEProjPath, fp_idle, be->loc.path, relpath);
+    a_cstr(sch_stat, BE_SCHEME_STAT);
+    a_uri(stat_key, sch_stat, 0, fp_datac, 0, 0);
+    aBpad(u8, sbuf, 256);
+    call(BEStatFeedBason, sbuf, NULL, s);
+    u8cs stat_val = {sbuf[1], sbuf[2]};
+    call(ROCKPut, &be->db, stat_key, stat_val);
     done;
 }
 
@@ -1678,7 +1667,7 @@ typedef struct {
     ron60 stamp;
 } BEPostDiffCtx;
 
-static ok64 BEPostDiffCB(voidp arg, u8cs relpath, BEmeta merged_meta) {
+static ok64 BEPostDiffCB(voidp arg, u8cs relpath, BEstat cached) {
     sane(arg != NULL);
     BEPostDiffCtx *ctx = (BEPostDiffCtx *)arg;
     BEp be = ctx->be;
@@ -1694,35 +1683,49 @@ static ok64 BEPostDiffCB(voidp arg, u8cs relpath, BEmeta merged_meta) {
         return OK;
     }
 
-    // Get extension and codec for reporting
+    // Fast-path: skip if mtime unchanged
+    u64 cur_mtime = (u64)fst.st_mtim.tv_sec * 1000000ULL +
+                     (u64)(fst.st_mtim.tv_nsec / 1000);
+    if (cached.mtime > 0 && cur_mtime == cached.mtime)
+        return OK;
+
+    // mtime differs — read file, compute hash
+    u8bp mapbuf = NULL;
+    u8cs file_content = {};
+    if (fst.st_size > 0) {
+        call(FILEMapRO, &mapbuf, path8cgIn(fpath));
+        u8cp fc0 = mapbuf[1], fc1 = mapbuf[2];
+        file_content[0] = fc0;
+        file_content[1] = fc1;
+    }
+    u64 cur_hash = $empty(file_content) ? 0 : RAPHash(file_content);
+
+    // Hash match → content unchanged, just update mtime in cache
+    if (cached.hash != 0 && cur_hash == cached.hash) {
+        BEstat updated = {cur_mtime, cur_hash};
+        BEStatUpdate(be, relpath, updated);
+        if (mapbuf) FILEUnMap(mapbuf);
+        return OK;
+    }
+
+    // Real change — parse, diff, write
     u8cs ext = {};
     u8cs codec = {};
     BEFileInfo(ext, codec, relpath);
+    b8 is_exec = (fst.st_mode & 0111) != 0;
 
-    // Build current metadata
-    BEmeta meta = {};
-    BEMetaFromStat(&meta, &fst, ext);
-
-    // Fast-path: skip if mtime unchanged
-    if (merged_meta.mtime > 0 && meta.mtime == merged_meta.mtime)
-        return OK;
-
-    // Parse new file to BASON
     u8bp nbuf = be->scratch[BE_PARSE];
     u8bReset(nbuf);
-    u8bp mapbuf = NULL;
 
     if (fst.st_size == 0) {
         u8cs nokey = {(u8cp)"", (u8cp)""};
         call(BASONFeedInto, NULL, nbuf, 'A', nokey);
         call(BASONFeedOuto, NULL, nbuf);
     } else {
-        call(FILEMapRO, &mapbuf, path8cgIn(fpath));
-        u8cs source = {mapbuf[1], mapbuf[2]};
-        __ = BASTParse(nbuf, NULL, source, ext);
+        __ = BASTParse(nbuf, NULL, file_content, ext);
         if (__ != OK) {
             BEPostReport(relpath, codec, "SKIP", DARK_YELLOW);
-            FILEUnMap(mapbuf);
+            if (mapbuf) FILEUnMap(mapbuf);
             return OK;
         }
     }
@@ -1766,16 +1769,9 @@ static ok64 BEPostDiffCB(voidp arg, u8cs relpath, BEmeta merged_meta) {
         }
         u8cs delta = {obuf[1], obuf[2]};
         if ($empty(delta)) {
-            // Content unchanged but mtime differs — update stat: mtime
-            a_cstr(sch_stat, BE_SCHEME_STAT);
-            a_uri(stat_key, sch_stat, 0, kp_datac, wq_datac, 0);
-            u8bp sbuf = be->scratch[BE_WRAP];
-            u8bReset(sbuf);
-            call(BEMetaFeedBason, sbuf, NULL, meta);
-            u8cp s0 = sbuf[1], s1 = sbuf[2];
-            u8cs stat_val = {s0, s1};
-            call(ROCKBatchPut, ctx->wb, stat_key, stat_val);
-            call(BEBatchFlush, be, ctx->wb);
+            // BASON unchanged — update stat: cache with new mtime+hash
+            BEstat updated = {cur_mtime, cur_hash};
+            BEStatUpdate(be, relpath, updated);
             if (mapbuf) FILEUnMap(mapbuf);
             return OK;
         }
@@ -1785,8 +1781,12 @@ static ok64 BEPostDiffCB(voidp arg, u8cs relpath, BEmeta merged_meta) {
         $mv(content, new_bason);
     }
 
-    __ = BEPostWriteKeys(be, ctx->wb, kp_datac, wq_datac, content, meta);
+    __ = BEPostWriteKeys(be, ctx->wb, kp_datac, wq_datac, content, is_exec);
     if (__ != OK) { if (mapbuf) FILEUnMap(mapbuf); return __; }
+
+    // Update stat: cache
+    BEstat updated = {cur_mtime, cur_hash};
+    BEStatUpdate(be, relpath, updated);
 
     // Extract trigrams
     __ = BETriPost(be, ctx->wb, new_bason, kp_datac);
@@ -1904,7 +1904,7 @@ ok64 BEPost(BEp be, int pathc, u8cs *paths, u8cs message) {
         // CASE 2: Incremental post — DB scan for tracked files
         BEPostDiffCtx dctx = {be, &wb, stamp};
         u8cs empty_pfx = {};
-        call(BEScanStatMerged, be, empty_pfx, BEPostDiffCB, &dctx);
+        call(BEScanStat, be, empty_pfx, BEPostDiffCB, &dctx);
     } else {
         // CASE 3: Per-prefix decision
         for (int i = 0; i < pathc; i++) {
@@ -1929,7 +1929,7 @@ ok64 BEPost(BEp be, int pathc, u8cs *paths, u8cs message) {
                 if (BEPostHasRecords(be, rp_datac)) {
                     // CASE 3a: DB scan with prefix filter
                     BEPostDiffCtx dctx = {be, &wb, stamp};
-                    ok64 o = BEScanStatMerged(be, rp_datac,
+                    ok64 o = BEScanStat(be, rp_datac,
                                               BEPostDiffCB, &dctx);
                     if (o != OK) {
                         ROCKBatchClose(&wb);
@@ -2070,15 +2070,8 @@ ok64 BEPostData(BEp be, u8cs relpath, u8cs source, u8cs branch, u8cs message) {
         $mv(content, new_bason);
     }
 
-    // Build metadata: current time, 0644, ftype from ext
-    BEmeta meta = {};
-    meta.mtime = (u32)stamp;
-    u32 mode = 0644;
-    u32 ftype = BASTFtype(ext);
-    meta.modeftype = (mode << 20) | ((ftype & 0x3FFFF) << 2);
-
-    // Write be: and stat: keys
-    call(BEPostWriteKeys, be, &wb, fp_datac, wq_datac, content, meta);
+    // Write be: key (no exec bit for data posts)
+    call(BEPostWriteKeys, be, &wb, fp_datac, wq_datac, content, NO);
 
     // Extract trigrams
     call(BETriPost, be, &wb, new_bason, fp_datac);
@@ -2166,13 +2159,11 @@ ok64 BEPut(BEp be, u8cs source_branch, u8cs message) {
     ROCKbatch wb = {};
     call(ROCKBatchOpen, &wb);
 
-    // Re-key both stat: and be: waypoints from source → active
+    // Re-key be: waypoints from source → active (stat: is local, no re-key)
     a_cstr(sch_be, BE_SCHEME_BE);
-    a_cstr(sch_stat, BE_SCHEME_STAT);
     ron60 src_val = 0;
     call(RONutf8sDrain, &src_val, source_branch);
     call(BEPutScheme, be, &wb, sch_be, src_val, active);
-    call(BEPutScheme, be, &wb, sch_stat, src_val, active);
 
     // Merge metadata: be:project/?stamp-branch#merge
     a_pad(u8, mp, 256);
@@ -2284,9 +2275,7 @@ static ok64 BEDeleteBranch(BEp be, u8cs name) {
     ROCKbatch wb = {};
     call(ROCKBatchOpen, &wb);
     a_cstr(sch_be, BE_SCHEME_BE);
-    a_cstr(sch_stat, BE_SCHEME_STAT);
     call(BEDeleteBranchScheme, be, &wb, sch_be, name, NO);
-    call(BEDeleteBranchScheme, be, &wb, sch_stat, name, NO);
     call(ROCKBatchWrite, &be->db, &wb);
     call(ROCKBatchClose, &wb);
     done;
@@ -2312,14 +2301,9 @@ static ok64 BEDeleteFile(BEp be, u8cs target) {
     a_uri(be_key, sch_be, 0, dp_datac, dq_datac, 0);
     call(ROCKPut, &be->db, be_key, empty_val);
 
-    // Zero metadata in stat: key
-    a_cstr(sch_stat, BE_SCHEME_STAT);
-    a_uri(stat_key, sch_stat, 0, dp_datac, dq_datac, 0);
-    aBpad(u8, mbuf, 256);
-    BEmeta zero = {};
-    call(BEMetaFeedBason, mbuf, NULL, zero);
-    u8cs tomb = {mbuf[1], mbuf[2]};
-    call(ROCKPut, &be->db, stat_key, tomb);
+    // Remove stat: cache entry
+    BEstat zero = {};
+    call(BEStatUpdate, be, target, zero);
     done;
 }
 
@@ -2448,7 +2432,7 @@ typedef struct {
     ROCKbatchp wb;
 } BEMileCBCtx;
 
-static ok64 BEMileCB(voidp arg, u8cs relpath, u8cs bason, BEmeta meta) {
+static ok64 BEMileCB(voidp arg, u8cs relpath, u8cs bason, b8 is_exec) {
     sane(arg != NULL);
     BEMileCBCtx *ctx = (BEMileCBCtx *)arg;
     BEp be = ctx->be;
@@ -2457,18 +2441,18 @@ static ok64 BEMileCB(voidp arg, u8cs relpath, u8cs bason, BEmeta meta) {
     a_pad(u8, fp, 256);
     call(BEProjPath, fp_idle, be->loc.path, relpath);
 
-    // Write new be: base
+    // Write new be: base (with exec bit if needed)
     a_cstr(sch_be, BE_SCHEME_BE);
-    a_uri(base_key, sch_be, 0, fp_datac, 0, 0);
-    call(ROCKBatchPut, ctx->wb, base_key, bason);
-
-    // Write new stat: base with metadata
-    a_cstr(sch_stat, BE_SCHEME_STAT);
-    a_uri(stat_key, sch_stat, 0, fp_datac, 0, 0);
-    aBpad(u8, smbuf, 256);
-    call(BEMetaFeedBason, smbuf, NULL, meta);
-    u8cs stat_val = {smbuf[1], smbuf[2]};
-    call(ROCKBatchPut, ctx->wb, stat_key, stat_val);
+    if (is_exec) {
+        a_pad(u8, xp, 512);
+        call(u8sFeed, xp_idle, fp_datac);
+        u8sFeed1(xp_idle, '*');
+        a_uri(base_key, sch_be, 0, xp_datac, 0, 0);
+        call(ROCKBatchPut, ctx->wb, base_key, bason);
+    } else {
+        a_uri(base_key, sch_be, 0, fp_datac, 0, 0);
+        call(ROCKBatchPut, ctx->wb, base_key, bason);
+    }
     done;
 }
 
@@ -2477,7 +2461,6 @@ ok64 BEMilestone(BEp be, u8cs name) {
 
     a_cstr(main_branch, "main");
     a_cstr(sch_be, BE_SCHEME_BE);
-    a_cstr(sch_stat, BE_SCHEME_STAT);
     ROCKbatch wb = {};
     call(ROCKBatchOpen, &wb);
 
@@ -2492,7 +2475,6 @@ ok64 BEMilestone(BEp be, u8cs name) {
 
     // Phase 2: delete main-branch waypoint keys (keep fragment metadata)
     call(BEDeleteBranchScheme, be, &wb, sch_be, main_branch, YES);
-    call(BEDeleteBranchScheme, be, &wb, sch_stat, main_branch, YES);
 
     // Record milestone metadata: be:project/?stamp-branch#milestone
     if ($ok(name) && !$empty(name)) {

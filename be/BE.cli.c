@@ -182,8 +182,7 @@ static ok64 BECLIGet(uricp u) {
         $mv(relpath, u->path);
         u8bp result = be.scratch[BE_READ];
         u8bReset(result);
-        BEmeta meta = {};
-        call(BEGetFileMerged, &be, be.loc.path, relpath, result, &meta);
+        call(BEGetFileMerged, &be, be.loc.path, relpath, result, NULL);
         u8cs bason = {result[1], result[2]};
         u8bp out = be.scratch[BE_RENDER];
         u8bReset(out);
@@ -430,8 +429,7 @@ static ok64 BECLICat(uricp u) {
 
     u8bp result = be.scratch[BE_READ];
     u8bReset(result);
-    BEmeta meta = {};
-    call(BEGetFileMerged, &be, be.loc.path, relpath, result, &meta);
+    call(BEGetFileMerged, &be, be.loc.path, relpath, result, NULL);
 
     u8cs bason = {result[1], result[2]};
 

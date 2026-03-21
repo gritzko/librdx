@@ -18,26 +18,26 @@ con ok64 BEBAD = 0xb38b28d;
 con ok64 BEnone = 0x2cecb3ca9;
 
 // --- Key scheme prefixes ---
-// stat:  → file metadata (BASON: mtime, mode, ftype)
-// be:    → BASON tree / patch content
+// stat:  → local-only cache (BASON: mtime, hash) — never replicated
+// be:    → BASON tree / patch content (key has '*' suffix for exec)
 // tri:   → trigram posting lists (BASON object, merge = set-union)
 #define BE_SCHEME_STAT "stat"
 #define BE_SCHEME_BE   "be"
 #define BE_SCHEME_TRI  "tri"
 #define BE_SCHEME_SYM  "sym"
 
-// File metadata stored as BASON object in stat: values
+// Local-only stat cache: mtime + content hash
 typedef struct {
-    u32 mtime;       // unix seconds
-    u32 modeftype;   // mode(12) | ftype(18) | spare(2)
-} BEmeta;
+    u64 mtime;       // nanosecond-precision mtime (local only)
+    u64 hash;        // RAPHash of file content
+} BEstat;
 
-// Build BASON metadata value from BEmeta
-ok64 BEMetaFeedBason(u8bp buf, u64bp idx, BEmeta m);
-// Drain BASON metadata value into BEmeta
-ok64 BEMetaDrainBason(BEmeta *m, u8cs bason);
-// Fill metadata from stat + extension
-ok64 BEMetaFromStat(BEmeta *m, struct stat *st, u8cs ext);
+// Build BASON stat value from BEstat
+ok64 BEStatFeedBason(u8bp buf, u64bp idx, BEstat s);
+// Drain BASON stat value into BEstat
+ok64 BEStatDrainBason(BEstat *s, u8cs bason);
+// Fill stat from file content + struct stat
+ok64 BEStatFromFile(BEstat *s, struct stat *st, u8cs content);
 
 // Build a scheme-prefixed key: scheme:path?query#fragment
 ok64 BEKeyBuild(u8s into, u8cs scheme, u8cs path, u8cs query, u8cs fragment);
@@ -135,8 +135,8 @@ ok64 BEMilestone(BEp be, u8cs name);
 
 // --- Scan ---
 
-// Scan callback: relpath, merged BASON, metadata
-typedef ok64 (*BEScanCBf)(voidp arg, u8cs relpath, u8cs bason, BEmeta meta);
+// Scan callback: relpath, merged BASON, exec bit from key
+typedef ok64 (*BEScanCBf)(voidp arg, u8cs relpath, u8cs bason, b8 is_exec);
 
 // Scan all files under loc->path, merge base+waypoints per loc->query formula
 ok64 BEScan(BEp be, uricp loc, BEScanCBf cb, voidp arg);
@@ -144,12 +144,15 @@ ok64 BEScan(BEp be, uricp loc, BEScanCBf cb, voidp arg);
 // Same but only files that have waypoints matching the formula
 ok64 BEScanChanged(BEp be, uricp loc, BEScanCBf cb, voidp arg);
 
-// Stat-only scan callback: relpath + merged metadata (no content)
-typedef ok64 (*BEStatCBf)(voidp arg, u8cs relpath, BEmeta merged);
+// Stat cache callback: relpath + cached stat (no content)
+typedef ok64 (*BEStatCBf)(voidp arg, u8cs relpath, BEstat cached);
 
-// Iterate stat: keys, merge metadata per branch formula, call cb per file
-ok64 BEScanStatMerged(BEp be, u8cs prefix_filter,
-                      BEStatCBf cb, voidp arg);
+// Iterate stat: keys (local cache, no waypoints), call cb per file
+ok64 BEScanStat(BEp be, u8cs prefix_filter,
+                BEStatCBf cb, voidp arg);
+
+// Update local stat: cache for a file
+ok64 BEStatUpdate(BEp be, u8cs relpath, BEstat s);
 
 // --- Status ---
 ok64 BEStatusFiles(BEp be);
@@ -177,9 +180,9 @@ ok64 BEScanFile(ROCKdbp db, u8cs project, u8cs relpath,
 ok64 BEMergeFile(ROCKdbp db, u8cs project, u8cs relpath,
                  ron120cs formcs, u8bp result);
 
-// GET single file: read metadata from stat:, content from be:, merge
+// GET single file: content from be:, merge. is_exec from key trailing '*'.
 ok64 BEGetFileMerged(BEp be, u8cs project, u8cs relpath,
-                     u8bp result, BEmeta *meta_out);
+                     u8bp result, b8 *is_exec_out);
 
 // --- Trigram index ---
 

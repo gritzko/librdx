@@ -720,7 +720,7 @@ static ok64 BEGrepBitset(BEp be, u8 bitset[512], u8cs *trigrams, int tric) {
     done;
 }
 
-// BEScanStatMerged callback context for grep
+// BEScanStat callback context for grep
 typedef struct {
     BEp be;
     u8cs query;
@@ -730,7 +730,7 @@ typedef struct {
 } BEGrepStatCtx;
 
 // Stat-only callback: filter by trigram bitset, then point-get survivors
-static ok64 BEGrepStatCB(voidp arg, u8cs relpath, BEmeta merged) {
+static ok64 BEGrepStatCB(voidp arg, u8cs relpath, BEstat cached) {
     ok64 __ = OK;
     BEGrepStatCtx *ctx = (BEGrepStatCtx *)arg;
     BEp be = ctx->be;
@@ -816,7 +816,7 @@ ok64 BEGrep(BEp be, uricp grep_uri, BEGrepCBf result_cb, voidp arg) {
         u8cs empty_pfx = {};
         BEGrepStatCtx ctx = {be, {query[0], query[1]},
                               NULL, result_cb, arg};
-        call(BEScanStatMerged, be, empty_pfx, BEGrepStatCB, &ctx);
+        call(BEScanStat, be, empty_pfx, BEGrepStatCB, &ctx);
     } else {
         // Build bitset from trigram index, then filtered stat scan
         u8 bitset[512];
@@ -824,7 +824,7 @@ ok64 BEGrep(BEp be, uricp grep_uri, BEGrepCBf result_cb, voidp arg) {
         u8cs empty_pfx = {};
         BEGrepStatCtx ctx = {be, {query[0], query[1]},
                               bitset, result_cb, arg};
-        call(BEScanStatMerged, be, empty_pfx, BEGrepStatCB, &ctx);
+        call(BEScanStat, be, empty_pfx, BEGrepStatCB, &ctx);
     }
     done;
 }

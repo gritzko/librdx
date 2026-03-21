@@ -742,15 +742,15 @@ ok64 BEtest11() {
     u8cs dep_val = {dbuf[1], dbuf[2]};
     call(ROCKPut, &be.db, dep_key, dep_val);
 
-    // stat: key with BASON metadata
+    // stat: key with BASON stat cache
     u8 skbuf[512];
     u8s skey = {skbuf, skbuf + sizeof(skbuf)};
     call(TestBase, skey, sch_stat, dep_proj, dep_file);
     u8cs stat_key = {skbuf, skey[0]};
     aBpad(u8, mbuf, 256);
     aBpad(u64, midx, 32);
-    BEmeta dep_meta = {};
-    call(BEMetaFeedBason, mbuf, midx, dep_meta);
+    BEstat dep_stat = {};
+    call(BEStatFeedBason, mbuf, midx, dep_stat);
     u8cs meta_val = {mbuf[1], mbuf[2]};
     call(ROCKPut, &be.db, stat_key, meta_val);
 
@@ -790,7 +790,7 @@ ok64 BEtest11() {
     done;
 }
 
-// ---- Test 12: Metadata roundtrip (mtime + mode preserved) ----
+// ---- Test 12: Exec bit roundtrip (preserved via be: key '*' suffix) ----
 
 ok64 BEtest12() {
     sane(1);
@@ -800,7 +800,7 @@ ok64 BEtest12() {
     call(path8gAddTmp, path8gIn(wpath), tmpl);
     call(FILEMakeDir, path8cgIn(wpath));
 
-    // Create file with specific mode
+    // Create file with exec mode
     a_path(fpath, "");
     call(path8gDup, path8gIn(fpath), path8cgIn(wpath));
     a_cstr(fname, "meta.c");
@@ -811,12 +811,8 @@ ok64 BEtest12() {
     call(FILEFeedall, fd, source);
     call(FILEClose, &fd);
 
-    // Set specific mode
+    // Set exec mode
     chmod((const char *)fpath[1], 0755);
-
-    // Stat before POST
-    struct stat st_before;
-    call(FILEStat, &st_before, path8cgIn(fpath));
 
     BE be = {};
     u8cs uri = $u8str("be://BEtestC/@test/proj?main");
@@ -834,11 +830,10 @@ ok64 BEtest12() {
     u8cs empty_branch = {};
     call(BEGet, &be, 1, paths, empty_branch);
 
-    // Verify file restored with correct metadata
+    // Verify file restored with exec bit
     struct stat st_after;
     call(FILEStat, &st_after, path8cgIn(fpath));
-    same((int)(st_before.st_mode & 07777), (int)(st_after.st_mode & 07777));
-    same((int)st_before.st_mtime, (int)st_after.st_mtime);
+    want((st_after.st_mode & 0111) != 0);  // exec bit preserved
 
     // Verify content
     u8bp mapbuf = NULL;
@@ -847,6 +842,29 @@ ok64 BEtest12() {
     u8cs restored = {r0, r1};
     want($eq(restored, source));
     call(FILEUnMap, mapbuf);
+
+    // Also test non-exec file gets 0644
+    a_path(fpath2, "");
+    call(path8gDup, path8gIn(fpath2), path8cgIn(wpath));
+    a_cstr(fname2, "noexec.c");
+    call(path8gPush, path8gIn(fpath2), fname2);
+    u8cs source2 = $u8str("int noexec = 2;\n");
+    fd = 0;
+    call(FILECreate, &fd, path8cgIn(fpath2));
+    call(FILEFeedall, fd, source2);
+    call(FILEClose, &fd);
+    chmod((const char *)fpath2[1], 0644);
+
+    u8cs relpath2 = $u8str("noexec.c");
+    u8cs *paths2 = &relpath2;
+    u8cs msg2 = $u8str("noexec test");
+    call(BEPost, &be, 1, paths2, msg2);
+    call(FILEUnLink, path8cgIn(fpath2));
+    call(BEGet, &be, 1, paths2, empty_branch);
+
+    struct stat st2;
+    call(FILEStat, &st2, path8cgIn(fpath2));
+    want((st2.st_mode & 0111) == 0);  // no exec bit
 
     a_path(rpath, "");
     call(path8gDup, path8gIn(rpath), path8cgIn(be.repo_pp));
@@ -887,22 +905,17 @@ ok64 BEtest13() {
     u32 ft_empty = BASTFtype(ext_empty);
     same(ft_empty, 0);
 
-    // BEmeta BASON roundtrip
-    BEmeta m = {.mtime = 1234567890, .modeftype = (0755 << 20) | (ft_c << 2)};
+    // BEstat BASON roundtrip
+    BEstat s = {.mtime = 1234567890, .hash = 0x123456789ABCULL};
     aBpad(u8, mbuf, 256);
     aBpad(u64, midx, 32);
-    call(BEMetaFeedBason, mbuf, midx, m);
+    call(BEStatFeedBason, mbuf, midx, s);
     u8cs mcs = {mbuf[1], mbuf[2]};
     want(!$empty(mcs));
-    BEmeta m2 = {};
-    call(BEMetaDrainBason, &m2, mcs);
-    same(m.mtime, m2.mtime);
-    same(m.modeftype, m2.modeftype);
-    // Verify field extraction
-    u32 mode = m2.modeftype >> 20;
-    same(mode, 0755);
-    u32 ftype = (m2.modeftype >> 2) & 0x3FFFF;
-    same(ftype, ft_c);
+    BEstat s2 = {};
+    call(BEStatDrainBason, &s2, mcs);
+    same(s.mtime, s2.mtime);
+    want(s.hash == s2.hash);
 
     done;
 }
