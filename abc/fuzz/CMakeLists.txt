@@ -32,6 +32,8 @@ add_executable(URIfuzz URI.c ../URI.c ../URI.rl.c)
 add_executable(SLOGfuzz SLOG.c ../SLOG.c)
 target_link_libraries(SLOGfuzz abc)
 
+add_executable(MSETfuzz MSET.c ../RON.c)
+
 #add_executable(SST SST.c)
 #target_link_options(SST PRIVATE "${FUZZ_LDD_FLAGS}")
 #target_compile_options(SST PRIVATE "${FUZZ_C_FLAGS}")
