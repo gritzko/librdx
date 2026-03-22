@@ -218,11 +218,41 @@ ok64 MSET9() {
     for (u64 v = 1; v <= 10; v++)
         testeq(MSETu64Get(stack, v), OK);
     // missing elements
-    testeq(MSETu64Get(stack, (u64)0), MSETNODATA);
-    testeq(MSETu64Get(stack, (u64)11), MSETNODATA);
+    testeq(MSETu64Get(stack, (u64)0), MSETNONE);
+    testeq(MSETu64Get(stack, (u64)11), MSETNONE);
     // empty stack
     u64css empty = {runs, runs};
-    testeq(MSETu64Get(empty, (u64)1), MSETNODATA);
+    testeq(MSETu64Get(empty, (u64)1), MSETNONE);
+    done;
+}
+
+// Seek into a range of duplicates, then Next skips them all
+ok64 MSETd() {
+    sane(1);
+    u64 a[] = {1, 3, 3, 5, 7};
+    u64 b[] = {2, 3, 3, 6, 8};
+    u64cs runs[2] = {{a, a + 5}, {b, b + 5}};
+    u64css iter = {runs, runs + 2};
+    MSETu64Start(iter);
+    call(MSETu64Seek, iter, (u64)3);
+    testeq(****iter, (u64)3);
+    // Next must skip all four 3s across both runs
+    call(MSETu64Next, iter);
+    testeq(****iter, (u64)5);
+    // Seek to absent key lands on next-by-comparison
+    u64 c[] = {10, 20, 30};
+    u64 d[] = {15, 25, 35};
+    u64cs runs2[2] = {{c, c + 3}, {d, d + 3}};
+    u64css iter2 = {runs2, runs2 + 2};
+    MSETu64Start(iter2);
+    // 12 absent; must land on 15
+    call(MSETu64Seek, iter2, (u64)12);
+    testeq(****iter2, (u64)15);
+    // 22 absent; must land on 25
+    call(MSETu64Seek, iter2, (u64)22);
+    testeq(****iter2, (u64)25);
+    // 100 absent and past all data
+    testeq(MSETu64Seek(iter2, (u64)100), MSETNODATA);
     done;
 }
 
@@ -295,6 +325,7 @@ ok64 MSETtest() {
     call(MSET7);
     call(MSET8);
     call(MSET9);
+    call(MSETd);
     call(MSETa);
     call(MSETb);
     call(MSETc);

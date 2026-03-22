@@ -146,7 +146,7 @@ fun ok64 X(MSET, Compact)(X(, css) stack, X(, s) into) {
 // Returns OK if found, MSETNODATA if not.
 fun ok64 X(MSET, Get)(X(, css) stack, T key) {
     size_t n = $len(stack);
-    if (n == 0) return MSETNODATA;
+    if (n == 0) return MSETNONE;
     X(, cs) runs[MSET_MAX_LEVELS];
     if (n > MSET_MAX_LEVELS) n = MSET_MAX_LEVELS;
     for (size_t i = 0; i < n; i++) {
@@ -156,8 +156,8 @@ fun ok64 X(MSET, Get)(X(, css) stack, T key) {
     X(, css) iter = {runs, runs + n};
     X(MSET, Start)(iter);
     ok64 o = X(MSET, Seek)(iter, key);
-    if (o != OK) return o;
-    if (X(, Z)(&key, ***iter)) return MSETNODATA;
+    if (o != OK) return MSETNONE;
+    if (X(, Z)(&key, ***iter)) return MSETNONE;
     return OK;
 }
 
