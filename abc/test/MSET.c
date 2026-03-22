@@ -80,19 +80,17 @@ ok64 MSET3() {
     testeq(out1[1], (u64)2);
     testeq(out1[2], (u64)3);
 
-    // duplicates
+    // duplicates: {1,1,3} + {1,2,3} => {1,2,3}
     u64 d[] = {1, 1, 3}, e[] = {1, 2, 3};
     u64cs runs2[2] = {{d, d + 3}, {e, e + 3}};
     u64css iter2 = {runs2, runs2 + 2};
     u64 out2[6];
     u64s into2 = {out2, out2 + 6};
     call(MSETu64Merge, into2, iter2);
+    testeq((size_t)(into2[0] - out2), (size_t)3);
     testeq(out2[0], (u64)1);
-    testeq(out2[1], (u64)1);
-    testeq(out2[2], (u64)1);
-    testeq(out2[3], (u64)2);
-    testeq(out2[4], (u64)3);
-    testeq(out2[5], (u64)3);
+    testeq(out2[1], (u64)2);
+    testeq(out2[2], (u64)3);
     done;
 }
 
@@ -228,6 +226,63 @@ ok64 MSET9() {
     done;
 }
 
+// Next skips duplicates across runs
+ok64 MSETa() {
+    sane(1);
+    u64 a[] = {1, 2, 3};
+    u64 b[] = {1, 2, 3};
+    u64cs runs[2] = {{a, a + 3}, {b, b + 3}};
+    u64css iter = {runs, runs + 2};
+    MSETu64Start(iter);
+    testeq(****iter, (u64)1);
+    call(MSETu64Next, iter);
+    testeq(****iter, (u64)2);
+    call(MSETu64Next, iter);
+    testeq(****iter, (u64)3);
+    call(MSETu64Next, iter);
+    want($empty(iter));
+    done;
+}
+
+// Merge deduplicates identical elements
+ok64 MSETb() {
+    sane(1);
+    u64 a[] = {1, 1, 1};
+    u64 b[] = {1, 1, 1};
+    u64cs runs[2] = {{a, a + 3}, {b, b + 3}};
+    u64css iter = {runs, runs + 2};
+    u64 out[6];
+    u64s into = {out, out + 6};
+    call(MSETu64Merge, into, iter);
+    testeq((size_t)(into[0] - out), (size_t)1);
+    testeq(out[0], (u64)1);
+    done;
+}
+
+// Compact deduplicates across merged runs
+ok64 MSETc() {
+    sane(1);
+    // oldest: 100 distinct, then two small runs with overlapping values
+    u64 big[100];
+    for (int i = 0; i < 100; i++) big[i] = (u64)(i * 2);
+    u64 sml1[] = {1, 3, 5, 7, 9};
+    u64 sml2[] = {1, 3, 5, 7, 9};
+    u64cs runs[3] = {
+        {big, big + 100},
+        {sml1, sml1 + 5},
+        {sml2, sml2 + 5}
+    };
+    u64css stack = {runs, runs + 3};
+    u64 buf[10];
+    u64s into = {buf, buf + 10};
+    call(MSETu64Compact, stack, into);
+    testeq($len(stack), (size_t)2);
+    // 5 unique values after dedup
+    testeq($len(stack[0][1]), (size_t)5);
+    for (int i = 0; i + 1 < 5; i++) want(buf[i] < buf[i + 1]);
+    done;
+}
+
 ok64 MSETtest() {
     sane(1);
     call(MSET0);
@@ -240,6 +295,9 @@ ok64 MSETtest() {
     call(MSET7);
     call(MSET8);
     call(MSET9);
+    call(MSETa);
+    call(MSETb);
+    call(MSETc);
     done;
 }
 

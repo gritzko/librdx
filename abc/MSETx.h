@@ -49,18 +49,22 @@ fun void X(MSET, Start)(X(, css) iter) {
 }
 
 // Advance past the current top element, maintain the heap.
+// Duplicates across runs count as one; all copies are skipped.
 // Returns OK normally, MSETNODATA if already empty.
 fun ok64 X(MSET, Next)(X(, css) iter) {
     if ($empty(iter)) return MSETNODATA;
-    X(, cs) *top = iter[0];
-    ++(*top)[0];
-    if ($empty(*top)) {
-        X(, cs) *last = iter[1] - 1;
-        (*top)[0] = (*last)[0];
-        (*top)[1] = (*last)[1];
-        --iter[1];
-    }
-    if (!$empty(iter)) X(MSET, _Down)(iter, 0);
+    T const *cur = ***iter;
+    do {
+        X(, cs) *top = iter[0];
+        ++(*top)[0];
+        if ($empty(*top)) {
+            X(, cs) *last = iter[1] - 1;
+            (*top)[0] = (*last)[0];
+            (*top)[1] = (*last)[1];
+            --iter[1];
+        }
+        if (!$empty(iter)) X(MSET, _Down)(iter, 0);
+    } while (!$empty(iter) && !X(, Z)(cur, ***iter) && !X(, Z)(***iter, cur));
     return OK;
 }
 
