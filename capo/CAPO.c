@@ -91,16 +91,18 @@ ok64 CAPOIndexFile(u64bp entries, u8csc source, u8csc ext, u8csc path) {
     sane(entries != NULL && $ok(source) && $ok(ext) && $ok(path));
     if ($empty(source)) done;
 
-    // Parse source to BASON — generous mmap, pages allocated on demand
     size_t buflen = 1UL << 28;  // 256MB virtual, physical on demand
     u8b bson = {};
-    call(u8bMap, bson, buflen);
-    size_t idxlen = 1UL << 20;  // 1M index entries
+    vcall("mmap bson", u8bMap, bson, buflen);
+    size_t idxlen = 1UL << 20;
     u64b idx = {};
-    call(u64bMap, idx, idxlen);
+    vcall("mmap idx", u64bMap, idx, idxlen);
 
     ok64 o = BASTParse(bson, idx, source, ext);
     if (o != OK) {
+        fprintf(stderr, "capo: parse: %s (src=%zu ext=%.*s)\n",
+                ok64str(o), $len(source),
+                (int)$len(ext), (char *)ext[0]);
         u64bUnMap(idx);
         u8bUnMap(bson);
         return o;
@@ -377,20 +379,18 @@ ok64 CAPOReindex(u8csc reporoot) {
             (int)$len(reporoot), (char *)reporoot[0]);
 
     a_pad(u8, capodir, FILE_PATH_MAX_LEN);
-    call(u8bFeed, capodir, reporoot);
+    vcall("build capo dir", u8bFeed, capodir, reporoot);
     a_cstr(suf, "/" CAPO_DIR);
-    call(u8bFeed, capodir, suf);
+    vcall("build capo dir", u8bFeed, capodir, suf);
     u8cs dirslice = {capodir[1], capodir[2]};
     u8bFeed1(capodir, 0);
     u8bShed1(capodir);
-    call(FILEMakeDirP, path8cgIn(capodir));
+    vcall("mkdir", FILEMakeDirP, path8cgIn(capodir));
     fprintf(stderr, "capo: index dir %s\n", (char *)capodir[1]);
 
-    // 1GB scratch buffer via anonymous mmap (pages allocated on demand)
     u64b entries = {};
-    call(u64bMap, entries, CAPO_SCRATCH_LEN);
+    vcall("mmap scratch", u64bMap, entries, CAPO_SCRATCH_LEN);
 
-    // git ls-files
     char cmdbuf[FILE_PATH_MAX_LEN + 32];
     int n = snprintf(cmdbuf, sizeof(cmdbuf), "git -C %.*s ls-files",
                      (int)$len(reporoot), (char *)reporoot[0]);
@@ -427,20 +427,27 @@ ok64 CAPOReindex(u8csc reporoot) {
 
         u8bp mapped = NULL;
         ok64 o = FILEMapRO(&mapped, path8cgIn(fpbuf));
-        if (o != OK) { failed++; continue; }
+        if (o != OK) {
+            fprintf(stderr, "FAIL\t%s\t%s\t(open %s)\n",
+                    ok64str(o), line, fpath);
+            failed++;
+            continue;
+        }
 
         u8cs source = {mapped[1], mapped[2]};
         u8cs relpath = {(u8cp)line, (u8cp)line + len};
         o = CAPOIndexFile(entries, source, ext, relpath);
         FILEUnMap(mapped);
         if (o != OK) {
-            fprintf(stderr, "FAIL\t%s\t%s\n", ok64str(o), line);
+            fprintf(stderr, "FAIL\t%s\t%s\t(src=%zu)\n",
+                    ok64str(o), line, $len(source));
             failed++;
             continue;
         }
         u8c *codec[2] = {};
         BASTCodec(codec, ext);
-        fprintf(stderr, "OK\t%.*s\t%s\n", (int)$len(codec), (char*)codec[0], line);
+        fprintf(stderr, "OK\t%.*s\t%s\n",
+                (int)$len(codec), (char *)codec[0], line);
         indexed++;
 
         // Flush when scratch buffer is large enough
@@ -492,16 +499,16 @@ ok64 CAPOReindexProc(u8csc reporoot, u32 nprocs, u32 proc) {
     fprintf(stderr, "capo[%u/%u]: starting\n", proc, nprocs);
 
     a_pad(u8, capodir, FILE_PATH_MAX_LEN);
-    call(u8bFeed, capodir, reporoot);
+    vcall("build capo dir", u8bFeed, capodir, reporoot);
     a_cstr(suf, "/" CAPO_DIR);
-    call(u8bFeed, capodir, suf);
+    vcall("build capo dir", u8bFeed, capodir, suf);
     u8cs dirslice = {capodir[1], capodir[2]};
     u8bFeed1(capodir, 0);
     u8bShed1(capodir);
-    call(FILEMakeDirP, path8cgIn(capodir));
+    vcall("mkdir", FILEMakeDirP, path8cgIn(capodir));
 
     u64b entries = {};
-    call(u64bMap, entries, CAPO_SCRATCH_LEN);
+    vcall("mmap scratch", u64bMap, entries, CAPO_SCRATCH_LEN);
 
     char cmdbuf[FILE_PATH_MAX_LEN + 32];
     int n = snprintf(cmdbuf, sizeof(cmdbuf), "git -C %.*s ls-files",
@@ -512,7 +519,7 @@ ok64 CAPOReindexProc(u8csc reporoot, u32 nprocs, u32 proc) {
     test(fp != NULL, FAILsanity);
 
     u32 indexed = 0, skipped = 0, failed = 0;
-    u32 batch = 0;  // counts flushes for seqno = nprocs*batch + proc + 1
+    u32 batch = 0;
     size_t total_entries = 0;
     u32 fileno = 0;
 
@@ -522,7 +529,6 @@ ok64 CAPOReindexProc(u8csc reporoot, u32 nprocs, u32 proc) {
         if (len > 0 && line[len - 1] == '\n') line[--len] = 0;
         if (len == 0) continue;
 
-        // Striped: this proc handles files where fileno % nprocs == proc
         if (fileno++ % nprocs != proc) continue;
 
         u8cs ext = {};
@@ -543,14 +549,20 @@ ok64 CAPOReindexProc(u8csc reporoot, u32 nprocs, u32 proc) {
 
         u8bp mapped = NULL;
         ok64 o = FILEMapRO(&mapped, path8cgIn(fpbuf));
-        if (o != OK) { failed++; continue; }
+        if (o != OK) {
+            fprintf(stderr, "FAIL\t%s\t%s\t(open %s)\n",
+                    ok64str(o), line, fpath);
+            failed++;
+            continue;
+        }
 
         u8cs source = {mapped[1], mapped[2]};
         u8cs relpath = {(u8cp)line, (u8cp)line + len};
         o = CAPOIndexFile(entries, source, ext, relpath);
         FILEUnMap(mapped);
         if (o != OK) {
-            fprintf(stderr, "FAIL\t%s\t%s\n", ok64str(o), line);
+            fprintf(stderr, "FAIL\t%s\t%s\t(src=%zu)\n",
+                    ok64str(o), line, $len(source));
             failed++;
             continue;
         }

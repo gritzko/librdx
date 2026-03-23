@@ -1,12 +1,24 @@
 #ifndef LIBRDX_CAPO_H
 #define LIBRDX_CAPO_H
 
+#include <stdio.h>
 #include "abc/INT.h"
 #include "abc/MSET.h"
 #include "abc/RON.h"
 #include "abc/RAP.h"
 
 con ok64 CAPONOROOM = 0x30a6585d86d8616;
+
+// Verbose call: prints step context on failure
+#define vcall(step, f, ...)                                              \
+    {                                                                    \
+        __ = (f(__VA_ARGS__));                                           \
+        if (__ != OK) {                                                  \
+            fprintf(stderr, "capo: %s: %s (%s:%d)\n",                   \
+                    step, ok64str(__), __func__, __LINE__);              \
+            return __;                                                   \
+        }                                                                \
+    }
 
 #define CAPO_DIR ".git/capo"
 #define CAPO_IDX_EXT ".idx"
