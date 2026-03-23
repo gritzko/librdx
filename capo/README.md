@@ -25,12 +25,32 @@ Index a repo on 4 cores:
     capo: compacting all runs
     capo: done
 
-Find a function:
+Find a function by name (`fn.NAME`):
 
-    $ capo 'fn.CAPOQuery'
-    ok64 CAPOQuery(u8csc selector, u8csc reporoot) {
-        ...
-    }
+    $ capo 'fn.CAPOTriCB'
+
+<pre style="background:#1e1e1e;color:#ccc;padding:8px;border-radius:4px;font-size:13px">
+<span style="color:#888">--- capo/CAPO.c ---</span>
+<span style="color:#c44">static</span> <span style="color:#68f">ok64</span> <span style="font-weight:bold"><span style="color:#da3">CAPOTriCB</span></span><span style="color:#888">(</span><span style="color:#68f">voidp</span> arg<span style="color:#888">,</span> <span style="color:#68f">u8cs</span> tri<span style="color:#888">)</span> <span style="color:#888">{</span>
+    <span style="color:#68f">CAPOTriCtx</span> <span style="color:#888">*</span>ctx <span style="color:#888">=</span> <span style="color:#888">(</span><span style="color:#68f">CAPOTriCtx</span> <span style="color:#888">*)</span>arg<span style="color:#888">;</span>
+    <span style="color:#c44">if</span> <span style="color:#888">(*</span>ctx<span style="color:#888">-&gt;</span>idle <span style="color:#888">&gt;=</span> ctx<span style="color:#888">-&gt;</span>end<span style="color:#888">)</span> <span style="color:#c44">return</span> CAPONOROOM<span style="color:#888">;</span>
+    <span style="color:#68f">u64</span> entry <span style="color:#888">=</span> CAPOTriPack<span style="color:#888">(</span>tri<span style="color:#888">)</span> <span style="color:#888">|</span> <span style="color:#888">(</span><span style="color:#68f">u64</span><span style="color:#888">)</span>ctx<span style="color:#888">-&gt;</span>path_hash<span style="color:#888">;</span>
+    <span style="color:#888">**</span>ctx<span style="color:#888">-&gt;</span>idle <span style="color:#888">=</span> entry<span style="color:#888">;</span>
+    <span style="color:#888">(*</span>ctx<span style="color:#888">-&gt;</span>idle<span style="color:#888">)++;</span>
+    <span style="color:#c44">return</span> OK<span style="color:#888">;</span>
+<span style="color:#888">}</span>
+</pre>
+
+Find comments containing a specific substring (`cmt:has(TEXT)`):
+
+    $ capo 'cmt:has(TODO)'
+
+<pre style="background:#1e1e1e;color:#ccc;padding:8px;border-radius:4px;font-size:13px">
+<span style="color:#888">--- js/io.cpp ---</span>
+<span style="color:#888">// TODO io.utf8()</span>
+<span style="color:#888">--- rdx/RDX.h ---</span>
+<span style="color:#888">// TODO: migrate RB.c to new self-contained format</span>
+</pre>
 
 ## How it works
 

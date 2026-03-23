@@ -7,6 +7,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include "abc/ANSI.h"
 #include "abc/FILE.h"
 #include "abc/PRO.h"
 #include "abc/SORT.h"
@@ -824,49 +825,86 @@ ok64 CAPOQuery(u8csc selector, u8csc reporoot) {
     stack[1] = stack[0] + nfiles;
     fprintf(stderr, "capo: loaded %u index files\n", nfiles);
 
-    // Find trigrams in the selector, intersect path hashes
+    // Extract searchable text spans from selector:
+    //   .name     -> "name"
+    //   :has(text) -> "text"
+    // Then generate trigrams only from those spans.
+    u8cp spans[32][2];
+    u32 nspans = 0;
+    {
+        u8cp p = selector[0];
+        u8cp e = selector[1];
+        while (p < e && nspans < 32) {
+            if (*p == '.' && p + 1 < e) {
+                // .name — collect until non-RON64
+                u8cp start = p + 1;
+                u8cp q = start;
+                while (q < e && CAPOTriChar(*q)) q++;
+                if (q > start) {
+                    spans[nspans][0] = start;
+                    spans[nspans][1] = q;
+                    nspans++;
+                    p = q;
+                    continue;
+                }
+            } else if (*p == ':' && p + 4 < e && memcmp(p, ":has(", 5) == 0) {
+                // :has(text) — collect between parens
+                u8cp start = p + 5;
+                u8cp q = start;
+                while (q < e && *q != ')') q++;
+                if (q > start) {
+                    spans[nspans][0] = start;
+                    spans[nspans][1] = q;
+                    nspans++;
+                    p = (q < e) ? q + 1 : q;
+                    continue;
+                }
+            }
+            p++;
+        }
+    }
+
+    // Generate trigrams from extracted spans, intersect path hashes
     u32 nhashes = 0;
     b8 has_trigrams = NO;
 
     if (nfiles > 0) {
-        u8cp p = selector[0];
-        u8cp end = selector[1] - 2;
-        while (p <= end) {
-            if (CAPOTriChar(p[0]) && CAPOTriChar(p[1]) && CAPOTriChar(p[2])) {
-                u8cs tri = {p, p + 3};
-                u64 tri_prefix = CAPOTriPack(tri);
+        for (u32 si = 0; si < nspans; si++) {
+            u8cp p = spans[si][0];
+            u8cp end = spans[si][1] - 2;
+            while (p <= end) {
+                if (CAPOTriChar(p[0]) && CAPOTriChar(p[1]) && CAPOTriChar(p[2])) {
+                    u8cs tri = {p, p + 3};
+                    u64 tri_prefix = CAPOTriPack(tri);
 
-                // Copy runs for non-destructive seek
-                u64cs seek_runs[CAPO_MAX_LEVELS];
-                for (u32 i = 0; i < nfiles; i++) {
-                    seek_runs[i][0] = runs[i][0];
-                    seek_runs[i][1] = runs[i][1];
+                    u64cs seek_runs[CAPO_MAX_LEVELS];
+                    for (u32 i = 0; i < nfiles; i++) {
+                        seek_runs[i][0] = runs[i][0];
+                        seek_runs[i][1] = runs[i][1];
+                    }
+                    u64css seek_iter = {seek_runs, seek_runs + nfiles};
+                    MSETu64Start(seek_iter);
+
+                    u32 tri_nhashes = 0;
+                    CAPOCollectPaths(seek_iter, tri_prefix, hashbuf2,
+                                     &tri_nhashes, maxhashes);
+
+                    fprintf(stderr, "capo: trigram '%c%c%c' -> %u paths\n",
+                            p[0], p[1], p[2], tri_nhashes);
+
+                    if (!has_trigrams) {
+                        memcpy(hashbuf1, hashbuf2, tri_nhashes * sizeof(u32));
+                        nhashes = tri_nhashes;
+                        has_trigrams = YES;
+                    } else {
+                        qsort(hashbuf2, tri_nhashes, sizeof(u32), CAPOu32cmp);
+                        qsort(hashbuf1, nhashes, sizeof(u32), CAPOu32cmp);
+                        nhashes = CAPOIntersect(hashbuf1, nhashes, hashbuf2,
+                                                tri_nhashes, hashbuf1);
+                    }
                 }
-                u64css seek_iter = {seek_runs, seek_runs + nfiles};
-                MSETu64Start(seek_iter);
-
-                u32 tri_nhashes = 0;
-                CAPOCollectPaths(seek_iter, tri_prefix, hashbuf2,
-                                 &tri_nhashes, maxhashes);
-
-                fprintf(stderr, "capo: trigram '%c%c%c' -> %u paths\n",
-                        p[0], p[1], p[2], tri_nhashes);
-
-                if (!has_trigrams) {
-                    memcpy(hashbuf1, hashbuf2, tri_nhashes * sizeof(u32));
-                    nhashes = tri_nhashes;
-                    has_trigrams = YES;
-                } else {
-                    qsort(hashbuf2, tri_nhashes, sizeof(u32), CAPOu32cmp);
-                    qsort(hashbuf1, nhashes, sizeof(u32), CAPOu32cmp);
-                    nhashes = CAPOIntersect(hashbuf1, nhashes, hashbuf2,
-                                            tri_nhashes, hashbuf1);
-                }
-
                 p++;
-                continue;
             }
-            p++;
         }
     }
 
@@ -965,6 +1003,14 @@ ok64 CAPOQuery(u8csc selector, u8csc reporoot) {
             o = u8bMap(obufm, obuflen);
             if (o == OK) {
                 u8s out = {obufm[2], obufm[3]};
+                // Path header in light gray: --- path ---
+                escfeed(out, GRAY);
+                a_cstr(hdr_pre, "--- ");
+                u8sFeed(out, hdr_pre);
+                u8sFeed(out, relpath);
+                a_cstr(hdr_post, " ---\n");
+                u8sFeed(out, hdr_post);
+                escfeed(out, 0);
                 o = CSSCat(out, filtered, relpath);
                 if (o == OK) {
                     u8cs result = {obufm[2], out[0]};

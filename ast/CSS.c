@@ -492,6 +492,31 @@ static ok64 CSSMatchRec(u8bp out, u64bp dstk, u8cs ddata,
                 } else if (pred_types[pi] == 'F') {
                     // Name predicates don't apply to leaves
                     leaf_match = NO;
+                } else if (BASONCollection(pred_types[pi])) {
+                    // :has() / :not() on a leaf: extract nested 'S'
+                    // predicates and check against leaf value
+                    b8 negated = ($ok(pred_keys[pi]) &&
+                                  !$empty(pred_keys[pi]) &&
+                                  pred_keys[pi][0][0] == '!');
+                    b8 inner_ok = YES;
+                    aBpad(u64, hstk, 256);
+                    ok64 ho = BASONOpen(hstk, pred_vals[pi]);
+                    if (ho == OK) {
+                        u8 ht = 0;
+                        u8cs hk = {}, hv = {};
+                        while (BASONDrain(hstk, pred_vals[pi],
+                                          &ht, hk, hv) == OK) {
+                            if (ht == 'S') {
+                                if (!CSSContains(val, hv))
+                                    inner_ok = NO;
+                            } else if (ht == 'T') {
+                                if ($len(hv) != 1 || hv[0][0] != type)
+                                    inner_ok = NO;
+                            }
+                        }
+                    }
+                    if (negated) inner_ok = !inner_ok;
+                    if (!inner_ok) leaf_match = NO;
                 }
             }
             // If no type pred and has_name, leaves don't match
