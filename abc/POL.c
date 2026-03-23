@@ -1,6 +1,5 @@
 #include "POL.h"
 
-#include <threads.h>
 #include <time.h>
 
 #include "B.h"
