@@ -17,15 +17,17 @@ jobs:
     - name: Configure
       run: >
         cmake -B build -DCMAKE_BUILD_TYPE=Release
-        -DCMAKE_C_COMPILER=clang -DWITH_INET=OFF -GNinja
+        -DCMAKE_C_COMPILER=clang -GNinja
     - name: Build
-      run: ninja -C build be/be
+      run: ninja -C build be/be capo/capo
+    - name: Strip
+      run: strip build/be/be build/capo/capo
     - name: Package
-      run: tar czf be-linux-x86_64.tar.gz -C build/be be
+      run: tar czf librdx-linux-x86_64.tar.gz -C build be/be capo/capo
     - uses: actions/upload-artifact@v4
       with:
-        name: be-linux-x86_64
-        path: be-linux-x86_64.tar.gz
+        name: librdx-linux-x86_64
+        path: librdx-linux-x86_64.tar.gz
 
   macos:
     runs-on: macos-latest
@@ -35,16 +37,17 @@ jobs:
       run: brew install rocksdb libsodium curl lz4 ninja
     - name: Configure
       run: >
-        cmake -B build -DCMAKE_BUILD_TYPE=Release
-        -DWITH_INET=OFF -GNinja
+        cmake -B build -DCMAKE_BUILD_TYPE=Release -GNinja
     - name: Build
-      run: ninja -C build be/be
+      run: ninja -C build be/be capo/capo
+    - name: Strip
+      run: strip build/be/be build/capo/capo
     - name: Package
-      run: tar czf be-macos-arm64.tar.gz -C build/be be
+      run: tar czf librdx-macos-arm64.tar.gz -C build be/be capo/capo
     - uses: actions/upload-artifact@v4
       with:
-        name: be-macos-arm64
-        path: be-macos-arm64.tar.gz
+        name: librdx-macos-arm64
+        path: librdx-macos-arm64.tar.gz
 
   release:
     needs: [linux, macos]
@@ -52,9 +55,13 @@ jobs:
     permissions:
       contents: write
     steps:
+    - uses: actions/checkout@v4
+    - name: Source tarball
+      run: git archive --format=tar.gz --prefix=librdx/ HEAD > librdx-src.tar.gz
     - uses: actions/download-artifact@v4
     - uses: softprops/action-gh-release@v2
       with:
         files: |
-          be-linux-x86_64/be-linux-x86_64.tar.gz
-          be-macos-arm64/be-macos-arm64.tar.gz
+          librdx-src.tar.gz
+          librdx-linux-x86_64/librdx-linux-x86_64.tar.gz
+          librdx-macos-arm64/librdx-macos-arm64.tar.gz
