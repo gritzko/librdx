@@ -155,9 +155,10 @@ ok64 CAPONextSeqno(u64p seqno, u8csc dir) {
         size_t nlen = strlen(e->d_name);
         if (nlen < 5) continue;
         if (strcmp(e->d_name + nlen - 4, CAPO_IDX_EXT) != 0) continue;
-        u8cp from = (u8cp)e->d_name;
+        size_t numlen = nlen - 4;  // strip .idx
+        u8cs numslice = {(u8cp)e->d_name, (u8cp)e->d_name + numlen};
         ok64 val = 0;
-        ok64 r = RONutf8sDrain(&val, &from);
+        ok64 r = RONutf8sDrain(&val, numslice);
         if (r == OK && val > maxseq) maxseq = val;
     }
     closedir(d);
@@ -628,9 +629,12 @@ ok64 CAPOCompactAll(u8csc dir) {
             MSETu64Next(stack);
         }
 
-        // Find next seqno, write merged
+        // Find next seqno — must be higher than any existing
         u64 seqno = 0;
         CAPONextSeqno(&seqno, dir);
+        fprintf(stderr, "capo: next seqno = %llu (dir = '%.*s')\n",
+                (unsigned long long)seqno,
+                (int)$len(dir), (char *)dir[0]);
         u64cs merged = {(u64cp)mbuf[0], (u64cp)into[0]};
         fprintf(stderr, "capo: writing %zu deduplicated entries (seqno %llu)\n",
                 $len(merged), (unsigned long long)seqno);
