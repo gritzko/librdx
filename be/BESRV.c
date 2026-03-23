@@ -390,10 +390,10 @@ static short BESRVAcceptDir(BESRVctxp ctx, int cfd, u8cs http_path) {
             memcmp(k[0], prefix[0], pfxlen) != 0)
             break;
 
-        // Parse key, skip fragment/waypoint keys (base keys only)
+        // Parse key, skip fragment keys (commit messages etc)
         uri ku = {};
         o = URIutf8Drain(k, &ku);
-        if (o != OK || !$empty(ku.fragment) || !$empty(ku.query)) {
+        if (o != OK || !$empty(ku.fragment)) {
             ROCKIterNext(&it);
             continue;
         }
