@@ -114,6 +114,10 @@ endif()
 add_library(abc STATIC ${ABC_HEADERS} ${ABC_SOURCES})
 target_link_libraries(abc sodium CURL::libcurl ${LZ4_LIBRARIES})
 
+# Minimal abc-core: same sources, no heavy link deps — for standalone tools
+add_library(abc-core STATIC ${ABC_HEADERS} ${ABC_SOURCES})
+target_link_libraries(abc-core ${LZ4_LIBRARIES})
+
 if (WITH_ROCKS)
 target_link_libraries(abc ${ROCKSDB_LIBRARIES})
 endif()

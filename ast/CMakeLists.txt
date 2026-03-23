@@ -46,6 +46,10 @@ list(APPEND BAST_SOURCES
 add_library(bast STATIC ${BAST_HEADERS} ${BAST_SOURCES})
 target_link_libraries(bast abc tree-sitter)
 
+# Minimal bast without heavy abc deps — for standalone tools
+add_library(bast-core STATIC ${BAST_HEADERS} ${BAST_SOURCES})
+target_link_libraries(bast-core abc-core tree-sitter)
+
 add_executable(bast-cli BAST.cli.c)
 target_link_libraries(bast-cli bast abc tree-sitter)
 set_target_properties(bast-cli PROPERTIES OUTPUT_NAME bast)
