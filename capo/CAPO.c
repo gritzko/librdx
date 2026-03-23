@@ -1,11 +1,23 @@
 #include "CAPO.h"
 
 #include <dirent.h>
+#include <setjmp.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
+
+// Guard against assert() crashes in library code
+static sigjmp_buf capo_jmpbuf;
+static volatile sig_atomic_t capo_in_match = 0;
+
+static void capo_abrt_handler(int sig) {
+    (void)sig;
+    if (capo_in_match) siglongjmp(capo_jmpbuf, 1);
+    _exit(134);
+}
 
 #include "abc/ANSI.h"
 #include "abc/FILE.h"
@@ -804,9 +816,6 @@ static int CAPOu32cmp(const void *a, const void *b) {
 ok64 CAPOQuery(u8csc selector, u8csc reporoot) {
     sane($ok(selector) && $ok(reporoot));
 
-    fprintf(stderr, "capo: query '%.*s'\n",
-            (int)$len(selector), (char *)selector[0]);
-
     a_pad(u8, capodir, FILE_PATH_MAX_LEN);
     call(u8bFeed, capodir, reporoot);
     a_cstr(suf, "/" CAPO_DIR);
@@ -827,7 +836,6 @@ ok64 CAPOQuery(u8csc selector, u8csc reporoot) {
     u32 nfiles = 0;
     CAPOStackOpen(stack, mmaps, &nfiles, dirslice);
     stack[1] = stack[0] + nfiles;
-    fprintf(stderr, "capo: loaded %u index files\n", nfiles);
 
     // Extract searchable text spans from selector:
     //   .name     -> "name"
@@ -893,9 +901,6 @@ ok64 CAPOQuery(u8csc selector, u8csc reporoot) {
                     CAPOCollectPaths(seek_iter, tri_prefix, hashbuf2,
                                      &tri_nhashes, maxhashes);
 
-                    fprintf(stderr, "capo: trigram '%c%c%c' -> %u paths\n",
-                            p[0], p[1], p[2], tri_nhashes);
-
                     if (!has_trigrams) {
                         memcpy(hashbuf1, hashbuf2, tri_nhashes * sizeof(u32));
                         nhashes = tri_nhashes;
@@ -912,7 +917,6 @@ ok64 CAPOQuery(u8csc selector, u8csc reporoot) {
         }
     }
 
-    fprintf(stderr, "capo: %u candidate paths after trigram filter\n", nhashes);
     CAPOStackClose(mmaps, nfiles);
 
     // Parse CSS selector
@@ -925,6 +929,21 @@ ok64 CAPOQuery(u8csc selector, u8csc reporoot) {
     // Sort path hashes for binary search
     if (has_trigrams && nhashes > 0)
         qsort(hashbuf1, nhashes, sizeof(u32), CAPOu32cmp);
+
+    // Color only when output is a terminal
+    b8 use_color = isatty(STDOUT_FILENO) ? YES : NO;
+
+    // Pager for terminal output (only if $PAGER is set)
+    FILE *pager = NULL;
+    int saved_stdout = -1;
+    char const *pgcmd = getenv("PAGER");
+    if (pgcmd != NULL && *pgcmd && use_color) {
+        pager = popen(pgcmd, "w");
+        if (pager != NULL) {
+            saved_stdout = dup(STDOUT_FILENO);
+            dup2(fileno(pager), STDOUT_FILENO);
+        }
+    }
 
     // Get file list, filter, parse, match, output
     char cmdbuf[FILE_PATH_MAX_LEN + 32];
@@ -992,14 +1011,27 @@ ok64 CAPOQuery(u8csc selector, u8csc reporoot) {
         }
 
         u8cs bdata = {bson[1], bson[2]};
-        fprintf(stderr, "capo: matching %s\n", line);
 
         size_t fbuflen = $len(bdata) + 4096;
         u8b fbufm = {};
         o = u8bMap(fbufm, fbuflen);
         if (o != OK) { free(_bidx); u8bUnMap(bson); FILEUnMap(mapped); continue; }
 
+        // Guard CSSMatch against assert crashes
+        signal(SIGABRT, capo_abrt_handler);
+        capo_in_match = 1;
+        if (sigsetjmp(capo_jmpbuf, 1) != 0) {
+            capo_in_match = 0;
+            signal(SIGABRT, SIG_DFL);
+            u8bUnMap(fbufm);
+            free(_bidx);
+            u8bUnMap(bson);
+            FILEUnMap(mapped);
+            continue;
+        }
         o = CSSMatch(fbufm, bdata, query);
+        capo_in_match = 0;
+        signal(SIGABRT, SIG_DFL);
         if (o == OK && fbufm[1] < fbufm[2]) {
             u8cs filtered = {fbufm[1], fbufm[2]};
             size_t obuflen = $len(filtered) * 4 + 4096;
@@ -1007,15 +1039,18 @@ ok64 CAPOQuery(u8csc selector, u8csc reporoot) {
             o = u8bMap(obufm, obuflen);
             if (o == OK) {
                 u8s out = {obufm[2], obufm[3]};
-                // Path header in light gray: --- path ---
-                escfeed(out, GRAY);
+                // Path header
+                if (use_color) escfeed(out, GRAY);
                 a_cstr(hdr_pre, "--- ");
                 u8sFeed(out, hdr_pre);
                 u8sFeed(out, relpath);
                 a_cstr(hdr_post, " ---\n");
                 u8sFeed(out, hdr_post);
-                escfeed(out, 0);
-                o = CSSCat(out, filtered, relpath);
+                if (use_color) escfeed(out, 0);
+                if (use_color)
+                    o = CSSCat(out, filtered, relpath);
+                else
+                    o = CSSExport(out, filtered);
                 if (o == OK) {
                     u8cs result = {obufm[2], out[0]};
                     FILEFeedall(STDOUT_FILENO, result);
@@ -1030,6 +1065,13 @@ ok64 CAPOQuery(u8csc selector, u8csc reporoot) {
         FILEUnMap(mapped);
     }
     pclose(fp);
+
+    if (pager != NULL) {
+        fflush(stdout);
+        dup2(saved_stdout, STDOUT_FILENO);
+        close(saved_stdout);
+        pclose(pager);
+    }
 
     free(hashbuf1);
     free(hashbuf2);

@@ -224,9 +224,16 @@ static b8 CSSNameMatch(u8cs name, u8cs pattern) {
 }
 
 // Check if a single data node matches the query predicates.
+// Search for text within a container's raw BASON bytes.
+// BASON leaf values are embedded in the byte stream, so a simple
+// substring search on the container's val range finds text in any leaf.
+static b8 CSSTextSearch(u8cs container_val, u8cs needle) {
+    return CSSContains(container_val, needle);
+}
+
 static b8 CSSCheckNode(u64bp qstk, u8cs qdata,
                         u8 data_type, u8cs data_name,
-                        u64bp dstk, u8cs ddata) {
+                        u8cs ddata, u8cs container_val) {
     u8 qt = 0;
     u8cs qk = {}, qv = {};
     b8 matched = YES;
@@ -240,30 +247,11 @@ static b8 CSSCheckNode(u64bp qstk, u8cs qdata,
                 matched = NO;
         } else if (qt == 'S') {
             b8 found = NO;
-            aBpad(u64, sstk, 256);
-            ok64 so = BASONOpen(sstk, ddata);
-            if (so == OK) {
-                int sd = 0;
-                u8 st = 0;
-                u8cs sk = {}, sv = {};
-                while (1) {
-                    ok64 soo = BASONDrain(sstk, ddata, &st, sk, sv);
-                    if (soo != OK) {
-                        if (sd <= 0) break;
-                        BASONOuto(sstk);
-                        sd--;
-                        continue;
-                    }
-                    if (!BASONCollection(st)) {
-                        if (CSSContains(sv, qv)) {
-                            found = YES;
-                            break;
-                        }
-                    } else {
-                        BASONInto(sstk, ddata, sv);
-                        sd++;
-                    }
-                }
+            if (BASONCollection(data_type) && $ok(container_val) && !$empty(container_val)) {
+                found = CSSTextSearch(container_val, qv);
+            } else if (!BASONCollection(data_type)) {
+                // Leaf: check name (which holds the value for leaves)
+                found = CSSContains(data_name, qv);
             }
             if (!found) matched = NO;
         } else if (qt == 'P') {
@@ -271,55 +259,35 @@ static b8 CSSCheckNode(u64bp qstk, u8cs qdata,
         } else if (qt == 'N') {
             (void)qv;
         } else if (BASONCollection(qt)) {
+            // :has() / :not() — extract inner predicates, check against
+            // container's raw bytes (for text) or type
             b8 negated = ($ok(qk) && !$empty(qk) && qk[0][0] == '!');
             ok64 io = BASONInto(qstk, qdata, qv);
             if (io != OK) { matched = NO; continue; }
-            b8 has_found = NO;
-            aBpad(u64, hstk, 256);
-            ok64 ho = BASONOpen(hstk, ddata);
-            if (ho == OK) {
-                int hd = 0;
-                u8 ht = 0;
-                u8cs hk = {}, hv = {};
-                while (1) {
-                    ok64 hoo = BASONDrain(hstk, ddata, &ht, hk, hv);
-                    if (hoo != OK) {
-                        if (hd <= 0) break;
-                        BASONOuto(hstk);
-                        hd--;
-                        continue;
-                    }
-                    if (BASONCollection(ht)) {
-                        u8cs cname = {};
-                        aBpad(u64, nstk, 64);
-                        BASONInto(nstk, ddata, hv);
-                        aBpad(u64, qstk2, 256);
-                        BASONOpen(qstk2, qdata);
-                        u8cs child_data = {hv[0], hv[1]};
-                        (void)child_data;
-                        if (CSSCheckNode(qstk2, qdata, ht, cname,
-                                         hstk, ddata)) {
-                            has_found = YES;
-                        }
-                        BASONInto(hstk, ddata, hv);
-                        hd++;
+            b8 inner_ok = YES;
+            u8 iqt = 0;
+            u8cs iqk = {}, iqv = {};
+            while (BASONDrain(qstk, qdata, &iqt, iqk, iqv) == OK) {
+                if (iqt == 'S') {
+                    // Text search in container or leaf
+                    if (BASONCollection(data_type)) {
+                        if (!CSSTextSearch(container_val, iqv))
+                            inner_ok = NO;
                     } else {
-                        aBpad(u64, qstk2, 256);
-                        ok64 qo2 = BASONOpen(qstk2, qdata);
-                        if (qo2 == OK) {
-                            u8cs lname = {};
-                            if (CSSCheckNode(qstk2, qdata, ht, lname,
-                                             NULL, (u8cs){})) {
-                                has_found = YES;
-                            }
-                        }
+                        if (!CSSContains(data_name, iqv))
+                            inner_ok = NO;
                     }
-                    if (has_found) break;
+                } else if (iqt == 'T') {
+                    if ($len(iqv) != 1 || iqv[0][0] != data_type)
+                        inner_ok = NO;
+                } else if (iqt == 'F') {
+                    if (!CSSNameMatch(data_name, iqv))
+                        inner_ok = NO;
                 }
             }
             BASONOuto(qstk);
-            if (negated) has_found = !has_found;
-            if (!has_found) matched = NO;
+            if (negated) inner_ok = !inner_ok;
+            if (!inner_ok) matched = NO;
         }
     }
     return matched;
@@ -414,7 +382,7 @@ static ok64 CSSMatchRec(u8bp out, u64bp dstk, u8cs ddata,
                         }
                     }
                     if (CSSCheckNode(qstk, qdata, type, cname,
-                                     NULL, (u8cs){})) {
+                                     ddata, val)) {
                         // Full match — check line range if present
                         b8 line_ok = YES;
                         if (has_line) {
@@ -707,6 +675,9 @@ ok64 CSSCat(u8s out, u8cs filtered, u8cs relpath) {
             call(BASONInto, stk, filtered, val);
             call(CSSCatRec, out, stk, filtered, cstack, 0);
             call(BASONOuto, stk);
+            // Ensure hunk ends with newline
+            if (*(out[0] - 1) != '\n')
+                u8sFeed1(out, '\n');
         }
     }
     done;

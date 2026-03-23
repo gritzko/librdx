@@ -18,9 +18,11 @@ list(APPEND CAPO_SOURCES
 )
 
 add_library(capolib STATIC ${CAPO_HEADERS} ${CAPO_SOURCES})
+target_compile_definitions(capolib PRIVATE NDEBUG)
 target_link_libraries(capolib bast abc tree-sitter)
 
 add_executable(capo-cli CAPO.cli.c)
+target_compile_definitions(capo-cli PRIVATE NDEBUG)
 target_link_libraries(capo-cli capolib bast abc tree-sitter)
 set_target_properties(capo-cli PROPERTIES OUTPUT_NAME capo)
 

@@ -409,11 +409,7 @@ static ok64 BASTFeedNode(u8bp buf, u64bp idx, u8csc src, TSNode node,
         } else {
             lt = BASTAnonTag(ts_node_type(node));
         }
-        // Line comments: absorb trailing newline
-        uint32_t ve = e;
-        if (lt == 'D' && ve < (uint32_t)$len(src) && src[0][ve] == '\n')
-            ve++;
-        u8cs val = {src[0] + s, src[0] + ve};
+        u8cs val = {src[0] + s, src[0] + e};
         call(BASONFeed, idx, buf, lt, key, val);
         done;
     }
@@ -468,12 +464,6 @@ static ok64 BASTFeedNode(u8bp buf, u64bp idx, u8csc src, TSNode node,
         }
 
         pos = ts_node_end_byte(child);
-        // Line comments: absorb trailing \n (skip it from next gap)
-        if (ts_node_child_count(child) == 0 &&
-            ts_node_is_named(child) &&
-            BASTLeafTag(ts_node_type(child)) == 'D' &&
-            pos < (uint32_t)$len(src) && src[0][pos] == '\n')
-            pos++;
     }
 
     if (e > pos) {
