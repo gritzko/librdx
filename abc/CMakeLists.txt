@@ -10,17 +10,14 @@ include(CTest)
 include_directories(.. . ryu)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}")
-find_library(sodium
-	NAMES sodium
-	HINTs /usr /usr/local
-	REQUIRED)
-
-find_package(CURL REQUIRED)
-
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(LZ4 REQUIRED liblz4)
-if (WITH_ROCKS)
-pkg_check_modules(ROCKSDB REQUIRED rocksdb)
+find_library(sodium NAMES sodium HINTS /usr /usr/local)
+find_package(CURL QUIET)
+find_package(PkgConfig QUIET)
+if (PkgConfig_FOUND)
+    pkg_check_modules(LZ4 liblz4)
+    if (WITH_ROCKS)
+        pkg_check_modules(ROCKSDB REQUIRED rocksdb)
+    endif()
 endif()
 
 list(APPEND ABC_HEADERS
@@ -111,22 +108,27 @@ list(APPEND ABC_HEADERS ROCK.h)
 list(APPEND ABC_SOURCES ROCK.c)
 endif()
 
-add_library(abc STATIC ${ABC_HEADERS} ${ABC_SOURCES})
-target_link_libraries(abc sodium CURL::libcurl ${LZ4_LIBRARIES})
+# Minimal abc-core: no heavy deps — for standalone tools like capo
+set(ABC_CORE_SOURCES ${ABC_SOURCES})
+list(REMOVE_ITEM ABC_CORE_SOURCES CURL.c NET.c HTTP.c HTTP.rl.c TCP.c UDP.c POL.c PACK.c)
+add_library(abc-core STATIC ${ABC_HEADERS} ${ABC_CORE_SOURCES})
 
-# Minimal abc-core: same sources, no heavy link deps — for standalone tools
-add_library(abc-core STATIC ${ABC_HEADERS} ${ABC_SOURCES})
-target_link_libraries(abc-core ${LZ4_LIBRARIES})
-
-if (WITH_ROCKS)
-target_link_libraries(abc ${ROCKSDB_LIBRARIES})
+# Full abc with all deps (only if sodium+curl+lz4 found)
+if (sodium AND CURL_FOUND AND LZ4_FOUND)
+    add_library(abc STATIC ${ABC_HEADERS} ${ABC_SOURCES})
+    target_link_libraries(abc sodium CURL::libcurl ${LZ4_LIBRARIES})
+    if (WITH_ROCKS)
+        target_link_libraries(abc ${ROCKSDB_LIBRARIES})
+    endif()
+else()
+    message(STATUS "abc: full build skipped (missing sodium/curl/lz4)")
 endif()
 
 add_executable(ok64 OK.cli.c)
-target_link_libraries(ok64 abc)
+target_link_libraries(ok64 abc-core)
 
 add_executable(lex LEX.cli.c)
-target_link_libraries(lex abc)
+target_link_libraries(lex abc-core)
 
 add_subdirectory(test)
 

@@ -91,19 +91,17 @@ ok64 CAPOIndexFile(u64bp entries, u8csc source, u8csc ext, u8csc path) {
     sane(entries != NULL && $ok(source) && $ok(ext) && $ok(path));
     if ($empty(source)) done;
 
-    // Parse source to BASON
-    size_t buflen = $len(source) * 16;
-    if (buflen < 1024 * 1024) buflen = 1024 * 1024;
+    // Parse source to BASON — generous mmap, pages allocated on demand
+    size_t buflen = 1UL << 28;  // 256MB virtual, physical on demand
     u8b bson = {};
     call(u8bMap, bson, buflen);
-    size_t idxlen = buflen / BASON_PAGE + 256;
-    u64 *_idx = (u64 *)malloc(idxlen * sizeof(u64));
-    test(_idx != NULL, FAILsanity);
-    u64b idx = {_idx, _idx, _idx, _idx + idxlen};
+    size_t idxlen = 1UL << 20;  // 1M index entries
+    u64b idx = {};
+    call(u64bMap, idx, idxlen);
 
     ok64 o = BASTParse(bson, idx, source, ext);
     if (o != OK) {
-        free(_idx);
+        u64bUnMap(idx);
         u8bUnMap(bson);
         return o;
     }
@@ -116,7 +114,7 @@ ok64 CAPOIndexFile(u64bp entries, u8csc source, u8csc ext, u8csc path) {
     };
     o = CAPOTriExtract(bdata, CAPOTriCB, &ctx);
 
-    free(_idx);
+    u64bUnMap(idx);
     u8bUnMap(bson);
     return o;
 }
