@@ -34,16 +34,17 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: Install dependencies
-      run: brew install rocksdb libsodium curl lz4 ninja
+      run: brew install libsodium curl lz4 ninja
     - name: Configure
       run: >
-        cmake -B build -DCMAKE_BUILD_TYPE=Release -GNinja
+        cmake -B build -DCMAKE_BUILD_TYPE=Release
+        -DWITH_ROCKS=OFF -GNinja
     - name: Build
-      run: ninja -C build be/be capo/capo
+      run: ninja -C build capo/capo
     - name: Strip
-      run: strip build/be/be build/capo/capo
+      run: strip build/capo/capo
     - name: Package
-      run: tar czf librdx-macos-arm64.tar.gz -C build be/be capo/capo
+      run: tar czf librdx-macos-arm64.tar.gz -C build capo/capo
     - uses: actions/upload-artifact@v4
       with:
         name: librdx-macos-arm64
