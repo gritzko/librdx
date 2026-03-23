@@ -39,6 +39,8 @@ jobs:
       run: >
         cmake -B build -DCMAKE_BUILD_TYPE=Release
         -DWITH_ROCKS=OFF -GNinja
+        -DCMAKE_C_FLAGS="-I$(brew --prefix)/include"
+        -DCMAKE_EXE_LINKER_FLAGS="-L$(brew --prefix)/lib"
     - name: Build
       run: ninja -C build capo/capo
     - name: Strip
