@@ -38,7 +38,6 @@ HEAPx.h
 HEX.h
 HEXx.h
 INT.h
-INTx.h
 LSM.h
 JSON.h
 JSON.rl.h

@@ -92,10 +92,10 @@ ok64 CAPOIndexFile(u64bp entries, u8csc source, u8csc ext, u8csc path) {
     if ($empty(source)) done;
 
     size_t buflen = 1UL << 28;  // 256MB virtual, physical on demand
-    u8b bson = {};
+    Bu8 bson = {};
     vcall("mmap bson", u8bMap, bson, buflen);
     size_t idxlen = 1UL << 20;
-    u64b idx = {};
+    Bu64 idx = {};
     vcall("mmap idx", u64bMap, idx, idxlen);
 
     ok64 o = BASTParse(bson, idx, source, ext);
@@ -388,7 +388,7 @@ ok64 CAPOReindex(u8csc reporoot) {
     vcall("mkdir", FILEMakeDirP, path8cgIn(capodir));
     fprintf(stderr, "capo: index dir %s\n", (char *)capodir[1]);
 
-    u64b entries = {};
+    Bu64 entries = {};
     vcall("mmap scratch", u64bMap, entries, CAPO_SCRATCH_LEN);
 
     char cmdbuf[FILE_PATH_MAX_LEN + 32];
@@ -507,7 +507,7 @@ ok64 CAPOReindexProc(u8csc reporoot, u32 nprocs, u32 proc) {
     u8bShed1(capodir);
     vcall("mkdir", FILEMakeDirP, path8cgIn(capodir));
 
-    u64b entries = {};
+    Bu64 entries = {};
     vcall("mmap scratch", u64bMap, entries, CAPO_SCRATCH_LEN);
 
     char cmdbuf[FILE_PATH_MAX_LEN + 32];
@@ -634,7 +634,7 @@ ok64 CAPOCompactAll(u8csc dir) {
         fprintf(stderr, "capo: merging %u runs, %zu total entries\n",
                 nfiles, total);
 
-        u64b mbuf = {};
+        Bu64 mbuf = {};
         call(u64bMap, mbuf, total);
         u64s into = {mbuf[2], mbuf[3]};
 
@@ -738,7 +738,7 @@ ok64 CAPOHook(u8csc reporoot) {
     FILE *fp = popen(cmdbuf, "r");
     test(fp != NULL, FAILsanity);
 
-    u64b entries = {};
+    Bu64 entries = {};
     call(u64bMap, entries, CAPO_SCRATCH_LEN);
 
     char line[FILE_PATH_MAX_LEN];
@@ -1004,13 +1004,13 @@ ok64 CAPOQuery(u8csc selector, u8csc reporoot) {
         u8cs source = {mapped[1], mapped[2]};
         size_t buflen = $len(source) * 16;
         if (buflen < 1024 * 1024) buflen = 1024 * 1024;
-        u8b bson = {};
+        Bu8 bson = {};
         o = u8bMap(bson, buflen);
         if (o != OK) { FILEUnMap(mapped); continue; }
         size_t idxlen = buflen / BASON_PAGE + 256;
         u64 *_bidx = (u64 *)malloc(idxlen * sizeof(u64));
         if (!_bidx) { u8bUnMap(bson); FILEUnMap(mapped); continue; }
-        u64b bidx = {_bidx, _bidx, _bidx, _bidx + idxlen};
+        Bu64 bidx = {_bidx, _bidx, _bidx, _bidx + idxlen};
 
         o = BASTParse(bson, bidx, source, ext);
         if (o != OK) {
@@ -1023,7 +1023,7 @@ ok64 CAPOQuery(u8csc selector, u8csc reporoot) {
         u8cs bdata = {bson[1], bson[2]};
 
         size_t fbuflen = $len(bdata) + 4096;
-        u8b fbufm = {};
+        Bu8 fbufm = {};
         o = u8bMap(fbufm, fbuflen);
         if (o != OK) { free(_bidx); u8bUnMap(bson); FILEUnMap(mapped); continue; }
 
@@ -1045,7 +1045,7 @@ ok64 CAPOQuery(u8csc selector, u8csc reporoot) {
         if (o == OK && fbufm[1] < fbufm[2]) {
             u8cs filtered = {fbufm[1], fbufm[2]};
             size_t obuflen = $len(filtered) * 4 + 4096;
-            u8b obufm = {};
+            Bu8 obufm = {};
             o = u8bMap(obufm, obuflen);
             if (o == OK) {
                 u8s out = {obufm[2], obufm[3]};
