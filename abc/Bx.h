@@ -59,6 +59,14 @@ fun size_t X(, cbIdleLen)(X(, cb) buf) { return $len((T **)buf + 2); }
 fun T *X(, bHead)(X(, b) b) {
     return b[0];
 }
+fun T *X(, bDataHead)(X(, b) b) {
+    assert(b[1] <= b[2]);
+    return b[1];
+}
+fun T *X(, bIdleHead)(X(, b) b) {
+    assert(b[2] <= b[3]);
+    return b[2];
+}
 fun T *X(, bTerm)(X(, b) b) {
     return b[3];
 }

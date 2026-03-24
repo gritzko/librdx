@@ -39,7 +39,7 @@ ok64 CSStestParseKind() {
     call(CSSParse, qbuf, qidx, sel);
 
     // Walk the query tree: expect A root -> T leaf with val='E'
-    u8cs qdata = {qbuf[1], qbuf[2]};
+    u8cs qdata = {u8bDataHead(qbuf), u8bIdleHead(qbuf)};
     test(!$empty(qdata), FAILsanity);
 
     aBpad(u64, stk, 64);
@@ -67,7 +67,7 @@ ok64 CSStestParseName() {
     a_cstr(sel, "fn.main");
     call(CSSParse, qbuf, qidx, sel);
 
-    u8cs qdata = {qbuf[1], qbuf[2]};
+    u8cs qdata = {u8bDataHead(qbuf), u8bIdleHead(qbuf)};
     test(!$empty(qdata), FAILsanity);
 
     aBpad(u64, stk, 64);
@@ -101,7 +101,7 @@ ok64 CSStestParseHas() {
     a_cstr(sel, "fn:has(malloc)");
     call(CSSParse, qbuf, qidx, sel);
 
-    u8cs qdata = {qbuf[1], qbuf[2]};
+    u8cs qdata = {u8bDataHead(qbuf), u8bIdleHead(qbuf)};
     aBpad(u64, stk, 64);
     call(BASONOpen, stk, qdata);
     u8 type = 0;
@@ -138,7 +138,7 @@ ok64 CSStestParseNot() {
     a_cstr(sel, ":not(fn)");
     call(CSSParse, qbuf, qidx, sel);
 
-    u8cs qdata = {qbuf[1], qbuf[2]};
+    u8cs qdata = {u8bDataHead(qbuf), u8bIdleHead(qbuf)};
     aBpad(u64, stk, 64);
     call(BASONOpen, stk, qdata);
     u8 type = 0;
@@ -172,7 +172,7 @@ ok64 CSStestParseCombinators() {
     a_cstr(sel, "cmt > fn");
     call(CSSParse, qbuf, qidx, sel);
 
-    u8cs qdata = {qbuf[1], qbuf[2]};
+    u8cs qdata = {u8bDataHead(qbuf), u8bIdleHead(qbuf)};
     aBpad(u64, stk, 64);
     call(BASONOpen, stk, qdata);
     u8 type = 0;
@@ -209,7 +209,7 @@ ok64 CSStestParseLine() {
     a_cstr(sel, "L10-20");
     call(CSSParse, qbuf, qidx, sel);
 
-    u8cs qdata = {qbuf[1], qbuf[2]};
+    u8cs qdata = {u8bDataHead(qbuf), u8bIdleHead(qbuf)};
     aBpad(u64, stk, 64);
     call(BASONOpen, stk, qdata);
     u8 type = 0;
@@ -246,7 +246,7 @@ ok64 CSStestMatchType() {
         "int bar(int y) { return y; }\n";
 
     call(CSSBuildBAST, pad, idx, src);
-    u8cs bason_data = {pad[1], pad[2]};
+    u8cs bason_data = {u8bDataHead(pad), u8bIdleHead(pad)};
     test(!$empty(bason_data), FAILsanity);
 
     // Parse selector "fn"
@@ -254,19 +254,19 @@ ok64 CSStestMatchType() {
     aBpad(u64, qidx, 256);
     a_cstr(sel, "fn");
     call(CSSParse, qbuf, qidx, sel);
-    u8cs query = {qbuf[1], qbuf[2]};
+    u8cs query = {u8bDataHead(qbuf), u8bIdleHead(qbuf)};
 
     // Match into BASON buffer
     aBpad(u8, fbuf, 65536);
     call(CSSMatch, fbuf, bason_data, query);
-    u8cp fd0 = fbuf[1], fd1 = fbuf[2];
+    u8cp fd0 = u8bDataHead(fbuf), fd1 = u8bIdleHead(fbuf);
     u8cs filtered = {fd0, fd1};
     test(!$empty(filtered), FAILsanity);
 
     // Export to text and check
     a_pad(u8, out, 65536);
     call(CSSExport, out_idle, filtered);
-    u8cs result = {out[1], out[2]};
+    u8cs result = {u8bDataHead(out), u8bIdleHead(out)};
     test(!$empty(result), FAILsanity);
 
     done;
@@ -290,25 +290,25 @@ ok64 CSStestMatchLine() {
     u8csc source = {(u8cp)src, (u8cp)src + strlen(src)};
     u8cs ext = $u8str(".txt");
     call(BASTParse, pad, idx, source, ext);
-    u8cs bason_data = {pad[1], pad[2]};
+    u8cs bason_data = {u8bDataHead(pad), u8bIdleHead(pad)};
 
     // Parse selector "L2-3"
     aBpad(u8, qbuf, 4096);
     aBpad(u64, qidx, 256);
     a_cstr(sel, "L2-3");
     call(CSSParse, qbuf, qidx, sel);
-    u8cs query = {qbuf[1], qbuf[2]};
+    u8cs query = {u8bDataHead(qbuf), u8bIdleHead(qbuf)};
 
     // Match into BASON buffer
     aBpad(u8, fbuf, 65536);
     call(CSSMatch, fbuf, bason_data, query);
-    u8cp fd0 = fbuf[1], fd1 = fbuf[2];
+    u8cp fd0 = u8bDataHead(fbuf), fd1 = u8bIdleHead(fbuf);
     u8cs filtered = {fd0, fd1};
 
     // Export to text
     a_pad(u8, out, 65536);
     call(CSSExport, out_idle, filtered);
-    u8cs result = {out[1], out[2]};
+    u8cs result = {u8bDataHead(out), u8bIdleHead(out)};
     // Should have lines 2 and 3
     test(!$empty(result), FAILsanity);
     test(CSSContainsStr(result, "line2"), FAILsanity);
@@ -344,25 +344,25 @@ ok64 CSStestMatchText() {
         "int bar(int y) { return y; }\n";
 
     call(CSSBuildBAST, pad, idx, src);
-    u8cs bason_data = {pad[1], pad[2]};
+    u8cs bason_data = {u8bDataHead(pad), u8bIdleHead(pad)};
 
     // Parse text selector "comment"
     aBpad(u8, qbuf, 4096);
     aBpad(u64, qidx, 256);
     a_cstr(sel, "comment");
     call(CSSParse, qbuf, qidx, sel);
-    u8cs query = {qbuf[1], qbuf[2]};
+    u8cs query = {u8bDataHead(qbuf), u8bIdleHead(qbuf)};
 
     // Match into BASON buffer
     aBpad(u8, fbuf, 65536);
     call(CSSMatch, fbuf, bason_data, query);
-    u8cp fd0 = fbuf[1], fd1 = fbuf[2];
+    u8cp fd0 = u8bDataHead(fbuf), fd1 = u8bIdleHead(fbuf);
     u8cs filtered = {fd0, fd1};
 
     // Export to text
     a_pad(u8, out, 65536);
     call(CSSExport, out_idle, filtered);
-    u8cs result = {out[1], out[2]};
+    u8cs result = {u8bDataHead(out), u8bIdleHead(out)};
     // "comment" is not a known kind, so it becomes a text search (S)
     // Should find "comment" in the comment line
     test(!$empty(result), FAILsanity);
@@ -384,7 +384,7 @@ ok64 CSStestMatchName() {
         "int bar(int y) { return y; }\n";
 
     call(CSSBuildBAST, pad, idx, src);
-    u8cs bason_data = {pad[1], pad[2]};
+    u8cs bason_data = {u8bDataHead(pad), u8bIdleHead(pad)};
     test(!$empty(bason_data), FAILsanity);
 
     // Parse selector "fn.foo"
@@ -392,18 +392,18 @@ ok64 CSStestMatchName() {
     aBpad(u64, qidx, 256);
     a_cstr(sel, "fn.foo");
     call(CSSParse, qbuf, qidx, sel);
-    u8cs query = {qbuf[1], qbuf[2]};
+    u8cs query = {u8bDataHead(qbuf), u8bIdleHead(qbuf)};
 
     // Match into BASON buffer
     aBpad(u8, fbuf, 65536);
     call(CSSMatch, fbuf, bason_data, query);
-    u8cp fd0 = fbuf[1], fd1 = fbuf[2];
+    u8cp fd0 = u8bDataHead(fbuf), fd1 = u8bIdleHead(fbuf);
     u8cs filtered = {fd0, fd1};
 
     // Export to text
     a_pad(u8, out, 65536);
     call(CSSExport, out_idle, filtered);
-    u8cs result = {out[1], out[2]};
+    u8cs result = {u8bDataHead(out), u8bIdleHead(out)};
     // Should match only foo, not bar
     test(!$empty(result), FAILsanity);
     test(CSSContainsStr(result, "foo"), FAILsanity);
@@ -426,25 +426,25 @@ ok64 CSStestMatchCmt() {
         "int bar(int y) { return y; }\n";
 
     call(CSSBuildBAST, pad, idx, src);
-    u8cs bason_data = {pad[1], pad[2]};
+    u8cs bason_data = {u8bDataHead(pad), u8bIdleHead(pad)};
 
     // Parse selector "cmt"
     aBpad(u8, qbuf, 4096);
     aBpad(u64, qidx, 256);
     a_cstr(sel, "cmt");
     call(CSSParse, qbuf, qidx, sel);
-    u8cs query = {qbuf[1], qbuf[2]};
+    u8cs query = {u8bDataHead(qbuf), u8bIdleHead(qbuf)};
 
     // Match into BASON buffer
     aBpad(u8, fbuf, 65536);
     call(CSSMatch, fbuf, bason_data, query);
-    u8cp fd0 = fbuf[1], fd1 = fbuf[2];
+    u8cp fd0 = u8bDataHead(fbuf), fd1 = u8bIdleHead(fbuf);
     u8cs filtered = {fd0, fd1};
 
     // Export to text
     a_pad(u8, out, 65536);
     call(CSSExport, out_idle, filtered);
-    u8cs result = {out[1], out[2]};
+    u8cs result = {u8bDataHead(out), u8bIdleHead(out)};
     test(!$empty(result), FAILsanity);
     test(CSSContainsStr(result, "comment"), FAILsanity);
     // Should not include function bodies

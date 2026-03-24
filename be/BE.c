@@ -259,7 +259,7 @@ static ok64 BEParseFile(u8bp nbuf, u8bp *mapbuf, path8cg filepath,
         call(BASONFeedOuto, NULL, nbuf);
     } else {
         call(FILEMapRO, mapbuf, filepath);
-        u8cs source = {(*mapbuf)[1], (*mapbuf)[2]};
+        u8cs source = {u8bDataHead(*mapbuf), u8bIdleHead(*mapbuf)};
         call(BASTParse, nbuf, NULL, source, ext);
     }
     done;
@@ -308,7 +308,7 @@ static ok64 BEFindDotBe(path8g result, path8cg start) {
         }
         o = path8gPop(path8gIn(cur));
         if (o != OK) break;
-        u8cs d = {cur[1], cur[2]};
+        u8cs d = {u8bDataHead(cur), u8bIdleHead(cur)};
         if ($len(d) <= 1) break;
     }
     fail(BEnone);
@@ -411,8 +411,8 @@ static ok64 BEScanFlush(BEp be, ron120cs form, u8cs relpath,
     sane(be != NULL && cb != NULL);
     u8cs base_bason = {};
     if (has_base) {
-        u8cp b0 = be->scratch[BE_READ][1];
-        u8cp b1 = be->scratch[BE_READ][2];
+        u8cp b0 = u8bDataHead(be->scratch[BE_READ]);
+        u8cp b1 = u8bIdleHead(be->scratch[BE_READ]);
         base_bason[0] = b0;
         base_bason[1] = b1;
     }
@@ -441,7 +441,7 @@ static ok64 BEScanFlush(BEp be, ron120cs form, u8cs relpath,
         done;  // no base, no waypoints
     }
 
-    u8cp m0 = mbuf[1], m1 = mbuf[2];
+    u8cp m0 = u8bDataHead(mbuf), m1 = u8bIdleHead(mbuf);
     u8cs merged = {m0, m1};
     if ($empty(merged)) done;
 
@@ -571,11 +571,11 @@ static ok64 BEScanCore(BEp be, uricp loc, BEScanCBf cb, voidp arg,
             if (BEWaypointMatch(formcs, ku.query) && cur_wpc < 256) {
                 u8cs v = {};
                 ROCKIterVal(&it, v);
-                u8cp start = wpbuf[2];
+                u8cp start = u8bIdleHead(wpbuf);
                 o = u8sFeed(u8bIdle(wpbuf), v);
                 if (o == OK) {
                     cur_waypoints[cur_wpc][0] = start;
-                    cur_waypoints[cur_wpc][1] = wpbuf[2];
+                    cur_waypoints[cur_wpc][1] = u8bIdleHead(wpbuf);
                     cur_wpc++;
                 }
             }
@@ -700,7 +700,7 @@ ok64 BEOpen(BEp be, path8cg worktree) {
 
     u8bp mapbuf = NULL;
     call(FILEMapRO, &mapbuf, path8cgIn(dotbe_path));
-    u8cp md0 = mapbuf[1], md1 = mapbuf[2];
+    u8cp md0 = u8bDataHead(mapbuf), md1 = u8bIdleHead(mapbuf);
     u8cs mapped = {md0, md1};
     call(u8bAllocate, be->loc_buf, 512);
     call(u8bFeed, be->loc_buf, mapped);
@@ -809,7 +809,7 @@ static ok64 BEExportFile(BEp be, u8cs relpath, u8cs bason, b8 is_exec) {
     u8bReset(out);
     aBpad(u64, stk, 256);
     call(BASTExport, u8bIdle(out), stk, bason);
-    u8cs source = {out[1], out[2]};
+    u8cs source = {u8bDataHead(out), u8bIdleHead(out)};
 
     if (be->to_stdout) {
         if (!$empty(source)) {
@@ -833,9 +833,9 @@ static ok64 BEExportFile(BEp be, u8cs relpath, u8cs bason, b8 is_exec) {
 
     // Set exec bit from key
     if (is_exec) {
-        chmod((const char *)fpath[1], 0755);
+        chmod((const char *)u8bDataHead(fpath), 0755);
     } else {
-        chmod((const char *)fpath[1], 0644);
+        chmod((const char *)u8bDataHead(fpath), 0644);
     }
 
     // Update stat: cache with real mtime + hash (1-second mtime race
@@ -937,11 +937,11 @@ typedef struct {
 static ok64 BEMergeCB_(voidp arg, u8cs key, u8cs val) {
     BEMergeCtx_ *ctx = (BEMergeCtx_ *)arg;
     if (ctx->count >= 257) return BEFAIL;
-    u8cp start = ctx->buf[2];
+    u8cp start = u8bIdleHead(ctx->buf);
     ok64 o = u8sFeed(u8bIdle(ctx->buf), val);
     if (o != OK) return o;
     ctx->pieces[ctx->count][0] = start;
-    ctx->pieces[ctx->count][1] = ctx->buf[2];
+    ctx->pieces[ctx->count][1] = u8bIdleHead(ctx->buf);
     ctx->count++;
     return OK;
 }
@@ -1041,7 +1041,7 @@ static ok64 BEGetFile(BEp be, u8cs relpath) {
         return go;
     }
 
-    u8cs merged = {mbuf[1], mbuf[2]};
+    u8cs merged = {u8bDataHead(mbuf), u8bIdleHead(mbuf)};
     if ($empty(merged)) return BEnone;
 
     ok64 eo = BEExportFile(be, relpath, merged, is_exec);
@@ -1144,7 +1144,7 @@ static ok64 BEStatusCB(voidp arg, u8cs relpath, BEstat cached) {
     u8cs file_content = {};
     if (fst.st_size > 0) {
         call(FILEMapRO, &mapbuf, path8cgIn(fpath));
-        u8cp fc0 = mapbuf[1], fc1 = mapbuf[2];
+        u8cp fc0 = u8bDataHead(mapbuf), fc1 = u8bIdleHead(mapbuf);
         file_content[0] = fc0;
         file_content[1] = fc1;
     }
@@ -1193,7 +1193,7 @@ static ok64 BEDiffCB(voidp arg, u8cs relpath, BEstat cached) {
     u8cs HDRESC = $u8str("\033[1m");
     a_pad(u8, _delesc, 16);
     escfeedBG256(_delesc_idle, HILI_DEL_BG);
-    u8cs DELESC = {_delesc[1], _delesc[2]};
+    u8cs DELESC = {u8bDataHead(_delesc), u8bIdleHead(_delesc)};
     u8cs RST = $u8str("\033[0m");
     u8cs NL = $u8str("\n");
     u8cs SEP = $u8str("\033[34m---\033[0m\n");
@@ -1223,7 +1223,7 @@ static ok64 BEDiffCB(voidp arg, u8cs relpath, BEstat cached) {
         u8cs hcontent = {};
         if (fst.st_size > 0) {
             if (FILEMapRO(&hmap, path8cgIn(fpath)) == OK) {
-                u8cp hc0 = hmap[1], hc1 = hmap[2];
+                u8cp hc0 = u8bDataHead(hmap), hc1 = u8bIdleHead(hmap);
                 hcontent[0] = hc0;
                 hcontent[1] = hc1;
             }
@@ -1248,7 +1248,7 @@ static ok64 BEDiffCB(voidp arg, u8cs relpath, BEstat cached) {
     ok64 go = BEGetFileMerged(be, be->loc.path, relpath, obuf, NULL);
     u8cs old_bason = {};
     if (go == OK) {
-        u8cp ob0 = obuf[1], ob1 = obuf[2];
+        u8cp ob0 = u8bDataHead(obuf), ob1 = u8bIdleHead(obuf);
         old_bason[0] = ob0;
         old_bason[1] = ob1;
     }
@@ -1269,7 +1269,7 @@ static ok64 BEDiffCB(voidp arg, u8cs relpath, BEstat cached) {
             call(u8bFeed, rbuf, RST);
             call(u8bFeed, rbuf, NL);
             ctx->any_output = YES;
-            u8cp r0 = rbuf[1], r1 = rbuf[2];
+            u8cp r0 = u8bDataHead(rbuf), r1 = u8bIdleHead(rbuf);
             u8cs rendered = {r0, r1};
             call(FILEout, rendered);
         }
@@ -1280,7 +1280,7 @@ static ok64 BEDiffCB(voidp arg, u8cs relpath, BEstat cached) {
         u8bp nbuf = be->scratch[BE_PARSE];
         u8bp mapbuf = NULL;
         call(BEParseFile, nbuf, &mapbuf, path8cgIn(fpath), &fst, ext);
-        u8cp n0 = nbuf[1], n1 = nbuf[2];
+        u8cp n0 = u8bDataHead(nbuf), n1 = u8bIdleHead(nbuf);
         u8cs new_bason = {n0, n1};
 
         // Step 1: diff(old, new) → patch
@@ -1294,7 +1294,7 @@ static ok64 BEDiffCB(voidp arg, u8cs relpath, BEstat cached) {
         aBpad(u64, nstk, 256);
         call(BASONDiff, dbuf, NULL, ostk, old_bason, nstk,
              new_bason, hb);
-        u8cp d0 = dbuf[1], d1 = dbuf[2];
+        u8cp d0 = u8bDataHead(dbuf), d1 = u8bIdleHead(dbuf);
         u8cs patch = {d0, d1};
 
         // Step 2: merge(old, patch) → merged
@@ -1303,7 +1303,7 @@ static ok64 BEDiffCB(voidp arg, u8cs relpath, BEstat cached) {
         aBpad(u64, lstk, 256);
         aBpad(u64, rstk, 256);
         call(BASONMerge, mbuf, NULL, lstk, old_bason, rstk, patch);
-        u8cp m0 = mbuf[1], m1 = mbuf[2];
+        u8cp m0 = u8bDataHead(mbuf), m1 = u8bIdleHead(mbuf);
         u8cs merged = {m0, m1};
 
         // Step 3: render old vs merged (same key space)
@@ -1311,7 +1311,7 @@ static ok64 BEDiffCB(voidp arg, u8cs relpath, BEstat cached) {
         u8bReset(rbuf);
         call(BASONDiffPrint, u8bIdle(rbuf), old_bason, merged, 3,
              relpath);
-        u8cp r0 = rbuf[1], r1 = rbuf[2];
+        u8cp r0 = u8bDataHead(rbuf), r1 = u8bIdleHead(rbuf);
         u8cs rendered = {r0, r1};
         if (!$empty(rendered)) {
             // Assemble header + rendered into BE_WRAP
@@ -1325,7 +1325,7 @@ static ok64 BEDiffCB(voidp arg, u8cs relpath, BEstat cached) {
             if (rendered[1][-1] != '\n')
                 call(u8bFeed, wbuf, NL);
             ctx->any_output = YES;
-            u8cs out = {wbuf[1], wbuf[2]};
+            u8cs out = {u8bDataHead(wbuf), u8bIdleHead(wbuf)};
             call(FILEout, out);
         }
         if (mapbuf) FILEUnMap(mapbuf);
@@ -1413,7 +1413,7 @@ static ok64 BEPostFile(BEp be, ROCKbatchp wb, ron60 stamp,
     // Compute relative path from worktree root
     a_path(relpath, "");
     call(path8gRelative, path8gIn(relpath), path8cgIn(be->work_pp), filepath);
-    u8cs rel = {relpath[1], relpath[2]};
+    u8cs rel = {u8bDataHead(relpath), u8bIdleHead(relpath)};
 
     // Stat source file for metadata
     struct stat fst;
@@ -1443,7 +1443,7 @@ static ok64 BEPostFile(BEp be, ROCKbatchp wb, ron60 stamp,
         call(BASONFeedOuto, NULL, nbuf);
     } else {
         call(FILEMapRO, &mapbuf, filepath);
-        u8cs source = {mapbuf[1], mapbuf[2]};
+        u8cs source = {u8bDataHead(mapbuf), u8bIdleHead(mapbuf)};
         file_content[0] = source[0];
         file_content[1] = source[1];
         o = BASTParse(nbuf, NULL, source, ext);
@@ -1453,7 +1453,7 @@ static ok64 BEPostFile(BEp be, ROCKbatchp wb, ron60 stamp,
             done;
         }
     }
-    u8cp nb0 = nbuf[1], nb1 = nbuf[2];
+    u8cp nb0 = u8bDataHead(nbuf), nb1 = u8bIdleHead(nbuf);
     u8cs new_bason = {nb0, nb1};
 
     // Build file path component for keys
@@ -1479,7 +1479,7 @@ static ok64 BEPostFile(BEp be, ROCKbatchp wb, ron60 stamp,
         ok64 go = BEGetFileMerged(be, be->loc.path, rel, pbuf, NULL);
         u8cs old_bason = {};
         if (go == OK) {
-            u8cp md0 = pbuf[1], md1 = pbuf[2];
+            u8cp md0 = u8bDataHead(pbuf), md1 = u8bIdleHead(pbuf);
             old_bason[0] = md0;
             old_bason[1] = md1;
         }
@@ -1494,7 +1494,7 @@ static ok64 BEPostFile(BEp be, ROCKbatchp wb, ron60 stamp,
                 if (mapbuf) FILEUnMap(mapbuf);
                 fail(o);
             }
-            u8cs delta = {obuf[1], obuf[2]};
+            u8cs delta = {u8bDataHead(obuf), u8bIdleHead(obuf)};
             if ($empty(delta)) {
                 if (mapbuf) FILEUnMap(mapbuf);
                 done;
@@ -1538,7 +1538,7 @@ static ok64 BEPostScanCB(voidp arg, path8p path) {
             a_path(relpath, "");
             call(path8gRelative, path8gIn(relpath), path8cgIn(ctx->be->work_pp),
                  path8cgIn(path));
-            u8cs rel = {relpath[1], relpath[2]};
+            u8cs rel = {u8bDataHead(relpath), u8bIdleHead(relpath)};
             if (IGNOMatch(ctx->ig, rel, YES)) {
                 u8cs dircodec = {(u8cp)"dir", (u8cp)"dir" + 3};
                 BEPostReport(rel, dircodec, "IGN", DARK_YELLOW);
@@ -1553,7 +1553,7 @@ static ok64 BEPostScanCB(voidp arg, path8p path) {
         ok64 ro = path8gRelative(path8gIn(relpath), path8cgIn(ctx->be->work_pp),
                                   path8cgIn(path));
         if (ro == OK) {
-            u8cs rel = {relpath[1], relpath[2]};
+            u8cs rel = {u8bDataHead(relpath), u8bIdleHead(relpath)};
             if (IGNOMatch(ctx->ig, rel, NO)) {
                 u8cs ext = {};
                 u8cs codec = {};
@@ -1570,7 +1570,7 @@ static ok64 BEPostScanCB(voidp arg, path8p path) {
         a_path(relpath, "");
         path8gRelative(path8gIn(relpath), path8cgIn(ctx->be->work_pp),
                         path8cgIn(path));
-        u8cs rel = {relpath[1], relpath[2]};
+        u8cs rel = {u8bDataHead(relpath), u8bIdleHead(relpath)};
         u8cs ext = {};
         u8cs codec = {};
         BEFileInfo(ext, codec, rel);
@@ -1654,7 +1654,7 @@ ok64 BEStatUpdate(BEp be, u8cs relpath, BEstat s) {
     a_uri(stat_key, sch_stat, 0, fp_datac, 0, 0);
     aBpad(u8, sbuf, 256);
     call(BEStatFeedBason, sbuf, NULL, s);
-    u8cs stat_val = {sbuf[1], sbuf[2]};
+    u8cs stat_val = {u8bDataHead(sbuf), u8bIdleHead(sbuf)};
     call(ROCKPut, &be->db, stat_key, stat_val);
     done;
 }
@@ -1694,7 +1694,7 @@ static ok64 BEPostDiffCB(voidp arg, u8cs relpath, BEstat cached) {
     u8cs file_content = {};
     if (fst.st_size > 0) {
         call(FILEMapRO, &mapbuf, path8cgIn(fpath));
-        u8cp fc0 = mapbuf[1], fc1 = mapbuf[2];
+        u8cp fc0 = u8bDataHead(mapbuf), fc1 = u8bIdleHead(mapbuf);
         file_content[0] = fc0;
         file_content[1] = fc1;
     }
@@ -1729,7 +1729,7 @@ static ok64 BEPostDiffCB(voidp arg, u8cs relpath, BEstat cached) {
             return OK;
         }
     }
-    u8cp nb0 = nbuf[1], nb1 = nbuf[2];
+    u8cp nb0 = u8bDataHead(nbuf), nb1 = u8bIdleHead(nbuf);
     u8cs new_bason = {nb0, nb1};
 
     // Get old merged BASON from repo
@@ -1738,7 +1738,7 @@ static ok64 BEPostDiffCB(voidp arg, u8cs relpath, BEstat cached) {
     ok64 go = BEGetFileMerged(be, be->loc.path, relpath, pbuf, NULL);
     u8cs old_bason = {};
     if (go == OK) {
-        u8cp md0 = pbuf[1], md1 = pbuf[2];
+        u8cp md0 = u8bDataHead(pbuf), md1 = u8bIdleHead(pbuf);
         old_bason[0] = md0;
         old_bason[1] = md1;
     }
@@ -1767,7 +1767,7 @@ static ok64 BEPostDiffCB(voidp arg, u8cs relpath, BEstat cached) {
             if (mapbuf) FILEUnMap(mapbuf);
             return __;
         }
-        u8cs delta = {obuf[1], obuf[2]};
+        u8cs delta = {u8bDataHead(obuf), u8bIdleHead(obuf)};
         if ($empty(delta)) {
             // BASON unchanged — update stat: cache with new mtime+hash
             BEstat updated = {cur_mtime, cur_hash};
@@ -1921,7 +1921,7 @@ ok64 BEPost(BEp be, int pathc, u8cs *paths, u8cs message) {
                 a_path(relp, "");
                 call(path8gRelative, path8gIn(relp),
                      path8cgIn(be->work_pp), path8cgIn(apath));
-                u8cs rel = {relp[1], relp[2]};
+                u8cs rel = {u8bDataHead(relp), u8bIdleHead(relp)};
                 // Add trailing /
                 call(u8sFeed, rp_idle, rel);
                 u8sFeed1(rp_idle, '/');
@@ -2024,7 +2024,7 @@ ok64 BEPostData(BEp be, u8cs relpath, u8cs source, u8cs branch, u8cs message) {
             fail(po);
         }
     }
-    u8cp nb0 = nbuf[1], nb1 = nbuf[2];
+    u8cp nb0 = u8bDataHead(nbuf), nb1 = u8bIdleHead(nbuf);
     u8cs new_bason = {nb0, nb1};
 
     // Get old merged BASON from repo
@@ -2033,7 +2033,7 @@ ok64 BEPostData(BEp be, u8cs relpath, u8cs source, u8cs branch, u8cs message) {
     ok64 go = BEGetFileMerged(be, be->loc.path, relpath, pbuf, NULL);
     u8cs old_bason = {};
     if (go == OK) {
-        u8cp md0 = pbuf[1], md1 = pbuf[2];
+        u8cp md0 = u8bDataHead(pbuf), md1 = u8bIdleHead(pbuf);
         old_bason[0] = md0;
         old_bason[1] = md1;
     }
@@ -2059,7 +2059,7 @@ ok64 BEPostData(BEp be, u8cs relpath, u8cs source, u8cs branch, u8cs message) {
             ROCKBatchClose(&wb);
             fail(do_);
         }
-        u8cs delta = {obuf[1], obuf[2]};
+        u8cs delta = {u8bDataHead(obuf), u8bIdleHead(obuf)};
         if ($empty(delta)) {
             // No content change
             ROCKBatchClose(&wb);
@@ -2355,7 +2355,7 @@ ok64 BEGetDeps(BEp be, b8 include_opt) {
 
     u8bp mapbuf = NULL;
     call(FILEMapRO, &mapbuf, path8cgIn(bpath));
-    u8cp m0 = mapbuf[1], m1 = mapbuf[2];
+    u8cp m0 = u8bDataHead(mapbuf), m1 = u8bIdleHead(mapbuf);
     u8cs content = {m0, m1};
 
     int section = 0;
@@ -2531,7 +2531,7 @@ static ok64 BETriCB(voidp arg, u8cs trigram) {
     call(BASONFeedInto, NULL, obj, 'O', noval);
     call(BASONFeed, NULL, obj, 'S', ctx->hashlet, noval);
     call(BASONFeedOuto, NULL, obj);
-    u8cs obj_val = {obj[1], obj[2]};
+    u8cs obj_val = {u8bDataHead(obj), u8bIdleHead(obj)};
 
     call(ROCKBatchMerge, ctx->wb, tri_key, obj_val);
     return OK;
@@ -2578,7 +2578,7 @@ static ok64 BESymCB(voidp arg, u8cs symbol) {
     call(BASONFeedInto, NULL, obj, 'O', noval);
     call(BASONFeed, NULL, obj, 'S', ctx->relpath, noval);
     call(BASONFeedOuto, NULL, obj);
-    u8cs obj_val = {obj[1], obj[2]};
+    u8cs obj_val = {u8bDataHead(obj), u8bIdleHead(obj)};
 
     call(ROCKBatchMerge, ctx->wb, sym_key, obj_val);
     return OK;

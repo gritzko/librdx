@@ -834,7 +834,7 @@ ok64 rdxDiff2(rdxp patch, rdxp doc, rdxp neu,
     rdx oud_w = {.format = RDX_FMT_TLV | RDX_FMT_WRITE};
     oud_w.bulk = oud_b;
     call(rdxStrip, &oud_w, doc);
-    u8cs oud_datac = {oud_b[1], oud_b[2]};  // data section
+    u8cs oud_datac = {u8bDataHead(oud_b), u8bIdleHead(oud_b)};  // data section
 
     // Step 2: Compute BRACKET hashes for oud (first half of hash_buf)
     u64 hash_half = (hash_buf[2] - hash_buf[0]) / 2;
@@ -856,7 +856,7 @@ ok64 rdxDiff2(rdxp patch, rdxp doc, rdxp neu,
         rdx neu_r = *neu;
         call(rdxStrip, &neu_w, &neu_r);
     }
-    u8cs neu_datac = {neu_b[1], neu_b[2]};  // data section
+    u8cs neu_datac = {u8bDataHead(neu_b), u8bIdleHead(neu_b)};  // data section
 
     // Step 4: Compute BRACKET hashes for neu (second half of hash_buf)
     u64p neu_hash_start = hash_buf[0] + hash_half;
@@ -995,7 +995,7 @@ ok64 rdxDiff(rdxp patch, rdxp doc, rdxp neu) {
     then try(u32bAlloc, edl_buf, edl_sz);
     then {
         // DIFFx.h expects gauge layout [cur, end, start]
-        u32g edl = {edl_buf[1], edl_buf[3], edl_buf[1]};
+        u32g edl = {u32bDataHead(edl_buf), edl_buf[3], u32bDataHead(edl_buf)};
         __ = rdxDiff2(patch, doc, neu,
                       u8bDataIdle(oud_buf), u8bDataIdle(neu_buf),
                       u64bDataIdle(hash_buf), i32bIdle(work_buf), edl);

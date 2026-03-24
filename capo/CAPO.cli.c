@@ -37,7 +37,7 @@ ok64 capocli() {
     a_pad(u8, root, FILE_PATH_MAX_LEN);
     u8cs rbs = {(u8cp)rootbuf, (u8cp)rootbuf + rlen};
     call(u8bFeed, root, rbs);
-    u8cs reporoot = {root[1], root[2]};
+    u8cs reporoot = {u8bDataHead(root), u8bIdleHead(root)};
 
     // Parse args
     u32 nfork = 0, proc = UINT32_MAX;
@@ -76,7 +76,7 @@ ok64 capocli() {
         call(u8bFeed, capodir, reporoot);
         a_cstr(suf, "/" CAPO_DIR);
         call(u8bFeed, capodir, suf);
-        u8cs dirslice = {capodir[1], capodir[2]};
+        u8cs dirslice = {u8bDataHead(capodir), u8bIdleHead(capodir)};
         u8bFeed1(capodir, 0);
         u8bShed1(capodir);
         call(FILEMakeDirP, path8cgIn(capodir));

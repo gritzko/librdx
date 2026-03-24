@@ -116,7 +116,7 @@ ok64 BASONSeek(u64bp stack, u8csc data, u8csc target) {
 // Sample record position for the current index level.
 fun ok64 BASONSample(u64bp idx, u8bp buf, u8csc key) {
     sane(idx != NULL && buf != NULL);
-    u64 write_base = idx[1][0];  // first entry = children start offset
+    u64 write_base = u64bDataHead(idx)[0];  // first entry = children start offset
     u64 rec_off = (u64)u8bDataLen(buf) - write_base;
     u64 page = rec_off / BASON_PAGE;
     size_t n_entries = u64bDataLen(idx) - 1;  // subtract base entry
@@ -158,7 +158,7 @@ ok64 BASONFeedOuto(u64bp idx, u8bp buf) {
     if (idx != NULL) {
         size_t n = u64bDataLen(idx) - 1;  // entries (exclude base)
         if (n > 1) {
-            u64 *entries = idx[1] + 1;
+            u64 *entries = u64bDataHead(idx) + 1;
             size_t entries_bytes = n * 8;
             size_t body_len = entries_bytes + 2;
             size_t hdr_len = (body_len <= 0xff) ? 2 : 5;

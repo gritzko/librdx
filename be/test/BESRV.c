@@ -183,7 +183,7 @@ ok64 BESRVtest1() {
     call(u8bAllocate, resp, 1 << 20);
     call(TestHTTPGet, resp, st.port, "/.bason");
 
-    u8cp rd0 = resp[1], rd1 = resp[2];
+    u8cp rd0 = u8bDataHead(resp), rd1 = u8bIdleHead(resp);
     want(rd1 > rd0);
 
     u8cs body = {rd0, rd1};
@@ -267,7 +267,7 @@ ok64 BESRVtest2() {
     call(u8bAllocate, resp, 1 << 20);
     call(TestHTTPGet, resp, st.port, "/src/.bason");
 
-    u8cp rd0 = resp[1], rd1 = resp[2];
+    u8cp rd0 = u8bDataHead(resp), rd1 = u8bIdleHead(resp);
     want(rd1 > rd0);
 
     a_cstr(a_file, "src/a.c");
@@ -287,8 +287,8 @@ ok64 BESRVtest2() {
     // DIR listing (reuse same repo with subdirs)
     u8bReset(resp);
     call(TestHTTPGet, resp, st.port, "/");
-    rd0 = resp[1];
-    rd1 = resp[2];
+    rd0 = u8bDataHead(resp);
+    rd1 = u8bIdleHead(resp);
     want(rd1 > rd0);
     u8cs dirbody = {rd0, rd1};
     a_cstr(src_entry, "src/\n");
@@ -343,8 +343,8 @@ ok64 BESRVtest3() {
 
     want(c1.result == OK && c2.result == OK);
     want(u8bDataLen(c1.resp) > 0 && u8bDataLen(c2.resp) > 0);
-    u8cp a0 = c1.resp[1], a1 = c1.resp[2];
-    u8cp b0 = c2.resp[1], b1 = c2.resp[2];
+    u8cp a0 = u8bDataHead(c1.resp), a1 = u8bIdleHead(c1.resp);
+    u8cp b0 = u8bDataHead(c2.resp), b1 = u8bIdleHead(c2.resp);
     want(a1 - a0 == b1 - b0);
     want(memcmp(a0, b0, a1 - a0) == 0);
 
@@ -401,7 +401,7 @@ ok64 BESRVtest5() {
     // .bason mode: key starts with "be:", contains "hello.c"
     call(TestHTTPGet, resp, st.port, "/hello.c.bason");
     want(u8bDataLen(resp) > 0);
-    u8cs body = {resp[1], resp[2]};
+    u8cs body = {u8bDataHead(resp), u8bIdleHead(resp)};
     u8 type = 0;
     u8cs key = {}, val = {};
     want(TLKVDrain(body, &type, key, val) == OK);
@@ -414,7 +414,7 @@ ok64 BESRVtest5() {
     u8bReset(resp);
     call(TestHTTPGet, resp, st.port, "/hello.c.stat");
     want(u8bDataLen(resp) > 0);
-    u8cs sbody = {resp[1], resp[2]};
+    u8cs sbody = {u8bDataHead(resp), u8bIdleHead(resp)};
     type = 0;
     u8cs sk = {}, sv = {};
     want(TLKVDrain(sbody, &type, sk, sv) == OK);
@@ -425,7 +425,7 @@ ok64 BESRVtest5() {
     u8bReset(resp);
     call(TestHTTPGet, resp, st.port, "/hello.c");
     want(u8bDataLen(resp) > 0);
-    u8cs raw = {resp[1], resp[2]};
+    u8cs raw = {u8bDataHead(resp), u8bIdleHead(resp)};
     a_cstr(expected, "int x = 42;\n");
     want($len(raw) == $len(expected));
     want(memcmp(raw[0], expected[0], $len(expected)) == 0);
@@ -434,7 +434,7 @@ ok64 BESRVtest5() {
     u8bReset(resp);
     call(TestHTTPGetRaw, resp, st.port, "/nonexistent.c");
     want(u8bDataLen(resp) > 0);
-    u8cs rawresp = {resp[1], resp[2]};
+    u8cs rawresp = {u8bDataHead(resp), u8bIdleHead(resp)};
     a_cstr(notfound, "404");
     want(TestContains(rawresp, notfound));
 
@@ -480,8 +480,8 @@ static ok64 TestHTTPPost(int *status, int port, const char *path,
     close(fd);
 
     // Parse status code from "HTTP/1.1 NNN ..."
-    u8cp d0 = resp[1];
-    u8cp d1 = resp[2];
+    u8cp d0 = u8bDataHead(resp);
+    u8cp d1 = u8bIdleHead(resp);
     *status = 0;
     if (d1 - d0 >= 12) {
         // Skip "HTTP/1.1 " (9 chars), parse 3 digits
@@ -520,7 +520,7 @@ ok64 BESRVtest6() {
     call(TestHTTPGet, resp, st.port, "/hello.c");
     want(u8bDataLen(resp) > 0);
 
-    u8cs raw = {resp[1], resp[2]};
+    u8cs raw = {u8bDataHead(resp), u8bIdleHead(resp)};
     a_cstr(expected, "int x = 99;\n");
     want($len(raw) == $len(expected));
     want(memcmp(raw[0], expected[0], $len(expected)) == 0);

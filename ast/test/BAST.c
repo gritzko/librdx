@@ -44,7 +44,7 @@ ok64 BASTtestTextRoundtrip() {
         call(BASTParse, pad, idx, src, ext);
 
         // Read back: open, iterate all string children, concatenate
-        u8cs dat = {pad[1], pad[2]};
+        u8cs dat = {u8bDataHead(pad), u8bIdleHead(pad)};
         call(BASONOpen, stk, dat);
 
         u8 type;
@@ -60,7 +60,7 @@ ok64 BASTtestTextRoundtrip() {
             call(u8bFeed, cat, val);
         }
 
-        u8cs result = {cat[1], cat[2]};
+        u8cs result = {u8bDataHead(cat), u8bIdleHead(cat)};
         testeq((size_t)$len(result), (size_t)$len(src));
         if ($len(src) > 0)
             testeq(0, memcmp(result[0], src[0], $len(src)));
@@ -84,7 +84,7 @@ ok64 BASTtestTextTokens() {
     };
     size_t nexp = sizeof(expected) / sizeof(expected[0]);
 
-    u8cs dat = {pad[1], pad[2]};
+    u8cs dat = {u8bDataHead(pad), u8bIdleHead(pad)};
     call(BASONOpen, stk, dat);
 
     u8 type;
@@ -119,7 +119,7 @@ ok64 BASTtestNameTag() {
     call(BASTParse, pad, idx, src, ext);
 
     // Walk entire BASON tree, collect 'F' (name) leaf values
-    u8cs dat = {pad[1], pad[2]};
+    u8cs dat = {u8bDataHead(pad), u8bIdleHead(pad)};
     call(BASONOpen, stk, dat);
 
     int f_count = 0;
@@ -160,7 +160,7 @@ ok64 BASTtestNameTag() {
     u64bReset(idx);
     call(BASTParse, pad, idx, src, ext);
 
-    u8cs dat2 = {pad[1], pad[2]};
+    u8cs dat2 = {u8bDataHead(pad), u8bIdleHead(pad)};
     call(BASONOpen, stk, dat2);
 
     a_pad(u8, cat, 65536);
@@ -184,7 +184,7 @@ ok64 BASTtestNameTag() {
         }
     }
 
-    u8cs result = {cat[1], cat[2]};
+    u8cs result = {u8bDataHead(cat), u8bIdleHead(cat)};
     testeq((size_t)$len(result), (size_t)$len(src));
     testeq(0, memcmp(result[0], src[0], $len(src)));
 
@@ -219,7 +219,7 @@ ok64 BASTtestMDRoundtrip() {
 
         call(BASTParse, pad, idx, src, ext);
 
-        u8cs dat = {pad[1], pad[2]};
+        u8cs dat = {u8bDataHead(pad), u8bIdleHead(pad)};
         call(BASONOpen, stk, dat);
 
         a_pad(u8, cat, 65536);
@@ -243,7 +243,7 @@ ok64 BASTtestMDRoundtrip() {
             }
         }
 
-        u8cs result = {cat[1], cat[2]};
+        u8cs result = {u8bDataHead(cat), u8bIdleHead(cat)};
         testeq((size_t)$len(result), (size_t)$len(src));
         if ($len(src) > 0)
             testeq(0, memcmp(result[0], src[0], $len(src)));
@@ -262,7 +262,7 @@ ok64 BASTtestMDStructure() {
     u8cs ext = $u8str(".md");
     call(BASTParse, pad, idx, src, ext);
 
-    u8cs dat = {pad[1], pad[2]};
+    u8cs dat = {u8bDataHead(pad), u8bIdleHead(pad)};
     call(BASONOpen, stk, dat);
 
     b8 found_Y = NO;   // heading (bold)

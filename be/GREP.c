@@ -375,10 +375,10 @@ ok64 BASTDiffRender(u8s out, u8cs bason_data, int k) {
 
     a_pad(u8, _de, 16);
     escfeedBG256(_de_idle, HILI_DEL_BG);
-    u8cs DEL = {_de[1], _de[2]};
+    u8cs DEL = {u8bDataHead(_de), u8bIdleHead(_de)};
     a_pad(u8, _ae, 16);
     escfeedBG256(_ae_idle, HILI_ADD_BG);
-    u8cs ADD = {_ae[1], _ae[2]};
+    u8cs ADD = {u8bDataHead(_ae), u8bIdleHead(_ae)};
     u8cs RST = $u8str("\033[0m");
 
     // === Pass 1: build line table + mark changed lines ===
@@ -532,10 +532,10 @@ ok64 BASTTextDiff(u8s out, u8cs old_text, u8cs new_text, int k) {
 
     a_pad(u8, _de, 16);
     escfeedBG256(_de_idle, HILI_DEL_BG);
-    u8cs DEL = {_de[1], _de[2]};
+    u8cs DEL = {u8bDataHead(_de), u8bIdleHead(_de)};
     a_pad(u8, _ae, 16);
     escfeedBG256(_ae_idle, HILI_ADD_BG);
-    u8cs ADD = {_ae[1], _ae[2]};
+    u8cs ADD = {u8bDataHead(_ae), u8bIdleHead(_ae)};
     u8cs RST = $u8str("\033[0m");
     u8cs SEP = $u8str("\033[34m--\033[0m\n");
 
@@ -693,7 +693,7 @@ static ok64 BEGrepBitset(BEp be, u8 bitset[512], u8cs *trigrams, int tric) {
 
         u8 tri_bits[512];
         memset(tri_bits, 0, sizeof(tri_bits));
-        u8cs tval = {tbuf[1], tbuf[2]};
+        u8cs tval = {u8bDataHead(tbuf), u8bIdleHead(tbuf)};
         aBpad(u64, tstk, 32);
         call(BASONOpen, tstk, tval);
         u8 ttype = 0;
@@ -762,7 +762,7 @@ static ok64 BEGrepStatCB(voidp arg, u8cs relpath, BEstat cached) {
     u8bReset(mbuf);
     ok64 go = BEGetFileMerged(be, be->loc.path, relpath, mbuf, NULL);
     if (go != OK) return OK;  // skip on error
-    u8cp m0 = mbuf[1], m1 = mbuf[2];
+    u8cp m0 = u8bDataHead(mbuf), m1 = u8bIdleHead(mbuf);
     u8cs bason = {m0, m1};
     if ($empty(bason)) return OK;
 
@@ -771,7 +771,7 @@ static ok64 BEGrepStatCB(voidp arg, u8cs relpath, BEstat cached) {
     u8bReset(rbuf);
     aBpad(u64, stk, 256);
     if (BASTExport(u8bIdle(rbuf), stk, bason) != OK) return OK;
-    u8cp t0 = rbuf[1], t1 = rbuf[2];
+    u8cp t0 = u8bDataHead(rbuf), t1 = u8bIdleHead(rbuf);
     u8cs txt = {t0, t1};
     size_t qlen = $len(ctx->query);
     if ($len(txt) < qlen) return OK;

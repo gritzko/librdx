@@ -233,7 +233,7 @@ static ok64 rdxCopyToSKIL_(rdxp out, rdxp from, int fd, u8bp buf,
             // Sync gauge with buffer: bulk gauge tracks DataIdle boundary
             size_t datalen = u8bDataLen(buf);
             if (datalen >= threshold) {
-                ssize_t written = write(fd, buf[1], datalen);
+                ssize_t written = write(fd, u8bDataHead(buf), datalen);
                 if (written < 0) fail(FILEerror);
                 // Reset buffer after flush (data written to file)
                 u8bReset(buf);
@@ -268,7 +268,7 @@ ok64 rdxCopyToSKIL(rdxp from, int fd, u8bp buf, size_t threshold) {
     // Final flush: write remaining data
     size_t datalen = u8bDataLen(buf);
     if (datalen > 0) {
-        ssize_t written = write(fd, buf[1], datalen);
+        ssize_t written = write(fd, u8bDataHead(buf), datalen);
         if (written < 0) fail(FILEerrno(errno));
         if ((size_t)written != datalen) fail(RDXBADFILE);
     }
@@ -346,7 +346,7 @@ static ok64 rdxCopySKILs_(rdxp out, rdxg ins, int fd, u8bp buf,
             // Sync gauge with buffer: bulk gauge tracks DataIdle boundary
             size_t datalen = u8bDataLen(buf);
             if (datalen >= threshold) {
-                ssize_t written = write(fd, buf[1], datalen);
+                ssize_t written = write(fd, u8bDataHead(buf), datalen);
                 if (written < 0) fail(FILEerror);
                 u8bReset(buf);
                 // Reinit bulk to the buffer
@@ -381,7 +381,7 @@ ok64 rdxCopySKILs(rdxg inputs, int fd, u8bp buf, size_t threshold) {
     // Final flush
     size_t datalen = u8bDataLen(buf);
     if (datalen > 0) {
-        ssize_t written = write(fd, buf[1], datalen);
+        ssize_t written = write(fd, u8bDataHead(buf), datalen);
         if (written < 0) fail(FILEerrno(errno));
         if ((size_t)written != datalen) fail(RDXBADFILE);
     }

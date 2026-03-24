@@ -27,8 +27,8 @@ static ok64 borgeLoadFile(u8bp bson, u64bp idx,
     u8bFeed1(path, 0);
     u8bShed1(path);
     call(FILEMapRO, mapped, path8cgIn(path));
-    u8cp d0 = (*mapped)[1];
-    u8cp d1 = (*mapped)[2];
+    u8cp d0 = u8bDataHead(*mapped);
+    u8cp d1 = u8bIdleHead(*mapped);
     u8cs data = {d0, d1};
     if (borgeIsJSON(data)) {
         call(BASONParseJSON, bson, idx, data);
@@ -69,8 +69,8 @@ ok64 borgecli() {
     u64 _rstk[256];
     u64b rstk = {_rstk, _rstk, _rstk, _rstk + 256};
 
-    u8cp ld0 = lbuf[1], ld1 = lbuf[2];
-    u8cp rd0 = rbuf[1], rd1 = rbuf[2];
+    u8cp ld0 = u8bDataHead(lbuf), ld1 = u8bIdleHead(lbuf);
+    u8cp rd0 = u8bDataHead(rbuf), rd1 = u8bIdleHead(rbuf);
     u8cs ld = {ld0, ld1};
     u8cs rd = {rd0, rd1};
     call(BASONMerge, out, oidx, lstk, ld, rstk, rd);
@@ -79,10 +79,10 @@ ok64 borgecli() {
     call(u8bMap, jbuf, BORGE_BUF_LEN);
     u64 _jstk[256];
     u64b jstk = {_jstk, _jstk, _jstk, _jstk + 256};
-    u8cp m0 = out[1], m1 = out[2];
+    u8cp m0 = u8bDataHead(out), m1 = u8bIdleHead(out);
     u8cs merged = {m0, m1};
     call(BASONExportJSON, u8bIdle(jbuf), jstk, merged);
-    u8cp j0 = jbuf[1], j1 = jbuf[2];
+    u8cp j0 = u8bDataHead(jbuf), j1 = u8bIdleHead(jbuf);
     u8cs jout = {j0, j1};
     call(FILEFeedall, STDOUT_FILENO, jout);
     u8cs nl = $u8str("\n");

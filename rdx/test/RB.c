@@ -173,7 +173,7 @@ ok64 RBTestWrite() {
 
     // Now read back and verify sorted order: alice, bob, charlie
     // Reset buffer for reading (write pos becomes data boundary)
-    u8b read_buf = {storage[0], storage[0], rb_buf[2], storage[3]};
+    u8b read_buf = {storage[0], storage[0], u8bIdleHead(rb_buf), storage[3]};
 
     rdx reader = {};
     rdxInit(&reader, RDX_FMT_RB, read_buf);
@@ -307,7 +307,7 @@ ok64 RBTestCreateNew() {
     call(rdxWriteOutoRB, &seeker, &writer);  // sync write position back
 
     // After creation, read back and verify "bob" exists in sorted order
-    u8b read_buf = {storage[0], storage[0], rb_buf[2], storage[3]};
+    u8b read_buf = {storage[0], storage[0], u8bIdleHead(rb_buf), storage[3]};
 
     rdx reader = {};
     rdxInit(&reader, RDX_FMT_RB, read_buf);
@@ -390,7 +390,7 @@ ok64 RBTestCrashRepros() {
         testeq(o, END);
 
         // Read back and count elements
-        u8b rb_rbuf = {rb_storage[0], rb_storage[0], rb_buf[2], rb_storage[3]};
+        u8b rb_rbuf = {rb_storage[0], rb_storage[0], u8bIdleHead(rb_buf), rb_storage[3]};
         rdx rb_r = {};
         rdxInit(&rb_r, RDX_FMT_RB, rb_rbuf);
         rb_r.ptype = 0;

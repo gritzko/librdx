@@ -111,19 +111,19 @@ typedef struct bason {
 typedef bason* basonp;
 
 fun ok64 basonOpen(basonp x) {
-    u8cs d = {x->data[1], x->data[2]};
+    u8cs d = {u8bDataHead(x->data), u8bIdleHead(x->data)};
     return BASONOpen(x->stack, d);
 }
 
 fun ok64 basonDrain(basonp x) {
     x->ptype = x->type;
-    u8cs d = {x->data[1], x->data[2]};
+    u8cs d = {u8bDataHead(x->data), u8bIdleHead(x->data)};
     return BASONDrain(x->stack, d, &x->type, x->key, x->val);
 }
 
 fun ok64 basonInto(basonp x) {
     if (!BASONCollection(x->type)) return BASONBAD;
-    u8cs d = {x->data[1], x->data[2]};
+    u8cs d = {u8bDataHead(x->data), u8bIdleHead(x->data)};
     ok64 o = BASONInto(x->stack, d, x->val);
     if (o == OK) x->ptype = x->type;
     return o;
@@ -134,7 +134,7 @@ fun ok64 basonOuto(basonp x) {
 }
 
 fun ok64 basonSeek(basonp x, u8csc target) {
-    u8cs d = {x->data[1], x->data[2]};
+    u8cs d = {u8bDataHead(x->data), u8bIdleHead(x->data)};
     return BASONSeek(x->stack, d, target);
 }
 

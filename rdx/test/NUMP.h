@@ -41,8 +41,8 @@ fun ok64 NUMPFeedPair(rdxp parent, i64 n) {
     // Value: STRING = "n in words"
     call(NUMu8sFeed, u8bIdle(wordbuf), n);
     c.type = RDX_TYPE_STRING;
-    c.s[0] = (u8c*)wordbuf[1];
-    c.s[1] = (u8c*)wordbuf[2];
+    c.s[0] = (u8c*)u8bDataHead(wordbuf);
+    c.s[1] = (u8c*)u8bIdleHead(wordbuf);
     c.flags = RDX_UTF_ENC_UTF8;
     c.id.seq = 1;
     call(rdxWriteNextSLIK, &c);

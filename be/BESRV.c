@@ -66,7 +66,7 @@ static short BESRVError(BEClientp cl, u8cs status_line) {
         u8bReset(cl->wbuf);
     }
     u8sFeed(u8bIdle(cl->wbuf), status_line);
-    u8cp d0 = cl->wbuf[1], d1 = cl->wbuf[2];
+    u8cp d0 = u8bDataHead(cl->wbuf), d1 = u8bIdleHead(cl->wbuf);
     cl->pending[0] = d0;
     cl->pending[1] = d1;
     cl->phase = BESRV_PHASE_WRITE;
@@ -139,7 +139,7 @@ static ok64 BESRVFillBuf(BEClientp cl) {
 
     if (!ROCKIterValid(&cl->it)) cl->iter_done = YES;
 
-    u8cp d0 = cl->wbuf[1], d1 = cl->wbuf[2];
+    u8cp d0 = u8bDataHead(cl->wbuf), d1 = u8bIdleHead(cl->wbuf);
     cl->pending[0] = d0;
     cl->pending[1] = d1;
     done;
@@ -254,11 +254,11 @@ static short BESRVReadHeaders(BEClientp cl, poller *p) {
         p->callback = NULL;
         return 0;
     }
-    cl->rbuf[2] += n;
+    ((u8**)cl->rbuf)[2] += n;
 
     // Scan for \r\n\r\n in rbuf data
-    u8cp d0 = cl->rbuf[1];
-    u8cp d1 = cl->rbuf[2];
+    u8cp d0 = u8bDataHead(cl->rbuf);
+    u8cp d1 = u8bIdleHead(cl->rbuf);
     for (u8cp pp = d0; pp + 3 < d1; pp++) {
         if (pp[0] == '\r' && pp[1] == '\n' && pp[2] == '\r' &&
             pp[3] == '\n') {
@@ -271,8 +271,8 @@ static short BESRVReadHeaders(BEClientp cl, poller *p) {
 
 // ---- Dispatch: parse headers, route to handler ----
 static short BESRVDispatch(BEClientp cl, poller *p) {
-    u8cp d0 = cl->rbuf[1];
-    u8cp d1 = cl->rbuf[2];
+    u8cp d0 = u8bDataHead(cl->rbuf);
+    u8cp d1 = u8bIdleHead(cl->rbuf);
     u8cs request = {d0, d1};
 
     // Parse HTTP request
@@ -337,7 +337,7 @@ static short BESRVDispatch(BEClientp cl, poller *p) {
         // Parse Content-Length
         u8cs cl_val = {};
         a_cstr(cl_key, "Content-Length");
-        u8css hdrs = {hdr_pairs, hdr_store[2]};
+        u8css hdrs = {hdr_pairs, u8bIdleHead(hdr_store)};
         o = HTTPfind(&cl_val, cl_key, hdrs);
         if (o != OK || $empty(cl_val)) {
             a_cstr(err,
@@ -406,7 +406,7 @@ static short BESRVReadBody(BEClientp cl, poller *p) {
         a_cstr(err, "HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n");
         return BESRVError(cl, err);
     }
-    cl->rbuf[2] += n;
+    ((u8**)cl->rbuf)[2] += n;
 
     // Check if body complete
     size_t have = u8bDataLen(cl->rbuf) - cl->hdr_len;
@@ -516,7 +516,7 @@ static short BESRVSetupStream(BEClientp cl, poller *p,
     // Fill initial data after headers
     // (FillBuf resets wbuf, so we need to do first fill differently)
     // Instead, just set pending to the headers for now, fill on next callback
-    u8cp d0 = cl->wbuf[1], d1 = cl->wbuf[2];
+    u8cp d0 = u8bDataHead(cl->wbuf), d1 = u8bIdleHead(cl->wbuf);
     cl->pending[0] = d0;
     cl->pending[1] = d1;
 
@@ -557,7 +557,7 @@ static short BESRVProcessRaw(BEClientp cl, poller *p, ron120cs formcs) {
         return BESRVError(cl, err);
     }
 
-    u8cp m0 = merged[1], m1 = merged[2];
+    u8cp m0 = u8bDataHead(merged), m1 = u8bIdleHead(merged);
     u8cs bason = {m0, m1};
     aBpad(u64, stk, 256);
     o = BASTExport(u8bIdle(outbuf), stk, bason);
@@ -570,7 +570,7 @@ static short BESRVProcessRaw(BEClientp cl, poller *p, ron120cs formcs) {
     }
 
     // Build HTTP response with Content-Length
-    u8cp s0 = outbuf[1], s1 = outbuf[2];
+    u8cp s0 = u8bDataHead(outbuf), s1 = u8bIdleHead(outbuf);
     size_t bodylen = (size_t)(s1 - s0);
     const char *mime = MIMEByPath(cl->http_path);
     char hdrbuf[256];
@@ -599,7 +599,7 @@ static short BESRVProcessRaw(BEClientp cl, poller *p, ron120cs formcs) {
     // Free rbuf — done with input
     u8bFree(cl->rbuf);
 
-    u8cp d0 = cl->wbuf[1], d1 = cl->wbuf[2];
+    u8cp d0 = u8bDataHead(cl->wbuf), d1 = u8bIdleHead(cl->wbuf);
     cl->pending[0] = d0;
     cl->pending[1] = d1;
     cl->phase = BESRV_PHASE_WRITE;
@@ -712,7 +712,7 @@ static short BESRVProcessDir(BEClientp cl, poller *p) {
     ROCKIterClose(&it);
 
     // Build response into wbuf
-    u8cp bd0 = outbuf[1], bd1 = outbuf[2];
+    u8cp bd0 = u8bDataHead(outbuf), bd1 = u8bIdleHead(outbuf);
     size_t bodylen = (size_t)(bd1 - bd0);
     char hdrbuf[256];
     int hlen = snprintf(hdrbuf, sizeof(hdrbuf),
@@ -739,7 +739,7 @@ static short BESRVProcessDir(BEClientp cl, poller *p) {
     // Free rbuf — done with input
     u8bFree(cl->rbuf);
 
-    u8cp d0 = cl->wbuf[1], d1 = cl->wbuf[2];
+    u8cp d0 = u8bDataHead(cl->wbuf), d1 = u8bIdleHead(cl->wbuf);
     cl->pending[0] = d0;
     cl->pending[1] = d1;
     cl->phase = BESRV_PHASE_WRITE;
@@ -751,7 +751,7 @@ static short BESRVProcessDir(BEClientp cl, poller *p) {
 static short BESRVProcessPost(BEClientp cl, poller *p) {
     BESRVctxp ctx = cl->ctx;
 
-    u8cp d0 = cl->rbuf[1];
+    u8cp d0 = u8bDataHead(cl->rbuf);
     u8cp body_start = d0 + cl->hdr_len;
     u8cs source = {body_start, body_start + cl->content_len};
 
@@ -784,7 +784,7 @@ static short BESRVProcessPost(BEClientp cl, poller *p) {
         return 0;
     }
     u8sFeed(u8bIdle(cl->wbuf), resp);
-    u8cp w0 = cl->wbuf[1], w1 = cl->wbuf[2];
+    u8cp w0 = u8bDataHead(cl->wbuf), w1 = u8bIdleHead(cl->wbuf);
     cl->pending[0] = w0;
     cl->pending[1] = w1;
     cl->phase = BESRV_PHASE_WRITE;

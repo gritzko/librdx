@@ -183,7 +183,7 @@ static ok64 BECLIGet(uricp u) {
         u8bp result = be.scratch[BE_READ];
         u8bReset(result);
         call(BEGetFileMerged, &be, be.loc.path, relpath, result, NULL);
-        u8cs bason = {result[1], result[2]};
+        u8cs bason = {u8bDataHead(result), u8bIdleHead(result)};
         u8bp out = be.scratch[BE_RENDER];
         u8bReset(out);
         if (!$empty(u->fragment)) {
@@ -191,19 +191,19 @@ static ok64 BECLIGet(uricp u) {
             aBpad(u64, qidx, 256);
             u8cs frag = {u->fragment[0], u->fragment[1]};
             call(CSSParse, qbuf, qidx, frag);
-            u8cp qd0 = qbuf[1], qd1 = qbuf[2];
+            u8cp qd0 = u8bDataHead(qbuf), qd1 = u8bIdleHead(qbuf);
             u8cs query = {qd0, qd1};
             u8bp fbuf = be.scratch[BE_PARSE];
             u8bReset(fbuf);
             call(CSSMatch, fbuf, bason, query);
-            u8cp fd0 = fbuf[1], fd1 = fbuf[2];
+            u8cp fd0 = u8bDataHead(fbuf), fd1 = u8bIdleHead(fbuf);
             u8cs filtered = {fd0, fd1};
             call(CSSExport, u8bIdle(out), filtered);
         } else {
             aBpad(u64, stk, 256);
             call(BASTExport, u8bIdle(out), stk, bason);
         }
-        u8cs source = {out[1], out[2]};
+        u8cs source = {u8bDataHead(out), u8bIdleHead(out)};
         if (!$empty(source)) {
             fwrite(source[0], 1, $len(source), stdout);
         }
@@ -431,7 +431,7 @@ static ok64 BECLICat(uricp u) {
     u8bReset(result);
     call(BEGetFileMerged, &be, be.loc.path, relpath, result, NULL);
 
-    u8cs bason = {result[1], result[2]};
+    u8cs bason = {u8bDataHead(result), u8bIdleHead(result)};
 
     u8bp out = be.scratch[BE_RENDER];
     u8bReset(out);
@@ -446,13 +446,13 @@ static ok64 BECLICat(uricp u) {
         aBpad(u64, qidx, 256);
         u8cs frag = {u->fragment[0], u->fragment[1]};
         call(CSSParse, qbuf, qidx, frag);
-        u8cp qd0 = qbuf[1], qd1 = qbuf[2];
+        u8cp qd0 = u8bDataHead(qbuf), qd1 = u8bIdleHead(qbuf);
         u8cs query = {qd0, qd1};
         // Filter BASON into scratch buffer
         u8bp fbuf = be.scratch[BE_PARSE];
         u8bReset(fbuf);
         call(CSSMatch, fbuf, bason, query);
-        u8cp fd0 = fbuf[1], fd1 = fbuf[2];
+        u8cp fd0 = u8bDataHead(fbuf), fd1 = u8bIdleHead(fbuf);
         u8cs filtered = {fd0, fd1};
         if (use_color) {
             call(CSSCat, u8bIdle(out), filtered, relpath);
@@ -465,7 +465,7 @@ static ok64 BECLICat(uricp u) {
         call(BASTExport, u8bIdle(out), stk, bason);
     }
 
-    u8cs source = {out[1], out[2]};
+    u8cs source = {u8bDataHead(out), u8bIdleHead(out)};
 
     FILE *pager = NULL;
     int saved_stdout = -1;

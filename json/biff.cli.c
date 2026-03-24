@@ -38,8 +38,8 @@ static ok64 biffLoadFile(u8bp bson, u64bp idx,
     u8bFeed1(path, 0);
     u8bShed1(path);
     call(FILEMapRO, mapped, path8cgIn(path));
-    u8cp d0 = (*mapped)[1];
-    u8cp d1 = (*mapped)[2];
+    u8cp d0 = u8bDataHead(*mapped);
+    u8cp d1 = u8bIdleHead(*mapped);
     u8cs data = {d0, d1};
     if (biffIsJSON(data)) {
         call(BASONParseJSON, bson, idx, data);
@@ -88,13 +88,13 @@ ok64 biffcli() {
     u64 _nstk[256];
     u64b nstk = {_nstk, _nstk, _nstk, _nstk + 256};
 
-    u8cp od0 = obuf[1], od1 = obuf[2];
-    u8cp nd0 = nbuf[1], nd1 = nbuf[2];
+    u8cp od0 = u8bDataHead(obuf), od1 = u8bIdleHead(obuf);
+    u8cp nd0 = u8bDataHead(nbuf), nd1 = u8bIdleHead(nbuf);
     u8cs od = {od0, od1};
     u8cs nd = {nd0, nd1};
     call(BASONDiff, out, didx, ostk, od, nstk, nd, NULL);
 
-    u8cp df0 = out[1], df1 = out[2];
+    u8cp df0 = u8bDataHead(out), df1 = u8bIdleHead(out);
     u8cs diff = {df0, df1};
 
     if ($arglen == 4) {
@@ -128,7 +128,7 @@ ok64 biffcli() {
             } else {
                 call(BASONExportText, u8bIdle(xbuf), xstk, diff);
             }
-            u8cp x0 = xbuf[1], x1 = xbuf[2];
+            u8cp x0 = u8bDataHead(xbuf), x1 = u8bIdleHead(xbuf);
             u8cs xout = {x0, x1};
             a_pad(u8, ppath, FILE_PATH_MAX_LEN);
             call(u8bFeed, ppath, parg);
@@ -152,7 +152,7 @@ ok64 biffcli() {
         u64b rs1 = {_rs1, _rs1, _rs1, _rs1 + 256};
         u64b rs2 = {_rs2, _rs2, _rs2, _rs2 + 256};
         call(BASONDiffRender, u8bIdle(rbuf), rs1, od, rs2, diff);
-        u8cp r0 = rbuf[1], r1 = rbuf[2];
+        u8cp r0 = u8bDataHead(rbuf), r1 = u8bIdleHead(rbuf);
         u8cs rout = {r0, r1};
         call(FILEFeedall, STDOUT_FILENO, rout);
         u8bUnMap(rbuf);
@@ -167,7 +167,7 @@ ok64 biffcli() {
             u64 _jstk[256];
             u64b jstk = {_jstk, _jstk, _jstk, _jstk + 256};
             call(BASONExportJSON, u8bIdle(jbuf), jstk, diff);
-            u8cp j0 = jbuf[1], j1 = jbuf[2];
+            u8cp j0 = u8bDataHead(jbuf), j1 = u8bIdleHead(jbuf);
             u8cs jout = {j0, j1};
             call(FILEFeedall, STDOUT_FILENO, jout);
             u8cs nl = $u8str("\n");

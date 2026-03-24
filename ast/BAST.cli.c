@@ -48,7 +48,7 @@ ok64 bastcli() {
 
     u8bp mapped = NULL;
     call(FILEMapRO, &mapped, path8cgIn(path));
-    u8cp i0 = mapped[1], i1 = mapped[2];
+    u8cp i0 = u8bDataHead(mapped), i1 = u8bIdleHead(mapped);
     u8cs indata = {i0, i1};
 
     // Parse to BASON
@@ -62,7 +62,7 @@ ok64 bastcli() {
     u64b idx = {_idx, _idx, _idx, _idx + idxlen};
     call(BASTParse, bson, idx, indata, ext);
 
-    u8cp o0 = bson[1], o1 = bson[2];
+    u8cp o0 = u8bDataHead(bson), o1 = u8bIdleHead(bson);
     u8cs bdata = {o0, o1};
 
     // Determine output format: .json suffix or default (no arg = json to stdout)
@@ -87,7 +87,7 @@ ok64 bastcli() {
         u64 _stk[256];
         u64b stk = {_stk, _stk, _stk, _stk + 256};
         call(BASONExportJSON, u8bIdle(jbuf), stk, bdata);
-        u8cp j0 = jbuf[1], j1 = jbuf[2];
+        u8cp j0 = u8bDataHead(jbuf), j1 = u8bIdleHead(jbuf);
         u8cs jout = {j0, j1};
         call(FILEFeedall, outfd, jout);
         u8cs nl = $u8str("\n");

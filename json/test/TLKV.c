@@ -37,7 +37,7 @@ ok64 TLKVtestLongKey() {
     u8cs val = $u8str("v");
     call(TLKVFeed, u8bIdle(pad), 'S', key, val);
     // must be long form: first byte uppercase
-    testeq(*pad[1] & TLVaA, 0);
+    testeq(*u8bDataHead(pad) & TLVaA, 0);
     u8cs rkey, rval;
     u8 rtype;
     u8c **from = u8bDataC(pad);
@@ -55,7 +55,7 @@ ok64 TLKVtestLongVal() {
     u8cs key = $u8str("k");
     u8cs val = $u8str("0123456789abcdef");  // 16 bytes
     call(TLKVFeed, u8bIdle(pad), 'N', key, val);
-    testeq(*pad[1] & TLVaA, 0);
+    testeq(*u8bDataHead(pad) & TLVaA, 0);
     u8cs rkey, rval;
     u8 rtype;
     u8c **from = u8bDataC(pad);
@@ -117,9 +117,9 @@ ok64 TLKVtestMaxShort() {
     u8cs val = {vbuf, vbuf + 15};
     call(TLKVFeed, u8bIdle(pad), 'S', key, val);
     // should be short: tag has TLVaA bit
-    testeq(*pad[1] & TLVaA, TLVaA);
+    testeq(*u8bDataHead(pad) & TLVaA, TLVaA);
     // nibbles should be 0xFF
-    testeq(*(pad[1] + 1), 0xff);
+    testeq(*(u8bDataHead(pad) + 1), 0xff);
     testeq((size_t)u8bDataLen(pad), (size_t)(2 + 15 + 15));
     // roundtrip
     u8cs rkey, rval;
@@ -140,7 +140,7 @@ ok64 TLKVtestMinLong() {
     u8cs key = {kbuf, kbuf + 16};
     u8cs val = {(u8c *)kbuf, (u8c *)kbuf};  // empty
     call(TLKVFeed, u8bIdle(pad), 'O', key, val);
-    testeq(*pad[1] & TLVaA, 0);  // long form
+    testeq(*u8bDataHead(pad) & TLVaA, 0);  // long form
     u8cs rkey, rval;
     u8 rtype;
     u8c **from = u8bDataC(pad);
@@ -159,8 +159,8 @@ ok64 TLKVtestEmpty() {
     u8cs key = {&dummy, &dummy};  // empty
     u8cs val = {&dummy, &dummy};  // empty
     call(TLKVFeed, u8bIdle(pad), 'B', key, val);
-    testeq(*pad[1] & TLVaA, TLVaA);  // short form
-    testeq(*(pad[1] + 1), 0x00);     // nibbles = 0
+    testeq(*u8bDataHead(pad) & TLVaA, TLVaA);  // short form
+    testeq(*(u8bDataHead(pad) + 1), 0x00);     // nibbles = 0
     testeq((size_t)u8bDataLen(pad), (size_t)2);
     u8cs rkey, rval;
     u8 rtype;

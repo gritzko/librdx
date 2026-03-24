@@ -187,20 +187,22 @@ static ok64 u32bDigup(u32bp buf) {
     done;
 }
 
-static ok64 BIFFMergeLevelN(u8bp out, u64bp idx, u32bp heap) {
+static ok64 BIFFMergeLevelN(u8bp out, u64bp idx, u32bp heap,
+                            u32 n, u32g work) {
     sane(out != NULL && heap != NULL);
     BIFFcur *cs = _biff_curs;
 
     while (u32bDataLen(heap) > 0) {
-        // Pop minimum and all same-key entries
-        u32 popped[BIFFN_MAX];
+        // Carve popped[n] from workspace gauge
+        u32p popped = u32sHead(u32gRest(work));
+        call(u32gFed, work, n);
         u32 npop = 0;
         u32 first;
         call(BIFFHeapPop, &first, heap);
         popped[npop++] = first;
 
         while (u32bDataLen(heap) > 0) {
-            u32cp top = heap[1];
+            u32cp top = u32bDataHead(heap);
             if ($cmp(cs[first].key, cs[*top].key) != 0) break;
             u32 next;
             call(BIFFHeapPop, &next, heap);
@@ -252,7 +254,7 @@ static ok64 BIFFMergeLevelN(u8bp out, u64bp idx, u32bp heap) {
                         call(HEAPu32Push1Z, heap, i, BIFFcurZ);
                     }
                 }
-                call(BIFFMergeLevelN, out, idx, heap);
+                call(BIFFMergeLevelN, out, idx, heap, n, work);
                 for (u32 j = 0; j < npop; j++) {
                     call(BASONOuto, cs[popped[j]].stk);
                 }
@@ -280,6 +282,7 @@ static ok64 BIFFMergeLevelN(u8bp out, u64bp idx, u32bp heap) {
                 call(HEAPu32Push1Z, heap, i, BIFFcurZ);
             }
         }
+        call(u32gShed, work, n);
     }
     done;
 }
@@ -290,19 +293,21 @@ ok64 BASONMergeN(u8bp out, u64bp idx, u8css inputs) {
     if (n == 0) done;
     if (n > BIFFN_MAX) fail(BASONBAD);
 
-    BIFFcur curs[BIFFN_MAX];
-    u64 _stks[BIFFN_MAX * BIFFN_STK];
+    // All workspace sized for actual n, not BIFFN_MAX.
+    // Gauge work provides popped[n] at each recursion level.
+    BIFFcur curs[n];
+    aBpad(u64, stks, n * BIFFN_STK);
+    aBpad(u32, heap, n * 4 + 64);
+    aBpad(u32, wrk, n * 64);
     _biff_curs = curs;
 
-    u32 _heap[4096];
-    u32b heap = {_heap, _heap, _heap, _heap + 4096};
-
     for (u32 i = 0; i < n; i++) {
-        u64 *base = _stks + i * BIFFN_STK;
-        curs[i].stk[0] = base;
-        curs[i].stk[1] = base;
-        curs[i].stk[2] = base;
-        curs[i].stk[3] = base + BIFFN_STK;
+        u64sp stkidle = u64bIdle(stks);
+        curs[i].stk[0] = *stkidle;
+        curs[i].stk[1] = *stkidle;
+        curs[i].stk[2] = *stkidle;
+        curs[i].stk[3] = *stkidle + BIFFN_STK;
+        u64sFed(stkidle, BIFFN_STK);
         curs[i].data[0] = inputs[0][i][0];
         curs[i].data[1] = inputs[0][i][1];
 
@@ -316,7 +321,8 @@ ok64 BASONMergeN(u8bp out, u64bp idx, u8css inputs) {
         }
     }
 
-    call(BIFFMergeLevelN, out, idx, heap);
+    a_gauge(u32, work, u32bIdle(wrk));
+    call(BIFFMergeLevelN, out, idx, heap, n, work);
 
     _biff_curs = NULL;
     done;
@@ -326,7 +332,7 @@ ok64 BASONMergeY(u8s into, u8css inputs) {
     sane(u8sOK(into));
     u8b out = {into[0], into[0], into[0], into[1]};
     call(BASONMergeN, out, NULL, inputs);
-    into[0] = out[2];
+    into[0] = u8bIdleHead(out);
     done;
 }
 
@@ -521,11 +527,11 @@ static ok64 BIFFDiffDescend(u8bp out, u64bp idx,
     call(BASONOuto, nstk);
     call(BASONFeedOuto, idx, out);
     size_t after = u8bDataLen(out);
-    u8cs from2 = {out[1] + before, out[1] + after};
+    u8cs from2 = {u8bDataHead(out) + before, u8bDataHead(out) + after};
     u8 ct2; u8cs ck2, cv2;
     ok64 dr = TLKVDrain(from2, &ct2, ck2, cv2);
     if (dr == OK && $len(cv2) == 0) {
-        ((u8 **)out)[2] = out[1] + before;
+        ((u8 **)out)[2] = u8bDataHead(out) + before;
     }
     done;
 }
@@ -1068,7 +1074,7 @@ ok64 BASONDiff(u8bp out, u64bp idx,
     u64p mem = NULL;
     b8 need_free = NO;
     if (hbuf && u64bIdleLen(hbuf) >= total) {
-        mem = hbuf[2];
+        mem = u64bIdleHead(hbuf);
     } else {
         mem = (u64p)malloc(total * sizeof(u64));
         if (!mem) done;
@@ -1267,10 +1273,10 @@ static ok64 BIFFPrintFlush(u8s out, u8s del, u8p del0,
     sane(u8sOK(out));
     a_pad(u8, _de, 16);
     escfeedBG256(_de_idle, HILI_DEL_BG);
-    u8cs DELESC = {_de[1], _de[2]};
+    u8cs DELESC = {u8bDataHead(_de), u8bIdleHead(_de)};
     a_pad(u8, _ae, 16);
     escfeedBG256(_ae_idle, HILI_ADD_BG);
-    u8cs ADDESC = {_ae[1], _ae[2]};
+    u8cs ADDESC = {u8bDataHead(_ae), u8bIdleHead(_ae)};
     u8cs ds = {(u8cp)del0, (u8cp)del[0]};
     u8cs as = {(u8cp)add0, (u8cp)add[0]};
     if (!$empty(ds)) call(BIFFPrintColored, out, ds, DELESC);

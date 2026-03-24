@@ -50,7 +50,7 @@ ok64 basoncli() {
 
     u8bp mapped = NULL;
     call(FILEMapRO, &mapped, path8cgIn(path));
-    u8cp i0 = mapped[1], i1 = mapped[2];
+    u8cp i0 = u8bDataHead(mapped), i1 = u8bIdleHead(mapped);
     u8cs indata = {i0, i1};
 
     // Determine output format
@@ -71,7 +71,7 @@ ok64 basoncli() {
         u64 _idx[256];
         u64b idx = {_idx, _idx, _idx, _idx + 256};
         call(BASONParseJSON, bson, idx, indata);
-        u8cp b0 = bson[1], b1 = bson[2];
+        u8cp b0 = u8bDataHead(bson), b1 = u8bIdleHead(bson);
         bdata[0] = b0;
         bdata[1] = b1;
     } else {
@@ -107,7 +107,7 @@ ok64 basoncli() {
         } else {
             call(BASONExportText, u8bIdle(outbuf), stk, bdata);
         }
-        u8cp o0 = outbuf[1], o1 = outbuf[2];
+        u8cp o0 = u8bDataHead(outbuf), o1 = u8bIdleHead(outbuf);
         u8cs out = {o0, o1};
         if ($arglen == 3) {
             a$rg(oarg, 2);

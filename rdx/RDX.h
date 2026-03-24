@@ -461,19 +461,19 @@ fun void rdxNoInit(rdxp x, u8bp buf) {
     (void)buf;
 }
 fun void rdxInitReadTLV(rdxp x, u8bp buf) {
-    x->next = buf[1];
-    x->opt = buf[2];
+    x->next = u8bDataHead(buf);
+    x->opt = u8bIdleHead(buf);
 }
 fun void rdxInitWriteTLV(rdxp x, u8bp buf) { x->bulk = buf; }
 fun void rdxInitReadSKIL(rdxp x, u8bp buf) {
-    x->next = buf[1];
-    x->opt = buf[2];
+    x->next = u8bDataHead(buf);
+    x->opt = u8bIdleHead(buf);
     x->bulk = buf;
 }
 fun void rdxInitWriteSKIL(rdxp x, u8bp buf) { x->bulk = buf; }
 fun void rdxInitReadJDR(rdxp x, u8bp buf) {
-    x->next = buf[1];
-    x->opt = buf[2];
+    x->next = u8bDataHead(buf);
+    x->opt = u8bIdleHead(buf);
 }
 fun void rdxInitWriteJDR(rdxp x, u8bp buf) { x->bulk = buf; }
 
@@ -483,7 +483,7 @@ void rdxWriteInitSLIK(rdxp x, u8bp buf, u64bp stack);  // write
 ok64 rdxWriteFinishSLIK(rdxp x);                       // finalize root
 
 // Simple inits for VTABLE (just set bulk)
-fun void rdxInitReadSLIK(rdxp x, u8bp buf) { x->next = buf[1]; x->bulk = buf; }
+fun void rdxInitReadSLIK(rdxp x, u8bp buf) { x->next = u8bDataHead(buf); x->bulk = buf; }
 fun void rdxInitWriteSLIK(rdxp x, u8bp buf) { x->bulk = buf; }
 
 fun void rdxInitReadRB(rdxp x, u8bp buf) {

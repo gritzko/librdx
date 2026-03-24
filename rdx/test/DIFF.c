@@ -381,8 +381,8 @@ ok64 DIFFTestOne(diff_test const* t) {
     call(rdxCopy, &doc_write, &doc);
 
     rdx doc_verify = {.format = RDX_FMT_TLV};
-    doc_verify.next = doc_tlv[1];
-    doc_verify.opt = (u8p)doc_tlv[2];
+    doc_verify.next = u8bDataHead(doc_tlv);
+    doc_verify.opt = (u8p)u8bIdleHead(doc_tlv);
     doc_verify.bulk = NULL;
     ok64 v = rdxVerifyAll(&doc_verify);
     if (v != OK) {
@@ -392,8 +392,8 @@ ok64 DIFFTestOne(diff_test const* t) {
 
     // Use TLV doc for diffing
     rdx doc_read = {.format = RDX_FMT_TLV};
-    doc_read.next = doc_tlv[1];
-    doc_read.opt = (u8p)doc_tlv[2];
+    doc_read.next = u8bDataHead(doc_tlv);
+    doc_read.opt = (u8p)u8bIdleHead(doc_tlv);
     doc_read.bulk = NULL;
 
     // Parse neu
@@ -417,8 +417,8 @@ ok64 DIFFTestOne(diff_test const* t) {
     // Convert patch to JDR and verify against expected
     a_pad(u8, patch_jdr_buf, PAGESIZE);
     rdx patch_read = {.format = RDX_FMT_TLV};
-    patch_read.next = patch_buf[1];
-    patch_read.opt = (u8p)patch_buf[2];
+    patch_read.next = u8bDataHead(patch_buf);
+    patch_read.opt = (u8p)u8bIdleHead(patch_buf);
     patch_read.bulk = NULL;
     rdx jdr_write = {};
     rdxWriteInit(&jdr_write, RDX_FMT_JDR, patch_jdr_buf);
@@ -446,15 +446,15 @@ ok64 DIFFTestOne(diff_test const* t) {
     // Add doc as input (use TLV)
     call(rdxbFedP, inputs, &inp);
     inp->format = RDX_FMT_TLV;
-    inp->next = doc_tlv[1];
-    inp->opt = (u8p)doc_tlv[2];
+    inp->next = u8bDataHead(doc_tlv);
+    inp->opt = (u8p)u8bIdleHead(doc_tlv);
     inp->bulk = NULL;
 
     // Add patch as input
     call(rdxbFedP, inputs, &inp);
     inp->format = RDX_FMT_TLV;
-    inp->next = patch_buf[1];
-    inp->opt = (u8p)patch_buf[2];
+    inp->next = u8bDataHead(patch_buf);
+    inp->opt = (u8p)u8bIdleHead(patch_buf);
     inp->bulk = NULL;
 
     rdx merged = {.format = RDX_FMT_TLV | RDX_FMT_WRITE};
@@ -468,8 +468,8 @@ ok64 DIFFTestOne(diff_test const* t) {
     // Step 2: strip(merged)
     a_pad(u8, stripped_buf, PAGESIZE);
     rdx merged_read = {.format = RDX_FMT_TLV};
-    merged_read.next = merged_buf[1];
-    merged_read.opt = (u8p)merged_buf[2];
+    merged_read.next = u8bDataHead(merged_buf);
+    merged_read.opt = (u8p)u8bIdleHead(merged_buf);
     merged_read.bulk = NULL;
     rdx stripped = {.format = RDX_FMT_TLV | RDX_FMT_WRITE};
     stripped.bulk = stripped_buf;
@@ -478,8 +478,8 @@ ok64 DIFFTestOne(diff_test const* t) {
     // Step 3: Convert to JDR and compare with neu
     a_pad(u8, result_jdr, PAGESIZE);
     rdx stripped_read = {.format = RDX_FMT_TLV};
-    stripped_read.next = stripped_buf[1];
-    stripped_read.opt = (u8p)stripped_buf[2];
+    stripped_read.next = u8bDataHead(stripped_buf);
+    stripped_read.opt = (u8p)u8bIdleHead(stripped_buf);
     stripped_read.bulk = NULL;
     rdx result_write = {};
     rdxWriteInit(&result_write, RDX_FMT_JDR, result_jdr);

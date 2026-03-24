@@ -125,7 +125,7 @@ ok64 BESyncClone(u8cs remote_url, path8cg worktree) {
     u8cs files[256] = {};
     int file_count = 0;
     {
-        u8cp d0 = list_buf[1], d1 = list_buf[2];
+        u8cp d0 = u8bDataHead(list_buf), d1 = u8bIdleHead(list_buf);
         u8cp pos = d0;
         while (pos < d1 && file_count < 256) {
             u8cp eol = pos;
@@ -172,7 +172,7 @@ ok64 BESyncClone(u8cs remote_url, path8cg worktree) {
             result = wo;
             break;
         }
-        u8cp fd0 = file_buf[1], fd1 = file_buf[2];
+        u8cp fd0 = u8bDataHead(file_buf), fd1 = u8bIdleHead(file_buf);
         u8cs body = {fd0, fd1};
         if (!$empty(body)) {
             wo = FILEFeedall(fd, body);

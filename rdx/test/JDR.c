@@ -40,8 +40,8 @@ ok64 JDRTestRoundTripTable(u8cs* tests, u64 x64, char const* name) {
 
         // TLV -> JDR
         rdx tlv2 = {.format = RDX_FMT_TLV};
-        tlv2.next = tlv[1];      // data start
-        tlv2.opt = (u8p)tlv[2];  // idle start = data end
+        tlv2.next = u8bDataHead(tlv);      // data start
+        tlv2.opt = (u8p)u8bIdleHead(tlv);  // idle start = data end
         tlv2.bulk = NULL;
         rdx jdr2 = {};
         rdxWriteInit(&jdr2, RDX_FMT_JDR, jdrB);

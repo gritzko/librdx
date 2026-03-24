@@ -49,14 +49,14 @@ ok64 SLIK0() {
     //fprintf(stderr, "  after init: stack data=%zu past=%zu\n",
     // u64bDataLen(readstack), u64bPastLen(readstack));
     for (size_t k = 0; k < u64bDataLen(readstack); k++) {
-        //fprintf(stderr, "    [%zu] = %lu\n", k, readstack[1][k]);
+        //fprintf(stderr, "    [%zu] = %lu\n", k, u64bDataHead(readstack)[k]);
     }
     //fprintf(stderr, "  read next\n");
     call(rdxNextSLIK, &r);
     //fprintf(stderr, "  got type %d\n", r.type);
     //fprintf(stderr, "  after next: stack data=%zu\n", u64bDataLen(readstack));
     for (size_t k = 0; k < u64bDataLen(readstack); k++) {
-        //fprintf(stderr, "    [%zu] = %lu\n", k, readstack[1][k]);
+        //fprintf(stderr, "    [%zu] = %lu\n", k, u64bDataHead(readstack)[k]);
     }
     test(r.type == RDX_TYPE_EULER, RDXBAD);
 
@@ -67,7 +67,7 @@ ok64 SLIK0() {
     //fprintf(stderr, "  after into: stack data=%zu past=%zu\n",
     //        u64bDataLen(readstack), u64bPastLen(readstack));
     for (size_t k = 0; k < u64bDataLen(readstack); k++) {
-        //fprintf(stderr, "    [%zu] = %lu\n", k, readstack[1][k]);
+        //fprintf(stderr, "    [%zu] = %lu\n", k, u64bDataHead(readstack)[k]);
     }
     //fprintf(stderr, "  rc.next offset=%zu\n", (size_t)(rc.next - pad[1]));
     for (size_t i = 0; i < 3; i++) {
@@ -185,21 +185,21 @@ ok64 SLIK2() {
     //fprintf(stderr, "SLIK2: before into EULER, stack: data=%zu past=%zu\n",
             //u64bDataLen(readstack), u64bPastLen(readstack));
     //for (size_t k = 0; k < u64bDataLen(readstack); k++) {
-        //fprintf(stderr, "  [%zu] = %lu\n", k, readstack[1][k]);
+        //fprintf(stderr, "  [%zu] = %lu\n", k, u64bDataHead(readstack)[k]);
     //}
     rdx rc = {};
     call(rdxIntoSLIK, &rc, &r);
     //fprintf(stderr, "SLIK2: after into EULER, stack: data=%zu past=%zu\n",
     //        u64bDataLen(readstack), u64bPastLen(readstack));
     for (size_t k = 0; k < u64bDataLen(readstack); k++) {
-        //fprintf(stderr, "  [%zu] = %lu\n", k, readstack[1][k]);
+        //fprintf(stderr, "  [%zu] = %lu\n", k, u64bDataHead(readstack)[k]);
     }
     for (int j = 0; j < 3; j++) {
         //fprintf(stderr, "SLIK2: reading TUPLE %d\n", j);
         call(rdxNextSLIK, &rc);
         //fprintf(stderr, "SLIK2: got type=%d, stack: data=%zu\n", rc.type, u64bDataLen(readstack));
         for (size_t k = 0; k < u64bDataLen(readstack); k++) {
-            //fprintf(stderr, "  [%zu] = %lu\n", k, readstack[1][k]);
+            //fprintf(stderr, "  [%zu] = %lu\n", k, u64bDataHead(readstack)[k]);
         }
         test(rc.type == RDX_TYPE_TUPLE, RDXBAD);
 
@@ -209,7 +209,7 @@ ok64 SLIK2() {
         //fprintf(stderr, "SLIK2: into done, stack: data=%zu past=%zu\n",
         //        u64bDataLen(readstack), u64bPastLen(readstack));
         for (size_t k = 0; k < u64bDataLen(readstack); k++) {
-            //fprintf(stderr, "  [%zu] = %lu\n", k, readstack[1][k]);
+            //fprintf(stderr, "  [%zu] = %lu\n", k, u64bDataHead(readstack)[k]);
         }
 
         //fprintf(stderr, "SLIK2: reading INT\n");
@@ -232,7 +232,7 @@ ok64 SLIK2() {
         //fprintf(stderr, "SLIK2: outo done, stack: data=%zu past=%zu\n",
         //        u64bDataLen(readstack), u64bPastLen(readstack));
         for (size_t k = 0; k < u64bDataLen(readstack); k++) {
-            //fprintf(stderr, "  [%zu] = %lu\n", k, readstack[1][k]);
+            //fprintf(stderr, "  [%zu] = %lu\n", k, u64bDataHead(readstack)[k]);
         }
     }
     //fprintf(stderr, "SLIK2: checking EULER END\n");
@@ -333,7 +333,7 @@ ok64 SLIK4() {
             rdxIntoSLIK(&rc0, &r0);
             //fprintf(stderr, "SLIK4: child skip list len=%zu\n", u64bDataLen(readstack));
             //for (size_t k = 0; k < u64bDataLen(readstack) && k < 20; k++) {
-                //fprintf(stderr, "  [%zu] = %lu\n", k, readstack[1][k]);
+                //fprintf(stderr, "  [%zu] = %lu\n", k, u64bDataHead(readstack)[k]);
             //}
         }
         if (i % 1000 == 0) {

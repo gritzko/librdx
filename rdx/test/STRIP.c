@@ -115,7 +115,7 @@ ok64 test_strip_jdr(STRIPcase const* tc) {
     // Point STRIP's ins to JDR reader as source
     // Rest of pool is for child iterators
     strip->ins[0] = jdr_reader;
-    strip->ins[1] = readers[2];     // Child pool starts at idle
+    strip->ins[1] = rdxbIdleHead(readers);     // Child pool starts at idle
     strip->ins[2] = readers[3];     // Child pool ends at term
 
     // Set up output buffer and JDR writer
@@ -184,8 +184,8 @@ ok64 test_strip_trailing_empty() {
         a_pad(u8, tlv_out, 4096);
         {
             rdx from = {.format = RDX_FMT_TLV};
-            from.next = tlv_in[1];
-            from.opt = (u8p)tlv_in[2];
+            from.next = u8bDataHead(tlv_in);
+            from.opt = (u8p)u8bIdleHead(tlv_in);
             from.bulk = NULL;
             rdx into = {.format = RDX_FMT_TLV | RDX_FMT_WRITE};
             into.bulk = tlv_out;
@@ -196,8 +196,8 @@ ok64 test_strip_trailing_empty() {
         a_pad(u8, jdr_out, 4096);
         {
             rdx tlv = {.format = RDX_FMT_TLV};
-            tlv.next = tlv_out[1];
-            tlv.opt = (u8p)tlv_out[2];
+            tlv.next = u8bDataHead(tlv_out);
+            tlv.opt = (u8p)u8bIdleHead(tlv_out);
             tlv.bulk = NULL;
             rdx jdr = {};
             rdxWriteInit(&jdr, RDX_FMT_JDR, jdr_out);

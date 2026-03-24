@@ -29,7 +29,7 @@ ok64 BASONtestNextFlat() {
     call(TLKVFeed, u8bIdle(pad), 'N', k2, v2);
     call(TLKVFeed, u8bIdle(pad), 'B', k3, v3);
 
-    u8cs dat = {pad[1], pad[2]};
+    u8cs dat = {u8bDataHead(pad), u8bIdleHead(pad)};
     call(BASONOpen, stk, dat);
 
     u8 type; u8cs key, val;
@@ -62,7 +62,7 @@ ok64 BASONtestIntoOuto() {
     call(TLKVFeed, u8bIdle(pad), 'S', ckey, cval);
     call(TLKVOuto, pad);
 
-    u8cs dat = {pad[1], pad[2]};
+    u8cs dat = {u8bDataHead(pad), u8bIdleHead(pad)};
     call(BASONOpen, stk, dat);
     u8 type; u8cs key, val;
 
@@ -100,7 +100,7 @@ ok64 BASONtestSibling() {
     u8cs sk = $u8str("after"), sv = $u8str("ok");
     call(TLKVFeed, u8bIdle(pad), 'S', sk, sv);
 
-    u8cs dat = {pad[1], pad[2]};
+    u8cs dat = {u8bDataHead(pad), u8bIdleHead(pad)};
     call(BASONOpen, stk, dat);
     u8 type; u8cs key, val;
 
@@ -139,7 +139,7 @@ ok64 BASONtestNested() {
     call(TLKVOuto, pad);
     call(TLKVOuto, pad);
 
-    u8cs dat = {pad[1], pad[2]};
+    u8cs dat = {u8bDataHead(pad), u8bIdleHead(pad)};
     call(BASONOpen, stk, dat);
     u8 type; u8cs key, val;
 
@@ -188,7 +188,7 @@ ok64 BASONtestEarlyOuto() {
     u8cs sk = $u8str("end"), sv = $u8str("!");
     call(TLKVFeed, u8bIdle(pad), 'S', sk, sv);
 
-    u8cs dat = {pad[1], pad[2]};
+    u8cs dat = {u8bDataHead(pad), u8bIdleHead(pad)};
     call(BASONOpen, stk, dat);
     u8 type; u8cs key, val;
 
@@ -262,7 +262,7 @@ ok64 BASONtestNestedSiblings() {
     call(TLKVFeed, u8bIdle(pad), 'S', zk, zv);
     call(TLKVOuto, pad);
 
-    u8cs dat = {pad[1], pad[2]};
+    u8cs dat = {u8bDataHead(pad), u8bIdleHead(pad)};
     call(BASONOpen, stk, dat);
     u8 type; u8cs key, val;
 
@@ -312,7 +312,7 @@ ok64 BASONtestEmptyContainer() {
     call(TLKVInto, pad, 'O', objkey);
     call(TLKVOuto, pad);
 
-    u8cs dat = {pad[1], pad[2]};
+    u8cs dat = {u8bDataHead(pad), u8bIdleHead(pad)};
     call(BASONOpen, stk, dat);
     u8 type; u8cs key, val;
 
@@ -355,7 +355,7 @@ ok64 BASONtestWriteSeek() {
     call(BASONFeedOuto, idx, buf);
 
     // Read back: open, read container, Into, then seek
-    u8cs dat = {buf[1], buf[2]};
+    u8cs dat = {u8bDataHead(buf), u8bIdleHead(buf)};
     call(BASONOpen, rstk, dat);
 
     u8 type; u8cs key, val;
@@ -406,7 +406,7 @@ ok64 BASONtestSkipIndex() {
     call(BASONFeedOuto, idx, buf);
 
     // Read back and count data records (should skip X index)
-    u8cs dat = {buf[1], buf[2]};
+    u8cs dat = {u8bDataHead(buf), u8bIdleHead(buf)};
     call(BASONOpen, rstk, dat);
     u8 type; u8cs key, val;
 
@@ -452,7 +452,7 @@ ok64 BASONtestSeekAll() {
     // Verify >= 1MB
     test(u8bDataLen(buf) >= 1024 * 1024, BASONBAD);
 
-    u8cs dat = {buf[1], buf[2]};
+    u8cs dat = {u8bDataHead(buf), u8bIdleHead(buf)};
 
     // Seek and verify every element
     for (int i = 0; i < N; i++) {
@@ -504,7 +504,7 @@ ok64 BASONtestParseString() {
     u8cs json = $u8str("\"hello\"");
     call(BASONParseJSON, pad, idx, json);
 
-    u8cs dat = {pad[1], pad[2]};
+    u8cs dat = {u8bDataHead(pad), u8bIdleHead(pad)};
     call(BASONOpen, stk, dat);
     u8 type; u8cs key, val;
     call(BASONDrain, stk, dat, &type, key, val);
@@ -528,7 +528,7 @@ ok64 BASONtestParseNumber() {
     u8cs json = $u8str("42");
     call(BASONParseJSON, pad, idx, json);
 
-    u8cs dat = {pad[1], pad[2]};
+    u8cs dat = {u8bDataHead(pad), u8bIdleHead(pad)};
     call(BASONOpen, stk, dat);
     u8 type; u8cs key, val;
     call(BASONDrain, stk, dat, &type, key, val);
@@ -551,7 +551,7 @@ ok64 BASONtestParseLiterals() {
         u64b idx = {_idx, _idx, _idx, _idx + 64};
         u8cs json = $u8str("true");
         call(BASONParseJSON, pad, idx, json);
-        u8cs dat = {pad[1], pad[2]};
+        u8cs dat = {u8bDataHead(pad), u8bIdleHead(pad)};
         call(BASONOpen, stk, dat);
         call(BASONDrain, stk, dat, &type, key, val);
         testeq(type, 'B');
@@ -565,7 +565,7 @@ ok64 BASONtestParseLiterals() {
         u64b idx = {_idx, _idx, _idx, _idx + 64};
         u8cs json = $u8str("false");
         call(BASONParseJSON, pad, idx, json);
-        u8cs dat = {pad[1], pad[2]};
+        u8cs dat = {u8bDataHead(pad), u8bIdleHead(pad)};
         call(BASONOpen, stk, dat);
         call(BASONDrain, stk, dat, &type, key, val);
         testeq(type, 'B');
@@ -579,7 +579,7 @@ ok64 BASONtestParseLiterals() {
         u64b idx = {_idx, _idx, _idx, _idx + 64};
         u8cs json = $u8str("null");
         call(BASONParseJSON, pad, idx, json);
-        u8cs dat = {pad[1], pad[2]};
+        u8cs dat = {u8bDataHead(pad), u8bIdleHead(pad)};
         call(BASONOpen, stk, dat);
         call(BASONDrain, stk, dat, &type, key, val);
         testeq(type, 'B');
@@ -598,7 +598,7 @@ ok64 BASONtestParseObject() {
     u8cs json = $u8str("{\"a\":\"b\",\"c\":\"d\"}");
     call(BASONParseJSON, pad, idx, json);
 
-    u8cs dat = {pad[1], pad[2]};
+    u8cs dat = {u8bDataHead(pad), u8bIdleHead(pad)};
     call(BASONOpen, stk, dat);
     u8 type; u8cs key, val;
 
@@ -635,7 +635,7 @@ ok64 BASONtestParseArray() {
     u8cs json = $u8str("[1,2,3]");
     call(BASONParseJSON, pad, idx, json);
 
-    u8cs dat = {pad[1], pad[2]};
+    u8cs dat = {u8bDataHead(pad), u8bIdleHead(pad)};
     call(BASONOpen, stk, dat);
     u8 type; u8cs key, val;
 
@@ -683,7 +683,7 @@ ok64 BASONtestParseNested() {
     u8cs json = $u8str("{\"arr\":[1,{\"x\":true}]}");
     call(BASONParseJSON, pad, idx, json);
 
-    u8cs dat = {pad[1], pad[2]};
+    u8cs dat = {u8bDataHead(pad), u8bIdleHead(pad)};
     call(BASONOpen, stk, dat);
     u8 type; u8cs key, val;
 
@@ -747,7 +747,7 @@ ok64 BASONtestParseEscapes() {
     u8cs json = $u8str("{\"k\":\"a\\tb\"}");
     call(BASONParseJSON, pad, idx, json);
 
-    u8cs dat = {pad[1], pad[2]};
+    u8cs dat = {u8bDataHead(pad), u8bIdleHead(pad)};
     call(BASONOpen, stk, dat);
     u8 type; u8cs key, val;
 
@@ -779,7 +779,7 @@ ok64 BASONtestParseRoundtrip() {
         "\"scores\":[100,200,300],\"addr\":{\"city\":\"NYC\"},\"x\":null}");
     call(BASONParseJSON, pad, idx, json);
 
-    u8cs dat = {pad[1], pad[2]};
+    u8cs dat = {u8bDataHead(pad), u8bIdleHead(pad)};
     call(BASONOpen, stk, dat);
     u8 type; u8cs key, val;
 
@@ -883,7 +883,7 @@ ok64 BASONtestExportObject() {
     u8cs json = $u8str("{\"a\":\"b\",\"c\":\"d\"}");
     call(BASONParseJSON, pad, idx, json);
 
-    u8cs dat = {pad[1], pad[2]};
+    u8cs dat = {u8bDataHead(pad), u8bIdleHead(pad)};
     u8 _out[1024];
     u8s out = {_out, _out + sizeof(_out)};
     call(BASONExportJSON, out, stk, dat);
@@ -903,7 +903,7 @@ ok64 BASONtestExportArray() {
     u8cs json = $u8str("[1,2,3]");
     call(BASONParseJSON, pad, idx, json);
 
-    u8cs dat = {pad[1], pad[2]};
+    u8cs dat = {u8bDataHead(pad), u8bIdleHead(pad)};
     u8 _out[1024];
     u8s out = {_out, _out + sizeof(_out)};
     call(BASONExportJSON, out, stk, dat);
@@ -923,7 +923,7 @@ ok64 BASONtestExportEscapes() {
     u8cs json = $u8str("{\"k\":\"a\\tb\"}");
     call(BASONParseJSON, pad, idx, json);
 
-    u8cs dat = {pad[1], pad[2]};
+    u8cs dat = {u8bDataHead(pad), u8bIdleHead(pad)};
     u8 _out[1024];
     u8s out = {_out, _out + sizeof(_out)};
     call(BASONExportJSON, out, stk, dat);
@@ -972,7 +972,7 @@ ok64 BASONtestJSONRoundtrip() {
         call(BASONParseJSON, pad, idx, cases[i]);
 
         // Export BASON → JSON
-        u8cs dat = {pad[1], pad[2]};
+        u8cs dat = {u8bDataHead(pad), u8bIdleHead(pad)};
         u8 _out[4096];
         u8s out = {_out, _out + sizeof(_out)};
         call(BASONExportJSON, out, stk, dat);

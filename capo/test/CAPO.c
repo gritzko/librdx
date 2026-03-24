@@ -76,7 +76,7 @@ ok64 CAPO2() {
 
     call(CAPOIndexFile, entries, source, ext, path);
 
-    size_t nentries = entries[2] - ebuf;
+    size_t nentries = u64bIdleHead(entries) - ebuf;
     want(nentries > 0);
 
     // All entries should have the same path hash

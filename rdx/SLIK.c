@@ -348,10 +348,10 @@ ok64 rdxWriteNextSLIK(rdxp x) {
         call(TLVFeedKeyVal, into, lit | TLVaA, id_datac, val_datac);
         // Sample after FIRST record for skip list
         // Pass "run" gauge: [container_start, write_pos, buf_end]
-        u8p run[3] = {(u8p)x->next, x->bulk[2], x->bulk[3]};
+        u8p run[3] = {(u8p)x->next, u8bIdleHead(x->bulk), x->bulk[3]};
         call(SLOGSample, u64bDataIdle(stack), run);
         // Sync back: if K record was written, run[1] advanced
-        u8sFed(u8bIdle(x->bulk), run[1] - x->bulk[2]);
+        u8sFed(u8bIdle(x->bulk), run[1] - u8bIdleHead(x->bulk));
     }
     done;
 }
@@ -366,11 +366,11 @@ ok64 rdxWriteIntoSLIK(rdxp c, rdxp p) {
     u64sUsedAll(u64bData(stack));
 
     // Child container starts at current write position
-    u8cp child_start = p->bulk[2];
+    u8cp child_start = u8bIdleHead(p->bulk);
 
     // Create fresh SLOG for child container
     // Pass "run" gauge starting at child_start
-    u8p child_run[3] = {(u8p)child_start, p->bulk[2], p->bulk[3]};
+    u8p child_run[3] = {(u8p)child_start, u8bIdleHead(p->bulk), p->bulk[3]};
     call(SLOGCreate, u64bDataIdle(stack), child_run);
 
     *c = (rdx){
@@ -413,7 +413,7 @@ ok64 rdxWriteOutoSLIK(rdxp c, rdxp p) {
     call(SLIKWriteClose, u64bDataIdle(stack), p->bulk);
 
     // After-C offset relative to parent's container start
-    u64 after_c = p->bulk[2] - p->next;
+    u64 after_c = u8bIdleHead(p->bulk) - p->next;
 
     // Pop parent stack from PAST
     u64 past_len = u64bPastLen(stack);
@@ -487,7 +487,7 @@ void rdxInitSLIK(rdxp x, u8bp buf, u64bp stack) {
     }
 
     // Find root 'c' close at end (read reclen from last byte)
-    u8 reclen = buf[1][end_pos - 1];
+    u8 reclen = u8bDataHead(buf)[end_pos - 1];
     if (reclen < 3 || reclen > end_pos) {
         *x = (rdx){.format = RDX_FMT_SLIK, .next = buf[1], .bulk = buf, .opt = (u8p)stack};
         return;
@@ -495,7 +495,7 @@ void rdxInitSLIK(rdxp x, u8bp buf, u64bp stack) {
 
     u64 c_off = end_pos - reclen;
     u64 c_end = 0;
-    u8csc stream = {buf[1], buf[1] + end_pos};
+    u8csc stream = {u8bDataHead(buf), u8bDataHead(buf) + end_pos};
 
     ok64 o = SLIKLoadClose(u64bDataIdle(stack), stream, c_off, &c_end);
     if (o != OK) {
@@ -508,7 +508,7 @@ void rdxInitSLIK(rdxp x, u8bp buf, u64bp stack) {
 
     *x = (rdx){
         .format = RDX_FMT_SLIK,
-        .next = buf[1],  // start of range
+        .next = u8bDataHead(buf),  // start of range
         .bulk = buf,
         .opt = (u8p)stack,
     };
@@ -529,7 +529,7 @@ ok64 rdxNextSLIK(rdxp x) {
     call(u64bPop, stack);
 
     // Check against c_offset (stack bottom)
-    u64 c_off = stack[1][0];
+    u64 c_off = u64bDataHead(stack)[0];
     if (cur_off >= c_off) {
         x->type = 0;
         return END;

@@ -30,11 +30,11 @@ ok64 SKILTest1() {
     call(rdxOuto, &i, &e);
 
     // Read: bulk points to buffer, next=data, opt=end
-    u8b read_buf = {pad[0], pad[0], write_buf[2], pad[3]};
+    u8b read_buf = {pad[0], pad[0], u8bIdleHead(write_buf), pad[3]};
     rdx e2 = {.format = RDX_FMT_SKIL,
-              .next = read_buf[1],
+              .next = u8bDataHead(read_buf),
               .bulk = read_buf,
-              .opt = (u8p)write_buf[2]};
+              .opt = (u8p)u8bIdleHead(write_buf)};
     call(rdxNext, &e2);
     test(e2.type == RDX_TYPE_EULER, RDXBAD);
     for (int j = 0; j < length; j++) {
@@ -97,11 +97,11 @@ ok64 SKILTestSkipPointers() {
     call(rdxOuto, &i, &e);
 
     // Verify we can read back all records sequentially
-    u8b read_buf = {pad[0], pad[0], write_buf[2], pad[3]};
+    u8b read_buf = {pad[0], pad[0], u8bIdleHead(write_buf), pad[3]};
     rdx e2 = {.format = RDX_FMT_SKIL,
-              .next = read_buf[1],
+              .next = u8bDataHead(read_buf),
               .bulk = read_buf,
-              .opt = (u8p)write_buf[2]};
+              .opt = (u8p)u8bIdleHead(write_buf)};
     call(rdxNext, &e2);
     test(e2.type == RDX_TYPE_EULER, RDXBAD);
 
@@ -150,11 +150,11 @@ ok64 SKILTestBinarySearch() {
     call(rdxOuto, &i, &e);
 
     // Read back and verify using binary search
-    u8b read_buf = {pad[0], pad[0], write_buf[2], pad[3]};
+    u8b read_buf = {pad[0], pad[0], u8bIdleHead(write_buf), pad[3]};
     rdx e2 = {.format = RDX_FMT_SKIL,
-              .next = read_buf[1],
+              .next = u8bDataHead(read_buf),
               .bulk = read_buf,
-              .opt = (u8p)write_buf[2]};
+              .opt = (u8p)u8bIdleHead(write_buf)};
     call(rdxNext, &e2);
     test(e2.type == RDX_TYPE_EULER, RDXBAD);
 
@@ -203,11 +203,11 @@ ok64 SKILTestLargeDataset() {
     call(rdxOuto, &i, &e);
 
     // Verify we can read it back sequentially
-    u8b read_buf = {pad[0], pad[0], write_buf[2], pad[3]};
+    u8b read_buf = {pad[0], pad[0], u8bIdleHead(write_buf), pad[3]};
     rdx e2 = {.format = RDX_FMT_SKIL,
-              .next = read_buf[1],
+              .next = u8bDataHead(read_buf),
               .bulk = read_buf,
-              .opt = (u8p)write_buf[2]};
+              .opt = (u8p)u8bIdleHead(write_buf)};
     call(rdxNext, &e2);
 
     // Read all records
@@ -239,11 +239,11 @@ ok64 SKILTestEdgeCases() {
     call(rdxInto, &i1, &e1);
     call(rdxOuto, &i1, &e1);  // No elements written
 
-    u8b read_buf1 = {pad1[0], pad1[0], write_buf1[2], pad1[3]};
+    u8b read_buf1 = {pad1[0], pad1[0], u8bIdleHead(write_buf1), pad1[3]};
     rdx e1r = {.format = RDX_FMT_SKIL,
-               .next = read_buf1[1],
+               .next = u8bDataHead(read_buf1),
                .bulk = read_buf1,
-               .opt = (u8p)write_buf1[2]};
+               .opt = (u8p)u8bIdleHead(write_buf1)};
     call(rdxNext, &e1r);
     test(e1r.type == RDX_TYPE_EULER, RDXBAD);
 
@@ -265,11 +265,11 @@ ok64 SKILTestEdgeCases() {
     call(rdxNext, &i2);
     call(rdxOuto, &i2, &e2);
 
-    u8b read_buf2 = {pad2[0], pad2[0], write_buf2[2], pad2[3]};
+    u8b read_buf2 = {pad2[0], pad2[0], u8bIdleHead(write_buf2), pad2[3]};
     rdx e2r = {.format = RDX_FMT_SKIL,
-               .next = read_buf2[1],
+               .next = u8bDataHead(read_buf2),
                .bulk = read_buf2,
-               .opt = (u8p)write_buf2[2]};
+               .opt = (u8p)u8bIdleHead(write_buf2)};
     call(rdxNext, &e2r);
     rdx i2r = {};
     call(rdxInto, &i2r, &e2r);
@@ -369,9 +369,9 @@ ok64 SKILTestTupleSeek() {
 
     // Read back and verify tuples are findable by seeking
     rdx e2 = {.format = RDX_FMT_SKIL,
-              .next = pad[1],       // data start
+              .next = u8bDataHead(pad),       // data start
               .bulk = pad,
-              .opt = (u8p)pad[2]};  // data end (current idle position)
+              .opt = (u8p)u8bIdleHead(pad)};  // data end (current idle position)
     call(rdxNext, &e2);
     test(e2.type == RDX_TYPE_EULER, RDXBAD);
 
