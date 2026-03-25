@@ -1,7 +1,16 @@
 #ifndef ABC_JS_H
 #define ABC_JS_H
+#include <poll.h>
 #include <stdlib.h>
+#include <time.h>
 #include <threads.h>
+
+// Include ABC C headers OUTSIDE the namespace first, so system types
+// (struct timespec, etc.) are defined in the global namespace.
+// Then ABC.hpp re-includes them (guarded) inside namespace abc.
+extern "C" {
+#include "abc/ABC.h"
+}
 
 #include "JavaScriptCore/JSBase.h"
 #include "JavaScriptCore/JSObjectRef.h"

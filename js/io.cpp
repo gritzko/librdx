@@ -365,7 +365,8 @@ JSValueRef JABCioNetConnect(JSContextRef ctx, JSObjectRef function,
     poller p = {
         .callback = JABCioNetOnConnect,
         .payload = JS_FILES + cfd,
-        .timeout_ms = 3000,
+        .deadline = POLNow() + 3000UL * POLNanosPerMSec,
+        .tofd = 0,
         .events = POLLOUT,
     };
     POLTrackEvents(cfd, p);
@@ -384,7 +385,7 @@ JSValueRef JABCioStdio(JSContextRef ctx, JSObjectRef function, JSObjectRef self,
     if (JABCio_STD[which] == NULL) {
         JSObjectRef fileObject = JABCioMakeFileObject(which, exception);
         poller p = {
-            .callback = io_callback, .payload = fileObject, .timeout_ms = 1000};
+            .callback = io_callback, .payload = fileObject, .deadline = POLNow() + 1000UL * POLNanosPerMSec};
         ok64 o = POLTrackEvents(which, p);
         JABCio_STD[which] = fileObject;
     }
@@ -407,7 +408,8 @@ JABC_FN_DEFINE(JABCioStdErr) {
 }
 
 void mmap_free(void* bytes, void* deallocatorContext) {
-    Bu8 buf = {(u8*)bytes, (u8*)bytes, (u8*)bytes, (u8*)deallocatorContext};
+    // deallocatorContext holds the u8bp pointer into FILE_WANT_BUFS
+    u8bp buf = (u8bp)deallocatorContext;
     FILEUnMap(buf);
 }
 
@@ -423,14 +425,19 @@ JSValueRef JABCioFileMap(JSContextRef ctx, JSObjectRef function,
     size_t len =
         JSStringGetUTF8CString((JSStringRef)args[0], (char*)page, PAGESIZE);
 
-    Bu8 buf = {};
+    u8bp buf = NULL;
     a_pad(u8, path, FILE_PATH_MAX_LEN);
     u8sFeedn(u8bIdle(path), page, len - 1);
-    ok64 o = FILEMapRO(buf, path);
+    path8gTerm(path8gIn(path));
+    ok64 o = FILEMapRO(&buf, path8cgIn(path));
+    if (o != OK || buf == NULL) {
+        *exception = JSOfCString("mmap failed");
+        return JSValueMakeUndefined(ctx);
+    }
     JSObjectRef fileObject =
         JSObjectMake(JABC_CONTEXT, JABC_IO_MAP_CLASS, NULL);
     JSValueRef ta = JSObjectMakeTypedArrayWithBytesNoCopy(
-        ctx, kJSTypedArrayTypeUint8Array, buf[0], Bsize(buf), mmap_free, buf[3],
+        ctx, kJSTypedArrayTypeUint8Array, u8bData(buf)[0], u8bDataLen(buf), mmap_free, (void*)buf,
         exception);
     if (*exception != NULL) return JSValueMakeUndefined(ctx);
     JSObjectSetPropertyForKey(ctx, fileObject, JSOfCString("buf"), ta,

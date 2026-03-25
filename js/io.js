@@ -42,7 +42,7 @@ io._tqdown = function () {
 }
 
 io.timer( function (now) {
-    console.log("TICK "+now);
+    //io.log("TICK "+now);
     var tq = io._tq;
     while (tq.length>0 && tq[0].ms<=now) {
         try {

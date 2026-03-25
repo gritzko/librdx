@@ -37,22 +37,21 @@ ok64 JABCioInstall();
 ok64 JABCioUninstall();
 ok64 JABCutf8Install();
 ok64 JABCutf8Uninstall();
-ok64 JABCrdxInstall();
-ok64 JABCrdxUninstall();
+// TODO: rdx module (was in brix.cpp, removed)
+// ok64 JABCrdxInstall();
+// ok64 JABCrdxUninstall();
 ok64 JABCtestInstall();
 ok64 JABCtestUninstall();
 
 ok64 JABCInstallModules() {
     JABCutf8Install();
     JABCioInstall();
-    JABCrdxInstall();
     JABCtestInstall();
     return 0;
 }
 
 ok64 JABCUninstallModules() {
     JABCtestUninstall();
-    JABCrdxUninstall();
     JABCioUninstall();
     JABCutf8Uninstall();
     return 0;

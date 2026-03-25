@@ -35,7 +35,7 @@ JSValueRef JABCutf8Decode(JSContextRef ctx, JSObjectRef function,
 ok64 JSu8bString(JSStringRef str, u8bp into) {
     u8sp idle = u8bIdle(into);
     size_t fact = JSStringGetUTF8CString(str, (char*)*idle, $len(idle));
-    if (fact < 1) return badarg;
+    if (fact < 1) return BADARG;
     idle[0] += fact - 1;
     return OK;
 }
