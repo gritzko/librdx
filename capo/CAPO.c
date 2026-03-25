@@ -129,13 +129,12 @@ ok64 CAPOIndexWrite(u8csc dir, u64cs run, u64 seqno) {
 
     a_pad(u8, path, FILE_PATH_MAX_LEN);
     call(u8bFeed, path, dir);
-    u8bFeed1(path, '/');
+    call(u8bFeed1, path, '/');
     call(RONu8sFeedPad, u8bIdle(path), seqno, CAPO_SEQNO_WIDTH);
     ((u8 **)path)[2] += CAPO_SEQNO_WIDTH;
     a_cstr(ext, CAPO_IDX_EXT);
     call(u8bFeed, path, ext);
-    u8bFeed1(path, 0);
-    u8bShed1(path);
+    call(path8gTerm, path8gIn(path));
 
     int fd = -1;
     call(FILECreate, &fd, path8cgIn(path));
@@ -151,8 +150,7 @@ ok64 CAPONextSeqno(u64p seqno, u8csc dir) {
     *seqno = 1;
 
     a_pad(u8, pat, FILE_PATH_MAX_LEN);
-    call(u8bFeed, pat, dir);
-    u8bFeed1(pat, 0);
+    call(path8gDup, path8gIn(pat), dir);
 
     int dfd = -1;
     ok64 o = FILEOpenDir(&dfd, path8cgIn(pat));
@@ -185,8 +183,7 @@ ok64 CAPOStackOpen(u64css stack, u8bp *maps, u32p nfiles, u8csc dir) {
     *nfiles = 0;
 
     a_pad(u8, dpat, FILE_PATH_MAX_LEN);
-    call(u8bFeed, dpat, dir);
-    u8bFeed1(dpat, 0);
+    call(path8gDup, path8gIn(dpat), dir);
 
     int dfd = -1;
     ok64 o = FILEOpenDir(&dfd, path8cgIn(dpat));
@@ -220,12 +217,9 @@ ok64 CAPOStackOpen(u64css stack, u8bp *maps, u32p nfiles, u8csc dir) {
 
     for (u32 i = 0; i < count; i++) {
         a_pad(u8, fpath, FILE_PATH_MAX_LEN);
-        call(u8bFeed, fpath, dir);
-        u8bFeed1(fpath, '/');
+        call(path8gDup, path8gIn(fpath), dir);
         u8cs fn = {(u8cp)names[i], (u8cp)names[i] + strlen(names[i])};
-        call(u8bFeed, fpath, fn);
-        u8bFeed1(fpath, 0);
-        u8bShed1(fpath);
+        call(path8gPush, path8gIn(fpath), fn);
 
         u8bp mapped = NULL;
         call(FILEMapRO, &mapped, path8cgIn(fpath));
@@ -295,8 +289,7 @@ ok64 CAPOCompact(u8csc dir) {
 
     // Collect filenames to unlink before closing mmaps
     a_pad(u8, dpat, FILE_PATH_MAX_LEN);
-    call(u8bFeed, dpat, dir);
-    u8bFeed1(dpat, 0);
+    call(path8gDup, path8gIn(dpat), dir);
 
     char fnames[CAPO_MAX_LEVELS][64];
     u32 fcount = 0;
@@ -339,13 +332,10 @@ ok64 CAPOCompact(u8csc dir) {
         // Skip the file we just wrote (highest seqno = last in sorted order)
         if (i == fcount) continue;
         a_pad(u8, ulpath, FILE_PATH_MAX_LEN);
-        call(u8bFeed, ulpath, dir);
-        u8bFeed1(ulpath, '/');
+        call(path8gDup, path8gIn(ulpath), dir);
         u8cs ulfn = {(u8cp)fnames[i - 1],
                      (u8cp)fnames[i - 1] + strlen(fnames[i - 1])};
-        call(u8bFeed, ulpath, ulfn);
-        u8bFeed1(ulpath, 0);
-        u8bShed1(ulpath);
+        call(path8gPush, path8gIn(ulpath), ulfn);
         unlink((char *)u8bDataHead(ulpath));
         unlinked++;
     }
@@ -372,24 +362,8 @@ ok64 CAPOCompact(u8csc dir) {
 
 // --- Reindex ---
 
-ok64 CAPOReindex(u8csc reporoot) {
-    sane($ok(reporoot));
-
-    fprintf(stderr, "capo: repo root %.*s\n",
-            (int)$len(reporoot), (char *)reporoot[0]);
-
-    a_pad(u8, capodir, FILE_PATH_MAX_LEN);
-    vcall("build capo dir", u8bFeed, capodir, reporoot);
-    a_cstr(suf, "/" CAPO_DIR);
-    vcall("build capo dir", u8bFeed, capodir, suf);
-    u8cs dirslice = {u8bDataHead(capodir), u8bIdleHead(capodir)};
-    u8bFeed1(capodir, 0);
-    u8bShed1(capodir);
-    vcall("mkdir", FILEMakeDirP, path8cgIn(capodir));
-    fprintf(stderr, "capo: index dir %s\n", (char *)u8bDataHead(capodir));
-
-    Bu64 entries = {};
-    vcall("mmap scratch", u64bMap, entries, CAPO_SCRATCH_LEN);
+static ok64 CAPOReindexWork(u8csc reporoot, u8csc dirslice, u64bp entries) {
+    sane($ok(reporoot) && $ok(dirslice) && entries != NULL);
 
     char cmdbuf[FILE_PATH_MAX_LEN + 32];
     int n = snprintf(cmdbuf, sizeof(cmdbuf), "git -C %.*s ls-files",
@@ -421,9 +395,7 @@ ok64 CAPOReindex(u8csc reporoot) {
 
         a_pad(u8, fpbuf, FILE_PATH_MAX_LEN);
         u8cs fps = {(u8cp)fpath, (u8cp)fpath + pn};
-        call(u8bFeed, fpbuf, fps);
-        u8bFeed1(fpbuf, 0);
-        u8bShed1(fpbuf);
+        call(path8gDup, path8gIn(fpbuf), fps);
 
         u8bp mapped = NULL;
         ok64 o = FILEMapRO(&mapped, path8cgIn(fpbuf));
@@ -456,12 +428,10 @@ ok64 CAPOReindex(u8csc reporoot) {
             u64s data = {u64bDataHead(entries), u64bIdleHead(entries)};
             $sort(data, u64cmp);
             u64cs run = {(u64cp)data[0], (u64cp)data[1]};
-            CAPOIndexWrite(dirslice, run, seqno++);
+            call(CAPOIndexWrite, dirslice, run, seqno++);
             total_entries += pending;
             fprintf(stderr, "capo: flushed %zu entries\n", pending);
-            // Reset scratch: data and idle pointers back to start
-            ((u64 **)entries)[1] = entries[0];
-            ((u64 **)entries)[2] = entries[0];
+            u64bReset(entries);
         }
     }
     pclose(fp);
@@ -472,43 +442,50 @@ ok64 CAPOReindex(u8csc reporoot) {
         u64s data = {u64bDataHead(entries), u64bIdleHead(entries)};
         $sort(data, u64cmp);
         u64cs run = {(u64cp)data[0], (u64cp)data[1]};
-        CAPOIndexWrite(dirslice, run, seqno++);
+        call(CAPOIndexWrite, dirslice, run, seqno++);
         total_entries += pending;
     }
-
-    u64bUnMap(entries);
 
     fprintf(stderr, "capo: indexed %u files, %zu entries, skipped %u, failed %u\n",
             indexed, total_entries, skipped, failed);
 
-    // Compact if we wrote multiple runs
     if (seqno > 2) {
         fprintf(stderr, "capo: compacting %llu runs\n",
                 (unsigned long long)(seqno - 1));
-        CAPOCompact(dirslice);
+        call(CAPOCompact, dirslice);
     }
 
     done;
 }
 
-// --- Parallel reindex: single proc ---
+ok64 CAPOReindex(u8csc reporoot) {
+    sane($ok(reporoot));
 
-ok64 CAPOReindexProc(u8csc reporoot, u32 nprocs, u32 proc) {
-    sane($ok(reporoot) && proc < nprocs && nprocs > 0);
-
-    fprintf(stderr, "capo[%u/%u]: starting\n", proc, nprocs);
+    fprintf(stderr, "capo: repo root %.*s\n",
+            (int)$len(reporoot), (char *)reporoot[0]);
 
     a_pad(u8, capodir, FILE_PATH_MAX_LEN);
-    vcall("build capo dir", u8bFeed, capodir, reporoot);
-    a_cstr(suf, "/" CAPO_DIR);
-    vcall("build capo dir", u8bFeed, capodir, suf);
+    call(path8gDup, path8gIn(capodir), reporoot);
+    a_cstr(capodirname, CAPO_DIR);
+    call(path8gPush, path8gIn(capodir), capodirname);
     u8cs dirslice = {u8bDataHead(capodir), u8bIdleHead(capodir)};
-    u8bFeed1(capodir, 0);
-    u8bShed1(capodir);
     vcall("mkdir", FILEMakeDirP, path8cgIn(capodir));
+    fprintf(stderr, "capo: index dir %s\n", (char *)u8bDataHead(capodir));
 
     Bu64 entries = {};
     vcall("mmap scratch", u64bMap, entries, CAPO_SCRATCH_LEN);
+
+    ok64 o = CAPOReindexWork(reporoot, dirslice, entries);
+
+    u64bUnMap(entries);
+    return o;
+}
+
+// --- Parallel reindex: single proc ---
+
+static ok64 CAPOReindexProcWork(u8csc reporoot, u8csc dirslice,
+                                u64bp entries, u32 nprocs, u32 proc) {
+    sane($ok(reporoot) && $ok(dirslice) && entries != NULL);
 
     char cmdbuf[FILE_PATH_MAX_LEN + 32];
     int n = snprintf(cmdbuf, sizeof(cmdbuf), "git -C %.*s ls-files",
@@ -543,9 +520,7 @@ ok64 CAPOReindexProc(u8csc reporoot, u32 nprocs, u32 proc) {
 
         a_pad(u8, fpbuf, FILE_PATH_MAX_LEN);
         u8cs fps = {(u8cp)fpath, (u8cp)fpath + pn};
-        call(u8bFeed, fpbuf, fps);
-        u8bFeed1(fpbuf, 0);
-        u8bShed1(fpbuf);
+        call(path8gDup, path8gIn(fpbuf), fps);
 
         u8bp mapped = NULL;
         ok64 o = FILEMapRO(&mapped, path8cgIn(fpbuf));
@@ -568,13 +543,12 @@ ok64 CAPOReindexProc(u8csc reporoot, u32 nprocs, u32 proc) {
         }
         u8c *codec[2] = {};
         BASTCodec(codec, ext);
-        size_t cur = u64bIdleHead(entries) - u64bDataHead(entries);
         fprintf(stderr, "OK\t%.*s\t%s\t(%zu entries)\n",
-                (int)$len(codec), (char*)codec[0], line, cur);
+                (int)$len(codec), (char*)codec[0], line, u64bDataLen(entries));
         indexed++;
 
         // Flush when large enough
-        size_t pending = u64bIdleHead(entries) - u64bDataHead(entries);
+        size_t pending = u64bDataLen(entries);
         if (pending >= CAPO_FLUSH_AT) {
             fprintf(stderr, "capo[%u/%u]: flushing %zu entries\n",
                     proc, nprocs, pending);
@@ -582,11 +556,10 @@ ok64 CAPOReindexProc(u8csc reporoot, u32 nprocs, u32 proc) {
             $sort(data, u64cmp);
             u64 seqno = (u64)nprocs * batch + proc + 1;
             u64cs run = {(u64cp)data[0], (u64cp)data[1]};
-            CAPOIndexWrite(dirslice, run, seqno);
+            call(CAPOIndexWrite, dirslice, run, seqno);
             total_entries += pending;
             batch++;
-            ((u64 **)entries)[1] = entries[0];
-            ((u64 **)entries)[2] = entries[0];
+            u64bReset(entries);
         }
     }
     pclose(fp);
@@ -598,15 +571,34 @@ ok64 CAPOReindexProc(u8csc reporoot, u32 nprocs, u32 proc) {
         $sort(data, u64cmp);
         u64 seqno = (u64)nprocs * batch + proc + 1;
         u64cs run = {(u64cp)data[0], (u64cp)data[1]};
-        CAPOIndexWrite(dirslice, run, seqno);
+        call(CAPOIndexWrite, dirslice, run, seqno);
         total_entries += pending;
     }
-
-    u64bUnMap(entries);
 
     fprintf(stderr, "capo[%u/%u]: indexed %u files, %zu entries, skipped %u, failed %u\n",
             proc, nprocs, indexed, total_entries, skipped, failed);
     done;
+}
+
+ok64 CAPOReindexProc(u8csc reporoot, u32 nprocs, u32 proc) {
+    sane($ok(reporoot) && proc < nprocs && nprocs > 0);
+
+    fprintf(stderr, "capo[%u/%u]: starting\n", proc, nprocs);
+
+    a_pad(u8, capodir, FILE_PATH_MAX_LEN);
+    call(path8gDup, path8gIn(capodir), reporoot);
+    a_cstr(capodirname, CAPO_DIR);
+    call(path8gPush, path8gIn(capodir), capodirname);
+    u8cs dirslice = {u8bDataHead(capodir), u8bIdleHead(capodir)};
+    vcall("mkdir", FILEMakeDirP, path8cgIn(capodir));
+
+    Bu64 entries = {};
+    vcall("mmap scratch", u64bMap, entries, CAPO_SCRATCH_LEN);
+
+    ok64 o = CAPOReindexProcWork(reporoot, dirslice, entries, nprocs, proc);
+
+    u64bUnMap(entries);
+    return o;
 }
 
 // --- Compact all into one ---
@@ -653,22 +645,21 @@ ok64 CAPOCompactAll(u8csc dir) {
 
         // Find next seqno — must be higher than any existing
         u64 seqno = 0;
-        CAPONextSeqno(&seqno, dir);
+        call(CAPONextSeqno, &seqno, dir);
         fprintf(stderr, "capo: next seqno = %llu (dir = '%.*s')\n",
                 (unsigned long long)seqno,
                 (int)$len(dir), (char *)dir[0]);
         u64cs merged = {(u64cp)mbuf[0], (u64cp)into[0]};
         fprintf(stderr, "capo: writing %zu deduplicated entries (seqno %llu)\n",
                 $len(merged), (unsigned long long)seqno);
-        CAPOIndexWrite(dir, merged, seqno);
+        call(CAPOIndexWrite, dir, merged, seqno);
 
         CAPOStackClose(mmaps, nfiles);
         u64bUnMap(mbuf);
 
         // Unlink old files (re-scan dir, skip the new one)
         a_pad(u8, dpat, FILE_PATH_MAX_LEN);
-        call(u8bFeed, dpat, dir);
-        u8bFeed1(dpat, 0);
+        call(path8gDup, path8gIn(dpat), dir);
         int dfd = -1;
         ok64 o = FILEOpenDir(&dfd, path8cgIn(dpat));
         if (o == OK) {
@@ -698,13 +689,10 @@ ok64 CAPOCompactAll(u8csc dir) {
 
                 for (u32 i = 0; i + 1 < fcount; i++) {
                     a_pad(u8, ulpath, FILE_PATH_MAX_LEN);
-                    call(u8bFeed, ulpath, dir);
-                    u8bFeed1(ulpath, '/');
+                    call(path8gDup, path8gIn(ulpath), dir);
                     u8cs ulfn = {(u8cp)fnames[i],
                                  (u8cp)fnames[i] + strlen(fnames[i])};
-                    call(u8bFeed, ulpath, ulfn);
-                    u8bFeed1(ulpath, 0);
-                    u8bShed1(ulpath);
+                    call(path8gPush, path8gIn(ulpath), ulfn);
                     unlink((char *)u8bDataHead(ulpath));
                 }
             }
@@ -717,17 +705,8 @@ ok64 CAPOCompactAll(u8csc dir) {
 
 // --- Hook (incremental) ---
 
-ok64 CAPOHook(u8csc reporoot) {
-    sane($ok(reporoot));
-
-    a_pad(u8, capodir, FILE_PATH_MAX_LEN);
-    call(u8bFeed, capodir, reporoot);
-    a_cstr(suf, "/" CAPO_DIR);
-    call(u8bFeed, capodir, suf);
-    u8cs dirslice = {u8bDataHead(capodir), u8bIdleHead(capodir)};
-    u8bFeed1(capodir, 0);
-    u8bShed1(capodir);
-    call(FILEMakeDirP, path8cgIn(capodir));
+static ok64 CAPOHookWork(u8csc reporoot, u8csc dirslice, u64bp entries) {
+    sane($ok(reporoot) && $ok(dirslice) && entries != NULL);
 
     char cmdbuf[FILE_PATH_MAX_LEN + 64];
     int n = snprintf(cmdbuf, sizeof(cmdbuf),
@@ -737,9 +716,6 @@ ok64 CAPOHook(u8csc reporoot) {
 
     FILE *fp = popen(cmdbuf, "r");
     test(fp != NULL, FAILSANITY);
-
-    Bu64 entries = {};
-    call(u64bMap, entries, CAPO_SCRATCH_LEN);
 
     char line[FILE_PATH_MAX_LEN];
     while (fgets(line, sizeof(line), fp)) {
@@ -759,9 +735,7 @@ ok64 CAPOHook(u8csc reporoot) {
 
         a_pad(u8, fpbuf, FILE_PATH_MAX_LEN);
         u8cs fps = {(u8cp)fpath, (u8cp)fpath + pn};
-        call(u8bFeed, fpbuf, fps);
-        u8bFeed1(fpbuf, 0);
-        u8bShed1(fpbuf);
+        call(path8gDup, path8gIn(fpbuf), fps);
 
         u8bp mapped = NULL;
         ok64 o = FILEMapRO(&mapped, path8cgIn(fpbuf));
@@ -769,8 +743,9 @@ ok64 CAPOHook(u8csc reporoot) {
 
         u8cs source = {u8bDataHead(mapped), u8bIdleHead(mapped)};
         u8cs relpath = {(u8cp)line, (u8cp)line + len};
-        CAPOIndexFile(entries, source, ext, relpath);
+        o = CAPOIndexFile(entries, source, ext, relpath);
         FILEUnMap(mapped);
+        if (o != OK) continue;
     }
     pclose(fp);
 
@@ -779,14 +754,32 @@ ok64 CAPOHook(u8csc reporoot) {
         u64s data = {u64bDataHead(entries), u64bIdleHead(entries)};
         $sort(data, u64cmp);
         u64 seqno = 0;
-        CAPONextSeqno(&seqno, dirslice);
+        call(CAPONextSeqno, &seqno, dirslice);
         u64cs run = {(u64cp)data[0], (u64cp)data[1]};
-        CAPOIndexWrite(dirslice, run, seqno);
+        call(CAPOIndexWrite, dirslice, run, seqno);
     }
 
-    u64bUnMap(entries);
-    CAPOCompact(dirslice);
+    call(CAPOCompact, dirslice);
     done;
+}
+
+ok64 CAPOHook(u8csc reporoot) {
+    sane($ok(reporoot));
+
+    a_pad(u8, capodir, FILE_PATH_MAX_LEN);
+    call(path8gDup, path8gIn(capodir), reporoot);
+    a_cstr(capodirname, CAPO_DIR);
+    call(path8gPush, path8gIn(capodir), capodirname);
+    u8cs dirslice = {u8bDataHead(capodir), u8bIdleHead(capodir)};
+    call(FILEMakeDirP, path8cgIn(capodir));
+
+    Bu64 entries = {};
+    call(u64bMap, entries, CAPO_SCRATCH_LEN);
+
+    ok64 o = CAPOHookWork(reporoot, dirslice, entries);
+
+    u64bUnMap(entries);
+    return o;
 }
 
 // --- Query ---
@@ -827,12 +820,10 @@ ok64 CAPOQuery(u8csc selector, u8csc reporoot) {
     sane($ok(selector) && $ok(reporoot));
 
     a_pad(u8, capodir, FILE_PATH_MAX_LEN);
-    call(u8bFeed, capodir, reporoot);
-    a_cstr(suf, "/" CAPO_DIR);
-    call(u8bFeed, capodir, suf);
+    call(path8gDup, path8gIn(capodir), reporoot);
+    a_cstr(capodirname, CAPO_DIR);
+    call(path8gPush, path8gIn(capodir), capodirname);
     u8cs dirslice = {u8bDataHead(capodir), u8bIdleHead(capodir)};
-    u8bFeed1(capodir, 0);
-    u8bShed1(capodir);
 
     u32 maxhashes = 64 * 1024;
     u32 *hashbuf1 = (u32 *)malloc(maxhashes * sizeof(u32));
@@ -844,7 +835,7 @@ ok64 CAPOQuery(u8csc selector, u8csc reporoot) {
     u64css stack = {runs, runs};
     u8bp mmaps[CAPO_MAX_LEVELS] = {};
     u32 nfiles = 0;
-    CAPOStackOpen(stack, mmaps, &nfiles, dirslice);
+    call(CAPOStackOpen, stack, mmaps, &nfiles, dirslice);
     stack[1] = stack[0] + nfiles;
 
     // Extract searchable text spans from selector:
@@ -993,9 +984,7 @@ ok64 CAPOQuery(u8csc selector, u8csc reporoot) {
 
         a_pad(u8, fpbuf, FILE_PATH_MAX_LEN);
         u8cs fps = {(u8cp)fpath, (u8cp)fpath + pn};
-        call(u8bFeed, fpbuf, fps);
-        u8bFeed1(fpbuf, 0);
-        u8bShed1(fpbuf);
+        call(path8gDup, path8gIn(fpbuf), fps);
 
         u8bp mapped = NULL;
         ok64 o = FILEMapRO(&mapped, path8cgIn(fpbuf));
@@ -1063,7 +1052,7 @@ ok64 CAPOQuery(u8csc selector, u8csc reporoot) {
                     o = CSSExport(out, filtered);
                 if (o == OK) {
                     u8cs result = {u8bIdleHead(obufm), out[0]};
-                    FILEFeedall(STDOUT_FILENO, result);
+                    call(FILEFeedall, STDOUT_FILENO, result);
                 }
                 u8bUnMap(obufm);
             }
