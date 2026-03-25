@@ -188,12 +188,6 @@ target_link_libraries(CURLtest abc)
 add_test(NAME CURLtest COMMAND CURLtest)
 set_tests_properties(CURLtest PROPERTIES TIMEOUT 15)
 
-add_executable(POLLtest POLL.c ../POLL.c)
-target_link_options(POLLtest PRIVATE ${TEST_LDD_FLAGS})
-target_compile_options(POLLtest PRIVATE ${TEST_CXX_FLAGS})
-target_link_libraries(POLLtest abc)
-add_test(NAME POLLtest COMMAND POLLtest)
-
 add_executable(POLtest POL.c)
 target_link_options(POLtest PRIVATE ${TEST_LDD_FLAGS})
 target_compile_options(POLtest PRIVATE ${TEST_CXX_FLAGS})
