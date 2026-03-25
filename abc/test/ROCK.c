@@ -10,7 +10,7 @@
 // Test 1: open/close, reopen, verify
 ok64 ROCKtest1() {
     sane(1);
-    a_path(path, "/tmp");
+    a_path(path, $cstr("/tmp"));
     a_cstr(tmpl, "ROCKtest1_XXXXXX");
     call(path8gAddTmp, path8gIn(path), tmpl);
     ROCKdb db = {};
@@ -29,7 +29,7 @@ ok64 ROCKtest1() {
 // Test 2: put/get roundtrip
 ok64 ROCKtest2() {
     sane(1);
-    a_path(path, "/tmp");
+    a_path(path, $cstr("/tmp"));
     a_cstr(tmpl, "ROCKtest2_XXXXXX");
     call(path8gAddTmp, path8gIn(path), tmpl);
     ROCKdb db = {};
@@ -68,7 +68,7 @@ ok64 ROCKtest2() {
 // Test 3: delete
 ok64 ROCKtest3() {
     sane(1);
-    a_path(path, "/tmp");
+    a_path(path, $cstr("/tmp"));
     a_cstr(tmpl, "ROCKtest3_XXXXXX");
     call(path8gAddTmp, path8gIn(path), tmpl);
     ROCKdb db = {};
@@ -96,7 +96,7 @@ ok64 ROCKtest3() {
 // Test 4: iterator scan (forward order)
 ok64 ROCKtest4() {
     sane(1);
-    a_path(path, "/tmp");
+    a_path(path, $cstr("/tmp"));
     a_cstr(tmpl, "ROCKtest4_XXXXXX");
     call(path8gAddTmp, path8gIn(path), tmpl);
     ROCKdb db = {};
@@ -146,7 +146,7 @@ ok64 ROCKtest4() {
 // Test 5: iterator seek
 ok64 ROCKtest5() {
     sane(1);
-    a_path(path, "/tmp");
+    a_path(path, $cstr("/tmp"));
     a_cstr(tmpl, "ROCKtest5_XXXXXX");
     call(path8gAddTmp, path8gIn(path), tmpl);
     ROCKdb db = {};
@@ -186,7 +186,7 @@ ok64 ROCKtest5() {
 // Test 6: write batch
 ok64 ROCKtest6() {
     sane(1);
-    a_path(path, "/tmp");
+    a_path(path, $cstr("/tmp"));
     a_cstr(tmpl, "ROCKtest6_XXXXXX");
     call(path8gAddTmp, path8gIn(path), tmpl);
     ROCKdb db = {};
@@ -239,7 +239,7 @@ fun ok64 ConcatMerge(u8s merged, u8css records) {
 // Test 7: merge operator
 ok64 ROCKtest7() {
     sane(1);
-    a_path(path, "/tmp");
+    a_path(path, $cstr("/tmp"));
     a_cstr(tmpl, "ROCKtest7_XXXXXX");
     call(path8gAddTmp, path8gIn(path), tmpl);
     ROCKdb db = {};
@@ -299,7 +299,7 @@ static ok64 ScanStopCB(voidp arg, u8cs key, u8cs val) {
 
 ok64 ROCKtest8() {
     sane(1);
-    a_path(path, "/tmp");
+    a_path(path, $cstr("/tmp"));
     a_cstr(tmpl, "ROCKtest8_XXXXXX");
     call(path8gAddTmp, path8gIn(path), tmpl);
     ROCKdb db = {};

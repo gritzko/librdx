@@ -10,7 +10,7 @@ con ok64 SRC_ABC = 0x259a7;
 
 ok64 LSMTestBasics() {
     sane(1);
-    a_path(path, "/tmp/LSMTestBasics");
+    a_path(path, $cstr("/tmp/LSMTestBasics"));
     u8bp buf = NULL;
     call(FILEMapCreate, &buf, path, MB);
 

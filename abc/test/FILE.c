@@ -9,7 +9,7 @@
 
 ok64 FILEtest1() {
     sane(1);
-    a_path(path, "/tmp");
+    a_path(path, $cstr("/tmp"));
     a_cstr(tmpl, "FILEtest1_XXXXXX");
     call(path8gAddTmp, path8gIn(path), tmpl);
     u8cs text = $u8str("Hello world!\n");
@@ -23,7 +23,7 @@ ok64 FILEtest1() {
 
 ok64 FILEtest2() {
     sane(1);
-    a_path(path, "/tmp");
+    a_path(path, $cstr("/tmp"));
     a_cstr(tmpl, "FILEtest2_XXXXXX");
     call(path8gAddTmp, path8gIn(path), tmpl);
     int fd = 0;
@@ -44,7 +44,7 @@ ok64 FILEtest2() {
 
 ok64 FILE3() {
     sane(1);
-    a_path(path, "/tmp");
+    a_path(path, $cstr("/tmp"));
     a_cstr(tmpl, "FILE3_XXXXXX");
     call(path8gAddTmp, path8gIn(path), tmpl);
     a_cstr(text, "Hello world!");
@@ -62,7 +62,7 @@ ok64 FILE3() {
 
 ok64 FILEtest4() {
     sane(1);
-    a_path(path, "/tmp");
+    a_path(path, $cstr("/tmp"));
     a_cstr(tmpl, "FILEtest4_XXXXXX");
     call(path8gAddTmp, path8gIn(path), tmpl);
     a$str(one, "Hello");
@@ -85,7 +85,7 @@ ok64 FILEtest4() {
 ok64 FILEtest5() {
     sane(1);
     // Test streaming I/O primitives
-    a_path(path, "/tmp");
+    a_path(path, $cstr("/tmp"));
     a_cstr(tmpl, "FILEtest5_XXXXXX");
     call(path8gAddTmp, path8gIn(path), tmpl);
     a_cstr(testdata, "The quick brown fox jumps over the lazy dog");
@@ -138,7 +138,7 @@ ok64 FILEtest5() {
 ok64 FILEtest6() {
     sane(1);
     // Test FILEMakeDir and FILERmDir (non-recursive)
-    a_path(dirpath, "/tmp");
+    a_path(dirpath, $cstr("/tmp"));
     a_cstr(tmpl, "FILEtest6_XXXXXX");
     call(path8gAddTmp, path8gIn(dirpath), tmpl);
 
@@ -162,7 +162,7 @@ ok64 FILEtest6() {
 ok64 FILEtest7() {
     sane(1);
     // Test FILERmDir fails on non-empty directory when non-recursive
-    a_path(dirpath, "/tmp");
+    a_path(dirpath, $cstr("/tmp"));
     a_cstr(tmpl, "FILEtest7_XXXXXX");
     call(path8gAddTmp, path8gIn(dirpath), tmpl);
 
@@ -194,7 +194,7 @@ ok64 FILEtest7() {
 ok64 FILEtest8() {
     sane(1);
     // Test FILERmDir recursive on nested structure
-    a_path(path, "/tmp");
+    a_path(path, $cstr("/tmp"));
     a_cstr(tmpl, "FILEtest8_XXXXXX");
     call(path8gAddTmp, path8gIn(path), tmpl);
     a_cstr(sub1, "sub1");
@@ -252,7 +252,7 @@ ok64 FILEtest8b() {
     sane(1);
 
     // Step 1: create a temp dir using the normal path8g pattern
-    a_path(setup, "/tmp");
+    a_path(setup, $cstr("/tmp"));
     a_cstr(tmpl, "FILEtest8b_XXXXXX");
     call(path8gAddTmp, path8gIn(setup), tmpl);
     call(FILEMakeDir, path8cgIn(setup));
@@ -276,7 +276,7 @@ ok64 FILEtest8b() {
              (int)u8bDataLen(setup), (char *)setup[1]);
 
     // Verify path8cgOK on a_path result (the suspected failure)
-    a_path(repath, cpath);
+    a_path(repath, $cstr(cpath));
     b8 ok_before = path8cgOK(path8cgIn(repath));
     fprintf(stderr, "  path8cgOK before Term: %d\n", ok_before);
     fprintf(stderr, "  byte at idle: 0x%02x\n", *repath[2]);
@@ -302,7 +302,7 @@ ok64 FILEtest9() {
     sane(1);
 
     // FILEStat on non-existent file should return FILENOENT
-    a_path(nofile, "/tmp");
+    a_path(nofile, $cstr("/tmp"));
     a_cstr(tmpl, "FILEtest9_XXXXXX");
     call(path8gAddTmp, path8gIn(nofile), tmpl);
     struct stat s = {};
@@ -323,7 +323,7 @@ ok64 FILEtest9() {
 ok64 FILEIterTest() {
     sane(1);
     // Create test directory structure
-    a_path(base, "/tmp");
+    a_path(base, $cstr("/tmp"));
     a_cstr(tmpl, "FILEIterTest_XXXXXX");
     call(path8gAddTmp, path8gIn(base), tmpl);
     call(FILEMakeDir, path8cgIn(base));
@@ -387,7 +387,7 @@ ok64 FILEIterTest() {
 ok64 FILEIterSortedTest() {
     sane(1);
     // Create test directory structure
-    a_path(base, "/tmp");
+    a_path(base, $cstr("/tmp"));
     a_cstr(tmpl, "FILEIterSorted_XXXXXX");
     call(path8gAddTmp, path8gIn(base), tmpl);
     call(FILEMakeDir, path8cgIn(base));
@@ -473,7 +473,7 @@ ok64 FILEIterSortedTest() {
 // Test FILEBook - booked VA range with growable file mapping
 ok64 FILEBookTest() {
     sane(1);
-    a_path(path, "/tmp");
+    a_path(path, $cstr("/tmp"));
     a_cstr(tmpl, "FILEBookTest_XXXXXX");
     call(path8gAddTmp, path8gIn(path), tmpl);
 
@@ -529,7 +529,7 @@ ok64 FILEBookTest() {
 // Test FILEBook with existing file
 ok64 FILEBookExistingTest() {
     sane(1);
-    a_path(path, "/tmp");
+    a_path(path, $cstr("/tmp"));
     a_cstr(tmpl, "FILEBookExist_XXXXXX");
     call(path8gAddTmp, path8gIn(path), tmpl);
 
@@ -562,7 +562,7 @@ ok64 FILEBookExistingTest() {
 // Test FILEBookExtend beyond booked range fails
 ok64 FILEBookLimitTest() {
     sane(1);
-    a_path(path, "/tmp");
+    a_path(path, $cstr("/tmp"));
     a_cstr(tmpl, "FILEBookLimit_XXXXXX");
     call(path8gAddTmp, path8gIn(path), tmpl);
 
@@ -585,7 +585,7 @@ ok64 FILEBookLimitTest() {
 // Test FILEBookEnsure - auto-grow
 ok64 FILEBookEnsureTest() {
     sane(1);
-    a_path(path, "/tmp");
+    a_path(path, $cstr("/tmp"));
     a_cstr(tmpl, "FILEBookEnsure_XXXXXX");
     call(path8gAddTmp, path8gIn(path), tmpl);
 

@@ -31,16 +31,13 @@ ok64 BESYNCtest1() {
     sane(1);
 
     // Create temp worktree for source repo
-    a_path(src_work, "/tmp");
+    a_path(src_work, $cstr("/tmp"));
     a_cstr(tmpl1, "BESYNCsrc_XXXXXX");
     call(path8gAddTmp, path8gIn(src_work), tmpl1);
     call(FILEMakeDir, path8cgIn(src_work));
 
     // Create a test source file
-    a_path(fpath, "");
-    call(path8gDup, path8gIn(fpath), path8cgIn(src_work));
-    a_cstr(fname, "hello.c");
-    call(path8gPush, path8gIn(fpath), fname);
+    a_path(fpath, u8bDataC(src_work), $cstr("hello.c"));
     u8cs source = $u8str("int hello = 42;\n");
     int fd = 0;
     call(FILECreate, &fd, path8cgIn(fpath));
@@ -70,7 +67,7 @@ ok64 BESYNCtest1() {
     usleep(100000);
 
     // Create temp worktree for clone destination
-    a_path(dst_work, "/tmp");
+    a_path(dst_work, $cstr("/tmp"));
     a_cstr(tmpl2, "BESYNCdst_XXXXXX");
     call(path8gAddTmp, path8gIn(dst_work), tmpl2);
     call(FILEMakeDir, path8cgIn(dst_work));
@@ -91,18 +88,17 @@ ok64 BESYNCtest1() {
     want(co == OK);
 
     // Verify: open cloned DB and check for the key
-    a_path(clone_repo, "");
+    a_path(clone_repo);
     const char *home = getenv("HOME");
     want(home != NULL);
     a_cstr(homecs, home);
     call(u8sFeed, u8bIdle(clone_repo), homecs);
     call(path8gTerm, path8gIn(clone_repo));
-    a_cstr(dotbe, ".be");
-    call(path8gPush, path8gIn(clone_repo), dotbe);
+    call(path8bPushCStr, clone_repo, ".be");
     u8 rname[64];
     int rnlen = snprintf((char *)rname, sizeof(rname), "127.0.0.1.%d", port);
     u8cs repo_name = {rname, rname + rnlen};
-    call(path8gPush, path8gIn(clone_repo), repo_name);
+    call(path8bPush, clone_repo, repo_name);
 
     ROCKdb clonedb = {};
     ok64 ro = ROCKOpenRO(&clonedb, path8cgIn(clone_repo));
@@ -137,8 +133,7 @@ ok64 BESYNCtest1() {
     call(ROCKClose, &clonedb);
 
     // Cleanup
-    a_path(src_repo, "");
-    call(path8gDup, path8gIn(src_repo), path8cgIn(src_be.repo_pp));
+    a_path(src_repo, u8bDataC(src_be.repo_pp));
     call(BEClose, &src_be);
     call(FILErmrf, path8cgIn(src_work));
     call(FILErmrf, path8cgIn(src_repo));

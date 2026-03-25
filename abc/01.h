@@ -397,6 +397,8 @@ fun b8 isOnStack(void *p) {
 typedef ok64 (*OKcallback)(void *);
 
 #define $u8str(c) {(u8 *)(c), (u8 *)(c) + strlen(c)}
+// Compound literal slice — decays to u8 const ** for use in arrays/varargs
+#define $cstr(c) (u8c *[]){(u8c *)(c), (u8c *)(c) + strlen(c)}
 
 #define u64MaxValue UINT64_MAX
 #define u64MinValue 0

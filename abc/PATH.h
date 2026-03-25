@@ -120,4 +120,54 @@ void path8gDir(u8csp out, path8cg path);
 // Returns view into path, empty slice for no extension
 void path8gExt(u8csp out, path8cg path);
 
+// --- Buffer-level path operations (no gauge wrapping needed) ---
+
+fun ok64 path8bPush(path8b p, u8cs seg) { return path8gPush(path8gIn(p), seg); }
+fun ok64 path8bPop(path8b p) { return path8gPop(path8gIn(p)); }
+fun ok64 path8bFeedS(path8b p, u8csc s) { return path8gFeedS(path8gIn(p), s); }
+fun ok64 path8bDup(path8b into, path8b from) {
+    return path8gDup(path8gIn(into), path8cgIn(from));
+}
+fun ok64 path8bPushCStr(path8b p, const char *s) {
+    u8cs seg = {(u8cp)s, (u8cp)s + strlen(s)};
+    return path8gPush(path8gIn(p), seg);
+}
+
+// --- Stack path macros ---
+
+// Feed first slice as base path, push rest as segments
+fun ok64 path8bBuildN(path8b p, u8csp *slices) {
+    if (!*slices) return OK;
+    ok64 o = path8bFeedS(p, *slices);
+    if (o != OK) return o;
+    for (slices++; *slices; slices++) {
+        o = path8bPush(p, *slices);
+        if (o != OK) return o;
+    }
+    return OK;
+}
+
+// a_path(name) — empty path buffer
+// a_path(name, base) — feed base slice (may contain /)
+// a_path(name, base, seg1, seg2) — feed base, push segments
+// All args are u8cs/u8csc slices. Use a_cstr() for literals.
+#define a_path(n, ...)                                       \
+    a_pad(u8, n, FILE_PATH_MAX_LEN);                        \
+    path8gTerm(path8gIn(n));                                 \
+    __VA_OPT__({                                             \
+        u8csp _sl_##n[] = {__VA_ARGS__, NULL};               \
+        path8bBuildN(n, _sl_##n);                            \
+    })
+
+// a_abspath(name, seg1, ...) — absolute path (starts with /)
+// All args are u8cs slices pushed as segments.
+#define a_abspath(n, ...)                                    \
+    a_pad(u8, n, FILE_PATH_MAX_LEN);                        \
+    u8sFeed1(n##_idle, '/');                                 \
+    path8gTerm(path8gIn(n));                                 \
+    __VA_OPT__({                                             \
+        u8csp _sl_##n[] = {__VA_ARGS__, NULL};               \
+        path8bBuildN(n, _sl_##n);                            \
+    })
+
 #endif  // ABC_PATH_H

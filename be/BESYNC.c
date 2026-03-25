@@ -98,9 +98,8 @@ ok64 BESyncClone(u8cs remote_url, path8cg worktree) {
     a_cstr(homecs, home);
     call(u8sFeed, u8bIdle(repo_path_pp), homecs);
     call(path8gTerm, path8gIn(repo_path_pp));
-    a_cstr(dotbe, ".be");
-    call(path8gPush, path8gIn(repo_path_pp), dotbe);
-    call(path8gPush, path8gIn(repo_path_pp), repo_name);
+    call(path8bPushCStr, repo_path_pp, ".be");
+    call(path8bPush, repo_path_pp, repo_name);
     call(FILEMakeDirP, path8cgIn(repo_path_pp));
 
     // Build base URL
@@ -161,9 +160,9 @@ ok64 BESyncClone(u8cs remote_url, path8cg worktree) {
             break;
         }
 
-        a_path(fpath, "");
-        path8gDup(path8gIn(fpath), path8cgIn(repo_path_pp));
-        path8gPush(path8gIn(fpath), fname);
+        a_path(fpath);
+        path8bDup(fpath, repo_path_pp);
+        path8bPush(fpath, fname);
 
         int fd = -1;
         ok64 wo = FILECreate(&fd, path8cgIn(fpath));
@@ -205,10 +204,9 @@ ok64 BESyncClone(u8cs remote_url, path8cg worktree) {
         u8sFeed(be_uri, repo_name);
         u8cs uri_data = {ubuf2, be_uri[0]};
 
-        a_path(dotbe_path, "");
-        path8gDup(path8gIn(dotbe_path), worktree);
-        a_cstr(dotbe_name, ".be");
-        path8gPush(path8gIn(dotbe_path), dotbe_name);
+        a_path(dotbe_path);
+        path8bFeedS(dotbe_path, worktree);
+        path8bPushCStr(dotbe_path, ".be");
 
         int fd = -1;
         ok64 wo = FILECreate(&fd, path8cgIn(dotbe_path));

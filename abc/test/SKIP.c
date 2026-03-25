@@ -80,7 +80,7 @@ ok64 SKIP1() {
 
 ok64 SKIP2() {
     sane(1);
-    a_path(path, "/tmp/SKIP2.txt");
+    a_path(path, $cstr("/tmp/SKIP2.txt"));
     FILEUnLink(path8cgIn(path));
     u8bp pad = NULL;
     a_pad(u8, check, SCALE);

@@ -150,7 +150,7 @@ ok64 CAPONextSeqno(u64p seqno, u8csc dir) {
     *seqno = 1;
 
     a_pad(u8, pat, FILE_PATH_MAX_LEN);
-    call(path8gFeedS, path8gIn(pat), dir);
+    call(path8bFeedS, pat, dir);
 
     int dfd = -1;
     ok64 o = FILEOpenDir(&dfd, path8cgIn(pat));
@@ -183,7 +183,7 @@ ok64 CAPOStackOpen(u64css stack, u8bp *maps, u32p nfiles, u8csc dir) {
     *nfiles = 0;
 
     a_pad(u8, dpat, FILE_PATH_MAX_LEN);
-    call(path8gFeedS, path8gIn(dpat), dir);
+    call(path8bFeedS, dpat, dir);
 
     int dfd = -1;
     ok64 o = FILEOpenDir(&dfd, path8cgIn(dpat));
@@ -217,9 +217,9 @@ ok64 CAPOStackOpen(u64css stack, u8bp *maps, u32p nfiles, u8csc dir) {
 
     for (u32 i = 0; i < count; i++) {
         a_pad(u8, fpath, FILE_PATH_MAX_LEN);
-        call(path8gFeedS, path8gIn(fpath), dir);
+        call(path8bFeedS, fpath, dir);
         u8cs fn = {(u8cp)names[i], (u8cp)names[i] + strlen(names[i])};
-        call(path8gPush, path8gIn(fpath), fn);
+        call(path8bPush, fpath, fn);
 
         u8bp mapped = NULL;
         call(FILEMapRO, &mapped, path8cgIn(fpath));
@@ -289,7 +289,7 @@ ok64 CAPOCompact(u8csc dir) {
 
     // Collect filenames to unlink before closing mmaps
     a_pad(u8, dpat, FILE_PATH_MAX_LEN);
-    call(path8gFeedS, path8gIn(dpat), dir);
+    call(path8bFeedS, dpat, dir);
 
     char fnames[CAPO_MAX_LEVELS][64];
     u32 fcount = 0;
@@ -332,10 +332,10 @@ ok64 CAPOCompact(u8csc dir) {
         // Skip the file we just wrote (highest seqno = last in sorted order)
         if (i == fcount) continue;
         a_pad(u8, ulpath, FILE_PATH_MAX_LEN);
-        call(path8gFeedS, path8gIn(ulpath), dir);
+        call(path8bFeedS, ulpath, dir);
         u8cs ulfn = {(u8cp)fnames[i - 1],
                      (u8cp)fnames[i - 1] + strlen(fnames[i - 1])};
-        call(path8gPush, path8gIn(ulpath), ulfn);
+        call(path8bPush, ulpath, ulfn);
         unlink((char *)u8bDataHead(ulpath));
         unlinked++;
     }
@@ -395,7 +395,7 @@ static ok64 CAPOReindexWork(u8csc reporoot, u8csc dirslice, u64bp entries) {
 
         a_pad(u8, fpbuf, FILE_PATH_MAX_LEN);
         u8cs fps = {(u8cp)fpath, (u8cp)fpath + pn};
-        call(path8gFeedS, path8gIn(fpbuf), fps);
+        call(path8bFeedS, fpbuf, fps);
 
         u8bp mapped = NULL;
         ok64 o = FILEMapRO(&mapped, path8cgIn(fpbuf));
@@ -465,9 +465,9 @@ ok64 CAPOReindex(u8csc reporoot) {
             (int)$len(reporoot), (char *)reporoot[0]);
 
     a_pad(u8, capodir, FILE_PATH_MAX_LEN);
-    call(path8gFeedS, path8gIn(capodir), reporoot);
+    call(path8bFeedS, capodir, reporoot);
     a_cstr(capodirname, CAPO_DIR);
-    call(path8gPush, path8gIn(capodir), capodirname);
+    call(path8bPush, capodir, capodirname);
     u8cs dirslice = {u8bDataHead(capodir), u8bIdleHead(capodir)};
     vcall("mkdir", FILEMakeDirP, path8cgIn(capodir));
     fprintf(stderr, "capo: index dir %s\n", (char *)u8bDataHead(capodir));
@@ -520,7 +520,7 @@ static ok64 CAPOReindexProcWork(u8csc reporoot, u8csc dirslice,
 
         a_pad(u8, fpbuf, FILE_PATH_MAX_LEN);
         u8cs fps = {(u8cp)fpath, (u8cp)fpath + pn};
-        call(path8gFeedS, path8gIn(fpbuf), fps);
+        call(path8bFeedS, fpbuf, fps);
 
         u8bp mapped = NULL;
         ok64 o = FILEMapRO(&mapped, path8cgIn(fpbuf));
@@ -586,9 +586,9 @@ ok64 CAPOReindexProc(u8csc reporoot, u32 nprocs, u32 proc) {
     fprintf(stderr, "capo[%u/%u]: starting\n", proc, nprocs);
 
     a_pad(u8, capodir, FILE_PATH_MAX_LEN);
-    call(path8gFeedS, path8gIn(capodir), reporoot);
+    call(path8bFeedS, capodir, reporoot);
     a_cstr(capodirname, CAPO_DIR);
-    call(path8gPush, path8gIn(capodir), capodirname);
+    call(path8bPush, capodir, capodirname);
     u8cs dirslice = {u8bDataHead(capodir), u8bIdleHead(capodir)};
     vcall("mkdir", FILEMakeDirP, path8cgIn(capodir));
 
@@ -659,7 +659,7 @@ ok64 CAPOCompactAll(u8csc dir) {
 
         // Unlink old files (re-scan dir, skip the new one)
         a_pad(u8, dpat, FILE_PATH_MAX_LEN);
-        call(path8gFeedS, path8gIn(dpat), dir);
+        call(path8bFeedS, dpat, dir);
         int dfd = -1;
         ok64 o = FILEOpenDir(&dfd, path8cgIn(dpat));
         if (o == OK) {
@@ -689,10 +689,10 @@ ok64 CAPOCompactAll(u8csc dir) {
 
                 for (u32 i = 0; i + 1 < fcount; i++) {
                     a_pad(u8, ulpath, FILE_PATH_MAX_LEN);
-                    call(path8gFeedS, path8gIn(ulpath), dir);
+                    call(path8bFeedS, ulpath, dir);
                     u8cs ulfn = {(u8cp)fnames[i],
                                  (u8cp)fnames[i] + strlen(fnames[i])};
-                    call(path8gPush, path8gIn(ulpath), ulfn);
+                    call(path8bPush, ulpath, ulfn);
                     unlink((char *)u8bDataHead(ulpath));
                 }
             }
@@ -735,7 +735,7 @@ static ok64 CAPOHookWork(u8csc reporoot, u8csc dirslice, u64bp entries) {
 
         a_pad(u8, fpbuf, FILE_PATH_MAX_LEN);
         u8cs fps = {(u8cp)fpath, (u8cp)fpath + pn};
-        call(path8gFeedS, path8gIn(fpbuf), fps);
+        call(path8bFeedS, fpbuf, fps);
 
         u8bp mapped = NULL;
         ok64 o = FILEMapRO(&mapped, path8cgIn(fpbuf));
@@ -767,9 +767,9 @@ ok64 CAPOHook(u8csc reporoot) {
     sane($ok(reporoot));
 
     a_pad(u8, capodir, FILE_PATH_MAX_LEN);
-    call(path8gFeedS, path8gIn(capodir), reporoot);
+    call(path8bFeedS, capodir, reporoot);
     a_cstr(capodirname, CAPO_DIR);
-    call(path8gPush, path8gIn(capodir), capodirname);
+    call(path8bPush, capodir, capodirname);
     u8cs dirslice = {u8bDataHead(capodir), u8bIdleHead(capodir)};
     call(FILEMakeDirP, path8cgIn(capodir));
 
@@ -820,9 +820,9 @@ ok64 CAPOQuery(u8csc selector, u8csc reporoot) {
     sane($ok(selector) && $ok(reporoot));
 
     a_pad(u8, capodir, FILE_PATH_MAX_LEN);
-    call(path8gFeedS, path8gIn(capodir), reporoot);
+    call(path8bFeedS, capodir, reporoot);
     a_cstr(capodirname, CAPO_DIR);
-    call(path8gPush, path8gIn(capodir), capodirname);
+    call(path8bPush, capodir, capodirname);
     u8cs dirslice = {u8bDataHead(capodir), u8bIdleHead(capodir)};
 
     u32 maxhashes = 64 * 1024;
@@ -984,7 +984,7 @@ ok64 CAPOQuery(u8csc selector, u8csc reporoot) {
 
         a_pad(u8, fpbuf, FILE_PATH_MAX_LEN);
         u8cs fps = {(u8cp)fpath, (u8cp)fpath + pn};
-        call(path8gFeedS, path8gIn(fpbuf), fps);
+        call(path8bFeedS, fpbuf, fps);
 
         u8bp mapped = NULL;
         ok64 o = FILEMapRO(&mapped, path8cgIn(fpbuf));

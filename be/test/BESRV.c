@@ -42,9 +42,9 @@ static ok64 TestSetupRepo(BE *be, u8p work_pp[4], u8cs be_uri,
     call(FILEMakeDir, path8cgIn(work_pp));
 
     for (int i = 0; i < filec; i++) {
-        a_path(fpath, "");
-        call(path8gDup, path8gIn(fpath), path8cgIn(work_pp));
-        call(path8gPush, path8gIn(fpath), filenames[i]);
+        a_path(fpath);
+        call(path8bDup, fpath, work_pp);
+        call(path8bPush, fpath, filenames[i]);
         int fd = -1;
         call(FILECreate, &fd, path8cgIn(fpath));
         call(FILEFeedall, fd, contents[i]);
@@ -77,8 +77,7 @@ static ok64 TestCleanup(SrvThread *st, pthread_t tid,
     BESRVStop(&st->srv);
     pthread_join(tid, NULL);
     BESRVFree(&st->srv);
-    a_path(repo_path, "");
-    call(path8gDup, path8gIn(repo_path), path8cgIn(be->repo_pp));
+    a_path(repo_path, u8bDataC(be->repo_pp));
     call(BEClose, be);
     call(FILErmrf, path8cgIn(work_pp));
     call(FILErmrf, path8cgIn(repo_path));
@@ -221,33 +220,21 @@ ok64 BESRVtest2() {
     call(path8gAddTmp, path8gIn(work_pp), tmpl);
     call(FILEMakeDir, path8cgIn(work_pp));
 
-    a_path(srcdir, "");
-    call(path8gDup, path8gIn(srcdir), path8cgIn(work_pp));
-    a_cstr(src_name, "src");
-    call(path8gPush, path8gIn(srcdir), src_name);
+    a_path(srcdir, u8bDataC(work_pp), $cstr("src"));
     call(FILEMakeDir, path8cgIn(srcdir));
 
-    a_path(docdir, "");
-    call(path8gDup, path8gIn(docdir), path8cgIn(work_pp));
-    a_cstr(doc_name, "doc");
-    call(path8gPush, path8gIn(docdir), doc_name);
+    a_path(docdir, u8bDataC(work_pp), $cstr("doc"));
     call(FILEMakeDir, path8cgIn(docdir));
 
     {
-        a_path(fp, "");
-        call(path8gDup, path8gIn(fp), path8cgIn(srcdir));
-        a_cstr(n, "a.c");
-        call(path8gPush, path8gIn(fp), n);
+        a_path(fp, u8bDataC(srcdir), $cstr("a.c"));
         int fd = -1;
         call(FILECreate, &fd, path8cgIn(fp));
         call(FILEFeedall, fd, contents[0]);
         call(FILEClose, &fd);
     }
     {
-        a_path(fp, "");
-        call(path8gDup, path8gIn(fp), path8cgIn(docdir));
-        a_cstr(n, "b.txt");
-        call(path8gPush, path8gIn(fp), n);
+        a_path(fp, u8bDataC(docdir), $cstr("b.txt"));
         int fd = -1;
         call(FILECreate, &fd, path8cgIn(fp));
         call(FILEFeedall, fd, contents[1]);

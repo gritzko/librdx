@@ -176,9 +176,7 @@ typedef u8b path8;
 typedef u8bp path8p;
 typedef ok64 (*path8f)(voidp arg, path8p path);
 
-#define a_path(n, p)                 \
-    a_pad(u8, n, FILE_PATH_MAX_LEN); \
-    u8sFeedCStr(n##_idle, p);
+// a_path moved to PATH.h (variadic, supports segments)
 
 fun ok64 path8Sane(path8 path) {
     if (!u8bOK(path) || u8bDataLen(path) == 0) return NO;

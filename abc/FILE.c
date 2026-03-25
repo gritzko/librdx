@@ -694,7 +694,7 @@ ok64 FILEScan(path8 path, FILE_SCAN mode, path8f f, voidp arg) {
         if ((nlen == 1 && fn[0][0] == '.') ||
             (nlen == 2 && fn[0][0] == '.' && fn[0][1] == '.'))
             continue;
-        o = path8gPush(path8gIn(path), fn);
+        o = path8bPush(path, fn);
         if (o == BNOROOM) {
             // Path too long - skip this entry and continue
             o = OK;

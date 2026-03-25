@@ -215,16 +215,13 @@ ok64 BEtest4() {
 ok64 BEtest5() {
     sane(1);
 
-    a_path(wpath, "/tmp");
+    a_path(wpath, $cstr("/tmp"));
     a_cstr(tmpl, "BEtest5_XXXXXX");
     call(path8gAddTmp, path8gIn(wpath), tmpl);
     call(FILEMakeDir, path8cgIn(wpath));
 
     // Create a source file
-    a_path(fpath, "");
-    call(path8gDup, path8gIn(fpath), path8cgIn(wpath));
-    a_cstr(fname, "test.c");
-    call(path8gPush, path8gIn(fpath), fname);
+    a_path(fpath, u8bDataC(wpath), $cstr("test.c"));
     u8cs source = $u8str("int x = 42;\n");
     int fd = 0;
     call(FILECreate, &fd, path8cgIn(fpath));
@@ -257,8 +254,7 @@ ok64 BEtest5() {
     want($eq(restored, source));
     call(FILEUnMap, mapbuf);
 
-    a_path(rpath, "");
-    call(path8gDup, path8gIn(rpath), path8cgIn(be.repo_pp));
+    a_path(rpath, u8bDataC(be.repo_pp));
     call(BEClose, &be);
     call(FILErmrf, path8cgIn(wpath));
     call(FILErmrf, path8cgIn(rpath));
@@ -270,15 +266,12 @@ ok64 BEtest5() {
 ok64 BEtest6() {
     sane(1);
 
-    a_path(wpath, "/tmp");
+    a_path(wpath, $cstr("/tmp"));
     a_cstr(tmpl, "BEtest6_XXXXXX");
     call(path8gAddTmp, path8gIn(wpath), tmpl);
     call(FILEMakeDir, path8cgIn(wpath));
 
-    a_path(fpath, "");
-    call(path8gDup, path8gIn(fpath), path8cgIn(wpath));
-    a_cstr(fname, "ver.c");
-    call(path8gPush, path8gIn(fpath), fname);
+    a_path(fpath, u8bDataC(wpath), $cstr("ver.c"));
     u8cs v1 = $u8str("int x = 1;\n");
     int fd = 0;
     call(FILECreate, &fd, path8cgIn(fpath));
@@ -358,8 +351,7 @@ ok64 BEtest6() {
     want($eq(restored, v3));
     call(FILEUnMap, mapbuf);
 
-    a_path(rpath, "");
-    call(path8gDup, path8gIn(rpath), path8cgIn(be.repo_pp));
+    a_path(rpath, u8bDataC(be.repo_pp));
     call(BEClose, &be);
     call(FILErmrf, path8cgIn(wpath));
     call(FILErmrf, path8cgIn(rpath));
@@ -371,16 +363,13 @@ ok64 BEtest6() {
 ok64 BEtest7() {
     sane(1);
 
-    a_path(wpath, "/tmp");
+    a_path(wpath, $cstr("/tmp"));
     a_cstr(tmpl, "BEtest7_XXXXXX");
     call(path8gAddTmp, path8gIn(wpath), tmpl);
     call(FILEMakeDir, path8cgIn(wpath));
 
     // Create file
-    a_path(fpath, "");
-    call(path8gDup, path8gIn(fpath), path8cgIn(wpath));
-    a_cstr(fname, "multi.c");
-    call(path8gPush, path8gIn(fpath), fname);
+    a_path(fpath, u8bDataC(wpath), $cstr("multi.c"));
     u8cs src1 = $u8str("int x = 1;\n");
     int fd = 0;
     call(FILECreate, &fd, path8cgIn(fpath));
@@ -437,8 +426,7 @@ ok64 BEtest7() {
     want($eq(got_feat, src2));
     call(FILEUnMap, mapbuf);
 
-    a_path(rpath, "");
-    call(path8gDup, path8gIn(rpath), path8cgIn(be.repo_pp));
+    a_path(rpath, u8bDataC(be.repo_pp));
     call(BEClose, &be);
     call(FILErmrf, path8cgIn(wpath));
     call(FILErmrf, path8cgIn(rpath));
@@ -450,15 +438,12 @@ ok64 BEtest7() {
 ok64 BEtest8() {
     sane(1);
 
-    a_path(wpath, "/tmp");
+    a_path(wpath, $cstr("/tmp"));
     a_cstr(tmpl, "BEtest8_XXXXXX");
     call(path8gAddTmp, path8gIn(wpath), tmpl);
     call(FILEMakeDir, path8cgIn(wpath));
 
-    a_path(fpath, "");
-    call(path8gDup, path8gIn(fpath), path8cgIn(wpath));
-    a_cstr(fname, "ms.c");
-    call(path8gPush, path8gIn(fpath), fname);
+    a_path(fpath, u8bDataC(wpath), $cstr("ms.c"));
     u8cs src1 = $u8str("int y = 1;\n");
     int fd = 0;
     call(FILECreate, &fd, path8cgIn(fpath));
@@ -558,8 +543,7 @@ ok64 BEtest8() {
     want($eq(restored, src3));
     call(FILEUnMap, mapbuf);
 
-    a_path(rpath, "");
-    call(path8gDup, path8gIn(rpath), path8cgIn(be.repo_pp));
+    a_path(rpath, u8bDataC(be.repo_pp));
     call(BEClose, &be);
     call(FILErmrf, path8cgIn(wpath));
     call(FILErmrf, path8cgIn(rpath));
@@ -571,15 +555,12 @@ ok64 BEtest8() {
 ok64 BEtest9() {
     sane(1);
 
-    a_path(wpath, "/tmp");
+    a_path(wpath, $cstr("/tmp"));
     a_cstr(tmpl, "BEtest9_XXXXXX");
     call(path8gAddTmp, path8gIn(wpath), tmpl);
     call(FILEMakeDir, path8cgIn(wpath));
 
-    a_path(fpath, "");
-    call(path8gDup, path8gIn(fpath), path8cgIn(wpath));
-    a_cstr(fname, "merge.c");
-    call(path8gPush, path8gIn(fpath), fname);
+    a_path(fpath, u8bDataC(wpath), $cstr("merge.c"));
     u8cs src1 = $u8str("int z = 0;\n");
     int fd = 0;
     call(FILECreate, &fd, path8cgIn(fpath));
@@ -628,8 +609,7 @@ ok64 BEtest9() {
     want($eq(restored, src2));
     call(FILEUnMap, mapbuf);
 
-    a_path(rpath, "");
-    call(path8gDup, path8gIn(rpath), path8cgIn(be.repo_pp));
+    a_path(rpath, u8bDataC(be.repo_pp));
     call(BEClose, &be);
     call(FILErmrf, path8cgIn(wpath));
     call(FILErmrf, path8cgIn(rpath));
@@ -641,15 +621,12 @@ ok64 BEtest9() {
 ok64 BEtest10() {
     sane(1);
 
-    a_path(wpath, "/tmp");
+    a_path(wpath, $cstr("/tmp"));
     a_cstr(tmpl, "BEtestA_XXXXXX");
     call(path8gAddTmp, path8gIn(wpath), tmpl);
     call(FILEMakeDir, path8cgIn(wpath));
 
-    a_path(fpath, "");
-    call(path8gDup, path8gIn(fpath), path8cgIn(wpath));
-    a_cstr(fname, "cp.c");
-    call(path8gPush, path8gIn(fpath), fname);
+    a_path(fpath, u8bDataC(wpath), $cstr("cp.c"));
     u8cs source = $u8str("int y = 7;\n");
     int fd = 0;
     call(FILECreate, &fd, path8cgIn(fpath));
@@ -676,16 +653,14 @@ ok64 BEtest10() {
     a_cstr(homecs, home);
     call(u8sFeed, u8bIdle(dpath), homecs);
     call(path8gTerm, path8gIn(dpath));
-    a_cstr(dotbe, ".be");
-    call(path8gPush, path8gIn(dpath), dotbe);
-    call(path8gPush, path8gIn(dpath), new_repo);
+    call(path8bPushCStr, dpath, ".be");
+    call(path8bPush, dpath, new_repo);
 
     ROCKdb cpdb = {};
     call(ROCKOpenRO, &cpdb, path8cgIn(dpath));
     call(ROCKClose, &cpdb);
 
-    a_path(rpath, "");
-    call(path8gDup, path8gIn(rpath), path8cgIn(be.repo_pp));
+    a_path(rpath, u8bDataC(be.repo_pp));
     call(BEClose, &be);
     call(FILErmrf, path8cgIn(wpath));
     call(FILErmrf, path8cgIn(rpath));
@@ -698,15 +673,12 @@ ok64 BEtest10() {
 ok64 BEtest11() {
     sane(1);
 
-    a_path(wpath, "/tmp");
+    a_path(wpath, $cstr("/tmp"));
     a_cstr(tmpl, "BEtestB_XXXXXX");
     call(path8gAddTmp, path8gIn(wpath), tmpl);
     call(FILEMakeDir, path8cgIn(wpath));
 
-    a_path(fpath, "");
-    call(path8gDup, path8gIn(fpath), path8cgIn(wpath));
-    a_cstr(fname, "main.c");
-    call(path8gPush, path8gIn(fpath), fname);
+    a_path(fpath, u8bDataC(wpath), $cstr("main.c"));
     u8cs main_src = $u8str("int main() { return 0; }\n");
     int fd = 0;
     call(FILECreate, &fd, path8cgIn(fpath));
@@ -755,10 +727,7 @@ ok64 BEtest11() {
     call(ROCKPut, &be.db, stat_key, meta_val);
 
     // Write .beget file
-    a_path(bgpath, "");
-    call(path8gDup, path8gIn(bgpath), path8cgIn(wpath));
-    a_cstr(bgname, ".beget");
-    call(path8gPush, path8gIn(bgpath), bgname);
+    a_path(bgpath, u8bDataC(wpath), $cstr(".beget"));
     u8cs beget_content = $u8str(
         "# test deps\n"
         "[deps]\n"
@@ -771,10 +740,7 @@ ok64 BEtest11() {
     call(BEGetDeps, &be, NO);
 
     // util.c should exist
-    a_path(upath, "");
-    call(path8gDup, path8gIn(upath), path8cgIn(wpath));
-    a_cstr(uname, "util.c");
-    call(path8gPush, path8gIn(upath), uname);
+    a_path(upath, u8bDataC(wpath), $cstr("util.c"));
     u8bp umap = NULL;
     call(FILEMapRO, &umap, path8cgIn(upath));
     u8cp u0 = u8bDataHead(umap), u1 = u8bIdleHead(umap);
@@ -782,8 +748,7 @@ ok64 BEtest11() {
     want($eq(util_got, dep_src));
     call(FILEUnMap, umap);
 
-    a_path(rpath, "");
-    call(path8gDup, path8gIn(rpath), path8cgIn(be.repo_pp));
+    a_path(rpath, u8bDataC(be.repo_pp));
     call(BEClose, &be);
     call(FILErmrf, path8cgIn(wpath));
     call(FILErmrf, path8cgIn(rpath));
@@ -795,16 +760,13 @@ ok64 BEtest11() {
 ok64 BEtest12() {
     sane(1);
 
-    a_path(wpath, "/tmp");
+    a_path(wpath, $cstr("/tmp"));
     a_cstr(tmpl, "BEtestC_XXXXXX");
     call(path8gAddTmp, path8gIn(wpath), tmpl);
     call(FILEMakeDir, path8cgIn(wpath));
 
     // Create file with exec mode
-    a_path(fpath, "");
-    call(path8gDup, path8gIn(fpath), path8cgIn(wpath));
-    a_cstr(fname, "meta.c");
-    call(path8gPush, path8gIn(fpath), fname);
+    a_path(fpath, u8bDataC(wpath), $cstr("meta.c"));
     u8cs source = $u8str("int meta = 1;\n");
     int fd = 0;
     call(FILECreate, &fd, path8cgIn(fpath));
@@ -844,10 +806,7 @@ ok64 BEtest12() {
     call(FILEUnMap, mapbuf);
 
     // Also test non-exec file gets 0644
-    a_path(fpath2, "");
-    call(path8gDup, path8gIn(fpath2), path8cgIn(wpath));
-    a_cstr(fname2, "noexec.c");
-    call(path8gPush, path8gIn(fpath2), fname2);
+    a_path(fpath2, u8bDataC(wpath), $cstr("noexec.c"));
     u8cs source2 = $u8str("int noexec = 2;\n");
     fd = 0;
     call(FILECreate, &fd, path8cgIn(fpath2));
@@ -866,8 +825,7 @@ ok64 BEtest12() {
     call(FILEStat, &st2, path8cgIn(fpath2));
     want((st2.st_mode & 0111) == 0);  // no exec bit
 
-    a_path(rpath, "");
-    call(path8gDup, path8gIn(rpath), path8cgIn(be.repo_pp));
+    a_path(rpath, u8bDataC(be.repo_pp));
     call(BEClose, &be);
     call(FILErmrf, path8cgIn(wpath));
     call(FILErmrf, path8cgIn(rpath));
@@ -1013,26 +971,20 @@ static ok64 GrepCollectCB(voidp arg, u8cs filepath, int lineno, u8cs line) {
 ok64 BEtest16() {
     sane(1);
 
-    a_path(wpath, "/tmp");
+    a_path(wpath, $cstr("/tmp"));
     a_cstr(tmpl, "BEtestG_XXXXXX");
     call(path8gAddTmp, path8gIn(wpath), tmpl);
     call(FILEMakeDir, path8cgIn(wpath));
 
     // Create two files with different content
-    a_path(fpath1, "");
-    call(path8gDup, path8gIn(fpath1), path8cgIn(wpath));
-    a_cstr(fname1, "alpha.c");
-    call(path8gPush, path8gIn(fpath1), fname1);
+    a_path(fpath1, u8bDataC(wpath), $cstr("alpha.c"));
     u8cs src1 = $u8str("int unique_xyz = 1;\n");
     int fd = 0;
     call(FILECreate, &fd, path8cgIn(fpath1));
     call(FILEFeedall, fd, src1);
     call(FILEClose, &fd);
 
-    a_path(fpath2, "");
-    call(path8gDup, path8gIn(fpath2), path8cgIn(wpath));
-    a_cstr(fname2, "beta.c");
-    call(path8gPush, path8gIn(fpath2), fname2);
+    a_path(fpath2, u8bDataC(wpath), $cstr("beta.c"));
     u8cs src2 = $u8str("int other_abc = 2;\n");
     fd = 0;
     call(FILECreate, &fd, path8cgIn(fpath2));
@@ -1078,8 +1030,7 @@ ok64 BEtest16() {
     call(BEGrep, &be, &gu4, GrepCollectCB, &gr4);
     same(gr4.count, 0);
 
-    a_path(rpath, "");
-    call(path8gDup, path8gIn(rpath), path8cgIn(be.repo_pp));
+    a_path(rpath, u8bDataC(be.repo_pp));
     call(BEClose, &be);
     call(FILErmrf, path8cgIn(wpath));
     call(FILErmrf, path8cgIn(rpath));
