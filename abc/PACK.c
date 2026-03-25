@@ -24,7 +24,7 @@ ok64 PACKCreate(packp p, const char *path, u64 maxlen) {
     size_t idxsize = nblocks * PACK_BLOCK_SIZE;
     u64 *idx = mmap(NULL, idxsize, PROT_READ | PROT_WRITE,
                     MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-    test(idx != MAP_FAILED, PACKfail);
+    test(idx != MAP_FAILED, PACKFAIL);
     ((u64 **)p->idx)[0] = idx;
     ((u64 **)p->idx)[1] = idx;
     ((u64 **)p->idx)[2] = idx;
@@ -32,7 +32,7 @@ ok64 PACKCreate(packp p, const char *path, u64 maxlen) {
 
     // Open file for writing
     p->fd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-    test(p->fd >= 0, PACKfail);
+    test(p->fd >= 0, PACKFAIL);
 
     p->datalen = 0;
     p->foff = 0;
@@ -50,11 +50,11 @@ fun ok64 PACKWritePage(packp p, u8cp data, size_t len) {
 
     int clen = LZ4_compress_default((const char *)data, (char *)compressed,
                                     (int)len, PACK_MAX_COMPRESSED);
-    test(clen > 0, PACKfail);
+    test(clen > 0, PACKFAIL);
 
     // Write compressed data
     ssize_t w = write(p->fd, compressed, clen);
-    test(w == clen, PACKfail);
+    test(w == clen, PACKFAIL);
 
     // Update index
     u64 pagenum = p->datalen / PAGESIZE;
@@ -122,12 +122,12 @@ ok64 PACKClose(packp p) {
         u64 nblocks = PACKIdxBlocks(npages);
         u64 idxsize = nblocks * PACK_BLOCK_SIZE;
         ssize_t w = write(p->fd, p->idx[0], idxsize);
-        test(w == (ssize_t)idxsize, PACKfail);
+        test(w == (ssize_t)idxsize, PACKFAIL);
 
         // Write trailer: uncompressed length (u64) + index size (u64)
         u64 trailer[2] = {p->datalen, idxsize};
         w = write(p->fd, trailer, sizeof(trailer));
-        test(w == sizeof(trailer), PACKfail);
+        test(w == sizeof(trailer), PACKFAIL);
     }
 
     // Cleanup
@@ -156,28 +156,28 @@ ok64 PACKOpen(packp p, const char *path) {
 
     // Open file for reading
     p->fd = open(path, O_RDONLY);
-    test(p->fd >= 0, PACKfail);
+    test(p->fd >= 0, PACKFAIL);
 
     // Get file size
     off_t fsize = lseek(p->fd, 0, SEEK_END);
-    test(fsize > 16, PACKcorrupt);  // At least trailer size
+    test(fsize > 16, PACKCORRUPT);  // At least trailer size
 
     // Read trailer: uncompressed length (u64) + index size (u64)
     u64 trailer[2];
-    test(lseek(p->fd, fsize - 16, SEEK_SET) >= 0, PACKfail);
-    test(read(p->fd, trailer, 16) == 16, PACKfail);
+    test(lseek(p->fd, fsize - 16, SEEK_SET) >= 0, PACKFAIL);
+    test(read(p->fd, trailer, 16) == 16, PACKFAIL);
 
     p->datalen = trailer[0];
     u64 idxsize = trailer[1];
 
     u64 npages = (p->datalen + PAGESIZE - 1) / PAGESIZE;
-    test(idxsize == PACKIdxSize(npages), PACKcorrupt);
+    test(idxsize == PACKIdxSize(npages), PACKCORRUPT);
 
     // Map index buffer
     u64 nblocks = PACKIdxBlocks(npages);
     u64 *idx = mmap(NULL, idxsize, PROT_READ | PROT_WRITE,
                     MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-    test(idx != MAP_FAILED, PACKfail);
+    test(idx != MAP_FAILED, PACKFAIL);
     ((u64 **)p->idx)[0] = idx;
     ((u64 **)p->idx)[1] = idx;
     ((u64 **)p->idx)[2] = idx;
@@ -185,8 +185,8 @@ ok64 PACKOpen(packp p, const char *path) {
 
     // Read index
     off_t idxoff = fsize - 16 - idxsize;
-    test(lseek(p->fd, idxoff, SEEK_SET) >= 0, PACKfail);
-    test(read(p->fd, p->idx[0], idxsize) == (ssize_t)idxsize, PACKfail);
+    test(lseek(p->fd, idxoff, SEEK_SET) >= 0, PACKFAIL);
+    test(read(p->fd, p->idx[0], idxsize) == (ssize_t)idxsize, PACKFAIL);
 
     // Create PAGE for decompressed data, set buf[2] to actual data length
     call(PAGECreate, &p->pg, npages * PAGESIZE, PACKEnsure, p);
@@ -202,14 +202,14 @@ ok64 PACKEnsure(pagep pg, b8 rw, u64 pos, size_t len) {
     sane(p != NULL && !p->writing);
 
     // Currently only read (decompress) is implemented
-    test(rw == NO, PACKbadarg);
+    test(rw == NO, PACKBADARG);
 
     // Calculate page range
     u64 first = pos / PAGESIZE;
     u64 last = (pos + len - 1) / PAGESIZE;
 
     u64 npages = (p->datalen + PAGESIZE - 1) / PAGESIZE;
-    test(last < npages, PACKbadarg);
+    test(last < npages, PACKBADARG);
 
     // Compression buffer for reading
     u8 compressed[PACK_MAX_COMPRESSED];
@@ -222,17 +222,17 @@ ok64 PACKEnsure(pagep pg, b8 rw, u64 pos, size_t len) {
         u64 off = PACKIdxOffset(p->idx[0], pg);
         u16 clen = PACKIdxPageLen(p->idx[0], pg);
 
-        test(clen > 0 && clen <= PACK_MAX_COMPRESSED, PACKcorrupt);
+        test(clen > 0 && clen <= PACK_MAX_COMPRESSED, PACKCORRUPT);
 
         // Read compressed data
-        test(lseek(p->fd, off, SEEK_SET) >= 0, PACKfail);
-        test(read(p->fd, compressed, clen) == clen, PACKfail);
+        test(lseek(p->fd, off, SEEK_SET) >= 0, PACKFAIL);
+        test(read(p->fd, compressed, clen) == clen, PACKFAIL);
 
         // Decompress into page buffer
         u8p dst = p->pg->buf[0] + pg * PAGESIZE;
         int dlen = LZ4_decompress_safe((const char *)compressed, (char *)dst,
                                        clen, PAGESIZE);
-        test(dlen > 0, PACKcorrupt);
+        test(dlen > 0, PACKCORRUPT);
 
         // Mark page as loaded
         PAGEIdxSetRead(p->pg, pg, PAGE_LOADED);

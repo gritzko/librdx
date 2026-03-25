@@ -12,9 +12,9 @@
 #include "INT.h"
 #include "URI.h"
 
-con ok64 NETbadaddr = 0x5ce766968968a36;
-con ok64 NETnospace = 0x5ce772cf7d259e9;
-con ok64 NETnone = 0x1739dcb3ca9;
+con ok64 NETBADADDR = 0x5ce74b28d28d35b;
+con ok64 NETNOSPACE = 0x5ce75761c64a30e;
+con ok64 NETNONE = 0x1739d5d85ce;
 
 typedef Bu8 NETaddr;
 #define NEThost(a) u8bPast(a)
@@ -43,12 +43,12 @@ fun ok64 NETInfo(NETaddr text, NETaddr raw) {
     int s = getnameinfo((struct sockaddr*)addr[0], $len(addr), host, NETmaxhost,
                         service, NETmaxserv, NI_NUMERICSERV);
     if (s != 0) {
-        return NETbadaddr;
+        return NETBADADDR;
     }
     u64 hl = strlen(host);
     u64 sl = strlen(service);
     range64 range = {hl + 1, hl + sl + 2};
-    if (range.till > Blen(text)) return NETnospace;
+    if (range.till > Blen(text)) return NETNOSPACE;
     Bu8rewind(text, range);
     return OK;
 }
@@ -65,7 +65,7 @@ fun int NETRandomPort() {
 ok64 NETResolve(struct addrinfo** result, URIstate const* uri, b8 stream);
 
 fun ok64 NETFreeAddress(struct addrinfo** addr) {
-    if (*addr == NULL) return NETnone;
+    if (*addr == NULL) return NETNONE;
     freeaddrinfo(*addr);
     *addr = NULL;
     return OK;

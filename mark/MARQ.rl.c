@@ -563,7 +563,7 @@ pro(MARQlexer, MARQstate *state) {
 #line 138 "MARQ.rl"
 
     if (p != text[1] || cs < MARQ_first_final) {
-        fail(MARQfail);
+        fail(MARQFAIL);
         state->text[0] = p;
     }
     done;

@@ -31,7 +31,7 @@ ok64 PACKtestBasic() {
     call(PACKFlush, &pw);
 
     // Verify data length after flush
-    test(pw.datalen == 3 * PAGESIZE, PACKfail);
+    test(pw.datalen == 3 * PAGESIZE, PACKFAIL);
 
     // Write more data
     buf = pw.pg->buf[2];
@@ -47,25 +47,25 @@ ok64 PACKtestBasic() {
     pack pr = {};
     call(PACKOpen, &pr, TEST_FILE);
 
-    test(pr.datalen == 4 * PAGESIZE + 100, PACKfail);  // 3 + 1 full + 1 partial
+    test(pr.datalen == 4 * PAGESIZE + 100, PACKFAIL);  // 3 + 1 full + 1 partial
 
     // Read first page
     call(PACKEnsure, pr.pg, NO, 0, PAGESIZE);
-    test(PAGEIdxRead(pr.pg, 0) == PAGE_LOADED, PACKfail);
+    test(PAGEIdxRead(pr.pg, 0) == PAGE_LOADED, PACKFAIL);
 
     // Verify data
     u8cp data = pr.pg->buf[0];
     for (int i = 0; i < PAGESIZE; i++) {
-        test(data[i] == (u8)(i & 0xFF), PACKcorrupt);
+        test(data[i] == (u8)(i & 0xFF), PACKCORRUPT);
     }
 
     // Read page 3 (first of second batch)
     call(PACKEnsure, pr.pg, NO, PAGESIZE * 3, PAGESIZE);
-    test(PAGEIdxRead(pr.pg, 3) == PAGE_LOADED, PACKfail);
+    test(PAGEIdxRead(pr.pg, 3) == PAGE_LOADED, PACKFAIL);
 
     data = pr.pg->buf[0] + PAGESIZE * 3;
     for (int i = 0; i < PAGESIZE; i++) {
-        test(data[i] == (u8)((i + 0x33) & 0xFF), PACKcorrupt);
+        test(data[i] == (u8)((i + 0x33) & 0xFF), PACKCORRUPT);
     }
 
     call(PACKClose, &pr);
@@ -106,10 +106,10 @@ ok64 PACKtestLargeFile() {
 
     // Read random pages
     call(PACKEnsure, pr.pg, NO, PAGESIZE * 50, PAGESIZE);
-    test(PAGEIdxRead(pr.pg, 50) == PAGE_LOADED, PACKfail);
+    test(PAGEIdxRead(pr.pg, 50) == PAGE_LOADED, PACKFAIL);
 
     call(PACKEnsure, pr.pg, NO, PAGESIZE * 99, PAGESIZE);
-    test(PAGEIdxRead(pr.pg, 99) == PAGE_LOADED, PACKfail);
+    test(PAGEIdxRead(pr.pg, 99) == PAGE_LOADED, PACKFAIL);
 
     call(PACKClose, &pr);
 
@@ -129,9 +129,9 @@ ok64 PACKtestIndex() {
     PACKIdxSetLen(block, 5, 200);
     PACKIdxSetLen(block, 11, 300);
 
-    test(PACKIdxLen(block, 0) == 100, PACKfail);
-    test(PACKIdxLen(block, 5) == 200, PACKfail);
-    test(PACKIdxLen(block, 11) == 300, PACKfail);
+    test(PACKIdxLen(block, 0) == 100, PACKFAIL);
+    test(PACKIdxLen(block, 5) == 200, PACKFAIL);
+    test(PACKIdxLen(block, 11) == 300, PACKFAIL);
 
     // Test offset calculation
     block[0] = 1000;  // base offset
@@ -141,7 +141,7 @@ ok64 PACKtestIndex() {
 
     // Page 0 offset should be base
     u64 off0 = block[0];
-    test(off0 == 1000, PACKfail);
+    test(off0 == 1000, PACKFAIL);
 
     // Page 3 offset = base + len[0] + len[1] + len[2]
     // = 1000 + 50 + 51 + 52 = 1153
@@ -150,7 +150,7 @@ ok64 PACKtestIndex() {
     for (int i = 0; i < 3; i++) {
         off3 += PACKIdxLen(block, i);
     }
-    test(off3 == expected, PACKfail);
+    test(off3 == expected, PACKFAIL);
 
     done;
 }

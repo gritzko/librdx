@@ -21,7 +21,7 @@ fun u32 NESTloglen(u8bp ct) { return $len(NESTlog(ct)); }
 fun ok64 NESTaddmark(u8bp ct, mark128 const* rec) {
     mark128** log = NESTlog(ct);
     u8$ idle = NESTidle(ct);
-    if ($size(idle) < sizeof(u128)) return NESTnoroom;
+    if ($size(idle) < sizeof(u128)) return NESTNOROOM;
     --log[0];
     **log = *rec;
     return OK;
@@ -43,7 +43,7 @@ fun u32 NESTfind(u8bp ct, u64 var) {
 ok64 NESTSplice(u8bp ct, u64 var) {
     sane(Bok(ct));
     u32 at = NESTfind(ct, var);
-    if (at == 0) return NESTnone;
+    if (at == 0) return NESTNONE;
     mark128 mark = {.pos = $len(NESTdata(ct))};
     call(NESTaddmark, ct, &mark);
     while (NESTmark(ct, at)->ins != 0) at = NESTmark(ct, at)->ins;
@@ -63,7 +63,7 @@ ok64 NESTSpliceMany(u8bp ct, u64 var, b8 some) {
             ++found;
         }
     }
-    if (!found) fail(NESTnone);
+    if (!found) fail(NESTNONE);
     done;
 }
 
@@ -74,20 +74,20 @@ ok64 NESTscanvar(ok64* var, u8cs input) {
     ++p;
     if (*p == '$') {
         ++input[0];
-        return NESTnone;
+        return NESTNONE;
     }
     b8 bracket = (*p == '{');
     if (bracket) ++p;
     u8cs name = {p};
     while (p < input[1] && RON64_REV[*p] != 0xff) ++p;
     if (bracket) {
-        test(p < input[1] && *p == '}', NESTbad);
+        test(p < input[1] && *p == '}', NESTBAD);
         name[1] = p;
         ++p;
     } else {
         name[1] = p;
     }
-    test($len(name) > 0 && $len(name) <= 10, NESTbad);
+    test($len(name) > 0 && $len(name) <= 10, NESTBAD);
     OKscan(var, name);
     input[0] = p;
     done;
@@ -97,7 +97,7 @@ ok64 NESTFeed(u8bp ct, u8cs insert) {
     sane(Bok(ct) && $ok(insert));
     u8$ idle = NESTidle(ct);
     u8c$ data = NESTdata(ct);
-    if ($len(idle) < $len(insert)) return NESTnoroom;
+    if ($len(idle) < $len(insert)) return NESTNOROOM;
     a_dup(u8c, ins, insert);
     while (!$empty(ins)) {
         if (**ins != '$' || $len(ins) <= 1) {

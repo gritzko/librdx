@@ -71,7 +71,7 @@ ok64 CAPO2() {
 
     size_t maxentries = 4096;
     u64 *ebuf = (u64 *)malloc(maxentries * sizeof(u64));
-    test(ebuf != NULL, FAILsanity);
+    test(ebuf != NULL, FAILSANITY);
     u64b entries = {ebuf, ebuf, ebuf, ebuf + maxentries};
 
     call(CAPOIndexFile, entries, source, ext, path);

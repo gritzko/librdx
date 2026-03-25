@@ -37,13 +37,13 @@ FUZZ(u8, URIfuzz) {
     if (o != OK) done;
 
     // Round-trip must preserve all components
-    if (!$eq(resolved.scheme, specific.scheme)) return FAILsanity;
-    if (!$eq(resolved.host, specific.host)) return FAILsanity;
-    if (!$eq(resolved.port, specific.port)) return FAILsanity;
-    if (!$eq(resolved.user, specific.user)) return FAILsanity;
-    if (!$eq(resolved.path, specific.path)) return FAILsanity;
-    if (!$eq(resolved.query, specific.query)) return FAILsanity;
-    if (!$eq(resolved.fragment, specific.fragment)) return FAILsanity;
+    if (!$eq(resolved.scheme, specific.scheme)) return FAILSANITY;
+    if (!$eq(resolved.host, specific.host)) return FAILSANITY;
+    if (!$eq(resolved.port, specific.port)) return FAILSANITY;
+    if (!$eq(resolved.user, specific.user)) return FAILSANITY;
+    if (!$eq(resolved.path, specific.path)) return FAILSANITY;
+    if (!$eq(resolved.query, specific.query)) return FAILSANITY;
+    if (!$eq(resolved.fragment, specific.fragment)) return FAILSANITY;
 
     done;
 }

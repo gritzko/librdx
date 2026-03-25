@@ -21,24 +21,22 @@
 #include "ftw.h"
 
 // Generic FILE error codes
-con ok64 FILEagain = 0xf4953a5ae5b72;
-con ok64 FILEerror = 0xf4953a9db6cf6;
+con ok64 FILEERROR = 0xf49538e6db61b;
 con ok64 FILEBADARG = 0x3d254e2ca34a6d0;
-con ok64 FILEfail = 0x3d254eaa5b70;
-con ok64 FILEnosync = 0x3d254ecb3dfdca7;
-con ok64 FILEnoopen = 0x3d254ecb3cf4a72;
-con ok64 FILEnoclse = 0x3d254ecb39f0de9;
-con ok64 FILEnostat = 0x3d254ecb3df8978;
-con ok64 FILEwrong = 0xf4953bbdb3cab;
-con ok64 FILEnoresz = 0x3d254ecb3da9dfe;
-con ok64 FILEend = 0xf4953a9ca8;
-con ok64 FILEnone = 0x3d254ecb3ca9;
-con ok64 FILEaccess = 0x3d254e9679e9df7;
-con ok64 FILEloop = 0x3d254ec33cf4;
-con ok64 FILEname = 0x3d254eca5c69;
-con ok64 FILEbad = 0xf4953a6968;
-con ok64 FILEskip = 0xf4953adc2d4;  // Skip this directory (don't recurse)
-con ok64 FILEnobook = 0x3d254ecb36f24ab;  // Not a booked mapping
+con ok64 FILEFAIL = 0x3d254e3ca495;
+con ok64 FILENOSYNC = 0x3d254e5d87225cc;
+con ok64 FILENOOPEN = 0x3d254e5d8619397;
+con ok64 FILENOCLSE = 0x3d254e5d831570e;
+con ok64 FILENOSTAT = 0x3d254e5d871d29d;
+con ok64 FILEWRONG = 0xf4953a06d85d0;
+con ok64 FILENORESZ = 0x3d254e5d86ce723;
+con ok64 FILEEND = 0xf49538e5cd;
+con ok64 FILENONE = 0x3d254e5d85ce;
+con ok64 FILEACCESS = 0x3d254e28c30e71c;
+con ok64 FILENAME = 0x3d254e5ca58e;
+con ok64 FILEBAD = 0xf49538b28d;
+con ok64 FILESKIP = 0x3d254e714499;  // Skip this directory (don't recurse)
+con ok64 FILENOBOOK = 0x3d254e5d82d8614;  // Not a booked mapping
 
 // errno ok64 codes (FILE + E* from errno.h, E doubled to single)
 con ok64 FILEACCES = 0xf49538a30c39c;  // EACCES: permission denied
@@ -122,7 +120,7 @@ fun ok64 FILEerrno(int e) {
         case EXDEV:
             return FILEXDEV;
         default:
-            return FILEfail;
+            return FILEFAIL;
     }
 }
 
@@ -325,7 +323,7 @@ ok64 FILERename(path8cg oldname, path8cg newname);
 // Drains the data to the file; if the slice is non empty on return, see errno!
 fun ok64 FILEFeed(int fd, u8 const **data) {
     ssize_t re = write(fd, *data, $size(data));
-    if (re <= 0) return FILEfail;
+    if (re <= 0) return FILEFAIL;
     *data += re;
     return OK;
 }
@@ -358,7 +356,7 @@ fun ok64 FILEFeedv(int fd, u8css datav) {
     struct iovec io[FILEmaxiov];
     int l = FILE2iovec(io, datav);
     ssize_t re = writev(fd, io, l);
-    if (re <= 0) return FILEfail;
+    if (re <= 0) return FILEFAIL;
     u8cssdrained(datav, re);
     return OK;
 }
@@ -376,8 +374,8 @@ fun ok64 FILEFeedall(int fd, uint8_t const *const *data) {
 fun ok64 FILEdrain(u8 **into, int fd) {
     ssize_t ret = read(fd, *into, $size(into));
     if (ret <= 0) {
-        if (ret == 0) return FILEend;
-        return FILEfail;  // TODO
+        if (ret == 0) return FILEEND;
+        return FILEFAIL;  // TODO
     }
     *into += ret;
     return OK;
@@ -387,8 +385,8 @@ fun ok64 FILEdrain(u8 **into, int fd) {
 fun ok64 FILEDrain(int fd, $u8 into) {
     ssize_t ret = read(fd, *into, $len(into));
     if (ret <= 0) {
-        if (ret == 0) return FILEend;
-        return FILEfail;
+        if (ret == 0) return FILEEND;
+        return FILEFAIL;
     }
     *into += ret;
     return OK;
@@ -398,7 +396,7 @@ fun ok64 FILEdrainv($$u8 datav, int fd) {
     struct iovec io[FILEmaxiov];
     int l = FILE2iovec(io, (u8cssp)datav);
     ssize_t re = readv(fd, io, l);
-    if (re <= 0) return FILEfail;
+    if (re <= 0) return FILEFAIL;
     u8cssdrained((u8cssp)datav, re);
     return OK;
 }
@@ -408,7 +406,7 @@ fun ok64 FILEdrainall(u8 **into, int fd) {
     do {
         o = FILEdrain(into, fd);
     } while ($len(into) > 0 && o == OK);
-    if (o == FILEend) o = OK;
+    if (o == FILEEND) o = OK;
     return o;
 }
 

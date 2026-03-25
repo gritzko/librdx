@@ -16,7 +16,7 @@ ok64 PAGEInit(u32 maxpages) {
     sane(maxpages > 0);
 
     PAGE_REGISTRY = calloc(maxpages, sizeof(page));
-    test(PAGE_REGISTRY != NULL, PAGEnoroom);
+    test(PAGE_REGISTRY != NULL, PAGENOROOM);
     PAGE_REGISTRY_LEN = maxpages;
 
     done;
@@ -33,7 +33,7 @@ ok64 PAGECreate(pagep *newpage, u64 maxlen, pagef ensure, void *ctx) {
             break;
         }
     }
-    test(p != NULL, PAGEnoroom);
+    test(p != NULL, PAGENOROOM);
 
     // Round up to page boundary
     u64 npages = (maxlen + PAGESIZE - 1) / PAGESIZE;
@@ -42,13 +42,13 @@ ok64 PAGECreate(pagep *newpage, u64 maxlen, pagef ensure, void *ctx) {
     // Map data region
     void *buf = mmap(NULL, buflen, PROT_READ | PROT_WRITE,
                      MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-    if (buf == MAP_FAILED) fail(PAGEfail);
+    if (buf == MAP_FAILED) fail(PAGEFAIL);
 
     // Allocate index array: u64 per page (+1 sentinel for u8bEnsure2)
     u64 *idx = calloc(npages + 1, sizeof(u64));
     if (idx == NULL) {
         munmap(buf, buflen);
-        fail(PAGEnoroom);
+        fail(PAGENOROOM);
     }
 
     // Init struct (cast to assign to const pointers)
@@ -115,7 +115,7 @@ ok64 PAGEEnsure(pagep p, u64 pos, size_t len) {
     if (len == 0) done;
     if (PAGEPresent(p, pos, len)) done;
 
-    test(p->ensure != NULL, PAGEnodata);
+    test(p->ensure != NULL, PAGENODATA);
 
     // Align to page boundaries
     u64 start = (pos / PAGESIZE) * PAGESIZE;
@@ -123,7 +123,7 @@ ok64 PAGEEnsure(pagep p, u64 pos, size_t len) {
 
     call(p->ensure, p, NO, start, end - start);
 
-    test(PAGEPresent(p, pos, len), PAGEfail);
+    test(PAGEPresent(p, pos, len), PAGEFAIL);
 
     done;
 }
@@ -138,7 +138,7 @@ ok64 PAGEDirty(pagep p, u64 pos, size_t len) {
     u64 last = (pos + len - 1) / PAGESIZE;
     u64 npages_idx = p->idx[3] - p->idx[0];
 
-    test(last < npages_idx, PAGEbadarg);
+    test(last < npages_idx, PAGEBADARG);
 
     for (u64 i = first; i <= last; i++) {
         PAGEIdxSetWrite(p, i, PAGE_DIRTY);
@@ -157,7 +157,7 @@ ok64 PAGEMarkLoaded(pagep p, u64 pos, size_t len) {
     u64 last = (pos + len - 1) / PAGESIZE;
     u64 npages_idx = p->idx[3] - p->idx[0];
 
-    test(last < npages_idx, PAGEbadarg);
+    test(last < npages_idx, PAGEBADARG);
 
     for (u64 i = first; i <= last; i++) {
         PAGEIdxSetRead(p, i, PAGE_LOADED);
@@ -227,7 +227,7 @@ ok64 PAGEStreamFd(pagep p, b8 rw, u64 pos, size_t need) {
             if (u8csEmpty(data)) {
                 // No data to write - shift to reclaim PAST
                 u8bShift(p->buf, 0);
-                if (u8bIdleLen(p->buf) < need) fail(PAGEnoroom);
+                if (u8bIdleLen(p->buf) < need) fail(PAGENOROOM);
                 done;
             }
             ssize_t n = write(fd, *data, u8csLen(data));
@@ -235,7 +235,7 @@ ok64 PAGEStreamFd(pagep p, b8 rw, u64 pos, size_t need) {
                 if (errno == EAGAIN || errno == EWOULDBLOCK) done;
                 fail(FILEerrno(errno));
             }
-            if (n == 0) fail(PAGEfail);
+            if (n == 0) fail(PAGEFAIL);
             u8bUsed(p->buf, n);  // consume written data from start
         }
     } else {
@@ -246,7 +246,7 @@ ok64 PAGEStreamFd(pagep p, b8 rw, u64 pos, size_t need) {
                 // No idle space - shift data to reclaim PAST
                 u8bShift(p->buf, 0);
                 idle = u8bIdle(p->buf);
-                if (u8sEmpty(idle)) fail(PAGEnoroom);
+                if (u8sEmpty(idle)) fail(PAGENOROOM);
             }
             ssize_t n = read(fd, *idle, u8sLen(idle));
             if (n < 0) {

@@ -58,7 +58,7 @@ ok64 bastcli() {
     call(u8bMap, bson, buflen);
     size_t idxlen = buflen / BASON_PAGE + 256;
     u64 *_idx = (u64 *)malloc(idxlen * sizeof(u64));
-    test(_idx != NULL, FAILsanity);
+    test(_idx != NULL, FAILSANITY);
     u64b idx = {_idx, _idx, _idx, _idx + idxlen};
     call(BASTParse, bson, idx, indata, ext);
 

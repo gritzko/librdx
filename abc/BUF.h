@@ -140,7 +140,7 @@ fun void BitUnset(u8b buf, size_t ndx) {
         call(u8cssFeed1, n##$idle, _s); \
     }
 
-con ok64 Badtemplte = 0x2e5a38a71d30e29;
+con ok64 BADTMPL = 0xb28d756655;
 
 fun ok64 $$feedf($u8 into, u8cs tmpl, u8css args) {
     a_dup(u8c, t, tmpl);
@@ -152,8 +152,8 @@ fun ok64 $$feedf($u8 into, u8cs tmpl, u8css args) {
             continue;
         }
         ++*t;
-        if ($empty(t)) return Badtemplte;
-        if (**t < '1' || **t > '9') return Badtemplte;
+        if ($empty(t)) return BADTMPL;
+        if (**t < '1' || **t > '9') return BADTMPL;
         int n = **t - '1';
         ++*t;
         if (n >= $len(args)) return BNODATA;

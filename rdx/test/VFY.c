@@ -19,7 +19,7 @@ con ok64 VFYBADORD = 0x1f3e22ca3586cd;    // incorrect element order
 con ok64 VFYNULLOUT = 0x1f3e22ca397bf;    // empty tuple outside tuple
 
 // Error codes from abc (already defined in headers, just reference here)
-// RDXBAD, TLVbadkv, ZINTBAD are used in test cases
+// RDXBAD, TLVBADKV, ZINTBAD are used in test cases
 
 // Test case structure: input TLV bytes, expected result, description
 typedef struct {
@@ -165,7 +165,7 @@ con VFYcase VERIFY_CASES[] = {
 
     // Invalid TLV: idlen claims more bytes than available
     // 'x' len=1 body=[0x01] but idlen=1 means 1 byte of id, leaving no room
-    {{0x78, 0x01, 0x01}, 3, TLVbadkv, "fuzz: idlen overflow"},
+    {{0x78, 0x01, 0x01}, 3, TLVBADKV, "fuzz: idlen overflow"},
 
     // Non-canonical ZINT: int 0 encoded as 1 byte instead of 0 bytes
     // 'i' len=4, idlen=2, id=0x00 0x10, value=0x00 (should be empty for 0)

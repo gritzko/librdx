@@ -15,7 +15,7 @@
 // Error codes
 con ok64 BEFAIL = 0x2ce3ca495;
 con ok64 BEBAD = 0xb38b28d;
-con ok64 BEnone = 0x2cecb3ca9;
+con ok64 BENONE = 0x2ce5d85ce;
 
 // --- Key scheme prefixes ---
 // stat:  → local-only cache (BASON: mtime, hash) — never replicated

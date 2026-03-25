@@ -28,8 +28,8 @@ ok64 capocli() {
     // Find repo root via git
     char rootbuf[FILE_PATH_MAX_LEN];
     FILE *gfp = popen("git rev-parse --show-toplevel", "r");
-    test(gfp != NULL, FAILsanity);
-    test(fgets(rootbuf, sizeof(rootbuf), gfp) != NULL, FAILsanity);
+    test(gfp != NULL, FAILSANITY);
+    test(fgets(rootbuf, sizeof(rootbuf), gfp) != NULL, FAILSANITY);
     pclose(gfp);
     size_t rlen = strlen(rootbuf);
     if (rlen > 0 && rootbuf[rlen - 1] == '\n') rootbuf[--rlen] = 0;
@@ -84,7 +84,7 @@ ok64 capocli() {
         // Get our own executable path
         char self[FILE_PATH_MAX_LEN];
         ssize_t slen = readlink("/proc/self/exe", self, sizeof(self) - 1);
-        test(slen > 0, FAILsanity);
+        test(slen > 0, FAILSANITY);
         self[slen] = 0;
 
         pid_t pids[256];
@@ -101,7 +101,7 @@ ok64 capocli() {
                 execl(self, "capo", "--fork", nstr, "--proc", kstr, NULL);
                 _exit(127);
             }
-            test(pid > 0, FAILsanity);
+            test(pid > 0, FAILSANITY);
             pids[k] = pid;
         }
 

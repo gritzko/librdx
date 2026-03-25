@@ -18,9 +18,9 @@ con u32 MAX_UNICODE_CODEPOINT = 0x10FFFF;
 con u8 MAX_UTF8_SIZE = 4;
 
 con ok64 UTF8NODATA = 0x79d3c85d834a74a;
-con ok64 UTF8noroom = 0x79d3c8cb3db3cf1;
-con ok64 UTF8bad = 0x1e74f226968;
-con ok64 UTF8badnum = 0x79d3c89a5a32e71;
+con ok64 UTFNOROOM = 0x1e74f5d86d8616;
+con ok64 UTFBAD = 0x79d3cb28d;
+con ok64 UTFBADNUM = 0x1e74f2ca357796;
 
 typedef unsigned char utf8;
 fun int utf8cmp(utf8 const *a, utf8 const *b) { return $cmp(a, b); }

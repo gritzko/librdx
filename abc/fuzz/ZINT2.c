@@ -14,9 +14,9 @@ FUZZ(u64, ZINT2fuzz) {
     u64sp drain = u64bIdle(out);
     call(ZINTu8sDrainBlocked, data, drain);
     a_dup(u64c, cmp, u64bDataC(out));
-    if ($len(cmp) != $len(input)) return FAILsanity;
+    if ($len(cmp) != $len(input)) return FAILSANITY;
     $for(u64c, p, input) {
-        if (*p != **cmp) return FAILsanity;
+        if (*p != **cmp) return FAILSANITY;
         ++*cmp;
     }
     done;

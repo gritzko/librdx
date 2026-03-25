@@ -464,7 +464,7 @@ _again:
 #line 178 "MARK.rl"
 
     if (p!=text[1] || cs < MARK_first_final) {
-        fail(MARKfail);
+        fail(MARKFAIL);
         state->text[0] = p;
     }
     done;

@@ -219,7 +219,7 @@ ok64 BSDDiff(u8s patch, u8csc old, u8csc neu, i64s work) {
     u8p outend = patch[1];
 
     // Reserve 24 bytes for header
-    test(outend - out >= 24, BSDnoroom);
+    test(outend - out >= 24, BSDNOROOM);
     u8p header = out;
     out += 24;
 
@@ -322,7 +322,7 @@ ok64 BSDDiff(u8s patch, u8csc old, u8csc neu, i64s work) {
             i64 seek_off = (pos - lenb) - (lastpos + lenf);
 
             // Write ctrl triple (3 * 8 bytes)
-            test(outend - out >= 24, BSDnoroom);
+            test(outend - out >= 24, BSDNOROOM);
             BSDofftout(diff_len, out);
             out += 8;
             BSDofftout(extra_len, out);
@@ -358,7 +358,7 @@ ok64 BSDDiff(u8s patch, u8csc old, u8csc neu, i64s work) {
         cp += 8;
 
         // diff bytes
-        test(outend - out >= diff_len, BSDnoroom);
+        test(outend - out >= diff_len, BSDNOROOM);
         for (i64 i = 0; i < diff_len; i++) {
             u8 ob_val =
                 (lastpos + i >= 0 && lastpos + i < oldsize) ? ob[lastpos + i] : 0;
@@ -370,7 +370,7 @@ ok64 BSDDiff(u8s patch, u8csc old, u8csc neu, i64s work) {
         lastpos += diff_len;
 
         // extra bytes
-        test(outend - out >= extra_len, BSDnoroom);
+        test(outend - out >= extra_len, BSDNOROOM);
         memcpy(out, nb + lastscan, extra_len);
         out += extra_len;
 
@@ -396,17 +396,17 @@ ok64 BSDPatch(u8s neu, u8csc old, u8csc patch) {
     sane(neu != NULL && old != NULL && patch != NULL);
 
     i64 patchlen = (i64)$len(patch);
-    test(patchlen >= 24, BSDcorrupt);
+    test(patchlen >= 24, BSDCORRUPT);
 
     u8cp pb = patch[0];
 
     // Check magic
-    test(memcmp(pb, "BSDIFF01", 8) == 0, BSDbadmagic);
+    test(memcmp(pb, "BSDIFF01", 8) == 0, BSDBADMAGC);
 
     i64 neusize = BSDofftin(pb + 8);
     i64 ctrl_count = BSDofftin(pb + 16);
-    test(neusize >= 0 && ctrl_count >= 0, BSDcorrupt);
-    test($len(neu) >= neusize, BSDnoroom);
+    test(neusize >= 0 && ctrl_count >= 0, BSDCORRUPT);
+    test($len(neu) >= neusize, BSDNOROOM);
 
     i64 oldsize = (i64)$len(old);
     u8cp ob = old[0];
@@ -415,7 +415,7 @@ ok64 BSDPatch(u8s neu, u8csc old, u8csc patch) {
     // ctrl block starts at offset 24
     u8cp cp = pb + 24;
     i64 ctrl_bytes = ctrl_count * 24;
-    test(patchlen >= 24 + ctrl_bytes, BSDcorrupt);
+    test(patchlen >= 24 + ctrl_bytes, BSDCORRUPT);
 
     // diff block follows ctrl
     u8cp dp = cp + ctrl_bytes;
@@ -431,13 +431,13 @@ ok64 BSDPatch(u8s neu, u8csc old, u8csc patch) {
             i64 el = BSDofftin(tp);
             tp += 8;
             tp += 8;  // skip seek
-            test(dl >= 0 && el >= 0, BSDcorrupt);
+            test(dl >= 0 && el >= 0, BSDCORRUPT);
             total_diff += dl;
             total_extra += el;
         }
     }
 
-    test(patchlen >= 24 + ctrl_bytes + total_diff + total_extra, BSDcorrupt);
+    test(patchlen >= 24 + ctrl_bytes + total_diff + total_extra, BSDCORRUPT);
 
     u8cp ep = dp + total_diff;
     i64 oldpos = 0, newpos = 0;
@@ -450,7 +450,7 @@ ok64 BSDPatch(u8s neu, u8csc old, u8csc patch) {
         i64 seek_off = BSDofftin(cp);
         cp += 8;
 
-        test(newpos + diff_len <= neusize, BSDcorrupt);
+        test(newpos + diff_len <= neusize, BSDCORRUPT);
 
         // Read diff bytes and add old data
         memcpy(nb + newpos, dp, diff_len);
@@ -462,7 +462,7 @@ ok64 BSDPatch(u8s neu, u8csc old, u8csc patch) {
         newpos += diff_len;
         oldpos += diff_len;
 
-        test(newpos + extra_len <= neusize, BSDcorrupt);
+        test(newpos + extra_len <= neusize, BSDCORRUPT);
 
         // Copy extra bytes
         memcpy(nb + newpos, ep, extra_len);

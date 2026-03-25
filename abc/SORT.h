@@ -2,7 +2,7 @@
 #define ABC_SORT_H
 #include "INT.h"
 
-con ok64 SORTnoroom = 0x7186ddcb3db3cf1;
+con ok64 SORTNOROOM = 0x7186dd5d86d8616;
 con ok64 SORTNODATA = 0x7186dd5d834a74a;
 
 fun ok64 SORTu64x(u8cs s, u8cs rest) { return $u8take(s, rest, sizeof(u64)); }

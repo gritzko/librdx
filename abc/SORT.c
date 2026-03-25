@@ -3,7 +3,7 @@
 #include "Y.h"
 
 ok64 SORTu64($u64 into, $u64 from) {
-    if ($len(into) < $len(from)) return SORTnoroom;
+    if ($len(into) < $len(from)) return SORTNOROOM;
     aBpad2(u8cs, chunks, Y_MAX_INPUTS);
     ok64 o = OK;
     size_t clen = 1;

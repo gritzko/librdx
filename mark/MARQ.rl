@@ -137,7 +137,7 @@ pro(MARQlexer, MARQstate* state) {
     %% write exec;
 
     if (p!=text[1] || cs < MARQ_first_final) {
-        fail(MARQfail);
+        fail(MARQFAIL);
         state->text[0] = p;
     }
     done;

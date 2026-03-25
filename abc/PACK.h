@@ -6,11 +6,11 @@
 #include <lz4.h>
 
 // Error codes
-con ok64 PACKfail = 0x1932c3aa5b70;
-con ok64 PACKnoroom = 0x1932c3db3cf1;
-con ok64 PACKbadarg = 0x1932c32ca34a6d0;
-con ok64 PACKnodata = 0x1932c33834a74a;
-con ok64 PACKcorrupt = 0x1932c38c3dde619;
+con ok64 PACKFAIL = 0x64a3143ca495;
+con ok64 PACKNOROOM = 0x64a3145d86d8616;
+con ok64 PACKBADARG = 0x64a3142ca34a6d0;
+con ok64 PACKNODATA = 0x64a3145d834a74a;
+con ok64 PACKCORRUPT = 0x928c50c61b6de65d;
 
 // Index block: 32 bytes, 12 pages
 // u64[0]: file offset of first page in block

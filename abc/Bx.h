@@ -247,7 +247,7 @@ fun void X(, bReset)(X(, b) buf) {
 
 fun ok64 X(B, rewind)(X(B, ) buf, range64 range) {
     size_t len = Blen(buf);
-    if (range.till < range.from || range.till > len) return $miss;
+    if (range.till < range.from || range.till > len) return SMISS;
     T **b = (T **)buf;
     b[1] = b[0] + range.from;
     b[2] = b[0] + range.till;
@@ -257,14 +257,14 @@ fun ok64 X(B, rewind)(X(B, ) buf, range64 range) {
 // fun void X(B, reset)(X(B, ) buf) { X(B, rewind)(buf, 0, 0); }
 
 fun ok64 X(B, mark$)(X(B, ) const buf, X($, ) slice, range64 *range) {
-    if (!Bwithin(buf, slice)) return Bmiss;
+    if (!Bwithin(buf, slice)) return BMISS;
     range->from = slice[0] - buf[0];
     range->till = slice[1] - buf[0];
     return OK;
 }
 
 fun ok64 X($, mark)(X($, c) const host, X($, c) const slice, range64 *range) {
-    if (!$within(host, slice)) return $miss;
+    if (!$within(host, slice)) return SMISS;
     range->from = slice[0] - host[0];
     range->till = slice[1] - host[0];
     return OK;
@@ -272,7 +272,7 @@ fun ok64 X($, mark)(X($, c) const host, X($, c) const slice, range64 *range) {
 
 fun ok64 X($, rewind)(X($c, c) host, X($, c) slice, range64 range) {
     size_t len = $len(host);
-    if (range.till < range.from || range.till > len) return $miss;
+    if (range.till < range.from || range.till > len) return SMISS;
     slice[0] = host[0] + range.from;
     slice[1] = host[0] + range.till;
     return OK;
@@ -280,7 +280,7 @@ fun ok64 X($, rewind)(X($c, c) host, X($, c) slice, range64 range) {
 
 fun ok64 X(B, rewind$)(X(B, ) buf, X($, ) slice, range64 range) {
     size_t len = Blen(buf);
-    if (range.till < range.from || range.till > len) return Bmiss;
+    if (range.till < range.from || range.till > len) return BMISS;
     slice[0] = buf[0] + range.from;
     slice[1] = buf[0] + range.till;
     return OK;
@@ -333,7 +333,7 @@ fun ok64 X(, bReMap)(X(, bp) buf, size_t new_len) {
 }
 
 fun ok64 X(, bUnMap)(X(, b) buf) {
-    if (unlikely(buf == NULL || *buf == NULL)) return FAILsanity;
+    if (unlikely(buf == NULL || *buf == NULL)) return FAILSANITY;
     if (-1 == munmap((void *)buf[0], Bsize(buf))) return MMAPFAIL;
     void **b = (void **)buf;
     b[0] = b[1] = b[2] = b[3] = NULL;
@@ -341,7 +341,7 @@ fun ok64 X(, bUnMap)(X(, b) buf) {
 }
 
 fun ok64 X(, bShift)(X(, b) buf, size_t pastlen) {
-    if (unlikely(!Bok(buf))) return FAILsanity;
+    if (unlikely(!Bok(buf))) return FAILSANITY;
     size_t datalen = $len(Bdata(buf));
     if (!datalen) {
         Breset(buf);
@@ -356,10 +356,10 @@ fun ok64 X(, bShift)(X(, b) buf, size_t pastlen) {
 }
 
 fun ok64 X(, bSplice)(X(, bp) buf, size_t off, size_t cut, X(, csc) paste) {
-    if (!Bok(buf) || !X(, csOK)(paste)) return FAILsanity;
+    if (!Bok(buf) || !X(, csOK)(paste)) return FAILSANITY;
     if (X(, bDataLen)(buf) < off + cut ||
         X(, bIdleLen)(buf) + cut < X(, csLen)(paste))
-        return Bmiss;
+        return BMISS;
     u8 *b = ((u8 **)buf)[1];
     memmove(b + off + $len(paste), b + off + cut,
             X(, bDataLen)(buf) - off - cut);

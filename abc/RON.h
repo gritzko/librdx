@@ -44,7 +44,7 @@ ok64 RONOfTime(ron60* r, struct tm* t);
 // Convert RON60 timestamp to struct tm (months are 1-based in RON60)
 ok64 RONToTime(ron60 r, struct tm* t);
 
-con ok64 RONBAD = 0xe2a2a61cf1;
+// RONBAD defined in OK.h
 
 // Verify string contains only valid RON64 characters (non-empty)
 ok64 RONVerify(u8c** txt);

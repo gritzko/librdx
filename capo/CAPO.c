@@ -270,7 +270,7 @@ ok64 CAPOCompact(u8csc dir) {
     for (u32 i = 0; i < nfiles; i++) total += $len(runs[i]);
 
     u64 *buf = (u64 *)malloc(total * sizeof(u64));
-    test(buf != NULL, FAILsanity);
+    test(buf != NULL, FAILSANITY);
     u64s into = {buf, buf + total};
 
     size_t n = $len(stack);
@@ -394,10 +394,10 @@ ok64 CAPOReindex(u8csc reporoot) {
     char cmdbuf[FILE_PATH_MAX_LEN + 32];
     int n = snprintf(cmdbuf, sizeof(cmdbuf), "git -C %.*s ls-files",
                      (int)$len(reporoot), (char *)reporoot[0]);
-    test(n > 0 && n < (int)sizeof(cmdbuf), FAILsanity);
+    test(n > 0 && n < (int)sizeof(cmdbuf), FAILSANITY);
 
     FILE *fp = popen(cmdbuf, "r");
-    test(fp != NULL, FAILsanity);
+    test(fp != NULL, FAILSANITY);
 
     u32 indexed = 0, skipped = 0, failed = 0;
     u64 seqno = 1;
@@ -513,10 +513,10 @@ ok64 CAPOReindexProc(u8csc reporoot, u32 nprocs, u32 proc) {
     char cmdbuf[FILE_PATH_MAX_LEN + 32];
     int n = snprintf(cmdbuf, sizeof(cmdbuf), "git -C %.*s ls-files",
                      (int)$len(reporoot), (char *)reporoot[0]);
-    test(n > 0 && n < (int)sizeof(cmdbuf), FAILsanity);
+    test(n > 0 && n < (int)sizeof(cmdbuf), FAILSANITY);
 
     FILE *fp = popen(cmdbuf, "r");
-    test(fp != NULL, FAILsanity);
+    test(fp != NULL, FAILSANITY);
 
     u32 indexed = 0, skipped = 0, failed = 0;
     u32 batch = 0;
@@ -733,10 +733,10 @@ ok64 CAPOHook(u8csc reporoot) {
     int n = snprintf(cmdbuf, sizeof(cmdbuf),
                      "git -C %.*s diff --name-only HEAD~1 HEAD",
                      (int)$len(reporoot), (char *)reporoot[0]);
-    test(n > 0 && n < (int)sizeof(cmdbuf), FAILsanity);
+    test(n > 0 && n < (int)sizeof(cmdbuf), FAILSANITY);
 
     FILE *fp = popen(cmdbuf, "r");
-    test(fp != NULL, FAILsanity);
+    test(fp != NULL, FAILSANITY);
 
     Bu64 entries = {};
     call(u64bMap, entries, CAPO_SCRATCH_LEN);
@@ -837,7 +837,7 @@ ok64 CAPOQuery(u8csc selector, u8csc reporoot) {
     u32 maxhashes = 64 * 1024;
     u32 *hashbuf1 = (u32 *)malloc(maxhashes * sizeof(u32));
     u32 *hashbuf2 = (u32 *)malloc(maxhashes * sizeof(u32));
-    test(hashbuf1 != NULL && hashbuf2 != NULL, FAILsanity);
+    test(hashbuf1 != NULL && hashbuf2 != NULL, FAILSANITY);
 
     // Load MSET stack
     u64cs runs[CAPO_MAX_LEVELS] = {};
@@ -959,10 +959,10 @@ ok64 CAPOQuery(u8csc selector, u8csc reporoot) {
     char cmdbuf[FILE_PATH_MAX_LEN + 32];
     int cn = snprintf(cmdbuf, sizeof(cmdbuf), "git -C %.*s ls-files",
                       (int)$len(reporoot), (char *)reporoot[0]);
-    test(cn > 0 && cn < (int)sizeof(cmdbuf), FAILsanity);
+    test(cn > 0 && cn < (int)sizeof(cmdbuf), FAILSANITY);
 
     FILE *fp = popen(cmdbuf, "r");
-    test(fp != NULL, FAILsanity);
+    test(fp != NULL, FAILSANITY);
 
     char line[FILE_PATH_MAX_LEN];
     while (fgets(line, sizeof(line), fp)) {

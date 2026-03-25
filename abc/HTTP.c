@@ -97,5 +97,5 @@ ok64 HTTPfind(u8cs *value, u8cs key, u8css headers) {
             return OK;
         }
     }
-    return HTTPnone;
+    return HTTPNONE;
 }

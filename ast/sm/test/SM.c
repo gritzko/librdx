@@ -75,7 +75,7 @@ ok64 SMtestRoundtrip() {
         if ((size_t)$len(result) != (size_t)$len(src)) {
             fprintf(stderr, "ROUNDTRIP FAIL case %zu: got %zu expected %zu\n",
                     t, (size_t)$len(result), (size_t)$len(src));
-            fail(faileq);
+            fail(FAILEQ);
         }
         if ($len(src) > 0)
             testeq(0, memcmp(result[0], src[0], $len(src)));

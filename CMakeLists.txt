@@ -3,6 +3,10 @@ project(rdx C)
 
 set(CMAKE_C_STANDARD 23)
 
+# Buffer accessors return T** slice pointers into struct members;
+# GCC -O3 strict aliasing breaks overlapping slice access patterns.
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-strict-aliasing")
+
 set(CMAKE_EXPORT_COMPILE_COMMANDS on)
 
 include(CTest)

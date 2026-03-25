@@ -271,14 +271,14 @@ ok64 RDXutf8sDrainID(utf8cs from, id128p ref) {
     u8c* p = $u8find(t, &DELIM);
     ok64 o = OK;
     if (p == NULL) {
-        test($len(t) <= 10, RONbad);
+        test($len(t) <= 10, RONBAD);
         ref->src = 0;
         o = RONutf8sDrain(&ref->seq, t);
         if (o == OK) from[0] = t[0];
     } else {
         u8cs src = {t[0], p};
         u8cs time = {p + 1, t[1]};
-        test($len(src) <= 10 && $len(time) <= 10, RONbad);
+        test($len(src) <= 10 && $len(time) <= 10, RONBAD);
         o = RONutf8sDrain(&ref->src, src);
         if (o == OK) o = RONutf8sDrain(&ref->seq, time);
         if (o == OK) from[0] = t[1];

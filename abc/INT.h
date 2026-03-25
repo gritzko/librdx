@@ -17,7 +17,7 @@
 #define a_i64cs(n, arr) i64c *n[2] = {(arr), (arr) + sizeof(arr)/sizeof(arr[0])}
 #define a_i32cs(n, arr) i32c *n[2] = {(arr), (arr) + sizeof(arr)/sizeof(arr[0])}
 
-con ok64 INTbad = 0x497766968;
+con ok64 INTBAD = 0x49774b28d;
 
 #define I64_MAX INT64_MAX
 #define I64_MIN INT64_MIN

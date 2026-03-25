@@ -27,7 +27,7 @@ ok64 LISTtest1() {
     sane(1);
     aBpad(entry128, list, 1024);
     entry128 codes[3] = {
-        {.value = LISTnoroom}, {.value = LISTNODATA}, {.value = LISTbadndx}};
+        {.value = LISTNOROOM}, {.value = LISTNODATA}, {.value = LISTBADNDX}};
     call(LISTentry128insert, list, codes + 0, 0);
     call(LISTentry128insert, list, codes + 2, 0);
     call(LISTentry128insert, list, codes + 1, 0);

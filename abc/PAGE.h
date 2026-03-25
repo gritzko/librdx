@@ -8,10 +8,10 @@ typedef u64 *const u64b[4];
 typedef u64 *const *u64bp;
 
 // Error codes
-con ok64 PAGEnoroom = 0x1a9acfb3db3cf1;
-con ok64 PAGEnodata = 0x1a9acf3834a74a;
-con ok64 PAGEfail = 0x1a9acfaa5b70;
-con ok64 PAGEbadarg = 0x1a9acf2ca34a6d0;
+con ok64 PAGENOROOM = 0x64a40e5d86d8616;
+con ok64 PAGENODATA = 0x64a40e5d834a74a;
+con ok64 PAGEFAIL = 0x64a40e3ca495;
+con ok64 PAGEBADARG = 0x64a40e2ca34a6d0;
 
 // Page progress values (0-255 range for read/write)
 #define PAGE_ABSENT 0    // read=0: not loaded
@@ -92,7 +92,7 @@ ok64 PAGEEnsure(pagep p, u64 pos, size_t len);
 
 // Ensure slice is available (slice must be within buf)
 fun ok64 PAGEEnsureSlice(pagep p, u8csc slice) {
-    if (!Bwithin(p->buf, slice)) return PAGEbadarg;
+    if (!Bwithin(p->buf, slice)) return PAGEBADARG;
     u64 pos = slice[0] - p->buf[0];
     size_t len = slice[1] - slice[0];
     return PAGEEnsure(p, pos, len);
@@ -116,14 +116,14 @@ ok64 PAGEStreamFd(pagep p, b8 rw, u64 pos, size_t need);
 // Ensure idle space for writing (invokes callback if needed)
 fun ok64 PAGEEnsureIdle(pagep p, size_t need) {
     if (u8bIdleLen(p->buf) >= need) return OK;
-    if (p->ensure == NULL) return PAGEnoroom;
+    if (p->ensure == NULL) return PAGENOROOM;
     return p->ensure(p, YES, 0, need);
 }
 
 // Ensure data available for reading (invokes callback if needed)
 fun ok64 PAGEEnsureData(pagep p, size_t need) {
     if (u8bDataLen(p->buf) >= need) return OK;
-    if (p->ensure == NULL) return PAGEnodata;
+    if (p->ensure == NULL) return PAGENODATA;
     return p->ensure(p, NO, 0, need);
 }
 

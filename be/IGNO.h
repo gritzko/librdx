@@ -17,8 +17,8 @@
 
 #include "abc/INT.h"
 
-con ok64 IGNOfail = 0x6361fa29c9;
-con ok64 IGNOnomatch = 0x929d472cf64;
+con ok64 IGNOFAIL = 0x4905d83ca495;
+con ok64 IGNONOMTCH = 0x4905d85d859d311;
 
 // Maximum patterns per .gitignore
 #define IGNO_MAX_PATTERNS 256

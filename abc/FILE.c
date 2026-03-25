@@ -66,7 +66,7 @@ ok64 FILERmDir(path8cg path, bool recursive) {
         // Open directory and delete contents
         DIR *dir = opendir((char const *)*path);
         if (dir == NULL) {
-            testc(errno == ENOENT, FILEfail);  // OK if doesn't exist
+            testc(errno == ENOENT, FILEFAIL);  // OK if doesn't exist
             done;
         }
 
@@ -134,19 +134,19 @@ ok64 FILEisdir(path8cg path) {
     sane(path8cgOK(path));
     struct stat sb = {};
     call(FILEStat, &sb, path);
-    test(sb.st_mode & S_IFDIR, FILEwrong);
+    test(sb.st_mode & S_IFDIR, FILEWRONG);
     done;
 }
 
 ok64 FILESync(int const *fd) {
     sane(FILEok(*fd));
-    testc(fsync(*fd) == 0, FILEnosync);
+    testc(fsync(*fd) == 0, FILENOSYNC);
     done;
 }
 
 ok64 FILEClose(int *fd) {
     sane(FILEok(*fd));
-    testc(0 == close(*fd), FILEnoclse);
+    testc(0 == close(*fd), FILENOCLSE);
     *fd = FILE_CLOSED;
     done;
 }
@@ -155,7 +155,7 @@ ok64 FILECreate(int *fd, path8cg path) {
     sane(fd != NULL && path8cgOK(path));
     *fd = open((char const *)*path, O_CREAT | O_RDWR | O_TRUNC,
                S_IRUSR | S_IWUSR);
-    if (*fd < 0) fail(FILEErr(FILEnoopen));
+    if (*fd < 0) fail(FILEErr(FILENOOPEN));
     done;
 }
 
@@ -163,21 +163,21 @@ ok64 FILECreateAt(int *fd, int dir, path8cg path) {
     sane(fd != NULL && path8cgOK(path));
     *fd = openat(dir, (char const *)*path, O_CREAT | O_RDWR | O_TRUNC,
                  S_IRUSR | S_IWUSR);
-    if (*fd < 0) fail(FILEErr(FILEnoopen));
+    if (*fd < 0) fail(FILEErr(FILENOOPEN));
     done;
 }
 
 ok64 FILEOpen(int *fd, path8cg path, int flags) {
     sane(fd != NULL && path8cgOK(path));
     *fd = open((char const *)*path, flags);
-    if (*fd < 0) fail(FILEErr(FILEnoopen));
+    if (*fd < 0) fail(FILEErr(FILENOOPEN));
     done;
 }
 
 ok64 FILEOpenAt(int *fd, int const dirfd, path8cg path, int flags) {
     sane(fd != NULL && path8cgOK(path) && FILEok(dirfd));
     *fd = openat(dirfd, (char const *)*path, flags);
-    if (*fd < 0) fail(FILEErr(FILEnoopen));
+    if (*fd < 0) fail(FILEErr(FILENOOPEN));
     done;
 }
 
@@ -191,14 +191,14 @@ ok64 FILEStat(struct stat *ret, path8cg path) {
 ok64 FILESize(size_t *size, int const *fd) {
     sane(size != NULL && FILEok(*fd));
     struct stat sb = {};
-    testc(0 == fstat(*fd, &sb), FILEnostat);
+    testc(0 == fstat(*fd, &sb), FILENOSTAT);
     *size = sb.st_size;
     done;
 }
 
 ok64 FILEResize(int const *fd, size_t new_size) {
     sane(FILEok(*fd));
-    testc(0 == ftruncate(*fd, new_size), FILEnoresz);
+    testc(0 == ftruncate(*fd, new_size), FILENORESZ);
     // FIXME sync the dir data (another msync?)
     done;
 }
@@ -266,7 +266,7 @@ ok64 FILEFlush(int const *fd) {
     u8bp buf = FILE_WANT_BUFS[*fd];
     if (u8bDataLen(buf) >= PAGESIZE) {
         int r = write(*fd, *u8bDataC(buf), u8bDataLen(buf));
-        if (r < 0) fail(FILEerror);  // todo
+        if (r < 0) fail(FILEERROR);  // todo
         u8bFed(buf, r);
         if (u8bPastLen(buf) >= u8bDataLen(buf)) u8bShift(buf, 0);
         // todo if grows too fast
@@ -281,7 +281,7 @@ ok64 FILEFlushAll(int const *fd) {
     u8csp data = u8bDataC(buf);
     while (u8bDataLen(buf)) {
         int r = write(*fd, *data, u8csLen(data));
-        if (r < 0) fail(FILEerror);  // todo
+        if (r < 0) fail(FILEERROR);  // todo
         u8csFed(data, r);
     }
     Breset(buf);
@@ -294,7 +294,7 @@ ok64 FILEFlushThreshold(int fd, u8b buf, size_t threshold) {
     sane(fd >= 0 && Bok(buf));
     if (u8bDataLen(buf) >= threshold) {
         ssize_t written = write(fd, *u8bData(buf), u8bDataLen(buf));
-        if (written < 0) return FILEerror;  // TODO vocabulary
+        if (written < 0) return FILEERROR;  // TODO vocabulary
         Bate(buf);                          // Move data -> past
     }
     done;
@@ -307,7 +307,7 @@ ok64 FILEEnsureSoft(int fd, u8b buf, size_t needed) {
     }
     while (u8bDataLen(buf) < needed && u8bIdleLen(buf) > 0) {
         ssize_t n = read(fd, *u8bIdle(buf), u8bIdleLen(buf));
-        if (n < 0) return FILEerror;
+        if (n < 0) return FILEERROR;
         if (n == 0) break;  // EOF
         u8bFed(buf, n);
     }
@@ -329,8 +329,8 @@ ok64 FILEEnsureHard(int fd, u8b buf, size_t needed) {
     while (u8bDataLen(buf) < needed) {
         test(u8bIdleLen(buf) > 0, NOROOM);
         ssize_t n = read(fd, *u8bIdle(buf), u8bIdleLen(buf));
-        if (n < 0) return FILEerror;
-        test(n > 0, FILEend);  // EOF before getting needed bytes
+        if (n < 0) return FILEERROR;
+        test(n > 0, FILEEND);  // EOF before getting needed bytes
         Bump(buf, n);
     }
     done;
@@ -582,11 +582,11 @@ ok64 FILEBookCreateAt(u8bp *buf, int dir, path8cg path, size_t book_size,
 ok64 FILEBookExtend(u8bp buf, size_t new_size) {
     sane(Bok(buf));
     int fd = FILEBookedFD(buf);
-    test(fd >= 0, FILEnobook);
+    test(fd >= 0, FILENOBOOK);
 
     // Get booked end
     u8p booked_end = *u8pbAtP(FILE_BOOK, fd);
-    test(booked_end != NULL, FILEnobook);
+    test(booked_end != NULL, FILENOBOOK);
 
     u8p base = buf[0];
     size_t book_size = booked_end - base;
@@ -616,7 +616,7 @@ ok64 FILEBookExtend(u8bp buf, size_t new_size) {
 ok64 FILETrimBook(u8bp buf) {
     sane(Bok(buf));
     int fd = FILEBookedFD(buf);
-    test(fd >= 0, FILEnobook);
+    test(fd >= 0, FILENOBOOK);
     call(FILEResize, &fd, u8bDataLen(buf));
     u8c **b = (u8c **)buf;
     b[3] = b[2];
@@ -645,11 +645,11 @@ ok64 FILEMSync(u8bp buf) {
 ok64 FILEUnBook(u8bp buf) {
     sane(Bok(buf));
     int fd = FILEBookedFD(buf);
-    test(fd >= 0, FILEnobook);
+    test(fd >= 0, FILENOBOOK);
 
     // Get booked end
     u8p booked_end = *u8pbAtP(FILE_BOOK, fd);
-    test(booked_end != NULL, FILEnobook);
+    test(booked_end != NULL, FILENOBOOK);
 
     u8p base = buf[0];
     size_t book_size = booked_end - base;
@@ -681,7 +681,7 @@ ok64 FILEScan(path8 path, FILE_SCAN mode, path8f f, voidp arg) {
     DIR *dir = opendir((const char *)*path);
     if (dir == NULL) {
         // todo
-        fail(FILEbad);
+        fail(FILEBAD);
     }
     u8sp idle = u8bIdle(path);
     u8p saved_end = *idle;
@@ -716,7 +716,7 @@ ok64 FILEScan(path8 path, FILE_SCAN mode, path8f f, voidp arg) {
         switch (dtype) {
             case DT_DIR:
                 if (o == OK && (mode & FILE_SCAN_DIRS)) o = f(arg, path);
-                if (o == FILEskip)
+                if (o == FILESKIP)
                     o = OK;  // Skip recursion but continue scan
                 else if (o == OK && (mode & FILE_SCAN_DEEP))
                     o = FILEScan(path, mode, f, arg);

@@ -150,9 +150,9 @@ ok64 BASTtestNameTag() {
         }
     }
 
-    test(f_count >= 2, FAILsanity);
-    test(found_foo == YES, FAILsanity);
-    test(found_MyStruct == YES, FAILsanity);
+    test(f_count >= 2, FAILSANITY);
+    test(found_foo == YES, FAILSANITY);
+    test(found_MyStruct == YES, FAILSANITY);
 
     // Verify roundtrip: concatenating all leaf nodes reproduces source
     u8bReset(pad);
@@ -314,13 +314,13 @@ ok64 BASTtestMDStructure() {
         }
     }
 
-    test(found_Y == YES, FAILsanity);  // heading (bold)
-    test(found_W == YES, FAILsanity);  // italic
-    test(found_V == YES, FAILsanity);  // bold
-    test(found_G == YES, FAILsanity);  // code
-    test(found_T == YES, FAILsanity);  // link
-    test(found_J == YES, FAILsanity);  // strikethrough
-    test(found_P == YES, FAILsanity);  // delimiters
+    test(found_Y == YES, FAILSANITY);  // heading (bold)
+    test(found_W == YES, FAILSANITY);  // italic
+    test(found_V == YES, FAILSANITY);  // bold
+    test(found_G == YES, FAILSANITY);  // code
+    test(found_T == YES, FAILSANITY);  // link
+    test(found_J == YES, FAILSANITY);  // strikethrough
+    test(found_P == YES, FAILSANITY);  // delimiters
 
     done;
 }

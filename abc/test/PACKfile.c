@@ -28,11 +28,11 @@ ok64 PACKfileTest() {
     // === Phase 1: Read source file, hash it, write to pack ===
 
     int srcfd = open(srcpath, O_RDONLY);
-    test(srcfd >= 0, PACKfail);
+    test(srcfd >= 0, PACKFAIL);
 
     // Get file size
     off_t fsize = lseek(srcfd, 0, SEEK_END);
-    test(fsize > 0, PACKfail);
+    test(fsize > 0, PACKFAIL);
     lseek(srcfd, 0, SEEK_SET);
 
     // Create pack with 8K buffer (2 pages)
@@ -50,7 +50,7 @@ ok64 PACKfileTest() {
         u8p before = *idle;
 
         o = FILEDrain(srcfd, idle);
-        if (o != OK && o != FILEend) fail(o);
+        if (o != OK && o != FILEEND) fail(o);
 
         // Hash data that was read
         if (*idle > before) {
@@ -76,7 +76,7 @@ ok64 PACKfileTest() {
     call(PACKOpen, &pr, PACK_TEST_FILE);
 
     // Verify data length matches original file size
-    test(pr.datalen == (u64)fsize, PACKfail);
+    test(pr.datalen == (u64)fsize, PACKFAIL);
 
     // Hash state for read-back
     SHAstate sha_read;
@@ -98,7 +98,7 @@ ok64 PACKfileTest() {
     SHAClose(&sha_read, &hash_read);
 
     // Verify hashes match
-    test(sha256eq(&hash_orig, &hash_read), PACKcorrupt);
+    test(sha256eq(&hash_orig, &hash_read), PACKCORRUPT);
 
     call(PACKClose, &pr);
 

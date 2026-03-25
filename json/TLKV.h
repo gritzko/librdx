@@ -21,7 +21,7 @@ fun ok64 TLKVFeed(u8s into, u8 type, u8csc key, u8csc val) {
     size_t vlen = $len(val);
     if (klen > 255) return TLVBADARG;
     size_t total = TLKVLen(klen, vlen);
-    if ($len(into) < total) return TLVnoroom;
+    if ($len(into) < total) return TLVNOROOM;
     if (TLKVShort(klen, vlen)) {
         u8sFeed2(into, type | TLVaA, (u8)((klen << 4) | vlen));
     } else {
@@ -77,14 +77,14 @@ fun ok64 TLKVDrain(u8cs from, u8p type, u8cs key, u8cs val) {
 fun ok64 TLKVInto(u8bp buf, u8 type, u8csc key) {
     size_t klen = $len(key);
     if (klen > 255) return TLVBADARG;
-    if (u8bIdleLen(buf) < 6 + klen) return TLVnoroom;
+    if (u8bIdleLen(buf) < 6 + klen) return TLVNOROOM;
     size_t dl = u8bDataLen(buf);
-    if (unlikely(dl > u32max)) return TLVtoolong;
+    if (unlikely(dl > u32max)) return TLVTOOLONG;
     u8bFeed1(buf, type & ~TLVaA);
     u8sFeed32(u8bIdle(buf), (u32*)&dl);
     u8bFeed1(buf, (u8)klen);
     ((u8**)buf)[1] = buf[2]; // push header to past
-    if (u8bFeed(buf, key) != OK) return TLVnoroom;
+    if (u8bFeed(buf, key) != OK) return TLVNOROOM;
     return OK;
 }
 

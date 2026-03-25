@@ -7,7 +7,7 @@
 #include "abc/INT.h"
 #include "abc/LEX.h"
 
-con ok64 MARQfail = 0x58a6daaa5b70;
+con ok64 MARQFAIL = 0x58a6da3ca495;
 #define MARQenum 16
 
 // max 8 bits

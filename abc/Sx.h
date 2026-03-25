@@ -306,40 +306,40 @@ fun ok64 X(, sFindS)(X(, s) haystack, X(, csc) needle) {
 #endif
 
 fun ok64 X($, tail)(X($, c) into, X($c, c) from, size_t off) {
-    if ($len(from) < off) return $miss;
+    if ($len(from) < off) return SMISS;
     into[0] = from[0] + off;
     into[1] = from[1];
     return OK;
 }
 
 fun ok64 X($, retract)(X($, c) from, size_t len) {
-    if ($len(from) < len) return $miss;
+    if ($len(from) < len) return SMISS;
     from[1] -= len;
     return OK;
 }
 
 fun ok64 X(, sSup)(X(, s) full, X(, s) consumed) {
-    if (unlikely(full[1] != consumed[1] || full[0] > consumed[0])) return $miss;
+    if (unlikely(full[1] != consumed[1] || full[0] > consumed[0])) return SMISS;
     full[1] = consumed[0];
     return OK;
 }
 
 fun ok64 X(, scSup)(X(, cs) full, X(, cs) consumed) {
-    if (unlikely(full[1] != consumed[1] || full[0] > consumed[0])) return $miss;
+    if (unlikely(full[1] != consumed[1] || full[0] > consumed[0])) return SMISS;
     full[1] = consumed[0];
     return OK;
 }
 
 /*
 fun ok64 X($, last)(X($, c) into, X($c, c) from, size_t len) {
-    if ($len(from) < len) return $miss;
+    if ($len(from) < len) return SMISS;
     into[0] = from[1] - len;
     into[1] = from[1];
     return OK;
 }
 */
 fun ok64 X($, part)(X($, c) into, X($c, c) orig, size_t from, size_t till) {
-    if ($len(orig) < till || from > till) return $miss;
+    if ($len(orig) < till || from > till) return SMISS;
     into[0] = orig[0] + from;
     into[1] = orig[0] + till;
     return OK;
@@ -546,7 +546,7 @@ fun ok64 X(, csFed)(X(, cs) into, size_t len) {
 }
 
 fun ok64 X(, sPuked)(X(, s) from, size_t len) {
-    if ($len(from) < len) return $miss;
+    if ($len(from) < len) return SMISS;
     from[1] -= len;
     return OK;
 }

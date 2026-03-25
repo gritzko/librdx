@@ -49,7 +49,7 @@ ok64 RONutf8sDrain(ok64* o, u8c* const* from) {
     ok64 res = 0;
     for (u8c* p = from[0]; p < from[1]; ++p) {
         u64 v = RON64_REV[*p];
-        if (v == 0xff) return OKbadtext;
+        if (v == 0xff) return OKBADTEXT;
         res = (res << 6) | v;
     }
     *o = res;

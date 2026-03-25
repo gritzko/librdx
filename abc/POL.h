@@ -19,7 +19,7 @@ typedef struct poller {
     u16 events, revents;
 } poller;
 
-con ok64 POLnone = 0x19615cb3ca9;
+con ok64 POLNONE = 0x196155d85ce;
 
 ok64 POLInit(int max_fd);
 ok64 POLFree();

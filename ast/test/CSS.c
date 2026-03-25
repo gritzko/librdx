@@ -40,7 +40,7 @@ ok64 CSStestParseKind() {
 
     // Walk the query tree: expect A root -> T leaf with val='E'
     u8cs qdata = {u8bDataHead(qbuf), u8bIdleHead(qbuf)};
-    test(!$empty(qdata), FAILsanity);
+    test(!$empty(qdata), FAILSANITY);
 
     aBpad(u64, stk, 64);
     call(BASONOpen, stk, qdata);
@@ -68,7 +68,7 @@ ok64 CSStestParseName() {
     call(CSSParse, qbuf, qidx, sel);
 
     u8cs qdata = {u8bDataHead(qbuf), u8bIdleHead(qbuf)};
-    test(!$empty(qdata), FAILsanity);
+    test(!$empty(qdata), FAILSANITY);
 
     aBpad(u64, stk, 64);
     call(BASONOpen, stk, qdata);
@@ -150,7 +150,7 @@ ok64 CSStestParseNot() {
     // E container with key '!' (negation)
     call(BASONDrain, stk, qdata, &type, key, val);
     testeq(type, 'E');
-    test(!$empty(key), FAILsanity);
+    test(!$empty(key), FAILSANITY);
     testeq(key[0][0], (u8)'!');
 
     call(BASONInto, stk, qdata, val);
@@ -247,7 +247,7 @@ ok64 CSStestMatchType() {
 
     call(CSSBuildBAST, pad, idx, src);
     u8cs bason_data = {u8bDataHead(pad), u8bIdleHead(pad)};
-    test(!$empty(bason_data), FAILsanity);
+    test(!$empty(bason_data), FAILSANITY);
 
     // Parse selector "fn"
     aBpad(u8, qbuf, 4096);
@@ -261,13 +261,13 @@ ok64 CSStestMatchType() {
     call(CSSMatch, fbuf, bason_data, query);
     u8cp fd0 = u8bDataHead(fbuf), fd1 = u8bIdleHead(fbuf);
     u8cs filtered = {fd0, fd1};
-    test(!$empty(filtered), FAILsanity);
+    test(!$empty(filtered), FAILSANITY);
 
     // Export to text and check
     a_pad(u8, out, 65536);
     call(CSSExport, out_idle, filtered);
     u8cs result = {u8bDataHead(out), u8bIdleHead(out)};
-    test(!$empty(result), FAILsanity);
+    test(!$empty(result), FAILSANITY);
 
     done;
 }
@@ -310,9 +310,9 @@ ok64 CSStestMatchLine() {
     call(CSSExport, out_idle, filtered);
     u8cs result = {u8bDataHead(out), u8bIdleHead(out)};
     // Should have lines 2 and 3
-    test(!$empty(result), FAILsanity);
-    test(CSSContainsStr(result, "line2"), FAILsanity);
-    test(CSSContainsStr(result, "line3"), FAILsanity);
+    test(!$empty(result), FAILSANITY);
+    test(CSSContainsStr(result, "line2"), FAILSANITY);
+    test(CSSContainsStr(result, "line3"), FAILSANITY);
 
     done;
 }
@@ -325,7 +325,7 @@ ok64 CSStestParseError() {
 
     a_cstr(sel, "fn:has(");
     ok64 o = CSSParse(qbuf, qidx, sel);
-    test(o != OK, FAILsanity);
+    test(o != OK, FAILSANITY);
 
     done;
 }
@@ -365,8 +365,8 @@ ok64 CSStestMatchText() {
     u8cs result = {u8bDataHead(out), u8bIdleHead(out)};
     // "comment" is not a known kind, so it becomes a text search (S)
     // Should find "comment" in the comment line
-    test(!$empty(result), FAILsanity);
-    test(CSSContainsStr(result, "comment"), FAILsanity);
+    test(!$empty(result), FAILSANITY);
+    test(CSSContainsStr(result, "comment"), FAILSANITY);
 
     done;
 }
@@ -385,7 +385,7 @@ ok64 CSStestMatchName() {
 
     call(CSSBuildBAST, pad, idx, src);
     u8cs bason_data = {u8bDataHead(pad), u8bIdleHead(pad)};
-    test(!$empty(bason_data), FAILsanity);
+    test(!$empty(bason_data), FAILSANITY);
 
     // Parse selector "fn.foo"
     aBpad(u8, qbuf, 4096);
@@ -405,9 +405,9 @@ ok64 CSStestMatchName() {
     call(CSSExport, out_idle, filtered);
     u8cs result = {u8bDataHead(out), u8bIdleHead(out)};
     // Should match only foo, not bar
-    test(!$empty(result), FAILsanity);
-    test(CSSContainsStr(result, "foo"), FAILsanity);
-    test(!CSSContainsStr(result, "bar"), FAILsanity);
+    test(!$empty(result), FAILSANITY);
+    test(CSSContainsStr(result, "foo"), FAILSANITY);
+    test(!CSSContainsStr(result, "bar"), FAILSANITY);
 
     done;
 }
@@ -445,10 +445,10 @@ ok64 CSStestMatchCmt() {
     a_pad(u8, out, 65536);
     call(CSSExport, out_idle, filtered);
     u8cs result = {u8bDataHead(out), u8bIdleHead(out)};
-    test(!$empty(result), FAILsanity);
-    test(CSSContainsStr(result, "comment"), FAILsanity);
+    test(!$empty(result), FAILSANITY);
+    test(CSSContainsStr(result, "comment"), FAILSANITY);
     // Should not include function bodies
-    test(!CSSContainsStr(result, "return"), FAILsanity);
+    test(!CSSContainsStr(result, "return"), FAILSANITY);
 
     done;
 }

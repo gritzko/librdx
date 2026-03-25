@@ -107,7 +107,7 @@ ok64 BEKeyBranch(ron60 *branch, u8cs key) {
     sane(branch != NULL && $ok(key));
     uri u = {};
     call(URIutf8Drain, key, &u);
-    if ($empty(u.query)) fail(BEnone);
+    if ($empty(u.query)) fail(BENONE);
     ron120 ver = {};
     call(VERParse, &ver, u.query);
     *branch = VEROrigin(&ver);
@@ -118,7 +118,7 @@ ok64 BEKeyStamp(ron60 *stamp, u8cs key) {
     sane(stamp != NULL && $ok(key));
     uri u = {};
     call(URIutf8Drain, key, &u);
-    if ($empty(u.query)) fail(BEnone);
+    if ($empty(u.query)) fail(BENONE);
     ron120 ver = {};
     call(VERParse, &ver, u.query);
     *stamp = VERTime(&ver);
@@ -311,7 +311,7 @@ static ok64 BEFindDotBe(path8g result, path8cg start) {
         u8cs d = {u8bDataHead(cur), u8bIdleHead(cur)};
         if ($len(d) <= 1) break;
     }
-    fail(BEnone);
+    fail(BENONE);
 }
 
 static ok64 BEOpenDB(ROCKdbp db, path8cg path) {
@@ -528,7 +528,7 @@ static ok64 BEScanCore(BEp be, uricp loc, BEScanCBf cb, voidp arg,
                                        cur_has_base, cur_is_exec,
                                        cur_wpc,
                                        cur_waypoints, cb, arg);
-                if (fo != OK && fo != BEnone) {
+                if (fo != OK && fo != BENONE) {
                     ROCKIterClose(&it);
                     fail(fo);
                 }
@@ -851,7 +851,7 @@ static ok64 BEExportFile(BEp be, u8cs relpath, u8cs bason, b8 is_exec) {
 
 // Scan base + formula-matching waypoints for a single file.
 // Calls cb(arg, key, val) for each matching record.
-// Returns BEnone if no records found. Non-OK from cb stops scan.
+// Returns BENONE if no records found. Non-OK from cb stops scan.
 ok64 BEScanFile(ROCKdbp db, u8cs project, u8cs relpath,
                 ron120cs formcs, BEFileCBf cb, voidp arg) {
     sane(db != NULL && cb != NULL);
@@ -923,7 +923,7 @@ ok64 BEScanFile(ROCKdbp db, u8cs project, u8cs relpath,
     }
     call(ROCKIterClose, &it);
 
-    if (!any) fail(BEnone);
+    if (!any) fail(BENONE);
     done;
 }
 
@@ -1035,14 +1035,14 @@ static ok64 BEGetFile(BEp be, u8cs relpath) {
 
     b8 is_exec = NO;
     ok64 go = BEGetFileMerged(be, be->loc.path, relpath, mbuf, &is_exec);
-    if (go == BEnone) return BEnone;
+    if (go == BENONE) return BENONE;
     if (go != OK) {
         BEPostReport(relpath, codec, "FAIL", DARK_RED);
         return go;
     }
 
     u8cs merged = {u8bDataHead(mbuf), u8bIdleHead(mbuf)};
-    if ($empty(merged)) return BEnone;
+    if ($empty(merged)) return BENONE;
 
     ok64 eo = BEExportFile(be, relpath, merged, is_exec);
     if (eo != OK) {
@@ -1532,7 +1532,7 @@ static ok64 BEPostScanCB(voidp arg, path8p path) {
         u8cs basename = {};
         path8gBase(basename, path8cgIn(path));
         // Always skip dot-directories
-        if (!$empty(basename) && basename[0][0] == '.') return FILEskip;
+        if (!$empty(basename) && basename[0][0] == '.') return FILESKIP;
         // Check .gitignore
         if (ctx->ig) {
             a_path(relpath, "");
@@ -1542,7 +1542,7 @@ static ok64 BEPostScanCB(voidp arg, path8p path) {
             if (IGNOMatch(ctx->ig, rel, YES)) {
                 u8cs dircodec = {(u8cp)"dir", (u8cp)"dir" + 3};
                 BEPostReport(rel, dircodec, "IGN", DARK_YELLOW);
-                return FILEskip;
+                return FILESKIP;
             }
         }
         return OK;
@@ -1634,7 +1634,7 @@ ok64 BEScanStat(BEp be, u8cs prefix_filter,
         BEStatDrainBason(&cached, v);
 
         ok64 fo = cb(arg, relpath, cached);
-        if (fo != OK && fo != BEnone) {
+        if (fo != OK && fo != BENONE) {
             ROCKIterClose(&it);
             fail(fo);
         }

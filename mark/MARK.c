@@ -149,7 +149,7 @@ $u8c MARKdivcanon[] = {
 
 pro(feedlistbullet, $u8 $into, u16 list) {
     sane(1);
-    test($len($into) >= 4, MARKnoroom);
+    test($len($into) >= 4, MARKNOROOM);
     if (list < 10) {
         u8sFeed1($into, ' ');
         u64decfeed($into, list);
@@ -170,10 +170,10 @@ pro(feedlistbullet, $u8 $into, u16 list) {
 pro(feedbullet, $u8 $into, u64 stack, b8 head, u16 list) {
     sane($ok($into));
     u8 depth = u64bytelen(stack);
-    test($len($into) >= depth * 4, MARKnoroom);
+    test($len($into) >= depth * 4, MARKNOROOM);
     for (u8 d = 0; d < depth; ++d) {
         u8 b = u64byte(stack, d);
-        test(b < MARK_END, MARKbadrec);
+        test(b < MARK_END, MARKBADREC);
         b8 bullet = head && d + 1 == depth || b == MARK_QUOTE;
         if (bullet && b != MARK_OLIST) {
             call(u8sFeed, $into, MARKdivcanon[b]);
@@ -191,7 +191,7 @@ fun pro(MARKlinetext, u8cs text, u64 lno, MARKstate const* state) {
     $mv(text, state->lineB[0] + lno);
     u64 div = Bat(state->divB, lno);
     u8 depth = u64bytelen(div);
-    test($len(text) >= depth * 4, MARKmiss);
+    test($len(text) >= depth * 4, MARKMISS);
     text[0] += depth * 4;
     done;
 }
@@ -200,7 +200,7 @@ pro(MARKANSIdiv, $u8 $into, u64 lfrom, u64 ltill, u64 stack, u32 width,
     u16 list, MARKstate const* state) {
     sane($ok($into) && state != NULL);
     u64 depth = u64bytelen(stack);
-    test(width > depth * 4, MARKnoroom);
+    test(width > depth * 4, MARKNOROOM);
     u64 lno = lfrom;
     u8cs line = {};
     b8 nled = NO;
@@ -330,7 +330,7 @@ pro(MARKHTML, $u8 $into, MARKstate const* state) {
     sane($ok($into) && state != NULL && !Bempty(state->divB));
     u64$ divs = u64bData(state->divB);
     u8cp$ lines = u8cpbData(state->lineB);
-    test($len(divs) == $len(lines), FAILsanity);
+    test($len(divs) == $len(lines), FAILSANITY);
     u64 stack = 0;
     u64$ ps = u64bData(state->pB);
     for (u64 p = 0; p + 1 < $len(ps); ++p) {

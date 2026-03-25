@@ -22,7 +22,7 @@ fun ok64 TLVprobe(u8* t, u8* hlen, u64* blen, $cu8c data) {
         *hlen = 9;
         *blen = *(u64*)(*data + 1);
     } else {
-        return TLVbadrec;
+        return TLVBADREC;
     }
     return (*hlen + *blen) <= $len(data) ? OK : TLVNODATA;
 }
@@ -41,7 +41,7 @@ ok64 _TLVu8sDrain(u8cs from, u8p type, u8csp value) {
 ok64 _TLVu8sFeed(u8s into, u8 type, u8csc value) {
     sane(TLVlong(type) && into != NULL && value != NULL);
     u64 len = $len(value);
-    test($len(into) >= len + 5, TLVnoroom);
+    test($len(into) >= len + 5, TLVNOROOM);
     if (len < 0x100) {
         u8sFeed2(into, type | TLVaA, (u8)len);
     } else {
@@ -55,7 +55,7 @@ ok64 _TLVu8sFeed(u8s into, u8 type, u8csc value) {
 
 ok64 TLVOpen($u8 tlv, u8 type, u32** len) {
     sane($ok(tlv) && len != NULL && TLVlong(type));
-    test($len(tlv) >= 5, TLVnoroom);
+    test($len(tlv) >= 5, TLVNOROOM);
     **tlv = type;
     ++*tlv;
     *len = (u32*)*tlv;
@@ -68,7 +68,7 @@ ok64 TLVClose($u8 tlv, u8 type, u32* const* len) {
     sane($ok(tlv) && TLVlong(type) && len != NULL && *len != NULL &&
          (u8*)*len < *tlv && *(*((u8**)len) - 1) == type);
     size_t d = *tlv - (u8*)*len;
-    test(d <= TLV_MAX_LEN && d >= 4, TLVbadrec);
+    test(d <= TLV_MAX_LEN && d >= 4, TLVBADREC);
     d -= 4;
     if (d > 0xff) {
         **len = d;
@@ -89,7 +89,7 @@ ok64 TLVFeedKeyVal($u8 tlv, u8c type, u8cs key, $cu8c val) {
     size_t keylen = $len(key);
     test(keylen < 0x100, TLVBADARG);
     u64 blen = keylen + $len(val) + 1;
-    test($len(tlv) >= blen + 4 + 1, TLVnoroom);
+    test($len(tlv) >= blen + 4 + 1, TLVNOROOM);
     if (blen < 0x100) {
         u8sFeed2(tlv, type | TLVaA, (u8)blen);
     } else {
@@ -122,7 +122,7 @@ ok64 TLVDrainKeyVal(u8* type, u8cs key, $u8c val, u8cs tlv) {
     u8cs body = {tlv[0] + hlen, tlv[0] + hlen + blen};
     // idlen byte + id data + value must fit in body
     // body[0] is idlen, need at least 1 + idlen bytes
-    test($len(body) > 0 && $len(body) > **body, TLVbadkv);
+    test($len(body) > 0 && $len(body) > **body, TLVBADKV);
     key[0] = body[0] + 1;
     key[1] = key[0] + **body;
     val[0] = key[1];
@@ -152,7 +152,7 @@ ok64 TLVEndAny($u8 tlv, u8 type, Bu8p stack) {
     u8* start = *Btop(stack);
     size_t len = $head(tlv) - start;
     if (TLVlong(*start)) {
-        test(len >= 4 + 1, FAILsanity);
+        test(len >= 4 + 1, FAILSANITY);
         len -= 4 + 1;
         if (len < 0x100) {
             u8cs from = {start + 1 + 4, tlv[0]};
@@ -167,8 +167,8 @@ ok64 TLVEndAny($u8 tlv, u8 type, Bu8p stack) {
     } else if (TLVshort(*start)) {
         len -= 1 + 1;
         if (len >= 0x100) {
-            test(len <= TLV_MAX_LEN, TLVtoolong);
-            test($len(tlv) >= 4 - 1, TLVnoroom);
+            test(len <= TLV_MAX_LEN, TLVTOOLONG);
+            test($len(tlv) >= 4 - 1, TLVNOROOM);
             u8cs from = {start + 1 + 1, tlv[0]};
             $u8 into = {start + 1 + 4, tlv[0] + 4 - 1};
             $u8move(into, from);
@@ -179,7 +179,7 @@ ok64 TLVEndAny($u8 tlv, u8 type, Bu8p stack) {
             *(start + 1) = (u8)len;
         }
     } else {
-        fail(TLVbadrec);
+        fail(TLVBADREC);
     }
     u8pbPop(stack);
     done;

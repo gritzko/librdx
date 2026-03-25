@@ -588,10 +588,10 @@ static ok64 BASTFeedMDNode(u8bp buf, u64bp idx, u8csc src, TSNode node,
     // Detect "inline" node — re-parse with inline grammar
     if (strcmp(ts_node_type(node), "inline") == 0 && inline_lang != NULL) {
         TSParser *ip = ts_parser_new();
-        if (ip == NULL) fail(FAILsanity);
+        if (ip == NULL) fail(FAILSANITY);
         if (!ts_parser_set_language(ip, inline_lang)) {
             ts_parser_delete(ip);
-            fail(FAILsanity);
+            fail(FAILSANITY);
         }
         u8cp range_start = src[0] + s;
         uint32_t range_len = e - s;
@@ -599,7 +599,7 @@ static ok64 BASTFeedMDNode(u8bp buf, u64bp idx, u8csc src, TSNode node,
             ip, NULL, (const char *)range_start, range_len);
         if (itree == NULL) {
             ts_parser_delete(ip);
-            fail(FAILsanity);
+            fail(FAILSANITY);
         }
         TSNode iroot = ts_tree_root_node(itree);
         // The inline parser wraps everything in an "inline" root node.
@@ -736,12 +736,12 @@ static ok64 BASTFeedMDNode(u8bp buf, u64bp idx, u8csc src, TSNode node,
 static ok64 BASTParseMarkdown(u8bp buf, u64bp idx, u8csc source) {
     sane(buf != NULL);
     TSParser *parser = ts_parser_new();
-    test(parser != NULL, FAILsanity);
+    test(parser != NULL, FAILSANITY);
 
     const TSLanguage *block_lang = tree_sitter_markdown();
     if (!ts_parser_set_language(parser, block_lang)) {
         ts_parser_delete(parser);
-        fail(FAILsanity);
+        fail(FAILSANITY);
     }
 
     TSTree *tree = ts_parser_parse_string(parser, NULL,
@@ -749,7 +749,7 @@ static ok64 BASTParseMarkdown(u8bp buf, u64bp idx, u8csc source) {
                                           (uint32_t)$len(source));
     if (tree == NULL) {
         ts_parser_delete(parser);
-        fail(FAILsanity);
+        fail(FAILSANITY);
     }
 
     TSNode root = ts_tree_root_node(tree);
@@ -769,7 +769,7 @@ ok64 BASTParse(u8bp buf, u64bp idx, u8csc source, u8csc ext) {
     size_t check = $len(source);
     if (check > 256) check = 256;
     for (size_t i = 0; i < check; i++) {
-        if (source[0][i] == 0) fail(FAILsanity);
+        if (source[0][i] == 0) fail(FAILSANITY);
     }
 
     // StrictMark: custom parser, no tree-sitter
@@ -785,11 +785,11 @@ ok64 BASTParse(u8bp buf, u64bp idx, u8csc source, u8csc ext) {
     if (lang == NULL) return BASTParseText(buf, idx, source);
 
     TSParser *parser = ts_parser_new();
-    test(parser != NULL, FAILsanity);
+    test(parser != NULL, FAILSANITY);
 
     if (!ts_parser_set_language(parser, lang)) {
         ts_parser_delete(parser);
-        fail(FAILsanity);
+        fail(FAILSANITY);
     }
 
     TSTree *tree = ts_parser_parse_string(parser, NULL,
@@ -797,7 +797,7 @@ ok64 BASTParse(u8bp buf, u64bp idx, u8csc source, u8csc ext) {
                                           (uint32_t)$len(source));
     if (tree == NULL) {
         ts_parser_delete(parser);
-        fail(FAILsanity);
+        fail(FAILSANITY);
     }
 
     TSNode root = ts_tree_root_node(tree);

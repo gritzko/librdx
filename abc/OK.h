@@ -12,13 +12,12 @@ typedef uint64_t ok64;
 #define OK 0
 #define FAIL 0xffffffffffffffffUL
 
-con ok64 FAILsanity = 0x3ca495de5cade3d;
-con ok64 waitnotyet = 0xee5b78cb3e3da78;
-con ok64 OKnoroom = 0x614cb3db3cf1;
-con ok64 OKbadtext = 0x18526968e29f38;
-con ok64 faileq = 0xaa5b70a75;
-con ok64 FAILeq = 0x3ca495a75;
-con ok64 RONbad	= 0x6d85e6968;
+con ok64 FAILSANITY = 0x3ca49570a5d2762;
+con ok64 WAITNOTYET = 0x80a49d5d876239d;
+con ok64 OKNOROOM = 0x6145d86d8616;
+con ok64 OKBADTEXT = 0x1850b28d74e85d;
+con ok64 FAILEQ = 0x3ca49539a;
+con ok64 RONBAD = 0x6d85cb28d;
 con ok64 NEXT	= 0x5ce85d;
 
 // Rotating buffers for ok64str to allow multiple calls in one expression
@@ -27,7 +26,7 @@ static int _ok64_idx = 0;
 
 fun ok64 OKprint(ok64 o, uint8_t **into) {
     if (o == 0) {
-        if (into[1] < into[0] + 2) return OKnoroom;
+        if (into[1] < into[0] + 2) return OKNOROOM;
         **into = 'O';
         ++*into;
         **into = 'K';

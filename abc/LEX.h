@@ -4,7 +4,7 @@
 #include "BUF.h"
 
 con ok64 LEXFAIL = 0x153a13ca495;
-con ok64 LEXnoroom = 0x153a1cb3db3cf1;
+con ok64 LEXNOROOM = 0x153a15d86d8616;
 
 #define LEXenum 0
 

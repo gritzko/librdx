@@ -234,7 +234,7 @@ static ok64 rdxCopyToSKIL_(rdxp out, rdxp from, int fd, u8bp buf,
             size_t datalen = u8bDataLen(buf);
             if (datalen >= threshold) {
                 ssize_t written = write(fd, u8bDataHead(buf), datalen);
-                if (written < 0) fail(FILEerror);
+                if (written < 0) fail(FILEERROR);
                 // Reset buffer after flush (data written to file)
                 u8bReset(buf);
                 // Reinit bulk to the buffer
@@ -347,7 +347,7 @@ static ok64 rdxCopySKILs_(rdxp out, rdxg ins, int fd, u8bp buf,
             size_t datalen = u8bDataLen(buf);
             if (datalen >= threshold) {
                 ssize_t written = write(fd, u8bDataHead(buf), datalen);
-                if (written < 0) fail(FILEerror);
+                if (written < 0) fail(FILEERROR);
                 u8bReset(buf);
                 // Reinit bulk to the buffer
                 out->bulk = buf;

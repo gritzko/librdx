@@ -32,7 +32,7 @@ ok64 NETResolve(struct addrinfo **result, URIstate const *uri, b8 tcp) {
     int s = getaddrinfo((char *)*host_data, (char *)*port_data, &hints, result);
     if (s != 0) {
         trace("getaddrinfo: %s\n", gai_strerror(s));
-        return NETbadaddr;
+        return NETBADADDR;
     }
     done;
 }

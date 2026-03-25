@@ -86,7 +86,7 @@ ok64 ROCKtest3() {
     call(ROCKDel, &db, key);
     aBpad2(u8, buf2, 256);
     ok64 o = ROCKGet(&db, buf2buf, key);
-    same(o, ROCKnone);
+    same(o, ROCKNONE);
 
     call(ROCKClose, &db);
     call(FILErmrf, path8cgIn(path));

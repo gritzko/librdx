@@ -145,7 +145,7 @@ ok64 rdxWriteNextTLV(rdxp x) {
         case RDX_TYPE_MULTIX: {
             // PLEX: open with 5-byte header, plex[0] = record start for later compaction
             x->plex[0] = *into;  // current write position
-            test(u8sLen(into) >= 5, TLVnoroom);
+            test(u8sLen(into) >= 5, TLVNOROOM);
             call(u8sFeed1, into, lit);
             u32 z = 0;
             call(u8sFeed32, into, &z);  // placeholder length

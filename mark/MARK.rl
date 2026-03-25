@@ -177,7 +177,7 @@ pro(MARKlexer, MARKstate* state) {
     %% write exec;
 
     if (p!=text[1] || cs < MARK_first_final) {
-        fail(MARKfail);
+        fail(MARKFAIL);
         state->text[0] = p;
     }
     done;

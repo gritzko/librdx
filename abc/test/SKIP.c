@@ -48,7 +48,7 @@ ok64 SKIPcheck(u8bp buf, u8bp checked, SKIPu8tab const* k) {
         SKIPu8tab hop = {};
         ok64 o = SKIPu8hop(&hop, buf, k, h);
         if (o != OK) {
-            if (o == SKIPnone) continue;
+            if (o == SKIPNONE) continue;
             fail(o);
         } else if (!BitAt(checked, hop.pos)) {
             BitSet(checked, hop.pos);

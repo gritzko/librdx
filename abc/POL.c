@@ -87,7 +87,7 @@ ok64 POLTrackEvents(int fd, poller p) {
 
 ok64 POLAddEvents(int fd, short events) {
     int idx = POLFind(fd);
-    if (idx < 0) return POLnone;
+    if (idx < 0) return POLNONE;
     poller** data = pollerbData(POL_QUEUE);
     (*data)[idx].events |= events;
     return OK;
@@ -95,7 +95,7 @@ ok64 POLAddEvents(int fd, short events) {
 
 ok64 POLIgnoreEvents(int fd) {
     int idx = POLFind(fd);
-    if (idx < 0) return POLnone;
+    if (idx < 0) return POLNONE;
     return HEAPpollerEjectAtZ(POL_QUEUE, idx, pollerZ);
 }
 
@@ -147,7 +147,7 @@ ok64 POLAddTime(int ms) {
         pollersUpAtZ(data, i, pollerZ);
         return OK;
     }
-    return POLnone;
+    return POLNONE;
 }
 
 ok64 POLIgnoreTime() {
@@ -159,7 +159,7 @@ ok64 POLIgnoreTime() {
             return HEAPpollerEjectAtZ(POL_QUEUE, i, pollerZ);
         }
     }
-    return POLnone;
+    return POLNONE;
 }
 
 ok64 POLSleep(u64 ns) {

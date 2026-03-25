@@ -22,7 +22,7 @@
 #include "abc/DIFFx.h"
 
 // Error codes
-con ok64 DIFFbadhash = 0xd48f3e6968b25dec;
+con ok64 DIFFBDHASH = 0x3523cf2cd44a711;
 
 // Forward declaration from RDX.c
 b8 rdxIsEmptyTuple(rdxcp x);
@@ -494,9 +494,9 @@ ok64 diffScanOP(diff_iterp it, rdxp patch) {
     }
 
     // Sanity: all streams must be at END
-    test(it->doc_ok != OK, DIFFbadhash);
-    test(it->oud_ok != OK, DIFFbadhash);
-    test(it->neu_ok != OK, DIFFbadhash);
+    test(it->doc_ok != OK, DIFFBDHASH);
+    test(it->oud_ok != OK, DIFFBDHASH);
+    test(it->neu_ok != OK, DIFFBDHASH);
 
     done;
 }
@@ -693,9 +693,9 @@ ok64 diffScanLEX(diff_iterp it, rdxp patch) {
     }
 
     // Sanity: all streams must be at END
-    test(it->doc_ok != OK, DIFFbadhash);
-    test(it->oud_ok != OK, DIFFbadhash);
-    test(it->neu_ok != OK, DIFFbadhash);
+    test(it->doc_ok != OK, DIFFBDHASH);
+    test(it->oud_ok != OK, DIFFBDHASH);
+    test(it->neu_ok != OK, DIFFBDHASH);
 
     done;
 }
@@ -808,8 +808,8 @@ ok64 diffMarkHashes(u64s oud_h, u64s neu_h, e32cs edl) {
     }
 
     // Ensure both slices fully consumed
-    test($empty(oud_h), DIFFbadhash);
-    test($empty(neu_h), DIFFbadhash);
+    test($empty(oud_h), DIFFBDHASH);
+    test($empty(neu_h), DIFFBDHASH);
 
     done;
 }

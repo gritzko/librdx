@@ -11,7 +11,7 @@
 // Error codes
 con ok64 ROCKBAD = 0x1b60c50b28d;
 con ok64 ROCKFAIL = 0x6d83143ca495;
-con ok64 ROCKnone = 0x6d8314cb3ca9;
+con ok64 ROCKNONE = 0x6d83145d85ce;
 
 // Convert RocksDB's malloc'd error string to ok64 (frees the string)
 fun ok64 ROCKerr(char *err) {

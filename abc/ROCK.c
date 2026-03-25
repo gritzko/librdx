@@ -254,7 +254,7 @@ ok64 ROCKGet(ROCKdbp db, u8bp into, u8cs key) {
                     $size(key), &vlen, &err);
     ok64 o = ROCKerr(err);
     if (o != OK) return o;
-    if (val == NULL) return ROCKnone;
+    if (val == NULL) return ROCKNONE;
 
     u8cs data = {(u8cp)val, (u8cp)val + vlen};
     o = u8sFeed(u8bIdle(into), data);

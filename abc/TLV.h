@@ -6,16 +6,15 @@
 #include "S.h"
 
 con ok64 TLVRECBAD = 0x1d55f6ce30b28d;
-// todo update conv
-con ok64 TLVbadrec = 0x1d55f9a5a36a67;
+con ok64 TLVBADREC = 0x1d55f2ca35b38c;
 con ok64 TLVNODATA = 0x1d55f5d834a74a;
-con ok64 TLVbadtype = 0x7557e6968e3dd29;
-con ok64 TLVnoroom = 0x1d55fcb3db3cf1;
-con ok64 TLVoverflo = 0x7557f3ea9daac33;
-con ok64 TLVbadcall = 0x7557e69689e5c30;
+con ok64 TLVBADTYPE = 0x7557cb28d76264e;
+con ok64 TLVNOROOM = 0x1d55f5d86d8616;
+con ok64 TLVOVERFLO = 0x7557d87ce6cf558;
+con ok64 TLVBADCALL = 0x7557cb28d30a555;
 con ok64 TLVBADARG = 0x1d55f2ca34a6d0;
-con ok64 TLVbadkv = 0x7557e6968bfa;
-con ok64 TLVtoolong = 0x7557f8cf3c33cab;
+con ok64 TLVBADKV = 0x7557cb28d51f;
+con ok64 TLVTOOLONG = 0x7557dd6185585d0;
 
 #define TLVaA 0x20
 #define TLV_MAX_LEN ((1 << 30) - 1)
@@ -46,9 +45,9 @@ fun ok64 TLVu8sDrain(u8cs from, u8p type, u8csp value) {
 }
 
 fun ok64 TLVu8bInto(u8bp into, u8 type) {
-    if (u8bIdleLen(into) < 5) return TLVnoroom;
+    if (u8bIdleLen(into) < 5) return TLVNOROOM;
     size_t dl = u8bDataLen(into);
-    if (unlikely(dl > u32max)) return TLVtoolong;
+    if (unlikely(dl > u32max)) return TLVTOOLONG;
     u8bFeed1(into, type & ~TLVaA);
     u8sFeed32(u8bIdle(into), (u32*)&dl);  // all le
     ((u8**)into)[1] = into[2];

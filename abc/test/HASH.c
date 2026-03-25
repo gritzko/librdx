@@ -29,7 +29,7 @@ ok64 HASH0() {
     call(HASHu32put, pad_idle, &one);
     call(HASHu32get, &one, pad_idle);
     call(HASHu32del, pad_idle, &one);
-    want(HASHnone == HASHu32get(&one, pad_idle));
+    want(HASHNONE == HASHu32get(&one, pad_idle));
     done;
 }
 
@@ -43,7 +43,7 @@ ok64 HASH1() {
     for (u32 i = 2; i < 1000; i += 2) {
         u32 n = i;
         ok64 o = HASHu32get(&n, pad_idle);
-        want(HASHnone == o);
+        want(HASHNONE == o);
     }
     for (u32 i = 1; i < 1000; i += 2) {
         u32 v = i;
@@ -56,7 +56,7 @@ ok64 HASH1() {
     }
     for (u32 i = 1; i < 1000; i += 4) {
         u32 n = i;
-        want(HASHnone == HASHu32get(&n, pad_idle));
+        want(HASHNONE == HASHu32get(&n, pad_idle));
     }
     for (u32 i = 3; i < 1000; i += 4) {
         u32 v = i;
@@ -89,7 +89,7 @@ ok64 HASH3() {
     a.val = 0;
     call(HASHkv32get, &a, dict);
     testeq(a.val, 2);
-    mute(HASHkv32get(&b, dict), HASHnone);
+    mute(HASHkv32get(&b, dict), HASHNONE);
 
     kv32bFree(dictbuf);
     done;

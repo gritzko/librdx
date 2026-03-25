@@ -22,27 +22,27 @@ ok64 PAGEtestBasic() {
     call(PAGECreate, &p, PAGESIZE * 4, testEnsure, NULL);
 
     // PAGETracked should work
-    test(PAGETracked(p->buf) == YES, PAGEfail);
+    test(PAGETracked(p->buf) == YES, PAGEFAIL);
 
     // PAGEFind should work
-    test(PAGEFind(p->buf) == p, PAGEfail);
+    test(PAGEFind(p->buf) == p, PAGEFAIL);
 
     // Not present initially
-    test(PAGEPresent(p, 0, 100) == NO, PAGEfail);
+    test(PAGEPresent(p, 0, 100) == NO, PAGEFAIL);
 
     // Ensure page 0
     call(PAGEEnsure, p, 0, 100);
-    test(PAGEPresent(p, 0, 100) == YES, PAGEfail);
-    test(PAGEIdxRead(p, 0) == PAGE_LOADED, PAGEfail);
+    test(PAGEPresent(p, 0, 100) == YES, PAGEFAIL);
+    test(PAGEIdxRead(p, 0) == PAGE_LOADED, PAGEFAIL);
 
     // Ensure spanning pages 1-2
     call(PAGEEnsure, p, PAGESIZE + 500, PAGESIZE * 2);
-    test(PAGEIdxRead(p, 1) == PAGE_LOADED, PAGEfail);
-    test(PAGEIdxRead(p, 2) == PAGE_LOADED, PAGEfail);
+    test(PAGEIdxRead(p, 1) == PAGE_LOADED, PAGEFAIL);
+    test(PAGEIdxRead(p, 2) == PAGE_LOADED, PAGEFAIL);
 
     // Mark dirty
     call(PAGEDirty, p, 0, 100);
-    test(PAGEIdxWrite(p, 0) == PAGE_DIRTY, PAGEfail);
+    test(PAGEIdxWrite(p, 0) == PAGE_DIRTY, PAGEFAIL);
 
     // Clean up
     call(PAGEClose, p);
@@ -62,15 +62,15 @@ ok64 PAGEtestFlush() {
     PAGEIdxSetWrite(p, 0, PAGE_DIRTY);
     PAGEIdxSetWrite(p, 2, PAGE_DIRTY);
 
-    test(PAGEIdxWrite(p, 0) == PAGE_DIRTY, PAGEfail);
-    test(PAGEIdxWrite(p, 2) == PAGE_DIRTY, PAGEfail);
+    test(PAGEIdxWrite(p, 0) == PAGE_DIRTY, PAGEFAIL);
+    test(PAGEIdxWrite(p, 2) == PAGE_DIRTY, PAGEFAIL);
 
     // Flush
     call(PAGEFlush, p);
 
     // Should be clean now
-    test(PAGEIdxWrite(p, 0) == PAGE_CLEAN, PAGEfail);
-    test(PAGEIdxWrite(p, 2) == PAGE_CLEAN, PAGEfail);
+    test(PAGEIdxWrite(p, 0) == PAGE_CLEAN, PAGEFAIL);
+    test(PAGEIdxWrite(p, 2) == PAGE_CLEAN, PAGEFAIL);
 
     call(PAGEClose, p);
 
@@ -99,10 +99,10 @@ ok64 PAGEtestCoalesce() {
 
     // All should be clean now
     for (int i = 1; i <= 3; i++) {
-        test(PAGEIdxWrite(p, i) == PAGE_CLEAN, PAGEfail);
+        test(PAGEIdxWrite(p, i) == PAGE_CLEAN, PAGEFAIL);
     }
     for (int i = 5; i <= 6; i++) {
-        test(PAGEIdxWrite(p, i) == PAGE_CLEAN, PAGEfail);
+        test(PAGEIdxWrite(p, i) == PAGE_CLEAN, PAGEFAIL);
     }
 
     call(PAGEClose, p);
@@ -122,10 +122,10 @@ ok64 PAGEtestStream() {
     sane(1);
 
     int sv[2];
-    test(socketpair(AF_UNIX, SOCK_STREAM, 0, sv) == 0, PAGEfail);
+    test(socketpair(AF_UNIX, SOCK_STREAM, 0, sv) == 0, PAGEFAIL);
 
     pid_t pid = fork();
-    test(pid >= 0, PAGEfail);
+    test(pid >= 0, PAGEFAIL);
 
     if (pid == 0) {
         // Child: sender
@@ -159,18 +159,18 @@ ok64 PAGEtestStream() {
     while (recv_count < STREAM_COUNT) {
         ok64 o = PAGEEnsureData(&receiver, sizeof(u64));
         if (o == END) break;
-        test(o == OK, PAGEfail);
+        test(o == OK, PAGEFAIL);
         u8csp data = u8bDataC(receiver.buf);
-        test(*(u64 *)(*data) == recv_count, PAGEfail);
+        test(*(u64 *)(*data) == recv_count, PAGEFAIL);
         recv_count++;
         u8bUsed(receiver.buf, sizeof(u64));
     }
 
-    test(recv_count == STREAM_COUNT, PAGEfail);
+    test(recv_count == STREAM_COUNT, PAGEFAIL);
 
     int status;
     waitpid(pid, &status, 0);
-    test(WIFEXITED(status) && WEXITSTATUS(status) == 0, PAGEfail);
+    test(WIFEXITED(status) && WEXITSTATUS(status) == 0, PAGEFAIL);
 
     close(sv[1]);
     u8bUnMap(receiver.buf);
@@ -185,30 +185,30 @@ ok64 PAGEtestEnsure() {
     call(PAGECreate, &p, PAGESIZE * 4, testEnsure, NULL);
 
     // u8bEnsure1: single page, not loaded
-    test(PAGEIdxRead(p, 0) == PAGE_ABSENT, PAGEfail);
+    test(PAGEIdxRead(p, 0) == PAGE_ABSENT, PAGEFAIL);
     call(u8bEnsure1, p->buf, 100);
-    test(PAGEIdxRead(p, 0) == PAGE_LOADED, PAGEfail);
+    test(PAGEIdxRead(p, 0) == PAGE_LOADED, PAGEFAIL);
 
     // u8bEnsure1: already loaded - fast path
     call(u8bEnsure1, p->buf, 200);
-    test(PAGEIdxRead(p, 0) == PAGE_LOADED, PAGEfail);
+    test(PAGEIdxRead(p, 0) == PAGE_LOADED, PAGEFAIL);
 
     // u8bEnsure2: two pages, page 1 not loaded
-    test(PAGEIdxRead(p, 1) == PAGE_ABSENT, PAGEfail);
+    test(PAGEIdxRead(p, 1) == PAGE_ABSENT, PAGEFAIL);
     call(u8bEnsure2, p->buf, PAGESIZE - 100);  // crosses into page 1
-    test(PAGEIdxRead(p, 1) == PAGE_LOADED, PAGEfail);
+    test(PAGEIdxRead(p, 1) == PAGE_LOADED, PAGEFAIL);
 
     // u8bEnsure2: both pages loaded - fast path
     call(u8bEnsure2, p->buf, PAGESIZE - 50);
-    test(PAGEIdxRead(p, 0) == PAGE_LOADED, PAGEfail);
-    test(PAGEIdxRead(p, 1) == PAGE_LOADED, PAGEfail);
+    test(PAGEIdxRead(p, 0) == PAGE_LOADED, PAGEFAIL);
+    test(PAGEIdxRead(p, 1) == PAGE_LOADED, PAGEFAIL);
 
     // u8bEnsure: multi-page range
-    test(PAGEIdxRead(p, 2) == PAGE_ABSENT, PAGEfail);
-    test(PAGEIdxRead(p, 3) == PAGE_ABSENT, PAGEfail);
+    test(PAGEIdxRead(p, 2) == PAGE_ABSENT, PAGEFAIL);
+    test(PAGEIdxRead(p, 3) == PAGE_ABSENT, PAGEFAIL);
     call(u8bEnsure, p->buf, PAGESIZE * 2, PAGESIZE * 2);
-    test(PAGEIdxRead(p, 2) == PAGE_LOADED, PAGEfail);
-    test(PAGEIdxRead(p, 3) == PAGE_LOADED, PAGEfail);
+    test(PAGEIdxRead(p, 2) == PAGE_LOADED, PAGEFAIL);
+    test(PAGEIdxRead(p, 3) == PAGE_LOADED, PAGEFAIL);
 
     // Non-paged buffer: u8bEnsure should be no-op
     a_pad(u8, plain, 256);

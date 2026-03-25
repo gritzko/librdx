@@ -6,7 +6,7 @@ ok64 MMAPopen(voidb buf, size_t size) {
     sane(!(buf == NULL || *buf != NULL || size == 0));
     uint8_t *p = (uint8_t *)mmap(NULL, size, PROT_READ | PROT_WRITE,
                                  MAP_SHARED | MAP_ANON, -1, 0);
-    testc(p != MAP_FAILED, Bmapfail);
+    testc(p != MAP_FAILED, BMAPFAIL);
     uint8_t **b = (uint8_t **)buf;
     b[0] = b[1] = b[2] = b[3] = p;
     b[3] += size;

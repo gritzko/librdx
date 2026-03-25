@@ -27,8 +27,8 @@ con char *_pro_indent =
 #define sane(c)                                                           \
     trace("%s>%s\n", PROindent, __func__);                                \
     if (!(c)) {                                                           \
-        trace("%s<FAILsanity at %s:%i\n", PROindent, __func__, __LINE__); \
-        return FAILsanity;                                                \
+        trace("%s<FAILSANITY at %s:%i\n", PROindent, __func__, __LINE__); \
+        return FAILSANITY;                                                \
     }                                                                     \
     ok64 __ = OK;
 #else
@@ -149,7 +149,7 @@ con char *_pro_indent =
 #define testeq(a, b)               \
     {                              \
         if (!likely((a) == (b))) { \
-            fail(faileq);          \
+            fail(FAILEQ);          \
         }                          \
     }
 
@@ -158,7 +158,7 @@ con char *_pro_indent =
         if (!likely((a) == (b))) {                                             \
             fprintf(stderr, "%sNot equal: " fmt " <> " fmt "\n", PROindent, a, \
                     b);                                                        \
-            fail(faileq)                                                       \
+            fail(FAILEQ)                                                       \
         }                                                                      \
     }
 
@@ -172,7 +172,7 @@ con char *_pro_indent =
 #define $testeq(a, b)                                                         \
     {                                                                         \
         if (!likely($size(a) == $size(b) && 0 == memcmp(*a, *b, $size(a)))) { \
-            fail(faileq)                                                      \
+            fail(FAILEQ)                                                      \
         }                                                                     \
     }
 
@@ -227,7 +227,7 @@ fun ok64 PROStderrToFile(char const *name) {
         if (n < 0 || n >= (int)sizeof(path)) return NOROOM;
     }
     fprintf(stderr, "stderr: %s\n", path);
-    if (!freopen(path, "w", stderr)) return FAILsanity;
+    if (!freopen(path, "w", stderr)) return FAILSANITY;
     return OK;
 }
 

@@ -147,14 +147,14 @@ ok64 FILEtest6() {
 
     // Verify it exists
     struct stat s = {};
-    test(OK == FILEStat(&s, path8cgIn(dirpath)), FILEfail);
-    test((s.st_mode & S_IFMT) == S_IFDIR, FILEfail);
+    test(OK == FILEStat(&s, path8cgIn(dirpath)), FILEFAIL);
+    test((s.st_mode & S_IFMT) == S_IFDIR, FILEFAIL);
 
     // Remove directory (non-recursive)
     call(FILERmDir, path8cgIn(dirpath), false);
 
     // Verify it's gone
-    test(OK != FILEStat(&s, path8cgIn(dirpath)), FILEfail);
+    test(OK != FILEStat(&s, path8cgIn(dirpath)), FILEFAIL);
 
     done;
 }
@@ -179,14 +179,14 @@ ok64 FILEtest7() {
 
     // FILERmDir should fail on non-empty dir when non-recursive
     ok64 err = FILERmDir(path8cgIn(dirpath), false);
-    test(err != OK, FILEfail);
+    test(err != OK, FILEFAIL);
 
     // Clean up with recursive delete
     call(FILERmDir, path8cgIn(dirpath), true);
 
     // Verify it's gone
     struct stat s = {};
-    test(OK != FILEStat(&s, path8cgIn(dirpath)), FILEfail);
+    test(OK != FILEStat(&s, path8cgIn(dirpath)), FILEFAIL);
 
     done;
 }
@@ -232,7 +232,7 @@ ok64 FILEtest8() {
 
     // Verify deepest file exists
     struct stat s = {};
-    test(OK == FILEStat(&s, path8cgIn(path)), FILEfail);
+    test(OK == FILEStat(&s, path8cgIn(path)), FILEFAIL);
 
     // Back to base and delete recursively
     call(path8gPop, path8gIn(path));
@@ -241,7 +241,7 @@ ok64 FILEtest8() {
     call(FILERmDir, path8cgIn(path), true);
 
     // Verify it's gone
-    test(OK != FILEStat(&s, path8cgIn(path)), FILEfail);
+    test(OK != FILEStat(&s, path8cgIn(path)), FILEFAIL);
 
     done;
 }
@@ -292,7 +292,7 @@ ok64 FILEtest8b() {
 
     // Verify it's gone
     struct stat s = {};
-    test(OK != FILEStat(&s, path8cgIn(repath)), FILEfail);
+    test(OK != FILEStat(&s, path8cgIn(repath)), FILEFAIL);
 
     done;
 }
@@ -307,14 +307,14 @@ ok64 FILEtest9() {
     call(path8gAddTmp, path8gIn(nofile), tmpl);
     struct stat s = {};
     ok64 res = FILEStat(&s, path8cgIn(nofile));
-    test(res == FILENOENT, FILEfail);
+    test(res == FILENOENT, FILEFAIL);
     
     // Verify FILEerrno translates correctly
-    test(FILEerrno(ENOENT) == FILENOENT, FILEfail);
-    test(FILEerrno(EACCES) == FILEACCES, FILEfail);
-    test(FILEerrno(EEXIST) == FILEEXIST, FILEfail);
-    test(FILEerrno(0) == OK, FILEfail);
-    test(FILEerrno(9999) == FILEfail, FILEfail);  // unknown errno
+    test(FILEerrno(ENOENT) == FILENOENT, FILEFAIL);
+    test(FILEerrno(EACCES) == FILEACCES, FILEFAIL);
+    test(FILEerrno(EEXIST) == FILEEXIST, FILEFAIL);
+    test(FILEerrno(0) == OK, FILEFAIL);
+    test(FILEerrno(9999) == FILEFAIL, FILEFAIL);  // unknown errno
     
     done;
 }
@@ -571,7 +571,7 @@ ok64 FILEBookLimitTest() {
 
     // Extending beyond booked range should fail
     ok64 err = FILEBookExtend(buf, 128 * KB);
-    test(err != OK, FILEfail);
+    test(err != OK, FILEFAIL);
 
     // But extending within range should work
     call(FILEBookExtend, buf, 32 * KB);

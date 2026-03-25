@@ -23,18 +23,18 @@ fun ok64 X(HASH, scan)(size_t *ndx, X($, ) data, T const *rec) {
     size_t base = (*ndx) & ~MASK;
     for (size_t i = off + 1; i < off + ABC_HASH_LINE; ++i) {
         *ndx = base + (i & MASK);
-        if (X($, is0)(data, *ndx)) return HASHnone;
+        if (X($, is0)(data, *ndx)) return HASHNONE;
         if (X(, cmp)(*data + *ndx, rec) == 0) return OK;
     }
-    return HASHnoroom;
+    return HASHNOROOM;
 }
 
-// OK, HASHnone, HASHnoroom
+// OK, HASHNONE, HASHNOROOM
 fun ok64 X(HASH, find)(size_t *ndx, X($, ) data, T const *rec) {
     u64 hash = X(, hash)(rec);
     *ndx = hash % $len(data);
     if (X(, cmp)(rec, $atp(data, *ndx)) == 0) return OK;
-    if (X($, is0)(data, *ndx)) return HASHnone;
+    if (X($, is0)(data, *ndx)) return HASHNONE;
     return X(HASH, scan)(ndx, data, rec);
 }
 
@@ -47,15 +47,15 @@ fun ok64 X(HASH, _get)(T *rec, X($, ) data, size_t ndx) {
             *rec = $at(data, ndx);
             return OK;
         }
-        if (X($, is0)(data, ndx)) return HASHnone;
+        if (X($, is0)(data, ndx)) return HASHNONE;
     }
-    return HASHnone;
+    return HASHNONE;
 }
 
 fun ok64 X(HASH, get)(T *rec, X($, ) data) {
     u64 hash = X(, hash)(rec);
     size_t ndx = hash % $len(data);
-    if (X($, is0)(data, ndx)) return HASHnone;
+    if (X($, is0)(data, ndx)) return HASHNONE;
     if (X(, cmp)(rec, $atp(data, ndx)) == 0) {
         *rec = $at(data, ndx);  // TODO mv
         return OK;
@@ -78,7 +78,7 @@ fun ok64 X(HASH, _put)(T const *rec, X($, ) data, size_t hash) {
         u64 hash2 = X(, hash)($atp(data, ndx));
         if (ABC_HASH_CONVERGE && hash2 > hash) X(, Swap)(&r, $atp(data, ndx));
     }
-    return HASHnoroom;
+    return HASHNOROOM;
 }
 
 fun ok64 X(HASH, put)(X($, ) data, T const *rec) {
@@ -114,7 +114,7 @@ fun ok64 X(HASH, shift)(X($, ) data, size_t ndx) {
 fun ok64 X(HASH, del)(X($, ) data, T const *rec) {
     size_t ndx = 0;
     ok64 o = X(HASH, find)(&ndx, data, rec);
-    if (o == HASHnone || o == HASHnoroom) return OK;
+    if (o == HASHNONE || o == HASHNOROOM) return OK;
     return X(HASH, shift)(data, ndx);
 }
 

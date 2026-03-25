@@ -49,7 +49,7 @@ fun ok64 X(SKIP, feed)(u8bp buf, X(SKIP, tab) * k) {
     size_t blk = X(SKIP, blk)(pos);
     size_t lastblk = X(SKIP, blk)(last);
     T off = X(SKIP, off)(pos);
-    test(off != SKIP_NONE, SKIPbad);  // TODO fuzzer assert find this
+    test(off != SKIP_NONE, SKIPBAD);  // TODO fuzzer assert find this
 
     T preoff = X(SKIP, off)(k->pos);
     for (u8 h = 0; h <= X(SKIP, hi)(k->pos); ++h) {
@@ -58,7 +58,7 @@ fun ok64 X(SKIP, feed)(u8bp buf, X(SKIP, tab) * k) {
 
     if (lastblk >= blk) {
         if (lastblk == blk) done;
-        fail(FAILsanity);
+        fail(FAILSANITY);
     } else if (blk != lastblk + 1) {
         u8 topflip = 64 - clz64(blk ^ lastblk);
         memset(k->off, 0xff, topflip * sizeof(T));
@@ -81,10 +81,10 @@ fun ok64 X(SKIP, drain)(X(SKIP, tab) * hop, u8bp buf, size_t pos) {
     u8cs w = {};
     u8 t = 0;
     call(TLVu8sDrain, data, &t, w);
-    test(t == SKIP_TLV_TYPE, SKIPbad);
+    test(t == SKIP_TLV_TYPE, SKIPBAD);
     test(X(SKIP, len)(pos) * sizeof(T) <= $len(w) &&
              X(SKIP, top)(pos) * sizeof(T) >= $len(w),
-         SKIPbad);
+         SKIPBAD);
     $copy(into, w);
     hop->pos = pos;
 
@@ -160,7 +160,7 @@ fun ok64 X(SKIP, load)(X(SKIP, tab) * k, u8bp buf) {
 fun ok64 X(SKIP, hop)(X(SKIP, tab) * hop, u8bp buf, X(SKIP, tab) const* k,
                       u8 hi) {
     size_t pos = X(SKIP, pos)(k, hi);
-    if (pos == 0) return SKIPnone;
+    if (pos == 0) return SKIPNONE;
     return X(SKIP, drain)(hop, buf, pos);
 }
 
@@ -212,7 +212,7 @@ fun ok64 X(SKIP, findTLV)(u8c$ rec, u8bp buf, u8cs x, $cmpfn cmp) {
             return OK;
         }
     }
-    return SKIPnone;
+    return SKIPNONE;
 }
 
 #undef aSKIP

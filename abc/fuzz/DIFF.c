@@ -56,8 +56,8 @@ FUZZ(u8, DIFFfuzz) {
     call(DIFFu8sApply, out, a, b, edlc);
 
     u64 outlen = out[0] - outstart;
-    if (outlen != (u64)$len(b)) return FAILsanity;
-    if (outlen > 0 && memcmp(outstart, b[0], outlen) != 0) return FAILsanity;
+    if (outlen != (u64)$len(b)) return FAILSANITY;
+    if (outlen > 0 && memcmp(outstart, b[0], outlen) != 0) return FAILSANITY;
 
     done;
 }

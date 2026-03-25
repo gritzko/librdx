@@ -165,7 +165,7 @@ ok64 BASONFeedOuto(u64bp idx, u8bp buf) {
             size_t total = hdr_len + body_len;
             if (u8bIdleLen(buf) < total) {
                 u64bDigup(idx);
-                return TLVnoroom;
+                return TLVNOROOM;
             }
             // TLV header
             if (body_len <= 0xff) {

@@ -6,10 +6,10 @@
 
 #define LSM_MAX_INPUTS 64
 
-con ok64 LSMeof = 0xab3a56715;
-con ok64 LSMbad = 0xa25996715;
+con ok64 LSMEOF = 0x55c58e60f;
+con ok64 LSMBAD = 0x55c58b28d;
 con ok64 LSMNODATA = 0x157165d834a74a;
-con ok64 LSMnoroom = 0x31cf3db3c96715;
+con ok64 LSMNOROOM = 0x157165d86d8616;
 
 #define X(M, name) M##u8cs##name
 #include "abc/HEAPx.h"
