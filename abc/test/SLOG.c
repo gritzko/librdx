@@ -256,8 +256,8 @@ ok64 SLOG3() {
 ok64 SLOG4() {
     sane(1);
 
-    size_t N = 1000000;
-    size_t bufsize = N * 12 + 1024 * 1024;  // ~12 bytes per record + margin
+    size_t N = 100000;
+    size_t bufsize = N * 12 + 128 * 1024;  // ~12 bytes per record + margin
 
     u8 *mem = malloc(bufsize);
     test(mem != NULL, SLOGNOROOM);

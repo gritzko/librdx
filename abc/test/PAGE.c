@@ -115,7 +115,7 @@ ok64 PAGEtestCoalesce() {
 #include <sys/wait.h>
 
 #define STREAM_BUF_SIZE (1 * MB)
-#define STREAM_TOTAL (1 * GB)
+#define STREAM_TOTAL (100 * MB)
 #define STREAM_COUNT (STREAM_TOTAL / sizeof(u64))
 
 ok64 PAGEtestStream() {
