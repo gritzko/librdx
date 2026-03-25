@@ -73,7 +73,7 @@ ok64 capocli() {
     } else if (nfork > 0) {
         // Orchestrator: fork N children, wait, compact
         a_pad(u8, capodir, FILE_PATH_MAX_LEN);
-        call(path8gDup, path8gIn(capodir), reporoot);
+        call(path8gFeedS, path8gIn(capodir), reporoot);
         a_cstr(capodirname, CAPO_DIR);
         call(path8gPush, path8gIn(capodir), capodirname);
         u8cs dirslice = {u8bDataHead(capodir), u8bIdleHead(capodir)};

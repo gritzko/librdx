@@ -73,8 +73,11 @@ ok64 path8gVerify(path8cg path);
 // Segment output is filled with the next segment's bounds
 ok64 path8gNext(path8cg path, u8csp segment);
 
-// Duplicate path from orig into into
+// Duplicate path from orig gauge into into gauge
 ok64 path8gDup(path8g into, path8cg orig);
+
+// Feed a slice into a path gauge, 0-terminate
+ok64 path8gFeedS(path8g into, u8csc data);
 
 // Push one segment onto path (adds / separator if needed, 0-term)
 ok64 path8gPush(path8g path, u8cs segment);

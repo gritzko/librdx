@@ -65,6 +65,13 @@ ok64 path8gDup(path8g into, path8cg orig) {
     done;
 }
 
+ok64 path8gFeedS(path8g into, u8csc data) {
+    sane($ok(into) && $ok(data));
+    call(u8sFeed, into + 1, data);
+    call(path8gTerm, into);
+    done;
+}
+
 ok64 path8gPush(path8g path, u8cs segment) {
     sane($ok(path) && $ok(segment));
     // Validate segment (raw u8cs, not path8g)
