@@ -445,17 +445,15 @@ ok64 DIFFTestOne(diff_test const* t) {
 
     // Add doc as input (use TLV)
     call(rdxbFedP, inputs, &inp);
-    inp->format = RDX_FMT_TLV;
+    *inp = (rdx){.format = RDX_FMT_TLV};
     inp->next = u8bDataHead(doc_tlv);
     inp->opt = (u8p)u8bIdleHead(doc_tlv);
-    inp->bulk = NULL;
 
     // Add patch as input
     call(rdxbFedP, inputs, &inp);
-    inp->format = RDX_FMT_TLV;
+    *inp = (rdx){.format = RDX_FMT_TLV};
     inp->next = u8bDataHead(patch_buf);
     inp->opt = (u8p)u8bIdleHead(patch_buf);
-    inp->bulk = NULL;
 
     rdx merged = {.format = RDX_FMT_TLV | RDX_FMT_WRITE};
     merged.bulk = merged_buf;
