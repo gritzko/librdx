@@ -14,9 +14,9 @@ include_directories(..)
 
 #add_executable(SKILbench SKIL.cpp)
 #target_compile_options(SKILbench PRIVATE ${BENCH_CXX_FLAGS})
-#target_link_libraries(SKILbench PRIVATE ${BENCH_LDD_FLAGS} abc rdx2)
+#target_link_libraries(SKILbench PRIVATE ${BENCH_LDD_FLAGS} abc rdx)
 
 add_executable(SLIKbench SLIK.cpp)
 target_compile_options(SLIKbench PRIVATE ${BENCH_CXX_FLAGS})
-target_link_libraries(SLIKbench PRIVATE ${BENCH_LDD_FLAGS} abc rdx2)
+target_link_libraries(SLIKbench PRIVATE ${BENCH_LDD_FLAGS} abc rdx)
 

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(rdx2 C)
+project(rdx C)
 
 set(CMAKE_C_STANDARD 23)
 
@@ -46,8 +46,8 @@ list(APPEND RDX_SOURCES
     RAP.c
 )
 
-add_library(rdx2 STATIC ${RDX_HEADERS} ${RDX_SOURCES})
-target_link_libraries(rdx2 abc sodium)
+add_library(rdx STATIC ${RDX_HEADERS} ${RDX_SOURCES})
+target_link_libraries(rdx abc sodium)
 
 
 add_subdirectory(test)

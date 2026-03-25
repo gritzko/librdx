@@ -37,6 +37,6 @@ add_executable(jabc
     io.js.c
     test.js.c
 )
-target_link_libraries(jabc ${JSC_LIB} abc)
+target_link_libraries(jabc ${JSC_LIB} rdx abc)
 
 add_test(NAME JABCtest COMMAND jabc --eval "test.run()")
