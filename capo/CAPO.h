@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include "abc/INT.h"
 #include "abc/MSET.h"
+#include "abc/PATH.h"
 #include "abc/RON.h"
 #include "abc/RAP.h"
 
@@ -69,7 +70,8 @@ ok64 CAPOCompact(u8csc dir);
 ok64 CAPONextSeqno(u64p seqno, u8csc dir);
 
 // Full query pipeline: selector -> trigrams -> intersect -> parse -> output
-ok64 CAPOQuery(u8csc selector, u8csc reporoot);
+// ext: optional language filter (empty = all languages)
+ok64 CAPOQuery(u8csc selector, u8csc ext, u8csc reporoot);
 
 // Structural code search: needle is a code fragment, ext is file extension
 ok64 CAPOSpot(u8csc needle, u8csc ext, u8csc reporoot);
@@ -86,5 +88,8 @@ ok64 CAPOHook(u8csc reporoot);
 
 // Compact all .idx files into a single run
 ok64 CAPOCompactAll(u8csc dir);
+
+// Resolve capo index dir from reporoot (handles worktrees)
+ok64 CAPOResolveDir(path8b out, u8csc reporoot);
 
 #endif

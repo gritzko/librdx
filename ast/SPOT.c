@@ -19,6 +19,7 @@ typedef struct {
     u8cs key;
     u8cs val;
     SPOTskip skip;
+    u32 npos;  // byte offset of TLKV record in needle BASON
 } SPOTnchild;
 
 // Internal binding state: slices for fast comparison, offsets for result.
@@ -28,6 +29,8 @@ typedef struct {
     u64  bound;
     u64  subs[SPOT_MAX_SUBS];    // segment start offsets
     int  nsubs;
+    u64p mlog[4];  // match log (copied from SPOTstate)
+    u64p alog[4];  // alias log (copied from SPOTstate)
 } SPOTbinds;
 
 #define SPOT_MAX_NC 64
@@ -123,7 +126,10 @@ static ok64 SPOTExtractChildren(u64bp nstk, u8csc ndata,
     *nout = 0;
     u8 nt = 0;
     u8cs nk = {}, nv = {};
-    while (BASONDrain(nstk, ndata, &nt, nk, nv) == OK) {
+    while (1) {
+        u32 pos = (u32)*u64bLast(nstk);
+        ok64 dr = BASONDrain(nstk, ndata, &nt, nk, nv);
+        if (dr != OK) break;
         if (nt == 'S' && SPOTIsWhitespace(nv)) {
             skip = SPOTGapMode(nv);
             continue;
@@ -137,6 +143,7 @@ static ok64 SPOTExtractChildren(u64bp nstk, u8csc ndata,
         out[*nout].val[0] = nv[0];
         out[*nout].val[1] = nv[1];
         out[*nout].skip = skip;
+        out[*nout].npos = pos;
         (*nout)++;
         skip = SPOT_EXACT;
     }
@@ -150,8 +157,9 @@ static ok64 SPOTMatchChildren(SPOTbinds *b, b8 track,
 
 // Match a single needle node vs haystack node.
 // hpos is the TLV tag byte offset of the haystack node.
+// npos is the byte offset of the needle node (for alias logging).
 static ok64 SPOTMatchNode(SPOTbinds *b,
-                           u8 ntype, u8cs nval,
+                           u8 ntype, u8cs nval, u32 npos,
                            u8 htype, u8cs hkey, u8cs hval,
                            u64 hpos,
                            u8csc ndata, u64bp hstk, u8csc hdata) {
@@ -173,6 +181,10 @@ static ok64 SPOTMatchNode(SPOTbinds *b,
                 b->slices[idx][1] = hval[1];
                 b->offsets[idx] = hpos;
                 b->bound |= bit;
+                if (b->alog[0] != NULL) {
+                    u64 ae = SPOTLogPack((u32)hpos, (u16)npos, 0);
+                    u64bFeed1(b->alog, ae);
+                }
             }
         } else {
             // Uppercase: bind to any node (leaf value or container slice)
@@ -183,6 +195,10 @@ static ok64 SPOTMatchNode(SPOTbinds *b,
                 b->slices[idx][1] = hval[1];
                 b->offsets[idx] = hpos;
                 b->bound |= bit;
+                if (b->alog[0] != NULL) {
+                    u64 ae = SPOTLogPack((u32)hpos, (u16)npos, 0);
+                    u64bFeed1(b->alog, ae);
+                }
             }
         }
         done;
@@ -246,8 +262,14 @@ static ok64 SPOTMatchFrom(SPOTbinds *b, b8 track,
         aBpad(u64, hstk, 256);
         call(u64bFeed1, hstk, h_lvl);
         call(u64bFeed1, hstk, cursor);
-        call(SPOTMatchNode, b, cur->type, cur->val,
+        call(SPOTMatchNode, b, cur->type, cur->val, cur->npos,
              ht, hk, hv, node_pos, ndata, hstk, hdata);
+        // Push match log entry
+        if (track && b->mlog[0] != NULL) {
+            u16 alen = b->alog[0] != NULL ? (u16)u64bDataLen(b->alog) : 0;
+            u64 me = SPOTLogPack((u32)node_pos, (u16)cur->npos, alen);
+            u64bFeed1(b->mlog, me);
+        }
         // Recurse for remaining children
         call(SPOTMatchFrom, b, track, nc, n, from + 1,
              ndata, h_lvl, cursor, hdata);
@@ -280,10 +302,16 @@ static ok64 SPOTMatchFrom(SPOTbinds *b, b8 track,
             aBpad(u64, hstk, 256);
             call(u64bFeed1, hstk, h_lvl);
             call(u64bFeed1, hstk, cursor);
-            ok64 m = SPOTMatchNode(b, cur->type, cur->val,
+            ok64 m = SPOTMatchNode(b, cur->type, cur->val, cur->npos,
                                      ht, hk, hv, node_pos,
                                      ndata, hstk, hdata);
             if (m == OK) {
+                // Push match log entry
+                if (track && b->mlog[0] != NULL) {
+                    u16 alen = b->alog[0] != NULL ? (u16)u64bDataLen(b->alog) : 0;
+                    u64 me = SPOTLogPack((u32)node_pos, (u16)cur->npos, alen);
+                    u64bFeed1(b->mlog, me);
+                }
                 // Node matched — try remaining children
                 ok64 r = SPOTMatchFrom(b, track, nc, n, from + 1,
                                          ndata, h_lvl, cursor, hdata);
@@ -326,10 +354,16 @@ static ok64 SPOTMatchFrom(SPOTbinds *b, b8 track,
             aBpad(u64, hstk, 256);
             call(u64bFeed1, hstk, dfs_lvl[dd]);
             call(u64bFeed1, hstk, dfs_cur[dd]);
-            ok64 m = SPOTMatchNode(b, cur->type, cur->val,
+            ok64 m = SPOTMatchNode(b, cur->type, cur->val, cur->npos,
                                      ht, hk, hv, node_pos,
                                      ndata, hstk, hdata);
             if (m == OK) {
+                // Push match log entry
+                if (track && b->mlog[0] != NULL) {
+                    u16 alen = b->alog[0] != NULL ? (u16)u64bDataLen(b->alog) : 0;
+                    u64 me = SPOTLogPack((u32)node_pos, (u16)cur->npos, alen);
+                    u64bFeed1(b->mlog, me);
+                }
                 // Try remaining at original sibling level (depth 0)
                 ok64 r = SPOTMatchFrom(b, track, nc, n, from + 1,
                                          ndata, h_lvl, dfs_cur[0], hdata);
@@ -374,11 +408,22 @@ static ok64 SPOTMatchChildren(SPOTbinds *b, b8 track,
 // offset `start` within a level ending at byte offset `lvl_end`.
 static ok64 SPOTTryMatchSeq(SPOTbinds *b,
                               u8csc ndata, u8csc hdata,
-                              u64 lvl_end, u64 start) {
+                              u64 lvl_end, u64 start,
+                              u64bp mlog, u64bp alog) {
     sane(b != NULL);
 
     // Clear bindings
     memset(b, 0, sizeof(SPOTbinds));
+
+    // Copy log buffer descriptors if provided
+    if (mlog != NULL) {
+        b->mlog[0] = mlog[0]; b->mlog[1] = mlog[1];
+        b->mlog[2] = mlog[2]; b->mlog[3] = mlog[3];
+    }
+    if (alog != NULL) {
+        b->alog[0] = alog[0]; b->alog[1] = alog[1];
+        b->alog[2] = alog[2]; b->alog[3] = alog[3];
+    }
 
     // Open needle, strip translation_unit wrapper
     aBpad(u64, nstk, 256);
@@ -453,12 +498,19 @@ static ok64 SPOTWalkAndMatch(SPOTstate *st, b8 *found) {
         if ((ht == 'S' && SPOTIsWhitespace(hv)) || ht == 'D') continue;
 
         if (BASONCollection(ht)) {
+            // Reset logs before each attempt
+            if (st->mlog[0] != NULL) u64bReset(st->mlog);
+            if (st->alog[0] != NULL) u64bReset(st->alog);
+
             // Try matching needle as sibling subsequence from this position.
             SPOTbinds b = {};
 
             try(SPOTTryMatchSeq, &b, st->ndl, st->hay,
-                level_end, cursor_before);
+                level_end, cursor_before, st->mlog, st->alog);
             then {
+                // Copy back updated idle pointers
+                if (st->mlog[0] != NULL) st->mlog[2] = b.mlog[2];
+                if (st->alog[0] != NULL) st->alog[2] = b.alog[2];
                 // Match found — store offsets for caller
                 st->match = cursor_before;
                 st->bound = b.bound;

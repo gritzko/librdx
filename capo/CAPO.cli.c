@@ -10,15 +10,27 @@
 #include "abc/PRO.h"
 
 // Usage:
-//   capo                       full reindex (single process)
-//   capo --fork N              parallel reindex on N cores
-//   capo --fork N --proc K     worker K of N (internal)
-//   capo --hook                incremental (post-commit)
-//   capo '#fn.main'            query with CSS selector
+//   capo                             full reindex
+//   capo --fork N                    parallel reindex on N cores
+//   capo --fork N --proc K           worker K of N (internal)
+//   capo --hook                      incremental (post-commit)
+//   capo -c "fn.main"                CSS query
+//   capo -c "fn:has(malloc)" .c .h   CSS query, filter to .c/.h files
+//   capo -s "return 0;" .c           SPOT search
+//   capo -s "f(x,y)" -r "f(y,x)" .c SPOT search + replace (future)
 
 static b8 argeq(u8cs a, const char *b) {
     size_t blen = strlen(b);
     return $len(a) == blen && memcmp(a[0], b, blen) == 0;
+}
+
+// Match "--flag=value", return pointer to value after '=' or NULL
+static char *argeqval(u8cs a, const char *flag) {
+    size_t flen = strlen(flag);
+    if ($len(a) > flen + 1 && memcmp(a[0], flag, flen) == 0 &&
+        a[0][flen] == '=')
+        return (char *)a[0] + flen + 1;
+    return NULL;
 }
 
 ok64 capocli() {
@@ -42,28 +54,60 @@ ok64 capocli() {
     // Parse args
     u32 nfork = 0, proc = UINT32_MAX;
     b8 is_hook = NO;
-    u8c *args[2][2] = {};
-    int nargs = 0;
+    u8c *css_sel[2] = {};
+    u8c *spot_ndl[2] = {};
+    u8c *spot_rep[2] = {};
+    u8c *trail[16][2] = {};
+    int ntrail = 0;
     int argn = (int)$arglen;
 
     for (int i = 1; i < argn; i++) {
         u8c *a[2] = {};
         $mv(a, $arg(i));
+        char *eqval = NULL;
         if (argeq(a, "--fork") && i + 1 < argn) {
             i++;
             u8c *v[2] = {};
             $mv(v, $arg(i));
             nfork = (u32)atoi((char *)v[0]);
+        } else if ((eqval = argeqval(a, "--fork"))) {
+            nfork = (u32)atoi(eqval);
         } else if (argeq(a, "--proc") && i + 1 < argn) {
             i++;
             u8c *v[2] = {};
             $mv(v, $arg(i));
             proc = (u32)atoi((char *)v[0]);
+        } else if ((eqval = argeqval(a, "--proc"))) {
+            proc = (u32)atoi(eqval);
         } else if (argeq(a, "--hook")) {
             is_hook = YES;
+        } else if ((argeq(a, "-c") || argeq(a, "--css")) && i + 1 < argn) {
+            i++;
+            $mv(css_sel, $arg(i));
+        } else if ((eqval = argeqval(a, "--css"))) {
+            css_sel[0] = (u8cp)eqval;
+            css_sel[1] = (u8cp)eqval + strlen(eqval);
+        } else if ((argeq(a, "-s") || argeq(a, "--spot")) && i + 1 < argn) {
+            i++;
+            $mv(spot_ndl, $arg(i));
+        } else if ((eqval = argeqval(a, "--spot"))) {
+            spot_ndl[0] = (u8cp)eqval;
+            spot_ndl[1] = (u8cp)eqval + strlen(eqval);
+        } else if ((argeq(a, "-r") || argeq(a, "--replace")) && i + 1 < argn) {
+            i++;
+            $mv(spot_rep, $arg(i));
+        } else if ((eqval = argeqval(a, "--replace"))) {
+            spot_rep[0] = (u8cp)eqval;
+            spot_rep[1] = (u8cp)eqval + strlen(eqval);
         } else {
-            if (nargs < 2) { $mv(args[nargs], a); nargs++; }
+            if (ntrail < 16) { $mv(trail[ntrail], a); ntrail++; }
         }
+    }
+
+    // Validate: -r only valid with -s
+    if (spot_rep[0] != NULL && spot_ndl[0] == NULL) {
+        fprintf(stderr, "capo: --replace requires --spot\n");
+        return FAILSANITY;
     }
 
     if (is_hook) {
@@ -74,9 +118,7 @@ ok64 capocli() {
     } else if (nfork > 0) {
         // Orchestrator: fork N children, wait, compact
         a_pad(u8, capodir, FILE_PATH_MAX_LEN);
-        call(path8bFeedS, capodir, reporoot);
-        a_cstr(capodirname, CAPO_DIR);
-        call(path8bPush, capodir, capodirname);
+        call(CAPOResolveDir, capodir, reporoot);
         u8cs dirslice = {u8bDataHead(capodir), u8bIdleHead(capodir)};
         call(FILEMakeDirP, path8cgIn(capodir));
 
@@ -121,16 +163,34 @@ ok64 capocli() {
         fprintf(stderr, "capo: compacting all runs\n");
         call(CAPOCompactAll, dirslice);
         fprintf(stderr, "capo: done\n");
-    } else if (nargs == 2 && args[1][0][0] == '.') {
-        // SPOT mode: args[0]=needle, args[1]=extension
-        u8cs ndl = {args[0][0], args[0][1]};
-        u8cs ext = {args[1][0], args[1][1]};
+    } else if (spot_ndl[0] != NULL) {
+        // SPOT mode: find first trailing .ext
+        u8cs ext = {};
+        for (int i = 0; i < ntrail; i++) {
+            if (trail[i][0][0] == '.') {
+                ext[0] = trail[i][0];
+                ext[1] = trail[i][1];
+                break;
+            }
+        }
+        if ($empty(ext)) {
+            fprintf(stderr, "capo: --spot requires a .ext argument\n");
+            return FAILSANITY;
+        }
+        u8cs ndl = {spot_ndl[0], spot_ndl[1]};
         call(CAPOSpot, ndl, ext, reporoot);
-    } else if (nargs == 1) {
-        // CSS mode
-        if (args[0][0][0] == '#') args[0][0]++;
-        u8cs sel = {args[0][0], args[0][1]};
-        call(CAPOQuery, sel, reporoot);
+    } else if (css_sel[0] != NULL) {
+        // CSS mode: collect optional ext filter from trailing args
+        u8cs sel = {css_sel[0], css_sel[1]};
+        u8cs ext = {};
+        for (int i = 0; i < ntrail; i++) {
+            if (trail[i][0][0] == '.') {
+                ext[0] = trail[i][0];
+                ext[1] = trail[i][1];
+                break;
+            }
+        }
+        call(CAPOQuery, sel, ext, reporoot);
     } else {
         call(CAPOReindex, reporoot);
     }

@@ -9,6 +9,13 @@ con ok64 SPOTBAD = 0x1c65874b28d;
 #define SPOT_MAX_BINDS 52
 #define SPOT_MAX_SUBS 32
 
+fun u64 SPOTLogPack(u32 hay, u16 ndl, u16 extra) {
+    return ((u64)hay << 32) | ((u64)ndl << 16) | (u64)extra;
+}
+fun u32 SPOTLogHay(u64 e) { return (u32)(e >> 32); }
+fun u16 SPOTLogNdl(u64 e) { return (u16)(e >> 16); }
+fun u16 SPOTLogExtra(u64 e) { return (u16)(e & 0xFFFF); }
+
 typedef struct {
     u8cs ndl;
     u8cs hay;
@@ -21,6 +28,8 @@ typedef struct {
     u8   nsubs;                   // number of segments
     u8   depth;
     b8   exhausted;
+    u64p mlog[4];  // match log buffer (caller-provided, NULL = disabled)
+    u64p alog[4];  // alias log buffer (caller-provided, NULL = disabled)
 } SPOTstate;
 
 // Initialize. Parses needle_src with BAST (ext = file extension).

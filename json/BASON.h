@@ -182,6 +182,24 @@ fun ok64 basonSeekTo(basonp x, u64 pos) {
     return (o == BASONEND) ? OK : o;
 }
 
+// Position cursor at byte offset pos without descending from root.
+// Stack is reset to [data_len, pos]; parent type is unknown (0).
+// Ready for basonDrain from that offset.
+fun ok64 basonBlindSeek(basonp x, u64 pos) {
+    u64 dlen = u8bDataLen(x->data);
+    if (pos > dlen) return BASONBAD;
+    u64bReset(x->stack);
+    ok64 o = u64bFeed1(x->stack, dlen);
+    if (o != OK) return o;
+    o = u64bFeed1(x->stack, pos);
+    if (o != OK) return o;
+    x->type = 0;
+    x->ptype = 0;
+    x->key[0] = x->key[1] = NULL;
+    x->val[0] = x->val[1] = NULL;
+    return OK;
+}
+
 // --- Write path wrappers ---
 
 fun ok64 basonFeedInto(basonp x, u8 type, u8csc key) {
