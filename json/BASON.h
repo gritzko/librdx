@@ -121,6 +121,8 @@ fun ok64 basonDrain(basonp x) {
     return BASONDrain(x->stack, d, &x->type, x->key, x->val);
 }
 
+#define basonNext basonDrain
+
 fun ok64 basonInto(basonp x) {
     if (!BASONCollection(x->type)) return BASONBAD;
     u8cs d = {u8bDataHead(x->data), u8bIdleHead(x->data)};
@@ -136,6 +138,48 @@ fun ok64 basonOuto(basonp x) {
 fun ok64 basonSeek(basonp x, u8csc target) {
     u8cs d = {u8bDataHead(x->data), u8bIdleHead(x->data)};
     return BASONSeek(x->stack, d, target);
+}
+
+// Descend one level toward byte offset pos within data.
+// Drains elements at current level until finding a container that
+// spans pos, then enters it.  Caller can inspect x->type/key/val
+// to see each ancestor.  Returns OK on descent, BASONEND when the
+// cursor is at the target level (ready to basonDrain the element).
+fun ok64 basonSeekStep(basonp x, u64 pos) {
+    u8cp base = u8bDataHead(x->data);
+    ok64 o;
+    while ((o = basonDrain(x)) == OK) {
+        if (!BASONCollection(x->type)) continue;
+        u64 vstart = (u64)(x->val[0] - base);
+        u64 vend = (u64)(x->val[1] - base);
+        if (pos >= vstart && pos < vend)
+            return basonInto(x);
+    }
+    *u64bLast(x->stack) = pos;
+    x->type = 0;
+    x->ptype = 0;
+    x->key[0] = x->key[1] = NULL;
+    x->val[0] = x->val[1] = NULL;
+    return BASONEND;
+}
+
+// Seek to byte offset pos from root, descending level by level.
+// On return the stack holds the full ancestor chain and the cursor
+// is at pos, ready for basonDrain.
+fun ok64 basonSeekTo(basonp x, u64 pos) {
+    u64 dlen = u8bDataLen(x->data);
+    if (pos > dlen) return BASONBAD;
+    u64bReset(x->stack);
+    ok64 o = u64bFeed1(x->stack, dlen);
+    if (o != OK) return o;
+    o = u64bFeed1(x->stack, (u64)0);
+    if (o != OK) return o;
+    x->type = 0;
+    x->ptype = 0;
+    x->key[0] = x->key[1] = NULL;
+    x->val[0] = x->val[1] = NULL;
+    while ((o = basonSeekStep(x, pos)) == OK) {}
+    return (o == BASONEND) ? OK : o;
 }
 
 // --- Write path wrappers ---

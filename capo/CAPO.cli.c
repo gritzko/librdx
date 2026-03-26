@@ -42,7 +42,8 @@ ok64 capocli() {
     // Parse args
     u32 nfork = 0, proc = UINT32_MAX;
     b8 is_hook = NO;
-    u8c *selector[2] = {};
+    u8c *args[2][2] = {};
+    int nargs = 0;
     int argn = (int)$arglen;
 
     for (int i = 1; i < argn; i++) {
@@ -61,7 +62,7 @@ ok64 capocli() {
         } else if (argeq(a, "--hook")) {
             is_hook = YES;
         } else {
-            $mv(selector, a);
+            if (nargs < 2) { $mv(args[nargs], a); nargs++; }
         }
     }
 
@@ -120,9 +121,15 @@ ok64 capocli() {
         fprintf(stderr, "capo: compacting all runs\n");
         call(CAPOCompactAll, dirslice);
         fprintf(stderr, "capo: done\n");
-    } else if (!$empty(selector)) {
-        if (selector[0][0] == '#') selector[0]++;
-        u8cs sel = {selector[0], selector[1]};
+    } else if (nargs == 2 && args[1][0][0] == '.') {
+        // SPOT mode: args[0]=needle, args[1]=extension
+        u8cs ndl = {args[0][0], args[0][1]};
+        u8cs ext = {args[1][0], args[1][1]};
+        call(CAPOSpot, ndl, ext, reporoot);
+    } else if (nargs == 1) {
+        // CSS mode
+        if (args[0][0][0] == '#') args[0][0]++;
+        u8cs sel = {args[0][0], args[0][1]};
         call(CAPOQuery, sel, reporoot);
     } else {
         call(CAPOReindex, reporoot);

@@ -38,6 +38,7 @@ if (WITH_FUZZ)
     set(FUZZ_CXX_FLAGS "${FUZZ_FLAGS}")
     set(FUZZ_C_FLAGS "${FUZZ_FLAGS}")
     set(FUZZ_LDD_FLAGS "${FUZZ_FLAGS}")
+    add_compile_options(-fsanitize=fuzzer-no-link)
 endif ()
 
 set(TEST_CXX_FLAGS "-g")

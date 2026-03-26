@@ -71,6 +71,9 @@ ok64 CAPONextSeqno(u64p seqno, u8csc dir);
 // Full query pipeline: selector -> trigrams -> intersect -> parse -> output
 ok64 CAPOQuery(u8csc selector, u8csc reporoot);
 
+// Structural code search: needle is a code fragment, ext is file extension
+ok64 CAPOSpot(u8csc needle, u8csc ext, u8csc reporoot);
+
 // Full reindex: all tracked files
 ok64 CAPOReindex(u8csc reporoot);
 
