@@ -1157,7 +1157,7 @@ static ok64 CAPOCopyElement(u8bp out, u8 type, u8cs key, u8cs val,
     done;
 }
 
-ok64 CAPOSpot(u8csc needle, u8csc ext, u8csc reporoot) {
+ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot) {
     sane($ok(needle) && $ok(ext) && $ok(reporoot));
 
     const struct TSLanguage *target_lang = BASTLanguage(ext);
@@ -1308,106 +1308,126 @@ ok64 CAPOSpot(u8csc needle, u8csc ext, u8csc reporoot) {
 
         u8cs bdata = {u8bDataHead(bson), u8bIdleHead(bson)};
 
-        // Filtered output buffer
-        size_t fbuflen = $len(bdata) + 4096;
-        Bu8 fbufm = {};
-        o = u8bMap(fbufm, fbuflen);
-        if (o != OK) { free(_bidx); u8bUnMap(bson); FILEUnMap(mapped); continue; }
-
         // SPOT init + match loop
         signal(SIGABRT, capo_abrt_handler);
         capo_in_match = 1;
         if (sigsetjmp(capo_jmpbuf, 1) != 0) {
             capo_in_match = 0;
             signal(SIGABRT, SIG_DFL);
-            u8bUnMap(fbufm);
             free(_bidx);
             u8bUnMap(bson);
             FILEUnMap(mapped);
             continue;
         }
 
-        aBpad(u8, nbuf, 16384);
-        aBpad(u64, nidx, 256);
-        SPOTstate st = {};
-        o = SPOTInit(&st, nbuf, nidx, needle, file_ext, bdata);
-        if (o == OK) {
-            // Count needle's meaningful children (for multi-statement)
-            u8cs ndata = {u8bDataHead(nbuf), u8bIdleHead(nbuf)};
-            int nchildren = 0;
-            {
-                aBpad(u64, nstk, 256);
-                BASONOpen(nstk, ndata);
-                u8 nt2 = 0;
-                u8cs nk2 = {}, nv2 = {};
-                if (BASONDrain(nstk, ndata, &nt2, nk2, nv2) == OK &&
-                    BASONCollection(nt2)) {
-                    BASONInto(nstk, ndata, nv2);
-                    while (BASONDrain(nstk, ndata, &nt2, nk2, nv2) == OK) {
-                        if (nt2 == 'S' || nt2 == 'D') continue;
-                        nchildren++;
-                    }
-                }
-            }
-            if (nchildren < 1) nchildren = 1;
-
-            while (SPOTNext(&st) == OK) {
-                // st.match is the first matched sibling at the parent level.
-                // Drain nchildren meaningful siblings from that position.
-                aBpad(u64, seekstk, 256);
-                call(u64bFeed1, seekstk, (u64)$len(bdata));
-                call(u64bFeed1, seekstk, st.match);
-                u8cs ekey = {};
-                call(BASONFeedInto, NULL, fbufm, 'A', ekey);
-                u8 ht = 0;
-                u8cs hk = {}, hv = {};
-                int copied = 0;
-                while (copied < nchildren) {
-                    ok64 dr = BASONDrain(seekstk, bdata, &ht, hk, hv);
-                    if (dr != OK) break;
-                    if (ht == 'S' || ht == 'D') {
-                        CAPOCopyElement(fbufm, ht, hk, hv, seekstk, bdata);
-                        continue;
-                    }
-                    CAPOCopyElement(fbufm, ht, hk, hv, seekstk, bdata);
-                    copied++;
-                }
-                call(BASONFeedOuto, NULL, fbufm);
-            }
-        }
-
-        capo_in_match = 0;
-        signal(SIGABRT, SIG_DFL);
-
-        if (fbufm[1] < fbufm[2]) {
-            CAPOProgress(NULL, use_color);
-            u8cs filtered = {u8bDataHead(fbufm), u8bIdleHead(fbufm)};
-            size_t obuflen = $len(filtered) * 4 + 4096;
+        if (!$empty(replace)) {
+            // --- Replacement mode ---
+            size_t obuflen = $len(source) * 2 + 4096;
             Bu8 obufm = {};
             o = u8bMap(obufm, obuflen);
             if (o == OK) {
-                u8s out = {u8bIdleHead(obufm), obufm[3]};
-                if (use_color) escfeed(out, GRAY);
-                a_cstr(hdr_pre, "--- ");
-                u8sFeed(out, hdr_pre);
-                u8sFeed(out, relpath);
-                a_cstr(hdr_post, " ---\n");
-                u8sFeed(out, hdr_post);
-                if (use_color) escfeed(out, 0);
-                if (use_color)
-                    o = CSSCat(out, filtered, relpath);
-                else
-                    o = CSSExport(out, filtered);
-                a_cstr(trail_nl, "\n");
-                u8sFeed(out, trail_nl);
+                u8s rout = {u8bIdleHead(obufm), obufm[3]};
+                o = SPOTReplace(rout, source, bdata, needle,
+                                replace, file_ext);
                 if (o == OK) {
-                    u8cs result = {u8bIdleHead(obufm), out[0]};
-                    call(FILEFeedall, STDOUT_FILENO, result);
+                    u8cs result = {u8bIdleHead(obufm), rout[0]};
+                    // Unmap source before writing back
+                    FILEUnMap(mapped);
+                    mapped = NULL;
+                    int fd = -1;
+                    ok64 wo = FILECreate(&fd, path8cgIn(fpbuf));
+                    if (wo == OK) {
+                        FILEFeedall(fd, result);
+                        close(fd);
+                        CAPOProgress(NULL, use_color);
+                        fprintf(stderr, "replaced: %s\n", line);
+                    }
                 }
                 u8bUnMap(obufm);
             }
+        } else {
+            // --- Search/display mode ---
+            size_t fbuflen = $len(bdata) + 4096;
+            Bu8 fbufm = {};
+            o = u8bMap(fbufm, fbuflen);
+            if (o != OK) {
+                capo_in_match = 0;
+                signal(SIGABRT, SIG_DFL);
+                free(_bidx);
+                u8bUnMap(bson);
+                FILEUnMap(mapped);
+                continue;
+            }
+
+            aBpad(u8, nbuf, 16384);
+            aBpad(u64, nidx, 256);
+            aBpad(u64, mlog, 1024);
+            aBpad(u64, alog, 1024);
+            SPOTstate st = {};
+            o = SPOTInit(&st, nbuf, nidx, needle, file_ext, bdata);
+            if (o == OK) {
+                st.mlog[0] = mlog[0]; st.mlog[1] = mlog[1];
+                st.mlog[2] = mlog[2]; st.mlog[3] = mlog[3];
+                st.alog[0] = alog[0]; st.alog[1] = alog[1];
+                st.alog[2] = alog[2]; st.alog[3] = alog[3];
+
+                while (SPOTNext(&st) == OK) {
+                    // Use mlog to display each matched element
+                    size_t mlen = u64bDataLen(st.mlog);
+                    if (mlen == 0) continue;
+                    u64p mp = u64bDataHead(st.mlog);
+                    u8cs ekey = {};
+                    call(BASONFeedInto, NULL, fbufm, 'A', ekey);
+                    for (size_t mi = 0; mi < mlen; mi++) {
+                        u64 hay_off = (u64)SPOTLogHay(mp[mi]);
+                        aBpad(u64, seekstk, 256);
+                        call(u64bFeed1, seekstk, (u64)$len(bdata));
+                        call(u64bFeed1, seekstk, hay_off);
+                        u8 ht = 0;
+                        u8cs hk = {}, hv = {};
+                        ok64 dr = BASONDrain(seekstk, bdata, &ht, hk, hv);
+                        if (dr != OK) break;
+                        // Add separating newline between segments
+                        if (mi > 0) {
+                            u8cs nl = $u8str("\n");
+                            call(BASONFeed, NULL, fbufm, 'S', ekey, nl);
+                        }
+                        CAPOCopyElement(fbufm, ht, hk, hv, seekstk, bdata);
+                    }
+                    call(BASONFeedOuto, NULL, fbufm);
+                }
+            }
+
+            if (fbufm[1] < fbufm[2]) {
+                CAPOProgress(NULL, use_color);
+                u8cs filtered = {u8bDataHead(fbufm), u8bIdleHead(fbufm)};
+                size_t obuflen = $len(filtered) * 4 + 4096;
+                Bu8 obufm = {};
+                o = u8bMap(obufm, obuflen);
+                if (o == OK) {
+                    u8s out = {u8bIdleHead(obufm), obufm[3]};
+                    if (use_color) escfeed(out, GRAY);
+                    a_cstr(hdr_pre, "--- ");
+                    u8sFeed(out, hdr_pre);
+                    u8sFeed(out, relpath);
+                    a_cstr(hdr_post, " ---\n");
+                    u8sFeed(out, hdr_post);
+                    if (use_color) escfeed(out, 0);
+                    if (use_color)
+                        o = CSSCat(out, filtered, relpath);
+                    else
+                        o = CSSExport(out, filtered);
+                    a_cstr(trail_nl, "\n");
+                    u8sFeed(out, trail_nl);
+                    if (o == OK) {
+                        u8cs result = {u8bIdleHead(obufm), out[0]};
+                        call(FILEFeedall, STDOUT_FILENO, result);
+                    }
+                    u8bUnMap(obufm);
+                }
+            }
+            u8bUnMap(fbufm);
         }
-        u8bUnMap(fbufm);
 
         free(_bidx);
         u8bUnMap(bson);

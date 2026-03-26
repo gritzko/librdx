@@ -178,7 +178,8 @@ ok64 capocli() {
             return FAILSANITY;
         }
         u8cs ndl = {spot_ndl[0], spot_ndl[1]};
-        call(CAPOSpot, ndl, ext, reporoot);
+        u8cs rep = {spot_rep[0], spot_rep[1]};
+        call(CAPOSpot, ndl, rep, ext, reporoot);
     } else if (css_sel[0] != NULL) {
         // CSS mode: collect optional ext filter from trailing args
         u8cs sel = {css_sel[0], css_sel[1]};

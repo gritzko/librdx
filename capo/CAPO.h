@@ -73,8 +73,9 @@ ok64 CAPONextSeqno(u64p seqno, u8csc dir);
 // ext: optional language filter (empty = all languages)
 ok64 CAPOQuery(u8csc selector, u8csc ext, u8csc reporoot);
 
-// Structural code search: needle is a code fragment, ext is file extension
-ok64 CAPOSpot(u8csc needle, u8csc ext, u8csc reporoot);
+// Structural code search: needle is a code fragment, ext is file extension.
+// When replace is non-empty, matched regions are replaced and files rewritten.
+ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot);
 
 // Full reindex: all tracked files
 ok64 CAPOReindex(u8csc reporoot);

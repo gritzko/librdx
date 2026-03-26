@@ -46,4 +46,20 @@ ok64 SPOTInit(SPOTstate *st, u8bp ndl_buf, u64bp ndl_idx,
 // Caller uses basonSeekTo() to rehydrate any offset.
 ok64 SPOTNext(SPOTstate *st);
 
+// Find source byte range [*lo, *hi) of the BASON element at bson_off.
+// Walks leaves under that element; their vals are copies of source text.
+// src_base is the start of the source buffer (for offset arithmetic).
+// Uses an auxiliary flat leaf map built by SPOTBuildLeafMap.
+ok64 SPOTSourceRange(u8csc hay, u64 bson_off, u64p lo, u64p hi);
+
+// Apply SPOT replacement to all matches in one file.
+// source: original file content.
+// hay: pre-parsed BASON from BASTParse on source.
+// needle_src/replace_src: code pattern / replacement template as text.
+// ext: file extension (e.g. ".c").
+// out: output buffer (caller-allocated, should be >= 2*source size).
+// Returns OK if replacements were made, SPOTEND if no matches.
+ok64 SPOTReplace(u8s out, u8csc source, u8csc hay,
+                 u8csc needle_src, u8csc replace_src, u8csc ext);
+
 #endif
