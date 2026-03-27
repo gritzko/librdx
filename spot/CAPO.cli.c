@@ -10,14 +10,14 @@
 #include "abc/PRO.h"
 
 // Usage:
-//   capo                             full reindex
-//   capo --fork N                    parallel reindex on N cores
-//   capo --fork N --proc K           worker K of N (internal)
-//   capo --hook                      incremental (post-commit)
-//   capo -c "fn.main"                CSS query
-//   capo -c "fn:has(malloc)" .c .h   CSS query, filter to .c/.h files
-//   capo -s "return 0;" .c           SPOT search
-//   capo -s "f(x,y)" -r "f(y,x)" .c SPOT search + replace
+//   spot                             full reindex
+//   spot --fork N                    parallel reindex on N cores
+//   spot --fork N --proc K           worker K of N (internal)
+//   spot --hook                      incremental (post-commit)
+//   spot -c "fn.main"                CSS query
+//   spot -c "fn:has(malloc)" .c .h   CSS query, filter to .c/.h files
+//   spot -s "return 0;" .c           SPOT search
+//   spot -s "f(x,y)" -r "f(y,x)" .c SPOT search + replace
 
 static b8 argeq(u8cs a, const char *b) {
     size_t blen = strlen(b);
@@ -108,7 +108,7 @@ ok64 capocli() {
 
     // Validate: -r only valid with -s
     if (spot_rep[0] != NULL && spot_ndl[0] == NULL) {
-        fprintf(stderr, "capo: --replace requires --spot\n");
+        fprintf(stderr, "spot: --replace requires --spot\n");
         return FAILSANITY;
     }
 
@@ -134,14 +134,14 @@ ok64 capocli() {
         u32 n = nfork;
         if (n > 256) n = 256;
 
-        fprintf(stderr, "capo: forking %u workers\n", n);
+        fprintf(stderr, "spot: forking %u workers\n", n);
         for (u32 k = 0; k < n; k++) {
             pid_t pid = fork();
             if (pid == 0) {
                 char nstr[16], kstr[16];
                 snprintf(nstr, sizeof(nstr), "%u", n);
                 snprintf(kstr, sizeof(kstr), "%u", k);
-                execl(self, "capo", "--fork", nstr, "--proc", kstr, NULL);
+                execl(self, "spot", "--fork", nstr, "--proc", kstr, NULL);
                 _exit(127);
             }
             test(pid > 0, FAILSANITY);
@@ -153,19 +153,19 @@ ok64 capocli() {
             int status = 0;
             waitpid(pids[k], &status, 0);
             if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
-                fprintf(stderr, "capo: worker %u failed (status %d)\n",
+                fprintf(stderr, "spot: worker %u failed (status %d)\n",
                         k, status);
                 failures++;
             }
         }
 
         if (failures > 0)
-            fprintf(stderr, "capo: %d workers failed\n", failures);
+            fprintf(stderr, "spot: %d workers failed\n", failures);
 
-        fprintf(stderr, "capo: compacting all runs\n");
+        fprintf(stderr, "spot: compacting all runs\n");
         call(CAPOCompactAll, dirslice);
         call(CAPOCommitWrite, reporoot, dirslice);
-        fprintf(stderr, "capo: done\n");
+        fprintf(stderr, "spot: done\n");
     } else if (spot_ndl[0] != NULL) {
         // SPOT mode: find first trailing .ext
         u8cs ext = {};
@@ -177,7 +177,7 @@ ok64 capocli() {
             }
         }
         if ($empty(ext)) {
-            fprintf(stderr, "capo: --spot requires a .ext argument\n");
+            fprintf(stderr, "spot: --spot requires a .ext argument\n");
             return FAILSANITY;
         }
         u8cs ndl = {spot_ndl[0], spot_ndl[1]};

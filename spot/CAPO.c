@@ -36,10 +36,10 @@ static void capo_abrt_handler(int sig) {
 #include "abc/MSETx.h"
 #undef X
 
-// --- Resolve capo index directory (handles worktrees) ---
+// --- Resolve spot index directory (handles worktrees) ---
 
-// Resolves the capo index dir: if .git is a directory, uses reporoot/.git/capo.
-// If .git is a file (worktree), reads gitdir from it, uses <gitdir>/capo.
+// Resolves the spot index dir: if .git is a directory, uses reporoot/.git/spot.
+// If .git is a file (worktree), reads gitdir from it, uses <gitdir>/spot.
 ok64 CAPOResolveDir(path8b out, u8csc reporoot) {
     sane($ok(reporoot) && out != NULL);
     a_pad(u8, gitpath, FILE_PATH_MAX_LEN);
@@ -77,7 +77,7 @@ ok64 CAPOResolveDir(path8b out, u8csc reporoot) {
             call(path8bPush, out, gitdir);
         }
         FILEUnMap(mapped);
-        a_cstr(caponame2, "capo");
+        a_cstr(caponame2, "spot");
         call(path8bPush, out, caponame2);
     }
     done;
@@ -151,7 +151,7 @@ ok64 CAPOIndexFile(u64bp entries, u8csc source, u8csc ext, u8csc path) {
 
     ok64 o = BASTParse(bson, idx, source, ext);
     if (o != OK) {
-        fprintf(stderr, "capo: parse: %s (src=%zu ext=%.*s)\n",
+        fprintf(stderr, "spot: parse: %s (src=%zu ext=%.*s)\n",
                 ok64str(o), $len(source),
                 (int)$len(ext), (char *)ext[0]);
         u64bUnMap(idx);
@@ -469,8 +469,12 @@ static ok64 CAPOReindexWork(u8csc reporoot, u8csc dirslice, u64bp entries) {
         }
         u8c *codec[2] = {};
         BASTCodec(codec, ext);
-        fprintf(stderr, "OK\t%.*s\t%s\n",
-                (int)$len(codec), (char *)codec[0], line);
+        if (CAPO_TERM)
+            fprintf(stderr, "\033[%dmOK\t%.*s\t%s\033[0m\n",
+                    GRAY, (int)$len(codec), (char *)codec[0], line);
+        else
+            fprintf(stderr, "OK\t%.*s\t%s\n",
+                    (int)$len(codec), (char *)codec[0], line);
         indexed++;
 
         // Flush when scratch buffer is large enough
@@ -481,7 +485,7 @@ static ok64 CAPOReindexWork(u8csc reporoot, u8csc dirslice, u64bp entries) {
             u64cs run = {(u64cp)data[0], (u64cp)data[1]};
             call(CAPOIndexWrite, dirslice, run, seqno++);
             total_entries += pending;
-            fprintf(stderr, "capo: flushed %zu entries\n", pending);
+            fprintf(stderr, "spot: flushed %zu entries\n", pending);
             u64bReset(entries);
         }
     }
@@ -497,11 +501,11 @@ static ok64 CAPOReindexWork(u8csc reporoot, u8csc dirslice, u64bp entries) {
         total_entries += pending;
     }
 
-    fprintf(stderr, "capo: indexed %u files, %zu entries, skipped %u, failed %u\n",
+    fprintf(stderr, "spot: indexed %u files, %zu entries, skipped %u, failed %u\n",
             indexed, total_entries, skipped, failed);
 
     if (seqno > 2) {
-        fprintf(stderr, "capo: compacting %" PRIu64 " runs\n",
+        fprintf(stderr, "spot: compacting %" PRIu64 " runs\n",
                 (u64)(seqno - 1));
         call(CAPOCompact, dirslice);
     }
@@ -512,14 +516,14 @@ static ok64 CAPOReindexWork(u8csc reporoot, u8csc dirslice, u64bp entries) {
 ok64 CAPOReindex(u8csc reporoot) {
     sane($ok(reporoot));
 
-    fprintf(stderr, "capo: repo root %.*s\n",
+    fprintf(stderr, "spot: repo root %.*s\n",
             (int)$len(reporoot), (char *)reporoot[0]);
 
     a_pad(u8, capodir, FILE_PATH_MAX_LEN);
     call(CAPOResolveDir, capodir, reporoot);
     a_dup(u8c, dirslice, u8bDataC(capodir));
     vcall("mkdir", FILEMakeDirP, path8cgIn(capodir));
-    fprintf(stderr, "capo: index dir %s\n", (char *)u8bDataHead(capodir));
+    fprintf(stderr, "spot: index dir %s\n", (char *)u8bDataHead(capodir));
 
     Bu64 entries = {};
     vcall("mmap scratch", u64bMap, entries, CAPO_SCRATCH_LEN);
@@ -593,14 +597,18 @@ static ok64 CAPOReindexProcWork(u8csc reporoot, u8csc dirslice,
         }
         u8c *codec[2] = {};
         BASTCodec(codec, ext);
-        fprintf(stderr, "OK\t%.*s\t%s\t(%zu entries)\n",
-                (int)$len(codec), (char*)codec[0], line, u64bDataLen(entries));
+        if (CAPO_TERM)
+            fprintf(stderr, "\033[%dmOK\t%.*s\t%s\t(%zu entries)\033[0m\n",
+                    GRAY, (int)$len(codec), (char*)codec[0], line, u64bDataLen(entries));
+        else
+            fprintf(stderr, "OK\t%.*s\t%s\t(%zu entries)\n",
+                    (int)$len(codec), (char*)codec[0], line, u64bDataLen(entries));
         indexed++;
 
         // Flush when large enough
         size_t pending = u64bDataLen(entries);
         if (pending >= CAPO_FLUSH_AT) {
-            fprintf(stderr, "capo[%u/%u]: flushing %zu entries\n",
+            fprintf(stderr, "spot[%u/%u]: flushing %zu entries\n",
                     proc, nprocs, pending);
             u64s data = {u64bDataHead(entries), u64bIdleHead(entries)};
             $sort(data, u64cmp);
@@ -625,7 +633,7 @@ static ok64 CAPOReindexProcWork(u8csc reporoot, u8csc dirslice,
         total_entries += pending;
     }
 
-    fprintf(stderr, "capo[%u/%u]: indexed %u files, %zu entries, skipped %u, failed %u\n",
+    fprintf(stderr, "spot[%u/%u]: indexed %u files, %zu entries, skipped %u, failed %u\n",
             proc, nprocs, indexed, total_entries, skipped, failed);
     done;
 }
@@ -633,7 +641,7 @@ static ok64 CAPOReindexProcWork(u8csc reporoot, u8csc dirslice,
 ok64 CAPOReindexProc(u8csc reporoot, u32 nprocs, u32 proc) {
     sane($ok(reporoot) && proc < nprocs && nprocs > 0);
 
-    fprintf(stderr, "capo[%u/%u]: starting\n", proc, nprocs);
+    fprintf(stderr, "spot[%u/%u]: starting\n", proc, nprocs);
 
     a_pad(u8, capodir, FILE_PATH_MAX_LEN);
     call(CAPOResolveDir, capodir, reporoot);
@@ -671,7 +679,7 @@ ok64 CAPOCompactAll(u8csc dir) {
         // Merge ALL runs into one via mmap scratch
         size_t total = 0;
         for (u32 i = 0; i < nfiles; i++) total += $len(runs[i]);
-        fprintf(stderr, "capo: merging %u runs, %zu total entries\n",
+        fprintf(stderr, "spot: merging %u runs, %zu total entries\n",
                 nfiles, total);
 
         Bu64 mbuf = {};
@@ -682,7 +690,7 @@ ok64 CAPOCompactAll(u8csc dir) {
         size_t merged_count = 0;
         while (!$empty(stack)) {
             if (into[0] >= into[1]) {
-                fprintf(stderr, "capo: merge buffer full at %zu\n", merged_count);
+                fprintf(stderr, "spot: merge buffer full at %zu\n", merged_count);
                 break;
             }
             *into[0] = ****stack;
@@ -694,11 +702,11 @@ ok64 CAPOCompactAll(u8csc dir) {
         // Find next seqno — must be higher than any existing
         u64 seqno = 0;
         call(CAPONextSeqno, &seqno, dir);
-        fprintf(stderr, "capo: next seqno = %" PRIu64 " (dir = '%.*s')\n",
+        fprintf(stderr, "spot: next seqno = %" PRIu64 " (dir = '%.*s')\n",
                 seqno,
                 (int)$len(dir), (char *)dir[0]);
         u64cs merged = {(u64cp)mbuf[0], (u64cp)into[0]};
-        fprintf(stderr, "capo: writing %zu deduplicated entries (seqno %" PRIu64 ")\n",
+        fprintf(stderr, "spot: writing %zu deduplicated entries (seqno %" PRIu64 ")\n",
                 $len(merged), seqno);
         call(CAPOIndexWrite, dir, merged, seqno);
 
@@ -829,7 +837,7 @@ static b8 CAPOHookDiffCmd(char *cmdbuf, size_t cmdsz,
     CAPOCommitRead(&sha_len, dirslice, shabuf);
 
     if (sha_len != 40) {
-        fprintf(stderr, "capo: no saved commit, full reindex\n");
+        fprintf(stderr, "spot: no saved commit, full reindex\n");
         return NO;
     }
     saved_sha[40] = 0;
@@ -842,7 +850,7 @@ static b8 CAPOHookDiffCmd(char *cmdbuf, size_t cmdsz,
     if (n <= 0 || n >= (int)sizeof(chkbuf)) return NO;
     int rc = system(chkbuf);
     if (!WIFEXITED(rc) || WEXITSTATUS(rc) != 0) {
-        fprintf(stderr, "capo: saved commit unreachable, full reindex\n");
+        fprintf(stderr, "spot: saved commit unreachable, full reindex\n");
         return NO;
     }
 
@@ -1012,6 +1020,9 @@ ok64 CAPOQuery(u8csc selector, u8csc ext, u8csc reporoot) {
     u32 nfiles = 0;
     call(CAPOStackOpen, stack, mmaps, &nfiles, dirslice);
     stack[1] = stack[0] + nfiles;
+
+    if (nfiles == 0)
+        fprintf(stderr, "spot: warning: no index, run `spot` or `spot --fork N` first\n");
 
     // Extract searchable text spans from selector:
     //   .name     -> "name"
@@ -1335,6 +1346,9 @@ ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot) {
 
     u32 nhashes = 0;
     b8 has_trigrams = NO;
+
+    if (nidxfiles == 0)
+        fprintf(stderr, "spot: warning: no index, run `spot` or `spot --fork N` first\n");
 
     if (nidxfiles > 0) {
         u8cp p = needle[0];

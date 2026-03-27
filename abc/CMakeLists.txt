@@ -108,7 +108,7 @@ list(APPEND ABC_HEADERS ROCK.h)
 list(APPEND ABC_SOURCES ROCK.c)
 endif()
 
-# Minimal abc-core: no heavy deps — for standalone tools like capo
+# Minimal abc-core: no heavy deps — for standalone tools like spot
 set(ABC_CORE_SOURCES ${ABC_SOURCES})
 list(REMOVE_ITEM ABC_CORE_SOURCES CURL.c NET.c HTTP.c HTTP.rl.c TCP.c UDP.c POL.c PACK.c ROCK.c)
 add_library(abc-core STATIC ${ABC_HEADERS} ${ABC_CORE_SOURCES})

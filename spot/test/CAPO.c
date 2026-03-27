@@ -1,4 +1,4 @@
-#include "capo/CAPO.h"
+#include "spot/CAPO.h"
 
 #include <string.h>
 

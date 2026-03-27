@@ -19,11 +19,11 @@ jobs:
         cmake -B build -DCMAKE_BUILD_TYPE=Release
         -DCMAKE_C_COMPILER=clang -GNinja
     - name: Build
-      run: ninja -C build be/be capo/capo
+      run: ninja -C build be/be spot/spot
     - name: Strip
-      run: strip build/be/be build/capo/capo
+      run: strip build/be/be build/spot/spot
     - name: Package
-      run: tar czf librdx-linux-x86_64.tar.gz -C build be/be capo/capo
+      run: tar czf librdx-linux-x86_64.tar.gz -C build be/be spot/spot
     - uses: actions/upload-artifact@v4
       with:
         name: librdx-linux-x86_64
@@ -40,11 +40,11 @@ jobs:
         cmake -B build -DCMAKE_BUILD_TYPE=Release
         -DWITH_ROCKS=OFF -GNinja
     - name: Build
-      run: ninja -C build capo/capo
+      run: ninja -C build spot/spot
     - name: Strip
-      run: strip build/capo/capo
+      run: strip build/spot/spot
     - name: Package
-      run: tar czf librdx-macos-arm64.tar.gz -C build capo/capo
+      run: tar czf librdx-macos-arm64.tar.gz -C build spot/spot
     - uses: actions/upload-artifact@v4
       with:
         name: librdx-macos-arm64

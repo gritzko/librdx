@@ -1,19 +1,19 @@
-# `capo` — git repo AST code search and replace
+# `spot` — git repo AST code search and replace
 
-`capo` makes a trigram index of a repo which allows for extra fast grammar
+`spot` makes a trigram index of a repo which allows for extra fast grammar
 aware search-and-replace in the entire repo. git hooks keep the index
 updated.
 
 ## Usage
 
-    capo                              full reindex (single process)
-    capo --fork N                     parallel reindex on N cores
-    capo --hook                       incremental reindex (post-commit)
-    capo -c "fn.BASTParse"            CSS query: find function by name
-    capo -c "fn:has(malloc)"          CSS query: functions containing "malloc"
-    capo -c "fn:has(malloc)" .c       CSS query: filter to C files only
-    capo -s "return 0;" .c            SPOT search: find pattern in C files
-    capo -s "ok64 o = OK;" .c         SPOT search: find exact declaration
+    spot                              full reindex (single process)
+    spot --fork N                     parallel reindex on N cores
+    spot --hook                       incremental reindex (post-commit)
+    spot -c "fn.BASTParse"            CSS query: find function by name
+    spot -c "fn:has(malloc)"          CSS query: functions containing "malloc"
+    spot -c "fn:has(malloc)" .c       CSS query: filter to C files only
+    spot -s "return 0;" .c            SPOT search: find pattern in C files
+    spot -s "ok64 o = OK;" .c         SPOT search: find exact declaration
 
 Flags: `-c`/`--css` for CSS queries, `-s`/`--spot` for SPOT search,
 `-r`/`--replace` for replacement (requires `-s`).
@@ -25,13 +25,13 @@ The extension determines both the parser and the file filter (`.c` matches
 
 Index a repo on 4 cores:
 
-    $ capo --fork 4
-    capo: forking 4 workers
+    $ spot --fork 4
+    spot: forking 4 workers
     OK   c    abc/MSET.h
     OK   c    ast/BAST.c
     ...
-    capo: compacting all runs
-    capo: done
+    spot: compacting all runs
+    spot: done
 
 ### SPOT pattern search
 
@@ -43,7 +43,7 @@ match any token sequence.
 
 Find a specific declaration pattern:
 
-    $ capo -s "ok64 o = OK;" .c
+    $ spot -s "ok64 o = OK;" .c
     --- abc/BIN.h ---
     ok64 o = OK;
     --- abc/FILE.c ---
@@ -53,33 +53,33 @@ Find a specific declaration pattern:
 
 Rename a function:
 
-    $ capo -s "OldFunction(X)" -r "NewFunction(X)" .c
+    $ spot -s "OldFunction(X)" -r "NewFunction(X)" .c
 
 Look for a typical `malloc` call pattern:
 
-    $ capo -s 'malloc(a*B);' .c
-    --- capo/CAPO.c ---
+    $ spot -s 'malloc(a*B);' .c
+    --- spot/CAPO.c ---
     malloc(total * sizeof(u64));
-    -- capo/CAPO.c --
+    -- spot/CAPO.c --
     malloc(maxhashes * sizeof(u32));
 
 Standardize `malloc()` argument order:
 
-    $ capo -s 'malloc(sizeof(a)*B);' -r 'malloc(B*sizeof(a));' .c
+    $ spot -s 'malloc(sizeof(a)*B);' -r 'malloc(B*sizeof(a));' .c
 
 
 ## Git hook
 
     echo '#!/bin/sh
-    capo --hook' > .git/hooks/post-commit
+    spot --hook' > .git/hooks/post-commit
     chmod +x .git/hooks/post-commit
 
 ### CSS queries
 
 Find a function by name:
 
-    $ capo -c "fn.CAPOTriCB"
-    --- capo/CAPO.c ---
+    $ spot -c "fn.CAPOTriCB"
+    --- spot/CAPO.c ---
     static ok64 CAPOTriCB(voidp arg, u8cs tri) {
         CAPOTriCtx *ctx = (CAPOTriCtx *)arg;
         if (*ctx->idle >= ctx->end) return CAPONOROOM;
@@ -91,7 +91,7 @@ Find a function by name:
 
 Find TODOs:
 
-    $ capo -c "cmt:has(TODO)"
+    $ spot -c "cmt:has(TODO)"
     --- js/io.cpp ---
     // TODO io.utf8()
     --- rdx/RDX.h ---
@@ -99,13 +99,13 @@ Find TODOs:
 
 Find all functions using a function:
 
-    $ capo -c "fn:has(u8sFeed)"
+    $ spot -c "fn:has(u8sFeed)"
 
 ## How it works
 
 Source files are parsed with tree-sitter, trigrams extracted from leaf text
 and packed with path hashes into u64 entries stored as sorted MSET runs in
-`.git/capo/*.idx`.
+`.git/spot/*.idx`.
 
 **CSS mode:** extracts trigrams from selector strings, seeks each in the
 MSET index, intersects path hash sets to narrow candidates, then parses
@@ -116,4 +116,3 @@ intersection to narrow candidates, then parses each candidate file and
 runs flat token pattern matching (SPOT) to find structural matches.
 
 `--fork N` stripes files across N workers. Works with git worktrees.
-

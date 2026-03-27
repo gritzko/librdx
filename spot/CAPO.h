@@ -18,13 +18,13 @@ extern b8 CAPO_TERM;   // stderr is a terminal
     {                                                                    \
         __ = (f(__VA_ARGS__));                                           \
         if (__ != OK) {                                                  \
-            fprintf(stderr, "capo: %s: %s (%s:%d)\n",                   \
+            fprintf(stderr, "spot: %s: %s (%s:%d)\n",                   \
                     step, ok64str(__), __func__, __LINE__);              \
             return __;                                                   \
         }                                                                \
     }
 
-#define CAPO_DIR ".git/capo"
+#define CAPO_DIR ".git/spot"
 #define CAPO_IDX_EXT ".idx"
 #define CAPO_SEQNO_WIDTH 10
 #define CAPO_MAX_LEVELS MSET_MAX_LEVELS
@@ -55,10 +55,10 @@ fun u64 CAPOEntry(u8cs tri, u8cs path) {
 // Index a single source file: parse, extract trigrams, append u64 entries
 ok64 CAPOIndexFile(u64bp entries, u8csc source, u8csc ext, u8csc path);
 
-// Write a sorted run to .git/capo/SEQNO.idx
+// Write a sorted run to .git/spot/SEQNO.idx
 ok64 CAPOIndexWrite(u8csc dir, u64cs run, u64 seqno);
 
-// Load MSET stack from .git/capo/*.idx files (mmap each)
+// Load MSET stack from .git/spot/*.idx files (mmap each)
 // stack: output array of runs; maps: output array of mapped buffers
 // Returns number of files loaded in *nfiles
 ok64 CAPOStackOpen(u64css stack, u8bp *maps, u32p nfiles, u8csc dir);
@@ -93,7 +93,7 @@ ok64 CAPOHook(u8csc reporoot);
 // Compact all .idx files into a single run
 ok64 CAPOCompactAll(u8csc dir);
 
-// Resolve capo index dir from reporoot (handles worktrees)
+// Resolve spot index dir from reporoot (handles worktrees)
 ok64 CAPOResolveDir(path8b out, u8csc reporoot);
 
 // Write current HEAD sha to capodir/COMMIT
