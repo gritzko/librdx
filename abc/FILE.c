@@ -101,13 +101,6 @@ ok64 FILERmDir(path8cg path, bool recursive) {
             } else {
                 o = FILEUnLink((path8cgp)workp);
             }
-            if (o != OK) {
-                fprintf(stderr, "  FILERmDir: %s on '%s' (d_type=%d): %s\n",
-                        is_dir ? "rmdir" : "unlink",
-                        (char const *)workp[0], entry->d_type,
-                        ok64str(o));
-            }
-
             // Restore path to original length
             workp[1] = saved_end;
             *workp[1] = 0;  // null terminate
@@ -118,10 +111,6 @@ ok64 FILERmDir(path8cg path, bool recursive) {
     }
 
     int rc = rmdir((char const *)*path);
-    if (rc != 0) {
-        fprintf(stderr, "  FILERmDir: rmdir('%s') failed: errno=%d %s\n",
-                (char const *)*path, errno, strerror(errno));
-    }
     FILETestC(rc == 0);
     done;
 }
@@ -229,6 +218,13 @@ ok64 FILErmrf(path8cg path) {
     int rc = nftw((char const *)*path, unlink_cb, 64, FTW_DEPTH | FTW_PHYS);
     FILETestC(rc == 0);
     done;
+}
+
+// System page size for mmap (may differ from PAGESIZE on Apple Silicon)
+fun size_t FILESysPage() {
+    static size_t p = 0;
+    if (!p) p = sysconf(_SC_PAGESIZE);
+    return p;
 }
 
 u8 *FILE_RW[4] = {};
@@ -508,9 +504,10 @@ fun ok64 FILEBookFD(u8bp *buf, int const *fd, size_t book_size) {
     size_t file_size;
     call(FILESize, &file_size, fd);
 
-    // Round up to page boundaries
-    book_size = roundup(book_size, PAGESIZE);
-    file_size = roundup(file_size, PAGESIZE);
+    // Round up to system page boundaries (16KB on Apple Silicon)
+    size_t sp = FILESysPage();
+    book_size = roundup(book_size, sp);
+    file_size = roundup(file_size, sp);
     test(file_size <= book_size, BADARG);
 
     // Slot must be free
@@ -570,8 +567,9 @@ ok64 FILEBookCreate(u8bp *buf, path8cg path, size_t book_size,
     sane(buf != NULL && path8cgOK(path) && init_size <= book_size);
     int fd = FILE_CLOSED;
     call(FILECreate, &fd, path);
-    init_size = roundup(init_size, PAGESIZE);
-    if (init_size == 0) init_size = PAGESIZE;
+    size_t sp = FILESysPage();
+    init_size = roundup(init_size, sp);
+    if (init_size == 0) init_size = sp;
     call(FILEResize, &fd, init_size);
     call(FILEBookFD, buf, &fd, book_size);
     done;
@@ -582,8 +580,9 @@ ok64 FILEBookCreateAt(u8bp *buf, int dir, path8cg path, size_t book_size,
     sane(buf != NULL && path8cgOK(path) && dir > FILE_CLOSED);
     int fd = FILE_CLOSED;
     call(FILECreateAt, &fd, dir, path);
-    init_size = roundup(init_size, PAGESIZE);
-    if (init_size == 0) init_size = PAGESIZE;
+    size_t sp = FILESysPage();
+    init_size = roundup(init_size, sp);
+    if (init_size == 0) init_size = sp;
     call(FILEResize, &fd, init_size);
     call(FILEBookFD, buf, &fd, book_size);
     done;
@@ -601,7 +600,8 @@ ok64 FILEBookExtend(u8bp buf, size_t new_size) {
     u8p base = buf[0];
     size_t book_size = booked_end - base;
 
-    new_size = roundup(new_size, PAGESIZE);
+    size_t sp = FILESysPage();
+    new_size = roundup(new_size, sp);
     test(new_size <= book_size, BNOROOM);
 
     size_t old_size = buf[3] - base;
@@ -638,10 +638,11 @@ ok64 FILEBookGrow(u8bp buf, size_t need) {
     size_t cur = buf[3] - buf[0];           // current mapped size
     size_t data = u8bBusyLen(buf);          // past + data
     size_t target = data + need;
+    size_t sp = FILESysPage();
     size_t grow = cur + (cur >> 3);         // cur * 9/8
     if (grow < target) grow = target;
-    if (grow < cur + PAGESIZE) grow = cur + PAGESIZE;
-    grow = roundup(grow, PAGESIZE);
+    if (grow < cur + sp) grow = cur + sp;
+    grow = roundup(grow, sp);
     return FILEBookExtend(buf, grow);
 }
 

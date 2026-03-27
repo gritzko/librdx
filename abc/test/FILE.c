@@ -7,6 +7,8 @@
 #include "PRO.h"
 #include "TEST.h"
 
+#define TRACE fprintf(stderr, "  %s:%d\n", __func__, __LINE__)
+
 ok64 FILEtest1() {
     sane(1);
     a_path(path, $cstr("/tmp"));
@@ -275,17 +277,9 @@ ok64 FILEtest8b() {
     snprintf(cpath, sizeof(cpath), "%.*s",
              (int)u8bDataLen(setup), (char *)setup[1]);
 
-    // Verify path8cgOK on a_path result (the suspected failure)
     a_path(repath, $cstr(cpath));
-    b8 ok_before = path8cgOK(path8cgIn(repath));
-    fprintf(stderr, "  path8cgOK before Term: %d\n", ok_before);
-    fprintf(stderr, "  byte at idle: 0x%02x\n", *repath[2]);
-
-    // Fix: null-terminate
     call(path8gTerm, path8gIn(repath));
-    b8 ok_after = path8cgOK(path8cgIn(repath));
-    fprintf(stderr, "  path8cgOK after Term: %d\n", ok_after);
-    test(ok_after, FAIL);
+    test(path8cgOK(path8cgIn(repath)), FAIL);
 
     // Now remove with FILERmDir
     call(FILERmDir, path8cgIn(repath), true);
@@ -301,6 +295,7 @@ ok64 FILEtest8b() {
 ok64 FILEtest9() {
     sane(1);
 
+
     // FILEStat on non-existent file should return FILENOENT
     a_path(nofile, $cstr("/tmp"));
     a_cstr(tmpl, "FILEtest9_XXXXXX");
@@ -308,25 +303,27 @@ ok64 FILEtest9() {
     struct stat s = {};
     ok64 res = FILEStat(&s, path8cgIn(nofile));
     test(res == FILENOENT, FILEFAIL);
-    
+
     // Verify FILEerrno translates correctly
     test(FILEerrno(ENOENT) == FILENOENT, FILEFAIL);
     test(FILEerrno(EACCES) == FILEACCES, FILEFAIL);
     test(FILEerrno(EEXIST) == FILEEXIST, FILEFAIL);
     test(FILEerrno(0) == OK, FILEFAIL);
     test(FILEerrno(9999) == FILEFAIL, FILEFAIL);  // unknown errno
-    
+
     done;
 }
 
 // Test file iterator (into/next/outo pattern)
 ok64 FILEIterTest() {
     sane(1);
+
     // Create test directory structure
     a_path(base, $cstr("/tmp"));
     a_cstr(tmpl, "FILEIterTest_XXXXXX");
     call(path8gAddTmp, path8gIn(base), tmpl);
     call(FILEMakeDir, path8cgIn(base));
+
 
     // Create files and subdirs
     a_cstr(f1, "file1.txt");
@@ -353,6 +350,7 @@ ok64 FILEIterTest() {
     call(path8gPop, path8gIn(base));
     call(path8gPop, path8gIn(base));
 
+
     // Now test iterator
     int file_count = 0;
     int dir_count = 0;
@@ -375,22 +373,26 @@ ok64 FILEIterTest() {
     seen(END);
     call(FILEIterClose, &it);
 
+
     testeq(file_count, 3);  // file1.txt, file2.txt, nested.txt
     testeq(dir_count, 1);   // subdir
 
     // Cleanup
     call(FILERmDir, path8cgIn(base), true);
+
     done;
 }
 
 // Test sorted file iterator
 ok64 FILEIterSortedTest() {
     sane(1);
+
     // Create test directory structure
     a_path(base, $cstr("/tmp"));
     a_cstr(tmpl, "FILEIterSorted_XXXXXX");
     call(path8gAddTmp, path8gIn(base), tmpl);
     call(FILEMakeDir, path8cgIn(base));
+
 
     // Create files with names that sort differently than creation order
     a_cstr(fz, "zebra.txt");
@@ -424,12 +426,14 @@ ok64 FILEIterSortedTest() {
     call(FILEClose, &fd);
     call(path8gPop, path8gIn(base));
 
+
     // Test sorted iterator
     aB(u8, sortbuf);
     call(u8bAllocate, sortbufbuf, 4096);
 
     fileit it = {};
     call(FILEIterOpenSorted, &it, path8gIn(base), sortbufbuf, FILEentryZ);
+
 
     // Collect entries in order
     u8 names[4][32] = {};
@@ -457,6 +461,7 @@ ok64 FILEIterSortedTest() {
     seen(END);
     call(FILEIterClose, &it);
 
+
     // Verify sorted order: alpha.txt, beta_dir, middle.txt, zebra.txt
     testeq(count, 4);
     testeq(strcmp((char *)names[0], "alpha.txt"), 0);
@@ -467,12 +472,14 @@ ok64 FILEIterSortedTest() {
     // Cleanup
     call(u8bFree, sortbufbuf);
     call(FILERmDir, path8cgIn(base), true);
+
     done;
 }
 
 // Test FILEBook - booked VA range with growable file mapping
 ok64 FILEBookTest() {
     sane(1);
+
     a_path(path, $cstr("/tmp"));
     a_cstr(tmpl, "FILEBookTest_XXXXXX");
     call(path8gAddTmp, path8gIn(path), tmpl);
@@ -481,8 +488,10 @@ ok64 FILEBookTest() {
     u8bp buf = NULL;
     call(FILEBookCreate, &buf, path8cgIn(path), 1 * MB, 4 * KB);
 
+
     // Verify initial size
-    testeq(Bsize(buf), roundup(4 * KB, PAGESIZE));
+    size_t sp = sysconf(_SC_PAGESIZE);
+    testeq(Bsize(buf), roundup(4 * KB, sp));
 
     // Save base address
     u8p base = buf[0];
@@ -497,7 +506,7 @@ ok64 FILEBookTest() {
 
     // Verify base address unchanged (the whole point!)
     testeq(buf[0], base);
-    testeq(Bsize(buf), roundup(64 * KB, PAGESIZE));
+    testeq(Bsize(buf), roundup(64 * KB, sp));
 
     // Verify data survived
     testeq(memcmp(buf[1], "Hello booked world!", 19), 0);
@@ -509,8 +518,10 @@ ok64 FILEBookTest() {
     // Sync to disk
     call(FILEMSync, buf);
 
+
     // Extend again
     call(FILEBookExtend, buf, 128 * KB);
+
     testeq(buf[0], base);  // still same address
 
     // Verify far data survived
@@ -521,6 +532,7 @@ ok64 FILEBookTest() {
 
     // Cleanup
     call(FILEUnBook, buf);
+
     call(FILEUnLink, path8cgIn(path));
 
     done;
@@ -529,6 +541,7 @@ ok64 FILEBookTest() {
 // Test FILEBook with existing file
 ok64 FILEBookExistingTest() {
     sane(1);
+
     a_path(path, $cstr("/tmp"));
     a_cstr(tmpl, "FILEBookExist_XXXXXX");
     call(path8gAddTmp, path8gIn(path), tmpl);
@@ -536,25 +549,30 @@ ok64 FILEBookExistingTest() {
     // Create file with some content first
     u8bp prebuf = NULL;
     call(FILEMapCreate, &prebuf, path8cgIn(path), PAGESIZE);
+
     u8bReset(prebuf);
     a_cstr(initial, "Initial content here");
     call(u8bFeed, prebuf, initial);
     call(FILEUnMap, prebuf);
 
+
     // Now book with larger range
     u8bp buf = NULL;
     call(FILEBook, &buf, path8cgIn(path), 1 * MB);
+
 
     // Verify existing content is there
     testeq(memcmp(buf[0], "Initial content here", 20), 0);
 
     // Extend and write more
     call(FILEBookExtend, buf, 64 * KB);
+
     u8p far = buf[0] + 32 * KB;
     memcpy(far, "Extended data", 13);
 
     call(FILEUnBook, buf);
     call(FILEUnLink, path8cgIn(path));
+
 
     done;
 }
@@ -562,6 +580,7 @@ ok64 FILEBookExistingTest() {
 // Test FILEBookExtend beyond booked range fails
 ok64 FILEBookLimitTest() {
     sane(1);
+
     a_path(path, $cstr("/tmp"));
     a_cstr(tmpl, "FILEBookLimit_XXXXXX");
     call(path8gAddTmp, path8gIn(path), tmpl);
@@ -569,15 +588,19 @@ ok64 FILEBookLimitTest() {
     u8bp buf = NULL;
     call(FILEBookCreate, &buf, path8cgIn(path), 64 * KB, 4 * KB);
 
+
     // Extending beyond booked range should fail
     ok64 err = FILEBookExtend(buf, 128 * KB);
     test(err != OK, FILEFAIL);
 
+
     // But extending within range should work
     call(FILEBookExtend, buf, 32 * KB);
 
+
     call(FILEUnBook, buf);
     call(FILEUnLink, path8cgIn(path));
+
 
     done;
 }
@@ -585,6 +608,7 @@ ok64 FILEBookLimitTest() {
 // Test FILEBookEnsure - auto-grow
 ok64 FILEBookEnsureTest() {
     sane(1);
+
     a_path(path, $cstr("/tmp"));
     a_cstr(tmpl, "FILEBookEnsure_XXXXXX");
     call(path8gAddTmp, path8gIn(path), tmpl);
@@ -592,6 +616,7 @@ ok64 FILEBookEnsureTest() {
     // Create with small initial size (1 page), large booked range
     u8bp book = NULL;
     call(FILEBookCreate, &book, path8cgIn(path), 8 * MB, PAGESIZE);
+
     u8bReset(book);
 
     // Write in a loop, calling FILEBookEnsure before each write
@@ -601,13 +626,16 @@ ok64 FILEBookEnsureTest() {
         u8sFed(u8bIdle(book), 4096);
     }
 
+
     // Verify ~4MB written, file grew automatically
     testeq(u8bDataLen(book), (size_t)(1000 * 4096));
 
     // Trim and verify
     call(FILETrimBook, book);
+
     call(FILEUnBook, book);
     call(FILEUnLink, path8cgIn(path));
+
 
     done;
 }
