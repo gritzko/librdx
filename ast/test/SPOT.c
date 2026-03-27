@@ -22,7 +22,7 @@ static ok64 SPOTSetup(SPOTstate *st,
                        const char *needle, const char *haystack) {
     sane(st != NULL);
     call(SPOTBuildBAST, hbuf, hidx, haystack);
-    u8cs hay = {u8bDataHead(hbuf), u8bIdleHead(hbuf)};
+    a_dup(u8c, hay, u8bDataC(hbuf));
     test(!$empty(hay), FAILSANITY);
 
     u8csc nsrc = {(u8cp)needle, (u8cp)needle + strlen(needle)};
@@ -347,7 +347,7 @@ ok64 SPOTtestTable() {
         if (o == OK && tc->must_have) {
             a_pad(u8, txt, 65536);
             call(SPOTFlattenAt, txt_idle, st.hay, st.match);
-            u8cs flat = {u8bDataHead(txt), u8bIdleHead(txt)};
+            a_dup(u8c, flat, u8bDataC(txt));
             if (!SPOTContainsStr(flat, tc->must_have)) {
                 fprintf(stderr, "FAIL [%s]: output missing \"%s\"\n",
                         tc->name, tc->must_have);
@@ -358,7 +358,7 @@ ok64 SPOTtestTable() {
         if (o == OK && tc->must_lack) {
             a_pad(u8, txt, 65536);
             call(SPOTFlattenAt, txt_idle, st.hay, st.match);
-            u8cs flat = {u8bDataHead(txt), u8bIdleHead(txt)};
+            a_dup(u8c, flat, u8bDataC(txt));
             if (SPOTContainsStr(flat, tc->must_lack)) {
                 fprintf(stderr, "FAIL [%s]: output has unwanted \"%s\"\n",
                         tc->name, tc->must_lack);
@@ -469,7 +469,7 @@ ok64 SPOTtestGapSkipDFS() {
         // Verify match contains the declaration
         a_pad(u8, txt, 65536);
         call(SPOTFlattenAt, txt_idle, st.hay, st.match);
-        u8cs flat = {u8bDataHead(txt), u8bIdleHead(txt)};
+        a_dup(u8c, flat, u8bDataC(txt));
         test(SPOTContainsStr(flat, "int"), FAILSANITY);
         test(SPOTContainsStr(flat, "val"), FAILSANITY);
     }
@@ -515,7 +515,7 @@ ok64 SPOTtestGapExact() {
 
         a_pad(u8, txt, 65536);
         call(SPOTFlattenAt, txt_idle, st.hay, st.match);
-        u8cs flat = {u8bDataHead(txt), u8bIdleHead(txt)};
+        a_dup(u8c, flat, u8bDataC(txt));
         test(SPOTContainsStr(flat, "val"), FAILSANITY);
     }
 

@@ -834,7 +834,7 @@ ok64 rdxDiff2(rdxp patch, rdxp doc, rdxp neu,
     rdx oud_w = {.format = RDX_FMT_TLV | RDX_FMT_WRITE};
     oud_w.bulk = oud_b;
     call(rdxStrip, &oud_w, doc);
-    u8cs oud_datac = {u8bDataHead(oud_b), u8bIdleHead(oud_b)};  // data section
+    a_dup(u8c, oud_datac, u8bDataC(oud_b));  // data section
 
     // Step 2: Compute BRACKET hashes for oud (first half of hash_buf)
     u64 hash_half = (hash_buf[2] - hash_buf[0]) / 2;
@@ -856,7 +856,7 @@ ok64 rdxDiff2(rdxp patch, rdxp doc, rdxp neu,
         rdx neu_r = *neu;
         call(rdxStrip, &neu_w, &neu_r);
     }
-    u8cs neu_datac = {u8bDataHead(neu_b), u8bIdleHead(neu_b)};  // data section
+    a_dup(u8c, neu_datac, u8bDataC(neu_b));  // data section
 
     // Step 4: Compute BRACKET hashes for neu (second half of hash_buf)
     u64p neu_hash_start = hash_buf[0] + hash_half;

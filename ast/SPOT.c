@@ -832,7 +832,7 @@ ok64 SPOTReplace(u8s out, u8csc source, u8csc hay,
     aBpad(u8, rbuf, 16384);
     aBpad(u64, ridx, 256);
     call(BASTParse, rbuf, ridx, replace_src, ext);
-    u8cs rdata = {u8bDataHead(rbuf), u8bIdleHead(rbuf)};
+    a_dup(u8c, rdata, u8bDataC(rbuf));
 
     // Flatten replacement BASON to text
     aBpad(u8, rtxt, 16384);
@@ -858,7 +858,7 @@ ok64 SPOTReplace(u8s out, u8csc source, u8csc hay,
             }
         }
     }
-    u8cs rtxt_slice = {u8bDataHead(rtxt), u8bIdleHead(rtxt)};
+    a_dup(u8c, rtxt_slice, u8bDataC(rtxt));
 
     // Apply replacements
     u64 pos = 0;

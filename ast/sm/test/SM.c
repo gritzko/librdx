@@ -47,7 +47,7 @@ ok64 SMtestRoundtrip() {
         call(SMParse, pad, idx, src);
 
         // Read back and concatenate all leaf nodes
-        u8cs dat = {u8bDataHead(pad), u8bIdleHead(pad)};
+        a_dup(u8c, dat, u8bDataC(pad));
         call(BASONOpen, stk, dat);
 
         a_pad(u8, cat, 65536);
@@ -71,7 +71,7 @@ ok64 SMtestRoundtrip() {
             }
         }
 
-        u8cs result = {u8bDataHead(cat), u8bIdleHead(cat)};
+        a_dup(u8c, result, u8bDataC(cat));
         if ((size_t)$len(result) != (size_t)$len(src)) {
             fprintf(stderr, "ROUNDTRIP FAIL case %zu: got %zu expected %zu\n",
                     t, (size_t)$len(result), (size_t)$len(src));
@@ -93,7 +93,7 @@ ok64 SMtestHeading() {
 
     call(SMParse, pad, idx, src);
 
-    u8cs dat = {u8bDataHead(pad), u8bIdleHead(pad)};
+    a_dup(u8c, dat, u8bDataC(pad));
     call(BASONOpen, stk, dat);
 
     // Root should be 'A'
@@ -132,7 +132,7 @@ ok64 SMtestList() {
 
     call(SMParse, pad, idx, src);
 
-    u8cs dat = {u8bDataHead(pad), u8bIdleHead(pad)};
+    a_dup(u8c, dat, u8bDataC(pad));
     call(BASONOpen, stk, dat);
 
     u8 type = 0;
@@ -159,7 +159,7 @@ ok64 SMtestQuote() {
 
     call(SMParse, pad, idx, src);
 
-    u8cs dat = {u8bDataHead(pad), u8bIdleHead(pad)};
+    a_dup(u8c, dat, u8bDataC(pad));
     call(BASONOpen, stk, dat);
 
     u8 type = 0;
@@ -186,7 +186,7 @@ ok64 SMtestCode() {
 
     call(SMParse, pad, idx, src);
 
-    u8cs dat = {u8bDataHead(pad), u8bIdleHead(pad)};
+    a_dup(u8c, dat, u8bDataC(pad));
     call(BASONOpen, stk, dat);
 
     u8 type = 0;
@@ -213,7 +213,7 @@ ok64 SMtestEmpty() {
 
     call(SMParse, pad, idx, src);
 
-    u8cs dat = {u8bDataHead(pad), u8bIdleHead(pad)};
+    a_dup(u8c, dat, u8bDataC(pad));
     call(BASONOpen, stk, dat);
 
     u8 type = 0;
@@ -236,7 +236,7 @@ static ok64 SMCheckType(const char *input, u8 want, b8 *found) {
     SM_SETUP(65536, 64, 256);
     u8csc src = {(u8cp)input, (u8cp)input + strlen(input)};
     call(SMParse, pad, idx, src);
-    u8cs dat = {u8bDataHead(pad), u8bIdleHead(pad)};
+    a_dup(u8c, dat, u8bDataC(pad));
     call(BASONOpen, stk, dat);
     *found = NO;
     int depth = 0;

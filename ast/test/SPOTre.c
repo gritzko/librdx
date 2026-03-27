@@ -22,7 +22,7 @@ static ok64 SPOTreSetup(SPOTstate *st,
                          const char *needle, const char *haystack) {
     sane(st != NULL);
     call(SPOTreBuildBAST, hbuf, hidx, haystack);
-    u8cs hay = {u8bDataHead(hbuf), u8bIdleHead(hbuf)};
+    a_dup(u8c, hay, u8bDataC(hbuf));
     test(!$empty(hay), FAILSANITY);
 
     u8csc nsrc = {(u8cp)needle, (u8cp)needle + strlen(needle)};
@@ -548,7 +548,7 @@ ok64 SPOTreTestTable() {
 
         // Verify replacement output
         if (tc->replace != NULL && tc->expected != NULL) {
-            u8cs hay = {u8bDataHead(hbuf), u8bIdleHead(hbuf)};
+            a_dup(u8c, hay, u8bDataC(hbuf));
             u8csc source = {(u8cp)tc->haystack,
                             (u8cp)tc->haystack + strlen(tc->haystack)};
             u8csc ndl_src = {(u8cp)tc->needle,

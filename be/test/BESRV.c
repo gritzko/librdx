@@ -388,7 +388,7 @@ ok64 BESRVtest5() {
     // .bason mode: key starts with "be:", contains "hello.c"
     call(TestHTTPGet, resp, st.port, "/hello.c.bason");
     want(u8bDataLen(resp) > 0);
-    u8cs body = {u8bDataHead(resp), u8bIdleHead(resp)};
+    a_dup(u8c, body, u8bDataC(resp));
     u8 type = 0;
     u8cs key = {}, val = {};
     want(TLKVDrain(body, &type, key, val) == OK);
@@ -401,7 +401,7 @@ ok64 BESRVtest5() {
     u8bReset(resp);
     call(TestHTTPGet, resp, st.port, "/hello.c.stat");
     want(u8bDataLen(resp) > 0);
-    u8cs sbody = {u8bDataHead(resp), u8bIdleHead(resp)};
+    a_dup(u8c, sbody, u8bDataC(resp));
     type = 0;
     u8cs sk = {}, sv = {};
     want(TLKVDrain(sbody, &type, sk, sv) == OK);
@@ -412,7 +412,7 @@ ok64 BESRVtest5() {
     u8bReset(resp);
     call(TestHTTPGet, resp, st.port, "/hello.c");
     want(u8bDataLen(resp) > 0);
-    u8cs raw = {u8bDataHead(resp), u8bIdleHead(resp)};
+    a_dup(u8c, raw, u8bDataC(resp));
     a_cstr(expected, "int x = 42;\n");
     want($len(raw) == $len(expected));
     want(memcmp(raw[0], expected[0], $len(expected)) == 0);
@@ -421,7 +421,7 @@ ok64 BESRVtest5() {
     u8bReset(resp);
     call(TestHTTPGetRaw, resp, st.port, "/nonexistent.c");
     want(u8bDataLen(resp) > 0);
-    u8cs rawresp = {u8bDataHead(resp), u8bIdleHead(resp)};
+    a_dup(u8c, rawresp, u8bDataC(resp));
     a_cstr(notfound, "404");
     want(TestContains(rawresp, notfound));
 
@@ -507,7 +507,7 @@ ok64 BESRVtest6() {
     call(TestHTTPGet, resp, st.port, "/hello.c");
     want(u8bDataLen(resp) > 0);
 
-    u8cs raw = {u8bDataHead(resp), u8bIdleHead(resp)};
+    a_dup(u8c, raw, u8bDataC(resp));
     a_cstr(expected, "int x = 99;\n");
     want($len(raw) == $len(expected));
     want(memcmp(raw[0], expected[0], $len(expected)) == 0);

@@ -1273,10 +1273,10 @@ static ok64 BIFFPrintFlush(u8s out, u8s del, u8p del0,
     sane(u8sOK(out));
     a_pad(u8, _de, 16);
     escfeedBG256(_de_idle, HILI_DEL_BG);
-    u8cs DELESC = {u8bDataHead(_de), u8bIdleHead(_de)};
+    a_dup(u8c, DELESC, u8bDataC(_de));
     a_pad(u8, _ae, 16);
     escfeedBG256(_ae_idle, HILI_ADD_BG);
-    u8cs ADDESC = {u8bDataHead(_ae), u8bIdleHead(_ae)};
+    a_dup(u8c, ADDESC, u8bDataC(_ae));
     u8cs ds = {(u8cp)del0, (u8cp)del[0]};
     u8cs as = {(u8cp)add0, (u8cp)add[0]};
     if (!$empty(ds)) call(BIFFPrintColored, out, ds, DELESC);

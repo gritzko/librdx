@@ -199,13 +199,13 @@ ok64 BEtest4() {
     aBpad(u8, buf, 65536);
     aBpad(u64, idx, 4096);
     call(BASTParse, buf, idx, source, ext);
-    u8cs bason = {u8bDataHead(buf), u8bIdleHead(buf)};
+    a_dup(u8c, bason, u8bDataC(buf));
     want(!$empty(bason));
 
     aBpad(u8, out, 65536);
     aBpad(u64, stk, 256);
     call(BASTExport, u8bIdle(out), stk, bason);
-    u8cs result = {u8bDataHead(out), u8bIdleHead(out)};
+    a_dup(u8c, result, u8bDataC(out));
     want($eq(result, source));
     done;
 }
@@ -711,7 +711,7 @@ ok64 BEtest11() {
     aBpad(u8, dbuf, 65536);
     aBpad(u64, didx, 4096);
     call(BASTParse, dbuf, didx, dep_src, dep_ext);
-    u8cs dep_val = {u8bDataHead(dbuf), u8bIdleHead(dbuf)};
+    a_dup(u8c, dep_val, u8bDataC(dbuf));
     call(ROCKPut, &be.db, dep_key, dep_val);
 
     // stat: key with BASON stat cache
@@ -723,7 +723,7 @@ ok64 BEtest11() {
     aBpad(u64, midx, 32);
     BEstat dep_stat = {};
     call(BEStatFeedBason, mbuf, midx, dep_stat);
-    u8cs meta_val = {u8bDataHead(mbuf), u8bIdleHead(mbuf)};
+    a_dup(u8c, meta_val, u8bDataC(mbuf));
     call(ROCKPut, &be.db, stat_key, meta_val);
 
     // Write .beget file
@@ -868,7 +868,7 @@ ok64 BEtest13() {
     aBpad(u8, mbuf, 256);
     aBpad(u64, midx, 32);
     call(BEStatFeedBason, mbuf, midx, s);
-    u8cs mcs = {u8bDataHead(mbuf), u8bIdleHead(mbuf)};
+    a_dup(u8c, mcs, u8bDataC(mbuf));
     want(!$empty(mcs));
     BEstat s2 = {};
     call(BEStatDrainBason, &s2, mcs);
@@ -903,7 +903,7 @@ ok64 BEtest14() {
     aBpad(u8, buf, 65536);
     aBpad(u64, idx, 4096);
     call(BASTParse, buf, idx, source, ext);
-    u8cs bason = {u8bDataHead(buf), u8bIdleHead(buf)};
+    a_dup(u8c, bason, u8bDataC(buf));
     want(!$empty(bason));
 
     TriCollect tc = {};
@@ -1070,14 +1070,14 @@ ok64 BEtest17() {
     aBpad(u8, pbuf, 65536);
     aBpad(u64, pidx, 4096);
     call(BASTParse, pbuf, pidx, source, ext);
-    u8cs bason_data = {u8bDataHead(pbuf), u8bIdleHead(pbuf)};
+    a_dup(u8c, bason_data, u8bDataC(pbuf));
     want(!$empty(bason_data));
 
     // Test 1: Select functions with k=0 (no context)
     aBpad(u8, obuf, 65536);
     call(BASTGrepNodes, u8bIdle(obuf), bason_data, 0,
          SelectFunctions, NULL);
-    u8cs result = {u8bDataHead(obuf), u8bIdleHead(obuf)};
+    a_dup(u8c, result, u8bDataC(obuf));
     want(!$empty(result));
 
     // Should contain "int add" and "int mul" and "int main"
@@ -1121,7 +1121,7 @@ ok64 BEtest17() {
     u8bReset(obuf);
     call(BASTGrepNodes, u8bIdle(obuf), bason_data, 1,
          SelectFunctions, NULL);
-    u8cs result2 = {u8bDataHead(obuf), u8bIdleHead(obuf)};
+    a_dup(u8c, result2, u8bDataC(obuf));
     want(!$empty(result2));
     // With k=1, the blank line between add and mul gets included as
     // context from both sides, so they merge into one group
@@ -1291,7 +1291,7 @@ ok64 BEtest19() {
     aBpad(u8, buf, 65536);
     aBpad(u64, idx, 4096);
     call(BASTParse, buf, idx, source, ext);
-    u8cs bason = {u8bDataHead(buf), u8bIdleHead(buf)};
+    a_dup(u8c, bason, u8bDataC(buf));
     want(!$empty(bason));
 
     // Extract symbols
@@ -1317,7 +1317,7 @@ ok64 BEtest19() {
     a_pad(u8, out, 65536);
     aBpad(u64, stk, 256);
     call(BASTExport, out_idle, stk, bason);
-    u8cs result = {u8bDataHead(out), u8bIdleHead(out)};
+    a_dup(u8c, result, u8bDataC(out));
     want($len(result) == $len(source));
     want(memcmp(result[0], source[0], $len(source)) == 0);
 

@@ -183,7 +183,7 @@ static ok64 BECLIGet(uricp u) {
         u8bp result = be.scratch[BE_READ];
         u8bReset(result);
         call(BEGetFileMerged, &be, be.loc.path, relpath, result, NULL);
-        u8cs bason = {u8bDataHead(result), u8bIdleHead(result)};
+        a_dup(u8c, bason, u8bDataC(result));
         u8bp out = be.scratch[BE_RENDER];
         u8bReset(out);
         if (!$empty(u->fragment)) {
@@ -203,7 +203,7 @@ static ok64 BECLIGet(uricp u) {
             aBpad(u64, stk, 256);
             call(BASTExport, u8bIdle(out), stk, bason);
         }
-        u8cs source = {u8bDataHead(out), u8bIdleHead(out)};
+        a_dup(u8c, source, u8bDataC(out));
         if (!$empty(source)) {
             fwrite(source[0], 1, $len(source), stdout);
         }
@@ -431,7 +431,7 @@ static ok64 BECLICat(uricp u) {
     u8bReset(result);
     call(BEGetFileMerged, &be, be.loc.path, relpath, result, NULL);
 
-    u8cs bason = {u8bDataHead(result), u8bIdleHead(result)};
+    a_dup(u8c, bason, u8bDataC(result));
 
     u8bp out = be.scratch[BE_RENDER];
     u8bReset(out);
@@ -465,7 +465,7 @@ static ok64 BECLICat(uricp u) {
         call(BASTExport, u8bIdle(out), stk, bason);
     }
 
-    u8cs source = {u8bDataHead(out), u8bIdleHead(out)};
+    a_dup(u8c, source, u8bDataC(out));
 
     FILE *pager = NULL;
     int saved_stdout = -1;

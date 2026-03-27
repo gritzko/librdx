@@ -375,10 +375,10 @@ ok64 BASTDiffRender(u8s out, u8cs bason_data, int k) {
 
     a_pad(u8, _de, 16);
     escfeedBG256(_de_idle, HILI_DEL_BG);
-    u8cs DEL = {u8bDataHead(_de), u8bIdleHead(_de)};
+    a_dup(u8c, DEL, u8bDataC(_de));
     a_pad(u8, _ae, 16);
     escfeedBG256(_ae_idle, HILI_ADD_BG);
-    u8cs ADD = {u8bDataHead(_ae), u8bIdleHead(_ae)};
+    a_dup(u8c, ADD, u8bDataC(_ae));
     u8cs RST = $u8str("\033[0m");
 
     // === Pass 1: build line table + mark changed lines ===
@@ -532,10 +532,10 @@ ok64 BASTTextDiff(u8s out, u8cs old_text, u8cs new_text, int k) {
 
     a_pad(u8, _de, 16);
     escfeedBG256(_de_idle, HILI_DEL_BG);
-    u8cs DEL = {u8bDataHead(_de), u8bIdleHead(_de)};
+    a_dup(u8c, DEL, u8bDataC(_de));
     a_pad(u8, _ae, 16);
     escfeedBG256(_ae_idle, HILI_ADD_BG);
-    u8cs ADD = {u8bDataHead(_ae), u8bIdleHead(_ae)};
+    a_dup(u8c, ADD, u8bDataC(_ae));
     u8cs RST = $u8str("\033[0m");
     u8cs SEP = $u8str("\033[34m--\033[0m\n");
 
@@ -693,7 +693,7 @@ static ok64 BEGrepBitset(BEp be, u8 bitset[512], u8cs *trigrams, int tric) {
 
         u8 tri_bits[512];
         memset(tri_bits, 0, sizeof(tri_bits));
-        u8cs tval = {u8bDataHead(tbuf), u8bIdleHead(tbuf)};
+        a_dup(u8c, tval, u8bDataC(tbuf));
         aBpad(u64, tstk, 32);
         call(BASONOpen, tstk, tval);
         u8 ttype = 0;

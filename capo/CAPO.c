@@ -57,7 +57,7 @@ ok64 CAPOResolveDir(path8b out, u8csc reporoot) {
         // Worktree: .git is a file with "gitdir: <path>"
         u8bp mapped = NULL;
         call(FILEMapRO, &mapped, path8cgIn(gitpath));
-        u8cs content = {u8bDataHead(mapped), u8bIdleHead(mapped)};
+        a_dup(u8c, content, u8bDataC(mapped));
         // Parse "gitdir: <path>\n"
         a_cstr(prefix, "gitdir: ");
         test($len(content) > $len(prefix), PATHBAD);
@@ -159,7 +159,7 @@ ok64 CAPOIndexFile(u64bp entries, u8csc source, u8csc ext, u8csc path) {
         return o;
     }
 
-    u8cs bdata = {u8bDataHead(bson), u8bIdleHead(bson)};
+    a_dup(u8c, bdata, u8bDataC(bson));
     CAPOTriCtx ctx = {
         .idle = u64bIdle(entries),
         .end = entries[3],
@@ -457,7 +457,7 @@ static ok64 CAPOReindexWork(u8csc reporoot, u8csc dirslice, u64bp entries) {
             continue;
         }
 
-        u8cs source = {u8bDataHead(mapped), u8bIdleHead(mapped)};
+        a_dup(u8c, source, u8bDataC(mapped));
         u8cs relpath = {(u8cp)line, (u8cp)line + len};
         o = CAPOIndexFile(entries, source, ext, relpath);
         FILEUnMap(mapped);
@@ -517,7 +517,7 @@ ok64 CAPOReindex(u8csc reporoot) {
 
     a_pad(u8, capodir, FILE_PATH_MAX_LEN);
     call(CAPOResolveDir, capodir, reporoot);
-    u8cs dirslice = {u8bDataHead(capodir), u8bIdleHead(capodir)};
+    a_dup(u8c, dirslice, u8bDataC(capodir));
     vcall("mkdir", FILEMakeDirP, path8cgIn(capodir));
     fprintf(stderr, "capo: index dir %s\n", (char *)u8bDataHead(capodir));
 
@@ -581,7 +581,7 @@ static ok64 CAPOReindexProcWork(u8csc reporoot, u8csc dirslice,
             continue;
         }
 
-        u8cs source = {u8bDataHead(mapped), u8bIdleHead(mapped)};
+        a_dup(u8c, source, u8bDataC(mapped));
         u8cs relpath = {(u8cp)line, (u8cp)line + len};
         o = CAPOIndexFile(entries, source, ext, relpath);
         FILEUnMap(mapped);
@@ -637,7 +637,7 @@ ok64 CAPOReindexProc(u8csc reporoot, u32 nprocs, u32 proc) {
 
     a_pad(u8, capodir, FILE_PATH_MAX_LEN);
     call(CAPOResolveDir, capodir, reporoot);
-    u8cs dirslice = {u8bDataHead(capodir), u8bIdleHead(capodir)};
+    a_dup(u8c, dirslice, u8bDataC(capodir));
     vcall("mkdir", FILEMakeDirP, path8cgIn(capodir));
 
     Bu64 entries = {};
@@ -804,7 +804,7 @@ ok64 CAPOCommitRead(u32p len, u8csc capodir, u8s buf) {
     ok64 o = FILEMapRO(&mapped, path8cgIn(path));
     if (o != OK) done;  // file doesn't exist yet
 
-    u8cs content = {u8bDataHead(mapped), u8bIdleHead(mapped)};
+    a_dup(u8c, content, u8bDataC(mapped));
     size_t clen = $len(content);
     if (clen > 40) clen = 40;
     size_t cap = (size_t)$len(buf);
@@ -889,7 +889,7 @@ static ok64 CAPOHookDiff(u8csc reporoot, u8csc dirslice,
         ok64 o = FILEMapRO(&mapped, path8cgIn(fpbuf));
         if (o != OK) continue;
 
-        u8cs source = {u8bDataHead(mapped), u8bIdleHead(mapped)};
+        a_dup(u8c, source, u8bDataC(mapped));
         u8cs relpath = {(u8cp)line, (u8cp)line + len};
         o = CAPOIndexFile(entries, source, ext, relpath);
         FILEUnMap(mapped);
@@ -916,7 +916,7 @@ ok64 CAPOHook(u8csc reporoot) {
 
     a_pad(u8, capodir, FILE_PATH_MAX_LEN);
     call(CAPOResolveDir, capodir, reporoot);
-    u8cs dirslice = {u8bDataHead(capodir), u8bIdleHead(capodir)};
+    a_dup(u8c, dirslice, u8bDataC(capodir));
     call(FILEMakeDirP, path8cgIn(capodir));
 
     char cmdbuf[FILE_PATH_MAX_LEN + 128];
@@ -990,7 +990,7 @@ ok64 CAPOQuery(u8csc selector, u8csc ext, u8csc reporoot) {
 
     a_pad(u8, capodir, FILE_PATH_MAX_LEN);
     call(CAPOResolveDir, capodir, reporoot);
-    u8cs dirslice = {u8bDataHead(capodir), u8bIdleHead(capodir)};
+    a_dup(u8c, dirslice, u8bDataC(capodir));
 
     u32 maxhashes = 64 * 1024;
     u32 *hashbuf1 = (u32 *)malloc(maxhashes * sizeof(u32));
@@ -1092,7 +1092,7 @@ ok64 CAPOQuery(u8csc selector, u8csc ext, u8csc reporoot) {
     aBpad(u64, qidx, 256);
     u8cs sel_mut = {selector[0], selector[1]};
     call(CSSParse, qbuf, qidx, sel_mut);
-    u8cs query = {u8bDataHead(qbuf), u8bIdleHead(qbuf)};
+    a_dup(u8c, query, u8bDataC(qbuf));
 
     // Sort path hashes for binary search
     if (has_trigrams && nhashes > 0)
@@ -1157,7 +1157,7 @@ ok64 CAPOQuery(u8csc selector, u8csc ext, u8csc reporoot) {
         ok64 o = FILEMapRO(&mapped, path8cgIn(fpbuf));
         if (o != OK) continue;
 
-        u8cs source = {u8bDataHead(mapped), u8bIdleHead(mapped)};
+        a_dup(u8c, source, u8bDataC(mapped));
         size_t buflen = $len(source) * 16;
         if (buflen < 1024 * 1024) buflen = 1024 * 1024;
         Bu8 bson = {};
@@ -1176,7 +1176,7 @@ ok64 CAPOQuery(u8csc selector, u8csc ext, u8csc reporoot) {
             continue;
         }
 
-        u8cs bdata = {u8bDataHead(bson), u8bIdleHead(bson)};
+        a_dup(u8c, bdata, u8bDataC(bson));
 
         size_t fbuflen = $len(bdata) + 4096;
         Bu8 fbufm = {};
@@ -1200,7 +1200,7 @@ ok64 CAPOQuery(u8csc selector, u8csc ext, u8csc reporoot) {
         signal(SIGABRT, SIG_DFL);
         if (o == OK && fbufm[1] < fbufm[2]) {
             CAPOProgress(NULL);
-            u8cs filtered = {u8bDataHead(fbufm), u8bIdleHead(fbufm)};
+            a_dup(u8c, filtered, u8bDataC(fbufm));
             size_t obuflen = $len(filtered) * 4 + 4096;
             Bu8 obufm = {};
             o = u8bMap(obufm, obuflen);
@@ -1311,7 +1311,7 @@ ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot) {
     // --- Trigram filtering ---
     a_pad(u8, capodir, FILE_PATH_MAX_LEN);
     call(CAPOResolveDir, capodir, reporoot);
-    u8cs dirslice = {u8bDataHead(capodir), u8bIdleHead(capodir)};
+    a_dup(u8c, dirslice, u8bDataC(capodir));
 
     u32 maxhashes = 64 * 1024;
     u32 *hashbuf1 = (u32 *)malloc(maxhashes * sizeof(u32));
@@ -1429,7 +1429,7 @@ ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot) {
         ok64 o = FILEMapRO(&mapped, path8cgIn(fpbuf));
         if (o != OK) continue;
 
-        u8cs source = {u8bDataHead(mapped), u8bIdleHead(mapped)};
+        a_dup(u8c, source, u8bDataC(mapped));
         size_t buflen = $len(source) * 16;
         if (buflen < 1024 * 1024) buflen = 1024 * 1024;
         Bu8 bson = {};
@@ -1448,7 +1448,7 @@ ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot) {
             continue;
         }
 
-        u8cs bdata = {u8bDataHead(bson), u8bIdleHead(bson)};
+        a_dup(u8c, bdata, u8bDataC(bson));
 
         // SPOT init + match loop
         signal(SIGABRT, capo_abrt_handler);
@@ -1530,7 +1530,7 @@ ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot) {
 
             if (fbufm[1] < fbufm[2]) {
                 CAPOProgress(NULL);
-                u8cs filtered = {u8bDataHead(fbufm), u8bIdleHead(fbufm)};
+                a_dup(u8c, filtered, u8bDataC(fbufm));
                 size_t obuflen = $len(filtered) * 4 + 4096;
                 Bu8 obufm = {};
                 o = u8bMap(obufm, obuflen);

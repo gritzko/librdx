@@ -51,7 +51,7 @@ ok64 capocli() {
     a_pad(u8, root, FILE_PATH_MAX_LEN);
     u8cs rbs = {(u8cp)rootbuf, (u8cp)rootbuf + rlen};
     call(u8bFeed, root, rbs);
-    u8cs reporoot = {u8bDataHead(root), u8bIdleHead(root)};
+    a_dup(u8c, reporoot, u8bDataC(root));
 
     // Parse args
     u32 nfork = 0, proc = UINT32_MAX;
@@ -121,7 +121,7 @@ ok64 capocli() {
         // Orchestrator: fork N children, wait, compact
         a_pad(u8, capodir, FILE_PATH_MAX_LEN);
         call(CAPOResolveDir, capodir, reporoot);
-        u8cs dirslice = {u8bDataHead(capodir), u8bIdleHead(capodir)};
+        a_dup(u8c, dirslice, u8bDataC(capodir));
         call(FILEMakeDirP, path8cgIn(capodir));
 
         // Get our own executable path
