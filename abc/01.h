@@ -359,7 +359,7 @@ fun u8 u128bytelen(u128 u) {
 #define likely(x) (x)
 #endif
 
-fun ok64 u64decfeed(u8 **dec, u64 x) {
+fun ok64 utf8sFeed10(u8 **dec, u64 x) {
     u8 into[32];
     u8 *e = into + 32;
     u8 *to = e;

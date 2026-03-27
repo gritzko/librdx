@@ -152,16 +152,16 @@ pro(feedlistbullet, $u8 $into, u16 list) {
     test($len($into) >= 4, MARKNOROOM);
     if (list < 10) {
         u8sFeed1($into, ' ');
-        u64decfeed($into, list);
+        utf8sFeed10($into, list);
         u8sFeed2($into, '.', ' ');
     } else if (list < 100) {
-        u64decfeed($into, list);
+        utf8sFeed10($into, list);
         u8sFeed2($into, '.', ' ');
     } else if (list < 1000) {
-        u64decfeed($into, list);
+        utf8sFeed10($into, list);
         u8sFeed1($into, '.');
     } else {
-        u64decfeed($into, 999);
+        utf8sFeed10($into, 999);
         u8sFeed1($into, '.');
     }
     done;

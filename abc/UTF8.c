@@ -122,6 +122,6 @@ ok64 utf8sFeedInt(utf8s txt, i64cp i) {
     } else {
         u = *i;
     }
-    call(u64decfeed, txt, u);
+    call(utf8sFeed10, txt, u);
     done;
 }

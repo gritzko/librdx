@@ -66,7 +66,7 @@ ok64 Utest2() {
 ok64 OKdec() {
     sane(YES);
     aBpad(u8, into, 64);
-    call(u64decfeed, u8bIdle(into), 12345UL);
+    call(utf8sFeed10, u8bIdle(into), 12345UL);
     $print(u8bDataC(into));
     a$str(str, "12345");
     testeq(YES, $eq(u8bData(into), str));

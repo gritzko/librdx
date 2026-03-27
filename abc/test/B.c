@@ -61,7 +61,7 @@ ok64 B$test() {
     sane(1);
     a$$pad(pad, 128, 8);
     $$call(u8sFeedCStr, pad, "one");
-    $$call(u64decfeed, pad, 2);
+    $$call(utf8sFeed10, pad, 2);
     $$call(u8sFeedCStr, pad, "three");
     a$str(templ, "First $1, then $2, then $3!");
     a$str(correct, "First one, then 2, then three!");

@@ -45,7 +45,7 @@ fun ok64 escfeed($u8 data, u8 esc) {
     if (!$ok(data) || $size(data) < 7) return BADARG;
     u8sFeed1(data, 033);  //"\033[91m"
     u8sFeed1(data, '[');
-    u64decfeed(data, esc);
+    utf8sFeed10(data, esc);
     u8sFeed1(data, 'm');
     return OK;
 }
@@ -60,7 +60,7 @@ fun ok64 escfeedBG256($u8 data, u8 color) {
     u8sFeed1(data, ';');
     u8sFeed1(data, '5');
     u8sFeed1(data, ';');
-    u64decfeed(data, color);
+    utf8sFeed10(data, color);
     u8sFeed1(data, 'm');
     return OK;
 }

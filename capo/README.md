@@ -1,8 +1,8 @@
-# capo — git repo code search (AST query + pattern match)
+# capo — git repo AST code search and replace
 
-capo indexes source files in a git repo by trigrams, stores the index as
-an LSM stack of MSET files in `.git/capo/`, and supports two search modes:
-CSS-selector queries and SPOT structural pattern matching.
+`capo` makes a trigram index of a repo which allows for extra fast grammar
+aware search-and-replace in the entire repo. git hooks keep the index
+updated.
 
 ## Usage
 
@@ -32,33 +32,6 @@ Index a repo on 4 cores:
     ...
     capo: compacting all runs
     capo: done
-
-### CSS queries
-
-Find a function by name:
-
-    $ capo -c "fn.CAPOTriCB"
-    --- capo/CAPO.c ---
-    static ok64 CAPOTriCB(voidp arg, u8cs tri) {
-        CAPOTriCtx *ctx = (CAPOTriCtx *)arg;
-        if (*ctx->idle >= ctx->end) return CAPONOROOM;
-        u64 entry = CAPOTriPack(tri) | (u64)ctx->path_hash;
-        **ctx->idle = entry;
-        (*ctx->idle)++;
-        return OK;
-    }
-
-Find TODOs:
-
-    $ capo -c "cmt:has(TODO)"
-    --- js/io.cpp ---
-    // TODO io.utf8()
-    --- rdx/RDX.h ---
-    // TODO: migrate RB.c to new self-contained format
-
-Find all functions using a function:
-
-    $ capo -c "fn:has(u8sFeed)"
 
 ### SPOT pattern search
 
@@ -91,6 +64,33 @@ to any matching token, so `ok64 o = OK;` also matches `ok64 ret = OK;`.
     echo '#!/bin/sh
     capo --hook' > .git/hooks/post-commit
     chmod +x .git/hooks/post-commit
+
+### CSS queries
+
+Find a function by name:
+
+    $ capo -c "fn.CAPOTriCB"
+    --- capo/CAPO.c ---
+    static ok64 CAPOTriCB(voidp arg, u8cs tri) {
+        CAPOTriCtx *ctx = (CAPOTriCtx *)arg;
+        if (*ctx->idle >= ctx->end) return CAPONOROOM;
+        u64 entry = CAPOTriPack(tri) | (u64)ctx->path_hash;
+        **ctx->idle = entry;
+        (*ctx->idle)++;
+        return OK;
+    }
+
+Find TODOs:
+
+    $ capo -c "cmt:has(TODO)"
+    --- js/io.cpp ---
+    // TODO io.utf8()
+    --- rdx/RDX.h ---
+    // TODO: migrate RB.c to new self-contained format
+
+Find all functions using a function:
+
+    $ capo -c "fn:has(u8sFeed)"
 
 ## How it works
 

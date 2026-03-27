@@ -218,7 +218,7 @@ ok64 LEXonRuleName($cu8c tok, LEXstate *state) {
     call(NESTSplice, ct, LEX$ENUM);
     call(NESTFeed, ct, enmtmpl);
     call(NESTSplice, ct, LEX$actno);
-    call(u64decfeed, NESTidle(ct), state->ruleno);
+    call(utf8sFeed10, NESTidle(ct), state->ruleno);
 
     u8c$ fntmpl = LEX_TEMPL[state->lang][LEX_TEMPL_FN];
     call(NESTSplice, ct, LEX$FN);

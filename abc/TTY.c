@@ -20,7 +20,7 @@ ok64 TTYansifeed(utf8s into, u8 code) {
     test($size(into) >= 5, NOROOM);
     utf8sFeed1(into, 033);
     utf8sFeed1(into, '[');
-    u64decfeed(into, code);
+    utf8sFeed10(into, code);
     utf8sFeed1(into, 'm');
     done;
 }
@@ -36,11 +36,11 @@ ok64 TTYrgbfeed(utf8s into, u8 r, u8 g, u8 b) {
     utf8sFeed1(into, ';');
     utf8sFeed1(into, '2');
     utf8sFeed1(into, ';');
-    u64decfeed(into, r);
+    utf8sFeed10(into, r);
     utf8sFeed1(into, ';');
-    u64decfeed(into, g);
+    utf8sFeed10(into, g);
     utf8sFeed1(into, ';');
-    u64decfeed(into, b);
+    utf8sFeed10(into, b);
     utf8sFeed1(into, 'm');
     done;
 }
