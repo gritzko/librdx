@@ -138,10 +138,10 @@ ok64 test_strip_all() {
     sane(1);
     for (u64 i = 0; i < STRIP_CASES_LEN; i++) {
         STRIPcase const* tc = &STRIP_CASES[i];
-        fprintf(stderr, "  case %lu: %s\n", i, tc->desc);
+        fprintf(stderr, "  case %" PRIu64 ": %s\n", i, tc->desc);
         ok64 o = test_strip_jdr(tc);
         if (o != OK) {
-            fprintf(stderr, "FAIL: case %lu (%s): %s\n", i, tc->desc, ok64str(o));
+            fprintf(stderr, "FAIL: case %" PRIu64 " (%s): %s\n", i, tc->desc, ok64str(o));
             fprintf(stderr, "  input:  %s\n", tc->input);
             fprintf(stderr, "  expect: %s\n", tc->expect);
             fail(o);

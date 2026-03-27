@@ -152,10 +152,10 @@ ok64 RAPtestCase(RAPcase const* tc) {
     u64sJoin(hashes_idle, hashes);
     u64 n = $len(hashes_datac);
     if (n != tc->count) {
-        fprintf(stderr, "    count: got %lu, expected %lu\n", n, tc->count);
+        fprintf(stderr, "    count: got %" PRIu64 ", expected %" PRIu64 "\n", n, tc->count);
         fprintf(stderr, "    actual: {");
         for (u64 i = 0; i < n; i++) {
-            fprintf(stderr, "0x%lx", u64csAt(hashes_datac, i));
+            fprintf(stderr, "0x%" PRIx64, u64csAt(hashes_datac, i));
             if (i < n - 1) fprintf(stderr, ", ");
         }
         fprintf(stderr, "}\n");
@@ -165,7 +165,7 @@ ok64 RAPtestCase(RAPcase const* tc) {
         u64 got = u64csAt(hashes_datac, i);
         u64 exp = tc->hashes[i];
         if (got != exp) {
-            fprintf(stderr, "    hash[%lu]: got 0x%lx, expected 0x%lx\n", i, got, exp);
+            fprintf(stderr, "    hash[%" PRIu64 "]: got 0x%" PRIx64 ", expected 0x%" PRIx64 "\n", i, got, exp);
             fail(FAIL);
         }
     }
@@ -175,7 +175,7 @@ ok64 RAPtestCase(RAPcase const* tc) {
 ok64 RAPtest() {
     sane(1);
     b8 generate = NO;  // Set to YES to print expected values
-    fprintf(stderr, "RAP test (%lu cases)\n", RAP_CASES_LEN);
+    fprintf(stderr, "RAP test (%" PRIu64 " cases)\n", RAP_CASES_LEN);
     for (u64 i = 0; i < RAP_CASES_LEN; i++) {
         RAPcase const* tc = &RAP_CASES[i];
         if (generate) {
@@ -190,9 +190,9 @@ ok64 RAPtest() {
             rdxRapidHashesF(hashes_idle, inp, tc->mode);
             u64sJoin(hashes_idle, hashes);
             u64 n = $len(hashes_datac);
-            fprintf(stderr, "    {\"%s\", %d, %lu, {", tc->input, tc->mode, n);
+            fprintf(stderr, "    {\"%s\", %d, %" PRIu64 ", {", tc->input, tc->mode, n);
             for (u64 j = 0; j < n; j++) {
-                fprintf(stderr, "0x%lx", u64csAt(hashes_datac, j));
+                fprintf(stderr, "0x%" PRIx64, u64csAt(hashes_datac, j));
                 if (j < n - 1) fprintf(stderr, ", ");
             }
             fprintf(stderr, "}, \"%s\"},\n", tc->desc);

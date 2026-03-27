@@ -142,11 +142,11 @@ fun ok64 NUMPSeekPair(rdxp target, rdxp parent, i64 n) {
     target->i = n;
     ok64 o = rdxIntoSLIK(target, parent);
     if (o != OK) {
-        fprintf(stderr, "NUMPSeekPair(%ld): rdxIntoSLIK failed: %s\n", n, ok64str(o));
+        fprintf(stderr, "NUMPSeekPair(%" PRId64 "): rdxIntoSLIK failed: %s\n", n, ok64str(o));
         fail(o);
     }
     if (target->type != RDX_TYPE_TUPLE) {
-        fprintf(stderr, "NUMPSeekPair(%ld): expected TUPLE, got type=%u\n", n, target->type);
+        fprintf(stderr, "NUMPSeekPair(%" PRId64 "): expected TUPLE, got type=%u\n", n, target->type);
         fail(RDXBAD);
     }
     done;
@@ -163,15 +163,15 @@ fun ok64 NUMPVerifyPair(rdxp target, i64 n) {
     // Key: INT = n
     ok64 next_o = rdxNextSLIK(&c);
     if (next_o != OK) {
-        fprintf(stderr, "NUMPVerifyPair(%ld): rdxNextSLIK failed: %s\n", n, ok64str(next_o));
+        fprintf(stderr, "NUMPVerifyPair(%" PRId64 "): rdxNextSLIK failed: %s\n", n, ok64str(next_o));
         fail(RDXBAD);
     }
     if (c.type != RDX_TYPE_INT) {
-        fprintf(stderr, "NUMPVerifyPair(%ld): expected INT, got type=%u\n", n, c.type);
+        fprintf(stderr, "NUMPVerifyPair(%" PRId64 "): expected INT, got type=%u\n", n, c.type);
         fail(RDXBAD);
     }
     if (c.i != n) {
-        fprintf(stderr, "NUMPVerifyPair(%ld): expected i=%ld, got i=%ld\n", n, n, c.i);
+        fprintf(stderr, "NUMPVerifyPair(%" PRId64 "): expected i=%" PRId64 ", got i=%" PRId64 "\n", n, n, c.i);
         fail(RDXBAD);
     }
 

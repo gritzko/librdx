@@ -8,6 +8,7 @@
 
 #define FMTu64 "%" PRIu64
 #define FMTx64 "%" PRIx64
+#define FMTd64 "%" PRId64
 
 #define fun static inline
 #define funi static __always_inline

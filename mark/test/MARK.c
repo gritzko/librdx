@@ -37,12 +37,12 @@ pro(MARKparsetest) {
     u8c$ l1 = MARKline(&state, 1);
     $testeq(line1, l1);
     testeqv(7L, Bdatalen(state.divB), "%li");
-    testeqv((u64)MARK_H1, Bat(state.divB, 0), "%lu");
-    testeqv((u64)MARK_OLIST, Bat(state.divB, 1), "%lu");
-    testeqv((u64)MARK_INDENT, Bat(state.divB, 3), "%lu");
-    testeqv((u64)MARK_OLIST, Bat(state.divB, 4), "%lu");
-    testeqv(0L, Bat(state.divB, 5), "%lu");
-    testeqv(12L, $len(state.lineB[0] + 1), "%lu");
+    testeqv((u64)MARK_H1, Bat(state.divB, 0), "%" PRIu64);
+    testeqv((u64)MARK_OLIST, Bat(state.divB, 1), "%" PRIu64);
+    testeqv((u64)MARK_INDENT, Bat(state.divB, 3), "%" PRIu64);
+    testeqv((u64)MARK_OLIST, Bat(state.divB, 4), "%" PRIu64);
+    testeqv((u64)0, Bat(state.divB, 5), "%" PRIu64);
+    testeqv((u64)12, $len(state.lineB[0] + 1), "%" PRIu64);
     done;
 }
 

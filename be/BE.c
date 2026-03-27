@@ -5,6 +5,11 @@
 #include <sys/stat.h>
 #include <utime.h>
 
+// macOS: st_mtimespec; Linux: st_mtim
+#ifdef __APPLE__
+#define st_mtim st_mtimespec
+#endif
+
 #include "abc/ANSI.h"
 #include "ast/HILI.h"
 #include "abc/POL.h"

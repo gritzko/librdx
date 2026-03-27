@@ -298,7 +298,7 @@ ok64 SLOG4() {
 
         ok64 o = SLOGSeek(stkdi, stream, u64TLVless, tgt);
         if (o != OK) {
-            fprintf(stderr, "  seek %lu: %s\n", target, ok64str(o));
+            fprintf(stderr, "  seek %" PRIu64 ": %s\n", target, ok64str(o));
             if (o == SLOGMISS) continue;
             fail(o);
         }
@@ -324,9 +324,9 @@ ok64 SLOG4() {
     u64 avg_cmp = total_cmp / N;
 
     fprintf(stderr, "SLOG4: N=%zu\n", N);
-    fprintf(stderr, "  avg pops: %lu (expect ~log2(N)=%d)\n", avg_pops, 20);
-    fprintf(stderr, "  avg cmp:  %lu\n", avg_cmp);
-    fprintf(stderr, "  total kexp: %lu, kskip: %lu\n", total_kexp, total_kskip);
+    fprintf(stderr, "  avg pops: %" PRIu64 " (expect ~log2(N)=%d)\n", avg_pops, 20);
+    fprintf(stderr, "  avg cmp:  %" PRIu64 "\n", avg_cmp);
+    fprintf(stderr, "  total kexp: %" PRIu64 ", kskip: %" PRIu64 "\n", total_kexp, total_kskip);
 
     // Verify logarithmic behavior
     want(avg_pops < 50);  // should be ~20-30

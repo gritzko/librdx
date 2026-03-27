@@ -5,6 +5,9 @@
 
 #define PASS_KEY 1
 #define PASS_VAL 2
+#ifdef PASS_MAX
+#undef PASS_MAX
+#endif
 #define PASS_MAX 8
 
 typedef struct {

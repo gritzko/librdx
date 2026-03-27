@@ -98,7 +98,7 @@ ok64 SLIKSeek(rdxp c, rdxp p) {
 #ifdef ABC_TRACE
     fprintf(stderr, "SLIKSeek Phase1: stack_len=%zu, entries:", u64gLeftLen(sg));
     for (size_t k = 0; k < u64gLeftLen(sg); k++) {
-        fprintf(stderr, " %lu", sg[0][k]);
+        fprintf(stderr, " %" PRIu64, sg[0][k]);
     }
     fprintf(stderr, "\n");
 #endif
@@ -212,7 +212,7 @@ ok64 SLIKSeek(rdxp c, rdxp p) {
     call(u64gFeed1, sg, scan_from);
 
 #ifdef ABC_TRACE
-    fprintf(stderr, "SLIKSeek Phase2: scan_from=%lu, scan_to=%lu, stream_len=%zu, target.type=%u, target.i=%ld, stack_len=%zu\n",
+    fprintf(stderr, "SLIKSeek Phase2: scan_from=%" PRIu64 ", scan_to=%" PRIu64 ", stream_len=%zu, target.type=%u, target.i=%" PRId64 ", stack_len=%zu\n",
             scan_from, scan_to, (size_t)$len(stream), target.type, target.i, u64bDataLen(stack));
 #endif
 
@@ -226,7 +226,7 @@ ok64 SLIKSeek(rdxp c, rdxp p) {
 
     while (rdxNextSLIK(&n) == OK) {
 #ifdef ABC_TRACE
-        fprintf(stderr, "SLIKSeek Phase2: got type=%u, id.seq=%lu\n", n.type, n.id.seq);
+        fprintf(stderr, "SLIKSeek Phase2: got type=%u, id.seq=%" PRIu64 "\n", n.type, n.id.seq);
         if (n.type == RDX_TYPE_TUPLE) {
             fprintf(stderr, "  TUPLE plexc: %p-%p\n", (void*)n.plexc[0], (void*)n.plexc[1]);
         }

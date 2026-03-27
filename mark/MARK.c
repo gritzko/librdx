@@ -379,7 +379,7 @@ fun ok64 pushdiv(MARKstate* state, u8 div) {
     if (l < 8) {
         state->_div = u64setbyte(state->_div, div, l);
     }
-    printf("pushdiv %c=%lu\n", div, state->_div);
+    printf("pushdiv %c=%" PRIu64 "\n", div, state->_div);
     return OK;
 }
 

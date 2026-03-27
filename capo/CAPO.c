@@ -501,8 +501,8 @@ static ok64 CAPOReindexWork(u8csc reporoot, u8csc dirslice, u64bp entries) {
             indexed, total_entries, skipped, failed);
 
     if (seqno > 2) {
-        fprintf(stderr, "capo: compacting %llu runs\n",
-                (unsigned long long)(seqno - 1));
+        fprintf(stderr, "capo: compacting %" PRIu64 " runs\n",
+                (u64)(seqno - 1));
         call(CAPOCompact, dirslice);
     }
 
@@ -694,12 +694,12 @@ ok64 CAPOCompactAll(u8csc dir) {
         // Find next seqno — must be higher than any existing
         u64 seqno = 0;
         call(CAPONextSeqno, &seqno, dir);
-        fprintf(stderr, "capo: next seqno = %llu (dir = '%.*s')\n",
-                (unsigned long long)seqno,
+        fprintf(stderr, "capo: next seqno = %" PRIu64 " (dir = '%.*s')\n",
+                seqno,
                 (int)$len(dir), (char *)dir[0]);
         u64cs merged = {(u64cp)mbuf[0], (u64cp)into[0]};
-        fprintf(stderr, "capo: writing %zu deduplicated entries (seqno %llu)\n",
-                $len(merged), (unsigned long long)seqno);
+        fprintf(stderr, "capo: writing %zu deduplicated entries (seqno %" PRIu64 ")\n",
+                $len(merged), seqno);
         call(CAPOIndexWrite, dir, merged, seqno);
 
         CAPOStackClose(mmaps, nfiles);

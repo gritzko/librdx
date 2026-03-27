@@ -295,7 +295,7 @@ ok64 YLookupTestNestedSKIL() {
     o = rdxNext(&file2_child);
     test(o == OK, RDXBAD);
     test(file2_child.type == RDX_TYPE_INT, RDXBAD);
-    fprintf(stderr, "NESTED: file2 value=%ld\n", file2_child.i);
+    fprintf(stderr, "NESTED: file2 value=%" PRId64 "\n", file2_child.i);
     test(file2_child.i == 2, RDXBAD);
 
     fprintf(stderr, "NESTED OK: dir_b iteration complete\n");
@@ -384,7 +384,7 @@ ok64 YLookupTestRepoScenario() {
     test(o == OK, RDXBAD);
     test(file_b_tup.type == RDX_TYPE_INT, RDXBAD);
     test(file_b_tup.i == 3, RDXBAD);
-    fprintf(stderr, "REPO OK: file_b value = %ld\n", file_b_tup.i);
+    fprintf(stderr, "REPO OK: file_b value = %" PRId64 "\n", file_b_tup.i);
 
     done;
 }

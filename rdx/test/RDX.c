@@ -170,14 +170,14 @@ ok64 RDXTestZE() {
     scan(rdxNext, &c) call(rdxbFeedP, elems, &c);
     seen(END);
 
-    fprintf(stderr, "Stored %lu elements\n", rdxbDataLen(elems));
+    fprintf(stderr, "Stored %" PRIu64 " elements\n", (u64)rdxbDataLen(elems));
 
     // N**N compare
     rdxsp data = rdxbData(elems);
     ok64 eu = rdxEulerZ(*data + 30, *data + 31);
     for (rdxp i = data[0]; i < data[1]; ++i) {
         for (rdxp j = i + 1; j < data[1]; ++j) {
-            printf("%lu %lu\n", i - *data, j - *data);
+            printf("%" PRIu64 " %" PRIu64 "\n", (u64)(i - *data), (u64)(j - *data));
             test(YES == rdxEulerZ(i, j), RDXBADORDR);
         }
     }

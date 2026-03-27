@@ -148,7 +148,7 @@ ok64 HASHd() {
             fprintf(stderr, "\n");
             fprintf(stderr, "FIT\n");
             for (u32 u = 0; u < 16; ++u)
-                fprintf(stderr, "%u\t%lu\n", u, u32hash(&u) % 16);
+                fprintf(stderr, "%u\t%" PRIu64 "\n", u, u32hash(&u) % 16);
 
             zerob(dictbuf);
             for (int i = 0; i < LENd; ++i) {

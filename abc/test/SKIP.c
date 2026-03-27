@@ -112,7 +112,7 @@ ok64 SKIP2() {
 fun int cmp($cc a, $cc b) {
     u64* aa = (u64*)*a;
     u64* bb = (u64*)*b;
-    fprintf(stderr, "\t%lu <> %lu\n", *aa, *bb);
+    fprintf(stderr, "\t%" PRIu64 " <> %" PRIu64 "\n", *aa, *bb);
     return u64cmp(aa, bb);
 }
 
@@ -132,7 +132,7 @@ ok64 SKIP3() {
         call(SKIPu8find, gap, pad, raw, cmp);
         u64c* head = (u64c*)*gap;
         want(*head <= u);  // && u - *head < 256 / 8);
-        fprintf(stderr, "%lu IN %lu [%lu,%lu) of %lu?\n", u, *head,
+        fprintf(stderr, "%" PRIu64 " IN %" PRIu64 " [%zu,%zu) of %zu?\n", u, *head,
                 gap[0] - *pad, gap[1] - *pad, u8bDataLen(pad));
     }
     done;
