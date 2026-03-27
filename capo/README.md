@@ -57,15 +57,15 @@ Rename a function:
 
 Look for a typical `malloc` call pattern:
 
-   $ capo -s 'malloc(a*B);' .c
-   --- capo/CAPO.c ---
-   malloc(total * sizeof(u64));
-   -- capo/CAPO.c --
-   malloc(maxhashes * sizeof(u32));
+    $ capo -s 'malloc(a*B);' .c
+    --- capo/CAPO.c ---
+    malloc(total * sizeof(u64));
+    -- capo/CAPO.c --
+    malloc(maxhashes * sizeof(u32));
 
 Standardize `malloc()` argument order:
 
-   $ capo -s 'malloc(sizeof(a)*B);' -r 'malloc(B*sizeof(a));' .c
+    $ capo -s 'malloc(sizeof(a)*B);' -r 'malloc(B*sizeof(a));' .c
 
 
 ## Git hook

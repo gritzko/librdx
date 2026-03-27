@@ -47,7 +47,7 @@ list(APPEND RDX_SOURCES
 )
 
 add_library(rdx STATIC ${RDX_HEADERS} ${RDX_SOURCES})
-target_link_libraries(rdx abc sodium)
+target_link_libraries(rdx abc ${sodium})
 
 
 add_subdirectory(test)

@@ -180,7 +180,7 @@ fun ok64 $feedf(u8 **into, u8 const *const *tmpl, ...) {
                 ++*p;
                 break;
             case 'u':
-                $printf(into, "%lu", va_arg(ap, u64));
+                $printf(into, FMTu64, va_arg(ap, u64));
                 ++*p;
                 break;
             case 'f':

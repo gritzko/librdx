@@ -53,7 +53,7 @@ typedef u64 bin64;
 #define T bin64
 #define X(D, V) D##bin64##V
 
-#define bin64fmt "(%lu@%u)"
+#define bin64fmt "(" FMTu64 "@%u)"
 #define bin64fmtd(x) bin64offset(x), (u32)bin64level(x)
 
 fun h64 X(, hash)(T a) { return mix64(a); }

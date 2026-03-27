@@ -19,31 +19,31 @@ set(RDX_FUZZ_SRCS
 )
 
 add_executable(VFYfuzz VFY.c ${RDX_FUZZ_SRCS})
-target_link_libraries(VFYfuzz abc sodium)
+target_link_libraries(VFYfuzz abc ${sodium})
 
 add_executable(AAfuzz AA.c ${RDX_FUZZ_SRCS})
-target_link_libraries(AAfuzz abc sodium)
+target_link_libraries(AAfuzz abc ${sodium})
 
 add_executable(ABfuzz AB.c ${RDX_FUZZ_SRCS})
-target_link_libraries(ABfuzz abc sodium)
+target_link_libraries(ABfuzz abc ${sodium})
 
 add_executable(RBfuzz RB.c ${RDX_FUZZ_SRCS})
-target_link_libraries(RBfuzz abc sodium)
+target_link_libraries(RBfuzz abc ${sodium})
 
 add_executable(DRDXfuzz DRDX.c ${RDX_FUZZ_SRCS})
-target_link_libraries(DRDXfuzz abc sodium)
+target_link_libraries(DRDXfuzz abc ${sodium})
 
 add_executable(SKILfuzz SKIL.c ${RDX_FUZZ_SRCS})
-target_link_libraries(SKILfuzz abc sodium)
+target_link_libraries(SKILfuzz abc ${sodium})
 
 add_executable(JDRfuzz JDR.c ${RDX_FUZZ_SRCS})
-target_link_libraries(JDRfuzz abc sodium)
+target_link_libraries(JDRfuzz abc ${sodium})
 
 add_executable(SLIKfuzz SLIK.c ${RDX_FUZZ_SRCS})
-target_link_libraries(SLIKfuzz abc sodium)
+target_link_libraries(SLIKfuzz abc ${sodium})
 
 add_executable(SLIK2fuzz SLIK2.c ${RDX_FUZZ_SRCS})
-target_link_libraries(SLIK2fuzz abc sodium)
+target_link_libraries(SLIK2fuzz abc ${sodium})
 
 add_executable(SLIK3fuzz SLIK3.c ${RDX_FUZZ_SRCS})
-target_link_libraries(SLIK3fuzz abc sodium)
+target_link_libraries(SLIK3fuzz abc ${sodium})

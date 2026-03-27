@@ -11,7 +11,7 @@ int main(int argn, char** args) {
         //$reverse(str);
         u64 num = 0;
         OKscan(&num, str);
-        printf("con ok64 %s\t= 0x%lx;\n", args[i], num);
+        printf("con ok64 %s\t= 0x" FMTx64 ";\n", args[i], num);
     }
     return 0;
 }
