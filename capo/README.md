@@ -1,4 +1,4 @@
-# capo — git repo AST code search and replace
+# `capo` — git repo AST code search and replace
 
 `capo` makes a trigram index of a repo which allows for extra fast grammar
 aware search-and-replace in the entire repo. git hooks keep the index
@@ -35,15 +35,11 @@ Index a repo on 4 cores:
 
 ### SPOT pattern search
 
-Find return statements:
-
-    $ capo -s "return 0;" .c
-    --- abc/01.h ---
-    return 0;
-    return 0;
-    --- abc/CURL.c ---
-    return 0;
-    ...
+SPOT matches structurally, not textually — whitespace and formatting
+differences are ignored. Placeholders (single lowercase letters) bind
+to any matching token, so `ok64 o = OK;` also matches `ok64 ret = OK;`.
+Uppercase placeholders match any block of code. Multiple spaces (gaps)
+match any token sequence.
 
 Find a specific declaration pattern:
 
@@ -55,9 +51,10 @@ Find a specific declaration pattern:
     ok64 o = OK;
     ...
 
-SPOT matches structurally, not textually — whitespace and formatting
-differences are ignored. Placeholders (single lowercase letters) bind
-to any matching token, so `ok64 o = OK;` also matches `ok64 ret = OK;`.
+Rename a function:
+
+    $ capo -s "OldFunction(X)" -r "NewFunction(X)" .c
+
 
 ## Git hook
 

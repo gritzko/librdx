@@ -36,6 +36,8 @@ static char *argeqval(u8cs a, const char *flag) {
 ok64 capocli() {
     sane(1);
     call(FILEInit);
+    CAPO_TERM = isatty(STDERR_FILENO) ? YES : NO;
+    CAPO_COLOR = isatty(STDOUT_FILENO) ? YES : NO;
 
     // Find repo root via git
     char rootbuf[FILE_PATH_MAX_LEN];
@@ -162,6 +164,7 @@ ok64 capocli() {
 
         fprintf(stderr, "capo: compacting all runs\n");
         call(CAPOCompactAll, dirslice);
+        call(CAPOCommitWrite, reporoot, dirslice);
         fprintf(stderr, "capo: done\n");
     } else if (spot_ndl[0] != NULL) {
         // SPOT mode: find first trailing .ext

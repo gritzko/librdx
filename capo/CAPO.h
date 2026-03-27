@@ -10,6 +10,9 @@
 
 con ok64 CAPONOROOM = 0x30a6585d86d8616;
 
+extern b8 CAPO_COLOR;  // stdout is a terminal with color
+extern b8 CAPO_TERM;   // stderr is a terminal
+
 // Verbose call: prints step context on failure
 #define vcall(step, f, ...)                                              \
     {                                                                    \
@@ -92,5 +95,12 @@ ok64 CAPOCompactAll(u8csc dir);
 
 // Resolve capo index dir from reporoot (handles worktrees)
 ok64 CAPOResolveDir(path8b out, u8csc reporoot);
+
+// Write current HEAD sha to capodir/COMMIT
+ok64 CAPOCommitWrite(u8csc reporoot, u8csc capodir);
+
+// Read saved commit sha from capodir/COMMIT into buf (up to 40 chars)
+// Returns length in *len (0 if file missing/empty)
+ok64 CAPOCommitRead(u32p len, u8csc capodir, u8s buf);
 
 #endif

@@ -9,6 +9,9 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+b8 CAPO_COLOR = NO;
+b8 CAPO_TERM = NO;
+
 // Guard against assert() crashes in library code
 static sigjmp_buf capo_jmpbuf;
 static volatile sig_atomic_t capo_in_match = 0;
@@ -524,6 +527,7 @@ ok64 CAPOReindex(u8csc reporoot) {
     ok64 o = CAPOReindexWork(reporoot, dirslice, entries);
 
     u64bUnMap(entries);
+    if (o == OK) CAPOCommitWrite(reporoot, dirslice);
     return o;
 }
 
@@ -747,16 +751,116 @@ ok64 CAPOCompactAll(u8csc dir) {
     done;
 }
 
-// --- Hook (incremental) ---
+// --- Commit tracking ---
 
-static ok64 CAPOHookWork(u8csc reporoot, u8csc dirslice, u64bp entries) {
-    sane($ok(reporoot) && $ok(dirslice) && entries != NULL);
+ok64 CAPOCommitWrite(u8csc reporoot, u8csc capodir) {
+    sane($ok(reporoot) && $ok(capodir));
 
     char cmdbuf[FILE_PATH_MAX_LEN + 64];
     int n = snprintf(cmdbuf, sizeof(cmdbuf),
-                     "git -C %.*s diff --name-only HEAD~1 HEAD",
+                     "git -C %.*s rev-parse HEAD",
                      (int)$len(reporoot), (char *)reporoot[0]);
     test(n > 0 && n < (int)sizeof(cmdbuf), FAILSANITY);
+
+    FILE *fp = popen(cmdbuf, "r");
+    test(fp != NULL, FAILSANITY);
+
+    char sha[64];
+    char *got = fgets(sha, sizeof(sha), fp);
+    pclose(fp);
+    test(got != NULL, FAILSANITY);
+
+    size_t slen = strlen(sha);
+    if (slen > 0 && sha[slen - 1] == '\n') sha[--slen] = 0;
+    test(slen >= 40, FAILSANITY);
+
+    a_pad(u8, path, FILE_PATH_MAX_LEN);
+    call(u8bFeed, path, capodir);
+    a_cstr(commit_name, "/COMMIT");
+    call(u8bFeed, path, commit_name);
+    call(path8gTerm, path8gIn(path));
+
+    int fd = -1;
+    call(FILECreate, &fd, path8cgIn(path));
+    u8cs data = {(u8cp)sha, (u8cp)sha + 40};
+    call(FILEFeedall, fd, data);
+    u8cs nl = {(u8cp)"\n", (u8cp)"\n" + 1};
+    call(FILEFeedall, fd, nl);
+    close(fd);
+    done;
+}
+
+ok64 CAPOCommitRead(u32p len, u8csc capodir, u8s buf) {
+    sane(len != NULL && $ok(capodir) && $ok(buf));
+    *len = 0;
+
+    a_pad(u8, path, FILE_PATH_MAX_LEN);
+    call(u8bFeed, path, capodir);
+    a_cstr(commit_name, "/COMMIT");
+    call(u8bFeed, path, commit_name);
+    call(path8gTerm, path8gIn(path));
+
+    u8bp mapped = NULL;
+    ok64 o = FILEMapRO(&mapped, path8cgIn(path));
+    if (o != OK) done;  // file doesn't exist yet
+
+    u8cs content = {u8bDataHead(mapped), u8bIdleHead(mapped)};
+    size_t clen = $len(content);
+    if (clen > 40) clen = 40;
+    size_t cap = (size_t)$len(buf);
+    if (clen > cap) clen = cap;
+    if (clen > 0) {
+        memcpy(buf[0], content[0], clen);
+        *len = (u32)clen;
+    }
+    FILEUnMap(mapped);
+    done;
+}
+
+// --- Hook (incremental) ---
+
+// Check saved commit, return YES if incremental diff is possible.
+// On YES, cmdbuf contains the diff command. On NO, caller should reindex.
+static b8 CAPOHookDiffCmd(char *cmdbuf, size_t cmdsz,
+                           u8csc reporoot, u8csc dirslice) {
+    char saved_sha[44];
+    u8s shabuf = {(u8cp)saved_sha, (u8cp)saved_sha + 40};
+    u32 sha_len = 0;
+    CAPOCommitRead(&sha_len, dirslice, shabuf);
+
+    if (sha_len != 40) {
+        fprintf(stderr, "capo: no saved commit, full reindex\n");
+        return NO;
+    }
+    saved_sha[40] = 0;
+
+    // Check if saved commit is ancestor of HEAD
+    char chkbuf[FILE_PATH_MAX_LEN + 128];
+    int n = snprintf(chkbuf, sizeof(chkbuf),
+                     "git -C %.*s merge-base --is-ancestor %.40s HEAD",
+                     (int)$len(reporoot), (char *)reporoot[0], saved_sha);
+    if (n <= 0 || n >= (int)sizeof(chkbuf)) return NO;
+    int rc = system(chkbuf);
+    if (!WIFEXITED(rc) || WEXITSTATUS(rc) != 0) {
+        fprintf(stderr, "capo: saved commit unreachable, full reindex\n");
+        return NO;
+    }
+
+    // Ancestor check passed: diff against saved
+    if (CAPO_COLOR)
+        fprintf(stderr, "\033[%dmChanges since %.40s\033[0m\n", GRAY, saved_sha);
+    else
+        fprintf(stderr, "Changes since %.40s\n", saved_sha);
+    n = snprintf(cmdbuf, cmdsz,
+                 "git -C %.*s diff --name-only %.40s HEAD",
+                 (int)$len(reporoot), (char *)reporoot[0], saved_sha);
+    if (n <= 0 || n >= (int)cmdsz) return NO;
+    return YES;
+}
+
+static ok64 CAPOHookDiff(u8csc reporoot, u8csc dirslice,
+                          u64bp entries, const char *cmdbuf) {
+    sane($ok(reporoot) && $ok(dirslice) && entries != NULL);
 
     FILE *fp = popen(cmdbuf, "r");
     test(fp != NULL, FAILSANITY);
@@ -815,12 +919,23 @@ ok64 CAPOHook(u8csc reporoot) {
     u8cs dirslice = {u8bDataHead(capodir), u8bIdleHead(capodir)};
     call(FILEMakeDirP, path8cgIn(capodir));
 
+    char cmdbuf[FILE_PATH_MAX_LEN + 128];
+    ok64 o = OK;
+
     Bu64 entries = {};
     call(u64bMap, entries, CAPO_SCRATCH_LEN);
 
-    ok64 o = CAPOHookWork(reporoot, dirslice, entries);
+    if (CAPOHookDiffCmd(cmdbuf, sizeof(cmdbuf), reporoot, dirslice)) {
+        // Incremental: only diff'd files
+        o = CAPOHookDiff(reporoot, dirslice, entries, cmdbuf);
+    } else {
+        // No saved commit or unreachable: full reindex
+        o = CAPOReindexWork(reporoot, dirslice, entries);
+    }
 
     u64bUnMap(entries);
+
+    if (o == OK) CAPOCommitWrite(reporoot, dirslice);
     return o;
 }
 
@@ -860,9 +975,8 @@ static int CAPOu32cmp(const void *a, const void *b) {
 
 // Progress: print filename in grey on stderr, overwriting previous.
 // Call with NULL line to erase.
-static void CAPOProgress(const char *line, b8 use_color) {
-    if (!use_color) return;
-    if (!isatty(STDERR_FILENO)) return;
+static void CAPOProgress(const char *line) {
+    if (!CAPO_TERM) return;
     fprintf(stderr, "\r\033[K");
     if (line != NULL)
         fprintf(stderr, "\033[%dm%s\033[0m", GRAY, line);
@@ -984,14 +1098,11 @@ ok64 CAPOQuery(u8csc selector, u8csc ext, u8csc reporoot) {
     if (has_trigrams && nhashes > 0)
         qsort(hashbuf1, nhashes, sizeof(u32), CAPOu32cmp);
 
-    // Color only when output is a terminal
-    b8 use_color = isatty(STDOUT_FILENO) ? YES : NO;
-
     // Pager for terminal output (only if $PAGER is set)
     FILE *pager = NULL;
     int saved_stdout = -1;
     char const *pgcmd = getenv("PAGER");
-    if (pgcmd != NULL && *pgcmd && use_color) {
+    if (pgcmd != NULL && *pgcmd && CAPO_COLOR) {
         pager = popen(pgcmd, "w");
         if (pager != NULL) {
             saved_stdout = dup(STDOUT_FILENO);
@@ -1031,7 +1142,7 @@ ok64 CAPOQuery(u8csc selector, u8csc ext, u8csc reporoot) {
         if (BASTLanguage(file_ext) == NULL) continue;
         if (target_lang && BASTLanguage(file_ext) != target_lang) continue;
 
-        CAPOProgress(line, use_color);
+        CAPOProgress(line);
 
         char fpath[FILE_PATH_MAX_LEN * 2];
         int pn = snprintf(fpath, sizeof(fpath), "%.*s/%s",
@@ -1088,7 +1199,7 @@ ok64 CAPOQuery(u8csc selector, u8csc ext, u8csc reporoot) {
         capo_in_match = 0;
         signal(SIGABRT, SIG_DFL);
         if (o == OK && fbufm[1] < fbufm[2]) {
-            CAPOProgress(NULL, use_color);
+            CAPOProgress(NULL);
             u8cs filtered = {u8bDataHead(fbufm), u8bIdleHead(fbufm)};
             size_t obuflen = $len(filtered) * 4 + 4096;
             Bu8 obufm = {};
@@ -1096,14 +1207,14 @@ ok64 CAPOQuery(u8csc selector, u8csc ext, u8csc reporoot) {
             if (o == OK) {
                 u8s out = {u8bIdleHead(obufm), obufm[3]};
                 // Path header
-                if (use_color) escfeed(out, GRAY);
+                if (CAPO_COLOR) escfeed(out, GRAY);
                 a_cstr(hdr_pre, "--- ");
                 u8sFeed(out, hdr_pre);
                 u8sFeed(out, relpath);
                 a_cstr(hdr_post, " ---\n");
                 u8sFeed(out, hdr_post);
-                if (use_color) escfeed(out, 0);
-                if (use_color)
+                if (CAPO_COLOR) escfeed(out, 0);
+                if (CAPO_COLOR)
                     o = CSSCat(out, filtered, relpath);
                 else
                     o = CSSExport(out, filtered);
@@ -1121,7 +1232,7 @@ ok64 CAPOQuery(u8csc selector, u8csc ext, u8csc reporoot) {
         FILEUnMap(mapped);
     }
     pclose(fp);
-    CAPOProgress(NULL, use_color);
+    CAPOProgress(NULL);
 
     if (pager != NULL) {
         fflush(stdout);
@@ -1258,14 +1369,11 @@ ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot) {
     if (has_trigrams && nhashes > 0)
         qsort(hashbuf1, nhashes, sizeof(u32), CAPOu32cmp);
 
-    // Color only when output is a terminal
-    b8 use_color = isatty(STDOUT_FILENO) ? YES : NO;
-
     // Pager for terminal output
     FILE *pager = NULL;
     int saved_stdout = -1;
     char const *pgcmd = getenv("PAGER");
-    if (pgcmd != NULL && *pgcmd && use_color) {
+    if (pgcmd != NULL && *pgcmd && CAPO_COLOR) {
         pager = popen(pgcmd, "w");
         if (pager != NULL) {
             saved_stdout = dup(STDOUT_FILENO);
@@ -1305,7 +1413,7 @@ ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot) {
         if ($empty(file_ext)) continue;
         if (BASTLanguage(file_ext) != target_lang) continue;
 
-        CAPOProgress(line, use_color);
+        CAPOProgress(line);
 
         // Open and parse file
         char fpath[FILE_PATH_MAX_LEN * 2];
@@ -1373,7 +1481,7 @@ ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot) {
                     if (wo == OK) {
                         FILEFeedall(fd, result);
                         close(fd);
-                        CAPOProgress(NULL, use_color);
+                        CAPOProgress(NULL);
                         fprintf(stderr, "replaced: %s\n", line);
                     }
                 }
@@ -1418,21 +1526,21 @@ ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot) {
             }
 
             if (fbufm[1] < fbufm[2]) {
-                CAPOProgress(NULL, use_color);
+                CAPOProgress(NULL);
                 u8cs filtered = {u8bDataHead(fbufm), u8bIdleHead(fbufm)};
                 size_t obuflen = $len(filtered) * 4 + 4096;
                 Bu8 obufm = {};
                 o = u8bMap(obufm, obuflen);
                 if (o == OK) {
                     u8s out = {u8bIdleHead(obufm), obufm[3]};
-                    if (use_color) escfeed(out, GRAY);
+                    if (CAPO_COLOR) escfeed(out, GRAY);
                     a_cstr(hdr_pre, "--- ");
                     u8sFeed(out, hdr_pre);
                     u8sFeed(out, relpath);
                     a_cstr(hdr_post, " ---\n");
                     u8sFeed(out, hdr_post);
-                    if (use_color) escfeed(out, 0);
-                    if (use_color)
+                    if (CAPO_COLOR) escfeed(out, 0);
+                    if (CAPO_COLOR)
                         o = CSSCat(out, filtered, relpath);
                     else
                         o = CSSExport(out, filtered);
@@ -1453,7 +1561,7 @@ ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot) {
         FILEUnMap(mapped);
     }
     pclose(fp);
-    CAPOProgress(NULL, use_color);
+    CAPOProgress(NULL);
 
     if (pager != NULL) {
         fflush(stdout);
