@@ -51,8 +51,10 @@ ok64 CAPOResolveDir(path8b out, u8csc reporoot) {
     if (isdir == OK) {
         // Normal repo: .git is a directory
         call(path8bFeedS, out, reporoot);
-        a_cstr(caponame, CAPO_DIR);
-        call(path8bPush, out, caponame);
+        a_cstr(dotgit, ".git");
+        call(path8bPush, out, dotgit);
+        a_cstr(spotname, "spot");
+        call(path8bPush, out, spotname);
     } else {
         // Worktree: .git is a file with "gitdir: <path>"
         u8bp mapped = NULL;
