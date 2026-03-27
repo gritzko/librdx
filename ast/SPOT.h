@@ -8,6 +8,15 @@ con ok64 SPOTBAD = 0x1c65874b28d;
 
 #define SPOT_MAX_BINDS 52
 #define SPOT_MAX_SUBS 32
+#define SPOT_MAX_NTOKS 64
+
+// Flattened needle token
+typedef struct {
+    u8cs val;
+    u8   type;
+    b8   skip;    // YES if 2+ space gap before this token
+    u32  parent;  // needle parent BASON offset (for bracket constraint)
+} SPOTntok;
 
 fun u64 SPOTLogPack(u32 hay, u16 ndl, u16 extra) {
     return ((u64)hay << 32) | ((u64)ndl << 16) | (u64)extra;
@@ -30,6 +39,15 @@ typedef struct {
     b8   exhausted;
     u64p mlog[4];  // match log buffer (caller-provided, NULL = disabled)
     u64p alog[4];  // alias log buffer (caller-provided, NULL = disabled)
+    // Flat matching state
+    SPOTntok ntoks[SPOT_MAX_NTOKS];
+    int      nntoks;
+    u64      src_pos;             // cumulative source byte position
+    u32      parents[64];         // parent BASON offset at each depth
+    u32      src_lo;              // overall match source range lo
+    u32      src_hi;              // overall match source range hi
+    u32      bind_srclo[SPOT_MAX_BINDS];
+    u32      bind_srchi[SPOT_MAX_BINDS];
 } SPOTstate;
 
 // Initialize. Parses needle_src with BAST (ext = file extension).
@@ -48,8 +66,6 @@ ok64 SPOTNext(SPOTstate *st);
 
 // Find source byte range [*lo, *hi) of the BASON element at bson_off.
 // Walks leaves under that element; their vals are copies of source text.
-// src_base is the start of the source buffer (for offset arithmetic).
-// Uses an auxiliary flat leaf map built by SPOTBuildLeafMap.
 ok64 SPOTSourceRange(u8csc hay, u64 bson_off, u64p lo, u64p hi);
 
 // Apply SPOT replacement to all matches in one file.

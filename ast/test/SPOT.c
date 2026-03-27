@@ -915,8 +915,8 @@ ok64 SPOTtestSubs() {
             fprintf(stderr, "FAIL [Subs_dfs]: expected OK, got %s\n", ok64str(o));
             fail(FAILEQ);
         }
-        if (st.nsubs != 1) {
-            fprintf(stderr, "FAIL [Subs_dfs]: nsubs=%d, expected 1\n", st.nsubs);
+        if (st.nsubs != 2) {
+            fprintf(stderr, "FAIL [Subs_dfs]: nsubs=%d, expected 2\n", st.nsubs);
             fail(FAILEQ);
         }
     }
@@ -1043,6 +1043,100 @@ ok64 SPOTtestLogs() {
     done;
 }
 
+// ---- Test: bracket-constrained matching (no cross-function matches) ----
+ok64 SPOTtestBrackets() {
+    sane(1);
+
+    // Needle: "ok64 f(P){   ++*a;   }" — match entire function
+    // Haystack: two functions, only second has ++*
+    // Must NOT match across function boundaries
+    {
+        aBpad(u8, nbuf, 4096);
+        aBpad(u64, nidx, 256);
+        aBpad(u8, hbuf, 65536);
+        aBpad(u64, hidx, 1024);
+
+        SPOTstate st = {};
+        call(SPOTSetup, &st, nbuf, nidx, hbuf, hidx,
+             "   ok64 f(P){   ++*a;   }",
+             "ok64 func1(int x) { x += 1; return x; }\n"
+             "ok64 func2(int *y) { ++*y; return 0; }\n");
+
+        int matches = 0;
+        u32 first_lo = 0, first_hi = 0;
+        for (int i = 0; i < 10; i++) {
+            ok64 o = SPOTNext(&st);
+            if (o == OK) {
+                if (matches == 0) {
+                    first_lo = st.src_lo;
+                    first_hi = st.src_hi;
+                }
+                matches++;
+            } else if (o == SPOTEND) {
+                break;
+            } else {
+                fail(o);
+            }
+        }
+        if (matches != 1) {
+            fprintf(stderr, "FAIL [Brackets]: expected 1 match, got %d\n",
+                    matches);
+            fail(FAILEQ);
+        }
+        // Match must be within func2, not spanning func1
+        // func1 starts at byte 0; func2 starts somewhere after func1's '}'
+        if (first_lo == 0) {
+            fprintf(stderr, "FAIL [Brackets]: match starts at byte 0 "
+                    "(spans from func1)\n");
+            fail(FAILEQ);
+        }
+    }
+
+    // No match: single function without ++*
+    {
+        aBpad(u8, nbuf, 4096);
+        aBpad(u64, nidx, 256);
+        aBpad(u8, hbuf, 65536);
+        aBpad(u64, hidx, 1024);
+
+        SPOTstate st = {};
+        call(SPOTSetup, &st, nbuf, nidx, hbuf, hidx,
+             "   ok64 f(P){   ++*a;   }",
+             "ok64 func1(int x) { x += 1; return x; }\n");
+
+        ok64 o = SPOTNext(&st);
+        testeq(o, SPOTEND);
+    }
+
+    // Closing bracket matches function scope, not inner scope
+    {
+        aBpad(u8, nbuf, 4096);
+        aBpad(u64, nidx, 256);
+        aBpad(u8, hbuf, 65536);
+        aBpad(u64, hidx, 1024);
+
+        SPOTstate st = {};
+        call(SPOTSetup, &st, nbuf, nidx, hbuf, hidx,
+             "   void f(P){   ++*a;   }",
+             "void g(int *p) { while(1) { ++*p; } return; }\n");
+
+        ok64 o = SPOTNext(&st);
+        testeq(o, OK);
+        // src_hi should be at the end of the function (past 'return;')
+        // not at the while's '}'
+        u8cp src = (u8cp)"void g(int *p) { while(1) { ++*p; } return; }\n";
+        u32 func_end = (u32)strlen((char *)src) - 1; // before \n
+        if (st.src_hi < func_end - 1) {
+            fprintf(stderr, "FAIL [BracketScope]: src_hi=%u, expected >= %u "
+                    "(matched inner } not function })\n",
+                    st.src_hi, func_end - 1);
+            fail(FAILEQ);
+        }
+    }
+
+    done;
+}
+
 // ---- Main test aggregator ----
 
 ok64 SPOTtest() {
@@ -1062,6 +1156,7 @@ ok64 SPOTtest() {
     call(SPOTtestBacktrackReentrant);
     call(SPOTtestSubs);
     call(SPOTtestLogs);
+    call(SPOTtestBrackets);
     done;
 }
 

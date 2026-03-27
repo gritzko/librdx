@@ -16,7 +16,7 @@ CSS-selector queries and SPOT structural pattern matching.
     capo -s "ok64 o = OK;" .c         SPOT search: find exact declaration
 
 Flags: `-c`/`--css` for CSS queries, `-s`/`--spot` for SPOT search,
-`-r`/`--replace` for replacement (future, requires `-s`).
+`-r`/`--replace` for replacement (requires `-s`).
 Trailing args starting with `.` are extension filters.
 The extension determines both the parser and the file filter (`.c` matches
 `.c` and `.h` since both use tree-sitter-c).
@@ -84,7 +84,7 @@ Find a specific declaration pattern:
 
 SPOT matches structurally, not textually — whitespace and formatting
 differences are ignored. Placeholders (single lowercase letters) bind
-to any matching subtree, so `ok64 o = OK;` also matches `ok64 ret = OK;`.
+to any matching token, so `ok64 o = OK;` also matches `ok64 ret = OK;`.
 
 ## Git hook
 
@@ -104,7 +104,7 @@ and CSS-matches only the surviving files.
 
 **SPOT mode:** extracts trigrams from the needle text, uses the same index
 intersection to narrow candidates, then parses each candidate file and
-runs tree-pattern matching (SPOT) to find structural matches.
+runs flat token pattern matching (SPOT) to find structural matches.
 
 `--fork N` stripes files across N workers. Works with git worktrees.
 

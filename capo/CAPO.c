@@ -1157,6 +1157,40 @@ static ok64 CAPOCopyElement(u8bp out, u8 type, u8cs key, u8cs val,
     done;
 }
 
+// Feed BASON leaves from bdata in source range [slo, shi) into fbufm
+// with their original BAST types (for syntax highlighting in CSSCat).
+static ok64 CAPOFeedRange(u8bp fbufm, u8csc bdata, u32 slo, u32 shi) {
+    sane(fbufm != NULL);
+    aBpad(u64, stk, 256);
+    call(BASONOpen, stk, bdata);
+    int depth = 0;
+    u64 src_pos = 0;
+    u8 type = 0;
+    u8cs key = {}, val = {};
+    for (;;) {
+        ok64 o = BASONDrain(stk, bdata, &type, key, val);
+        if (o != OK) {
+            if (depth <= 0) break;
+            BASONOuto(stk);
+            depth--;
+            continue;
+        }
+        if (BASONCollection(type)) {
+            depth++;
+            call(BASONInto, stk, bdata, val);
+            continue;
+        }
+        size_t vlen = (size_t)$len(val);
+        u32 leaf_lo = (u32)src_pos;
+        src_pos += vlen;
+        u32 leaf_hi = (u32)src_pos;
+        if (leaf_hi <= slo) continue;
+        if (leaf_lo >= shi) break;
+        call(BASONFeed, NULL, fbufm, type, key, val);
+    }
+    done;
+}
+
 ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot) {
     sane($ok(needle) && $ok(ext) && $ok(reporoot));
 
@@ -1372,28 +1406,13 @@ ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot) {
                 st.alog[2] = alog[2]; st.alog[3] = alog[3];
 
                 while (SPOTNext(&st) == OK) {
-                    // Use mlog to display each matched element
-                    size_t mlen = u64bDataLen(st.mlog);
-                    if (mlen == 0) continue;
-                    u64p mp = u64bDataHead(st.mlog);
+                    // Output entire matched source range
+                    u32 slo = st.src_lo;
+                    u32 shi = st.src_hi;
+                    if (shi <= slo || shi > (u32)$len(source)) continue;
                     u8cs ekey = {};
                     call(BASONFeedInto, NULL, fbufm, 'A', ekey);
-                    for (size_t mi = 0; mi < mlen; mi++) {
-                        u64 hay_off = (u64)SPOTLogHay(mp[mi]);
-                        aBpad(u64, seekstk, 256);
-                        call(u64bFeed1, seekstk, (u64)$len(bdata));
-                        call(u64bFeed1, seekstk, hay_off);
-                        u8 ht = 0;
-                        u8cs hk = {}, hv = {};
-                        ok64 dr = BASONDrain(seekstk, bdata, &ht, hk, hv);
-                        if (dr != OK) break;
-                        // Add separating newline between segments
-                        if (mi > 0) {
-                            u8cs nl = $u8str("\n");
-                            call(BASONFeed, NULL, fbufm, 'S', ekey, nl);
-                        }
-                        CAPOCopyElement(fbufm, ht, hk, hv, seekstk, bdata);
-                    }
+                    call(CAPOFeedRange, fbufm, bdata, slo, shi);
                     call(BASONFeedOuto, NULL, fbufm);
                 }
             }

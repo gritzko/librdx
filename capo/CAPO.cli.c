@@ -17,7 +17,7 @@
 //   capo -c "fn.main"                CSS query
 //   capo -c "fn:has(malloc)" .c .h   CSS query, filter to .c/.h files
 //   capo -s "return 0;" .c           SPOT search
-//   capo -s "f(x,y)" -r "f(y,x)" .c SPOT search + replace (future)
+//   capo -s "f(x,y)" -r "f(y,x)" .c SPOT search + replace
 
 static b8 argeq(u8cs a, const char *b) {
     size_t blen = strlen(b);
