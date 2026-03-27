@@ -80,6 +80,11 @@ ok64 CAPOQuery(u8csc selector, u8csc ext, u8csc reporoot);
 // When replace is non-empty, matched regions are replaced and files rewritten.
 ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot);
 
+// Substring grep across all AST leaves (including comments).
+// ext: optional language filter (empty = all parseable files).
+// ctx_lines: max context lines above/below the match (like diff -C).
+ok64 CAPOGrep(u8csc substring, u8csc ext, u8csc reporoot, u32 ctx_lines);
+
 // Full reindex: all tracked files
 ok64 CAPOReindex(u8csc reporoot);
 

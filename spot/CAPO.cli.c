@@ -18,6 +18,8 @@
 //   spot -c "fn:has(malloc)" .c .h   CSS query, filter to .c/.h files
 //   spot -s "return 0;" .c           SPOT search
 //   spot -s "f(x,y)" -r "f(y,x)" .c SPOT search + replace
+//   spot -g "TODO" .c                grep in all leaves (incl. comments)
+//   spot -g "memmem"                 grep all parseable files
 
 static b8 argeq(u8cs a, const char *b) {
     size_t blen = strlen(b);
@@ -59,6 +61,8 @@ ok64 capocli() {
     u8c *css_sel[2] = {};
     u8c *spot_ndl[2] = {};
     u8c *spot_rep[2] = {};
+    u8c *grep_ndl[2] = {};
+    u32 grep_ctx = 3;
     u8c *trail[16][2] = {};
     int ntrail = 0;
     int argn = (int)$arglen;
@@ -101,6 +105,24 @@ ok64 capocli() {
         } else if ((eqval = argeqval(a, "--replace"))) {
             spot_rep[0] = (u8cp)eqval;
             spot_rep[1] = (u8cp)eqval + strlen(eqval);
+        } else if ((argeq(a, "-g") || argeq(a, "--grep")) && i + 1 < argn) {
+            i++;
+            $mv(grep_ndl, $arg(i));
+        } else if ((eqval = argeqval(a, "--grep"))) {
+            grep_ndl[0] = (u8cp)eqval;
+            grep_ndl[1] = (u8cp)eqval + strlen(eqval);
+        } else if (argeq(a, "-C") && i + 1 < argn) {
+            i++;
+            u8c *v[2] = {};
+            $mv(v, $arg(i));
+            grep_ctx = (u32)atoi((char *)v[0]);
+        } else if ((eqval = argeqval(a, "--context"))) {
+            grep_ctx = (u32)atoi(eqval);
+        } else if (argeq(a, "--context") && i + 1 < argn) {
+            i++;
+            u8c *v[2] = {};
+            $mv(v, $arg(i));
+            grep_ctx = (u32)atoi((char *)v[0]);
         } else {
             if (ntrail < 16) { $mv(trail[ntrail], a); ntrail++; }
         }
@@ -112,7 +134,19 @@ ok64 capocli() {
         return FAILSANITY;
     }
 
-    if (is_hook) {
+    if (grep_ndl[0] != NULL) {
+        // GREP mode: .ext optional
+        u8cs ext = {};
+        for (int i = 0; i < ntrail; i++) {
+            if (trail[i][0][0] == '.') {
+                ext[0] = trail[i][0];
+                ext[1] = trail[i][1];
+                break;
+            }
+        }
+        u8cs ndl = {grep_ndl[0], grep_ndl[1]};
+        call(CAPOGrep, ndl, ext, reporoot, grep_ctx);
+    } else if (is_hook) {
         call(CAPOHook, reporoot);
     } else if (nfork > 0 && proc != UINT32_MAX) {
         // Worker mode: I am proc K of N

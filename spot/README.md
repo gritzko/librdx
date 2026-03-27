@@ -14,10 +14,13 @@ updated.
     spot -c "fn:has(malloc)" .c       CSS query: filter to C files only
     spot -s "return 0;" .c            SPOT search: find pattern in C files
     spot -s "ok64 o = OK;" .c         SPOT search: find exact declaration
+    spot -g "TODO" .c                 grep: substring search (incl. comments)
+    spot -g "TODO" -C 0 .c           grep: match line only, no context
 
 Flags: `-c`/`--css` for CSS queries, `-s`/`--spot` for SPOT search,
-`-r`/`--replace` for replacement (requires `-s`).
-Trailing args starting with `.` are extension filters.
+`-r`/`--replace` for replacement (requires `-s`), `-g`/`--grep` for
+substring search, `-C N`/`--context=N` for grep context lines (default 3).
+Trailing args starting with `.` are extension filters (optional for `-g`).
 The extension determines both the parser and the file filter (`.c` matches
 `.c` and `.h` since both use tree-sitter-c).
 
@@ -68,6 +71,34 @@ Standardize `malloc()` argument order:
     $ spot -s 'malloc(sizeof(a)*B);' -r 'malloc(B*sizeof(a));' .c
 
 
+### Grep
+
+Grep does substring search across all AST leaves including comments —
+unlike SPOT, which skips comments and matches structurally. Results
+show the matching line with a few lines of context (default 3, like
+`diff -C`).
+
+Find TODOs in comments:
+
+    $ spot -g "TODO" .c
+    --- abc/FILE.c ---
+        ssize_t written = write(fd, *u8bData(buf), u8bDataLen(buf));
+        if (written < 0) return FILEERROR;  // TODO vocabulary
+        Bate(buf);
+
+Search all parseable files (omit the extension):
+
+    $ spot -g "CAPOTriChar"
+    --- spot/CAPO.c ---
+                if (CAPOTriChar(p[0]) && CAPOTriChar(p[1]) &&
+                    CAPOTriChar(p[2])) {
+    ...
+
+Control context lines with `-C N`:
+
+    $ spot -g "TODO" -C 0 .c      # match line only
+    $ spot -g "TODO" -C 1 .c      # 1 line above and below
+
 ## Git hook
 
     echo '#!/bin/sh
@@ -114,5 +145,9 @@ and CSS-matches only the surviving files.
 **SPOT mode:** extracts trigrams from the needle text, uses the same index
 intersection to narrow candidates, then parses each candidate file and
 runs flat token pattern matching (SPOT) to find structural matches.
+
+**Grep mode:** same trigram filtering, but walks all AST leaves including
+comments and does plain substring matching. Shows a line-context window
+around each hit (default 3 lines, adjustable with `-C`).
 
 `--fork N` stripes files across N workers. Works with git worktrees.

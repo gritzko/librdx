@@ -1323,6 +1323,323 @@ static ok64 CAPOFeedRange(u8bp fbufm, u8csc bdata, u32 slo, u32 shi) {
     done;
 }
 
+// --- Grep: substring search across all leaves (including comments) ---
+
+// Line-context window: find [lo, hi) covering nctx lines above and below
+// the source byte at match_pos.
+static void CAPOGrepCtx(u8csc source, u32 match_pos, u32 nctx,
+                         u32 *lo, u32 *hi) {
+    u32 slen = (u32)$len(source);
+    if (match_pos > slen) match_pos = slen;
+    // Start of match line
+    u32 ls = match_pos;
+    while (ls > 0 && source[0][ls - 1] != '\n') ls--;
+    // Back nctx lines
+    *lo = ls;
+    for (u32 i = 0; i < nctx && *lo > 0; i++) {
+        (*lo)--;
+        while (*lo > 0 && source[0][*lo - 1] != '\n') (*lo)--;
+    }
+    // End of match line
+    u32 le = match_pos;
+    while (le < slen && source[0][le] != '\n') le++;
+    if (le < slen) le++;  // include the \n
+    // Forward nctx lines
+    *hi = le;
+    for (u32 i = 0; i < nctx && *hi < slen; i++) {
+        while (*hi < slen && source[0][*hi] != '\n') (*hi)++;
+        if (*hi < slen) (*hi)++;
+    }
+}
+
+ok64 CAPOGrep(u8csc substring, u8csc ext, u8csc reporoot, u32 ctx_lines) {
+    sane($ok(substring) && !$empty(substring) && $ok(reporoot));
+
+    const struct TSLanguage *target_lang = NULL;
+    if (!$empty(ext)) target_lang = BASTLanguage(ext);
+
+    // --- Trigram filtering ---
+    a_pad(u8, capodir, FILE_PATH_MAX_LEN);
+    call(CAPOResolveDir, capodir, reporoot);
+    a_dup(u8c, dirslice, u8bDataC(capodir));
+
+    u32 maxhashes = 64 * 1024;
+    u32 *hashbuf1 = (u32 *)malloc(maxhashes * sizeof(u32));
+    u32 *hashbuf2 = (u32 *)malloc(maxhashes * sizeof(u32));
+    test(hashbuf1 != NULL && hashbuf2 != NULL, FAILSANITY);
+
+    u64cs runs[CAPO_MAX_LEVELS] = {};
+    u64css stack = {runs, runs};
+    u8bp mmaps[CAPO_MAX_LEVELS] = {};
+    u32 nidxfiles = 0;
+    call(CAPOStackOpen, stack, mmaps, &nidxfiles, dirslice);
+    stack[1] = stack[0] + nidxfiles;
+
+    u32 nhashes = 0;
+    b8 has_trigrams = NO;
+
+    if (nidxfiles == 0)
+        fprintf(stderr,
+                "spot: warning: no index, run `spot` or `spot --fork N` first\n");
+
+    if (nidxfiles > 0) {
+        u8cp p = substring[0];
+        u8cp end = substring[1] - 2;
+        while (p <= end) {
+            if (CAPOTriChar(p[0]) && CAPOTriChar(p[1]) &&
+                CAPOTriChar(p[2])) {
+                u8cs tri = {p, p + 3};
+                u64 tri_prefix = CAPOTriPack(tri);
+
+                u64cs seek_runs[CAPO_MAX_LEVELS];
+                for (u32 i = 0; i < nidxfiles; i++) {
+                    seek_runs[i][0] = runs[i][0];
+                    seek_runs[i][1] = runs[i][1];
+                }
+                u64css seek_iter = {seek_runs, seek_runs + nidxfiles};
+                MSETu64Start(seek_iter);
+
+                u32 tri_nhashes = 0;
+                CAPOCollectPaths(seek_iter, tri_prefix, hashbuf2,
+                                 &tri_nhashes, maxhashes);
+
+                if (!has_trigrams) {
+                    memcpy(hashbuf1, hashbuf2, tri_nhashes * sizeof(u32));
+                    nhashes = tri_nhashes;
+                    has_trigrams = YES;
+                } else {
+                    qsort(hashbuf2, tri_nhashes, sizeof(u32), CAPOu32cmp);
+                    qsort(hashbuf1, nhashes, sizeof(u32), CAPOu32cmp);
+                    nhashes = CAPOIntersect(hashbuf1, nhashes, hashbuf2,
+                                            tri_nhashes, hashbuf1);
+                }
+            }
+            p++;
+        }
+    }
+
+    CAPOStackClose(mmaps, nidxfiles);
+
+    if (has_trigrams && nhashes > 0)
+        qsort(hashbuf1, nhashes, sizeof(u32), CAPOu32cmp);
+
+    // Pager for terminal output
+    FILE *pager = NULL;
+    int saved_stdout = -1;
+    char const *pgcmd = getenv("PAGER");
+    if (pgcmd != NULL && *pgcmd && CAPO_COLOR) {
+        pager = popen(pgcmd, "w");
+        if (pager != NULL) {
+            saved_stdout = dup(STDOUT_FILENO);
+            dup2(fileno(pager), STDOUT_FILENO);
+        }
+    }
+
+    // Get file list
+    char cmdbuf[FILE_PATH_MAX_LEN + 32];
+    int cn = snprintf(cmdbuf, sizeof(cmdbuf), "git -C %.*s ls-files",
+                      (int)$len(reporoot), (char *)reporoot[0]);
+    test(cn > 0 && cn < (int)sizeof(cmdbuf), FAILSANITY);
+
+    FILE *fp = popen(cmdbuf, "r");
+    test(fp != NULL, FAILSANITY);
+
+    size_t ndl_len = (size_t)$len(substring);
+
+    char line[FILE_PATH_MAX_LEN];
+    while (fgets(line, sizeof(line), fp)) {
+        size_t len = strlen(line);
+        if (len > 0 && line[len - 1] == '\n') line[--len] = 0;
+        if (len == 0) continue;
+
+        u8cs relpath = {(u8cp)line, (u8cp)line + len};
+
+        // Filter by trigram intersection
+        if (has_trigrams && nhashes > 0) {
+            u32 phash = CAPOPathHash(relpath);
+            if (!bsearch(&phash, hashbuf1, nhashes, sizeof(u32), CAPOu32cmp))
+                continue;
+        } else if (has_trigrams) {
+            continue;
+        }
+
+        u8cs file_ext = {};
+        CAPOFindExt(file_ext, line, len);
+        if ($empty(file_ext)) continue;
+        if (BASTLanguage(file_ext) == NULL) continue;
+        if (target_lang && BASTLanguage(file_ext) != target_lang) continue;
+
+        CAPOProgress(line);
+
+        // Open and parse file
+        char fpath[FILE_PATH_MAX_LEN * 2];
+        int pn = snprintf(fpath, sizeof(fpath), "%.*s/%s",
+                          (int)$len(reporoot), (char *)reporoot[0], line);
+        if (pn <= 0 || pn >= (int)sizeof(fpath)) continue;
+
+        a_pad(u8, fpbuf, FILE_PATH_MAX_LEN);
+        u8cs fps = {(u8cp)fpath, (u8cp)fpath + pn};
+        call(path8bFeedS, fpbuf, fps);
+
+        u8bp mapped = NULL;
+        ok64 o = FILEMapRO(&mapped, path8cgIn(fpbuf));
+        if (o != OK) continue;
+
+        a_dup(u8c, source, u8bDataC(mapped));
+        size_t buflen = $len(source) * 16;
+        if (buflen < 1024 * 1024) buflen = 1024 * 1024;
+        Bu8 bson = {};
+        o = u8bMap(bson, buflen);
+        if (o != OK) { FILEUnMap(mapped); continue; }
+        size_t idxlen = buflen / BASON_PAGE + 256;
+        u64 *_bidx = (u64 *)malloc(idxlen * sizeof(u64));
+        if (!_bidx) { u8bUnMap(bson); FILEUnMap(mapped); continue; }
+        Bu64 bidx = {_bidx, _bidx, _bidx, _bidx + idxlen};
+
+        o = BASTParse(bson, bidx, source, file_ext);
+        if (o != OK) {
+            free(_bidx);
+            u8bUnMap(bson);
+            FILEUnMap(mapped);
+            continue;
+        }
+
+        a_dup(u8c, bdata, u8bDataC(bson));
+
+        // Guard against assert crashes
+        signal(SIGABRT, capo_abrt_handler);
+        capo_in_match = 1;
+        if (sigsetjmp(capo_jmpbuf, 1) != 0) {
+            capo_in_match = 0;
+            signal(SIGABRT, SIG_DFL);
+            free(_bidx);
+            u8bUnMap(bson);
+            FILEUnMap(mapped);
+            continue;
+        }
+
+        // Walk ALL leaves (including comments), find substring matches
+        size_t fbuflen = $len(bdata) + 4096;
+        Bu8 fbufm = {};
+        o = u8bMap(fbufm, fbuflen);
+        if (o != OK) {
+            capo_in_match = 0;
+            signal(SIGABRT, SIG_DFL);
+            free(_bidx);
+            u8bUnMap(bson);
+            FILEUnMap(mapped);
+            continue;
+        }
+
+        aBpad(u64, wstk, 256);
+        call(BASONOpen, wstk, bdata);
+        int depth = 0;
+        u64 src_pos = 0;
+        u32 prev_hi = 0;  // dedup: end of last emitted range
+
+        for (;;) {
+            u8 type = 0;
+            u8cs key = {}, val = {};
+            o = BASONDrain(wstk, bdata, &type, key, val);
+            if (o != OK) {
+                if (depth <= 0) break;
+                BASONOuto(wstk);
+                depth--;
+                continue;
+            }
+            if (BASONCollection(type)) {
+                depth++;
+                call(BASONInto, wstk, bdata, val);
+                continue;
+            }
+            // Leaf — include ALL types (comments too)
+            size_t vlen = (size_t)$len(val);
+            u32 leaf_lo = (u32)src_pos;
+            src_pos += vlen;
+            if (vlen < ndl_len) continue;
+
+            // Substring search in this leaf's value
+            b8 found = NO;
+            u8cp vp = val[0];
+            u8cp ve = val[1] - ndl_len;
+            while (vp <= ve) {
+                if (memcmp(vp, substring[0], ndl_len) == 0) {
+                    found = YES;
+                    break;
+                }
+                vp++;
+            }
+            if (!found) continue;
+
+            // Line-context window around the match
+            u32 match_pos = leaf_lo + (u32)(vp - val[0]);
+            u32 ctx_lo = 0, ctx_hi = 0;
+            CAPOGrepCtx(source, match_pos, ctx_lines, &ctx_lo, &ctx_hi);
+
+            // Dedup: skip if overlapping with previous output
+            if (ctx_lo < prev_hi) continue;
+            prev_hi = ctx_hi;
+
+            // Feed the context range into output buffer
+            u8cs ekey = {};
+            call(BASONFeedInto, NULL, fbufm, 'A', ekey);
+            call(CAPOFeedRange, fbufm, bdata, ctx_lo, ctx_hi);
+            call(BASONFeedOuto, NULL, fbufm);
+        }
+
+        capo_in_match = 0;
+        signal(SIGABRT, SIG_DFL);
+
+        // Output results for this file
+        if (fbufm[1] < fbufm[2]) {
+            CAPOProgress(NULL);
+            a_dup(u8c, filtered, u8bDataC(fbufm));
+            size_t obuflen = $len(filtered) * 4 + 4096;
+            Bu8 obufm = {};
+            o = u8bMap(obufm, obuflen);
+            if (o == OK) {
+                u8s out = {u8bIdleHead(obufm), obufm[3]};
+                if (CAPO_COLOR) escfeed(out, GRAY);
+                a_cstr(hdr_pre, "--- ");
+                u8sFeed(out, hdr_pre);
+                u8sFeed(out, relpath);
+                a_cstr(hdr_post, " ---\n");
+                u8sFeed(out, hdr_post);
+                if (CAPO_COLOR) escfeed(out, 0);
+                if (CAPO_COLOR)
+                    o = CSSCat(out, filtered, relpath);
+                else
+                    o = CSSExport(out, filtered);
+                a_cstr(trail_nl, "\n");
+                u8sFeed(out, trail_nl);
+                if (o == OK) {
+                    u8cs result = {u8bIdleHead(obufm), out[0]};
+                    FILEFeedall(STDOUT_FILENO, result);
+                }
+                u8bUnMap(obufm);
+            }
+        }
+        u8bUnMap(fbufm);
+
+        free(_bidx);
+        u8bUnMap(bson);
+        FILEUnMap(mapped);
+    }
+    pclose(fp);
+    CAPOProgress(NULL);
+
+    if (pager != NULL) {
+        fflush(stdout);
+        dup2(saved_stdout, STDOUT_FILENO);
+        close(saved_stdout);
+        pclose(pager);
+    }
+
+    free(hashbuf1);
+    free(hashbuf2);
+    done;
+}
+
 ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot) {
     sane($ok(needle) && $ok(ext) && $ok(reporoot));
 
