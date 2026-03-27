@@ -101,6 +101,12 @@ ok64 FILERmDir(path8cg path, bool recursive) {
             } else {
                 o = FILEUnLink((path8cgp)workp);
             }
+            if (o != OK) {
+                fprintf(stderr, "  FILERmDir: %s on '%s' (d_type=%d): %s\n",
+                        is_dir ? "rmdir" : "unlink",
+                        (char const *)workp[0], entry->d_type,
+                        ok64str(o));
+            }
 
             // Restore path to original length
             workp[1] = saved_end;
@@ -112,6 +118,10 @@ ok64 FILERmDir(path8cg path, bool recursive) {
     }
 
     int rc = rmdir((char const *)*path);
+    if (rc != 0) {
+        fprintf(stderr, "  FILERmDir: rmdir('%s') failed: errno=%d %s\n",
+                (char const *)*path, errno, strerror(errno));
+    }
     FILETestC(rc == 0);
     done;
 }

@@ -141,7 +141,7 @@ con u64 RAP_CASES_LEN = sizeof(RAP_CASES) / sizeof(RAP_CASES[0]);
 
 ok64 RAPtestCase(RAPcase const* tc) {
     sane(tc);
-    a_pad(rdx, inputs, 64);
+    a_pad0(rdx, inputs, 64);
     rdxp inp = 0;
     call(rdxbFedP, inputs, &inp);
     inp->format = RDX_FMT_JDR;
@@ -180,7 +180,7 @@ ok64 RAPtest() {
         RAPcase const* tc = &RAP_CASES[i];
         if (generate) {
             // Generate mode: print actual hashes for updating test table
-            a_pad(rdx, inputs, 64);
+            a_pad0(rdx, inputs, 64);
             rdxp inp = 0;
             rdxbFedP(inputs, &inp);
             inp->format = RDX_FMT_JDR;
