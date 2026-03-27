@@ -865,6 +865,7 @@ static ok64 CAPOHookDiff(u8csc reporoot, u8csc dirslice,
     FILE *fp = popen(cmdbuf, "r");
     test(fp != NULL, FAILSANITY);
 
+    int indexed = 0;
     char line[FILE_PATH_MAX_LEN];
     while (fgets(line, sizeof(line), fp)) {
         size_t len = strlen(line);
@@ -894,8 +895,15 @@ static ok64 CAPOHookDiff(u8csc reporoot, u8csc dirslice,
         o = CAPOIndexFile(entries, source, ext, relpath);
         FILEUnMap(mapped);
         if (o != OK) continue;
+
+        u8c *codec[2] = {};
+        BASTCodec(codec, ext);
+        fprintf(stderr, "OK\t%.*s\t%s\n",
+                (int)$len(codec), (char *)codec[0], line);
+        indexed++;
     }
     pclose(fp);
+    fprintf(stderr, "%d file(s) re-indexed\n", indexed);
 
     size_t pending = u64bDataLen(entries);
     if (pending > 0) {
