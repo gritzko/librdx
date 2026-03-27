@@ -1513,11 +1513,14 @@ ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot) {
                 st.alog[0] = alog[0]; st.alog[1] = alog[1];
                 st.alog[2] = alog[2]; st.alog[3] = alog[3];
 
+                u32 prev_hi = 0;
                 while (SPOTNext(&st) == OK) {
                     // Output entire matched source range
                     u32 slo = st.src_lo;
                     u32 shi = st.src_hi;
                     if (shi <= slo || shi > (u32)$len(source)) continue;
+                    if (slo < prev_hi) continue;  // skip overlapping
+                    prev_hi = shi;
                     u8cs ekey = {};
                     call(BASONFeedInto, NULL, fbufm, 'A', ekey);
                     call(CAPOFeedRange, fbufm, bdata, slo, shi);
