@@ -12,7 +12,7 @@ but without the tree-sitter dependency (~100KB static lib vs ~10MB).
 
 | Module | Language     | Extensions              |
 |--------|-------------|-------------------------|
-| CT     | C           | `.c` `.h` `.rl`         |
+| CT     | C           | `.c` `.h`               |
 | CPPT   | C++         | `.cpp` `.cc` `.cxx` `.hpp` `.hh` `.hxx` |
 | GOT    | Go          | `.go`                   |
 | PYT    | Python      | `.py`                   |

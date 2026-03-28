@@ -68,7 +68,7 @@ but without the tree-sitter dependency.
 
 | Extension(s)                    | Tokenizer |
 |---------------------------------|-----------|
-| c h rl                          | CT        |
+| c h                              | CT        |
 | cpp cc cxx hpp hh hxx           | CPPT      |
 | go                              | GOT       |
 | py                              | PYT       |

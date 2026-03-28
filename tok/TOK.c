@@ -81,8 +81,7 @@ ok64 TOKLexer(TOKstate *state, u8csc ext) {
     sane($ok(state->data) && state != NULL);
 
     // C/C++
-    if (TOKExtMatch(ext, "c") || TOKExtMatch(ext, "h") ||
-        TOKExtMatch(ext, "rl")) {
+    if (TOKExtMatch(ext, "c") || TOKExtMatch(ext, "h")) {
         TOK_DISPATCH(CT, CTLexer);
     }
     if (TOKExtMatch(ext, "cpp") || TOKExtMatch(ext, "cc") ||
