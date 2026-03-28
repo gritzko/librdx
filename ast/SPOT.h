@@ -18,54 +18,26 @@ typedef struct {
     u32  parent;  // needle parent BASON offset (for bracket constraint)
 } SPOTntok;
 
-// Match range: pairs haystack and needle BASON slices
-typedef struct {
-    u8cs hay;   // slice into haystack BASON data
-    u8cs ndl;   // slice into needle BASON data (empty when N/A)
-} SPOTrange;
-
-fun int SPOTrangecmp(SPOTrange const *a, SPOTrange const *b) {
-    return memcmp(a, b, sizeof(SPOTrange));
-}
-
-#define X(M, name) M##SPOTrange##name
-#include "abc/Bx.h"
-#undef X
-
-fun u64 SPOTLogPack(u32 hay, u16 ndl, u16 extra) {
-    return ((u64)hay << 32) | ((u64)ndl << 16) | (u64)extra;
-}
-fun u32 SPOTLogHay(u64 e) { return (u32)(e >> 32); }
-fun u16 SPOTLogNdl(u64 e) { return (u16)(e >> 16); }
-fun u16 SPOTLogExtra(u64 e) { return (u16)(e & 0xFFFF); }
-
 typedef struct {
     u8cs ndl;
     u8cs hay;
+    u8cs source;                  // original source text (set by caller)
     u64  hstk_store[256];
     u64p hstk[4];
-    u64  binds[SPOT_MAX_BINDS];  // byte offsets into haystack data
     u64  bound;                   // bitmask of bound placeholders
     u64  match;                   // match position (byte offset)
     u64  subs[SPOT_MAX_SUBS];    // byte offsets of gap-separated segments
     u8   nsubs;                   // number of segments
     u8   depth;
     b8   exhausted;
-    u64p mlog[4];  // match log buffer (caller-provided, NULL = disabled)
-    u64p alog[4];  // alias log buffer (caller-provided, NULL = disabled)
     // Flat matching state
     SPOTntok ntoks[SPOT_MAX_NTOKS];
     int      nntoks;
     u64      src_pos;             // cumulative source byte position
     u32      parents[64];         // parent BASON offset at each depth
-    u32      src_lo;              // overall match source range lo
-    u32      src_hi;              // overall match source range hi
-    u32      bind_srclo[SPOT_MAX_BINDS];
-    u32      bind_srchi[SPOT_MAX_BINDS];
-    // New range-based fields (dual-write alongside old src_lo/hi/bind_*)
-    SPOTrange   match_range;
-    SPOTrange   bind_ranges[SPOT_MAX_BINDS];
-    SPOTrangep  ranges[4];  // caller-provided buffer (NULL = disabled)
+    range32  src_rng;             // overall match source range
+    match32  bind_matches[SPOT_MAX_BINDS];
+    match32p ranges[4];  // caller-provided buffer (NULL = disabled)
 } SPOTstate;
 
 // Initialize. Parses needle_src with BAST (ext = file extension).
@@ -76,10 +48,9 @@ ok64 SPOTInit(SPOTstate *st, u8bp ndl_buf, u64bp ndl_idx,
 
 // Find next match. Returns OK on match, SPOTEND when exhausted.
 // On OK: st->match is the byte offset of the matched container,
-// st->binds[] holds byte offsets of bound placeholders,
+// st->bind_ranges[] holds source slices for bound placeholders,
 // st->bound is the bitmask of which are bound,
 // st->subs[0..nsubs) holds byte offsets of gap-separated segments.
-// Caller uses basonSeekTo() to rehydrate any offset.
 ok64 SPOTNext(SPOTstate *st);
 
 // Find source byte range [*lo, *hi) of the BASON element at bson_off.

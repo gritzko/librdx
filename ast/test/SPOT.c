@@ -28,6 +28,8 @@ static ok64 SPOTSetup(SPOTstate *st,
     u8csc nsrc = {(u8cp)needle, (u8cp)needle + strlen(needle)};
     u8cs ext = $u8str(".c");
     call(SPOTInit, st, nbuf, nidx, nsrc, ext, hay);
+    st->source[0] = (u8cp)haystack;
+    st->source[1] = (u8cp)haystack + strlen(haystack);
     done;
 }
 
@@ -948,14 +950,13 @@ ok64 SPOTtestSubs() {
     done;
 }
 
-// ---- Test: match/alias logs ----
-ok64 SPOTtestLogs() {
+// ---- Test: ranges buffer ----
+ok64 SPOTtestRanges() {
     sane(1);
 
-    // Needle: "x = A;  y = B;  x = y;" — 3 gap-separated segments
+    // Needle: "x = A;" — binds x and A
     // Haystack: "void f() { a = 1; b = 2; a = b; }"
-    // Bindings: x→a, A→1, y→b, B→2
-    // 3 match log entries (one per segment), 4 alias log entries
+    // Expect ranges collected for matched tokens
     {
         aBpad(u8, nbuf, 4096);
         aBpad(u64, nidx, 256);
@@ -964,67 +965,38 @@ ok64 SPOTtestLogs() {
 
         SPOTstate st = {};
         call(SPOTSetup, &st, nbuf, nidx, hbuf, hidx,
-             "x = A;  y = B;  x = y;",
+             "x = A;",
              "void f() { a = 1; b = 2; a = b; }\n");
 
-        // Set up log buffers
-        aBpad(u64, mlog, 64);
-        aBpad(u64, alog, 64);
-        st.mlog[0] = mlog[0]; st.mlog[1] = mlog[1];
-        st.mlog[2] = mlog[2]; st.mlog[3] = mlog[3];
-        st.alog[0] = alog[0]; st.alog[1] = alog[1];
-        st.alog[2] = alog[2]; st.alog[3] = alog[3];
+        // Set up ranges buffer
+        aBpad(match32, ranges, 64);
+        st.ranges[0] = ranges[0]; st.ranges[1] = ranges[1];
+        st.ranges[2] = ranges[2]; st.ranges[3] = ranges[3];
 
         ok64 o = SPOTNext(&st);
         if (o != OK) {
-            fprintf(stderr, "FAIL [Logs]: expected OK, got %s\n", ok64str(o));
+            fprintf(stderr, "FAIL [Ranges]: expected OK, got %s\n", ok64str(o));
             fail(FAILEQ);
         }
 
-        // Check match log: 3 entries (one per gap-separated segment)
-        size_t mlen = u64bDataLen(st.mlog);
-        if (mlen != 3) {
-            fprintf(stderr, "FAIL [Logs]: mlog entries=%zu, expected 3\n", mlen);
-            fail(FAILEQ);
+        // Ranges buffer should have entries (bind + literal matches)
+        size_t rlen = match32bDataLen(st.ranges);
+        test(rlen > 0, FAILSANITY);
+
+        // Each range should have valid hay range
+        match32 *rp = (match32 *)st.ranges[1];
+        for (size_t i = 0; i < rlen; i++) {
+            test(rp[i].hay.hi >= rp[i].hay.lo, FAILSANITY);
         }
 
-        // Check alias log: 4 entries (x, A, y, B — each bound once)
-        size_t alen = u64bDataLen(st.alog);
-        if (alen != 4) {
-            fprintf(stderr, "FAIL [Logs]: alog entries=%zu, expected 4\n", alen);
-            fail(FAILEQ);
-        }
-
-        // Verify match log entries have valid offsets
-        u64p mp = u64bDataHead(st.mlog);
-        u64 hay_len = (u64)$len(st.hay);
-        u64 ndl_len = (u64)$len(st.ndl);
-        for (size_t i = 0; i < mlen; i++) {
-            u32 hpos = SPOTLogHay(mp[i]);
-            u16 npos = SPOTLogNdl(mp[i]);
-            test(hpos > 0 && hpos < hay_len, FAILSANITY);
-            test(npos < ndl_len, FAILSANITY);
-        }
-
-        // Verify alias_len is cumulative (non-decreasing)
-        u16 prev_alen = 0;
-        for (size_t i = 0; i < mlen; i++) {
-            u16 al = SPOTLogExtra(mp[i]);
-            test(al >= prev_alen, FAILSANITY);
-            prev_alen = al;
-        }
-
-        // Verify alias log entries have valid offsets
-        u64p ap = u64bDataHead(st.alog);
-        for (size_t i = 0; i < alen; i++) {
-            u32 hpos = SPOTLogHay(ap[i]);
-            u16 npos = SPOTLogNdl(ap[i]);
-            test(hpos > 0 && hpos < hay_len, FAILSANITY);
-            test(npos < ndl_len, FAILSANITY);
-        }
+        // bind_matches: x (idx 23) and A (idx 26) should be set
+        test(st.bound & (1ULL << 23), FAILSANITY);  // x
+        test(st.bound & (1ULL << 26), FAILSANITY);  // A
+        test(st.bind_matches[23].hay.lo != st.bind_matches[23].hay.hi, FAILSANITY);
+        test(st.bind_matches[26].hay.lo != st.bind_matches[26].hay.hi, FAILSANITY);
     }
 
-    // Without logs: backward compatible (no crash)
+    // Without ranges: no crash
     {
         aBpad(u8, nbuf, 4096);
         aBpad(u64, nidx, 256);
@@ -1068,8 +1040,8 @@ ok64 SPOTtestBrackets() {
             ok64 o = SPOTNext(&st);
             if (o == OK) {
                 if (matches == 0) {
-                    first_lo = st.src_lo;
-                    first_hi = st.src_hi;
+                    first_lo = st.src_rng.lo;
+                    first_hi = st.src_rng.hi;
                 }
                 matches++;
             } else if (o == SPOTEND) {
@@ -1126,10 +1098,10 @@ ok64 SPOTtestBrackets() {
         // not at the while's '}'
         u8cp src = (u8cp)"void g(int *p) { while(1) { ++*p; } return; }\n";
         u32 func_end = (u32)strlen((char *)src) - 1; // before \n
-        if (st.src_hi < func_end - 1) {
+        if (st.src_rng.hi < func_end - 1) {
             fprintf(stderr, "FAIL [BracketScope]: src_hi=%u, expected >= %u "
                     "(matched inner } not function })\n",
-                    st.src_hi, func_end - 1);
+                    st.src_rng.hi, func_end - 1);
             fail(FAILEQ);
         }
     }
@@ -1155,7 +1127,7 @@ ok64 SPOTtest() {
     call(SPOTtestBacktrackDFS);
     call(SPOTtestBacktrackReentrant);
     call(SPOTtestSubs);
-    call(SPOTtestLogs);
+    call(SPOTtestRanges);
     call(SPOTtestBrackets);
     done;
 }

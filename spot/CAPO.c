@@ -1848,24 +1848,20 @@ ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot) {
 
             aBpad(u8, nbuf, 16384);
             aBpad(u64, nidx, 256);
-            aBpad(u64, mlog, 1024);
-            aBpad(u64, alog, 1024);
-            aBpad(SPOTrange, ranges, 256);
+            aBpad(match32, ranges, 256);
             SPOTstate st = {};
             o = SPOTInit(&st, nbuf, nidx, needle, file_ext, bdata);
             if (o == OK) {
-                st.mlog[0] = mlog[0]; st.mlog[1] = mlog[1];
-                st.mlog[2] = mlog[2]; st.mlog[3] = mlog[3];
-                st.alog[0] = alog[0]; st.alog[1] = alog[1];
-                st.alog[2] = alog[2]; st.alog[3] = alog[3];
+                st.source[0] = source[0];
+                st.source[1] = source[1];
                 st.ranges[0] = ranges[0]; st.ranges[1] = ranges[1];
                 st.ranges[2] = ranges[2]; st.ranges[3] = ranges[3];
 
                 u32 prev_hi = 0;
                 while (SPOTNext(&st) == OK) {
                     // Output entire matched source range
-                    u32 slo = st.src_lo;
-                    u32 shi = st.src_hi;
+                    u32 slo = st.src_rng.lo;
+                    u32 shi = st.src_rng.hi;
                     if (shi <= slo || shi > (u32)$len(source)) continue;
                     if (slo < prev_hi) continue;  // skip overlapping
                     prev_hi = shi;

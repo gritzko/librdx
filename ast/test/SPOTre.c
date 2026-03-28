@@ -28,6 +28,8 @@ static ok64 SPOTreSetup(SPOTstate *st,
     u8csc nsrc = {(u8cp)needle, (u8cp)needle + strlen(needle)};
     u8cs ext = $u8str(".c");
     call(SPOTInit, st, nbuf, nidx, nsrc, ext, hay);
+    st->source[0] = (u8cp)haystack;
+    st->source[1] = (u8cp)haystack + strlen(haystack);
     done;
 }
 
@@ -509,14 +511,6 @@ ok64 SPOTreTestTable() {
         call(SPOTreSetup, &st, nbuf, nidx, hbuf, hidx,
              tc->needle, tc->haystack);
 
-        // Set up log buffers
-        aBpad(u64, mlog, 256);
-        aBpad(u64, alog, 256);
-        st.mlog[0] = mlog[0]; st.mlog[1] = mlog[1];
-        st.mlog[2] = mlog[2]; st.mlog[3] = mlog[3];
-        st.alog[0] = alog[0]; st.alog[1] = alog[1];
-        st.alog[2] = alog[2]; st.alog[3] = alog[3];
-
         int matches = 0;
         for (int j = 0; j < 100; j++) {
             ok64 o = SPOTNext(&st);
@@ -533,17 +527,6 @@ ok64 SPOTreTestTable() {
                     "FAIL [%s]: expected %d matches, got %d\n",
                     tc->name, tc->nmatches, matches);
             fail(FAILEQ);
-        }
-
-        // When logs are active, verify structural properties
-        if (matches > 0 && u64bDataLen(st.mlog) > 0) {
-            u64p mp = u64bDataHead(st.mlog);
-            u64 hay_len = (u64)$len(st.hay);
-            size_t mlen = u64bDataLen(st.mlog);
-            for (size_t k = 0; k < mlen; k++) {
-                u32 hpos = SPOTLogHay(mp[k]);
-                test(hpos > 0 && hpos < hay_len, FAILSANITY);
-            }
         }
 
         // Verify replacement output
