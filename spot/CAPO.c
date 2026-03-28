@@ -27,10 +27,16 @@ static void capo_abrt_handler(int sig) {
 #include "abc/PRO.h"
 #include "abc/SORT.h"
 #include "spot/SPOT.h"
+#include "tok/JOIN.h"
 
 // MSET for u64 (trigram entries)
 #define X(M, name) M##u64##name
 #include "abc/MSETx.h"
+#undef X
+
+// Myers diff for u64 hash sequences (used by CAPODiff)
+#define X(M, name) M##u64##name
+#include "abc/DIFFx.h"
 #undef X
 
 // --- Language detection via tok/ ---
@@ -1210,7 +1216,7 @@ ok64 CAPOGrep(u8csc substring, u8csc ext, u8csc reporoot, u32 ctx_lines) {
     done;
 }
 
-// --- Cat: syntax-highlighted file output ---
+// --- Syntax highlighting (shared by cat, diff) ---
 
 static int CAPOTagColor(u8 tag) {
     switch (tag) {
@@ -1222,6 +1228,30 @@ static int CAPOTagColor(u8 tag) {
         default:  return 0;
     }
 }
+
+// Emit one token with syntax-highlight foreground + optional
+// 256-color background (bg256=0 means no background).
+// toks: packed u32 token slice, base: source text start.
+// tag: the token tag character ('S','D','G','R','H','L','P').
+static void CAPOEmitHili(u32cs toks, u8cp base, int i, u8 tag, int bg256) {
+    u8cs val = {};
+    TOK_VAL(val, toks, base, i);
+    if ($empty(val)) return;
+    int fg = CAPO_COLOR ? CAPOTagColor(tag) : 0;
+    if (fg != 0 && bg256 != 0)
+        fprintf(stdout, "\033[%d;48;5;%dm%.*s\033[0m",
+                fg, bg256, (int)$len(val), (char *)val[0]);
+    else if (bg256 != 0)
+        fprintf(stdout, "\033[48;5;%dm%.*s\033[0m",
+                bg256, (int)$len(val), (char *)val[0]);
+    else if (fg != 0)
+        fprintf(stdout, "\033[%dm%.*s\033[0m",
+                fg, (int)$len(val), (char *)val[0]);
+    else
+        fwrite(val[0], 1, (size_t)$len(val), stdout);
+}
+
+// --- Cat ---
 
 ok64 CAPOCat(u8csc *files, int nfiles, u8csc reporoot) {
     sane(files != NULL && nfiles > 0 && $ok(reporoot));
@@ -1242,13 +1272,8 @@ ok64 CAPOCat(u8csc *files, int nfiles, u8csc reporoot) {
         u8cs fpath_s = {files[fi][0], files[fi][1]};
         if ($empty(fpath_s)) continue;
 
-        // Resolve path: prepend reporoot if relative
+        // Resolve path against CWD (like cat)
         a_pad(u8, fpbuf, FILE_PATH_MAX_LEN);
-        if (fpath_s[0][0] != '/') {
-            call(path8bFeedS, fpbuf, reporoot);
-            u8cs slash = {(u8cp)"/", (u8cp)"/" + 1};
-            call(u8bFeed, fpbuf, slash);
-        }
         call(u8bFeed, fpbuf, fpath_s);
         call(path8gTerm, path8gIn(fpbuf));
 
@@ -1292,21 +1317,13 @@ ok64 CAPOCat(u8csc *files, int nfiles, u8csc reporoot) {
             }
         }
 
-        if (tokenized && CAPO_COLOR) {
+        if (tokenized) {
             u32cp td = u32bDataHead(toks);
             u32cp ti = u32bIdleHead(toks);
+            u32cs ts = {(u32cp)td, (u32cp)ti};
             int ntoks = (int)(ti - td);
-            for (int i = 0; i < ntoks; i++) {
-                u8cs val = {};
-                SPOTTokVal(val, ((u32cs){td, ti}), source[0], i);
-                u8 tag = SPOTTokTag(td[i]);
-                int color = CAPOTagColor(tag);
-                if (color != 0)
-                    fprintf(stdout, "\033[%dm%.*s\033[0m",
-                            color, (int)$len(val), (char *)val[0]);
-                else
-                    fwrite(val[0], 1, (size_t)$len(val), stdout);
-            }
+            for (int i = 0; i < ntoks; i++)
+                CAPOEmitHili(ts, source[0], i, TOK_TAG(td[i]), 0);
         } else {
             // No color or no tokenizer: raw output
             if (!$empty(source))
@@ -1329,6 +1346,217 @@ ok64 CAPOCat(u8csc *files, int nfiles, u8csc reporoot) {
     }
 
     done;
+}
+
+// --- Merge: token-level 3-way merge ---
+
+static ok64 CAPOMergeRead(u8cs *data, u8bp *mapped, u8csc path_arg) {
+    sane(data != NULL && mapped != NULL);
+    a_pad(u8, path, FILE_PATH_MAX_LEN);
+    call(u8bFeed, path, path_arg);
+    call(path8gTerm, path8gIn(path));
+    call(FILEMapRO, mapped, path8cgIn(path));
+    (*data)[0] = u8bDataHead(*mapped);
+    (*data)[1] = u8bIdleHead(*mapped);
+    done;
+}
+
+ok64 CAPOMerge(u8csc base_path, u8csc ours_path, u8csc theirs_path,
+               u8csc outpath) {
+    sane($ok(base_path) && $ok(ours_path) && $ok(theirs_path));
+
+    // Detect extension from ours
+    u8cs ext = {};
+    size_t olen = (size_t)$len(ours_path);
+    CAPOFindExt(ext, ours_path[0], olen);
+    if (!$empty(ext) && ext[0][0] == '.') {
+        ext[0] = ext[0] + 1;  // strip dot for tok/
+    }
+
+    // Read three files
+    u8bp map_b = NULL, map_o = NULL, map_t = NULL;
+    u8cs base_data = {}, ours_data = {}, theirs_data = {};
+    call(CAPOMergeRead, &base_data, &map_b, base_path);
+    call(CAPOMergeRead, &ours_data, &map_o, ours_path);
+    call(CAPOMergeRead, &theirs_data, &map_t, theirs_path);
+
+    // Tokenize
+    JOINfile base = {}, ours = {}, theirs = {};
+    ok64 o = JOINTokenize(&base, base_data, ext);
+    if (o != OK) goto cleanup;
+    o = JOINTokenize(&ours, ours_data, ext);
+    if (o != OK) goto cleanup;
+    o = JOINTokenize(&theirs, theirs_data, ext);
+    if (o != OK) goto cleanup;
+
+    // Merge
+    {
+        u64 outsz = $len(ours_data) + $len(theirs_data) + 4096;
+        u8 *out[4] = {};
+        o = u8bAlloc(out, outsz);
+        if (o != OK) goto cleanup;
+        o = JOINMerge(out, &base, &ours, &theirs);
+        if (o != OK) { u8bFree(out); goto cleanup; }
+
+        u8cs result = {out[1], out[2]};
+        if (!$empty(outpath)) {
+            // Write to file
+            a_pad(u8, opath, FILE_PATH_MAX_LEN);
+            call(u8bFeed, opath, outpath);
+            call(path8gTerm, path8gIn(opath));
+            int fd = open((char *)u8bDataHead(opath),
+                          O_WRONLY | O_CREAT | O_TRUNC, 0644);
+            if (fd < 0) { u8bFree(out); o = FILEFAIL; goto cleanup; }
+            o = FILEFeedall(fd, result);
+            close(fd);
+        } else {
+            o = FILEFeedall(STDOUT_FILENO, result);
+        }
+        u8bFree(out);
+    }
+
+cleanup:
+    JOINFree(&base);
+    JOINFree(&ours);
+    JOINFree(&theirs);
+    if (map_b) FILEUnMap(map_b);
+    if (map_o) FILEUnMap(map_o);
+    if (map_t) FILEUnMap(map_t);
+    return o;
+}
+
+// --- Diff: token-level colored diff ---
+
+// Helper: get token slice from a JOINfile
+#define CAPOJoinToks(ts, jf) \
+    u32cs ts = {(u32cp)(jf)->toks[1], (u32cp)(jf)->toks[2]}
+
+ok64 CAPODiff(u8csc old_path, u8csc new_path) {
+    sane($ok(old_path) && $ok(new_path));
+
+    // Detect extension from new file
+    u8cs ext = {};
+    size_t nlen = (size_t)$len(new_path);
+    CAPOFindExt(ext, new_path[0], nlen);
+    if (!$empty(ext) && ext[0][0] == '.') {
+        ext[0] = ext[0] + 1;  // strip dot for tok/
+    }
+
+    // Read files
+    u8bp map_old = NULL, map_new = NULL;
+    u8cs old_data = {}, new_data = {};
+    call(CAPOMergeRead, &old_data, &map_old, old_path);
+    call(CAPOMergeRead, &new_data, &map_new, new_path);
+
+    // Tokenize
+    JOINfile old_f = {}, new_f = {};
+    ok64 o = JOINTokenize(&old_f, old_data, ext);
+    if (o != OK) goto diff_cleanup;
+    o = JOINTokenize(&new_f, new_data, ext);
+    if (o != OK) goto diff_cleanup;
+
+    {
+        u64 on = u64bDataLen(old_f.hashes);
+        u64 nn = u64bDataLen(new_f.hashes);
+
+        // Allocate diff workspace
+        u64 wsize = DIFFWorkSize(on, nn);
+        u64 emax = DIFFEdlMaxEntries(on, nn);
+        u64 total = wsize * sizeof(i32) + emax * sizeof(e32);
+        u8 *mem[4] = {};
+        o = u8bAlloc(mem, total);
+        if (o != OK) goto diff_cleanup;
+
+        i32p workp = (i32p)mem[1];
+        i32s ws = {workp, workp + wsize};
+        e32 *edl_buf = (e32 *)(workp + wsize);
+        e32g edl = {edl_buf, edl_buf + emax, edl_buf};
+
+        u64cs oh = {old_f.hashes[1], old_f.hashes[2]};
+        u64cs nh = {new_f.hashes[1], new_f.hashes[2]};
+        o = DIFFu64s(edl, ws, oh, nh);
+        if (o != OK) { u8bFree(mem); goto diff_cleanup; }
+
+        // Pager
+        FILE *pager = NULL;
+        int saved_stdout = -1;
+        char const *pgcmd = getenv("PAGER");
+        if (pgcmd != NULL && *pgcmd && CAPO_COLOR) {
+            pager = popen(pgcmd, "w");
+            if (pager != NULL) {
+                saved_stdout = dup(STDOUT_FILENO);
+                dup2(fileno(pager), STDOUT_FILENO);
+            }
+        }
+
+        // File header
+        if (CAPO_COLOR) {
+            fprintf(stdout, "\033[%dm--- %.*s\033[0m\n",
+                    GRAY, (int)$len(old_path), (char *)old_path[0]);
+            fprintf(stdout, "\033[%dm+++ %.*s\033[0m\n",
+                    GRAY, (int)$len(new_path), (char *)new_path[0]);
+        } else {
+            fprintf(stdout, "--- %.*s\n",
+                    (int)$len(old_path), (char *)old_path[0]);
+            fprintf(stdout, "+++ %.*s\n",
+                    (int)$len(new_path), (char *)new_path[0]);
+        }
+
+        // Walk EDL, emit colored output
+        // Syntax highlighting as foreground, diff as background
+        CAPOJoinToks(old_ts, &old_f);
+        CAPOJoinToks(new_ts, &new_f);
+        e32cs edl_cs = {edl[2], edl[0]};
+        u64 oi = 0, ni = 0;
+        $for(e32c, ep, edl_cs) {
+            u32 len = DIFF_LEN(*ep);
+            switch (DIFF_OP(*ep)) {
+            case DIFF_EQ:
+                for (u32 j = 0; j < len; j++) {
+                    CAPOEmitHili(new_ts, new_f.data[0], (int)ni,
+                                 TOK_TAG(new_ts[0][ni]), 0);
+                    oi++;
+                    ni++;
+                }
+                break;
+            case DIFF_DEL:
+                for (u32 j = 0; j < len; j++) {
+                    CAPOEmitHili(old_ts, old_f.data[0], (int)oi,
+                                 TOK_TAG(old_ts[0][oi]),
+                                 CAPO_COLOR ? 217 : 0);  // salmon
+                    oi++;
+                }
+                break;
+            case DIFF_INS:
+                for (u32 j = 0; j < len; j++) {
+                    CAPOEmitHili(new_ts, new_f.data[0], (int)ni,
+                                 TOK_TAG(new_ts[0][ni]),
+                                 CAPO_COLOR ? 157 : 0);  // pastel green
+                    ni++;
+                }
+                break;
+            }
+        }
+
+        // Trailing newline
+        fputc('\n', stdout);
+
+        if (pager != NULL) {
+            fflush(stdout);
+            dup2(saved_stdout, STDOUT_FILENO);
+            close(saved_stdout);
+            pclose(pager);
+        }
+
+        u8bFree(mem);
+    }
+
+diff_cleanup:
+    JOINFree(&old_f);
+    JOINFree(&new_f);
+    if (map_old) FILEUnMap(map_old);
+    if (map_new) FILEUnMap(map_new);
+    return o;
 }
 
 // --- SPOT search ---

@@ -11,23 +11,13 @@ con ok64 SPOTBAD = 0x1c65874b28d;
 #define SPOT_MAX_SUBS 32
 #define SPOT_MAX_NTOKS 64
 
-// --- Packed token: top 5 bits = tag, bottom 27 bits = end offset ---
-#define SPOT_OFF_MASK  ((1u << 27) - 1)
-
-fun u32  SPOTTokEnd(u32 t) { return t & SPOT_OFF_MASK; }
-fun u8   SPOTTokTag(u32 t) { return (u8)('A' + (t >> 27)); }
-fun u32  SPOTTokPack(u8 tag, u32 end) {
-    return ((u32)(tag - 'A') << 27) | (end & SPOT_OFF_MASK);
-}
-
-// Get source slice for token i (tokens are contiguous).
-// out: u8cs (2-element pointer array) to fill.
-#define SPOTTokVal(out, toks, base, i) do {     \
-    u32 _lo = ((i) > 0) ? SPOTTokEnd((toks)[0][(i) - 1]) : 0; \
-    u32 _hi = SPOTTokEnd((toks)[0][(i)]);       \
-    (out)[0] = (base) + _lo;                    \
-    (out)[1] = (base) + _hi;                    \
-} while(0)
+// Packed token accessors — defined in tok/TOK.h:
+//   TOK_OFF(t), TOK_TAG(t), TOK_PACK(tag,off), TOK_VAL(out,toks,base,i)
+// Legacy aliases:
+#define SPOTTokEnd  TOK_OFF
+#define SPOTTokTag  TOK_TAG
+#define SPOTTokPack TOK_PACK
+#define SPOTTokVal  TOK_VAL
 
 // Tokenize source into packed u32 buffer.
 // ext: file extension with dot (e.g. ".c") — dot is stripped for tok/.

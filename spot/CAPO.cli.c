@@ -19,6 +19,10 @@
 //   spot -s "f(x,y)" -r "f(y,x)" .c SPOT search + replace
 //   spot -g "TODO" .c                grep in all leaves (incl. comments)
 //   spot -g "memmem"                 grep all parseable files
+//   spot --diff old new              token-level colored diff
+//   spot --merge base ours theirs    token-level 3-way merge (stdout)
+//   spot --merge base ours theirs -o out   merge to file
+//   git merge driver: spot --merge %O %A %B -o %A
 
 static b8 argeq(u8cs a, const char *b) {
     size_t blen = strlen(b);
@@ -58,6 +62,9 @@ ok64 capocli() {
     u32 nfork = 0, proc = UINT32_MAX;
     b8 is_hook = NO;
     b8 do_index = NO;
+    b8 do_merge = NO;
+    b8 do_diff = NO;
+    u8c *merge_out[2] = {};
     u8c *spot_ndl[2] = {};
     u8c *spot_rep[2] = {};
     u8c *grep_ndl[2] = {};
@@ -84,6 +91,13 @@ ok64 capocli() {
             proc = (u32)atoi((char *)v[0]);
         } else if ((eqval = argeqval(a, "--proc"))) {
             proc = (u32)atoi(eqval);
+        } else if (argeq(a, "-d") || argeq(a, "--diff")) {
+            do_diff = YES;
+        } else if (argeq(a, "--merge")) {
+            do_merge = YES;
+        } else if (argeq(a, "-o") && i + 1 < argn) {
+            i++;
+            $mv(merge_out, $arg(i));
         } else if (argeq(a, "-i") || argeq(a, "--index")) {
             do_index = YES;
         } else if (argeq(a, "--hook")) {
@@ -129,7 +143,27 @@ ok64 capocli() {
         return FAILSANITY;
     }
 
-    if (grep_ndl[0] != NULL) {
+    if (do_diff) {
+        // Diff mode: expects 2 trailing paths (old new)
+        if (ntrail < 2) {
+            fprintf(stderr, "spot: --diff requires 2 files: old new\n");
+            return FAILSANITY;
+        }
+        u8cs op = {trail[0][0], trail[0][1]};
+        u8cs np = {trail[1][0], trail[1][1]};
+        call(CAPODiff, op, np);
+    } else if (do_merge) {
+        // Merge mode: expects 3 trailing paths (base ours theirs)
+        if (ntrail < 3) {
+            fprintf(stderr, "spot: --merge requires 3 files: base ours theirs\n");
+            return FAILSANITY;
+        }
+        u8cs bp = {trail[0][0], trail[0][1]};
+        u8cs op = {trail[1][0], trail[1][1]};
+        u8cs tp = {trail[2][0], trail[2][1]};
+        u8cs mo = {merge_out[0], merge_out[1]};
+        call(CAPOMerge, bp, op, tp, mo);
+    } else if (grep_ndl[0] != NULL) {
         // GREP mode: .ext optional
         u8cs ext = {};
         for (int i = 0; i < ntrail; i++) {
