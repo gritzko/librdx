@@ -33,10 +33,10 @@ file filter (`.c` matches `.c` and `.h`).
 
 ## Examples
 
-Index a repo on 4 cores:
+Index a repo on 8 cores:
 
-    $ spot --fork 4
-    spot: forking 4 workers
+    $ spot --fork 8
+    spot: forking 8 workers
     OK   c    abc/MSET.h
     OK   c    spot/CAPO.c
     ...

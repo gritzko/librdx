@@ -155,6 +155,7 @@ ok64 capocli() {
             fprintf(stderr, "spot: --gitdiff expects 7 args from git\n");
             return FAILSANITY;
         }
+        CAPO_COLOR = YES;  // git pager handles ANSI
         u8cs op = {trail[1][0], trail[1][1]};  // old-file
         u8cs np = {trail[4][0], trail[4][1]};  // new-file
         call(CAPODiff, op, np);

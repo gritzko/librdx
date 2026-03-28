@@ -1502,41 +1502,149 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path) {
                     (int)$len(new_path), (char *)new_path[0]);
         }
 
-        // Walk EDL, emit colored output
-        // Syntax highlighting as foreground, diff as background
+        // Walk EDL, emit colored output with context trimming.
+        // Build u32 visible-line intervals, then emit per-token.
         CAPOJoinToks(old_ts, &old_f);
         CAPOJoinToks(new_ts, &new_f);
-        e32cs edl_cs = {edl[2], edl[0]};
+
+        #define CTX_LINES 3
+
+        u32 nedl = (u32)(edl[0] - edl[2]);
+
+        // Phase 1: scan EDL, track new-side line numbers.
+        // For each change, record visible interval [lo, hi] as
+        // a u32 pair: vis[2*i]=lo, vis[2*i+1]=hi.
+        u32 *vis = NULL;
+        u32 nvis = 0;
+        if (nedl > 0)
+            vis = (u32 *)malloc(2 * nedl * sizeof(u32));
+        if (vis != NULL) {
+            u64 sni = 0;
+            u32 nl = 0;
+            for (u32 k = 0; k < nedl; k++) {
+                e32 e = edl[2][k];
+                u32 elen = DIFF_LEN(e);
+                u32 op = DIFF_OP(e);
+                if (op == DIFF_EQ) {
+                    for (u32 j = 0; j < elen; j++) {
+                        u8cs v = {};
+                        TOK_VAL(v, new_ts, new_f.data[0],
+                                (int)(sni + j));
+                        $for(u8c, cp, v)
+                            if (*cp == '\n') nl++;
+                    }
+                    sni += elen;
+                } else if (op == DIFF_INS) {
+                    u32 sl = nl;
+                    for (u32 j = 0; j < elen; j++) {
+                        u8cs v = {};
+                        TOK_VAL(v, new_ts, new_f.data[0],
+                                (int)(sni + j));
+                        $for(u8c, cp, v)
+                            if (*cp == '\n') nl++;
+                    }
+                    u32 lo = (sl > CTX_LINES) ? sl - CTX_LINES : 0;
+                    u32 hi = nl + CTX_LINES;
+                    vis[nvis * 2] = lo;
+                    vis[nvis * 2 + 1] = hi;
+                    nvis++;
+                    sni += elen;
+                } else {  // DIFF_DEL
+                    u32 lo = (nl > CTX_LINES) ? nl - CTX_LINES : 0;
+                    u32 hi = nl + CTX_LINES;
+                    vis[nvis * 2] = lo;
+                    vis[nvis * 2 + 1] = hi;
+                    nvis++;
+                }
+            }
+            // Merge overlapping intervals (sorted by lo already)
+            u32 m = 0;
+            for (u32 i = 0; i < nvis; i++) {
+                u32 lo = vis[i * 2], hi = vis[i * 2 + 1];
+                if (m > 0 && lo <= vis[(m - 1) * 2 + 1]) {
+                    if (hi > vis[(m - 1) * 2 + 1])
+                        vis[(m - 1) * 2 + 1] = hi;
+                } else {
+                    vis[m * 2] = lo;
+                    vis[m * 2 + 1] = hi;
+                    m++;
+                }
+            }
+            nvis = m;
+        }
+
+        // Phase 2: emit with per-token line-level trimming.
         u64 oi = 0, ni = 0;
-        $for(e32c, ep, edl_cs) {
-            u32 len = DIFF_LEN(*ep);
-            switch (DIFF_OP(*ep)) {
+        u32 cur_line = 0, cur_iv = 0;
+        b8 in_gap = YES, first_hunk = YES;
+
+        for (u32 k = 0; k < nedl; k++) {
+            e32 e = edl[2][k];
+            u32 len = DIFF_LEN(e);
+            switch (DIFF_OP(e)) {
             case DIFF_EQ:
                 for (u32 j = 0; j < len; j++) {
-                    CAPOEmitHili(new_ts, new_f.data[0], (int)ni,
-                                 TOK_TAG(new_ts[0][ni]), 0);
-                    oi++;
-                    ni++;
+                    // Advance past exhausted intervals
+                    while (cur_iv < nvis &&
+                           vis[cur_iv * 2 + 1] < cur_line)
+                        cur_iv++;
+                    b8 show = (vis == NULL) ||
+                        (cur_iv < nvis &&
+                         cur_line >= vis[cur_iv * 2] &&
+                         cur_line <= vis[cur_iv * 2 + 1]);
+                    if (show) {
+                        if (in_gap) {
+                            if (!first_hunk)
+                                fprintf(stdout, "\n--\n");
+                            first_hunk = NO;
+                            in_gap = NO;
+                        }
+                        CAPOEmitHili(new_ts, new_f.data[0], (int)ni,
+                                     TOK_TAG(new_ts[0][ni]), 0);
+                    } else {
+                        in_gap = YES;
+                    }
+                    u8cs v = {};
+                    TOK_VAL(v, new_ts, new_f.data[0], (int)ni);
+                    $for(u8c, cp, v)
+                        if (*cp == '\n') cur_line++;
+                    oi++; ni++;
                 }
                 break;
             case DIFF_DEL:
+                if (in_gap) {
+                    if (!first_hunk) fprintf(stdout, "\n--\n");
+                    first_hunk = NO;
+                    in_gap = NO;
+                }
                 for (u32 j = 0; j < len; j++) {
                     CAPOEmitHili(old_ts, old_f.data[0], (int)oi,
                                  TOK_TAG(old_ts[0][oi]),
-                                 CAPO_COLOR ? 217 : 0);  // salmon
+                                 CAPO_COLOR ? 217 : 0);
                     oi++;
                 }
                 break;
             case DIFF_INS:
+                if (in_gap) {
+                    if (!first_hunk) fprintf(stdout, "\n--\n");
+                    first_hunk = NO;
+                    in_gap = NO;
+                }
                 for (u32 j = 0; j < len; j++) {
                     CAPOEmitHili(new_ts, new_f.data[0], (int)ni,
                                  TOK_TAG(new_ts[0][ni]),
-                                 CAPO_COLOR ? 157 : 0);  // pastel green
+                                 CAPO_COLOR ? 157 : 0);
+                    u8cs v = {};
+                    TOK_VAL(v, new_ts, new_f.data[0], (int)ni);
+                    $for(u8c, cp, v)
+                        if (*cp == '\n') cur_line++;
                     ni++;
                 }
                 break;
             }
         }
+
+        if (vis != NULL) free(vis);
 
         // Trailing newline
         fputc('\n', stdout);
