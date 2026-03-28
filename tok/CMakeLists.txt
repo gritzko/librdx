@@ -33,6 +33,42 @@ list(APPEND TOK_HEADERS
     PHPT.h
     AGDT.h
     VERT.h
+    TST.h
+    KTT.h
+    SCLT.h
+    SWFT.h
+    DARTT.h
+    ZIGT.h
+    DT.h
+    LUAT.h
+    PRLT.h
+    RT.h
+    ELXT.h
+    ERLT.h
+    NIMT.h
+    NIXT.h
+    VIMT.h
+    YMLT.h
+    TOMLT.h
+    SQLT.h
+    GQLT.h
+    PRTT.h
+    HCLT.h
+    SCSST.h
+    LAXT.h
+    CLJT.h
+    CMKT.h
+    DKFT.h
+    FORT.h
+    FSHT.h
+    GLMT.h
+    GLST.h
+    MAKT.h
+    ODNT.h
+    PWST.h
+    SOLT.h
+    TYST.h
+    TXTT.h
 )
 
 list(APPEND TOK_SOURCES
@@ -75,6 +111,77 @@ list(APPEND TOK_SOURCES
     AGDT.rl.c
     VERT.c
     VERT.rl.c
+    TST.c
+    TST.rl.c
+    KTT.c
+    KTT.rl.c
+    SCLT.c
+    SCLT.rl.c
+    SWFT.c
+    SWFT.rl.c
+    DARTT.c
+    DARTT.rl.c
+    ZIGT.c
+    ZIGT.rl.c
+    DT.c
+    DT.rl.c
+    LUAT.c
+    LUAT.rl.c
+    PRLT.c
+    PRLT.rl.c
+    RT.c
+    RT.rl.c
+    ELXT.c
+    ELXT.rl.c
+    ERLT.c
+    ERLT.rl.c
+    NIMT.c
+    NIMT.rl.c
+    NIXT.c
+    NIXT.rl.c
+    VIMT.c
+    VIMT.rl.c
+    YMLT.c
+    YMLT.rl.c
+    TOMLT.c
+    TOMLT.rl.c
+    SQLT.c
+    SQLT.rl.c
+    GQLT.c
+    GQLT.rl.c
+    PRTT.c
+    PRTT.rl.c
+    HCLT.c
+    HCLT.rl.c
+    SCSST.c
+    SCSST.rl.c
+    LAXT.c
+    LAXT.rl.c
+    CLJT.c
+    CLJT.rl.c
+    CMKT.c
+    CMKT.rl.c
+    DKFT.c
+    DKFT.rl.c
+    FORT.c
+    FORT.rl.c
+    FSHT.c
+    FSHT.rl.c
+    GLMT.c
+    GLMT.rl.c
+    GLST.c
+    GLST.rl.c
+    MAKT.c
+    MAKT.rl.c
+    ODNT.c
+    ODNT.rl.c
+    PWST.c
+    PWST.rl.c
+    SOLT.c
+    SOLT.rl.c
+    TYST.c
+    TYST.rl.c
+    TXTT.rl.c
 )
 
 list(APPEND TOK_HEADERS JOIN.h)
