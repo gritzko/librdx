@@ -150,7 +150,7 @@ static ok64 CAPOTriExtractToks(u32cs toks, u8cp base,
     sane(cb != NULL);
     int len = (int)$len(toks);
     for (int i = 0; i < len; i++) {
-        u8cs val = {}; SPOTTokVal(val, toks, base, i);
+        u8cs val = {}; TOK_VAL(val, toks, base, i);
         if ($len(val) < 3) continue;
         u8cp p = val[0];
         u8cp end = val[1] - 2;
@@ -1173,25 +1173,25 @@ ok64 CAPOGrep(u8csc substring, u8csc ext, u8csc reporoot, u32 ctx_lines) {
                     u32 ctx_lo = 0, ctx_hi = 0;
                     CAPOGrepCtx(source, match_pos, ctx_lines, &ctx_lo, &ctx_hi);
 
-                    if (ctx_lo >= prev_hi) {
-                        if (!found_any) {
-                            CAPOProgress(NULL);
-                            // Print file header
-                            if (CAPO_COLOR)
-                                fprintf(stdout, "\033[%dm--- %.*s ---\033[0m\n",
-                                        GRAY, (int)len, line);
-                            else
-                                fprintf(stdout, "--- %.*s ---\n", (int)len, line);
-                            found_any = YES;
-                        }
-                        // Print context range from source
+                    if (!found_any) {
+                        CAPOProgress(NULL);
+                        if (CAPO_COLOR)
+                            fprintf(stdout, "\033[%dm--- %.*s ---\033[0m\n",
+                                    GRAY, (int)len, line);
+                        else
+                            fprintf(stdout, "--- %.*s ---\n", (int)len, line);
+                        found_any = YES;
+                    }
+                    if (ctx_lo < prev_hi) ctx_lo = prev_hi;
+                    if (ctx_lo < ctx_hi) {
+                        if (prev_hi > 0 && ctx_lo > prev_hi)
+                            fprintf(stdout, "--\n");
                         u8cs range = {source[0] + ctx_lo, source[0] + ctx_hi};
                         fwrite(range[0], 1, (size_t)$len(range), stdout);
-                        // Trailing newline if not ending with one
                         if ($len(range) > 0 && *(range[1] - 1) != '\n')
                             fputc('\n', stdout);
-                        prev_hi = ctx_hi;
                     }
+                    prev_hi = ctx_hi;
                 }
                 sp++;
             }

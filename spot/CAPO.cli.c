@@ -10,6 +10,7 @@
 #include "abc/PRO.h"
 
 // Usage:
+//   spot                             incremental update (full reindex if first run)
 //   spot file.c                      colorful cat (syntax highlight)
 //   spot -i | spot --index           full reindex
 //   spot --fork N                    parallel reindex on N cores
@@ -20,9 +21,11 @@
 //   spot -g "TODO" .c                grep in all leaves (incl. comments)
 //   spot -g "memmem"                 grep all parseable files
 //   spot --diff old new              token-level colored diff
+//   spot --gitdiff                   git external diff driver
 //   spot --merge base ours theirs    token-level 3-way merge (stdout)
 //   spot --merge base ours theirs -o out   merge to file
-//   git merge driver: spot --merge %O %A %B -o %A
+//   git config: diff.spot.command "spot --gitdiff"
+//   git config: merge.spot.driver "spot --merge %O %A %B -o %A"
 
 static b8 argeq(u8cs a, const char *b) {
     size_t blen = strlen(b);
@@ -64,6 +67,7 @@ ok64 capocli() {
     b8 do_index = NO;
     b8 do_merge = NO;
     b8 do_diff = NO;
+    b8 do_gitdiff = NO;
     u8c *merge_out[2] = {};
     u8c *spot_ndl[2] = {};
     u8c *spot_rep[2] = {};
@@ -93,6 +97,8 @@ ok64 capocli() {
             proc = (u32)atoi(eqval);
         } else if (argeq(a, "-d") || argeq(a, "--diff")) {
             do_diff = YES;
+        } else if (argeq(a, "--gitdiff")) {
+            do_gitdiff = YES;
         } else if (argeq(a, "--merge")) {
             do_merge = YES;
         } else if (argeq(a, "-o") && i + 1 < argn) {
@@ -143,7 +149,16 @@ ok64 capocli() {
         return FAILSANITY;
     }
 
-    if (do_diff) {
+    if (do_gitdiff) {
+        // git diff driver: path old-file old-hex old-mode new-file new-hex new-mode
+        if (ntrail < 6) {
+            fprintf(stderr, "spot: --gitdiff expects 7 args from git\n");
+            return FAILSANITY;
+        }
+        u8cs op = {trail[1][0], trail[1][1]};  // old-file
+        u8cs np = {trail[4][0], trail[4][1]};  // new-file
+        call(CAPODiff, op, np);
+    } else if (do_diff) {
         // Diff mode: expects 2 trailing paths (old new)
         if (ntrail < 2) {
             fprintf(stderr, "spot: --diff requires 2 files: old new\n");
@@ -259,7 +274,7 @@ ok64 capocli() {
         }
         call(CAPOCat, files, nf, reporoot);
     } else {
-        call(CAPOReindex, reporoot);
+        call(CAPOHook, reporoot);
     }
     done;
 }

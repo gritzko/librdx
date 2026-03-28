@@ -11,14 +11,6 @@ con ok64 SPOTBAD = 0x1c65874b28d;
 #define SPOT_MAX_SUBS 32
 #define SPOT_MAX_NTOKS 64
 
-// Packed token accessors — defined in tok/TOK.h:
-//   TOK_OFF(t), TOK_TAG(t), TOK_PACK(tag,off), TOK_VAL(out,toks,base,i)
-// Legacy aliases:
-#define SPOTTokEnd  TOK_OFF
-#define SPOTTokTag  TOK_TAG
-#define SPOTTokPack TOK_PACK
-#define SPOTTokVal  TOK_VAL
-
 // Tokenize source into packed u32 buffer.
 // ext: file extension with dot (e.g. ".c") — dot is stripped for tok/.
 ok64 SPOTTokenize(u32bp toks, u8csc source, u8csc ext);

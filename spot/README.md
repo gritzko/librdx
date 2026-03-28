@@ -7,23 +7,26 @@ git hooks keep the index updated.
 
 ## Usage
 
+    spot                              incremental update (or reindex)
     spot file.c                       colorful cat (syntax highlight)
     spot -i | spot --index            full reindex (single process)
     spot --fork N                     parallel reindex on N cores
-    spot --hook                       incremental reindex (post-commit)
+    spot --hook                       same as bare `spot`
     spot -s "return 0;" .c            SPOT search: find pattern in C files
     spot -s "ok64 o = OK;" .c         SPOT search: find exact declaration
     spot -s "f(x,y)" -r "f(y,x)" .c   SPOT search + replace
     spot -g "TODO" .c                 grep: substring search (incl. comments)
     spot -g "TODO" -C 0 .c            grep: match line only, no context
     spot --diff old new               token-level colored diff
+    spot --gitdiff                    git external diff driver
     spot --merge base ours theirs     token-level 3-way merge (stdout)
     spot --merge B O T -o out         merge to file
 
 Flags: `-s`/`--spot` for SPOT search, `-r`/`--replace` for replacement
 (requires `-s`), `-g`/`--grep` for substring search,
 `-C N`/`--context=N` for grep context lines (default 3),
-`-d`/`--diff` for token diff, `--merge` for 3-way merge.
+`-d`/`--diff` for token diff, `--gitdiff` for git diff driver,
+`--merge` for 3-way merge.
 Trailing args starting with `.` are extension filters (required for `-s`,
 optional for `-g`). The extension selects the ragel tokenizer and the
 file filter (`.c` matches `.c` and `.h`).
@@ -100,13 +103,20 @@ Three-way merge works as a git merge driver:
 
     $ spot --merge base.c ours.c theirs.c -o merged.c
 
-Git merge driver config:
+## Git integration
 
-    [merge "spot"]
-        name = spot token merge
-        driver = spot --merge %O %A %B -o %A
+`.gitattributes` (project root):
 
-## Git hook
+    *.c  diff=spot merge=spot
+    *.h  diff=spot merge=spot
+
+`.git/config` (or `git config`):
+
+    git config diff.spot.command "spot --gitdiff"
+    git config merge.spot.name "spot token merge"
+    git config merge.spot.driver "spot --merge %O %A %B -o %A"
+
+Post-commit hook (incremental reindex):
 
     echo '#!/bin/sh
     spot --hook' > .git/hooks/post-commit

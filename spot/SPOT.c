@@ -15,7 +15,7 @@ static ok64 SPOTTokCB(u8 tag, u8cs tok, void *ctx) {
     sane(ctx != NULL);
     SPOTTokCtx *c = (SPOTTokCtx *)ctx;
     u32 end = c->off + (u32)$len(tok);
-    u32 packed = SPOTTokPack(tag, end);
+    u32 packed = TOK_PACK(tag, end);
     call(u32bFeed1, c->toks, packed);
     c->off = end;
     return OK;
@@ -143,10 +143,10 @@ static int SPOTBracketDir(u8cs val) {
 // Returns the position of the next meaningful token, or len if exhausted.
 static int SPOTSkipWS(u32cs toks, u8cp base, int pos, int len) {
     while (pos < len) {
-        u8 tag = SPOTTokTag(toks[0][pos]);
+        u8 tag = TOK_TAG(toks[0][pos]);
         if (tag == 'D') { pos++; continue; }
         if (tag == 'S') {
-            u8cs val = {}; SPOTTokVal(val, toks, base, pos);
+            u8cs val = {}; TOK_VAL(val, toks, base, pos);
             if (SPOTIsWhitespace(val)) { pos++; continue; }
         }
         break;
@@ -164,8 +164,8 @@ static ok64 SPOTFlattenNeedle(SPOTntok *flat, int *nflat,
     b8 pending_skip = NO;
 
     for (int i = 0; i < len; i++) {
-        u8 tag = SPOTTokTag(toks[0][i]);
-        u8cs val = {}; SPOTTokVal(val, toks, base, i);
+        u8 tag = TOK_TAG(toks[0][i]);
+        u8cs val = {}; TOK_VAL(val, toks, base, i);
 
         if (tag == 'D') continue;  // skip comments
         if (tag == 'S' && SPOTIsWhitespace(val)) {
@@ -231,9 +231,9 @@ static ok64 SPOTMatchFlat(SPOTbinds *b, SPOTntok *ntoks, int nntoks,
         int pos = SPOTSkipWS(htoks, hbase, *hpos, hlen);
         if (pos >= hlen) fail(SPOTBAD);
 
-        u8cs hv = {}; SPOTTokVal(hv, htoks, hbase, pos);
-        u32 leaf_srclo = (pos > 0) ? SPOTTokEnd(htoks[0][pos - 1]) : 0;
-        u32 leaf_srchi = SPOTTokEnd(htoks[0][pos]);
+        u8cs hv = {}; TOK_VAL(hv, htoks, hbase, pos);
+        u32 leaf_srclo = (pos > 0) ? TOK_OFF(htoks[0][pos - 1]) : 0;
+        u32 leaf_srchi = TOK_OFF(htoks[0][pos]);
         *hpos = pos + 1;
 
         // Record first token position for segment tracking
@@ -279,7 +279,7 @@ static ok64 SPOTMatchFlat(SPOTbinds *b, SPOTntok *ntoks, int nntoks,
                         int p2 = SPOTSkipWS(htoks, hbase, *hpos, hlen);
                         if (p2 >= hlen) fail(SPOTBAD);
                         *hpos = p2 + 1;
-                        consumed = SPOTTokEnd(htoks[0][p2]);
+                        consumed = TOK_OFF(htoks[0][p2]);
                     }
                     if (consumed != cap_end) fail(SPOTBAD);
                     if (b->nsubs > 0) b->subs[b->nsubs - 1].hi = consumed;
@@ -304,11 +304,11 @@ static ok64 SPOTMatchFlat(SPOTbinds *b, SPOTntok *ntoks, int nntoks,
                         // Consume one more token
                         int p2 = SPOTSkipWS(htoks, hbase, *hpos, hlen);
                         if (p2 >= hlen) fail(SPOTBAD);
-                        u8cs hv2 = {}; SPOTTokVal(hv2, htoks, hbase, p2);
+                        u8cs hv2 = {}; TOK_VAL(hv2, htoks, hbase, p2);
                         cap_brace += SPOTBracketDir(hv2);
                         if (cap_brace < 0) fail(SPOTBAD);
                         *hpos = p2 + 1;
-                        cap_srchi = SPOTTokEnd(htoks[0][p2]);
+                        cap_srchi = TOK_OFF(htoks[0][p2]);
                         b->bind_matches[idx].hay.hi = cap_srchi;
                     }
                 }
@@ -342,9 +342,9 @@ static ok64 SPOTMatchFlat(SPOTbinds *b, SPOTntok *ntoks, int nntoks,
             int pos = SPOTSkipWS(htoks, hbase, *hpos, hlen);
             if (pos >= hlen) fail(SPOTBAD);
 
-            u8cs hv = {}; SPOTTokVal(hv, htoks, hbase, pos);
-            u32 leaf_srclo = (pos > 0) ? SPOTTokEnd(htoks[0][pos - 1]) : 0;
-            u32 leaf_srchi = SPOTTokEnd(htoks[0][pos]);
+            u8cs hv = {}; TOK_VAL(hv, htoks, hbase, pos);
+            u32 leaf_srclo = (pos > 0) ? TOK_OFF(htoks[0][pos - 1]) : 0;
+            u32 leaf_srchi = TOK_OFF(htoks[0][pos]);
             *hpos = pos + 1;
 
             int bd = SPOTBracketDir(hv);
@@ -392,11 +392,11 @@ static ok64 SPOTMatchFlat(SPOTbinds *b, SPOTntok *ntoks, int nntoks,
                     // Consume one more token to extend capture
                     int p2 = SPOTSkipWS(htoks, hbase, *hpos, hlen);
                     if (p2 >= hlen) break;
-                    u8cs hv2 = {}; SPOTTokVal(hv2, htoks, hbase, p2);
+                    u8cs hv2 = {}; TOK_VAL(hv2, htoks, hbase, p2);
                     cap_brace2 += SPOTBracketDir(hv2);
                     if (cap_brace2 < 0) break;
                     *hpos = p2 + 1;
-                    cap_srchi = SPOTTokEnd(htoks[0][p2]);
+                    cap_srchi = TOK_OFF(htoks[0][p2]);
                     b->bind_matches[ph_idx].hay.hi = cap_srchi;
                 }
                 *hpos = post_pos;
