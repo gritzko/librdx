@@ -10,16 +10,22 @@
 #include "abc/PRO.h"
 
 // Usage:
-//   spot                             full reindex
+//   spot                             incremental update (full reindex if first run)
+//   spot file.c                      colorful cat (syntax highlight)
+//   spot -i | spot --index           full reindex
 //   spot --fork N                    parallel reindex on N cores
 //   spot --fork N --proc K           worker K of N (internal)
 //   spot --hook                      incremental (post-commit)
-//   spot -c "fn.main"                CSS query
-//   spot -c "fn:has(malloc)" .c .h   CSS query, filter to .c/.h files
 //   spot -s "return 0;" .c           SPOT search
 //   spot -s "f(x,y)" -r "f(y,x)" .c SPOT search + replace
 //   spot -g "TODO" .c                grep in all leaves (incl. comments)
 //   spot -g "memmem"                 grep all parseable files
+//   spot --diff old new              token-level colored diff
+//   spot --gitdiff                   git external diff driver
+//   spot --merge base ours theirs    token-level 3-way merge (stdout)
+//   spot --merge base ours theirs -o out   merge to file
+//   git config: diff.spot.command "spot --gitdiff"
+//   git config: merge.spot.driver "spot --merge %O %A %B -o %A"
 
 static b8 argeq(u8cs a, const char *b) {
     size_t blen = strlen(b);
@@ -58,7 +64,11 @@ ok64 capocli() {
     // Parse args
     u32 nfork = 0, proc = UINT32_MAX;
     b8 is_hook = NO;
-    u8c *css_sel[2] = {};
+    b8 do_index = NO;
+    b8 do_merge = NO;
+    b8 do_diff = NO;
+    b8 do_gitdiff = NO;
+    u8c *merge_out[2] = {};
     u8c *spot_ndl[2] = {};
     u8c *spot_rep[2] = {};
     u8c *grep_ndl[2] = {};
@@ -85,14 +95,19 @@ ok64 capocli() {
             proc = (u32)atoi((char *)v[0]);
         } else if ((eqval = argeqval(a, "--proc"))) {
             proc = (u32)atoi(eqval);
+        } else if (argeq(a, "-d") || argeq(a, "--diff")) {
+            do_diff = YES;
+        } else if (argeq(a, "--gitdiff")) {
+            do_gitdiff = YES;
+        } else if (argeq(a, "--merge")) {
+            do_merge = YES;
+        } else if (argeq(a, "-o") && i + 1 < argn) {
+            i++;
+            $mv(merge_out, $arg(i));
+        } else if (argeq(a, "-i") || argeq(a, "--index")) {
+            do_index = YES;
         } else if (argeq(a, "--hook")) {
             is_hook = YES;
-        } else if ((argeq(a, "-c") || argeq(a, "--css")) && i + 1 < argn) {
-            i++;
-            $mv(css_sel, $arg(i));
-        } else if ((eqval = argeqval(a, "--css"))) {
-            css_sel[0] = (u8cp)eqval;
-            css_sel[1] = (u8cp)eqval + strlen(eqval);
         } else if ((argeq(a, "-s") || argeq(a, "--spot")) && i + 1 < argn) {
             i++;
             $mv(spot_ndl, $arg(i));
@@ -134,7 +149,37 @@ ok64 capocli() {
         return FAILSANITY;
     }
 
-    if (grep_ndl[0] != NULL) {
+    if (do_gitdiff) {
+        // git diff driver: path old-file old-hex old-mode new-file new-hex new-mode
+        if (ntrail < 6) {
+            fprintf(stderr, "spot: --gitdiff expects 7 args from git\n");
+            return FAILSANITY;
+        }
+        CAPO_COLOR = YES;  // git pager handles ANSI
+        u8cs op = {trail[1][0], trail[1][1]};  // old-file
+        u8cs np = {trail[4][0], trail[4][1]};  // new-file
+        call(CAPODiff, op, np);
+    } else if (do_diff) {
+        // Diff mode: expects 2 trailing paths (old new)
+        if (ntrail < 2) {
+            fprintf(stderr, "spot: --diff requires 2 files: old new\n");
+            return FAILSANITY;
+        }
+        u8cs op = {trail[0][0], trail[0][1]};
+        u8cs np = {trail[1][0], trail[1][1]};
+        call(CAPODiff, op, np);
+    } else if (do_merge) {
+        // Merge mode: expects 3 trailing paths (base ours theirs)
+        if (ntrail < 3) {
+            fprintf(stderr, "spot: --merge requires 3 files: base ours theirs\n");
+            return FAILSANITY;
+        }
+        u8cs bp = {trail[0][0], trail[0][1]};
+        u8cs op = {trail[1][0], trail[1][1]};
+        u8cs tp = {trail[2][0], trail[2][1]};
+        u8cs mo = {merge_out[0], merge_out[1]};
+        call(CAPOMerge, bp, op, tp, mo);
+    } else if (grep_ndl[0] != NULL) {
         // GREP mode: .ext optional
         u8cs ext = {};
         for (int i = 0; i < ntrail; i++) {
@@ -217,20 +262,20 @@ ok64 capocli() {
         u8cs ndl = {spot_ndl[0], spot_ndl[1]};
         u8cs rep = {spot_rep[0], spot_rep[1]};
         call(CAPOSpot, ndl, rep, ext, reporoot);
-    } else if (css_sel[0] != NULL) {
-        // CSS mode: collect optional ext filter from trailing args
-        u8cs sel = {css_sel[0], css_sel[1]};
-        u8cs ext = {};
-        for (int i = 0; i < ntrail; i++) {
-            if (trail[i][0][0] == '.') {
-                ext[0] = trail[i][0];
-                ext[1] = trail[i][1];
-                break;
-            }
-        }
-        call(CAPOQuery, sel, ext, reporoot);
-    } else {
+    } else if (do_index) {
         call(CAPOReindex, reporoot);
+    } else if (ntrail > 0) {
+        // Cat mode: colorful file output
+        u8cs files[16] = {};
+        int nf = 0;
+        for (int i = 0; i < ntrail && nf < 16; i++) {
+            files[nf][0] = trail[i][0];
+            files[nf][1] = trail[i][1];
+            nf++;
+        }
+        call(CAPOCat, files, nf, reporoot);
+    } else {
+        call(CAPOHook, reporoot);
     }
     done;
 }

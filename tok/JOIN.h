@@ -12,10 +12,7 @@
 #include "abc/DIFF.h"
 #include "abc/RAP.h"
 
-// Token u32: ms 5 bits = lit tag (A-Z), lower 27 bits = byte offset
-#define JOIN_LIT(t) ((t) >> 27)
-#define JOIN_OFF(t) ((t) & 0x07FFFFFFU)
-#define JOIN_TOK(lit, off) (((u32)(lit) << 27) | ((off) & 0x07FFFFFFU))
+// Packed u32 tokens: use TOK_PACK/TOK_TAG/TOK_OFF from TOK.h
 
 // Hash u64 marking: ms 2 bits
 // For base hashes:

@@ -1,5 +1,4 @@
-#include "ast/SPOT.h"
-#include "ast/BAST.h"
+#include "spot/SPOT.h"
 
 #include <string.h>
 
@@ -8,10 +7,8 @@
 
 #define FUZZ_BUF 16384
 
-static u8 _hpad[FUZZ_BUF];
-static u64 _hidx[1024];
-static u8 _npad[FUZZ_BUF];
-static u64 _nidx[256];
+static u32 _htoks[FUZZ_BUF];
+static u32 _ntoks[4096];
 
 FUZZ(u8, SPOTfuzz) {
     sane(1);
@@ -31,23 +28,21 @@ FUZZ(u8, SPOTfuzz) {
     a_rest(u8c, src, input, nl + 1 - input[0]);
     if ($empty(ndl) || $empty(src)) done;
 
-    // Parse haystack as C
-    u8b hpad = {_hpad, _hpad, _hpad, _hpad + FUZZ_BUF};
-    u64b hidx = {_hidx, _hidx, _hidx, _hidx + 1024};
+    // Tokenize haystack
     u8csc source = {src[0], src[1]};
     u8cs ext = $u8str(".c");
-    ok64 ho = BASTParse(hpad, hidx, source, ext);
+    u32b htoks = {_htoks, _htoks, _htoks, _htoks + FUZZ_BUF};
+    ok64 ho = SPOTTokenize(htoks, source, ext);
     if (ho != OK) done;
-    u8cp hd0 = hpad[1], hd1 = hpad[2];
-    u8cs hay = {hd0, hd1};
-    if ($empty(hay)) done;
+    u32cp hd = htoks[1], hi = htoks[2];
+    u32cs ht = {(u32cp)hd, (u32cp)hi};
+    if ($empty(ht)) done;
 
     // Init SPOT — needle parsed internally
-    u8b npad = {_npad, _npad, _npad, _npad + FUZZ_BUF};
-    u64b nidx = {_nidx, _nidx, _nidx, _nidx + 256};
+    u32b ntoks = {_ntoks, _ntoks, _ntoks, _ntoks + 4096};
     u8csc needle = {ndl[0], ndl[1]};
     SPOTstate st = {};
-    ok64 so = SPOTInit(&st, npad, nidx, needle, ext, hay);
+    ok64 so = SPOTInit(&st, ntoks, needle, ext, ht, source);
     if (so != OK) done;
 
     // Drain all matches — must not crash

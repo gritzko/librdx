@@ -72,10 +72,6 @@ ok64 CAPOCompact(u8csc dir);
 // Next available sequence number (max existing + 1)
 ok64 CAPONextSeqno(u64p seqno, u8csc dir);
 
-// Full query pipeline: selector -> trigrams -> intersect -> parse -> output
-// ext: optional language filter (empty = all languages)
-ok64 CAPOQuery(u8csc selector, u8csc ext, u8csc reporoot);
-
 // Structural code search: needle is a code fragment, ext is file extension.
 // When replace is non-empty, matched regions are replaced and files rewritten.
 ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot);
@@ -84,6 +80,17 @@ ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot);
 // ext: optional language filter (empty = all parseable files).
 // ctx_lines: max context lines above/below the match (like diff -C).
 ok64 CAPOGrep(u8csc substring, u8csc ext, u8csc reporoot, u32 ctx_lines);
+
+// Colorful cat: syntax-highlighted file output
+ok64 CAPOCat(u8csc *files, int nfiles, u8csc reporoot);
+
+// Token-level 3-way merge (git merge driver)
+// spot --merge base ours theirs [-o output]
+ok64 CAPOMerge(u8csc base, u8csc ours, u8csc theirs, u8csc outpath);
+
+// Token-level diff with syntax-highlighted output
+// spot --diff old new
+ok64 CAPODiff(u8csc old_path, u8csc new_path);
 
 // Full reindex: all tracked files
 ok64 CAPOReindex(u8csc reporoot);

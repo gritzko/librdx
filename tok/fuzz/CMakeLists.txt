@@ -17,3 +17,6 @@ target_link_libraries(TOKfuzz tok abc-core)
 
 add_executable(JOINfuzz JOINFUZZ.c)
 target_link_libraries(JOINfuzz tok abc-core)
+
+add_executable(TOK2fuzz TOK2FUZZ.c)
+target_link_libraries(TOK2fuzz tok abc-core)

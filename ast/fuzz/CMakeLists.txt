@@ -14,5 +14,3 @@ set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${FUZZ_LDD_FLAGS}")
 add_executable(CSSfuzz CSS.c ../CSS.c ../CSS.rl.c ../../json/BASON.c)
 target_link_libraries(CSSfuzz bast abc)
 
-add_executable(SPOTfuzz SPOT.c)
-target_link_libraries(SPOTfuzz bast abc)
