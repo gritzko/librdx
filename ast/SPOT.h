@@ -18,6 +18,20 @@ typedef struct {
     u32  parent;  // needle parent BASON offset (for bracket constraint)
 } SPOTntok;
 
+// Match range: pairs haystack and needle BASON slices
+typedef struct {
+    u8cs hay;   // slice into haystack BASON data
+    u8cs ndl;   // slice into needle BASON data (empty when N/A)
+} SPOTrange;
+
+fun int SPOTrangecmp(SPOTrange const *a, SPOTrange const *b) {
+    return memcmp(a, b, sizeof(SPOTrange));
+}
+
+#define X(M, name) M##SPOTrange##name
+#include "abc/Bx.h"
+#undef X
+
 fun u64 SPOTLogPack(u32 hay, u16 ndl, u16 extra) {
     return ((u64)hay << 32) | ((u64)ndl << 16) | (u64)extra;
 }
@@ -48,6 +62,10 @@ typedef struct {
     u32      src_hi;              // overall match source range hi
     u32      bind_srclo[SPOT_MAX_BINDS];
     u32      bind_srchi[SPOT_MAX_BINDS];
+    // New range-based fields (dual-write alongside old src_lo/hi/bind_*)
+    SPOTrange   match_range;
+    SPOTrange   bind_ranges[SPOT_MAX_BINDS];
+    SPOTrangep  ranges[4];  // caller-provided buffer (NULL = disabled)
 } SPOTstate;
 
 // Initialize. Parses needle_src with BAST (ext = file extension).

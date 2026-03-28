@@ -843,6 +843,10 @@ static b8 CAPOHookDiffCmd(char *cmdbuf, size_t cmdsz,
         return NO;
     }
     saved_sha[40] = 0;
+    for (int i = 0; i < 40; i++) {
+        u8 c = (u8)saved_sha[i];
+        if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'))) return NO;
+    }
 
     // Check if saved commit is ancestor of HEAD
     char chkbuf[FILE_PATH_MAX_LEN + 128];
@@ -1846,6 +1850,7 @@ ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot) {
             aBpad(u64, nidx, 256);
             aBpad(u64, mlog, 1024);
             aBpad(u64, alog, 1024);
+            aBpad(SPOTrange, ranges, 256);
             SPOTstate st = {};
             o = SPOTInit(&st, nbuf, nidx, needle, file_ext, bdata);
             if (o == OK) {
@@ -1853,6 +1858,8 @@ ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot) {
                 st.mlog[2] = mlog[2]; st.mlog[3] = mlog[3];
                 st.alog[0] = alog[0]; st.alog[1] = alog[1];
                 st.alog[2] = alog[2]; st.alog[3] = alog[3];
+                st.ranges[0] = ranges[0]; st.ranges[1] = ranges[1];
+                st.ranges[2] = ranges[2]; st.ranges[3] = ranges[3];
 
                 u32 prev_hi = 0;
                 while (SPOTNext(&st) == OK) {

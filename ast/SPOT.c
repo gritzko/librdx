@@ -18,6 +18,8 @@ typedef struct {
     u32  match_container;         // parent container of first matched leaf
     u64p mlog[4];  // match log (copied from SPOTstate)
     u64p alog[4];  // alias log (copied from SPOTstate)
+    SPOTrange bind_ranges[SPOT_MAX_BINDS];
+    SPOTrangep ranges[4];  // caller-provided range buffer
 } SPOTbinds;
 
 // Check if a leaf is a placeholder: any non-container with single A-Z/a-z value
@@ -75,10 +77,12 @@ static b8 SPOTSliceEq(u8cs a, u8cs b) {
 // On success: *type, val, *boff are set to the leaf's info.
 // Returns OK on leaf, SPOTEND when tree is exhausted.
 // srclo/srchi: source byte range of the returned leaf
+// hay_out: if non-NULL, receives BASON slice for the leaf [cursor, val end)
 static ok64 SPOTFlatNext(u64bp stk, u8csc data, int *depth,
                           u64 *src_pos, u32 *parents,
                           u8p type, u8cs val, u32p boff,
-                          u32p srclo, u32p srchi) {
+                          u32p srclo, u32p srchi,
+                          u8cs hay_out) {
     sane(stk != NULL);
     for (;;) {
         u32 cursor = (u32)*u64bLast(stk);
@@ -107,6 +111,10 @@ static ok64 SPOTFlatNext(u64bp stk, u8csc data, int *depth,
         *srclo = (u32)*src_pos;
         *src_pos += vlen;
         *srchi = (u32)*src_pos;
+        if (hay_out != NULL) {
+            hay_out[0] = data[0] + cursor;
+            hay_out[1] = val[1];
+        }
         return (OK);
     }
 }
@@ -236,8 +244,10 @@ static ok64 SPOTMatchFlat(SPOTbinds *b, SPOTntok *ntoks, int nntoks,
         u8cs hv = {};
         u32 hoff = 0;
         u32 leaf_srclo = 0, leaf_srchi = 0;
+        u8cs leaf_hay = {};
         ok64 o = SPOTFlatNext(stk, data, depth, src_pos, parents,
-                               &ht, hv, &hoff, &leaf_srclo, &leaf_srchi);
+                               &ht, hv, &hoff, &leaf_srclo, &leaf_srchi,
+                               leaf_hay);
         if (o != OK) fail(SPOTBAD);
 
         // Record first token position for segment tracking
@@ -268,6 +278,13 @@ static ok64 SPOTMatchFlat(SPOTbinds *b, SPOTntok *ntoks, int nntoks,
                     b->srclo[idx] = leaf_srclo;
                     b->srchi[idx] = leaf_srchi;
                     b->bound |= bit;
+                    b->bind_ranges[idx] = (SPOTrange){
+                        .hay = {leaf_hay[0], leaf_hay[1]},
+                        .ndl = {cur->val[0], cur->val[1]}};
+                    if (b->ranges[0] != NULL) {
+                        SPOTrange r = b->bind_ranges[idx];
+                        SPOTrangebFeed1(b->ranges, r);
+                    }
                     if (b->alog[0] != NULL) {
                         u64 ae = SPOTLogPack(hoff, 0, 0);
                         u64bFeed1(b->alog, ae);
@@ -290,7 +307,7 @@ static ok64 SPOTMatchFlat(SPOTbinds *b, SPOTntok *ntoks, int nntoks,
                         u32 sl2 = 0, sh2 = 0;
                         ok64 o2 = SPOTFlatNext(stk, data, depth, src_pos,
                                                 parents, &ht2, hv2, &hoff2,
-                                                &sl2, &sh2);
+                                                &sl2, &sh2, NULL);
                         if (o2 != OK) fail(SPOTBAD);
                         consumed = sh2;
                     }
@@ -308,6 +325,13 @@ static ok64 SPOTMatchFlat(SPOTbinds *b, SPOTntok *ntoks, int nntoks,
                     b->srclo[idx] = cap_srclo;
                     b->srchi[idx] = cap_srchi;
                     b->bound |= bit;
+                    b->bind_ranges[idx] = (SPOTrange){
+                        .hay = {leaf_hay[0], leaf_hay[1]},
+                        .ndl = {cur->val[0], cur->val[1]}};
+                    if (b->ranges[0] != NULL) {
+                        SPOTrange r = b->bind_ranges[idx];
+                        SPOTrangebFeed1(b->ranges, r);
+                    }
                     if (b->alog[0] != NULL) {
                         u64 ae = SPOTLogPack(hoff, 0, 0);
                         u64bFeed1(b->alog, ae);
@@ -345,7 +369,7 @@ static ok64 SPOTMatchFlat(SPOTbinds *b, SPOTntok *ntoks, int nntoks,
                         u32 sl2 = 0, sh2 = 0;
                         ok64 o2 = SPOTFlatNext(stk, data, depth, src_pos,
                                                 parents, &ht2, hv2, &hoff2,
-                                                &sl2, &sh2);
+                                                &sl2, &sh2, NULL);
                         if (o2 != OK) fail(SPOTBAD);
                         cap_brace += SPOTBracketDir(hv2);
                         if (cap_brace < 0) fail(SPOTBAD);
@@ -359,6 +383,14 @@ static ok64 SPOTMatchFlat(SPOTbinds *b, SPOTntok *ntoks, int nntoks,
             if (!SPOTSliceEq(cur->val, hv)) fail(SPOTBAD);
             // Track bracket depth
             brace += SPOTBracketDir(cur->val);
+        }
+
+        // Push range for this literal match
+        if (b->ranges[0] != NULL) {
+            SPOTrange r = {
+                .hay = {leaf_hay[0], leaf_hay[1]},
+                .ndl = {cur->val[0], cur->val[1]}};
+            SPOTrangebFeed1(b->ranges, r);
         }
 
         // Push match log entry for first token of each segment
@@ -398,8 +430,10 @@ static ok64 SPOTMatchFlat(SPOTbinds *b, SPOTntok *ntoks, int nntoks,
             u8cs hv = {};
             u32 hoff = 0;
             u32 leaf_srclo = 0, leaf_srchi = 0;
+            u8cs leaf_hay = {};
             ok64 o = SPOTFlatNext(stk, data, depth, src_pos, parents,
-                                   &ht, hv, &hoff, &leaf_srclo, &leaf_srchi);
+                                   &ht, hv, &hoff, &leaf_srclo, &leaf_srchi,
+                                   leaf_hay);
             if (o != OK) fail(SPOTBAD);
 
             // Track bracket depth of scanned leaves.
@@ -443,6 +477,13 @@ static ok64 SPOTMatchFlat(SPOTbinds *b, SPOTntok *ntoks, int nntoks,
                 b->srclo[ph_idx] = leaf_srclo;
                 b->srchi[ph_idx] = leaf_srchi;
                 b->bound |= bit;
+                b->bind_ranges[ph_idx] = (SPOTrange){
+                    .hay = {leaf_hay[0], leaf_hay[1]},
+                    .ndl = {cur->val[0], cur->val[1]}};
+                if (b->ranges[0] != NULL) {
+                    SPOTrange r = b->bind_ranges[ph_idx];
+                    SPOTrangebFeed1(b->ranges, r);
+                }
                 if (b->alog[0] != NULL) {
                     u64 ae = SPOTLogPack(hoff, 0, 0);
                     u64bFeed1(b->alog, ae);
@@ -473,7 +514,7 @@ static ok64 SPOTMatchFlat(SPOTbinds *b, SPOTntok *ntoks, int nntoks,
                     u32 sl2 = 0, sh2 = 0;
                     ok64 o2 = SPOTFlatNext(stk, data, depth, src_pos,
                                             parents, &ht2, hv2, &hoff2,
-                                            &sl2, &sh2);
+                                            &sl2, &sh2, NULL);
                     if (o2 != OK) break;
                     cap_brace2 += SPOTBracketDir(hv2);
                     if (cap_brace2 < 0) break;
@@ -501,6 +542,13 @@ static ok64 SPOTMatchFlat(SPOTbinds *b, SPOTntok *ntoks, int nntoks,
                         b->srclo[ph_idx] = leaf_srclo;
                         b->srchi[ph_idx] = leaf_srchi;
                         b->bound |= bit;
+                        b->bind_ranges[ph_idx] = (SPOTrange){
+                            .hay = {leaf_hay[0], leaf_hay[1]},
+                            .ndl = {cur->val[0], cur->val[1]}};
+                        if (b->ranges[0] != NULL) {
+                            SPOTrange r = b->bind_ranges[ph_idx];
+                            SPOTrangebFeed1(b->ranges, r);
+                        }
                         if (b->alog[0] != NULL) {
                             u64 ae = SPOTLogPack(hoff, 0, 0);
                             u64bFeed1(b->alog, ae);
@@ -517,6 +565,13 @@ static ok64 SPOTMatchFlat(SPOTbinds *b, SPOTntok *ntoks, int nntoks,
 
             if (tok_match) {
                 *match_srchi = leaf_srchi;
+                // Push range for this skip+match
+                if (b->ranges[0] != NULL) {
+                    SPOTrange r = {
+                        .hay = {leaf_hay[0], leaf_hay[1]},
+                        .ndl = {cur->val[0], cur->val[1]}};
+                    SPOTrangebFeed1(b->ranges, r);
+                }
                 if (b->mlog[0] != NULL) {
                     u16 alen = b->alog[0] != NULL
                                    ? (u16)u64bDataLen(b->alog) : 0;
@@ -607,6 +662,11 @@ ok64 SPOTNext(SPOTstate *st) {
             b.alog[0] = st->alog[0]; b.alog[1] = st->alog[1];
             b.alog[2] = st->alog[2]; b.alog[3] = st->alog[3];
         }
+        if (st->ranges[0] != NULL) {
+            SPOTrangebReset(st->ranges);
+            b.ranges[0] = st->ranges[0]; b.ranges[1] = st->ranges[1];
+            b.ranges[2] = st->ranges[2]; b.ranges[3] = st->ranges[3];
+        }
 
         int md = st->depth;
         u64 msrc = st->src_pos;
@@ -623,6 +683,7 @@ ok64 SPOTNext(SPOTstate *st) {
             // Copy back log idle pointers
             if (st->mlog[0] != NULL) st->mlog[2] = b.mlog[2];
             if (st->alog[0] != NULL) st->alog[2] = b.alog[2];
+            if (st->ranges[0] != NULL) st->ranges[2] = b.ranges[2];
 
             // Store results
             st->match = (u64)b.match_container;
@@ -634,12 +695,19 @@ ok64 SPOTNext(SPOTstate *st) {
                     st->binds[i] = b.offsets[i];
                     st->bind_srclo[i] = b.srclo[i];
                     st->bind_srchi[i] = b.srchi[i];
+                    st->bind_ranges[i] = b.bind_ranges[i];
                 } else {
                     st->binds[i] = 0;
                     st->bind_srclo[i] = 0;
                     st->bind_srchi[i] = 0;
+                    st->bind_ranges[i] = (SPOTrange){};
                 }
             }
+            // Set match_range hay from matched container BASON slice
+            st->match_range.hay[0] = st->hay[0] + b.match_container;
+            st->match_range.hay[1] = st->hay[0] + srchi;
+            st->match_range.ndl[0] = NULL;
+            st->match_range.ndl[1] = NULL;
             st->nsubs = (u8)b.nsubs;
             for (int i = 0; i < b.nsubs; i++)
                 st->subs[i] = b.subs[i];
@@ -654,7 +722,7 @@ ok64 SPOTNext(SPOTstate *st) {
                                          (int *)&st->depth,
                                          &st->src_pos, st->parents,
                                          &adv_t, adv_v, &adv_off,
-                                         &adv_lo, &adv_hi);
+                                         &adv_lo, &adv_hi, NULL);
                 if (adv != OK) st->exhausted = YES;
             }
 
@@ -668,7 +736,8 @@ ok64 SPOTNext(SPOTstate *st) {
         u32 dummy_lo = 0, dummy_hi = 0;
         ok64 a = SPOTFlatNext(st->hstk, st->hay, (int *)&st->depth,
                                &st->src_pos, st->parents,
-                               &ht, hv, &hoff, &dummy_lo, &dummy_hi);
+                               &ht, hv, &hoff, &dummy_lo, &dummy_hi,
+                               NULL);
         if (a != OK) {
             st->exhausted = YES;
             return (SPOTEND);
@@ -781,6 +850,8 @@ typedef struct {
     u64 bound;
     u32 bind_srclo[SPOT_MAX_BINDS];
     u32 bind_srchi[SPOT_MAX_BINDS];
+    SPOTrange match_range;
+    SPOTrange bind_ranges[SPOT_MAX_BINDS];
 } SPOTrep;
 
 ok64 SPOTReplace(u8s out, u8csc source, u8csc hay,
@@ -800,22 +871,25 @@ ok64 SPOTReplace(u8s out, u8csc source, u8csc hay,
     st.alog[0] = alog[0]; st.alog[1] = alog[1];
     st.alog[2] = alog[2]; st.alog[3] = alog[3];
 
-    // Collect all matches
-    SPOTrep matches[SPOT_MAX_MATCHES];
+    // Collect all matches (heap-allocated, SPOTrep is large)
+    SPOTrep *matches = (SPOTrep *)malloc(SPOT_MAX_MATCHES * sizeof(SPOTrep));
+    test(matches != NULL, FAILSANITY);
     int nmatch = 0;
 
     while (SPOTNext(&st) == OK && nmatch < SPOT_MAX_MATCHES) {
         matches[nmatch].src_lo = st.src_lo;
         matches[nmatch].src_hi = st.src_hi;
         matches[nmatch].bound = st.bound;
+        matches[nmatch].match_range = st.match_range;
         for (int i = 0; i < SPOT_MAX_BINDS; i++) {
             matches[nmatch].bind_srclo[i] = st.bind_srclo[i];
             matches[nmatch].bind_srchi[i] = st.bind_srchi[i];
+            matches[nmatch].bind_ranges[i] = st.bind_ranges[i];
         }
         nmatch++;
     }
 
-    if (nmatch == 0) return (SPOTEND);
+    if (nmatch == 0) { free(matches); return (SPOTEND); }
 
     // Sort matches by src_lo ascending
     for (int i = 1; i < nmatch; i++) {
@@ -831,14 +905,16 @@ ok64 SPOTReplace(u8s out, u8csc source, u8csc hay,
     // Parse replacement template
     aBpad(u8, rbuf, 16384);
     aBpad(u64, ridx, 256);
-    call(BASTParse, rbuf, ridx, replace_src, ext);
+    ok64 po = BASTParse(rbuf, ridx, replace_src, ext);
+    if (po != OK) { free(matches); fail(po); }
     a_dup(u8c, rdata, u8bDataC(rbuf));
 
     // Flatten replacement BASON to text
     aBpad(u8, rtxt, 16384);
     {
         aBpad(u64, rstk, 256);
-        call(BASONOpen, rstk, rdata);
+        ok64 ro = BASONOpen(rstk, rdata);
+        if (ro != OK) { free(matches); fail(ro); }
         int rd = 0;
         for (;;) {
             u8 t = 0;
@@ -867,20 +943,24 @@ ok64 SPOTReplace(u8s out, u8csc source, u8csc hay,
 
         if (matches[i].src_lo > (u32)pos) {
             u8cs gap = {source[0] + pos, source[0] + matches[i].src_lo};
-            call(u8sFeed, out, gap);
+            ok64 fo = u8sFeed(out, gap);
+            if (fo != OK) { free(matches); fail(fo); }
         }
 
-        call(SPOTInstTemplate, out, rtxt_slice,
+        ok64 io = SPOTInstTemplate(out, rtxt_slice,
              matches[i].bound, matches[i].bind_srclo, matches[i].bind_srchi,
              source);
+        if (io != OK) { free(matches); fail(io); }
 
         pos = matches[i].src_hi;
     }
 
     if (pos < (u64)$len(source)) {
         u8cs tail = {source[0] + pos, source[1]};
-        call(u8sFeed, out, tail);
+        ok64 fo = u8sFeed(out, tail);
+        if (fo != OK) { free(matches); fail(fo); }
     }
 
+    free(matches);
     done;
 }
