@@ -1,0 +1,225 @@
+//
+// JOIN.c - Token-level 3-way file merge
+//
+
+#include "JOIN.h"
+
+#include "abc/PRO.h"
+
+// Instantiate Myers diff for u64 hash sequences
+#define X(M, name) M##u64##name
+#include "abc/DIFFx.h"
+#undef X
+
+// --- Tokenizer callback ---
+
+typedef struct {
+    u32 **toks;
+    u64 **hashes;
+    u8cp base;
+} join_ctx;
+
+static ok64 join_cb(u8 tag, u8cs tok, void *vctx) {
+    sane(vctx != NULL);
+    join_ctx *ctx = vctx;
+    u32 off = (u32)(tok[0] - ctx->base);
+    call(u32bFeed1, ctx->toks, JOIN_TOK(tag, off));
+    u64 h = RAPHash(tok);
+    call(u64bFeed1, ctx->hashes, h);
+    done;
+}
+
+ok64 JOINTokenize(JOINfile *jf, u8csc data, u8csc ext) {
+    sane(jf != NULL);
+    $set(jf->data, data);
+    u64 est = $len(data) / 2;
+    if (est < 256) est = 256;
+    call(u32bAlloc, jf->toks, est);
+    call(u64bAlloc, jf->hashes, est);
+    join_ctx ctx = {
+        .toks = jf->toks,
+        .hashes = jf->hashes,
+        .base = data[0],
+    };
+    TOKstate st = {.data = {data[0], data[1]}, .cb = join_cb, .ctx = &ctx};
+    call(TOKLexer, &st, ext);
+    done;
+}
+
+void JOINFree(JOINfile *jf) {
+    if (jf == NULL) return;
+    u32bFree(jf->toks);
+    u64bFree(jf->hashes);
+}
+
+// --- EDL marking ---
+
+// Walk EDL, set rm_bit on base hashes where DEL
+static ok64 join_mark_base(u64bp bh, e32cs edl, u64 rm_bit) {
+    sane(bh != NULL);
+    u64 bi = 0;
+    $for(e32c, ep, edl) {
+        u32 len = DIFF_LEN(*ep);
+        switch (DIFF_OP(*ep)) {
+        case DIFF_EQ:
+            bi += len;
+            break;
+        case DIFF_DEL:
+            for (u32 j = 0; j < len; j++)
+                bh[1][bi + j] |= rm_bit;
+            bi += len;
+            break;
+        case DIFF_INS:
+            break;
+        }
+    }
+    done;
+}
+
+// Walk EDL, set JOIN_IN on side hashes where INS
+static ok64 join_mark_side(u64bp sh, e32cs edl) {
+    sane(sh != NULL);
+    u64 si = 0;
+    $for(e32c, ep, edl) {
+        u32 len = DIFF_LEN(*ep);
+        switch (DIFF_OP(*ep)) {
+        case DIFF_EQ:
+            si += len;
+            break;
+        case DIFF_INS:
+            for (u32 j = 0; j < len; j++)
+                sh[1][si + j] |= JOIN_IN;
+            si += len;
+            break;
+        case DIFF_DEL:
+            break;
+        }
+    }
+    done;
+}
+
+// --- Emit token bytes ---
+
+static ok64 join_emit(u8bp out, JOINfile const *jf, u64 ti) {
+    sane(out != NULL && jf != NULL);
+    u64 ntoks = jf->toks[2] - jf->toks[1];
+    u32 off = JOIN_OFF(jf->toks[1][ti]);
+    u32 end = (ti + 1 < ntoks)
+                  ? JOIN_OFF(jf->toks[1][ti + 1])
+                  : (u32)$len(jf->data);
+    a_rest(u8c, r, jf->data, off);
+    a_head(u8c, tok, r, end - off);
+    call(u8bFeed, out, tok);
+    done;
+}
+
+// --- 3-way merge ---
+
+ok64 JOINMerge(u8bp out, JOINfile *base, JOINfile *ours, JOINfile *theirs) {
+    sane(out && base && ours && theirs);
+
+    u64 bn = u64bDataLen(base->hashes);
+    u64 on = u64bDataLen(ours->hashes);
+    u64 tn = u64bDataLen(theirs->hashes);
+
+    // Trivial: empty base, take ours
+    if (bn == 0) {
+        call(u8bFeed, out, ours->data);
+        done;
+    }
+
+    // Work buffer sizes
+    u64 wsize = DIFFWorkSize(bn, on);
+    {
+        u64 w2 = DIFFWorkSize(bn, tn);
+        if (w2 > wsize) wsize = w2;
+    }
+    u64 emax_o = DIFFEdlMaxEntries(bn, on);
+    u64 emax_t = DIFFEdlMaxEntries(bn, tn);
+
+    // Single allocation for diff workspace
+    u64 total = wsize * sizeof(i32) + (emax_o + emax_t) * sizeof(e32);
+    u8 *mem[4] = {};
+    call(u8bAlloc, mem, total);
+
+    // Carve work buffer
+    i32p workp = (i32p)mem[1];
+    i32s ws = {workp, workp + wsize};
+
+    // Carve EDL gauges
+    e32 *edl_o_buf = (e32 *)(workp + wsize);
+    e32 *edl_t_buf = edl_o_buf + emax_o;
+    e32g edl_o = {edl_o_buf, edl_o_buf + emax_o, edl_o_buf};
+    e32g edl_t = {edl_t_buf, edl_t_buf + emax_t, edl_t_buf};
+
+    // Clear mark bits from all hashes before diffing
+    {
+        u64s bhm = {base->hashes[1], base->hashes[2]};
+        $for(u64, hp, bhm) { *hp &= ~JOIN_MARK; }
+        u64s ohm = {ours->hashes[1], ours->hashes[2]};
+        $for(u64, hp, ohm) { *hp &= ~JOIN_MARK; }
+        u64s thm = {theirs->hashes[1], theirs->hashes[2]};
+        $for(u64, hp, thm) { *hp &= ~JOIN_MARK; }
+    }
+
+    // Compute diffs: base->ours, base->theirs
+    u64cs bh = {base->hashes[1], base->hashes[2]};
+    u64cs oh = {ours->hashes[1], ours->hashes[2]};
+    u64cs th = {theirs->hashes[1], theirs->hashes[2]};
+
+    call(DIFFu64s, edl_o, ws, bh, oh);
+    call(DIFFu64s, edl_t, ws, bh, th);
+
+    // Mark hashes
+    e32cs edl_ocs = {edl_o[2], edl_o[0]};
+    e32cs edl_tcs = {edl_t[2], edl_t[0]};
+
+    call(join_mark_base, base->hashes, edl_ocs, JOIN_RM_O);
+    call(join_mark_base, base->hashes, edl_tcs, JOIN_RM_T);
+    call(join_mark_side, ours->hashes, edl_ocs);
+    call(join_mark_side, theirs->hashes, edl_tcs);
+
+    // Lockstep merge walk
+    u64 bi = 0, oi = 0, ti = 0;
+
+    while (oi < on || ti < tn || bi < bn) {
+        b8 o_in = (oi < on) && (ours->hashes[1][oi] & JOIN_IN);
+        b8 t_in = (ti < tn) && (theirs->hashes[1][ti] & JOIN_IN);
+
+        if (o_in && t_in) {
+            u64 oh_val = JOIN_HASH(ours->hashes[1][oi]);
+            u64 th_val = JOIN_HASH(theirs->hashes[1][ti]);
+            if (oh_val == th_val) {
+                call(join_emit, out, ours, oi);
+                oi++;
+                ti++;
+            } else {
+                call(join_emit, out, ours, oi);
+                oi++;
+            }
+        } else if (o_in) {
+            call(join_emit, out, ours, oi);
+            oi++;
+        } else if (t_in) {
+            call(join_emit, out, theirs, ti);
+            ti++;
+        } else if (bi < bn) {
+            u64 bmark = base->hashes[1][bi] & JOIN_MARK;
+            if (bmark == 0) {
+                // Both kept this base token: emit from ours
+                call(join_emit, out, ours, oi);
+                bi++;
+                oi++;
+                ti++;
+            } else {
+                // Deleted by at least one side: skip, advance who kept it
+                if (!(bmark & JOIN_RM_O)) oi++;  // ours kept, advance ours
+                if (!(bmark & JOIN_RM_T)) ti++;  // theirs kept, advance theirs
+                bi++;
+            }
+        }
+    }
+
+    u8bFree(mem);
+    done;
+}
