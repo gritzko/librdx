@@ -14,3 +14,6 @@ set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${FUZZ_LDD_FLAGS}")
 
 add_executable(TOKfuzz TOKFUZZ.c)
 target_link_libraries(TOKfuzz tok abc-core)
+
+add_executable(JOINfuzz JOINFUZZ.c)
+target_link_libraries(JOINfuzz tok abc-core)
