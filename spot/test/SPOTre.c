@@ -1,50 +1,29 @@
-#include "ast/SPOT.h"
-#include "ast/BAST.h"
+#include "spot/SPOT.h"
 
 #include <string.h>
 
 #include "abc/PRO.h"
 #include "abc/TEST.h"
-#include "json/BASON.h"
 
-// Helper: parse C source into BASON tree
-static ok64 SPOTreBuildBAST(u8bp buf, u64bp idx, const char *src) {
-    sane(buf != NULL);
-    u8csc source = {(u8cp)src, (u8cp)src + strlen(src)};
-    u8cs ext = $u8str(".c");
-    return BASTParse(buf, idx, source, ext);
-}
-
-// Helper: init SPOT from C source strings
+// Helper: tokenize C source, init SPOT
 static ok64 SPOTreSetup(SPOTstate *st,
-                         u8bp nbuf, u64bp nidx,
-                         u8bp hbuf, u64bp hidx,
+                         u32bp nbuf, u32bp hbuf,
                          const char *needle, const char *haystack) {
     sane(st != NULL);
-    call(SPOTreBuildBAST, hbuf, hidx, haystack);
-    a_dup(u8c, hay, u8bDataC(hbuf));
-    test(!$empty(hay), FAILSANITY);
+    u8csc source = {(u8cp)haystack, (u8cp)haystack + strlen(haystack)};
+    u8cs ext = $u8str(".c");
+    call(SPOTTokenize, hbuf, source, ext);
+    u32cp hd = u32bDataHead(hbuf);
+    u32cp hi = u32bIdleHead(hbuf);
+    u32cs htoks = {(u32cp)hd, (u32cp)hi};
+    test(!$empty(htoks), FAILSANITY);
 
     u8csc nsrc = {(u8cp)needle, (u8cp)needle + strlen(needle)};
-    u8cs ext = $u8str(".c");
-    call(SPOTInit, st, nbuf, nidx, nsrc, ext, hay);
-    st->source[0] = (u8cp)haystack;
-    st->source[1] = (u8cp)haystack + strlen(haystack);
+    call(SPOTInit, st, nbuf, nsrc, ext, htoks, source);
     done;
 }
 
 // ---- Table-driven replacement test cases ----
-//
-// Each case: (needle, replace, haystack, expected, nmatches)
-//   needle:   SPOT pattern (single-letter vars = placeholders)
-//   replace:  replacement template (same placeholders)
-//   haystack: input C source
-//   expected: expected output after all replacements
-//   nmatches: expected number of SPOTNext() hits
-//
-// Placeholder conventions:
-//   lowercase (x,y,z..): bind leaf name, must be consistent
-//   uppercase (A,B,X..): bind any subtree
 
 typedef struct {
     const char *name;
@@ -232,7 +211,7 @@ static const SPOTreCase SPOT_RE_CASES[] = {
     },
 
     // ================================================================
-    //  21-30: Multi-statement patterns (2-space = SKIP_SIBLINGS)
+    //  21-30: Multi-statement patterns (2-space = SKIP)
     // ================================================================
 
     {   // 21. declare then assign → init
@@ -330,7 +309,7 @@ static const SPOTreCase SPOT_RE_CASES[] = {
         "void f() { if (!ready) { go(); } }\n",
         1
     },
-    {   // 32. while to do-while hint (match the while)
+    {   // 32. while to for
         "WhileMatch",
         "while (x)",
         "for (;x;)",
@@ -496,20 +475,16 @@ static const SPOTreCase SPOT_RE_CASES[] = {
 
 #define SPOT_RE_NCASES (sizeof(SPOT_RE_CASES) / sizeof(SPOT_RE_CASES[0]))
 
-// Verify match counts and replacement output for each test case.
 ok64 SPOTreTestTable() {
     sane(1);
 
     for (size_t i = 0; i < SPOT_RE_NCASES; i++) {
         const SPOTreCase *tc = &SPOT_RE_CASES[i];
-        aBpad(u8, nbuf, 4096);
-        aBpad(u64, nidx, 256);
-        aBpad(u8, hbuf, 65536);
-        aBpad(u64, hidx, 1024);
+        aBpad(u32, nbuf, 4096);
+        aBpad(u32, hbuf, 65536);
 
         SPOTstate st = {};
-        call(SPOTreSetup, &st, nbuf, nidx, hbuf, hidx,
-             tc->needle, tc->haystack);
+        call(SPOTreSetup, &st, nbuf, hbuf, tc->needle, tc->haystack);
 
         int matches = 0;
         for (int j = 0; j < 100; j++) {
@@ -531,7 +506,6 @@ ok64 SPOTreTestTable() {
 
         // Verify replacement output
         if (tc->replace != NULL && tc->expected != NULL) {
-            a_dup(u8c, hay, u8bDataC(hbuf));
             u8csc source = {(u8cp)tc->haystack,
                             (u8cp)tc->haystack + strlen(tc->haystack)};
             u8csc ndl_src = {(u8cp)tc->needle,
@@ -540,13 +514,19 @@ ok64 SPOTreTestTable() {
                              (u8cp)tc->replace + strlen(tc->replace)};
             u8cs ext = $u8str(".c");
 
+            // Re-tokenize haystack for SPOTReplace
+            aBpad(u32, rbuf, 65536);
+            call(SPOTTokenize, rbuf, source, ext);
+            u32cp rd = u32bDataHead(rbuf);
+            u32cp ri = u32bIdleHead(rbuf);
+            u32cs htoks = {(u32cp)rd, (u32cp)ri};
+
             aBpad(u8, outbuf, 65536);
             u8s out = {u8bIdleHead(outbuf), outbuf[3]};
 
-            ok64 ro = SPOTReplace(out, source, hay, ndl_src, rep_src, ext);
+            ok64 ro = SPOTReplace(out, source, htoks, ndl_src, rep_src, ext);
 
             if (tc->nmatches == 0) {
-                // Expect SPOTEND (no matches)
                 if (ro != SPOTEND) {
                     fprintf(stderr,
                             "FAIL [%s]: expected SPOTEND, got %s\n",

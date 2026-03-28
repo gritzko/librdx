@@ -10,12 +10,11 @@
 #include "abc/PRO.h"
 
 // Usage:
-//   spot                             full reindex
+//   spot file.c                      colorful cat (syntax highlight)
+//   spot -i | spot --index           full reindex
 //   spot --fork N                    parallel reindex on N cores
 //   spot --fork N --proc K           worker K of N (internal)
 //   spot --hook                      incremental (post-commit)
-//   spot -c "fn.main"                CSS query
-//   spot -c "fn:has(malloc)" .c .h   CSS query, filter to .c/.h files
 //   spot -s "return 0;" .c           SPOT search
 //   spot -s "f(x,y)" -r "f(y,x)" .c SPOT search + replace
 //   spot -g "TODO" .c                grep in all leaves (incl. comments)
@@ -58,7 +57,7 @@ ok64 capocli() {
     // Parse args
     u32 nfork = 0, proc = UINT32_MAX;
     b8 is_hook = NO;
-    u8c *css_sel[2] = {};
+    b8 do_index = NO;
     u8c *spot_ndl[2] = {};
     u8c *spot_rep[2] = {};
     u8c *grep_ndl[2] = {};
@@ -85,14 +84,10 @@ ok64 capocli() {
             proc = (u32)atoi((char *)v[0]);
         } else if ((eqval = argeqval(a, "--proc"))) {
             proc = (u32)atoi(eqval);
+        } else if (argeq(a, "-i") || argeq(a, "--index")) {
+            do_index = YES;
         } else if (argeq(a, "--hook")) {
             is_hook = YES;
-        } else if ((argeq(a, "-c") || argeq(a, "--css")) && i + 1 < argn) {
-            i++;
-            $mv(css_sel, $arg(i));
-        } else if ((eqval = argeqval(a, "--css"))) {
-            css_sel[0] = (u8cp)eqval;
-            css_sel[1] = (u8cp)eqval + strlen(eqval);
         } else if ((argeq(a, "-s") || argeq(a, "--spot")) && i + 1 < argn) {
             i++;
             $mv(spot_ndl, $arg(i));
@@ -217,18 +212,18 @@ ok64 capocli() {
         u8cs ndl = {spot_ndl[0], spot_ndl[1]};
         u8cs rep = {spot_rep[0], spot_rep[1]};
         call(CAPOSpot, ndl, rep, ext, reporoot);
-    } else if (css_sel[0] != NULL) {
-        // CSS mode: collect optional ext filter from trailing args
-        u8cs sel = {css_sel[0], css_sel[1]};
-        u8cs ext = {};
-        for (int i = 0; i < ntrail; i++) {
-            if (trail[i][0][0] == '.') {
-                ext[0] = trail[i][0];
-                ext[1] = trail[i][1];
-                break;
-            }
+    } else if (do_index) {
+        call(CAPOReindex, reporoot);
+    } else if (ntrail > 0) {
+        // Cat mode: colorful file output
+        u8cs files[16] = {};
+        int nf = 0;
+        for (int i = 0; i < ntrail && nf < 16; i++) {
+            files[nf][0] = trail[i][0];
+            files[nf][1] = trail[i][1];
+            nf++;
         }
-        call(CAPOQuery, sel, ext, reporoot);
+        call(CAPOCat, files, nf, reporoot);
     } else {
         call(CAPOReindex, reporoot);
     }
