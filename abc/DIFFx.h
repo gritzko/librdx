@@ -34,7 +34,9 @@ static inline ok64 X(DIFF, FindMiddle)(Tcs a, Tcs b, i32s vf, i32s vb,
     vfp[1] = 0;
     vbp[1] = 0;
 
-    for (i32 d = 0; d <= (max + 1) / 2; d++) {
+    i32 d_limit = (max + 1) / 2;
+    if (d_limit > 1024) d_limit = 1024;
+    for (i32 d = 0; d <= d_limit; d++) {
         for (i32 k = -d; k <= d; k += 2) {
             i32 x = (k == -d || (k != d && vfp[k - 1] < vfp[k + 1]))
                         ? vfp[k + 1]
@@ -90,36 +92,65 @@ static inline ok64 X(DIFF, FindMiddle)(Tcs a, Tcs b, i32s vf, i32s vb,
         }
     }
 
-    *pd = max;
+    *pd = -1;  // bail-out: d_limit reached without finding middle
     *px = *py = *plen = 0;
     return OK;
 }
 
 static inline ok64 X(DIFF, Recurse)(e32g edl, i32s vf, i32s vb, Tcs a, Tcs b) {
-    i32 n = $len(a), m = $len(b);
     ok64 o;
 
+    // Strip common prefix/suffix — O(n) scan that reduces the
+    // effective input to Myers, applied at every recursion level.
+    // Use local pointers to avoid mutating the caller's slices.
+    Tcp ap = a[0], ae = a[1];
+    Tcp bp = b[0], be = b[1];
+    while (ap < ae && bp < be && *ap == *bp) { ap++; bp++; }
+    i32 prefix = (i32)(ap - a[0]);
+    if (prefix > 0) {
+        o = X(DIFF, AddEntry)(edl, DIFF_EQ, prefix);
+        if (o != OK) return o;
+    }
+    while (ap < ae && bp < be && *(ae - 1) == *(be - 1)) { ae--; be--; }
+    i32 suffix = (i32)(a[1] - ae);
+
+    Tcs sa = {ap, ae};
+    Tcs sb = {bp, be};
+    i32 n = $len(sa), m = $len(sb);
+
     if (n == 0) {
-        if (m > 0) return X(DIFF, AddEntry)(edl, DIFF_INS, m);
-        return OK;
+        if (m > 0) { o = X(DIFF, AddEntry)(edl, DIFF_INS, m); if (o != OK) return o; }
+        goto emit_suffix;
     }
     if (m == 0) {
-        if (n > 0) return X(DIFF, AddEntry)(edl, DIFF_DEL, n);
-        return OK;
+        if (n > 0) { o = X(DIFF, AddEntry)(edl, DIFF_DEL, n); if (o != OK) return o; }
+        goto emit_suffix;
     }
 
     i32 x, y, len, d;
-    o = X(DIFF, FindMiddle)(a, b, vf, vb, &x, &y, &len, &d);
+    o = X(DIFF, FindMiddle)(sa, sb, vf, vb, &x, &y, &len, &d);
     if (o != OK) return o;
 
-    if (d == 0) return X(DIFF, AddEntry)(edl, DIFF_EQ, n);
+    if (d == 0) {
+        o = X(DIFF, AddEntry)(edl, DIFF_EQ, n);
+        if (o != OK) return o;
+        goto emit_suffix;
+    }
+    if (d < 0) {
+        // FindMiddle bailed (d_limit reached): treat as full replace
+        o = X(DIFF, AddEntry)(edl, DIFF_DEL, n);
+        if (o != OK) return o;
+        o = X(DIFF, AddEntry)(edl, DIFF_INS, m);
+        if (o != OK) return o;
+        goto emit_suffix;
+    }
 
     // Validate snake: recompute actual matching length from (x,y)
     // FindMiddle may return incorrect snake length due to algorithm quirks
     {
         i32 valid_len = 0;
         while (x + valid_len < n && y + valid_len < m &&
-               a[0][x + valid_len] == b[0][y + valid_len]) {
+               sa[0][x + valid_len] == sb[0][y + valid_len]) {
             valid_len++;
         }
         len = valid_len;
@@ -129,17 +160,17 @@ static inline ok64 X(DIFF, Recurse)(e32g edl, i32s vf, i32s vb, Tcs a, Tcs b) {
         if (n > m) {
             if (y > 0) { o = X(DIFF, AddEntry)(edl, DIFF_EQ, y); if (o != OK) return o; }
             o = X(DIFF, AddEntry)(edl, DIFF_DEL, 1); if (o != OK) return o;
-            if (len > 0) return X(DIFF, AddEntry)(edl, DIFF_EQ, len);
+            if (len > 0) { o = X(DIFF, AddEntry)(edl, DIFF_EQ, len); if (o != OK) return o; }
         } else {
             if (x > 0) { o = X(DIFF, AddEntry)(edl, DIFF_EQ, x); if (o != OK) return o; }
             o = X(DIFF, AddEntry)(edl, DIFF_INS, 1); if (o != OK) return o;
-            if (len > 0) return X(DIFF, AddEntry)(edl, DIFF_EQ, len);
+            if (len > 0) { o = X(DIFF, AddEntry)(edl, DIFF_EQ, len); if (o != OK) return o; }
         }
-        return OK;
+        goto emit_suffix;
     }
 
-    a_head(Tc, a1, a, x);
-    a_head(Tc, b1, b, y);
+    a_head(Tc, a1, sa, x);
+    a_head(Tc, b1, sb, y);
     o = X(DIFF, Recurse)(edl, vf, vb, a1, b1);
     if (o != OK) return o;
 
@@ -148,9 +179,15 @@ static inline ok64 X(DIFF, Recurse)(e32g edl, i32s vf, i32s vb, Tcs a, Tcs b) {
         if (o != OK) return o;
     }
 
-    a_rest(Tc, a2, a, x + len);
-    a_rest(Tc, b2, b, y + len);
-    return X(DIFF, Recurse)(edl, vf, vb, a2, b2);
+    a_rest(Tc, a2, sa, x + len);
+    a_rest(Tc, b2, sb, y + len);
+    o = X(DIFF, Recurse)(edl, vf, vb, a2, b2);
+    if (o != OK) return o;
+
+emit_suffix:
+    if (suffix > 0)
+        return X(DIFF, AddEntry)(edl, DIFF_EQ, suffix);
+    return OK;
 }
 
 static inline ok64 X(DIFF, s)(e32g edl, i32s work, Tcs a, Tcs b) {
