@@ -55,6 +55,10 @@ add_executable(bast-cli BAST.cli.c)
 target_link_libraries(bast-cli bast abc tree-sitter)
 set_target_properties(bast-cli PROPERTIES OUTPUT_NAME bast)
 
+add_executable(astok-cli astok.cli.c)
+target_link_libraries(astok-cli bast abc tree-sitter)
+set_target_properties(astok-cli PROPERTIES OUTPUT_NAME astok)
+
 add_subdirectory(test)
 add_subdirectory(sm/test)
 
