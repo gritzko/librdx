@@ -17,6 +17,41 @@
 #include "PHPT.h"
 #include "AGDT.h"
 #include "VERT.h"
+#include "TST.h"
+#include "KTT.h"
+#include "SCLT.h"
+#include "SWFT.h"
+#include "DARTT.h"
+#include "ZIGT.h"
+#include "DT.h"
+#include "LUAT.h"
+#include "PRLT.h"
+#include "RT.h"
+#include "ELXT.h"
+#include "ERLT.h"
+#include "NIMT.h"
+#include "NIXT.h"
+#include "VIMT.h"
+#include "YMLT.h"
+#include "TOMLT.h"
+#include "SQLT.h"
+#include "GQLT.h"
+#include "PRTT.h"
+#include "HCLT.h"
+#include "SCSST.h"
+#include "LAXT.h"
+#include "CLJT.h"
+#include "CMKT.h"
+#include "DKFT.h"
+#include "FORT.h"
+#include "FSHT.h"
+#include "GLMT.h"
+#include "GLST.h"
+#include "MAKT.h"
+#include "ODNT.h"
+#include "PWST.h"
+#include "SOLT.h"
+#include "TYST.h"
 
 #include "abc/TEST.h"
 
@@ -61,6 +96,41 @@ FUZZ(u8, TOKfuzz) {
     FUZZ_LEXER(PHPT, PHPTLexer);
     FUZZ_LEXER(AGDT, AGDTLexer);
     FUZZ_LEXER(VERT, VERTLexer);
+    FUZZ_LEXER(TST, TSTLexer);
+    FUZZ_LEXER(KTT, KTTLexer);
+    FUZZ_LEXER(SCLT, SCLTLexer);
+    FUZZ_LEXER(SWFT, SWFTLexer);
+    FUZZ_LEXER(DARTT, DARTTLexer);
+    FUZZ_LEXER(ZIGT, ZIGTLexer);
+    FUZZ_LEXER(DT, DTLexer);
+    FUZZ_LEXER(LUAT, LUATLexer);
+    FUZZ_LEXER(PRLT, PRLTLexer);
+    FUZZ_LEXER(RT, RTLexer);
+    FUZZ_LEXER(ELXT, ELXTLexer);
+    FUZZ_LEXER(ERLT, ERLTLexer);
+    FUZZ_LEXER(NIMT, NIMTLexer);
+    FUZZ_LEXER(NIXT, NIXTLexer);
+    FUZZ_LEXER(VIMT, VIMTLexer);
+    FUZZ_LEXER(YMLT, YMLTLexer);
+    FUZZ_LEXER(TOMLT, TOMLTLexer);
+    FUZZ_LEXER(SQLT, SQLTLexer);
+    FUZZ_LEXER(GQLT, GQLTLexer);
+    FUZZ_LEXER(PRTT, PRTTLexer);
+    FUZZ_LEXER(HCLT, HCLTLexer);
+    FUZZ_LEXER(SCSST, SCSSTLexer);
+    FUZZ_LEXER(LAXT, LAXTLexer);
+    FUZZ_LEXER(CLJT, CLJTLexer);
+    FUZZ_LEXER(CMKT, CMKTLexer);
+    FUZZ_LEXER(DKFT, DKFTLexer);
+    FUZZ_LEXER(FORT, FORTLexer);
+    FUZZ_LEXER(FSHT, FSHTLexer);
+    FUZZ_LEXER(GLMT, GLMTLexer);
+    FUZZ_LEXER(GLST, GLSTLexer);
+    FUZZ_LEXER(MAKT, MAKTLexer);
+    FUZZ_LEXER(ODNT, ODNTLexer);
+    FUZZ_LEXER(PWST, PWSTLexer);
+    FUZZ_LEXER(SOLT, SOLTLexer);
+    FUZZ_LEXER(TYST, TYSTLexer);
 
     #undef FUZZ_LEXER
 

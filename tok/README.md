@@ -10,27 +10,62 @@ but without the tree-sitter dependency (~100KB static lib vs ~10MB).
 
 ## Supported languages
 
-| Module | Language   | Extensions              |
-|--------|-----------|-------------------------|
-| CT     | C         | `.c` `.h` `.rl`         |
-| CPPT   | C++       | `.cpp` `.cc` `.cxx` `.hpp` `.hh` `.hxx` |
-| GOT    | Go        | `.go`                   |
-| PYT    | Python    | `.py`                   |
-| JST    | JavaScript| `.js` `.jsx` `.mjs`     |
-| RST    | Rust      | `.rs`                   |
-| JAT    | Java      | `.java`                 |
-| CST    | C#        | `.cs`                   |
-| HTMT   | HTML      | `.html` `.htm`          |
-| CSST   | CSS       | `.css`                  |
-| JSONT  | JSON      | `.json`                 |
-| SHT    | Bash      | `.sh` `.bash`           |
-| RBT    | Ruby      | `.rb`                   |
-| HST    | Haskell   | `.hs`                   |
-| MLT    | OCaml     | `.ml` `.mli`            |
-| JLT    | Julia     | `.jl`                   |
-| PHPT   | PHP       | `.php`                  |
-| AGDT   | Agda      | `.agda`                 |
-| VERT   | Verilog   | `.v` `.sv`              |
+| Module | Language     | Extensions              |
+|--------|-------------|-------------------------|
+| CT     | C           | `.c` `.h` `.rl`         |
+| CPPT   | C++         | `.cpp` `.cc` `.cxx` `.hpp` `.hh` `.hxx` |
+| GOT    | Go          | `.go`                   |
+| PYT    | Python      | `.py`                   |
+| JST    | JavaScript  | `.js` `.jsx` `.mjs`     |
+| TST    | TypeScript  | `.ts` `.tsx`            |
+| RST    | Rust        | `.rs`                   |
+| JAT    | Java        | `.java`                 |
+| KTT    | Kotlin      | `.kt` `.kts`            |
+| SCLT   | Scala       | `.scala` `.sc`          |
+| CST    | C#          | `.cs`                   |
+| FSHT   | F#          | `.fs` `.fsi` `.fsx`     |
+| SWFT   | Swift       | `.swift`                |
+| DARTT  | Dart        | `.dart`                 |
+| DT     | D           | `.d`                    |
+| ZIGT   | Zig         | `.zig`                  |
+| HTMT   | HTML        | `.html` `.htm`          |
+| CSST   | CSS         | `.css`                  |
+| SCSST  | SCSS        | `.scss`                 |
+| JSONT  | JSON        | `.json`                 |
+| YMLT   | YAML        | `.yml` `.yaml`          |
+| TOMLT  | TOML        | `.toml`                 |
+| SHT    | Bash        | `.sh` `.bash`           |
+| RBT    | Ruby        | `.rb`                   |
+| LUAT   | Lua         | `.lua`                  |
+| PRLT   | Perl        | `.pl` `.pm`             |
+| RT     | R           | `.r` `.R`               |
+| ELXT   | Elixir      | `.ex` `.exs`            |
+| ERLT   | Erlang      | `.erl` `.hrl`           |
+| HST    | Haskell     | `.hs`                   |
+| MLT    | OCaml       | `.ml` `.mli`            |
+| JLT    | Julia       | `.jl`                   |
+| NIMT   | Nim         | `.nim` `.nims`          |
+| PHPT   | PHP         | `.php`                  |
+| CLJT   | Clojure     | `.clj` `.cljs` `.cljc` `.edn` |
+| NIXT   | Nix         | `.nix`                  |
+| SQLT   | SQL         | `.sql`                  |
+| GQLT   | GraphQL     | `.graphql` `.gql`       |
+| PRTT   | Protobuf    | `.proto`                |
+| HCLT   | HCL/Terraform | `.hcl` `.tf`          |
+| LAXT   | LaTeX       | `.tex` `.sty` `.cls`    |
+| VIMT   | VimL        | `.vim`                  |
+| CMKT   | CMake       | `.cmake`                |
+| DKFT   | Dockerfile  | `.dockerfile`           |
+| MAKT   | Makefile    | `.mk`                   |
+| FORT   | Fortran     | `.f90` `.f95` `.f03` `.f08` |
+| GLST   | GLSL        | `.glsl` `.vert` `.frag` `.geom` `.comp` |
+| GLMT   | Gleam       | `.gleam`                |
+| ODNT   | Odin        | `.odin`                 |
+| PWST   | PowerShell  | `.ps1` `.psm1` `.psd1`  |
+| SOLT   | Solidity    | `.sol`                  |
+| TYST   | Typst       | `.typ`                  |
+| AGDT   | Agda        | `.agda`                 |
+| VERT   | Verilog     | `.v` `.sv`              |
 
 ## Usage
 
