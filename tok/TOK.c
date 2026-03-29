@@ -57,6 +57,110 @@
 #include "TXTT.h"
 #include "abc/PRO.h"
 
+typedef ok64 (*TOKfn)(TOKstate *state);
+
+typedef struct {
+    const char *ext;
+    TOKfn lexer;
+} TOKentry;
+
+static const TOKentry TOK_TABLE[] = {
+    {"c",          (TOKfn)CTLexer},
+    {"h",          (TOKfn)CTLexer},
+    {"cpp",        (TOKfn)CPPTLexer},
+    {"cc",         (TOKfn)CPPTLexer},
+    {"cxx",        (TOKfn)CPPTLexer},
+    {"hpp",        (TOKfn)CPPTLexer},
+    {"hh",         (TOKfn)CPPTLexer},
+    {"hxx",        (TOKfn)CPPTLexer},
+    {"go",         (TOKfn)GOTLexer},
+    {"py",         (TOKfn)PYTLexer},
+    {"js",         (TOKfn)JSTLexer},
+    {"jsx",        (TOKfn)JSTLexer},
+    {"mjs",        (TOKfn)JSTLexer},
+    {"ts",         (TOKfn)TSTLexer},
+    {"tsx",        (TOKfn)TSTLexer},
+    {"rs",         (TOKfn)RSTLexer},
+    {"java",       (TOKfn)JATLexer},
+    {"kt",         (TOKfn)KTTLexer},
+    {"kts",        (TOKfn)KTTLexer},
+    {"scala",      (TOKfn)SCLTLexer},
+    {"sc",         (TOKfn)SCLTLexer},
+    {"cs",         (TOKfn)CSTLexer},
+    {"fs",         (TOKfn)FSHTLexer},
+    {"fsi",        (TOKfn)FSHTLexer},
+    {"fsx",        (TOKfn)FSHTLexer},
+    {"swift",      (TOKfn)SWFTLexer},
+    {"dart",       (TOKfn)DARTTLexer},
+    {"d",          (TOKfn)DTLexer},
+    {"zig",        (TOKfn)ZIGTLexer},
+    {"html",       (TOKfn)HTMTLexer},
+    {"htm",        (TOKfn)HTMTLexer},
+    {"css",        (TOKfn)CSSTLexer},
+    {"scss",       (TOKfn)SCSSTLexer},
+    {"json",       (TOKfn)JSONTLexer},
+    {"yml",        (TOKfn)YMLTLexer},
+    {"yaml",       (TOKfn)YMLTLexer},
+    {"toml",       (TOKfn)TOMLTLexer},
+    {"sh",         (TOKfn)SHTLexer},
+    {"bash",       (TOKfn)SHTLexer},
+    {"rb",         (TOKfn)RBTLexer},
+    {"lua",        (TOKfn)LUATLexer},
+    {"pl",         (TOKfn)PRLTLexer},
+    {"pm",         (TOKfn)PRLTLexer},
+    {"r",          (TOKfn)RTLexer},
+    {"R",          (TOKfn)RTLexer},
+    {"ex",         (TOKfn)ELXTLexer},
+    {"exs",        (TOKfn)ELXTLexer},
+    {"erl",        (TOKfn)ERLTLexer},
+    {"hrl",        (TOKfn)ERLTLexer},
+    {"hs",         (TOKfn)HSTLexer},
+    {"ml",         (TOKfn)MLTLexer},
+    {"mli",        (TOKfn)MLTLexer},
+    {"jl",         (TOKfn)JLTLexer},
+    {"nim",        (TOKfn)NIMTLexer},
+    {"nims",       (TOKfn)NIMTLexer},
+    {"php",        (TOKfn)PHPTLexer},
+    {"clj",        (TOKfn)CLJTLexer},
+    {"cljs",       (TOKfn)CLJTLexer},
+    {"cljc",       (TOKfn)CLJTLexer},
+    {"edn",        (TOKfn)CLJTLexer},
+    {"nix",        (TOKfn)NIXTLexer},
+    {"sql",        (TOKfn)SQLTLexer},
+    {"graphql",    (TOKfn)GQLTLexer},
+    {"gql",        (TOKfn)GQLTLexer},
+    {"proto",      (TOKfn)PRTTLexer},
+    {"hcl",        (TOKfn)HCLTLexer},
+    {"tf",         (TOKfn)HCLTLexer},
+    {"tex",        (TOKfn)LAXTLexer},
+    {"sty",        (TOKfn)LAXTLexer},
+    {"cls",        (TOKfn)LAXTLexer},
+    {"vim",        (TOKfn)VIMTLexer},
+    {"cmake",      (TOKfn)CMKTLexer},
+    {"dockerfile", (TOKfn)DKFTLexer},
+    {"mk",         (TOKfn)MAKTLexer},
+    {"f90",        (TOKfn)FORTLexer},
+    {"f95",        (TOKfn)FORTLexer},
+    {"f03",        (TOKfn)FORTLexer},
+    {"f08",        (TOKfn)FORTLexer},
+    {"glsl",       (TOKfn)GLSTLexer},
+    {"vert",       (TOKfn)GLSTLexer},
+    {"frag",       (TOKfn)GLSTLexer},
+    {"geom",       (TOKfn)GLSTLexer},
+    {"comp",       (TOKfn)GLSTLexer},
+    {"gleam",      (TOKfn)GLMTLexer},
+    {"odin",       (TOKfn)ODNTLexer},
+    {"ps1",        (TOKfn)PWSTLexer},
+    {"psm1",       (TOKfn)PWSTLexer},
+    {"psd1",       (TOKfn)PWSTLexer},
+    {"sol",        (TOKfn)SOLTLexer},
+    {"typ",        (TOKfn)TYSTLexer},
+    {"agda",       (TOKfn)AGDTLexer},
+    {"v",          (TOKfn)VERTLexer},
+    {"sv",         (TOKfn)VERTLexer},
+    {NULL,         NULL},
+};
+
 static b8 TOKExtMatch(u8csc ext, const char *pat) {
     u64 len = u8csLen(ext);
     u64 plen = 0;
@@ -65,299 +169,14 @@ static b8 TOKExtMatch(u8csc ext, const char *pat) {
     return __builtin_memcmp(ext[0], pat, len) == 0;
 }
 
-// Dispatch macro: declare local state, call lexer, update position
-#define TOK_DISPATCH(TYPE, LEXER, ...) do { \
-    TYPE##state st = { \
-        .data = {state->data[0], state->data[1]}, \
-        .cb = state->cb, \
-        .ctx = state->ctx, \
-    }; \
-    call(LEXER, &st); \
-    state->data[0] = st.data[0]; \
-    done; \
-} while(0)
-
 ok64 TOKLexer(TOKstate *state, u8csc ext) {
     sane($ok(state->data) && state != NULL);
-
-    // C/C++
-    if (TOKExtMatch(ext, "c") || TOKExtMatch(ext, "h")) {
-        TOK_DISPATCH(CT, CTLexer);
+    for (const TOKentry *e = TOK_TABLE; e->ext != NULL; ++e) {
+        if (TOKExtMatch(ext, e->ext)) {
+            call(e->lexer, state);
+            done;
+        }
     }
-    if (TOKExtMatch(ext, "cpp") || TOKExtMatch(ext, "cc") ||
-        TOKExtMatch(ext, "cxx") || TOKExtMatch(ext, "hpp") ||
-        TOKExtMatch(ext, "hh") || TOKExtMatch(ext, "hxx")) {
-        TOK_DISPATCH(CPPT, CPPTLexer);
-    }
-
-    // Go
-    if (TOKExtMatch(ext, "go")) {
-        TOK_DISPATCH(GOT, GOTLexer);
-    }
-
-    // Python
-    if (TOKExtMatch(ext, "py")) {
-        TOK_DISPATCH(PYT, PYTLexer);
-    }
-
-    // JavaScript
-    if (TOKExtMatch(ext, "js") || TOKExtMatch(ext, "jsx") ||
-        TOKExtMatch(ext, "mjs")) {
-        TOK_DISPATCH(JST, JSTLexer);
-    }
-
-    // TypeScript
-    if (TOKExtMatch(ext, "ts") || TOKExtMatch(ext, "tsx")) {
-        TOK_DISPATCH(TST, TSTLexer);
-    }
-
-    // Rust
-    if (TOKExtMatch(ext, "rs")) {
-        TOK_DISPATCH(RST, RSTLexer);
-    }
-
-    // Java
-    if (TOKExtMatch(ext, "java")) {
-        TOK_DISPATCH(JAT, JATLexer);
-    }
-
-    // Kotlin
-    if (TOKExtMatch(ext, "kt") || TOKExtMatch(ext, "kts")) {
-        TOK_DISPATCH(KTT, KTTLexer);
-    }
-
-    // Scala
-    if (TOKExtMatch(ext, "scala") || TOKExtMatch(ext, "sc")) {
-        TOK_DISPATCH(SCLT, SCLTLexer);
-    }
-
-    // C#
-    if (TOKExtMatch(ext, "cs")) {
-        TOK_DISPATCH(CST, CSTLexer);
-    }
-
-    // F#
-    if (TOKExtMatch(ext, "fs") || TOKExtMatch(ext, "fsi") ||
-        TOKExtMatch(ext, "fsx")) {
-        TOK_DISPATCH(FSHT, FSHTLexer);
-    }
-
-    // Swift
-    if (TOKExtMatch(ext, "swift")) {
-        TOK_DISPATCH(SWFT, SWFTLexer);
-    }
-
-    // Dart
-    if (TOKExtMatch(ext, "dart")) {
-        TOK_DISPATCH(DARTT, DARTTLexer);
-    }
-
-    // D
-    if (TOKExtMatch(ext, "d")) {
-        TOK_DISPATCH(DT, DTLexer);
-    }
-
-    // Zig
-    if (TOKExtMatch(ext, "zig")) {
-        TOK_DISPATCH(ZIGT, ZIGTLexer);
-    }
-
-    // HTML
-    if (TOKExtMatch(ext, "html") || TOKExtMatch(ext, "htm")) {
-        TOK_DISPATCH(HTMT, HTMTLexer);
-    }
-
-    // CSS
-    if (TOKExtMatch(ext, "css")) {
-        TOK_DISPATCH(CSST, CSSTLexer);
-    }
-
-    // SCSS
-    if (TOKExtMatch(ext, "scss")) {
-        TOK_DISPATCH(SCSST, SCSSTLexer);
-    }
-
-    // JSON
-    if (TOKExtMatch(ext, "json")) {
-        TOK_DISPATCH(JSONT, JSONTLexer);
-    }
-
-    // YAML
-    if (TOKExtMatch(ext, "yml") || TOKExtMatch(ext, "yaml")) {
-        TOK_DISPATCH(YMLT, YMLTLexer);
-    }
-
-    // TOML
-    if (TOKExtMatch(ext, "toml")) {
-        TOK_DISPATCH(TOMLT, TOMLTLexer);
-    }
-
-    // Bash
-    if (TOKExtMatch(ext, "sh") || TOKExtMatch(ext, "bash")) {
-        TOK_DISPATCH(SHT, SHTLexer);
-    }
-
-    // Ruby
-    if (TOKExtMatch(ext, "rb")) {
-        TOK_DISPATCH(RBT, RBTLexer);
-    }
-
-    // Lua
-    if (TOKExtMatch(ext, "lua")) {
-        TOK_DISPATCH(LUAT, LUATLexer);
-    }
-
-    // Perl
-    if (TOKExtMatch(ext, "pl") || TOKExtMatch(ext, "pm")) {
-        TOK_DISPATCH(PRLT, PRLTLexer);
-    }
-
-    // R
-    if (TOKExtMatch(ext, "r") || TOKExtMatch(ext, "R")) {
-        TOK_DISPATCH(RT, RTLexer);
-    }
-
-    // Elixir
-    if (TOKExtMatch(ext, "ex") || TOKExtMatch(ext, "exs")) {
-        TOK_DISPATCH(ELXT, ELXTLexer);
-    }
-
-    // Erlang
-    if (TOKExtMatch(ext, "erl") || TOKExtMatch(ext, "hrl")) {
-        TOK_DISPATCH(ERLT, ERLTLexer);
-    }
-
-    // Haskell
-    if (TOKExtMatch(ext, "hs")) {
-        TOK_DISPATCH(HST, HSTLexer);
-    }
-
-    // OCaml
-    if (TOKExtMatch(ext, "ml") || TOKExtMatch(ext, "mli")) {
-        TOK_DISPATCH(MLT, MLTLexer);
-    }
-
-    // Julia
-    if (TOKExtMatch(ext, "jl")) {
-        TOK_DISPATCH(JLT, JLTLexer);
-    }
-
-    // Nim
-    if (TOKExtMatch(ext, "nim") || TOKExtMatch(ext, "nims")) {
-        TOK_DISPATCH(NIMT, NIMTLexer);
-    }
-
-    // PHP
-    if (TOKExtMatch(ext, "php")) {
-        TOK_DISPATCH(PHPT, PHPTLexer);
-    }
-
-    // Clojure
-    if (TOKExtMatch(ext, "clj") || TOKExtMatch(ext, "cljs") ||
-        TOKExtMatch(ext, "cljc") || TOKExtMatch(ext, "edn")) {
-        TOK_DISPATCH(CLJT, CLJTLexer);
-    }
-
-    // Nix
-    if (TOKExtMatch(ext, "nix")) {
-        TOK_DISPATCH(NIXT, NIXTLexer);
-    }
-
-    // SQL
-    if (TOKExtMatch(ext, "sql")) {
-        TOK_DISPATCH(SQLT, SQLTLexer);
-    }
-
-    // GraphQL
-    if (TOKExtMatch(ext, "graphql") || TOKExtMatch(ext, "gql")) {
-        TOK_DISPATCH(GQLT, GQLTLexer);
-    }
-
-    // Protobuf
-    if (TOKExtMatch(ext, "proto")) {
-        TOK_DISPATCH(PRTT, PRTTLexer);
-    }
-
-    // HCL/Terraform
-    if (TOKExtMatch(ext, "hcl") || TOKExtMatch(ext, "tf")) {
-        TOK_DISPATCH(HCLT, HCLTLexer);
-    }
-
-    // LaTeX
-    if (TOKExtMatch(ext, "tex") || TOKExtMatch(ext, "sty") ||
-        TOKExtMatch(ext, "cls")) {
-        TOK_DISPATCH(LAXT, LAXTLexer);
-    }
-
-    // VimL
-    if (TOKExtMatch(ext, "vim")) {
-        TOK_DISPATCH(VIMT, VIMTLexer);
-    }
-
-    // CMake
-    if (TOKExtMatch(ext, "cmake")) {
-        TOK_DISPATCH(CMKT, CMKTLexer);
-    }
-
-    // Dockerfile
-    if (TOKExtMatch(ext, "dockerfile")) {
-        TOK_DISPATCH(DKFT, DKFTLexer);
-    }
-
-    // Makefile
-    if (TOKExtMatch(ext, "mk")) {
-        TOK_DISPATCH(MAKT, MAKTLexer);
-    }
-
-    // Fortran
-    if (TOKExtMatch(ext, "f90") || TOKExtMatch(ext, "f95") ||
-        TOKExtMatch(ext, "f03") || TOKExtMatch(ext, "f08")) {
-        TOK_DISPATCH(FORT, FORTLexer);
-    }
-
-    // GLSL
-    if (TOKExtMatch(ext, "glsl") || TOKExtMatch(ext, "vert") ||
-        TOKExtMatch(ext, "frag") || TOKExtMatch(ext, "geom") ||
-        TOKExtMatch(ext, "comp")) {
-        TOK_DISPATCH(GLST, GLSTLexer);
-    }
-
-    // Gleam
-    if (TOKExtMatch(ext, "gleam")) {
-        TOK_DISPATCH(GLMT, GLMTLexer);
-    }
-
-    // Odin
-    if (TOKExtMatch(ext, "odin")) {
-        TOK_DISPATCH(ODNT, ODNTLexer);
-    }
-
-    // PowerShell
-    if (TOKExtMatch(ext, "ps1") || TOKExtMatch(ext, "psm1") ||
-        TOKExtMatch(ext, "psd1")) {
-        TOK_DISPATCH(PWST, PWSTLexer);
-    }
-
-    // Solidity
-    if (TOKExtMatch(ext, "sol")) {
-        TOK_DISPATCH(SOLT, SOLTLexer);
-    }
-
-    // Typst
-    if (TOKExtMatch(ext, "typ")) {
-        TOK_DISPATCH(TYST, TYSTLexer);
-    }
-
-    // Agda
-    if (TOKExtMatch(ext, "agda")) {
-        TOK_DISPATCH(AGDT, AGDTLexer);
-    }
-
-    // Verilog
-    if (TOKExtMatch(ext, "v") || TOKExtMatch(ext, "sv")) {
-        TOK_DISPATCH(VERT, VERTLexer);
-    }
-
-    // Unknown extension: fall back to plain text
-    TOK_DISPATCH(TXTT, TXTTLexer);
+    call((TOKfn)TXTTLexer, state);
+    done;
 }
