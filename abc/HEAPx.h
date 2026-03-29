@@ -80,6 +80,7 @@ fun ok64 X(HEAP, PopZ)(T *v, X(, bp) buf, X(, z) z) {
     X(, mv)(v, $head(data));
     X(, Swap)($head(data), $last(data));
     --$term(data);
+    if ($empty(data)) return OK;
     return X(, sDownZ)(data, z);
 }
 

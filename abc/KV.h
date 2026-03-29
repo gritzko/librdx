@@ -44,4 +44,6 @@ fun int kv64cmp(const kv64 *a, const kv64 *b) {
 #include "Bx.h"
 #undef X
 
+fun b8 kv64Z(kv64cp a, kv64cp b) { return a->key < b->key; }
+
 #endif

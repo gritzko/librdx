@@ -85,6 +85,7 @@ start_fuzz rdx SLIK
 #start_fuzz cc TXT
 start_fuzz cc JSON
 start_fuzz ast CSS
+start_fuzz tok JOIN
 
 # Wait for all and collect results
 FAILED=0
