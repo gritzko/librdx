@@ -187,6 +187,9 @@ list(APPEND TOK_SOURCES
 list(APPEND TOK_HEADERS JOIN.h)
 list(APPEND TOK_SOURCES JOIN.c)
 
+list(APPEND TOK_HEADERS BRCT.h)
+list(APPEND TOK_SOURCES BRCT.c)
+
 add_library(tok STATIC ${TOK_HEADERS} ${TOK_SOURCES})
 target_link_libraries(tok abc-core)
 
