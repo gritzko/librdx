@@ -35,10 +35,10 @@ FUZZ(u8, DIFFfuzz) {
     if (nl) {
         a_head(u8c, ah, input, nl - input[0]);
         a_rest(u8c, br, input, nl + 1 - input[0]);
-        a[0] = ah[0]; a[1] = ah[1];
-        b[0] = br[0]; b[1] = br[1];
+        $mv(a, ah);
+        $mv(b, br);
     } else {
-        a[0] = input[0]; a[1] = input[1];
+        $mv(a, input);
         b[0] = input[1]; b[1] = input[1];
     }
 

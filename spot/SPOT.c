@@ -21,39 +21,6 @@ static ok64 SPOTTokCB(u8 tag, u8cs tok, void *ctx) {
     return OK;
 }
 
-// --- Plaintext fallback tokenizer ---
-// Classifies bytes into whitespace ('S'), punctuation ('P'), word ('S')
-
-static ok64 SPOTTxtLexer(TOKcb cb, void *ctx, u8csc data) {
-    sane(cb != NULL);
-    u8cp p = data[0];
-    u8cp end = data[1];
-    while (p < end) {
-        u8cp start = p;
-        u8 c = *p;
-        if (c == ' ' || c == '\t' || c == '\n' || c == '\r') {
-            while (p < end && (*p == ' ' || *p == '\t' ||
-                               *p == '\n' || *p == '\r'))
-                p++;
-            u8cs tok = {start, p};
-            call(cb, 'S', tok, ctx);
-        } else if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
-                   (c >= '0' && c <= '9') || c == '_') {
-            while (p < end &&
-                   ((*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z') ||
-                    (*p >= '0' && *p <= '9') || *p == '_'))
-                p++;
-            u8cs tok = {start, p};
-            call(cb, 'S', tok, ctx);
-        } else {
-            p++;
-            u8cs tok = {start, p};
-            call(cb, 'P', tok, ctx);
-        }
-    }
-    done;
-}
-
 // --- SPOTTokenize ---
 
 ok64 SPOTTokenize(u32bp toks, u8csc source, u8csc ext) {
@@ -68,8 +35,7 @@ ok64 SPOTTokenize(u32bp toks, u8csc source, u8csc ext) {
         ext_nodot[0] = ext[0] + 1;
         ext_nodot[1] = ext[1];
     } else {
-        ext_nodot[0] = ext[0];
-        ext_nodot[1] = ext[1];
+        $mv(ext_nodot, ext);
     }
 
     // Try tok/ lexer
@@ -78,13 +44,7 @@ ok64 SPOTTokenize(u32bp toks, u8csc source, u8csc ext) {
         .cb = SPOTTokCB,
         .ctx = &ctx,
     };
-    ok64 o = TOKLexer(&ts, ext_nodot);
-    if (o == TOKBAD) {
-        // Unknown extension — use plaintext fallback
-        call(SPOTTxtLexer, SPOTTokCB, &ctx, source);
-    } else if (o != OK) {
-        fail(o);
-    }
+    call(TOKLexer, &ts, ext_nodot);
     done;
 }
 

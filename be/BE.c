@@ -1435,8 +1435,7 @@ static ok64 BEPostFile(BEp be, ROCKbatchp wb, ron60 stamp,
     } else {
         call(FILEMapRO, &mapbuf, filepath);
         a_dup(u8c, source, u8bDataC(mapbuf));
-        file_content[0] = source[0];
-        file_content[1] = source[1];
+        $mv(file_content, source);
         o = BASTParse(nbuf, NULL, source, ext);
         if (o != OK) {
             BEPostReport(rel, codec, "SKIP", DARK_YELLOW);
@@ -1456,8 +1455,7 @@ static ok64 BEPostFile(BEp be, ROCKbatchp wb, ron60 stamp,
     a_pad(u8, wq, 128);
     if (!is_base) {
         call(BEQueryBuild, wq_idle, stamp, VEROrigin(&be->branches[0]));
-        query[0] = wq_datac[0];
-        query[1] = wq_datac[1];
+        $mv(query, wq_datac);
     }
 
     // Determine content: full BASON or diff delta

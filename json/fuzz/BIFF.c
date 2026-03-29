@@ -82,8 +82,7 @@ static ok64 BIFFFuzzNoDupKeys(u64bp stk, u8csc data,
     while (BASONDrain(stk, data, &ct, ck, cv) == OK) {
         if (prev_key[0] != NULL && $cmp(prev_key, ck) >= 0)
             return BADARG;
-        prev_key[0] = ck[0];
-        prev_key[1] = ck[1];
+        $mv(prev_key, ck);
         ok64 o = BIFFFuzzNoDupKeys(stk, data, ct, cv);
         if (o != OK) return o;
     }

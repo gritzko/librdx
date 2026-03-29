@@ -26,6 +26,7 @@ static void capo_abrt_handler(int sig) {
 #include "abc/FILE.h"
 #include "abc/PRO.h"
 #include "abc/SORT.h"
+#include "spot/NEIL.h"
 #include "spot/SPOT.h"
 #include "tok/JOIN.h"
 
@@ -54,8 +55,7 @@ static b8 CAPOKnownExtReal(u8csc ext) {
         ext_nodot[0] = ext[0] + 1;
         ext_nodot[1] = ext[1];
     } else {
-        ext_nodot[0] = ext[0];
-        ext_nodot[1] = ext[1];
+        $mv(ext_nodot, ext);
     }
     u8 probe = ' ';
     TOKstate ts = {
@@ -79,8 +79,7 @@ static void CAPOCodecName(u8csp codec, u8csc ext) {
         codec[0] = ext[0] + 1;
         codec[1] = ext[1];
     } else {
-        codec[0] = ext[0];
-        codec[1] = ext[1];
+        $mv(codec, ext);
     }
 }
 
@@ -1027,7 +1026,7 @@ ok64 CAPOGrep(u8csc substring, u8csc ext, u8csc reporoot, u32 ctx_lines) {
 
     // Language filter: match file extension literally
     u8cs target_ext = {};
-    if (!$empty(ext)) { target_ext[0] = ext[0]; target_ext[1] = ext[1]; }
+    if (!$empty(ext)) { $mv(target_ext, ext); }
 
     // --- Trigram filtering ---
     a_pad(u8, capodir, FILE_PATH_MAX_LEN);
@@ -1472,10 +1471,16 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path) {
         e32 *edl_buf = (e32 *)(workp + wsize);
         e32g edl = {edl_buf, edl_buf + emax, edl_buf};
 
+        CAPOJoinToks(old_ts, &old_f);
+        CAPOJoinToks(new_ts, &new_f);
+
         u64cs oh = {old_f.hashes[1], old_f.hashes[2]};
         u64cs nh = {new_f.hashes[1], new_f.hashes[2]};
         o = DIFFu64s(edl, ws, oh, nh);
         if (o != OK) { u8bFree(mem); goto diff_cleanup; }
+
+        // Semantic cleanup: remove false short equalities
+        NEILCleanup(edl, old_ts, new_ts, old_data, new_data);
 
         // Pager
         FILE *pager = NULL;
@@ -1504,8 +1509,6 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path) {
 
         // Walk EDL, emit colored output with context trimming.
         // Build u32 visible-line intervals, then emit per-token.
-        CAPOJoinToks(old_ts, &old_f);
-        CAPOJoinToks(new_ts, &new_f);
 
         #define CTX_LINES 3
 
@@ -1574,17 +1577,17 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path) {
         }
 
         // Phase 2: emit with per-token line-level trimming.
+        // Groups consecutive DEL/INS into change regions:
+        // all deletions first, then all insertions.
         u64 oi = 0, ni = 0;
         u32 cur_line = 0, cur_iv = 0;
         b8 in_gap = YES, first_hunk = YES;
 
-        for (u32 k = 0; k < nedl; k++) {
+        for (u32 k = 0; k < nedl; ) {
             e32 e = edl[2][k];
-            u32 len = DIFF_LEN(e);
-            switch (DIFF_OP(e)) {
-            case DIFF_EQ:
+            if (DIFF_OP(e) == DIFF_EQ) {
+                u32 len = DIFF_LEN(e);
                 for (u32 j = 0; j < len; j++) {
-                    // Advance past exhausted intervals
                     while (cur_iv < nvis &&
                            vis[cur_iv * 2 + 1] < cur_line)
                         cur_iv++;
@@ -1610,37 +1613,212 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path) {
                         if (*cp == '\n') cur_line++;
                     oi++; ni++;
                 }
-                break;
-            case DIFF_DEL:
-                if (in_gap) {
-                    if (!first_hunk) fprintf(stdout, "\n--\n");
-                    first_hunk = NO;
-                    in_gap = NO;
+                k++;
+            } else {
+                // Change region: scan to end of consecutive DEL/INS
+                u32 kend = k;
+                while (kend < nedl && DIFF_OP(edl[2][kend]) != DIFF_EQ)
+                    kend++;
+
+                // Count total DEL and INS tokens in this region
+                u32 del_total = 0, ins_total = 0;
+                b8 ws_only = YES;
+                for (u32 kk = k; kk < kend; kk++) {
+                    u32 klen = DIFF_LEN(edl[2][kk]);
+                    if (DIFF_OP(edl[2][kk]) == DIFF_DEL) {
+                        del_total += klen;
+                        for (u32 j = 0; j < klen && ws_only; j++)
+                            if (!NEILIsWS(old_ts, old_f.data[0],
+                                          oi + del_total - klen + j))
+                                ws_only = NO;
+                    } else {
+                        ins_total += klen;
+                        for (u32 j = 0; j < klen && ws_only; j++)
+                            if (!NEILIsWS(new_ts, new_f.data[0],
+                                          ni + ins_total - klen + j))
+                                ws_only = NO;
+                    }
                 }
-                for (u32 j = 0; j < len; j++) {
-                    CAPOEmitHili(old_ts, old_f.data[0], (int)oi,
-                                 TOK_TAG(old_ts[0][oi]),
-                                 CAPO_COLOR ? 217 : 0);
-                    oi++;
+
+                // Whitespace-only changes: emit new side as EQ context
+                if (ws_only && ins_total > 0) {
+                    for (u32 j = 0; j < ins_total; j++) {
+                        while (cur_iv < nvis &&
+                               vis[cur_iv * 2 + 1] < cur_line)
+                            cur_iv++;
+                        b8 show = (vis == NULL) ||
+                            (cur_iv < nvis &&
+                             cur_line >= vis[cur_iv * 2] &&
+                             cur_line <= vis[cur_iv * 2 + 1]);
+                        if (show) {
+                            if (in_gap) {
+                                if (!first_hunk)
+                                    fprintf(stdout, "\n--\n");
+                                first_hunk = NO;
+                                in_gap = NO;
+                            }
+                            CAPOEmitHili(new_ts, new_f.data[0],
+                                         (int)(ni + j),
+                                         TOK_TAG(new_ts[0][ni + j]), 0);
+                        } else {
+                            in_gap = YES;
+                        }
+                        u8cs v = {};
+                        TOK_VAL(v, new_ts, new_f.data[0],
+                                (int)(ni + j));
+                        $for(u8c, cp, v)
+                            if (*cp == '\n') cur_line++;
+                    }
+                    oi += del_total;
+                    ni += ins_total;
+                    k = kend;
+                    continue;
                 }
-                break;
-            case DIFF_INS:
-                if (in_gap) {
-                    if (!first_hunk) fprintf(stdout, "\n--\n");
-                    first_hunk = NO;
-                    in_gap = NO;
+
+                // Extract common prefix: compare old/new token
+                // source bytes to find misaligned EQ tokens.
+                u32 prefix = 0;
+                {
+                    u32 lim = (del_total < ins_total)
+                              ? del_total : ins_total;
+                    u64 ti = oi, tj = ni;
+                    while (prefix < lim) {
+                        u8cs ov = {}, nv = {};
+                        TOK_VAL(ov, old_ts, old_f.data[0], (int)ti);
+                        TOK_VAL(nv, new_ts, new_f.data[0], (int)tj);
+                        if ($len(ov) != $len(nv)) break;
+                        if (memcmp(ov[0], nv[0], (size_t)$len(ov)))
+                            break;
+                        prefix++; ti++; tj++;
+                    }
                 }
-                for (u32 j = 0; j < len; j++) {
-                    CAPOEmitHili(new_ts, new_f.data[0], (int)ni,
-                                 TOK_TAG(new_ts[0][ni]),
-                                 CAPO_COLOR ? 157 : 0);
+
+                // Extract common suffix
+                u32 suffix = 0;
+                {
+                    u32 lim = (del_total < ins_total)
+                              ? del_total : ins_total;
+                    lim -= prefix;
+                    u64 ti = oi + del_total - 1;
+                    u64 tj = ni + ins_total - 1;
+                    while (suffix < lim) {
+                        u8cs ov = {}, nv = {};
+                        TOK_VAL(ov, old_ts, old_f.data[0], (int)ti);
+                        TOK_VAL(nv, new_ts, new_f.data[0], (int)tj);
+                        if ($len(ov) != $len(nv)) break;
+                        if (memcmp(ov[0], nv[0], (size_t)$len(ov)))
+                            break;
+                        suffix++; ti--; tj--;
+                    }
+                }
+
+                // Save base positions before prefix extraction
+                u64 base_oi = oi, base_ni = ni;
+
+                // Emit common prefix as EQ context
+                for (u32 j = 0; j < prefix; j++) {
+                    while (cur_iv < nvis &&
+                           vis[cur_iv * 2 + 1] < cur_line)
+                        cur_iv++;
+                    b8 show = (vis == NULL) ||
+                        (cur_iv < nvis &&
+                         cur_line >= vis[cur_iv * 2] &&
+                         cur_line <= vis[cur_iv * 2 + 1]);
+                    if (show) {
+                        if (in_gap) {
+                            if (!first_hunk)
+                                fprintf(stdout, "\n--\n");
+                            first_hunk = NO;
+                            in_gap = NO;
+                        }
+                        CAPOEmitHili(new_ts, new_f.data[0],
+                                     (int)(base_ni + j),
+                                     TOK_TAG(new_ts[0][base_ni + j]),
+                                     0);
+                    } else {
+                        in_gap = YES;
+                    }
                     u8cs v = {};
-                    TOK_VAL(v, new_ts, new_f.data[0], (int)ni);
+                    TOK_VAL(v, new_ts, new_f.data[0],
+                            (int)(base_ni + j));
                     $for(u8c, cp, v)
                         if (*cp == '\n') cur_line++;
-                    ni++;
                 }
-                break;
+
+                if (in_gap) {
+                    if (!first_hunk) fprintf(stdout, "\n--\n");
+                    first_hunk = NO;
+                    in_gap = NO;
+                }
+
+                // Emit DEL tokens (excluding prefix/suffix)
+                u64 toi = base_oi;
+                for (u32 kk = k; kk < kend; kk++) {
+                    if (DIFF_OP(edl[2][kk]) == DIFF_DEL) {
+                        u32 dlen = DIFF_LEN(edl[2][kk]);
+                        for (u32 j = 0; j < dlen; j++) {
+                            u32 pos = (u32)(toi - base_oi);
+                            if (pos >= prefix &&
+                                pos < del_total - suffix)
+                                CAPOEmitHili(old_ts, old_f.data[0],
+                                         (int)toi,
+                                         TOK_TAG(old_ts[0][toi]),
+                                         CAPO_COLOR ? 217 : 0);
+                            toi++;
+                        }
+                    }
+                }
+
+                // Emit INS tokens (excluding prefix/suffix)
+                u64 tni = base_ni;
+                for (u32 kk = k; kk < kend; kk++) {
+                    if (DIFF_OP(edl[2][kk]) == DIFF_INS) {
+                        u32 ilen = DIFF_LEN(edl[2][kk]);
+                        for (u32 j = 0; j < ilen; j++) {
+                            u32 pos = (u32)(tni - base_ni);
+                            if (pos >= prefix &&
+                                pos < ins_total - suffix) {
+                                CAPOEmitHili(new_ts, new_f.data[0],
+                                         (int)tni,
+                                         TOK_TAG(new_ts[0][tni]),
+                                         CAPO_COLOR ? 157 : 0);
+                                u8cs v = {};
+                                TOK_VAL(v, new_ts, new_f.data[0],
+                                        (int)tni);
+                                $for(u8c, cp, v)
+                                    if (*cp == '\n') cur_line++;
+                            }
+                            tni++;
+                        }
+                    }
+                }
+
+                // Emit common suffix as EQ context
+                for (u32 j = 0; j < suffix; j++) {
+                    u64 sn = base_ni + ins_total - suffix + j;
+                    while (cur_iv < nvis &&
+                           vis[cur_iv * 2 + 1] < cur_line)
+                        cur_iv++;
+                    b8 show = (vis == NULL) ||
+                        (cur_iv < nvis &&
+                         cur_line >= vis[cur_iv * 2] &&
+                         cur_line <= vis[cur_iv * 2 + 1]);
+                    if (show) {
+                        CAPOEmitHili(new_ts, new_f.data[0],
+                                     (int)sn, TOK_TAG(new_ts[0][sn]),
+                                     0);
+                    } else {
+                        in_gap = YES;
+                    }
+                    u8cs v = {};
+                    TOK_VAL(v, new_ts, new_f.data[0], (int)sn);
+                    $for(u8c, cp, v)
+                        if (*cp == '\n') cur_line++;
+                }
+
+                oi = toi;
+                ni = tni;
+                k = kend;
             }
         }
 

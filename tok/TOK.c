@@ -177,6 +177,7 @@ ok64 TOKLexer(TOKstate *state, u8csc ext) {
             done;
         }
     }
-    call((TOKfn)TXTTLexer, state);
+    TOKfn fallback = (TOKfn)TXTTLexer;
+    call(fallback, state);
     done;
 }

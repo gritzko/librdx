@@ -35,7 +35,10 @@ static inline ok64 X(DIFF, FindMiddle)(Tcs a, Tcs b, i32s vf, i32s vb,
     vbp[1] = 0;
 
     i32 d_limit = (max + 1) / 2;
-    if (d_limit > 1024) d_limit = 1024;
+    i32 abs_delta = delta < 0 ? -delta : delta;
+    i32 min_d = abs_delta + 1024;
+    if (min_d > d_limit) min_d = d_limit;
+    if (d_limit > min_d) d_limit = min_d;
     for (i32 d = 0; d <= d_limit; d++) {
         for (i32 k = -d; k <= d; k += 2) {
             i32 x = (k == -d || (k != d && vfp[k - 1] < vfp[k + 1]))

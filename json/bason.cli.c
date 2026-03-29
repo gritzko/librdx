@@ -75,8 +75,7 @@ ok64 basoncli() {
         bdata[0] = b0;
         bdata[1] = b1;
     } else {
-        bdata[0] = indata[0];
-        bdata[1] = indata[1];
+        $mv(bdata, indata);
     }
 
     // Produce output
