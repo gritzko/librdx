@@ -1401,13 +1401,8 @@ ok64 CAPOGrep(u8csc substring, u8csc ext, u8csc reporoot, u32 ctx_lines) {
                                                line, prev_func);
                         u32 hl_lo = match_pos;
                         u32 hl_hi = match_pos + (u32)ndl_len;
-                        if (tokenized)
-                            CAPOEmitHiliRange(gts, source[0], ctx_lo,
-                                              ctx_hi, hl_lo, hl_hi, 157);
-                        else {
-                            fwrite(source[0] + ctx_lo, 1, ctx_hi - ctx_lo,
-                                   stdout);
-                        }
+                        CAPOEmitHiliRange(gts, source[0], ctx_lo,
+                                          ctx_hi, hl_lo, hl_hi, 157);
                         if (ctx_hi > 0 && source[0][ctx_hi - 1] != '\n')
                             fputc('\n', stdout);
                     }
@@ -1819,19 +1814,10 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path) {
                          cur_line <= vis[cur_iv * 2 + 1]);
                     if (show) {
                         if (in_gap) {
-                            if (!first_hunk)
-                                fprintf(stdout, "\n--\n");
+                            if (!first_hunk) fputc('\n', stdout);
                             u32 boff = (ni > 0) ? TOK_OFF(new_ts[0][ni-1]) : 0;
-                            char fn[256];
-                            CAPOFindFunc(new_data, boff, fn, sizeof(fn));
-                            if (fn[0] != 0) {
-                                if (CAPO_COLOR)
-                                    fprintf(stdout, "\033[%dm--- %s ---\033[0m\n",
-                                            GRAY, fn);
-                                else
-                                    fprintf(stdout, "--- %s ---\n", fn);
-                            }
-                            first_hunk = NO;
+                            CAPOEmitHunkHeader(new_data, boff, &first_hunk,
+                                               NULL, NULL);
                             in_gap = NO;
                         }
                         CAPOEmitHili(new_ts, new_f.data[0], (int)ni,
@@ -1884,24 +1870,12 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path) {
                              cur_line <= vis[cur_iv * 2 + 1]);
                         if (show) {
                             if (in_gap) {
-                                if (!first_hunk)
-                                    fprintf(stdout, "\n--\n");
+                                if (!first_hunk) fputc('\n', stdout);
                                 u64 ti = ni + j;
                                 u32 boff = (ti > 0)
                                     ? TOK_OFF(new_ts[0][ti-1]) : 0;
-                                char fn[256];
-                                CAPOFindFunc(new_data, boff, fn,
-                                             sizeof(fn));
-                                if (fn[0] != 0) {
-                                    if (CAPO_COLOR)
-                                        fprintf(stdout,
-                                            "\033[%dm--- %s ---\033[0m\n",
-                                            GRAY, fn);
-                                    else
-                                        fprintf(stdout, "--- %s ---\n",
-                                                fn);
-                                }
-                                first_hunk = NO;
+                                CAPOEmitHunkHeader(new_data, boff,
+                                    &first_hunk, NULL, NULL);
                                 in_gap = NO;
                             }
                             CAPOEmitHili(new_ts, new_f.data[0],
@@ -1973,22 +1947,12 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path) {
                          cur_line <= vis[cur_iv * 2 + 1]);
                     if (show) {
                         if (in_gap) {
-                            if (!first_hunk)
-                                fprintf(stdout, "\n--\n");
+                            if (!first_hunk) fputc('\n', stdout);
                             u64 ti = base_ni + j;
                             u32 boff = (ti > 0)
                                 ? TOK_OFF(new_ts[0][ti-1]) : 0;
-                            char fn[256];
-                            CAPOFindFunc(new_data, boff, fn, sizeof(fn));
-                            if (fn[0] != 0) {
-                                if (CAPO_COLOR)
-                                    fprintf(stdout,
-                                        "\033[%dm--- %s ---\033[0m\n",
-                                        GRAY, fn);
-                                else
-                                    fprintf(stdout, "--- %s ---\n", fn);
-                            }
-                            first_hunk = NO;
+                            CAPOEmitHunkHeader(new_data, boff,
+                                               &first_hunk, NULL, NULL);
                             in_gap = NO;
                         }
                         CAPOEmitHili(new_ts, new_f.data[0],
@@ -2006,20 +1970,11 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path) {
                 }
 
                 if (in_gap) {
-                    if (!first_hunk) fprintf(stdout, "\n--\n");
+                    if (!first_hunk) fputc('\n', stdout);
                     u32 boff = (base_ni > 0)
                         ? TOK_OFF(new_ts[0][base_ni-1]) : 0;
-                    char fn[256];
-                    CAPOFindFunc(new_data, boff, fn, sizeof(fn));
-                    if (fn[0] != 0) {
-                        if (CAPO_COLOR)
-                            fprintf(stdout,
-                                "\033[%dm--- %s ---\033[0m\n",
-                                GRAY, fn);
-                        else
-                            fprintf(stdout, "--- %s ---\n", fn);
-                    }
-                    first_hunk = NO;
+                    CAPOEmitHunkHeader(new_data, boff, &first_hunk,
+                                       NULL, NULL);
                     in_gap = NO;
                 }
 
