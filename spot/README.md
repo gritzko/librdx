@@ -5,6 +5,23 @@ token-aware search-and-replace in the entire repo. Also does
 syntax-highlighted cat, token-level diff and 3-way merge.
 git hooks keep the index updated.
 
+## Examples
+
+Index a repo on 8 cores:
+
+    $ spot --fork 8
+    spot: forking 8 workers
+    OK   c    abc/MSET.h
+    OK   c    spot/CAPO.c
+    ...
+    spot: compacting all runs
+    spot: done
+
+Scan for function invocations:
+    $ spot -s 'u8csMv(A)' .c
+
+![spot -s 'u8csMv(A)' .c](../blog/img/screen.png)
+
 ## Usage
 
     spot                              incremental update (or reindex)
@@ -31,18 +48,6 @@ Trailing args starting with `.` are extension filters (required for `-s`,
 optional for `-g`). The extension selects the ragel tokenizer and the
 file filter (`.c` matches `.c` and `.h`).
 
-## Examples
-
-Index a repo on 8 cores:
-
-    $ spot --fork 8
-    spot: forking 8 workers
-    OK   c    abc/MSET.h
-    OK   c    spot/CAPO.c
-    ...
-    spot: compacting all runs
-    spot: done
-
 ### SPOT pattern search
 
 SPOT matches structurally, not textually — whitespace and formatting
@@ -51,15 +56,16 @@ to any matching token, so `ok64 o = OK;` also matches `ok64 ret = OK;`.
 Uppercase placeholders match any block of code. Multiple spaces (gaps)
 match any token sequence.
 
-Find a specific declaration pattern:
+Results are syntax-highlighted with context lines and
+`--- file :: function() ---` headers:
 
     $ spot -s "ok64 o = OK;" .c
-    --- abc/BIN.h ---
-    ok64 o = OK;
-    --- abc/FILE.c ---
-    ok64 o = OK;
-    ok64 o = OK;
-    ...
+    --- abc/BIN.h :: ok64 BINu8csFeed(Bu8 buf, u8csc data) ---
+        ok64 o = OK;
+        ...
+    --- abc/FILE.c :: ok64 FILEMapRO(u8bp *out, path8cg path) ---
+        ok64 o = OK;
+        ...
 
 Rename a function:
 
@@ -77,8 +83,8 @@ Standardize `malloc()` argument order:
 
 Grep does substring search across all token leaves including comments —
 unlike SPOT, which skips comments and matches structurally. Results
-show the matching line with a few lines of context (default 3, like
-`diff -C`).
+are syntax-highlighted with context (default 3 lines) and
+`--- file :: function() ---` headers.
 
 Find TODOs in comments:
 
@@ -131,15 +137,16 @@ entries stored as sorted MSET runs in `.git/spot/*.idx`.
 **SPOT mode:** extracts trigrams from the needle text, seeks each in the
 MSET index, intersects path hash sets to narrow candidates, then
 tokenizes each candidate file and runs flat token pattern matching
-(SPOT) to find structural matches.
+(SPOT) to find structural matches. Shows syntax-highlighted context
+with function headers.
 
 **Grep mode:** same trigram filtering, but walks all token leaves
-including comments and does plain substring matching. Shows a
-line-context window around each hit (default 3 lines, adjustable
-with `-C`).
+including comments and does plain substring matching. Shows
+syntax-highlighted context around each hit (default 3 lines,
+adjustable with `-C`) with function headers.
 
 **Diff/merge:** tokenizes both files, runs LCS-based diff on the token
-streams, outputs syntax-highlighted results. Merge extends this to
-three-way with conflict markers.
+streams, outputs syntax-highlighted results with function headers at
+hunk boundaries. Merge extends this to three-way with conflict markers.
 
 `--fork N` stripes files across N workers. Works with git worktrees.
