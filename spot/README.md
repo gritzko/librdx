@@ -18,6 +18,7 @@ Index a repo on 8 cores:
     spot: done
 
 Scan for function invocations:
+
     $ spot -s 'u8csMv(A)' .c
 
 ![spot -s 'u8csMv(A)' .c](../blog/img/screen.png)
@@ -150,3 +151,13 @@ streams, outputs syntax-highlighted results with function headers at
 hunk boundaries. Merge extends this to three-way with conflict markers.
 
 `--fork N` stripes files across N workers. Works with git worktrees.
+
+##  Credits
+
+The idea of repo trigram indexing is borrowed from [Russ Cox][c].
+The initial version of the tool used [tree-sitter][t] grammars, 
+later changed to [ragel-based][r] lexers for performance reasons.
+
+[c]: https://swtch.com/~rsc/regexp/regexp4.html
+[r]: https://www.colm.net/open-source/ragel/
+[t]: https://tree-sitter.github.io/tree-sitter/
