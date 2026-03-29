@@ -75,15 +75,17 @@ ok64 CAPONextSeqno(u64p seqno, u8csc dir);
 
 // Structural code search: needle is a code fragment, ext is file extension.
 // When replace is non-empty, matched regions are replaced and files rewritten.
-ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot);
+ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot,
+              u8css files);
 
 // Substring grep across all AST leaves (including comments).
 // ext: optional language filter (empty = all parseable files).
 // ctx_lines: max context lines above/below the match (like diff -C).
-ok64 CAPOGrep(u8csc substring, u8csc ext, u8csc reporoot, u32 ctx_lines);
+ok64 CAPOGrep(u8csc substring, u8csc ext, u8csc reporoot, u32 ctx_lines,
+              u8css files);
 
 // Colorful cat: syntax-highlighted file output
-ok64 CAPOCat(u8csc *files, int nfiles, u8csc reporoot);
+ok64 CAPOCat(u8css files, u8csc reporoot);
 
 // Token-level 3-way merge (git merge driver)
 // spot --merge base ours theirs [-o output]
@@ -116,5 +118,8 @@ ok64 CAPOCommitWrite(u8csc reporoot, u8csc capodir);
 // Returns count of valid SHAs in *count (0 if file missing/empty).
 ok64 CAPOCommitRead(u32p count, u8csc capodir,
                     char shas[][44], u32 maxcount);
+
+// Check if extension is known to tok/ tokenizers
+b8 CAPOKnownExt(u8csc ext);
 
 #endif

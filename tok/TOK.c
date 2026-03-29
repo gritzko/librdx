@@ -169,6 +169,12 @@ static b8 TOKExtMatch(u8csc ext, const char *pat) {
     return __builtin_memcmp(ext[0], pat, len) == 0;
 }
 
+b8 TOKKnownExt(u8csc ext) {
+    for (const TOKentry *e = TOK_TABLE; e->ext != NULL; ++e)
+        if (TOKExtMatch(ext, e->ext)) return YES;
+    return NO;
+}
+
 ok64 TOKLexer(TOKstate *state, u8csc ext) {
     sane($ok(state->data) && state != NULL);
     for (const TOKentry *e = TOK_TABLE; e->ext != NULL; ++e) {

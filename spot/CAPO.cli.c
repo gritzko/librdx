@@ -7,6 +7,7 @@
 #include <unistd.h>
 
 #include "abc/FILE.h"
+#include "abc/PATH.h"
 #include "abc/PRO.h"
 
 // Usage:
@@ -30,6 +31,12 @@
 static b8 argeq(u8cs a, const char *b) {
     size_t blen = strlen(b);
     return $len(a) == blen && memcmp(a[0], b, blen) == 0;
+}
+
+// Check if a trailing arg is a bare .ext filter known to tok/
+static b8 argIsExt(u8cs a) {
+    if ($len(a) < 2 || a[0][0] != '.') return NO;
+    return CAPOKnownExt(a);
 }
 
 // Match "--flag=value", return pointer to value after '=' or NULL
@@ -180,17 +187,30 @@ ok64 capocli() {
         u8cs mo = {merge_out[0], merge_out[1]};
         call(CAPOMerge, bp, op, tp, mo);
     } else if (grep_ndl[0] != NULL) {
-        // GREP mode: .ext optional
+        // GREP mode: .ext optional, file paths restrict search
         u8cs ext = {};
+        u8cs gfiles[16] = {};
+        int gnf = 0;
         for (int i = 0; i < ntrail; i++) {
-            if (trail[i][0][0] == '.') {
-                ext[0] = trail[i][0];
-                ext[1] = trail[i][1];
-                break;
+            if (argIsExt(trail[i])) {
+                $mv(ext, trail[i]);
+            } else if (gnf < 16) {
+                $mv(gfiles[gnf], trail[i]);
+                gnf++;
+            }
+        }
+        // No bare .ext — extract extension from first file path
+        if ($empty(ext) && gnf > 0) {
+            u8cs pe = {};
+            path8sExt(pe, gfiles[0]);
+            if (!$empty(pe)) {
+                ext[0] = pe[0] - 1;  // include the dot
+                ext[1] = pe[1];
             }
         }
         u8cs ndl = {grep_ndl[0], grep_ndl[1]};
-        call(CAPOGrep, ndl, ext, reporoot, grep_ctx);
+        u8css gf = {gfiles, gfiles + gnf};
+        call(CAPOGrep, ndl, ext, reporoot, grep_ctx, gf);
     } else if (is_hook) {
         call(CAPOHook, reporoot);
     } else if (nfork > 0 && proc != UINT32_MAX) {
@@ -246,13 +266,25 @@ ok64 capocli() {
         call(CAPOCommitWrite, reporoot, dirslice);
         fprintf(stderr, "spot: done\n");
     } else if (spot_ndl[0] != NULL) {
-        // SPOT mode: find first trailing .ext
+        // SPOT mode: .ext and/or file paths
         u8cs ext = {};
+        u8cs sfiles[16] = {};
+        int snf = 0;
         for (int i = 0; i < ntrail; i++) {
-            if (trail[i][0][0] == '.') {
-                ext[0] = trail[i][0];
-                ext[1] = trail[i][1];
-                break;
+            if (argIsExt(trail[i])) {
+                $mv(ext, trail[i]);
+            } else if (snf < 16) {
+                $mv(sfiles[snf], trail[i]);
+                snf++;
+            }
+        }
+        // No bare .ext — extract extension from first file path
+        if ($empty(ext) && snf > 0) {
+            u8cs pe = {};
+            path8sExt(pe, sfiles[0]);
+            if (!$empty(pe)) {
+                ext[0] = pe[0] - 1;  // include the dot
+                ext[1] = pe[1];
             }
         }
         if ($empty(ext)) {
@@ -261,7 +293,8 @@ ok64 capocli() {
         }
         u8cs ndl = {spot_ndl[0], spot_ndl[1]};
         u8cs rep = {spot_rep[0], spot_rep[1]};
-        call(CAPOSpot, ndl, rep, ext, reporoot);
+        u8css sf = {sfiles, sfiles + snf};
+        call(CAPOSpot, ndl, rep, ext, reporoot, sf);
     } else if (do_index) {
         call(CAPOReindex, reporoot);
     } else if (ntrail > 0) {
@@ -273,7 +306,8 @@ ok64 capocli() {
             files[nf][1] = trail[i][1];
             nf++;
         }
-        call(CAPOCat, files, nf, reporoot);
+        u8css cf = {files, files + nf};
+        call(CAPOCat, cf, reporoot);
     } else {
         call(CAPOHook, reporoot);
     }

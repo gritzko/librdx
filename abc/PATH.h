@@ -117,8 +117,10 @@ void path8gBase(u8csp out, path8cg path);
 void path8gDir(u8csp out, path8cg path);
 
 // Extract file extension (after last dot in basename, without the dot)
-// Returns view into path, empty slice for no extension
-void path8gExt(u8csp out, path8cg path);
+// Returns view into the original data, empty slice for no extension
+void path8sExt(u8csp out, u8csc path);
+fun void path8gExt(u8csp out, path8cg path) { u8cs s = {path[0], path[1]}; path8sExt(out, s); }
+fun void path8bExt(u8csp out, path8b buf) { path8sExt(out, u8bDataC(buf)); }
 
 // --- Buffer-level path operations (no gauge wrapping needed) ---
 

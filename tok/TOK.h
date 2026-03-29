@@ -31,4 +31,7 @@ typedef struct {
 
 ok64 TOKLexer(TOKstate *state, u8csc ext);
 
+// Check if ext matches a known language in the dispatch table
+b8 TOKKnownExt(u8csc ext);
+
 #endif

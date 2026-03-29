@@ -155,13 +155,11 @@ fun const char *MIMEByExt(u8cs ext) {
     return MIMEdefault;
 }
 
-// Lookup MIME type by file path (uses path8gExt).
+// Lookup MIME type by file path (uses path8sExt).
 fun const char *MIMEByPath(u8cs path) {
     if ($empty(path)) return MIMEdefault;
-    a_dupcg(u8, pg, path);
-    pg[2] = pg[1];
     u8cs ext = {};
-    path8gExt(ext, pg);
+    path8sExt(ext, path);
     return MIMEByExt(ext);
 }
 
