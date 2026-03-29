@@ -1038,6 +1038,161 @@ static void CAPOProgress(const char *line) {
         fprintf(stderr, "\033[%dm%s\033[0m", GRAY, line);
 }
 
+static int CAPOTagColor(u8 tag);
+
+// --- Function name finder (heuristic) ---
+
+// Walk backward from `pos` looking for a line that looks like a function
+// definition: starts at column 0, first char [A-Za-z_], contains '('.
+// Skips comment lines (// /* *). Copies trimmed line into `out`.
+static void CAPOFindFunc(u8csc source, u32 pos, char *out, size_t outsz) {
+    out[0] = 0;
+    if ($empty(source) || pos == 0 || outsz < 2) return;
+    u8cp base = source[0];
+    u32 slen = (u32)$len(source);
+    if (pos > slen) pos = slen;
+
+    // Find start of current line
+    u32 ls = pos;
+    while (ls > 0 && base[ls - 1] != '\n') ls--;
+
+    // Walk backward up to 200 lines looking for a function-like line
+    for (int tries = 0; tries < 200 && ls > 0; tries++) {
+        // Move to previous line
+        ls--;
+        while (ls > 0 && base[ls - 1] != '\n') ls--;
+
+        // Skip empty lines
+        u32 le = ls;
+        while (le < slen && base[le] != '\n') le++;
+        if (le == ls) continue;
+
+        u8 ch = base[ls];
+        // Skip comment lines
+        if (ch == '/' || ch == '*' || ch == '#') continue;
+        // Must start with identifier char at column 0
+        if (!((ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') ||
+              ch == '_'))
+            continue;
+        // Must contain '('
+        b8 has_paren = NO;
+        for (u32 j = ls; j < le; j++)
+            if (base[j] == '(') { has_paren = YES; break; }
+        if (!has_paren) continue;
+
+        // Copy line, trim trailing { and whitespace
+        u32 copylen = le - ls;
+        if (copylen >= outsz) copylen = (u32)(outsz - 1);
+        memcpy(out, base + ls, copylen);
+        out[copylen] = 0;
+        // Trim trailing { and whitespace
+        while (copylen > 0 &&
+               (out[copylen - 1] == '{' || out[copylen - 1] == ' ' ||
+                out[copylen - 1] == '\t' || out[copylen - 1] == '\r'))
+            out[--copylen] = 0;
+        return;
+    }
+}
+
+// --- Highlighted byte range emitter ---
+
+// Emit bytes [lo,hi) using token-based syntax highlighting.
+// Tokens in [hl_lo,hl_hi) byte range get background `hl_bg`.
+// If toks is empty or lo>=hi, falls back to raw fwrite.
+static void CAPOEmitHiliRange(u32cs toks, u8cp base, u32 lo, u32 hi,
+                               u32 hl_lo, u32 hl_hi, int hl_bg) {
+    if (lo >= hi) return;
+    int ntoks = (int)$len(toks);
+    if (ntoks == 0) {
+        fwrite(base + lo, 1, hi - lo, stdout);
+        return;
+    }
+
+    // Find first token overlapping [lo, hi)
+    int ti = 0;
+    while (ti < ntoks && TOK_OFF(toks[0][ti]) <= lo) ti++;
+    // ti now points to the first token whose end > lo
+
+    u32 emitted = lo;
+    while (emitted < hi && ti < ntoks) {
+        u32 tok_lo = (ti > 0) ? TOK_OFF(toks[0][ti - 1]) : 0;
+        u32 tok_hi = TOK_OFF(toks[0][ti]);
+        u8 tag = TOK_TAG(toks[0][ti]);
+
+        // Clamp token to our range
+        u32 elo = (tok_lo > emitted) ? tok_lo : emitted;
+        u32 ehi = (tok_hi < hi) ? tok_hi : hi;
+        if (elo >= ehi) { ti++; continue; }
+
+        // Determine if this region overlaps the highlight range
+        b8 in_hl = (hl_bg != 0 && elo < hl_hi && ehi > hl_lo);
+        int fg = CAPO_COLOR ? CAPOTagColor(tag) : 0;
+        int bg = (in_hl && CAPO_COLOR) ? hl_bg : 0;
+
+        u32 plen = ehi - elo;
+        if (fg != 0 && bg != 0)
+            fprintf(stdout, "\033[%d;48;5;%dm%.*s\033[0m",
+                    fg, bg, (int)plen, (char *)(base + elo));
+        else if (bg != 0)
+            fprintf(stdout, "\033[48;5;%dm%.*s\033[0m",
+                    bg, (int)plen, (char *)(base + elo));
+        else if (fg != 0)
+            fprintf(stdout, "\033[%dm%.*s\033[0m",
+                    fg, (int)plen, (char *)(base + elo));
+        else
+            fwrite(base + elo, 1, plen, stdout);
+
+        emitted = ehi;
+        ti++;
+    }
+    // Emit any remaining bytes beyond the last token
+    if (emitted < hi)
+        fwrite(base + emitted, 1, hi - emitted, stdout);
+}
+
+// --- Hunk header emitter ---
+
+// Emit hunk separator (--) and combined file::function header.
+// filepath may be NULL (diff mode — only function name shown).
+// prev_func: if non-NULL, skip header when function hasn't changed;
+//            updated to current funcname after emission.
+static void CAPOEmitHunkHeader(u8csc source, u32 pos, b8 *first_hunk,
+                                const char *filepath, char *prev_func) {
+    char funcname[256];
+    CAPOFindFunc(source, pos, funcname, sizeof(funcname));
+
+    // Same function as previous hunk — just emit separator
+    if (!*first_hunk && prev_func != NULL && funcname[0] != 0 &&
+        strcmp(funcname, prev_func) == 0) {
+        fprintf(stdout, "--\n");
+        return;
+    }
+    if (prev_func != NULL) {
+        size_t n = strlen(funcname);
+        if (n >= 256) n = 255;
+        memcpy(prev_func, funcname, n);
+        prev_func[n] = 0;
+    }
+    if (filepath != NULL && funcname[0] != 0) {
+        if (CAPO_COLOR)
+            fprintf(stdout, "\033[%dm--- %s :: %s ---\033[0m\n",
+                    GRAY, filepath, funcname);
+        else
+            fprintf(stdout, "--- %s :: %s ---\n", filepath, funcname);
+    } else if (filepath != NULL) {
+        if (CAPO_COLOR)
+            fprintf(stdout, "\033[%dm--- %s ---\033[0m\n", GRAY, filepath);
+        else
+            fprintf(stdout, "--- %s ---\n", filepath);
+    } else if (funcname[0] != 0) {
+        if (CAPO_COLOR)
+            fprintf(stdout, "\033[%dm--- %s ---\033[0m\n", GRAY, funcname);
+        else
+            fprintf(stdout, "--- %s ---\n", funcname);
+    }
+    *first_hunk = NO;
+}
+
 // --- Grep: substring search in source text (no tree) ---
 
 static void CAPOGrepCtx(u8csc source, u32 match_pos, u32 nctx,
@@ -1198,9 +1353,31 @@ ok64 CAPOGrep(u8csc substring, u8csc ext, u8csc reporoot, u32 ctx_lines) {
 
         a_dup(u8c, source, u8bDataC(mapped));
 
+        // Try to tokenize for syntax highlighting
+        b8 tokenized = NO;
+        Bu32 gtoks = {};
+        if (!$empty(file_ext) && CAPOKnownExtReal(file_ext)) {
+            size_t maxlen = $len(source) + 1;
+            ok64 to = u32bMap(gtoks, maxlen);
+            if (to == OK) {
+                to = SPOTTokenize(gtoks, source, file_ext);
+                if (to == OK)
+                    tokenized = YES;
+                else
+                    u32bUnMap(gtoks);
+            }
+        }
+        u32cs gts = {};
+        if (tokenized) {
+            gts[0] = (u32cp)u32bDataHead(gtoks);
+            gts[1] = (u32cp)u32bIdleHead(gtoks);
+        }
+
         // Search source text directly for substring matches
         u32 prev_hi = 0;
         b8 found_any = NO;
+        b8 first_hunk = YES;
+        char prev_func[256] = {};
 
         u8cp sp = source[0];
         u8cp se = source[1];
@@ -1214,20 +1391,24 @@ ok64 CAPOGrep(u8csc substring, u8csc ext, u8csc reporoot, u32 ctx_lines) {
 
                     if (!found_any) {
                         CAPOProgress(NULL);
-                        if (CAPO_COLOR)
-                            fprintf(stdout, "\033[%dm--- %.*s ---\033[0m\n",
-                                    GRAY, (int)len, line);
-                        else
-                            fprintf(stdout, "--- %.*s ---\n", (int)len, line);
                         found_any = YES;
                     }
+                    b8 contiguous = (ctx_lo <= prev_hi);
                     if (ctx_lo < prev_hi) ctx_lo = prev_hi;
                     if (ctx_lo < ctx_hi) {
-                        if (prev_hi > 0 && ctx_lo > prev_hi)
-                            fprintf(stdout, "--\n");
-                        u8cs range = {source[0] + ctx_lo, source[0] + ctx_hi};
-                        fwrite(range[0], 1, (size_t)$len(range), stdout);
-                        if ($len(range) > 0 && *(range[1] - 1) != '\n')
+                        if (!contiguous || first_hunk)
+                            CAPOEmitHunkHeader(source, ctx_lo, &first_hunk,
+                                               line, prev_func);
+                        u32 hl_lo = match_pos;
+                        u32 hl_hi = match_pos + (u32)ndl_len;
+                        if (tokenized)
+                            CAPOEmitHiliRange(gts, source[0], ctx_lo,
+                                              ctx_hi, hl_lo, hl_hi, 157);
+                        else {
+                            fwrite(source[0] + ctx_lo, 1, ctx_hi - ctx_lo,
+                                   stdout);
+                        }
+                        if (ctx_hi > 0 && source[0][ctx_hi - 1] != '\n')
                             fputc('\n', stdout);
                     }
                     prev_hi = ctx_hi;
@@ -1238,6 +1419,7 @@ ok64 CAPOGrep(u8csc substring, u8csc ext, u8csc reporoot, u32 ctx_lines) {
 
         if (found_any) fputc('\n', stdout);
 
+        if (tokenized) u32bUnMap(gtoks);
         FILEUnMap(mapped);
     }
     pclose(fp);
@@ -1639,6 +1821,16 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path) {
                         if (in_gap) {
                             if (!first_hunk)
                                 fprintf(stdout, "\n--\n");
+                            u32 boff = (ni > 0) ? TOK_OFF(new_ts[0][ni-1]) : 0;
+                            char fn[256];
+                            CAPOFindFunc(new_data, boff, fn, sizeof(fn));
+                            if (fn[0] != 0) {
+                                if (CAPO_COLOR)
+                                    fprintf(stdout, "\033[%dm--- %s ---\033[0m\n",
+                                            GRAY, fn);
+                                else
+                                    fprintf(stdout, "--- %s ---\n", fn);
+                            }
                             first_hunk = NO;
                             in_gap = NO;
                         }
@@ -1694,6 +1886,21 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path) {
                             if (in_gap) {
                                 if (!first_hunk)
                                     fprintf(stdout, "\n--\n");
+                                u64 ti = ni + j;
+                                u32 boff = (ti > 0)
+                                    ? TOK_OFF(new_ts[0][ti-1]) : 0;
+                                char fn[256];
+                                CAPOFindFunc(new_data, boff, fn,
+                                             sizeof(fn));
+                                if (fn[0] != 0) {
+                                    if (CAPO_COLOR)
+                                        fprintf(stdout,
+                                            "\033[%dm--- %s ---\033[0m\n",
+                                            GRAY, fn);
+                                    else
+                                        fprintf(stdout, "--- %s ---\n",
+                                                fn);
+                                }
                                 first_hunk = NO;
                                 in_gap = NO;
                             }
@@ -1768,6 +1975,19 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path) {
                         if (in_gap) {
                             if (!first_hunk)
                                 fprintf(stdout, "\n--\n");
+                            u64 ti = base_ni + j;
+                            u32 boff = (ti > 0)
+                                ? TOK_OFF(new_ts[0][ti-1]) : 0;
+                            char fn[256];
+                            CAPOFindFunc(new_data, boff, fn, sizeof(fn));
+                            if (fn[0] != 0) {
+                                if (CAPO_COLOR)
+                                    fprintf(stdout,
+                                        "\033[%dm--- %s ---\033[0m\n",
+                                        GRAY, fn);
+                                else
+                                    fprintf(stdout, "--- %s ---\n", fn);
+                            }
                             first_hunk = NO;
                             in_gap = NO;
                         }
@@ -1787,6 +2007,18 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path) {
 
                 if (in_gap) {
                     if (!first_hunk) fprintf(stdout, "\n--\n");
+                    u32 boff = (base_ni > 0)
+                        ? TOK_OFF(new_ts[0][base_ni-1]) : 0;
+                    char fn[256];
+                    CAPOFindFunc(new_data, boff, fn, sizeof(fn));
+                    if (fn[0] != 0) {
+                        if (CAPO_COLOR)
+                            fprintf(stdout,
+                                "\033[%dm--- %s ---\033[0m\n",
+                                GRAY, fn);
+                        else
+                            fprintf(stdout, "--- %s ---\n", fn);
+                    }
                     first_hunk = NO;
                     in_gap = NO;
                 }
@@ -2072,28 +2304,36 @@ ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot) {
             o = SPOTInit(&st, nbuf, needle, file_ext, htoks, source);
             if (o == OK) {
                 b8 found_any = NO;
-                u32 prev_hi = 0;
+                b8 first_hunk = YES;
+                u32 prev_ctx_hi = 0;
+                char prev_func[256] = {};
                 while (SPOTNext(&st) == OK) {
                     u32 slo = st.src_rng.lo;
                     u32 shi = st.src_rng.hi;
                     if (shi <= slo || shi > (u32)$len(source)) continue;
-                    if (slo < prev_hi) continue;
-                    prev_hi = shi;
+                    if (slo < prev_ctx_hi &&
+                        shi <= prev_ctx_hi) continue;
 
                     if (!found_any) {
                         CAPOProgress(NULL);
-                        if (CAPO_COLOR)
-                            fprintf(stdout, "\033[%dm--- %.*s ---\033[0m\n",
-                                    GRAY, (int)len, line);
-                        else
-                            fprintf(stdout, "--- %.*s ---\n", (int)len, line);
                         found_any = YES;
                     }
 
-                    u8cs range = {source[0] + slo, source[0] + shi};
-                    fwrite(range[0], 1, (size_t)$len(range), stdout);
-                    if ($len(range) > 0 && *(range[1] - 1) != '\n')
-                        fputc('\n', stdout);
+                    // Compute context around match
+                    u32 ctx_lo = 0, ctx_hi = 0;
+                    CAPOGrepCtx(source, slo, 3, &ctx_lo, &ctx_hi);
+                    b8 contiguous = (ctx_lo <= prev_ctx_hi);
+                    if (ctx_lo < prev_ctx_hi) ctx_lo = prev_ctx_hi;
+                    if (ctx_lo < ctx_hi) {
+                        if (!contiguous || first_hunk)
+                            CAPOEmitHunkHeader(source, ctx_lo, &first_hunk,
+                                               line, prev_func);
+                        CAPOEmitHiliRange(htoks, source[0], ctx_lo,
+                                          ctx_hi, slo, shi, 157);
+                        if (ctx_hi > 0 && source[0][ctx_hi - 1] != '\n')
+                            fputc('\n', stdout);
+                    }
+                    prev_ctx_hi = ctx_hi;
                 }
                 if (found_any) fputc('\n', stdout);
             }
