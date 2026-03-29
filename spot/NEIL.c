@@ -2,20 +2,24 @@
 
 #include "abc/PRO.h"
 
-// Byte length of non-whitespace tokens [from, from+count).
-// Actual whitespace is not significant for diff weighting.
-static u32 NEILByteSpan(u32cs toks, u8cp base, u32 from, u32 count) {
+// Byte length of tokens [from, from+count), optionally skipping whitespace.
+static u32 NEILByteSpanX(u32cs toks, u8cp base, u32 from, u32 count,
+                         b8 skip_ws) {
     if (count == 0) return 0;
     u32 ntoks = (u32)$len(toks);
     if (from + count > ntoks) return 0;
     u32 total = 0;
     for (u32 i = from; i < from + count; i++) {
-        if (NEILIsWS(toks, base, i)) continue;
+        if (skip_ws && NEILIsWS(toks, base, i)) continue;
         u32 lo = (i > 0) ? TOK_OFF(toks[0][i - 1]) : 0;
         u32 hi = TOK_OFF(toks[0][i]);
         if (hi > lo) total += hi - lo;
     }
     return total;
+}
+
+static u32 NEILByteSpan(u32cs toks, u8cp base, u32 from, u32 count) {
+    return NEILByteSpanX(toks, base, from, count, YES);
 }
 
 // Merge adjacent same-op entries in place. Returns new count.
@@ -116,8 +120,19 @@ ok64 NEILCleanup(e32g edl, u32cs old_toks, u32cs new_toks,
                 tmp[w++] = buf[k]; continue;
             }
 
-            // Whitespace-only EQs anchor alignment — never kill them.
-            if (eq_bytes == 0) { tmp[w++] = buf[k]; continue; }
+            // Whitespace-only EQs: use raw byte span for kill decision.
+            if (eq_bytes == 0) {
+                u32 raw = NEILByteSpanX(new_toks, new_src[0],
+                                        new_off[k], eq_len, NO);
+                if (raw < before_bytes + after_bytes) {
+                    if (eq_len > 0) tmp[w++] = DIFF_ENTRY(DIFF_DEL, eq_len);
+                    if (eq_len > 0) tmp[w++] = DIFF_ENTRY(DIFF_INS, eq_len);
+                    changed = YES;
+                } else {
+                    tmp[w++] = buf[k];
+                }
+                continue;
+            }
 
             // Never kill EQs larger than the tunable ceiling.
             if (NEIL_MAX_KILL > 0 && eq_bytes >= NEIL_MAX_KILL) {
