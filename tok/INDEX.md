@@ -9,6 +9,7 @@ but without the tree-sitter dependency.
 | Header  | Purpose |
 |---------|---------|
 | TOK.h   | Common callback typedef `TOKcb`, dispatch API `TOKLexer()` |
+| BRCT.h  | Bracket matching and region detection on tokenized files |
 | CT.h    | C tokenizer: `CTstate`, `CTLexer()` |
 | CPPT.h  | C++ tokenizer: `CPPTstate`, `CPPTLexer()` |
 | GOT.h   | Go tokenizer: `GOTstate`, `GOTLexer()` |
