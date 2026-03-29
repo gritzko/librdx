@@ -1,0 +1,60 @@
+# spot/ — code search, diff and merge
+
+## Headers
+
+| Header | Purpose |
+|--------|---------|
+| CAPO.h | Main API: index, search, grep, cat, diff, merge |
+| SPOT.h | Structural pattern matching: tokenize, init, next, replace |
+| NEIL.h | Diff semantic cleanup: remove false short equalities |
+
+## Source files
+
+| File | Purpose |
+|------|---------|
+| CAPO.c | Index management, grep, SPOT search, cat, diff, merge, hunk output |
+| CAPO.cli.c | CLI entry point, argument parsing |
+| SPOT.c | SPOT pattern matching engine, needle flattening, replacement |
+| NEIL.c | Diff edit list cleanup (whitespace-only, short EQ removal) |
+
+## Key functions (CAPO.h)
+
+| Function | Purpose |
+|----------|---------|
+| `CAPOSpot` | Structural search (and replace) across repo |
+| `CAPOGrep` | Substring grep with syntax-highlighted context |
+| `CAPOCat` | Syntax-highlighted file display |
+| `CAPODiff` | Token-level diff with function headers at hunks |
+| `CAPOMerge` | Token-level 3-way merge |
+| `CAPOReindex` | Full reindex of all tracked files |
+| `CAPOReindexProc` | Parallel reindex (worker K of N) |
+| `CAPOHook` | Incremental index update (post-commit hook) |
+| `CAPOCompact` | Compact LSM index runs |
+| `CAPOResolveDir` | Resolve .git/spot dir (handles worktrees) |
+| `CAPOIndexFile` | Index one file: extract trigrams into u64 entries |
+
+## Key functions (SPOT.h)
+
+| Function | Purpose |
+|----------|---------|
+| `SPOTTokenize` | Tokenize source into packed u32 buffer via tok/ |
+| `SPOTInit` | Initialize pattern matcher (tokenizes needle) |
+| `SPOTNext` | Find next structural match (OK or SPOTEND) |
+| `SPOTReplace` | Apply replacement to all matches in one file |
+
+## Internal helpers (CAPO.c, static)
+
+| Function | Purpose |
+|----------|---------|
+| `CAPOFindFunc` | Walk backward to find enclosing function name |
+| `CAPOEmitHiliRange` | Emit byte range with syntax highlighting + match highlight |
+| `CAPOEmitHunkHeader` | Emit `--- file :: func() ---` hunk header |
+| `CAPOEmitHili` | Emit one token with foreground + optional background color |
+| `CAPOTagColor` | Map token tag (D/G/L/H/R) to ANSI color |
+| `CAPOGrepCtx` | Compute context line range around a byte position |
+
+## Index format
+
+Trigram index lives in `.git/spot/*.idx`. Each entry is a u64:
+upper 18 bits = trigram (3 RON64 chars), lower 32 bits = path hash.
+Files are sorted MSET runs, compacted via LSM-style merging.
