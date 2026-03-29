@@ -30,6 +30,7 @@ extern b8 CAPO_TERM;   // stderr is a terminal
 #define CAPO_MAX_LEVELS MSET_MAX_LEVELS
 #define CAPO_SCRATCH_LEN (1UL << 27)  // 128M u64 entries = 1GB
 #define CAPO_FLUSH_AT    (1UL << 24)  // flush at 16M entries (~128MB)
+#define CAPO_MAX_SHAS 16
 
 #define CAPOTriChar(c) (RON64_REV[(u8)(c)] != 0xff)
 
@@ -111,8 +112,9 @@ ok64 CAPOResolveDir(path8b out, u8csc reporoot);
 // Write current HEAD sha to capodir/COMMIT
 ok64 CAPOCommitWrite(u8csc reporoot, u8csc capodir);
 
-// Read saved commit sha from capodir/COMMIT into buf (up to 40 chars)
-// Returns length in *len (0 if file missing/empty)
-ok64 CAPOCommitRead(u32p len, u8csc capodir, u8s buf);
+// Read saved commit shas from capodir/COMMIT (one per line, oldest first).
+// Returns count of valid SHAs in *count (0 if file missing/empty).
+ok64 CAPOCommitRead(u32p count, u8csc capodir,
+                    char shas[][44], u32 maxcount);
 
 #endif

@@ -768,6 +768,7 @@ ok64 CAPOCompactAll(u8csc dir) {
 ok64 CAPOCommitWrite(u8csc reporoot, u8csc capodir) {
     sane($ok(reporoot) && $ok(capodir));
 
+    // get current HEAD
     char cmdbuf[FILE_PATH_MAX_LEN + 64];
     int n = snprintf(cmdbuf, sizeof(cmdbuf),
                      "git -C %.*s rev-parse HEAD",
@@ -777,14 +778,27 @@ ok64 CAPOCommitWrite(u8csc reporoot, u8csc capodir) {
     FILE *fp = popen(cmdbuf, "r");
     test(fp != NULL, FAILSANITY);
 
-    char sha[64];
-    char *got = fgets(sha, sizeof(sha), fp);
+    char newsha[64];
+    char *got = fgets(newsha, sizeof(newsha), fp);
     pclose(fp);
     test(got != NULL, FAILSANITY);
 
-    size_t slen = strlen(sha);
-    if (slen > 0 && sha[slen - 1] == '\n') sha[--slen] = 0;
+    size_t slen = strlen(newsha);
+    if (slen > 0 && newsha[slen - 1] == '\n') newsha[--slen] = 0;
     test(slen >= 40, FAILSANITY);
+    newsha[40] = 0;
+
+    // read existing SHAs
+    char shas[CAPO_MAX_SHAS][44];
+    u32 sha_count = 0;
+    CAPOCommitRead(&sha_count, capodir, shas, CAPO_MAX_SHAS);
+
+    // skip if newest already matches
+    if (sha_count > 0 && memcmp(shas[sha_count - 1], newsha, 40) == 0) done;
+
+    // keep at most CAPO_MAX_SHAS - 1 most recent old entries
+    u32 keep_start = 0;
+    if (sha_count >= CAPO_MAX_SHAS) keep_start = sha_count - CAPO_MAX_SHAS + 1;
 
     a_pad(u8, path, FILE_PATH_MAX_LEN);
     call(u8bFeed, path, capodir);
@@ -794,17 +808,32 @@ ok64 CAPOCommitWrite(u8csc reporoot, u8csc capodir) {
 
     int fd = -1;
     call(FILECreate, &fd, path8cgIn(path));
-    u8cs data = {(u8cp)sha, (u8cp)sha + 40};
-    call(FILEFeedall, fd, data);
     u8cs nl = {(u8cp)"\n", (u8cp)"\n" + 1};
+    for (u32 i = keep_start; i < sha_count; i++) {
+        u8cs data = {(u8cp)shas[i], (u8cp)shas[i] + 40};
+        call(FILEFeedall, fd, data);
+        call(FILEFeedall, fd, nl);
+    }
+    u8cs newdata = {(u8cp)newsha, (u8cp)newsha + 40};
+    call(FILEFeedall, fd, newdata);
     call(FILEFeedall, fd, nl);
     close(fd);
     done;
 }
 
-ok64 CAPOCommitRead(u32p len, u8csc capodir, u8s buf) {
-    sane(len != NULL && $ok(capodir) && $ok(buf));
-    *len = 0;
+static b8 CAPOIsHexSha(const char *s, size_t len) {
+    if (len < 40) return NO;
+    for (int i = 0; i < 40; i++) {
+        u8 c = (u8)s[i];
+        if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'))) return NO;
+    }
+    return YES;
+}
+
+ok64 CAPOCommitRead(u32p count, u8csc capodir,
+                    char shas[][44], u32 maxcount) {
+    sane(count != NULL && $ok(capodir) && shas != NULL && maxcount > 0);
+    *count = 0;
 
     a_pad(u8, path, FILE_PATH_MAX_LEN);
     call(u8bFeed, path, capodir);
@@ -817,14 +846,25 @@ ok64 CAPOCommitRead(u32p len, u8csc capodir, u8s buf) {
     if (o != OK) done;
 
     a_dup(u8c, content, u8bDataC(mapped));
-    size_t clen = $len(content);
-    if (clen > 40) clen = 40;
-    size_t cap = (size_t)$len(buf);
-    if (clen > cap) clen = cap;
-    if (clen > 0) {
-        memcpy(buf[0], content[0], clen);
-        *len = (u32)clen;
+    u8cp p = content[0];
+    u8cp end = content[1];
+
+    while (p < end && *count < maxcount) {
+        // skip leading whitespace/newlines
+        while (p < end && (*p == '\n' || *p == '\r' || *p == ' ')) p++;
+        if (p >= end) break;
+        // find end of line
+        u8cp lend = p;
+        while (lend < end && *lend != '\n') lend++;
+        size_t llen = (size_t)(lend - p);
+        if (CAPOIsHexSha((const char *)p, llen)) {
+            memcpy(shas[*count], p, 40);
+            shas[*count][40] = 0;
+            (*count)++;
+        }
+        p = lend;
     }
+
     FILEUnMap(mapped);
     done;
 }
@@ -833,41 +873,41 @@ ok64 CAPOCommitRead(u32p len, u8csc capodir, u8s buf) {
 
 static b8 CAPOHookDiffCmd(char *cmdbuf, size_t cmdsz,
                            u8csc reporoot, u8csc dirslice) {
-    char saved_sha[44];
-    u8s shabuf = {(u8cp)saved_sha, (u8cp)saved_sha + 40};
-    u32 sha_len = 0;
-    CAPOCommitRead(&sha_len, dirslice, shabuf);
+    char shas[CAPO_MAX_SHAS][44];
+    u32 sha_count = 0;
+    CAPOCommitRead(&sha_count, dirslice, shas, CAPO_MAX_SHAS);
 
-    if (sha_len != 40) {
+    if (sha_count == 0) {
         fprintf(stderr, "spot: no saved commit, full reindex\n");
         return NO;
     }
-    saved_sha[40] = 0;
-    for (int i = 0; i < 40; i++) {
-        u8 c = (u8)saved_sha[i];
-        if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'))) return NO;
-    }
 
+    // try newest first (last in file)
     char chkbuf[FILE_PATH_MAX_LEN + 128];
-    int n = snprintf(chkbuf, sizeof(chkbuf),
-                     "git -C %.*s merge-base --is-ancestor %.40s HEAD",
-                     (int)$len(reporoot), (char *)reporoot[0], saved_sha);
-    if (n <= 0 || n >= (int)sizeof(chkbuf)) return NO;
-    int rc = system(chkbuf);
-    if (!WIFEXITED(rc) || WEXITSTATUS(rc) != 0) {
-        fprintf(stderr, "spot: saved commit unreachable, full reindex\n");
-        return NO;
+    for (u32 i = sha_count; i > 0; i--) {
+        int n = snprintf(chkbuf, sizeof(chkbuf),
+                         "git -C %.*s merge-base --is-ancestor %.40s HEAD",
+                         (int)$len(reporoot), (char *)reporoot[0],
+                         shas[i - 1]);
+        if (n <= 0 || n >= (int)sizeof(chkbuf)) continue;
+        int rc = system(chkbuf);
+        if (WIFEXITED(rc) && WEXITSTATUS(rc) == 0) {
+            if (CAPO_COLOR)
+                fprintf(stderr, "\033[%dmChanges since %.40s\033[0m\n",
+                        GRAY, shas[i - 1]);
+            else
+                fprintf(stderr, "Changes since %.40s\n", shas[i - 1]);
+            n = snprintf(cmdbuf, cmdsz,
+                         "git -C %.*s diff --name-only %.40s HEAD",
+                         (int)$len(reporoot), (char *)reporoot[0],
+                         shas[i - 1]);
+            if (n <= 0 || n >= (int)cmdsz) return NO;
+            return YES;
+        }
     }
 
-    if (CAPO_COLOR)
-        fprintf(stderr, "\033[%dmChanges since %.40s\033[0m\n", GRAY, saved_sha);
-    else
-        fprintf(stderr, "Changes since %.40s\n", saved_sha);
-    n = snprintf(cmdbuf, cmdsz,
-                 "git -C %.*s diff --name-only %.40s HEAD",
-                 (int)$len(reporoot), (char *)reporoot[0], saved_sha);
-    if (n <= 0 || n >= (int)cmdsz) return NO;
-    return YES;
+    fprintf(stderr, "spot: saved commits unreachable, full reindex\n");
+    return NO;
 }
 
 static ok64 CAPOHookDiff(u8csc reporoot, u8csc dirslice,
