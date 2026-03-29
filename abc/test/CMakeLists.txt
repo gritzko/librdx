@@ -239,6 +239,12 @@ target_compile_options(DIFFtest PRIVATE ${TEST_CXX_FLAGS})
 target_link_libraries(DIFFtest abc)
 add_test(NAME DIFFtest COMMAND DIFFtest)
 
+add_executable(DIJKtest DIJK.c)
+target_link_options(DIJKtest PRIVATE ${TEST_LDD_FLAGS})
+target_compile_options(DIJKtest PRIVATE ${TEST_CXX_FLAGS})
+target_link_libraries(DIJKtest abc)
+add_test(NAME DIJKtest COMMAND DIJKtest)
+
 add_executable(NUMtest NUM.c)
 target_link_options(NUMtest PRIVATE ${TEST_LDD_FLAGS})
 target_compile_options(NUMtest PRIVATE ${TEST_CXX_FLAGS})
