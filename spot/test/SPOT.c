@@ -257,6 +257,78 @@ static const SPOTcase SPOT_CASES[] = {
         "int f() { if (1) {} return 99; }\n",
         OK, "99", NULL
     },
+
+    // --- Uppercase placeholder: no cross-statement extension ---
+
+    {
+        "UpperNoCrossStmt",
+        "T n = {X[0],X[1]};",
+        "int a = 1; u8cs b = {arr[0], arr[1]};\n",
+        OK, "arr", "int"
+    },
+    {
+        "UpperNoCrossFunc",
+        "T n = {X[0],X[1]};",
+        "void f() { int x; } u8cs b = {arr[0], arr[1]};\n",
+        OK, "arr", "void f"
+    },
+
+    // --- Uppercase placeholder consistency (content, not just length) ---
+
+    {
+        "UpperConsistMatch",
+        "T n = {X[0],X[1]};",
+        "void f() { int x = {arr[0], arr[1]}; }\n",
+        OK, "arr", NULL
+    },
+    {
+        "UpperConsistFail",
+        "T n = {X[0],X[1]};",
+        "void f() { int x = {foo[0], bar[1]}; }\n",
+        SPOTEND, NULL, NULL
+    },
+
+    // --- Uppercase placeholder: multi-token and bracket captures ---
+
+    {
+        "UpperMultiTok",
+        "return X;",
+        "int f() { return a + b; }\n",
+        OK, "a + b", NULL
+    },
+    {
+        "UpperBracketCap",
+        "X[0]",
+        "void f() { f(x)[0]; }\n",
+        OK, "f(x)", NULL
+    },
+
+    // --- Lowercase placeholder: balanced bracket group ---
+
+    {
+        "LowerBracketSimple",
+        "T n = {a[0],a[1]};",
+        "void f() { int x = {arr[0], arr[1]}; }\n",
+        OK, "arr", NULL
+    },
+    {
+        "LowerBracketParens",
+        "T n = {a[0],a[1]};",
+        "void f() { u8cs x = {(*fp)[0], (*fp)[1]}; }\n",
+        OK, "(*fp)", NULL
+    },
+    {
+        "LowerBracketNoMatch",
+        "T n = {a[0],a[1]};",
+        "void f() { int y = {ptr[0], qtr[1]}; }\n",
+        SPOTEND, NULL, NULL
+    },
+    {
+        "LowerBracketConsist",
+        "T n = {a[0],a[1]};",
+        "void f() { u8cs z = {(*fp)[0], (*gp)[1]}; }\n",
+        SPOTEND, NULL, NULL
+    },
 };
 
 #define SPOT_NCASES (sizeof(SPOT_CASES) / sizeof(SPOT_CASES[0]))

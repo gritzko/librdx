@@ -1292,6 +1292,7 @@ ok64 CAPOGrep(u8csc substring, u8csc ext, u8csc reporoot, u32 ctx_lines,
         if (pager != NULL) {
             saved_stdout = dup(STDOUT_FILENO);
             dup2(fileno(pager), STDOUT_FILENO);
+            CAPO_TERM = NO;
         }
     }
 
@@ -1514,6 +1515,7 @@ ok64 CAPOCat(u8css files, u8csc reporoot) {
         if (pager != NULL) {
             saved_stdout = dup(STDOUT_FILENO);
             dup2(fileno(pager), STDOUT_FILENO);
+            CAPO_TERM = NO;
         }
     }
 
@@ -2192,6 +2194,7 @@ ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot,
         if (pager != NULL) {
             saved_stdout = dup(STDOUT_FILENO);
             dup2(fileno(pager), STDOUT_FILENO);
+            CAPO_TERM = NO;
         }
     }
 
