@@ -1,0 +1,5 @@
+void f() {
+    u8cs a = {arr[0], arr[1]};
+    u8cs b = {(*fp)[0], (*fp)[1]};
+    int not_a_match = arr[0] + arr[1];
+}

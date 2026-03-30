@@ -1187,34 +1187,61 @@ static void CAPOEmitHunkHeader(u8csc source, u32 pos, u8csc ext,
     char funcname[256];
     CAPOFindFunc(source, pos, ext, funcname, sizeof(funcname));
 
-    // Same function as previous hunk — just emit separator
-    if (!*first_hunk && prev_func != NULL && funcname[0] != 0 &&
-        strcmp(funcname, prev_func) == 0) {
-        fprintf(stdout, "--\n");
-        return;
-    }
     if (prev_func != NULL) {
         size_t n = strlen(funcname);
         if (n >= 256) n = 255;
         memcpy(prev_func, funcname, n);
         prev_func[n] = 0;
     }
-    if (filepath != NULL && funcname[0] != 0) {
+
+    // Build header, max 64 visible chars: "--- path :: section ---"
+    // Trim section first, then path (replace prefix with "...")
+    #define HUNK_MAX 64
+    char hdr[512];
+    int hlen = 0;
+    if (filepath && funcname[0])
+        hlen = snprintf(hdr, sizeof(hdr), "--- %s :: %s ---",
+                         filepath, funcname);
+    else if (filepath)
+        hlen = snprintf(hdr, sizeof(hdr), "--- %s ---", filepath);
+    else if (funcname[0])
+        hlen = snprintf(hdr, sizeof(hdr), "--- %s ---", funcname);
+
+    if (hlen > HUNK_MAX && filepath && funcname[0]) {
+        // Trim section
+        size_t plen = strlen(filepath);
+        int budget = HUNK_MAX - 12 - (int)plen;  // 12 = "--- " + " :: " + " ---"
+        if (budget < 1) budget = 1;
+        hlen = snprintf(hdr, sizeof(hdr), "--- %s :: %.*s ---",
+                         filepath, budget, funcname);
+    }
+    if (hlen > HUNK_MAX && filepath) {
+        // Trim path: ...tail
+        const char *p = filepath + strlen(filepath);
+        int budget = HUNK_MAX - 12 - 3;  // 3 for "..."
+        if (funcname[0]) {
+            size_t flen = strlen(funcname);
+            if (flen > 20) flen = 20;
+            budget -= (int)flen + 4;  // " :: " + trimmed func
+        }
+        if (budget < 8) budget = 8;
+        while (p > filepath && (int)(filepath + strlen(filepath) - p) < budget)
+            p--;
+        if (funcname[0]) {
+            int favail = HUNK_MAX - 12 - 3 - (int)(filepath + strlen(filepath) - p);
+            if (favail < 1) favail = 1;
+            hlen = snprintf(hdr, sizeof(hdr), "--- ...%s :: %.*s ---",
+                             p, favail, funcname);
+        } else {
+            hlen = snprintf(hdr, sizeof(hdr), "--- ...%s ---", p);
+        }
+    }
+
+    if (hlen > 0) {
         if (CAPO_COLOR)
-            fprintf(stdout, "\033[%dm--- %s :: %s ---\033[0m\n",
-                    GRAY, filepath, funcname);
+            fprintf(stdout, "\033[%dm%s\033[0m\n", GRAY, hdr);
         else
-            fprintf(stdout, "--- %s :: %s ---\n", filepath, funcname);
-    } else if (filepath != NULL) {
-        if (CAPO_COLOR)
-            fprintf(stdout, "\033[%dm--- %s ---\033[0m\n", GRAY, filepath);
-        else
-            fprintf(stdout, "--- %s ---\n", filepath);
-    } else if (funcname[0] != 0) {
-        if (CAPO_COLOR)
-            fprintf(stdout, "\033[%dm--- %s ---\033[0m\n", GRAY, funcname);
-        else
-            fprintf(stdout, "--- %s ---\n", funcname);
+            fprintf(stdout, "%s\n", hdr);
     }
     *first_hunk = NO;
 }
@@ -1720,22 +1747,53 @@ cleanup:
 #define CAPOJoinToks(ts, jf) \
     u32cs ts = {(u32cp)(jf)->toks[1], (u32cp)(jf)->toks[2]}
 
-ok64 CAPODiff(u8csc old_path, u8csc new_path) {
+ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name) {
     sane($ok(old_path) && $ok(new_path));
 
-    // Detect extension from new file
+    // Detect extension from logical name
     u8cs ext = {};
-    size_t nlen = (size_t)$len(new_path);
-    CAPOFindExt(ext, new_path[0], nlen);
+    size_t nlen = (size_t)$len(name);
+    CAPOFindExt(ext, name[0], nlen);
     if (!$empty(ext) && ext[0][0] == '.') {
         ext[0] = ext[0] + 1;  // strip dot for tok/
     }
 
-    // Read files
+    // Read files (either side may be empty for new/deleted files)
     u8bp map_old = NULL, map_new = NULL;
     u8cs old_data = {}, new_data = {};
-    call(CAPOMergeRead, &old_data, &map_old, old_path);
-    call(CAPOMergeRead, &new_data, &map_new, new_path);
+    ok64 oro = CAPOMergeRead(&old_data, &map_old, old_path);
+    ok64 nro = CAPOMergeRead(&new_data, &map_new, new_path);
+    if (oro != OK && nro != OK) return oro;  // both failed
+
+    // Deleted file: just red header
+    if (nro != OK) {
+        fprintf(stdout, "\033[%dm--- %.*s ---\033[0m\n",
+                DARK_RED, (int)$len(name), (char *)name[0]);
+        if (map_old) FILEUnMap(map_old);
+        done;
+    }
+
+    // New file: header + syntax-highlighted content, no diff
+    if (oro != OK) {
+        JOINfile new_f = {};
+        ok64 o = JOINTokenize(&new_f, new_data, ext);
+        if (o != OK) {
+            JOINFree(&new_f);
+            if (map_new) FILEUnMap(map_new);
+            return o;
+        }
+        CAPOJoinToks(new_ts, &new_f);
+        fprintf(stdout, "\033[%dm+++ %.*s ---\033[0m\n",
+                DARK_GREEN, (int)$len(name), (char *)name[0]);
+        u64 ntoks = u32bDataLen(new_f.toks);
+        for (u64 i = 0; i < ntoks; i++)
+            CAPOEmitHili(new_ts, new_f.data[0], (int)i,
+                         TOK_TAG(new_ts[0][i]), 0);
+        fputc('\n', stdout);
+        JOINFree(&new_f);
+        if (map_new) FILEUnMap(map_new);
+        done;
+    }
 
     // Tokenize
     JOINfile old_f = {}, new_f = {};
@@ -1784,18 +1842,12 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path) {
             }
         }
 
-        // File header
-        if (CAPO_COLOR) {
-            fprintf(stdout, "\033[%dm--- %.*s\033[0m\n",
-                    GRAY, (int)$len(old_path), (char *)old_path[0]);
-            fprintf(stdout, "\033[%dm+++ %.*s\033[0m\n",
-                    GRAY, (int)$len(new_path), (char *)new_path[0]);
-        } else {
-            fprintf(stdout, "--- %.*s\n",
-                    (int)$len(old_path), (char *)old_path[0]);
-            fprintf(stdout, "+++ %.*s\n",
-                    (int)$len(new_path), (char *)new_path[0]);
-        }
+        // Build display name for hunk headers
+        char dispname[FILE_PATH_MAX_LEN];
+        size_t dlen = (size_t)$len(name);
+        if (dlen >= sizeof(dispname)) dlen = sizeof(dispname) - 1;
+        memcpy(dispname, name[0], dlen);
+        dispname[dlen] = 0;
 
         // Walk EDL, emit colored output with context trimming.
         // Build u32 visible-line intervals, then emit per-token.
@@ -1872,6 +1924,7 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path) {
         u64 oi = 0, ni = 0;
         u32 cur_line = 0, cur_iv = 0;
         b8 in_gap = YES, first_hunk = YES;
+        char prev_func[256] = {};
 
         for (u32 k = 0; k < nedl; ) {
             e32 e = edl[2][k];
@@ -1890,7 +1943,12 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path) {
                             if (!first_hunk) fputc('\n', stdout);
                             u32 boff = (ni > 0) ? TOK_OFF(new_ts[0][ni-1]) : 0;
                             CAPOEmitHunkHeader(new_data, boff, ext,
-                                               &first_hunk, NULL, NULL);
+                                               &first_hunk, dispname, prev_func);
+                            // Emit leading whitespace on current line
+                            u32 ls = boff;
+                            while (ls > 0 && new_data[0][ls-1] != '\n') ls--;
+                            if (ls < boff)
+                                fwrite(new_data[0] + ls, 1, boff - ls, stdout);
                             in_gap = NO;
                         }
                         CAPOEmitHili(new_ts, new_f.data[0], (int)ni,
@@ -1948,7 +2006,11 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path) {
                                 u32 boff = (ti > 0)
                                     ? TOK_OFF(new_ts[0][ti-1]) : 0;
                                 CAPOEmitHunkHeader(new_data, boff, ext,
-                                    &first_hunk, NULL, NULL);
+                                    &first_hunk, dispname, prev_func);
+                                u32 ls = boff;
+                                while (ls > 0 && new_data[0][ls-1] != '\n') ls--;
+                                if (ls < boff)
+                                    fwrite(new_data[0] + ls, 1, boff - ls, stdout);
                                 in_gap = NO;
                             }
                             CAPOEmitHili(new_ts, new_f.data[0],
@@ -2025,7 +2087,11 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path) {
                             u32 boff = (ti > 0)
                                 ? TOK_OFF(new_ts[0][ti-1]) : 0;
                             CAPOEmitHunkHeader(new_data, boff, ext,
-                                               &first_hunk, NULL, NULL);
+                                               &first_hunk, dispname, prev_func);
+                            u32 ls = boff;
+                            while (ls > 0 && new_data[0][ls-1] != '\n') ls--;
+                            if (ls < boff)
+                                fwrite(new_data[0] + ls, 1, boff - ls, stdout);
                             in_gap = NO;
                         }
                         CAPOEmitHili(new_ts, new_f.data[0],
@@ -2047,7 +2113,7 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path) {
                     u32 boff = (base_ni > 0)
                         ? TOK_OFF(new_ts[0][base_ni-1]) : 0;
                     CAPOEmitHunkHeader(new_data, boff, ext,
-                                       &first_hunk, NULL, NULL);
+                                       &first_hunk, dispname, prev_func);
                     in_gap = NO;
                 }
 
@@ -2247,6 +2313,8 @@ ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot,
 
     char line[FILE_PATH_MAX_LEN];
     int fi = 0;
+    int total_replacements = 0;
+    int total_files_replaced = 0;
     while (nfiles > 0
            ? fi < nfiles
            : fgets(line, sizeof(line), fp) != NULL) {
@@ -2335,8 +2403,9 @@ ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot,
             o = u8bMap(obufm, obuflen);
             if (o == OK) {
                 u8s rout = {u8bIdleHead(obufm), obufm[3]};
+                int file_matches = 0;
                 o = SPOTReplace(rout, source, htoks, needle,
-                                replace, file_ext);
+                                replace, file_ext, &file_matches);
                 if (o == OK) {
                     u8cs result = {u8bIdleHead(obufm), rout[0]};
                     FILEUnMap(mapped);
@@ -2347,7 +2416,10 @@ ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot,
                         FILEFeedall(fd, result);
                         close(fd);
                         CAPOProgress(NULL);
-                        fprintf(stderr, "replaced: %s\n", line);
+                        fprintf(stderr, "replaced: %s (%d)\n",
+                                line, file_matches);
+                        total_replacements += file_matches;
+                        total_files_replaced++;
                     }
                 }
                 u8bUnMap(obufm);
@@ -2430,6 +2502,11 @@ ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot,
     }
     if (fp != NULL) pclose(fp);
     CAPOProgress(NULL);
+
+    if (!$empty(replace)) {
+        fprintf(stderr, "%d replacements in %d files\n",
+                total_replacements, total_files_replaced);
+    }
 
     if (pager != NULL) {
         fflush(stdout);

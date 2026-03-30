@@ -193,9 +193,10 @@ ok64 capocli() {
             return FAILSANITY;
         }
         CAPO_COLOR = YES;  // git pager handles ANSI
+        u8cs nm = {trail[0][0], trail[0][1]};  // logical path
         u8cs op = {trail[1][0], trail[1][1]};  // old-file
         u8cs np = {trail[4][0], trail[4][1]};  // new-file
-        call(CAPODiff, op, np);
+        call(CAPODiff, op, np, nm);
     } else if (do_diff) {
         // Diff mode: expects 2 trailing paths (old new)
         if (ntrail < 2) {
@@ -204,7 +205,7 @@ ok64 capocli() {
         }
         u8cs op = {trail[0][0], trail[0][1]};
         u8cs np = {trail[1][0], trail[1][1]};
-        call(CAPODiff, op, np);
+        call(CAPODiff, op, np, np);
     } else if (do_merge) {
         // Merge mode: expects 3 trailing paths (base ours theirs)
         if (ntrail < 3) {

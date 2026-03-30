@@ -697,7 +697,8 @@ typedef struct {
 } SPOTrep;
 
 ok64 SPOTReplace(u8s out, u8csc source, u32cs hay_toks,
-                 u8csc needle_src, u8csc replace_src, u8csc ext) {
+                 u8csc needle_src, u8csc replace_src, u8csc ext,
+                 int *nmatches) {
     sane(out[0] != NULL && source[0] != NULL);
 
     aBpad(u32, ntoks, 4096);
@@ -718,7 +719,11 @@ ok64 SPOTReplace(u8s out, u8csc source, u32cs hay_toks,
         nmatch++;
     }
 
-    if (nmatch == 0) { free(matches); return (SPOTEND); }
+    if (nmatch == 0) {
+        free(matches);
+        if (nmatches) *nmatches = 0;
+        return (SPOTEND);
+    }
 
     // Sort matches by source range ascending
     for (int i = 1; i < nmatch; i++) {
@@ -755,6 +760,7 @@ ok64 SPOTReplace(u8s out, u8csc source, u32cs hay_toks,
         if (fo != OK) { free(matches); fail(fo); }
     }
 
+    if (nmatches) *nmatches = nmatch;
     free(matches);
     done;
 }

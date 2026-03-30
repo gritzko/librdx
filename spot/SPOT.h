@@ -52,7 +52,9 @@ ok64 SPOTInit(SPOTstate *st, u32bp ndl_toks,
 ok64 SPOTNext(SPOTstate *st);
 
 // Apply SPOT replacement to all matches in one file.
+// If nmatches != NULL, writes the number of replacements made.
 ok64 SPOTReplace(u8s out, u8csc source, u32cs hay_toks,
-                 u8csc needle_src, u8csc replace_src, u8csc ext);
+                 u8csc needle_src, u8csc replace_src, u8csc ext,
+                 int *nmatches);
 
 #endif

@@ -524,7 +524,8 @@ ok64 SPOTreTestTable() {
             aBpad(u8, outbuf, 65536);
             u8s out = {u8bIdleHead(outbuf), outbuf[3]};
 
-            ok64 ro = SPOTReplace(out, source, htoks, ndl_src, rep_src, ext);
+            int nrep = 0;
+            ok64 ro = SPOTReplace(out, source, htoks, ndl_src, rep_src, ext, &nrep);
 
             if (tc->nmatches == 0) {
                 if (ro != SPOTEND) {
