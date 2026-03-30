@@ -7,7 +7,7 @@
 #include "TEST.h"
 
 // Helper: declare const gauge from C string
-#define a_path8cg(name, cstr) u8cg name = path8cgOf(cstr)
+#define a_PATHu8cg(name, cstr) u8cg name = PATHu8cgOf(cstr)
 
 // Table-driven tests for path operations
 
@@ -29,8 +29,8 @@ ok64 PATHTestVerify() {
     };
 
     for (size_t i = 0; i < sizeof(valid) / sizeof(valid[0]); i++) {
-        a_path8cg(path, valid[i]);
-        ok64 o = path8gVerify(path);
+        a_PATHu8cg(path, valid[i]);
+        ok64 o = PATHu8gVerify(path);
         if (o != OK) {
             fprintf(stderr, "FAIL verify valid[%zu]: %s\n", i, valid[i]);
             return PATHBAD;
@@ -49,7 +49,7 @@ ok64 PATHTestVerify() {
         u8cp pstart = (u8cp)invalid[i].path;
         u8cp pend = pstart + invalid[i].len;
         u8cg path = {pstart, pend, pend};
-        ok64 o = path8gVerify(path);
+        ok64 o = PATHu8gVerify(path);
         if (o != PATHBAD) {
             fprintf(stderr, "FAIL verify invalid[%zu] should fail\n", i);
             return PATHFAIL;
@@ -72,8 +72,8 @@ ok64 PATHTestIsAbsolute() {
     };
 
     for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
-        a_path8cg(path, cases[i].path);
-        b8 result = path8gIsAbsolute(path);
+        a_PATHu8cg(path, cases[i].path);
+        b8 result = PATHu8gIsAbsolute(path);
         if (result != cases[i].expected) {
             fprintf(stderr, "FAIL isAbsolute[%zu]: %s expected %d got %d\n",
                     i, cases[i].path, cases[i].expected, result);
@@ -99,14 +99,14 @@ ok64 PATHTestNext() {
     };
 
     for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
-        a_path8cg(path, cases[i].path);
+        a_PATHu8cg(path, cases[i].path);
         // Create a working copy of the gauge for iteration
         u8cg rem = {path[0], path[1], path[2]};
         size_t seg_idx = 0;
 
         while (cases[i].segments[seg_idx] != NULL) {
             u8cs seg = {};
-            ok64 o = path8gNext(rem, seg);
+            ok64 o = PATHu8gDrain(rem, seg);
             if (o != OK) {
                 fprintf(stderr, "FAIL next[%zu] seg %zu: unexpected END\n", i, seg_idx);
                 return PATHFAIL;
@@ -123,7 +123,7 @@ ok64 PATHTestNext() {
 
         // Verify END
         u8cs seg = {};
-        ok64 o = path8gNext(rem, seg);
+        ok64 o = PATHu8gDrain(rem, seg);
         if (o != END) {
             fprintf(stderr, "FAIL next[%zu]: expected END after segments\n", i);
             return PATHFAIL;
@@ -173,12 +173,12 @@ ok64 PATHTestNorm() {
     };
 
     for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
-        a_path8cg(input, cases[i].input);
+        a_PATHu8cg(input, cases[i].input);
         u8cs expected = {(u8cp)cases[i].expected, (u8cp)(cases[i].expected + strlen(cases[i].expected))};
 
         a_pad(u8, normbuf, 256);
         u8gp norm = u8bDataIdle(normbuf);
-        ok64 o = path8gNorm(norm, input);
+        ok64 o = PATHu8gNorm(norm, input);
         if (o != OK) {
             fprintf(stderr, "FAIL norm[%zu]: %s returned %s\n", i, cases[i].input, ok64str(o));
             return o;
@@ -227,13 +227,13 @@ ok64 PATHTestRelative() {
     };
 
     for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
-        a_path8cg(base, cases[i].base);
-        a_path8cg(target, cases[i].target);
+        a_PATHu8cg(base, cases[i].base);
+        a_PATHu8cg(target, cases[i].target);
         u8cs expected = {(u8cp)cases[i].expected, (u8cp)(cases[i].expected + strlen(cases[i].expected))};
 
         a_pad(u8, relbuf, 256);
         u8gp rel = u8bDataIdle(relbuf);
-        ok64 o = path8gRelative(rel, base, target);
+        ok64 o = PATHu8gRelative(rel, base, target);
         if (o != OK) {
             fprintf(stderr, "FAIL relative[%zu]: returned %s\n", i, ok64str(o));
             return o;
@@ -279,13 +279,13 @@ ok64 PATHTestAbsolute() {
     };
 
     for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
-        a_path8cg(base, cases[i].base);
-        a_path8cg(relpath, cases[i].rel);
+        a_PATHu8cg(base, cases[i].base);
+        a_PATHu8cg(relpath, cases[i].rel);
         u8cs expected = {(u8cp)cases[i].expected, (u8cp)(cases[i].expected + strlen(cases[i].expected))};
 
         a_pad(u8, absbuf, 256);
         u8gp abs = u8bDataIdle(absbuf);
-        ok64 o = path8gAbsolute(abs, base, relpath);
+        ok64 o = PATHu8gAbsolute(abs, base, relpath);
         if (o != OK) {
             fprintf(stderr, "FAIL absolute[%zu]: returned %s\n", i, ok64str(o));
             return o;
@@ -311,7 +311,7 @@ ok64 PATHTestPush() {
 
     // Start with empty
     u8cs seg1 = {(u8cp)"first", (u8cp)"first" + 5};
-    call(path8gPush, path, seg1);
+    call(PATHu8gPush, path, seg1);
     u8cs expected1 = {(u8cp)"first", (u8cp)"first" + 5};
     u8cs result1 = {pathbuf[1], path[1]};
     if (!$eq(result1, expected1)) {
@@ -321,7 +321,7 @@ ok64 PATHTestPush() {
 
     // Push second
     u8cs seg2 = {(u8cp)"second", (u8cp)"second" + 6};
-    call(path8gPush, path, seg2);
+    call(PATHu8gPush, path, seg2);
     u8cs expected2 = {(u8cp)"first/second", (u8cp)"first/second" + 12};
     u8cs result2 = {pathbuf[1], path[1]};
     if (!$eq(result2, expected2)) {
@@ -335,7 +335,7 @@ ok64 PATHTestPush() {
 
     // Segment with slash should fail
     u8cs bad_slash = {(u8cp)"a/b", (u8cp)"a/b" + 3};
-    ok64 o1 = path8gPush(badpath, bad_slash);
+    ok64 o1 = PATHu8gPush(badpath, bad_slash);
     if (o1 != PATHBAD) {
         fprintf(stderr, "FAIL push: segment with slash should fail\n");
         return PATHFAIL;
@@ -343,7 +343,7 @@ ok64 PATHTestPush() {
 
     // Segment with tab should fail
     u8cs bad_tab = {(u8cp)"a\tb", (u8cp)"a\tb" + 3};
-    ok64 o2 = path8gPush(badpath, bad_tab);
+    ok64 o2 = PATHu8gPush(badpath, bad_tab);
     if (o2 != PATHBAD) {
         fprintf(stderr, "FAIL push: segment with tab should fail\n");
         return PATHFAIL;
@@ -368,11 +368,11 @@ ok64 PATHTestBase() {
     };
 
     for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
-        a_path8cg(path, cases[i].path);
+        a_PATHu8cg(path, cases[i].path);
         u8cs expected = {(u8cp)cases[i].expected, (u8cp)(cases[i].expected + strlen(cases[i].expected))};
 
         u8cs base = {};
-        path8gBase(base, path);
+        PATHu8gBase(base, path);
 
         if ($len(base) != $len(expected) || ($len(base) > 0 && 0 != $cmp(base, expected))) {
             fprintf(stderr, "FAIL base[%zu]: '%s' expected '%s' got '%.*s'\n",
@@ -401,11 +401,11 @@ ok64 PATHTestDir() {
     };
 
     for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
-        a_path8cg(path, cases[i].path);
+        a_PATHu8cg(path, cases[i].path);
         u8cs expected = {(u8cp)cases[i].expected, (u8cp)(cases[i].expected + strlen(cases[i].expected))};
 
         u8cs dir = {};
-        path8gDir(dir, path);
+        PATHu8gDir(dir, path);
 
         if ($len(dir) != $len(expected) || ($len(dir) > 0 && 0 != $cmp(dir, expected))) {
             fprintf(stderr, "FAIL dir[%zu]: '%s' expected '%s' got '%.*s'\n",
@@ -420,7 +420,7 @@ ok64 PATHTestDir() {
 ok64 PATHTestRoundTrip() {
     sane(1);
 
-    // Verify: path8gRelative + path8gAbsolute round-trips
+    // Verify: PATHu8gRelative + PATHu8gAbsolute round-trips
     static struct { char const* base; char const* target; } cases[] = {
         {"/a/b/c", "/x/y/z"},
         {"/home/user", "/var/log/syslog"},
@@ -430,25 +430,25 @@ ok64 PATHTestRoundTrip() {
     };
 
     for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
-        a_path8cg(base, cases[i].base);
-        a_path8cg(target, cases[i].target);
+        a_PATHu8cg(base, cases[i].base);
+        a_PATHu8cg(target, cases[i].target);
 
         // Compute relative
         a_pad(u8, relbuf, 256);
         u8gp relg = u8bDataIdle(relbuf);
-        call(path8gRelative, relg, base, target);
+        call(PATHu8gRelative, relg, base, target);
         u8cg rel = {relbuf[1], relg[1], relg[2]};
 
         // Resolve back
         a_pad(u8, absbuf, 256);
         u8gp absg = u8bDataIdle(absbuf);
-        call(path8gAbsolute, absg, base, rel);
+        call(PATHu8gAbsolute, absg, base, rel);
         u8cs resolved = {absbuf[1], absg[1]};
 
         // Normalize target for comparison
         a_pad(u8, normbuf, 256);
         u8gp normg = u8bDataIdle(normbuf);
-        call(path8gNorm, normg, target);
+        call(PATHu8gNorm, normg, target);
         u8cs norm_target = {normbuf[1], normg[1]};
 
         if (!$eq(resolved, norm_target)) {

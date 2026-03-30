@@ -49,7 +49,7 @@ ok64 basoncli() {
     u8bShed1(path);
 
     u8bp mapped = NULL;
-    call(FILEMapRO, &mapped, path8cgIn(path));
+    call(FILEMapRO, &mapped, PATHu8cgIn(path));
     u8cp i0 = u8bDataHead(mapped), i1 = u8bIdleHead(mapped);
     u8cs indata = {i0, i1};
 
@@ -89,7 +89,7 @@ ok64 basoncli() {
             u8bFeed1(opath, 0);
             u8bShed1(opath);
             int ofd;
-            call(FILECreate, &ofd, path8cgIn(opath));
+            call(FILECreate, &ofd, PATHu8cgIn(opath));
             if ($len(bdata) > 0)
                 call(FILEFeedall, ofd, bdata);
             close(ofd);
@@ -115,7 +115,7 @@ ok64 basoncli() {
             u8bFeed1(opath, 0);
             u8bShed1(opath);
             int ofd;
-            call(FILECreate, &ofd, path8cgIn(opath));
+            call(FILECreate, &ofd, PATHu8cgIn(opath));
             call(FILEFeedall, ofd, out);
             close(ofd);
         } else {

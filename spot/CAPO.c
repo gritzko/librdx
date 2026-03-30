@@ -76,20 +76,20 @@ static void CAPOCodecName(u8csp codec, u8csc ext) {
 ok64 CAPOResolveDir(path8b out, u8csc reporoot) {
     sane($ok(reporoot) && out != NULL);
     a_pad(u8, gitpath, FILE_PATH_MAX_LEN);
-    call(path8bFeedS, gitpath, reporoot);
+    call(PATHu8bFeed, gitpath, reporoot);
     a_cstr(gitname, ".git");
-    call(path8bPush, gitpath, gitname);
+    call(PATHu8bPush, gitpath, gitname);
 
-    ok64 isdir = FILEisdir(path8cgIn(gitpath));
+    ok64 isdir = FILEisdir(PATHu8cgIn(gitpath));
     if (isdir == OK) {
-        call(path8bFeedS, out, reporoot);
+        call(PATHu8bFeed, out, reporoot);
         a_cstr(dotgit, ".git");
-        call(path8bPush, out, dotgit);
+        call(PATHu8bPush, out, dotgit);
         a_cstr(spotname, "spot");
-        call(path8bPush, out, spotname);
+        call(PATHu8bPush, out, spotname);
     } else {
         u8bp mapped = NULL;
-        call(FILEMapRO, &mapped, path8cgIn(gitpath));
+        call(FILEMapRO, &mapped, PATHu8cgIn(gitpath));
         a_dup(u8c, content, u8bDataC(mapped));
         a_cstr(prefix, "gitdir: ");
         test($len(content) > $len(prefix), PATHBAD);
@@ -102,14 +102,14 @@ ok64 CAPOResolveDir(path8b out, u8csc reporoot) {
         u8cs gitdir = {start, end};
         test(!$empty(gitdir), PATHBAD);
         if (gitdir[0][0] == '/') {
-            call(path8bFeedS, out, gitdir);
+            call(PATHu8bFeed, out, gitdir);
         } else {
-            call(path8bFeedS, out, reporoot);
-            call(path8bPush, out, gitdir);
+            call(PATHu8bFeed, out, reporoot);
+            call(PATHu8bPush, out, gitdir);
         }
         FILEUnMap(mapped);
         a_cstr(caponame2, "spot");
-        call(path8bPush, out, caponame2);
+        call(PATHu8bPush, out, caponame2);
     }
     done;
 }
@@ -196,10 +196,10 @@ ok64 CAPOIndexWrite(u8csc dir, u64cs run, u64 seqno) {
     ((u8 **)path)[2] += CAPO_SEQNO_WIDTH;
     a_cstr(idxext, CAPO_IDX_EXT);
     call(u8bFeed, path, idxext);
-    call(path8gTerm, path8gIn(path));
+    call(PATHu8gTerm, PATHu8gIn(path));
 
     int fd = -1;
-    call(FILECreate, &fd, path8cgIn(path));
+    call(FILECreate, &fd, PATHu8cgIn(path));
     size_t bytes = $len(run) * sizeof(u64);
     u8cs data = {(u8cp)run[0], (u8cp)run[0] + bytes};
     call(FILEFeedall, fd, data);
@@ -212,10 +212,10 @@ ok64 CAPONextSeqno(u64p seqno, u8csc dir) {
     *seqno = 1;
 
     a_pad(u8, pat, FILE_PATH_MAX_LEN);
-    call(path8bFeedS, pat, dir);
+    call(PATHu8bFeed, pat, dir);
 
     int dfd = -1;
-    ok64 o = FILEOpenDir(&dfd, path8cgIn(pat));
+    ok64 o = FILEOpenDir(&dfd, PATHu8cgIn(pat));
     if (o != OK) done;
 
     u64 maxseq = 0;
@@ -245,10 +245,10 @@ ok64 CAPOStackOpen(u64css stack, u8bp *maps, u32p nfiles, u8csc dir) {
     *nfiles = 0;
 
     a_pad(u8, dpat, FILE_PATH_MAX_LEN);
-    call(path8bFeedS, dpat, dir);
+    call(PATHu8bFeed, dpat, dir);
 
     int dfd = -1;
-    ok64 o = FILEOpenDir(&dfd, path8cgIn(dpat));
+    ok64 o = FILEOpenDir(&dfd, PATHu8cgIn(dpat));
     if (o != OK) done;
 
     char names[CAPO_MAX_LEVELS][64];
@@ -278,12 +278,12 @@ ok64 CAPOStackOpen(u64css stack, u8bp *maps, u32p nfiles, u8csc dir) {
 
     for (u32 i = 0; i < count; i++) {
         a_pad(u8, fpath, FILE_PATH_MAX_LEN);
-        call(path8bFeedS, fpath, dir);
+        call(PATHu8bFeed, fpath, dir);
         u8cs fn = {(u8cp)names[i], (u8cp)names[i] + strlen(names[i])};
-        call(path8bPush, fpath, fn);
+        call(PATHu8bPush, fpath, fn);
 
         u8bp mapped = NULL;
-        call(FILEMapRO, &mapped, path8cgIn(fpath));
+        call(FILEMapRO, &mapped, PATHu8cgIn(fpath));
 
         size_t nbytes = u8bIdleHead(mapped) - u8bDataHead(mapped);
         size_t nentries = nbytes / sizeof(u64);
@@ -349,12 +349,12 @@ ok64 CAPOCompact(u8csc dir) {
     call(CAPOIndexWrite, dir, merged, seqno);
 
     a_pad(u8, dpat, FILE_PATH_MAX_LEN);
-    call(path8bFeedS, dpat, dir);
+    call(PATHu8bFeed, dpat, dir);
 
     char fnames[CAPO_MAX_LEVELS][64];
     u32 fcount = 0;
     int dfd = -1;
-    ok64 o = FILEOpenDir(&dfd, path8cgIn(dpat));
+    ok64 o = FILEOpenDir(&dfd, PATHu8cgIn(dpat));
     if (o == OK) {
         DIR *dd = fdopendir(dfd);
         if (dd) {
@@ -385,10 +385,10 @@ ok64 CAPOCompact(u8csc dir) {
     for (u32 i = fcount; i > 0 && unlinked < m; i--) {
         if (i == fcount) continue;
         a_pad(u8, ulpath, FILE_PATH_MAX_LEN);
-        call(path8bFeedS, ulpath, dir);
+        call(PATHu8bFeed, ulpath, dir);
         u8cs ulfn = {(u8cp)fnames[i - 1],
                      (u8cp)fnames[i - 1] + strlen(fnames[i - 1])};
-        call(path8bPush, ulpath, ulfn);
+        call(PATHu8bPush, ulpath, ulfn);
         unlink((char *)u8bDataHead(ulpath));
         unlinked++;
     }
@@ -447,10 +447,10 @@ static ok64 CAPOReindexWork(u8csc reporoot, u8csc dirslice, u64bp entries) {
 
         a_pad(u8, fpbuf, FILE_PATH_MAX_LEN);
         u8cs fps = {(u8cp)fpath, (u8cp)fpath + pn};
-        call(path8bFeedS, fpbuf, fps);
+        call(PATHu8bFeed, fpbuf, fps);
 
         u8bp mapped = NULL;
-        ok64 o = FILEMapRO(&mapped, path8cgIn(fpbuf));
+        ok64 o = FILEMapRO(&mapped, PATHu8cgIn(fpbuf));
         if (o != OK) {
             fprintf(stderr, "FAIL\t%s\t%s\t(open %s)\n",
                     ok64str(o), line, fpath);
@@ -521,7 +521,7 @@ ok64 CAPOReindex(u8csc reporoot) {
     a_pad(u8, capodir, FILE_PATH_MAX_LEN);
     call(CAPOResolveDir, capodir, reporoot);
     a_dup(u8c, dirslice, u8bDataC(capodir));
-    vcall("mkdir", FILEMakeDirP, path8cgIn(capodir));
+    vcall("mkdir", FILEMakeDirP, PATHu8cgIn(capodir));
     fprintf(stderr, "spot: index dir %s\n", (char *)u8bDataHead(capodir));
 
     Bu64 entries = {};
@@ -573,10 +573,10 @@ static ok64 CAPOReindexProcWork(u8csc reporoot, u8csc dirslice,
 
         a_pad(u8, fpbuf, FILE_PATH_MAX_LEN);
         u8cs fps = {(u8cp)fpath, (u8cp)fpath + pn};
-        call(path8bFeedS, fpbuf, fps);
+        call(PATHu8bFeed, fpbuf, fps);
 
         u8bp mapped = NULL;
-        ok64 o = FILEMapRO(&mapped, path8cgIn(fpbuf));
+        ok64 o = FILEMapRO(&mapped, PATHu8cgIn(fpbuf));
         if (o != OK) {
             fprintf(stderr, "FAIL\t%s\t%s\t(open %s)\n",
                     ok64str(o), line, fpath);
@@ -643,7 +643,7 @@ ok64 CAPOReindexProc(u8csc reporoot, u32 nprocs, u32 proc) {
     a_pad(u8, capodir, FILE_PATH_MAX_LEN);
     call(CAPOResolveDir, capodir, reporoot);
     a_dup(u8c, dirslice, u8bDataC(capodir));
-    vcall("mkdir", FILEMakeDirP, path8cgIn(capodir));
+    vcall("mkdir", FILEMakeDirP, PATHu8cgIn(capodir));
 
     Bu64 entries = {};
     vcall("mmap scratch", u64bMap, entries, CAPO_SCRATCH_LEN);
@@ -708,9 +708,9 @@ ok64 CAPOCompactAll(u8csc dir) {
         u64bUnMap(mbuf);
 
         a_pad(u8, dpat, FILE_PATH_MAX_LEN);
-        call(path8bFeedS, dpat, dir);
+        call(PATHu8bFeed, dpat, dir);
         int dfd = -1;
-        ok64 o = FILEOpenDir(&dfd, path8cgIn(dpat));
+        ok64 o = FILEOpenDir(&dfd, PATHu8cgIn(dpat));
         if (o == OK) {
             char fnames[CAPO_MAX_LEVELS][64];
             u32 fcount = 0;
@@ -737,10 +737,10 @@ ok64 CAPOCompactAll(u8csc dir) {
 
                 for (u32 i = 0; i + 1 < fcount; i++) {
                     a_pad(u8, ulpath, FILE_PATH_MAX_LEN);
-                    call(path8bFeedS, ulpath, dir);
+                    call(PATHu8bFeed, ulpath, dir);
                     u8cs ulfn = {(u8cp)fnames[i],
                                  (u8cp)fnames[i] + strlen(fnames[i])};
-                    call(path8bPush, ulpath, ulfn);
+                    call(PATHu8bPush, ulpath, ulfn);
                     unlink((char *)u8bDataHead(ulpath));
                 }
             }
@@ -792,10 +792,10 @@ ok64 CAPOCommitWrite(u8csc reporoot, u8csc capodir) {
     call(u8bFeed, path, capodir);
     a_cstr(commit_name, "/COMMIT");
     call(u8bFeed, path, commit_name);
-    call(path8gTerm, path8gIn(path));
+    call(PATHu8gTerm, PATHu8gIn(path));
 
     int fd = -1;
-    call(FILECreate, &fd, path8cgIn(path));
+    call(FILECreate, &fd, PATHu8cgIn(path));
     u8cs nl = {(u8cp)"\n", (u8cp)"\n" + 1};
     for (u32 i = keep_start; i < sha_count; i++) {
         u8cs data = {(u8cp)shas[i], (u8cp)shas[i] + 40};
@@ -827,10 +827,10 @@ ok64 CAPOCommitRead(u32p count, u8csc capodir,
     call(u8bFeed, path, capodir);
     a_cstr(commit_name, "/COMMIT");
     call(u8bFeed, path, commit_name);
-    call(path8gTerm, path8gIn(path));
+    call(PATHu8gTerm, PATHu8gIn(path));
 
     u8bp mapped = NULL;
-    ok64 o = FILEMapRO(&mapped, path8cgIn(path));
+    ok64 o = FILEMapRO(&mapped, PATHu8cgIn(path));
     if (o != OK) done;
 
     a_dup(u8c, content, u8bDataC(mapped));
@@ -924,10 +924,10 @@ static ok64 CAPOHookDiff(u8csc reporoot, u8csc dirslice,
 
         a_pad(u8, fpbuf, FILE_PATH_MAX_LEN);
         u8cs fps = {(u8cp)fpath, (u8cp)fpath + pn};
-        call(path8bFeedS, fpbuf, fps);
+        call(PATHu8bFeed, fpbuf, fps);
 
         u8bp mapped = NULL;
-        ok64 o = FILEMapRO(&mapped, path8cgIn(fpbuf));
+        ok64 o = FILEMapRO(&mapped, PATHu8cgIn(fpbuf));
         if (o != OK) continue;
 
         a_dup(u8c, source, u8bDataC(mapped));
@@ -965,7 +965,7 @@ ok64 CAPOHook(u8csc reporoot) {
     a_pad(u8, capodir, FILE_PATH_MAX_LEN);
     call(CAPOResolveDir, capodir, reporoot);
     a_dup(u8c, dirslice, u8bDataC(capodir));
-    call(FILEMakeDirP, path8cgIn(capodir));
+    call(FILEMakeDirP, PATHu8cgIn(capodir));
 
     char cmdbuf[FILE_PATH_MAX_LEN + 128];
     ok64 o = OK;
@@ -1396,10 +1396,10 @@ ok64 CAPOGrep(u8csc substring, u8csc ext, u8csc reporoot, u32 ctx_lines,
 
         a_pad(u8, fpbuf, FILE_PATH_MAX_LEN);
         u8cs fps = {(u8cp)fpath, (u8cp)fpath + pn};
-        call(path8bFeedS, fpbuf, fps);
+        call(PATHu8bFeed, fpbuf, fps);
 
         u8bp mapped = NULL;
-        ok64 o = FILEMapRO(&mapped, path8cgIn(fpbuf));
+        ok64 o = FILEMapRO(&mapped, PATHu8cgIn(fpbuf));
         if (o != OK) continue;
 
         a_dup(u8c, source, u8bDataC(mapped));
@@ -1564,7 +1564,7 @@ ok64 CAPOCat(u8css files, u8csc reporoot) {
         // Resolve path against CWD (like cat)
         a_pad(u8, fpbuf, FILE_PATH_MAX_LEN);
         call(u8bFeed, fpbuf, fpath_s);
-        call(path8gTerm, path8gIn(fpbuf));
+        call(PATHu8gTerm, PATHu8gIn(fpbuf));
 
         // Extract extension
         u8cs ext = {};
@@ -1573,7 +1573,7 @@ ok64 CAPOCat(u8css files, u8csc reporoot) {
 
         // Map file
         u8bp mapped = NULL;
-        ok64 o = FILEMapRO(&mapped, path8cgIn(fpbuf));
+        ok64 o = FILEMapRO(&mapped, PATHu8cgIn(fpbuf));
         if (o != OK) {
             fprintf(stderr, "spot: cannot open %.*s: %s\n",
                     (int)$len(fpath_s), (char *)fpath_s[0], ok64str(o));
@@ -1643,8 +1643,8 @@ static ok64 CAPOMergeRead(u8cs *data, u8bp *mapped, u8csc path_arg) {
     sane(data != NULL && mapped != NULL);
     a_pad(u8, path, FILE_PATH_MAX_LEN);
     call(u8bFeed, path, path_arg);
-    call(path8gTerm, path8gIn(path));
-    call(FILEMapRO, mapped, path8cgIn(path));
+    call(PATHu8gTerm, PATHu8gIn(path));
+    call(FILEMapRO, mapped, PATHu8cgIn(path));
     (*data)[0] = u8bDataHead(*mapped);
     (*data)[1] = u8bIdleHead(*mapped);
     done;
@@ -1692,7 +1692,7 @@ ok64 CAPOMerge(u8csc base_path, u8csc ours_path, u8csc theirs_path,
             // Write to file
             a_pad(u8, opath, FILE_PATH_MAX_LEN);
             call(u8bFeed, opath, outpath);
-            call(path8gTerm, path8gIn(opath));
+            call(PATHu8gTerm, PATHu8gIn(opath));
             int fd = open((char *)u8bDataHead(opath),
                           O_WRONLY | O_CREAT | O_TRUNC, 0644);
             if (fd < 0) { u8bFree(out); o = FILEFAIL; goto cleanup; }
@@ -2295,10 +2295,10 @@ ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot,
 
         a_pad(u8, fpbuf, FILE_PATH_MAX_LEN);
         u8cs fps = {(u8cp)fpath, (u8cp)fpath + pn};
-        call(path8bFeedS, fpbuf, fps);
+        call(PATHu8bFeed, fpbuf, fps);
 
         u8bp mapped = NULL;
-        ok64 o = FILEMapRO(&mapped, path8cgIn(fpbuf));
+        ok64 o = FILEMapRO(&mapped, PATHu8cgIn(fpbuf));
         if (o != OK) continue;
 
         a_dup(u8c, source, u8bDataC(mapped));
@@ -2342,7 +2342,7 @@ ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot,
                     FILEUnMap(mapped);
                     mapped = NULL;
                     int fd = -1;
-                    ok64 wo = FILECreate(&fd, path8cgIn(fpbuf));
+                    ok64 wo = FILECreate(&fd, PATHu8cgIn(fpbuf));
                     if (wo == OK) {
                         FILEFeedall(fd, result);
                         close(fd);

@@ -6,8 +6,8 @@
 //  Valid paths: UTF-8, no \r\t\n\0, / separated
 //  All functions set path[1] to 0 for C string compatibility.
 //
-//  Uses u8g (gauge) for all path parameters - no ownership implied,
-//  paths may live in mmapped buffers or anywhere else.
+//  Naming: PATHu8s* (core, on slices), PATHu8g* (gauge wrappers),
+//  PATHu8b* (buffer wrappers). u8g/u8b call u8s where applicable.
 
 #include "01.h"
 #include "BUF.h"
@@ -28,15 +28,15 @@ typedef bl08 pathseg8;
 // Create path8g view into u8b buffer - returns pointer so modifications sync
 // automatically buf[1..3] = {data_start, idle_start, idle_end} which is exactly
 // path8g layout Uses u8bDataIdle to cast away const (u8b has const pointers)
-#define path8gIn(buf) u8bDataIdle(buf)
+#define PATHu8gIn(buf) u8bDataIdle(buf)
 
 // Create const path8cg view into u8b buffer (for read-only path operations)
-#define path8cgIn(buf) ((path8cgp)u8bDataIdle(buf))
+#define PATHu8cgIn(buf) ((path8cgp)u8bDataIdle(buf))
 
 // Create const gauge from C string (read-only: idle=end)
 #define u8cgOf(str) \
     {(u8cp)(str), (u8cp)(str) + strlen(str), (u8cp)(str) + strlen(str)}
-#define path8cgOf(str) \
+#define PATHu8cgOf(str) \
     {(u8cp)(str), (u8cp)(str) + strlen(str), (u8cp)(str) + strlen(str) + 1}
 
 // Duplicate a gauge (for iteration)
@@ -49,127 +49,182 @@ con ok64 PATHBAD =
     0x1929d44b28d;  // invalid path (bad UTF-8 or forbidden chars)
 con ok64 PATHNOROOM = 0x64a7515d86d8616;  // no space for 0 terminator
 
-fun b8 path8cgOK(path8cg path) {
+// --- Validators ---
+
+fun b8 PATHu8cgOK(path8cg path) {
     return u8cgOK(path) && path[1] < path[2] && *path[1] == 0;
 }
-fun b8 path8gOK(path8cg path) { return path8cgOK(path); }
-// Set null terminator for C string compatibility
-// Returns PATHNOROOM if no space for terminator
-fun ok64 path8gTerm(path8g path) {
-    if (path[1] >= path[2]) return PATHNOROOM;
-    *(u8 *)path[1] = 0;
+fun b8 PATHu8gOK(path8cg path) { return PATHu8cgOK(path); }
+
+// --- u8s core functions (operate on slices/idle pairs) ---
+
+// Set null terminator for C string compatibility (idle pair)
+fun ok64 PATHu8sTerm(u8s idle) {
+    if (idle[0] >= idle[1]) return PATHNOROOM;
+    *(u8 *)idle[0] = 0;
     return OK;
 }
-fun ok64 path8cgTerm(path8cg path) { return path8gTerm((u8 **)path); }
+
+// Check null terminator on const gauge
+fun ok64 PATHu8cgTerm(path8cg path) { return PATHu8sTerm((u8 **)path); }
 
 // Check if path is absolute (starts with /)
-b8 path8gIsAbsolute(path8cg path);
+fun b8 PATHu8sIsAbsolute(u8csc path) {
+    if (!$ok(path) || $empty(path)) return NO;
+    return *path[0] == '/';
+}
 
 // Verify path conformance: UTF-8, no \r\t\n\0
-ok64 path8gVerify(path8cg path);
+ok64 PATHu8sVerify(u8csc path);
 
-// Consume one segment from path, returns END when exhausted
-// Modifies path to point past the consumed segment
-// Segment output is filled with the next segment's bounds
-ok64 path8gNext(path8cg path, u8csp segment);
+// Validate a segment (not a full path, just raw u8cs input)
+ok64 PATHu8sVerifySegment(u8cs segment);
 
-// Duplicate path from orig gauge into into gauge
-ok64 path8gDup(path8g into, path8cg orig);
+// Feed a slice into path idle, 0-terminate
+ok64 PATHu8sFeed(u8s idle, u8csc data);
 
-// Feed a slice into a path gauge, 0-terminate
-ok64 path8gFeedS(path8g into, u8csc data);
+// Consume one segment from path, advances path[0]
+ok64 PATHu8sDrain(u8cs path, u8csp seg);
 
-// Push one segment onto path (adds / separator if needed, 0-term)
-ok64 path8gPush(path8g path, u8cs segment);
+// Extract basename (view into path)
+void PATHu8sBase(u8csp out, u8csc path);
 
-// Pop last segment from path (removes trailing component after last /,
-// 0-terminates)
-ok64 path8gPop(path8g path);
-
-// Push segment with X characters randomized (for temp files)
-ok64 path8gAddTmp(path8g path, u8cs tmpl);
-
-// Add relative path to existing path, 0-terminate
-ok64 path8gAdd(path8g into, path8cg rel);
-
-// Compute relative path: rel = path from absbase to abs
-// Both absbase and abs must be absolute paths
-ok64 path8gRelative(path8g rel, path8cg absbase, path8cg abs);
-
-// Algebraically resolve relative path against base (no filesystem access)
-// Handles ., .., normalizes result
-ok64 path8gAbsolute(path8g abs, path8cg base, path8cg rel);
-
-// Resolve path in actual filesystem (like realpath)
-// Follows symlinks, returns canonical absolute path
-ok64 path8gReal(path8g real, path8cg path);
-
-// Normalize path: resolve ./, ../, collapse // sequences
-// Does not access filesystem
-ok64 path8gNorm(path8g norm, path8cg orig);
-
-// Extract basename (last component after final /)
-// Returns view into path, empty slice for "/" or trailing slash
-void path8gBase(u8csp out, path8cg path);
-
-// Extract dirname (everything before final /)
-// Returns view into path, "." for no directory component
-void path8gDir(u8csp out, path8cg path);
+// Extract dirname (view into path)
+void PATHu8sDir(u8csp out, u8csc path);
 
 // Extract file extension (after last dot in basename, without the dot)
-// Returns view into the original data, empty slice for no extension
-void path8sExt(u8csp out, u8csc path);
-fun void path8gExt(u8csp out, path8cg path) { u8cs s = {path[0], path[1]}; path8sExt(out, s); }
-fun void path8bExt(u8csp out, path8b buf) { path8sExt(out, u8bDataC(buf)); }
+void PATHu8sExt(u8csp out, u8csc path);
 
-// --- Buffer-level path operations (no gauge wrapping needed) ---
+// Add tmp segment: / + tmpl + randomize + \0
+ok64 PATHu8sAddTmp(u8s idle, u8cs tmpl, u8csc data);
 
-fun ok64 path8bPush(path8b p, u8cs seg) { return path8gPush(path8gIn(p), seg); }
-fun ok64 path8bPop(path8b p) { return path8gPop(path8gIn(p)); }
-fun ok64 path8bFeedS(path8b p, u8csc s) { return path8gFeedS(path8gIn(p), s); }
-fun ok64 path8bDup(path8b into, path8b from) {
-    return path8gDup(path8gIn(into), path8cgIn(from));
+// Aliases
+#define PATHu8sNext PATHu8sDrain
+
+// --- u8g functions (gauge-level) ---
+
+// Term: null-terminate gauge
+fun ok64 PATHu8gTerm(path8g path) { return PATHu8sTerm(path + 1); }
+
+// Feed: copy data into gauge, 0-terminate
+fun ok64 PATHu8gFeed(path8g into, u8csc data) {
+    return PATHu8sFeed(into + 1, data);
 }
-fun ok64 path8bPushCStr(path8b p, const char *s) {
+
+// IsAbsolute
+fun b8 PATHu8gIsAbsolute(path8cg path) {
+    u8cs s = {path[0], path[1]};
+    return PATHu8sIsAbsolute(s);
+}
+
+// Verify
+fun ok64 PATHu8gVerify(path8cg path) {
+    u8cs s = {path[0], path[1]};
+    return PATHu8sVerify(s);
+}
+
+// Drain: consume one segment from gauge
+fun ok64 PATHu8gDrain(path8cg path, u8csp seg) {
+    u8cs t = {path[0], path[1]};
+    ok64 o = PATHu8sDrain(t, seg);
+    path[0] = t[0];
+    return o;
+}
+
+// Base
+fun void PATHu8gBase(u8csp out, path8cg path) {
+    u8cs s = {path[0], path[1]};
+    PATHu8sBase(out, s);
+}
+
+// Dir
+fun void PATHu8gDir(u8csp out, path8cg path) {
+    u8cs s = {path[0], path[1]};
+    PATHu8sDir(out, s);
+}
+
+// Ext
+fun void PATHu8gExt(u8csp out, path8cg path) {
+    u8cs s = {path[0], path[1]};
+    PATHu8sExt(out, s);
+}
+
+// Gauge-only functions (complex, declared extern)
+ok64 PATHu8gPush(path8g path, u8cs segment);
+ok64 PATHu8gPop(path8g path);
+ok64 PATHu8gDup(path8g into, path8cg orig);
+ok64 PATHu8gAdd(path8g into, path8cg rel);
+ok64 PATHu8gAddTmp(path8g path, u8cs tmpl);
+ok64 PATHu8gRelative(path8g rel, path8cg absbase, path8cg abs);
+ok64 PATHu8gAbsolute(path8g abs, path8cg base, path8cg rel);
+ok64 PATHu8gReal(path8g real, path8cg path);
+ok64 PATHu8gNorm(path8g norm, path8cg orig);
+
+// Aliases
+#define PATHu8gNext PATHu8gDrain
+
+// --- u8b functions (buffer wrappers) ---
+
+fun ok64 PATHu8bTerm(path8b p) { return PATHu8gTerm(PATHu8gIn(p)); }
+fun ok64 PATHu8bFeed(path8b p, u8csc s) {
+    return PATHu8gFeed(PATHu8gIn(p), s);
+}
+fun ok64 PATHu8bPush(path8b p, u8cs seg) {
+    return PATHu8gPush(PATHu8gIn(p), seg);
+}
+fun ok64 PATHu8bPop(path8b p) { return PATHu8gPop(PATHu8gIn(p)); }
+fun ok64 PATHu8bDup(path8b into, path8b from) {
+    return PATHu8gDup(PATHu8gIn(into), PATHu8cgIn(from));
+}
+fun ok64 PATHu8bPushCStr(path8b p, const char *s) {
     u8cs seg = {(u8cp)s, (u8cp)s + strlen(s)};
-    return path8gPush(path8gIn(p), seg);
+    return PATHu8gPush(PATHu8gIn(p), seg);
 }
-
-// --- Stack path macros ---
+fun ok64 PATHu8bAddTmp(path8b p, u8cs tmpl) {
+    return PATHu8gAddTmp(PATHu8gIn(p), tmpl);
+}
+fun ok64 PATHu8bAdd(path8b into, path8cg rel) {
+    return PATHu8gAdd(PATHu8gIn(into), rel);
+}
+fun void PATHu8bExt(u8csp out, path8b buf) {
+    PATHu8sExt(out, u8bDataC(buf));
+}
 
 // Feed first slice as base path, push rest as segments
-fun ok64 path8bBuildN(path8b p, u8csp *slices) {
+fun ok64 PATHu8bBuildN(path8b p, u8csp *slices) {
     if (!*slices) return OK;
-    ok64 o = path8bFeedS(p, *slices);
+    ok64 o = PATHu8bFeed(p, *slices);
     if (o != OK) return o;
     for (slices++; *slices; slices++) {
-        o = path8bPush(p, *slices);
+        o = PATHu8bPush(p, *slices);
         if (o != OK) return o;
     }
     return OK;
 }
 
-// a_path(name) — empty path buffer
-// a_path(name, base) — feed base slice (may contain /)
-// a_path(name, base, seg1, seg2) — feed base, push segments
+// --- Stack path macros ---
+
+// a_path(name) -- empty path buffer
+// a_path(name, base) -- feed base slice (may contain /)
+// a_path(name, base, seg1, seg2) -- feed base, push segments
 // All args are u8cs/u8csc slices. Use a_cstr() for literals.
 #define a_path(n, ...)                                       \
     a_pad(u8, n, FILE_PATH_MAX_LEN);                        \
-    path8gTerm(path8gIn(n));                                 \
+    PATHu8bTerm(n);                                          \
     __VA_OPT__({                                             \
         u8csp _sl_##n[] = {__VA_ARGS__, NULL};               \
-        path8bBuildN(n, _sl_##n);                            \
+        PATHu8bBuildN(n, _sl_##n);                           \
     })
 
-// a_abspath(name, seg1, ...) — absolute path (starts with /)
+// a_abspath(name, seg1, ...) -- absolute path (starts with /)
 // All args are u8cs slices pushed as segments.
 #define a_abspath(n, ...)                                    \
     a_pad(u8, n, FILE_PATH_MAX_LEN);                        \
     u8sFeed1(n##_idle, '/');                                 \
-    path8gTerm(path8gIn(n));                                 \
+    PATHu8bTerm(n);                                          \
     __VA_OPT__({                                             \
         u8csp _sl_##n[] = {__VA_ARGS__, NULL};               \
-        path8bBuildN(n, _sl_##n);                            \
+        PATHu8bBuildN(n, _sl_##n);                           \
     })
 
 #endif  // ABC_PATH_H

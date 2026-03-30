@@ -12,17 +12,17 @@ ok64 ROCKtest1() {
     sane(1);
     a_path(path, $cstr("/tmp"));
     a_cstr(tmpl, "ROCKtest1_XXXXXX");
-    call(path8gAddTmp, path8gIn(path), tmpl);
+    call(PATHu8gAddTmp, PATHu8gIn(path), tmpl);
     ROCKdb db = {};
-    call(ROCKOpen, &db, path8cgIn(path));
+    call(ROCKOpen, &db, PATHu8cgIn(path));
     want(db.db != NULL);
     call(ROCKClose, &db);
     want(db.db == NULL);
     // reopen
-    call(ROCKOpen, &db, path8cgIn(path));
+    call(ROCKOpen, &db, PATHu8cgIn(path));
     want(db.db != NULL);
     call(ROCKClose, &db);
-    call(FILErmrf, path8cgIn(path));
+    call(FILErmrf, PATHu8cgIn(path));
     done;
 }
 
@@ -31,9 +31,9 @@ ok64 ROCKtest2() {
     sane(1);
     a_path(path, $cstr("/tmp"));
     a_cstr(tmpl, "ROCKtest2_XXXXXX");
-    call(path8gAddTmp, path8gIn(path), tmpl);
+    call(PATHu8gAddTmp, PATHu8gIn(path), tmpl);
     ROCKdb db = {};
-    call(ROCKOpen, &db, path8cgIn(path));
+    call(ROCKOpen, &db, PATHu8cgIn(path));
 
     u8cs keys[] = {
         $u8str("key1"),
@@ -61,7 +61,7 @@ ok64 ROCKtest2() {
     }
 
     call(ROCKClose, &db);
-    call(FILErmrf, path8cgIn(path));
+    call(FILErmrf, PATHu8cgIn(path));
     done;
 }
 
@@ -70,9 +70,9 @@ ok64 ROCKtest3() {
     sane(1);
     a_path(path, $cstr("/tmp"));
     a_cstr(tmpl, "ROCKtest3_XXXXXX");
-    call(path8gAddTmp, path8gIn(path), tmpl);
+    call(PATHu8gAddTmp, PATHu8gIn(path), tmpl);
     ROCKdb db = {};
-    call(ROCKOpen, &db, path8cgIn(path));
+    call(ROCKOpen, &db, PATHu8cgIn(path));
 
     u8cs key = $u8str("delme");
     u8cs val = $u8str("gone");
@@ -89,7 +89,7 @@ ok64 ROCKtest3() {
     same(o, ROCKNONE);
 
     call(ROCKClose, &db);
-    call(FILErmrf, path8cgIn(path));
+    call(FILErmrf, PATHu8cgIn(path));
     done;
 }
 
@@ -98,9 +98,9 @@ ok64 ROCKtest4() {
     sane(1);
     a_path(path, $cstr("/tmp"));
     a_cstr(tmpl, "ROCKtest4_XXXXXX");
-    call(path8gAddTmp, path8gIn(path), tmpl);
+    call(PATHu8gAddTmp, PATHu8gIn(path), tmpl);
     ROCKdb db = {};
-    call(ROCKOpen, &db, path8cgIn(path));
+    call(ROCKOpen, &db, PATHu8cgIn(path));
 
     u8cs keys[] = {
         $u8str("aaa"),
@@ -139,7 +139,7 @@ ok64 ROCKtest4() {
 
     call(ROCKIterClose, &it);
     call(ROCKClose, &db);
-    call(FILErmrf, path8cgIn(path));
+    call(FILErmrf, PATHu8cgIn(path));
     done;
 }
 
@@ -148,9 +148,9 @@ ok64 ROCKtest5() {
     sane(1);
     a_path(path, $cstr("/tmp"));
     a_cstr(tmpl, "ROCKtest5_XXXXXX");
-    call(path8gAddTmp, path8gIn(path), tmpl);
+    call(PATHu8gAddTmp, PATHu8gIn(path), tmpl);
     ROCKdb db = {};
-    call(ROCKOpen, &db, path8cgIn(path));
+    call(ROCKOpen, &db, PATHu8cgIn(path));
 
     u8cs keys[] = {
         $u8str("aaa"),
@@ -179,7 +179,7 @@ ok64 ROCKtest5() {
 
     call(ROCKIterClose, &it);
     call(ROCKClose, &db);
-    call(FILErmrf, path8cgIn(path));
+    call(FILErmrf, PATHu8cgIn(path));
     done;
 }
 
@@ -188,9 +188,9 @@ ok64 ROCKtest6() {
     sane(1);
     a_path(path, $cstr("/tmp"));
     a_cstr(tmpl, "ROCKtest6_XXXXXX");
-    call(path8gAddTmp, path8gIn(path), tmpl);
+    call(PATHu8gAddTmp, PATHu8gIn(path), tmpl);
     ROCKdb db = {};
-    call(ROCKOpen, &db, path8cgIn(path));
+    call(ROCKOpen, &db, PATHu8cgIn(path));
 
     ROCKbatch wb = {};
     call(ROCKBatchOpen, &wb);
@@ -223,7 +223,7 @@ ok64 ROCKtest6() {
     want($eq(got3, v3));
 
     call(ROCKClose, &db);
-    call(FILErmrf, path8cgIn(path));
+    call(FILErmrf, PATHu8cgIn(path));
     done;
 }
 
@@ -241,9 +241,9 @@ ok64 ROCKtest7() {
     sane(1);
     a_path(path, $cstr("/tmp"));
     a_cstr(tmpl, "ROCKtest7_XXXXXX");
-    call(path8gAddTmp, path8gIn(path), tmpl);
+    call(PATHu8gAddTmp, PATHu8gIn(path), tmpl);
     ROCKdb db = {};
-    call(ROCKOpenMerge, &db, path8cgIn(path), ConcatMerge);
+    call(ROCKOpenMerge, &db, PATHu8cgIn(path), ConcatMerge);
 
     u8cs key = $u8str("mkey");
     u8cs v1 = $u8str("aaa");
@@ -261,7 +261,7 @@ ok64 ROCKtest7() {
     want($eq(got, expect));
 
     call(ROCKClose, &db);
-    call(FILErmrf, path8cgIn(path));
+    call(FILErmrf, PATHu8cgIn(path));
     done;
 }
 
@@ -301,9 +301,9 @@ ok64 ROCKtest8() {
     sane(1);
     a_path(path, $cstr("/tmp"));
     a_cstr(tmpl, "ROCKtest8_XXXXXX");
-    call(path8gAddTmp, path8gIn(path), tmpl);
+    call(PATHu8gAddTmp, PATHu8gIn(path), tmpl);
     ROCKdb db = {};
-    call(ROCKOpen, &db, path8cgIn(path));
+    call(ROCKOpen, &db, PATHu8cgIn(path));
 
     // Insert keys with two prefixes
     u8cs k1 = $u8str("proj/aaa");
@@ -347,7 +347,7 @@ ok64 ROCKtest8() {
     same(o, ROCKFAIL);
 
     call(ROCKClose, &db);
-    call(FILErmrf, path8cgIn(path));
+    call(FILErmrf, PATHu8cgIn(path));
     done;
 }
 

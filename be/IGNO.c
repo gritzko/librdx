@@ -69,7 +69,7 @@ static b8 TryMatch(igno_pat const *pat, u8cs path, b8 is_dir) {
     // (gitignore rule: patterns without / match anywhere in the tree)
     if (!pat->has_slash && !pat->anchored) {
         u8cs basename = {};
-        path8gBase(basename, (path8cg){path[0], path[1], path[1]});
+        PATHu8gBase(basename, (path8cg){path[0], path[1], path[1]});
         return IGNOGlob(match_pattern, basename);
     }
 
@@ -118,11 +118,11 @@ ok64 IGNOLoad(ignop out, u8cs dir_path) {
     // Build path to .gitignore
     a_path(gi_path);
     call(u8sFeed, u8bIdle(gi_path), dir_path);
-    call(path8gTerm, path8gIn(gi_path));
-    call(path8bPush, gi_path, GITIGNORE_NAME);
+    call(PATHu8gTerm, PATHu8gIn(gi_path));
+    call(PATHu8bPush, gi_path, GITIGNORE_NAME);
 
     // Try to load file
-    ok64 o = FILEMapRO(&out->buf, path8cgIn(gi_path));
+    ok64 o = FILEMapRO(&out->buf, PATHu8cgIn(gi_path));
     if (o != OK) {
         // No .gitignore - not an error
         return NONE;

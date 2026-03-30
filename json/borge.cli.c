@@ -26,7 +26,7 @@ static ok64 borgeLoadFile(u8bp bson, u64bp idx,
     call(u8bFeed, path, arg);
     u8bFeed1(path, 0);
     u8bShed1(path);
-    call(FILEMapRO, mapped, path8cgIn(path));
+    call(FILEMapRO, mapped, PATHu8cgIn(path));
     u8cp d0 = u8bDataHead(*mapped);
     u8cp d1 = u8bIdleHead(*mapped);
     u8cs data = {d0, d1};

@@ -28,25 +28,25 @@ ok64 FILEErr(ok64 def) {
 }
 
 ok64 FILEMakeDir(path8cg path) {
-    sane(path8cgOK(path));
+    sane(PATHu8cgOK(path));
     int rc = mkdir((char const *)*path, S_IRWXU);
     FILETestC(rc == 0);
     done;
 }
 
 ok64 FILEMakeDirP(path8cg path) {
-    sane(path8cgOK(path));
+    sane(PATHu8cgOK(path));
     ok64 o = FILEMakeDir(path);
     if (o == OK || o == FILEEXIST) return OK;
     // Parent might not exist, try creating it first
     u8 pbuf[FILE_PATH_MAX_LEN];
     path8 parent = {pbuf, pbuf, pbuf, pbuf + FILE_PATH_MAX_LEN};
     u8cs dir = {};
-    path8gDir(dir, path);
+    PATHu8gDir(dir, path);
     if ($empty(dir) || $len(dir) <= 1) return o;
     call(u8sFeed, u8bIdle(parent), dir);
-    call(path8gTerm, path8gIn(parent));
-    call(FILEMakeDirP, path8cgIn(parent));
+    call(PATHu8gTerm, PATHu8gIn(parent));
+    call(FILEMakeDirP, PATHu8cgIn(parent));
     o = FILEMakeDir(path);
     if (o == FILEEXIST) return OK;
     return o;
@@ -54,13 +54,13 @@ ok64 FILEMakeDirP(path8cg path) {
 
 // Remove directory. If recursive=true, delete contents first (rm -rf style).
 ok64 FILERmDir(path8cg path, bool recursive) {
-    sane(path8cgOK(path));
+    sane(PATHu8cgOK(path));
 
     if (recursive) {  // FIXME refac
         // Use internal buffer for recursion
         a_pad(u8, work, FILE_PATH_MAX_LEN);
         u8sFeed(work_idle, path);
-        path8gp workp = path8gIn(work);
+        path8gp workp = PATHu8gIn(work);
         *workp[1] = 0;  // null terminate (at data end, not included in data)
 
         // Open directory and delete contents
@@ -82,7 +82,7 @@ ok64 FILERmDir(path8cg path, bool recursive) {
             }
 
             a_cstr(fn, entry->d_name);
-            o = path8gPush(workp, fn);
+            o = PATHu8gPush(workp, fn);
             if (o != OK) break;
 
             // d_type can be DT_UNKNOWN on some filesystems, so use stat()
@@ -116,7 +116,7 @@ ok64 FILERmDir(path8cg path, bool recursive) {
 }
 
 ok64 FILEUnLink(path8cg path) {
-    sane(path8cgOK(path));
+    sane(PATHu8cgOK(path));
     int rc = unlink((char const *)*path);
     FILETestC(rc == 0);
     done;
@@ -130,7 +130,7 @@ ok64 FILEHardLink(path8cg dst, path8cg src) {
 }
 
 ok64 FILEisdir(path8cg path) {
-    sane(path8cgOK(path));
+    sane(PATHu8cgOK(path));
     struct stat sb = {};
     call(FILEStat, &sb, path);
     test(sb.st_mode & S_IFDIR, FILEWRONG);
@@ -151,7 +151,7 @@ ok64 FILEClose(int *fd) {
 }
 
 ok64 FILECreate(int *fd, path8cg path) {
-    sane(fd != NULL && path8cgOK(path));
+    sane(fd != NULL && PATHu8cgOK(path));
     *fd = open((char const *)*path, O_CREAT | O_RDWR | O_TRUNC,
                S_IRUSR | S_IWUSR);
     if (*fd < 0) fail(FILEErr(FILENOOPEN));
@@ -159,7 +159,7 @@ ok64 FILECreate(int *fd, path8cg path) {
 }
 
 ok64 FILECreateAt(int *fd, int dir, path8cg path) {
-    sane(fd != NULL && path8cgOK(path));
+    sane(fd != NULL && PATHu8cgOK(path));
     *fd = openat(dir, (char const *)*path, O_CREAT | O_RDWR | O_TRUNC,
                  S_IRUSR | S_IWUSR);
     if (*fd < 0) fail(FILEErr(FILENOOPEN));
@@ -167,21 +167,21 @@ ok64 FILECreateAt(int *fd, int dir, path8cg path) {
 }
 
 ok64 FILEOpen(int *fd, path8cg path, int flags) {
-    sane(fd != NULL && path8cgOK(path));
+    sane(fd != NULL && PATHu8cgOK(path));
     *fd = open((char const *)*path, flags);
     if (*fd < 0) fail(FILEErr(FILENOOPEN));
     done;
 }
 
 ok64 FILEOpenAt(int *fd, int const dirfd, path8cg path, int flags) {
-    sane(fd != NULL && path8cgOK(path) && FILEok(dirfd));
+    sane(fd != NULL && PATHu8cgOK(path) && FILEok(dirfd));
     *fd = openat(dirfd, (char const *)*path, flags);
     if (*fd < 0) fail(FILEErr(FILENOOPEN));
     done;
 }
 
 ok64 FILEStat(struct stat *ret, path8cg path) {
-    sane(ret != NULL && path8cgOK(path));
+    sane(ret != NULL && PATHu8cgOK(path));
     int rc = stat((char const *)*path, ret);
     FILETestC(rc == 0);
     done;
@@ -214,7 +214,7 @@ fun int unlink_cb(const char *fname, const struct stat *sb, int typeflag,
 }
 
 ok64 FILErmrf(path8cg path) {
-    sane(path8cgOK(path));
+    sane(PATHu8cgOK(path));
     int rc = nftw((char const *)*path, unlink_cb, 64, FTW_DEPTH | FTW_PHYS);
     FILETestC(rc == 0);
     done;
@@ -409,7 +409,7 @@ ok64 FILEMapFD(u8bp *buf, int const *fd, int mode) {
 }
 
 ok64 FILEMapRO(u8bp *buf, path8cg path) {
-    sane(buf != NULL && path8cgOK(path));
+    sane(buf != NULL && PATHu8cgOK(path));
     int fd = FILE_CLOSED;
     call(FILEOpen, &fd, path, O_RDONLY);
     call(FILEMapFD, buf, &fd, PROT_READ);
@@ -417,7 +417,7 @@ ok64 FILEMapRO(u8bp *buf, path8cg path) {
 }
 
 ok64 FILEMapROAt(u8bp *buf, int dir, path8cg path) {
-    sane(buf != NULL && path8cgOK(path));
+    sane(buf != NULL && PATHu8cgOK(path));
     int fd = FILE_CLOSED;
     call(FILEOpenAt, &fd, dir, path, O_RDONLY);
     call(FILEMapFD, buf, &fd, PROT_READ);
@@ -425,7 +425,7 @@ ok64 FILEMapROAt(u8bp *buf, int dir, path8cg path) {
 }
 
 ok64 FILEMapRW(u8bp *buf, path8cg path) {
-    sane(buf != NULL && path8cgOK(path));
+    sane(buf != NULL && PATHu8cgOK(path));
     int fd = FILE_CLOSED;
     call(FILEOpen, &fd, path, O_RDWR);
     call(FILEMapFD, buf, &fd, PROT_READ | PROT_WRITE);
@@ -433,7 +433,7 @@ ok64 FILEMapRW(u8bp *buf, path8cg path) {
 }
 
 ok64 FILEMapCreate(u8bp *buf, path8cg path, size_t size) {
-    sane(buf != NULL && path8cgOK(path));
+    sane(buf != NULL && PATHu8cgOK(path));
     int fd = FILE_CLOSED;
     call(FILECreate, &fd, path);
     call(FILEResize, &fd, size);
@@ -442,7 +442,7 @@ ok64 FILEMapCreate(u8bp *buf, path8cg path, size_t size) {
 }
 
 ok64 FILEMapCreateAt(u8bp *buf, int dir, path8cg path, size_t size) {
-    sane(buf != NULL && path8cgOK(path) && dir > FILE_CLOSED);
+    sane(buf != NULL && PATHu8cgOK(path) && dir > FILE_CLOSED);
     int fd = FILE_CLOSED;
     call(FILECreateAt, &fd, dir, path);
     call(FILEResize, &fd, size);
@@ -547,7 +547,7 @@ fun ok64 FILEBookFD(u8bp *buf, int const *fd, size_t book_size) {
 }
 
 ok64 FILEBook(u8bp *buf, path8cg path, size_t book_size) {
-    sane(buf != NULL && path8cgOK(path));
+    sane(buf != NULL && PATHu8cgOK(path));
     int fd = FILE_CLOSED;
     call(FILEOpen, &fd, path, O_RDWR);
     call(FILEBookFD, buf, &fd, book_size);
@@ -555,7 +555,7 @@ ok64 FILEBook(u8bp *buf, path8cg path, size_t book_size) {
 }
 
 ok64 FILEBookAt(u8bp *buf, int dir, path8cg path, size_t book_size) {
-    sane(buf != NULL && path8cgOK(path));
+    sane(buf != NULL && PATHu8cgOK(path));
     int fd = FILE_CLOSED;
     call(FILEOpenAt, &fd, dir, path, O_RDWR);
     call(FILEBookFD, buf, &fd, book_size);
@@ -564,7 +564,7 @@ ok64 FILEBookAt(u8bp *buf, int dir, path8cg path, size_t book_size) {
 
 ok64 FILEBookCreate(u8bp *buf, path8cg path, size_t book_size,
                     size_t init_size) {
-    sane(buf != NULL && path8cgOK(path) && init_size <= book_size);
+    sane(buf != NULL && PATHu8cgOK(path) && init_size <= book_size);
     int fd = FILE_CLOSED;
     call(FILECreate, &fd, path);
     size_t sp = FILESysPage();
@@ -577,7 +577,7 @@ ok64 FILEBookCreate(u8bp *buf, path8cg path, size_t book_size,
 
 ok64 FILEBookCreateAt(u8bp *buf, int dir, path8cg path, size_t book_size,
                       size_t init_size) {
-    sane(buf != NULL && path8cgOK(path) && dir > FILE_CLOSED);
+    sane(buf != NULL && PATHu8cgOK(path) && dir > FILE_CLOSED);
     int fd = FILE_CLOSED;
     call(FILECreateAt, &fd, dir, path);
     size_t sp = FILESysPage();
@@ -688,7 +688,7 @@ ok64 FILEUnBook(u8bp buf) {
 }
 
 ok64 FILEScan(path8 path, FILE_SCAN mode, path8f f, voidp arg) {
-    sane(path8Sane(path) && f);
+    sane(PATHu8bSane(path) && f);
     DIR *dir = opendir((const char *)*path);
     if (dir == NULL) {
         // todo
@@ -705,7 +705,7 @@ ok64 FILEScan(path8 path, FILE_SCAN mode, path8f f, voidp arg) {
         if ((nlen == 1 && fn[0][0] == '.') ||
             (nlen == 2 && fn[0][0] == '.' && fn[0][1] == '.'))
             continue;
-        o = path8bPush(path, fn);
+        o = PATHu8bPush(path, fn);
         if (o == BNOROOM) {
             // Path too long - skip this entry and continue
             o = OK;
@@ -749,7 +749,7 @@ ok64 FILEScan(path8 path, FILE_SCAN mode, path8f f, voidp arg) {
 // File tree iterator implementation
 
 ok64 FILEIterOpen(fileitp it, path8gp path) {
-    sane(it && path && path8gOK((path8cgp)path));
+    sane(it && path && PATHu8gOK((path8cgp)path));
     it->dir = opendir((char const *)path[0]);
     if (!it->dir) return FILEerrno(errno);
     it->path = path;
@@ -815,7 +815,7 @@ fun ok64 FILELoadSorted(fileitp it, DIR *dir, u8csz z) {
 }
 
 ok64 FILEIterOpenSorted(fileitp it, path8gp path, u8bp buf, u8csz z) {
-    sane(it && path && path8gOK((path8cgp)path) && Bok(buf) && z);
+    sane(it && path && PATHu8gOK((path8cgp)path) && Bok(buf) && z);
     DIR *dir = opendir((char const *)path[0]);
     if (!dir) return FILEerrno(errno);
 
@@ -843,7 +843,7 @@ ok64 FILEIterClose(fileitp it) {
     }
     if (it->path && it->dirend) {
         it->path[1] = it->dirend;
-        call(path8gTerm, it->path);
+        call(PATHu8gTerm, it->path);
     }
     // Restore buffer position (stack pop)
     if (it->buf && it->buf_mark) {
@@ -875,7 +875,7 @@ ok64 FILENext(fileitp it) {
         }
         it->type = entry[0][0];
         u8cs name = {entry[0] + 2, entry[1]};  // skip type and len
-        o = path8gPush(it->path, name);
+        o = PATHu8gPush(it->path, name);
         if (o != OK) return o;
         return OK;
     }
@@ -891,7 +891,7 @@ ok64 FILENext(fileitp it) {
         }
         it->type = e->d_type;
         a_cstr(name, e->d_name);
-        ok64 o = path8gPush(it->path, name);
+        ok64 o = PATHu8gPush(it->path, name);
         if (o == BNOROOM) continue;
         if (o != OK) return o;
         return OK;

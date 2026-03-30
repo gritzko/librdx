@@ -466,6 +466,6 @@ ok64 ROCKGetPath(ROCKdbp db, path8g out) {
     ok64 o = u8sFeed(out + 1, pcs);
     free(path);
     if (o != OK) return o;
-    call(path8gTerm, out);
+    call(PATHu8gTerm, out);
     done;
 }

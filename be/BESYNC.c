@@ -92,21 +92,21 @@ ok64 BESyncClone(u8cs remote_url, path8cg worktree) {
 
     // Build repo path: $HOME/.be/<repo>/
     u8p repo_path_pp[4] = {};
-    call(path8bAlloc, repo_path_pp);
+    call(PATHu8bAlloc, repo_path_pp);
     const char *home = getenv("HOME");
     test(home != NULL, BESYNCFAIL);
     a_cstr(homecs, home);
     call(u8sFeed, u8bIdle(repo_path_pp), homecs);
-    call(path8gTerm, path8gIn(repo_path_pp));
-    call(path8bPushCStr, repo_path_pp, ".be");
-    call(path8bPush, repo_path_pp, repo_name);
-    call(FILEMakeDirP, path8cgIn(repo_path_pp));
+    call(PATHu8gTerm, PATHu8gIn(repo_path_pp));
+    call(PATHu8bPushCStr, repo_path_pp, ".be");
+    call(PATHu8bPush, repo_path_pp, repo_name);
+    call(FILEMakeDirP, PATHu8cgIn(repo_path_pp));
 
     // Build base URL
     char url_buf[1024];
     size_t url_len = $len(remote_url);
     if (url_len >= sizeof(url_buf) - 64) {
-        path8bFree(repo_path_pp);
+        PATHu8bFree(repo_path_pp);
         curl_global_cleanup();
         fail(BESYNCBAD);
     }
@@ -161,11 +161,11 @@ ok64 BESyncClone(u8cs remote_url, path8cg worktree) {
         }
 
         a_path(fpath);
-        path8bDup(fpath, repo_path_pp);
-        path8bPush(fpath, fname);
+        PATHu8bDup(fpath, repo_path_pp);
+        PATHu8bPush(fpath, fname);
 
         int fd = -1;
-        ok64 wo = FILECreate(&fd, path8cgIn(fpath));
+        ok64 wo = FILECreate(&fd, PATHu8cgIn(fpath));
         if (wo != OK) {
             u8bFree(file_buf);
             result = wo;
@@ -187,7 +187,7 @@ ok64 BESyncClone(u8cs remote_url, path8cg worktree) {
     if (result == OK) {
         // Verify: open the cloned DB
         ROCKdb verify = {};
-        ok64 vo = ROCKOpenRO(&verify, path8cgIn(repo_path_pp));
+        ok64 vo = ROCKOpenRO(&verify, PATHu8cgIn(repo_path_pp));
         if (vo == OK) {
             ROCKClose(&verify);
         } else {
@@ -205,11 +205,11 @@ ok64 BESyncClone(u8cs remote_url, path8cg worktree) {
         u8cs uri_data = {ubuf2, be_uri[0]};
 
         a_path(dotbe_path);
-        path8bFeedS(dotbe_path, worktree);
-        path8bPushCStr(dotbe_path, ".be");
+        PATHu8bFeed(dotbe_path, worktree);
+        PATHu8bPushCStr(dotbe_path, ".be");
 
         int fd = -1;
-        ok64 wo = FILECreate(&fd, path8cgIn(dotbe_path));
+        ok64 wo = FILECreate(&fd, PATHu8cgIn(dotbe_path));
         if (wo == OK) {
             FILEFeedall(fd, uri_data);
             FILEClose(&fd);
@@ -218,7 +218,7 @@ ok64 BESyncClone(u8cs remote_url, path8cg worktree) {
 
 cleanup:;
     u8bFree(list_buf);
-    path8bFree(repo_path_pp);
+    PATHu8bFree(repo_path_pp);
     curl_global_cleanup();
     return result;
 }

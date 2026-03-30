@@ -32,7 +32,7 @@ ok64 toktok() {
 
     a_pad(u8, path, 4096);
     call(u8sFeed, path_idle, file);
-    path8gTerm(path8gIn(path));
+    PATHu8bTerm(path);
 
     // Find the extension
     u8cs ext = {NULL, NULL};
@@ -50,7 +50,7 @@ ok64 toktok() {
 
     u8 *idle[2] = {_srcbuf, _srcbuf + sizeof(_srcbuf)};
     int fd;
-    call(FILEOpen, &fd, path8cgIn(path), O_RDONLY);
+    call(FILEOpen, &fd, PATHu8cgIn(path), O_RDONLY);
     u8 *start = idle[0];
     call(FILEdrainall, idle, fd);
     call(FILEClose, &fd);

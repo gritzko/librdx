@@ -217,21 +217,21 @@ ok64 BEtest5() {
 
     a_path(wpath, $cstr("/tmp"));
     a_cstr(tmpl, "BEtest5_XXXXXX");
-    call(path8gAddTmp, path8gIn(wpath), tmpl);
-    call(FILEMakeDir, path8cgIn(wpath));
+    call(PATHu8gAddTmp, PATHu8gIn(wpath), tmpl);
+    call(FILEMakeDir, PATHu8cgIn(wpath));
 
     // Create a source file
     a_path(fpath, u8bDataC(wpath), $cstr("test.c"));
     u8cs source = $u8str("int x = 42;\n");
     int fd = 0;
-    call(FILECreate, &fd, path8cgIn(fpath));
+    call(FILECreate, &fd, PATHu8cgIn(fpath));
     call(FILEFeedall, fd, source);
     call(FILEClose, &fd);
 
     // Init BE with main branch
     BE be = {};
     u8cs uri = $u8str("be://BEtest5/@test/proj?main");
-    call(BEInit, &be, uri, path8cgIn(wpath));
+    call(BEInit, &be, uri, PATHu8cgIn(wpath));
 
     // POST
     u8cs relpath = $u8str("test.c");
@@ -240,7 +240,7 @@ ok64 BEtest5() {
     call(BEPost, &be, 1, paths, msg);
 
     // Delete source file
-    call(FILEUnLink, path8cgIn(fpath));
+    call(FILEUnLink, PATHu8cgIn(fpath));
 
     // GET
     u8cs empty_branch = {};
@@ -248,7 +248,7 @@ ok64 BEtest5() {
 
     // Verify file restored
     u8bp mapbuf = NULL;
-    call(FILEMapRO, &mapbuf, path8cgIn(fpath));
+    call(FILEMapRO, &mapbuf, PATHu8cgIn(fpath));
     u8cp r0 = u8bDataHead(mapbuf), r1 = u8bIdleHead(mapbuf);
     u8cs restored = {r0, r1};
     want($eq(restored, source));
@@ -256,8 +256,8 @@ ok64 BEtest5() {
 
     a_path(rpath, u8bDataC(be.repo_pp));
     call(BEClose, &be);
-    call(FILErmrf, path8cgIn(wpath));
-    call(FILErmrf, path8cgIn(rpath));
+    call(FILErmrf, PATHu8cgIn(wpath));
+    call(FILErmrf, PATHu8cgIn(rpath));
     done;
 }
 
@@ -268,19 +268,19 @@ ok64 BEtest6() {
 
     a_path(wpath, $cstr("/tmp"));
     a_cstr(tmpl, "BEtest6_XXXXXX");
-    call(path8gAddTmp, path8gIn(wpath), tmpl);
-    call(FILEMakeDir, path8cgIn(wpath));
+    call(PATHu8gAddTmp, PATHu8gIn(wpath), tmpl);
+    call(FILEMakeDir, PATHu8cgIn(wpath));
 
     a_path(fpath, u8bDataC(wpath), $cstr("ver.c"));
     u8cs v1 = $u8str("int x = 1;\n");
     int fd = 0;
-    call(FILECreate, &fd, path8cgIn(fpath));
+    call(FILECreate, &fd, PATHu8cgIn(fpath));
     call(FILEFeedall, fd, v1);
     call(FILEClose, &fd);
 
     BE be = {};
     u8cs uri = $u8str("be://BEtest6/@test/proj?main");
-    call(BEInit, &be, uri, path8cgIn(wpath));
+    call(BEInit, &be, uri, PATHu8cgIn(wpath));
 
     u8cs relpath = $u8str("ver.c");
     u8cs *paths = &relpath;
@@ -288,10 +288,10 @@ ok64 BEtest6() {
     call(BEPost, &be, 1, paths, msg1);
 
     // Update file
-    call(FILEUnLink, path8cgIn(fpath));
+    call(FILEUnLink, PATHu8cgIn(fpath));
     u8cs v2 = $u8str("int x = 2;\n");
     fd = 0;
-    call(FILECreate, &fd, path8cgIn(fpath));
+    call(FILECreate, &fd, PATHu8cgIn(fpath));
     call(FILEFeedall, fd, v2);
     call(FILEClose, &fd);
 
@@ -299,10 +299,10 @@ ok64 BEtest6() {
     call(BEPost, &be, 1, paths, msg2);
 
     // Third edit (need 3 posts: initial=base, 2nd+3rd=waypoints)
-    call(FILEUnLink, path8cgIn(fpath));
+    call(FILEUnLink, PATHu8cgIn(fpath));
     u8cs v3 = $u8str("int x = 3;\n");
     fd = 0;
-    call(FILECreate, &fd, path8cgIn(fpath));
+    call(FILECreate, &fd, PATHu8cgIn(fpath));
     call(FILEFeedall, fd, v3);
     call(FILEClose, &fd);
     u8cs msg3 = $u8str("v3");
@@ -340,12 +340,12 @@ ok64 BEtest6() {
     want(wp_count >= 2);  // Both POSTs create waypoints
 
     // GET should reconstruct latest state
-    call(FILEUnLink, path8cgIn(fpath));
+    call(FILEUnLink, PATHu8cgIn(fpath));
     u8cs empty_branch = {};
     call(BEGet, &be, 1, paths, empty_branch);
 
     u8bp mapbuf = NULL;
-    call(FILEMapRO, &mapbuf, path8cgIn(fpath));
+    call(FILEMapRO, &mapbuf, PATHu8cgIn(fpath));
     u8cp r0 = u8bDataHead(mapbuf), r1 = u8bIdleHead(mapbuf);
     u8cs restored = {r0, r1};
     want($eq(restored, v3));
@@ -353,8 +353,8 @@ ok64 BEtest6() {
 
     a_path(rpath, u8bDataC(be.repo_pp));
     call(BEClose, &be);
-    call(FILErmrf, path8cgIn(wpath));
-    call(FILErmrf, path8cgIn(rpath));
+    call(FILErmrf, PATHu8cgIn(wpath));
+    call(FILErmrf, PATHu8cgIn(rpath));
     done;
 }
 
@@ -365,21 +365,21 @@ ok64 BEtest7() {
 
     a_path(wpath, $cstr("/tmp"));
     a_cstr(tmpl, "BEtest7_XXXXXX");
-    call(path8gAddTmp, path8gIn(wpath), tmpl);
-    call(FILEMakeDir, path8cgIn(wpath));
+    call(PATHu8gAddTmp, PATHu8gIn(wpath), tmpl);
+    call(FILEMakeDir, PATHu8cgIn(wpath));
 
     // Create file
     a_path(fpath, u8bDataC(wpath), $cstr("multi.c"));
     u8cs src1 = $u8str("int x = 1;\n");
     int fd = 0;
-    call(FILECreate, &fd, path8cgIn(fpath));
+    call(FILECreate, &fd, PATHu8cgIn(fpath));
     call(FILEFeedall, fd, src1);
     call(FILEClose, &fd);
 
     // Init with main branch
     BE be = {};
     u8cs uri = $u8str("be://BEtest7/@test/proj?main");
-    call(BEInit, &be, uri, path8cgIn(wpath));
+    call(BEInit, &be, uri, PATHu8cgIn(wpath));
 
     u8cs relpath = $u8str("multi.c");
     u8cs *paths = &relpath;
@@ -390,10 +390,10 @@ ok64 BEtest7() {
     a_cstr(feat, "feat");
     call(BESetActive, &be, feat);
 
-    call(FILEUnLink, path8cgIn(fpath));
+    call(FILEUnLink, PATHu8cgIn(fpath));
     u8cs src2 = $u8str("int x = 99;\n");
     fd = 0;
-    call(FILECreate, &fd, path8cgIn(fpath));
+    call(FILECreate, &fd, PATHu8cgIn(fpath));
     call(FILEFeedall, fd, src2);
     call(FILEClose, &fd);
 
@@ -401,25 +401,25 @@ ok64 BEtest7() {
     call(BEPost, &be, 1, paths, msg2);
 
     // GET with only "main" visible: should get main's value
-    call(FILEUnLink, path8cgIn(fpath));
+    call(FILEUnLink, PATHu8cgIn(fpath));
     call(BERemoveBranch, &be, feat);
     u8cs empty_branch = {};
     call(BEGet, &be, 1, paths, empty_branch);
 
     u8bp mapbuf = NULL;
-    call(FILEMapRO, &mapbuf, path8cgIn(fpath));
+    call(FILEMapRO, &mapbuf, PATHu8cgIn(fpath));
     u8cp r0 = u8bDataHead(mapbuf), r1 = u8bIdleHead(mapbuf);
     u8cs got_main = {r0, r1};
     want($eq(got_main, src1));
     call(FILEUnMap, mapbuf);
 
     // Add feat branch and GET: should get feat's value (later timestamp wins)
-    call(FILEUnLink, path8cgIn(fpath));
+    call(FILEUnLink, PATHu8cgIn(fpath));
     call(BEAddBranch, &be, feat);
     call(BEGet, &be, 1, paths, empty_branch);
 
     mapbuf = NULL;
-    call(FILEMapRO, &mapbuf, path8cgIn(fpath));
+    call(FILEMapRO, &mapbuf, PATHu8cgIn(fpath));
     r0 = u8bDataHead(mapbuf);
     r1 = u8bIdleHead(mapbuf);
     u8cs got_feat = {r0, r1};
@@ -428,8 +428,8 @@ ok64 BEtest7() {
 
     a_path(rpath, u8bDataC(be.repo_pp));
     call(BEClose, &be);
-    call(FILErmrf, path8cgIn(wpath));
-    call(FILErmrf, path8cgIn(rpath));
+    call(FILErmrf, PATHu8cgIn(wpath));
+    call(FILErmrf, PATHu8cgIn(rpath));
     done;
 }
 
@@ -440,19 +440,19 @@ ok64 BEtest8() {
 
     a_path(wpath, $cstr("/tmp"));
     a_cstr(tmpl, "BEtest8_XXXXXX");
-    call(path8gAddTmp, path8gIn(wpath), tmpl);
-    call(FILEMakeDir, path8cgIn(wpath));
+    call(PATHu8gAddTmp, PATHu8gIn(wpath), tmpl);
+    call(FILEMakeDir, PATHu8cgIn(wpath));
 
     a_path(fpath, u8bDataC(wpath), $cstr("ms.c"));
     u8cs src1 = $u8str("int y = 1;\n");
     int fd = 0;
-    call(FILECreate, &fd, path8cgIn(fpath));
+    call(FILECreate, &fd, PATHu8cgIn(fpath));
     call(FILEFeedall, fd, src1);
     call(FILEClose, &fd);
 
     BE be = {};
     u8cs uri = $u8str("be://BEtest8/@test/proj?main");
-    call(BEInit, &be, uri, path8cgIn(wpath));
+    call(BEInit, &be, uri, PATHu8cgIn(wpath));
 
     u8cs relpath = $u8str("ms.c");
     u8cs *paths = &relpath;
@@ -460,20 +460,20 @@ ok64 BEtest8() {
     call(BEPost, &be, 1, paths, msg1);
 
     // Second edit
-    call(FILEUnLink, path8cgIn(fpath));
+    call(FILEUnLink, PATHu8cgIn(fpath));
     u8cs src2 = $u8str("int y = 2;\n");
     fd = 0;
-    call(FILECreate, &fd, path8cgIn(fpath));
+    call(FILECreate, &fd, PATHu8cgIn(fpath));
     call(FILEFeedall, fd, src2);
     call(FILEClose, &fd);
     u8cs msg2 = $u8str("ms v2");
     call(BEPost, &be, 1, paths, msg2);
 
     // Third edit (need 3 posts: initial=base, 2nd+3rd=waypoints)
-    call(FILEUnLink, path8cgIn(fpath));
+    call(FILEUnLink, PATHu8cgIn(fpath));
     u8cs src3 = $u8str("int y = 3;\n");
     fd = 0;
-    call(FILECreate, &fd, path8cgIn(fpath));
+    call(FILECreate, &fd, PATHu8cgIn(fpath));
     call(FILEFeedall, fd, src3);
     call(FILEClose, &fd);
     u8cs msg3 = $u8str("ms v3");
@@ -532,12 +532,12 @@ ok64 BEtest8() {
     same(go, OK);
 
     // GET should still produce latest content
-    call(FILEUnLink, path8cgIn(fpath));
+    call(FILEUnLink, PATHu8cgIn(fpath));
     u8cs empty_branch = {};
     call(BEGet, &be, 1, paths, empty_branch);
 
     u8bp mapbuf = NULL;
-    call(FILEMapRO, &mapbuf, path8cgIn(fpath));
+    call(FILEMapRO, &mapbuf, PATHu8cgIn(fpath));
     u8cp r0 = u8bDataHead(mapbuf), r1 = u8bIdleHead(mapbuf);
     u8cs restored = {r0, r1};
     want($eq(restored, src3));
@@ -545,8 +545,8 @@ ok64 BEtest8() {
 
     a_path(rpath, u8bDataC(be.repo_pp));
     call(BEClose, &be);
-    call(FILErmrf, path8cgIn(wpath));
-    call(FILErmrf, path8cgIn(rpath));
+    call(FILErmrf, PATHu8cgIn(wpath));
+    call(FILErmrf, PATHu8cgIn(rpath));
     done;
 }
 
@@ -557,19 +557,19 @@ ok64 BEtest9() {
 
     a_path(wpath, $cstr("/tmp"));
     a_cstr(tmpl, "BEtest9_XXXXXX");
-    call(path8gAddTmp, path8gIn(wpath), tmpl);
-    call(FILEMakeDir, path8cgIn(wpath));
+    call(PATHu8gAddTmp, PATHu8gIn(wpath), tmpl);
+    call(FILEMakeDir, PATHu8cgIn(wpath));
 
     a_path(fpath, u8bDataC(wpath), $cstr("merge.c"));
     u8cs src1 = $u8str("int z = 0;\n");
     int fd = 0;
-    call(FILECreate, &fd, path8cgIn(fpath));
+    call(FILECreate, &fd, PATHu8cgIn(fpath));
     call(FILEFeedall, fd, src1);
     call(FILEClose, &fd);
 
     BE be = {};
     u8cs uri = $u8str("be://BEtest9/@test/proj?main");
-    call(BEInit, &be, uri, path8cgIn(wpath));
+    call(BEInit, &be, uri, PATHu8cgIn(wpath));
 
     u8cs relpath = $u8str("merge.c");
     u8cs *paths = &relpath;
@@ -580,10 +580,10 @@ ok64 BEtest9() {
     a_cstr(dev, "dev");
     call(BESetActive, &be, dev);
 
-    call(FILEUnLink, path8cgIn(fpath));
+    call(FILEUnLink, PATHu8cgIn(fpath));
     u8cs src2 = $u8str("int z = 42;\n");
     fd = 0;
-    call(FILECreate, &fd, path8cgIn(fpath));
+    call(FILECreate, &fd, PATHu8cgIn(fpath));
     call(FILEFeedall, fd, src2);
     call(FILEClose, &fd);
     u8cs msg2 = $u8str("dev change");
@@ -598,12 +598,12 @@ ok64 BEtest9() {
     // After merge, dev waypoints should be gone, main should have them
     // Verify: GET with only main should produce dev's content
     call(BERemoveBranch, &be, dev);
-    call(FILEUnLink, path8cgIn(fpath));
+    call(FILEUnLink, PATHu8cgIn(fpath));
     u8cs empty_branch = {};
     call(BEGet, &be, 1, paths, empty_branch);
 
     u8bp mapbuf = NULL;
-    call(FILEMapRO, &mapbuf, path8cgIn(fpath));
+    call(FILEMapRO, &mapbuf, PATHu8cgIn(fpath));
     u8cp r0 = u8bDataHead(mapbuf), r1 = u8bIdleHead(mapbuf);
     u8cs restored = {r0, r1};
     want($eq(restored, src2));
@@ -611,8 +611,8 @@ ok64 BEtest9() {
 
     a_path(rpath, u8bDataC(be.repo_pp));
     call(BEClose, &be);
-    call(FILErmrf, path8cgIn(wpath));
-    call(FILErmrf, path8cgIn(rpath));
+    call(FILErmrf, PATHu8cgIn(wpath));
+    call(FILErmrf, PATHu8cgIn(rpath));
     done;
 }
 
@@ -623,19 +623,19 @@ ok64 BEtest10() {
 
     a_path(wpath, $cstr("/tmp"));
     a_cstr(tmpl, "BEtestA_XXXXXX");
-    call(path8gAddTmp, path8gIn(wpath), tmpl);
-    call(FILEMakeDir, path8cgIn(wpath));
+    call(PATHu8gAddTmp, PATHu8gIn(wpath), tmpl);
+    call(FILEMakeDir, PATHu8cgIn(wpath));
 
     a_path(fpath, u8bDataC(wpath), $cstr("cp.c"));
     u8cs source = $u8str("int y = 7;\n");
     int fd = 0;
-    call(FILECreate, &fd, path8cgIn(fpath));
+    call(FILECreate, &fd, PATHu8cgIn(fpath));
     call(FILEFeedall, fd, source);
     call(FILEClose, &fd);
 
     BE be = {};
     u8cs uri = $u8str("be://BEtestA/@test/proj?main");
-    call(BEInit, &be, uri, path8cgIn(wpath));
+    call(BEInit, &be, uri, PATHu8cgIn(wpath));
 
     u8cs relpath = $u8str("cp.c");
     u8cs *paths = &relpath;
@@ -652,19 +652,19 @@ ok64 BEtest10() {
     want(home != NULL);
     a_cstr(homecs, home);
     call(u8sFeed, u8bIdle(dpath), homecs);
-    call(path8gTerm, path8gIn(dpath));
-    call(path8bPushCStr, dpath, ".be");
-    call(path8bPush, dpath, new_repo);
+    call(PATHu8gTerm, PATHu8gIn(dpath));
+    call(PATHu8bPushCStr, dpath, ".be");
+    call(PATHu8bPush, dpath, new_repo);
 
     ROCKdb cpdb = {};
-    call(ROCKOpenRO, &cpdb, path8cgIn(dpath));
+    call(ROCKOpenRO, &cpdb, PATHu8cgIn(dpath));
     call(ROCKClose, &cpdb);
 
     a_path(rpath, u8bDataC(be.repo_pp));
     call(BEClose, &be);
-    call(FILErmrf, path8cgIn(wpath));
-    call(FILErmrf, path8cgIn(rpath));
-    call(FILErmrf, path8cgIn(dpath));
+    call(FILErmrf, PATHu8cgIn(wpath));
+    call(FILErmrf, PATHu8cgIn(rpath));
+    call(FILErmrf, PATHu8cgIn(dpath));
     done;
 }
 
@@ -675,19 +675,19 @@ ok64 BEtest11() {
 
     a_path(wpath, $cstr("/tmp"));
     a_cstr(tmpl, "BEtestB_XXXXXX");
-    call(path8gAddTmp, path8gIn(wpath), tmpl);
-    call(FILEMakeDir, path8cgIn(wpath));
+    call(PATHu8gAddTmp, PATHu8gIn(wpath), tmpl);
+    call(FILEMakeDir, PATHu8cgIn(wpath));
 
     a_path(fpath, u8bDataC(wpath), $cstr("main.c"));
     u8cs main_src = $u8str("int main() { return 0; }\n");
     int fd = 0;
-    call(FILECreate, &fd, path8cgIn(fpath));
+    call(FILECreate, &fd, PATHu8cgIn(fpath));
     call(FILEFeedall, fd, main_src);
     call(FILEClose, &fd);
 
     BE be = {};
     u8cs uri = $u8str("be://BEtestB/@test/proj?main");
-    call(BEInit, &be, uri, path8cgIn(wpath));
+    call(BEInit, &be, uri, PATHu8cgIn(wpath));
 
     u8cs relpath = $u8str("main.c");
     u8cs *paths = &relpath;
@@ -733,7 +733,7 @@ ok64 BEtest11() {
         "[deps]\n"
         "/@test/deplib\n");
     fd = 0;
-    call(FILECreate, &fd, path8cgIn(bgpath));
+    call(FILECreate, &fd, PATHu8cgIn(bgpath));
     call(FILEFeedall, fd, beget_content);
     call(FILEClose, &fd);
 
@@ -742,7 +742,7 @@ ok64 BEtest11() {
     // util.c should exist
     a_path(upath, u8bDataC(wpath), $cstr("util.c"));
     u8bp umap = NULL;
-    call(FILEMapRO, &umap, path8cgIn(upath));
+    call(FILEMapRO, &umap, PATHu8cgIn(upath));
     u8cp u0 = u8bDataHead(umap), u1 = u8bIdleHead(umap);
     u8cs util_got = {u0, u1};
     want($eq(util_got, dep_src));
@@ -750,8 +750,8 @@ ok64 BEtest11() {
 
     a_path(rpath, u8bDataC(be.repo_pp));
     call(BEClose, &be);
-    call(FILErmrf, path8cgIn(wpath));
-    call(FILErmrf, path8cgIn(rpath));
+    call(FILErmrf, PATHu8cgIn(wpath));
+    call(FILErmrf, PATHu8cgIn(rpath));
     done;
 }
 
@@ -762,14 +762,14 @@ ok64 BEtest12() {
 
     a_path(wpath, $cstr("/tmp"));
     a_cstr(tmpl, "BEtestC_XXXXXX");
-    call(path8gAddTmp, path8gIn(wpath), tmpl);
-    call(FILEMakeDir, path8cgIn(wpath));
+    call(PATHu8gAddTmp, PATHu8gIn(wpath), tmpl);
+    call(FILEMakeDir, PATHu8cgIn(wpath));
 
     // Create file with exec mode
     a_path(fpath, u8bDataC(wpath), $cstr("meta.c"));
     u8cs source = $u8str("int meta = 1;\n");
     int fd = 0;
-    call(FILECreate, &fd, path8cgIn(fpath));
+    call(FILECreate, &fd, PATHu8cgIn(fpath));
     call(FILEFeedall, fd, source);
     call(FILEClose, &fd);
 
@@ -778,7 +778,7 @@ ok64 BEtest12() {
 
     BE be = {};
     u8cs uri = $u8str("be://BEtestC/@test/proj?main");
-    call(BEInit, &be, uri, path8cgIn(wpath));
+    call(BEInit, &be, uri, PATHu8cgIn(wpath));
 
     u8cs relpath = $u8str("meta.c");
     u8cs *paths = &relpath;
@@ -786,7 +786,7 @@ ok64 BEtest12() {
     call(BEPost, &be, 1, paths, msg);
 
     // Delete file
-    call(FILEUnLink, path8cgIn(fpath));
+    call(FILEUnLink, PATHu8cgIn(fpath));
 
     // GET to restore
     u8cs empty_branch = {};
@@ -794,12 +794,12 @@ ok64 BEtest12() {
 
     // Verify file restored with exec bit
     struct stat st_after;
-    call(FILEStat, &st_after, path8cgIn(fpath));
+    call(FILEStat, &st_after, PATHu8cgIn(fpath));
     want((st_after.st_mode & 0111) != 0);  // exec bit preserved
 
     // Verify content
     u8bp mapbuf = NULL;
-    call(FILEMapRO, &mapbuf, path8cgIn(fpath));
+    call(FILEMapRO, &mapbuf, PATHu8cgIn(fpath));
     u8cp r0 = u8bDataHead(mapbuf), r1 = u8bIdleHead(mapbuf);
     u8cs restored = {r0, r1};
     want($eq(restored, source));
@@ -809,7 +809,7 @@ ok64 BEtest12() {
     a_path(fpath2, u8bDataC(wpath), $cstr("noexec.c"));
     u8cs source2 = $u8str("int noexec = 2;\n");
     fd = 0;
-    call(FILECreate, &fd, path8cgIn(fpath2));
+    call(FILECreate, &fd, PATHu8cgIn(fpath2));
     call(FILEFeedall, fd, source2);
     call(FILEClose, &fd);
     chmod((const char *)u8bDataHead(fpath2), 0644);
@@ -818,17 +818,17 @@ ok64 BEtest12() {
     u8cs *paths2 = &relpath2;
     u8cs msg2 = $u8str("noexec test");
     call(BEPost, &be, 1, paths2, msg2);
-    call(FILEUnLink, path8cgIn(fpath2));
+    call(FILEUnLink, PATHu8cgIn(fpath2));
     call(BEGet, &be, 1, paths2, empty_branch);
 
     struct stat st2;
-    call(FILEStat, &st2, path8cgIn(fpath2));
+    call(FILEStat, &st2, PATHu8cgIn(fpath2));
     want((st2.st_mode & 0111) == 0);  // no exec bit
 
     a_path(rpath, u8bDataC(be.repo_pp));
     call(BEClose, &be);
-    call(FILErmrf, path8cgIn(wpath));
-    call(FILErmrf, path8cgIn(rpath));
+    call(FILErmrf, PATHu8cgIn(wpath));
+    call(FILErmrf, PATHu8cgIn(rpath));
     done;
 }
 
@@ -973,28 +973,28 @@ ok64 BEtest16() {
 
     a_path(wpath, $cstr("/tmp"));
     a_cstr(tmpl, "BEtestG_XXXXXX");
-    call(path8gAddTmp, path8gIn(wpath), tmpl);
-    call(FILEMakeDir, path8cgIn(wpath));
+    call(PATHu8gAddTmp, PATHu8gIn(wpath), tmpl);
+    call(FILEMakeDir, PATHu8cgIn(wpath));
 
     // Create two files with different content
     a_path(fpath1, u8bDataC(wpath), $cstr("alpha.c"));
     u8cs src1 = $u8str("int unique_xyz = 1;\n");
     int fd = 0;
-    call(FILECreate, &fd, path8cgIn(fpath1));
+    call(FILECreate, &fd, PATHu8cgIn(fpath1));
     call(FILEFeedall, fd, src1);
     call(FILEClose, &fd);
 
     a_path(fpath2, u8bDataC(wpath), $cstr("beta.c"));
     u8cs src2 = $u8str("int other_abc = 2;\n");
     fd = 0;
-    call(FILECreate, &fd, path8cgIn(fpath2));
+    call(FILECreate, &fd, PATHu8cgIn(fpath2));
     call(FILEFeedall, fd, src2);
     call(FILEClose, &fd);
 
     // Init + POST both files
     BE be = {};
     u8cs be_uri = $u8str("be://BEtestG/@test/proj?main");
-    call(BEInit, &be, be_uri, path8cgIn(wpath));
+    call(BEInit, &be, be_uri, PATHu8cgIn(wpath));
     u8cs msg = $u8str("test trigrams");
     call(BEPost, &be, 0, NULL, msg);
 
@@ -1032,8 +1032,8 @@ ok64 BEtest16() {
 
     a_path(rpath, u8bDataC(be.repo_pp));
     call(BEClose, &be);
-    call(FILErmrf, path8cgIn(wpath));
-    call(FILErmrf, path8cgIn(rpath));
+    call(FILErmrf, PATHu8cgIn(wpath));
+    call(FILErmrf, PATHu8cgIn(rpath));
     done;
 }
 

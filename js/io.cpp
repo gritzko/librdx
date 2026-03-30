@@ -428,8 +428,8 @@ JSValueRef JABCioFileMap(JSContextRef ctx, JSObjectRef function,
     u8bp buf = NULL;
     a_pad(u8, path, FILE_PATH_MAX_LEN);
     u8sFeedn(u8bIdle(path), page, len - 1);
-    path8gTerm(path8gIn(path));
-    ok64 o = FILEMapRO(&buf, path8cgIn(path));
+    PATHu8bTerm(path);
+    ok64 o = FILEMapRO(&buf, PATHu8cgIn(path));
     if (o != OK || buf == NULL) {
         *exception = JSOfCString("mmap failed");
         return JSValueMakeUndefined(ctx);

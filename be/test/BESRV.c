@@ -33,25 +33,25 @@ static void *srv_thread_fn(void *arg) {
 static ok64 TestSetupRepo(BE *be, u8p work_pp[4], u8cs be_uri,
                            int filec, u8cs *filenames, u8cs *contents) {
     sane(be != NULL && work_pp != NULL);
-    call(path8bAlloc, work_pp);
+    call(PATHu8bAlloc, work_pp);
     a_cstr(tmp_base, "/tmp");
     call(u8sFeed, u8bIdle(work_pp), tmp_base);
-    call(path8gTerm, path8gIn(work_pp));
+    call(PATHu8gTerm, PATHu8gIn(work_pp));
     a_cstr(tmpl, "BESRVtest_XXXXXX");
-    call(path8gAddTmp, path8gIn(work_pp), tmpl);
-    call(FILEMakeDir, path8cgIn(work_pp));
+    call(PATHu8gAddTmp, PATHu8gIn(work_pp), tmpl);
+    call(FILEMakeDir, PATHu8cgIn(work_pp));
 
     for (int i = 0; i < filec; i++) {
         a_path(fpath);
-        call(path8bDup, fpath, work_pp);
-        call(path8bPush, fpath, filenames[i]);
+        call(PATHu8bDup, fpath, work_pp);
+        call(PATHu8bPush, fpath, filenames[i]);
         int fd = -1;
-        call(FILECreate, &fd, path8cgIn(fpath));
+        call(FILECreate, &fd, PATHu8cgIn(fpath));
         call(FILEFeedall, fd, contents[i]);
         call(FILEClose, &fd);
     }
 
-    call(BEInit, be, be_uri, path8cgIn(work_pp));
+    call(BEInit, be, be_uri, PATHu8cgIn(work_pp));
     u8cs msg = $u8str("test commit");
     call(BEPost, be, filec, filenames, msg);
     done;
@@ -79,9 +79,9 @@ static ok64 TestCleanup(SrvThread *st, pthread_t tid,
     BESRVFree(&st->srv);
     a_path(repo_path, u8bDataC(be->repo_pp));
     call(BEClose, be);
-    call(FILErmrf, path8cgIn(work_pp));
-    call(FILErmrf, path8cgIn(repo_path));
-    path8bFree(work_pp);
+    call(FILErmrf, PATHu8cgIn(work_pp));
+    call(FILErmrf, PATHu8cgIn(repo_path));
+    PATHu8bFree(work_pp);
     done;
 }
 
@@ -212,36 +212,36 @@ ok64 BESRVtest2() {
     BE be = {};
     u8p work_pp[4] = {};
 
-    call(path8bAlloc, work_pp);
+    call(PATHu8bAlloc, work_pp);
     a_cstr(tmp_base, "/tmp");
     call(u8sFeed, u8bIdle(work_pp), tmp_base);
-    call(path8gTerm, path8gIn(work_pp));
+    call(PATHu8gTerm, PATHu8gIn(work_pp));
     a_cstr(tmpl, "BESRVt2_XXXXXX");
-    call(path8gAddTmp, path8gIn(work_pp), tmpl);
-    call(FILEMakeDir, path8cgIn(work_pp));
+    call(PATHu8gAddTmp, PATHu8gIn(work_pp), tmpl);
+    call(FILEMakeDir, PATHu8cgIn(work_pp));
 
     a_path(srcdir, u8bDataC(work_pp), $cstr("src"));
-    call(FILEMakeDir, path8cgIn(srcdir));
+    call(FILEMakeDir, PATHu8cgIn(srcdir));
 
     a_path(docdir, u8bDataC(work_pp), $cstr("doc"));
-    call(FILEMakeDir, path8cgIn(docdir));
+    call(FILEMakeDir, PATHu8cgIn(docdir));
 
     {
         a_path(fp, u8bDataC(srcdir), $cstr("a.c"));
         int fd = -1;
-        call(FILECreate, &fd, path8cgIn(fp));
+        call(FILECreate, &fd, PATHu8cgIn(fp));
         call(FILEFeedall, fd, contents[0]);
         call(FILEClose, &fd);
     }
     {
         a_path(fp, u8bDataC(docdir), $cstr("b.txt"));
         int fd = -1;
-        call(FILECreate, &fd, path8cgIn(fp));
+        call(FILECreate, &fd, PATHu8cgIn(fp));
         call(FILEFeedall, fd, contents[1]);
         call(FILEClose, &fd);
     }
 
-    call(BEInit, &be, be_uri, path8cgIn(work_pp));
+    call(BEInit, &be, be_uri, PATHu8cgIn(work_pp));
     u8cs msg = $u8str("test");
     call(BEPost, &be, 2, fnames, msg);
 

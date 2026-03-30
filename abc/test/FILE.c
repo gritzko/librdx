@@ -13,13 +13,13 @@ ok64 FILEtest1() {
     sane(1);
     a_path(path, $cstr("/tmp"));
     a_cstr(tmpl, "FILEtest1_XXXXXX");
-    call(path8gAddTmp, path8gIn(path), tmpl);
+    call(PATHu8gAddTmp, PATHu8gIn(path), tmpl);
     u8cs text = $u8str("Hello world!\n");
     int fd = 0;
-    call(FILECreate, &fd, path8cgIn(path));
+    call(FILECreate, &fd, PATHu8cgIn(path));
     call(FILEFeed, fd, text);
     call(FILEClose, &fd);
-    call(FILEUnLink, path8cgIn(path));
+    call(FILEUnLink, PATHu8cgIn(path));
     done;
 }
 
@@ -27,16 +27,16 @@ ok64 FILEtest2() {
     sane(1);
     a_path(path, $cstr("/tmp"));
     a_cstr(tmpl, "FILEtest2_XXXXXX");
-    call(path8gAddTmp, path8gIn(path), tmpl);
+    call(PATHu8gAddTmp, PATHu8gIn(path), tmpl);
     int fd = 0;
-    call(FILECreate, &fd, path8cgIn(path));
+    call(FILECreate, &fd, PATHu8cgIn(path));
     call(FILEResize, &fd, 4096);
     u8bp mapbuf = NULL;
     call(FILEMapFD, &mapbuf, &fd, PROT_READ | PROT_WRITE);
     testeq(Bsize(mapbuf), 4096);
     Bat(mapbuf, 42) = 1;
     call(FILEUnMap, mapbuf);
-    call(FILEMapRO, &mapbuf, path8cgIn(path));
+    call(FILEMapRO, &mapbuf, PATHu8cgIn(path));
     testeq(Blen(mapbuf), 4096);
     testeq(Bat(mapbuf, 41), 0);
     testeq(Bat(mapbuf, 42), 1);
@@ -48,15 +48,15 @@ ok64 FILE3() {
     sane(1);
     a_path(path, $cstr("/tmp"));
     a_cstr(tmpl, "FILE3_XXXXXX");
-    call(path8gAddTmp, path8gIn(path), tmpl);
+    call(PATHu8gAddTmp, PATHu8gIn(path), tmpl);
     a_cstr(text, "Hello world!");
     u8bp buf = NULL;
-    call(FILEMapCreate, &buf, path8cgIn(path), PAGESIZE);
+    call(FILEMapCreate, &buf, PATHu8cgIn(path), PAGESIZE);
     u8bReset(buf);
     call(u8bFeed, buf, text);
     call(FILEUnMap, buf);
     u8bp buf2 = NULL;
-    call(FILEMapRO, &buf2, path8cgIn(path));
+    call(FILEMapRO, &buf2, PATHu8cgIn(path));
     call(FILEUnMap, buf2);
     // nedo(FILEUnLink(path));
     done;
@@ -66,14 +66,14 @@ ok64 FILEtest4() {
     sane(1);
     a_path(path, $cstr("/tmp"));
     a_cstr(tmpl, "FILEtest4_XXXXXX");
-    call(path8gAddTmp, path8gIn(path), tmpl);
+    call(PATHu8gAddTmp, PATHu8gIn(path), tmpl);
     a$str(one, "Hello");
     a$str(two, " beautiful");
     a$str(three, " world!");
     aBpad2(u8cs, queue, 4);
     call(u8cssFeed3, queueidle, one, two, three);
     int fd;
-    call(FILECreate, &fd, path8cgIn(path));
+    call(FILECreate, &fd, PATHu8cgIn(path));
     call(FILEFeedv, fd, queuedata);
     want($empty(queuedata));
     aBpad2(u8, back, 64);
@@ -89,19 +89,19 @@ ok64 FILEtest5() {
     // Test streaming I/O primitives
     a_path(path, $cstr("/tmp"));
     a_cstr(tmpl, "FILEtest5_XXXXXX");
-    call(path8gAddTmp, path8gIn(path), tmpl);
+    call(PATHu8gAddTmp, PATHu8gIn(path), tmpl);
     a_cstr(testdata, "The quick brown fox jumps over the lazy dog");
 
     // Create test file
     int wfd;
-    call(FILECreate, &wfd, path8cgIn(path));
+    call(FILECreate, &wfd, PATHu8cgIn(path));
     a_dup(u8 const, data, testdata);
     call(FILEFeedall, wfd, data);
     call(FILEClose, &wfd);
 
     // Test FILEEnsureSoft
     int rfd;
-    call(FILEOpen, &rfd, path8cgIn(path), O_RDONLY);
+    call(FILEOpen, &rfd, PATHu8cgIn(path), O_RDONLY);
     aBpad2(u8, buf, 64);
     call(FILEEnsureSoft, rfd, bufbuf, 10);
     test(u8bDataLen(bufbuf) >= 10,
@@ -120,7 +120,7 @@ ok64 FILEtest5() {
 
     // Test FILEFlushThreshold
     int wfd2;
-    call(FILECreate, &wfd2, path8cgIn(path));
+    call(FILECreate, &wfd2, PATHu8cgIn(path));
     aBpad2(u8, outbuf, 64);
     call(u8bFeed, outbufbuf, testdata);
 
@@ -133,7 +133,7 @@ ok64 FILEtest5() {
     testeq(u8bPastLen(outbufbuf), u8csLen(testdata));  // Data moved to past
 
     call(FILEClose, &wfd2);
-    call(FILEUnLink, path8cgIn(path));
+    call(FILEUnLink, PATHu8cgIn(path));
     done;
 }
 
@@ -142,21 +142,21 @@ ok64 FILEtest6() {
     // Test FILEMakeDir and FILERmDir (non-recursive)
     a_path(dirpath, $cstr("/tmp"));
     a_cstr(tmpl, "FILEtest6_XXXXXX");
-    call(path8gAddTmp, path8gIn(dirpath), tmpl);
+    call(PATHu8gAddTmp, PATHu8gIn(dirpath), tmpl);
 
     // Create directory
-    call(FILEMakeDir, path8cgIn(dirpath));
+    call(FILEMakeDir, PATHu8cgIn(dirpath));
 
     // Verify it exists
     struct stat s = {};
-    test(OK == FILEStat(&s, path8cgIn(dirpath)), FILEFAIL);
+    test(OK == FILEStat(&s, PATHu8cgIn(dirpath)), FILEFAIL);
     test((s.st_mode & S_IFMT) == S_IFDIR, FILEFAIL);
 
     // Remove directory (non-recursive)
-    call(FILERmDir, path8cgIn(dirpath), false);
+    call(FILERmDir, PATHu8cgIn(dirpath), false);
 
     // Verify it's gone
-    test(OK != FILEStat(&s, path8cgIn(dirpath)), FILEFAIL);
+    test(OK != FILEStat(&s, PATHu8cgIn(dirpath)), FILEFAIL);
 
     done;
 }
@@ -166,29 +166,29 @@ ok64 FILEtest7() {
     // Test FILERmDir fails on non-empty directory when non-recursive
     a_path(dirpath, $cstr("/tmp"));
     a_cstr(tmpl, "FILEtest7_XXXXXX");
-    call(path8gAddTmp, path8gIn(dirpath), tmpl);
+    call(PATHu8gAddTmp, PATHu8gIn(dirpath), tmpl);
 
     // Create directory
-    call(FILEMakeDir, path8cgIn(dirpath));
+    call(FILEMakeDir, PATHu8cgIn(dirpath));
 
     // Create file inside
     a_cstr(fname, "file.txt");
-    call(path8gPush, path8gIn(dirpath), fname);
+    call(PATHu8gPush, PATHu8gIn(dirpath), fname);
     int fd;
-    call(FILECreate, &fd, path8cgIn(dirpath));
+    call(FILECreate, &fd, PATHu8cgIn(dirpath));
     call(FILEClose, &fd);
-    call(path8gPop, path8gIn(dirpath));
+    call(PATHu8gPop, PATHu8gIn(dirpath));
 
     // FILERmDir should fail on non-empty dir when non-recursive
-    ok64 err = FILERmDir(path8cgIn(dirpath), false);
+    ok64 err = FILERmDir(PATHu8cgIn(dirpath), false);
     test(err != OK, FILEFAIL);
 
     // Clean up with recursive delete
-    call(FILERmDir, path8cgIn(dirpath), true);
+    call(FILERmDir, PATHu8cgIn(dirpath), true);
 
     // Verify it's gone
     struct stat s = {};
-    test(OK != FILEStat(&s, path8cgIn(dirpath)), FILEFAIL);
+    test(OK != FILEStat(&s, PATHu8cgIn(dirpath)), FILEFAIL);
 
     done;
 }
@@ -198,7 +198,7 @@ ok64 FILEtest8() {
     // Test FILERmDir recursive on nested structure
     a_path(path, $cstr("/tmp"));
     a_cstr(tmpl, "FILEtest8_XXXXXX");
-    call(path8gAddTmp, path8gIn(path), tmpl);
+    call(PATHu8gAddTmp, PATHu8gIn(path), tmpl);
     a_cstr(sub1, "sub1");
     a_cstr(sub2, "sub2");
     a_cstr(f1, "file1.txt");
@@ -206,44 +206,44 @@ ok64 FILEtest8() {
     a_cstr(f3, "file3.txt");
 
     // Create nested structure: base/sub1/sub2
-    call(FILEMakeDir, path8cgIn(path));
-    call(path8gPush, path8gIn(path), sub1);
-    call(FILEMakeDir, path8cgIn(path));
-    call(path8gPush, path8gIn(path), sub2);
-    call(FILEMakeDir, path8cgIn(path));
-    call(path8gPop, path8gIn(path));
-    call(path8gPop, path8gIn(path));
+    call(FILEMakeDir, PATHu8cgIn(path));
+    call(PATHu8gPush, PATHu8gIn(path), sub1);
+    call(FILEMakeDir, PATHu8cgIn(path));
+    call(PATHu8gPush, PATHu8gIn(path), sub2);
+    call(FILEMakeDir, PATHu8cgIn(path));
+    call(PATHu8gPop, PATHu8gIn(path));
+    call(PATHu8gPop, PATHu8gIn(path));
 
     // Create files
     int fd;
-    call(path8gPush, path8gIn(path), f1);
-    call(FILECreate, &fd, path8cgIn(path));
+    call(PATHu8gPush, PATHu8gIn(path), f1);
+    call(FILECreate, &fd, PATHu8cgIn(path));
     call(FILEClose, &fd);
-    call(path8gPop, path8gIn(path));
+    call(PATHu8gPop, PATHu8gIn(path));
 
-    call(path8gPush, path8gIn(path), sub1);
-    call(path8gPush, path8gIn(path), f2);
-    call(FILECreate, &fd, path8cgIn(path));
+    call(PATHu8gPush, PATHu8gIn(path), sub1);
+    call(PATHu8gPush, PATHu8gIn(path), f2);
+    call(FILECreate, &fd, PATHu8cgIn(path));
     call(FILEClose, &fd);
-    call(path8gPop, path8gIn(path));
+    call(PATHu8gPop, PATHu8gIn(path));
 
-    call(path8gPush, path8gIn(path), sub2);
-    call(path8gPush, path8gIn(path), f3);
-    call(FILECreate, &fd, path8cgIn(path));
+    call(PATHu8gPush, PATHu8gIn(path), sub2);
+    call(PATHu8gPush, PATHu8gIn(path), f3);
+    call(FILECreate, &fd, PATHu8cgIn(path));
     call(FILEClose, &fd);
 
     // Verify deepest file exists
     struct stat s = {};
-    test(OK == FILEStat(&s, path8cgIn(path)), FILEFAIL);
+    test(OK == FILEStat(&s, PATHu8cgIn(path)), FILEFAIL);
 
     // Back to base and delete recursively
-    call(path8gPop, path8gIn(path));
-    call(path8gPop, path8gIn(path));
-    call(path8gPop, path8gIn(path));
-    call(FILERmDir, path8cgIn(path), true);
+    call(PATHu8gPop, PATHu8gIn(path));
+    call(PATHu8gPop, PATHu8gIn(path));
+    call(PATHu8gPop, PATHu8gIn(path));
+    call(FILERmDir, PATHu8cgIn(path), true);
 
     // Verify it's gone
-    test(OK != FILEStat(&s, path8cgIn(path)), FILEFAIL);
+    test(OK != FILEStat(&s, PATHu8cgIn(path)), FILEFAIL);
 
     done;
 }
@@ -256,20 +256,20 @@ ok64 FILEtest8b() {
     // Step 1: create a temp dir using the normal path8g pattern
     a_path(setup, $cstr("/tmp"));
     a_cstr(tmpl, "FILEtest8b_XXXXXX");
-    call(path8gAddTmp, path8gIn(setup), tmpl);
-    call(FILEMakeDir, path8cgIn(setup));
+    call(PATHu8gAddTmp, PATHu8gIn(setup), tmpl);
+    call(FILEMakeDir, PATHu8cgIn(setup));
 
     // Create nested content
     a_cstr(sub, "sub");
-    call(path8gPush, path8gIn(setup), sub);
-    call(FILEMakeDir, path8cgIn(setup));
+    call(PATHu8gPush, PATHu8gIn(setup), sub);
+    call(FILEMakeDir, PATHu8cgIn(setup));
     a_cstr(fname, "file.txt");
-    call(path8gPush, path8gIn(setup), fname);
+    call(PATHu8gPush, PATHu8gIn(setup), fname);
     int fd;
-    call(FILECreate, &fd, path8cgIn(setup));
+    call(FILECreate, &fd, PATHu8cgIn(setup));
     call(FILEClose, &fd);
-    call(path8gPop, path8gIn(setup));
-    call(path8gPop, path8gIn(setup));
+    call(PATHu8gPop, PATHu8gIn(setup));
+    call(PATHu8gPop, PATHu8gIn(setup));
 
     // Step 2: get the path as a C string, then use a_path to reconstruct
     // This is the pattern from PUT.c: a_path(path, g_tmpdir)
@@ -278,15 +278,15 @@ ok64 FILEtest8b() {
              (int)u8bDataLen(setup), (char *)setup[1]);
 
     a_path(repath, $cstr(cpath));
-    call(path8gTerm, path8gIn(repath));
-    test(path8cgOK(path8cgIn(repath)), FAIL);
+    call(PATHu8gTerm, PATHu8gIn(repath));
+    test(PATHu8cgOK(PATHu8cgIn(repath)), FAIL);
 
     // Now remove with FILERmDir
-    call(FILERmDir, path8cgIn(repath), true);
+    call(FILERmDir, PATHu8cgIn(repath), true);
 
     // Verify it's gone
     struct stat s = {};
-    test(OK != FILEStat(&s, path8cgIn(repath)), FILEFAIL);
+    test(OK != FILEStat(&s, PATHu8cgIn(repath)), FILEFAIL);
 
     done;
 }
@@ -299,9 +299,9 @@ ok64 FILEtest9() {
     // FILEStat on non-existent file should return FILENOENT
     a_path(nofile, $cstr("/tmp"));
     a_cstr(tmpl, "FILEtest9_XXXXXX");
-    call(path8gAddTmp, path8gIn(nofile), tmpl);
+    call(PATHu8gAddTmp, PATHu8gIn(nofile), tmpl);
     struct stat s = {};
-    ok64 res = FILEStat(&s, path8cgIn(nofile));
+    ok64 res = FILEStat(&s, PATHu8cgIn(nofile));
     test(res == FILENOENT, FILEFAIL);
 
     // Verify FILEerrno translates correctly
@@ -321,8 +321,8 @@ ok64 FILEIterTest() {
     // Create test directory structure
     a_path(base, $cstr("/tmp"));
     a_cstr(tmpl, "FILEIterTest_XXXXXX");
-    call(path8gAddTmp, path8gIn(base), tmpl);
-    call(FILEMakeDir, path8cgIn(base));
+    call(PATHu8gAddTmp, PATHu8gIn(base), tmpl);
+    call(FILEMakeDir, PATHu8cgIn(base));
 
 
     // Create files and subdirs
@@ -332,30 +332,30 @@ ok64 FILEIterTest() {
     a_cstr(f3, "nested.txt");
 
     int fd;
-    call(path8gPush, path8gIn(base), f1);
-    call(FILECreate, &fd, path8cgIn(base));
+    call(PATHu8gPush, PATHu8gIn(base), f1);
+    call(FILECreate, &fd, PATHu8cgIn(base));
     call(FILEClose, &fd);
-    call(path8gPop, path8gIn(base));
+    call(PATHu8gPop, PATHu8gIn(base));
 
-    call(path8gPush, path8gIn(base), f2);
-    call(FILECreate, &fd, path8cgIn(base));
+    call(PATHu8gPush, PATHu8gIn(base), f2);
+    call(FILECreate, &fd, PATHu8cgIn(base));
     call(FILEClose, &fd);
-    call(path8gPop, path8gIn(base));
+    call(PATHu8gPop, PATHu8gIn(base));
 
-    call(path8gPush, path8gIn(base), sub);
-    call(FILEMakeDir, path8cgIn(base));
-    call(path8gPush, path8gIn(base), f3);
-    call(FILECreate, &fd, path8cgIn(base));
+    call(PATHu8gPush, PATHu8gIn(base), sub);
+    call(FILEMakeDir, PATHu8cgIn(base));
+    call(PATHu8gPush, PATHu8gIn(base), f3);
+    call(FILECreate, &fd, PATHu8cgIn(base));
     call(FILEClose, &fd);
-    call(path8gPop, path8gIn(base));
-    call(path8gPop, path8gIn(base));
+    call(PATHu8gPop, PATHu8gIn(base));
+    call(PATHu8gPop, PATHu8gIn(base));
 
 
     // Now test iterator
     int file_count = 0;
     int dir_count = 0;
     fileit it = {};
-    call(FILEIterOpen, &it, path8gIn(base));
+    call(FILEIterOpen, &it, PATHu8gIn(base));
     scan(FILENext, &it) {
         if (it.type == DT_REG) file_count++;
         if (it.type == DT_DIR) {
@@ -378,7 +378,7 @@ ok64 FILEIterTest() {
     testeq(dir_count, 1);   // subdir
 
     // Cleanup
-    call(FILERmDir, path8cgIn(base), true);
+    call(FILERmDir, PATHu8cgIn(base), true);
 
     done;
 }
@@ -390,8 +390,8 @@ ok64 FILEIterSortedTest() {
     // Create test directory structure
     a_path(base, $cstr("/tmp"));
     a_cstr(tmpl, "FILEIterSorted_XXXXXX");
-    call(path8gAddTmp, path8gIn(base), tmpl);
-    call(FILEMakeDir, path8cgIn(base));
+    call(PATHu8gAddTmp, PATHu8gIn(base), tmpl);
+    call(FILEMakeDir, PATHu8cgIn(base));
 
 
     // Create files with names that sort differently than creation order
@@ -403,28 +403,28 @@ ok64 FILEIterSortedTest() {
 
     int fd;
     // Create in reverse alphabetical order
-    call(path8gPush, path8gIn(base), fz);
-    call(FILECreate, &fd, path8cgIn(base));
+    call(PATHu8gPush, PATHu8gIn(base), fz);
+    call(FILECreate, &fd, PATHu8cgIn(base));
     call(FILEClose, &fd);
-    call(path8gPop, path8gIn(base));
+    call(PATHu8gPop, PATHu8gIn(base));
 
-    call(path8gPush, path8gIn(base), fm);
-    call(FILECreate, &fd, path8cgIn(base));
+    call(PATHu8gPush, PATHu8gIn(base), fm);
+    call(FILECreate, &fd, PATHu8cgIn(base));
     call(FILEClose, &fd);
-    call(path8gPop, path8gIn(base));
+    call(PATHu8gPop, PATHu8gIn(base));
 
-    call(path8gPush, path8gIn(base), sub);
-    call(FILEMakeDir, path8cgIn(base));
-    call(path8gPush, path8gIn(base), fc);
-    call(FILECreate, &fd, path8cgIn(base));
+    call(PATHu8gPush, PATHu8gIn(base), sub);
+    call(FILEMakeDir, PATHu8cgIn(base));
+    call(PATHu8gPush, PATHu8gIn(base), fc);
+    call(FILECreate, &fd, PATHu8cgIn(base));
     call(FILEClose, &fd);
-    call(path8gPop, path8gIn(base));
-    call(path8gPop, path8gIn(base));
+    call(PATHu8gPop, PATHu8gIn(base));
+    call(PATHu8gPop, PATHu8gIn(base));
 
-    call(path8gPush, path8gIn(base), fa);
-    call(FILECreate, &fd, path8cgIn(base));
+    call(PATHu8gPush, PATHu8gIn(base), fa);
+    call(FILECreate, &fd, PATHu8cgIn(base));
     call(FILEClose, &fd);
-    call(path8gPop, path8gIn(base));
+    call(PATHu8gPop, PATHu8gIn(base));
 
 
     // Test sorted iterator
@@ -432,7 +432,7 @@ ok64 FILEIterSortedTest() {
     call(u8bAllocate, sortbufbuf, 4096);
 
     fileit it = {};
-    call(FILEIterOpenSorted, &it, path8gIn(base), sortbufbuf, FILEentryZ);
+    call(FILEIterOpenSorted, &it, PATHu8gIn(base), sortbufbuf, FILEentryZ);
 
 
     // Collect entries in order
@@ -471,7 +471,7 @@ ok64 FILEIterSortedTest() {
 
     // Cleanup
     call(u8bFree, sortbufbuf);
-    call(FILERmDir, path8cgIn(base), true);
+    call(FILERmDir, PATHu8cgIn(base), true);
 
     done;
 }
@@ -482,11 +482,11 @@ ok64 FILEBookTest() {
 
     a_path(path, $cstr("/tmp"));
     a_cstr(tmpl, "FILEBookTest_XXXXXX");
-    call(path8gAddTmp, path8gIn(path), tmpl);
+    call(PATHu8gAddTmp, PATHu8gIn(path), tmpl);
 
     // Create with 1MB booked range, 4KB initial size
     u8bp buf = NULL;
-    call(FILEBookCreate, &buf, path8cgIn(path), 1 * MB, 4 * KB);
+    call(FILEBookCreate, &buf, PATHu8cgIn(path), 1 * MB, 4 * KB);
 
 
     // Verify initial size
@@ -533,7 +533,7 @@ ok64 FILEBookTest() {
     // Cleanup
     call(FILEUnBook, buf);
 
-    call(FILEUnLink, path8cgIn(path));
+    call(FILEUnLink, PATHu8cgIn(path));
 
     done;
 }
@@ -544,11 +544,11 @@ ok64 FILEBookExistingTest() {
 
     a_path(path, $cstr("/tmp"));
     a_cstr(tmpl, "FILEBookExist_XXXXXX");
-    call(path8gAddTmp, path8gIn(path), tmpl);
+    call(PATHu8gAddTmp, PATHu8gIn(path), tmpl);
 
     // Create file with some content first
     u8bp prebuf = NULL;
-    call(FILEMapCreate, &prebuf, path8cgIn(path), PAGESIZE);
+    call(FILEMapCreate, &prebuf, PATHu8cgIn(path), PAGESIZE);
 
     u8bReset(prebuf);
     a_cstr(initial, "Initial content here");
@@ -558,7 +558,7 @@ ok64 FILEBookExistingTest() {
 
     // Now book with larger range
     u8bp buf = NULL;
-    call(FILEBook, &buf, path8cgIn(path), 1 * MB);
+    call(FILEBook, &buf, PATHu8cgIn(path), 1 * MB);
 
 
     // Verify existing content is there
@@ -571,7 +571,7 @@ ok64 FILEBookExistingTest() {
     memcpy(far, "Extended data", 13);
 
     call(FILEUnBook, buf);
-    call(FILEUnLink, path8cgIn(path));
+    call(FILEUnLink, PATHu8cgIn(path));
 
 
     done;
@@ -583,10 +583,10 @@ ok64 FILEBookLimitTest() {
 
     a_path(path, $cstr("/tmp"));
     a_cstr(tmpl, "FILEBookLimit_XXXXXX");
-    call(path8gAddTmp, path8gIn(path), tmpl);
+    call(PATHu8gAddTmp, PATHu8gIn(path), tmpl);
 
     u8bp buf = NULL;
-    call(FILEBookCreate, &buf, path8cgIn(path), 64 * KB, 4 * KB);
+    call(FILEBookCreate, &buf, PATHu8cgIn(path), 64 * KB, 4 * KB);
 
 
     // Extending beyond booked range should fail
@@ -599,7 +599,7 @@ ok64 FILEBookLimitTest() {
 
 
     call(FILEUnBook, buf);
-    call(FILEUnLink, path8cgIn(path));
+    call(FILEUnLink, PATHu8cgIn(path));
 
 
     done;
@@ -611,11 +611,11 @@ ok64 FILEBookEnsureTest() {
 
     a_path(path, $cstr("/tmp"));
     a_cstr(tmpl, "FILEBookEnsure_XXXXXX");
-    call(path8gAddTmp, path8gIn(path), tmpl);
+    call(PATHu8gAddTmp, PATHu8gIn(path), tmpl);
 
     // Create with small initial size (1 page), large booked range
     u8bp book = NULL;
-    call(FILEBookCreate, &book, path8cgIn(path), 8 * MB, PAGESIZE);
+    call(FILEBookCreate, &book, PATHu8cgIn(path), 8 * MB, PAGESIZE);
 
     u8bReset(book);
 
@@ -634,7 +634,7 @@ ok64 FILEBookEnsureTest() {
     call(FILETrimBook, book);
 
     call(FILEUnBook, book);
-    call(FILEUnLink, path8cgIn(path));
+    call(FILEUnLink, PATHu8cgIn(path));
 
 
     done;

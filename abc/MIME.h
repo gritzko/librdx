@@ -159,7 +159,7 @@ fun const char *MIMEByExt(u8cs ext) {
 fun const char *MIMEByPath(u8cs path) {
     if ($empty(path)) return MIMEdefault;
     u8cs ext = {};
-    path8sExt(ext, path);
+    PATHu8sExt(ext, path);
     return MIMEByExt(ext);
 }
 

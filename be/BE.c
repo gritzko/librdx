@@ -229,16 +229,16 @@ static ok64 BEBatchFlush(BEp be, ROCKbatchp wb) {
 // Build worktree path from relpath
 static ok64 BEWorkPath(path8g out, BEp be, u8cs relpath) {
     sane(out != NULL && be != NULL);
-    call(path8gDup, out, path8cgIn(be->work_pp));
+    call(PATHu8gDup, out, PATHu8cgIn(be->work_pp));
     a_path(rp, relpath);
-    call(path8gAdd, out, path8cgIn(rp));
+    call(PATHu8gAdd, out, PATHu8cgIn(rp));
     done;
 }
 
 // Get ext + codec from a filename/relpath
 static void BEFileInfo(u8csp ext, u8csp codec, u8cs relpath) {
     u8cs basename = {};
-    path8gBase(basename, (path8cg){relpath[0], relpath[1], relpath[1]});
+    PATHu8gBase(basename, (path8cg){relpath[0], relpath[1], relpath[1]});
     BEExtOf(ext, basename);
     BASTCodec(codec, ext);
 }
@@ -287,26 +287,26 @@ static ok64 BERepoPath(path8g out, u8cs repo) {
     test(home != NULL, BEFAIL);
     a_cstr(homecs, home);
     call(u8sFeed, out + 1, homecs);
-    call(path8gTerm, out);
+    call(PATHu8gTerm, out);
     a_cstr(dotbe, ".be");
-    call(path8gPush, out, dotbe);
-    call(path8gPush, out, repo);
+    call(PATHu8gPush, out, dotbe);
+    call(PATHu8gPush, out, repo);
     done;
 }
 
 static ok64 BEFindDotBe(path8g result, path8cg start) {
     sane(result != NULL && $ok(start));
     a_path(cur);
-    call(path8bFeedS, cur, start);
+    call(PATHu8bFeed, cur, start);
     for (int depth = 0; depth < 64; depth++) {
         a_path(trial, u8bDataC(cur), $cstr(".be"));
         struct stat st;
-        ok64 o = FILEStat(&st, path8cgIn(trial));
+        ok64 o = FILEStat(&st, PATHu8cgIn(trial));
         if (o == OK && S_ISREG(st.st_mode)) {
-            call(path8gDup, result, path8cgIn(cur));
+            call(PATHu8gDup, result, PATHu8cgIn(cur));
             done;
         }
-        o = path8bPop(cur);
+        o = PATHu8bPop(cur);
         if (o != OK) break;
         a_dup(u8c, d, u8bDataC(cur));
         if ($len(d) <= 1) break;
@@ -642,7 +642,7 @@ static ok64 BERewriteDotBe(BEp be) {
     a_path(dpath, u8bDataC(be->work_pp), $cstr(".be"));
     u8cs new_uri;
     u8csMv(new_uri, u8bDataC(be->loc_buf));
-    call(BEWriteFile, path8cgIn(dpath), new_uri);
+    call(BEWriteFile, PATHu8cgIn(dpath), new_uri);
     // Invalidate stat: cache for .be — forces re-check on next post
     // (mtime=0 bypasses the mtime fast-path in BEPostDiffCB)
     a_cstr(dotbe_rel, ".be");
@@ -663,20 +663,20 @@ ok64 BEInit(BEp be, u8cs be_uri, path8cg worktree) {
     call(URILexer, &be->loc);
     call(BEParseBranches, be);
 
-    call(path8bAlloc, be->work_pp);
-    call(path8bFeedS, be->work_pp, worktree);
+    call(PATHu8bAlloc, be->work_pp);
+    call(PATHu8bFeed, be->work_pp, worktree);
 
-    call(path8bAlloc, be->repo_pp);
+    call(PATHu8bAlloc, be->repo_pp);
     test($ok(be->loc.host) && !$empty(be->loc.host), BEBAD);
-    call(BERepoPath, path8gIn(be->repo_pp), be->loc.host);
-    call(FILEMakeDirP, path8cgIn(be->repo_pp));
+    call(BERepoPath, PATHu8gIn(be->repo_pp), be->loc.host);
+    call(FILEMakeDirP, PATHu8cgIn(be->repo_pp));
 
     a_path(dotbe_path);
-    call(path8bFeedS, dotbe_path, worktree);
-    call(path8bPushCStr, dotbe_path, ".be");
-    call(BEWriteFile, path8cgIn(dotbe_path), be_uri);
+    call(PATHu8bFeed, dotbe_path, worktree);
+    call(PATHu8bPushCStr, dotbe_path, ".be");
+    call(BEWriteFile, PATHu8cgIn(dotbe_path), be_uri);
 
-    call(BEOpenDB, &be->db, path8cgIn(be->repo_pp));
+    call(BEOpenDB, &be->db, PATHu8cgIn(be->repo_pp));
     call(BEScratchInit, be);
     be->initial = YES;
     done;
@@ -686,13 +686,13 @@ ok64 BEOpen(BEp be, path8cg worktree) {
     sane(be != NULL && worktree != NULL);
     memset(be, 0, sizeof(BE));
 
-    call(path8bAlloc, be->work_pp);
-    call(BEFindDotBe, path8gIn(be->work_pp), worktree);
+    call(PATHu8bAlloc, be->work_pp);
+    call(BEFindDotBe, PATHu8gIn(be->work_pp), worktree);
 
     a_path(dotbe_path, u8bDataC(be->work_pp), $cstr(".be"));
 
     u8bp mapbuf = NULL;
-    call(FILEMapRO, &mapbuf, path8cgIn(dotbe_path));
+    call(FILEMapRO, &mapbuf, PATHu8cgIn(dotbe_path));
     u8cp md0 = u8bDataHead(mapbuf), md1 = u8bIdleHead(mapbuf);
     u8cs mapped = {md0, md1};
     call(u8bAllocate, be->loc_buf, 512);
@@ -703,11 +703,11 @@ ok64 BEOpen(BEp be, path8cg worktree) {
     call(URILexer, &be->loc);
     call(BEParseBranches, be);
 
-    call(path8bAlloc, be->repo_pp);
+    call(PATHu8bAlloc, be->repo_pp);
     test($ok(be->loc.host) && !$empty(be->loc.host), BEBAD);
-    call(BERepoPath, path8gIn(be->repo_pp), be->loc.host);
+    call(BERepoPath, PATHu8gIn(be->repo_pp), be->loc.host);
 
-    call(BEOpenDB, &be->db, path8cgIn(be->repo_pp));
+    call(BEOpenDB, &be->db, PATHu8cgIn(be->repo_pp));
     call(BEScratchInit, be);
     done;
 }
@@ -716,8 +716,8 @@ ok64 BEClose(BEp be) {
     if (be == NULL) return OK;
     ROCKClose(&be->db);
     BEScratchFree(be);
-    path8bFree(be->repo_pp);
-    path8bFree(be->work_pp);
+    PATHu8bFree(be->repo_pp);
+    PATHu8bFree(be->work_pp);
     u8bFree(be->loc_buf);
     memset(be, 0, sizeof(BE));
     return OK;
@@ -812,15 +812,15 @@ static ok64 BEExportFile(BEp be, u8cs relpath, u8cs bason, b8 is_exec) {
     }
 
     a_path(fpath);
-    call(BEWorkPath, path8gIn(fpath), be, relpath);
+    call(BEWorkPath, PATHu8gIn(fpath), be, relpath);
 
     u8cs dir = {};
-    path8gDir(dir, path8cgIn(fpath));
+    PATHu8gDir(dir, PATHu8cgIn(fpath));
     if (!$empty(dir)) {
         a_path(dpath, dir);
-        FILEMakeDirP(path8cgIn(dpath));
+        FILEMakeDirP(PATHu8cgIn(dpath));
     }
-    call(BEWriteFile, path8cgIn(fpath), source);
+    call(BEWriteFile, PATHu8cgIn(fpath), source);
 
     // Set exec bit from key
     if (is_exec) {
@@ -832,7 +832,7 @@ static ok64 BEExportFile(BEp be, u8cs relpath, u8cs bason, b8 is_exec) {
     // Update stat: cache with real mtime + hash (1-second mtime race
     // is accepted, same as git's "racy git" limitation)
     struct stat wst;
-    if (FILEStat(&wst, path8cgIn(fpath)) == OK) {
+    if (FILEStat(&wst, PATHu8cgIn(fpath)) == OK) {
         BEstat st_cache = {};
         BEStatFromFile(&st_cache, &wst, source);
         BEStatUpdate(be, relpath, st_cache);
@@ -1119,10 +1119,10 @@ static ok64 BEStatusCB(voidp arg, u8cs relpath, BEstat cached) {
     BEFileInfo(ext, codec, relpath);
 
     a_path(fpath);
-    call(BEWorkPath, path8gIn(fpath), be, relpath);
+    call(BEWorkPath, PATHu8gIn(fpath), be, relpath);
 
     struct stat fst;
-    if (FILEStat(&fst, path8cgIn(fpath)) != OK) {
+    if (FILEStat(&fst, PATHu8cgIn(fpath)) != OK) {
         BEPostReport(relpath, codec, "DEL", DARK_RED);
         done;
     }
@@ -1134,7 +1134,7 @@ static ok64 BEStatusCB(voidp arg, u8cs relpath, BEstat cached) {
     u8bp mapbuf = NULL;
     u8cs file_content = {};
     if (fst.st_size > 0) {
-        call(FILEMapRO, &mapbuf, path8cgIn(fpath));
+        call(FILEMapRO, &mapbuf, PATHu8cgIn(fpath));
         u8cp fc0 = u8bDataHead(mapbuf), fc1 = u8bIdleHead(mapbuf);
         file_content[0] = fc0;
         file_content[1] = fc1;
@@ -1195,12 +1195,12 @@ static ok64 BEDiffCB(voidp arg, u8cs relpath, BEstat cached) {
 
     // Build worktree path and stat
     a_path(fpath);
-    call(BEWorkPath, path8gIn(fpath), be, relpath);
+    call(BEWorkPath, PATHu8gIn(fpath), be, relpath);
 
     struct stat fst;
     b8 deleted = NO;
     b8 modified = NO;
-    if (FILEStat(&fst, path8cgIn(fpath)) != OK) {
+    if (FILEStat(&fst, PATHu8cgIn(fpath)) != OK) {
         deleted = YES;
     } else {
         u64 cur_mtime = (u64)fst.st_mtim.tv_sec * 1000000ULL +
@@ -1213,7 +1213,7 @@ static ok64 BEDiffCB(voidp arg, u8cs relpath, BEstat cached) {
         u8bp hmap = NULL;
         u8cs hcontent = {};
         if (fst.st_size > 0) {
-            if (FILEMapRO(&hmap, path8cgIn(fpath)) == OK) {
+            if (FILEMapRO(&hmap, PATHu8cgIn(fpath)) == OK) {
                 u8cp hc0 = u8bDataHead(hmap), hc1 = u8bIdleHead(hmap);
                 hcontent[0] = hc0;
                 hcontent[1] = hc1;
@@ -1270,7 +1270,7 @@ static ok64 BEDiffCB(voidp arg, u8cs relpath, BEstat cached) {
         BEExtOf(ext, relpath);
         u8bp nbuf = be->scratch[BE_PARSE];
         u8bp mapbuf = NULL;
-        call(BEParseFile, nbuf, &mapbuf, path8cgIn(fpath), &fst, ext);
+        call(BEParseFile, nbuf, &mapbuf, PATHu8cgIn(fpath), &fst, ext);
         u8cp n0 = u8bDataHead(nbuf), n1 = u8bIdleHead(nbuf);
         u8cs new_bason = {n0, n1};
 
@@ -1403,7 +1403,7 @@ static ok64 BEPostFile(BEp be, ROCKbatchp wb, ron60 stamp,
     sane(be != NULL && wb != NULL);
     // Compute relative path from worktree root
     a_path(relpath);
-    call(path8gRelative, path8gIn(relpath), path8cgIn(be->work_pp), filepath);
+    call(PATHu8gRelative, PATHu8gIn(relpath), PATHu8cgIn(be->work_pp), filepath);
     a_dup(u8c, rel, u8bDataC(relpath));
 
     // Stat source file for metadata
@@ -1412,7 +1412,7 @@ static ok64 BEPostFile(BEp be, ROCKbatchp wb, ron60 stamp,
 
     // Get extension and codec
     u8cs basename = {};
-    path8gBase(basename, filepath);
+    PATHu8gBase(basename, filepath);
     u8cs ext = {};
     BEExtOf(ext, basename);
     u8cs codec = {};
@@ -1519,14 +1519,14 @@ static ok64 BEPostScanCB(voidp arg, path8p path) {
     struct stat st;
     if (lstat((const char *)*path, &st) == 0 && S_ISDIR(st.st_mode)) {
         u8cs basename = {};
-        path8gBase(basename, path8cgIn(path));
+        PATHu8gBase(basename, PATHu8cgIn(path));
         // Always skip dot-directories
         if (!$empty(basename) && basename[0][0] == '.') return FILESKIP;
         // Check .gitignore
         if (ctx->ig) {
             a_path(relpath);
-            call(path8gRelative, path8gIn(relpath), path8cgIn(ctx->be->work_pp),
-                 path8cgIn(path));
+            call(PATHu8gRelative, PATHu8gIn(relpath), PATHu8cgIn(ctx->be->work_pp),
+                 PATHu8cgIn(path));
             a_dup(u8c, rel, u8bDataC(relpath));
             if (IGNOMatch(ctx->ig, rel, YES)) {
                 u8cs dircodec = {(u8cp)"dir", (u8cp)"dir" + 3};
@@ -1539,8 +1539,8 @@ static ok64 BEPostScanCB(voidp arg, path8p path) {
     // Check .gitignore for files
     if (ctx->ig) {
         a_path(relpath);
-        ok64 ro = path8gRelative(path8gIn(relpath), path8cgIn(ctx->be->work_pp),
-                                  path8cgIn(path));
+        ok64 ro = PATHu8gRelative(PATHu8gIn(relpath), PATHu8cgIn(ctx->be->work_pp),
+                                  PATHu8cgIn(path));
         if (ro == OK) {
             a_dup(u8c, rel, u8bDataC(relpath));
             if (IGNOMatch(ctx->ig, rel, NO)) {
@@ -1553,12 +1553,12 @@ static ok64 BEPostScanCB(voidp arg, path8p path) {
         }
     }
     ok64 po = BEPostFile(ctx->be, ctx->wb, ctx->stamp, ctx->is_base, NO,
-                         path8cgIn(path));
+                         PATHu8cgIn(path));
     if (po != OK) {
         rocksdb_writebatch_clear(ctx->wb->wb);
         a_path(relpath);
-        path8gRelative(path8gIn(relpath), path8cgIn(ctx->be->work_pp),
-                        path8cgIn(path));
+        PATHu8gRelative(PATHu8gIn(relpath), PATHu8cgIn(ctx->be->work_pp),
+                        PATHu8cgIn(path));
         a_dup(u8c, rel, u8bDataC(relpath));
         u8cs ext = {};
         u8cs codec = {};
@@ -1663,11 +1663,11 @@ static ok64 BEPostDiffCB(voidp arg, u8cs relpath, BEstat cached) {
 
     // Build worktree path from relpath
     a_path(fpath);
-    call(BEWorkPath, path8gIn(fpath), be, relpath);
+    call(BEWorkPath, PATHu8gIn(fpath), be, relpath);
 
     // Stat file on disk
     struct stat fst;
-    if (FILEStat(&fst, path8cgIn(fpath)) != OK) {
+    if (FILEStat(&fst, PATHu8cgIn(fpath)) != OK) {
         // File deleted from disk — skip
         return OK;
     }
@@ -1682,7 +1682,7 @@ static ok64 BEPostDiffCB(voidp arg, u8cs relpath, BEstat cached) {
     u8bp mapbuf = NULL;
     u8cs file_content = {};
     if (fst.st_size > 0) {
-        call(FILEMapRO, &mapbuf, path8cgIn(fpath));
+        call(FILEMapRO, &mapbuf, PATHu8cgIn(fpath));
         u8cp fc0 = u8bDataHead(mapbuf), fc1 = u8bIdleHead(mapbuf);
         file_content[0] = fc0;
         file_content[1] = fc1;
@@ -1825,9 +1825,9 @@ static b8 BEPostHasRecords(BEp be, u8cs relpath_prefix) {
 // Helper: resolve CLI path argument to absolute path
 static ok64 BEPostResolvePath(path8g out, BEp be, u8cs arg) {
     sane(out != NULL && be != NULL);
-    call(path8gDup, out, path8cgIn(be->work_pp));
+    call(PATHu8gDup, out, PATHu8cgIn(be->work_pp));
     a_path(rp, arg);
-    call(path8gAdd, out, path8cgIn(rp));
+    call(PATHu8gAdd, out, PATHu8cgIn(rp));
     done;
 }
 
@@ -1848,9 +1848,9 @@ ok64 BEPost(BEp be, int pathc, u8cs *paths, u8cs message) {
         if (pathc > 0 && paths != NULL) {
             for (int i = 0; i < pathc; i++) {
                 a_path(apath);
-                call(BEPostResolvePath, path8gIn(apath), be, paths[i]);
+                call(BEPostResolvePath, PATHu8gIn(apath), be, paths[i]);
                 struct stat dst;
-                ok64 so = FILEStat(&dst, path8cgIn(apath));
+                ok64 so = FILEStat(&dst, PATHu8cgIn(apath));
                 if (so == OK && S_ISDIR(dst.st_mode)) {
                     ok64 o = FILEScan(
                         apath,
@@ -1864,7 +1864,7 @@ ok64 BEPost(BEp be, int pathc, u8cs *paths, u8cs message) {
                     }
                 } else {
                     ok64 o = BEPostFile(be, &wb, stamp, YES, NO,
-                                        path8cgIn(apath));
+                                        PATHu8cgIn(apath));
                     if (o != OK) {
                         IGNOFree(&gi);
                         ROCKBatchClose(&wb);
@@ -1897,16 +1897,16 @@ ok64 BEPost(BEp be, int pathc, u8cs *paths, u8cs message) {
             a_pad(u8, rp, 512);
 
             a_path(apath);
-            call(BEPostResolvePath, path8gIn(apath), be, paths[i]);
+            call(BEPostResolvePath, PATHu8gIn(apath), be, paths[i]);
 
             struct stat dst;
-            ok64 so = FILEStat(&dst, path8cgIn(apath));
+            ok64 so = FILEStat(&dst, PATHu8cgIn(apath));
 
             if (so == OK && S_ISDIR(dst.st_mode)) {
                 // Directory path — build relpath prefix
                 a_path(relp);
-                call(path8gRelative, path8gIn(relp),
-                     path8cgIn(be->work_pp), path8cgIn(apath));
+                call(PATHu8gRelative, PATHu8gIn(relp),
+                     PATHu8cgIn(be->work_pp), PATHu8cgIn(apath));
                 a_dup(u8c, rel, u8bDataC(relp));
                 // Add trailing /
                 call(u8sFeed, rp_idle, rel);
@@ -1942,7 +1942,7 @@ ok64 BEPost(BEp be, int pathc, u8cs *paths, u8cs message) {
             } else {
                 // Single file — diff-based post (no mtime skip)
                 ok64 o = BEPostFile(be, &wb, stamp, NO, YES,
-                                    path8cgIn(apath));
+                                    PATHu8cgIn(apath));
                 if (o != OK) {
                     ROCKBatchClose(&wb);
                     fail(o);
@@ -2305,10 +2305,10 @@ ok64 BEDelete(BEp be, u8cs target) {
 
     // stat() the worktree path — if it exists, it's a file
     a_path(fpath);
-    call(BEWorkPath, path8gIn(fpath), be, target);
+    call(BEWorkPath, PATHu8gIn(fpath), be, target);
 
     struct stat st;
-    ok64 so = FILEStat(&st, path8cgIn(fpath));
+    ok64 so = FILEStat(&st, PATHu8cgIn(fpath));
     if (so == OK) {
         call(BEDeleteFile, be, target);
         done;
@@ -2333,11 +2333,11 @@ ok64 BEGetDeps(BEp be, b8 include_opt) {
     a_path(bpath, u8bDataC(be->work_pp), $cstr(".beget"));
 
     struct stat st;
-    ok64 o = FILEStat(&st, path8cgIn(bpath));
+    ok64 o = FILEStat(&st, PATHu8cgIn(bpath));
     if (o != OK) done;
 
     u8bp mapbuf = NULL;
-    call(FILEMapRO, &mapbuf, path8cgIn(bpath));
+    call(FILEMapRO, &mapbuf, PATHu8cgIn(bpath));
     u8cp m0 = u8bDataHead(mapbuf), m1 = u8bIdleHead(mapbuf);
     u8cs content = {m0, m1};
 
@@ -2402,8 +2402,8 @@ ok64 BEGetDeps(BEp be, b8 include_opt) {
 ok64 BECheckpoint(BEp be, u8cs new_repo) {
     sane(be != NULL && $ok(new_repo) && !$empty(new_repo));
     a_path(dpath);
-    call(BERepoPath, path8gIn(dpath), new_repo);
-    call(ROCKCheckpoint, &be->db, path8cgIn(dpath));
+    call(BERepoPath, PATHu8gIn(dpath), new_repo);
+    call(ROCKCheckpoint, &be->db, PATHu8cgIn(dpath));
     done;
 }
 

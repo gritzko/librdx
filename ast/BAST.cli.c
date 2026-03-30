@@ -47,7 +47,7 @@ ok64 bastcli() {
     u8bShed1(path);
 
     u8bp mapped = NULL;
-    call(FILEMapRO, &mapped, path8cgIn(path));
+    call(FILEMapRO, &mapped, PATHu8cgIn(path));
     u8cp i0 = u8bDataHead(mapped), i1 = u8bIdleHead(mapped);
     u8cs indata = {i0, i1};
 
@@ -78,7 +78,7 @@ ok64 bastcli() {
         call(u8bFeed, opath, outarg);
         u8bFeed1(opath, 0);
         u8bShed1(opath);
-        call(FILECreate, &outfd, path8cgIn(opath));
+        call(FILECreate, &outfd, PATHu8cgIn(opath));
     }
 
     if (want_json) {

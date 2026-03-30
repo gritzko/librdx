@@ -17,7 +17,7 @@ static ok64 BECwd(path8g path) {
     test(getcwd(cwd, sizeof(cwd)) != NULL, BEFAIL);
     a_cstr(cwdcs, cwd);
     call(u8sFeed, path + 1, cwdcs);
-    call(path8gTerm, path);
+    call(PATHu8gTerm, path);
     done;
 }
 
@@ -25,8 +25,8 @@ static ok64 BECwd(path8g path) {
 static ok64 BEOpenCwd(BEp be) {
     sane(be != NULL);
     a_pad(u8, cpath, FILE_PATH_MAX_LEN);
-    call(BECwd, path8gIn(cpath));
-    call(BEOpen, be, path8cgIn(cpath));
+    call(BECwd, PATHu8gIn(cpath));
+    call(BEOpen, be, PATHu8cgIn(cpath));
     done;
 }
 
@@ -144,10 +144,10 @@ static ok64 BECLIPost(uricp u) {
         } else {
             // //repo/project — init new project
             a_pad(u8, cpath, FILE_PATH_MAX_LEN);
-            call(BECwd, path8gIn(cpath));
+            call(BECwd, PATHu8gIn(cpath));
             u8cs udata = {};
             $mv(udata, u->data);
-            call(BEInit, &be, udata, path8cgIn(cpath));
+            call(BEInit, &be, udata, PATHu8cgIn(cpath));
             u8cs empty = {};
             call(BEPost, &be, 0, NULL, empty);
         }
@@ -214,26 +214,26 @@ static ok64 BECLIGet(uricp u) {
     // Remote clone
     if ($eq(u->scheme, http_scheme) || $eq(u->scheme, https_scheme)) {
         a_pad(u8, cpath, FILE_PATH_MAX_LEN);
-        call(BECwd, path8gIn(cpath));
+        call(BECwd, PATHu8gIn(cpath));
         u8cs udata = {};
         $mv(udata, u->data);
-        call(BESyncClone, udata, path8cgIn(cpath));
+        call(BESyncClone, udata, PATHu8cgIn(cpath));
         done;
     }
 
     // //repo/project — local depot checkout
     if (!$empty(u->host) && !$empty(u->path)) {
         u8cs projname = {};
-        path8gBase(projname, (path8cg){u->path[0], u->path[1], u->path[1]});
+        PATHu8gBase(projname, (path8cg){u->path[0], u->path[1], u->path[1]});
         test(!$empty(projname), BEBAD);
         a_pad(u8, cpath, FILE_PATH_MAX_LEN);
-        call(BECwd, path8gIn(cpath));
-        call(path8gPush, path8gIn(cpath), projname);
-        call(FILEMakeDir, path8cgIn(cpath));
+        call(BECwd, PATHu8gIn(cpath));
+        call(PATHu8gPush, PATHu8gIn(cpath), projname);
+        call(FILEMakeDir, PATHu8cgIn(cpath));
         BE be = {};
         u8cs udata = {};
         $mv(udata, u->data);
-        call(BEInit, &be, udata, path8cgIn(cpath));
+        call(BEInit, &be, udata, PATHu8cgIn(cpath));
         u8cs empty = {};
         call(BEGet, &be, 0, NULL, empty);
         call(BEClose, &be);

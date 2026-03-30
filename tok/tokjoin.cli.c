@@ -19,11 +19,11 @@ static ok64 join_read(u8cs *data, u8p buf, u64 bufsz, u8csc path_arg) {
     sane(data != NULL && buf != NULL);
     a_pad(u8, path, 4096);
     call(u8sFeed, path_idle, path_arg);
-    path8gTerm(path8gIn(path));
+    PATHu8bTerm(path);
     u8s idle = {buf, buf + bufsz};
     u8p start = idle[0];
     int fd;
-    call(FILEOpen, &fd, path8cgIn(path), O_RDONLY);
+    call(FILEOpen, &fd, PATHu8cgIn(path), O_RDONLY);
     call(FILEdrainall, idle, fd);
     call(FILEClose, &fd);
     (*data)[0] = start;
@@ -50,7 +50,7 @@ static ok64 join_write(u8csc data, u8csc path_arg) {
     sane(!$empty(data));
     a_pad(u8, path, 4096);
     call(u8sFeed, path_idle, path_arg);
-    path8gTerm(path8gIn(path));
+    PATHu8bTerm(path);
     int fd = open((char *)path[1], O_WRONLY | O_CREAT | O_TRUNC, 0644);
     if (fd < 0) fail(FILEFAIL);
     call(FILEFeedall, fd, data);

@@ -178,7 +178,7 @@ typedef ok64 (*path8f)(voidp arg, path8p path);
 
 // a_path moved to PATH.h (variadic, supports segments)
 
-fun ok64 path8Sane(path8 path) {
+fun ok64 PATHu8bSane(path8 path) {
     if (!u8bOK(path) || u8bDataLen(path) == 0) return NO;
     if (u8bIdleLen(path) == 0) return NO;
     u8c *tp = $term(u8bData(path));
@@ -186,11 +186,11 @@ fun ok64 path8Sane(path8 path) {
     return YES;
 }
 
-fun ok64 path8bAlloc(path8p path) {
+fun ok64 PATHu8bAlloc(path8p path) {
     return u8bAllocate(path, FILE_PATH_MAX_LEN);
 }
 
-fun ok64 path8bFree(path8p path) { return u8bFree(path); }
+fun ok64 PATHu8bFree(path8p path) { return u8bFree(path); }
 
 ok64 FILECreate(int *fd, path8cg path);
 

@@ -37,7 +37,7 @@ static ok64 biffLoadFile(u8bp bson, u64bp idx,
     call(u8bFeed, path, arg);
     u8bFeed1(path, 0);
     u8bShed1(path);
-    call(FILEMapRO, mapped, path8cgIn(path));
+    call(FILEMapRO, mapped, PATHu8cgIn(path));
     u8cp d0 = u8bDataHead(*mapped);
     u8cp d1 = u8bIdleHead(*mapped);
     u8cs data = {d0, d1};
@@ -108,7 +108,7 @@ ok64 biffcli() {
             u8bFeed1(ppath, 0);
             u8bShed1(ppath);
             int pfd;
-            call(FILECreate, &pfd, path8cgIn(ppath));
+            call(FILECreate, &pfd, PATHu8cgIn(ppath));
             if ($len(diff) > 0)
                 call(FILEFeedall, pfd, diff);
             close(pfd);
@@ -135,7 +135,7 @@ ok64 biffcli() {
             u8bFeed1(ppath, 0);
             u8bShed1(ppath);
             int pfd;
-            call(FILECreate, &pfd, path8cgIn(ppath));
+            call(FILECreate, &pfd, PATHu8cgIn(ppath));
             call(FILEFeedall, pfd, xout);
             if (ofmt == 1) {
                 u8cs nl = $u8str("\n");

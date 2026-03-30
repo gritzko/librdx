@@ -232,7 +232,7 @@ ok64 capocli() {
         // No bare .ext — extract extension from first file path
         if ($empty(ext) && gnf > 0) {
             u8cs pe = {};
-            path8sExt(pe, gfiles[0]);
+            PATHu8sExt(pe, gfiles[0]);
             if (!$empty(pe)) {
                 ext[0] = pe[0] - 1;  // include the dot
                 ext[1] = pe[1];
@@ -251,7 +251,7 @@ ok64 capocli() {
         a_pad(u8, capodir, FILE_PATH_MAX_LEN);
         call(CAPOResolveDir, capodir, reporoot);
         a_dup(u8c, dirslice, u8bDataC(capodir));
-        call(FILEMakeDirP, path8cgIn(capodir));
+        call(FILEMakeDirP, PATHu8cgIn(capodir));
 
         // Get our own executable path
         char self[FILE_PATH_MAX_LEN];
@@ -311,7 +311,7 @@ ok64 capocli() {
         // No bare .ext — extract extension from first file path
         if ($empty(ext) && snf > 0) {
             u8cs pe = {};
-            path8sExt(pe, sfiles[0]);
+            PATHu8sExt(pe, sfiles[0]);
             if (!$empty(pe)) {
                 ext[0] = pe[0] - 1;  // include the dot
                 ext[1] = pe[1];

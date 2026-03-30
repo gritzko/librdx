@@ -33,21 +33,21 @@ ok64 BESYNCtest1() {
     // Create temp worktree for source repo
     a_path(src_work, $cstr("/tmp"));
     a_cstr(tmpl1, "BESYNCsrc_XXXXXX");
-    call(path8gAddTmp, path8gIn(src_work), tmpl1);
-    call(FILEMakeDir, path8cgIn(src_work));
+    call(PATHu8gAddTmp, PATHu8gIn(src_work), tmpl1);
+    call(FILEMakeDir, PATHu8cgIn(src_work));
 
     // Create a test source file
     a_path(fpath, u8bDataC(src_work), $cstr("hello.c"));
     u8cs source = $u8str("int hello = 42;\n");
     int fd = 0;
-    call(FILECreate, &fd, path8cgIn(fpath));
+    call(FILECreate, &fd, PATHu8cgIn(fpath));
     call(FILEFeedall, fd, source);
     call(FILEClose, &fd);
 
     // Init source repo and POST
     BE src_be = {};
     u8cs be_uri = $u8str("be://BESYNCtest1/@test/proj?main");
-    call(BEInit, &src_be, be_uri, path8cgIn(src_work));
+    call(BEInit, &src_be, be_uri, PATHu8cgIn(src_work));
     u8cs relpath = $u8str("hello.c");
     u8cs *paths = &relpath;
     u8cs msg = $u8str("initial");
@@ -69,8 +69,8 @@ ok64 BESYNCtest1() {
     // Create temp worktree for clone destination
     a_path(dst_work, $cstr("/tmp"));
     a_cstr(tmpl2, "BESYNCdst_XXXXXX");
-    call(path8gAddTmp, path8gIn(dst_work), tmpl2);
-    call(FILEMakeDir, path8cgIn(dst_work));
+    call(PATHu8gAddTmp, PATHu8gIn(dst_work), tmpl2);
+    call(FILEMakeDir, PATHu8cgIn(dst_work));
 
     // Build remote URL
     char url[128];
@@ -78,7 +78,7 @@ ok64 BESYNCtest1() {
     u8cs remote = $u8str(url);
 
     // Clone
-    ok64 co = BESyncClone(remote, path8cgIn(dst_work));
+    ok64 co = BESyncClone(remote, PATHu8cgIn(dst_work));
 
     // Stop server
     BESRVStop(&srv_t.srv);
@@ -93,15 +93,15 @@ ok64 BESYNCtest1() {
     want(home != NULL);
     a_cstr(homecs, home);
     call(u8sFeed, u8bIdle(clone_repo), homecs);
-    call(path8gTerm, path8gIn(clone_repo));
-    call(path8bPushCStr, clone_repo, ".be");
+    call(PATHu8gTerm, PATHu8gIn(clone_repo));
+    call(PATHu8bPushCStr, clone_repo, ".be");
     u8 rname[64];
     int rnlen = snprintf((char *)rname, sizeof(rname), "127.0.0.1.%d", port);
     u8cs repo_name = {rname, rname + rnlen};
-    call(path8bPush, clone_repo, repo_name);
+    call(PATHu8bPush, clone_repo, repo_name);
 
     ROCKdb clonedb = {};
-    ok64 ro = ROCKOpenRO(&clonedb, path8cgIn(clone_repo));
+    ok64 ro = ROCKOpenRO(&clonedb, PATHu8cgIn(clone_repo));
     want(ro == OK);
 
     // Check for waypoint keys (prefix scan)
@@ -135,10 +135,10 @@ ok64 BESYNCtest1() {
     // Cleanup
     a_path(src_repo, u8bDataC(src_be.repo_pp));
     call(BEClose, &src_be);
-    call(FILErmrf, path8cgIn(src_work));
-    call(FILErmrf, path8cgIn(src_repo));
-    call(FILErmrf, path8cgIn(dst_work));
-    call(FILErmrf, path8cgIn(clone_repo));
+    call(FILErmrf, PATHu8cgIn(src_work));
+    call(FILErmrf, PATHu8cgIn(src_repo));
+    call(FILErmrf, PATHu8cgIn(dst_work));
+    call(FILErmrf, PATHu8cgIn(clone_repo));
 
     done;
 }

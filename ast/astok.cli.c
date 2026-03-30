@@ -125,7 +125,7 @@ ok64 astokcli() {
     u8bShed1(path);
 
     u8bp mapped = NULL;
-    call(FILEMapRO, &mapped, path8cgIn(path));
+    call(FILEMapRO, &mapped, PATHu8cgIn(path));
     u8cp src0 = u8bDataHead(mapped);
     u8cp src1 = u8bIdleHead(mapped);
     uint32_t srclen = (uint32_t)(src1 - src0);

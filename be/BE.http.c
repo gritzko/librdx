@@ -33,8 +33,8 @@ ok64 besrv() {
         a_cstr(cwdcs, cwd);
         a_pad(u8, cpath, FILE_PATH_MAX_LEN);
         call(u8sFeed, u8bIdle(cpath), cwdcs);
-        call(path8gTerm, path8gIn(cpath));
-        call(BEOpen, &be, path8cgIn(cpath));
+        call(PATHu8gTerm, PATHu8gIn(cpath));
+        call(BEOpen, &be, PATHu8cgIn(cpath));
     }
 
     // Print startup info
