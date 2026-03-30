@@ -176,9 +176,9 @@ ok64 run_pcre2_tests(u8cs filename) {
     b8 pattern_supported = NO;
     b8 expect_no_match = NO;
 
-    nfa8 nfabuf[4096];
+    nfau8 nfabuf[4096];
     u32 pbuf[8192];
-    nfa8cs nfa = {};
+    nfau8cs nfa = {};
     u32 wbuf[4096 * 3];
     u32 *ws[2] = {wbuf, wbuf + sizeof(wbuf) / sizeof(wbuf[0])};
 
@@ -227,7 +227,7 @@ ok64 run_pcre2_tests(u8cs filename) {
             pattern_supported = !has_flags && nfa_supported(pat);
 
             if (pattern_supported) {
-                nfa8g prog = {nfabuf, nfabuf + 4096, nfabuf};
+                nfau8g prog = {nfabuf, nfabuf + 4096, nfabuf};
                 u32 *pws[2] = {pbuf, pbuf + 8192};
                 ok64 o = NFAu8Compile(prog, pat, pws);
                 if (o != OK) {

@@ -9,15 +9,15 @@
 // Helper: compile + match (anchored)
 ok64 nfa_match(u8cs pat, u8cs text, b8 *result) {
     sane(1);
-    nfa8 buf[256];
-    nfa8g prog = {buf, buf + 256, buf};
+    nfau8 buf[256];
+    nfau8g prog = {buf, buf + 256, buf};
     u32 pbuf[512];
     u32 *pws[2] = {pbuf, pbuf + 512};
 
     ok64 o = NFAu8Compile(prog, pat, pws);
     if (o != OK) return o;
 
-    nfa8cs nfa = {prog[2], prog[0]};
+    nfau8cs nfa = {prog[2], prog[0]};
     u32 wbuf[768];
     u32 *ws[2] = {wbuf, wbuf + 768};
     *result = NFAu8Match(nfa, text, ws);
@@ -27,15 +27,15 @@ ok64 nfa_match(u8cs pat, u8cs text, b8 *result) {
 // Helper: compile + search (unanchored)
 ok64 nfa_search(u8cs pat, u8cs text, b8 *result) {
     sane(1);
-    nfa8 buf[256];
-    nfa8g prog = {buf, buf + 256, buf};
+    nfau8 buf[256];
+    nfau8g prog = {buf, buf + 256, buf};
     u32 pbuf[512];
     u32 *pws[2] = {pbuf, pbuf + 512};
 
     ok64 o = NFAu8Compile(prog, pat, pws);
     if (o != OK) return o;
 
-    nfa8cs nfa = {prog[2], prog[0]};
+    nfau8cs nfa = {prog[2], prog[0]};
     u32 wbuf[768];
     u32 *ws[2] = {wbuf, wbuf + 768};
     *result = NFAu8Search(nfa, text, ws);
@@ -265,22 +265,22 @@ ok64 test_pathological() {
 
 ok64 test_bad_patterns() {
     sane(1);
-    nfa8 buf[64];
+    nfau8 buf[64];
     u32 pbuf[128];
     u32 *pws[2] = {pbuf, pbuf + 128};
 
     // unclosed paren
-    nfa8g p1 = {buf, buf + 64, buf};
+    nfau8g p1 = {buf, buf + 64, buf};
     u8cs bad1 = {(u8 *)"(abc", (u8 *)"(abc" + 4};
     want(NFAu8Compile(p1, bad1, pws) != OK);
 
     // empty pattern
-    nfa8g p2 = {buf, buf + 64, buf};
+    nfau8g p2 = {buf, buf + 64, buf};
     u8cs bad2 = {(u8 *)"", (u8 *)""};
     want(NFAu8Compile(p2, bad2, pws) != OK);
 
     // leading quantifier
-    nfa8g p3 = {buf, buf + 64, buf};
+    nfau8g p3 = {buf, buf + 64, buf};
     u8cs bad3 = {(u8 *)"*abc", (u8 *)"*abc" + 4};
     want(NFAu8Compile(p3, bad3, pws) != OK);
 
