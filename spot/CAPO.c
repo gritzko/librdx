@@ -26,9 +26,70 @@ static void capo_abrt_handler(int sig) {
 #include "abc/FILE.h"
 #include "abc/PRO.h"
 #include "abc/SORT.h"
+#include "spot/LESS.h"
 #include "spot/NEIL.h"
 #include "spot/SPOT.h"
 #include "tok/JOIN.h"
+
+// --- LESS pager arena: shared across grep/diff/spot ---
+#define LESS_ARENA_SIZE (1UL << 27)   // 128MB
+#define LESS_MAX_HUNKS 4096
+#define LESS_MAX_MAPS 1024
+static Bu8 less_arena = {};
+static LESShunk less_hunks[LESS_MAX_HUNKS];
+static u8bp less_maps[LESS_MAX_MAPS];
+static Bu32 less_toks[LESS_MAX_MAPS];
+static u32 less_nhunks = 0;
+static u32 less_nmaps = 0;
+
+static ok64 LESSArenaInit(void) {
+    less_nhunks = 0;
+    less_nmaps = 0;
+    memset(less_hunks, 0, sizeof(less_hunks));
+    memset(less_maps, 0, sizeof(less_maps));
+    memset(less_toks, 0, sizeof(less_toks));
+    if (less_arena[0] != NULL) {
+        // Reset idle pointer to start
+        ((u8 **)less_arena)[2] = less_arena[1];
+        return OK;
+    }
+    return u8bMap(less_arena, LESS_ARENA_SIZE);
+}
+
+static void LESSArenaCleanup(void) {
+    for (u32 i = 0; i < less_nmaps; i++) {
+        if (less_toks[i][0] != NULL) u32bUnMap(less_toks[i]);
+        if (less_maps[i] != NULL) FILEUnMap(less_maps[i]);
+    }
+    less_nhunks = 0;
+    less_nmaps = 0;
+}
+
+// Write bytes into the arena, return pointer to start
+static u8p LESSArenaWrite(void const *data, size_t len) {
+    if (u8bIdleLen(less_arena) < len) return NULL;
+    u8p p = u8bIdleHead(less_arena);
+    memcpy(p, data, len);
+    ((u8 **)less_arena)[2] = p + len;
+    return p;
+}
+
+// Reserve len bytes in the arena (zeroed), return pointer
+static u8p LESSArenaAlloc(size_t len) {
+    if (u8bIdleLen(less_arena) < len) return NULL;
+    u8p p = u8bIdleHead(less_arena);
+    memset(p, 0, len);
+    ((u8 **)less_arena)[2] = p + len;
+    return p;
+}
+
+// Defer file+toks cleanup until after LESSRun
+static void LESSDefer(u8bp mapped, Bu32 toks) {
+    if (less_nmaps >= LESS_MAX_MAPS) return;
+    less_maps[less_nmaps] = mapped;
+    memcpy(less_toks[less_nmaps], toks, sizeof(Bu32));
+    less_nmaps++;
+}
 
 // MSET for u64 (trigram entries)
 #define X(M, name) M##u64##name
@@ -886,7 +947,7 @@ static b8 CAPOHookDiffCmd(char *cmdbuf, size_t cmdsz,
             else
                 fprintf(stderr, "Changes since %.40s\n", shas[i - 1]);
             n = snprintf(cmdbuf, cmdsz,
-                         "git -C %.*s diff --name-only %.40s HEAD",
+                         "git -C %.*s diff --name-only %.40s",
                          (int)$len(reporoot), (char *)reporoot[0],
                          shas[i - 1]);
             if (n <= 0 || n >= (int)cmdsz) return NO;
@@ -1347,17 +1408,10 @@ ok64 CAPOGrep(u8csc substring, u8csc ext, u8csc reporoot, u32 ctx_lines,
             qsort(hashbuf1, nhashes, sizeof(u32), CAPOu32cmp);
     }
 
-    // Pager
-    FILE *pager = NULL;
-    int saved_stdout = -1;
-    char const *pgcmd = getenv("PAGER");
-    if (pgcmd != NULL && *pgcmd && CAPO_COLOR) {
-        pager = popen(pgcmd, "w");
-        if (pager != NULL) {
-            saved_stdout = dup(STDOUT_FILENO);
-            dup2(fileno(pager), STDOUT_FILENO);
-            CAPO_TERM = NO;
-        }
+    // LESS pager: use global arena
+    b8 grep_use_less = CAPO_COLOR && isatty(STDOUT_FILENO);
+    if (grep_use_less) {
+        if (LESSArenaInit() != OK) grep_use_less = NO;
     }
 
     FILE *fp = NULL;
@@ -1423,7 +1477,8 @@ ok64 CAPOGrep(u8csc substring, u8csc ext, u8csc reporoot, u32 ctx_lines,
 
         a_pad(u8, fpbuf, FILE_PATH_MAX_LEN);
         u8cs fps = {(u8cp)fpath, (u8cp)fpath + pn};
-        call(PATHu8bFeed, fpbuf, fps);
+        __ = PATHu8bFeed(fpbuf, fps);
+        if (__ != OK) continue;
 
         u8bp mapped = NULL;
         ok64 o = FILEMapRO(&mapped, PATHu8cgIn(fpbuf));
@@ -1482,7 +1537,6 @@ ok64 CAPOGrep(u8csc substring, u8csc ext, u8csc reporoot, u32 ctx_lines,
                             u32 mp2 = (u32)(sp2 - source[0]);
                             if (mp2 >= ctx_hi) break;
                             hls[nhl++] = (range32){mp2, mp2 + (u32)ndl_len};
-                            // Extend context if needed
                             u32 lo2 = 0, hi2 = 0;
                             CAPOGrepCtx(source, mp2, ctx_lines, &lo2, &hi2);
                             if (hi2 > ctx_hi) ctx_hi = hi2;
@@ -1493,40 +1547,131 @@ ok64 CAPOGrep(u8csc substring, u8csc ext, u8csc reporoot, u32 ctx_lines,
                     b8 contiguous = (ctx_lo <= prev_hi);
                     if (ctx_lo < prev_hi) ctx_lo = prev_hi;
                     if (ctx_lo < ctx_hi) {
-                        if (!contiguous || first_hunk)
-                            CAPOEmitHunkHeader(source, ctx_lo, file_ext,
-                                               &first_hunk, line, prev_func);
-                        CAPOEmitHiliRange(gts, source[0], ctx_lo,
-                                          ctx_hi, hls, nhl, 157);
-                        if (ctx_hi > 0 && source[0][ctx_hi - 1] != '\n')
-                            fputc('\n', stdout);
+                        if (grep_use_less &&
+                            less_nhunks < LESS_MAX_HUNKS &&
+                            u8bIdleLen(less_arena) > (ctx_hi - ctx_lo + 512)) {
+                            // Build hunk into arena
+                            LESShunk *hk = &less_hunks[less_nhunks];
+                            memset(hk, 0, sizeof(*hk));
+
+                            // Title: write into arena
+                            if (!contiguous || first_hunk) {
+                                char funcname[256];
+                                CAPOFindFunc(source, ctx_lo, file_ext,
+                                             funcname, sizeof(funcname));
+                                char hdr[512];
+                                int tlen = snprintf(hdr, sizeof(hdr),
+                                    "--- %s :: %s ---", line, funcname);
+                                if (tlen > 0) {
+                                    u8p tp = LESSArenaWrite(hdr, (size_t)tlen);
+                                    if (tp != NULL) {
+                                        hk->title[0] = tp;
+                                        hk->title[1] = tp + tlen;
+                                    }
+                                }
+                            }
+
+                            // Text: point into mmaped source
+                            hk->text[0] = source[0] + ctx_lo;
+                            hk->text[1] = source[0] + ctx_hi;
+
+                            // Toks: reuse existing token slice
+                            hk->toks[0] = gts[0];
+                            hk->toks[1] = gts[1];
+
+                            // Lits: build into arena
+                            u32 region_len = ctx_hi - ctx_lo;
+                            u8p lp = LESSArenaAlloc(region_len);
+                            if (lp != NULL) {
+                                // Fill tag from tokens
+                                int ntoks = (int)$len(gts);
+                                for (int ti = 0; ti < ntoks; ti++) {
+                                    u32 tlo = (ti > 0) ? TOK_OFF(gts[0][ti-1]) : 0;
+                                    u32 thi = TOK_OFF(gts[0][ti]);
+                                    if (thi <= ctx_lo || tlo >= ctx_hi) continue;
+                                    u32 clo = tlo < ctx_lo ? ctx_lo : tlo;
+                                    u32 chi = thi > ctx_hi ? ctx_hi : thi;
+                                    u8 tag = TOK_TAG(gts[0][ti]) - 'A';
+                                    memset(lp + (clo - ctx_lo), tag, chi - clo);
+                                }
+                                // Mark search highlights as INS (green bg)
+                                for (int h = 0; h < nhl; h++) {
+                                    u32 hlo = hls[h].lo < ctx_lo ? ctx_lo : hls[h].lo;
+                                    u32 hhi = hls[h].hi > ctx_hi ? ctx_hi : hls[h].hi;
+                                    for (u32 b = hlo; b < hhi; b++)
+                                        lp[b - ctx_lo] |= LESS_INS;
+                                }
+                                hk->lits[0] = lp;
+                                hk->lits[1] = lp + region_len;
+                            }
+
+                            less_nhunks++;
+                            first_hunk = NO;
+                        } else {
+                            // Fallback: direct output
+                            if (!contiguous || first_hunk)
+                                CAPOEmitHunkHeader(source, ctx_lo, file_ext,
+                                                   &first_hunk, line, prev_func);
+                            CAPOEmitHiliRange(gts, source[0], ctx_lo,
+                                              ctx_hi, hls, nhl, 157);
+                            if (ctx_hi > 0 && source[0][ctx_hi - 1] != '\n')
+                                fputc('\n', stdout);
+                        }
                     }
                     prev_hi = ctx_hi;
-                    // Skip past collected matches
                     sp = sp2 - 1;
                 }
                 sp++;
             }
         }
 
-        if (found_any) fputc('\n', stdout);
+        if (!grep_use_less && found_any) fputc('\n', stdout);
 
-        if (tokenized) u32bUnMap(gtoks);
-        FILEUnMap(mapped);
+        if (grep_use_less && found_any) {
+            // Defer cleanup: keep file and toks alive for LESS
+            LESSDefer(mapped, tokenized ? gtoks : (Bu32){});
+        } else {
+            if (tokenized) u32bUnMap(gtoks);
+            FILEUnMap(mapped);
+        }
     }
     if (fp != NULL) pclose(fp);
     CAPOProgress(NULL);
 
-    if (pager != NULL) {
-        fflush(stdout);
-        dup2(saved_stdout, STDOUT_FILENO);
-        close(saved_stdout);
-        pclose(pager);
-    }
+    // Run LESS pager
+    if (grep_use_less && less_nhunks > 0)
+        LESSRun(less_hunks, less_nhunks);
+
+    // Deferred cleanup
+    if (grep_use_less)
+        LESSArenaCleanup();
 
     if (hashbuf1 != NULL) free(hashbuf1);
     if (hashbuf2 != NULL) free(hashbuf2);
     done;
+}
+
+// --- Lits builder (for LESS pager) ---
+
+// Fill lits[0..textlen) with tag indices from tokens.
+// Walks the token array, sets lits[byte] = TOK_TAG(tok) for each byte.
+static void CAPOBuildLits(u8p lits, u8cp base, u32 textlen, u32cs toks) {
+    memset(lits, 0, textlen);
+    int ntoks = (int)$len(toks);
+    for (int i = 0; i < ntoks; i++) {
+        u32 lo = (i > 0) ? TOK_OFF(toks[0][i - 1]) : 0;
+        u32 hi = TOK_OFF(toks[0][i]);
+        if (hi > textlen) hi = textlen;
+        if (lo >= hi) continue;
+        u8 tag = TOK_TAG(toks[0][i]) - 'A';
+        memset(lits + lo, tag, hi - lo);
+    }
+}
+
+// Mark a byte range in lits with INS or DEL flag
+static void CAPOMarkLits(u8p lits, u32 lo, u32 hi, u8 flag) {
+    for (u32 i = lo; i < hi; i++)
+        lits[i] |= flag;
 }
 
 // --- Syntax highlighting (shared by cat, diff) ---
@@ -1570,28 +1715,24 @@ ok64 CAPOCat(u8css files, u8csc reporoot) {
     sane(!$empty(files) && $ok(reporoot));
     int nfiles = (int)$len(files);
 
-    // Pager
-    FILE *pager = NULL;
-    int saved_stdout = -1;
-    char const *pgcmd = getenv("PAGER");
-    if (pgcmd != NULL && *pgcmd && CAPO_COLOR) {
-        pager = popen(pgcmd, "w");
-        if (pager != NULL) {
-            saved_stdout = dup(STDOUT_FILENO);
-            dup2(fileno(pager), STDOUT_FILENO);
-            CAPO_TERM = NO;
-        }
+    b8 cat_use_less = CAPO_COLOR && isatty(STDOUT_FILENO);
+    if (cat_use_less) {
+        if (LESSArenaInit() != OK) cat_use_less = NO;
     }
 
     for (int fi = 0; fi < nfiles; fi++) {
+        if (cat_use_less && less_nhunks >= LESS_MAX_HUNKS) break;
+
         u8cs *fp = u8cssAtP(files, fi);
         u8cs fpath_s = {(*fp)[0], (*fp)[1]};
         if ($empty(fpath_s)) continue;
 
         // Resolve path against CWD (like cat)
         a_pad(u8, fpbuf, FILE_PATH_MAX_LEN);
-        call(u8bFeed, fpbuf, fpath_s);
-        call(PATHu8gTerm, PATHu8gIn(fpbuf));
+        __ = u8bFeed(fpbuf, fpath_s);
+        if (__ != OK) continue;
+        __ = PATHu8gTerm(PATHu8gIn(fpbuf));
+        if (__ != OK) continue;
 
         // Extract extension
         u8cs ext = {};
@@ -1606,59 +1747,110 @@ ok64 CAPOCat(u8css files, u8csc reporoot) {
                     (int)$len(fpath_s), (char *)fpath_s[0], ok64str(o));
             continue;
         }
-        a_dup(u8c, source, u8bDataC(mapped));
 
-        // File header when multiple files
-        if (nfiles > 1) {
-            if (CAPO_COLOR)
-                fprintf(stdout, "\033[%dm--- %.*s ---\033[0m\n",
-                        GRAY, (int)$len(fpath_s), (char *)fpath_s[0]);
-            else
-                fprintf(stdout, "--- %.*s ---\n",
-                        (int)$len(fpath_s), (char *)fpath_s[0]);
-        }
+        u8cp src_head = u8bDataHead(mapped);
+        u8cp src_idle = u8bIdleHead(mapped);
+        u32 srclen = (u32)(src_idle - src_head);
 
-        // Try to tokenize
-        b8 tokenized = NO;
-        Bu32 toks = {};
-        if (!$empty(ext) && CAPOKnownExt(ext)) {
-            size_t maxlen = $len(source) + 1;
-            o = u32bMap(toks, maxlen);
-            if (o == OK) {
-                o = SPOTTokenize(toks, source, ext);
-                if (o == OK)
-                    tokenized = YES;
-                else
-                    u32bUnMap(toks);
+        if (cat_use_less) {
+            LESShunk *hk = &less_hunks[less_nhunks];
+            memset(hk, 0, sizeof(*hk));
+
+            // Title into arena
+            char hdr[512];
+            int tlen = snprintf(hdr, sizeof(hdr), "--- %.*s ---",
+                                (int)$len(fpath_s), (char *)fpath_s[0]);
+            if (tlen > 0) {
+                u8p tp = LESSArenaWrite(hdr, (size_t)tlen);
+                if (tp != NULL) {
+                    hk->title[0] = tp;
+                    hk->title[1] = tp + tlen;
+                }
             }
-        }
 
-        if (tokenized) {
-            u32cp td = u32bDataHead(toks);
-            u32cp ti = u32bIdleHead(toks);
-            u32cs ts = {(u32cp)td, (u32cp)ti};
-            int ntoks = (int)(ti - td);
-            for (int i = 0; i < ntoks; i++)
-                CAPOEmitHili(ts, source[0], i, TOK_TAG(td[i]), 0);
+            // Text: point into mmaped file
+            hk->text[0] = src_head;
+            hk->text[1] = src_idle;
+
+            // Try to tokenize
+            Bu32 toks = {};
+            b8 tokenized = NO;
+            if (!$empty(ext) && CAPOKnownExt(ext)) {
+                size_t maxlen = srclen + 1;
+                o = u32bMap(toks, maxlen);
+                if (o == OK) {
+                    u8cs source = {src_head, src_idle};
+                    o = SPOTTokenize(toks, source, ext);
+                    if (o == OK) {
+                        tokenized = YES;
+                        hk->toks[0] = (u32cp)u32bDataHead(toks);
+                        hk->toks[1] = (u32cp)u32bIdleHead(toks);
+                    } else {
+                        u32bUnMap(toks);
+                        memset(toks, 0, sizeof(toks));
+                    }
+                }
+            }
+
+            // Build lits from tokens into arena
+            if (tokenized && srclen > 0) {
+                u8p lp = LESSArenaAlloc(srclen);
+                if (lp != NULL) {
+                    CAPOBuildLits(lp, src_head, srclen, hk->toks);
+                    hk->lits[0] = lp;
+                    hk->lits[1] = lp + srclen;
+                }
+            }
+
+            less_nhunks++;
+            LESSDefer(mapped, tokenized ? toks : (Bu32){});
         } else {
-            // No color or no tokenizer: raw output
-            if (!$empty(source))
-                fwrite(source[0], 1, (size_t)$len(source), stdout);
+            // Direct output (piped)
+            a_dup(u8c, source, u8bDataC(mapped));
+
+            if (nfiles > 1) {
+                if (CAPO_COLOR)
+                    fprintf(stdout, "\033[%dm--- %.*s ---\033[0m\n",
+                            GRAY, (int)$len(fpath_s), (char *)fpath_s[0]);
+                else
+                    fprintf(stdout, "--- %.*s ---\n",
+                            (int)$len(fpath_s), (char *)fpath_s[0]);
+            }
+
+            Bu32 toks = {};
+            b8 tokenized = NO;
+            if (!$empty(ext) && CAPOKnownExt(ext)) {
+                size_t maxlen = $len(source) + 1;
+                o = u32bMap(toks, maxlen);
+                if (o == OK) {
+                    o = SPOTTokenize(toks, source, ext);
+                    if (o == OK)
+                        tokenized = YES;
+                    else
+                        u32bUnMap(toks);
+                }
+            }
+            if (tokenized) {
+                u32cp td = u32bDataHead(toks);
+                u32cp ti = u32bIdleHead(toks);
+                u32cs ts = {(u32cp)td, (u32cp)ti};
+                int ntoks = (int)(ti - td);
+                for (int i = 0; i < ntoks; i++)
+                    CAPOEmitHili(ts, source[0], i, TOK_TAG(td[i]), 0);
+                u32bUnMap(toks);
+            } else {
+                if (!$empty(source))
+                    fwrite(source[0], 1, (size_t)$len(source), stdout);
+            }
+            if (!$empty(source) && *(source[1] - 1) != '\n')
+                fputc('\n', stdout);
+            FILEUnMap(mapped);
         }
-
-        // Trailing newline if file doesn't end with one
-        if (!$empty(source) && *(source[1] - 1) != '\n')
-            fputc('\n', stdout);
-
-        if (tokenized) u32bUnMap(toks);
-        FILEUnMap(mapped);
     }
 
-    if (pager != NULL) {
-        fflush(stdout);
-        dup2(saved_stdout, STDOUT_FILENO);
-        close(saved_stdout);
-        pclose(pager);
+    if (cat_use_less && less_nhunks > 0) {
+        LESSRun(less_hunks, less_nhunks);
+        LESSArenaCleanup();
     }
 
     done;
@@ -1832,18 +2024,6 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name) {
 
         // Lossless shift: align edit boundaries on line breaks
         NEILShift(edl, old_ts, new_ts, old_data, new_data);
-
-        // Pager
-        FILE *pager = NULL;
-        int saved_stdout = -1;
-        char const *pgcmd = getenv("PAGER");
-        if (pgcmd != NULL && *pgcmd && CAPO_COLOR) {
-            pager = popen(pgcmd, "w");
-            if (pager != NULL) {
-                saved_stdout = dup(STDOUT_FILENO);
-                dup2(fileno(pager), STDOUT_FILENO);
-            }
-        }
 
         // Build display name for hunk headers
         char dispname[FILE_PATH_MAX_LEN];
@@ -2196,13 +2376,6 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name) {
         // Trailing newline
         fputc('\n', stdout);
 
-        if (pager != NULL) {
-            fflush(stdout);
-            dup2(saved_stdout, STDOUT_FILENO);
-            close(saved_stdout);
-            pclose(pager);
-        }
-
         u8bFree(mem);
     }
 
@@ -2289,19 +2462,6 @@ ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot,
 
         if (has_trigrams && nhashes > 0)
             qsort(hashbuf1, nhashes, sizeof(u32), CAPOu32cmp);
-    }
-
-    // Pager
-    FILE *pager = NULL;
-    int saved_stdout = -1;
-    char const *pgcmd = getenv("PAGER");
-    if (pgcmd != NULL && *pgcmd && CAPO_COLOR) {
-        pager = popen(pgcmd, "w");
-        if (pager != NULL) {
-            saved_stdout = dup(STDOUT_FILENO);
-            dup2(fileno(pager), STDOUT_FILENO);
-            CAPO_TERM = NO;
-        }
     }
 
     FILE *fp = NULL;
@@ -2509,13 +2669,6 @@ ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot,
     if (!$empty(replace)) {
         fprintf(stderr, "%d replacements in %d files\n",
                 total_replacements, total_files_replaced);
-    }
-
-    if (pager != NULL) {
-        fflush(stdout);
-        dup2(saved_stdout, STDOUT_FILENO);
-        close(saved_stdout);
-        pclose(pager);
     }
 
     if (hashbuf1 != NULL) free(hashbuf1);

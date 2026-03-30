@@ -373,6 +373,7 @@ fun ok64 X(, bSplice)(X(, bp) buf, size_t off, size_t cut, X(, csc) paste) {
 // old DATA becomes PAST, written Ts become new DATA.
 #ifdef ABC_U8B_DEFINED
 fun ok64 X(, aOpen)(X(, g) arena, u8bp buf) {
+    if (buf[2]>buf[1]) return BADARENA;
     uintptr_t al = ((uintptr_t)buf[2] + sizeof(T) - 1) & ~(sizeof(T) - 1);
     uintptr_t ae = (uintptr_t)buf[3] & ~(sizeof(T) - 1);
     if (al > ae) return NOROOM;

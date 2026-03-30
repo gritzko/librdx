@@ -11,12 +11,14 @@ include_directories(.. .)
 
 list(APPEND SPOT_HEADERS
     CAPO.h
+    LESS.h
     NEIL.h
     SPOT.h
 )
 
 list(APPEND SPOT_SOURCES
     CAPO.c
+    LESS.c
     NEIL.c
     SPOT.c
 )

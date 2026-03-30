@@ -21,6 +21,7 @@ con ok64 BNOROOM = 0xb5d86d8616;
 con ok64 BNODATA = 0xb5d834a74a;
 con ok64 BBADARG = 0xb2ca34a6d0;
 con ok64 BMISS = 0xb59271c;
+con ok64 BADARENA	= 0x2ca34a6ce5ca;
 
 #define B_MAX_LEN_BITS 48
 #define B_MAX_LEN (1UL << B_MAX_LEN_BITS)
