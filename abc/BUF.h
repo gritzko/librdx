@@ -23,6 +23,8 @@ fun int u8csmp(u8 const *const *a, u8 const *const *b) { return $cmp(a, b); }
 #include "Bx.h"
 #undef X
 
+#define ABC_U8B_DEFINED
+
 #define X(M, name) M##u8p##name
 #include "Bx.h"
 #undef X

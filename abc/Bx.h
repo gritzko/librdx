@@ -368,4 +368,25 @@ fun ok64 X(, bSplice)(X(, bp) buf, size_t off, size_t cut, X(, csc) paste) {
     return OK;
 }
 
+// Arena: carve T-aligned gauge from u8 buffer's IDLE space.
+// Open returns a gauge for feeding T values. Close commits:
+// old DATA becomes PAST, written Ts become new DATA.
+#ifdef ABC_U8B_DEFINED
+fun ok64 X(, aOpen)(X(, g) arena, u8bp buf) {
+    uintptr_t al = ((uintptr_t)buf[2] + sizeof(T) - 1) & ~(sizeof(T) - 1);
+    uintptr_t ae = (uintptr_t)buf[3] & ~(sizeof(T) - 1);
+    if (al > ae) return NOROOM;
+    arena[0] = (T *)al;
+    arena[1] = (T *)al;
+    arena[2] = (T *)ae;
+    return OK;
+}
+
+fun ok64 X(, aClose)(u8bp buf, X(, g) arena) {
+    ((u8 **)buf)[1] = buf[2];          // DATA → PAST
+    ((u8 **)buf)[2] = (u8 *)arena[1];  // advance IDLE past written data
+    return OK;
+}
+#endif
+
 #undef T
