@@ -158,6 +158,10 @@ static const TOKentry TOK_TABLE[] = {
     {"agda",       (TOKfn)AGDTLexer},
     {"v",          (TOKfn)VERTLexer},
     {"sv",         (TOKfn)VERTLexer},
+    {"md",         (TOKfn)TXTTLexer},
+    {"markdown",   (TOKfn)TXTTLexer},
+    {"txt",        (TOKfn)TXTTLexer},
+    {"rst",        (TOKfn)TXTTLexer},
     {NULL,         NULL},
 };
 

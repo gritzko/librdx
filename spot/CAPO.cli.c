@@ -28,6 +28,33 @@
 //   git config: diff.spot.command "spot --gitdiff"
 //   git config: merge.spot.driver "spot --merge %O %A %B -o %A"
 
+static void SPOTUsage(void) {
+    fprintf(stderr,
+        "Usage: spot [options] [files...]\n"
+        "\n"
+        "  spot                               incremental index update\n"
+        "  spot file.c                        syntax-highlighted cat\n"
+        "  spot -i | --index                  full reindex\n"
+        "  spot --fork N                      parallel reindex on N cores\n"
+        "  spot --hook                        post-commit incremental update\n"
+        "  spot -s \"pattern\" .ext             structural search\n"
+        "  spot -s \"pat\" -r \"repl\" .ext       structural search + replace\n"
+        "  spot -g \"text\" [.ext]              grep (substring, incl. comments)\n"
+        "  spot -g \"text\" -C N [.ext]         grep with N lines of context\n"
+        "  spot -d | --diff old new           token-level colored diff\n"
+        "  spot --gitdiff                     git external diff driver\n"
+        "  spot --merge base ours theirs      token-level 3-way merge\n"
+        "  spot --merge base ours theirs -o f merge to file\n"
+        "\n"
+        "Patterns: single-letter placeholders (a-z match one token/group,\n"
+        "A-Z match multiple tokens). Two spaces = skip gap.\n"
+        "\n"
+        "Git integration:\n"
+        "  git config diff.spot.command \"spot --gitdiff\"\n"
+        "  git config merge.spot.driver \"spot --merge %%O %%A %%B -o %%A\"\n"
+    );
+}
+
 static b8 argeq(u8cs a, const char *b) {
     size_t blen = strlen(b);
     return $len(a) == blen && memcmp(a[0], b, blen) == 0;
@@ -88,7 +115,10 @@ ok64 capocli() {
         u8c *a[2] = {};
         $mv(a, $arg(i));
         char *eqval = NULL;
-        if (argeq(a, "--fork") && i + 1 < argn) {
+        if (argeq(a, "-h") || argeq(a, "--help")) {
+            SPOTUsage();
+            done;
+        } else if (argeq(a, "--fork") && i + 1 < argn) {
             i++;
             u8c *v[2] = {};
             $mv(v, $arg(i));
