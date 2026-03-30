@@ -134,6 +134,9 @@ target_link_libraries(ok64 abc-core)
 add_executable(lex LEX.cli.c)
 target_link_libraries(lex abc-core)
 
+add_executable(nfagrep nfagrep.c)
+target_link_libraries(nfagrep abc-core)
+
 add_subdirectory(test)
 
 if (WITH_BENCH)

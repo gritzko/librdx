@@ -245,6 +245,18 @@ target_compile_options(DIJKtest PRIVATE ${TEST_CXX_FLAGS})
 target_link_libraries(DIJKtest abc)
 add_test(NAME DIJKtest COMMAND DIJKtest)
 
+add_executable(NFAtest NFA.c)
+target_link_options(NFAtest PRIVATE ${TEST_LDD_FLAGS})
+target_compile_options(NFAtest PRIVATE ${TEST_CXX_FLAGS})
+target_link_libraries(NFAtest abc)
+add_test(NAME NFAtest COMMAND NFAtest)
+
+add_executable(NFApcre2test NFApcre2.c)
+target_link_options(NFApcre2test PRIVATE ${TEST_LDD_FLAGS})
+target_compile_options(NFApcre2test PRIVATE ${TEST_CXX_FLAGS})
+target_link_libraries(NFApcre2test abc)
+add_test(NAME NFApcre2test COMMAND NFApcre2test WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
 add_executable(NUMtest NUM.c)
 target_link_options(NUMtest PRIVATE ${TEST_LDD_FLAGS})
 target_compile_options(NUMtest PRIVATE ${TEST_CXX_FLAGS})
