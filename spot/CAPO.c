@@ -50,7 +50,7 @@ b8 CAPOKnownExt(u8csc ext) {
         nodot[0] = ext[0] + 1;
         nodot[1] = ext[1];
     } else {
-        u8csMv(nodot, ext);
+        nodot[0] = ext[0]; nodot[1] = ext[1];
     }
     return TOKKnownExt(nodot);
 }
@@ -1030,21 +1030,44 @@ static int CAPOTagColor(u8 tag);
 
 // --- Function name finder (heuristic) ---
 
-// Walk backward from `pos` looking for a line that looks like a function
-// definition: starts at column 0, first char [A-Za-z_], contains '('.
-// Skips comment lines (// /* *). Copies trimmed line into `out`.
-static void CAPOFindFunc(u8csc source, u32 pos, char *out, size_t outsz) {
+// Check if ext (with dot) matches one of the given suffixes.
+static b8 CAPOExtIs(u8csc ext, const char *a, const char *b) {
+    u8cs nodot = {};
+    if ($empty(ext)) return NO;
+    if (ext[0][0] == '.') { nodot[0] = ext[0] + 1; nodot[1] = ext[1]; }
+    else { nodot[0] = ext[0]; nodot[1] = ext[1]; }
+    size_t n = (size_t)$len(nodot);
+    size_t al = strlen(a);
+    if (n == al && memcmp(nodot[0], a, al) == 0) return YES;
+    if (b != NULL) {
+        size_t bl = strlen(b);
+        if (n == bl && memcmp(nodot[0], b, bl) == 0) return YES;
+    }
+    return NO;
+}
+
+// Walk backward from `pos` looking for a section header line.
+// Heuristic depends on file extension:
+//   md/markdown/rst/txt: line starting with '#'
+//   py: col-0 'def ' or 'class '
+//   default (C-like): col-0 identifier + '('
+static void CAPOFindFunc(u8csc source, u32 pos, u8csc ext,
+                          char *out, size_t outsz) {
     out[0] = 0;
     if ($empty(source) || pos == 0 || outsz < 2) return;
     u8cp base = source[0];
     u32 slen = (u32)$len(source);
     if (pos > slen) pos = slen;
 
+    b8 is_md = CAPOExtIs(ext, "md", "markdown") ||
+               CAPOExtIs(ext, "rst", "txt");
+    b8 is_py = CAPOExtIs(ext, "py", NULL);
+
     // Find start of current line
     u32 ls = pos;
     while (ls > 0 && base[ls - 1] != '\n') ls--;
 
-    // Walk backward up to 200 lines looking for a function-like line
+    // Walk backward up to 200 lines looking for a header line
     for (int tries = 0; tries < 200 && ls > 0; tries++) {
         // Move to previous line
         ls--;
@@ -1056,27 +1079,40 @@ static void CAPOFindFunc(u8csc source, u32 pos, char *out, size_t outsz) {
         if (le == ls) continue;
 
         u8 ch = base[ls];
-        // Skip comment lines
-        if (ch == '/' || ch == '*' || ch == '#') continue;
-        // Must start with identifier char at column 0
-        if (!((ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') ||
-              ch == '_'))
-            continue;
-        // Must contain '('
-        b8 has_paren = NO;
-        for (u32 j = ls; j < le; j++)
-            if (base[j] == '(') { has_paren = YES; break; }
-        if (!has_paren) continue;
+        u32 linelen = le - ls;
 
-        // Copy line, trim trailing { and whitespace
-        u32 copylen = le - ls;
+        if (is_md) {
+            // Markdown: line starting with '#'
+            if (ch != '#') continue;
+        } else if (is_py) {
+            // Python: col-0 'def ' or 'class '
+            if (linelen >= 4 && memcmp(base + ls, "def ", 4) == 0) {}
+            else if (linelen >= 6 && memcmp(base + ls, "class ", 6) == 0) {}
+            else continue;
+        } else {
+            // C-like: col-0 identifier + '('
+            // Skip comment lines
+            if (ch == '/' || ch == '*' || ch == '#') continue;
+            // Must start with identifier char at column 0
+            if (!((ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') ||
+                  ch == '_'))
+                continue;
+            // Must contain '('
+            b8 has_paren = NO;
+            for (u32 j = ls; j < le; j++)
+                if (base[j] == '(') { has_paren = YES; break; }
+            if (!has_paren) continue;
+        }
+
+        // Copy line, trim trailing { / : and whitespace
+        u32 copylen = linelen;
         if (copylen >= outsz) copylen = (u32)(outsz - 1);
         memcpy(out, base + ls, copylen);
         out[copylen] = 0;
-        // Trim trailing { and whitespace
         while (copylen > 0 &&
-               (out[copylen - 1] == '{' || out[copylen - 1] == ' ' ||
-                out[copylen - 1] == '\t' || out[copylen - 1] == '\r'))
+               (out[copylen - 1] == '{' || out[copylen - 1] == ':' ||
+                out[copylen - 1] == ' ' || out[copylen - 1] == '\t' ||
+                out[copylen - 1] == '\r'))
             out[--copylen] = 0;
         return;
     }
@@ -1145,10 +1181,11 @@ static void CAPOEmitHiliRange(u32cs toks, u8cp base, u32 lo, u32 hi,
 // filepath may be NULL (diff mode — only function name shown).
 // prev_func: if non-NULL, skip header when function hasn't changed;
 //            updated to current funcname after emission.
-static void CAPOEmitHunkHeader(u8csc source, u32 pos, b8 *first_hunk,
+static void CAPOEmitHunkHeader(u8csc source, u32 pos, u8csc ext,
+                                b8 *first_hunk,
                                 const char *filepath, char *prev_func) {
     char funcname[256];
-    CAPOFindFunc(source, pos, funcname, sizeof(funcname));
+    CAPOFindFunc(source, pos, ext, funcname, sizeof(funcname));
 
     // Same function as previous hunk — just emit separator
     if (!*first_hunk && prev_func != NULL && funcname[0] != 0 &&
@@ -1430,8 +1467,8 @@ ok64 CAPOGrep(u8csc substring, u8csc ext, u8csc reporoot, u32 ctx_lines,
                     if (ctx_lo < prev_hi) ctx_lo = prev_hi;
                     if (ctx_lo < ctx_hi) {
                         if (!contiguous || first_hunk)
-                            CAPOEmitHunkHeader(source, ctx_lo, &first_hunk,
-                                               line, prev_func);
+                            CAPOEmitHunkHeader(source, ctx_lo, file_ext,
+                                               &first_hunk, line, prev_func);
                         CAPOEmitHiliRange(gts, source[0], ctx_lo,
                                           ctx_hi, hls, nhl, 157);
                         if (ctx_hi > 0 && source[0][ctx_hi - 1] != '\n')
@@ -1852,8 +1889,8 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path) {
                         if (in_gap) {
                             if (!first_hunk) fputc('\n', stdout);
                             u32 boff = (ni > 0) ? TOK_OFF(new_ts[0][ni-1]) : 0;
-                            CAPOEmitHunkHeader(new_data, boff, &first_hunk,
-                                               NULL, NULL);
+                            CAPOEmitHunkHeader(new_data, boff, ext,
+                                               &first_hunk, NULL, NULL);
                             in_gap = NO;
                         }
                         CAPOEmitHili(new_ts, new_f.data[0], (int)ni,
@@ -1910,7 +1947,7 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path) {
                                 u64 ti = ni + j;
                                 u32 boff = (ti > 0)
                                     ? TOK_OFF(new_ts[0][ti-1]) : 0;
-                                CAPOEmitHunkHeader(new_data, boff,
+                                CAPOEmitHunkHeader(new_data, boff, ext,
                                     &first_hunk, NULL, NULL);
                                 in_gap = NO;
                             }
@@ -1987,7 +2024,7 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path) {
                             u64 ti = base_ni + j;
                             u32 boff = (ti > 0)
                                 ? TOK_OFF(new_ts[0][ti-1]) : 0;
-                            CAPOEmitHunkHeader(new_data, boff,
+                            CAPOEmitHunkHeader(new_data, boff, ext,
                                                &first_hunk, NULL, NULL);
                             in_gap = NO;
                         }
@@ -2009,8 +2046,8 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path) {
                     if (!first_hunk) fputc('\n', stdout);
                     u32 boff = (base_ni > 0)
                         ? TOK_OFF(new_ts[0][base_ni-1]) : 0;
-                    CAPOEmitHunkHeader(new_data, boff, &first_hunk,
-                                       NULL, NULL);
+                    CAPOEmitHunkHeader(new_data, boff, ext,
+                                       &first_hunk, NULL, NULL);
                     in_gap = NO;
                 }
 
@@ -2372,8 +2409,8 @@ ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot,
                     if (ctx_lo < prev_ctx_hi) ctx_lo = prev_ctx_hi;
                     if (ctx_lo < ctx_hi) {
                         if (!contiguous || first_hunk)
-                            CAPOEmitHunkHeader(source, ctx_lo, &first_hunk,
-                                               line, prev_func);
+                            CAPOEmitHunkHeader(source, ctx_lo, file_ext,
+                                               &first_hunk, line, prev_func);
                         CAPOEmitHiliRange(htoks, source[0], ctx_lo,
                                           ctx_hi, hls, nhl, 157);
                         if (ctx_hi > 0 && source[0][ctx_hi - 1] != '\n')
