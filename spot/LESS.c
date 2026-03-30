@@ -15,13 +15,16 @@
 
 // Tag-index-to-ANSI-color mapping.
 // lits stores tag - 'A' (0-25), so add 'A' back to recover the character.
-static int LESSTagColor(u8 tag_idx) {
+// Returns fg color in lower bits; sets *bold = YES for definitions.
+static int LESSTagColor(u8 tag_idx, b8 *bold) {
+    *bold = NO;
     switch (tag_idx + 'A') {
         case 'D': return GRAY;
         case 'G': return DARK_GREEN;
         case 'L': return LIGHT_CYAN;
         case 'H': return DARK_PINK;
         case 'R': return LIGHT_BLUE;
+        case 'N': *bold = YES; return 0;
         default:  return 0;
     }
 }
@@ -169,18 +172,23 @@ static void less_emit_byte(u8 ch, u8 lit, b8 in_search, LESSstate *st) {
     // Build escape: fg from tag, bg from INS/DEL or search
     char esc[64];
     int elen = 0;
-    int fg = LESSTagColor(tag_idx);
-    if (fg != 0 || is_ins || is_del || in_search) {
+    b8 bold = NO;
+    int fg = LESSTagColor(tag_idx, &bold);
+    if (fg != 0 || bold || is_ins || is_del || in_search) {
         elen = snprintf(esc, sizeof(esc), "\033[");
-        if (fg != 0) elen += snprintf(esc + elen, sizeof(esc) - (size_t)elen, "%d", fg);
+        if (bold) { elen += snprintf(esc + elen, sizeof(esc) - (size_t)elen, "1"); }
+        if (fg != 0) {
+            if (bold) esc[elen++] = ';';
+            elen += snprintf(esc + elen, sizeof(esc) - (size_t)elen, "%d", fg);
+        }
         if (is_ins) {
-            if (fg != 0) esc[elen++] = ';';
+            if (fg != 0 || bold) esc[elen++] = ';';
             elen += snprintf(esc + elen, sizeof(esc) - (size_t)elen, "48;5;157");
         } else if (is_del) {
-            if (fg != 0) esc[elen++] = ';';
+            if (fg != 0 || bold) esc[elen++] = ';';
             elen += snprintf(esc + elen, sizeof(esc) - (size_t)elen, "48;5;217");
         } else if (in_search) {
-            if (fg != 0) esc[elen++] = ';';
+            if (fg != 0 || bold) esc[elen++] = ';';
             elen += snprintf(esc + elen, sizeof(esc) - (size_t)elen, "7");
         }
         esc[elen++] = 'm';
@@ -203,6 +211,13 @@ static void LESSRender(LESSstate *st) {
     less_puts(TTY_CUR_HOME);
 
     u32 visible = (u32)(st->rows - 1);  // last line is status bar
+    // Clamp scroll so content fills the screen when possible
+    if (st->nlines > visible) {
+        if (st->scroll > st->nlines - visible)
+            st->scroll = st->nlines - visible;
+    } else {
+        st->scroll = 0;
+    }
     u32 end = st->scroll + visible;
     if (end > st->nlines) end = st->nlines;
 
@@ -380,16 +395,26 @@ static ok64 LESSPlain(LESShunk const *hunks, u32 nhunks) {
             u32 i = 0;
             int prev_fg = 0;
             int prev_bg = 0;
+            b8 prev_bold = NO;
             while (i < tlen) {
                 u8 lit = (lits != NULL && i < llen) ? lits[i] : 0;
-                int fg = LESSTagColor(lit & LESS_TAG);
+                b8 bold = NO;
+                int fg = LESSTagColor(lit & LESS_TAG, &bold);
                 int bg = 0;
                 if (lit & LESS_INS) bg = 157;
                 else if (lit & LESS_DEL) bg = 217;
-                if (fg != prev_fg || bg != prev_bg) {
-                    if (prev_fg != 0 || prev_bg != 0)
+                if (fg != prev_fg || bg != prev_bg || bold != prev_bold) {
+                    if (prev_fg != 0 || prev_bg != 0 || prev_bold)
                         fputs(TTY_RESET, stdout);
-                    if (fg != 0 && bg != 0)
+                    if (bold && fg != 0 && bg != 0)
+                        fprintf(stdout, "\033[1;%d;48;5;%dm", fg, bg);
+                    else if (bold && fg != 0)
+                        fprintf(stdout, "\033[1;%dm", fg);
+                    else if (bold && bg != 0)
+                        fprintf(stdout, "\033[1;48;5;%dm", bg);
+                    else if (bold)
+                        fputs(TTY_BOLD, stdout);
+                    else if (fg != 0 && bg != 0)
                         fprintf(stdout, "\033[%d;48;5;%dm", fg, bg);
                     else if (fg != 0)
                         fprintf(stdout, "\033[%dm", fg);
@@ -397,16 +422,18 @@ static ok64 LESSPlain(LESShunk const *hunks, u32 nhunks) {
                         fprintf(stdout, "\033[48;5;%dm", bg);
                     prev_fg = fg;
                     prev_bg = bg;
+                    prev_bold = bold;
                 }
                 fputc(text[i], stdout);
-                if (text[i] == '\n' && (prev_fg != 0 || prev_bg != 0)) {
+                if (text[i] == '\n' && (prev_fg != 0 || prev_bg != 0 || prev_bold)) {
                     fputs(TTY_RESET, stdout);
                     prev_fg = 0;
                     prev_bg = 0;
+                    prev_bold = NO;
                 }
                 i++;
             }
-            if (prev_fg != 0 || prev_bg != 0)
+            if (prev_fg != 0 || prev_bg != 0 || prev_bold)
                 fputs(TTY_RESET, stdout);
             // Trailing newline if text doesn't end with one
             if (tlen > 0 && text[tlen - 1] != '\n')

@@ -29,6 +29,7 @@ static void capo_abrt_handler(int sig) {
 #include "spot/LESS.h"
 #include "spot/NEIL.h"
 #include "spot/SPOT.h"
+#include "tok/DEF.h"
 #include "tok/JOIN.h"
 
 // --- LESS pager arena: shared across grep/diff/spot ---
@@ -1215,9 +1216,16 @@ static void CAPOEmitHiliRange(u32cs toks, u8cp base, u32 lo, u32 hi,
 
         int fg = CAPO_COLOR ? CAPOTagColor(tag) : 0;
         int bg = (in_hl && CAPO_COLOR) ? hl_bg : 0;
+        b8 bold = CAPO_COLOR && tag == 'N';
 
         u32 plen = ehi - elo;
-        if (fg != 0 && bg != 0)
+        if (bold && bg != 0)
+            fprintf(stdout, "\033[1;48;5;%dm%.*s\033[0m",
+                    bg, (int)plen, (char *)(base + elo));
+        else if (bold)
+            fprintf(stdout, "\033[1m%.*s\033[0m",
+                    (int)plen, (char *)(base + elo));
+        else if (fg != 0 && bg != 0)
             fprintf(stdout, "\033[%d;48;5;%dm%.*s\033[0m",
                     fg, bg, (int)plen, (char *)(base + elo));
         else if (bg != 0)
@@ -1494,9 +1502,13 @@ ok64 CAPOGrep(u8csc substring, u8csc ext, u8csc reporoot, u32 ctx_lines,
             ok64 to = u32bMap(gtoks, maxlen);
             if (to == OK) {
                 to = SPOTTokenize(gtoks, source, file_ext);
-                if (to == OK)
+                if (to == OK) {
+                    u32 *dts[2] = {u32bDataHead(gtoks), u32bIdleHead(gtoks)};
+                    u8cs dext = {file_ext[0], file_ext[1]};
+                    if (!$empty(dext) && dext[0][0] == '.') dext[0]++;
+                    DEFMark(dts, source, dext);
                     tokenized = YES;
-                else
+                } else
                     u32bUnMap(gtoks);
             }
         }
@@ -1696,7 +1708,17 @@ static void CAPOEmitHili(u32cs toks, u8cp base, int i, u8 tag, int bg256) {
     TOK_VAL(val, toks, base, i);
     if ($empty(val)) return;
     int fg = CAPO_COLOR ? CAPOTagColor(tag) : 0;
-    if (fg != 0 && bg256 != 0)
+    b8 bold = CAPO_COLOR && tag == 'N';
+    if (bold && fg != 0 && bg256 != 0)
+        fprintf(stdout, "\033[1;%d;48;5;%dm%.*s\033[0m",
+                fg, bg256, (int)$len(val), (char *)val[0]);
+    else if (bold && bg256 != 0)
+        fprintf(stdout, "\033[1;48;5;%dm%.*s\033[0m",
+                bg256, (int)$len(val), (char *)val[0]);
+    else if (bold)
+        fprintf(stdout, "\033[1m%.*s\033[0m",
+                (int)$len(val), (char *)val[0]);
+    else if (fg != 0 && bg256 != 0)
         fprintf(stdout, "\033[%d;48;5;%dm%.*s\033[0m",
                 fg, bg256, (int)$len(val), (char *)val[0]);
     else if (bg256 != 0)
@@ -1782,6 +1804,10 @@ ok64 CAPOCat(u8css files, u8csc reporoot) {
                     u8cs source = {src_head, src_idle};
                     o = SPOTTokenize(toks, source, ext);
                     if (o == OK) {
+                        u32 *dts[2] = {u32bDataHead(toks), u32bIdleHead(toks)};
+                        u8cs dext = {ext[0], ext[1]};
+                        if (!$empty(dext) && dext[0][0] == '.') dext[0]++;
+                        DEFMark(dts, source, dext);
                         tokenized = YES;
                         hk->toks[0] = (u32cp)u32bDataHead(toks);
                         hk->toks[1] = (u32cp)u32bIdleHead(toks);
@@ -1824,9 +1850,13 @@ ok64 CAPOCat(u8css files, u8csc reporoot) {
                 o = u32bMap(toks, maxlen);
                 if (o == OK) {
                     o = SPOTTokenize(toks, source, ext);
-                    if (o == OK)
+                    if (o == OK) {
+                        u32 *dts[2] = {u32bDataHead(toks), u32bIdleHead(toks)};
+                        u8cs dext = {ext[0], ext[1]};
+                        if (!$empty(dext) && dext[0][0] == '.') dext[0]++;
+                        DEFMark(dts, source, dext);
                         tokenized = YES;
-                    else
+                    } else
                         u32bUnMap(toks);
                 }
             }
@@ -2464,6 +2494,11 @@ ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot,
             qsort(hashbuf1, nhashes, sizeof(u32), CAPOu32cmp);
     }
 
+    b8 spot_use_less = $empty(replace) && CAPO_COLOR && isatty(STDOUT_FILENO);
+    if (spot_use_less) {
+        if (LESSArenaInit() != OK) spot_use_less = NO;
+    }
+
     FILE *fp = NULL;
     if (nfiles == 0) {
         char cmdbuf[FILE_PATH_MAX_LEN + 32];
@@ -2544,6 +2579,12 @@ ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot,
             u32bUnMap(toks);
             FILEUnMap(mapped);
             continue;
+        }
+        {
+            u32 *dts[2] = {u32bDataHead(toks), u32bIdleHead(toks)};
+            u8cs dext = {file_ext[0], file_ext[1]};
+            if (!$empty(dext) && dext[0][0] == '.') dext[0]++;
+            DEFMark(dts, source, dext);
         }
         u32cp td = u32bDataHead(toks);
         u32cp ti = u32bIdleHead(toks);
@@ -2643,28 +2684,95 @@ ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot,
                     b8 contiguous = (ctx_lo <= prev_ctx_hi);
                     if (ctx_lo < prev_ctx_hi) ctx_lo = prev_ctx_hi;
                     if (ctx_lo < ctx_hi) {
-                        if (!contiguous || first_hunk)
-                            CAPOEmitHunkHeader(source, ctx_lo, file_ext,
-                                               &first_hunk, line, prev_func);
-                        CAPOEmitHiliRange(htoks, source[0], ctx_lo,
-                                          ctx_hi, hls, nhl, 157);
-                        if (ctx_hi > 0 && source[0][ctx_hi - 1] != '\n')
-                            fputc('\n', stdout);
+                        if (spot_use_less &&
+                            less_nhunks < LESS_MAX_HUNKS) {
+                            LESShunk *hk = &less_hunks[less_nhunks];
+                            memset(hk, 0, sizeof(*hk));
+
+                            // Title
+                            if (!contiguous || first_hunk) {
+                                char funcname[256];
+                                CAPOFindFunc(source, ctx_lo, file_ext,
+                                             funcname, sizeof(funcname));
+                                char hdr[512];
+                                int tlen = snprintf(hdr, sizeof(hdr),
+                                    "--- %s :: %s ---", line, funcname);
+                                if (tlen > 0) {
+                                    u8p tp = LESSArenaWrite(hdr, (size_t)tlen);
+                                    if (tp != NULL) {
+                                        hk->title[0] = tp;
+                                        hk->title[1] = tp + tlen;
+                                    }
+                                }
+                            }
+
+                            // Text: point into mmaped source
+                            hk->text[0] = source[0] + ctx_lo;
+                            hk->text[1] = source[0] + ctx_hi;
+
+                            // Toks
+                            hk->toks[0] = htoks[0];
+                            hk->toks[1] = htoks[1];
+
+                            // Lits: build into arena
+                            u32 region_len = ctx_hi - ctx_lo;
+                            u8p lp = LESSArenaAlloc(region_len);
+                            if (lp != NULL) {
+                                int ntoks_r = (int)$len(htoks);
+                                for (int ti = 0; ti < ntoks_r; ti++) {
+                                    u32 tlo = (ti > 0) ? TOK_OFF(htoks[0][ti-1]) : 0;
+                                    u32 thi = TOK_OFF(htoks[0][ti]);
+                                    if (thi <= ctx_lo || tlo >= ctx_hi) continue;
+                                    u32 clo = tlo < ctx_lo ? ctx_lo : tlo;
+                                    u32 chi = thi > ctx_hi ? ctx_hi : thi;
+                                    u8 tag = TOK_TAG(htoks[0][ti]) - 'A';
+                                    memset(lp + (clo - ctx_lo), tag, chi - clo);
+                                }
+                                for (int h = 0; h < nhl; h++) {
+                                    u32 hlo = hls[h].lo < ctx_lo ? ctx_lo : hls[h].lo;
+                                    u32 hhi = hls[h].hi > ctx_hi ? ctx_hi : hls[h].hi;
+                                    for (u32 b = hlo; b < hhi; b++)
+                                        lp[b - ctx_lo] |= LESS_INS;
+                                }
+                                hk->lits[0] = lp;
+                                hk->lits[1] = lp + region_len;
+                            }
+
+                            less_nhunks++;
+                            first_hunk = NO;
+                        } else {
+                            if (!contiguous || first_hunk)
+                                CAPOEmitHunkHeader(source, ctx_lo, file_ext,
+                                                   &first_hunk, line, prev_func);
+                            CAPOEmitHiliRange(htoks, source[0], ctx_lo,
+                                              ctx_hi, hls, nhl, 157);
+                            if (ctx_hi > 0 && source[0][ctx_hi - 1] != '\n')
+                                fputc('\n', stdout);
+                        }
                     }
                     prev_ctx_hi = ctx_hi;
                 }
-                if (found_any) fputc('\n', stdout);
+                if (!spot_use_less && found_any) fputc('\n', stdout);
             }
         }
 
         capo_in_match = 0;
         signal(SIGABRT, SIG_DFL);
 
-        u32bUnMap(toks);
-        if (mapped != NULL) FILEUnMap(mapped);
+        if (spot_use_less) {
+            LESSDefer(mapped, toks);
+        } else {
+            u32bUnMap(toks);
+            if (mapped != NULL) FILEUnMap(mapped);
+        }
     }
     if (fp != NULL) pclose(fp);
     CAPOProgress(NULL);
+
+    if (spot_use_less && less_nhunks > 0)
+        LESSRun(less_hunks, less_nhunks);
+    if (spot_use_less)
+        LESSArenaCleanup();
 
     if (!$empty(replace)) {
         fprintf(stderr, "%d replacements in %d files\n",

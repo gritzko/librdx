@@ -33,6 +33,21 @@ static b8 DEFIsWs(u8csc val) {
     return YES;
 }
 
+static const char *FLOW_KW[] = {"if",     "else",   "for",    "while",
+                                "do",     "switch", "case",   "return",
+                                "goto",   "break",  "continue", NULL};
+
+static b8 DEFIsFlowKw(u8csc val) {
+    u64 len = $len(val);
+    for (const char *const *kw = FLOW_KW; *kw; ++kw) {
+        u64 kwlen = 0;
+        const char *k = *kw;
+        while (k[kwlen]) ++kwlen;
+        if (kwlen == len && __builtin_memcmp(val[0], k, len) == 0) return YES;
+    }
+    return NO;
+}
+
 static b8 DEFIsDefKw(u8csc val, const char *const *kws) {
     u64 len = $len(val);
     for (const char *const *kw = kws; *kw; ++kw) {
@@ -90,7 +105,9 @@ static ok64 DEFEnrich(DEFenr *e, u32 const *const *toks, u8csc data,
         u8 byte;
         switch (tag) {
             case 'R':
-                byte = (defkw && DEFIsDefKw(val, defkw)) ? 'f' : 'r';
+                byte = (defkw && DEFIsDefKw(val, defkw)) ? 'f'
+                     : DEFIsFlowKw(val)                  ? 'k'
+                                                         : 'r';
                 break;
             case 'S':
                 byte = 's';
@@ -175,16 +192,16 @@ static ok64 DEFMarkC(u32 **toks, DEFenr *e) {
     u32 pb[2048];
     u32 *pws[2] = {pb, pb + 2048};
 
-    // fn def: s( then balanced ), then { or ;
+    // fn def: type+ name( args ) { or ;
     // simple args (no nested parens)
-    u8 p1[] = "s[(][^(){};]*[)][{;].*";
+    u8 p1[] = "[rs*]+s[(][^(){};]*[)][{;].*";
     nfau8g pr1 = {nb1, nb1 + 512, nb1};
     ok64 o = DEFCompile(pr1, (u8cs){p1, p1 + sizeof(p1) - 1}, pws);
     if (o != OK) return o;
     nfau8cs nfa1 = {pr1[2], pr1[0]};
 
-    // nested fn ptr in args: s([^(){};]*([^)]*)[^(){};]*)[{;]
-    u8 p2[] = "s[(][^(){};]*[(][^)]*[)][^(){};]*[)][{;].*";
+    // nested fn ptr in args: type+ name([^(){};]*([^)]*)[^(){};]*)[{;]
+    u8 p2[] = "[rs*]+s[(][^(){};]*[(][^)]*[)][^(){};]*[)][{;].*";
     nfau8g pr2 = {nb2, nb2 + 512, nb2};
     o = DEFCompile(pr2, (u8cs){p2, p2 + sizeof(p2) - 1}, pws);
     if (o != OK) return o;
@@ -204,7 +221,7 @@ static ok64 DEFMarkC(u32 **toks, DEFenr *e) {
             fresh = YES;
             continue;
         }
-        if (ch == '=') {
+        if (ch == '=' || ch == 'k') {
             fresh = NO;
             continue;
         }
@@ -218,8 +235,15 @@ static ok64 DEFMarkC(u32 **toks, DEFenr *e) {
 
         // function def: s( at a fresh statement position
         if (ch == 's' && fresh && i + 1 < e->len && e->enr[i + 1] == '(') {
-            if (DEFTryMatch(nfa1, e->enr, e->len, i) ||
-                DEFTryMatch(nfa2, e->enr, e->len, i))
+            // scan back for start of type prefix to anchor NFA
+            u32 start = i;
+            while (start > 0 && (e->enr[start - 1] == 's' ||
+                                  e->enr[start - 1] == 'r' ||
+                                  e->enr[start - 1] == '*'))
+                start--;
+            if (start < i &&
+                (DEFTryMatch(nfa1, e->enr, e->len, start) ||
+                 DEFTryMatch(nfa2, e->enr, e->len, start)))
                 DEFRetag(toks, e->map[i]);
         }
     }
