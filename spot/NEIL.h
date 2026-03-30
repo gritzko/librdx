@@ -31,4 +31,12 @@ fun b8 NEILIsWS(u32cs toks, u8cp base, u32 idx) {
 ok64 NEILCleanup(e32g edl, u32cs old_toks, u32cs new_toks,
                  u8csc old_src, u8csc new_src);
 
+// Lossless boundary shift: slide edit boundaries to align with
+// natural positions (line breaks, word breaks).  Does not change
+// the diff semantics, only repositions EQ/edit boundaries.
+// Inspired by diff-match-patch cleanupSemanticLossless.
+// Should be called as the last pass, after NEILCleanup.
+ok64 NEILShift(e32g edl, u32cs old_toks, u32cs new_toks,
+               u8csc old_src, u8csc new_src);
+
 #endif

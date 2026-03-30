@@ -1830,6 +1830,9 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name) {
         // Semantic cleanup: remove false short equalities
         NEILCleanup(edl, old_ts, new_ts, old_data, new_data);
 
+        // Lossless shift: align edit boundaries on line breaks
+        NEILShift(edl, old_ts, new_ts, old_data, new_data);
+
         // Pager
         FILE *pager = NULL;
         int saved_stdout = -1;
