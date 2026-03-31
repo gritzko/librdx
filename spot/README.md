@@ -1,3 +1,5 @@
+---
+---
 # `spot` — git repo code search, replace, diff and merge
 
 `spot` makes a trigram index of a repo which allows for extra fast
