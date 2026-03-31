@@ -1,18 +1,21 @@
-# `spot` — git repo code search, replace, diff and merge
+# `spot` — git repo code multitool
 
-`spot` makes a trigram index of a repo which allows for extra fast
-token-aware search-and-replace in the entire repo. Also does
-syntax-highlighted cat, token-level diff and 3-way merge.
-git hooks keep the index updated.
+**spot** is a repo multitool leveraging its understanding of syntax
+and an inverted trigram index to do many of everyday repo tasks:
+
+ 1. *cat* with style (syntax highlighted)
+ 2. code *snippet* search (uses an index)
+ 3. *grep* (uses an index)
+ 4. *regex* search (uses an index)
+ 5. token-level *diff* tool
+ 6. token-level 3-way *merge* tool
+ 7. repo indexer (complete or incremental)
 
 ## Examples
 
 Index a repo on 8 cores:
 
     $ spot --fork 8
-    spot: forking 8 workers
-    OK   c    abc/MSET.h
-    OK   c    spot/CAPO.c
     ...
     spot: compacting all runs
     spot: done
@@ -25,34 +28,34 @@ Scan for function invocations:
 
 ## Usage
 
-    spot                              incremental update (or reindex)
     spot file.c                       colorful cat (syntax highlight)
+
     spot -i | spot --index            full reindex (single process)
+    spot                              incremental update (or reindex)
     spot --fork N                     parallel reindex on N cores
     spot --hook                       same as bare `spot`
+
     spot -s "return 0;" .c            SPOT search: find pattern in C files
     spot -s "ok64 o = OK;" .c         SPOT search: find exact declaration
     spot -s "f(x,y)" -r "f(y,x)" .c   SPOT search + replace
+
     spot -g "TODO" .c                 grep: substring search (incl. comments)
     spot -g "TODO" -C 0 .c            grep: match line only, no context
+
     spot -p "u\d+sFeed" .c            regex grep (Thompson NFA)
     spot -p "regex" -C 0 .c           regex grep, match line only
+
     spot --diff old new               token-level colored diff
     spot --gitdiff                    git external diff driver
+
     spot --merge base ours theirs     token-level 3-way merge (stdout)
     spot --merge B O T -o out         merge to file
 
-Flags: `-s`/`--spot` for SPOT search, `-r`/`--replace` for replacement
-(requires `-s`), `-g`/`--grep` for substring search,
-`-p`/`--pcre` for regex search (Thompson NFA),
-`-C N`/`--context=N` for grep/regex context lines (default 3),
-`-d`/`--diff` for token diff, `--gitdiff` for git diff driver,
-`--merge` for 3-way merge.
 Trailing args starting with `.` are extension filters (required for `-s`,
-optional for `-g`). The extension selects the ragel tokenizer and the
-file filter (`.c` matches `.c` and `.h`).
+optional for `-g`). The extension selects the tokenizer and the subset
+of the files to look into (e.g. `.c` matches `**/*.c` and `**/*.h`).
 
-### SPOT pattern search
+### Snippet search
 
 SPOT matches structurally, not textually — whitespace and formatting
 differences are ignored. Lowercase placeholders (`a`–`z`) bind to a
@@ -61,8 +64,7 @@ Uppercase placeholders (`A`–`Z`) match any block of code, including
 nested brackets — use these for multi-token arguments in function
 calls. Two spaces (a gap) skip any token sequence.
 
-Results are syntax-highlighted with context lines and
-`--- file :: function() ---` headers:
+Results are syntax-highlighted with context lines and hunk headers:
 
     $ spot -s "ok64 o = OK;" .c
     --- abc/BIN.h :: ok64 BINu8csFeed(Bu8 buf, u8csc data) ---
@@ -89,12 +91,10 @@ Standardize `malloc()` argument order:
 
     $ spot -s 'malloc(sizeof(a)*B);' -r 'malloc(B*sizeof(a));' .c
 
-### Grep
+### Grep (indexed)
 
-Grep does substring search across all token leaves including comments —
-unlike SPOT, which skips comments and matches structurally. Results
-are syntax-highlighted with context (default 3 lines) and
-`--- file :: function() ---` headers.
+Grep mode does substring search across all token leaves including 
+comments. Resulting hunks are syntax-highlighted with context.
 
 Find TODOs in comments:
 
@@ -125,7 +125,7 @@ Search for alternative names:
 
     $ spot -p 'tok32(Val|Tag|Pack)' .c
 
-Regex grep with context control:
+Regex grep with custom context width:
 
     $ spot -p 'CAPO\w+Grep' -C 1 .c
 
@@ -160,26 +160,25 @@ Post-commit hook (incremental reindex):
 
 ## How it works
 
-Source files are tokenized with ragel-generated tokenizers (`tok/`),
-trigrams extracted from token text and packed with path hashes into u64
-entries stored as sorted MSET runs in `.git/spot/*.idx`.
+**Indexing**: Source files are tokenized based on the file extension, 
+trigrams are packed into index arrays in `.git/spot/*.idx`.
+`--fork N` stripes files across N workers.
 
-**SPOT mode:** extracts trigrams from the needle text, seeks each in the
+**SPOT mode**: extracts trigrams from the needle text, seeks each in the
 MSET index, intersects path hash sets to narrow candidates, then
 tokenizes each candidate file and runs flat token pattern matching
 (SPOT) to find structural matches. Shows syntax-highlighted context
 with function headers.
 
-**Grep mode:** same trigram filtering, but walks all token leaves
+**Grep mode**: same trigram filtering, but walks all token leaves
 including comments and does plain substring matching. Shows
 syntax-highlighted context around each hit (default 3 lines,
 adjustable with `-C`) with function headers.
 
-**Diff/merge:** tokenizes both files, runs LCS-based diff on the token
+**Diff** and **merge**: tokenizes both files, runs LCS-based diff on the token
 streams, outputs syntax-highlighted results with function headers at
 hunk boundaries. Merge extends this to three-way with conflict markers.
 
-`--fork N` stripes files across N workers. Works with git worktrees.
 
 ##  Credits
 
