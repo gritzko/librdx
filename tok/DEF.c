@@ -153,6 +153,10 @@ static u8 DEFPunctByte(u8csc val) {
             case '*':
             case '<':
             case '>':
+            case '[':
+            case ']':
+            case '&':
+            case '?':
                 return ch;
         }
     }
