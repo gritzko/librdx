@@ -56,7 +56,7 @@ typedef struct {
     b8 fresh;
 } DEFrule;
 
-// C/C++: function defs, struct/enum/class names, typedefs
+// C/C++: function defs, struct/enum/class names, typedefs, #defines
 static const DEFrule C_RULES[] = {
     {"[rs*<>]+S[(][^(){};]*[)][{;].*",                         YES},
     {"[rs*<>]+S[(][^(){};]*[(][^)]*[)][^(){};]*[)][{;].*",     YES},
@@ -64,6 +64,7 @@ static const DEFrule C_RULES[] = {
     {"t[f]*[{].*[}][*,]*S[;].*",                               NO},
     {"t[frs*]+[(][*,rs]*S[)][^;]*[;].*",                       NO},
     {"t[frs*]+S[;].*",                                          NO},
+    {"hS.*",                                                    NO},
     {NULL, NO},
 };
 
