@@ -156,19 +156,47 @@ ok64 CAPOIndexFile(u64bp entries, u8csc source, u8csc ext, u8csc path) {
         return o;
     }
 
+    // Mark definitions (S→N) before extraction
+    {
+        u32 *dts[2] = {u32bDataHead(toks), u32bIdleHead(toks)};
+        u8cs nodot = {};
+        if (!$empty(ext) && ext[0][0] == '.') {
+            nodot[0] = ext[0] + 1; nodot[1] = ext[1];
+        } else {
+            nodot[0] = ext[0]; nodot[1] = ext[1];
+        }
+        DEFMark(dts, source, nodot);
+    }
+
     u32cp td = u32bDataHead(toks);
     u32cp ti = u32bIdleHead(toks);
     u32cs tokslice = {(u32cp)td, (u32cp)ti};
 
+    u32 phash = CAPOPathHash(path);
     CAPOTriCtx ctx = {
         .idle = u64bIdle(entries),
         .end = entries[3],
-        .path_hash = CAPOPathHash(path),
+        .path_hash = phash,
     };
     o = CAPOTriExtractToks(tokslice, source[0], CAPOTriCB, &ctx);
+    if (o != OK) { u32bUnMap(toks); return o; }
+
+    // Emit symbol mention/definition entries
+    int ntoks = (int)$len(tokslice);
+    for (int i = 0; i < ntoks; i++) {
+        u8 tag = tok32Tag(tokslice[0][i]);
+        if (tag != 'S' && tag != 'N') continue;
+        u8cs val = {}; tok32Val(val, tokslice, source[0], i);
+        if ($len(val) < 2) continue;
+        if (*ctx.idle >= ctx.end) break;
+        u64 type = (tag == 'N') ? IDX64_DEF : IDX64_MEN;
+        u64 entry = (type << 62) | CAPOSymKey(val) | (u64)phash;
+        *(*ctx.idle) = entry;
+        (*ctx.idle)++;
+    }
 
     u32bUnMap(toks);
-    return o;
+    done;
 }
 
 // --- File I/O ---
@@ -1228,6 +1256,51 @@ ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot,
                     }
                 }
                 p++;
+            }
+        }
+
+        // Symbol filtering: intersect with identifier mentions
+        if (nidxfiles > 0 && has_trigrams && nhashes > CAPO_SYM_THRESH) {
+            Bu32 ndl_toks = {};
+            size_t ndl_maxlen = $len(needle) + 1;
+            if (u32bMap(ndl_toks, ndl_maxlen) == OK) {
+                if (SPOTTokenize(ndl_toks, needle, ext) == OK) {
+                    u32cp ntd = u32bDataHead(ndl_toks);
+                    u32cp nti = u32bIdleHead(ndl_toks);
+                    u32cs nts = {(u32cp)ntd, (u32cp)nti};
+                    int nn = (int)$len(nts);
+                    for (int i = 0; i < nn && nhashes > 0; i++) {
+                        u8 tag = tok32Tag(nts[0][i]);
+                        if (tag != 'S') continue;
+                        u8cs val = {};
+                        tok32Val(val, nts, needle[0], i);
+                        if ($len(val) < 2) continue;
+                        u64 symkey = CAPOSymKey(val);
+                        u32 sym_nhashes = 0;
+
+                        // Collect both mentions (S) and definitions (N)
+                        for (u64 t = IDX64_MEN; t <= IDX64_DEF; t++) {
+                            u64 pfx = (t << 62) | symkey;
+                            u64cs sr[CAPO_MAX_LEVELS];
+                            for (u32 j = 0; j < nidxfiles; j++) {
+                                sr[j][0] = runs[j][0];
+                                sr[j][1] = runs[j][1];
+                            }
+                            u64css si = {sr, sr + nidxfiles};
+                            MSETu64Start(si);
+                            CAPOCollectPaths(si, pfx, hashbuf2,
+                                             &sym_nhashes, maxhashes);
+                        }
+                        qsort(hashbuf2, sym_nhashes, sizeof(u32),
+                              CAPOu32cmp);
+                        qsort(hashbuf1, nhashes, sizeof(u32),
+                              CAPOu32cmp);
+                        nhashes = CAPOIntersect(
+                            hashbuf1, nhashes, hashbuf2,
+                            sym_nhashes, hashbuf1);
+                    }
+                }
+                u32bUnMap(ndl_toks);
             }
         }
 

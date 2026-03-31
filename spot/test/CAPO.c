@@ -179,6 +179,103 @@ ok64 CAPO5() {
     done;
 }
 
+// --- Test 6: idx64 type/key/path roundtrip ---
+ok64 CAPO6() {
+    sane(1);
+    a_cstr(name, "myFunc");
+    a_cstr(path, "src/main.c");
+
+    idx64 men = CAPOSymEntry(IDX64_MEN, name, path);
+    idx64 def = CAPOSymEntry(IDX64_DEF, name, path);
+    a_cstr(tri6, "foo");
+    idx64 tri_entry = CAPOEntry(tri6, path);
+
+    // Type field
+    testeq(idx64Type(men), (u64)IDX64_MEN);
+    testeq(idx64Type(def), (u64)IDX64_DEF);
+    testeq(idx64Type(tri_entry), (u64)IDX64_TRI);
+
+    // Key: same name -> same key for both mention and definition
+    testeq(idx64Key(men), idx64Key(def));
+
+    // Path hash
+    testeq(idx64PathHash(men), CAPOPathHash(path));
+    testeq(idx64PathHash(def), CAPOPathHash(path));
+
+    // Different name -> different key
+    a_cstr(name2, "otherFunc");
+    idx64 men2 = CAPOSymEntry(IDX64_MEN, name2, path);
+    want(idx64Key(men2) != idx64Key(men));
+
+    done;
+}
+
+// --- Test 7: CAPOIndexFile emits both trigram and symbol entries ---
+ok64 CAPO7() {
+    sane(1);
+    const char *src = "int foo(int x) { return x + 1; }";
+    u8csc source = {(u8cp)src, (u8cp)src + strlen(src)};
+    u8cs ext = $u8str(".c");
+    a_cstr(path, "test.c");
+
+    size_t maxentries = 4096;
+    u64 *ebuf = (u64 *)malloc(maxentries * sizeof(u64));
+    test(ebuf != NULL, FAILSANITY);
+    u64b entries = {ebuf, ebuf, ebuf, ebuf + maxentries};
+
+    call(CAPOIndexFile, entries, source, ext, path);
+
+    size_t nentries = u64bIdleHead(entries) - ebuf;
+    want(nentries > 0);
+
+    // Count by type
+    size_t ntri = 0, nmen = 0, ndef = 0;
+    for (size_t i = 0; i < nentries; i++) {
+        u64 t = idx64Type(ebuf[i]);
+        if (t == IDX64_TRI) ntri++;
+        else if (t == IDX64_MEN) nmen++;
+        else if (t == IDX64_DEF) ndef++;
+    }
+    // Must have some trigrams
+    want(ntri > 0);
+    // Must have some symbol entries (mentions or definitions)
+    want(nmen + ndef > 0);
+
+    // All entries should have the same path hash
+    u32 phash = CAPOPathHash(path);
+    for (size_t i = 0; i < nentries; i++)
+        testeq(idx64PathHash(ebuf[i]), phash);
+
+    free(ebuf);
+    done;
+}
+
+// --- Test 8: symbol entries sort after trigrams ---
+ok64 CAPO8() {
+    sane(1);
+    a_cstr(name, "myVar");
+    a_cstr(path, "a.c");
+    a_cstr(tri, "foo");
+
+    idx64 tri_e = CAPOEntry(tri, path);
+    idx64 men_e = CAPOSymEntry(IDX64_MEN, name, path);
+    idx64 def_e = CAPOSymEntry(IDX64_DEF, name, path);
+
+    // Trigram (type 00) < mention (type 01) < definition (type 10)
+    want(tri_e < men_e);
+    want(men_e < def_e);
+
+    // Sort should preserve this ordering
+    u64 arr[] = {def_e, tri_e, men_e};
+    u64s data = {arr, arr + 3};
+    $sort(data, u64cmp);
+    testeq(idx64Type(arr[0]), (u64)IDX64_TRI);
+    testeq(idx64Type(arr[1]), (u64)IDX64_MEN);
+    testeq(idx64Type(arr[2]), (u64)IDX64_DEF);
+
+    done;
+}
+
 ok64 CAPOtest() {
     sane(1);
     call(CAPO0);
@@ -187,6 +284,9 @@ ok64 CAPOtest() {
     call(CAPO3);
     call(CAPO4);
     call(CAPO5);
+    call(CAPO6);
+    call(CAPO7);
+    call(CAPO8);
     done;
 }
 

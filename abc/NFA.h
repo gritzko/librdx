@@ -615,6 +615,40 @@ fun b8 NFAu8Match(nfau8cs prog, u8cs text, u32 *ws[2]) {
     return NFAu8IsMatch(s, cl, clen);
 }
 
+// u8 anchored prefix match: returns YES as soon as any prefix matches.
+// Like NFAu8Match but stops at first MATCH state instead of consuming all input.
+fun b8 NFAu8MatchPrefix(nfau8cs prog, u8cs text, u32 *ws[2]) {
+    u16 n = NFAu8States(prog);
+    if (n == 0 || $len(ws) < 3 * (u64)n) return NO;
+    nfau8c *s = prog[0];
+    u64 tlen = (u64)$len(text);
+
+    u16 *la = (u16 *)ws[0];
+    u16 *lb = (u16 *)(ws[0] + n);
+    u32 *gen = ws[0] + 2 * n;
+    memset(gen, 0, n * sizeof(u32));
+
+    u16 *cl = la, *nl = lb;
+    u16 clen = 0;
+    u32 gid = 1;
+
+    NFAu8Add(s, n, cl, &clen, gen, gid, 0, 0, tlen);
+    if (NFAu8IsMatch(s, cl, clen)) return YES;
+
+    u64 pos = 0;
+    $for(u8c, cp, text) {
+        NFAu8StepCls(s, n, cl, clen, nl, &clen, gen, &gid, *cp, pos + 1, tlen);
+        u16 *tmp = cl;
+        cl = nl;
+        nl = tmp;
+        pos++;
+        if (clen == 0) return NO;
+        if (NFAu8IsMatch(s, cl, clen)) return YES;
+    }
+
+    return NO;
+}
+
 // u8 unanchored search (with class + \n support)
 fun b8 NFAu8Search(nfau8cs prog, u8cs text, u32 *ws[2]) {
     u16 n = NFAu8States(prog);

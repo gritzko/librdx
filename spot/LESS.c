@@ -169,7 +169,7 @@ static ok64 LESSBuildIndex(LESSstate *st) {
     // Count lines: walk all hunks, count '\n' in text, plus title lines
     u32 total = 0;
     for (u32 h = 0; h < st->nhunks; h++) {
-        if (h > 0 && !$empty(st->hunks[h].title)) total++;  // title separator
+        if (!$empty(st->hunks[h].title)) total++;  // title separator
         u8cp p = st->hunks[h].text[0];
         u8cp e = st->hunks[h].text[1];
         if (p == e) continue;
@@ -187,8 +187,8 @@ static ok64 LESSBuildIndex(LESSstate *st) {
 
     u32 li = 0;
     for (u32 h = 0; h < st->nhunks; h++) {
-        // Title separator line (skip first hunk — shown in status bar)
-        if (h > 0 && !$empty(st->hunks[h].title)) {
+        // Title separator line
+        if (!$empty(st->hunks[h].title)) {
             st->lines[li++] = (LESSline){h, LESS_TITLE_LINE};
         }
         u8cp base = st->hunks[h].text[0];

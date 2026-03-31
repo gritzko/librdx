@@ -230,15 +230,15 @@ static void DEFRetag(u32 **toks, u32 idx) {
 //  Pattern matching: find definitions in enriched stream
 // ============================================================
 
-// Try NFA pattern anchored at position i. Returns match length or 0.
-// Pattern must end with .* to consume the tail (NFAu8Match is whole-string).
+// Try NFA pattern anchored at position i. Uses prefix match: stops as
+// soon as the pattern reaches MATCH state, no need for trailing .* .
 static u32 DEFTryMatch(nfau8cs nfa, u8c *enr, u32 len, u32 at) {
     u8cs text = {enr + at, enr + len};
     u32 wbuf[3 * 4096];
     u32 *ws[2] = {wbuf, wbuf + sizeof(wbuf) / sizeof(wbuf[0])};
     u16 n = NFAu8States(nfa);
     if (n == 0 || $len(ws) < 3 * (u64)n) return 0;
-    return NFAu8Match(nfa, text, ws) ? 1 : 0;
+    return NFAu8MatchPrefix(nfa, text, ws) ? 1 : 0;
 }
 
 // Find last 's' at or before position `end` in enriched stream,
@@ -388,11 +388,13 @@ static ok64 DEFMarkRules(u32 **toks, DEFenr *e, const DEFrule *rules) {
         valids[r] = NO;
         DEFParseNameRule(rules[r].regex, &anchors[r], &afters[r]);
 
-        // S → s for NFA compilation
+        // S → s for NFA compilation; strip trailing .* (prefix match)
         u8 pat[256];
         u32 plen = 0;
         for (const char *p = rules[r].regex; *p && plen < sizeof(pat) - 1; p++)
             pat[plen++] = (*p == 'S') ? 's' : (u8)*p;
+        if (plen >= 2 && pat[plen - 2] == '.' && pat[plen - 1] == '*')
+            plen -= 2;
 
         nfau8g pr = {nbufs[r], nbufs[r] + DEF_NFA_CAP, nbufs[r]};
         ok64 o = DEFCompile(pr, (u8cs){pat, pat + plen}, pws);

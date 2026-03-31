@@ -31,6 +31,7 @@ extern b8 CAPO_TERM;   // stderr is a terminal
 #define CAPO_SCRATCH_LEN (1UL << 27)  // 128M u64 entries = 1GB
 #define CAPO_FLUSH_AT    (1UL << 24)  // flush at 16M entries (~128MB)
 #define CAPO_MAX_SHAS 16
+#define CAPO_SYM_THRESH 16  // symbol filter kicks in above this many candidates
 
 #define CAPOTriChar(c) (RON64_REV[(u8)(c)] != 0xff)
 
@@ -129,5 +130,26 @@ ok64 CAPOCommitRead(u32p count, u8csc capodir,
 
 // Check if extension is known to tok/ tokenizers
 b8 CAPOKnownExt(u8csc ext);
+
+// --- Symbol index entries ---
+
+typedef u64 idx64;    // index entry
+
+#define IDX64_TRI  0  // text trigram
+#define IDX64_MEN  1  // S token — symbol mention
+#define IDX64_DEF  2  // N token — symbol definition
+
+fun u64 idx64Type(idx64 e)     { return e >> 62; }
+fun u32 idx64Key(idx64 e)      { return (u32)(e >> 32) & 0x3FFFFFFF; }
+fun u32 idx64PathHash(idx64 e) { return (u32)e; }
+
+// Pack 30-bit symbol name hash into key position [61:32]
+fun u64 CAPOSymKey(u8cs name) {
+    return ((u64)((u32)(RAPHash(name)) & 0x3FFFFFFF)) << 32;
+}
+
+fun idx64 CAPOSymEntry(u64 type, u8cs name, u8cs path) {
+    return (type << 62) | CAPOSymKey(name) | (u64)CAPOPathHash(path);
+}
 
 #endif
