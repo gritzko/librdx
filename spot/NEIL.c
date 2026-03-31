@@ -183,6 +183,32 @@ ok64 NEILCleanup(e32g edl, u32cs old_toks, u32cs new_toks,
                 tmp[w++] = buf[k]; continue;
             }
 
+            // Protect EQs that contain a complete shared line: a newline
+            // followed by >= 6 non-ws bytes of code.  This catches real
+            // matches like "\n    if (flag != OK) {" but rejects partial
+            // matches like "u8bFeed(fpbuf, fpath_s);\n    " where all
+            // the code is BEFORE the newline and only whitespace follows.
+            if (eq_bytes >= 6) {
+                u32 eq_from = new_off[k];
+                u32 eq_blo = (eq_from > 0)
+                    ? TOK_OFF(new_toks[0][eq_from - 1]) : 0;
+                u32 eq_bhi = TOK_OFF(new_toks[0][eq_from + eq_len - 1]);
+                if (eq_bhi > eq_blo &&
+                    memchr(new_src[0] + eq_blo, '\n', eq_bhi - eq_blo)) {
+                    u32 nw_after_nl = 0;
+                    b8 past_nl = NO;
+                    for (u32 b = eq_blo; b < eq_bhi; b++) {
+                        u8 c = new_src[0][b];
+                        if (c == '\n') { past_nl = YES; continue; }
+                        if (past_nl && c != ' ' && c != '\t' && c != '\r')
+                            nw_after_nl++;
+                    }
+                    if (nw_after_nl >= 6) {
+                        tmp[w++] = buf[k]; continue;
+                    }
+                }
+            }
+
             // Kill small false EQs: two tiers.
             // Small EQs (< 16 bytes): sum condition (aggressive).
             // Larger EQs: both sides must individually exceed it.

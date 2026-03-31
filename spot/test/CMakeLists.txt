@@ -18,3 +18,8 @@ add_test(NAME SPOTcli_slice_init
         spot/test/data/slice_init.c 2>/dev/null \
         | diff -u ${CMAKE_CURRENT_SOURCE_DIR}/data/slice_init.spot -"
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
+add_test(NAME SPOTcli_diff_artifact
+    COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/diff_test.sh
+        $<TARGET_FILE:spot-cli>
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
