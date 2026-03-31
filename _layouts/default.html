@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ page.title | default: site.title }}</title>
+<style>
+body { font-family: -apple-system, sans-serif; max-width: 52em; margin: 2em auto; padding: 0 1em; line-height: 1.5; color: #222; }
+pre, code { background: #f5f5f5; }
+pre { padding: 1em; overflow-x: auto; }
+code { padding: 0.2em 0.4em; font-size: 90%; }
+pre code { padding: 0; font-size: 85%; }
+img { max-width: 100%; }
+table { border-collapse: collapse; }
+td, th { border: 1px solid #ddd; padding: 0.4em 0.8em; }
+a { color: #0366d6; }
+.logo { height: 4em; vertical-align: middle; margin-right: 0.5em; }
+header { margin-bottom: 2em; border-bottom: 1px solid #eee; padding-bottom: 1em; }
+header a { text-decoration: none; color: #222; }
+</style>
+</head>
+<body>
+<header>
+<a href="{{ '/' | relative_url }}"><img src="{{ '/blog/img/tool.jpg' | relative_url }}" alt="librdx" class="logo">{{ site.title }}</a>
+</header>
+{{ content }}
+</body>
+</html>
