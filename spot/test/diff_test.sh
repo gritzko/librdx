@@ -42,9 +42,10 @@ check_unique "done_old();"
 check_unique "if (map) unmap(map);"
 
 # Lines only in old should appear at most once (as DEL)
-check_unique "// Old comment line about processing"
+# With word-level comment splitting, "// " is shared EQ prefix.
+check_unique "Old comment line about processing"
 # Lines only in new should appear at most once (as INS)
-check_unique "// New comment about the processing step"
+check_unique "New comment about the processing step"
 
 if [ "$FAILS" -gt 0 ]; then
     echo "FAILED: $FAILS checks failed"
