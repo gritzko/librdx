@@ -337,7 +337,7 @@ static short BESRVDispatch(BEClientp cl, poller *p) {
         // Parse Content-Length
         u8cs cl_val = {};
         a_cstr(cl_key, "Content-Length");
-        u8css hdrs = {hdr_pairs, u8bIdleHead(hdr_store)};
+        u8css hdrs = {hdr_pairs, u8csbIdleHead(hdr_store)};
         o = HTTPfind(&cl_val, cl_key, hdrs);
         if (o != OK || $empty(cl_val)) {
             a_cstr(err,
@@ -862,6 +862,9 @@ ok64 BESRVInit(BESRVctxp ctx, BEp be, int port) {
     snprintf(addr, sizeof(addr), "tcp://0.0.0.0:%d", port);
     a_cstr(addrcs, addr);
     call(TCPListen, &ctx->listen_fd, addrcs);
+    int flags = fcntl(ctx->listen_fd, F_GETFL, 0);
+    test(flags >= 0, BESRVFAIL);
+    test(fcntl(ctx->listen_fd, F_SETFL, flags | O_NONBLOCK) == 0, BESRVFAIL);
 
     done;
 }
