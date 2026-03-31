@@ -19,8 +19,81 @@ static const char *RS_DEF_KW[] = {
     "fn", "struct", "enum", "trait", "type", "mod", "const", "static", NULL};
 static const char *JS_DEF_KW[] = {
     "function", "class", "const", "let", "var", NULL};
+static const char *TS_DEF_KW[] = {
+    "function", "class", "interface", "type", "enum", "const", "let", "var",
+    NULL};
 static const char *JA_DEF_KW[] = {
     "class", "interface", "enum", "record", NULL};
+static const char *KT_DEF_KW[] = {
+    "fun", "class", "interface", "enum", "object", "val", "var", NULL};
+static const char *SW_DEF_KW[] = {
+    "func", "class", "struct", "enum", "protocol", "let", "var", NULL};
+static const char *DA_DEF_KW[] = {
+    "class", "enum", "mixin", "extension", NULL};
+
+// ============================================================
+//  Definition patterns per language (table-driven)
+// ============================================================
+//
+// Enriched alphabet:
+//   s = identifier       f = defining keyword     t = typedef
+//   r = other keyword    k = flow keyword         g = string
+//   l = number literal   h = preprocessor
+//   ( ) { } ; = , : . * < > = punctuation         p = other punct
+//
+// In patterns, uppercase S marks the identifier to retag as definition.
+// After a successful NFA match, the name is located by S context:
+//   - '}' before S in pattern → first 's' after outermost '}'
+//   - lowercase letter before S → first 's' after that letter
+//   - otherwise → last 's' before the first char/class after S
+//
+// All patterns end with .* (NFAu8Match requires full-string match).
+// fresh=YES means the rule only fires at statement-start positions
+// (after ; { } or stream start; cleared by = and flow keywords).
+
+typedef struct {
+    const char *regex;
+    b8 fresh;
+} DEFrule;
+
+// C/C++: function defs, struct/enum/class names, typedefs
+static const DEFrule C_RULES[] = {
+    {"[rs*<>]+S[(][^(){};]*[)][{;].*",                         YES},
+    {"[rs*<>]+S[(][^(){};]*[(][^)]*[)][^(){};]*[)][{;].*",     YES},
+    {"fS[:{;].*",                                               NO},
+    {"t[f]*[{].*[}][*,]*S[;].*",                               NO},
+    {"t[frs*]+[(][*,rs]*S[)][^;]*[;].*",                       NO},
+    {"t[frs*]+S[;].*",                                          NO},
+    {NULL, NO},
+};
+
+// Java/C#: C-like + permissive class/record names (no struct-ptr issue)
+static const DEFrule JA_RULES[] = {
+    {"[rs*<>]+S[(][^(){};]*[)][{;].*",                         YES},
+    {"[rs*<>]+S[(][^(){};]*[(][^)]*[)][^(){};]*[)][{;].*",     YES},
+    {"fS[^;]*[{;].*",                                          NO},
+    {NULL, NO},
+};
+
+// Go: func Name + method receivers func (r *T) Name
+static const DEFrule GO_RULES[] = {
+    {"fS.*",                NO},  // func Name, type Name, var/const name
+    {"f[(][^)]*[)]S.*",     NO},  // func (r *Type) Method()
+    {NULL, NO},
+};
+
+// Dart: C-like return-type functions + keyword-prefix classes
+static const DEFrule DA_RULES[] = {
+    {"[rs*]+S[(][^(){};]*[)][{;].*",     YES},  // void name() {}
+    {"fS[^;]*[{;].*",                    NO},   // class Name ... {}
+    {NULL, NO},
+};
+
+// Keyword-prefix languages: func/def/type/class Name
+static const DEFrule KW_RULES[] = {
+    {"fS.*", NO},
+    {NULL, NO},
+};
 
 // ============================================================
 //  Enrichment: token array → compact u8 stream + index map
@@ -57,6 +130,10 @@ static b8 DEFIsDefKw(u8csc val, const char *const *kws) {
         if (kwlen == len && __builtin_memcmp(val[0], k, len) == 0) return YES;
     }
     return NO;
+}
+
+static b8 DEFIsTypedef(u8csc val) {
+    return $len(val) == 7 && __builtin_memcmp(val[0], "typedef", 7) == 0;
 }
 
 static u8 DEFPunctByte(u8csc val) {
@@ -105,9 +182,10 @@ static ok64 DEFEnrich(DEFenr *e, u32 const *const *toks, u8csc data,
         u8 byte;
         switch (tag) {
             case 'R':
-                byte = (defkw && DEFIsDefKw(val, defkw)) ? 'f'
-                     : DEFIsFlowKw(val)                  ? 'k'
-                                                         : 'r';
+                byte = DEFIsTypedef(val)                  ? 't'
+                     : (defkw && DEFIsDefKw(val, defkw))  ? 'f'
+                     : DEFIsFlowKw(val)                   ? 'k'
+                                                          : 'r';
                 break;
             case 'S':
                 byte = 's';
@@ -159,7 +237,7 @@ static u32 DEFTryMatch(nfau8cs nfa, u8c *enr, u32 len, u32 at) {
     u32 *ws[2] = {wbuf, wbuf + sizeof(wbuf) / sizeof(wbuf[0])};
     u16 n = NFAu8States(nfa);
     if (n == 0 || $len(ws) < 3 * (u64)n) return 0;
-    return NFAu8Search(nfa, text, ws) ? 1 : 0;
+    return NFAu8Match(nfa, text, ws) ? 1 : 0;
 }
 
 // Find last 's' at or before position `end` in enriched stream,
@@ -176,90 +254,169 @@ static ok64 DEFCompile(nfau8g prog, u8csc pat, u32 *ws[2]) {
     return NFAu8Compile(prog, mpat, ws);
 }
 
-// ============================================================
-//  C-family: definition = s before ( at depth 0, ) then {;
-//  Also: struct/enum/union/class NAME {;
-// ============================================================
+// --- Auto-derive name-finding rule from S position in pattern ---
 
-// C function def patterns (appended with .* for whole-string match):
-//   simple:  s+s[(][^(){};]*[)][{;].*
-//   nested:  s+s[(][^(){};]*[(][^)]*[)][^(){};]*[)][{;].*
-//   struct:  fs[{;].*
+static void DEFParseNameRule(const char *regex, u8 *anchor, b8 *after) {
+    const char *s = regex;
+    while (*s && *s != 'S') s++;
+    if (*s != 'S') { *anchor = ';'; *after = NO; return; }
 
-static ok64 DEFMarkC(u32 **toks, DEFenr *e) {
-    sane(e != NULL);
-    nfau8 nb1[512], nb2[512], nb3[512];
-    u32 pb[2048];
-    u32 *pws[2] = {pb, pb + 2048};
+    // '}' before S → first 's' after '}' (typedef struct{} Name;)
+    for (const char *p = regex; p < s; p++) {
+        if (*p == '}') { *anchor = '}'; *after = YES; return; }
+        if (*p == '[') {
+            p++;
+            while (*p && *p != ']') {
+                if (*p == '}') { *anchor = '}'; *after = YES; return; }
+                p++;
+            }
+        }
+    }
 
-    // fn def: type+ name( args ) { or ;
-    // simple args (no nested parens)
-    u8 p1[] = "[rs*]+s[(][^(){};]*[)][{;].*";
-    nfau8g pr1 = {nb1, nb1 + 512, nb1};
-    ok64 o = DEFCompile(pr1, (u8cs){p1, p1 + sizeof(p1) - 1}, pws);
-    if (o != OK) return o;
-    nfau8cs nfa1 = {pr1[2], pr1[0]};
+    // concrete char before S → first 's' after that char
+    char pre = (s > regex) ? *(s - 1) : 0;
+    if (pre == ']') {
+        // extract first char from [...] class
+        const char *q = s - 2;
+        while (q > regex && *q != '[') q--;
+        if (*q == '[') {
+            q++;
+            if (*q == '^') q++;
+            pre = *q;
+        }
+    }
+    if (pre && pre != '.' && pre != '*' && pre != '+' && pre != '?'
+        && pre != '[' && pre != '^') {
+        *anchor = (u8)pre;
+        *after = YES;
+        return;
+    }
 
-    // nested fn ptr in args: type+ name([^(){};]*([^)]*)[^(){};]*)[{;]
-    u8 p2[] = "[rs*]+s[(][^(){};]*[(][^)]*[)][^(){};]*[)][{;].*";
-    nfau8g pr2 = {nb2, nb2 + 512, nb2};
-    o = DEFCompile(pr2, (u8cs){p2, p2 + sizeof(p2) - 1}, pws);
-    if (o != OK) return o;
-    nfau8cs nfa2 = {pr2[2], pr2[0]};
+    // char/class after S → last 's' before first such char
+    const char *a = s + 1;
+    if (*a == '[') {
+        a++;
+        *anchor = (*a && *a != ']') ? (u8)*a : ';';
+    } else if (*a && *a != '.' && *a != '*' && *a != '+' && *a != '?') {
+        *anchor = (u8)*a;
+    } else {
+        *anchor = ';';
+    }
+    *after = NO;
+}
 
-    // struct/enum/union/class NAME {;
-    u8 p3[] = "fs[{;].*";
-    nfau8g pr3 = {nb3, nb3 + 512, nb3};
-    o = DEFCompile(pr3, (u8cs){p3, p3 + sizeof(p3) - 1}, pws);
-    if (o != OK) return o;
-    nfau8cs nfa3 = {pr3[2], pr3[0]};
+// --- Find the definition name after a successful NFA match ---
+
+static i64 DEFFindName(u8c *enr, u32 start, u32 len, u8 anchor, b8 after) {
+    if (after) {
+        if (anchor == ')') {
+            // depth-aware: first 's' after first ')' at paren depth 0
+            i32 depth = 0;
+            for (u32 j = start; j < len; j++) {
+                if (enr[j] == '(') depth++;
+                else if (enr[j] == ')') {
+                    if (--depth <= 0) {
+                        for (u32 k = j + 1; k < len; k++) {
+                            if (enr[k] == 's') return (i64)k;
+                            if (enr[k] == ';' || enr[k] == '{') break;
+                        }
+                        return -1;
+                    }
+                }
+            }
+            return -1;
+        }
+        if (anchor == '}') {
+            // first 's' after LAST '}' (depth: nested structs)
+            i64 last_anch = -1;
+            for (u32 j = start; j < len; j++) {
+                if (enr[j] == '}') last_anch = (i64)j;
+                else if (last_anch >= 0 && (enr[j] == ';' || enr[j] == '{'))
+                    break;
+            }
+            if (last_anch >= 0) {
+                for (u32 j = (u32)(last_anch + 1); j < len; j++) {
+                    if (enr[j] == 's') return (i64)j;
+                    if (enr[j] == ';' || enr[j] == '{') break;
+                }
+            }
+            return -1;
+        }
+        // first 's' after FIRST 'anchor'
+        for (u32 j = start; j < len; j++) {
+            if (enr[j] == anchor) {
+                for (u32 k = j + 1; k < len; k++) {
+                    if (enr[k] == 's') return (i64)k;
+                    if (enr[k] == ';' || enr[k] == '{') break;
+                }
+                return -1;
+            }
+        }
+        return -1;
+    }
+    // last 's' before first 'anchor'
+    for (u32 j = start; j < len; j++) {
+        if (enr[j] == anchor)
+            return DEFLastIdent(enr, start, j > 0 ? j - 1 : 0);
+    }
+    return -1;
+}
+
+// --- Unified table-driven matcher ---
+
+#define DEF_MAX_RULES 8
+#define DEF_NFA_CAP 256
+
+static ok64 DEFMarkRules(u32 **toks, DEFenr *e, const DEFrule *rules) {
+    sane(e != NULL && rules != NULL);
+
+    u32 nrules = 0;
+    while (rules[nrules].regex) nrules++;
+    if (nrules > DEF_MAX_RULES) nrules = DEF_MAX_RULES;
+
+    nfau8 nbufs[DEF_MAX_RULES][DEF_NFA_CAP];
+    nfau8c *nfa0[DEF_MAX_RULES], *nfa1[DEF_MAX_RULES];
+    u8 anchors[DEF_MAX_RULES];
+    b8 afters[DEF_MAX_RULES], freshs[DEF_MAX_RULES], valids[DEF_MAX_RULES];
+
+    u32 pb[4096];
+    u32 *pws[2] = {pb, pb + 4096};
+
+    for (u32 r = 0; r < nrules; r++) {
+        freshs[r] = rules[r].fresh;
+        valids[r] = NO;
+        DEFParseNameRule(rules[r].regex, &anchors[r], &afters[r]);
+
+        // S → s for NFA compilation
+        u8 pat[256];
+        u32 plen = 0;
+        for (const char *p = rules[r].regex; *p && plen < sizeof(pat) - 1; p++)
+            pat[plen++] = (*p == 'S') ? 's' : (u8)*p;
+
+        nfau8g pr = {nbufs[r], nbufs[r] + DEF_NFA_CAP, nbufs[r]};
+        ok64 o = DEFCompile(pr, (u8cs){pat, pat + plen}, pws);
+        if (o == OK) {
+            nfa0[r] = (nfau8c *)pr[2];
+            nfa1[r] = (nfau8c *)pr[0];
+            valids[r] = YES;
+        }
+    }
 
     b8 fresh = YES;
     for (u32 i = 0; i < e->len; i++) {
         u8 ch = e->enr[i];
-        if (ch == ';' || ch == '{' || ch == '}') {
-            fresh = YES;
-            continue;
-        }
-        if (ch == '=' || ch == 'k') {
-            fresh = NO;
-            continue;
-        }
+        if (ch == ';' || ch == '{' || ch == '}') { fresh = YES; continue; }
+        if (ch == '=' || ch == 'k') { fresh = NO; continue; }
 
-        // struct/enum/union/class NAME {;
-        if (ch == 'f' && i + 1 < e->len && e->enr[i + 1] == 's') {
-            if (DEFTryMatch(nfa3, e->enr, e->len, i))
-                DEFRetag(toks, e->map[i + 1]);
-            continue;
+        for (u32 r = 0; r < nrules; r++) {
+            if (!valids[r] || (freshs[r] && !fresh)) continue;
+            nfau8cs nfa = {nfa0[r], nfa1[r]};
+            if (!DEFTryMatch(nfa, e->enr, e->len, i)) continue;
+
+            i64 name = DEFFindName(e->enr, i, e->len, anchors[r], afters[r]);
+            if (name >= 0) DEFRetag(toks, e->map[name]);
+            break;
         }
-
-        // function def: s( at a fresh statement position
-        if (ch == 's' && fresh && i + 1 < e->len && e->enr[i + 1] == '(') {
-            // scan back for start of type prefix to anchor NFA
-            u32 start = i;
-            while (start > 0 && (e->enr[start - 1] == 's' ||
-                                  e->enr[start - 1] == 'r' ||
-                                  e->enr[start - 1] == '*'))
-                start--;
-            if (start < i &&
-                (DEFTryMatch(nfa1, e->enr, e->len, start) ||
-                 DEFTryMatch(nfa2, e->enr, e->len, start)))
-                DEFRetag(toks, e->map[i]);
-        }
-    }
-    done;
-}
-
-// ============================================================
-//  Keyword-prefix languages: Go, Python, Rust, JS, Java
-//  Pattern: f s ... (defining keyword followed by name)
-// ============================================================
-
-static ok64 DEFMarkKwPrefix(u32 **toks, DEFenr *e) {
-    sane(e != NULL);
-    for (u32 i = 0; i + 1 < e->len; i++) {
-        if (e->enr[i] == 'f' && e->enr[i + 1] == 's')
-            DEFRetag(toks, e->map[i + 1]);
     }
     done;
 }
@@ -271,32 +428,32 @@ static ok64 DEFMarkKwPrefix(u32 **toks, DEFenr *e) {
 typedef struct {
     const char *ext;
     const char *const *defkw;
-    b8 cfamily;  // use C-style fn detection
+    const DEFrule *rules;
 } DEFlang;
 
 static const DEFlang DEF_LANGS[] = {
-    {"c", C_DEF_KW, YES},
-    {"h", C_DEF_KW, YES},
-    {"cc", C_DEF_KW, YES},
-    {"cpp", C_DEF_KW, YES},
-    {"cxx", C_DEF_KW, YES},
-    {"hpp", C_DEF_KW, YES},
-    {"hh", C_DEF_KW, YES},
-    {"hxx", C_DEF_KW, YES},
-    {"go", GO_DEF_KW, NO},
-    {"py", PY_DEF_KW, NO},
-    {"rs", RS_DEF_KW, NO},
-    {"js", JS_DEF_KW, NO},
-    {"jsx", JS_DEF_KW, NO},
-    {"ts", JS_DEF_KW, NO},
-    {"tsx", JS_DEF_KW, NO},
-    {"java", JA_DEF_KW, YES},
-    {"cs", JA_DEF_KW, YES},
-    {"kt", JA_DEF_KW, NO},
-    {"swift", JS_DEF_KW, NO},
-    {"dart", JS_DEF_KW, NO},
-    {"zig", RS_DEF_KW, NO},
-    {NULL, NULL, NO},
+    {"c", C_DEF_KW, C_RULES},
+    {"h", C_DEF_KW, C_RULES},
+    {"cc", C_DEF_KW, C_RULES},
+    {"cpp", C_DEF_KW, C_RULES},
+    {"cxx", C_DEF_KW, C_RULES},
+    {"hpp", C_DEF_KW, C_RULES},
+    {"hh", C_DEF_KW, C_RULES},
+    {"hxx", C_DEF_KW, C_RULES},
+    {"go", GO_DEF_KW, GO_RULES},
+    {"py", PY_DEF_KW, KW_RULES},
+    {"rs", RS_DEF_KW, KW_RULES},
+    {"js", JS_DEF_KW, KW_RULES},
+    {"jsx", JS_DEF_KW, KW_RULES},
+    {"ts", TS_DEF_KW, KW_RULES},
+    {"tsx", TS_DEF_KW, KW_RULES},
+    {"java", JA_DEF_KW, JA_RULES},
+    {"cs", JA_DEF_KW, JA_RULES},
+    {"kt", KT_DEF_KW, KW_RULES},
+    {"swift", SW_DEF_KW, KW_RULES},
+    {"dart", DA_DEF_KW, DA_RULES},
+    {"zig", RS_DEF_KW, KW_RULES},
+    {NULL, NULL, NULL},
 };
 
 static const DEFlang *DEFLookup(u8csc ext) {
@@ -313,12 +470,11 @@ static const DEFlang *DEFLookup(u8csc ext) {
 ok64 DEFMark(u32 *toks[2], u8csc data, u8csc ext) {
     sane($ok(toks) && $ok(data));
     const DEFlang *lang = DEFLookup(ext);
-    if (!lang) return OK;  // unknown language, nothing to mark
+    if (!lang || !lang->rules) return OK;
 
     u32 ntoks = (u32)$len(toks);
-    u32 cap = ntoks;  // enriched can't be larger than token count
+    u32 cap = ntoks;
 
-    // stack-allocate for small files, heap for large
     u8 enr_stack[8192];
     u32 map_stack[8192];
     u8 *enr_buf = (cap <= 8192) ? enr_stack : (u8 *)malloc(cap);
@@ -331,10 +487,7 @@ ok64 DEFMark(u32 *toks[2], u8csc data, u8csc ext) {
     ok64 o = DEFEnrich(&e, ctoks, data, lang->defkw);
     if (o != OK) goto cleanup;
 
-    if (lang->cfamily)
-        o = DEFMarkC(toks, &e);
-    else
-        o = DEFMarkKwPrefix(toks, &e);
+    o = DEFMarkRules(toks, &e, lang->rules);
 
 cleanup:
     if (enr_buf != enr_stack) free(enr_buf);

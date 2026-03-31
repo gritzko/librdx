@@ -86,6 +86,16 @@ ok64 test_c_func() {
         {"struct Foo {}", "c", "RNPP"},
         // enum definition
         {"enum Color { RED }", "c", "RNPSP"},
+        // typedef struct {} Name;
+        {"typedef struct { int x; } Foo;", "c", "RRPRSPPNP"},
+        // typedef type Name;
+        {"typedef int MyInt;", "c", "RRNP"},
+        // typedef void (*FuncPtr)(int);
+        {"typedef void (*FuncPtr)(int);", "c", "RRPPNPPRPP"},
+        // flow keyword should NOT trigger def
+        {"if (fd < 0) fail(x);", "c", "RPSPLPSPSPP"},
+        // return call should NOT trigger def
+        {"return foo(x);", "c", "RSPSPP"},
     };
     int n = sizeof(cases) / sizeof(cases[0]);
     for (int i = 0; i < n; i++) {
@@ -120,6 +130,8 @@ ok64 test_go() {
         {"type Foo struct {}", "go", "RNRPP"},
         {"var x = 5", "go", "RNPL"},
         {"const Y = 10", "go", "RNPL"},
+        // method with receiver
+        {"func (r *Router) Handle() {}", "go", "RPSPSPNPPPP"},
     };
     int n = sizeof(cases) / sizeof(cases[0]);
     for (int i = 0; i < n; i++) {
@@ -181,11 +193,118 @@ ok64 test_python() {
     done;
 }
 
+ok64 test_kotlin() {
+    sane(1);
+    DEFCase cases[] = {
+        {"fun greet(name: String) {}", "kt", "RNPSPSPPP"},
+        {"class Foo {}", "kt", "RNPP"},
+        {"val x = 5", "kt", "RNPL"},
+        {"interface Bar {}", "kt", "RNPP"},
+    };
+    int n = sizeof(cases) / sizeof(cases[0]);
+    for (int i = 0; i < n; i++) {
+        u8 tagbuf[256];
+        u8s out = {tagbuf, tagbuf + 256};
+        u8csc src = {(u8c *)cases[i].src,
+                     (u8c *)cases[i].src + strlen(cases[i].src)};
+        u8csc ext = {(u8c *)cases[i].ext,
+                     (u8c *)cases[i].ext + strlen(cases[i].ext)};
+        ok64 o = def_test(src, ext, out);
+        if (o != OK) {
+            fprintf(stderr, "FAIL Kt case %d: '%s' error %s\n", i,
+                    cases[i].src, ok64str(o));
+            fail(TESTFAIL);
+        }
+        u64 got_len = out[0] - tagbuf;
+        u64 exp_len = strlen(cases[i].tags);
+        if (got_len != exp_len ||
+            memcmp(tagbuf, cases[i].tags, exp_len) != 0) {
+            fprintf(stderr,
+                    "FAIL Kt case %d: '%s'\n  got:  %.*s\n  want: %s\n", i,
+                    cases[i].src, (int)got_len, tagbuf, cases[i].tags);
+            fail(TESTFAIL);
+        }
+    }
+    done;
+}
+
+ok64 test_swift() {
+    sane(1);
+    DEFCase cases[] = {
+        {"func greet(name: String) {}", "swift", "RNPSPSPPP"},
+        {"class Foo {}", "swift", "RNPP"},
+        {"struct Bar {}", "swift", "RNPP"},
+        {"let x = 5", "swift", "RNPL"},
+    };
+    int n = sizeof(cases) / sizeof(cases[0]);
+    for (int i = 0; i < n; i++) {
+        u8 tagbuf[256];
+        u8s out = {tagbuf, tagbuf + 256};
+        u8csc src = {(u8c *)cases[i].src,
+                     (u8c *)cases[i].src + strlen(cases[i].src)};
+        u8csc ext = {(u8c *)cases[i].ext,
+                     (u8c *)cases[i].ext + strlen(cases[i].ext)};
+        ok64 o = def_test(src, ext, out);
+        if (o != OK) {
+            fprintf(stderr, "FAIL Swift case %d: '%s' error %s\n", i,
+                    cases[i].src, ok64str(o));
+            fail(TESTFAIL);
+        }
+        u64 got_len = out[0] - tagbuf;
+        u64 exp_len = strlen(cases[i].tags);
+        if (got_len != exp_len ||
+            memcmp(tagbuf, cases[i].tags, exp_len) != 0) {
+            fprintf(stderr,
+                    "FAIL Swift case %d: '%s'\n  got:  %.*s\n  want: %s\n", i,
+                    cases[i].src, (int)got_len, tagbuf, cases[i].tags);
+            fail(TESTFAIL);
+        }
+    }
+    done;
+}
+
+ok64 test_dart() {
+    sane(1);
+    DEFCase cases[] = {
+        {"void main() {}", "dart", "RNPPPP"},
+        {"class Foo {}", "dart", "RNPP"},
+        {"class Foo { void bar() {} }", "dart", "RNPRNPPPPP"},
+    };
+    int n = sizeof(cases) / sizeof(cases[0]);
+    for (int i = 0; i < n; i++) {
+        u8 tagbuf[256];
+        u8s out = {tagbuf, tagbuf + 256};
+        u8csc src = {(u8c *)cases[i].src,
+                     (u8c *)cases[i].src + strlen(cases[i].src)};
+        u8csc ext = {(u8c *)cases[i].ext,
+                     (u8c *)cases[i].ext + strlen(cases[i].ext)};
+        ok64 o = def_test(src, ext, out);
+        if (o != OK) {
+            fprintf(stderr, "FAIL Dart case %d: '%s' error %s\n", i,
+                    cases[i].src, ok64str(o));
+            fail(TESTFAIL);
+        }
+        u64 got_len = out[0] - tagbuf;
+        u64 exp_len = strlen(cases[i].tags);
+        if (got_len != exp_len ||
+            memcmp(tagbuf, cases[i].tags, exp_len) != 0) {
+            fprintf(stderr,
+                    "FAIL Dart case %d: '%s'\n  got:  %.*s\n  want: %s\n", i,
+                    cases[i].src, (int)got_len, tagbuf, cases[i].tags);
+            fail(TESTFAIL);
+        }
+    }
+    done;
+}
+
 ok64 all_tests() {
     sane(1);
     call(test_c_func);
     call(test_go);
     call(test_python);
+    call(test_kotlin);
+    call(test_swift);
+    call(test_dart);
     done;
 }
 

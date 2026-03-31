@@ -1,0 +1,10 @@
+Animal
+__init__
+speak
+__repr__
+Dog
+__init__
+speak
+greet
+process
+find
