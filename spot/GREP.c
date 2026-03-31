@@ -185,29 +185,10 @@ ok64 CAPOGrep(u8csc substring, u8csc ext, u8csc reporoot, u32 ctx_lines,
 
         a_dup(u8c, source, u8bDataC(mapped));
 
-        // Try to tokenize for syntax highlighting
+        // Tokenization is deferred until first match (lazy)
         b8 tokenized = NO;
         Bu32 gtoks = {};
-        if (!$empty(file_ext) && CAPOKnownExt(file_ext)) {
-            size_t maxlen = $len(source) + 1;
-            ok64 to = u32bMap(gtoks, maxlen);
-            if (to == OK) {
-                to = SPOTTokenize(gtoks, source, file_ext);
-                if (to == OK) {
-                    u32 *dts[2] = {u32bDataHead(gtoks), u32bIdleHead(gtoks)};
-                    u8cs dext = {file_ext[0], file_ext[1]};
-                    if (!$empty(dext) && dext[0][0] == '.') dext[0]++;
-                    DEFMark(dts, source, dext);
-                    tokenized = YES;
-                } else
-                    u32bUnMap(gtoks);
-            }
-        }
         u32cs gts = {};
-        if (tokenized) {
-            gts[0] = (u32cp)u32bDataHead(gtoks);
-            gts[1] = (u32cp)u32bIdleHead(gtoks);
-        }
 
         // Search source text directly for substring matches
         u32 prev_hi = 0;
@@ -227,6 +208,26 @@ ok64 CAPOGrep(u8csc substring, u8csc ext, u8csc reporoot, u32 ctx_lines,
                     if (!found_any) {
                         CAPOProgress(NULL);
                         found_any = YES;
+                        // Lazy tokenize for syntax highlighting
+                        if (!$empty(file_ext) && CAPOKnownExt(file_ext)) {
+                            size_t maxlen = $len(source) + 1;
+                            ok64 to = u32bMap(gtoks, maxlen);
+                            if (to == OK) {
+                                to = SPOTTokenize(gtoks, source, file_ext);
+                                if (to == OK) {
+                                    u32 *dts[2] = {u32bDataHead(gtoks),
+                                                   u32bIdleHead(gtoks)};
+                                    u8cs dext = {file_ext[0], file_ext[1]};
+                                    if (!$empty(dext) && dext[0][0] == '.')
+                                        dext[0]++;
+                                    DEFMark(dts, source, dext);
+                                    tokenized = YES;
+                                    gts[0] = (u32cp)u32bDataHead(gtoks);
+                                    gts[1] = (u32cp)u32bIdleHead(gtoks);
+                                } else
+                                    u32bUnMap(gtoks);
+                            }
+                        }
                     }
 
                     // Collect all matches within this context block
@@ -573,29 +574,10 @@ ok64 CAPOPcreGrep(u8csc pattern, u8csc ext, u8csc reporoot, u32 ctx_lines,
 
         a_dup(u8c, source, u8bDataC(mapped));
 
-        // Try to tokenize for syntax highlighting
+        // Tokenization is deferred until first match (lazy)
         b8 tokenized = NO;
         Bu32 gtoks = {};
-        if (!$empty(file_ext) && CAPOKnownExt(file_ext)) {
-            size_t maxlen = $len(source) + 1;
-            ok64 to = u32bMap(gtoks, maxlen);
-            if (to == OK) {
-                to = SPOTTokenize(gtoks, source, file_ext);
-                if (to == OK) {
-                    u32 *dts[2] = {u32bDataHead(gtoks), u32bIdleHead(gtoks)};
-                    u8cs dext = {file_ext[0], file_ext[1]};
-                    if (!$empty(dext) && dext[0][0] == '.') dext[0]++;
-                    DEFMark(dts, source, dext);
-                    tokenized = YES;
-                } else
-                    u32bUnMap(gtoks);
-            }
-        }
         u32cs gts = {};
-        if (tokenized) {
-            gts[0] = (u32cp)u32bDataHead(gtoks);
-            gts[1] = (u32cp)u32bIdleHead(gtoks);
-        }
 
         // Search source line by line with NFA
         u32 prev_hi = 0;
@@ -618,6 +600,26 @@ ok64 CAPOPcreGrep(u8csc pattern, u8csc ext, u8csc reporoot, u32 ctx_lines,
                 if (!found_any) {
                     CAPOProgress(NULL);
                     found_any = YES;
+                    // Lazy tokenize for syntax highlighting
+                    if (!$empty(file_ext) && CAPOKnownExt(file_ext)) {
+                        size_t maxlen = $len(source) + 1;
+                        ok64 to = u32bMap(gtoks, maxlen);
+                        if (to == OK) {
+                            to = SPOTTokenize(gtoks, source, file_ext);
+                            if (to == OK) {
+                                u32 *dts[2] = {u32bDataHead(gtoks),
+                                               u32bIdleHead(gtoks)};
+                                u8cs dext = {file_ext[0], file_ext[1]};
+                                if (!$empty(dext) && dext[0][0] == '.')
+                                    dext[0]++;
+                                DEFMark(dts, source, dext);
+                                tokenized = YES;
+                                gts[0] = (u32cp)u32bDataHead(gtoks);
+                                gts[1] = (u32cp)u32bIdleHead(gtoks);
+                            } else
+                                u32bUnMap(gtoks);
+                        }
+                    }
                 }
 
                 // Find match span for highlighting:
