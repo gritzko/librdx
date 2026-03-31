@@ -24,7 +24,10 @@ Scan for function invocations:
 
     $ spot -s 'u8csMv(A)' .c
 
-![spot -s 'u8csMv(A)' .c](../blog/img/screen.png)
+<table><tr>
+<td><img src="../blog/img/screen.png" alt="spot search" width="100%"></td>
+<td><img src="../blog/img/diff.png" alt="spot diff" width="100%"></td>
+</tr></table>
 
 ## Usage
 
