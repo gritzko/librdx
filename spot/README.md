@@ -35,6 +35,8 @@ Scan for function invocations:
     spot -s "f(x,y)" -r "f(y,x)" .c   SPOT search + replace
     spot -g "TODO" .c                 grep: substring search (incl. comments)
     spot -g "TODO" -C 0 .c            grep: match line only, no context
+    spot -p "u\d+sFeed" .c            regex grep (Thompson NFA)
+    spot -p "regex" -C 0 .c           regex grep, match line only
     spot --diff old new               token-level colored diff
     spot --gitdiff                    git external diff driver
     spot --merge base ours theirs     token-level 3-way merge (stdout)
@@ -42,7 +44,8 @@ Scan for function invocations:
 
 Flags: `-s`/`--spot` for SPOT search, `-r`/`--replace` for replacement
 (requires `-s`), `-g`/`--grep` for substring search,
-`-C N`/`--context=N` for grep context lines (default 3),
+`-p`/`--pcre` for regex search (Thompson NFA),
+`-C N`/`--context=N` for grep/regex context lines (default 3),
 `-d`/`--diff` for token diff, `--gitdiff` for git diff driver,
 `--merge` for 3-way merge.
 Trailing args starting with `.` are extension filters (required for `-s`,
@@ -52,10 +55,11 @@ file filter (`.c` matches `.c` and `.h`).
 ### SPOT pattern search
 
 SPOT matches structurally, not textually — whitespace and formatting
-differences are ignored. Placeholders (single lowercase letters) bind
-to any matching token, so `ok64 o = OK;` also matches `ok64 ret = OK;`.
-Uppercase placeholders match any block of code. Multiple spaces (gaps)
-match any token sequence.
+differences are ignored. Lowercase placeholders (`a`–`z`) bind to a
+single token, so `ok64 o = OK;` also matches `ok64 ret = OK;`.
+Uppercase placeholders (`A`–`Z`) match any block of code, including
+nested brackets — use these for multi-token arguments in function
+calls. Two spaces (a gap) skip any token sequence.
 
 Results are syntax-highlighted with context lines and
 `--- file :: function() ---` headers:
@@ -68,9 +72,14 @@ Results are syntax-highlighted with context lines and
         ok64 o = OK;
         ...
 
-Rename a function:
+Rename a macro call to a function (uppercase placeholders match
+multi-token arguments including nested brackets):
 
-    $ spot -s "OldFunction(X)" -r "NewFunction(X)" .c
+    $ spot -s "TOK_VAL(A,B,C,D)" -r "tok32Val(A,B,C,D)" .c .h
+
+Rename a single-token function (lowercase matches one token):
+
+    $ spot -s "OldFunc(x)" -r "NewFunc(x)" .c
 
 Look for a typical `malloc` call pattern:
 
@@ -99,6 +108,26 @@ Control context lines with `-C N`:
 
     $ spot -g "TODO" -C 0 .c      # match line only
     $ spot -g "TODO" -C 1 .c      # 1 line above and below
+
+### Regex grep
+
+Regex grep (`-p`) uses a Thompson NFA engine (`abc/NFA.h`) for matching.
+Supports `.` `*` `+` `?` `|` `()` `[]` `\d` `\w` `\s` `{n,m}`.
+Literal substrings are extracted from the regex for trigram index
+filtering (Russ Cox approach), so index speedup works when the pattern
+contains literal runs of 3+ characters.
+
+Find functions matching a naming pattern:
+
+    $ spot -p 'u\d+sFeed' .c
+
+Search for alternative names:
+
+    $ spot -p 'tok32(Val|Tag|Pack)' .c
+
+Regex grep with context control:
+
+    $ spot -p 'CAPO\w+Grep' -C 1 .c
 
 ### Diff and merge
 

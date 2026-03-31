@@ -84,6 +84,13 @@ ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot,
 ok64 CAPOGrep(u8csc substring, u8csc ext, u8csc reporoot, u32 ctx_lines,
               u8css files);
 
+// Regex grep using Thompson NFA (abc/NFA.h).
+// pattern: regex string (supports . * + ? | () [] \d \w \s {n,m}).
+// Extracts literal substrings for trigram index filtering, then NFA-matches
+// candidate files line by line. Same output format as CAPOGrep.
+ok64 CAPOPcreGrep(u8csc pattern, u8csc ext, u8csc reporoot, u32 ctx_lines,
+                   u8css files);
+
 // Colorful cat: syntax-highlighted file output
 ok64 CAPOCat(u8css files, u8csc reporoot);
 

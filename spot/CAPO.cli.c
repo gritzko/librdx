@@ -21,6 +21,7 @@
 //   spot -s "f(x,y)" -r "f(y,x)" .c SPOT search + replace
 //   spot -g "TODO" .c                grep in all leaves (incl. comments)
 //   spot -g "memmem"                 grep all parseable files
+//   spot -p "u\d+sFeed" .c           regex grep (Thompson NFA)
 //   spot --diff old new              token-level colored diff
 //   spot --gitdiff                   git external diff driver
 //   spot --merge base ours theirs    token-level 3-way merge (stdout)
@@ -41,6 +42,8 @@ static void SPOTUsage(void) {
         "  spot -s \"pat\" -r \"repl\" .ext       structural search + replace\n"
         "  spot -g \"text\" [.ext]              grep (substring, incl. comments)\n"
         "  spot -g \"text\" -C N [.ext]         grep with N lines of context\n"
+        "  spot -p \"regex\" [.ext]             regex grep (Thompson NFA)\n"
+        "  spot -p \"regex\" -C N [.ext]        regex grep with context\n"
         "  spot -d | --diff old new           token-level colored diff\n"
         "  spot --gitdiff                     git external diff driver\n"
         "  spot --merge base ours theirs      token-level 3-way merge\n"
@@ -106,6 +109,7 @@ ok64 capocli() {
     u8c *spot_ndl[2] = {};
     u8c *spot_rep[2] = {};
     u8c *grep_ndl[2] = {};
+    u8c *pcre_ndl[2] = {};
     u32 grep_ctx = 3;
     u8c *trail[16][2] = {};
     int ntrail = 0;
@@ -163,6 +167,12 @@ ok64 capocli() {
         } else if ((eqval = argeqval(a, "--grep"))) {
             grep_ndl[0] = (u8cp)eqval;
             grep_ndl[1] = (u8cp)eqval + strlen(eqval);
+        } else if ((argeq(a, "-p") || argeq(a, "--pcre")) && i + 1 < argn) {
+            i++;
+            $mv(pcre_ndl, $arg(i));
+        } else if ((eqval = argeqval(a, "--pcre"))) {
+            pcre_ndl[0] = (u8cp)eqval;
+            pcre_ndl[1] = (u8cp)eqval + strlen(eqval);
         } else if (argeq(a, "-C") && i + 1 < argn) {
             i++;
             u8c *v[2] = {};
@@ -242,6 +252,30 @@ ok64 capocli() {
         u8cs ndl = {grep_ndl[0], grep_ndl[1]};
         u8css gf = {gfiles, gfiles + gnf};
         call(CAPOGrep, ndl, ext, reporoot, grep_ctx, gf);
+    } else if (pcre_ndl[0] != NULL) {
+        // PCRE (regex) mode: .ext optional, file paths restrict search
+        u8cs ext = {};
+        u8cs gfiles[16] = {};
+        int gnf = 0;
+        for (int i = 0; i < ntrail; i++) {
+            if (argIsExt(trail[i])) {
+                $mv(ext, trail[i]);
+            } else if (gnf < 16) {
+                $mv(gfiles[gnf], trail[i]);
+                gnf++;
+            }
+        }
+        if ($empty(ext) && gnf > 0) {
+            u8cs pe = {};
+            PATHu8sExt(pe, gfiles[0]);
+            if (!$empty(pe)) {
+                ext[0] = pe[0] - 1;
+                ext[1] = pe[1];
+            }
+        }
+        u8cs ndl = {pcre_ndl[0], pcre_ndl[1]};
+        u8css gf = {gfiles, gfiles + gnf};
+        call(CAPOPcreGrep, ndl, ext, reporoot, grep_ctx, gf);
     } else if (is_hook) {
         call(CAPOHook, reporoot);
     } else if (nfork > 0 && proc != UINT32_MAX) {
