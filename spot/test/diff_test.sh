@@ -15,7 +15,7 @@ if [ ! -x "$SPOT" ]; then
     exit 1
 fi
 
-OUT=$("$SPOT" --diff "$OLD" "$NEW" 2>&1)
+OUT=$("$SPOT" --diff "$OLD" "$NEW" 2>&1 | perl -pe 's/\e\[[0-9;]*m//g')
 FAILS=0
 
 # Lines present in both old and new must appear at most once in diff output.

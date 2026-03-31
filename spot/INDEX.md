@@ -47,10 +47,7 @@
 | Function | Purpose |
 |----------|---------|
 | `CAPOFindFunc` | Walk backward to find enclosing function name |
-| `CAPOEmitHiliRange` | Emit byte range with syntax highlighting + match highlight |
-| `CAPOEmitHunkHeader` | Emit `--- file :: func() ---` hunk header |
-| `CAPOEmitHili` | Emit one token with foreground + optional background color |
-| `CAPOTagColor` | Map token tag (D/G/L/H/R) to ANSI color |
+| `CAPOFormatTitle` | Format `--- file :: func() ---` hunk title with truncation |
 | `CAPOGrepCtx` | Compute context line range around a byte position |
 
 ## Index format

@@ -1088,8 +1088,6 @@ static void CAPOProgress(const char *line) {
         fprintf(stderr, "\033[%dm%s\033[0m", GRAY, line);
 }
 
-static int CAPOTagColor(u8 tag);
-
 // --- Function name finder (heuristic) ---
 
 // Check if ext (with dot) matches one of the given suffixes.
@@ -1180,139 +1178,54 @@ static void CAPOFindFunc(u8csc source, u32 pos, u8csc ext,
     }
 }
 
-// --- Highlighted byte range emitter ---
+// --- Hunk title formatter ---
 
-// Emit bytes [lo,hi) using token-based syntax highlighting.
-// hls/nhl: array of highlight ranges (each .lo/.hi in byte offsets).
-// If toks is empty or lo>=hi, falls back to raw fwrite.
+// Format "--- path :: func ---" with smart truncation to 64 visible chars.
+// filepath may be NULL, funcname may be empty ("").
+// Returns formatted length (0 if nothing to format).
 #define CAPO_MAX_HLS 64
-static void CAPOEmitHiliRange(u32cs toks, u8cp base, u32 lo, u32 hi,
-                               range32 *hls, int nhl, int hl_bg) {
-    if (lo >= hi) return;
-    int ntoks = (int)$len(toks);
-    if (ntoks == 0) {
-        fwrite(base + lo, 1, hi - lo, stdout);
-        return;
-    }
-
-    // Find first token overlapping [lo, hi)
-    int ti = 0;
-    while (ti < ntoks && TOK_OFF(toks[0][ti]) <= lo) ti++;
-
-    u32 emitted = lo;
-    while (emitted < hi && ti < ntoks) {
-        u32 tok_lo = (ti > 0) ? TOK_OFF(toks[0][ti - 1]) : 0;
-        u32 tok_hi = TOK_OFF(toks[0][ti]);
-        u8 tag = TOK_TAG(toks[0][ti]);
-
-        u32 elo = (tok_lo > emitted) ? tok_lo : emitted;
-        u32 ehi = (tok_hi < hi) ? tok_hi : hi;
-        if (elo >= ehi) { ti++; continue; }
-
-        // Check if this region overlaps any highlight range
-        b8 in_hl = NO;
-        for (int h = 0; h < nhl && !in_hl; h++)
-            if (elo < hls[h].hi && ehi > hls[h].lo) in_hl = YES;
-
-        int fg = CAPO_COLOR ? CAPOTagColor(tag) : 0;
-        int bg = (in_hl && CAPO_COLOR) ? hl_bg : 0;
-        b8 bold = CAPO_COLOR && tag == 'N';
-
-        u32 plen = ehi - elo;
-        if (bold && bg != 0)
-            fprintf(stdout, "\033[1;48;5;%dm%.*s\033[0m",
-                    bg, (int)plen, (char *)(base + elo));
-        else if (bold)
-            fprintf(stdout, "\033[1m%.*s\033[0m",
-                    (int)plen, (char *)(base + elo));
-        else if (fg != 0 && bg != 0)
-            fprintf(stdout, "\033[%d;48;5;%dm%.*s\033[0m",
-                    fg, bg, (int)plen, (char *)(base + elo));
-        else if (bg != 0)
-            fprintf(stdout, "\033[48;5;%dm%.*s\033[0m",
-                    bg, (int)plen, (char *)(base + elo));
-        else if (fg != 0)
-            fprintf(stdout, "\033[%dm%.*s\033[0m",
-                    fg, (int)plen, (char *)(base + elo));
-        else
-            fwrite(base + elo, 1, plen, stdout);
-
-        emitted = ehi;
-        ti++;
-    }
-    if (emitted < hi)
-        fwrite(base + emitted, 1, hi - emitted, stdout);
-}
-
-// --- Hunk header emitter ---
-
-// Emit hunk separator (--) and combined file::function header.
-// filepath may be NULL (diff mode — only function name shown).
-// prev_func: if non-NULL, skip header when function hasn't changed;
-//            updated to current funcname after emission.
-static void CAPOEmitHunkHeader(u8csc source, u32 pos, u8csc ext,
-                                b8 *first_hunk,
-                                const char *filepath, char *prev_func) {
-    char funcname[256];
-    CAPOFindFunc(source, pos, ext, funcname, sizeof(funcname));
-
-    if (prev_func != NULL) {
-        size_t n = strlen(funcname);
-        if (n >= 256) n = 255;
-        memcpy(prev_func, funcname, n);
-        prev_func[n] = 0;
-    }
-
-    // Build header, max 64 visible chars: "--- path :: section ---"
-    // Trim section first, then path (replace prefix with "...")
-    #define HUNK_MAX 64
-    char hdr[512];
+#define HUNK_MAX 64
+static int CAPOFormatTitle(char *out, size_t outsz,
+                            const char *filepath, const char *funcname) {
     int hlen = 0;
-    if (filepath && funcname[0])
-        hlen = snprintf(hdr, sizeof(hdr), "--- %s :: %s ---",
-                         filepath, funcname);
+    if (filepath && funcname && funcname[0])
+        hlen = snprintf(out, outsz, "--- %s :: %s ---", filepath, funcname);
     else if (filepath)
-        hlen = snprintf(hdr, sizeof(hdr), "--- %s ---", filepath);
-    else if (funcname[0])
-        hlen = snprintf(hdr, sizeof(hdr), "--- %s ---", funcname);
+        hlen = snprintf(out, outsz, "--- %s ---", filepath);
+    else if (funcname && funcname[0])
+        hlen = snprintf(out, outsz, "--- %s ---", funcname);
+    else
+        return 0;
 
-    if (hlen > HUNK_MAX && filepath && funcname[0]) {
-        // Trim section
+    if (hlen > HUNK_MAX && filepath && funcname && funcname[0]) {
         size_t plen = strlen(filepath);
-        int budget = HUNK_MAX - 12 - (int)plen;  // 12 = "--- " + " :: " + " ---"
+        int budget = HUNK_MAX - 12 - (int)plen;
         if (budget < 1) budget = 1;
-        hlen = snprintf(hdr, sizeof(hdr), "--- %s :: %.*s ---",
+        hlen = snprintf(out, outsz, "--- %s :: %.*s ---",
                          filepath, budget, funcname);
     }
     if (hlen > HUNK_MAX && filepath) {
-        // Trim path: ...tail
         const char *p = filepath + strlen(filepath);
-        int budget = HUNK_MAX - 12 - 3;  // 3 for "..."
-        if (funcname[0]) {
+        int budget = HUNK_MAX - 12 - 3;
+        if (funcname && funcname[0]) {
             size_t flen = strlen(funcname);
             if (flen > 20) flen = 20;
-            budget -= (int)flen + 4;  // " :: " + trimmed func
+            budget -= (int)flen + 4;
         }
         if (budget < 8) budget = 8;
         while (p > filepath && (int)(filepath + strlen(filepath) - p) < budget)
             p--;
-        if (funcname[0]) {
-            int favail = HUNK_MAX - 12 - 3 - (int)(filepath + strlen(filepath) - p);
+        if (funcname && funcname[0]) {
+            int favail = HUNK_MAX - 12 - 3 -
+                         (int)(filepath + strlen(filepath) - p);
             if (favail < 1) favail = 1;
-            hlen = snprintf(hdr, sizeof(hdr), "--- ...%s :: %.*s ---",
+            hlen = snprintf(out, outsz, "--- ...%s :: %.*s ---",
                              p, favail, funcname);
         } else {
-            hlen = snprintf(hdr, sizeof(hdr), "--- ...%s ---", p);
+            hlen = snprintf(out, outsz, "--- ...%s ---", p);
         }
     }
-
-    if (hlen > 0) {
-        if (CAPO_COLOR)
-            fprintf(stdout, "\033[%dm%s\033[0m\n", GRAY, hdr);
-        else
-            fprintf(stdout, "%s\n", hdr);
-    }
-    *first_hunk = NO;
+    return hlen;
 }
 
 // --- Grep: substring search in source text (no tree) ---
@@ -1416,11 +1329,7 @@ ok64 CAPOGrep(u8csc substring, u8csc ext, u8csc reporoot, u32 ctx_lines,
             qsort(hashbuf1, nhashes, sizeof(u32), CAPOu32cmp);
     }
 
-    // LESS pager: use global arena
-    b8 grep_use_less = CAPO_COLOR && isatty(STDOUT_FILENO);
-    if (grep_use_less) {
-        if (LESSArenaInit() != OK) grep_use_less = NO;
-    }
+    call(LESSArenaInit);
 
     FILE *fp = NULL;
     if (nfiles == 0) {
@@ -1522,7 +1431,6 @@ ok64 CAPOGrep(u8csc substring, u8csc ext, u8csc reporoot, u32 ctx_lines,
         u32 prev_hi = 0;
         b8 found_any = NO;
         b8 first_hunk = YES;
-        char prev_func[256] = {};
 
         u8cp sp = source[0];
         u8cp se = source[1];
@@ -1558,44 +1466,39 @@ ok64 CAPOGrep(u8csc substring, u8csc ext, u8csc reporoot, u32 ctx_lines,
 
                     b8 contiguous = (ctx_lo <= prev_hi);
                     if (ctx_lo < prev_hi) ctx_lo = prev_hi;
-                    if (ctx_lo < ctx_hi) {
-                        if (grep_use_less &&
-                            less_nhunks < LESS_MAX_HUNKS &&
-                            u8bIdleLen(less_arena) > (ctx_hi - ctx_lo + 512)) {
-                            // Build hunk into arena
-                            LESShunk *hk = &less_hunks[less_nhunks];
-                            memset(hk, 0, sizeof(*hk));
+                    if (ctx_lo < ctx_hi &&
+                        less_nhunks < LESS_MAX_HUNKS &&
+                        u8bIdleLen(less_arena) > (ctx_hi - ctx_lo + 512)) {
+                        LESShunk *hk = &less_hunks[less_nhunks];
+                        memset(hk, 0, sizeof(*hk));
 
-                            // Title: write into arena
-                            if (!contiguous || first_hunk) {
-                                char funcname[256];
-                                CAPOFindFunc(source, ctx_lo, file_ext,
-                                             funcname, sizeof(funcname));
-                                char hdr[512];
-                                int tlen = snprintf(hdr, sizeof(hdr),
-                                    "--- %s :: %s ---", line, funcname);
-                                if (tlen > 0) {
-                                    u8p tp = LESSArenaWrite(hdr, (size_t)tlen);
-                                    if (tp != NULL) {
-                                        hk->title[0] = tp;
-                                        hk->title[1] = tp + tlen;
-                                    }
+                        // Title
+                        if (!contiguous || first_hunk) {
+                            char funcname[256];
+                            CAPOFindFunc(source, ctx_lo, file_ext,
+                                         funcname, sizeof(funcname));
+                            char hdr[512];
+                            int tlen = CAPOFormatTitle(hdr, sizeof(hdr),
+                                                       line, funcname);
+                            if (tlen > 0) {
+                                u8p tp = LESSArenaWrite(hdr, (size_t)tlen);
+                                if (tp != NULL) {
+                                    hk->title[0] = tp;
+                                    hk->title[1] = tp + tlen;
                                 }
                             }
+                        }
 
-                            // Text: point into mmaped source
-                            hk->text[0] = source[0] + ctx_lo;
-                            hk->text[1] = source[0] + ctx_hi;
+                        hk->text[0] = source[0] + ctx_lo;
+                        hk->text[1] = source[0] + ctx_hi;
+                        hk->toks[0] = gts[0];
+                        hk->toks[1] = gts[1];
 
-                            // Toks: reuse existing token slice
-                            hk->toks[0] = gts[0];
-                            hk->toks[1] = gts[1];
-
-                            // Lits: build into arena
+                        // Lits
+                        if (CAPO_COLOR) {
                             u32 region_len = ctx_hi - ctx_lo;
                             u8p lp = LESSArenaAlloc(region_len);
                             if (lp != NULL) {
-                                // Fill tag from tokens
                                 int ntoks = (int)$len(gts);
                                 for (int ti = 0; ti < ntoks; ti++) {
                                     u32 tlo = (ti > 0) ? TOK_OFF(gts[0][ti-1]) : 0;
@@ -1606,7 +1509,6 @@ ok64 CAPOGrep(u8csc substring, u8csc ext, u8csc reporoot, u32 ctx_lines,
                                     u8 tag = TOK_TAG(gts[0][ti]) - 'A';
                                     memset(lp + (clo - ctx_lo), tag, chi - clo);
                                 }
-                                // Mark search highlights as INS (green bg)
                                 for (int h = 0; h < nhl; h++) {
                                     u32 hlo = hls[h].lo < ctx_lo ? ctx_lo : hls[h].lo;
                                     u32 hhi = hls[h].hi > ctx_hi ? ctx_hi : hls[h].hi;
@@ -1616,19 +1518,10 @@ ok64 CAPOGrep(u8csc substring, u8csc ext, u8csc reporoot, u32 ctx_lines,
                                 hk->lits[0] = lp;
                                 hk->lits[1] = lp + region_len;
                             }
-
-                            less_nhunks++;
-                            first_hunk = NO;
-                        } else {
-                            // Fallback: direct output
-                            if (!contiguous || first_hunk)
-                                CAPOEmitHunkHeader(source, ctx_lo, file_ext,
-                                                   &first_hunk, line, prev_func);
-                            CAPOEmitHiliRange(gts, source[0], ctx_lo,
-                                              ctx_hi, hls, nhl, 157);
-                            if (ctx_hi > 0 && source[0][ctx_hi - 1] != '\n')
-                                fputc('\n', stdout);
                         }
+
+                        less_nhunks++;
+                        first_hunk = NO;
                     }
                     prev_hi = ctx_hi;
                     sp = sp2 - 1;
@@ -1637,12 +1530,9 @@ ok64 CAPOGrep(u8csc substring, u8csc ext, u8csc reporoot, u32 ctx_lines,
             }
         }
 
-        if (!grep_use_less && found_any) fputc('\n', stdout);
-
-        if (grep_use_less && found_any) {
-            // Defer cleanup: keep file and toks alive for LESS
+        if (found_any)
             LESSDefer(mapped, tokenized ? gtoks : (Bu32){});
-        } else {
+        else {
             if (tokenized) u32bUnMap(gtoks);
             FILEUnMap(mapped);
         }
@@ -1650,13 +1540,9 @@ ok64 CAPOGrep(u8csc substring, u8csc ext, u8csc reporoot, u32 ctx_lines,
     if (fp != NULL) pclose(fp);
     CAPOProgress(NULL);
 
-    // Run LESS pager
-    if (grep_use_less && less_nhunks > 0)
+    if (less_nhunks > 0)
         LESSRun(less_hunks, less_nhunks);
-
-    // Deferred cleanup
-    if (grep_use_less)
-        LESSArenaCleanup();
+    LESSArenaCleanup();
 
     if (hashbuf1 != NULL) free(hashbuf1);
     if (hashbuf2 != NULL) free(hashbuf2);
@@ -1686,64 +1572,16 @@ static void CAPOMarkLits(u8p lits, u32 lo, u32 hi, u8 flag) {
         lits[i] |= flag;
 }
 
-// --- Syntax highlighting (shared by cat, diff) ---
-
-static int CAPOTagColor(u8 tag) {
-    switch (tag) {
-        case 'D': return GRAY;
-        case 'G': return DARK_GREEN;
-        case 'L': return LIGHT_CYAN;
-        case 'H': return DARK_PINK;
-        case 'R': return LIGHT_BLUE;
-        default:  return 0;
-    }
-}
-
-// Emit one token with syntax-highlight foreground + optional
-// 256-color background (bg256=0 means no background).
-// toks: packed u32 token slice, base: source text start.
-// tag: the token tag character ('S','D','G','R','H','L','P').
-static void CAPOEmitHili(u32cs toks, u8cp base, int i, u8 tag, int bg256) {
-    u8cs val = {};
-    TOK_VAL(val, toks, base, i);
-    if ($empty(val)) return;
-    int fg = CAPO_COLOR ? CAPOTagColor(tag) : 0;
-    b8 bold = CAPO_COLOR && tag == 'N';
-    if (bold && fg != 0 && bg256 != 0)
-        fprintf(stdout, "\033[1;%d;48;5;%dm%.*s\033[0m",
-                fg, bg256, (int)$len(val), (char *)val[0]);
-    else if (bold && bg256 != 0)
-        fprintf(stdout, "\033[1;48;5;%dm%.*s\033[0m",
-                bg256, (int)$len(val), (char *)val[0]);
-    else if (bold)
-        fprintf(stdout, "\033[1m%.*s\033[0m",
-                (int)$len(val), (char *)val[0]);
-    else if (fg != 0 && bg256 != 0)
-        fprintf(stdout, "\033[%d;48;5;%dm%.*s\033[0m",
-                fg, bg256, (int)$len(val), (char *)val[0]);
-    else if (bg256 != 0)
-        fprintf(stdout, "\033[48;5;%dm%.*s\033[0m",
-                bg256, (int)$len(val), (char *)val[0]);
-    else if (fg != 0)
-        fprintf(stdout, "\033[%dm%.*s\033[0m",
-                fg, (int)$len(val), (char *)val[0]);
-    else
-        fwrite(val[0], 1, (size_t)$len(val), stdout);
-}
-
 // --- Cat ---
 
 ok64 CAPOCat(u8css files, u8csc reporoot) {
     sane(!$empty(files) && $ok(reporoot));
     int nfiles = (int)$len(files);
 
-    b8 cat_use_less = CAPO_COLOR && isatty(STDOUT_FILENO);
-    if (cat_use_less) {
-        if (LESSArenaInit() != OK) cat_use_less = NO;
-    }
+    call(LESSArenaInit);
 
     for (int fi = 0; fi < nfiles; fi++) {
-        if (cat_use_less && less_nhunks >= LESS_MAX_HUNKS) break;
+        if (less_nhunks >= LESS_MAX_HUNKS) break;
 
         u8cs *fp = u8cssAtP(files, fi);
         u8cs fpath_s = {(*fp)[0], (*fp)[1]};
@@ -1774,114 +1612,69 @@ ok64 CAPOCat(u8css files, u8csc reporoot) {
         u8cp src_idle = u8bIdleHead(mapped);
         u32 srclen = (u32)(src_idle - src_head);
 
-        if (cat_use_less) {
-            LESShunk *hk = &less_hunks[less_nhunks];
-            memset(hk, 0, sizeof(*hk));
+        LESShunk *hk = &less_hunks[less_nhunks];
+        memset(hk, 0, sizeof(*hk));
 
-            // Title into arena
-            char hdr[512];
-            int tlen = snprintf(hdr, sizeof(hdr), "--- %.*s ---",
-                                (int)$len(fpath_s), (char *)fpath_s[0]);
-            if (tlen > 0) {
-                u8p tp = LESSArenaWrite(hdr, (size_t)tlen);
-                if (tp != NULL) {
-                    hk->title[0] = tp;
-                    hk->title[1] = tp + tlen;
-                }
+        // Title
+        char fpz[FILE_PATH_MAX_LEN];
+        size_t fzl = (size_t)$len(fpath_s);
+        if (fzl >= sizeof(fpz)) fzl = sizeof(fpz) - 1;
+        memcpy(fpz, fpath_s[0], fzl);
+        fpz[fzl] = 0;
+        char hdr[512];
+        int tlen = CAPOFormatTitle(hdr, sizeof(hdr), fpz, "");
+        if (tlen > 0) {
+            u8p tp = LESSArenaWrite(hdr, (size_t)tlen);
+            if (tp != NULL) {
+                hk->title[0] = tp;
+                hk->title[1] = tp + tlen;
             }
-
-            // Text: point into mmaped file
-            hk->text[0] = src_head;
-            hk->text[1] = src_idle;
-
-            // Try to tokenize
-            Bu32 toks = {};
-            b8 tokenized = NO;
-            if (!$empty(ext) && CAPOKnownExt(ext)) {
-                size_t maxlen = srclen + 1;
-                o = u32bMap(toks, maxlen);
-                if (o == OK) {
-                    u8cs source = {src_head, src_idle};
-                    o = SPOTTokenize(toks, source, ext);
-                    if (o == OK) {
-                        u32 *dts[2] = {u32bDataHead(toks), u32bIdleHead(toks)};
-                        u8cs dext = {ext[0], ext[1]};
-                        if (!$empty(dext) && dext[0][0] == '.') dext[0]++;
-                        DEFMark(dts, source, dext);
-                        tokenized = YES;
-                        hk->toks[0] = (u32cp)u32bDataHead(toks);
-                        hk->toks[1] = (u32cp)u32bIdleHead(toks);
-                    } else {
-                        u32bUnMap(toks);
-                        memset(toks, 0, sizeof(toks));
-                    }
-                }
-            }
-
-            // Build lits from tokens into arena
-            if (tokenized && srclen > 0) {
-                u8p lp = LESSArenaAlloc(srclen);
-                if (lp != NULL) {
-                    CAPOBuildLits(lp, src_head, srclen, hk->toks);
-                    hk->lits[0] = lp;
-                    hk->lits[1] = lp + srclen;
-                }
-            }
-
-            less_nhunks++;
-            LESSDefer(mapped, tokenized ? toks : (Bu32){});
-        } else {
-            // Direct output (piped)
-            a_dup(u8c, source, u8bDataC(mapped));
-
-            if (nfiles > 1) {
-                if (CAPO_COLOR)
-                    fprintf(stdout, "\033[%dm--- %.*s ---\033[0m\n",
-                            GRAY, (int)$len(fpath_s), (char *)fpath_s[0]);
-                else
-                    fprintf(stdout, "--- %.*s ---\n",
-                            (int)$len(fpath_s), (char *)fpath_s[0]);
-            }
-
-            Bu32 toks = {};
-            b8 tokenized = NO;
-            if (!$empty(ext) && CAPOKnownExt(ext)) {
-                size_t maxlen = $len(source) + 1;
-                o = u32bMap(toks, maxlen);
-                if (o == OK) {
-                    o = SPOTTokenize(toks, source, ext);
-                    if (o == OK) {
-                        u32 *dts[2] = {u32bDataHead(toks), u32bIdleHead(toks)};
-                        u8cs dext = {ext[0], ext[1]};
-                        if (!$empty(dext) && dext[0][0] == '.') dext[0]++;
-                        DEFMark(dts, source, dext);
-                        tokenized = YES;
-                    } else
-                        u32bUnMap(toks);
-                }
-            }
-            if (tokenized) {
-                u32cp td = u32bDataHead(toks);
-                u32cp ti = u32bIdleHead(toks);
-                u32cs ts = {(u32cp)td, (u32cp)ti};
-                int ntoks = (int)(ti - td);
-                for (int i = 0; i < ntoks; i++)
-                    CAPOEmitHili(ts, source[0], i, TOK_TAG(td[i]), 0);
-                u32bUnMap(toks);
-            } else {
-                if (!$empty(source))
-                    fwrite(source[0], 1, (size_t)$len(source), stdout);
-            }
-            if (!$empty(source) && *(source[1] - 1) != '\n')
-                fputc('\n', stdout);
-            FILEUnMap(mapped);
         }
+
+        hk->text[0] = src_head;
+        hk->text[1] = src_idle;
+
+        // Tokenize
+        Bu32 toks = {};
+        b8 tokenized = NO;
+        if (!$empty(ext) && CAPOKnownExt(ext)) {
+            size_t maxlen = srclen + 1;
+            o = u32bMap(toks, maxlen);
+            if (o == OK) {
+                u8cs source = {src_head, src_idle};
+                o = SPOTTokenize(toks, source, ext);
+                if (o == OK) {
+                    u32 *dts[2] = {u32bDataHead(toks), u32bIdleHead(toks)};
+                    u8cs dext = {ext[0], ext[1]};
+                    if (!$empty(dext) && dext[0][0] == '.') dext[0]++;
+                    DEFMark(dts, source, dext);
+                    tokenized = YES;
+                    hk->toks[0] = (u32cp)u32bDataHead(toks);
+                    hk->toks[1] = (u32cp)u32bIdleHead(toks);
+                } else {
+                    u32bUnMap(toks);
+                    memset(toks, 0, sizeof(toks));
+                }
+            }
+        }
+
+        // Lits
+        if (CAPO_COLOR && tokenized && srclen > 0) {
+            u8p lp = LESSArenaAlloc(srclen);
+            if (lp != NULL) {
+                CAPOBuildLits(lp, src_head, srclen, hk->toks);
+                hk->lits[0] = lp;
+                hk->lits[1] = lp + srclen;
+            }
+        }
+
+        less_nhunks++;
+        LESSDefer(mapped, tokenized ? toks : (Bu32){});
     }
 
-    if (cat_use_less && less_nhunks > 0) {
+    if (less_nhunks > 0)
         LESSRun(less_hunks, less_nhunks);
-        LESSArenaCleanup();
-    }
+    LESSArenaCleanup();
 
     done;
 }
@@ -1987,50 +1780,47 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name) {
     ok64 nro = CAPOMergeRead(&new_data, &map_new, new_path);
     if (oro != OK && nro != OK) return oro;  // both failed
 
-    b8 diff_use_less = CAPO_COLOR && isatty(STDOUT_FILENO);
-    if (diff_use_less) {
-        if (LESSArenaInit() != OK) diff_use_less = NO;
+    if (LESSArenaInit() != OK) {
+        if (map_old) FILEUnMap(map_old);
+        if (map_new) FILEUnMap(map_new);
+        return NOROOM;
     }
+
+    // Display name (null-terminated) for hunk titles
+    char dispname[FILE_PATH_MAX_LEN];
+    size_t dlen = (size_t)$len(name);
+    if (dlen >= sizeof(dispname)) dlen = sizeof(dispname) - 1;
+    memcpy(dispname, name[0], dlen);
+    dispname[dlen] = 0;
 
     // Deleted file: red header + all old content as DEL
     if (nro != OK) {
-        if (diff_use_less) {
-            JOINfile old_f = {};
-            ok64 o = JOINTokenize(&old_f, old_data, ext);
-            if (o == OK) {
-                CAPOJoinToks(old_ts, &old_f);
-                u32 olen = (u32)$len(old_data);
-                LESShunk *hk = &less_hunks[less_nhunks];
-                memset(hk, 0, sizeof(*hk));
-                // Title
-                char hdr[512];
-                int tlen = snprintf(hdr, sizeof(hdr), "--- %.*s ---",
-                                    (int)$len(name), (char *)name[0]);
-                if (tlen > 0) {
-                    u8p tp = LESSArenaWrite(hdr, (size_t)tlen);
-                    if (tp) { hk->title[0] = tp; hk->title[1] = tp + tlen; }
-                }
-                // Text: copy old into arena
-                u8p txp = LESSArenaWrite(old_data[0], olen);
-                if (txp) { hk->text[0] = txp; hk->text[1] = txp + olen; }
-                // Lits: build from tokens + mark all DEL
-                u8p lp = LESSArenaAlloc(olen);
-                if (lp) {
-                    CAPOBuildLits(lp, old_data[0], olen, old_ts);
-                    CAPOMarkLits(lp, 0, olen, LESS_DEL);
-                    hk->lits[0] = lp; hk->lits[1] = lp + olen;
-                }
-                less_nhunks++;
-                JOINFree(&old_f);
-            } else {
-                JOINFree(&old_f);
+        JOINfile old_f = {};
+        ok64 o = JOINTokenize(&old_f, old_data, ext);
+        if (o == OK) {
+            CAPOJoinToks(old_ts, &old_f);
+            u32 olen = (u32)$len(old_data);
+            LESShunk *hk = &less_hunks[less_nhunks];
+            memset(hk, 0, sizeof(*hk));
+            char hdr[512];
+            int tlen = CAPOFormatTitle(hdr, sizeof(hdr), dispname, "");
+            if (tlen > 0) {
+                u8p tp = LESSArenaWrite(hdr, (size_t)tlen);
+                if (tp) { hk->title[0] = tp; hk->title[1] = tp + tlen; }
             }
-            LESSRun(less_hunks, less_nhunks);
-            LESSArenaCleanup();
-        } else {
-            fprintf(stdout, "\033[%dm--- %.*s ---\033[0m\n",
-                    DARK_RED, (int)$len(name), (char *)name[0]);
+            u8p txp = LESSArenaWrite(old_data[0], olen);
+            if (txp) { hk->text[0] = txp; hk->text[1] = txp + olen; }
+            u8p lp = LESSArenaAlloc(olen);
+            if (lp) {
+                CAPOBuildLits(lp, old_data[0], olen, old_ts);
+                CAPOMarkLits(lp, 0, olen, LESS_DEL);
+                hk->lits[0] = lp; hk->lits[1] = lp + olen;
+            }
+            less_nhunks++;
         }
+        JOINFree(&old_f);
+        LESSRun(less_hunks, less_nhunks);
+        LESSArenaCleanup();
         if (map_old) FILEUnMap(map_old);
         done;
     }
@@ -2042,44 +1832,30 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name) {
         if (o != OK) {
             JOINFree(&new_f);
             if (map_new) FILEUnMap(map_new);
-            if (diff_use_less) LESSArenaCleanup();
+            LESSArenaCleanup();
             return o;
         }
         CAPOJoinToks(new_ts, &new_f);
-        if (diff_use_less) {
-            u32 nlen = (u32)$len(new_data);
-            LESShunk *hk = &less_hunks[less_nhunks];
-            memset(hk, 0, sizeof(*hk));
-            // Title
-            char hdr[512];
-            int tlen = snprintf(hdr, sizeof(hdr), "+++ %.*s ---",
-                                (int)$len(name), (char *)name[0]);
-            if (tlen > 0) {
-                u8p tp = LESSArenaWrite(hdr, (size_t)tlen);
-                if (tp) { hk->title[0] = tp; hk->title[1] = tp + tlen; }
-            }
-            // Text: copy new into arena
-            u8p txp = LESSArenaWrite(new_data[0], nlen);
-            if (txp) { hk->text[0] = txp; hk->text[1] = txp + nlen; }
-            // Lits: build from tokens + mark all INS
-            u8p lp = LESSArenaAlloc(nlen);
-            if (lp) {
-                CAPOBuildLits(lp, new_data[0], nlen, new_ts);
-                CAPOMarkLits(lp, 0, nlen, LESS_INS);
-                hk->lits[0] = lp; hk->lits[1] = lp + nlen;
-            }
-            less_nhunks++;
-            LESSRun(less_hunks, less_nhunks);
-            LESSArenaCleanup();
-        } else {
-            fprintf(stdout, "\033[%dm+++ %.*s ---\033[0m\n",
-                    DARK_GREEN, (int)$len(name), (char *)name[0]);
-            u64 ntoks = u32bDataLen(new_f.toks);
-            for (u64 i = 0; i < ntoks; i++)
-                CAPOEmitHili(new_ts, new_f.data[0], (int)i,
-                             TOK_TAG(new_ts[0][i]), 0);
-            fputc('\n', stdout);
+        u32 nlen2 = (u32)$len(new_data);
+        LESShunk *hk = &less_hunks[less_nhunks];
+        memset(hk, 0, sizeof(*hk));
+        char hdr[512];
+        int tlen = snprintf(hdr, sizeof(hdr), "+++ %s ---", dispname);
+        if (tlen > 0) {
+            u8p tp = LESSArenaWrite(hdr, (size_t)tlen);
+            if (tp) { hk->title[0] = tp; hk->title[1] = tp + tlen; }
         }
+        u8p txp = LESSArenaWrite(new_data[0], nlen2);
+        if (txp) { hk->text[0] = txp; hk->text[1] = txp + nlen2; }
+        u8p lp = LESSArenaAlloc(nlen2);
+        if (lp) {
+            CAPOBuildLits(lp, new_data[0], nlen2, new_ts);
+            CAPOMarkLits(lp, 0, nlen2, LESS_INS);
+            hk->lits[0] = lp; hk->lits[1] = lp + nlen2;
+        }
+        less_nhunks++;
+        LESSRun(less_hunks, less_nhunks);
+        LESSArenaCleanup();
         JOINFree(&new_f);
         if (map_new) FILEUnMap(map_new);
         done;
@@ -2123,12 +1899,7 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name) {
         // Lossless shift: align edit boundaries on line breaks
         NEILShift(edl, old_ts, new_ts, old_data, new_data);
 
-        // Build display name for hunk headers
-        char dispname[FILE_PATH_MAX_LEN];
-        size_t dlen = (size_t)$len(name);
-        if (dlen >= sizeof(dispname)) dlen = sizeof(dispname) - 1;
-        memcpy(dispname, name[0], dlen);
-        dispname[dlen] = 0;
+        // dispname built above, before deleted/new branches
 
         // Walk EDL, emit colored output with context trimming.
         // Build u32 visible-line intervals, then emit per-token.
@@ -2199,9 +1970,8 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name) {
             nvis = m;
         }
 
-        // Phase 2: walk EDL, build LESS hunks or emit directly.
-
-        // For LESS mode: allocate combined text+lits buffers.
+        // Phase 2: walk EDL, build LESS hunks.
+        // Allocate combined text+lits buffers in arena.
         // Worst case: all old bytes (DEL) + all new bytes (INS).
         u32 old_len = (u32)$len(old_data);
         u32 new_len = (u32)$len(new_data);
@@ -2210,12 +1980,10 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name) {
         u8p dtxp = NULL, dltp = NULL;  // cursors
         LESShunk *cur_hunk = NULL;
 
-        if (diff_use_less && arena_need > 0) {
+        if (arena_need > 0) {
             diff_text = LESSArenaAlloc(arena_need);
             diff_lits = LESSArenaAlloc(arena_need);
-            if (diff_text == NULL || diff_lits == NULL)
-                diff_use_less = NO;
-            else {
+            if (diff_text != NULL && diff_lits != NULL) {
                 dtxp = diff_text;
                 dltp = diff_lits;
             }
@@ -2246,8 +2014,8 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name) {
                 CAPOFindFunc(new_data, (boff), ext,             \
                              _funcname, sizeof(_funcname));      \
                 char _hdr[512];                                 \
-                int _tl = snprintf(_hdr, sizeof(_hdr),          \
-                    "--- %s :: %s ---", dispname, _funcname);   \
+                int _tl = CAPOFormatTitle(_hdr, sizeof(_hdr),   \
+                    dispname, _funcname);                       \
                 if (_tl > 0) {                                  \
                     u8p _tp = LESSArenaWrite(_hdr, (size_t)_tl);\
                     if (_tp) {                                  \
@@ -2276,8 +2044,7 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name) {
 
         u64 oi = 0, ni = 0;
         u32 cur_line = 0, cur_iv = 0;
-        b8 in_gap = YES, first_hunk = YES;
-        char prev_func[256] = {};
+        b8 in_gap = YES;
 
         for (u32 k = 0; k < nedl; ) {
             e32 e = edl[2][k];
@@ -2294,25 +2061,11 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name) {
                     if (show) {
                         if (in_gap) {
                             u32 boff = (ni > 0) ? TOK_OFF(new_ts[0][ni-1]) : 0;
-                            if (diff_use_less) {
-                                DIFF_START_HUNK(boff);
-                                DIFF_COPY_LINE_PREFIX(boff);
-                            } else {
-                                if (!first_hunk) fputc('\n', stdout);
-                                CAPOEmitHunkHeader(new_data, boff, ext,
-                                                   &first_hunk, dispname, prev_func);
-                                u32 ls = boff;
-                                while (ls > 0 && new_data[0][ls-1] != '\n') ls--;
-                                if (ls < boff)
-                                    fwrite(new_data[0] + ls, 1, boff - ls, stdout);
-                            }
+                            DIFF_START_HUNK(boff);
+                            DIFF_COPY_LINE_PREFIX(boff);
                             in_gap = NO;
                         }
-                        if (diff_use_less)
-                            DIFF_COPY_TOK(new_ts, new_f.data[0], ni, 0);
-                        else
-                            CAPOEmitHili(new_ts, new_f.data[0], (int)ni,
-                                         TOK_TAG(new_ts[0][ni]), 0);
+                        DIFF_COPY_TOK(new_ts, new_f.data[0], ni, 0);
                     } else {
                         in_gap = YES;
                     }
@@ -2364,26 +2117,11 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name) {
                                 u64 ti = ni + j;
                                 u32 boff = (ti > 0)
                                     ? TOK_OFF(new_ts[0][ti-1]) : 0;
-                                if (diff_use_less) {
-                                    DIFF_START_HUNK(boff);
-                                    DIFF_COPY_LINE_PREFIX(boff);
-                                } else {
-                                    if (!first_hunk) fputc('\n', stdout);
-                                    CAPOEmitHunkHeader(new_data, boff, ext,
-                                        &first_hunk, dispname, prev_func);
-                                    u32 ls = boff;
-                                    while (ls > 0 && new_data[0][ls-1] != '\n') ls--;
-                                    if (ls < boff)
-                                        fwrite(new_data[0] + ls, 1, boff - ls, stdout);
-                                }
+                                DIFF_START_HUNK(boff);
+                                DIFF_COPY_LINE_PREFIX(boff);
                                 in_gap = NO;
                             }
-                            if (diff_use_less)
-                                DIFF_COPY_TOK(new_ts, new_f.data[0], ni + j, 0);
-                            else
-                                CAPOEmitHili(new_ts, new_f.data[0],
-                                             (int)(ni + j),
-                                             TOK_TAG(new_ts[0][ni + j]), 0);
+                            DIFF_COPY_TOK(new_ts, new_f.data[0], ni + j, 0);
                         } else {
                             in_gap = YES;
                         }
@@ -2453,27 +2191,11 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name) {
                             u64 ti = base_ni + j;
                             u32 boff = (ti > 0)
                                 ? TOK_OFF(new_ts[0][ti-1]) : 0;
-                            if (diff_use_less) {
-                                DIFF_START_HUNK(boff);
-                                DIFF_COPY_LINE_PREFIX(boff);
-                            } else {
-                                if (!first_hunk) fputc('\n', stdout);
-                                CAPOEmitHunkHeader(new_data, boff, ext,
-                                                   &first_hunk, dispname, prev_func);
-                                u32 ls = boff;
-                                while (ls > 0 && new_data[0][ls-1] != '\n') ls--;
-                                if (ls < boff)
-                                    fwrite(new_data[0] + ls, 1, boff - ls, stdout);
-                            }
+                            DIFF_START_HUNK(boff);
+                            DIFF_COPY_LINE_PREFIX(boff);
                             in_gap = NO;
                         }
-                        if (diff_use_less)
-                            DIFF_COPY_TOK(new_ts, new_f.data[0], base_ni + j, 0);
-                        else
-                            CAPOEmitHili(new_ts, new_f.data[0],
-                                         (int)(base_ni + j),
-                                         TOK_TAG(new_ts[0][base_ni + j]),
-                                         0);
+                        DIFF_COPY_TOK(new_ts, new_f.data[0], base_ni + j, 0);
                     } else {
                         in_gap = YES;
                     }
@@ -2487,13 +2209,7 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name) {
                 if (in_gap) {
                     u32 boff = (base_ni > 0)
                         ? TOK_OFF(new_ts[0][base_ni-1]) : 0;
-                    if (diff_use_less) {
-                        DIFF_START_HUNK(boff);
-                    } else {
-                        if (!first_hunk) fputc('\n', stdout);
-                        CAPOEmitHunkHeader(new_data, boff, ext,
-                                           &first_hunk, dispname, prev_func);
-                    }
+                    DIFF_START_HUNK(boff);
                     in_gap = NO;
                 }
 
@@ -2506,14 +2222,8 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name) {
                             u32 pos = (u32)(toi - base_oi);
                             if (pos >= prefix &&
                                 pos < del_total - suffix) {
-                                if (diff_use_less)
-                                    DIFF_COPY_TOK(old_ts, old_f.data[0],
-                                                  toi, LESS_DEL);
-                                else
-                                    CAPOEmitHili(old_ts, old_f.data[0],
-                                             (int)toi,
-                                             TOK_TAG(old_ts[0][toi]),
-                                             CAPO_COLOR ? 217 : 0);
+                                DIFF_COPY_TOK(old_ts, old_f.data[0],
+                                              toi, LESS_DEL);
                             }
                             toi++;
                         }
@@ -2537,22 +2247,14 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name) {
                         u32 ls = ins_boff;
                         while (ls > 0 && new_data[0][ls - 1] != '\n')
                             ls--;
-                        if (diff_use_less) {
-                            *dtxp++ = '\n';
-                            *dltp++ = LESS_DEL;
-                            // Copy indentation
-                            if (ls < ins_boff) {
-                                u32 pn = ins_boff - ls;
-                                memcpy(dtxp, new_data[0] + ls, pn);
-                                memset(dltp, LESS_INS, pn);
-                                dtxp += pn;
-                                dltp += pn;
-                            }
-                        } else {
-                            fputc('\n', stdout);
-                            if (ls < ins_boff)
-                                fwrite(new_data[0] + ls, 1,
-                                       ins_boff - ls, stdout);
+                        *dtxp++ = '\n';
+                        *dltp++ = LESS_DEL;
+                        if (ls < ins_boff) {
+                            u32 pn = ins_boff - ls;
+                            memcpy(dtxp, new_data[0] + ls, pn);
+                            memset(dltp, LESS_INS, pn);
+                            dtxp += pn;
+                            dltp += pn;
                         }
                     }
                 }
@@ -2566,15 +2268,8 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name) {
                             u32 pos = (u32)(tni - base_ni);
                             if (pos >= prefix &&
                                 pos < ins_total - suffix) {
-                                if (diff_use_less) {
-                                    DIFF_COPY_TOK(new_ts, new_f.data[0],
-                                                  tni, LESS_INS);
-                                } else {
-                                    CAPOEmitHili(new_ts, new_f.data[0],
-                                             (int)tni,
-                                             TOK_TAG(new_ts[0][tni]),
-                                             CAPO_COLOR ? 157 : 0);
-                                }
+                                DIFF_COPY_TOK(new_ts, new_f.data[0],
+                                              tni, LESS_INS);
                                 u8cs v = {};
                                 TOK_VAL(v, new_ts, new_f.data[0],
                                         (int)tni);
@@ -2597,12 +2292,7 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name) {
                          cur_line >= vis[cur_iv * 2] &&
                          cur_line <= vis[cur_iv * 2 + 1]);
                     if (show) {
-                        if (diff_use_less)
-                            DIFF_COPY_TOK(new_ts, new_f.data[0], sn, 0);
-                        else
-                            CAPOEmitHili(new_ts, new_f.data[0],
-                                         (int)sn, TOK_TAG(new_ts[0][sn]),
-                                         0);
+                        DIFF_COPY_TOK(new_ts, new_f.data[0], sn, 0);
                     } else {
                         in_gap = YES;
                     }
@@ -2619,7 +2309,7 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name) {
         }
 
         // Finalize last LESS hunk
-        if (diff_use_less && cur_hunk != NULL) {
+        if (cur_hunk != NULL) {
             cur_hunk->text[1] = dtxp;
             cur_hunk->lits[1] = dltp;
         }
@@ -2629,21 +2319,12 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name) {
         #undef DIFF_COPY_LINE_PREFIX
 
         if (vis != NULL) free(vis);
-
-        if (!diff_use_less) {
-            // Trailing newline
-            fputc('\n', stdout);
-        }
-
         u8bFree(mem);
     }
 
-    // Run LESS pager
-    if (diff_use_less && less_nhunks > 0)
+    if (less_nhunks > 0)
         LESSRun(less_hunks, less_nhunks);
-
-    if (diff_use_less)
-        LESSArenaCleanup();
+    LESSArenaCleanup();
 
 diff_cleanup:
     JOINFree(&old_f);
@@ -2730,9 +2411,8 @@ ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot,
             qsort(hashbuf1, nhashes, sizeof(u32), CAPOu32cmp);
     }
 
-    b8 spot_use_less = $empty(replace) && CAPO_COLOR && isatty(STDOUT_FILENO);
-    if (spot_use_less) {
-        if (LESSArenaInit() != OK) spot_use_less = NO;
+    if ($empty(replace)) {
+        call(LESSArenaInit);
     }
 
     FILE *fp = NULL;
@@ -2873,7 +2553,6 @@ ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot,
                 b8 found_any = NO;
                 b8 first_hunk = YES;
                 u32 prev_ctx_hi = 0;
-                char prev_func[256] = {};
                 b8 have_pending = NO;
                 range32 pending = {};
                 for (;;) {
@@ -2919,38 +2598,35 @@ ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot,
 
                     b8 contiguous = (ctx_lo <= prev_ctx_hi);
                     if (ctx_lo < prev_ctx_hi) ctx_lo = prev_ctx_hi;
-                    if (ctx_lo < ctx_hi) {
-                        if (spot_use_less &&
-                            less_nhunks < LESS_MAX_HUNKS) {
-                            LESShunk *hk = &less_hunks[less_nhunks];
-                            memset(hk, 0, sizeof(*hk));
+                    if (ctx_lo < ctx_hi &&
+                        less_nhunks < LESS_MAX_HUNKS) {
+                        LESShunk *hk = &less_hunks[less_nhunks];
+                        memset(hk, 0, sizeof(*hk));
 
-                            // Title
-                            if (!contiguous || first_hunk) {
-                                char funcname[256];
-                                CAPOFindFunc(source, ctx_lo, file_ext,
-                                             funcname, sizeof(funcname));
-                                char hdr[512];
-                                int tlen = snprintf(hdr, sizeof(hdr),
-                                    "--- %s :: %s ---", line, funcname);
-                                if (tlen > 0) {
-                                    u8p tp = LESSArenaWrite(hdr, (size_t)tlen);
-                                    if (tp != NULL) {
-                                        hk->title[0] = tp;
-                                        hk->title[1] = tp + tlen;
-                                    }
+                        // Title
+                        if (!contiguous || first_hunk) {
+                            char funcname[256];
+                            CAPOFindFunc(source, ctx_lo, file_ext,
+                                         funcname, sizeof(funcname));
+                            char hdr[512];
+                            int tlen = CAPOFormatTitle(hdr, sizeof(hdr),
+                                                       line, funcname);
+                            if (tlen > 0) {
+                                u8p tp = LESSArenaWrite(hdr, (size_t)tlen);
+                                if (tp != NULL) {
+                                    hk->title[0] = tp;
+                                    hk->title[1] = tp + tlen;
                                 }
                             }
+                        }
 
-                            // Text: point into mmaped source
-                            hk->text[0] = source[0] + ctx_lo;
-                            hk->text[1] = source[0] + ctx_hi;
+                        hk->text[0] = source[0] + ctx_lo;
+                        hk->text[1] = source[0] + ctx_hi;
+                        hk->toks[0] = htoks[0];
+                        hk->toks[1] = htoks[1];
 
-                            // Toks
-                            hk->toks[0] = htoks[0];
-                            hk->toks[1] = htoks[1];
-
-                            // Lits: build into arena
+                        // Lits
+                        if (CAPO_COLOR) {
                             u32 region_len = ctx_hi - ctx_lo;
                             u8p lp = LESSArenaAlloc(region_len);
                             if (lp != NULL) {
@@ -2973,29 +2649,20 @@ ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot,
                                 hk->lits[0] = lp;
                                 hk->lits[1] = lp + region_len;
                             }
-
-                            less_nhunks++;
-                            first_hunk = NO;
-                        } else {
-                            if (!contiguous || first_hunk)
-                                CAPOEmitHunkHeader(source, ctx_lo, file_ext,
-                                                   &first_hunk, line, prev_func);
-                            CAPOEmitHiliRange(htoks, source[0], ctx_lo,
-                                              ctx_hi, hls, nhl, 157);
-                            if (ctx_hi > 0 && source[0][ctx_hi - 1] != '\n')
-                                fputc('\n', stdout);
                         }
+
+                        less_nhunks++;
+                        first_hunk = NO;
                     }
                     prev_ctx_hi = ctx_hi;
                 }
-                if (!spot_use_less && found_any) fputc('\n', stdout);
             }
         }
 
         capo_in_match = 0;
         signal(SIGABRT, SIG_DFL);
 
-        if (spot_use_less) {
+        if ($empty(replace)) {
             LESSDefer(mapped, toks);
         } else {
             u32bUnMap(toks);
@@ -3005,9 +2672,9 @@ ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot,
     if (fp != NULL) pclose(fp);
     CAPOProgress(NULL);
 
-    if (spot_use_less && less_nhunks > 0)
+    if ($empty(replace) && less_nhunks > 0)
         LESSRun(less_hunks, less_nhunks);
-    if (spot_use_less)
+    if ($empty(replace))
         LESSArenaCleanup();
 
     if (!$empty(replace)) {

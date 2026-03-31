@@ -16,7 +16,7 @@ add_test(NAME SPOTreTest COMMAND SPOTreTest)
 add_test(NAME SPOTcli_slice_init
     COMMAND bash -c "$<TARGET_FILE:spot-cli> -s 'T n = {a[0],a[1]};' \
         spot/test/data/slice_init.c 2>/dev/null \
-        | diff -u ${CMAKE_CURRENT_SOURCE_DIR}/data/slice_init.spot -"
+        | diff -u spot/test/data/slice_init.spot -"
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
 add_test(NAME SPOTcli_diff_artifact

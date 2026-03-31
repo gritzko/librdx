@@ -13,6 +13,11 @@
 #include "abc/TTY.h"
 #include "tok/TOK.h"
 
+extern b8 CAPO_COLOR;
+
+// 256-color ink violet for hunk titles
+#define LESS_TITLE_COLOR "\033[38;5;56m"
+
 // Tag-index-to-ANSI-color mapping.
 // lits stores tag - 'A' (0-25), so add 'A' back to recover the character.
 // Returns fg color in lower bits; sets *bold = YES for definitions.
@@ -230,8 +235,7 @@ static void LESSRender(LESSstate *st) {
         LESShunk const *hk = &st->hunks[ln->hunk];
 
         if (ln->off == LESS_TITLE_LINE) {
-            // Title separator: dim gray, like the non-pager path
-            less_puts(TTY_BRIGHT_BLACK);
+            less_puts(LESS_TITLE_COLOR);
             u32 tlen = (u32)$len(hk->title);
             u32 w = tlen < st->cols ? tlen : st->cols;
             less_write((char const *)hk->title[0], w);
@@ -384,9 +388,14 @@ static void LESSReadSearch(LESSstate *st) {
 static ok64 LESSPlain(LESShunk const *hunks, u32 nhunks) {
     sane(hunks != NULL);
     for (u32 h = 0; h < nhunks; h++) {
-        if (!$empty(hunks[h].title))
-            fprintf(stdout, "%.*s\n",
-                    (int)$len(hunks[h].title), (char *)hunks[h].title[0]);
+        if (!$empty(hunks[h].title)) {
+            if (CAPO_COLOR)
+                fprintf(stdout, LESS_TITLE_COLOR "%.*s" TTY_RESET "\n",
+                        (int)$len(hunks[h].title), (char *)hunks[h].title[0]);
+            else
+                fprintf(stdout, "%.*s\n",
+                        (int)$len(hunks[h].title), (char *)hunks[h].title[0]);
+        }
         if (!$empty(hunks[h].text)) {
             u8cp text = hunks[h].text[0];
             u8cp lits = $empty(hunks[h].lits) ? NULL : hunks[h].lits[0];
@@ -437,6 +446,9 @@ static ok64 LESSPlain(LESShunk const *hunks, u32 nhunks) {
                 fputs(TTY_RESET, stdout);
             // Trailing newline if text doesn't end with one
             if (tlen > 0 && text[tlen - 1] != '\n')
+                fputc('\n', stdout);
+            // Blank line between titled sections
+            if (h + 1 >= nhunks || !$empty(hunks[h + 1].title))
                 fputc('\n', stdout);
         }
     }
