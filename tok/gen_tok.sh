@@ -67,7 +67,7 @@ cat << CBEOF
 
 ok64 ${PREFIX}onComment(u8cs tok, ${PREFIX}state *state) {
     sane(\$ok(tok) && state != NULL);
-    if (state->cb) return state->cb('D', tok, state->ctx);
+    if (state->cb) return TOKSplitText('D', tok, state->cb, state->ctx);
     done;
 }
 

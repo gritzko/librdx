@@ -21,7 +21,7 @@ static b8 TOMLTIsKeyword(u8cs tok) {
 
 ok64 TOMLTonComment(u8cs tok, TOMLTstate *state) {
     sane($ok(tok) && state != NULL);
-    if (state->cb) return state->cb('D', tok, state->ctx);
+    if (state->cb) return TOKSplitText('D', tok, state->cb, state->ctx);
     done;
 }
 

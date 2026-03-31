@@ -77,7 +77,7 @@ static b8 VERTIsKeyword(u8cs tok) {
 
 ok64 VERTonComment(u8cs tok, VERTstate *state) {
     sane($ok(tok) && state != NULL);
-    if (state->cb) return state->cb('D', tok, state->ctx);
+    if (state->cb) return TOKSplitText('D', tok, state->cb, state->ctx);
     done;
 }
 

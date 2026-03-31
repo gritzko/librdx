@@ -36,7 +36,7 @@ static b8 JATIsKeyword(u8cs tok) {
 
 ok64 JATonComment(u8cs tok, JATstate *state) {
     sane($ok(tok) && state != NULL);
-    if (state->cb) return state->cb('D', tok, state->ctx);
+    if (state->cb) return TOKSplitText('D', tok, state->cb, state->ctx);
     done;
 }
 

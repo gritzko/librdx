@@ -28,7 +28,7 @@ static b8 RSTIsKeyword(u8cs tok) {
 
 ok64 RSTonComment(u8cs tok, RSTstate *state) {
     sane($ok(tok) && state != NULL);
-    if (state->cb) return state->cb('D', tok, state->ctx);
+    if (state->cb) return TOKSplitText('D', tok, state->cb, state->ctx);
     done;
 }
 

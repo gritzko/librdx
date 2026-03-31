@@ -28,7 +28,7 @@ static b8 HCLTIsKeyword(u8cs tok) {
 
 ok64 HCLTonComment(u8cs tok, HCLTstate *state) {
     sane($ok(tok) && state != NULL);
-    if (state->cb) return state->cb('D', tok, state->ctx);
+    if (state->cb) return TOKSplitText('D', tok, state->cb, state->ctx);
     done;
 }
 

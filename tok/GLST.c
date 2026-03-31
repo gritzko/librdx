@@ -37,7 +37,7 @@ static b8 GLSTIsKeyword(u8cs tok) {
 
 ok64 GLSTonComment(u8cs tok, GLSTstate *state) {
     sane($ok(tok) && state != NULL);
-    if (state->cb) return state->cb('D', tok, state->ctx);
+    if (state->cb) return TOKSplitText('D', tok, state->cb, state->ctx);
     done;
 }
 

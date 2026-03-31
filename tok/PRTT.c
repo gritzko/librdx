@@ -30,7 +30,7 @@ static b8 PRTTIsKeyword(u8cs tok) {
 
 ok64 PRTTonComment(u8cs tok, PRTTstate *state) {
     sane($ok(tok) && state != NULL);
-    if (state->cb) return state->cb('D', tok, state->ctx);
+    if (state->cb) return TOKSplitText('D', tok, state->cb, state->ctx);
     done;
 }
 

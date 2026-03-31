@@ -4,7 +4,7 @@
 
 ok64 HTMTonComment(u8cs tok, HTMTstate *state) {
     sane($ok(tok) && state != NULL);
-    if (state->cb) return state->cb('D', tok, state->ctx);
+    if (state->cb) return TOKSplitText('D', tok, state->cb, state->ctx);
     done;
 }
 

@@ -23,7 +23,7 @@ static b8 YMLTIsKeyword(u8cs tok) {
 
 ok64 YMLTonComment(u8cs tok, YMLTstate *state) {
     sane($ok(tok) && state != NULL);
-    if (state->cb) return state->cb('D', tok, state->ctx);
+    if (state->cb) return TOKSplitText('D', tok, state->cb, state->ctx);
     done;
 }
 
