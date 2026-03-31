@@ -42,7 +42,7 @@ static b8 CPPTIsKeyword(u8cs tok) {
 
 ok64 CPPTonComment(u8cs tok, CPPTstate *state) {
     sane($ok(tok) && state != NULL);
-    if (state->cb) return state->cb('D', tok, state->ctx);
+    if (state->cb) return TOKSplitText('D', tok, state->cb, state->ctx);
     done;
 }
 

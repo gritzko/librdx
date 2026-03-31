@@ -163,14 +163,13 @@ Post-commit hook (incremental reindex):
 
 ## How it works
 
-**Indexing**: Source files are tokenized based on the file extension, 
-trigrams are packed into index arrays in `.git/spot/*.idx`.
+**Indexing**: Source files are tokenized based on the file extension.
+Trigram and symbol indexes are put into `.git/spot/*.idx` files.
 `--fork N` stripes files across N workers.
 
-**SPOT mode**: extracts trigrams from the needle text, seeks each in the
-MSET index, intersects path hash sets to narrow candidates, then
-tokenizes each candidate file and runs flat token pattern matching
-(SPOT) to find structural matches. Shows syntax-highlighted context
+**SPOT mode**: extracts trigrams from the needle text, seeks each in
+the index.  Then each candidate file is tokenized and matched with
+flat token pattern matching (SPOT). Shows syntax-highlighted context
 with function headers.
 
 **Grep mode**: same trigram filtering, but walks all token leaves
@@ -178,9 +177,10 @@ including comments and does plain substring matching. Shows
 syntax-highlighted context around each hit (default 3 lines,
 adjustable with `-C`) with function headers.
 
-**Diff** and **merge**: tokenizes both files, runs LCS-based diff on the token
-streams, outputs syntax-highlighted results with function headers at
-hunk boundaries. Merge extends this to three-way with conflict markers.
+**Diff** and **merge**: tokenizes both files, runs LCS-based diff on
+the token streams, outputs syntax-highlighted results with function
+headers at hunk boundaries. Merge extends this to three-way with
+conflict markers.
 
 
 ##  Credits

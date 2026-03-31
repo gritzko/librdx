@@ -32,6 +32,11 @@ fun void tok32Val(u8cs out, tok32cs toks, u8cp base, int i) {
 
 typedef ok64 (*TOKcb)(u8 tag, u8cs tok, void *ctx);
 
+// Split a text slice into word/space/punct sub-tokens,
+// emitting each via cb with the given tag.  Reusable for
+// comments, strings, or any blob that needs finer grain.
+ok64 TOKSplitText(u8 tag, u8cs text, TOKcb cb, void *ctx);
+
 typedef struct {
     u8cs data;
     TOKcb cb;

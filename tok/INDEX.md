@@ -8,7 +8,7 @@ but without the tree-sitter dependency.
 
 | Header  | Purpose |
 |---------|---------|
-| TOK.h   | Common callback typedef `TOKcb`, dispatch API `TOKLexer()` |
+| TOK.h   | Common callback typedef `TOKcb`, dispatch API `TOKLexer()`, `TOKSplitText()` |
 | JOIN.h  | Token-level 3-way merge using packed u32 tokens and RAPHash |
 | BRCT.h  | Bracket matching and region detection on tokenized files |
 | DEF.h   | Mark symbol definitions (S→N) via enrichment + NFA patterns, see [DEF.md](DEF.md) |

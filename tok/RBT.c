@@ -30,7 +30,7 @@ static b8 RBTIsKeyword(u8cs tok) {
 
 ok64 RBTonComment(u8cs tok, RBTstate *state) {
     sane($ok(tok) && state != NULL);
-    if (state->cb) return state->cb('D', tok, state->ctx);
+    if (state->cb) return TOKSplitText('D', tok, state->cb, state->ctx);
     done;
 }
 

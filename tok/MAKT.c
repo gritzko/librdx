@@ -27,7 +27,7 @@ static b8 MAKTIsKeyword(u8cs tok) {
 
 ok64 MAKTonComment(u8cs tok, MAKTstate *state) {
     sane($ok(tok) && state != NULL);
-    if (state->cb) return state->cb('D', tok, state->ctx);
+    if (state->cb) return TOKSplitText('D', tok, state->cb, state->ctx);
     done;
 }
 

@@ -29,7 +29,7 @@ static b8 AGDTIsKeyword(u8cs tok) {
 
 ok64 AGDTonComment(u8cs tok, AGDTstate *state) {
     sane($ok(tok) && state != NULL);
-    if (state->cb) return state->cb('D', tok, state->ctx);
+    if (state->cb) return TOKSplitText('D', tok, state->cb, state->ctx);
     done;
 }
 

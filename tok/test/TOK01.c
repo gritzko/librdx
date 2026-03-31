@@ -125,8 +125,8 @@ ok64 CTBasicTest() {
         {"int x;", "RSSP"},
         {"if (x)", "RSPSP"},
         {"return 0;", "RSLP"},
-        {"// comment\n", "DS"},
-        {"/* block */", "D"},
+        {"// comment\n", "DDDDS"},
+        {"/* block */", "DDDDDDD"},
         {"\"hello\"", "G"},
         {"'c'", "G"},
         {"42", "L"},
@@ -159,7 +159,7 @@ ok64 CTBasicTest() {
         {"'\\xff'", "G"},
         {"\"esc\\t\\n\"", "G"},
         {"#define FOO \\\nbar", "HSSSPSS"},
-        {"// end", "D"},
+        {"// end", "DDDD"},
         {"a->b", "SPS"},
         {"a++", "SP"},
         {"x <<= 1", "SSPSL"},
@@ -245,8 +245,8 @@ ok64 GOTBasicTest() {
     TOK01Case cases[] = {
         {"func main() {", "RSSPPSP"},
         {"var x int", "RSSSS"},
-        {"// comment\n", "DS"},
-        {"/* block */", "D"},
+        {"// comment\n", "DDDDS"},
+        {"/* block */", "DDDDDDD"},
         {"\"hello\"", "G"},
         {"42", "L"},
         {"0xFF", "L"},
@@ -269,7 +269,7 @@ ok64 PYTBasicTest() {
     sane(1);
     TOK01Case cases[] = {
         {"def foo():", "RSSPPP"},
-        {"# comment\n", "DS"},
+        {"# comment\n", "DDDS"},
         {"\"hello\"", "G"},
         {"'hello'", "G"},
         {"42", "L"},
@@ -292,8 +292,8 @@ ok64 JSTBasicTest() {
     sane(1);
     TOK01Case cases[] = {
         {"function foo() {", "RSSPPSP"},
-        {"// comment\n", "DS"},
-        {"/* block */", "D"},
+        {"// comment\n", "DDDDS"},
+        {"/* block */", "DDDDDDD"},
         {"\"hello\"", "G"},
         {"'hello'", "G"},
         {"42", "L"},
@@ -314,8 +314,8 @@ ok64 RSTBasicTest() {
     sane(1);
     TOK01Case cases[] = {
         {"fn main() {", "RSSPPSP"},
-        {"// comment\n", "DS"},
-        {"/* block */", "D"},
+        {"// comment\n", "DDDDS"},
+        {"/* block */", "DDDDDDD"},
         {"\"hello\"", "G"},
         {"42", "L"},
         {"0xFF", "L"},
@@ -334,8 +334,8 @@ ok64 JATBasicTest() {
     sane(1);
     TOK01Case cases[] = {
         {"public class Foo {", "RSRSSSP"},
-        {"// comment\n", "DS"},
-        {"/* block */", "D"},
+        {"// comment\n", "DDDDS"},
+        {"/* block */", "DDDDDDD"},
         {"\"hello\"", "G"},
         {"'c'", "G"},
         {"42", "L"},
@@ -372,7 +372,7 @@ ok64 JSONTBasicTest() {
 ok64 SHTBasicTest() {
     sane(1);
     TOK01Case cases[] = {
-        {"# comment\n", "DS"},
+        {"# comment\n", "DDDS"},
         {"\"hello\"", "G"},
         {"'hello'", "G"},
         {"42", "L"},
@@ -389,7 +389,7 @@ ok64 SHTBasicTest() {
 ok64 HSTBasicTest() {
     sane(1);
     TOK01Case cases[] = {
-        {"-- comment\n", "DS"},
+        {"-- comment\n", "DDDDS"},
         {"\"hello\"", "G"},
         {"42", "L"},
         {"3.14", "L"},
@@ -406,7 +406,7 @@ ok64 HSTBasicTest() {
 ok64 MLTBasicTest() {
     sane(1);
     TOK01Case cases[] = {
-        {"(* comment *)", "D"},
+        {"(* comment *)", "DDDDDDD"},
         {"\"hello\"", "G"},
         {"42", "L"},
         {"3.14", "L"},
@@ -421,7 +421,7 @@ ok64 MLTBasicTest() {
 ok64 JLTBasicTest() {
     sane(1);
     TOK01Case cases[] = {
-        {"# comment\n", "DS"},
+        {"# comment\n", "DDDS"},
         {"\"hello\"", "G"},
         {"42", "L"},
         {"3.14", "L"},
@@ -436,8 +436,8 @@ ok64 JLTBasicTest() {
 ok64 TSTBasicTest() {
     sane(1);
     TOK01Case cases[] = {
-        {"// comment\n", "DS"},
-        {"/* block */", "D"},
+        {"// comment\n", "DDDDS"},
+        {"/* block */", "DDDDDDD"},
         {"\"hello\"", "G"},
         {"'hello'", "G"},
         {"42", "L"},
@@ -454,8 +454,8 @@ ok64 TSTBasicTest() {
 ok64 KTTBasicTest() {
     sane(1);
     TOK01Case cases[] = {
-        {"// comment\n", "DS"},
-        {"/* block */", "D"},
+        {"// comment\n", "DDDDS"},
+        {"/* block */", "DDDDDDD"},
         {"\"hello\"", "G"},
         {"42", "L"},
         {"fun val var", "RSRSR"},
@@ -469,8 +469,8 @@ ok64 KTTBasicTest() {
 ok64 SCLTBasicTest() {
     sane(1);
     TOK01Case cases[] = {
-        {"// comment\n", "DS"},
-        {"/* block */", "D"},
+        {"// comment\n", "DDDDS"},
+        {"/* block */", "DDDDDDD"},
         {"\"hello\"", "G"},
         {"42", "L"},
         {"def val var", "RSRSR"},
@@ -484,8 +484,8 @@ ok64 SCLTBasicTest() {
 ok64 SWFTBasicTest() {
     sane(1);
     TOK01Case cases[] = {
-        {"// comment\n", "DS"},
-        {"/* block */", "D"},
+        {"// comment\n", "DDDDS"},
+        {"/* block */", "DDDDDDD"},
         {"\"hello\"", "G"},
         {"42", "L"},
         {"func let var", "RSRSR"},
@@ -499,8 +499,8 @@ ok64 SWFTBasicTest() {
 ok64 DARTTBasicTest() {
     sane(1);
     TOK01Case cases[] = {
-        {"// comment\n", "DS"},
-        {"/* block */", "D"},
+        {"// comment\n", "DDDDS"},
+        {"/* block */", "DDDDDDD"},
         {"\"hello\"", "G"},
         {"'hello'", "G"},
         {"42", "L"},
@@ -515,7 +515,7 @@ ok64 DARTTBasicTest() {
 ok64 ZIGTBasicTest() {
     sane(1);
     TOK01Case cases[] = {
-        {"// comment\n", "DS"},
+        {"// comment\n", "DDDDS"},
         {"\"hello\"", "G"},
         {"42", "L"},
         {"const fn pub", "RSRSR"},
@@ -529,8 +529,8 @@ ok64 ZIGTBasicTest() {
 ok64 DTBasicTest() {
     sane(1);
     TOK01Case cases[] = {
-        {"// comment\n", "DS"},
-        {"/* block */", "D"},
+        {"// comment\n", "DDDDS"},
+        {"/* block */", "DDDDDDD"},
         {"\"hello\"", "G"},
         {"42", "L"},
         {"class void", "RSR"},
@@ -544,7 +544,7 @@ ok64 DTBasicTest() {
 ok64 LUATBasicTest() {
     sane(1);
     TOK01Case cases[] = {
-        {"-- comment\n", "DS"},
+        {"-- comment\n", "DDDDS"},
         {"\"hello\"", "G"},
         {"'hello'", "G"},
         {"42", "L"},
@@ -560,7 +560,7 @@ ok64 LUATBasicTest() {
 ok64 PRLTBasicTest() {
     sane(1);
     TOK01Case cases[] = {
-        {"# comment\n", "DS"},
+        {"# comment\n", "DDDS"},
         {"\"hello\"", "G"},
         {"'hello'", "G"},
         {"42", "L"},
@@ -575,7 +575,7 @@ ok64 PRLTBasicTest() {
 ok64 RTBasicTest() {
     sane(1);
     TOK01Case cases[] = {
-        {"# comment\n", "DS"},
+        {"# comment\n", "DDDS"},
         {"\"hello\"", "G"},
         {"'hello'", "G"},
         {"42", "L"},
@@ -590,7 +590,7 @@ ok64 RTBasicTest() {
 ok64 ELXTBasicTest() {
     sane(1);
     TOK01Case cases[] = {
-        {"# comment\n", "DS"},
+        {"# comment\n", "DDDS"},
         {"\"hello\"", "G"},
         {"'hello'", "G"},
         {"42", "L"},
@@ -604,7 +604,7 @@ ok64 ELXTBasicTest() {
 ok64 ERLTBasicTest() {
     sane(1);
     TOK01Case cases[] = {
-        {"% comment\n", "DS"},
+        {"% comment\n", "DDDS"},
         {"\"hello\"", "G"},
         {"42", "L"},
         {"3.14", "L"},
@@ -617,7 +617,7 @@ ok64 ERLTBasicTest() {
 ok64 NIMTBasicTest() {
     sane(1);
     TOK01Case cases[] = {
-        {"# comment\n", "DS"},
+        {"# comment\n", "DDDS"},
         {"\"hello\"", "G"},
         {"42", "L"},
         {"proc var let", "RSRSR"},
@@ -631,7 +631,7 @@ ok64 NIMTBasicTest() {
 ok64 NIXTBasicTest() {
     sane(1);
     TOK01Case cases[] = {
-        {"# comment\n", "DS"},
+        {"# comment\n", "DDDS"},
         {"\"hello\"", "G"},
         {"42", "L"},
         {"let in", "RSR"},
@@ -645,7 +645,7 @@ ok64 NIXTBasicTest() {
 ok64 YMLTBasicTest() {
     sane(1);
     TOK01Case cases[] = {
-        {"# comment\n", "DS"},
+        {"# comment\n", "DDDS"},
         {"\"hello\"", "G"},
         {"'hello'", "G"},
         {"42", "L"},
@@ -663,7 +663,7 @@ ok64 YMLTBasicTest() {
 ok64 TOMLTBasicTest() {
     sane(1);
     TOK01Case cases[] = {
-        {"# comment\n", "DS"},
+        {"# comment\n", "DDDS"},
         {"\"hello\"", "G"},
         {"'hello'", "G"},
         {"42", "L"},
@@ -680,7 +680,7 @@ ok64 TOMLTBasicTest() {
 ok64 SQLTBasicTest() {
     sane(1);
     TOK01Case cases[] = {
-        {"-- comment\n", "DS"},
+        {"-- comment\n", "DDDDS"},
         {"'hello'", "G"},
         {"42", "L"},
         {"SELECT FROM WHERE", "RSRSR"},
@@ -693,7 +693,7 @@ ok64 SQLTBasicTest() {
 ok64 GQLTBasicTest() {
     sane(1);
     TOK01Case cases[] = {
-        {"# comment\n", "DS"},
+        {"# comment\n", "DDDS"},
         {"\"hello\"", "G"},
         {"42", "L"},
         {"{}", "PP"},
@@ -706,8 +706,8 @@ ok64 GQLTBasicTest() {
 ok64 PRTTBasicTest() {
     sane(1);
     TOK01Case cases[] = {
-        {"// comment\n", "DS"},
-        {"/* block */", "D"},
+        {"// comment\n", "DDDDS"},
+        {"/* block */", "DDDDDDD"},
         {"\"hello\"", "G"},
         {"42", "L"},
         {"message enum", "RSR"},
@@ -720,9 +720,9 @@ ok64 PRTTBasicTest() {
 ok64 HCLTBasicTest() {
     sane(1);
     TOK01Case cases[] = {
-        {"# comment\n", "DS"},
-        {"// comment\n", "DS"},
-        {"/* block */", "D"},
+        {"# comment\n", "DDDS"},
+        {"// comment\n", "DDDDS"},
+        {"/* block */", "DDDDDDD"},
         {"\"hello\"", "G"},
         {"42", "L"},
         {"{}", "PP"},
@@ -736,8 +736,8 @@ ok64 HCLTBasicTest() {
 ok64 SCSSTBasicTest() {
     sane(1);
     TOK01Case cases[] = {
-        {"// comment\n", "DS"},
-        {"/* block */", "D"},
+        {"// comment\n", "DDDDS"},
+        {"/* block */", "DDDDDDD"},
         {"\"hello\"", "G"},
         {"'hello'", "G"},
         {"42", "L"},
@@ -751,7 +751,7 @@ ok64 SCSSTBasicTest() {
 ok64 LAXTBasicTest() {
     sane(1);
     TOK01Case cases[] = {
-        {"% comment\n", "DS"},
+        {"% comment\n", "DDDS"},
         {"{}", "PP"},
     };
     int ncases = sizeof(cases) / sizeof(cases[0]);
@@ -762,7 +762,7 @@ ok64 LAXTBasicTest() {
 ok64 CLJTBasicTest() {
     sane(1);
     TOK01Case cases[] = {
-        {"; comment\n", "DS"},
+        {"; comment\n", "DDDS"},
         {"\"hello\"", "G"},
         {"42", "L"},
         {"3.14", "L"},
@@ -777,7 +777,7 @@ ok64 CLJTBasicTest() {
 ok64 FORTBasicTest() {
     sane(1);
     TOK01Case cases[] = {
-        {"! comment\n", "DS"},
+        {"! comment\n", "DDDS"},
         {"\"hello\"", "G"},
         {"'hello'", "G"},
         {"42", "L"},
@@ -791,8 +791,8 @@ ok64 FORTBasicTest() {
 ok64 GLSTBasicTest() {
     sane(1);
     TOK01Case cases[] = {
-        {"// comment\n", "DS"},
-        {"/* block */", "D"},
+        {"// comment\n", "DDDDS"},
+        {"/* block */", "DDDDDDD"},
         {"42", "L"},
         {"3.14", "L"},
         {"{}", "PP"},
@@ -805,8 +805,8 @@ ok64 GLSTBasicTest() {
 ok64 SOLTBasicTest() {
     sane(1);
     TOK01Case cases[] = {
-        {"// comment\n", "DS"},
-        {"/* block */", "D"},
+        {"// comment\n", "DDDDS"},
+        {"/* block */", "DDDDDDD"},
         {"\"hello\"", "G"},
         {"42", "L"},
         {"contract function", "RSR"},

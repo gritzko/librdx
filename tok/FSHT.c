@@ -33,7 +33,7 @@ static b8 FSHTIsKeyword(u8cs tok) {
 
 ok64 FSHTonComment(u8cs tok, FSHTstate *state) {
     sane($ok(tok) && state != NULL);
-    if (state->cb) return state->cb('D', tok, state->ctx);
+    if (state->cb) return TOKSplitText('D', tok, state->cb, state->ctx);
     done;
 }
 

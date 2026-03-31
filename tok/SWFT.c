@@ -35,7 +35,7 @@ static b8 SWFTIsKeyword(u8cs tok) {
 
 ok64 SWFTonComment(u8cs tok, SWFTstate *state) {
     sane($ok(tok) && state != NULL);
-    if (state->cb) return state->cb('D', tok, state->ctx);
+    if (state->cb) return TOKSplitText('D', tok, state->cb, state->ctx);
     done;
 }
 

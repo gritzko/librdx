@@ -36,7 +36,7 @@ static b8 DARTTIsKeyword(u8cs tok) {
 
 ok64 DARTTonComment(u8cs tok, DARTTstate *state) {
     sane($ok(tok) && state != NULL);
-    if (state->cb) return state->cb('D', tok, state->ctx);
+    if (state->cb) return TOKSplitText('D', tok, state->cb, state->ctx);
     done;
 }
 

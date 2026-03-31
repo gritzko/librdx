@@ -57,6 +57,43 @@
 #include "TXTT.h"
 #include "abc/PRO.h"
 
+fun b8 TOKIsAlpha_(u8 c) {
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_';
+}
+
+fun b8 TOKIsAlnum_(u8 c) {
+    return TOKIsAlpha_(c) || (c >= '0' && c <= '9');
+}
+
+fun b8 TOKIsSpace(u8 c) {
+    return c == ' ' || c == '\t' || c == '\n' ||
+           c == '\r' || c == '\f' || c == '\v';
+}
+
+ok64 TOKSplitText(u8 tag, u8cs text, TOKcb cb, void *ctx) {
+    u8c *p = text[0];
+    u8c *e = text[1];
+    u8cs sub;
+    while (p < e) {
+        sub[0] = p;
+        u8 c = *p;
+        if (TOKIsAlnum_(c)) {
+            do { ++p; } while (p < e && TOKIsAlnum_(*p));
+        } else if (TOKIsSpace(c)) {
+            do { ++p; } while (p < e && TOKIsSpace(*p));
+        } else if (c >= 0x80) {
+            ++p;
+            while (p < e && (*p & 0xC0) == 0x80) ++p;
+        } else {
+            ++p;
+        }
+        sub[1] = p;
+        ok64 o = cb(tag, sub, ctx);
+        if (o != OK) return o;
+    }
+    return OK;
+}
+
 typedef ok64 (*TOKfn)(TOKstate *state);
 
 typedef struct {

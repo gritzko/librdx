@@ -33,7 +33,7 @@ static b8 ZIGTIsKeyword(u8cs tok) {
 
 ok64 ZIGTonComment(u8cs tok, ZIGTstate *state) {
     sane($ok(tok) && state != NULL);
-    if (state->cb) return state->cb('D', tok, state->ctx);
+    if (state->cb) return TOKSplitText('D', tok, state->cb, state->ctx);
     done;
 }
 
