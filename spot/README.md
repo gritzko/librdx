@@ -1,3 +1,5 @@
+---
+---
 # `spot` — git repo code multitool
 
 **spot** is a repo multitool leveraging its understanding of syntax
