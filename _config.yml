@@ -1,4 +1,5 @@
 title: librdx
+permalink: /:path:output_ext
 
 plugins:
   - jekyll-readme-index
