@@ -368,25 +368,21 @@ fun ok64 X(, bSplice)(X(, bp) buf, size_t off, size_t cut, X(, csc) paste) {
     return OK;
 }
 
-// Arena: carve T-aligned gauge from u8 buffer's IDLE space.
-// Open returns a gauge for feeding T values. Close commits:
-// old DATA becomes PAST, written Ts become new DATA.
+// Arena: carve T-typed gauge from u8 buffer's IDLE space.
+// Open flushes DATA->PAST, returns gauge over idle (buf+1 reinterpreted).
+// Close flushes DATA->PAST again, committing written Ts.
+// Buffer limits are assumed aligned to T. Cannot fail; returns
+// an empty gauge when idle is exhausted.
 #ifdef ABC_U8B_DEFINED
-fun ok64 X(, aOpen)(X(, g) arena, u8bp buf) {
-    if (buf[2]>buf[1]) return BADARENA;
+fun X(, gp) X(, aOpen)(u8bp buf) {
     uintptr_t al = ((uintptr_t)buf[2] + sizeof(T) - 1) & ~(sizeof(T) - 1);
-    uintptr_t ae = (uintptr_t)buf[3] & ~(sizeof(T) - 1);
-    if (al > ae) return NOROOM;
-    arena[0] = (T *)al;
-    arena[1] = (T *)al;
-    arena[2] = (T *)ae;
-    return OK;
+    ((u8 **)buf)[1] = (u8 *)al;     // DATA -> PAST, aligned up to T
+    ((u8 **)buf)[2] = (u8 *)al;
+    return (X(, gp))(buf + 1);      // gauge {buf[1]==buf[2], buf[2], buf[3]}
 }
 
-fun ok64 X(, aClose)(u8bp buf, X(, g) arena) {
-    ((u8 **)buf)[1] = buf[2];          // DATA → PAST
-    ((u8 **)buf)[2] = (u8 *)arena[1];  // advance IDLE past written data
-    return OK;
+fun void X(, aClose)(u8bp buf) {
+    ((u8 **)buf)[1] = buf[2];       // DATA -> PAST
 }
 #endif
 

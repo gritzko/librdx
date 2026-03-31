@@ -75,9 +75,219 @@ ok64 AREACarveTest() {
     done;
 }
 
+// Test 1: u8aOpen — feed bytes, grab slice, close
+ok64 u8aOpenTest() {
+    sane(1);
+
+    Bu8 arena = {};
+    call(u8bAllocate, arena, 4096);
+
+    // Open a u8 sub-allocation
+    u8gp g = u8aOpen(arena);
+
+    // Gauge rest is the entire arena idle
+    testeq(u8gRestLen(g), 4096);
+    testeq(u8gLeftLen(g), 0);
+
+    // Feed some bytes
+    for (u8 i = 0; i < 100; ++i) call(u8gFeed1, g, i);
+    testeq(u8gLeftLen(g), 100);
+
+    // Save the filled slice (copy pointers before close)
+    a_dup(u8c, s1, u8gLeftC(g));
+    testeq(u8csLen(s1), 100);
+
+    // Close: commits data to past
+    u8aClose(arena);
+
+    // After close, past region consumed 100 bytes
+    testeq(u8bPastLen(arena), 100);
+
+    // Open again, feed more
+    g = u8aOpen(arena);
+    testeq(u8gRestLen(g), 4096 - 100);
+    for (u8 i = 0; i < 50; ++i) call(u8gFeed1, g, i);
+    u8aClose(arena);
+    testeq(u8bPastLen(arena), 150);
+
+    // Original slice still valid (same backing memory)
+    testeq(u8csLen(s1), 100);
+    testeq(*s1[0], 0);
+    testeq(*(s1[1] - 1), 99);
+
+    call(u8bFree, arena);
+    done;
+}
+
+// Test 2: u32aOpen — feed u32s, verify alignment
+ok64 u32aOpenTest() {
+    sane(1);
+
+    Bu8 arena = {};
+    call(u8bAllocate, arena, 4096);
+
+    // Feed one byte to misalign
+    u8gp g0 = u8aOpen(arena);
+    call(u8gFeed1, g0, 0xFF);
+    u8aClose(arena);
+    testeq(u8bPastLen(arena), 1);
+
+    // Open u32 arena — should align up to 4
+    u32gp g = u32aOpen(arena);
+    test(((uintptr_t)g[1] & 3) == 0, FAIL);
+    // Alignment padding ate 3 bytes
+    test(u8bPastLen(arena) >= 4, FAIL);
+
+    // Feed u32 values
+    for (u32 i = 0; i < 50; ++i) call(u32gFeed1, g, i * 7);
+    testeq(u32gLeftLen(g), 50);
+
+    // Save the left slice
+    a_dup(u32c, left, u32gLeftC(g));
+    testeq(u32csLen(left), 50);
+    testeq(*left[0], 0);
+    testeq(*(left[0] + 10), 70);
+
+    u32aClose(arena);
+
+    // Past consumed: 4 (aligned) + 50*4 = 204 bytes
+    testeq(u8bPastLen(arena), 4 + 50 * 4);
+
+    // Slice data survives after close
+    testeq(*left[0], 0);
+    testeq(*(left[0] + 49), 49 * 7);
+
+    call(u8bFree, arena);
+    done;
+}
+
+// Test 3: Mixed u8 + u32 interleaved — model the LESS pattern
+ok64 MixedArenaTest() {
+    sane(1);
+
+    Bu8 arena = {};
+    call(u8bAllocate, arena, 8192);
+
+    // Phase 1: write some u8 bytes
+    u8gp g8 = u8aOpen(arena);
+    u8cs hello = $u8str("hello");
+    call(u8gFeed, g8, hello);
+    a_dup(u8c, s_hello, u8gLeftC(g8));
+    u8aClose(arena);
+    testeq(u8bPastLen(arena), 5);
+
+    // Phase 2: write some u32 tokens
+    u32gp g32 = u32aOpen(arena);
+    test(((uintptr_t)g32[1] & 3) == 0, FAIL);
+    for (u32 i = 0; i < 10; ++i) call(u32gFeed1, g32, i + 100);
+    a_dup(u32c, toks, u32gLeftC(g32));
+    testeq(u32csLen(toks), 10);
+    u32aClose(arena);
+
+    // Phase 3: more u8 bytes
+    g8 = u8aOpen(arena);
+    u8cs world = $u8str("world");
+    call(u8gFeed, g8, world);
+    a_dup(u8c, s_world, u8gLeftC(g8));
+    u8aClose(arena);
+
+    // All data inside the arena
+    test(u8bPastLen(arena) > 0, FAIL);
+    test(u8bPastLen(arena) <= 8192, FAIL);
+
+    // Original slices still point to valid data
+    $testeq(s_hello, hello);
+    testeq(u32csLen(toks), 10);
+    testeq(*toks[0], 100);
+    testeq(*(toks[0] + 9), 109);
+    $testeq(s_world, world);
+
+    call(u8bFree, arena);
+    done;
+}
+
+// Test 4: Multiple cycles then arena reset
+ok64 ArenaCycleTest() {
+    sane(1);
+
+    Bu8 arena = {};
+    call(u8bAllocate, arena, 4096);
+
+    // Do 10 open/feed/close cycles
+    for (int cycle = 0; cycle < 10; ++cycle) {
+        u32gp g = u32aOpen(arena);
+        for (u32 i = 0; i < 20; ++i) call(u32gFeed1, g, i);
+        testeq(u32gLeftLen(g), 20);
+        u32aClose(arena);
+    }
+
+    // Arena should have consumed 10 * 20 * 4 = 800 bytes (plus alignment)
+    test(u8bPastLen(arena) >= 800, FAIL);
+    test(u8bPastLen(arena) <= 800 + 10 * 4, FAIL);
+
+    // Reset the arena — reuse all space
+    u8bReset(arena);
+    testeq(u8bPastLen(arena), 0);
+    testeq(u8bIdleLen(arena), 4096);
+
+    // Can fill again after reset
+    u8gp g8 = u8aOpen(arena);
+    for (u8 i = 0; i < 200; ++i) call(u8gFeed1, g8, i);
+    testeq(u8gLeftLen(g8), 200);
+    u8aClose(arena);
+    testeq(u8bPastLen(arena), 200);
+
+    call(u8bFree, arena);
+    done;
+}
+
+// Test 5: Verify slices remain valid after close
+ok64 ArenaSliceValidTest() {
+    sane(1);
+
+    Bu8 arena = {};
+    call(u8bAllocate, arena, 4096);
+
+    // Allocate three slices
+    u8gp g1 = u8aOpen(arena);
+    u8cs pat1 = $u8str("AAAA");
+    call(u8gFeed, g1, pat1);
+    a_dup(u8c, s1, u8gLeftC(g1));
+    u8aClose(arena);
+
+    u32gp g2 = u32aOpen(arena);
+    call(u32gFeed1, g2, 0xDEADBEEF);
+    a_dup(u32c, s2, u32gLeftC(g2));
+    u32aClose(arena);
+
+    u8gp g3 = u8aOpen(arena);
+    u8cs pat3 = $u8str("ZZZZ");
+    call(u8gFeed, g3, pat3);
+    a_dup(u8c, s3, u8gLeftC(g3));
+    u8aClose(arena);
+
+    // All three slices still valid, no overlap corruption
+    $testeq(s1, pat1);
+    testeq(u32csLen(s2), 1);
+    testeq(*s2[0], (u32)0xDEADBEEF);
+    $testeq(s3, pat3);
+
+    // Slices don't overlap
+    test((u8cp)s1[1] <= (u8cp)s2[0], FAIL);
+    test((u8cp)s2[1] <= (u8cp)s3[0], FAIL);
+
+    call(u8bFree, arena);
+    done;
+}
+
 ok64 AREAtest() {
     sane(1);
     call(AREACarveTest);
+    call(u8aOpenTest);
+    call(u32aOpenTest);
+    call(MixedArenaTest);
+    call(ArenaCycleTest);
+    call(ArenaSliceValidTest);
     done;
 }
 

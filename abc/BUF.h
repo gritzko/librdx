@@ -25,6 +25,17 @@ fun int u8csmp(u8 const *const *a, u8 const *const *b) { return $cmp(a, b); }
 
 #define ABC_U8B_DEFINED
 
+// u8aOpen/u8aClose: u8 Bx.h is instantiated before ABC_U8B_DEFINED,
+// so the generic aOpen template doesn't generate u8 versions.
+fun u8gp u8aOpen(u8bp buf) {
+    ((u8 **)buf)[1] = buf[2];       // DATA -> PAST
+    return (u8gp)(buf + 1);
+}
+
+fun void u8aClose(u8bp buf) {
+    ((u8 **)buf)[1] = buf[2];       // DATA -> PAST
+}
+
 #define X(M, name) M##u8p##name
 #include "Bx.h"
 #undef X
