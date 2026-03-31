@@ -11,8 +11,8 @@ static u32 NEILByteSpanX(u32cs toks, u8cp base, u32 from, u32 count,
     u32 total = 0;
     for (u32 i = from; i < from + count; i++) {
         if (skip_ws && NEILIsWS(toks, base, i)) continue;
-        u32 lo = (i > 0) ? TOK_OFF(toks[0][i - 1]) : 0;
-        u32 hi = TOK_OFF(toks[0][i]);
+        u32 lo = (i > 0) ? tok32Offset(toks[0][i - 1]) : 0;
+        u32 hi = tok32Offset(toks[0][i]);
         if (hi > lo) total += hi - lo;
     }
     return total;
@@ -42,8 +42,8 @@ static u32 NEILMerge(e32 *buf, u32 n) {
 static b8 NEILTokEq(u32cs ta, u8cp ba, u32 ia,
                      u32cs tb, u8cp bb, u32 ib) {
     u8cs va = {}, vb = {};
-    TOK_VAL(va, ta, ba, (int)ia);
-    TOK_VAL(vb, tb, bb, (int)ib);
+    tok32Val(va,ta,ba,(int)ia);
+    tok32Val(vb,tb,bb,(int)ib);
     u32 la = (u32)(va[1] - va[0]);
     u32 lb = (u32)(vb[1] - vb[0]);
     if (la != lb) return NO;
@@ -54,13 +54,13 @@ static b8 NEILTokEq(u32cs ta, u8cp ba, u32 ia,
 // Higher = better alignment.  Mirrors diff-match-patch scoring.
 static int NEILBoundaryScore(u32cs toks, u8cp base, u32 idx, u32 ntoks) {
     if (idx == 0 || idx >= ntoks) return 6;  // edge
-    u32 hi = TOK_OFF(toks[0][idx - 1]);
-    u32 lo = (idx > 1) ? TOK_OFF(toks[0][idx - 2]) : 0;
+    u32 hi = tok32Offset(toks[0][idx - 1]);
+    u32 lo = (idx > 1) ? tok32Offset(toks[0][idx - 2]) : 0;
     if (hi <= lo) return 6;
     u8 c1 = base[hi - 1];  // last byte before boundary
 
     u32 lo2 = hi;  // contiguous tokens
-    u32 hi2 = TOK_OFF(toks[0][idx]);
+    u32 hi2 = tok32Offset(toks[0][idx]);
     if (hi2 <= lo2) return 6;
     u8 c2 = base[lo2];  // first byte at boundary
 
@@ -191,8 +191,8 @@ ok64 NEILCleanup(e32g edl, u32cs old_toks, u32cs new_toks,
             if (eq_bytes >= 6) {
                 u32 eq_from = new_off[k];
                 u32 eq_blo = (eq_from > 0)
-                    ? TOK_OFF(new_toks[0][eq_from - 1]) : 0;
-                u32 eq_bhi = TOK_OFF(new_toks[0][eq_from + eq_len - 1]);
+                    ? tok32Offset(new_toks[0][eq_from - 1]) : 0;
+                u32 eq_bhi = tok32Offset(new_toks[0][eq_from + eq_len - 1]);
                 if (eq_bhi > eq_blo &&
                     memchr(new_src[0] + eq_blo, '\n', eq_bhi - eq_blo)) {
                     u32 nw_after_nl = 0;

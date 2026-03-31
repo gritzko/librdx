@@ -15,7 +15,7 @@ static ok64 SPOTTokCB(u8 tag, u8cs tok, void *ctx) {
     sane(ctx != NULL);
     SPOTTokCtx *c = (SPOTTokCtx *)ctx;
     u32 end = c->off + (u32)$len(tok);
-    u32 packed = TOK_PACK(tag, end);
+    u32 packed = tok32Pack(tag,end);
     call(u32bFeed1, c->toks, packed);
     c->off = end;
     return OK;
@@ -103,10 +103,10 @@ static int SPOTBracketDir(u8cs val) {
 // Returns the position of the next meaningful token, or len if exhausted.
 static int SPOTSkipWS(u32cs toks, u8cp base, int pos, int len) {
     while (pos < len) {
-        u8 tag = TOK_TAG(toks[0][pos]);
+        u8 tag = tok32Tag(toks[0][pos]);
         if (tag == 'D') { pos++; continue; }
         if (tag == 'S') {
-            u8cs val = {}; TOK_VAL(val, toks, base, pos);
+            u8cs val = {}; tok32Val(val,toks,base,pos);
             if (SPOTIsWhitespace(val)) { pos++; continue; }
         }
         break;
@@ -124,8 +124,8 @@ static ok64 SPOTFlattenNeedle(SPOTntok *flat, int *nflat,
     b8 pending_skip = NO;
 
     for (int i = 0; i < len; i++) {
-        u8 tag = TOK_TAG(toks[0][i]);
-        u8cs val = {}; TOK_VAL(val, toks, base, i);
+        u8 tag = tok32Tag(toks[0][i]);
+        u8cs val = {}; tok32Val(val,toks,base,i);
 
         if (tag == 'D') continue;  // skip comments
         if (tag == 'S' && SPOTIsWhitespace(val)) {
@@ -202,9 +202,9 @@ static ok64 SPOTMatchFlat(SPOTbinds *b, SPOTntok *ntoks, int nntoks,
         int pos = SPOTSkipWS(htoks, hbase, *hpos, hlen);
         if (pos >= hlen) fail(SPOTBAD);
 
-        u8cs hv = {}; TOK_VAL(hv, htoks, hbase, pos);
-        u32 leaf_srclo = (pos > 0) ? TOK_OFF(htoks[0][pos - 1]) : 0;
-        u32 leaf_srchi = TOK_OFF(htoks[0][pos]);
+        u8cs hv = {}; tok32Val(hv,htoks,hbase,pos);
+        u32 leaf_srclo = (pos > 0) ? tok32Offset(htoks[0][pos - 1]) : 0;
+        u32 leaf_srchi = tok32Offset(htoks[0][pos]);
         *hpos = pos + 1;
 
         // Record first token position for segment tracking
@@ -232,11 +232,11 @@ static ok64 SPOTMatchFlat(SPOTbinds *b, SPOTntok *ntoks, int nntoks,
                 while (ph_brace > 0) {
                     int p2 = SPOTSkipWS(htoks, hbase, *hpos, hlen);
                     if (p2 >= hlen) fail(SPOTBAD);
-                    u8cs hv2 = {}; TOK_VAL(hv2, htoks, hbase, p2);
+                    u8cs hv2 = {}; tok32Val(hv2,htoks,hbase,p2);
                     ph_brace += SPOTBracketDir(hv2);
                     if (ph_brace < 0) fail(SPOTBAD);
                     *hpos = p2 + 1;
-                    cap_srchi = TOK_OFF(htoks[0][p2]);
+                    cap_srchi = tok32Offset(htoks[0][p2]);
                 }
                 if (b->nsubs > 0) b->subs[b->nsubs - 1].hi = cap_srchi;
                 if (b->bound & bit) {
@@ -263,7 +263,7 @@ static ok64 SPOTMatchFlat(SPOTbinds *b, SPOTntok *ntoks, int nntoks,
                         int p2 = SPOTSkipWS(htoks, hbase, *hpos, hlen);
                         if (p2 >= hlen) fail(SPOTBAD);
                         *hpos = p2 + 1;
-                        consumed = TOK_OFF(htoks[0][p2]);
+                        consumed = tok32Offset(htoks[0][p2]);
                     }
                     if (consumed != cap_end) fail(SPOTBAD);
                     u8cs bnd = {b->source_base + b->bind_matches[idx].hay.lo,
@@ -312,7 +312,7 @@ static ok64 SPOTMatchFlat(SPOTbinds *b, SPOTntok *ntoks, int nntoks,
                     for (;;) {
                         // Check anchor at ahead[gap]
                         if (nahead > gap) {
-                            u8cs av = {}; TOK_VAL(av, htoks, hbase, ahead[gap]);
+                            u8cs av = {}; tok32Val(av,htoks,hbase,ahead[gap]);
                             if (cap_brace == 0 && SPOTSliceEq(av, ntoks[anchor_idx].val)) {
                                 if (b->nsubs > 0) b->subs[b->nsubs - 1].hi = cap_srchi;
                                 b->bind_matches[idx].hay.hi = cap_srchi;
@@ -329,7 +329,7 @@ static ok64 SPOTMatchFlat(SPOTbinds *b, SPOTntok *ntoks, int nntoks,
 
                         // Extend: consume ahead[0] into uppercase capture
                         if (nahead == 0) fail(SPOTBAD);
-                        u8cs cv = {}; TOK_VAL(cv, htoks, hbase, ahead[0]);
+                        u8cs cv = {}; tok32Val(cv,htoks,hbase,ahead[0]);
                         cap_brace += SPOTBracketDir(cv);
                         if (cap_brace < 0) fail(SPOTBAD);
                         if (brace + cap_brace == 0) {
@@ -338,7 +338,7 @@ static ok64 SPOTMatchFlat(SPOTbinds *b, SPOTntok *ntoks, int nntoks,
                             if ($len(cv) == 1 && cv[0][0] == ';')
                                 at_boundary = YES;
                         }
-                        cap_srchi = TOK_OFF(htoks[0][ahead[0]]);
+                        cap_srchi = tok32Offset(htoks[0][ahead[0]]);
                         *hpos = ahead[0] + 1;
 
                         // Shift window
@@ -383,9 +383,9 @@ static ok64 SPOTMatchFlat(SPOTbinds *b, SPOTntok *ntoks, int nntoks,
             int pos = SPOTSkipWS(htoks, hbase, *hpos, hlen);
             if (pos >= hlen) fail(SPOTBAD);
 
-            u8cs hv = {}; TOK_VAL(hv, htoks, hbase, pos);
-            u32 leaf_srclo = (pos > 0) ? TOK_OFF(htoks[0][pos - 1]) : 0;
-            u32 leaf_srchi = TOK_OFF(htoks[0][pos]);
+            u8cs hv = {}; tok32Val(hv,htoks,hbase,pos);
+            u32 leaf_srclo = (pos > 0) ? tok32Offset(htoks[0][pos - 1]) : 0;
+            u32 leaf_srchi = tok32Offset(htoks[0][pos]);
             *hpos = pos + 1;
 
             int bd = SPOTBracketDir(hv);
@@ -449,7 +449,7 @@ static ok64 SPOTMatchFlat(SPOTbinds *b, SPOTntok *ntoks, int nntoks,
                     b8 at_boundary2 = NO;
                     for (;;) {
                         if (nahead2 > gap) {
-                            u8cs av = {}; TOK_VAL(av, htoks, hbase, ahead2[gap]);
+                            u8cs av = {}; tok32Val(av,htoks,hbase,ahead2[gap]);
                             if (cap_brace2 == 0 && SPOTSliceEq(av, ntoks[anchor_idx].val)) {
                                 if (b->nsubs > 0) b->subs[b->nsubs - 1].hi = cap_srchi;
                                 b->bind_matches[ph_idx].hay.hi = cap_srchi;
@@ -464,7 +464,7 @@ static ok64 SPOTMatchFlat(SPOTbinds *b, SPOTntok *ntoks, int nntoks,
                         }
                         if (at_boundary2) break;
                         if (nahead2 == 0) break;
-                        u8cs cv = {}; TOK_VAL(cv, htoks, hbase, ahead2[0]);
+                        u8cs cv = {}; tok32Val(cv,htoks,hbase,ahead2[0]);
                         cap_brace2 += SPOTBracketDir(cv);
                         if (cap_brace2 < 0) break;
                         if (brace + scan_brace + cap_brace2 == 0) {
@@ -473,7 +473,7 @@ static ok64 SPOTMatchFlat(SPOTbinds *b, SPOTntok *ntoks, int nntoks,
                             if ($len(cv) == 1 && cv[0][0] == ';')
                                 at_boundary2 = YES;
                         }
-                        cap_srchi = TOK_OFF(htoks[0][ahead2[0]]);
+                        cap_srchi = tok32Offset(htoks[0][ahead2[0]]);
                         *hpos = ahead2[0] + 1;
                         memmove(ahead2, ahead2 + 1, (nahead2 - 1) * sizeof(int));
                         nahead2--;
@@ -500,11 +500,11 @@ static ok64 SPOTMatchFlat(SPOTbinds *b, SPOTntok *ntoks, int nntoks,
                 while (ph_brace > 0) {
                     int p2 = SPOTSkipWS(htoks, hbase, *hpos, hlen);
                     if (p2 >= hlen) { balanced = NO; break; }
-                    u8cs hv2 = {}; TOK_VAL(hv2, htoks, hbase, p2);
+                    u8cs hv2 = {}; tok32Val(hv2,htoks,hbase,p2);
                     ph_brace += SPOTBracketDir(hv2);
                     if (ph_brace < 0) { balanced = NO; break; }
                     *hpos = p2 + 1;
-                    cap_srchi = TOK_OFF(htoks[0][p2]);
+                    cap_srchi = tok32Offset(htoks[0][p2]);
                 }
                 if (!balanced) {
                     *hpos = save_hpos;

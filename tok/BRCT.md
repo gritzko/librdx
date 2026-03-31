@@ -5,7 +5,7 @@ source files. It works with packed u32 token arrays (from TOK.h)
 and the original source bytes, inspecting only `P`-tagged
 (punctuation) tokens so that brackets inside strings and comments
 are ignored. Supports `{}`, `()`, and `[]`. All functions return
-token indices; use `TOK_VAL()` to recover the byte slice.
+token indices; use `tok32Val()` to recover the byte slice.
 
 ##  API
 
@@ -27,7 +27,7 @@ token indices; use `TOK_VAL()` to recover the byte slice.
 i64 m = BRCTMatch(toks, data, open_brace_idx);
 if (m >= 0) {
     u8cs val;
-    TOK_VAL(val, toks, data[0], m);
+    tok32Val(val, toks, data[0], m);
     // val is the closing brace byte slice
 }
 ```

@@ -22,9 +22,9 @@ static ok64 join_apply_edits(u8bp out, JOINfile *base, u8csc ops,
     for (u64 i = 0; i < ntoks; i++) {
         u8 op = (i < (u64)$len(ops)) ? ops[0][i] : 0;
         u8 action = op & 0x3;
-        u32 off = TOK_OFF(base->toks[1][i]);
+        u32 off = tok32Offset(base->toks[1][i]);
         u32 end = (i + 1 < ntoks)
-                      ? TOK_OFF(base->toks[1][i + 1])
+                      ? tok32Offset(base->toks[1][i + 1])
                       : (u32)$len(base->data);
         u32 tlen = end - off;
         switch (action) {

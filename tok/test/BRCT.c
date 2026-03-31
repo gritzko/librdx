@@ -15,7 +15,7 @@ typedef struct {
 static ok64 brct_cb(u8 tag, u8cs tok, void *vctx) {
     brct_ctx *ctx = vctx;
     u32 end = (u32)(tok[1] - ctx->base);
-    return u32bFeed1(ctx->toks, TOK_PACK(tag, end));
+    return u32bFeed1(ctx->toks, tok32Pack(tag,end));
 }
 
 // Tokenize a C string, filling toks buffer.
@@ -44,8 +44,8 @@ ok64 BRCTtest_match() {
     i64 open_paren = -1, close_paren = -1;
     i64 open_brace = -1, close_brace = -1;
     for (u64 i = 0; i < n; i++) {
-        if (TOK_TAG(toks[0][i]) != 'P') continue;
-        u32 lo = (i > 0) ? TOK_OFF(toks[0][i - 1]) : 0;
+        if (tok32Tag(toks[0][i]) != 'P') continue;
+        u32 lo = (i > 0) ? tok32Offset(toks[0][i - 1]) : 0;
         u8 ch = src[0][lo];
         if (ch == '(' && open_paren < 0) open_paren = (i64)i;
         if (ch == ')' && close_paren < 0) close_paren = (i64)i;
@@ -83,8 +83,8 @@ ok64 BRCTtest_nested() {
     u64 braces[4];
     u64 bc = 0;
     for (u64 i = 0; i < n && bc < 4; i++) {
-        if (TOK_TAG(toks[0][i]) != 'P') continue;
-        u32 lo = (i > 0) ? TOK_OFF(toks[0][i - 1]) : 0;
+        if (tok32Tag(toks[0][i]) != 'P') continue;
+        u32 lo = (i > 0) ? tok32Offset(toks[0][i - 1]) : 0;
         u8 ch = src[0][lo];
         if (ch == '{' || ch == '}') braces[bc++] = i;
     }
@@ -98,8 +98,8 @@ ok64 BRCTtest_nested() {
     // find 'x' token index
     u64 x_idx = 0;
     for (u64 i = 0; i < n; i++) {
-        if (TOK_TAG(toks[0][i]) == 'S') {
-            u32 lo = (i > 0) ? TOK_OFF(toks[0][i - 1]) : 0;
+        if (tok32Tag(toks[0][i]) == 'S') {
+            u32 lo = (i > 0) ? tok32Offset(toks[0][i - 1]) : 0;
             if (src[0][lo] == 'x') { x_idx = i; break; }
         }
     }
@@ -169,8 +169,8 @@ ok64 BRCTtest_depth() {
     u64 n = $len(toks);
     u64 a_i = 0, b_i = 0, c_i = 0, d_i = 0, e_i = 0;
     for (u64 i = 0; i < n; i++) {
-        if (TOK_TAG(toks[0][i]) != 'S') continue;
-        u32 lo = (i > 0) ? TOK_OFF(toks[0][i - 1]) : 0;
+        if (tok32Tag(toks[0][i]) != 'S') continue;
+        u32 lo = (i > 0) ? tok32Offset(toks[0][i - 1]) : 0;
         u8 ch = src[0][lo];
         if (ch == 'a') a_i = i;
         if (ch == 'b') b_i = i;

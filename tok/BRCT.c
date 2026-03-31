@@ -2,7 +2,7 @@
 
 // Extract the first source byte of token i.
 static u8 brct_byte(u32csc toks, u8csc data, u64 i) {
-    u32 lo = (i > 0) ? TOK_OFF(toks[0][i - 1]) : 0;
+    u32 lo = (i > 0) ? tok32Offset(toks[0][i - 1]) : 0;
     return data[0][lo];
 }
 
@@ -26,7 +26,7 @@ static u8 brct_matching(u8 ch) {
     }
 }
 
-static b8 brct_is_punct(u32 tok) { return TOK_TAG(tok) == 'P'; }
+static b8 brct_is_punct(u32 tok) { return tok32Tag(tok) == 'P'; }
 
 i64 BRCTMatch(u32csc toks, u8csc data, u64 at) {
     u64 n = $len(toks);

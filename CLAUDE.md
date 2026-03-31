@@ -64,8 +64,7 @@
     for fuzzing and build-load (release build, heavy long running tests),
     all under the project root, e.g. librdx/build, also see WITH_ASAN, WITH_FUZZ,
     WITH_LOAD in the CMakeLists.txt.
-9.  Feel free to use the xx utility for small RDX-related calculations (merge etc)
-    Use the build-release version to avoid tracing output.
+9.  Read spot/README.md. Use spot for search and mass-refactorings.
 10. No pointer arithmetics. None. Just don't. There are all sorts of typed slice
     handling functions and macros, don't calculate any pointers manually.
 11. Avoid cat-ting large files and *never* send traces to stdout. Redirect to a file,
@@ -73,3 +72,4 @@
 12. Read DONT.md and INDEX.md. Reread them after every compaction.
 13. Dont fucking reimplement things repeatedly. When planninng, check INDEX.md for 
     a relevant header, the thing may already exist. Always ask if unsure.
+14. After large code changes (esp. new files added) update respective INDEX.md.

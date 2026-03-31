@@ -199,7 +199,7 @@ static ok64 CAPOTriExtractToks(u32cs toks, u8cp base,
     sane(cb != NULL);
     int len = (int)$len(toks);
     for (int i = 0; i < len; i++) {
-        u8cs val = {}; TOK_VAL(val, toks, base, i);
+        u8cs val = {}; tok32Val(val,toks,base,i);
         if ($len(val) < 3) continue;
         u8cp p = val[0];
         u8cp end = val[1] - 2;
@@ -1501,12 +1501,12 @@ ok64 CAPOGrep(u8csc substring, u8csc ext, u8csc reporoot, u32 ctx_lines,
                             if (lp != NULL) {
                                 int ntoks = (int)$len(gts);
                                 for (int ti = 0; ti < ntoks; ti++) {
-                                    u32 tlo = (ti > 0) ? TOK_OFF(gts[0][ti-1]) : 0;
-                                    u32 thi = TOK_OFF(gts[0][ti]);
+                                    u32 tlo = (ti > 0) ? tok32Offset(gts[0][ti-1]) : 0;
+                                    u32 thi = tok32Offset(gts[0][ti]);
                                     if (thi <= ctx_lo || tlo >= ctx_hi) continue;
                                     u32 clo = tlo < ctx_lo ? ctx_lo : tlo;
                                     u32 chi = thi > ctx_hi ? ctx_hi : thi;
-                                    u8 tag = TOK_TAG(gts[0][ti]) - 'A';
+                                    u8 tag = tok32Tag(gts[0][ti]) - 'A';
                                     memset(lp + (clo - ctx_lo), tag, chi - clo);
                                 }
                                 for (int h = 0; h < nhl; h++) {
@@ -1552,16 +1552,16 @@ ok64 CAPOGrep(u8csc substring, u8csc ext, u8csc reporoot, u32 ctx_lines,
 // --- Lits builder (for LESS pager) ---
 
 // Fill lits[0..textlen) with tag indices from tokens.
-// Walks the token array, sets lits[byte] = TOK_TAG(tok) for each byte.
+// Walks the token array, sets lits[byte] = tok32Tag(tok) for each byte.
 static void CAPOBuildLits(u8p lits, u8cp base, u32 textlen, u32cs toks) {
     memset(lits, 0, textlen);
     int ntoks = (int)$len(toks);
     for (int i = 0; i < ntoks; i++) {
-        u32 lo = (i > 0) ? TOK_OFF(toks[0][i - 1]) : 0;
-        u32 hi = TOK_OFF(toks[0][i]);
+        u32 lo = (i > 0) ? tok32Offset(toks[0][i - 1]) : 0;
+        u32 hi = tok32Offset(toks[0][i]);
         if (hi > textlen) hi = textlen;
         if (lo >= hi) continue;
-        u8 tag = TOK_TAG(toks[0][i]) - 'A';
+        u8 tag = tok32Tag(toks[0][i]) - 'A';
         memset(lits + lo, tag, hi - lo);
     }
 }
@@ -1925,8 +1925,7 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name) {
                 if (op == DIFF_EQ) {
                     for (u32 j = 0; j < elen; j++) {
                         u8cs v = {};
-                        TOK_VAL(v, new_ts, new_f.data[0],
-                                (int)(sni + j));
+                        tok32Val(v,new_ts,new_f.data[0],(int)(sni + j));
                         $for(u8c, cp, v)
                             if (*cp == '\n') nl++;
                     }
@@ -1935,8 +1934,7 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name) {
                     u32 sl = nl;
                     for (u32 j = 0; j < elen; j++) {
                         u8cs v = {};
-                        TOK_VAL(v, new_ts, new_f.data[0],
-                                (int)(sni + j));
+                        tok32Val(v,new_ts,new_f.data[0],(int)(sni + j));
                         $for(u8c, cp, v)
                             if (*cp == '\n') nl++;
                     }
@@ -1992,9 +1990,9 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name) {
         // Helper macros for copying tokens into the LESS buffer
         #define DIFF_COPY_TOK(toks_s, base, idx, flag) do {    \
             u8cs _v = {};                                       \
-            TOK_VAL(_v, toks_s, base, (int)(idx));              \
+            tok32Val(_v,toks_s,base,(int)(idx));              \
             u32 _n = (u32)$len(_v);                             \
-            u8 _tag = TOK_TAG((toks_s)[0][(idx)]) - 'A';       \
+            u8 _tag = tok32Tag((toks_s)[0][(idx)]) - 'A';       \
             memcpy(dtxp, _v[0], _n);                            \
             memset(dltp, _tag | (flag), _n);                    \
             dtxp += _n;                                         \
@@ -2060,7 +2058,7 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name) {
                          cur_line <= vis[cur_iv * 2 + 1]);
                     if (show) {
                         if (in_gap) {
-                            u32 boff = (ni > 0) ? TOK_OFF(new_ts[0][ni-1]) : 0;
+                            u32 boff = (ni > 0) ? tok32Offset(new_ts[0][ni-1]) : 0;
                             DIFF_START_HUNK(boff);
                             DIFF_COPY_LINE_PREFIX(boff);
                             in_gap = NO;
@@ -2070,7 +2068,7 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name) {
                         in_gap = YES;
                     }
                     u8cs v = {};
-                    TOK_VAL(v, new_ts, new_f.data[0], (int)ni);
+                    tok32Val(v,new_ts,new_f.data[0],(int)ni);
                     $for(u8c, cp, v)
                         if (*cp == '\n') cur_line++;
                     oi++; ni++;
@@ -2116,7 +2114,7 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name) {
                             if (in_gap) {
                                 u64 ti = ni + j;
                                 u32 boff = (ti > 0)
-                                    ? TOK_OFF(new_ts[0][ti-1]) : 0;
+                                    ? tok32Offset(new_ts[0][ti-1]) : 0;
                                 DIFF_START_HUNK(boff);
                                 DIFF_COPY_LINE_PREFIX(boff);
                                 in_gap = NO;
@@ -2126,8 +2124,7 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name) {
                             in_gap = YES;
                         }
                         u8cs v = {};
-                        TOK_VAL(v, new_ts, new_f.data[0],
-                                (int)(ni + j));
+                        tok32Val(v,new_ts,new_f.data[0],(int)(ni + j));
                         $for(u8c, cp, v)
                             if (*cp == '\n') cur_line++;
                     }
@@ -2146,8 +2143,8 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name) {
                     u64 ti = oi, tj = ni;
                     while (prefix < lim) {
                         u8cs ov = {}, nv = {};
-                        TOK_VAL(ov, old_ts, old_f.data[0], (int)ti);
-                        TOK_VAL(nv, new_ts, new_f.data[0], (int)tj);
+                        tok32Val(ov,old_ts,old_f.data[0],(int)ti);
+                        tok32Val(nv,new_ts,new_f.data[0],(int)tj);
                         if ($len(ov) != $len(nv)) break;
                         if (memcmp(ov[0], nv[0], (size_t)$len(ov)))
                             break;
@@ -2165,8 +2162,8 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name) {
                     u64 tj = ni + ins_total - 1;
                     while (suffix < lim) {
                         u8cs ov = {}, nv = {};
-                        TOK_VAL(ov, old_ts, old_f.data[0], (int)ti);
-                        TOK_VAL(nv, new_ts, new_f.data[0], (int)tj);
+                        tok32Val(ov,old_ts,old_f.data[0],(int)ti);
+                        tok32Val(nv,new_ts,new_f.data[0],(int)tj);
                         if ($len(ov) != $len(nv)) break;
                         if (memcmp(ov[0], nv[0], (size_t)$len(ov)))
                             break;
@@ -2190,7 +2187,7 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name) {
                         if (in_gap) {
                             u64 ti = base_ni + j;
                             u32 boff = (ti > 0)
-                                ? TOK_OFF(new_ts[0][ti-1]) : 0;
+                                ? tok32Offset(new_ts[0][ti-1]) : 0;
                             DIFF_START_HUNK(boff);
                             DIFF_COPY_LINE_PREFIX(boff);
                             in_gap = NO;
@@ -2200,15 +2197,14 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name) {
                         in_gap = YES;
                     }
                     u8cs v = {};
-                    TOK_VAL(v, new_ts, new_f.data[0],
-                            (int)(base_ni + j));
+                    tok32Val(v,new_ts,new_f.data[0],(int)(base_ni + j));
                     $for(u8c, cp, v)
                         if (*cp == '\n') cur_line++;
                 }
 
                 if (in_gap) {
                     u32 boff = (base_ni > 0)
-                        ? TOK_OFF(new_ts[0][base_ni-1]) : 0;
+                        ? tok32Offset(new_ts[0][base_ni-1]) : 0;
                     DIFF_START_HUNK(boff);
                     in_gap = NO;
                 }
@@ -2235,15 +2231,16 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name) {
                 // deletions and insertions don't merge onto one line.
                 // Also copy the INS line's indentation so it aligns.
                 if (del_total > prefix + suffix &&
-                    ins_total > prefix + suffix) {
+                    ins_total > prefix + suffix &&
+                    (dtxp == diff_text || *(dtxp - 1) == '\n')) {
                     u64 last_del = base_oi + del_total - suffix - 1;
                     u8cs ldv = {};
-                    TOK_VAL(ldv, old_ts, old_f.data[0], (int)last_del);
+                    tok32Val(ldv,old_ts,old_f.data[0],(int)last_del);
                     if (!$empty(ldv) && *(ldv[1] - 1) != '\n') {
                         // Find indentation of first INS token's line
                         u64 ins_ti = base_ni + prefix;
                         u32 ins_boff = (ins_ti > 0)
-                            ? TOK_OFF(new_ts[0][ins_ti - 1]) : 0;
+                            ? tok32Offset(new_ts[0][ins_ti - 1]) : 0;
                         u32 ls = ins_boff;
                         while (ls > 0 && new_data[0][ls - 1] != '\n')
                             ls--;
@@ -2271,8 +2268,7 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name) {
                                 DIFF_COPY_TOK(new_ts, new_f.data[0],
                                               tni, LESS_INS);
                                 u8cs v = {};
-                                TOK_VAL(v, new_ts, new_f.data[0],
-                                        (int)tni);
+                                tok32Val(v,new_ts,new_f.data[0],(int)tni);
                                 $for(u8c, cp, v)
                                     if (*cp == '\n') cur_line++;
                             }
@@ -2297,7 +2293,7 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name) {
                         in_gap = YES;
                     }
                     u8cs v = {};
-                    TOK_VAL(v, new_ts, new_f.data[0], (int)sn);
+                    tok32Val(v,new_ts,new_f.data[0],(int)sn);
                     $for(u8c, cp, v)
                         if (*cp == '\n') cur_line++;
                 }
@@ -2632,12 +2628,12 @@ ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot,
                             if (lp != NULL) {
                                 int ntoks_r = (int)$len(htoks);
                                 for (int ti = 0; ti < ntoks_r; ti++) {
-                                    u32 tlo = (ti > 0) ? TOK_OFF(htoks[0][ti-1]) : 0;
-                                    u32 thi = TOK_OFF(htoks[0][ti]);
+                                    u32 tlo = (ti > 0) ? tok32Offset(htoks[0][ti-1]) : 0;
+                                    u32 thi = tok32Offset(htoks[0][ti]);
                                     if (thi <= ctx_lo || tlo >= ctx_hi) continue;
                                     u32 clo = tlo < ctx_lo ? ctx_lo : tlo;
                                     u32 chi = thi > ctx_hi ? ctx_hi : thi;
-                                    u8 tag = TOK_TAG(htoks[0][ti]) - 'A';
+                                    u8 tag = tok32Tag(htoks[0][ti]) - 'A';
                                     memset(lp + (clo - ctx_lo), tag, chi - clo);
                                 }
                                 for (int h = 0; h < nhl; h++) {

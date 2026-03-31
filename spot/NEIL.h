@@ -14,8 +14,8 @@ con ok64 NEILBAD = 0x1739254b28d;
 // Check if a token is actual whitespace by inspecting its first byte.
 // Tag 'S' covers both whitespace AND non-keyword identifiers in C.
 fun b8 NEILIsWS(u32cs toks, u8cp base, u32 idx) {
-    u32 lo = (idx > 0) ? TOK_OFF(toks[0][idx - 1]) : 0;
-    u32 hi = TOK_OFF(toks[0][idx]);
+    u32 lo = (idx > 0) ? tok32Offset(toks[0][idx - 1]) : 0;
+    u32 hi = tok32Offset(toks[0][idx]);
     if (lo >= hi) return YES;
     u8 ch = base[lo];
     return ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r';

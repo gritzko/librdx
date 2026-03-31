@@ -54,3 +54,44 @@ if [ "$FAILS" -gt 0 ]; then
 fi
 
 echo "PASSED"
+
+# --- inline highlighting (hili) test ---
+# When a single token changes mid-line, the context prefix must appear
+# exactly once — no duplicate full-line copies.
+
+HILI_OLD="$DATADIR/hili_old.c"
+HILI_NEW="$DATADIR/hili_new.c"
+
+HOUT=$("$SPOT" --diff "$HILI_OLD" "$HILI_NEW" 2>&1 | perl -pe 's/\e\[[0-9;]*m//g')
+HFAILS=0
+
+echo "=== inline highlight test ==="
+
+# The line prefix before the changed token must appear exactly once
+check_hili() {
+    local line="$1"
+    local count
+    count=$(echo "$HOUT" | grep -cF "$line" || true)
+    if [ "$count" -gt 1 ]; then
+        echo "FAIL: '$line' appears $count times (expected 1)"
+        HFAILS=$((HFAILS + 1))
+    elif [ "$count" -eq 0 ]; then
+        echo "FAIL: '$line' not found in output"
+        HFAILS=$((HFAILS + 1))
+    else
+        echo "  OK: '$line'"
+    fi
+}
+
+check_hili "u32 tlo = (ti > 0) ?"
+check_hili "u32 thi ="
+check_hili "process(tlo, thi);"
+
+if [ "$HFAILS" -gt 0 ]; then
+    echo "FAILED: $HFAILS inline highlight checks failed"
+    echo "--- full hili output ---"
+    echo "$HOUT"
+    exit 1
+fi
+
+echo "PASSED"

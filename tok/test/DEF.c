@@ -19,7 +19,7 @@ static ok64 def_cb(u8 tag, u8cs tok, void *vctx) {
     sane(vctx != NULL);
     DEFctx *c = vctx;
     u32 end = (u32)(tok[1] - c->base);
-    call(u32bFeed1, c->toks, TOK_PACK(tag, end));
+    call(u32bFeed1, c->toks, tok32Pack(tag,end));
     done;
 }
 
@@ -45,9 +45,9 @@ ok64 def_test(u8csc src, u8csc ext, u8s out) {
     u32 ntoks = (u32)$len(ts);
     for (u32 i = 0; i < ntoks; i++) {
         u32 tok = ts[0][i];
-        u8 tag = TOK_TAG(tok);
+        u8 tag = tok32Tag(tok);
         u8cs val;
-        TOK_VAL(val, ts, src[0], i);
+        tok32Val(val, ts, src[0], i);
         // skip whitespace
         b8 ws = YES;
         for (u8c const *p = val[0]; p < val[1]; p++)

@@ -23,7 +23,7 @@ static ok64 join_cb(u8 tag, u8cs tok, void *vctx) {
     sane(vctx != NULL);
     join_ctx *ctx = vctx;
     u32 end = (u32)(tok[1] - ctx->base);
-    call(u32bFeed1, ctx->toks, TOK_PACK(tag, end));
+    call(u32bFeed1, ctx->toks, tok32Pack(tag,end));
     u64 h = RAPHash(tok);
     call(u64bFeed1, ctx->hashes, h);
     done;
@@ -102,8 +102,8 @@ static ok64 join_mark_side(u64bp sh, e32cs edl) {
 
 static ok64 join_emit(u8bp out, JOINfile const *jf, u64 ti) {
     sane(out != NULL && jf != NULL);
-    u32 lo = (ti > 0) ? TOK_OFF(jf->toks[1][ti - 1]) : 0;
-    u32 hi = TOK_OFF(jf->toks[1][ti]);
+    u32 lo = (ti > 0) ? tok32Offset(jf->toks[1][ti - 1]) : 0;
+    u32 hi = tok32Offset(jf->toks[1][ti]);
     a_rest(u8c, r, jf->data, lo);
     a_head(u8c, tok, r, hi - lo);
     call(u8bFeed, out, tok);

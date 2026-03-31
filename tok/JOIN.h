@@ -12,7 +12,7 @@
 #include "abc/DIFF.h"
 #include "abc/RAP.h"
 
-// Packed u32 tokens: use TOK_PACK/TOK_TAG/TOK_OFF from TOK.h
+// Packed tok32 tokens: use tok32Pack/tok32Tag/tok32Offset from TOK.h
 
 // Hash u64 marking: ms 2 bits
 // For base hashes:

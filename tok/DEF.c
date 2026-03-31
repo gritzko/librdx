@@ -172,9 +172,9 @@ static ok64 DEFEnrich(DEFenr *e, u32 const *const *toks, u8csc data,
     u8c *base = data[0];
     for (u32 i = 0; i < ntoks; i++) {
         u32 tok = toks[0][i];
-        u8 tag = TOK_TAG(tok);
+        u8 tag = tok32Tag(tok);
         u8cs val;
-        TOK_VAL(val, toks, base, i);
+        tok32Val(val,toks,base,i);
 
         if (tag == 'D') continue;
         if (tag == 'S' && DEFIsWs(val)) continue;
@@ -221,8 +221,8 @@ static ok64 DEFEnrich(DEFenr *e, u32 const *const *toks, u8csc data,
 
 static void DEFRetag(u32 **toks, u32 idx) {
     u32 tok = toks[0][idx];
-    if (TOK_TAG(tok) == 'S')
-        toks[0][idx] = TOK_PACK(DEF_TAG, TOK_OFF(tok));
+    if (tok32Tag(tok) == 'S')
+        toks[0][idx] = tok32Pack(DEF_TAG,tok32Offset(tok));
 }
 
 // ============================================================

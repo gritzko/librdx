@@ -4,7 +4,7 @@
 // Works with packed u32 token arrays (from TOK.h) and source bytes.
 // Supports {} () []. Only inspects P-tagged tokens (punctuation),
 // so brackets inside strings/comments are ignored.
-// Returns token indices; use TOK_VAL to get byte slices.
+// Returns token indices; use tok32Val to get byte slices.
 //
 
 #ifndef TOK_BRCT_H

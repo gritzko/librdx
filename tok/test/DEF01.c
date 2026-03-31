@@ -34,7 +34,7 @@ static ok64 def01_cb(u8 tag, u8cs tok, void *vctx) {
     DEF01ctx *c = vctx;
     if (c->ntoks >= (1u << 16)) return DEFFAIL;
     u32 end = (u32)(tok[1] - c->base);
-    g_tokbuf[c->ntoks++] = TOK_PACK(tag, end);
+    g_tokbuf[c->ntoks++] = tok32Pack(tag,end);
     done;
 }
 
@@ -110,10 +110,10 @@ ok64 test_def01() {
         // collect N-tagged names
         u8s out = {g_outbuf, g_outbuf + sizeof(g_outbuf)};
         for (u32 i = 0; i < ctx.ntoks; i++) {
-            u8 tag = TOK_TAG(g_tokbuf[i]);
+            u8 tag = tok32Tag(g_tokbuf[i]);
             if (tag != 'N') continue;
             u8cs val;
-            TOK_VAL(val, ts, src[0], i);
+            tok32Val(val, ts, src[0], i);
             call(u8sFeed, out, val);
             call(u8sFeed1, out, '\n');
         }
