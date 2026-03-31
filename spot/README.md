@@ -24,6 +24,10 @@ Scan for function invocations:
 
     $ spot -s 'u8csMv(A)' .c
 
+Git integration:
+
+    $ git diff HEAD^
+
 <table><tr>
 <td><img src="../blog/img/screen.png" alt="spot search" width="100%"></td>
 <td><img src="../blog/img/diff.png" alt="spot diff" width="100%"></td>
