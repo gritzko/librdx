@@ -1,0 +1,663 @@
+#include "CAPOi.h"
+
+#include <fcntl.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+
+#include "abc/PRO.h"
+#include "spot/NEIL.h"
+#include "tok/DEF.h"
+#include "tok/JOIN.h"
+
+// --- Merge: token-level 3-way merge ---
+
+static ok64 CAPOMergeRead(u8cs *data, u8bp *mapped, u8csc path_arg) {
+    sane(data != NULL && mapped != NULL);
+    a_pad(u8, path, FILE_PATH_MAX_LEN);
+    call(u8bFeed, path, path_arg);
+    call(PATHu8gTerm, PATHu8gIn(path));
+    call(FILEMapRO, mapped, PATHu8cgIn(path));
+    (*data)[0] = u8bDataHead(*mapped);
+    (*data)[1] = u8bIdleHead(*mapped);
+    done;
+}
+
+ok64 CAPOMerge(u8csc base_path, u8csc ours_path, u8csc theirs_path,
+               u8csc outpath) {
+    sane($ok(base_path) && $ok(ours_path) && $ok(theirs_path));
+
+    // Detect extension from ours
+    u8cs ext = {};
+    size_t olen = (size_t)$len(ours_path);
+    CAPOFindExt(ext, ours_path[0], olen);
+    if (!$empty(ext) && ext[0][0] == '.') {
+        ext[0] = ext[0] + 1;  // strip dot for tok/
+    }
+
+    // Read three files
+    u8bp map_b = NULL, map_o = NULL, map_t = NULL;
+    u8cs base_data = {}, ours_data = {}, theirs_data = {};
+    call(CAPOMergeRead, &base_data, &map_b, base_path);
+    call(CAPOMergeRead, &ours_data, &map_o, ours_path);
+    call(CAPOMergeRead, &theirs_data, &map_t, theirs_path);
+
+    // Tokenize
+    JOINfile base = {}, ours = {}, theirs = {};
+    ok64 o = JOINTokenize(&base, base_data, ext);
+    if (o != OK) goto cleanup;
+    o = JOINTokenize(&ours, ours_data, ext);
+    if (o != OK) goto cleanup;
+    o = JOINTokenize(&theirs, theirs_data, ext);
+    if (o != OK) goto cleanup;
+
+    // Merge
+    {
+        u64 outsz = $len(ours_data) + $len(theirs_data) + 4096;
+        u8 *out[4] = {};
+        o = u8bAlloc(out, outsz);
+        if (o != OK) goto cleanup;
+        o = JOINMerge(out, &base, &ours, &theirs);
+        if (o != OK) { u8bFree(out); goto cleanup; }
+
+        u8cs result = {out[1], out[2]};
+        if (!$empty(outpath)) {
+            // Write to file
+            a_pad(u8, opath, FILE_PATH_MAX_LEN);
+            call(u8bFeed, opath, outpath);
+            call(PATHu8gTerm, PATHu8gIn(opath));
+            int fd = open((char *)u8bDataHead(opath),
+                          O_WRONLY | O_CREAT | O_TRUNC, 0644);
+            if (fd < 0) { u8bFree(out); o = FILEFAIL; goto cleanup; }
+            o = FILEFeedall(fd, result);
+            close(fd);
+        } else {
+            o = FILEFeedall(STDOUT_FILENO, result);
+        }
+        u8bFree(out);
+    }
+
+cleanup:
+    JOINFree(&base);
+    JOINFree(&ours);
+    JOINFree(&theirs);
+    if (map_b) FILEUnMap(map_b);
+    if (map_o) FILEUnMap(map_o);
+    if (map_t) FILEUnMap(map_t);
+    return o;
+}
+
+// --- Diff: token-level colored diff ---
+
+// Helper: get token slice from a JOINfile
+#define CAPOJoinToks(ts, jf) \
+    u32cs ts = {(u32cp)(jf)->toks[1], (u32cp)(jf)->toks[2]}
+
+ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name) {
+    sane($ok(old_path) && $ok(new_path));
+
+    // Detect extension from logical name
+    u8cs ext = {};
+    size_t nlen = (size_t)$len(name);
+    CAPOFindExt(ext, name[0], nlen);
+    if (!$empty(ext) && ext[0][0] == '.') {
+        ext[0] = ext[0] + 1;  // strip dot for tok/
+    }
+
+    // Read files (either side may be empty for new/deleted files)
+    u8bp map_old = NULL, map_new = NULL;
+    u8cs old_data = {}, new_data = {};
+    ok64 oro = CAPOMergeRead(&old_data, &map_old, old_path);
+    ok64 nro = CAPOMergeRead(&new_data, &map_new, new_path);
+    if (oro != OK && nro != OK) return oro;  // both failed
+
+    if (LESSArenaInit() != OK) {
+        if (map_old) FILEUnMap(map_old);
+        if (map_new) FILEUnMap(map_new);
+        return NOROOM;
+    }
+
+    // Display name (null-terminated) for hunk titles
+    char dispname[FILE_PATH_MAX_LEN];
+    size_t dlen = (size_t)$len(name);
+    if (dlen >= sizeof(dispname)) dlen = sizeof(dispname) - 1;
+    memcpy(dispname, name[0], dlen);
+    dispname[dlen] = 0;
+
+    // Deleted file: red header + all old content as DEL
+    if (nro != OK) {
+        JOINfile old_f = {};
+        ok64 o = JOINTokenize(&old_f, old_data, ext);
+        if (o == OK) {
+            CAPOJoinToks(old_ts, &old_f);
+            u32 olen = (u32)$len(old_data);
+            LESShunk *hk = &less_hunks[less_nhunks];
+            memset(hk, 0, sizeof(*hk));
+            char hdr[512];
+            int tlen = CAPOFormatTitle(hdr, sizeof(hdr), dispname, "");
+            if (tlen > 0) {
+                u8p tp = LESSArenaWrite(hdr, (size_t)tlen);
+                if (tp) { hk->title[0] = tp; hk->title[1] = tp + tlen; }
+            }
+            u8p txp = LESSArenaWrite(old_data[0], olen);
+            if (txp) { hk->text[0] = txp; hk->text[1] = txp + olen; }
+            u8p lp = LESSArenaAlloc(olen);
+            if (lp) {
+                CAPOBuildLits(lp, old_data[0], olen, old_ts);
+                CAPOMarkLits(lp, 0, olen, LESS_DEL);
+                hk->lits[0] = lp; hk->lits[1] = lp + olen;
+            }
+            less_nhunks++;
+        }
+        JOINFree(&old_f);
+        LESSRun(less_hunks, less_nhunks);
+        LESSArenaCleanup();
+        if (map_old) FILEUnMap(map_old);
+        done;
+    }
+
+    // New file: green header + all new content as INS
+    if (oro != OK) {
+        JOINfile new_f = {};
+        ok64 o = JOINTokenize(&new_f, new_data, ext);
+        if (o != OK) {
+            JOINFree(&new_f);
+            if (map_new) FILEUnMap(map_new);
+            LESSArenaCleanup();
+            return o;
+        }
+        CAPOJoinToks(new_ts, &new_f);
+        u32 nlen2 = (u32)$len(new_data);
+        LESShunk *hk = &less_hunks[less_nhunks];
+        memset(hk, 0, sizeof(*hk));
+        char hdr[512];
+        int tlen = snprintf(hdr, sizeof(hdr), "+++ %s ---", dispname);
+        if (tlen > 0) {
+            u8p tp = LESSArenaWrite(hdr, (size_t)tlen);
+            if (tp) { hk->title[0] = tp; hk->title[1] = tp + tlen; }
+        }
+        u8p txp = LESSArenaWrite(new_data[0], nlen2);
+        if (txp) { hk->text[0] = txp; hk->text[1] = txp + nlen2; }
+        u8p lp = LESSArenaAlloc(nlen2);
+        if (lp) {
+            CAPOBuildLits(lp, new_data[0], nlen2, new_ts);
+            CAPOMarkLits(lp, 0, nlen2, LESS_INS);
+            hk->lits[0] = lp; hk->lits[1] = lp + nlen2;
+        }
+        less_nhunks++;
+        LESSRun(less_hunks, less_nhunks);
+        LESSArenaCleanup();
+        JOINFree(&new_f);
+        if (map_new) FILEUnMap(map_new);
+        done;
+    }
+
+    // Tokenize
+    JOINfile old_f = {}, new_f = {};
+    ok64 o = JOINTokenize(&old_f, old_data, ext);
+    if (o != OK) goto diff_cleanup;
+    o = JOINTokenize(&new_f, new_data, ext);
+    if (o != OK) goto diff_cleanup;
+
+    {
+        u64 on = u64bDataLen(old_f.hashes);
+        u64 nn = u64bDataLen(new_f.hashes);
+
+        // Allocate diff workspace
+        u64 wsize = DIFFWorkSize(on, nn);
+        u64 emax = DIFFEdlMaxEntries(on, nn);
+        u64 total = wsize * sizeof(i32) + emax * sizeof(e32);
+        u8 *mem[4] = {};
+        o = u8bAlloc(mem, total);
+        if (o != OK) goto diff_cleanup;
+
+        i32p workp = (i32p)mem[1];
+        i32s ws = {workp, workp + wsize};
+        e32 *edl_buf = (e32 *)(workp + wsize);
+        e32g edl = {edl_buf, edl_buf + emax, edl_buf};
+
+        CAPOJoinToks(old_ts, &old_f);
+        CAPOJoinToks(new_ts, &new_f);
+
+        u64cs oh = {old_f.hashes[1], old_f.hashes[2]};
+        u64cs nh = {new_f.hashes[1], new_f.hashes[2]};
+        o = DIFFu64s(edl, ws, oh, nh);
+        if (o != OK) { u8bFree(mem); goto diff_cleanup; }
+
+        // Semantic cleanup: remove false short equalities
+        NEILCleanup(edl, old_ts, new_ts, old_data, new_data);
+
+        // Lossless shift: align edit boundaries on line breaks
+        NEILShift(edl, old_ts, new_ts, old_data, new_data);
+
+        // dispname built above, before deleted/new branches
+
+        // Walk EDL, emit colored output with context trimming.
+        // Build u32 visible-line intervals, then emit per-token.
+
+        #define CTX_LINES 3
+
+        u32 nedl = (u32)(edl[0] - edl[2]);
+
+        // Phase 1: scan EDL, track new-side line numbers.
+        // For each change, record visible interval [lo, hi] as
+        // a u32 pair: vis[2*i]=lo, vis[2*i+1]=hi.
+        u32 *vis = NULL;
+        u32 nvis = 0;
+        if (nedl > 0)
+            vis = (u32 *)malloc(2 * nedl * sizeof(u32));
+        if (vis != NULL) {
+            u64 sni = 0;
+            u32 nl = 0;
+            for (u32 k = 0; k < nedl; k++) {
+                e32 e = edl[2][k];
+                u32 elen = DIFF_LEN(e);
+                u32 op = DIFF_OP(e);
+                if (op == DIFF_EQ) {
+                    for (u32 j = 0; j < elen; j++) {
+                        u8cs v = {};
+                        tok32Val(v,new_ts,new_f.data[0],(int)(sni + j));
+                        $for(u8c, cp, v)
+                            if (*cp == '\n') nl++;
+                    }
+                    sni += elen;
+                } else if (op == DIFF_INS) {
+                    u32 sl = nl;
+                    for (u32 j = 0; j < elen; j++) {
+                        u8cs v = {};
+                        tok32Val(v,new_ts,new_f.data[0],(int)(sni + j));
+                        $for(u8c, cp, v)
+                            if (*cp == '\n') nl++;
+                    }
+                    u32 lo = (sl > CTX_LINES) ? sl - CTX_LINES : 0;
+                    u32 hi = nl + CTX_LINES;
+                    vis[nvis * 2] = lo;
+                    vis[nvis * 2 + 1] = hi;
+                    nvis++;
+                    sni += elen;
+                } else {  // DIFF_DEL
+                    u32 lo = (nl > CTX_LINES) ? nl - CTX_LINES : 0;
+                    u32 hi = nl + CTX_LINES;
+                    vis[nvis * 2] = lo;
+                    vis[nvis * 2 + 1] = hi;
+                    nvis++;
+                }
+            }
+            // Merge overlapping intervals (sorted by lo already)
+            u32 m = 0;
+            for (u32 i = 0; i < nvis; i++) {
+                u32 lo = vis[i * 2], hi = vis[i * 2 + 1];
+                if (m > 0 && lo <= vis[(m - 1) * 2 + 1]) {
+                    if (hi > vis[(m - 1) * 2 + 1])
+                        vis[(m - 1) * 2 + 1] = hi;
+                } else {
+                    vis[m * 2] = lo;
+                    vis[m * 2 + 1] = hi;
+                    m++;
+                }
+            }
+            nvis = m;
+        }
+
+        // Phase 2: walk EDL, build LESS hunks.
+        // Allocate combined text+lits buffers in arena.
+        // Worst case: all old bytes (DEL) + all new bytes (INS).
+        u32 old_len = (u32)$len(old_data);
+        u32 new_len = (u32)$len(new_data);
+        u32 arena_need = old_len + new_len;
+        u8p diff_text = NULL, diff_lits = NULL;
+        u8p dtxp = NULL, dltp = NULL;  // cursors
+        LESShunk *cur_hunk = NULL;
+
+        if (arena_need > 0) {
+            diff_text = LESSArenaAlloc(arena_need);
+            diff_lits = LESSArenaAlloc(arena_need);
+            if (diff_text != NULL && diff_lits != NULL) {
+                dtxp = diff_text;
+                dltp = diff_lits;
+            }
+        }
+
+        // Helper macros for copying tokens into the LESS buffer
+        #define DIFF_COPY_TOK(toks_s, base, idx, flag) do {    \
+            u8cs _v = {};                                       \
+            tok32Val(_v,toks_s,base,(int)(idx));              \
+            u32 _n = (u32)$len(_v);                             \
+            u8 _tag = tok32Tag((toks_s)[0][(idx)]) - 'A';       \
+            memcpy(dtxp, _v[0], _n);                            \
+            memset(dltp, _tag | (flag), _n);                    \
+            dtxp += _n;                                         \
+            dltp += _n;                                         \
+        } while(0)
+
+        // Start a new LESS hunk with title
+        #define DIFF_START_HUNK(boff) do {                      \
+            if (cur_hunk != NULL) {                             \
+                cur_hunk->text[1] = dtxp;                       \
+                cur_hunk->lits[1] = dltp;                       \
+            }                                                   \
+            if (less_nhunks < LESS_MAX_HUNKS) {                 \
+                cur_hunk = &less_hunks[less_nhunks];            \
+                memset(cur_hunk, 0, sizeof(*cur_hunk));         \
+                char _funcname[256];                            \
+                CAPOFindFunc(new_data, (boff), ext,             \
+                             _funcname, sizeof(_funcname));      \
+                char _hdr[512];                                 \
+                int _tl = CAPOFormatTitle(_hdr, sizeof(_hdr),   \
+                    dispname, _funcname);                       \
+                if (_tl > 0) {                                  \
+                    u8p _tp = LESSArenaWrite(_hdr, (size_t)_tl);\
+                    if (_tp) {                                  \
+                        cur_hunk->title[0] = _tp;               \
+                        cur_hunk->title[1] = _tp + _tl;         \
+                    }                                           \
+                }                                               \
+                cur_hunk->text[0] = dtxp;                       \
+                cur_hunk->lits[0] = dltp;                       \
+                less_nhunks++;                                  \
+            }                                                   \
+        } while(0)
+
+        // Copy leading whitespace on current line into hunk
+        #define DIFF_COPY_LINE_PREFIX(boff) do {                \
+            u32 _ls = (boff);                                   \
+            while (_ls > 0 && new_data[0][_ls-1] != '\n') _ls--;\
+            if (_ls < (boff)) {                                 \
+                u32 _pn = (boff) - _ls;                         \
+                memcpy(dtxp, new_data[0] + _ls, _pn);           \
+                memset(dltp, 0, _pn);                           \
+                dtxp += _pn;                                    \
+                dltp += _pn;                                    \
+            }                                                   \
+        } while(0)
+
+        u64 oi = 0, ni = 0;
+        u32 cur_line = 0, cur_iv = 0;
+        b8 in_gap = YES;
+
+        for (u32 k = 0; k < nedl; ) {
+            e32 e = edl[2][k];
+            if (DIFF_OP(e) == DIFF_EQ) {
+                u32 len = DIFF_LEN(e);
+                for (u32 j = 0; j < len; j++) {
+                    while (cur_iv < nvis &&
+                           vis[cur_iv * 2 + 1] < cur_line)
+                        cur_iv++;
+                    b8 show = (vis == NULL) ||
+                        (cur_iv < nvis &&
+                         cur_line >= vis[cur_iv * 2] &&
+                         cur_line <= vis[cur_iv * 2 + 1]);
+                    if (show) {
+                        if (in_gap) {
+                            u32 boff = (ni > 0) ? tok32Offset(new_ts[0][ni-1]) : 0;
+                            DIFF_START_HUNK(boff);
+                            DIFF_COPY_LINE_PREFIX(boff);
+                            in_gap = NO;
+                        }
+                        DIFF_COPY_TOK(new_ts, new_f.data[0], ni, 0);
+                    } else {
+                        in_gap = YES;
+                    }
+                    u8cs v = {};
+                    tok32Val(v,new_ts,new_f.data[0],(int)ni);
+                    $for(u8c, cp, v)
+                        if (*cp == '\n') cur_line++;
+                    oi++; ni++;
+                }
+                k++;
+            } else {
+                // Change region: scan to end of consecutive DEL/INS
+                u32 kend = k;
+                while (kend < nedl && DIFF_OP(edl[2][kend]) != DIFF_EQ)
+                    kend++;
+
+                // Count total DEL and INS tokens in this region
+                u32 del_total = 0, ins_total = 0;
+                b8 ws_only = YES;
+                for (u32 kk = k; kk < kend; kk++) {
+                    u32 klen = DIFF_LEN(edl[2][kk]);
+                    if (DIFF_OP(edl[2][kk]) == DIFF_DEL) {
+                        del_total += klen;
+                        for (u32 j = 0; j < klen && ws_only; j++)
+                            if (!NEILIsWS(old_ts, old_f.data[0],
+                                          oi + del_total - klen + j))
+                                ws_only = NO;
+                    } else {
+                        ins_total += klen;
+                        for (u32 j = 0; j < klen && ws_only; j++)
+                            if (!NEILIsWS(new_ts, new_f.data[0],
+                                          ni + ins_total - klen + j))
+                                ws_only = NO;
+                    }
+                }
+
+                // Whitespace-only changes: emit new side as EQ context
+                if (ws_only && ins_total > 0) {
+                    for (u32 j = 0; j < ins_total; j++) {
+                        while (cur_iv < nvis &&
+                               vis[cur_iv * 2 + 1] < cur_line)
+                            cur_iv++;
+                        b8 show = (vis == NULL) ||
+                            (cur_iv < nvis &&
+                             cur_line >= vis[cur_iv * 2] &&
+                             cur_line <= vis[cur_iv * 2 + 1]);
+                        if (show) {
+                            if (in_gap) {
+                                u64 ti = ni + j;
+                                u32 boff = (ti > 0)
+                                    ? tok32Offset(new_ts[0][ti-1]) : 0;
+                                DIFF_START_HUNK(boff);
+                                DIFF_COPY_LINE_PREFIX(boff);
+                                in_gap = NO;
+                            }
+                            DIFF_COPY_TOK(new_ts, new_f.data[0], ni + j, 0);
+                        } else {
+                            in_gap = YES;
+                        }
+                        u8cs v = {};
+                        tok32Val(v,new_ts,new_f.data[0],(int)(ni + j));
+                        $for(u8c, cp, v)
+                            if (*cp == '\n') cur_line++;
+                    }
+                    oi += del_total;
+                    ni += ins_total;
+                    k = kend;
+                    continue;
+                }
+
+                // Extract common prefix: compare old/new token
+                // source bytes to find misaligned EQ tokens.
+                u32 prefix = 0;
+                {
+                    u32 lim = (del_total < ins_total)
+                              ? del_total : ins_total;
+                    u64 ti = oi, tj = ni;
+                    while (prefix < lim) {
+                        u8cs ov = {}, nv = {};
+                        tok32Val(ov,old_ts,old_f.data[0],(int)ti);
+                        tok32Val(nv,new_ts,new_f.data[0],(int)tj);
+                        if ($len(ov) != $len(nv)) break;
+                        if (memcmp(ov[0], nv[0], (size_t)$len(ov)))
+                            break;
+                        prefix++; ti++; tj++;
+                    }
+                }
+
+                // Extract common suffix
+                u32 suffix = 0;
+                {
+                    u32 lim = (del_total < ins_total)
+                              ? del_total : ins_total;
+                    lim -= prefix;
+                    u64 ti = oi + del_total - 1;
+                    u64 tj = ni + ins_total - 1;
+                    while (suffix < lim) {
+                        u8cs ov = {}, nv = {};
+                        tok32Val(ov,old_ts,old_f.data[0],(int)ti);
+                        tok32Val(nv,new_ts,new_f.data[0],(int)tj);
+                        if ($len(ov) != $len(nv)) break;
+                        if (memcmp(ov[0], nv[0], (size_t)$len(ov)))
+                            break;
+                        suffix++; ti--; tj--;
+                    }
+                }
+
+                // Save base positions before prefix extraction
+                u64 base_oi = oi, base_ni = ni;
+
+                // Emit common prefix as EQ context
+                for (u32 j = 0; j < prefix; j++) {
+                    while (cur_iv < nvis &&
+                           vis[cur_iv * 2 + 1] < cur_line)
+                        cur_iv++;
+                    b8 show = (vis == NULL) ||
+                        (cur_iv < nvis &&
+                         cur_line >= vis[cur_iv * 2] &&
+                         cur_line <= vis[cur_iv * 2 + 1]);
+                    if (show) {
+                        if (in_gap) {
+                            u64 ti = base_ni + j;
+                            u32 boff = (ti > 0)
+                                ? tok32Offset(new_ts[0][ti-1]) : 0;
+                            DIFF_START_HUNK(boff);
+                            DIFF_COPY_LINE_PREFIX(boff);
+                            in_gap = NO;
+                        }
+                        DIFF_COPY_TOK(new_ts, new_f.data[0], base_ni + j, 0);
+                    } else {
+                        in_gap = YES;
+                    }
+                    u8cs v = {};
+                    tok32Val(v,new_ts,new_f.data[0],(int)(base_ni + j));
+                    $for(u8c, cp, v)
+                        if (*cp == '\n') cur_line++;
+                }
+
+                if (in_gap) {
+                    u32 boff = (base_ni > 0)
+                        ? tok32Offset(new_ts[0][base_ni-1]) : 0;
+                    DIFF_START_HUNK(boff);
+                    in_gap = NO;
+                }
+
+                // Emit DEL tokens (excluding prefix/suffix)
+                u64 toi = base_oi;
+                for (u32 kk = k; kk < kend; kk++) {
+                    if (DIFF_OP(edl[2][kk]) == DIFF_DEL) {
+                        u32 dlen = DIFF_LEN(edl[2][kk]);
+                        for (u32 j = 0; j < dlen; j++) {
+                            u32 pos = (u32)(toi - base_oi);
+                            if (pos >= prefix &&
+                                pos < del_total - suffix) {
+                                DIFF_COPY_TOK(old_ts, old_f.data[0],
+                                              toi, LESS_DEL);
+                            }
+                            toi++;
+                        }
+                    }
+                }
+
+                // Newline separator between DEL and INS output:
+                // if DEL text didn't end with '\n', insert one so
+                // deletions and insertions don't merge onto one line.
+                // Also copy the INS line's indentation so it aligns.
+                if (del_total > prefix + suffix &&
+                    ins_total > prefix + suffix &&
+                    (dtxp == diff_text || *(dtxp - 1) == '\n')) {
+                    u64 last_del = base_oi + del_total - suffix - 1;
+                    u8cs ldv = {};
+                    tok32Val(ldv,old_ts,old_f.data[0],(int)last_del);
+                    if (!$empty(ldv) && *(ldv[1] - 1) != '\n') {
+                        // Find indentation of first INS token's line
+                        u64 ins_ti = base_ni + prefix;
+                        u32 ins_boff = (ins_ti > 0)
+                            ? tok32Offset(new_ts[0][ins_ti - 1]) : 0;
+                        u32 ls = ins_boff;
+                        while (ls > 0 && new_data[0][ls - 1] != '\n')
+                            ls--;
+                        *dtxp++ = '\n';
+                        *dltp++ = LESS_DEL;
+                        if (ls < ins_boff) {
+                            u32 pn = ins_boff - ls;
+                            memcpy(dtxp, new_data[0] + ls, pn);
+                            memset(dltp, LESS_INS, pn);
+                            dtxp += pn;
+                            dltp += pn;
+                        }
+                    }
+                }
+
+                // Emit INS tokens (excluding prefix/suffix)
+                u64 tni = base_ni;
+                for (u32 kk = k; kk < kend; kk++) {
+                    if (DIFF_OP(edl[2][kk]) == DIFF_INS) {
+                        u32 ilen = DIFF_LEN(edl[2][kk]);
+                        for (u32 j = 0; j < ilen; j++) {
+                            u32 pos = (u32)(tni - base_ni);
+                            if (pos >= prefix &&
+                                pos < ins_total - suffix) {
+                                DIFF_COPY_TOK(new_ts, new_f.data[0],
+                                              tni, LESS_INS);
+                                u8cs v = {};
+                                tok32Val(v,new_ts,new_f.data[0],(int)tni);
+                                $for(u8c, cp, v)
+                                    if (*cp == '\n') cur_line++;
+                            }
+                            tni++;
+                        }
+                    }
+                }
+
+                // Emit common suffix as EQ context
+                for (u32 j = 0; j < suffix; j++) {
+                    u64 sn = base_ni + ins_total - suffix + j;
+                    while (cur_iv < nvis &&
+                           vis[cur_iv * 2 + 1] < cur_line)
+                        cur_iv++;
+                    b8 show = (vis == NULL) ||
+                        (cur_iv < nvis &&
+                         cur_line >= vis[cur_iv * 2] &&
+                         cur_line <= vis[cur_iv * 2 + 1]);
+                    if (show) {
+                        DIFF_COPY_TOK(new_ts, new_f.data[0], sn, 0);
+                    } else {
+                        in_gap = YES;
+                    }
+                    u8cs v = {};
+                    tok32Val(v,new_ts,new_f.data[0],(int)sn);
+                    $for(u8c, cp, v)
+                        if (*cp == '\n') cur_line++;
+                }
+
+                oi = toi;
+                ni = tni;
+                k = kend;
+            }
+        }
+
+        // Finalize last LESS hunk
+        if (cur_hunk != NULL) {
+            cur_hunk->text[1] = dtxp;
+            cur_hunk->lits[1] = dltp;
+        }
+
+        #undef DIFF_COPY_TOK
+        #undef DIFF_START_HUNK
+        #undef DIFF_COPY_LINE_PREFIX
+
+        if (vis != NULL) free(vis);
+        u8bFree(mem);
+    }
+
+    if (less_nhunks > 0)
+        LESSRun(less_hunks, less_nhunks);
+    LESSArenaCleanup();
+
+diff_cleanup:
+    JOINFree(&old_f);
+    JOINFree(&new_f);
+    if (map_old) FILEUnMap(map_old);
+    if (map_new) FILEUnMap(map_new);
+    return o;
+}

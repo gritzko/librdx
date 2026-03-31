@@ -20,4 +20,22 @@ typedef struct {
 // status bar, and search. Falls back to plain fprintf when !isatty.
 ok64 LESSRun(LESShunk const *hunks, u32 nhunks);
 
+// --- LESS arena: shared scratch space for grep/diff/spot/cat ---
+#define LESS_ARENA_SIZE (1UL << 27)   // 128MB
+#define LESS_MAX_HUNKS 4096
+#define LESS_MAX_MAPS 1024
+
+extern Bu8 less_arena;
+extern LESShunk less_hunks[LESS_MAX_HUNKS];
+extern u8bp less_maps[LESS_MAX_MAPS];
+extern Bu32 less_toks[LESS_MAX_MAPS];
+extern u32 less_nhunks;
+extern u32 less_nmaps;
+
+ok64 LESSArenaInit(void);
+void LESSArenaCleanup(void);
+u8p LESSArenaWrite(void const *data, size_t len);
+u8p LESSArenaAlloc(size_t len);
+void LESSDefer(u8bp mapped, Bu32 toks);
+
 #endif

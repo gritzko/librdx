@@ -11,6 +11,7 @@ include_directories(.. .)
 
 list(APPEND SPOT_HEADERS
     CAPO.h
+    CAPOi.h
     LESS.h
     NEIL.h
     SPOT.h
@@ -18,6 +19,9 @@ list(APPEND SPOT_HEADERS
 
 list(APPEND SPOT_SOURCES
     CAPO.c
+    CAT.c
+    DIF2.c
+    GREP.c
     LESS.c
     NEIL.c
     SPOT.c

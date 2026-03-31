@@ -9,11 +9,69 @@
 #include <unistd.h>
 
 #include "abc/ANSI.h"
+#include "abc/FILE.h"
 #include "abc/PRO.h"
 #include "abc/TTY.h"
 #include "tok/TOK.h"
 
 extern b8 CAPO_COLOR;
+
+// --- LESS arena state ---
+Bu8 less_arena = {};
+LESShunk less_hunks[LESS_MAX_HUNKS];
+u8bp less_maps[LESS_MAX_MAPS];
+Bu32 less_toks[LESS_MAX_MAPS];
+u32 less_nhunks = 0;
+u32 less_nmaps = 0;
+
+ok64 LESSArenaInit(void) {
+    less_nhunks = 0;
+    less_nmaps = 0;
+    memset(less_hunks, 0, sizeof(less_hunks));
+    memset(less_maps, 0, sizeof(less_maps));
+    memset(less_toks, 0, sizeof(less_toks));
+    if (less_arena[0] != NULL) {
+        // Reset idle pointer to start
+        ((u8 **)less_arena)[2] = less_arena[1];
+        return OK;
+    }
+    return u8bMap(less_arena, LESS_ARENA_SIZE);
+}
+
+void LESSArenaCleanup(void) {
+    for (u32 i = 0; i < less_nmaps; i++) {
+        if (less_toks[i][0] != NULL) u32bUnMap(less_toks[i]);
+        if (less_maps[i] != NULL) FILEUnMap(less_maps[i]);
+    }
+    less_nhunks = 0;
+    less_nmaps = 0;
+}
+
+// Write bytes into the arena, return pointer to start
+u8p LESSArenaWrite(void const *data, size_t len) {
+    if (u8bIdleLen(less_arena) < len) return NULL;
+    u8p p = u8bIdleHead(less_arena);
+    memcpy(p, data, len);
+    ((u8 **)less_arena)[2] = p + len;
+    return p;
+}
+
+// Reserve len bytes in the arena (zeroed), return pointer
+u8p LESSArenaAlloc(size_t len) {
+    if (u8bIdleLen(less_arena) < len) return NULL;
+    u8p p = u8bIdleHead(less_arena);
+    memset(p, 0, len);
+    ((u8 **)less_arena)[2] = p + len;
+    return p;
+}
+
+// Defer file+toks cleanup until after LESSRun
+void LESSDefer(u8bp mapped, Bu32 toks) {
+    if (less_nmaps >= LESS_MAX_MAPS) return;
+    less_maps[less_nmaps] = mapped;
+    memcpy(less_toks[less_nmaps], toks, sizeof(Bu32));
+    less_nmaps++;
+}
 
 // 256-color ink violet for hunk titles
 #define LESS_TITLE_COLOR "\033[38;5;56m"

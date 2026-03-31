@@ -5,6 +5,8 @@
 | Header | Purpose |
 |--------|---------|
 | CAPO.h | Main API: index, search, grep, cat, diff, merge |
+| CAPOi.h | Internal: shared helpers, CAPOFindExt macro, MSET/DIFF u64 templates |
+| LESS.h | LESS pager API + arena (hunks, maps, alloc/write/defer) |
 | SPOT.h | Structural pattern matching: tokenize, init, next, replace |
 | NEIL.h | Diff semantic cleanup: remove false short equalities |
 
@@ -12,8 +14,12 @@
 
 | File | Purpose |
 |------|---------|
-| CAPO.c | Index management, grep, SPOT search, cat, diff, merge, hunk output |
+| CAPO.c | Index management, SPOT search, shared display helpers |
+| CAT.c | Syntax-highlighted file display (CAPOCat) |
+| DIF2.c | Token-level diff (CAPODiff) and 3-way merge (CAPOMerge) |
+| GREP.c | Substring grep (CAPOGrep), regex grep (CAPOPcreGrep) |
 | CAPO.cli.c | CLI entry point, argument parsing |
+| LESS.c | LESS pager + arena state/functions |
 | SPOT.c | SPOT pattern matching engine, needle flattening, replacement |
 | NEIL.c | Diff edit list cleanup (whitespace-only, short EQ removal) |
 
@@ -22,10 +28,11 @@
 | Function | Purpose |
 |----------|---------|
 | `CAPOSpot` | Structural search (and replace) across repo |
-| `CAPOGrep` | Substring grep with syntax-highlighted context |
-| `CAPOCat` | Syntax-highlighted file display |
-| `CAPODiff` | Token-level diff with function headers at hunks |
-| `CAPOMerge` | Token-level 3-way merge |
+| `CAPOGrep` | Substring grep with syntax-highlighted context (GREP.c) |
+| `CAPOPcreGrep` | Regex grep via Thompson NFA + trigram filtering (GREP.c) |
+| `CAPOCat` | Syntax-highlighted file display (CAT.c) |
+| `CAPODiff` | Token-level diff with function headers at hunks (DIF2.c) |
+| `CAPOMerge` | Token-level 3-way merge (DIF2.c) |
 | `CAPOReindex` | Full reindex of all tracked files |
 | `CAPOReindexProc` | Parallel reindex (worker K of N) |
 | `CAPOHook` | Incremental index update (post-commit hook) |
