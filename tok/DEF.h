@@ -18,6 +18,7 @@
 #include "TOK.h"
 
 #define DEF_TAG 'N'
+#define CALL_TAG 'C'
 
 con ok64 DEFFAIL = 0x35a6d3ca495;
 

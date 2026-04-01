@@ -1,4 +1,5 @@
 ---
+layout: default
 ---
 # `spot` — git repo code multitool
 

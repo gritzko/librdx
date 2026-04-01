@@ -224,10 +224,10 @@ static ok64 DEFEnrich(DEFenr *e, u32 const *const *toks, u8csc data,
 //  Re-tag a token S → N
 // ============================================================
 
-static void DEFRetag(u32 **toks, u32 idx) {
+static void DEFRetag(u32 **toks, u32 idx, u8 tag) {
     u32 tok = toks[0][idx];
     if (tok32Tag(tok) == 'S')
-        toks[0][idx] = tok32Pack(DEF_TAG,tok32Offset(tok));
+        toks[0][idx] = tok32Pack(tag, tok32Offset(tok));
 }
 
 // ============================================================
@@ -372,7 +372,7 @@ static i64 DEFFindName(u8c *enr, u32 start, u32 len, u8 anchor, b8 after) {
 #define DEF_MAX_RULES 8
 #define DEF_NFA_CAP 256
 
-static ok64 DEFMarkRules(u32 **toks, DEFenr *e, const DEFrule *rules) {
+static ok64 DEFMarkRules(u32 **toks, DEFenr *e, const DEFrule *rules, u8 tag) {
     sane(e != NULL && rules != NULL);
 
     u32 nrules = 0;
@@ -421,12 +421,18 @@ static ok64 DEFMarkRules(u32 **toks, DEFenr *e, const DEFrule *rules) {
             if (!DEFTryMatch(nfa, e->enr, e->len, i)) continue;
 
             i64 name = DEFFindName(e->enr, i, e->len, anchors[r], afters[r]);
-            if (name >= 0) DEFRetag(toks, e->map[name]);
+            if (name >= 0) DEFRetag(toks, e->map[name], tag);
             break;
         }
     }
     done;
 }
+
+// Function call: any identifier followed by (
+static const DEFrule CALL_RULES[] = {
+    {"S[(].*", NO},
+    {NULL, NO},
+};
 
 // ============================================================
 //  Language dispatch
@@ -436,30 +442,55 @@ typedef struct {
     const char *ext;
     const char *const *defkw;
     const DEFrule *rules;
+    b8 calls;   // mark s( call sites as CALL_TAG
 } DEFlang;
 
 static const DEFlang DEF_LANGS[] = {
-    {"c", C_DEF_KW, C_RULES},
-    {"h", C_DEF_KW, C_RULES},
-    {"cc", C_DEF_KW, C_RULES},
-    {"cpp", C_DEF_KW, C_RULES},
-    {"cxx", C_DEF_KW, C_RULES},
-    {"hpp", C_DEF_KW, C_RULES},
-    {"hh", C_DEF_KW, C_RULES},
-    {"hxx", C_DEF_KW, C_RULES},
-    {"go", GO_DEF_KW, GO_RULES},
-    {"py", PY_DEF_KW, KW_RULES},
-    {"rs", RS_DEF_KW, KW_RULES},
-    {"js", JS_DEF_KW, KW_RULES},
-    {"jsx", JS_DEF_KW, KW_RULES},
-    {"ts", TS_DEF_KW, KW_RULES},
-    {"tsx", TS_DEF_KW, KW_RULES},
-    {"java", JA_DEF_KW, JA_RULES},
-    {"cs", JA_DEF_KW, JA_RULES},
-    {"kt", KT_DEF_KW, KW_RULES},
-    {"swift", SW_DEF_KW, KW_RULES},
-    {"dart", DA_DEF_KW, DA_RULES},
-    {"zig", RS_DEF_KW, KW_RULES},
+    {"c",      C_DEF_KW,  C_RULES,  YES},
+    {"h",      C_DEF_KW,  C_RULES,  YES},
+    {"cc",     C_DEF_KW,  C_RULES,  YES},
+    {"cpp",    C_DEF_KW,  C_RULES,  YES},
+    {"cxx",    C_DEF_KW,  C_RULES,  YES},
+    {"hpp",    C_DEF_KW,  C_RULES,  YES},
+    {"hh",     C_DEF_KW,  C_RULES,  YES},
+    {"hxx",    C_DEF_KW,  C_RULES,  YES},
+    {"go",     GO_DEF_KW, GO_RULES, YES},
+    {"py",     PY_DEF_KW, KW_RULES, YES},
+    {"rs",     RS_DEF_KW, KW_RULES, YES},
+    {"js",     JS_DEF_KW, KW_RULES, YES},
+    {"jsx",    JS_DEF_KW, KW_RULES, YES},
+    {"ts",     TS_DEF_KW, KW_RULES, YES},
+    {"tsx",    TS_DEF_KW, KW_RULES, YES},
+    {"java",   JA_DEF_KW, JA_RULES, YES},
+    {"cs",     JA_DEF_KW, JA_RULES, YES},
+    {"kt",     KT_DEF_KW, KW_RULES, YES},
+    {"swift",  SW_DEF_KW, KW_RULES, YES},
+    {"dart",   DA_DEF_KW, DA_RULES, YES},
+    {"zig",    RS_DEF_KW, KW_RULES, YES},
+    {"rb",     NULL,       NULL,     YES},
+    {"lua",    NULL,       NULL,     YES},
+    {"pl",     NULL,       NULL,     YES},
+    {"pm",     NULL,       NULL,     YES},
+    {"php",    NULL,       NULL,     YES},
+    {"r",      NULL,       NULL,     YES},
+    {"R",      NULL,       NULL,     YES},
+    {"jl",     NULL,       NULL,     YES},
+    {"ex",     NULL,       NULL,     YES},
+    {"exs",    NULL,       NULL,     YES},
+    {"nim",    NULL,       NULL,     YES},
+    {"nims",   NULL,       NULL,     YES},
+    {"scala",  NULL,       NULL,     YES},
+    {"sc",     NULL,       NULL,     YES},
+    {"d",      NULL,       NULL,     YES},
+    {"clj",    NULL,       NULL,     YES},
+    {"cljs",   NULL,       NULL,     YES},
+    {"gleam",  NULL,       NULL,     YES},
+    {"odin",   NULL,       NULL,     YES},
+    {"sol",    NULL,       NULL,     YES},
+    {"graphql",NULL,       NULL,     YES},
+    {"gql",    NULL,       NULL,     YES},
+    {"proto",  NULL,       NULL,     NO},
+    {"sql",    NULL,       NULL,     NO},
     {NULL, NULL, NULL},
 };
 
@@ -477,7 +508,7 @@ static const DEFlang *DEFLookup(u8csc ext) {
 ok64 DEFMark(u32 *toks[2], u8csc data, u8csc ext) {
     sane($ok(toks) && $ok(data));
     const DEFlang *lang = DEFLookup(ext);
-    if (!lang || !lang->rules) return OK;
+    if (!lang) return OK;
 
     u32 ntoks = (u32)$len(toks);
     u32 cap = ntoks;
@@ -494,7 +525,13 @@ ok64 DEFMark(u32 *toks[2], u8csc data, u8csc ext) {
     ok64 o = DEFEnrich(&e, ctoks, data, lang->defkw);
     if (o != OK) goto cleanup;
 
-    o = DEFMarkRules(toks, &e, lang->rules);
+    if (lang->rules) {
+        o = DEFMarkRules(toks, &e, lang->rules, DEF_TAG);
+        if (o != OK) goto cleanup;
+    }
+    if (lang->calls) {
+        o = DEFMarkRules(toks, &e, CALL_RULES, CALL_TAG);
+    }
 
 cleanup:
     if (enr_buf != enr_stack) free(enr_buf);

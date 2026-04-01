@@ -79,7 +79,7 @@ ok64 test_c_func() {
         // __INLINE__ and pointer return
         {"__INLINE__ int *MyFunc() {}", "c", "SRPNPPPP"},
         // function call (not a def: has = before ()
-        {"int a = foo(x);", "c", "RSPSPSPP"},
+        {"int a = foo(x);", "c", "RSPCPSPP"},
         // forward declaration
         {"void baz(int x);", "c", "RNPRSPP"},
         // struct definition
@@ -93,9 +93,9 @@ ok64 test_c_func() {
         // typedef void (*FuncPtr)(int);
         {"typedef void (*FuncPtr)(int);", "c", "RRPPNPPRPP"},
         // flow keyword should NOT trigger def
-        {"if (fd < 0) fail(x);", "c", "RPSPLPSPSPP"},
+        {"if (fd < 0) fail(x);", "c", "RPSPLPCPSPP"},
         // return call should NOT trigger def
-        {"return foo(x);", "c", "RSPSPP"},
+        {"return foo(x);", "c", "RCPSPP"},
     };
     int n = sizeof(cases) / sizeof(cases[0]);
     for (int i = 0; i < n; i++) {

@@ -25,6 +25,7 @@ but without the tree-sitter dependency.
 | P   | Punctuation | gray |
 | S   | Default (identifier, whitespace) | default |
 | N   | Defined name (from DEF pass) | — |
+| C   | Function call (from DEF pass) | — |
 
 ## Language tokenizers
 
