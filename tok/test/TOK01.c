@@ -52,6 +52,7 @@
 #include "PWST.h"
 #include "SOLT.h"
 #include "TYST.h"
+#include "LLT.h"
 #include "TOK.h"
 
 #include "abc/TEST.h"
@@ -816,6 +817,57 @@ ok64 SOLTBasicTest() {
     done;
 }
 
+ok64 LLTBasicTest() {
+    sane(1);
+
+    TOK01Case cases[] = {
+        // single token types
+        {"define", "R"},
+        {"declare", "R"},
+        {"call", "R"},
+        {"ret", "R"},
+        {"alloca", "R"},
+        {"getelementptr", "R"},
+        {"icmp", "R"},
+        {"phi", "R"},
+        {"nsw", "R"},
+        {"i32", "R"},
+        {"ptr", "R"},
+        {"void", "R"},
+        {"float", "R"},
+        {"foo", "S"},
+        {"42", "L"},
+        {"0xFF", "L"},
+        {"0xK40148000", "L"},
+        {"3.14", "L"},
+        {"\"hello\"", "G"},
+        {"c\"hi\\00\"", "G"},
+        {"@", "P"},
+        {"%", "P"},
+        {"!", "P"},
+        {"#", "P"},
+        {"  ", "S"},
+        // comment: TOKSplitText splits sub-tokens
+        {"; x", "DDD"},
+        // sigil + name/number
+        {"@f", "PS"},
+        {"%n", "PS"},
+        {"!dbg", "PS"},
+        {"#0", "PL"},
+        // dotted identifiers (LLVM intrinsics)
+        {"llvm.memcpy.p0.p0.i64", "S"},
+        // label
+        {"entry:", "SP"},
+        // define: define void @f()
+        {"define void @f()", "RSRSPSPP"},
+        // call: call void @f()
+        {"call void @f()", "RSRSPSPP"},
+    };
+    int ncases = sizeof(cases) / sizeof(cases[0]);
+    RUN_CASES(LLTLexer, LLT, cases, ncases);
+    done;
+}
+
 ok64 TOK01test() {
     sane(1);
     call(CTBasicTest);
@@ -857,6 +909,7 @@ ok64 TOK01test() {
     call(FORTBasicTest);
     call(GLSTBasicTest);
     call(SOLTBasicTest);
+    call(LLTBasicTest);
     done;
 }
 

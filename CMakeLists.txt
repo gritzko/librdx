@@ -32,6 +32,14 @@ if (WITH_PROF)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${PROF_FLAGS}")
 endif ()
 
+option(WITH_IR "emit LLVM IR (.ll) instead of object code" OFF)
+if (WITH_IR)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -emit-llvm -S")
+    # disable linking — IR files are not linkable
+    set(CMAKE_C_LINK_EXECUTABLE "echo 'skip link: <TARGET>'")
+    set(CMAKE_C_CREATE_STATIC_LIBRARY "echo 'skip ar: <TARGET>'")
+endif ()
+
 option(WITH_FUZZ "build with libFuzzer" OFF)
 if (WITH_FUZZ)
     set(FUZZ_FLAGS "-fsanitize=fuzzer")

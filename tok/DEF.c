@@ -90,6 +90,13 @@ static const DEFrule DA_RULES[] = {
     {NULL, NO},
 };
 
+// LLVM IR: define/declare [attrs/types] @name(
+static const char *LL_DEF_KW[] = {"define", "declare", NULL};
+static const DEFrule LL_RULES[] = {
+    {"f[rsp]*S[(].*", NO},
+    {NULL, NO},
+};
+
 // Keyword-prefix languages: func/def/type/class Name
 static const DEFrule KW_RULES[] = {
     {"fS.*", NO},
@@ -489,6 +496,7 @@ static const DEFlang DEF_LANGS[] = {
     {"sol",    NULL,       NULL,     YES},
     {"graphql",NULL,       NULL,     YES},
     {"gql",    NULL,       NULL,     YES},
+    {"ll",     LL_DEF_KW,  LL_RULES, YES},
     {"proto",  NULL,       NULL,     NO},
     {"sql",    NULL,       NULL,     NO},
     {NULL, NULL, NULL},

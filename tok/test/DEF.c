@@ -297,6 +297,47 @@ ok64 test_dart() {
     done;
 }
 
+ok64 test_ll() {
+    sane(1);
+    DEFCase cases[] = {
+        // define marks function name as N
+        {"define i64 @foo()", "ll", "RRPNPP"},
+        // declare also marks as N
+        {"declare void @bar(ptr)", "ll", "RRPNPRP"},
+        // call marks callee as C
+        {"call i64 @strlen(ptr %0)", "ll", "RRPCPRPLP"},
+        // define with attrs: define dso_local i64 @func()
+        {"define dso_local i64 @func()", "ll", "RSRPNPP"},
+        // define takes priority over call for same name
+        {"define void @f()", "ll", "RRPNPP"},
+    };
+    u8 tagbuf[256];
+    u8s out = {tagbuf, tagbuf + sizeof(tagbuf)};
+    for (int i = 0; i < (int)(sizeof(cases) / sizeof(cases[0])); i++) {
+        out[0] = tagbuf;
+        u8cs src = {(u8c *)cases[i].src,
+                     (u8c *)cases[i].src + strlen(cases[i].src)};
+        u8cs ext = {(u8c *)cases[i].ext,
+                     (u8c *)cases[i].ext + strlen(cases[i].ext)};
+        ok64 o = def_test(src, ext, out);
+        if (o != OK) {
+            fprintf(stderr, "FAIL LL case %d: '%s' error %s\n", i,
+                    cases[i].src, ok64str(o));
+            fail(TESTFAIL);
+        }
+        u64 got_len = out[0] - tagbuf;
+        u64 exp_len = strlen(cases[i].tags);
+        if (got_len != exp_len ||
+            memcmp(tagbuf, cases[i].tags, exp_len) != 0) {
+            fprintf(stderr,
+                    "FAIL LL case %d: '%s'\n  got:  %.*s\n  want: %s\n", i,
+                    cases[i].src, (int)got_len, tagbuf, cases[i].tags);
+            fail(TESTFAIL);
+        }
+    }
+    done;
+}
+
 ok64 all_tests() {
     sane(1);
     call(test_c_func);
@@ -305,6 +346,7 @@ ok64 all_tests() {
     call(test_kotlin);
     call(test_swift);
     call(test_dart);
+    call(test_ll);
     done;
 }
 

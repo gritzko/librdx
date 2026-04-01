@@ -55,6 +55,7 @@
 #include "SOLT.h"
 #include "TYST.h"
 #include "TXTT.h"
+#include "LLT.h"
 #include "abc/PRO.h"
 
 fun b8 TOKIsAlpha_(u8 c) {
@@ -195,6 +196,7 @@ static const TOKentry TOK_TABLE[] = {
     {"agda",       (TOKfn)AGDTLexer},
     {"v",          (TOKfn)VERTLexer},
     {"sv",         (TOKfn)VERTLexer},
+    {"ll",         (TOKfn)LLTLexer},
     {"md",         (TOKfn)TXTTLexer},
     {"markdown",   (TOKfn)TXTTLexer},
     {"txt",        (TOKfn)TXTTLexer},

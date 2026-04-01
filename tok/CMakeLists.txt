@@ -69,6 +69,7 @@ list(APPEND TOK_HEADERS
     SOLT.h
     TYST.h
     TXTT.h
+    LLT.h
 )
 
 list(APPEND TOK_SOURCES
@@ -182,6 +183,8 @@ list(APPEND TOK_SOURCES
     TYST.c
     TYST.rl.c
     TXTT.rl.c
+    LLT.c
+    LLT.rl.c
 )
 
 list(APPEND TOK_HEADERS JOIN.h)
