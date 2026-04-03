@@ -204,6 +204,13 @@ static const TOKentry TOK_TABLE[] = {
     {NULL,         NULL},
 };
 
+const char *TOKExtAt(int i) {
+    if (i < 0) return NULL;
+    int n = (int)(sizeof(TOK_TABLE) / sizeof(TOK_TABLE[0])) - 1;
+    if (i >= n) return NULL;
+    return TOK_TABLE[i].ext;
+}
+
 static b8 TOKExtMatch(u8csc ext, const char *pat) {
     u64 len = u8csLen(ext);
     u64 plen = 0;

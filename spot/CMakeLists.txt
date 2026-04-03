@@ -13,6 +13,7 @@ list(APPEND SPOT_HEADERS
     CAPO.h
     CAPOi.h
     HUNK.h
+    INST.h
     LESS.h
     NEIL.h
     SPOT.h
@@ -24,6 +25,7 @@ list(APPEND SPOT_SOURCES
     DIF2.c
     GREP.c
     HUNK.c
+    INST.c
     LESS.c
     NEIL.c
     SPOT.c

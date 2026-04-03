@@ -48,4 +48,7 @@ ok64 TOKLexer(TOKstate *state, u8csc ext);
 // Check if ext matches a known language in the dispatch table
 b8 TOKKnownExt(u8csc ext);
 
+// Return the extension string at index i in TOK_TABLE, or NULL if out of range
+const char *TOKExtAt(int i);
+
 #endif
