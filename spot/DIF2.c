@@ -185,11 +185,20 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name,
             }
             u8p txp = LESSArenaWrite(old_data[0], olen);
             if (txp) { hk->text[0] = txp; hk->text[1] = txp + olen; }
-            u8s lp = {};
-            if (LESSArenaAlloc(lp, olen) == OK) {
-                CAPOBuildLits(lp[0], old_data[0], olen, old_ts);
-                CAPOMarkLits(lp[0], 0, olen, LESS_DEL);
-                $mv(hk->lits, lp);
+            // Arena-copy toks
+            u8p tkp = LESSArenaWrite(old_ts[0],
+                          $len(old_ts) * sizeof(u32));
+            if (tkp) {
+                hk->toks[0] = (u32cp)tkp;
+                hk->toks[1] = (u32cp)(tkp +
+                    $len(old_ts) * sizeof(u32));
+            }
+            // Single hili entry: entire file is DEL
+            u32 del_tok = tok32Pack('D', olen);
+            u8p dhp = LESSArenaWrite(&del_tok, sizeof(u32));
+            if (dhp) {
+                hk->hili[0] = (u32cp)dhp;
+                hk->hili[1] = (u32cp)(dhp + sizeof(u32));
             }
             LESSHunkEmit();
         }
@@ -222,11 +231,20 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name,
         }
         u8p txp = LESSArenaWrite(new_data[0], nlen2);
         if (txp) { hk->text[0] = txp; hk->text[1] = txp + nlen2; }
-        u8s lp = {};
-        if (LESSArenaAlloc(lp, nlen2) == OK) {
-            CAPOBuildLits(lp[0], new_data[0], nlen2, new_ts);
-            CAPOMarkLits(lp[0], 0, nlen2, LESS_INS);
-            $mv(hk->lits, lp);
+        // Arena-copy toks
+        u8p tkp = LESSArenaWrite(new_ts[0],
+                      $len(new_ts) * sizeof(u32));
+        if (tkp) {
+            hk->toks[0] = (u32cp)tkp;
+            hk->toks[1] = (u32cp)(tkp +
+                $len(new_ts) * sizeof(u32));
+        }
+        // Single hili entry: entire file is INS
+        u32 ins_tok = tok32Pack('I', nlen2);
+        u8p ihp = LESSArenaWrite(&ins_tok, sizeof(u32));
+        if (ihp) {
+            hk->hili[0] = (u32cp)ihp;
+            hk->hili[1] = (u32cp)(ihp + sizeof(u32));
         }
         LESSHunkEmit();
         LESSRun(less_hunks, less_nhunks);
@@ -344,46 +362,59 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name,
         }
 
         // Phase 2: walk EDL, build LESS hunks.
-        // Allocate combined text+lits buffers in arena.
+        // Allocate text + toks + hili buffers in arena.
         // Worst case: all old bytes (DEL) + all new bytes (INS).
         u32 old_len = (u32)$len(old_data);
         u32 new_len = (u32)$len(new_data);
         u32 arena_need = old_len + new_len;
-        u8s diff_text_s = {}, diff_lits_s = {};
-        u8p dtxp = NULL, dltp = NULL;  // cursors
+        u32 max_toks = (u32)($len(old_ts) + $len(new_ts) + 100);
+        u8s diff_text_s = {};
+        u8p dtxp = NULL;
+        u32p dtokp = NULL, dhilp = NULL;
         LESShunk *cur_hunk = NULL;
 
         if (arena_need > 0 &&
-            LESSArenaAlloc(diff_text_s, arena_need) == OK &&
-            LESSArenaAlloc(diff_lits_s, arena_need) == OK) {
+            LESSArenaAlloc(diff_text_s, arena_need) == OK) {
             dtxp = diff_text_s[0];
-            dltp = diff_lits_s[0];
+            // Allocate toks and hili arrays in arena
+            u8s toks_arena = {}, hili_arena = {};
+            if (LESSArenaAlloc(toks_arena, max_toks * sizeof(u32)) == OK &&
+                LESSArenaAlloc(hili_arena, max_toks * sizeof(u32)) == OK) {
+                dtokp = (u32p)toks_arena[0];
+                dhilp = (u32p)hili_arena[0];
+            }
         }
 
         // Helper macros for copying tokens into the LESS buffer
-        #define DIFF_COPY_TOK(toks_s, base, idx, flag) do {    \
+        #define DIFF_COPY_TOK(toks_s, base, idx, hflag) do {   \
             u8cs _v = {};                                       \
             tok32Val(_v,toks_s,base,(int)(idx));              \
             u32 _n = (u32)$len(_v);                             \
-            u8 _tag = tok32Tag((toks_s)[0][(idx)]) - 'A';       \
+            u8 _tag = tok32Tag((toks_s)[0][(idx)]);             \
+            u32 _eoff = (u32)(dtxp - diff_text_s[0]) + _n;     \
             memcpy(dtxp, _v[0], _n);                            \
-            { u8s _fs = {dltp, dltp + _n}; u8sFill(_fs, _tag | (flag)); }\
             dtxp += _n;                                         \
-            dltp += _n;                                         \
+            if (dtokp) *dtokp++ = tok32Pack(_tag, _eoff);       \
+            if (dhilp) *dhilp++ = tok32Pack(                    \
+                (hflag) ? (hflag) : 'A', _eoff);               \
         } while(0)
 
         // Start a new LESS hunk with title
         #define DIFF_START_HUNK(boff) do {                      \
             if (cur_hunk != NULL) {                             \
                 cur_hunk->text[1] = dtxp;                       \
-                cur_hunk->lits[1] = dltp;                       \
+                cur_hunk->toks[1] = (u32cp)dtokp;              \
+                cur_hunk->hili[1] = (u32cp)dhilp;              \
                 if (less_pipe_fd >= 0) {                        \
                     /* emit completed prev hunk to pipe */      \
                     u32 _pi = (u32)(cur_hunk - less_hunks);     \
                     HUNKhunk _ph = {};                          \
                     $mv(_ph.title, cur_hunk->title);            \
                     $mv(_ph.text, cur_hunk->text);              \
-                    $mv(_ph.hili, cur_hunk->lits);              \
+                    _ph.toks[0] = cur_hunk->toks[0];            \
+                    _ph.toks[1] = cur_hunk->toks[1];            \
+                    _ph.hili[0] = cur_hunk->hili[0];            \
+                    _ph.hili[1] = cur_hunk->hili[1];            \
                     a_pad(u8, _pb, 1 << 16);                    \
                     if (HUNKu8sFeed(u8bIdle(_pb), &_ph) == OK) {\
                         u8cp _pp = _pb[1];                      \
@@ -415,7 +446,8 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name,
                     }                                           \
                 }                                               \
                 cur_hunk->text[0] = dtxp;                       \
-                cur_hunk->lits[0] = dltp;                       \
+                cur_hunk->toks[0] = (u32cp)dtokp;              \
+                cur_hunk->hili[0] = (u32cp)dhilp;              \
                 less_nhunks++;                                  \
             }                                                   \
         } while(0)
@@ -426,10 +458,11 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name,
             while (_ls > 0 && new_data[0][_ls-1] != '\n') _ls--;\
             if (_ls < (boff)) {                                 \
                 u32 _pn = (boff) - _ls;                         \
+                u32 _eoff = (u32)(dtxp - diff_text_s[0]) + _pn;\
                 memcpy(dtxp, new_data[0] + _ls, _pn);           \
-                { u8s _zs = {dltp, dltp + _pn}; u8sZero(_zs); }\
                 dtxp += _pn;                                    \
-                dltp += _pn;                                    \
+                if (dtokp) *dtokp++ = tok32Pack('S', _eoff);   \
+                if (dhilp) *dhilp++ = tok32Pack('A', _eoff);   \
             }                                                   \
         } while(0)
 
@@ -612,7 +645,7 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name,
                             if (pos >= prefix &&
                                 pos < del_total - suffix) {
                                 DIFF_COPY_TOK(old_ts, old_f.data[0],
-                                              toi, LESS_DEL);
+                                              toi, 'D');
                             }
                             toi++;
                         }
@@ -637,14 +670,17 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name,
                         u32 ls = ins_boff;
                         while (ls > 0 && new_data[0][ls - 1] != '\n')
                             ls--;
+                        u32 _nloff = (u32)(dtxp - diff_text_s[0]) + 1;
                         *dtxp++ = '\n';
-                        *dltp++ = LESS_DEL;
+                        if (dtokp) *dtokp++ = tok32Pack('S', _nloff);
+                        if (dhilp) *dhilp++ = tok32Pack('D', _nloff);
                         if (ls < ins_boff) {
                             u32 pn = ins_boff - ls;
+                            u32 _poff = _nloff + pn;
                             memcpy(dtxp, new_data[0] + ls, pn);
-                            { u8s _fs = {dltp, dltp + pn}; u8sFill(_fs, LESS_INS); }
                             dtxp += pn;
-                            dltp += pn;
+                            if (dtokp) *dtokp++ = tok32Pack('S', _poff);
+                            if (dhilp) *dhilp++ = tok32Pack('I', _poff);
                         }
                     }
                 }
@@ -659,7 +695,7 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name,
                             if (pos >= prefix &&
                                 pos < ins_total - suffix) {
                                 DIFF_COPY_TOK(new_ts, new_f.data[0],
-                                              tni, LESS_INS);
+                                              tni, 'I');
                                 u8cs v = {};
                                 tok32Val(v,new_ts,new_f.data[0],(int)tni);
                                 $for(u8c, cp, v)
@@ -700,13 +736,17 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name,
         // Finalize last LESS hunk
         if (cur_hunk != NULL) {
             cur_hunk->text[1] = dtxp;
-            cur_hunk->lits[1] = dltp;
+            cur_hunk->toks[1] = (u32cp)dtokp;
+            cur_hunk->hili[1] = (u32cp)dhilp;
             if (less_pipe_fd >= 0) {
                 u32 _pi = (u32)(cur_hunk - less_hunks);
                 HUNKhunk _ph = {};
                 $mv(_ph.title, cur_hunk->title);
                 $mv(_ph.text, cur_hunk->text);
-                $mv(_ph.hili, cur_hunk->lits);
+                _ph.toks[0] = cur_hunk->toks[0];
+                _ph.toks[1] = cur_hunk->toks[1];
+                _ph.hili[0] = cur_hunk->hili[0];
+                _ph.hili[1] = cur_hunk->hili[1];
                 a_pad(u8, _pb, 1 << 16);
                 if (HUNKu8sFeed(u8bIdle(_pb), &_ph) == OK) {
                     u8cp _pp = _pb[1];

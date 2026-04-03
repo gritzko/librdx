@@ -9,19 +9,14 @@
 #define HUNK_TLV_TTL  'T'  // title text
 #define HUNK_TLV_TXT  'X'  // source text bytes
 #define HUNK_TLV_TOK  'K'  // tok32 array (packed u32 LE)
-#define HUNK_TLV_HILI 'I'  // per-byte highlight annotations
-
-// Per-byte highlight flags (parallel to text)
-#define HUNK_INS 0x80  // bit 7: inserted
-#define HUNK_DEL 0x40  // bit 6: deleted
-#define HUNK_TAG 0x3F  // bits 0-5: tag index
+#define HUNK_TLV_HILI 'I'  // sparse tok32 bg highlights
 
 // A serializable code hunk
 typedef struct {
     u8cs title;    // hunk header ("--- path :: func ---")
     u8cs text;     // source text bytes
-    tok32cs toks;  // packed tok32 tokens
-    u8cs hili;     // per-byte highlight, parallel to text
+    tok32cs toks;  // packed tok32: syntax fg
+    tok32cs hili;  // sparse tok32: bg highlights ('I'=INS, 'D'=DEL)
 } HUNKhunk;
 
 // Serialize a hunk as a nested TLV record.  Advances into[0].

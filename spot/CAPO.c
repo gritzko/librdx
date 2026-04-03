@@ -1165,29 +1165,6 @@ int CAPOFormatTitle(char *out, size_t outsz,
     return hlen;
 }
 
-// --- Lits builder (for LESS pager) ---
-
-// Fill lits[0..textlen) with tag indices from tokens.
-// Walks the token array, sets lits[byte] = tok32Tag(tok) for each byte.
-void CAPOBuildLits(u8p lits, u8cp base, u32 textlen, u32cs toks) {
-    u8sZero(((u8s){lits, lits + textlen}));
-    int ntoks = (int)$len(toks);
-    for (int i = 0; i < ntoks; i++) {
-        u32 lo = (i > 0) ? tok32Offset(toks[0][i - 1]) : 0;
-        u32 hi = tok32Offset(toks[0][i]);
-        if (hi > textlen) hi = textlen;
-        if (lo >= hi) continue;
-        u8 tag = tok32Tag(toks[0][i]) - 'A';
-        u8sFill(((u8s){lits + lo, lits + hi}), tag);
-    }
-}
-
-// Mark a byte range in lits with INS or DEL flag
-void CAPOMarkLits(u8p lits, u32 lo, u32 hi, u8 flag) {
-    for (u32 i = lo; i < hi; i++)
-        lits[i] |= flag;
-}
-
 // --- SPOT search ---
 
 ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot,
@@ -1521,31 +1498,37 @@ ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot,
 
                         hk->text[0] = source[0] + ctx_lo;
                         hk->text[1] = source[0] + ctx_hi;
-                        hk->toks[0] = htoks[0];
-                        hk->toks[1] = htoks[1];
 
-                        // Lits
+                        // Clip file-level toks to context region
+                        LESSClipToks(hk->toks, htoks, source[0],
+                                     ctx_lo, ctx_hi);
+
+                        // Build sparse hili from match ranges
                         if (CAPO_COLOR) {
+                            a_pad(u32, hbuf, 2 * CAPO_MAX_HLS + 1);
+                            u32 prev_end = 0;
+                            for (int hi2 = 0; hi2 < nhl; hi2++) {
+                                u32 mlo = hls[hi2].lo < ctx_lo
+                                              ? 0
+                                              : hls[hi2].lo - ctx_lo;
+                                u32 mhi = hls[hi2].hi > ctx_hi
+                                              ? ctx_hi - ctx_lo
+                                              : hls[hi2].hi - ctx_lo;
+                                if (mlo > prev_end)
+                                    u32bFeed1(hbuf, tok32Pack('A', mlo));
+                                u32bFeed1(hbuf, tok32Pack('I', mhi));
+                                prev_end = mhi;
+                            }
                             u32 region_len = ctx_hi - ctx_lo;
-                            u8s lp = {};
-                            if (LESSArenaAlloc(lp, region_len) == OK) {
-                                int ntoks_r = (int)$len(htoks);
-                                for (int ti = 0; ti < ntoks_r; ti++) {
-                                    u32 tlo = (ti > 0) ? tok32Offset(htoks[0][ti-1]) : 0;
-                                    u32 thi = tok32Offset(htoks[0][ti]);
-                                    if (thi <= ctx_lo || tlo >= ctx_hi) continue;
-                                    u32 clo = tlo < ctx_lo ? ctx_lo : tlo;
-                                    u32 chi = thi > ctx_hi ? ctx_hi : thi;
-                                    u8 tag = tok32Tag(htoks[0][ti]) - 'A';
-                                    u8sFill(((u8s){lp[0] + (clo - ctx_lo), lp[0] + (chi - ctx_lo)}), tag);
-                                }
-                                for (int h = 0; h < nhl; h++) {
-                                    u32 hlo = hls[h].lo < ctx_lo ? ctx_lo : hls[h].lo;
-                                    u32 hhi = hls[h].hi > ctx_hi ? ctx_hi : hls[h].hi;
-                                    for (u32 b = hlo; b < hhi; b++)
-                                        lp[0][b - ctx_lo] |= LESS_INS;
-                                }
-                                $mv(hk->lits, lp);
+                            if (prev_end < region_len)
+                                u32bFeed1(hbuf, tok32Pack('A', region_len));
+                            a_dup(u32 const, hd, u32bDataC(hbuf));
+                            u8p hp = LESSArenaWrite(hd[0],
+                                         $len(hd) * sizeof(u32));
+                            if (hp) {
+                                hk->hili[0] = (u32cp)hp;
+                                hk->hili[1] = (u32cp)(hp +
+                                    $len(hd) * sizeof(u32));
                             }
                         }
 

@@ -93,14 +93,7 @@ ok64 CAPOCat(u8css files, u8csc reporoot) {
             }
         }
 
-        // Lits
-        if (CAPO_COLOR && tokenized && srclen > 0) {
-            u8s lp = {};
-            if (LESSArenaAlloc(lp, srclen) == OK) {
-                CAPOBuildLits(lp[0], src_head, srclen, hk->toks);
-                $mv(hk->lits, lp);
-            }
-        }
+        // No hili for cat (no diff/match highlights)
 
         LESSHunkEmit();
         LESSDefer(mapped, tokenized ? toks : (Bu32){});

@@ -3,17 +3,12 @@
 
 #include "abc/INT.h"
 
-// Per-byte annotation: bottom 6 bits = tag/color index, top 2 bits = diff flags
-#define LESS_INS 0x80  // bit 7: inserted
-#define LESS_DEL 0x40  // bit 6: deleted
-#define LESS_TAG 0x3F  // bits 0-5: tag index
-
 // A displayable hunk (file section, diff region, grep match context)
 typedef struct {
     u8cs title;  // hunk header (file name, @@ line info, function context)
     u8cs text;   // source text bytes
-    u32cs toks;  // packed u32 tokens (for tok-aware rendering)
-    u8cs lits;   // per-byte: tag + INS/DEL flags, parallel to text
+    u32cs toks;  // packed tok32: syntax fg, text-relative offsets
+    u32cs hili;  // sparse tok32: bg highlights ('I'=INS, 'D'=DEL), text-relative
 } LESShunk;
 
 // Interactive pager: displays hunks with syntax colors, diff highlighting,
@@ -47,5 +42,8 @@ void LESSArenaCleanup(void);
 u8p LESSArenaWrite(void const *data, size_t len);
 ok64 LESSArenaAlloc(u8s out, size_t len);
 void LESSDefer(u8bp mapped, Bu32 toks);
+
+// Clip file-level toks to [lo,hi), arena-copy rebased entries.
+void LESSClipToks(u32cs out, u32cs toks, u8cp base, u32 lo, u32 hi);
 
 #endif

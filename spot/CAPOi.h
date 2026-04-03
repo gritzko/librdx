@@ -31,10 +31,6 @@ int CAPOFormatTitle(char *out, size_t outsz,
 void CAPOGrepCtx(u8csc source, u32 match_pos, u32 nctx,
                   u32 *lo, u32 *hi);
 
-// --- Lits helpers ---
-void CAPOBuildLits(u8p lits, u8cp base, u32 textlen, u32cs toks);
-void CAPOMarkLits(u8p lits, u32 lo, u32 hi, u8 flag);
-
 // --- Trigram query helpers ---
 ok64 CAPOCollectPaths(u64css iter, u64 tri_prefix, u32 *hashes,
                       u32p nhashes, u32 maxhashes);

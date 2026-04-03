@@ -77,6 +77,42 @@ void LESSDefer(u8bp mapped, Bu32 toks) {
     less_nmaps++;
 }
 
+// --- LESSClipToks: clip file-level toks to [lo,hi), arena-copy rebased ---
+
+void LESSClipToks(u32cs out, u32cs toks, u8cp base, u32 lo, u32 hi) {
+    out[0] = NULL; out[1] = NULL;
+    if ($empty(toks) || lo >= hi) return;
+    int n = (int)$len(toks);
+    // Find first tok overlapping [lo, hi)
+    int first = 0;
+    while (first < n && tok32Offset(toks[0][first]) <= lo) first++;
+    // Find last tok overlapping [lo, hi)
+    int last = first;
+    while (last < n) {
+        u32 tlo = (last > 0) ? tok32Offset(toks[0][last - 1]) : 0;
+        if (tlo >= hi) break;
+        last++;
+    }
+    int count = last - first;
+    if (count <= 0) return;
+    // Arena-write rebased entries one by one
+    size_t bytes = (size_t)count * sizeof(u32);
+    u8p start = NULL;
+    for (int i = first; i < last; i++) {
+        u8 tag = tok32Tag(toks[0][i]);
+        u32 off = tok32Offset(toks[0][i]);
+        if (off > hi) off = hi;
+        u32 rebased = off - lo;
+        u32 entry = tok32Pack(tag, rebased);
+        u8p ep = LESSArenaWrite(&entry, sizeof(u32));
+        if (ep && !start) start = ep;
+    }
+    if (start) {
+        out[0] = (u32cp)start;
+        out[1] = (u32cp)(start + bytes);
+    }
+}
+
 // --- LESSHunkEmit: serialize + write to pipe in fork mode ---
 
 void LESSHunkEmit(void) {
@@ -87,7 +123,10 @@ void LESSHunkEmit(void) {
     HUNKhunk h = {};
     $mv(h.title, hk->title);
     $mv(h.text, hk->text);
-    $mv(h.hili, hk->lits);
+    h.toks[0] = hk->toks[0];
+    h.toks[1] = hk->toks[1];
+    h.hili[0] = hk->hili[0];
+    h.hili[1] = hk->hili[1];
 
     // Serialize into arena idle space, write to pipe, then rewind
     range64 mark;
@@ -113,12 +152,11 @@ void LESSHunkEmit(void) {
 // 256-color ink violet for hunk titles
 #define LESS_TITLE_COLOR TTY_FG256(56)
 
-// Tag-index-to-ANSI-color mapping.
-// lits stores tag - 'A' (0-25), so add 'A' back to recover the character.
-// Returns fg color in lower bits; sets *bold = YES for definitions.
-static int LESSTagColor(u8 tag_idx, b8 *bold) {
+// Tag-to-ANSI-color mapping.
+// Returns fg color; sets *bold = YES for definitions.
+static int LESSTagColor(u8 tag, b8 *bold) {
     *bold = NO;
-    switch (tag_idx + 'A') {
+    switch (tag) {
         case 'D': return GRAY;
         case 'G': return DARK_GREEN;
         case 'L': return LIGHT_CYAN;
@@ -290,14 +328,13 @@ static void less_goto(int row, int col) {
     less_write(u8bDataC(tmp));
 }
 
-// Feed one byte with appropriate ANSI color
-static void scr_emit_byte(u8 ch, u8 lit, b8 in_search) {
-    u8 tag_idx = lit & LESS_TAG;
-    b8 is_ins = (lit & LESS_INS) != 0;
-    b8 is_del = (lit & LESS_DEL) != 0;
-
+// Feed one byte with fg tag, bg tag, and search highlight
+static void scr_emit_byte(u8 ch, u8 fg_tag, u8 bg_tag, b8 in_search) {
     b8 bold = NO;
-    int fg = LESSTagColor(tag_idx, &bold);
+    int fg = LESSTagColor(fg_tag, &bold);
+    b8 is_ins = (bg_tag == 'I');
+    b8 is_del = (bg_tag == 'D');
+
     u8sp out = u8bIdle(less_scr);
     if (fg != 0 || bold || is_ins || is_del || in_search) {
         if (bold) escfeed(out, BOLD);
@@ -361,14 +398,35 @@ static void LESSRender(LESSstate *st) {
         u32 w = line_end - off;
         if (w > st->cols) w = st->cols;
 
-        u32 lits_len = (u32)$len(hk->lits);
+        // Find tok cursor for this offset
+        int ntoks = (int)$len(hk->toks);
+        int tok_i = 0;
+        while (tok_i < ntoks &&
+               tok32Offset(hk->toks[0][tok_i]) <= off)
+            tok_i++;
+
+        int nhili = (int)$len(hk->hili);
+        int hili_i = 0;
+        while (hili_i < nhili &&
+               tok32Offset(hk->hili[0][hili_i]) <= off)
+            hili_i++;
 
         for (u32 j = 0; j < w; j++) {
             u32 pos = off + j;
             u8 ch = hk->text[0][pos];
-            u8 lit = (pos < lits_len) ? hk->lits[0][pos] : 0;
+            // Advance cursors past pos
+            while (tok_i < ntoks &&
+                   tok32Offset(hk->toks[0][tok_i]) <= pos)
+                tok_i++;
+            u8 fg_tag = (tok_i < ntoks)
+                            ? tok32Tag(hk->toks[0][tok_i]) : 'S';
+            while (hili_i < nhili &&
+                   tok32Offset(hk->hili[0][hili_i]) <= pos)
+                hili_i++;
+            u8 bg_tag = (hili_i < nhili)
+                            ? tok32Tag(hk->hili[0][hili_i]) : 'A';
             b8 in_search = less_search_at(st, hk->text, pos);
-            scr_emit_byte(ch, lit, in_search);
+            scr_emit_byte(ch, fg_tag, bg_tag, in_search);
         }
     }
 
@@ -531,39 +589,60 @@ static ok64 LESSPlain(LESShunk const *hunks, u32 nhunks) {
         }
         if (!$empty(hunks[h].text)) {
             u32 tlen = (u32)$len(hunks[h].text);
-            u32 llen = (u32)$len(hunks[h].lits);
-            int prev_fg = 0;
-            int prev_bg = 0;
-            b8 prev_bold = NO;
-            for (u32 i = 0; i < tlen; i++) {
-                u8 lit = (i < llen) ? hunks[h].lits[0][i] : 0;
-                b8 bold = NO;
-                int fg = LESSTagColor(lit & LESS_TAG, &bold);
-                int bg = 0;
-                if (lit & LESS_INS) bg = 157;
-                else if (lit & LESS_DEL) bg = 217;
-                u8sp out = u8bIdle(less_scr);
-                if (fg != prev_fg || bg != prev_bg || bold != prev_bold) {
-                    if (prev_fg != 0 || prev_bg != 0 || prev_bold)
-                        escfeed(out, 0);  // reset
-                    if (bold) escfeed(out, BOLD);
-                    if (fg != 0) escfeed(out, (u8)fg);
-                    if (bg != 0) escfeedBG256(out, (u8)bg);
-                    prev_fg = fg;
-                    prev_bg = bg;
-                    prev_bold = bold;
+            if (!CAPO_COLOR) {
+                // No colors: plain text
+                u8bFeed(less_scr, hunks[h].text);
+            } else {
+                int ntoks = (int)$len(hunks[h].toks);
+                int nhili = (int)$len(hunks[h].hili);
+                int tok_i = 0, hili_i = 0;
+                int prev_fg = 0;
+                int prev_bg = 0;
+                b8 prev_bold = NO;
+                for (u32 i = 0; i < tlen; i++) {
+                    // Advance tok cursor
+                    while (tok_i < ntoks &&
+                           tok32Offset(hunks[h].toks[0][tok_i]) <= i)
+                        tok_i++;
+                    u8 fg_tag = (tok_i < ntoks)
+                                    ? tok32Tag(hunks[h].toks[0][tok_i])
+                                    : 'S';
+                    // Advance hili cursor
+                    while (hili_i < nhili &&
+                           tok32Offset(hunks[h].hili[0][hili_i]) <= i)
+                        hili_i++;
+                    u8 bg_tag = (hili_i < nhili)
+                                    ? tok32Tag(hunks[h].hili[0][hili_i])
+                                    : 'A';
+                    b8 bold = NO;
+                    int fg = LESSTagColor(fg_tag, &bold);
+                    int bg = 0;
+                    if (bg_tag == 'I') bg = 157;
+                    else if (bg_tag == 'D') bg = 217;
+                    u8sp out = u8bIdle(less_scr);
+                    if (fg != prev_fg || bg != prev_bg ||
+                        bold != prev_bold) {
+                        if (prev_fg != 0 || prev_bg != 0 || prev_bold)
+                            escfeed(out, 0);  // reset
+                        if (bold) escfeed(out, BOLD);
+                        if (fg != 0) escfeed(out, (u8)fg);
+                        if (bg != 0) escfeedBG256(out, (u8)bg);
+                        prev_fg = fg;
+                        prev_bg = bg;
+                        prev_bold = bold;
+                    }
+                    u8sFeed1(out, hunks[h].text[0][i]);
+                    if (hunks[h].text[0][i] == '\n' &&
+                        (prev_fg != 0 || prev_bg != 0 || prev_bold)) {
+                        escfeed(out, 0);  // reset at EOL
+                        prev_fg = 0;
+                        prev_bg = 0;
+                        prev_bold = NO;
+                    }
                 }
-                u8sFeed1(out, hunks[h].text[0][i]);
-                if (hunks[h].text[0][i] == '\n' &&
-                    (prev_fg != 0 || prev_bg != 0 || prev_bold)) {
-                    escfeed(out, 0);  // reset at EOL
-                    prev_fg = 0;
-                    prev_bg = 0;
-                    prev_bold = NO;
-                }
+                if (prev_fg != 0 || prev_bg != 0 || prev_bold)
+                    escfeed(u8bIdle(less_scr), 0);
             }
-            if (prev_fg != 0 || prev_bg != 0 || prev_bold)
-                escfeed(u8bIdle(less_scr), 0);
             // Trailing newline if text doesn't end with one
             if (tlen > 0 && hunks[h].text[0][tlen - 1] != '\n')
                 u8sFeed1(u8bIdle(less_scr), '\n');
@@ -913,12 +992,22 @@ ok64 LESSPipeRun(int pipefd) {
                         hk->text[1] = u8bIdleHead(less_arena);
                     }
                 }
+                if (!$empty(h.toks)) {
+                    u8p tkp = LESSArenaWrite(h.toks[0],
+                                  (size_t)((u8cp)h.toks[1] -
+                                           (u8cp)h.toks[0]));
+                    if (tkp) {
+                        hk->toks[0] = (u32cp)tkp;
+                        hk->toks[1] = (u32cp)u8bIdleHead(less_arena);
+                    }
+                }
                 if (!$empty(h.hili)) {
-                    u8p lp = LESSArenaWrite(h.hili[0],
-                                            (size_t)$len(h.hili));
-                    if (lp) {
-                        hk->lits[0] = lp;
-                        hk->lits[1] = u8bIdleHead(less_arena);
+                    u8p hp = LESSArenaWrite(h.hili[0],
+                                 (size_t)((u8cp)h.hili[1] -
+                                          (u8cp)h.hili[0]));
+                    if (hp) {
+                        hk->hili[0] = (u32cp)hp;
+                        hk->hili[1] = (u32cp)u8bIdleHead(less_arena);
                     }
                 }
                 less_nhunks++;
