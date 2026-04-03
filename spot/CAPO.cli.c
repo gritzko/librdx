@@ -234,7 +234,14 @@ ok64 capocli() {
         CAPO_COLOR = YES;  // git pager handles ANSI
         u8cs nm = {trail[0][0], trail[0][1]};  // logical path
         u8cs op = {trail[1][0], trail[1][1]};  // old-file
+        u8cs omode = {trail[3][0], trail[3][1]};
         u8cs np = {trail[4][0], trail[4][1]};  // new-file
+        u8cs nmode = {trail[6][0], trail[6][1]};
+        // Mode-only change: print header so git's mode lines have context
+        if (ntrail >= 7 && !u8csEq(omode, nmode)) {
+            fprintf(stdout, "--- %.*s ---\n",
+                    (int)$len(nm), (char *)nm[0]);
+        }
         call(CAPODiff, op, np, nm);
     } else if (do_diff) {
         // Diff mode: expects 2 trailing paths (old new)
