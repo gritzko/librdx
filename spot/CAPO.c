@@ -185,7 +185,7 @@ ok64 CAPOIndexFile(u64bp entries, u8csc source, u8csc ext, u8csc path) {
     int ntoks = (int)$len(tokslice);
     for (int i = 0; i < ntoks; i++) {
         u8 tag = tok32Tag(tokslice[0][i]);
-        if (tag != 'S' && tag != 'N') continue;
+        if (tag != 'S' && tag != 'N' && tag != 'C') continue;
         u8cs val = {}; tok32Val(val, tokslice, source[0], i);
         if ($len(val) < 2) continue;
         if (*ctx.idle >= ctx.end) break;
