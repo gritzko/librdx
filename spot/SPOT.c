@@ -554,7 +554,7 @@ ok64 SPOTInit(SPOTstate *st, u32bp ndl_toks,
               u8csc needle_src, u8csc ext,
               u32cs hay_toks, u8csc source) {
     sane(st != NULL && ndl_toks != NULL);
-    memset(st, 0, sizeof(SPOTstate));
+    *st = (SPOTstate){};
 
     // Tokenize needle
     call(SPOTTokenize, ndl_toks, needle_src, ext);

@@ -23,6 +23,8 @@ fun int u8csmp(u8 const *const *a, u8 const *const *b) { return $cmp(a, b); }
 #include "Bx.h"
 #undef X
 
+fun void u8sFill(u8s s, u8 v) { memset((void *)*s, v, $size(s)); }
+
 #define ABC_U8B_DEFINED
 
 // u8aOpen/u8aClose: u8 Bx.h is instantiated before ABC_U8B_DEFINED,

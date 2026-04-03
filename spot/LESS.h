@@ -45,7 +45,7 @@ extern u32 less_nmaps;
 ok64 LESSArenaInit(void);
 void LESSArenaCleanup(void);
 u8p LESSArenaWrite(void const *data, size_t len);
-u8p LESSArenaAlloc(size_t len);
+ok64 LESSArenaAlloc(u8s out, size_t len);
 void LESSDefer(u8bp mapped, Bu32 toks);
 
 #endif

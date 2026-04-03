@@ -1170,7 +1170,7 @@ int CAPOFormatTitle(char *out, size_t outsz,
 // Fill lits[0..textlen) with tag indices from tokens.
 // Walks the token array, sets lits[byte] = tok32Tag(tok) for each byte.
 void CAPOBuildLits(u8p lits, u8cp base, u32 textlen, u32cs toks) {
-    memset(lits, 0, textlen);
+    u8sZero(((u8s){lits, lits + textlen}));
     int ntoks = (int)$len(toks);
     for (int i = 0; i < ntoks; i++) {
         u32 lo = (i > 0) ? tok32Offset(toks[0][i - 1]) : 0;
@@ -1178,7 +1178,7 @@ void CAPOBuildLits(u8p lits, u8cp base, u32 textlen, u32cs toks) {
         if (hi > textlen) hi = textlen;
         if (lo >= hi) continue;
         u8 tag = tok32Tag(toks[0][i]) - 'A';
-        memset(lits + lo, tag, hi - lo);
+        u8sFill(((u8s){lits + lo, lits + hi}), tag);
     }
 }
 
@@ -1500,7 +1500,7 @@ ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot,
                     if (ctx_lo < ctx_hi &&
                         less_nhunks < LESS_MAX_HUNKS) {
                         LESShunk *hk = &less_hunks[less_nhunks];
-                        memset(hk, 0, sizeof(*hk));
+                        *hk = (LESShunk){};
 
                         // Title
                         if (!contiguous || first_hunk) {
@@ -1527,8 +1527,8 @@ ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot,
                         // Lits
                         if (CAPO_COLOR) {
                             u32 region_len = ctx_hi - ctx_lo;
-                            u8p lp = LESSArenaAlloc(region_len);
-                            if (lp != NULL) {
+                            u8s lp = {};
+                            if (LESSArenaAlloc(lp, region_len) == OK) {
                                 int ntoks_r = (int)$len(htoks);
                                 for (int ti = 0; ti < ntoks_r; ti++) {
                                     u32 tlo = (ti > 0) ? tok32Offset(htoks[0][ti-1]) : 0;
@@ -1537,16 +1537,15 @@ ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot,
                                     u32 clo = tlo < ctx_lo ? ctx_lo : tlo;
                                     u32 chi = thi > ctx_hi ? ctx_hi : thi;
                                     u8 tag = tok32Tag(htoks[0][ti]) - 'A';
-                                    memset(lp + (clo - ctx_lo), tag, chi - clo);
+                                    u8sFill(((u8s){lp[0] + (clo - ctx_lo), lp[0] + (chi - ctx_lo)}), tag);
                                 }
                                 for (int h = 0; h < nhl; h++) {
                                     u32 hlo = hls[h].lo < ctx_lo ? ctx_lo : hls[h].lo;
                                     u32 hhi = hls[h].hi > ctx_hi ? ctx_hi : hls[h].hi;
                                     for (u32 b = hlo; b < hhi; b++)
-                                        lp[b - ctx_lo] |= LESS_INS;
+                                        lp[0][b - ctx_lo] |= LESS_INS;
                                 }
-                                hk->lits[0] = lp;
-                                hk->lits[1] = lp + region_len;
+                                $mv(hk->lits, lp);
                             }
                         }
 

@@ -253,7 +253,7 @@ ok64 CAPOGrep(u8csc substring, u8csc ext, u8csc reporoot, u32 ctx_lines,
                         less_nhunks < LESS_MAX_HUNKS &&
                         u8bIdleLen(less_arena) > (ctx_hi - ctx_lo + 512)) {
                         LESShunk *hk = &less_hunks[less_nhunks];
-                        memset(hk, 0, sizeof(*hk));
+                        *hk = (LESShunk){};
 
                         // Title
                         if (!contiguous || first_hunk) {
@@ -280,8 +280,8 @@ ok64 CAPOGrep(u8csc substring, u8csc ext, u8csc reporoot, u32 ctx_lines,
                         // Lits
                         if (CAPO_COLOR) {
                             u32 region_len = ctx_hi - ctx_lo;
-                            u8p lp = LESSArenaAlloc(region_len);
-                            if (lp != NULL) {
+                            u8s lp = {};
+                            if (LESSArenaAlloc(lp, region_len) == OK) {
                                 int ntoks = (int)$len(gts);
                                 for (int ti = 0; ti < ntoks; ti++) {
                                     u32 tlo = (ti > 0) ? tok32Offset(gts[0][ti-1]) : 0;
@@ -290,16 +290,15 @@ ok64 CAPOGrep(u8csc substring, u8csc ext, u8csc reporoot, u32 ctx_lines,
                                     u32 clo = tlo < ctx_lo ? ctx_lo : tlo;
                                     u32 chi = thi > ctx_hi ? ctx_hi : thi;
                                     u8 tag = tok32Tag(gts[0][ti]) - 'A';
-                                    memset(lp + (clo - ctx_lo), tag, chi - clo);
+                                    u8sFill(((u8s){lp[0] + (clo - ctx_lo), lp[0] + (chi - ctx_lo)}), tag);
                                 }
                                 for (int h = 0; h < nhl; h++) {
                                     u32 hlo = hls[h].lo < ctx_lo ? ctx_lo : hls[h].lo;
                                     u32 hhi = hls[h].hi > ctx_hi ? ctx_hi : hls[h].hi;
                                     for (u32 b = hlo; b < hhi; b++)
-                                        lp[b - ctx_lo] |= LESS_INS;
+                                        lp[0][b - ctx_lo] |= LESS_INS;
                                 }
-                                hk->lits[0] = lp;
-                                hk->lits[1] = lp + region_len;
+                                $mv(hk->lits, lp);
                             }
                         }
 
@@ -708,8 +707,8 @@ ok64 CAPOPcreGrep(u8csc pattern, u8csc ext, u8csc reporoot, u32 ctx_lines,
 
                     if (CAPO_COLOR) {
                         u32 region_len = ctx_hi - ctx_lo;
-                        u8p rlp = LESSArenaAlloc(region_len);
-                        if (rlp != NULL) {
+                        u8s rlp = {};
+                        if (LESSArenaAlloc(rlp, region_len) == OK) {
                             int ntoks = (int)$len(gts);
                             for (int ti = 0; ti < ntoks; ti++) {
                                 u32 tlo = (ti > 0) ? tok32Offset(gts[0][ti-1]) : 0;
@@ -718,16 +717,15 @@ ok64 CAPOPcreGrep(u8csc pattern, u8csc ext, u8csc reporoot, u32 ctx_lines,
                                 u32 clo = tlo < ctx_lo ? ctx_lo : tlo;
                                 u32 chi = thi > ctx_hi ? ctx_hi : thi;
                                 u8 tag = tok32Tag(gts[0][ti]) - 'A';
-                                memset(rlp + (clo - ctx_lo), tag, chi - clo);
+                                u8sFill(((u8s){rlp[0] + (clo - ctx_lo), rlp[0] + (chi - ctx_lo)}), tag);
                             }
                             for (int h = 0; h < nhl; h++) {
                                 u32 hlo = hls[h].lo < ctx_lo ? ctx_lo : hls[h].lo;
                                 u32 hhi = hls[h].hi > ctx_hi ? ctx_hi : hls[h].hi;
                                 for (u32 b = hlo; b < hhi; b++)
-                                    rlp[b - ctx_lo] |= LESS_INS;
+                                    rlp[0][b - ctx_lo] |= LESS_INS;
                             }
-                            hk->lits[0] = rlp;
-                            hk->lits[1] = rlp + region_len;
+                            $mv(hk->lits, rlp);
                         }
                     }
 

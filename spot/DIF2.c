@@ -137,7 +137,7 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name,
                               (int)$len(old_mode), (char *)old_mode[0],
                               (int)$len(new_mode), (char *)new_mode[0]);
             LESShunk *hk = &less_hunks[less_nhunks];
-            memset(hk, 0, sizeof(*hk));
+            *hk = (LESShunk){};
             if (tl > 0) {
                 u8p tp = LESSArenaWrite(hdr, (size_t)tl);
                 if (tp) { hk->title[0] = tp; hk->title[1] = tp + tl; }
@@ -176,7 +176,7 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name,
             CAPOJoinToks(old_ts, &old_f);
             u32 olen = (u32)$len(old_data);
             LESShunk *hk = &less_hunks[less_nhunks];
-            memset(hk, 0, sizeof(*hk));
+            *hk = (LESShunk){};
             char hdr[512];
             int tlen = CAPOFormatTitle(hdr, sizeof(hdr), dispname, "");
             if (tlen > 0) {
@@ -185,11 +185,11 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name,
             }
             u8p txp = LESSArenaWrite(old_data[0], olen);
             if (txp) { hk->text[0] = txp; hk->text[1] = txp + olen; }
-            u8p lp = LESSArenaAlloc(olen);
-            if (lp) {
-                CAPOBuildLits(lp, old_data[0], olen, old_ts);
-                CAPOMarkLits(lp, 0, olen, LESS_DEL);
-                hk->lits[0] = lp; hk->lits[1] = lp + olen;
+            u8s lp = {};
+            if (LESSArenaAlloc(lp, olen) == OK) {
+                CAPOBuildLits(lp[0], old_data[0], olen, old_ts);
+                CAPOMarkLits(lp[0], 0, olen, LESS_DEL);
+                $mv(hk->lits, lp);
             }
             LESSHunkEmit();
         }
@@ -222,11 +222,11 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name,
         }
         u8p txp = LESSArenaWrite(new_data[0], nlen2);
         if (txp) { hk->text[0] = txp; hk->text[1] = txp + nlen2; }
-        u8p lp = LESSArenaAlloc(nlen2);
-        if (lp) {
-            CAPOBuildLits(lp, new_data[0], nlen2, new_ts);
-            CAPOMarkLits(lp, 0, nlen2, LESS_INS);
-            hk->lits[0] = lp; hk->lits[1] = lp + nlen2;
+        u8s lp = {};
+        if (LESSArenaAlloc(lp, nlen2) == OK) {
+            CAPOBuildLits(lp[0], new_data[0], nlen2, new_ts);
+            CAPOMarkLits(lp[0], 0, nlen2, LESS_INS);
+            $mv(hk->lits, lp);
         }
         LESSHunkEmit();
         LESSRun(less_hunks, less_nhunks);
@@ -349,17 +349,15 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name,
         u32 old_len = (u32)$len(old_data);
         u32 new_len = (u32)$len(new_data);
         u32 arena_need = old_len + new_len;
-        u8p diff_text = NULL, diff_lits = NULL;
+        u8s diff_text_s = {}, diff_lits_s = {};
         u8p dtxp = NULL, dltp = NULL;  // cursors
         LESShunk *cur_hunk = NULL;
 
-        if (arena_need > 0) {
-            diff_text = LESSArenaAlloc(arena_need);
-            diff_lits = LESSArenaAlloc(arena_need);
-            if (diff_text != NULL && diff_lits != NULL) {
-                dtxp = diff_text;
-                dltp = diff_lits;
-            }
+        if (arena_need > 0 &&
+            LESSArenaAlloc(diff_text_s, arena_need) == OK &&
+            LESSArenaAlloc(diff_lits_s, arena_need) == OK) {
+            dtxp = diff_text_s[0];
+            dltp = diff_lits_s[0];
         }
 
         // Helper macros for copying tokens into the LESS buffer
@@ -369,7 +367,7 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name,
             u32 _n = (u32)$len(_v);                             \
             u8 _tag = tok32Tag((toks_s)[0][(idx)]) - 'A';       \
             memcpy(dtxp, _v[0], _n);                            \
-            memset(dltp, _tag | (flag), _n);                    \
+            { u8s _fs = {dltp, dltp + _n}; u8sFill(_fs, _tag | (flag)); }\
             dtxp += _n;                                         \
             dltp += _n;                                         \
         } while(0)
@@ -402,7 +400,7 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name,
             }                                                   \
             if (less_nhunks < LESS_MAX_HUNKS) {                 \
                 cur_hunk = &less_hunks[less_nhunks];            \
-                memset(cur_hunk, 0, sizeof(*cur_hunk));         \
+                *cur_hunk = (LESShunk){};                       \
                 char _funcname[256];                            \
                 CAPOFindFunc(new_data, (boff), ext,             \
                              _funcname, sizeof(_funcname));      \
@@ -429,7 +427,7 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name,
             if (_ls < (boff)) {                                 \
                 u32 _pn = (boff) - _ls;                         \
                 memcpy(dtxp, new_data[0] + _ls, _pn);           \
-                memset(dltp, 0, _pn);                           \
+                { u8s _zs = {dltp, dltp + _pn}; u8sZero(_zs); }\
                 dtxp += _pn;                                    \
                 dltp += _pn;                                    \
             }                                                   \
@@ -627,7 +625,7 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name,
                 // Also copy the INS line's indentation so it aligns.
                 if (del_total > prefix + suffix &&
                     ins_total > prefix + suffix &&
-                    (dtxp == diff_text || *(dtxp - 1) == '\n')) {
+                    (dtxp == diff_text_s[0] || *(dtxp - 1) == '\n')) {
                     u64 last_del = base_oi + del_total - suffix - 1;
                     u8cs ldv = {};
                     tok32Val(ldv,old_ts,old_f.data[0],(int)last_del);
@@ -644,7 +642,7 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name,
                         if (ls < ins_boff) {
                             u32 pn = ins_boff - ls;
                             memcpy(dtxp, new_data[0] + ls, pn);
-                            memset(dltp, LESS_INS, pn);
+                            { u8s _fs = {dltp, dltp + pn}; u8sFill(_fs, LESS_INS); }
                             dtxp += pn;
                             dltp += pn;
                         }

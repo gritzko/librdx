@@ -59,13 +59,14 @@ u8p LESSArenaWrite(void const *data, size_t len) {
     return p;
 }
 
-// Reserve len bytes in the arena (zeroed), return pointer
-u8p LESSArenaAlloc(size_t len) {
-    if (u8bIdleLen(less_arena) < len) return NULL;
-    u8p p = u8bIdleHead(less_arena);
-    memset(p, 0, len);
+// Reserve len bytes in the arena (zeroed), return slice
+ok64 LESSArenaAlloc(u8s out, size_t len) {
+    if (u8bIdleLen(less_arena) < len) return FAILSANITY;
+    $mv(out, u8bIdle(less_arena));
+    out[1] = out[0] + len;
+    u8sZero(out);
     u8bFed(less_arena, len);
-    return p;
+    return OK;
 }
 
 // Defer file+toks cleanup until after LESSRun

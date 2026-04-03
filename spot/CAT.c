@@ -48,7 +48,7 @@ ok64 CAPOCat(u8css files, u8csc reporoot) {
         u32 srclen = (u32)(src_idle - src_head);
 
         LESShunk *hk = &less_hunks[less_nhunks];
-        memset(hk, 0, sizeof(*hk));
+        *hk = (LESShunk){};
 
         // Title
         char fpz[FILE_PATH_MAX_LEN];
@@ -95,11 +95,10 @@ ok64 CAPOCat(u8css files, u8csc reporoot) {
 
         // Lits
         if (CAPO_COLOR && tokenized && srclen > 0) {
-            u8p lp = LESSArenaAlloc(srclen);
-            if (lp != NULL) {
-                CAPOBuildLits(lp, src_head, srclen, hk->toks);
-                hk->lits[0] = lp;
-                hk->lits[1] = lp + srclen;
+            u8s lp = {};
+            if (LESSArenaAlloc(lp, srclen) == OK) {
+                CAPOBuildLits(lp[0], src_head, srclen, hk->toks);
+                $mv(hk->lits, lp);
             }
         }
 

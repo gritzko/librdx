@@ -330,6 +330,7 @@ fun ok64 X(, scSup)(X(, cs) full, X(, cs) consumed) {
     return OK;
 }
 
+fun void X(, sZero)(X(, s) s) { memset((void *)*s, 0, $size(s)); }
 /*
 fun ok64 X($, last)(X($, c) into, X($c, c) from, size_t len) {
     if ($len(from) < len) return SMISS;

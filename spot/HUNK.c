@@ -26,7 +26,7 @@ ok64 HUNKu8sDrain(u8cs from, HUNKhunk *hk) {
     u8cs body = {};
     call(TLVu8sDrain, from, &t, body);
     test(t == HUNK_TLV, TLVBADTYPE);
-    memset(hk, 0, sizeof(*hk));
+    *hk = (HUNKhunk){};
     while (!$empty(body)) {
         u8 st = 0;
         u8cs val = {};
