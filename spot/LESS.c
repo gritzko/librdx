@@ -6,7 +6,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
-#include <sys/mman.h>
 #include <termios.h>
 #include <unistd.h>
 
@@ -89,21 +88,24 @@ void LESSHunkEmit(void) {
     $mv(h.text, hk->text);
     $mv(h.hili, hk->lits);
 
-    a_pad(u8, buf, 1 << 16);  // 64KB serialize buffer
-    if (HUNKu8sFeed(u8bIdle(buf), &h) != OK) {
+    // Serialize into arena idle space, write to pipe, then rewind
+    u8p saved = less_arena[2];
+    if (HUNKu8sFeed(u8bIdle(less_arena), &h) != OK) {
+        less_arena[2] = saved;
         less_nhunks--;
         return;
     }
 
-    u8cp p = buf[1];
-    u8cp e = buf[2];
+    u8cp p = saved;
+    u8cp e = less_arena[2];
     while (p < e) {
         ssize_t w = write(less_pipe_fd, p, (size_t)(e - p));
         if (w <= 0) break;
         p += w;
     }
 
-    less_nhunks--;  // recycle slot: data is in the pipe now
+    less_arena[2] = saved;  // rewind: scratch space reused
+    less_nhunks--;
 }
 
 // 256-color ink violet for hunk titles
@@ -303,6 +305,8 @@ static b8 less_search_at(LESSstate *st, u8cp text, u32 textlen, u32 pos) {
     return memcmp(text + pos, st->search, st->search_len) == 0 ? YES : NO;
 }
 
+static void LESSStatusBar(LESSstate *st);
+
 static void LESSRender(LESSstate *st) {
     less_puts(TTY_CUR_HOME);
 
@@ -365,7 +369,10 @@ static void LESSRender(LESSstate *st) {
         less_puts(TTY_ERASE_LINE);
     }
 
-    // Status bar on last line
+    LESSStatusBar(st);
+}
+
+static void LESSStatusBar(LESSstate *st) {
     less_goto(st->rows, 1);
     less_puts(TTY_INVERSE);
     less_puts(TTY_ERASE_LINE);
@@ -375,14 +382,6 @@ static void LESSRender(LESSstate *st) {
     u32 cur_hunk = 0;
     if (st->scroll < st->nlines)
         cur_hunk = st->lines[st->scroll].hunk;
-
-    // Count logical line from start of this hunk
-    u32 hunk_line = 0;
-    for (u32 i = 0; i < st->scroll && i < st->nlines; i++) {
-        if (st->lines[i].hunk == cur_hunk &&
-            st->lines[i].off != LESS_TITLE_LINE)
-            hunk_line++;
-    }
 
     LESShunk const *ch = &st->hunks[cur_hunk];
     int slen;
@@ -471,6 +470,40 @@ static void LESSReadSearch(LESSstate *st) {
         if (ch >= 32 && st->search_len < sizeof(st->search) - 1) {
             st->search[st->search_len++] = (char)ch;
         }
+    }
+}
+
+// Read line number from user (displayed in status bar)
+static void LESSReadGoto(LESSstate *st) {
+    char buf[32] = {};
+    u32 len = 0;
+
+    for (;;) {
+        less_goto(st->rows, 1);
+        less_puts(TTY_INVERSE TTY_ERASE_LINE);
+        less_puts(" :");
+        if (len > 0) less_write(buf, len);
+        less_puts(TTY_RESET);
+
+        u8 ch = 0;
+        ssize_t n = read(STDIN_FILENO, &ch, 1);
+        if (n <= 0) continue;
+        if (ch == '\n' || ch == '\r') break;
+        if (ch == 27) { len = 0; break; }
+        if (ch == 127 || ch == 8) {
+            if (len > 0) len--;
+            continue;
+        }
+        if (ch >= '0' && ch <= '9' && len < sizeof(buf) - 1)
+            buf[len++] = (char)ch;
+    }
+
+    if (len > 0) {
+        buf[len] = 0;
+        u32 target = (u32)atoi(buf);
+        if (target > 0) target--;  // 1-based to 0-based
+        if (target >= st->nlines) target = st->nlines > 0 ? st->nlines - 1 : 0;
+        st->scroll = target;
     }
 }
 
@@ -582,6 +615,9 @@ ok64 LESSRun(LESShunk const *hunks, u32 nhunks) {
     // Alternate screen buffer
     less_puts("\033[?1049h");
 
+    // Start at line 1: skip the first hunk title (shown in status bar)
+    if (st.nlines > 1) st.scroll = 1;
+
     LESSRender(&st);
 
     b8 quit = NO;
@@ -634,6 +670,9 @@ ok64 LESSRun(LESShunk const *hunks, u32 nhunks) {
                 st.scroll = st.nlines - page;
             else
                 st.scroll = 0;
+            LESSRender(&st);
+        } else if (ch == ':') {
+            LESSReadGoto(&st);
             LESSRender(&st);
         } else if (ch == '/') {
             LESSReadSearch(&st);
@@ -731,7 +770,7 @@ ok64 LESSRun(LESShunk const *hunks, u32 nhunks) {
 
 // --- Pipe pager: incremental display of TLV hunks from a pipe ---
 
-#define PIPE_RDBUF_SIZE (1UL << 22)  // 4MB read buffer
+#define PIPE_RDBUF_INIT (1UL << 22)  // 4MB initial read buffer
 #define PIPE_MAX_LINES  (1UL << 20)  // 1M lines max
 
 // Count lines for hunks [from..nhunks), append to lines array.
@@ -766,17 +805,14 @@ ok64 LESSPipeRun(int pipefd) {
 
     call(LESSArenaInit);
 
-    // Allocate read buffer (mmap anonymous)
-    u8p rdbuf = (u8p)mmap(NULL, PIPE_RDBUF_SIZE,
-                           PROT_READ | PROT_WRITE,
-                           MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-    test(rdbuf != MAP_FAILED, NOROOM);
-    u32 rdlen = 0;  // bytes accumulated in rdbuf
+    // Allocate growable read buffer
+    Bu8 rdbuf = {};
+    call(u8bMap, rdbuf, PIPE_RDBUF_INIT);
 
     // Allocate line index
     LESSline *lines = (LESSline *)malloc(PIPE_MAX_LINES * sizeof(LESSline));
     if (lines == NULL) {
-        munmap(rdbuf, PIPE_RDBUF_SIZE);
+        u8bUnMap(rdbuf);
         return NOROOM;
     }
 
@@ -801,6 +837,7 @@ ok64 LESSPipeRun(int pipefd) {
     b8 pipe_eof = NO;
     b8 quit = NO;
     u32 indexed_nhunks = 0;
+    u32 rendered_nhunks = 0;
 
     while (!quit) {
         if (less_resized) {
@@ -819,32 +856,48 @@ ok64 LESSPipeRun(int pipefd) {
             nfds = 2;
         }
 
-        int pr = poll(fds, (nfds_t)nfds, 100);
-        (void)pr;
+        int pr = poll(fds, (nfds_t)nfds, 16);
 
         b8 changed = NO;
+        b8 key_pressed = NO;
 
         // Read from pipe
         if (!pipe_eof && (fds[1].revents & (POLLIN | POLLHUP))) {
-            u32 space = PIPE_RDBUF_SIZE - rdlen;
+            size_t space = u8bIdleLen(rdbuf);
             if (space > 0) {
-                ssize_t nr = read(pipefd, rdbuf + rdlen, space);
+                ssize_t nr = read(pipefd, u8bIdleHead(rdbuf), space);
                 if (nr > 0) {
-                    rdlen += (u32)nr;
+                    rdbuf[2] += nr;
                 } else if (nr == 0) {
                     pipe_eof = YES;
                 }
             }
 
             // Drain complete TLV records
-            u8cs from = {rdbuf, rdbuf + rdlen};
+            a_dup(u8 const, from, u8bDataC(rdbuf));
             while (!$empty(from) && less_nhunks < LESS_MAX_HUNKS) {
-                u8cs save = {from[0], from[1]};
+                a_dup(u8 const, save, from);
                 HUNKhunk h = {};
                 ok64 o = HUNKu8sDrain(from, &h);
                 if (o != OK) {
-                    // Incomplete record — restore and wait for more
                     $mv(from, save);
+                    // Buffer full with incomplete record — grow
+                    size_t remain = (size_t)(from[1] - from[0]);
+                    if (remain >= u8bIdleLen(rdbuf)) {
+                        // Compact first, then grow
+                        size_t off = (size_t)(from[0] - rdbuf[0]);
+                        if (off > 0) {
+                            memmove(rdbuf[0], from[0], remain);
+                            rdbuf[1] = rdbuf[0];
+                            rdbuf[2] = rdbuf[0] + remain;
+                        }
+                        ok64 ro = u8bReMap(rdbuf, u8bSize(rdbuf) * 2);
+                        if (ro == OK) {
+                            from[0] = u8bDataHead(rdbuf);
+                            from[1] = from[0] + remain;
+                            continue;  // retry drain
+                        }
+                    }
                     break;
                 }
                 // Copy fields into arena
@@ -875,28 +928,15 @@ ok64 LESSPipeRun(int pipefd) {
                     }
                 }
                 less_nhunks++;
-                changed = YES;
             }
 
-            // Shift remaining bytes to front
-            u32 consumed = (u32)(from[0] - rdbuf);
-            if (consumed > 0 && consumed < rdlen) {
-                memmove(rdbuf, rdbuf + consumed, rdlen - consumed);
-                rdlen -= consumed;
-            } else if (consumed >= rdlen) {
-                rdlen = 0;
-            }
-        }
-
-        // Extend line index for new hunks
-        if (less_nhunks > indexed_nhunks) {
-            st.nlines = LESSExtendIndex(lines, st.nlines,
-                                         less_hunks,
-                                         indexed_nhunks,
-                                         less_nhunks);
-            st.nhunks = less_nhunks;
-            indexed_nhunks = less_nhunks;
-            changed = YES;
+            // Compact: shift remaining to buffer start
+            size_t consumed = (size_t)(from[0] - u8bDataHead(rdbuf));
+            size_t remain = (size_t)(from[1] - from[0]);
+            if (consumed > 0 && remain > 0)
+                memmove(rdbuf[0], from[0], remain);
+            rdbuf[1] = rdbuf[0];
+            rdbuf[2] = rdbuf[0] + remain;
         }
 
         // Handle keyboard input
@@ -904,6 +944,7 @@ ok64 LESSPipeRun(int pipefd) {
             u8 ch = 0;
             ssize_t nr = read(STDIN_FILENO, &ch, 1);
             if (nr > 0) {
+                key_pressed = YES;
                 u32 page = (u32)(st.rows - 1);
                 if (ch == 'q' || ch == 'Q') {
                     quit = YES;
@@ -926,6 +967,9 @@ ok64 LESSPipeRun(int pipefd) {
                 } else if (ch == 'G') {
                     if (st.nlines > page) st.scroll = st.nlines - page;
                     else st.scroll = 0;
+                    changed = YES;
+                } else if (ch == ':') {
+                    LESSReadGoto(&st);
                     changed = YES;
                 } else if (ch == '/') {
                     LESSReadSearch(&st);
@@ -981,7 +1025,28 @@ ok64 LESSPipeRun(int pipefd) {
             }
         }
 
-        if (changed && st.nlines > 0)
+        // Extend line index for any new hunks
+        if (less_nhunks > indexed_nhunks) {
+            st.nlines = LESSExtendIndex(lines, st.nlines,
+                                         less_hunks,
+                                         indexed_nhunks,
+                                         less_nhunks);
+            st.nhunks = less_nhunks;
+            indexed_nhunks = less_nhunks;
+        }
+        // Render when: key pressed, or new hunks extend the visible area
+        b8 pipe_idle = (pr == 0) || pipe_eof;
+        if (indexed_nhunks > rendered_nhunks && pipe_idle) {
+            // Skip first title line on first render
+            if (rendered_nhunks == 0 && st.nlines > 1) st.scroll = 1;
+            u32 visible_end = st.scroll + (u32)(st.rows - 1);
+            if (st.nlines <= visible_end || rendered_nhunks == 0)
+                changed = YES;
+            else if (st.nlines > 0)
+                LESSStatusBar(&st);  // update line count only
+            rendered_nhunks = indexed_nhunks;
+        }
+        if ((changed || key_pressed) && st.nlines > 0)
             LESSRender(&st);
     }
 
@@ -992,7 +1057,7 @@ ok64 LESSPipeRun(int pipefd) {
     sigaction(SIGWINCH, &old_sa, NULL);
 
     free(lines);
-    munmap(rdbuf, PIPE_RDBUF_SIZE);
+    u8bUnMap(rdbuf);
     LESSArenaCleanup();
 
     done;
