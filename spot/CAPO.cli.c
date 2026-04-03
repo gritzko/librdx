@@ -198,14 +198,24 @@ ok64 capocli() {
 
     if (do_gitdiff) {
         // git diff driver: path old-file old-hex old-mode new-file new-hex new-mode
-        if (ntrail < 6) {
+        if (ntrail < 7) {
             fprintf(stderr, "spot: --gitdiff expects 7 args from git\n");
             return FAILSANITY;
         }
         CAPO_COLOR = YES;  // git pager handles ANSI
         u8cs nm = {trail[0][0], trail[0][1]};  // logical path
         u8cs op = {trail[1][0], trail[1][1]};  // old-file
+        u8cs om = {trail[3][0], trail[3][1]};  // old-mode
         u8cs np = {trail[4][0], trail[4][1]};  // new-file
+        u8cs nwm = {trail[6][0], trail[6][1]};  // new-mode
+        // Print mode change header when permissions differ
+        if ($len(om) > 0 && $len(nwm) > 0 &&
+            ($len(om) != $len(nwm) ||
+             memcmp(om[0], nwm[0], (size_t)$len(om)) != 0)) {
+            fprintf(stdout, "old mode %.*s\nnew mode %.*s\n",
+                    (int)$len(om), (char *)om[0],
+                    (int)$len(nwm), (char *)nwm[0]);
+        }
         call(CAPODiff, op, np, nm);
     } else if (do_diff) {
         // Diff mode: expects 2 trailing paths (old new)

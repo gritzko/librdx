@@ -112,6 +112,16 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name) {
     ok64 nro = CAPOMergeRead(&new_data, &map_new, new_path);
     if (oro != OK && nro != OK) return oro;  // both failed
 
+    // Byte-identical content: no diff to show (e.g. mode-only change)
+    if (oro == OK && nro == OK &&
+        $len(old_data) == $len(new_data) &&
+        ($len(old_data) == 0 ||
+         memcmp(old_data[0], new_data[0], (size_t)$len(old_data)) == 0)) {
+        if (map_old) FILEUnMap(map_old);
+        if (map_new) FILEUnMap(map_new);
+        done;
+    }
+
     if (LESSArenaInit() != OK) {
         if (map_old) FILEUnMap(map_old);
         if (map_new) FILEUnMap(map_new);
