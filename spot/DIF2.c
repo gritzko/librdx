@@ -95,7 +95,8 @@ cleanup:
 #define CAPOJoinToks(ts, jf) \
     u32cs ts = {(u32cp)(jf)->toks[1], (u32cp)(jf)->toks[2]}
 
-ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name) {
+ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name,
+              u8csc old_mode, u8csc new_mode) {
     sane($ok(old_path) && $ok(new_path));
 
     // Detect extension from logical name
@@ -113,11 +114,42 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name) {
     ok64 nro = CAPOMergeRead(&new_data, &map_new, new_path);
     if (oro != OK && nro != OK) return oro;  // both failed
 
-    // Byte-identical content: no diff to show (e.g. mode-only change)
+    // Byte-identical content: emit mode-change hunk if modes differ
     if (oro == OK && nro == OK &&
         $len(old_data) == $len(new_data) &&
         ($len(old_data) == 0 ||
          memcmp(old_data[0], new_data[0], (size_t)$len(old_data)) == 0)) {
+        b8 mode_diff = !$empty(old_mode) && !$empty(new_mode) &&
+            ($len(old_mode) != $len(new_mode) ||
+             memcmp(old_mode[0], new_mode[0], (size_t)$len(old_mode)) != 0);
+        if (mode_diff) {
+            if (LESSArenaInit() != OK) {
+                if (map_old) FILEUnMap(map_old);
+                if (map_new) FILEUnMap(map_new);
+                return NOROOM;
+            }
+            char hdr[512];
+            int tl = snprintf(hdr, sizeof(hdr), "--- %.*s ---",
+                              (int)$len(name), (char *)name[0]);
+            char body[256];
+            int bl = snprintf(body, sizeof(body),
+                              "old mode %.*s\nnew mode %.*s\n",
+                              (int)$len(old_mode), (char *)old_mode[0],
+                              (int)$len(new_mode), (char *)new_mode[0]);
+            LESShunk *hk = &less_hunks[less_nhunks];
+            memset(hk, 0, sizeof(*hk));
+            if (tl > 0) {
+                u8p tp = LESSArenaWrite(hdr, (size_t)tl);
+                if (tp) { hk->title[0] = tp; hk->title[1] = tp + tl; }
+            }
+            if (bl > 0) {
+                u8p xp = LESSArenaWrite(body, (size_t)bl);
+                if (xp) { hk->text[0] = xp; hk->text[1] = xp + bl; }
+            }
+            LESSHunkEmit();
+            LESSRun(less_hunks, less_nhunks);
+            LESSArenaCleanup();
+        }
         if (map_old) FILEUnMap(map_old);
         if (map_new) FILEUnMap(map_new);
         done;

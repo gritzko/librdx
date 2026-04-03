@@ -234,23 +234,10 @@ ok64 capocli() {
         CAPO_COLOR = YES;  // git pager handles ANSI
         u8cs nm = {trail[0][0], trail[0][1]};  // logical path
         u8cs op = {trail[1][0], trail[1][1]};  // old-file
-        u8cs om = {trail[3][0], trail[3][1]};  // old-modeomode = {trail[3][0], trail[3][1]};
+        u8cs om = {trail[3][0], trail[3][1]};  // old-mode
         u8cs np = {trail[4][0], trail[4][1]};  // new-file
-        u8cs nwm = {trail[6][0], trail[6][1]};  // new-mode
-        // Print mode change header when permissions differ
-        if ($len(om) > 0 && $len(nwm) > 0 &&
-            ($len(om) != $len(nwm) ||
-             memcmp(om[0], nwm[0], (size_t)$len(om)) != 0)) {
-            fprintf(stdout, "old mode %.*s\nnew mode %.*s\n",
-                    (int)$len(om), (char *)om[0],
-                    (int)$len(nwm), (char *)nwm[0]);
-        }nmode = {trail[6][0], trail[6][1]};
-        // Mode-only change: print header so git's mode lines have context
-        if (ntrail >= 7 && !u8csEq(omode, nmode)) {
-            fprintf(stdout, "--- %.*s ---\n",
-                    (int)$len(nm), (char *)nm[0]);
-        }
-        call(CAPODiff, op, np, nm);
+        u8cs nwm = {trail[6][0], trail[6][1]}; // new-mode
+        call(CAPODiff, op, np, nm, om, nwm);
     } else if (do_diff) {
         // Diff mode: expects 2 trailing paths (old new)
         if (ntrail < 2) {
@@ -259,7 +246,8 @@ ok64 capocli() {
         }
         u8cs op = {trail[0][0], trail[0][1]};
         u8cs np = {trail[1][0], trail[1][1]};
-        call(CAPODiff, op, np, np);
+        u8cs nomode = {};
+        call(CAPODiff, op, np, np, nomode, nomode);
     } else if (do_merge) {
         // Merge mode: expects 3 trailing paths (base ours theirs)
         if (ntrail < 3) {
