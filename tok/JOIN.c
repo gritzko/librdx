@@ -32,7 +32,7 @@ static ok64 join_cb(u8 tag, u8cs tok, void *vctx) {
 ok64 JOINTokenize(JOINfile *jf, u8csc data, u8csc ext) {
     sane(jf != NULL);
     $set(jf->data, data);
-    u64 est = $len(data) / 2;
+    u64 est = $len(data);
     if (est < 256) est = 256;
     call(u32bAlloc, jf->toks, est);
     call(u64bAlloc, jf->hashes, est);

@@ -305,9 +305,52 @@ ok64 JSTBasicTest() {
         {"!==", "P"},
         {"=>", "P"},
         {"x = 5", "SSPSL"},
+        // regex literals
+        {"/pattern/g", "G"},
+        {"/\\n/g", "G"},
+        {"/.*\\//g", "G"},
+        {"/foo/gimsuy", "G"},
+        {"x.replace(/\"/g, '\"')", "SPSPGPSGP"},
     };
     int ncases = sizeof(cases) / sizeof(cases[0]);
     RUN_CASES(JSTLexer, JST, cases, ncases);
+    done;
+}
+
+ok64 JSTFileTest() {
+    sane(1);
+    // js2c.js repro: regex literals that previously caused JSTBAD
+    const char *input =
+        "#!/usr/bin/node\n"
+        "\n"
+        "const fs = require(\"fs\");\n"
+        "const console = require(\"console\");\n"
+        "const process = require(\"process\");\n"
+        "\n"
+        "var file = process.argv[2];\n"
+        "\n"
+        "str = fs.readFileSync(file, {encoding:\"utf8\"})\n"
+        "\n"
+        "str = str.replace(/\"/g, '\\\\\"')\n"
+        "        .replace(/\\n/g, '\\\\n\"\\n\"');\n"
+        "\n"
+        "var varn = file.replace(/.*\\//g, \"\").replaceAll('.', '_');\n"
+        "\n"
+        "var code = \"const char* \" + varn + \" = \\\"\" + str + \"\\\";\";\n"
+        "\n"
+        "console.log(code);\n";
+    TOK01ctx ctx = {};
+    JSTstate st = {
+        .data = {(u8c *)input, (u8c *)input + strlen(input)},
+        .cb = TOK01cb,
+        .ctx = &ctx,
+    };
+    ok64 o = JSTLexer(&st);
+    if (o != OK) {
+        fprintf(stderr, "FAIL JSTFileTest: js2c.js error %s\n", ok64str(o));
+        fail(TESTFAIL);
+    }
+    want(ctx.count > 0);
     done;
 }
 
@@ -876,6 +919,7 @@ ok64 TOK01test() {
     call(GOTBasicTest);
     call(PYTBasicTest);
     call(JSTBasicTest);
+    call(JSTFileTest);
     call(RSTBasicTest);
     call(JATBasicTest);
     call(JSONTBasicTest);

@@ -80,6 +80,7 @@ main := |*
     # ---- comments ----
     "//" [^\n]*                                                   => on_comment;
     "/*" ( any8 - [*] | [*]+ (any8 - [*/]) )* [*]+ "/"          => on_comment;
+    "#!" [^\n]*                                                   => on_comment;
 
     # ---- template strings (backtick, flat -- no nesting) ----
     0x60 ( [\\] any8 | any8 - 0x60 - [\\] )* 0x60                => on_string;
@@ -91,6 +92,7 @@ main := |*
     # ---- regex literal (approximate: after certain punct/keyword contexts) ----
     # we approximate: /.../ with flags, not starting with * or /
     # Note: this is a simplification; true regex detection needs parser state
+    "/" ( [\\] any8 | any8 - [/\\\n] )+ "/" [dgimsuyv]*  => on_string;
 
     # ---- numbers ----
     "0" [xX] xdig nsuf                                            => on_number;
