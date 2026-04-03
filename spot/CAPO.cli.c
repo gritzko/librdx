@@ -9,6 +9,7 @@
 #include "abc/FILE.h"
 #include "abc/PATH.h"
 #include "abc/PRO.h"
+#include "spot/LESS.h"
 
 // Usage:
 //   spot                             incremental update (full reindex if first run)
@@ -48,6 +49,7 @@ static void SPOTUsage(void) {
         "  spot --gitdiff                     git external diff driver\n"
         "  spot --merge base ours theirs      token-level 3-way merge\n"
         "  spot --merge base ours theirs -o f merge to file\n"
+        "  spot -f ...                        streaming pager (fork mode)\n"
         "\n"
         "Patterns: single-letter placeholders (a-z match one token/group,\n"
         "A-Z match multiple tokens). Two spaces = skip gap.\n"
@@ -105,6 +107,7 @@ ok64 capocli() {
     b8 do_merge = NO;
     b8 do_diff = NO;
     b8 do_gitdiff = NO;
+    b8 pipe_mode = NO;
     u8c *merge_out[2] = {};
     u8c *spot_ndl[2] = {};
     u8c *spot_rep[2] = {};
@@ -185,6 +188,8 @@ ok64 capocli() {
             u8c *v[2] = {};
             $mv(v, $arg(i));
             grep_ctx = (u32)atoi((char *)v[0]);
+        } else if (argeq(a, "-f")) {
+            pipe_mode = YES;
         } else {
             if (ntrail < 16) { $mv(trail[ntrail], a); ntrail++; }
         }
@@ -194,6 +199,30 @@ ok64 capocli() {
     if (spot_rep[0] != NULL && spot_ndl[0] == NULL) {
         fprintf(stderr, "spot: --replace requires --spot\n");
         return FAILSANITY;
+    }
+
+    // Pipe mode: fork worker/pager for grep, spot, diff, cat
+    if (pipe_mode &&
+        (grep_ndl[0] != NULL || pcre_ndl[0] != NULL ||
+         spot_ndl[0] != NULL || do_diff || ntrail > 0) &&
+        !do_gitdiff && !do_merge && !do_index && !is_hook) {
+        int pfd[2];
+        test(pipe(pfd) == 0, FAILSANITY);
+        pid_t pid = fork();
+        test(pid >= 0, FAILSANITY);
+        if (pid == 0) {
+            // Child = worker: writes TLV to pipe
+            close(pfd[0]);
+            less_pipe_fd = pfd[1];
+            // fall through to normal dispatch
+        } else {
+            // Parent = pager: reads TLV from pipe
+            close(pfd[1]);
+            ok64 o = LESSPipeRun(pfd[0]);
+            close(pfd[0]);
+            waitpid(pid, NULL, 0);
+            return o;
+        }
     }
 
     if (do_gitdiff) {

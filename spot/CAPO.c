@@ -1550,7 +1550,7 @@ ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot,
                             }
                         }
 
-                        less_nhunks++;
+                        LESSHunkEmit();
                         first_hunk = NO;
                     }
                     prev_ctx_hi = ctx_hi;

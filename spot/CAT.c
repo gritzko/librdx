@@ -103,7 +103,7 @@ ok64 CAPOCat(u8css files, u8csc reporoot) {
             }
         }
 
-        less_nhunks++;
+        LESSHunkEmit();
         LESSDefer(mapped, tokenized ? toks : (Bu32){});
     }
 

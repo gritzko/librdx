@@ -1,10 +1,12 @@
 #include "LESS.h"
 
+#include <poll.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
+#include <sys/mman.h>
 #include <termios.h>
 #include <unistd.h>
 
@@ -12,6 +14,7 @@
 #include "abc/FILE.h"
 #include "abc/PRO.h"
 #include "abc/TTY.h"
+#include "spot/HUNK.h"
 #include "tok/TOK.h"
 
 extern b8 CAPO_COLOR;
@@ -23,6 +26,7 @@ u8bp less_maps[LESS_MAX_MAPS];
 Bu32 less_toks[LESS_MAX_MAPS];
 u32 less_nhunks = 0;
 u32 less_nmaps = 0;
+int less_pipe_fd = -1;
 
 ok64 LESSArenaInit(void) {
     less_nhunks = 0;
@@ -71,6 +75,35 @@ void LESSDefer(u8bp mapped, Bu32 toks) {
     less_maps[less_nmaps] = mapped;
     memcpy(less_toks[less_nmaps], toks, sizeof(Bu32));
     less_nmaps++;
+}
+
+// --- LESSHunkEmit: serialize + write to pipe in fork mode ---
+
+void LESSHunkEmit(void) {
+    u32 idx = less_nhunks++;
+    if (less_pipe_fd < 0) return;  // sync mode: nothing more to do
+
+    LESShunk *hk = &less_hunks[idx];
+    HUNKhunk h = {};
+    $mv(h.title, hk->title);
+    $mv(h.text, hk->text);
+    $mv(h.hili, hk->lits);
+
+    a_pad(u8, buf, 1 << 16);  // 64KB serialize buffer
+    if (HUNKu8sFeed(u8bIdle(buf), &h) != OK) {
+        less_nhunks--;
+        return;
+    }
+
+    u8cp p = buf[1];
+    u8cp e = buf[2];
+    while (p < e) {
+        ssize_t w = write(less_pipe_fd, p, (size_t)(e - p));
+        if (w <= 0) break;
+        p += w;
+    }
+
+    less_nhunks--;  // recycle slot: data is in the pipe now
 }
 
 // 256-color ink violet for hunk titles
@@ -518,6 +551,13 @@ static ok64 LESSPlain(LESShunk const *hunks, u32 nhunks) {
 ok64 LESSRun(LESShunk const *hunks, u32 nhunks) {
     sane(hunks != NULL && nhunks > 0);
 
+    // Worker side of pipe mode: hunks already written, just close
+    if (less_pipe_fd >= 0) {
+        close(less_pipe_fd);
+        less_pipe_fd = -1;
+        return OK;
+    }
+
     // Fallback: plain output when stdout is not a terminal
     if (!isatty(STDOUT_FILENO))
         return LESSPlain(hunks, nhunks);
@@ -685,6 +725,275 @@ ok64 LESSRun(LESShunk const *hunks, u32 nhunks) {
     LESSRawDisable(&st);
     sigaction(SIGWINCH, &old_sa, NULL);
     free(st.lines);
+
+    done;
+}
+
+// --- Pipe pager: incremental display of TLV hunks from a pipe ---
+
+#define PIPE_RDBUF_SIZE (1UL << 22)  // 4MB read buffer
+#define PIPE_MAX_LINES  (1UL << 20)  // 1M lines max
+
+// Count lines for hunks [from..nhunks), append to lines array.
+// Returns new total nlines.
+static u32 LESSExtendIndex(LESSline *lines, u32 nlines,
+                            LESShunk const *hunks,
+                            u32 from, u32 nhunks) {
+    u32 li = nlines;
+    for (u32 h = from; h < nhunks; h++) {
+        if (!$empty(hunks[h].title)) {
+            if (li < PIPE_MAX_LINES)
+                lines[li++] = (LESSline){h, LESS_TITLE_LINE};
+        }
+        u8cp base = hunks[h].text[0];
+        u8cp e = hunks[h].text[1];
+        if (base == e) continue;
+        u32 tlen = (u32)(e - base);
+        if (li < PIPE_MAX_LINES)
+            lines[li++] = (LESSline){h, 0};
+        for (u32 i = 0; i < tlen; i++) {
+            if (base[i] == '\n' && i + 1 < tlen) {
+                if (li < PIPE_MAX_LINES)
+                    lines[li++] = (LESSline){h, i + 1};
+            }
+        }
+    }
+    return li;
+}
+
+ok64 LESSPipeRun(int pipefd) {
+    sane(pipefd >= 0);
+
+    call(LESSArenaInit);
+
+    // Allocate read buffer (mmap anonymous)
+    u8p rdbuf = (u8p)mmap(NULL, PIPE_RDBUF_SIZE,
+                           PROT_READ | PROT_WRITE,
+                           MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    test(rdbuf != MAP_FAILED, NOROOM);
+    u32 rdlen = 0;  // bytes accumulated in rdbuf
+
+    // Allocate line index
+    LESSline *lines = (LESSline *)malloc(PIPE_MAX_LINES * sizeof(LESSline));
+    if (lines == NULL) {
+        munmap(rdbuf, PIPE_RDBUF_SIZE);
+        return NOROOM;
+    }
+
+    LESSstate st = {};
+    st.hunks = less_hunks;
+    st.nhunks = 0;
+
+    LESSGetSize(&st);
+    st.lines = lines;
+    st.nlines = 0;
+
+    call(LESSRawEnable, &st);
+
+    struct sigaction sa = {}, old_sa = {};
+    sa.sa_handler = less_winch_handler;
+    sa.sa_flags = SA_RESTART;
+    sigaction(SIGWINCH, &sa, &old_sa);
+
+    less_puts("\033[?25l");    // hide cursor
+    less_puts("\033[?1049h");  // alt screen
+
+    b8 pipe_eof = NO;
+    b8 quit = NO;
+    u32 indexed_nhunks = 0;
+
+    while (!quit) {
+        if (less_resized) {
+            less_resized = 0;
+            LESSGetSize(&st);
+        }
+
+        struct pollfd fds[2];
+        int nfds = 0;
+        fds[0].fd = STDIN_FILENO;
+        fds[0].events = POLLIN;
+        nfds = 1;
+        if (!pipe_eof) {
+            fds[1].fd = pipefd;
+            fds[1].events = POLLIN;
+            nfds = 2;
+        }
+
+        int pr = poll(fds, (nfds_t)nfds, 100);
+        (void)pr;
+
+        b8 changed = NO;
+
+        // Read from pipe
+        if (!pipe_eof && (fds[1].revents & (POLLIN | POLLHUP))) {
+            u32 space = PIPE_RDBUF_SIZE - rdlen;
+            if (space > 0) {
+                ssize_t nr = read(pipefd, rdbuf + rdlen, space);
+                if (nr > 0) {
+                    rdlen += (u32)nr;
+                } else if (nr == 0) {
+                    pipe_eof = YES;
+                }
+            }
+
+            // Drain complete TLV records
+            u8cs from = {rdbuf, rdbuf + rdlen};
+            while (!$empty(from) && less_nhunks < LESS_MAX_HUNKS) {
+                u8cs save = {from[0], from[1]};
+                HUNKhunk h = {};
+                ok64 o = HUNKu8sDrain(from, &h);
+                if (o != OK) {
+                    // Incomplete record — restore and wait for more
+                    $mv(from, save);
+                    break;
+                }
+                // Copy fields into arena
+                LESShunk *hk = &less_hunks[less_nhunks];
+                memset(hk, 0, sizeof(*hk));
+                if (!$empty(h.title)) {
+                    u8p tp = LESSArenaWrite(h.title[0],
+                                            (size_t)$len(h.title));
+                    if (tp) {
+                        hk->title[0] = tp;
+                        hk->title[1] = tp + $len(h.title);
+                    }
+                }
+                if (!$empty(h.text)) {
+                    u8p xp = LESSArenaWrite(h.text[0],
+                                            (size_t)$len(h.text));
+                    if (xp) {
+                        hk->text[0] = xp;
+                        hk->text[1] = xp + $len(h.text);
+                    }
+                }
+                if (!$empty(h.hili)) {
+                    u8p lp = LESSArenaWrite(h.hili[0],
+                                            (size_t)$len(h.hili));
+                    if (lp) {
+                        hk->lits[0] = lp;
+                        hk->lits[1] = lp + $len(h.hili);
+                    }
+                }
+                less_nhunks++;
+                changed = YES;
+            }
+
+            // Shift remaining bytes to front
+            u32 consumed = (u32)(from[0] - rdbuf);
+            if (consumed > 0 && consumed < rdlen) {
+                memmove(rdbuf, rdbuf + consumed, rdlen - consumed);
+                rdlen -= consumed;
+            } else if (consumed >= rdlen) {
+                rdlen = 0;
+            }
+        }
+
+        // Extend line index for new hunks
+        if (less_nhunks > indexed_nhunks) {
+            st.nlines = LESSExtendIndex(lines, st.nlines,
+                                         less_hunks,
+                                         indexed_nhunks,
+                                         less_nhunks);
+            st.nhunks = less_nhunks;
+            indexed_nhunks = less_nhunks;
+            changed = YES;
+        }
+
+        // Handle keyboard input
+        if (fds[0].revents & POLLIN) {
+            u8 ch = 0;
+            ssize_t nr = read(STDIN_FILENO, &ch, 1);
+            if (nr > 0) {
+                u32 page = (u32)(st.rows - 1);
+                if (ch == 'q' || ch == 'Q') {
+                    quit = YES;
+                } else if (ch == ' ' || ch == 'f') {
+                    if (st.scroll + page < st.nlines)
+                        st.scroll += page;
+                    else if (st.nlines > page)
+                        st.scroll = st.nlines - page;
+                    changed = YES;
+                } else if (ch == 'b') {
+                    if (st.scroll >= page) st.scroll -= page;
+                    else st.scroll = 0;
+                    changed = YES;
+                } else if (ch == 'j') {
+                    if (st.scroll + 1 < st.nlines) { st.scroll++; changed = YES; }
+                } else if (ch == 'k') {
+                    if (st.scroll > 0) { st.scroll--; changed = YES; }
+                } else if (ch == 'g') {
+                    st.scroll = 0; changed = YES;
+                } else if (ch == 'G') {
+                    if (st.nlines > page) st.scroll = st.nlines - page;
+                    else st.scroll = 0;
+                    changed = YES;
+                } else if (ch == '/') {
+                    LESSReadSearch(&st);
+                    if (st.search_len > 0) {
+                        u32 found = LESSSearchNext(&st, st.scroll, +1);
+                        if (found != UINT32_MAX) st.scroll = found;
+                    }
+                    changed = YES;
+                } else if (ch == 'n') {
+                    u32 found = LESSSearchNext(&st, st.scroll, +1);
+                    if (found != UINT32_MAX) { st.scroll = found; changed = YES; }
+                } else if (ch == 'N') {
+                    u32 found = LESSSearchNext(&st, st.scroll, -1);
+                    if (found != UINT32_MAX) { st.scroll = found; changed = YES; }
+                } else if (ch == 'd') {
+                    u32 half = page / 2;
+                    if (st.scroll + half < st.nlines) st.scroll += half;
+                    else if (st.nlines > page) st.scroll = st.nlines - page;
+                    changed = YES;
+                } else if (ch == 'u') {
+                    u32 half = page / 2;
+                    if (st.scroll >= half) st.scroll -= half;
+                    else st.scroll = 0;
+                    changed = YES;
+                } else if (ch == 033) {
+                    u8 seq[2] = {};
+                    ssize_t n1 = read(STDIN_FILENO, &seq[0], 1);
+                    if (n1 > 0 && seq[0] == '[') {
+                        ssize_t n2 = read(STDIN_FILENO, &seq[1], 1);
+                        if (n2 > 0) {
+                            switch (seq[1]) {
+                            case 'A': if (st.scroll > 0) st.scroll--; changed = YES; break;
+                            case 'B': if (st.scroll + 1 < st.nlines) st.scroll++; changed = YES; break;
+                            case '5':
+                                (void)read(STDIN_FILENO, &seq[0], 1);
+                                if (st.scroll >= page) st.scroll -= page;
+                                else st.scroll = 0;
+                                changed = YES; break;
+                            case '6':
+                                (void)read(STDIN_FILENO, &seq[0], 1);
+                                if (st.scroll + page < st.nlines) st.scroll += page;
+                                else if (st.nlines > page) st.scroll = st.nlines - page;
+                                changed = YES; break;
+                            case 'H': st.scroll = 0; changed = YES; break;
+                            case 'F':
+                                if (st.nlines > page) st.scroll = st.nlines - page;
+                                else st.scroll = 0;
+                                changed = YES; break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (changed && st.nlines > 0)
+            LESSRender(&st);
+    }
+
+    // Teardown
+    less_puts("\033[?1049l");
+    less_puts("\033[?25h");
+    LESSRawDisable(&st);
+    sigaction(SIGWINCH, &old_sa, NULL);
+
+    free(lines);
+    munmap(rdbuf, PIPE_RDBUF_SIZE);
+    LESSArenaCleanup();
 
     done;
 }
