@@ -20,6 +20,16 @@ typedef struct {
 // status bar, and search. Falls back to plain fprintf when !isatty.
 ok64 LESSRun(LESShunk const *hunks, u32 nhunks);
 
+// >=0: worker writes TLV here; <0: sync mode (default)
+extern int less_pipe_fd;
+
+// Call after filling less_hunks[less_nhunks]. Increments less_nhunks.
+// In pipe mode, serializes the hunk as TLV and writes to less_pipe_fd.
+void LESSHunkEmit(void);
+
+// Pager event loop: reads TLV hunks from pipefd, displays incrementally.
+ok64 LESSPipeRun(int pipefd);
+
 // --- LESS arena: shared scratch space for grep/diff/spot/cat ---
 #define LESS_ARENA_SIZE (1UL << 27)   // 128MB
 #define LESS_MAX_HUNKS 4096

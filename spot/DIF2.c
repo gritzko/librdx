@@ -7,6 +7,7 @@
 #include <unistd.h>
 
 #include "abc/PRO.h"
+#include "spot/HUNK.h"
 #include "spot/NEIL.h"
 #include "tok/DEF.h"
 #include "tok/JOIN.h"
@@ -158,7 +159,7 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name) {
                 CAPOMarkLits(lp, 0, olen, LESS_DEL);
                 hk->lits[0] = lp; hk->lits[1] = lp + olen;
             }
-            less_nhunks++;
+            LESSHunkEmit();
         }
         JOINFree(&old_f);
         LESSRun(less_hunks, less_nhunks);
@@ -195,7 +196,7 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name) {
             CAPOMarkLits(lp, 0, nlen2, LESS_INS);
             hk->lits[0] = lp; hk->lits[1] = lp + nlen2;
         }
-        less_nhunks++;
+        LESSHunkEmit();
         LESSRun(less_hunks, less_nhunks);
         LESSArenaCleanup();
         JOINFree(&new_f);
@@ -346,6 +347,26 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name) {
             if (cur_hunk != NULL) {                             \
                 cur_hunk->text[1] = dtxp;                       \
                 cur_hunk->lits[1] = dltp;                       \
+                if (less_pipe_fd >= 0) {                        \
+                    /* emit completed prev hunk to pipe */      \
+                    u32 _pi = (u32)(cur_hunk - less_hunks);     \
+                    HUNKhunk _ph = {};                          \
+                    $mv(_ph.title, cur_hunk->title);            \
+                    $mv(_ph.text, cur_hunk->text);              \
+                    $mv(_ph.hili, cur_hunk->lits);              \
+                    a_pad(u8, _pb, 1 << 16);                    \
+                    if (HUNKu8sFeed(u8bIdle(_pb), &_ph) == OK) {\
+                        u8cp _pp = _pb[1];                      \
+                        u8cp _pe = _pb[2];                      \
+                        while (_pp < _pe) {                     \
+                            ssize_t _w = write(less_pipe_fd,    \
+                                _pp, (size_t)(_pe - _pp));      \
+                            if (_w <= 0) break;                 \
+                            _pp += _w;                          \
+                        }                                       \
+                    }                                           \
+                    less_nhunks = _pi; /* recycle */             \
+                }                                               \
             }                                                   \
             if (less_nhunks < LESS_MAX_HUNKS) {                 \
                 cur_hunk = &less_hunks[less_nhunks];            \
@@ -650,6 +671,25 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name) {
         if (cur_hunk != NULL) {
             cur_hunk->text[1] = dtxp;
             cur_hunk->lits[1] = dltp;
+            if (less_pipe_fd >= 0) {
+                u32 _pi = (u32)(cur_hunk - less_hunks);
+                HUNKhunk _ph = {};
+                $mv(_ph.title, cur_hunk->title);
+                $mv(_ph.text, cur_hunk->text);
+                $mv(_ph.hili, cur_hunk->lits);
+                a_pad(u8, _pb, 1 << 16);
+                if (HUNKu8sFeed(u8bIdle(_pb), &_ph) == OK) {
+                    u8cp _pp = _pb[1];
+                    u8cp _pe = _pb[2];
+                    while (_pp < _pe) {
+                        ssize_t _w = write(less_pipe_fd,
+                            _pp, (size_t)(_pe - _pp));
+                        if (_w <= 0) break;
+                        _pp += _w;
+                    }
+                }
+                less_nhunks = _pi;  // recycle
+            }
         }
 
         #undef DIFF_COPY_TOK

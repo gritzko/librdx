@@ -303,7 +303,7 @@ ok64 CAPOGrep(u8csc substring, u8csc ext, u8csc reporoot, u32 ctx_lines,
                             }
                         }
 
-                        less_nhunks++;
+                        LESSHunkEmit();
                         first_hunk = NO;
                     }
                     prev_hi = ctx_hi;
@@ -731,7 +731,7 @@ ok64 CAPOPcreGrep(u8csc pattern, u8csc ext, u8csc reporoot, u32 ctx_lines,
                         }
                     }
 
-                    less_nhunks++;
+                    LESSHunkEmit();
                     first_hunk = NO;
                 }
                 prev_hi = ctx_hi;
