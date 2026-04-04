@@ -83,6 +83,12 @@ target_compile_options(MSETtest PRIVATE ${TEST_CXX_FLAGS})
 target_link_libraries(MSETtest abc)
 add_test(NAME MSETtest COMMAND MSETtest)
 
+add_executable(HITtest HIT.c)
+target_link_options(HITtest PRIVATE ${TEST_LDD_FLAGS})
+target_compile_options(HITtest PRIVATE ${TEST_CXX_FLAGS})
+target_link_libraries(HITtest abc)
+add_test(NAME HITtest COMMAND HITtest)
+
 add_executable(MMAPtest MMAP.c ../MMAP.c)
 target_link_options(MMAPtest PRIVATE ${TEST_LDD_FLAGS})
 target_compile_options(MMAPtest PRIVATE ${TEST_CXX_FLAGS})

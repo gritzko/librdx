@@ -313,6 +313,180 @@ ok64 MSETc() {
     done;
 }
 
+// TopZ: find equal-minimum entries
+ok64 MSETe() {
+    sane(1);
+    // 3 runs, two share minimum 1
+    u64 a[] = {1, 5, 9};
+    u64 b[] = {1, 3, 7};
+    u64 c[] = {2, 4, 6};
+    u64cs runs[3] = {{a, a + 3}, {b, b + 3}, {c, c + 3}};
+    u64css heap = {runs, runs + 3};
+    MSETu64Start(heap);
+    testeq(****heap, (u64)1);
+    u64css eqs;
+    call(MSETu64TopZ, heap, eqs, u64Z);
+    // two runs have minimum 1
+    testeq($len(eqs), (size_t)2);
+    // both top entries point at 1
+    testeq(*eqs[0][0][0], (u64)1);
+    testeq(*eqs[0][1][0], (u64)1);
+    done;
+}
+
+// AdvZ: advance top entries
+ok64 MSETf() {
+    sane(1);
+    u64 a[] = {1, 5};
+    u64 b[] = {1, 3};
+    u64 c[] = {2, 4};
+    u64cs runs[3] = {{a, a + 2}, {b, b + 2}, {c, c + 2}};
+    u64css heap = {runs, runs + 3};
+    MSETu64Start(heap);
+    u64css eqs;
+    call(MSETu64TopZ, heap, eqs, u64Z);
+    testeq($len(eqs), (size_t)2);
+    // advance the 2 runs that had min=1
+    call(MSETu64AdvZ, heap, $len(eqs), u64Z);
+    // next minimum should be 2
+    testeq(****heap, (u64)2);
+    // advance single top
+    call(MSETu64TopZ, heap, eqs, u64Z);
+    testeq($len(eqs), (size_t)1);
+    call(MSETu64AdvZ, heap, $len(eqs), u64Z);
+    // next minimum should be 3
+    testeq(****heap, (u64)3);
+    done;
+}
+
+// Intersection via TopZ+AdvZ: only emit when all runs agree
+ok64 MSETg() {
+    sane(1);
+    u64 a[] = {1, 2, 3, 5, 7};
+    u64 b[] = {2, 3, 4, 5, 8};
+    u64 c[] = {1, 3, 5, 6, 9};
+    u64cs runs[3] = {{a, a + 5}, {b, b + 5}, {c, c + 5}};
+    u64css heap = {runs, runs + 3};
+    MSETu64Start(heap);
+    size_t nruns = 3;
+    u64 result[10];
+    size_t rlen = 0;
+    while (!$empty(heap) && $len(heap) >= nruns) {
+        u64css eqs;
+        call(MSETu64TopZ, heap, eqs, u64Z);
+        if ($len(eqs) == nruns)
+            result[rlen++] = ****heap;
+        MSETu64AdvZ(heap, $len(eqs), u64Z);
+    }
+    // intersection of {1,2,3,5,7} {2,3,4,5,8} {1,3,5,6,9} = {3,5}
+    testeq(rlen, (size_t)2);
+    testeq(result[0], (u64)3);
+    testeq(result[1], (u64)5);
+    done;
+}
+
+// Union via TopZ+AdvZ: emit every distinct minimum
+ok64 MSETh() {
+    sane(1);
+    u64 a[] = {1, 3, 5};
+    u64 b[] = {2, 3, 6};
+    u64cs runs[2] = {{a, a + 3}, {b, b + 3}};
+    u64css heap = {runs, runs + 2};
+    MSETu64Start(heap);
+    u64 result[10];
+    size_t rlen = 0;
+    while (!$empty(heap)) {
+        u64css eqs;
+        call(MSETu64TopZ, heap, eqs, u64Z);
+        result[rlen++] = ****heap;
+        MSETu64AdvZ(heap, $len(eqs), u64Z);
+    }
+    // union {1,3,5} + {2,3,6} = {1,2,3,5,6}
+    testeq(rlen, (size_t)5);
+    testeq(result[0], (u64)1);
+    testeq(result[1], (u64)2);
+    testeq(result[2], (u64)3);
+    testeq(result[3], (u64)5);
+    testeq(result[4], (u64)6);
+    done;
+}
+
+// EjectAtZ
+ok64 MSETi() {
+    sane(1);
+    u64 a[] = {1, 4};
+    u64 b[] = {2, 5};
+    u64 c[] = {3, 6};
+    u64cs runs[3] = {{a, a + 2}, {b, b + 2}, {c, c + 2}};
+    u64css heap = {runs, runs + 3};
+    MSETu64Start(heap);
+    testeq($len(heap), (size_t)3);
+    // eject position 0 (the minimum)
+    call(MSETu64EjectAtZ, heap, (size_t)0, u64Z);
+    testeq($len(heap), (size_t)2);
+    // heap property should still hold: min of remaining
+    u64 top = ****heap;
+    want(top == 2 || top == 3);
+    done;
+}
+
+// HeapZ
+ok64 MSETj() {
+    sane(1);
+    u64 a[] = {5, 9};
+    u64 b[] = {1, 3};
+    u64 c[] = {2, 7};
+    // deliberately wrong order for heap
+    u64cs runs[3] = {{a, a + 2}, {b, b + 2}, {c, c + 2}};
+    u64css heap = {runs, runs + 3};
+    MSETu64HeapZ(heap, u64Z);
+    testeq(****heap, (u64)1);
+    done;
+}
+
+// Intersection with no common elements => empty
+ok64 MSETk() {
+    sane(1);
+    u64 a[] = {1, 3, 5};
+    u64 b[] = {2, 4, 6};
+    u64cs runs[2] = {{a, a + 3}, {b, b + 3}};
+    u64css heap = {runs, runs + 2};
+    MSETu64Start(heap);
+    size_t nruns = 2;
+    size_t rlen = 0;
+    while (!$empty(heap) && $len(heap) >= nruns) {
+        u64css eqs;
+        call(MSETu64TopZ, heap, eqs, u64Z);
+        if ($len(eqs) == nruns) rlen++;
+        MSETu64AdvZ(heap, $len(eqs), u64Z);
+    }
+    testeq(rlen, (size_t)0);
+    done;
+}
+
+// Single run: TopZ returns 1, AdvZ drains it
+ok64 MSETl() {
+    sane(1);
+    u64 a[] = {10, 20, 30};
+    u64cs runs[1] = {{a, a + 3}};
+    u64css heap = {runs, runs + 1};
+    MSETu64Start(heap);
+    u64 result[3];
+    size_t rlen = 0;
+    while (!$empty(heap)) {
+        u64css eqs;
+        call(MSETu64TopZ, heap, eqs, u64Z);
+        testeq($len(eqs), (size_t)1);
+        result[rlen++] = ****heap;
+        MSETu64AdvZ(heap, $len(eqs), u64Z);
+    }
+    testeq(rlen, (size_t)3);
+    testeq(result[0], (u64)10);
+    testeq(result[1], (u64)20);
+    testeq(result[2], (u64)30);
+    done;
+}
+
 ok64 MSETtest() {
     sane(1);
     call(MSET0);
@@ -329,6 +503,14 @@ ok64 MSETtest() {
     call(MSETa);
     call(MSETb);
     call(MSETc);
+    call(MSETe);
+    call(MSETf);
+    call(MSETg);
+    call(MSETh);
+    call(MSETi);
+    call(MSETj);
+    call(MSETk);
+    call(MSETl);
     done;
 }
 

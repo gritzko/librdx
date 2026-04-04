@@ -4,40 +4,6 @@
 #include "TLKV.h"
 #include "abc/INT.h"
 
-// Byte offset range [lo, hi)
-typedef struct { u32 lo; u32 hi; } range32;
-con range32 range32Z = {};
-
-fun int range32cmp(range32 const *a, range32 const *b) {
-    if (a->lo != b->lo) return (a->lo > b->lo) - (a->lo < b->lo);
-    return (a->hi > b->hi) - (a->hi < b->hi);
-}
-
-#define X(M, name) M##range32##name
-#include "abc/Bx.h"
-#undef X
-
-// Match range: pairs haystack and needle byte ranges
-typedef struct { range32 hay; range32 ndl; } match32;
-con match32 match32Z = {};
-
-fun int match32cmp(match32 const *a, match32 const *b) {
-    return memcmp(a, b, sizeof(match32));
-}
-
-#define X(M, name) M##match32##name
-#include "abc/Bx.h"
-#undef X
-
-// Extract byte slice from data using a range32. Verifies bounds.
-fun ok64 BASONSubRange(u8cs sub, u8cs data, range32 rng) {
-    if (rng.lo > rng.hi || rng.hi > (u32)$len(data))
-        return 0x1c5584de8d;  // BASONBAD
-    sub[0] = data[0] + rng.lo;
-    sub[1] = data[0] + rng.hi;
-    return 0;  // OK
-}
-
 con ok64 BASONEND = 0x1c5584dcf0;
 con ok64 BASONBAD = 0x1c5584de8d;
 

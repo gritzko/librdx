@@ -93,24 +93,17 @@ void LESSClipToks(u32cs out, u32cs toks, u8cp base, u32 lo, u32 hi) {
         if (tlo >= hi) break;
         last++;
     }
-    int count = last - first;
-    if (count <= 0) return;
-    // Arena-write rebased entries one by one
-    size_t bytes = (size_t)count * sizeof(u32);
-    u8p start = NULL;
+    if (first >= last) return;
+    // Arena-write rebased entries
+    u32gp g = u32aOpen(less_arena);
     for (int i = first; i < last; i++) {
         u8 tag = tok32Tag(toks[0][i]);
         u32 off = tok32Offset(toks[0][i]);
         if (off > hi) off = hi;
         u32 rebased = off - lo;
-        u32 entry = tok32Pack(tag, rebased);
-        u8p ep = LESSArenaWrite(&entry, sizeof(u32));
-        if (ep && !start) start = ep;
+        u32gFeed1(g, tok32Pack(tag, rebased));
     }
-    if (start) {
-        out[0] = (u32cp)start;
-        out[1] = (u32cp)(start + bytes);
-    }
+    u32aClose(less_arena, out);
 }
 
 // --- LESSHunkEmit: serialize + write to pipe in fork mode ---

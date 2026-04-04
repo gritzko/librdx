@@ -44,9 +44,8 @@ ok64 CAPOGrep(u8csc substring, u8csc ext, u8csc reporoot, u32 ctx_lines,
 
     // --- Trigram filtering (skip when explicit files given) ---
     u32 maxhashes = 64 * 1024;
-    u32 *hashbuf1 = NULL;
-    u32 *hashbuf2 = NULL;
-    u32 nhashes = 0;
+    Bu32 hashbuf1 = {};
+    Bu32 hashbuf2 = {};
     b8 has_trigrams = NO;
 
     if (nfiles == 0) {
@@ -54,9 +53,8 @@ ok64 CAPOGrep(u8csc substring, u8csc ext, u8csc reporoot, u32 ctx_lines,
         call(CAPOResolveDir, capodir, reporoot);
         a_dup(u8c, dirslice, u8bDataC(capodir));
 
-        hashbuf1 = (u32 *)malloc(maxhashes * sizeof(u32));
-        hashbuf2 = (u32 *)malloc(maxhashes * sizeof(u32));
-        test(hashbuf1 != NULL && hashbuf2 != NULL, FAILSANITY);
+        call(u32bAlloc, hashbuf1, maxhashes);
+        call(u32bAlloc, hashbuf2, maxhashes);
 
         u64cs runs[CAPO_MAX_LEVELS] = {};
         u64css stack = {runs, runs};
@@ -84,21 +82,22 @@ ok64 CAPOGrep(u8csc substring, u8csc ext, u8csc reporoot, u32 ctx_lines,
                         seek_runs[i][1] = runs[i][1];
                     }
                     u64css seek_iter = {seek_runs, seek_runs + nidxfiles};
-                    MSETu64Start(seek_iter);
+                    HITu64csStartZ(seek_iter, u64csHeadZ);
 
-                    u32 tri_nhashes = 0;
-                    CAPOCollectPaths(seek_iter, tri_prefix, hashbuf2,
-                                     &tri_nhashes, maxhashes);
+                    u32bReset(hashbuf2);
+                    CAPOCollectPaths(seek_iter, tri_prefix,
+                                     u32bDataIdle(hashbuf2));
 
                     if (!has_trigrams) {
-                        memcpy(hashbuf1, hashbuf2, tri_nhashes * sizeof(u32));
-                        nhashes = tri_nhashes;
+                        u32bReset(hashbuf1);
+                        u32bFeed(hashbuf1, u32bDataC(hashbuf2));
                         has_trigrams = YES;
                     } else {
-                        qsort(hashbuf2, tri_nhashes, sizeof(u32), CAPOu32cmp);
-                        qsort(hashbuf1, nhashes, sizeof(u32), CAPOu32cmp);
-                        nhashes = CAPOIntersect(hashbuf1, nhashes, hashbuf2,
-                                                tri_nhashes, hashbuf1);
+                        u32sSort(u32bData(hashbuf2));
+                        u32sSort(u32bData(hashbuf1));
+                        u32 n = CAPOIntersect(
+                            u32bData(hashbuf1), u32bDataC(hashbuf2));
+                        u32bShed(hashbuf1, u32bDataLen(hashbuf1) - n);
                     }
                 }
                 p++;
@@ -107,8 +106,8 @@ ok64 CAPOGrep(u8csc substring, u8csc ext, u8csc reporoot, u32 ctx_lines,
 
         CAPOStackClose(mmaps, nidxfiles);
 
-        if (has_trigrams && nhashes > 0)
-            qsort(hashbuf1, nhashes, sizeof(u32), CAPOu32cmp);
+        if (has_trigrams && u32bDataLen(hashbuf1) > 0)
+            u32sSort(u32bData(hashbuf1));
     }
 
     call(LESSArenaInit);
@@ -148,9 +147,9 @@ ok64 CAPOGrep(u8csc substring, u8csc ext, u8csc reporoot, u32 ctx_lines,
         u8cs relpath = {(u8cp)line, (u8cp)line + len};
 
         if (nfiles == 0) {
-            if (has_trigrams && nhashes > 0) {
+            if (has_trigrams && u32bDataLen(hashbuf1) > 0) {
                 u32 phash = CAPOPathHash(relpath);
-                if (!bsearch(&phash, hashbuf1, nhashes, sizeof(u32), CAPOu32cmp))
+                if (!u32sBsearch(&phash, u32bData(hashbuf1)))
                     continue;
             } else if (has_trigrams) {
                 continue;
@@ -260,15 +259,13 @@ ok64 CAPOGrep(u8csc substring, u8csc ext, u8csc reporoot, u32 ctx_lines,
                             char funcname[256];
                             CAPOFindFunc(source, ctx_lo, file_ext,
                                          funcname, sizeof(funcname));
-                            char hdr[512];
-                            int tlen = CAPOFormatTitle(hdr, sizeof(hdr),
-                                                       line, funcname);
-                            if (tlen > 0) {
-                                u8p tp = LESSArenaWrite(hdr, (size_t)tlen);
-                                if (tp != NULL) {
-                                    hk->title[0] = tp;
-                                    hk->title[1] = tp + tlen;
-                                }
+                            u8gp _tg = u8aOpen(less_arena);
+                            call(CAPOFormatTitle, u8gRest(_tg), line, funcname);
+                            u8cs _title = {};
+                            u8aClose(less_arena, _title);
+                            if (!$empty(_title)) {
+                                hk->title[0] = _title[0];
+                                hk->title[1] = _title[1];
                             }
                         }
 
@@ -332,8 +329,8 @@ ok64 CAPOGrep(u8csc substring, u8csc ext, u8csc reporoot, u32 ctx_lines,
         LESSRun(less_hunks, less_nhunks);
     LESSArenaCleanup();
 
-    if (hashbuf1 != NULL) free(hashbuf1);
-    if (hashbuf2 != NULL) free(hashbuf2);
+    if (!BNULL(hashbuf1)) u32bFree(hashbuf1);
+    if (!BNULL(hashbuf2)) u32bFree(hashbuf2);
     done;
 }
 
@@ -345,8 +342,7 @@ ok64 CAPOGrep(u8csc substring, u8csc ext, u8csc reporoot, u32 ctx_lines,
 static void CAPORegexLiterals(u8csc pattern,
                                u64css stack, u32 nidxfiles,
                                u64cs *runs,
-                               u32 *hashbuf1, u32 *hashbuf2,
-                               u32 maxhashes, u32 *nhashes,
+                               u32b hashbuf1, u32b hashbuf2,
                                b8 *has_trigrams) {
     u8cp p = pattern[0];
     u8cp end = pattern[1];
@@ -370,23 +366,20 @@ static void CAPORegexLiterals(u8csc pattern,
                         seek_runs[si][1] = runs[si][1];                   \
                     }                                                      \
                     u64css seek_iter = {seek_runs, seek_runs + nidxfiles}; \
-                    MSETu64Start(seek_iter);                               \
-                    u32 tri_nhashes = 0;                                   \
-                    CAPOCollectPaths(seek_iter, tri_prefix, hashbuf2,      \
-                                     &tri_nhashes, maxhashes);             \
+                    HITu64csStartZ(seek_iter, u64csHeadZ);                               \
+                    u32bReset(hashbuf2);                                   \
+                    CAPOCollectPaths(seek_iter, tri_prefix,             \
+                                     u32bDataIdle(hashbuf2));           \
                     if (!*has_trigrams) {                                   \
-                        memcpy(hashbuf1, hashbuf2,                         \
-                               tri_nhashes * sizeof(u32));                 \
-                        *nhashes = tri_nhashes;                            \
+                        u32bReset(hashbuf1);                               \
+                        u32bFeed(hashbuf1, u32bDataC(hashbuf2));           \
                         *has_trigrams = YES;                                \
                     } else {                                                \
-                        qsort(hashbuf2, tri_nhashes, sizeof(u32),          \
-                              CAPOu32cmp);                                 \
-                        qsort(hashbuf1, *nhashes, sizeof(u32),             \
-                              CAPOu32cmp);                                 \
-                        *nhashes = CAPOIntersect(hashbuf1, *nhashes,       \
-                                                  hashbuf2, tri_nhashes,   \
-                                                  hashbuf1);               \
+                        u32sSort(u32bData(hashbuf2));                      \
+                        u32sSort(u32bData(hashbuf1));                      \
+                        u32 _n = CAPOIntersect(                            \
+                            u32bData(hashbuf1), u32bDataC(hashbuf2));      \
+                        u32bShed(hashbuf1, u32bDataLen(hashbuf1) - _n);    \
                     }                                                      \
                 }                                                          \
             }                                                              \
@@ -465,9 +458,8 @@ ok64 CAPOPcreGrep(u8csc pattern, u8csc ext, u8csc reporoot, u32 ctx_lines,
 
     // --- Trigram filtering (skip when explicit files given) ---
     u32 maxhashes = 64 * 1024;
-    u32 *hashbuf1 = NULL;
-    u32 *hashbuf2 = NULL;
-    u32 nhashes = 0;
+    Bu32 hashbuf1 = {};
+    Bu32 hashbuf2 = {};
     b8 has_trigrams = NO;
 
     if (nfiles == 0) {
@@ -475,12 +467,11 @@ ok64 CAPOPcreGrep(u8csc pattern, u8csc ext, u8csc reporoot, u32 ctx_lines,
         call(CAPOResolveDir, capodir, reporoot);
         a_dup(u8c, dirslice, u8bDataC(capodir));
 
-        hashbuf1 = (u32 *)malloc(maxhashes * sizeof(u32));
-        hashbuf2 = (u32 *)malloc(maxhashes * sizeof(u32));
-        if (hashbuf1 == NULL || hashbuf2 == NULL) {
+        ok64 ao = u32bAlloc(hashbuf1, maxhashes);
+        if (ao != OK) ao = u32bAlloc(hashbuf2, maxhashes);
+        if (ao != OK) {
             free(nfa_ws_buf);
-            free(hashbuf1);
-            free(hashbuf2);
+            if (!BNULL(hashbuf1)) u32bFree(hashbuf1);
             return FAILSANITY;
         }
 
@@ -497,14 +488,13 @@ ok64 CAPOPcreGrep(u8csc pattern, u8csc ext, u8csc reporoot, u32 ctx_lines,
 
         if (nidxfiles > 0) {
             CAPORegexLiterals(pattern, stack, nidxfiles, runs,
-                               hashbuf1, hashbuf2,
-                               maxhashes, &nhashes, &has_trigrams);
+                               hashbuf1, hashbuf2, &has_trigrams);
         }
 
         CAPOStackClose(mmaps, nidxfiles);
 
-        if (has_trigrams && nhashes > 0)
-            qsort(hashbuf1, nhashes, sizeof(u32), CAPOu32cmp);
+        if (has_trigrams && u32bDataLen(hashbuf1) > 0)
+            u32sSort(u32bData(hashbuf1));
     }
 
     call(LESSArenaInit);
@@ -542,9 +532,9 @@ ok64 CAPOPcreGrep(u8csc pattern, u8csc ext, u8csc reporoot, u32 ctx_lines,
         u8cs relpath = {(u8cp)line, (u8cp)line + len};
 
         if (nfiles == 0) {
-            if (has_trigrams && nhashes > 0) {
+            if (has_trigrams && u32bDataLen(hashbuf1) > 0) {
                 u32 phash = CAPOPathHash(relpath);
-                if (!bsearch(&phash, hashbuf1, nhashes, sizeof(u32), CAPOu32cmp))
+                if (!u32sBsearch(&phash, u32bData(hashbuf1)))
                     continue;
             } else if (has_trigrams) {
                 continue;
@@ -694,15 +684,13 @@ ok64 CAPOPcreGrep(u8csc pattern, u8csc ext, u8csc reporoot, u32 ctx_lines,
                         char funcname[256];
                         CAPOFindFunc(source, ctx_lo, file_ext,
                                      funcname, sizeof(funcname));
-                        char hdr[512];
-                        int tlen = CAPOFormatTitle(hdr, sizeof(hdr),
-                                                   line, funcname);
-                        if (tlen > 0) {
-                            u8p tp = LESSArenaWrite(hdr, (size_t)tlen);
-                            if (tp != NULL) {
-                                hk->title[0] = tp;
-                                hk->title[1] = tp + tlen;
-                            }
+                        u8gp _tg = u8aOpen(less_arena);
+                        call(CAPOFormatTitle, u8gRest(_tg), line, funcname);
+                        u8cs _title = {};
+                        u8aClose(less_arena, _title);
+                        if (!$empty(_title)) {
+                            hk->title[0] = _title[0];
+                            hk->title[1] = _title[1];
                         }
                     }
 
@@ -771,7 +759,7 @@ ok64 CAPOPcreGrep(u8csc pattern, u8csc ext, u8csc reporoot, u32 ctx_lines,
     LESSArenaCleanup();
 
     free(nfa_ws_buf);
-    if (hashbuf1 != NULL) free(hashbuf1);
-    if (hashbuf2 != NULL) free(hashbuf2);
+    if (!BNULL(hashbuf1)) u32bFree(hashbuf1);
+    if (!BNULL(hashbuf2)) u32bFree(hashbuf2);
     done;
 }

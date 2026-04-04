@@ -73,3 +73,4 @@
 13. Dont fucking reimplement things repeatedly. When planninng, check INDEX.md for 
     a relevant header, the thing may already exist. Always ask if unsure.
 14. After large code changes (esp. new files added) update respective INDEX.md.
+15. Read abc/S.md abc/B.md for the idiomatic slice manipulation functions

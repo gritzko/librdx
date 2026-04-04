@@ -54,10 +54,10 @@ typedef int (*X(, cmpfn))(const X(, ) *, const X(, ) *);
 // mapper, value->value
 typedef ok64 (*X(, x))(X(, p) a, X(, cp) b);  // OK, error
 // reducer, slice->one value
-typedef ok64 (*X(, y))(X(, p) a, X(, cs) b);  // OK, error
+typedef ok64 (*X(, y))(X(, p) a, X(, s) b);  // OK, error
 // comparator, less/not less
 typedef b8 (*X(, z))(X(, cp) a, X(, cp) b);  // YES, NO
-                                             //
+                                             
 // slice-merge-compare fn types
 // X-function is a slicer, e.g. consumes a stream of TLV records
 typedef ok64 (*X(, xs))(X(, csp) record, X(, cs) stream);  // OK, error
@@ -181,6 +181,14 @@ fun void X($, sort)(X($c, ) data) { $sort(data, X(, cmp)); }
 fun void X($, sortfn)(X($c, ) data, X(, cmpfn) fn) { $sort(data, fn); }
 
 fun T *X($, bsearch)(T const *p, X($c, c) data) {
+    return (T *)$bsearch(p, data, X(, cmp));
+}
+
+fun void X(, sSort)(X(, s) data) { $sort(data, X(, cmp)); }
+
+fun void X(, sSortFn)(X(, s) data, X(, cmpfn) fn) { $sort(data, fn); }
+
+fun T *X(, sBsearch)(T const *p, X(, sc) data) {
     return (T *)$bsearch(p, data, X(, cmp));
 }
 
@@ -671,6 +679,10 @@ static const u8 X(, zero)[sizeof(T)] = {};
 
 fun b8 X($, is0)(X($, ) s, size_t ndx) {
     return X(, cmp)((T const *)X(, zero), X(, sAtP)(s, ndx)) == 0;
+}
+
+fun b8 X(, IsZero)(X(, cp) p) {
+    return memcmp(p, X(, zero), sizeof(T)) == 0;
 }
 
 fun b8 X(, csHasSuffix)(X(, csc) line, X(, csc) suffix) {

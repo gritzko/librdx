@@ -20,6 +20,7 @@
 | HASH.h | Hash table error codes and constants |
 | HASHx.h | Hash table template with linear probing and convergence |
 | HEAPx.h | Binary heap template for priority queues |
+| HITx.h | Generic heap iterator template with reducer-based drain (union, intersection) |
 | HEX.h | Hexadecimal encoding/decoding functions |
 | HEXx.h | Hex encoding template |
 | HTTP.h | HTTP request/response parser with SAX-style callbacks |

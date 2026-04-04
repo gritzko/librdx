@@ -332,7 +332,12 @@ ok64 CAPOCompact(u8csc dir) {
     call(CAPOStackOpen, stack, mmaps, &nfiles, dir);
     stack[1] = stack[0] + nfiles;
 
-    if (nfiles < 2 || MSETu64IsCompact(stack)) {
+    // Check 1/8 LSM invariant
+    b8 is_compact = YES;
+    for (u32 i = 0; i + 1 < nfiles; i++) {
+        if ($len(runs[i + 1]) * 8 > $len(runs[i])) { is_compact = NO; break; }
+    }
+    if (nfiles < 2 || is_compact) {
         CAPOStackClose(mmaps, nfiles);
         done;
     }
@@ -357,7 +362,24 @@ ok64 CAPOCompact(u8csc dir) {
         done;
     }
 
-    call(MSETu64Compact, stack, into);
+    // Merge youngest m runs using HIT
+    {
+        u64css sub = {stack[0] + (n - m), stack[0] + n};
+        HITu64csStartZ(sub, u64csHeadZ);
+        u64 prev = 0;
+        b8 first = YES;
+        while (!$empty(sub)) {
+            if ($empty(into)) break;
+            u64 entry = *(*sub[0])[0];
+            if (first || entry != prev) {
+                *into[0] = entry;
+                ++into[0];
+                prev = entry;
+                first = NO;
+            }
+            CAPOHITStep(sub, u64csHeadZ);
+        }
+    }
 
     u64 seqno = 0;
     call(CAPONextSeqno, &seqno, dir);
@@ -682,17 +704,24 @@ ok64 CAPOCompactAll(u8csc dir) {
         call(u64bMap, mbuf, total);
         u64s into = {u64bIdleHead(mbuf), mbuf[3]};
 
-        MSETu64Start(stack);
+        HITu64csStartZ(stack, u64csHeadZ);
         size_t merged_count = 0;
+        u64 prev = 0;
+        b8 first = YES;
         while (!$empty(stack)) {
             if (into[0] >= into[1]) {
                 fprintf(stderr, "spot: merge buffer full at %zu\n", merged_count);
                 break;
             }
-            *into[0] = ****stack;
-            into[0]++;
-            merged_count++;
-            MSETu64Next(stack);
+            u64 entry = *(*stack[0])[0];
+            if (first || entry != prev) {
+                *into[0] = entry;
+                into[0]++;
+                merged_count++;
+                prev = entry;
+                first = NO;
+            }
+            CAPOHITStep(stack, u64csHeadZ);
         }
 
         u64 seqno = 0;
@@ -988,29 +1017,26 @@ ok64 CAPOHook(u8csc reporoot) {
 
 // --- Trigram query helpers ---
 
-ok64 CAPOCollectPaths(u64css iter, u64 tri_prefix, u32 *hashes,
-                      u32p nhashes, u32 maxhashes) {
-    ok64 o = MSETu64Seek(iter, tri_prefix);
+ok64 CAPOCollectPaths(u64css iter, u64 tri_prefix, u32g hashes) {
+    ok64 o = CAPOHITSeek(iter, tri_prefix, u64csHeadZ);
     if (o != OK) return OK;
 
     while (!$empty(iter)) {
-        u64 entry = ****iter;
+        u64 entry = *(*iter[0])[0];
         if (CAPOTriOf(entry) != tri_prefix) break;
-        if (*nhashes < maxhashes) {
-            hashes[*nhashes] = (u32)entry;
-            (*nhashes)++;
-        }
-        MSETu64Next(iter);
+        u32gFeed1(hashes, (u32)entry);
+        CAPOHITStep(iter, u64csHeadZ);
     }
     return OK;
 }
 
-u32 CAPOIntersect(u32 *a, u32 na, u32 *b, u32 nb, u32 *out) {
+u32 CAPOIntersect(u32s a, u32csc b) {
+    u32 na = (u32)$len(a), nb = (u32)$len(b);
     u32 i = 0, j = 0, k = 0;
     while (i < na && j < nb) {
-        if (a[i] < b[j]) i++;
-        else if (a[i] > b[j]) j++;
-        else { out[k++] = a[i]; i++; j++; }
+        if (a[0][i] < b[0][j]) i++;
+        else if (a[0][i] > b[0][j]) j++;
+        else { a[0][k++] = a[0][i]; i++; j++; }
     }
     return k;
 }
@@ -1122,24 +1148,29 @@ void CAPOFindFunc(u8csc source, u32 pos, u8csc ext,
 // Format "--- path :: func ---" with smart truncation to 64 visible chars.
 // filepath may be NULL, funcname may be empty ("").
 // Returns formatted length (0 if nothing to format).
-int CAPOFormatTitle(char *out, size_t outsz,
+ok64 CAPOFormatTitle(u8s into,
                      const char *filepath, const char *funcname) {
-    int hlen = 0;
-    if (filepath && funcname && funcname[0])
-        hlen = snprintf(out, outsz, "--- %s :: %s ---", filepath, funcname);
-    else if (filepath)
-        hlen = snprintf(out, outsz, "--- %s ---", filepath);
-    else if (funcname && funcname[0])
-        hlen = snprintf(out, outsz, "--- %s ---", funcname);
-    else
-        return 0;
+    sane(into[0] != NULL);
+    u8p start = into[0];
+    if (filepath && funcname && funcname[0]) {
+        call(u8sPrintf, into, "--- %s :: %s ---", filepath, funcname);
+    } else if (filepath) {
+        call(u8sPrintf, into, "--- %s ---", filepath);
+    } else if (funcname && funcname[0]) {
+        call(u8sPrintf, into, "--- %s ---", funcname);
+    } else {
+        done;
+    }
 
+    int hlen = (int)(into[0] - start);
     if (hlen > HUNK_MAX && filepath && funcname && funcname[0]) {
         size_t plen = strlen(filepath);
         int budget = HUNK_MAX - 12 - (int)plen;
         if (budget < 1) budget = 1;
-        hlen = snprintf(out, outsz, "--- %s :: %.*s ---",
-                         filepath, budget, funcname);
+        into[0] = start;
+        call(u8sPrintf, into, "--- %s :: %.*s ---",
+             filepath, budget, funcname);
+        hlen = (int)(into[0] - start);
     }
     if (hlen > HUNK_MAX && filepath) {
         const char *p = filepath + strlen(filepath);
@@ -1152,17 +1183,190 @@ int CAPOFormatTitle(char *out, size_t outsz,
         if (budget < 8) budget = 8;
         while (p > filepath && (int)(filepath + strlen(filepath) - p) < budget)
             p--;
+        into[0] = start;
         if (funcname && funcname[0]) {
             int favail = HUNK_MAX - 12 - 3 -
                          (int)(filepath + strlen(filepath) - p);
             if (favail < 1) favail = 1;
-            hlen = snprintf(out, outsz, "--- ...%s :: %.*s ---",
-                             p, favail, funcname);
+            call(u8sPrintf, into, "--- ...%s :: %.*s ---",
+                 p, favail, funcname);
         } else {
-            hlen = snprintf(out, outsz, "--- ...%s ---", p);
+            call(u8sPrintf, into, "--- ...%s ---", p);
         }
     }
-    return hlen;
+    done;
+}
+
+// --- Hunk building ---
+
+ok64 CAPOBuildHunk(u8csc source, u32cs htoks, u32 ctx_lo, u32 ctx_hi,
+                   range32 const *hls, int nhl,
+                   u8csc file_ext, const char *filepath,
+                   b8 needs_title, b8 *first_hunk) {
+    sane(less_nhunks < LESS_MAX_HUNKS);
+    LESShunk *hk = &less_hunks[less_nhunks];
+    *hk = (LESShunk){};
+
+    // Title
+    if (needs_title || *first_hunk) {
+        char funcname[256];
+        CAPOFindFunc(source, ctx_lo, file_ext,
+                     funcname, sizeof(funcname));
+        u8gp g = u8aOpen(less_arena);
+        call(CAPOFormatTitle, u8gRest(g), filepath, funcname);
+        u8cs title = {};
+        u8aClose(less_arena, title);
+        if (!$empty(title)) {
+            hk->title[0] = title[0];
+            hk->title[1] = title[1];
+        }
+    }
+
+    hk->text[0] = source[0] + ctx_lo;
+    hk->text[1] = source[0] + ctx_hi;
+
+    // Clip file-level toks to context region
+    LESSClipToks(hk->toks, htoks, source[0], ctx_lo, ctx_hi);
+
+    // Build sparse hili from match ranges
+    if (CAPO_COLOR) {
+        u32gp g = u32aOpen(less_arena);
+        u32 prev_end = 0;
+        for (int i = 0; i < nhl; i++) {
+            u32 mlo = hls[i].lo < ctx_lo
+                          ? 0
+                          : hls[i].lo - ctx_lo;
+            u32 mhi = hls[i].hi > ctx_hi
+                          ? ctx_hi - ctx_lo
+                          : hls[i].hi - ctx_lo;
+            if (mlo > prev_end)
+                u32gFeed1(g, tok32Pack('A', mlo));
+            u32gFeed1(g, tok32Pack('I', mhi));
+            prev_end = mhi;
+        }
+        u32 region_len = ctx_hi - ctx_lo;
+        if (prev_end < region_len)
+            u32gFeed1(g, tok32Pack('A', region_len));
+        u32cs hili = {};
+        u32aClose(less_arena, hili);
+        if (!$empty(hili)) {
+            hk->hili[0] = hili[0];
+            hk->hili[1] = hili[1];
+        }
+    }
+
+    LESSHunkEmit();
+    *first_hunk = NO;
+    done;
+}
+
+// --- Per-file replacement ---
+
+static ok64 CAPOSpotReplace(u8csc source, u8bp mapped, u32cs htoks,
+                             u8csc needle, u8csc replace, u8csc file_ext,
+                             u8bp fpbuf, const char *line,
+                             int *total_replacements,
+                             int *total_files_replaced) {
+    sane(!$empty(replace));
+    size_t obuflen = $len(source) * 2 + 4096;
+    Bu8 obufm = {};
+    ok64 o = u8bMap(obufm, obuflen);
+    if (o == OK) {
+        u8s rout = {u8bIdleHead(obufm), obufm[3]};
+        int file_matches = 0;
+        o = SPOTReplace(rout, source, htoks, needle,
+                        replace, file_ext, &file_matches);
+        if (o == OK) {
+            u8cs result = {u8bIdleHead(obufm), rout[0]};
+            FILEUnMap(mapped);
+            mapped = NULL;
+            int fd = -1;
+            ok64 wo = FILECreate(&fd, PATHu8cgIn(fpbuf));
+            if (wo == OK) {
+                FILEFeedall(fd, result);
+                close(fd);
+                CAPOProgress(NULL);
+                fprintf(stderr, "replaced: %s (%d)\n",
+                        line, file_matches);
+                *total_replacements += file_matches;
+                (*total_files_replaced)++;
+            }
+        }
+        u8bUnMap(obufm);
+    }
+    done;
+}
+
+// --- Per-file search+display ---
+
+static ok64 CAPOSpotFile(u8csc source, u32cs htoks, u8csc needle,
+                          u8csc file_ext, const char *line) {
+    sane(!$empty(needle));
+    aBpad(u32, nbuf, 4096);
+    SPOTstate st = {};
+    ok64 o = SPOTInit(&st, nbuf, needle, file_ext, htoks, source);
+    if (o != OK) done;
+    b8 found_any = NO;
+    b8 first_hunk = YES;
+    u32 prev_ctx_hi = 0;
+    b8 have_pending = NO;
+    range32 pending = {};
+    for (;;) {
+        u32 slo, shi;
+        if (have_pending) {
+            slo = pending.lo;
+            shi = pending.hi;
+            have_pending = NO;
+        } else {
+            if (SPOTNext(&st) != OK) break;
+            slo = st.src_rng.lo;
+            shi = st.src_rng.hi;
+        }
+        if (shi <= slo || shi > (u32)$len(source)) continue;
+
+        if (!found_any) {
+            CAPOProgress(NULL);
+            found_any = YES;
+        }
+
+        // Compute context around match
+        u32 ctx_lo = 0, ctx_hi = 0;
+        CAPOGrepCtx(source, slo, 3, &ctx_lo, &ctx_hi);
+        if (shi > slo) {
+            u32 lo2 = 0, hi2 = 0;
+            CAPOGrepCtx(source, shi - 1, 3, &lo2, &hi2);
+            if (hi2 > ctx_hi) ctx_hi = hi2;
+        }
+
+        // Collect subsequent matches within this context
+        range32 hls[CAPO_MAX_HLS];
+        int nhl = 0;
+        hls[nhl++] = (range32){slo, shi};
+        while (nhl < CAPO_MAX_HLS && SPOTNext(&st) == OK) {
+            u32 s2 = st.src_rng.lo;
+            u32 e2 = st.src_rng.hi;
+            if (e2 <= s2 || e2 > (u32)$len(source)) continue;
+            if (s2 >= ctx_hi) {
+                pending = (range32){s2, e2};
+                have_pending = YES;
+                break;
+            }
+            hls[nhl++] = (range32){s2, e2};
+            u32 lo2 = 0, hi2 = 0;
+            CAPOGrepCtx(source, s2, 3, &lo2, &hi2);
+            if (hi2 > ctx_hi) ctx_hi = hi2;
+        }
+
+        b8 contiguous = (ctx_lo <= prev_ctx_hi);
+        if (ctx_lo < prev_ctx_hi) ctx_lo = prev_ctx_hi;
+        if (ctx_lo < ctx_hi) {
+            call(CAPOBuildHunk, source, htoks, ctx_lo, ctx_hi,
+                 hls, nhl, file_ext, line,
+                 !contiguous, &first_hunk);
+        }
+        prev_ctx_hi = ctx_hi;
+    }
+    done;
 }
 
 // --- SPOT search ---
@@ -1176,9 +1380,8 @@ ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot,
 
     // --- Trigram filtering (skip when explicit files given) ---
     u32 maxhashes = 64 * 1024;
-    u32 *hashbuf1 = NULL;
-    u32 *hashbuf2 = NULL;
-    u32 nhashes = 0;
+    Bu32 hashbuf1 = {};
+    Bu32 hashbuf2 = {};
     b8 has_trigrams = NO;
 
     if (nfiles == 0) {
@@ -1186,9 +1389,8 @@ ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot,
         call(CAPOResolveDir, capodir, reporoot);
         a_dup(u8c, dirslice, u8bDataC(capodir));
 
-        hashbuf1 = (u32 *)malloc(maxhashes * sizeof(u32));
-        hashbuf2 = (u32 *)malloc(maxhashes * sizeof(u32));
-        test(hashbuf1 != NULL && hashbuf2 != NULL, FAILSANITY);
+        call(u32bAlloc, hashbuf1, maxhashes);
+        call(u32bAlloc, hashbuf2, maxhashes);
 
         u64cs runs[CAPO_MAX_LEVELS] = {};
         u64css stack = {runs, runs};
@@ -1215,21 +1417,22 @@ ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot,
                         seek_runs[i][1] = runs[i][1];
                     }
                     u64css seek_iter = {seek_runs, seek_runs + nidxfiles};
-                    MSETu64Start(seek_iter);
+                    HITu64csStartZ(seek_iter, u64csHeadZ);
 
-                    u32 tri_nhashes = 0;
-                    CAPOCollectPaths(seek_iter, tri_prefix, hashbuf2,
-                                     &tri_nhashes, maxhashes);
+                    u32bReset(hashbuf2);
+                    CAPOCollectPaths(seek_iter, tri_prefix,
+                                     u32bDataIdle(hashbuf2));
 
                     if (!has_trigrams) {
-                        memcpy(hashbuf1, hashbuf2, tri_nhashes * sizeof(u32));
-                        nhashes = tri_nhashes;
+                        u32bReset(hashbuf1);
+                        u32bFeed(hashbuf1, u32bDataC(hashbuf2));
                         has_trigrams = YES;
                     } else {
-                        qsort(hashbuf2, tri_nhashes, sizeof(u32), CAPOu32cmp);
-                        qsort(hashbuf1, nhashes, sizeof(u32), CAPOu32cmp);
-                        nhashes = CAPOIntersect(hashbuf1, nhashes, hashbuf2,
-                                                tri_nhashes, hashbuf1);
+                        u32sSort(u32bData(hashbuf2));
+                        u32sSort(u32bData(hashbuf1));
+                        u32 n = CAPOIntersect(
+                            u32bData(hashbuf1), u32bDataC(hashbuf2));
+                        u32bShed(hashbuf1, u32bDataLen(hashbuf1) - n);
                     }
                 }
                 p++;
@@ -1237,7 +1440,7 @@ ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot,
         }
 
         // Symbol filtering: intersect with identifier mentions
-        if (nidxfiles > 0 && has_trigrams && nhashes > CAPO_SYM_THRESH) {
+        if (nidxfiles > 0 && has_trigrams && u32bDataLen(hashbuf1) > CAPO_SYM_THRESH) {
             Bu32 ndl_toks = {};
             size_t ndl_maxlen = $len(needle) + 1;
             if (u32bMap(ndl_toks, ndl_maxlen) == OK) {
@@ -1246,16 +1449,16 @@ ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot,
                     u32cp nti = u32bIdleHead(ndl_toks);
                     u32cs nts = {(u32cp)ntd, (u32cp)nti};
                     int nn = (int)$len(nts);
-                    for (int i = 0; i < nn && nhashes > 0; i++) {
+                    for (int i = 0; i < nn && u32bDataLen(hashbuf1) > 0; i++) {
                         u8 tag = tok32Tag(nts[0][i]);
                         if (tag != 'S') continue;
                         u8cs val = {};
                         tok32Val(val, nts, needle[0], i);
                         if ($len(val) < 2) continue;
                         u64 symkey = CAPOSymKey(val);
-                        u32 sym_nhashes = 0;
 
                         // Collect both mentions (S) and definitions (N)
+                        u32bReset(hashbuf2);
                         for (u64 t = IDX64_MEN; t <= IDX64_DEF; t++) {
                             u64 pfx = (t << 62) | symkey;
                             u64cs sr[CAPO_MAX_LEVELS];
@@ -1264,17 +1467,15 @@ ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot,
                                 sr[j][1] = runs[j][1];
                             }
                             u64css si = {sr, sr + nidxfiles};
-                            MSETu64Start(si);
-                            CAPOCollectPaths(si, pfx, hashbuf2,
-                                             &sym_nhashes, maxhashes);
+                            HITu64csStartZ(si, u64csHeadZ);
+                            CAPOCollectPaths(si, pfx,
+                                             u32bDataIdle(hashbuf2));
                         }
-                        qsort(hashbuf2, sym_nhashes, sizeof(u32),
-                              CAPOu32cmp);
-                        qsort(hashbuf1, nhashes, sizeof(u32),
-                              CAPOu32cmp);
-                        nhashes = CAPOIntersect(
-                            hashbuf1, nhashes, hashbuf2,
-                            sym_nhashes, hashbuf1);
+                        u32sSort(u32bData(hashbuf2));
+                        u32sSort(u32bData(hashbuf1));
+                        u32 n = CAPOIntersect(
+                            u32bData(hashbuf1), u32bDataC(hashbuf2));
+                        u32bShed(hashbuf1, u32bDataLen(hashbuf1) - n);
                     }
                 }
                 u32bUnMap(ndl_toks);
@@ -1283,8 +1484,8 @@ ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot,
 
         CAPOStackClose(mmaps, nidxfiles);
 
-        if (has_trigrams && nhashes > 0)
-            qsort(hashbuf1, nhashes, sizeof(u32), CAPOu32cmp);
+        if (has_trigrams && u32bDataLen(hashbuf1) > 0)
+            u32sSort(u32bData(hashbuf1));
     }
 
     if ($empty(replace)) {
@@ -1326,9 +1527,9 @@ ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot,
         u8cs relpath = {(u8cp)line, (u8cp)line + len};
 
         if (nfiles == 0) {
-            if (has_trigrams && nhashes > 0) {
+            if (has_trigrams && u32bDataLen(hashbuf1) > 0) {
                 u32 phash = CAPOPathHash(relpath);
-                if (!bsearch(&phash, hashbuf1, nhashes, sizeof(u32), CAPOu32cmp))
+                if (!u32sBsearch(&phash, u32bData(hashbuf1)))
                     continue;
             } else if (has_trigrams) {
                 continue;
@@ -1393,151 +1594,11 @@ ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot,
         }
 
         if (!$empty(replace)) {
-            // --- Replacement mode ---
-            size_t obuflen = $len(source) * 2 + 4096;
-            Bu8 obufm = {};
-            o = u8bMap(obufm, obuflen);
-            if (o == OK) {
-                u8s rout = {u8bIdleHead(obufm), obufm[3]};
-                int file_matches = 0;
-                o = SPOTReplace(rout, source, htoks, needle,
-                                replace, file_ext, &file_matches);
-                if (o == OK) {
-                    u8cs result = {u8bIdleHead(obufm), rout[0]};
-                    FILEUnMap(mapped);
-                    mapped = NULL;
-                    int fd = -1;
-                    ok64 wo = FILECreate(&fd, PATHu8cgIn(fpbuf));
-                    if (wo == OK) {
-                        FILEFeedall(fd, result);
-                        close(fd);
-                        CAPOProgress(NULL);
-                        fprintf(stderr, "replaced: %s (%d)\n",
-                                line, file_matches);
-                        total_replacements += file_matches;
-                        total_files_replaced++;
-                    }
-                }
-                u8bUnMap(obufm);
-            }
+            CAPOSpotReplace(source, mapped, htoks, needle, replace,
+                            file_ext, fpbuf, line,
+                            &total_replacements, &total_files_replaced);
         } else {
-            // --- Search/display mode ---
-            aBpad(u32, nbuf, 4096);
-            SPOTstate st = {};
-            o = SPOTInit(&st, nbuf, needle, file_ext, htoks, source);
-            if (o == OK) {
-                b8 found_any = NO;
-                b8 first_hunk = YES;
-                u32 prev_ctx_hi = 0;
-                b8 have_pending = NO;
-                range32 pending = {};
-                for (;;) {
-                    u32 slo, shi;
-                    if (have_pending) {
-                        slo = pending.lo;
-                        shi = pending.hi;
-                        have_pending = NO;
-                    } else {
-                        if (SPOTNext(&st) != OK) break;
-                        slo = st.src_rng.lo;
-                        shi = st.src_rng.hi;
-                    }
-                    if (shi <= slo || shi > (u32)$len(source)) continue;
-
-                    if (!found_any) {
-                        CAPOProgress(NULL);
-                        found_any = YES;
-                    }
-
-                    // Compute context around match
-                    u32 ctx_lo = 0, ctx_hi = 0;
-                    CAPOGrepCtx(source, slo, 3, &ctx_lo, &ctx_hi);
-
-                    // Collect subsequent matches within this context
-                    range32 hls[CAPO_MAX_HLS];
-                    int nhl = 0;
-                    hls[nhl++] = (range32){slo, shi};
-                    while (nhl < CAPO_MAX_HLS && SPOTNext(&st) == OK) {
-                        u32 s2 = st.src_rng.lo;
-                        u32 e2 = st.src_rng.hi;
-                        if (e2 <= s2 || e2 > (u32)$len(source)) continue;
-                        if (s2 >= ctx_hi) {
-                            pending = (range32){s2, e2};
-                            have_pending = YES;
-                            break;
-                        }
-                        hls[nhl++] = (range32){s2, e2};
-                        u32 lo2 = 0, hi2 = 0;
-                        CAPOGrepCtx(source, s2, 3, &lo2, &hi2);
-                        if (hi2 > ctx_hi) ctx_hi = hi2;
-                    }
-
-                    b8 contiguous = (ctx_lo <= prev_ctx_hi);
-                    if (ctx_lo < prev_ctx_hi) ctx_lo = prev_ctx_hi;
-                    if (ctx_lo < ctx_hi &&
-                        less_nhunks < LESS_MAX_HUNKS) {
-                        LESShunk *hk = &less_hunks[less_nhunks];
-                        *hk = (LESShunk){};
-
-                        // Title
-                        if (!contiguous || first_hunk) {
-                            char funcname[256];
-                            CAPOFindFunc(source, ctx_lo, file_ext,
-                                         funcname, sizeof(funcname));
-                            char hdr[512];
-                            int tlen = CAPOFormatTitle(hdr, sizeof(hdr),
-                                                       line, funcname);
-                            if (tlen > 0) {
-                                u8p tp = LESSArenaWrite(hdr, (size_t)tlen);
-                                if (tp != NULL) {
-                                    hk->title[0] = tp;
-                                    hk->title[1] = tp + tlen;
-                                }
-                            }
-                        }
-
-                        hk->text[0] = source[0] + ctx_lo;
-                        hk->text[1] = source[0] + ctx_hi;
-
-                        // Clip file-level toks to context region
-                        LESSClipToks(hk->toks, htoks, source[0],
-                                     ctx_lo, ctx_hi);
-
-                        // Build sparse hili from match ranges
-                        if (CAPO_COLOR) {
-                            a_pad(u32, hbuf, 2 * CAPO_MAX_HLS + 1);
-                            u32 prev_end = 0;
-                            for (int hi2 = 0; hi2 < nhl; hi2++) {
-                                u32 mlo = hls[hi2].lo < ctx_lo
-                                              ? 0
-                                              : hls[hi2].lo - ctx_lo;
-                                u32 mhi = hls[hi2].hi > ctx_hi
-                                              ? ctx_hi - ctx_lo
-                                              : hls[hi2].hi - ctx_lo;
-                                if (mlo > prev_end)
-                                    u32bFeed1(hbuf, tok32Pack('A', mlo));
-                                u32bFeed1(hbuf, tok32Pack('I', mhi));
-                                prev_end = mhi;
-                            }
-                            u32 region_len = ctx_hi - ctx_lo;
-                            if (prev_end < region_len)
-                                u32bFeed1(hbuf, tok32Pack('A', region_len));
-                            a_dup(u32 const, hd, u32bDataC(hbuf));
-                            u8p hp = LESSArenaWrite(hd[0],
-                                         $len(hd) * sizeof(u32));
-                            if (hp) {
-                                hk->hili[0] = (u32cp)hp;
-                                hk->hili[1] = (u32cp)(hp +
-                                    $len(hd) * sizeof(u32));
-                            }
-                        }
-
-                        LESSHunkEmit();
-                        first_hunk = NO;
-                    }
-                    prev_ctx_hi = ctx_hi;
-                }
-            }
+            CAPOSpotFile(source, htoks, needle, file_ext, line);
         }
 
         capo_in_match = 0;
@@ -1563,7 +1624,7 @@ ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot,
                 total_replacements, total_files_replaced);
     }
 
-    if (hashbuf1 != NULL) free(hashbuf1);
-    if (hashbuf2 != NULL) free(hashbuf2);
+    if (!BNULL(hashbuf1)) u32bFree(hashbuf1);
+    if (!BNULL(hashbuf2)) u32bFree(hashbuf2);
     done;
 }

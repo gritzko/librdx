@@ -177,11 +177,13 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name,
             u32 olen = (u32)$len(old_data);
             LESShunk *hk = &less_hunks[less_nhunks];
             *hk = (LESShunk){};
-            char hdr[512];
-            int tlen = CAPOFormatTitle(hdr, sizeof(hdr), dispname, "");
-            if (tlen > 0) {
-                u8p tp = LESSArenaWrite(hdr, (size_t)tlen);
-                if (tp) { hk->title[0] = tp; hk->title[1] = tp + tlen; }
+            u8gp _tg = u8aOpen(less_arena);
+            call(CAPOFormatTitle, u8gRest(_tg), dispname, "");
+            u8cs _title = {};
+            u8aClose(less_arena, _title);
+            if (!$empty(_title)) {
+                hk->title[0] = _title[0];
+                hk->title[1] = _title[1];
             }
             u8p txp = LESSArenaWrite(old_data[0], olen);
             if (txp) { hk->text[0] = txp; hk->text[1] = txp + olen; }
@@ -435,15 +437,14 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name,
                 char _funcname[256];                            \
                 CAPOFindFunc(new_data, (boff), ext,             \
                              _funcname, sizeof(_funcname));      \
-                char _hdr[512];                                 \
-                int _tl = CAPOFormatTitle(_hdr, sizeof(_hdr),   \
+                u8gp _tg = u8aOpen(less_arena);                  \
+                call(CAPOFormatTitle, u8gRest(_tg),              \
                     dispname, _funcname);                       \
-                if (_tl > 0) {                                  \
-                    u8p _tp = LESSArenaWrite(_hdr, (size_t)_tl);\
-                    if (_tp) {                                  \
-                        cur_hunk->title[0] = _tp;               \
-                        cur_hunk->title[1] = _tp + _tl;         \
-                    }                                           \
+                u8cs _ttl = {};                                 \
+                u8aClose(less_arena, _ttl);                     \
+                if (!$empty(_ttl)) {                            \
+                    cur_hunk->title[0] = _ttl[0];               \
+                    cur_hunk->title[1] = _ttl[1];               \
                 }                                               \
                 cur_hunk->text[0] = dtxp;                       \
                 cur_hunk->toks[0] = (u32cp)dtokp;              \

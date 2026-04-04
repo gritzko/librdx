@@ -3,7 +3,6 @@
 
 #include <stdio.h>
 #include "abc/INT.h"
-#include "abc/MSET.h"
 #include "abc/PATH.h"
 #include "abc/RON.h"
 #include "abc/RAP.h"
@@ -27,7 +26,7 @@ extern b8 CAPO_TERM;   // stderr is a terminal
 #define CAPO_DIR ".git/spot"
 #define CAPO_IDX_EXT ".idx"
 #define CAPO_SEQNO_WIDTH 10
-#define CAPO_MAX_LEVELS MSET_MAX_LEVELS
+#define CAPO_MAX_LEVELS 24
 #define CAPO_SCRATCH_LEN (1UL << 27)  // 128M u64 entries = 1GB
 #define CAPO_FLUSH_AT    (1UL << 24)  // flush at 16M entries (~128MB)
 #define CAPO_MAX_SHAS 16
@@ -60,7 +59,7 @@ ok64 CAPOIndexFile(u64bp entries, u8csc source, u8csc ext, u8csc path);
 // Write a sorted run to .git/spot/SEQNO.idx
 ok64 CAPOIndexWrite(u8csc dir, u64cs run, u64 seqno);
 
-// Load MSET stack from .git/spot/*.idx files (mmap each)
+// Load index stack from .git/spot/*.idx files (mmap each)
 // stack: output array of runs; maps: output array of mapped buffers
 // Returns number of files loaded in *nfiles
 ok64 CAPOStackOpen(u64css stack, u8bp *maps, u32p nfiles, u8csc dir);

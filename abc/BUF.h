@@ -4,6 +4,8 @@
 #include "01.h"
 #include "B.h"
 #include "S.h"
+#include <stdarg.h>
+#include <stdio.h>
 
 fun int u8cmp(const u8 *a, const u8 *b) { return (int)*a - (int)*b; }
 
@@ -25,18 +27,6 @@ fun int u8csmp(u8 const *const *a, u8 const *const *b) { return $cmp(a, b); }
 
 fun void u8sFill(u8s s, u8 v) { memset((void *)*s, v, $size(s)); }
 
-#define ABC_U8B_DEFINED
-
-// u8aOpen/u8aClose: u8 Bx.h is instantiated before ABC_U8B_DEFINED,
-// so the generic aOpen template doesn't generate u8 versions.
-fun u8gp u8aOpen(u8bp buf) {
-    ((u8 **)buf)[1] = buf[2];       // DATA -> PAST
-    return (u8gp)(buf + 1);
-}
-
-fun void u8aClose(u8bp buf) {
-    ((u8 **)buf)[1] = buf[2];       // DATA -> PAST
-}
 
 #define X(M, name) M##u8p##name
 #include "Bx.h"
@@ -177,6 +167,42 @@ fun ok64 $$feedf($u8 into, u8cs tmpl, u8css args) {
     return $empty(t) ? OK : BNOROOM;
 }
 
+__attribute__((format(printf, 2, 3)))
+fun ok64 u8sPrintf(u8s into, const char *fmt, ...) {
+    va_list ap;
+    va_start(ap, fmt);
+    int n = vsnprintf((char *)*into, $len(into), fmt, ap);
+    va_end(ap);
+    if (n < 0) return BADARG;
+    if ((size_t)n >= $len(into)) return SNOROOM;
+    *into += n;
+    return OK;
+}
+
+__attribute__((format(printf, 2, 3)))
+fun ok64 u8gPrintf(u8g g, const char *fmt, ...) {
+    va_list ap;
+    va_start(ap, fmt);
+    int n = vsnprintf((char *)g[1], u8gRestLen(g), fmt, ap);
+    va_end(ap);
+    if (n < 0) return BADARG;
+    if ((size_t)n >= u8gRestLen(g)) return SNOROOM;
+    g[1] += n;
+    return OK;
+}
+
+__attribute__((format(printf, 2, 3)))
+fun ok64 u8bPrintf(u8bp buf, const char *fmt, ...) {
+    va_list ap;
+    va_start(ap, fmt);
+    int n = vsnprintf((char *)buf[2], u8bIdleLen(buf), fmt, ap);
+    va_end(ap);
+    if (n < 0) return BADARG;
+    if ((size_t)n >= u8bIdleLen(buf)) return SNOROOM;
+    u8bFed(buf, (size_t)n);
+    return OK;
+}
+
 fun ok64 u8sFeedCStr($u8 into, const char *str) {
     int l = strlen(str);
     if ($len(into) < l) return SNOROOM;
@@ -234,5 +260,14 @@ fun b8 u8csZ(u8cscp a, u8cscp b) {
     if (ret == 0 && sza != szb) return sza < szb;
     return ret < 0;
 }
+
+// range32/match32 collection types (typedefs are in B.h)
+#define X(M, name) M##range32##name
+#include "Bx.h"
+#undef X
+
+#define X(M, name) M##match32##name
+#include "Bx.h"
+#undef X
 
 #endif

@@ -77,6 +77,65 @@ ok64 BBtest() {
     testeq(sizeof(Bat(buff, 0)), sizeof(Bvoid));
     done;
 }
+
+ok64 u8sPrintf_test() {
+    sane(1);
+
+    // basic formatting
+    a_pad(u8, buf, 128);
+    call(u8sPrintf, buf_idle, "hello %d", 42);
+    a$str(expect, "hello 42");
+    $testeq(expect, buf_datac);
+
+    // append more
+    call(u8sPrintf, buf_idle, " %s!", "world");
+    a$str(expect2, "hello 42 world!");
+    $testeq(expect2, buf_datac);
+
+    // empty format
+    u8p before = buf[2];
+    call(u8sPrintf, buf_idle, "");
+    testeq(buf[2], before);
+
+    // SNOROOM on overflow
+    a_pad(u8, tiny, 4);
+    ok64 o = u8sPrintf(tiny_idle, "toolong");
+    testeq(o, SNOROOM);
+
+    // "abc" = 3 chars fits in 4 bytes (3 + null)
+    a_pad(u8, fit, 4);
+    o = u8sPrintf(fit_idle, "abc");
+    testeq(o, OK);
+    testeq(u8bDataLen(fit), 3u);
+
+    // "abcd" = 4 chars does NOT fit in 4 bytes (needs 5)
+    a_pad(u8, fit2, 4);
+    o = u8sPrintf(fit2_idle, "abcd");
+    testeq(o, SNOROOM);
+
+    // u8gPrintf: write into a gauge
+    a_pad(u8, gbuf, 64);
+    u8gp gg = u8aOpen(gbuf);
+    call(u8gPrintf, gg, "x=%d", 99);
+    u8cs gleft = {};
+    u8aClose(gbuf, gleft);
+    a$str(gexp, "x=99");
+    $testeq(gexp, gleft);
+
+    // u8bPrintf: write into a buffer
+    a_pad(u8, bbuf, 64);
+    call(u8bPrintf, bbuf, "%s=%d", "val", 7);
+    a$str(bexp, "val=7");
+    $testeq(bexp, bbuf_datac);
+
+    // u8bPrintf: append
+    call(u8bPrintf, bbuf, "!");
+    a$str(bexp2, "val=7!");
+    $testeq(bexp2, bbuf_datac);
+
+    done;
+}
+
 ok64 Btest() {
     sane(1);
     call(Bmap_test);
@@ -85,6 +144,7 @@ ok64 Btest() {
     call(Breserve_test);
     call(B$test);
     call(BBtest);
+    call(u8sPrintf_test);
     done;
 }
 

@@ -56,14 +56,13 @@ ok64 CAPOCat(u8css files, u8csc reporoot) {
         if (fzl >= sizeof(fpz)) fzl = sizeof(fpz) - 1;
         memcpy(fpz, fpath_s[0], fzl);
         fpz[fzl] = 0;
-        char hdr[512];
-        int tlen = CAPOFormatTitle(hdr, sizeof(hdr), fpz, "");
-        if (tlen > 0) {
-            u8p tp = LESSArenaWrite(hdr, (size_t)tlen);
-            if (tp != NULL) {
-                hk->title[0] = tp;
-                hk->title[1] = tp + tlen;
-            }
+        u8gp g = u8aOpen(less_arena);
+        call(CAPOFormatTitle, u8gRest(g), fpz, "");
+        u8cs title = {};
+        u8aClose(less_arena, title);
+        if (!$empty(title)) {
+            hk->title[0] = title[0];
+            hk->title[1] = title[1];
         }
 
         hk->text[0] = src_head;

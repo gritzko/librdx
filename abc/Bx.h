@@ -373,17 +373,17 @@ fun ok64 X(, bSplice)(X(, bp) buf, size_t off, size_t cut, X(, csc) paste) {
 // Close flushes DATA->PAST again, committing written Ts.
 // Buffer limits are assumed aligned to T. Cannot fail; returns
 // an empty gauge when idle is exhausted.
-#ifdef ABC_U8B_DEFINED
-fun X(, gp) X(, aOpen)(u8bp buf) {
+fun X(, gp) X(, aOpen)(u8** buf) {
     uintptr_t al = ((uintptr_t)buf[2] + sizeof(T) - 1) & ~(sizeof(T) - 1);
     ((u8 **)buf)[1] = (u8 *)al;     // DATA -> PAST, aligned up to T
     ((u8 **)buf)[2] = (u8 *)al;
     return (X(, gp))(buf + 1);      // gauge {buf[1]==buf[2], buf[2], buf[3]}
 }
 
-fun void X(, aClose)(u8bp buf) {
+fun void X(, aClose)(u8** buf, X(, csp) s) {
+    s[0] = (T const *)buf[1];
+    s[1] = (T const *)buf[2];
     ((u8 **)buf)[1] = buf[2];       // DATA -> PAST
 }
-#endif
 
 #undef T
