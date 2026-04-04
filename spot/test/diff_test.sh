@@ -97,6 +97,58 @@ fi
 
 echo "PASSED"
 
+# --- Multi-hunk coloring test ---
+# Tok/hili offsets must be hunk-text-relative. Before the fix, second and
+# subsequent hunks had absolute offsets, making all bytes the same color.
+# Here two change regions are separated by 8 unchanged lines (> 2*CTX_LINES),
+# producing two hunks. With SPOT_COLOR=1 we verify both have correct ANSI.
+
+MULTI_OLD="$DATADIR/multi_old.c"
+MULTI_NEW="$DATADIR/multi_new.c"
+
+MOUT=$(SPOT_COLOR=1 "$SPOT" --diff "$MULTI_OLD" "$MULTI_NEW" 2>&1)
+MFAILS=0
+
+echo "=== multi-hunk coloring test ==="
+
+# ESC[48;5;217m = bg 217 (DEL), ESC[48;5;157m = bg 157 (INS)
+BG_DEL=$(printf '\033[48;5;217m')
+BG_INS=$(printf '\033[48;5;157m')
+
+check_multi_color() {
+    local label="$1"
+    local pattern="$2"
+    local count
+    count=$(echo "$MOUT" | grep -cF "$pattern" || true)
+    if [ "$count" -eq 0 ]; then
+        echo "FAIL: $label not found"
+        MFAILS=$((MFAILS + 1))
+    else
+        echo "  OK: $label"
+    fi
+}
+
+# Hunk 1: MSTOpen has DEL bg, HITOpen has INS bg
+check_multi_color "hunk1 DEL bg on MSTOpen" "${BG_DEL}MSTOpen"
+check_multi_color "hunk1 INS bg on HITOpen" "${BG_INS}HITOpen"
+
+# Hunk 2: MSTSeek has DEL bg, HITSeek has INS bg
+check_multi_color "hunk2 DEL bg on MSTSeek" "${BG_DEL}MSTSeek"
+check_multi_color "hunk2 INS bg on HITSeek" "${BG_INS}HITSeek"
+
+# Hunk 2: keywords must have syntax color (ESC[94m = bright blue)
+KW_BLUE=$(printf '\033[94m')
+check_multi_color "hunk2 keyword coloring" "${KW_BLUE}if"
+
+if [ "$MFAILS" -gt 0 ]; then
+    echo "FAILED: $MFAILS multi-hunk coloring checks failed"
+    echo "--- raw output (cat -v) ---"
+    echo "$MOUT" | cat -v
+    exit 1
+fi
+
+echo "PASSED"
+
 # --- NEIL cascade test ---
 # When consecutive lines change (MSTXxx -> HITXxx), the unchanged arguments
 # like "(heap, &count);" must NOT be duplicated as DEL+INS.  NEIL must

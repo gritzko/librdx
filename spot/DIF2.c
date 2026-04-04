@@ -393,7 +393,7 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name,
             tok32Val(_v,toks_s,base,(int)(idx));              \
             u32 _n = (u32)$len(_v);                             \
             u8 _tag = tok32Tag((toks_s)[0][(idx)]);             \
-            u32 _eoff = (u32)(dtxp - diff_text_s[0]) + _n;     \
+            u32 _eoff = (u32)(dtxp - (u8p)cur_hunk->text[0]) + _n; \
             memcpy(dtxp, _v[0], _n);                            \
             dtxp += _n;                                         \
             if (dtokp) *dtokp++ = tok32Pack(_tag, _eoff);       \
@@ -459,7 +459,7 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name,
             while (_ls > 0 && new_data[0][_ls-1] != '\n') _ls--;\
             if (_ls < (boff)) {                                 \
                 u32 _pn = (boff) - _ls;                         \
-                u32 _eoff = (u32)(dtxp - diff_text_s[0]) + _pn;\
+                u32 _eoff = (u32)(dtxp - (u8p)cur_hunk->text[0]) + _pn; \
                 memcpy(dtxp, new_data[0] + _ls, _pn);           \
                 dtxp += _pn;                                    \
                 if (dtokp) *dtokp++ = tok32Pack('S', _eoff);   \
@@ -659,7 +659,7 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name,
                 // Also copy the INS line's indentation so it aligns.
                 if (del_total > prefix + suffix &&
                     ins_total > prefix + suffix &&
-                    (dtxp == diff_text_s[0] || *(dtxp - 1) == '\n')) {
+                    (dtxp == (u8p)cur_hunk->text[0] || *(dtxp - 1) == '\n')) {
                     u64 last_del = base_oi + del_total - suffix - 1;
                     u8cs ldv = {};
                     tok32Val(ldv,old_ts,old_f.data[0],(int)last_del);
@@ -671,7 +671,7 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name,
                         u32 ls = ins_boff;
                         while (ls > 0 && new_data[0][ls - 1] != '\n')
                             ls--;
-                        u32 _nloff = (u32)(dtxp - diff_text_s[0]) + 1;
+                        u32 _nloff = (u32)(dtxp - (u8p)cur_hunk->text[0]) + 1;
                         *dtxp++ = '\n';
                         if (dtokp) *dtokp++ = tok32Pack('S', _nloff);
                         if (dhilp) *dhilp++ = tok32Pack('D', _nloff);

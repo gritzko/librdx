@@ -87,6 +87,7 @@ ok64 capocli() {
     call(FILEInit);
     CAPO_TERM = isatty(STDERR_FILENO) ? YES : NO;
     CAPO_COLOR = isatty(STDOUT_FILENO) ? YES : NO;
+    if (getenv("SPOT_COLOR")) CAPO_COLOR = YES;
 
     // Find repo root via git
     char rootbuf[FILE_PATH_MAX_LEN];
