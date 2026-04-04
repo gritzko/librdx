@@ -96,3 +96,45 @@ if [ "$HFAILS" -gt 0 ]; then
 fi
 
 echo "PASSED"
+
+# --- NEIL cascade test ---
+# When consecutive lines change (MSTXxx -> HITXxx), the unchanged arguments
+# like "(heap, &count);" must NOT be duplicated as DEL+INS.  NEIL must
+# protect EQ regions that contain a code line before the newline.
+
+NEIL_OLD="$DATADIR/neil_old.c"
+NEIL_NEW="$DATADIR/neil_new.c"
+
+NOUT=$("$SPOT" --diff "$NEIL_OLD" "$NEIL_NEW" 2>&1 | perl -pe 's/\e\[[0-9;]*m//g')
+NFAILS=0
+
+echo "=== NEIL cascade test ==="
+
+check_neil() {
+    local line="$1"
+    local count
+    count=$(echo "$NOUT" | grep -cF "$line" || true)
+    if [ "$count" -gt 1 ]; then
+        echo "FAIL: '$line' appears $count times (expected 1)"
+        NFAILS=$((NFAILS + 1))
+    elif [ "$count" -eq 0 ]; then
+        echo "FAIL: '$line' not found in output"
+        NFAILS=$((NFAILS + 1))
+    else
+        echo "  OK: '$line'"
+    fi
+}
+
+# Shared arguments between renamed calls must appear once (EQ), not twice
+check_neil "(heap, &count);"
+check_neil "(heap, &index);"
+check_neil "(heap, &value);"
+
+if [ "$NFAILS" -gt 0 ]; then
+    echo "FAILED: $NFAILS NEIL cascade checks failed"
+    echo "--- full output ---"
+    echo "$NOUT"
+    exit 1
+fi
+
+echo "PASSED"

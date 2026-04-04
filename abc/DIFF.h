@@ -23,6 +23,13 @@ typedef e32 const *e32cs[2];
 
 con ok64 DIFFNOROOM = 0x3523cf5d86d8616;
 
+// Max extra edit distance beyond abs(len_a - len_b) before bail-out.
+// FindMiddle gives up when d exceeds abs_delta + DIFF_D_BUDGET,
+// treating the subproblem as full DEL+INS.
+#ifndef DIFF_D_BUDGET
+#define DIFF_D_BUDGET 65536
+#endif
+
 static inline u64 DIFFWorkSize(u64 alen, u64 blen) {
     return 2 * (2 * (alen + blen) + 1);
 }
