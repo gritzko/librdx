@@ -183,11 +183,10 @@ ok64 NEILCleanup(e32g edl, u32cs old_toks, u32cs new_toks,
                 tmp[w++] = buf[k]; continue;
             }
 
-            // Protect EQs that contain a complete shared line: a newline
-            // followed by >= 6 non-ws bytes of code.  This catches real
-            // matches like "\n    if (flag != OK) {" but rejects partial
-            // matches like "u8bFeed(fpbuf, fpath_s);\n    " where all
-            // the code is BEFORE the newline and only whitespace follows.
+            // Protect EQs that contain a line with >= 6 non-ws bytes.
+            // A "line" is text between \n boundaries (or span edges).
+            // This prevents the cascade where killing short EQs between
+            // edits merges them into giant DEL/INS blocks.
             if (eq_bytes >= 6) {
                 u32 eq_from = new_off[k];
                 u32 eq_blo = (eq_from > 0)
@@ -195,15 +194,20 @@ ok64 NEILCleanup(e32g edl, u32cs old_toks, u32cs new_toks,
                 u32 eq_bhi = tok32Offset(new_toks[0][eq_from + eq_len - 1]);
                 if (eq_bhi > eq_blo &&
                     memchr(new_src[0] + eq_blo, '\n', eq_bhi - eq_blo)) {
-                    u32 nw_after_nl = 0;
-                    b8 past_nl = NO;
+                    u32 nw = 0;
+                    b8 has_code_line = NO;
                     for (u32 b = eq_blo; b < eq_bhi; b++) {
                         u8 c = new_src[0][b];
-                        if (c == '\n') { past_nl = YES; continue; }
-                        if (past_nl && c != ' ' && c != '\t' && c != '\r')
-                            nw_after_nl++;
+                        if (c == '\n') {
+                            if (nw >= 6) { has_code_line = YES; break; }
+                            nw = 0;
+                            continue;
+                        }
+                        if (c != ' ' && c != '\t' && c != '\r')
+                            nw++;
                     }
-                    if (nw_after_nl >= 6) {
+                    if (!has_code_line && nw >= 6) has_code_line = YES;
+                    if (has_code_line) {
                         tmp[w++] = buf[k]; continue;
                     }
                 }
