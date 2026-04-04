@@ -1,4 +1,5 @@
 #include "CAPO.h"
+#include "SPOT_VERSION.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -126,7 +127,10 @@ ok64 capocli() {
         u8c *a[2] = {};
         $mv(a, $arg(i));
         char *eqval = NULL;
-        if (argeq(a, "-h") || argeq(a, "--help")) {
+        if (argeq(a, "-v") || argeq(a, "--version")) {
+            fprintf(stderr, "spot %s %s\n", SPOT_GIT_TAG, SPOT_COMMIT_HASH);
+            done;
+        } else if (argeq(a, "-h") || argeq(a, "--help")) {
             SPOTUsage();
             done;
         } else if (argeq(a, "--fork") && i + 1 < argn) {

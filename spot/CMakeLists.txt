@@ -35,8 +35,18 @@ add_library(spotlib STATIC ${SPOT_HEADERS} ${SPOT_SOURCES})
 target_compile_definitions(spotlib PRIVATE NDEBUG)
 target_link_libraries(spotlib tok abc-core)
 
+add_custom_target(spot-version ALL
+    COMMAND ${CMAKE_COMMAND}
+        -DSRC=${CMAKE_CURRENT_SOURCE_DIR}
+        -DOUT=${CMAKE_CURRENT_BINARY_DIR}/SPOT_VERSION.h
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/version.cmake
+    BYPRODUCTS ${CMAKE_CURRENT_BINARY_DIR}/SPOT_VERSION.h
+)
+
 add_executable(spot-cli CAPO.cli.c)
 target_compile_definitions(spot-cli PRIVATE NDEBUG)
+target_include_directories(spot-cli PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+add_dependencies(spot-cli spot-version)
 target_link_libraries(spot-cli spotlib tok abc-core)
 set_target_properties(spot-cli PROPERTIES OUTPUT_NAME spot)
 
