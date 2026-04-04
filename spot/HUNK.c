@@ -14,8 +14,10 @@ ok64 HUNKu8sFeed(u8s into, HUNKhunk const *hk) {
         u8cs tkb = {(u8cp)hk->toks[0], (u8cp)hk->toks[1]};
         call(TLVu8sFeed, inner, HUNK_TLV_TOK, tkb);
     }
-    if (!$empty(hk->hili))
-        call(TLVu8sFeed, inner, HUNK_TLV_HILI, hk->hili);
+    if (!$empty(hk->hili)) {
+        u8cs hib = {(u8cp)hk->hili[0], (u8cp)hk->hili[1]};
+        call(TLVu8sFeed, inner, HUNK_TLV_HILI, hib);
+    }
     call(TLVu8sEnd, into, inner, HUNK_TLV);
     done;
 }
@@ -26,7 +28,7 @@ ok64 HUNKu8sDrain(u8cs from, HUNKhunk *hk) {
     u8cs body = {};
     call(TLVu8sDrain, from, &t, body);
     test(t == HUNK_TLV, TLVBADTYPE);
-    memset(hk, 0, sizeof(*hk));
+    *hk = (HUNKhunk){};
     while (!$empty(body)) {
         u8 st = 0;
         u8cs val = {};
@@ -43,7 +45,8 @@ ok64 HUNKu8sDrain(u8cs from, HUNKhunk *hk) {
             hk->toks[1] = (tok32c *)val[1];
             break;
         case HUNK_TLV_HILI:
-            $mv(hk->hili, val);
+            hk->hili[0] = (tok32c *)val[0];
+            hk->hili[1] = (tok32c *)val[1];
             break;
         default:
             break;

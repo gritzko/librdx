@@ -5,7 +5,7 @@
 | Header | Purpose |
 |--------|---------|
 | CAPO.h | Main API: index, search, grep, cat, diff, merge |
-| CAPOi.h | Internal: shared helpers, CAPOFindExt macro, MSET/DIFF u64 templates |
+| CAPOi.h | Internal: shared helpers, CAPOFindExt macro, HIT/DIFF u64cs templates |
 | LESS.h | LESS pager API + arena (hunks, maps, alloc/write/defer) |
 | SPOT.h | Structural pattern matching: tokenize, init, next, replace |
 | NEIL.h | Diff semantic cleanup: remove false short equalities |

@@ -258,6 +258,8 @@ fun u64 roundup(u64 val, u64 page) {
     return val;
 }
 
+#define is_all_0(x) ({ typeof(x) _z = {}; !memcmp(&(x), &_z, sizeof(x)); })
+
 con u64 PRIME1 = 11400714785074694791ULL;
 con u64 PRIME2 = 14029467366897019727ULL;
 con u64 PRIME3 = 1609587929392839161ULL;

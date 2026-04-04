@@ -2,9 +2,10 @@
 
 #define T X(, )
 
-// Sift down at position `at` in the min-heap of sorted runs.
-// Heap is X(, css): a slice of X(, cs) runs ordered by head element.
-fun void X(MSET, _Down)(X(, css) heap, size_t at) {
+// --- Z-parameterized core heap ops ---
+
+// Sift down at position `at` with custom comparator z.
+fun void X(MSET, _DownZ)(X(, css) heap, size_t at, X(, z) z) {
     X(, cs) *h = heap[0];
     size_t n = $len(heap);
     size_t i = at;
@@ -13,9 +14,9 @@ fun void X(MSET, _Down)(X(, css) heap, size_t at) {
         if (left >= n || left < i) break;
         size_t right = left + 1;
         size_t j = left;
-        if (right < n && X(, Z)(h[right][0], h[left][0]))
+        if (right < n && z(h[right][0], h[left][0]))
             j = right;
-        if (!X(, Z)(h[j][0], h[i][0])) break;
+        if (!z(h[j][0], h[i][0])) break;
         T const *t0 = h[i][0], *t1 = h[i][1];
         h[i][0] = h[j][0];
         h[i][1] = h[j][1];
@@ -25,13 +26,123 @@ fun void X(MSET, _Down)(X(, css) heap, size_t at) {
     }
 }
 
+// Bubble up at position with custom comparator z.
+fun void X(MSET, _UpZ)(X(, css) heap, size_t at, X(, z) z) {
+    X(, cs) *h = heap[0];
+    while (at) {
+        size_t b = (at - 1) / 2;
+        if (z(h[b][0], h[at][0])) break;
+        T const *t0 = h[at][0], *t1 = h[at][1];
+        h[at][0] = h[b][0];
+        h[at][1] = h[b][1];
+        h[b][0] = t0;
+        h[b][1] = t1;
+        at = b;
+    }
+}
+
+// Floyd's heapify with custom comparator z.
+fun void X(MSET, HeapZ)(X(, css) heap, X(, z) z) {
+    size_t n = $len(heap);
+    for (size_t i = n / 2; i > 0; --i)
+        X(MSET, _DownZ)(heap, i - 1, z);
+}
+
+// --- Wrappers using default comparator ---
+
+fun void X(MSET, _Down)(X(, css) h, size_t at) {
+    X(MSET, _DownZ)(h, at, X(, Z));
+}
+
 // Sort a slice in-place using the element comparator.
 fun void X(MSET, Sort)(X(, s) data) { $sort(data, X(, cmp)); }
 
-// Build a min-heap iterator from an array of sorted runs.
-// Removes empty runs, then heapifies by head element (Floyd).
-// After Start, ***iter points at the smallest element.
-fun void X(MSET, Start)(X(, css) iter) {
+// --- Composable iteration primitives ---
+
+// Find all equal-minimum entries (per z), move them to positions 0..ntops-1.
+// eqs[0]..eqs[1] = the equal-minimum sub-range.
+fun ok64 X(MSET, TopZ)(X(, css) heap, X(, css) eqs, X(, z) z) {
+    size_t l = $len(heap);
+    if (l == 0) return MISS;
+    X(, cs) *h = heap[0];
+    size_t eqlen = 1;
+    size_t lim = 2;
+    for (size_t i = 1; i < l && i <= lim; ++i) {
+        if (z(h[0][0], h[i][0])) continue;
+        if (eqlen != i) {
+            T const *t0 = h[eqlen][0], *t1 = h[eqlen][1];
+            h[eqlen][0] = h[i][0];
+            h[eqlen][1] = h[i][1];
+            h[i][0] = t0;
+            h[i][1] = t1;
+            X(MSET, _DownZ)(heap, i, z);
+            --i;
+        } else {
+            lim = i * 2 + 2;
+        }
+        eqlen++;
+    }
+    eqs[0] = h;
+    eqs[1] = h + eqlen;
+    return OK;
+}
+
+// Advance ntops front entries (++s[0]), eject empties, compact, re-heapify.
+// Returns MSETNODATA if heap becomes empty.
+fun ok64 X(MSET, AdvZ)(X(, css) heap, size_t ntops, X(, z) z) {
+    X(, cs) *h = heap[0];
+    size_t old_n = $len(heap);
+    // Advance all top slices
+    for (size_t i = 0; i < ntops; i++)
+        ++h[i][0];
+    // Compact: keep alive tops, shift non-tops forward
+    size_t alive = 0;
+    for (size_t i = 0; i < ntops; i++) {
+        if (!$empty(h[i])) {
+            if (alive != i) {
+                h[alive][0] = h[i][0];
+                h[alive][1] = h[i][1];
+            }
+            alive++;
+        }
+    }
+    for (size_t i = ntops; i < old_n; i++) {
+        if (alive != i) {
+            h[alive][0] = h[i][0];
+            h[alive][1] = h[i][1];
+        }
+        alive++;
+    }
+    heap[1] = h + alive;
+    X(MSET, HeapZ)(heap, z);
+    return $empty(heap) ? MSETNODATA : OK;
+}
+
+// Eject entry at position. Swap with last, shrink, re-heapify.
+fun ok64 X(MSET, EjectAtZ)(X(, css) heap, size_t at, X(, z) z) {
+    size_t len = $len(heap);
+    if (at >= len) return MISS;
+    X(, cs) *h = heap[0];
+    size_t last = len - 1;
+    if (at != last) {
+        T const *t0 = h[at][0], *t1 = h[at][1];
+        h[at][0] = h[last][0];
+        h[at][1] = h[last][1];
+        h[last][0] = t0;
+        h[last][1] = t1;
+    }
+    --heap[1];
+    if (at < $len(heap)) {
+        X(MSET, _UpZ)(heap, at, z);
+        X(MSET, _DownZ)(heap, at, z);
+    }
+    return OK;
+}
+
+// --- Z-parameterized versions of existing functions ---
+
+// Remove empties + Floyd's heapify with custom comparator.
+fun void X(MSET, StartZ)(X(, css) iter, X(, z) z) {
     X(, cs) *w = iter[0];
     for (X(, cs) *r = iter[0]; r < iter[1]; r++) {
         if (!$empty(*r)) {
@@ -43,9 +154,36 @@ fun void X(MSET, Start)(X(, css) iter) {
         }
     }
     iter[1] = w;
-    size_t n = $len(iter);
-    for (size_t i = n / 2; i > 0; --i)
-        X(MSET, _Down)(iter, i - 1);
+    X(MSET, HeapZ)(iter, z);
+}
+
+// Build a min-heap iterator (default comparator).
+fun void X(MSET, Start)(X(, css) iter) {
+    X(MSET, StartZ)(iter, X(, Z));
+}
+
+// Seek to >= key with custom comparator.
+fun ok64 X(MSET, SeekZ)(X(, css) iter, T key, X(, z) z) {
+    while (!$empty(iter) && z(***iter, &key)) {
+        X(, cs) *top = iter[0];
+        X($c, c) run = {(*top)[0], (*top)[1]};
+        T const *pos = X($, findge)(run, &key);
+        (*top)[0] = pos;
+        if ($empty(*top)) {
+            X(, cs) *last = iter[1] - 1;
+            (*top)[0] = (*last)[0];
+            (*top)[1] = (*last)[1];
+            --iter[1];
+            if ($empty(iter)) break;
+        }
+        X(MSET, _DownZ)(iter, 0, z);
+    }
+    return $empty(iter) ? MSETNODATA : OK;
+}
+
+// Seek forward to the first element >= key (default comparator).
+fun ok64 X(MSET, Seek)(X(, css) iter, T key) {
+    return X(MSET, SeekZ)(iter, key, X(, Z));
 }
 
 // Advance past the current top element, maintain the heap.
@@ -66,26 +204,6 @@ fun ok64 X(MSET, Next)(X(, css) iter) {
         if (!$empty(iter)) X(MSET, _Down)(iter, 0);
     } while (!$empty(iter) && !X(, Z)(cur, ***iter) && !X(, Z)(***iter, cur));
     return OK;
-}
-
-// Seek forward to the first element >= key.
-// Returns OK if found (***iter points at it), MSETNODATA if none.
-fun ok64 X(MSET, Seek)(X(, css) iter, T key) {
-    while (!$empty(iter) && X(, Z)(***iter, &key)) {
-        X(, cs) *top = iter[0];
-        X($c, c) run = {(*top)[0], (*top)[1]};
-        T const *pos = X($, findge)(run, &key);
-        (*top)[0] = pos;
-        if ($empty(*top)) {
-            X(, cs) *last = iter[1] - 1;
-            (*top)[0] = (*last)[0];
-            (*top)[1] = (*last)[1];
-            --iter[1];
-            if ($empty(iter)) break;
-        }
-        X(MSET, _Down)(iter, 0);
-    }
-    return $empty(iter) ? MSETNODATA : OK;
 }
 
 // Merge all runs into flat sorted output.

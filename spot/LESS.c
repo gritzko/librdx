@@ -6,7 +6,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
-#include <sys/mman.h>
 #include <termios.h>
 #include <unistd.h>
 
@@ -56,17 +55,18 @@ u8p LESSArenaWrite(void const *data, size_t len) {
     if (u8bIdleLen(less_arena) < len) return NULL;
     u8p p = u8bIdleHead(less_arena);
     memcpy(p, data, len);
-    ((u8 **)less_arena)[2] = p + len;
+    u8bFed(less_arena, len);
     return p;
 }
 
-// Reserve len bytes in the arena (zeroed), return pointer
-u8p LESSArenaAlloc(size_t len) {
-    if (u8bIdleLen(less_arena) < len) return NULL;
-    u8p p = u8bIdleHead(less_arena);
-    memset(p, 0, len);
-    ((u8 **)less_arena)[2] = p + len;
-    return p;
+// Reserve len bytes in the arena (zeroed), return slice
+ok64 LESSArenaAlloc(u8s out, size_t len) {
+    if (u8bIdleLen(less_arena) < len) return FAILSANITY;
+    $mv(out, u8bIdle(less_arena));
+    out[1] = out[0] + len;
+    u8sZero(out);
+    u8bFed(less_arena, len);
+    return OK;
 }
 
 // Defer file+toks cleanup until after LESSRun
@@ -75,6 +75,35 @@ void LESSDefer(u8bp mapped, Bu32 toks) {
     less_maps[less_nmaps] = mapped;
     memcpy(less_toks[less_nmaps], toks, sizeof(Bu32));
     less_nmaps++;
+}
+
+// --- LESSClipToks: clip file-level toks to [lo,hi), arena-copy rebased ---
+
+void LESSClipToks(u32cs out, u32cs toks, u8cp base, u32 lo, u32 hi) {
+    out[0] = NULL; out[1] = NULL;
+    if ($empty(toks) || lo >= hi) return;
+    int n = (int)$len(toks);
+    // Find first tok overlapping [lo, hi)
+    int first = 0;
+    while (first < n && tok32Offset(toks[0][first]) <= lo) first++;
+    // Find last tok overlapping [lo, hi)
+    int last = first;
+    while (last < n) {
+        u32 tlo = (last > 0) ? tok32Offset(toks[0][last - 1]) : 0;
+        if (tlo >= hi) break;
+        last++;
+    }
+    if (first >= last) return;
+    // Arena-write rebased entries
+    u32gp g = u32aOpen(less_arena);
+    for (int i = first; i < last; i++) {
+        u8 tag = tok32Tag(toks[0][i]);
+        u32 off = tok32Offset(toks[0][i]);
+        if (off > hi) off = hi;
+        u32 rebased = off - lo;
+        u32gFeed1(g, tok32Pack(tag, rebased));
+    }
+    u32aClose(less_arena, out);
 }
 
 // --- LESSHunkEmit: serialize + write to pipe in fork mode ---
@@ -87,34 +116,40 @@ void LESSHunkEmit(void) {
     HUNKhunk h = {};
     $mv(h.title, hk->title);
     $mv(h.text, hk->text);
-    $mv(h.hili, hk->lits);
+    h.toks[0] = hk->toks[0];
+    h.toks[1] = hk->toks[1];
+    h.hili[0] = hk->hili[0];
+    h.hili[1] = hk->hili[1];
 
-    a_pad(u8, buf, 1 << 16);  // 64KB serialize buffer
-    if (HUNKu8sFeed(u8bIdle(buf), &h) != OK) {
+    // Serialize into arena idle space, write to pipe, then rewind
+    range64 mark;
+    Bu8mark(less_arena, &mark);
+    u8cp start = u8bIdleHead(less_arena);
+    if (HUNKu8sFeed(u8bIdle(less_arena), &h) != OK) {
+        Bu8rewind(less_arena, mark);
         less_nhunks--;
         return;
     }
 
-    u8cp p = buf[1];
-    u8cp e = buf[2];
-    while (p < e) {
-        ssize_t w = write(less_pipe_fd, p, (size_t)(e - p));
+    u8cs ser = {start, u8bIdleHead(less_arena)};
+    while (!$empty(ser)) {
+        ssize_t w = write(less_pipe_fd, ser[0], $len(ser));
         if (w <= 0) break;
-        p += w;
+        u8csFed(ser, (size_t)w);
     }
 
-    less_nhunks--;  // recycle slot: data is in the pipe now
+    Bu8rewind(less_arena, mark);  // rewind: scratch space reused
+    less_nhunks--;
 }
 
 // 256-color ink violet for hunk titles
-#define LESS_TITLE_COLOR "\033[38;5;56m"
+#define LESS_TITLE_COLOR TTY_FG256(56)
 
-// Tag-index-to-ANSI-color mapping.
-// lits stores tag - 'A' (0-25), so add 'A' back to recover the character.
-// Returns fg color in lower bits; sets *bold = YES for definitions.
-static int LESSTagColor(u8 tag_idx, b8 *bold) {
+// Tag-to-ANSI-color mapping.
+// Returns fg color; sets *bold = YES for definitions.
+static int LESSTagColor(u8 tag, b8 *bold) {
     *bold = NO;
-    switch (tag_idx + 'A') {
+    switch (tag) {
         case 'D': return GRAY;
         case 'G': return DARK_GREEN;
         case 'L': return LIGHT_CYAN;
@@ -203,16 +238,14 @@ static ok64 LESSBuildIndex(LESSstate *st) {
     u32 total = 0;
     for (u32 h = 0; h < st->nhunks; h++) {
         if (!$empty(st->hunks[h].title)) total++;  // title separator
-        u8cp p = st->hunks[h].text[0];
-        u8cp e = st->hunks[h].text[1];
-        if (p == e) continue;
+        u32 tlen = (u32)$len(st->hunks[h].text);
+        if (tlen == 0) continue;
         total++;  // at least one line
-        while (p < e) {
-            if (*p == '\n') total++;
-            p++;
+        $for(u8c, c, st->hunks[h].text) {
+            if (*c == '\n') total++;
         }
-        // If text ends with '\n', we overcounted (the '\n' at end doesn't start a new visible line)
-        if (e > st->hunks[h].text[0] && *(e - 1) == '\n') total--;
+        // If text ends with '\n', we overcounted
+        if (st->hunks[h].text[0][tlen - 1] == '\n') total--;
     }
 
     st->lines = (LESSline *)malloc(total * sizeof(LESSline));
@@ -220,18 +253,14 @@ static ok64 LESSBuildIndex(LESSstate *st) {
 
     u32 li = 0;
     for (u32 h = 0; h < st->nhunks; h++) {
-        // Title separator line
         if (!$empty(st->hunks[h].title)) {
             st->lines[li++] = (LESSline){h, LESS_TITLE_LINE};
         }
-        u8cp base = st->hunks[h].text[0];
-        u8cp e = st->hunks[h].text[1];
-        if (base == e) continue;
-        u32 lstart = 0;
-        u32 tlen = (u32)(e - base);
+        u32 tlen = (u32)$len(st->hunks[h].text);
+        if (tlen == 0) continue;
         st->lines[li++] = (LESSline){h, 0};
         for (u32 i = 0; i < tlen; i++) {
-            if (base[i] == '\n' && i + 1 < tlen) {
+            if (st->hunks[h].text[0][i] == '\n' && i + 1 < tlen) {
                 st->lines[li++] = (LESSline){h, i + 1};
             }
         }
@@ -241,73 +270,92 @@ static ok64 LESSBuildIndex(LESSstate *st) {
 }
 
 // --- Rendering ---
+// All screen output is built into less_scr[] buffer, flushed once.
 
-// Write a positioned cursor escape: \033[row;colH
-static void less_goto(int row, int col) {
-    char buf[32];
-    int n = snprintf(buf, sizeof(buf), "\033[%d;%dH", row, col);
-    (void)write(STDOUT_FILENO, buf, (size_t)n);
+#define LESS_SCR_SIZE (1UL << 20)  // 1MB screen buffer
+static Bu8 less_scr = {};
+
+static ok64 LESSScreenInit(void) {
+    if (less_scr[0] != NULL) { u8bReset(less_scr); return OK; }
+    return u8bMap(less_scr, LESS_SCR_SIZE);
 }
 
-// Write raw bytes
-static void less_write(char const *s, size_t n) {
-    (void)write(STDOUT_FILENO, s, n);
+static void LESSScreenFlush(void) {
+    if (u8bDataLen(less_scr) > 0)
+        (void)write(STDOUT_FILENO, u8bDataHead(less_scr), u8bDataLen(less_scr));
+    u8bReset(less_scr);
 }
 
+// Feed string literal
+static void scr_puts(char const *s) {
+    u8sFeed(u8bIdle(less_scr), (u8csc){(u8cp)s, (u8cp)s + strlen(s)});
+}
+
+// Feed goto escape: \033[row;colH
+static void scr_goto(int row, int col) {
+    a_pad(u8, tmp, 32);
+    u8sFeed1(tmp_idle, 033);
+    u8sFeed1(tmp_idle, '[');
+    utf8sFeed10(tmp_idle, (u64)row);
+    u8sFeed1(tmp_idle, ';');
+    utf8sFeed10(tmp_idle, (u64)col);
+    u8sFeed1(tmp_idle, 'H');
+    u8bFeed(less_scr, u8bDataC(tmp));
+}
+
+// Direct write helpers (for prompts/setup, not screen rendering)
 static void less_puts(char const *s) {
-    less_write(s, strlen(s));
+    (void)write(STDOUT_FILENO, s, strlen(s));
+}
+static void less_write(u8csc s) {
+    (void)write(STDOUT_FILENO, s[0], $len(s));
+}
+static void less_goto(int row, int col) {
+    a_pad(u8, tmp, 32);
+    u8sFeed1(tmp_idle, 033);
+    u8sFeed1(tmp_idle, '[');
+    utf8sFeed10(tmp_idle, (u64)row);
+    u8sFeed1(tmp_idle, ';');
+    utf8sFeed10(tmp_idle, (u64)col);
+    u8sFeed1(tmp_idle, 'H');
+    less_write(u8bDataC(tmp));
 }
 
-// Emit one byte with appropriate ANSI color based on lits
-static void less_emit_byte(u8 ch, u8 lit, b8 in_search, LESSstate *st) {
-    (void)st;
-    u8 tag_idx = lit & LESS_TAG;
-    b8 is_ins = (lit & LESS_INS) != 0;
-    b8 is_del = (lit & LESS_DEL) != 0;
-
-    // Build escape: fg from tag, bg from INS/DEL or search
-    char esc[64];
-    int elen = 0;
+// Feed one byte with fg tag, bg tag, and search highlight
+static void scr_emit_byte(u8 ch, u8 fg_tag, u8 bg_tag, b8 in_search) {
     b8 bold = NO;
-    int fg = LESSTagColor(tag_idx, &bold);
+    int fg = LESSTagColor(fg_tag, &bold);
+    b8 is_ins = (bg_tag == 'I');
+    b8 is_del = (bg_tag == 'D');
+
+    u8sp out = u8bIdle(less_scr);
     if (fg != 0 || bold || is_ins || is_del || in_search) {
-        elen = snprintf(esc, sizeof(esc), "\033[");
-        if (bold) { elen += snprintf(esc + elen, sizeof(esc) - (size_t)elen, "1"); }
-        if (fg != 0) {
-            if (bold) esc[elen++] = ';';
-            elen += snprintf(esc + elen, sizeof(esc) - (size_t)elen, "%d", fg);
-        }
-        if (is_ins) {
-            if (fg != 0 || bold) esc[elen++] = ';';
-            elen += snprintf(esc + elen, sizeof(esc) - (size_t)elen, "48;5;157");
-        } else if (is_del) {
-            if (fg != 0 || bold) esc[elen++] = ';';
-            elen += snprintf(esc + elen, sizeof(esc) - (size_t)elen, "48;5;217");
-        } else if (in_search) {
-            if (fg != 0 || bold) esc[elen++] = ';';
-            elen += snprintf(esc + elen, sizeof(esc) - (size_t)elen, "7");
-        }
-        esc[elen++] = 'm';
-        less_write(esc, (size_t)elen);
-        less_write((char *)&ch, 1);
-        less_puts(TTY_RESET);
+        if (bold) escfeed(out, BOLD);
+        if (fg != 0) escfeed(out, (u8)fg);
+        if (is_ins) escfeedBG256(out, 157);
+        else if (is_del) escfeedBG256(out, 217);
+        else if (in_search) escfeed(out, 7);
+        u8sFeed1(out, ch);
+        escfeed(out, 0);  // reset
     } else {
-        less_write((char *)&ch, 1);
+        u8sFeed1(out, ch);
     }
 }
 
-// Check if search pattern matches at position pos in the given text
-static b8 less_search_at(LESSstate *st, u8cp text, u32 textlen, u32 pos) {
+// Check if search pattern matches at position pos
+static b8 less_search_at(LESSstate *st, u8csc text, u32 pos) {
     if (st->search_len == 0) return NO;
-    if (pos + st->search_len > textlen) return NO;
-    return memcmp(text + pos, st->search, st->search_len) == 0 ? YES : NO;
+    if (pos + st->search_len > (u32)$len(text)) return NO;
+    return memcmp(&text[0][pos], st->search, st->search_len) == 0 ? YES : NO;
 }
 
-static void LESSRender(LESSstate *st) {
-    less_puts(TTY_CUR_HOME);
+static void LESSStatusBar(LESSstate *st);
 
-    u32 visible = (u32)(st->rows - 1);  // last line is status bar
-    // Clamp scroll so content fills the screen when possible
+static void LESSRender(LESSstate *st) {
+    u8bReset(less_scr);
+    scr_puts(TTY_CUR_HOME);
+
+    u32 visible = (u32)(st->rows - 1);
     if (st->nlines > visible) {
         if (st->scroll > st->nlines - visible)
             st->scroll = st->nlines - visible;
@@ -318,23 +366,22 @@ static void LESSRender(LESSstate *st) {
     if (end > st->nlines) end = st->nlines;
 
     for (u32 vi = st->scroll; vi < end; vi++) {
-        u32 row = vi - st->scroll + 1;
-        less_goto((int)row, 1);
-        less_puts(TTY_ERASE_LINE);
+        scr_goto((int)(vi - st->scroll + 1), 1);
+        scr_puts(TTY_ERASE_LINE);
 
         LESSline *ln = &st->lines[vi];
         LESShunk const *hk = &st->hunks[ln->hunk];
 
         if (ln->off == LESS_TITLE_LINE) {
-            less_puts(LESS_TITLE_COLOR);
+            scr_puts(LESS_TITLE_COLOR);
             u32 tlen = (u32)$len(hk->title);
             u32 w = tlen < st->cols ? tlen : st->cols;
-            less_write((char const *)hk->title[0], w);
-            less_puts(TTY_RESET);
+            a_dup(u8 const, ttl, hk->title);
+            u8sFeedN(u8bIdle(less_scr), ttl, w);
+            scr_puts(TTY_RESET);
             continue;
         }
 
-        // Regular line: find extent (up to next '\n' or end of text)
         u32 textlen = (u32)$len(hk->text);
         u32 off = ln->off;
         u32 line_end = off;
@@ -344,66 +391,73 @@ static void LESSRender(LESSstate *st) {
         u32 w = line_end - off;
         if (w > st->cols) w = st->cols;
 
-        // Emit bytes with coloring
-        u8cp text = hk->text[0];
-        u8cp lits = $empty(hk->lits) ? NULL : hk->lits[0];
-        u32 lits_len = $empty(hk->lits) ? 0 : (u32)$len(hk->lits);
+        // Find tok cursor for this offset
+        int ntoks = (int)$len(hk->toks);
+        int tok_i = 0;
+        while (tok_i < ntoks &&
+               tok32Offset(hk->toks[0][tok_i]) <= off)
+            tok_i++;
 
-        // Track search matches within this line
+        int nhili = (int)$len(hk->hili);
+        int hili_i = 0;
+        while (hili_i < nhili &&
+               tok32Offset(hk->hili[0][hili_i]) <= off)
+            hili_i++;
+
         for (u32 j = 0; j < w; j++) {
             u32 pos = off + j;
-            u8 ch = text[pos];
-            u8 lit = (lits != NULL && pos < lits_len) ? lits[pos] : 0;
-            b8 in_search = less_search_at(st, text, textlen, pos);
-            less_emit_byte(ch, lit, in_search, st);
+            u8 ch = hk->text[0][pos];
+            // Advance cursors past pos
+            while (tok_i < ntoks &&
+                   tok32Offset(hk->toks[0][tok_i]) <= pos)
+                tok_i++;
+            u8 fg_tag = (tok_i < ntoks)
+                            ? tok32Tag(hk->toks[0][tok_i]) : 'S';
+            while (hili_i < nhili &&
+                   tok32Offset(hk->hili[0][hili_i]) <= pos)
+                hili_i++;
+            u8 bg_tag = (hili_i < nhili)
+                            ? tok32Tag(hk->hili[0][hili_i]) : 'A';
+            b8 in_search = less_search_at(st, hk->text, pos);
+            scr_emit_byte(ch, fg_tag, bg_tag, in_search);
         }
     }
 
-    // Clear any leftover lines below content
     for (u32 row = end - st->scroll + 1; row < st->rows; row++) {
-        less_goto((int)row, 1);
-        less_puts(TTY_ERASE_LINE);
+        scr_goto((int)row, 1);
+        scr_puts(TTY_ERASE_LINE);
     }
 
-    // Status bar on last line
-    less_goto(st->rows, 1);
-    less_puts(TTY_INVERSE);
-    less_puts(TTY_ERASE_LINE);
+    LESSStatusBar(st);
+    LESSScreenFlush();
+}
 
-    // Find current hunk title for status
-    char status[512];
+static void LESSStatusBar(LESSstate *st) {
+    scr_goto(st->rows, 1);
+    scr_puts(TTY_INVERSE TTY_ERASE_LINE);
+
     u32 cur_hunk = 0;
     if (st->scroll < st->nlines)
         cur_hunk = st->lines[st->scroll].hunk;
 
-    // Count logical line from start of this hunk
-    u32 hunk_line = 0;
-    for (u32 i = 0; i < st->scroll && i < st->nlines; i++) {
-        if (st->lines[i].hunk == cur_hunk &&
-            st->lines[i].off != LESS_TITLE_LINE)
-            hunk_line++;
-    }
-
     LESShunk const *ch = &st->hunks[cur_hunk];
+    // Build status text into idle space, snprintf is fine for one-off
+    u8sp out = u8bIdle(less_scr);
     int slen;
     if (st->search_len > 0) {
-        slen = snprintf(status, sizeof(status),
+        slen = snprintf((char *)out[0], $len(out),
                         " %.*s  line %u/%u  [/%.*s]",
                         (int)$len(ch->title), (char *)ch->title[0],
                         st->scroll + 1, st->nlines,
                         (int)st->search_len, st->search);
     } else {
-        slen = snprintf(status, sizeof(status),
+        slen = snprintf((char *)out[0], $len(out),
                         " %.*s  line %u/%u",
                         (int)$len(ch->title), (char *)ch->title[0],
                         st->scroll + 1, st->nlines);
     }
-    if (slen < 0) slen = 0;
-    u32 sw = (u32)slen < st->cols ? (u32)slen : st->cols;
-    less_write(status, sw);
-    for (u32 j = sw; j < st->cols; j++)
-        less_write(" ", 1);
-    less_puts(TTY_RESET);
+    if (slen > 0) u8sFed(out, (size_t)slen);
+    scr_puts(TTY_RESET);
 }
 
 // --- Search ---
@@ -434,7 +488,7 @@ static u32 LESSSearchNext(LESSstate *st, u32 from, int direction) {
         if (w >= st->search_len) {
             u32 limit = w - st->search_len + 1;
             for (u32 j = 0; j < limit; j++) {
-                if (memcmp(hk->text[0] + off + j, st->search,
+                if (memcmp(&hk->text[0][off + j], st->search,
                            st->search_len) == 0)
                     return i;
             }
@@ -452,8 +506,10 @@ static void LESSReadSearch(LESSstate *st) {
         less_goto(st->rows, 1);
         less_puts(TTY_INVERSE TTY_ERASE_LINE);
         less_puts(" /");
-        if (st->search_len > 0)
-            less_write(st->search, st->search_len);
+        if (st->search_len > 0) {
+            u8cs srch = {(u8cp)st->search, (u8cp)st->search + st->search_len};
+            less_write(srch);
+        }
         less_puts(TTY_RESET);
 
         u8 ch = 0;
@@ -474,74 +530,120 @@ static void LESSReadSearch(LESSstate *st) {
     }
 }
 
+// Read line number from user (displayed in status bar)
+static void LESSReadGoto(LESSstate *st) {
+    char buf[32] = {};
+    u32 len = 0;
+
+    for (;;) {
+        less_goto(st->rows, 1);
+        less_puts(TTY_INVERSE TTY_ERASE_LINE);
+        less_puts(" :");
+        if (len > 0) {
+            u8cs bs = {(u8cp)buf, (u8cp)buf + len};
+            less_write(bs);
+        }
+        less_puts(TTY_RESET);
+
+        u8 ch = 0;
+        ssize_t n = read(STDIN_FILENO, &ch, 1);
+        if (n <= 0) continue;
+        if (ch == '\n' || ch == '\r') break;
+        if (ch == 27) { len = 0; break; }
+        if (ch == 127 || ch == 8) {
+            if (len > 0) len--;
+            continue;
+        }
+        if (ch >= '0' && ch <= '9' && len < sizeof(buf) - 1)
+            buf[len++] = (char)ch;
+    }
+
+    if (len > 0) {
+        buf[len] = 0;
+        u32 target = (u32)atoi(buf);
+        if (target > 0) target--;  // 1-based to 0-based
+        if (target >= st->nlines) target = st->nlines > 0 ? st->nlines - 1 : 0;
+        st->scroll = target;
+    }
+}
+
 // --- Fallback: plain output (when piped) ---
 
 static ok64 LESSPlain(LESShunk const *hunks, u32 nhunks) {
     sane(hunks != NULL);
+    call(LESSScreenInit);
     for (u32 h = 0; h < nhunks; h++) {
+        u8bReset(less_scr);
         if (!$empty(hunks[h].title)) {
-            if (CAPO_COLOR)
-                fprintf(stdout, LESS_TITLE_COLOR "%.*s" TTY_RESET "\n",
-                        (int)$len(hunks[h].title), (char *)hunks[h].title[0]);
-            else
-                fprintf(stdout, "%.*s\n",
-                        (int)$len(hunks[h].title), (char *)hunks[h].title[0]);
+            if (CAPO_COLOR) scr_puts(LESS_TITLE_COLOR);
+            u8bFeed(less_scr, hunks[h].title);
+            if (CAPO_COLOR) scr_puts(TTY_RESET);
+            u8sFeed1(u8bIdle(less_scr), '\n');
         }
         if (!$empty(hunks[h].text)) {
-            u8cp text = hunks[h].text[0];
-            u8cp lits = $empty(hunks[h].lits) ? NULL : hunks[h].lits[0];
             u32 tlen = (u32)$len(hunks[h].text);
-            u32 llen = $empty(hunks[h].lits) ? 0 : (u32)$len(hunks[h].lits);
-            u32 i = 0;
-            int prev_fg = 0;
-            int prev_bg = 0;
-            b8 prev_bold = NO;
-            while (i < tlen) {
-                u8 lit = (lits != NULL && i < llen) ? lits[i] : 0;
-                b8 bold = NO;
-                int fg = LESSTagColor(lit & LESS_TAG, &bold);
-                int bg = 0;
-                if (lit & LESS_INS) bg = 157;
-                else if (lit & LESS_DEL) bg = 217;
-                if (fg != prev_fg || bg != prev_bg || bold != prev_bold) {
-                    if (prev_fg != 0 || prev_bg != 0 || prev_bold)
-                        fputs(TTY_RESET, stdout);
-                    if (bold && fg != 0 && bg != 0)
-                        fprintf(stdout, "\033[1;%d;48;5;%dm", fg, bg);
-                    else if (bold && fg != 0)
-                        fprintf(stdout, "\033[1;%dm", fg);
-                    else if (bold && bg != 0)
-                        fprintf(stdout, "\033[1;48;5;%dm", bg);
-                    else if (bold)
-                        fputs(TTY_BOLD, stdout);
-                    else if (fg != 0 && bg != 0)
-                        fprintf(stdout, "\033[%d;48;5;%dm", fg, bg);
-                    else if (fg != 0)
-                        fprintf(stdout, "\033[%dm", fg);
-                    else if (bg != 0)
-                        fprintf(stdout, "\033[48;5;%dm", bg);
-                    prev_fg = fg;
-                    prev_bg = bg;
-                    prev_bold = bold;
+            if (!CAPO_COLOR) {
+                // No colors: plain text
+                u8bFeed(less_scr, hunks[h].text);
+            } else {
+                int ntoks = (int)$len(hunks[h].toks);
+                int nhili = (int)$len(hunks[h].hili);
+                int tok_i = 0, hili_i = 0;
+                int prev_fg = 0;
+                int prev_bg = 0;
+                b8 prev_bold = NO;
+                for (u32 i = 0; i < tlen; i++) {
+                    // Advance tok cursor
+                    while (tok_i < ntoks &&
+                           tok32Offset(hunks[h].toks[0][tok_i]) <= i)
+                        tok_i++;
+                    u8 fg_tag = (tok_i < ntoks)
+                                    ? tok32Tag(hunks[h].toks[0][tok_i])
+                                    : 'S';
+                    // Advance hili cursor
+                    while (hili_i < nhili &&
+                           tok32Offset(hunks[h].hili[0][hili_i]) <= i)
+                        hili_i++;
+                    u8 bg_tag = (hili_i < nhili)
+                                    ? tok32Tag(hunks[h].hili[0][hili_i])
+                                    : 'A';
+                    b8 bold = NO;
+                    int fg = LESSTagColor(fg_tag, &bold);
+                    int bg = 0;
+                    if (bg_tag == 'I') bg = 157;
+                    else if (bg_tag == 'D') bg = 217;
+                    u8sp out = u8bIdle(less_scr);
+                    if (fg != prev_fg || bg != prev_bg ||
+                        bold != prev_bold) {
+                        if (prev_fg != 0 || prev_bg != 0 || prev_bold)
+                            escfeed(out, 0);  // reset
+                        if (bold) escfeed(out, BOLD);
+                        if (fg != 0) escfeed(out, (u8)fg);
+                        if (bg != 0) escfeedBG256(out, (u8)bg);
+                        prev_fg = fg;
+                        prev_bg = bg;
+                        prev_bold = bold;
+                    }
+                    u8sFeed1(out, hunks[h].text[0][i]);
+                    if (hunks[h].text[0][i] == '\n' &&
+                        (prev_fg != 0 || prev_bg != 0 || prev_bold)) {
+                        escfeed(out, 0);  // reset at EOL
+                        prev_fg = 0;
+                        prev_bg = 0;
+                        prev_bold = NO;
+                    }
                 }
-                fputc(text[i], stdout);
-                if (text[i] == '\n' && (prev_fg != 0 || prev_bg != 0 || prev_bold)) {
-                    fputs(TTY_RESET, stdout);
-                    prev_fg = 0;
-                    prev_bg = 0;
-                    prev_bold = NO;
-                }
-                i++;
+                if (prev_fg != 0 || prev_bg != 0 || prev_bold)
+                    escfeed(u8bIdle(less_scr), 0);
             }
-            if (prev_fg != 0 || prev_bg != 0 || prev_bold)
-                fputs(TTY_RESET, stdout);
             // Trailing newline if text doesn't end with one
-            if (tlen > 0 && text[tlen - 1] != '\n')
-                fputc('\n', stdout);
-            // Blank line between titled sections
+            if (tlen > 0 && hunks[h].text[0][tlen - 1] != '\n')
+                u8sFeed1(u8bIdle(less_scr), '\n');
             if (h + 1 >= nhunks || !$empty(hunks[h + 1].title))
-                fputc('\n', stdout);
+                u8sFeed1(u8bIdle(less_scr), '\n');
         }
+        // Flush per hunk (hunks can be large)
+        LESSScreenFlush();
     }
     done;
 }
@@ -568,6 +670,7 @@ ok64 LESSRun(LESShunk const *hunks, u32 nhunks) {
 
     LESSGetSize(&st);
     call(LESSBuildIndex, &st);
+    call(LESSScreenInit);
     call(LESSRawEnable, &st);
 
     // Install SIGWINCH handler
@@ -581,6 +684,9 @@ ok64 LESSRun(LESShunk const *hunks, u32 nhunks) {
 
     // Alternate screen buffer
     less_puts("\033[?1049h");
+
+    // Start at line 1: skip the first hunk title (shown in status bar)
+    if (st.nlines > 1) st.scroll = 1;
 
     LESSRender(&st);
 
@@ -634,6 +740,9 @@ ok64 LESSRun(LESShunk const *hunks, u32 nhunks) {
                 st.scroll = st.nlines - page;
             else
                 st.scroll = 0;
+            LESSRender(&st);
+        } else if (ch == ':') {
+            LESSReadGoto(&st);
             LESSRender(&st);
         } else if (ch == '/') {
             LESSReadSearch(&st);
@@ -731,7 +840,7 @@ ok64 LESSRun(LESShunk const *hunks, u32 nhunks) {
 
 // --- Pipe pager: incremental display of TLV hunks from a pipe ---
 
-#define PIPE_RDBUF_SIZE (1UL << 22)  // 4MB read buffer
+#define PIPE_RDBUF_INIT (1UL << 22)  // 4MB initial read buffer
 #define PIPE_MAX_LINES  (1UL << 20)  // 1M lines max
 
 // Count lines for hunks [from..nhunks), append to lines array.
@@ -745,14 +854,12 @@ static u32 LESSExtendIndex(LESSline *lines, u32 nlines,
             if (li < PIPE_MAX_LINES)
                 lines[li++] = (LESSline){h, LESS_TITLE_LINE};
         }
-        u8cp base = hunks[h].text[0];
-        u8cp e = hunks[h].text[1];
-        if (base == e) continue;
-        u32 tlen = (u32)(e - base);
+        u32 tlen = (u32)$len(hunks[h].text);
+        if (tlen == 0) continue;
         if (li < PIPE_MAX_LINES)
             lines[li++] = (LESSline){h, 0};
         for (u32 i = 0; i < tlen; i++) {
-            if (base[i] == '\n' && i + 1 < tlen) {
+            if (hunks[h].text[0][i] == '\n' && i + 1 < tlen) {
                 if (li < PIPE_MAX_LINES)
                     lines[li++] = (LESSline){h, i + 1};
             }
@@ -766,17 +873,14 @@ ok64 LESSPipeRun(int pipefd) {
 
     call(LESSArenaInit);
 
-    // Allocate read buffer (mmap anonymous)
-    u8p rdbuf = (u8p)mmap(NULL, PIPE_RDBUF_SIZE,
-                           PROT_READ | PROT_WRITE,
-                           MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-    test(rdbuf != MAP_FAILED, NOROOM);
-    u32 rdlen = 0;  // bytes accumulated in rdbuf
+    // Allocate growable read buffer
+    Bu8 rdbuf = {};
+    call(u8bMap, rdbuf, PIPE_RDBUF_INIT);
 
     // Allocate line index
     LESSline *lines = (LESSline *)malloc(PIPE_MAX_LINES * sizeof(LESSline));
     if (lines == NULL) {
-        munmap(rdbuf, PIPE_RDBUF_SIZE);
+        u8bUnMap(rdbuf);
         return NOROOM;
     }
 
@@ -788,6 +892,7 @@ ok64 LESSPipeRun(int pipefd) {
     st.lines = lines;
     st.nlines = 0;
 
+    call(LESSScreenInit);
     call(LESSRawEnable, &st);
 
     struct sigaction sa = {}, old_sa = {};
@@ -801,6 +906,7 @@ ok64 LESSPipeRun(int pipefd) {
     b8 pipe_eof = NO;
     b8 quit = NO;
     u32 indexed_nhunks = 0;
+    u32 rendered_nhunks = 0;
 
     while (!quit) {
         if (less_resized) {
@@ -819,43 +925,56 @@ ok64 LESSPipeRun(int pipefd) {
             nfds = 2;
         }
 
-        int pr = poll(fds, (nfds_t)nfds, 100);
-        (void)pr;
+        int pr = poll(fds, (nfds_t)nfds, 16);
 
         b8 changed = NO;
+        b8 key_pressed = NO;
 
         // Read from pipe
         if (!pipe_eof && (fds[1].revents & (POLLIN | POLLHUP))) {
-            u32 space = PIPE_RDBUF_SIZE - rdlen;
+            size_t space = u8bIdleLen(rdbuf);
             if (space > 0) {
-                ssize_t nr = read(pipefd, rdbuf + rdlen, space);
+                ssize_t nr = read(pipefd, u8bIdleHead(rdbuf), space);
                 if (nr > 0) {
-                    rdlen += (u32)nr;
+                    u8bFed(rdbuf, (size_t)nr);
                 } else if (nr == 0) {
                     pipe_eof = YES;
                 }
             }
 
             // Drain complete TLV records
-            u8cs from = {rdbuf, rdbuf + rdlen};
+            a_dup(u8 const, from, u8bDataC(rdbuf));
             while (!$empty(from) && less_nhunks < LESS_MAX_HUNKS) {
-                u8cs save = {from[0], from[1]};
+                a_dup(u8 const, save, from);
                 HUNKhunk h = {};
                 ok64 o = HUNKu8sDrain(from, &h);
                 if (o != OK) {
-                    // Incomplete record — restore and wait for more
                     $mv(from, save);
+                    // Buffer full with incomplete record — grow
+                    if ($len(from) >= u8bIdleLen(rdbuf)) {
+                        // Compact first, then grow
+                        size_t eaten = u8bDataLen(rdbuf) - $len(from);
+                        if (eaten > 0) {
+                            u8bUsed(rdbuf, eaten);
+                            u8bShift(rdbuf, 0);
+                        }
+                        ok64 ro = u8bReMap(rdbuf, u8bSize(rdbuf) * 2);
+                        if (ro == OK) {
+                            $mv(from, u8bDataC(rdbuf));
+                            continue;  // retry drain
+                        }
+                    }
                     break;
                 }
                 // Copy fields into arena
                 LESShunk *hk = &less_hunks[less_nhunks];
-                memset(hk, 0, sizeof(*hk));
+                *hk = (LESShunk){};
                 if (!$empty(h.title)) {
                     u8p tp = LESSArenaWrite(h.title[0],
                                             (size_t)$len(h.title));
                     if (tp) {
                         hk->title[0] = tp;
-                        hk->title[1] = tp + $len(h.title);
+                        hk->title[1] = u8bIdleHead(less_arena);
                     }
                 }
                 if (!$empty(h.text)) {
@@ -863,40 +982,36 @@ ok64 LESSPipeRun(int pipefd) {
                                             (size_t)$len(h.text));
                     if (xp) {
                         hk->text[0] = xp;
-                        hk->text[1] = xp + $len(h.text);
+                        hk->text[1] = u8bIdleHead(less_arena);
+                    }
+                }
+                if (!$empty(h.toks)) {
+                    u8p tkp = LESSArenaWrite(h.toks[0],
+                                  (size_t)((u8cp)h.toks[1] -
+                                           (u8cp)h.toks[0]));
+                    if (tkp) {
+                        hk->toks[0] = (u32cp)tkp;
+                        hk->toks[1] = (u32cp)u8bIdleHead(less_arena);
                     }
                 }
                 if (!$empty(h.hili)) {
-                    u8p lp = LESSArenaWrite(h.hili[0],
-                                            (size_t)$len(h.hili));
-                    if (lp) {
-                        hk->lits[0] = lp;
-                        hk->lits[1] = lp + $len(h.hili);
+                    u8p hp = LESSArenaWrite(h.hili[0],
+                                 (size_t)((u8cp)h.hili[1] -
+                                          (u8cp)h.hili[0]));
+                    if (hp) {
+                        hk->hili[0] = (u32cp)hp;
+                        hk->hili[1] = (u32cp)u8bIdleHead(less_arena);
                     }
                 }
                 less_nhunks++;
-                changed = YES;
             }
 
-            // Shift remaining bytes to front
-            u32 consumed = (u32)(from[0] - rdbuf);
-            if (consumed > 0 && consumed < rdlen) {
-                memmove(rdbuf, rdbuf + consumed, rdlen - consumed);
-                rdlen -= consumed;
-            } else if (consumed >= rdlen) {
-                rdlen = 0;
+            // Compact: shift remaining to buffer start
+            size_t consumed = u8bDataLen(rdbuf) - $len(from);
+            if (consumed > 0) {
+                u8bUsed(rdbuf, consumed);
+                u8bShift(rdbuf, 0);
             }
-        }
-
-        // Extend line index for new hunks
-        if (less_nhunks > indexed_nhunks) {
-            st.nlines = LESSExtendIndex(lines, st.nlines,
-                                         less_hunks,
-                                         indexed_nhunks,
-                                         less_nhunks);
-            st.nhunks = less_nhunks;
-            indexed_nhunks = less_nhunks;
-            changed = YES;
         }
 
         // Handle keyboard input
@@ -904,6 +1019,7 @@ ok64 LESSPipeRun(int pipefd) {
             u8 ch = 0;
             ssize_t nr = read(STDIN_FILENO, &ch, 1);
             if (nr > 0) {
+                key_pressed = YES;
                 u32 page = (u32)(st.rows - 1);
                 if (ch == 'q' || ch == 'Q') {
                     quit = YES;
@@ -926,6 +1042,9 @@ ok64 LESSPipeRun(int pipefd) {
                 } else if (ch == 'G') {
                     if (st.nlines > page) st.scroll = st.nlines - page;
                     else st.scroll = 0;
+                    changed = YES;
+                } else if (ch == ':') {
+                    LESSReadGoto(&st);
                     changed = YES;
                 } else if (ch == '/') {
                     LESSReadSearch(&st);
@@ -981,7 +1100,31 @@ ok64 LESSPipeRun(int pipefd) {
             }
         }
 
-        if (changed && st.nlines > 0)
+        // Extend line index for any new hunks
+        if (less_nhunks > indexed_nhunks) {
+            st.nlines = LESSExtendIndex(lines, st.nlines,
+                                         less_hunks,
+                                         indexed_nhunks,
+                                         less_nhunks);
+            st.nhunks = less_nhunks;
+            indexed_nhunks = less_nhunks;
+        }
+        // Render when: key pressed, or new hunks extend the visible area
+        b8 pipe_idle = (pr == 0) || pipe_eof;
+        if (indexed_nhunks > rendered_nhunks && pipe_idle) {
+            // Skip first title line on first render
+            if (rendered_nhunks == 0 && st.nlines > 1) st.scroll = 1;
+            u32 visible_end = st.scroll + (u32)(st.rows - 1);
+            if (st.nlines <= visible_end || rendered_nhunks == 0)
+                changed = YES;
+            else if (st.nlines > 0) {
+                u8bReset(less_scr);
+                LESSStatusBar(&st);
+                LESSScreenFlush();
+            }
+            rendered_nhunks = indexed_nhunks;
+        }
+        if ((changed || key_pressed) && st.nlines > 0)
             LESSRender(&st);
     }
 
@@ -992,7 +1135,7 @@ ok64 LESSPipeRun(int pipefd) {
     sigaction(SIGWINCH, &old_sa, NULL);
 
     free(lines);
-    munmap(rdbuf, PIPE_RDBUF_SIZE);
+    u8bUnMap(rdbuf);
     LESSArenaCleanup();
 
     done;

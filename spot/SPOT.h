@@ -1,7 +1,6 @@
 #ifndef LIBRDX_SPOT_H
 #define LIBRDX_SPOT_H
 
-#include "json/BASON.h"
 #include "tok/TOK.h"
 
 con ok64 SPOTEND = 0x1c65874e5cd;
