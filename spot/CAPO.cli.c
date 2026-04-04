@@ -9,6 +9,7 @@
 #include "abc/FILE.h"
 #include "abc/PATH.h"
 #include "abc/PRO.h"
+#include "spot/INST.h"
 #include "spot/LESS.h"
 
 // Usage:
@@ -50,11 +51,12 @@ static void SPOTUsage(void) {
         "  spot --merge base ours theirs      token-level 3-way merge\n"
         "  spot --merge base ours theirs -o f merge to file\n"
         "  spot -f ...                        streaming pager (fork mode)\n"
+        "  spot -n | --install                install as git diff/merge driver\n"
         "\n"
         "Patterns: single-letter placeholders (a-z match one token/group,\n"
         "A-Z match multiple tokens). Two spaces = skip gap.\n"
         "\n"
-        "Git integration:\n"
+        "Git integration (manual, or use spot -n):\n"
         "  git config diff.spot.command \"spot --gitdiff\"\n"
         "  git config merge.spot.driver \"spot --merge %%O %%A %%B -o %%A\"\n"
     );
@@ -104,6 +106,7 @@ ok64 capocli() {
     u32 nfork = 0, proc = UINT32_MAX;
     b8 is_hook = NO;
     b8 do_index = NO;
+    b8 do_install = NO;
     b8 do_merge = NO;
     b8 do_diff = NO;
     b8 do_gitdiff = NO;
@@ -148,6 +151,8 @@ ok64 capocli() {
         } else if (argeq(a, "-o") && i + 1 < argn) {
             i++;
             $mv(merge_out, $arg(i));
+        } else if (argeq(a, "-n") || argeq(a, "--install")) {
+            do_install = YES;
         } else if (argeq(a, "-i") || argeq(a, "--index")) {
             do_index = YES;
         } else if (argeq(a, "--hook")) {
@@ -225,7 +230,9 @@ ok64 capocli() {
         }
     }
 
-    if (do_gitdiff) {
+    if (do_install) {
+        call(INSTInstall, reporoot);
+    } else if (do_gitdiff) {
         // git diff driver: path old-file old-hex old-mode new-file new-hex new-mode
         if (ntrail < 7) {
             fprintf(stderr, "spot: --gitdiff expects 7 args from git\n");
