@@ -169,8 +169,9 @@ fun ok64 PATHu8bTerm(path8b p) { return PATHu8gTerm(PATHu8gIn(p)); }
 fun ok64 PATHu8bFeed(path8b p, u8csc s) {
     return PATHu8gFeed(PATHu8gIn(p), s);
 }
-fun ok64 PATHu8bPush(path8b p, u8cs seg) {
-    return PATHu8gPush(PATHu8gIn(p), seg);
+fun ok64 PATHu8bPush(path8b p, u8csc seg) {
+    u8cs s = {seg[0], seg[1]};
+    return PATHu8gPush(PATHu8gIn(p), s);
 }
 fun ok64 PATHu8bPop(path8b p) { return PATHu8gPop(PATHu8gIn(p)); }
 fun ok64 PATHu8bDup(path8b into, path8b from) {
@@ -190,8 +191,9 @@ fun void PATHu8bExt(u8csp out, path8b buf) {
     PATHu8sExt(out, u8bDataC(buf));
 }
 
-// Feed first slice as base path, push rest as segments
-fun ok64 PATHu8bBuildN(path8b p, u8csp *slices) {
+// Feed first slice as base path, push rest as segments.
+// u8c*const* accepts both u8cs (u8c**) and u8csc (u8c*const*) args.
+fun ok64 PATHu8bBuildN(path8b p, u8c *const **slices) {
     if (!*slices) return OK;
     ok64 o = PATHu8bFeed(p, *slices);
     if (o != OK) return o;
@@ -212,7 +214,7 @@ fun ok64 PATHu8bBuildN(path8b p, u8csp *slices) {
     a_pad(u8, n, FILE_PATH_MAX_LEN);                        \
     PATHu8bTerm(n);                                          \
     __VA_OPT__({                                             \
-        u8csp _sl_##n[] = {__VA_ARGS__, NULL};               \
+        u8c *const *_sl_##n[] = {__VA_ARGS__, NULL};          \
         PATHu8bBuildN(n, _sl_##n);                           \
     })
 
@@ -223,7 +225,7 @@ fun ok64 PATHu8bBuildN(path8b p, u8csp *slices) {
     u8sFeed1(n##_idle, '/');                                 \
     PATHu8bTerm(n);                                          \
     __VA_OPT__({                                             \
-        u8csp _sl_##n[] = {__VA_ARGS__, NULL};               \
+        u8c *const *_sl_##n[] = {__VA_ARGS__, NULL};         \
         PATHu8bBuildN(n, _sl_##n);                           \
     })
 

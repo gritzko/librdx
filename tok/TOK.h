@@ -23,7 +23,7 @@ fun u32  tok32Pack(u8 tag, u32 off) {
 }
 
 // Get source slice for token i (tokens are contiguous end offsets).
-fun void tok32Val(u8cs out, tok32cs toks, u8cp base, int i) {
+fun void tok32Val(u8cs out, tok32csc toks, u8cp base, int i) {
     u32 lo = (i > 0) ? tok32Offset(toks[0][i - 1]) : 0;
     u32 hi = tok32Offset(toks[0][i]);
     out[0] = base + lo;

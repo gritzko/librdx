@@ -231,7 +231,8 @@ static ok64 CAPOListIdxCB(voidp arg, path8p path) {
     CAPOListIdxCtx *ctx = (CAPOListIdxCtx *)arg;
     if (ctx->count >= ctx->maxn) return OK;
     u8cs base = {};
-    PATHu8gBase(base, (u8c *const *)path);
+    u8csc pslice = {path[0], path[1]};
+    PATHu8sBase(base, pslice);
     size_t nlen = (size_t)$len(base);
     if (nlen < 5 || nlen > 63) return OK;
     if (memcmp(base[1] - 4, CAPO_IDX_EXT, 4) != 0) return OK;

@@ -9,17 +9,17 @@
 #include "rapidhash.h"
 
 // Standard rapidhash - balanced speed and quality
-fun u64 RAPHash(u8cs data) {
+fun u64 RAPHash(u8csc data) {
     return rapidhash(*data, $len(data));
 }
 
-fun u64 RAPHashSeed(u8cs data, u64 seed) {
+fun u64 RAPHashSeed(u8csc data, u64 seed) {
     return rapidhash_withSeed(*data, $len(data), seed);
 }
 
 // Micro variant - HPC/server, cache efficient, ~140 instructions
 // Faster for sizes up to 512 bytes, 15-20% slower above 1kb
-fun u64 RAPMicro(u8cs data) {
+fun u64 RAPMicro(u8csc data) {
     return rapidhashMicro(*data, $len(data));
 }
 

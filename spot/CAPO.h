@@ -45,7 +45,7 @@ fun u64 CAPOTriPack(u8cs tri) {
 fun u64 CAPOTriOf(u64 entry) { return entry & 0xFFFFFFFF00000000ULL; }
 
 // Path hash: lower 32 bits of RAPHash
-fun u32 CAPOPathHash(u8cs path) { return (u32)RAPHash(path); }
+fun u32 CAPOPathHash(u8csc path) { return (u32)RAPHash(path); }
 
 // Pack trigram + path hash into u64
 fun u64 CAPOEntry(u8cs tri, u8cs path) {

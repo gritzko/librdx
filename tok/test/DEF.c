@@ -43,11 +43,12 @@ ok64 def_test(u8csc src, u8csc ext, u8s out) {
 
     // collect tags of non-whitespace tokens
     u32 ntoks = (u32)$len(ts);
+    u32 const *tsc[2] = {ts[0], ts[1]};
     for (u32 i = 0; i < ntoks; i++) {
-        u32 tok = ts[0][i];
+        u32 tok = tsc[0][i];
         u8 tag = tok32Tag(tok);
         u8cs val;
-        tok32Val(val, ts, src[0], i);
+        tok32Val(val, tsc, src[0], i);
         // skip whitespace
         b8 ws = YES;
         for (u8c const *p = val[0]; p < val[1]; p++)
