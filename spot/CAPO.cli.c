@@ -51,7 +51,7 @@ static void SPOTUsage(void) {
         "  spot --gitdiff                     git external diff driver\n"
         "  spot --merge base ours theirs      token-level 3-way merge\n"
         "  spot --merge base ours theirs -o f merge to file\n"
-        "  spot -f ...                        streaming pager (fork mode)\n"
+        "  spot -F ...                        disable streaming pager (no-fork mode)\n"
         "  spot -n | --install                install as git diff/merge driver\n"
         "\n"
         "Patterns: single-letter placeholders (a-z match one token/group,\n"
@@ -112,7 +112,7 @@ ok64 capocli() {
     b8 do_merge = NO;
     b8 do_diff = NO;
     b8 do_gitdiff = NO;
-    b8 pipe_mode = NO;
+    b8 pipe_mode = isatty(STDOUT_FILENO) ? YES : NO;
     u8c *merge_out[2] = {};
     u8c *spot_ndl[2] = {};
     u8c *spot_rep[2] = {};
@@ -198,8 +198,8 @@ ok64 capocli() {
             u8c *v[2] = {};
             $mv(v, $arg(i));
             grep_ctx = (u32)atoi((char *)v[0]);
-        } else if (argeq(a, "-f")) {
-            pipe_mode = YES;
+        } else if (argeq(a, "-F")) {
+            pipe_mode = NO;
         } else {
             if (ntrail < 16) { $mv(trail[ntrail], a); ntrail++; }
         }

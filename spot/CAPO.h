@@ -30,7 +30,6 @@ extern b8 CAPO_TERM;   // stderr is a terminal
 #define CAPO_SCRATCH_LEN (1UL << 27)  // 128M u64 entries = 1GB
 #define CAPO_FLUSH_AT    (1UL << 24)  // flush at 16M entries (~128MB)
 #define CAPO_MAX_SHAS 16
-#define CAPO_SYM_THRESH 16  // symbol filter kicks in above this many candidates
 
 #define CAPOTriChar(c) (RON64_REV[(u8)(c)] != 0xff)
 

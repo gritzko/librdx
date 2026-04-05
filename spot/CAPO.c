@@ -1009,13 +1009,13 @@ ok64 CAPOCollectPaths(u64css iter, u64 tri_prefix, u32g hashes) {
 static u32 CAPOHITHash(u64css iter, u64 prefix) {
     if ($empty(iter)) return UINT32_MAX;
     u64 entry = *(*iter[0])[0];
-    if (CAPOTriOf(entry) != prefix) return UINT32_MAX;
+    if (CAPOTriOf(entry) != CAPOTriOf(prefix)) return UINT32_MAX;
     return (u32)entry;
 }
 
 // Advance a prefixed HIT past the given path hash value.
 static void CAPOHITSkip(u64css iter, u64 prefix, u32 val) {
-    while (!$empty(iter) && CAPOTriOf(*(*iter[0])[0]) == prefix
+    while (!$empty(iter) && CAPOTriOf(*(*iter[0])[0]) == CAPOTriOf(prefix)
            && (u32)(*(*iter[0])[0]) == val)
         HITu64Step(iter);
 }
@@ -1042,33 +1042,6 @@ void CAPOFilterInPlace(Bu32 hashbuf, u64css iter, u64 prefix) {
     u32bShed(hashbuf, (size_t)(data[1] - w));
 }
 
-// In-place intersect hashbuf against the UNION of two prefix HITs.
-// Keeps hashes present in hashbuf AND in (iter_a ∪ iter_b).
-void CAPOFilterInPlaceUnion(Bu32 hashbuf,
-                             u64css ia, u64 pa,
-                             u64css ib, u64 pb) {
-    u32s data = {};
-    $mv(data, u32bData(hashbuf));
-    u32 *r = data[0], *w = data[0];
-    u32 ha = CAPOHITHash(ia, pa);
-    u32 hb = CAPOHITHash(ib, pb);
-
-    while (r < data[1] && (ha != UINT32_MAX || hb != UINT32_MAX)) {
-        u32 minh = (ha < hb) ? ha : hb;  // min of union stream
-        if (*r < minh) { r++; continue; }
-        if (*r > minh) {
-            if (ha == minh) { CAPOHITSkip(ia, pa, ha); ha = CAPOHITHash(ia, pa); }
-            if (hb == minh) { CAPOHITSkip(ib, pb, hb); hb = CAPOHITHash(ib, pb); }
-            continue;
-        }
-        *w++ = *r;
-        u32 matched = *r;
-        while (r < data[1] && *r == matched) r++;
-        if (ha == matched) { CAPOHITSkip(ia, pa, ha); ha = CAPOHITHash(ia, pa); }
-        if (hb == matched) { CAPOHITSkip(ib, pb, hb); hb = CAPOHITHash(ib, pb); }
-    }
-    u32bShed(hashbuf, (size_t)(data[1] - w));
-}
 
 u32 CAPOIntersect(u32s a, u32csc b) {
     u32 na = (u32)$len(a), nb = (u32)$len(b);
@@ -1472,46 +1445,6 @@ ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot,
             }
         }
 
-        // Symbol filtering: intersect with identifier mentions
-        if (nidxfiles > 0 && has_trigrams && u32bDataLen(hashbuf1) > CAPO_SYM_THRESH) {
-            Bu32 ndl_toks = {};
-            size_t ndl_maxlen = $len(needle) + 1;
-            if (u32bMap(ndl_toks, ndl_maxlen) == OK) {
-                if (SPOTTokenize(ndl_toks, needle, ext) == OK) {
-                    u32cp ntd = u32bDataHead(ndl_toks);
-                    u32cp nti = u32bIdleHead(ndl_toks);
-                    u32cs nts = {(u32cp)ntd, (u32cp)nti};
-                    int nn = (int)$len(nts);
-                    for (int i = 0; i < nn && u32bDataLen(hashbuf1) > 0; i++) {
-                        u8 tag = tok32Tag(nts[0][i]);
-                        if (tag != 'S') continue;
-                        u8cs val = {};
-                        tok32Val(val, nts, needle[0], i);
-                        if ($len(val) < 2) continue;
-                        u64 symkey = CAPOSymKey(val);
-
-                        // Filter in-place against MEN ∪ DEF
-                        u64 pfx_men = (IDX64_MEN << 62) | symkey;
-                        u64 pfx_def = (IDX64_DEF << 62) | symkey;
-                        u64cs sr_m[CAPO_MAX_LEVELS], sr_d[CAPO_MAX_LEVELS];
-                        for (u32 j = 0; j < nidxfiles; j++) {
-                            sr_m[j][0] = runs[j][0]; sr_m[j][1] = runs[j][1];
-                            sr_d[j][0] = runs[j][0]; sr_d[j][1] = runs[j][1];
-                        }
-                        u64css si_m = {sr_m, sr_m + nidxfiles};
-                        u64css si_d = {sr_d, sr_d + nidxfiles};
-                        HITu64Start(si_m);
-                        HITu64Start(si_d);
-                        HITu64Seek(si_m, &pfx_men);
-                        HITu64Seek(si_d, &pfx_def);
-                        u32sSort(u32bData(hashbuf1));
-                        CAPOFilterInPlaceUnion(hashbuf1,
-                                               si_m, pfx_men, si_d, pfx_def);
-                    }
-                }
-                u32bUnMap(ndl_toks);
-            }
-        }
 
         CAPOStackClose(mmaps, nidxfiles);
 
