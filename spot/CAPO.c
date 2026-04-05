@@ -345,9 +345,9 @@ ok64 CAPOCompact(u8csc dir) {
     size_t total = 0;
     for (u32 i = 0; i < nfiles; i++) total += $len(runs[i]);
 
-    u64 *buf = (u64 *)malloc(total * sizeof(u64));
-    test(buf != NULL, FAILSANITY);
-    u64s into = {buf, buf + total};
+    Bu64 cbuf = {};
+    call(u64bAlloc, cbuf, total);
+    u64s into = {cbuf[0], cbuf[3]};
 
     size_t n = $len(stack);
     size_t m = 1;
@@ -357,7 +357,7 @@ ok64 CAPOCompact(u8csc dir) {
         m++;
     }
     if (m < 2) {
-        free(buf);
+        u64bFree(cbuf);
         CAPOStackClose(mmaps, nfiles);
         done;
     }
@@ -383,7 +383,7 @@ ok64 CAPOCompact(u8csc dir) {
 
     u64 seqno = 0;
     call(CAPONextSeqno, &seqno, dir);
-    u64cs merged = {(u64cp)buf, (u64cp)(into[0])};
+    u64cs merged = {(u64cp)cbuf[0], (u64cp)(into[0])};
     call(CAPOIndexWrite, dir, merged, seqno);
 
     a_pad(u8, dpat, FILE_PATH_MAX_LEN);
@@ -431,7 +431,7 @@ ok64 CAPOCompact(u8csc dir) {
         unlinked++;
     }
 
-    free(buf);
+    u64bFree(cbuf);
     done;
 }
 

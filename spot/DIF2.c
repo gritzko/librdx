@@ -306,10 +306,11 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name,
         // Phase 1: scan EDL, track new-side line numbers.
         // For each change, record visible interval [lo, hi] as
         // a u32 pair: vis[2*i]=lo, vis[2*i+1]=hi.
+        Bu32 visbuf = {};
         u32 *vis = NULL;
         u32 nvis = 0;
-        if (nedl > 0)
-            vis = (u32 *)malloc(2 * nedl * sizeof(u32));
+        if (nedl > 0 && u32bAlloc(visbuf, 2 * nedl) == OK)
+            vis = visbuf[0];
         if (vis != NULL) {
             u64 sni = 0;
             u32 nl = 0;
@@ -767,7 +768,7 @@ ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name,
         #undef DIFF_START_HUNK
         #undef DIFF_COPY_LINE_PREFIX
 
-        if (vis != NULL) free(vis);
+        u32bFree(visbuf);
         u8bFree(mem);
     }
 

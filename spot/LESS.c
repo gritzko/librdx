@@ -162,20 +162,16 @@ static int LESSTagColor(u8 tag, b8 *bold) {
 
 // --- Line index ---
 // Maps line number -> (hunk index, byte offset within hunk text).
-// A "line" is a region ending at '\n' or at end of hunk text.
+// A "line" is range32: lo=hunk index, hi=byte offset within hunk text.
+// A title separator is stored as hunk index with hi=UINT32_MAX.
 
-typedef struct {
-    u32 hunk;   // hunk index
-    u32 off;    // byte offset within hunk->text
-} LESSline;
-
-// A title separator is stored as hunk index with off=UINT32_MAX
 #define LESS_TITLE_LINE UINT32_MAX
 
 typedef struct {
     LESShunk const *hunks;
     u32 nhunks;
-    LESSline *lines;   // line index array (malloc'd)
+    range32 *lines;    // line index array (heap buffer)
+    Brange32 linesbuf; // buffer owning lines memory
     u32 nlines;        // total line count
     u32 scroll;        // first visible line
     u16 rows, cols;    // terminal dimensions
@@ -248,20 +244,21 @@ static ok64 LESSBuildIndex(LESSstate *st) {
         if (st->hunks[h].text[0][tlen - 1] == '\n') total--;
     }
 
-    st->lines = (LESSline *)malloc(total * sizeof(LESSline));
-    test(st->lines != NULL, NOROOM);
+    ok64 lo = range32bAlloc(st->linesbuf, total);
+    if (lo != OK) fail(NOROOM);
+    st->lines = st->linesbuf[0];
 
     u32 li = 0;
     for (u32 h = 0; h < st->nhunks; h++) {
         if (!$empty(st->hunks[h].title)) {
-            st->lines[li++] = (LESSline){h, LESS_TITLE_LINE};
+            st->lines[li++] = (range32){h, LESS_TITLE_LINE};
         }
         u32 tlen = (u32)$len(st->hunks[h].text);
         if (tlen == 0) continue;
-        st->lines[li++] = (LESSline){h, 0};
+        st->lines[li++] = (range32){h, 0};
         for (u32 i = 0; i < tlen; i++) {
             if (st->hunks[h].text[0][i] == '\n' && i + 1 < tlen) {
-                st->lines[li++] = (LESSline){h, i + 1};
+                st->lines[li++] = (range32){h, i + 1};
             }
         }
     }
@@ -369,10 +366,10 @@ static void LESSRender(LESSstate *st) {
         scr_goto((int)(vi - st->scroll + 1), 1);
         scr_puts(TTY_ERASE_LINE);
 
-        LESSline *ln = &st->lines[vi];
-        LESShunk const *hk = &st->hunks[ln->hunk];
+        range32 *ln = &st->lines[vi];
+        LESShunk const *hk = &st->hunks[ln->lo];
 
-        if (ln->off == LESS_TITLE_LINE) {
+        if (ln->hi == LESS_TITLE_LINE) {
             scr_puts(LESS_TITLE_COLOR);
             u32 tlen = (u32)$len(hk->title);
             u32 w = tlen < st->cols ? tlen : st->cols;
@@ -383,7 +380,7 @@ static void LESSRender(LESSstate *st) {
         }
 
         u32 textlen = (u32)$len(hk->text);
-        u32 off = ln->off;
+        u32 off = ln->hi;
         u32 line_end = off;
         while (line_end < textlen && hk->text[0][line_end] != '\n')
             line_end++;
@@ -438,7 +435,7 @@ static void LESSStatusBar(LESSstate *st) {
 
     u32 cur_hunk = 0;
     if (st->scroll < st->nlines)
-        cur_hunk = st->lines[st->scroll].hunk;
+        cur_hunk = st->lines[st->scroll].lo;
 
     LESShunk const *ch = &st->hunks[cur_hunk];
     // Build status text into idle space, snprintf is fine for one-off
@@ -475,11 +472,11 @@ static u32 LESSSearchNext(LESSstate *st, u32 from, int direction) {
             if (i == 0) return UINT32_MAX;
             i--;
         }
-        LESSline *ln = &st->lines[i];
-        if (ln->off == LESS_TITLE_LINE) continue;
-        LESShunk const *hk = &st->hunks[ln->hunk];
+        range32 *ln = &st->lines[i];
+        if (ln->hi == LESS_TITLE_LINE) continue;
+        LESShunk const *hk = &st->hunks[ln->lo];
         u32 textlen = (u32)$len(hk->text);
-        u32 off = ln->off;
+        u32 off = ln->hi;
         u32 line_end = off;
         while (line_end < textlen && hk->text[0][line_end] != '\n')
             line_end++;
@@ -833,7 +830,7 @@ ok64 LESSRun(LESShunk const *hunks, u32 nhunks) {
     less_puts("\033[?25h");
     LESSRawDisable(&st);
     sigaction(SIGWINCH, &old_sa, NULL);
-    free(st.lines);
+    range32bFree(st.linesbuf);
 
     done;
 }
@@ -845,23 +842,23 @@ ok64 LESSRun(LESShunk const *hunks, u32 nhunks) {
 
 // Count lines for hunks [from..nhunks), append to lines array.
 // Returns new total nlines.
-static u32 LESSExtendIndex(LESSline *lines, u32 nlines,
+static u32 LESSExtendIndex(range32 *lines, u32 nlines,
                             LESShunk const *hunks,
                             u32 from, u32 nhunks) {
     u32 li = nlines;
     for (u32 h = from; h < nhunks; h++) {
         if (!$empty(hunks[h].title)) {
             if (li < PIPE_MAX_LINES)
-                lines[li++] = (LESSline){h, LESS_TITLE_LINE};
+                lines[li++] = (range32){h, LESS_TITLE_LINE};
         }
         u32 tlen = (u32)$len(hunks[h].text);
         if (tlen == 0) continue;
         if (li < PIPE_MAX_LINES)
-            lines[li++] = (LESSline){h, 0};
+            lines[li++] = (range32){h, 0};
         for (u32 i = 0; i < tlen; i++) {
             if (hunks[h].text[0][i] == '\n' && i + 1 < tlen) {
                 if (li < PIPE_MAX_LINES)
-                    lines[li++] = (LESSline){h, i + 1};
+                    lines[li++] = (range32){h, i + 1};
             }
         }
     }
@@ -878,18 +875,17 @@ ok64 LESSPipeRun(int pipefd) {
     call(u8bMap, rdbuf, PIPE_RDBUF_INIT);
 
     // Allocate line index
-    LESSline *lines = (LESSline *)malloc(PIPE_MAX_LINES * sizeof(LESSline));
-    if (lines == NULL) {
+    LESSstate st = {};
+    ok64 lo = range32bAlloc(st.linesbuf, PIPE_MAX_LINES);
+    if (lo != OK) {
         u8bUnMap(rdbuf);
         return NOROOM;
     }
-
-    LESSstate st = {};
+    st.lines = st.linesbuf[0];
     st.hunks = less_hunks;
     st.nhunks = 0;
 
     LESSGetSize(&st);
-    st.lines = lines;
     st.nlines = 0;
 
     call(LESSScreenInit);
@@ -1102,7 +1098,7 @@ ok64 LESSPipeRun(int pipefd) {
 
         // Extend line index for any new hunks
         if (less_nhunks > indexed_nhunks) {
-            st.nlines = LESSExtendIndex(lines, st.nlines,
+            st.nlines = LESSExtendIndex(st.lines, st.nlines,
                                          less_hunks,
                                          indexed_nhunks,
                                          less_nhunks);
@@ -1134,7 +1130,7 @@ ok64 LESSPipeRun(int pipefd) {
     LESSRawDisable(&st);
     sigaction(SIGWINCH, &old_sa, NULL);
 
-    free(lines);
+    range32bFree(st.linesbuf);
     u8bUnMap(rdbuf);
     LESSArenaCleanup();
 

@@ -103,9 +103,9 @@ ok64 CAPO2() {
     a_cstr(path, "test.c");
 
     size_t maxentries = 4096;
-    u64 *ebuf = (u64 *)malloc(maxentries * sizeof(u64));
-    test(ebuf != NULL, FAILSANITY);
-    u64b entries = {ebuf, ebuf, ebuf, ebuf + maxentries};
+    Bu64 entries = {};
+    call(u64bAlloc, entries, maxentries);
+    u64 *ebuf = entries[0];
 
     call(CAPOIndexFile, entries, source, ext, path);
 
@@ -131,7 +131,7 @@ ok64 CAPO2() {
     want(found_foo == YES);
     want(found_int == YES);
 
-    free(ebuf);
+    u64bFree(entries);
     done;
 }
 
@@ -267,9 +267,9 @@ ok64 CAPO7() {
     a_cstr(path, "test.c");
 
     size_t maxentries = 4096;
-    u64 *ebuf = (u64 *)malloc(maxentries * sizeof(u64));
-    test(ebuf != NULL, FAILSANITY);
-    u64b entries = {ebuf, ebuf, ebuf, ebuf + maxentries};
+    Bu64 entries = {};
+    call(u64bAlloc, entries, maxentries);
+    u64 *ebuf = entries[0];
 
     call(CAPOIndexFile, entries, source, ext, path);
 
@@ -294,7 +294,7 @@ ok64 CAPO7() {
     for (size_t i = 0; i < nentries; i++)
         testeq(idx64PathHash(ebuf[i]), phash);
 
-    free(ebuf);
+    u64bFree(entries);
     done;
 }
 

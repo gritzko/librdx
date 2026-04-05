@@ -87,22 +87,26 @@ ok64 NEILCleanup(e32g edl, u32cs old_toks, u32cs new_toks,
     u32 nedl = (u32)(edl[0] - edl[2]);
     if (nedl < 3) done;
 
-    // Work in a malloc'd buffer (killed EQ expands to DEL+INS).
+    // Work in a heap buffer (killed EQ expands to DEL+INS).
     u32 cap = nedl * 2 + 4;
-    e32 *buf = (e32 *)malloc(cap * sizeof(e32));
-    test(buf != NULL, NEILBAD);
+    Bu32 bbuf = {};
+    call(u32bAlloc, bbuf, cap);
+    e32 *buf = bbuf[0];
     memcpy(buf, edl[2], nedl * sizeof(e32));
     u32 n = nedl;
 
     // Iterative semantic cleanup: kill false equalities until stable.
     // Each iteration merges edit regions, potentially exposing new kills.
     for (int iter = 0; iter < 8; iter++) {
-        u32 *old_off = (u32 *)malloc(n * sizeof(u32));
-        u32 *new_off = (u32 *)malloc(n * sizeof(u32));
-        if (old_off == NULL || new_off == NULL) {
-            free(old_off); free(new_off); free(buf);
+        Bu32 obuf = {}, nbuf = {};
+        ok64 ao = u32bAlloc(obuf, n);
+        ok64 no = u32bAlloc(nbuf, n);
+        if (ao != OK || no != OK) {
+            u32bFree(obuf); u32bFree(nbuf); u32bFree(bbuf);
             fail(NEILBAD);
         }
+        u32 *old_off = obuf[0];
+        u32 *new_off = nbuf[0];
         {
             u32 oi = 0, ni = 0;
             for (u32 k = 0; k < n; k++) {
@@ -118,11 +122,13 @@ ok64 NEILCleanup(e32g edl, u32cs old_toks, u32cs new_toks,
 
         b8 changed = NO;
         u32 tcap = n * 2 + 4;
-        e32 *tmp = (e32 *)malloc(tcap * sizeof(e32));
-        if (tmp == NULL) {
-            free(old_off); free(new_off); free(buf);
+        Bu32 tbuf = {};
+        ok64 to = u32bAlloc(tbuf, tcap);
+        if (to != OK) {
+            u32bFree(obuf); u32bFree(nbuf); u32bFree(bbuf);
             fail(NEILBAD);
         }
+        e32 *tmp = tbuf[0];
 
         u32 w = 0;
         for (u32 k = 0; k < n; k++) {
@@ -231,12 +237,14 @@ ok64 NEILCleanup(e32g edl, u32cs old_toks, u32cs new_toks,
             }
         }
 
-        free(old_off);
-        free(new_off);
+        u32bFree(obuf);
+        u32bFree(nbuf);
 
         w = NEILMerge(tmp, w);
-        free(buf);
-        buf = tmp;
+        u32bFree(bbuf);
+        memcpy(bbuf, tbuf, sizeof(Bu32));
+        BNULLify(tbuf);
+        buf = bbuf[0];
         n = w;
 
         if (!changed) break;
@@ -248,7 +256,7 @@ ok64 NEILCleanup(e32g edl, u32cs old_toks, u32cs new_toks,
     memcpy(edl[2], buf, final_n * sizeof(e32));
     edl[0] = edl[2] + final_n;
 
-    free(buf);
+    u32bFree(bbuf);
     done;
 }
 
@@ -262,12 +270,15 @@ ok64 NEILShift(e32g edl, u32cs old_toks, u32cs new_toks,
     u32 old_ntoks = (u32)$len(old_toks);
 
     // Compute old/new token offsets for each EDL entry.
-    u32 *ooff = (u32 *)malloc(nedl * sizeof(u32));
-    u32 *noff = (u32 *)malloc(nedl * sizeof(u32));
-    if (ooff == NULL || noff == NULL) {
-        free(ooff); free(noff);
+    Bu32 oobuf = {}, nobuf = {};
+    ok64 ao = u32bAlloc(oobuf, nedl);
+    ok64 no = u32bAlloc(nobuf, nedl);
+    if (ao != OK || no != OK) {
+        u32bFree(oobuf); u32bFree(nobuf);
         fail(NEILBAD);
     }
+    u32 *ooff = oobuf[0];
+    u32 *noff = nobuf[0];
     {
         u32 oi = 0, ni = 0;
         for (u32 k = 0; k < nedl; k++) {
@@ -380,7 +391,7 @@ ok64 NEILShift(e32g edl, u32cs old_toks, u32cs new_toks,
     }
     edl[0] = edl[2] + w;
 
-    free(ooff);
-    free(noff);
+    u32bFree(oobuf);
+    u32bFree(nobuf);
     done;
 }

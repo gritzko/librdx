@@ -706,9 +706,10 @@ ok64 SPOTReplace(u8s out, u8csc source, u32cs hay_toks,
 
     call(SPOTInit, &st, ntoks, needle_src, ext, hay_toks, source);
 
-    // Collect all matches (heap-allocated, SPOTrep is large)
-    SPOTrep *matches = (SPOTrep *)malloc(SPOT_MAX_MATCHES * sizeof(SPOTrep));
-    test(matches != NULL, FAILSANITY);
+    // Collect all matches (heap buffer, SPOTrep is large)
+    Bu8 mbuf = {};
+    call(u8bAlloc, mbuf, SPOT_MAX_MATCHES * sizeof(SPOTrep));
+    SPOTrep *matches = (SPOTrep *)mbuf[0];
     int nmatch = 0;
 
     while (SPOTNext(&st) == OK && nmatch < SPOT_MAX_MATCHES) {
@@ -720,7 +721,7 @@ ok64 SPOTReplace(u8s out, u8csc source, u32cs hay_toks,
     }
 
     if (nmatch == 0) {
-        free(matches);
+        u8bFree(mbuf);
         if (nmatches) *nmatches = 0;
         return (SPOTEND);
     }
@@ -744,12 +745,12 @@ ok64 SPOTReplace(u8s out, u8csc source, u32cs hay_toks,
         if (matches[i].src_rng.lo > (u32)pos) {
             u8cs gap = {source[0] + pos, source[0] + matches[i].src_rng.lo};
             ok64 fo = u8sFeed(out, gap);
-            if (fo != OK) { free(matches); fail(fo); }
+            if (fo != OK) { u8bFree(mbuf); fail(fo); }
         }
 
         ok64 io = SPOTInstTemplate(out, replace_src,
              matches[i].bound, matches[i].bind_matches, source);
-        if (io != OK) { free(matches); fail(io); }
+        if (io != OK) { u8bFree(mbuf); fail(io); }
 
         pos = matches[i].src_rng.hi;
     }
@@ -757,10 +758,10 @@ ok64 SPOTReplace(u8s out, u8csc source, u32cs hay_toks,
     if (pos < (u64)$len(source)) {
         u8cs tail = {source[0] + pos, source[1]};
         ok64 fo = u8sFeed(out, tail);
-        if (fo != OK) { free(matches); fail(fo); }
+        if (fo != OK) { u8bFree(mbuf); fail(fo); }
     }
 
     if (nmatches) *nmatches = nmatch;
-    free(matches);
+    u8bFree(mbuf);
     done;
 }

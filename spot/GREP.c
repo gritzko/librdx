@@ -448,9 +448,10 @@ ok64 CAPOPcreGrep(u8csc pattern, u8csc ext, u8csc reporoot, u32 ctx_lines,
 
     // NFA workspace
     u64 wsz = NFAu8WorkSize(nstates);
-    u32 *nfa_ws_buf = (u32 *)malloc(wsz * sizeof(u32));
-    test(nfa_ws_buf != NULL, FAILSANITY);
-    u32 *nfa_ws[2] = {nfa_ws_buf, nfa_ws_buf + wsz};
+    Bu32 nfa_ws_bb = {};
+    call(u32bAlloc, nfa_ws_bb, wsz);
+    u32s nfa_ws = {};
+    $mv(nfa_ws, u32bIdle(nfa_ws_bb));
 
     // Language filter
     u8cs target_ext = {};
@@ -470,7 +471,7 @@ ok64 CAPOPcreGrep(u8csc pattern, u8csc ext, u8csc reporoot, u32 ctx_lines,
         ok64 ao = u32bAlloc(hashbuf1, maxhashes);
         if (ao != OK) ao = u32bAlloc(hashbuf2, maxhashes);
         if (ao != OK) {
-            free(nfa_ws_buf);
+            u32bFree(nfa_ws_bb);
             if (!BNULL(hashbuf1)) u32bFree(hashbuf1);
             return FAILSANITY;
         }
@@ -758,7 +759,7 @@ ok64 CAPOPcreGrep(u8csc pattern, u8csc ext, u8csc reporoot, u32 ctx_lines,
         LESSRun(less_hunks, less_nhunks);
     LESSArenaCleanup();
 
-    free(nfa_ws_buf);
+    u32bFree(nfa_ws_bb);
     if (!BNULL(hashbuf1)) u32bFree(hashbuf1);
     if (!BNULL(hashbuf2)) u32bFree(hashbuf2);
     done;
