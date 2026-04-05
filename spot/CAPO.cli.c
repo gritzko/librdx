@@ -39,7 +39,7 @@ static void SPOTUsage(void) {
         "  spot                               incremental index update\n"
         "  spot file.c                        syntax-highlighted cat\n"
         "  spot -i | --index                  full reindex\n"
-        "  spot --fork N                      parallel reindex on N cores\n"
+        "  spot -f N | --fork N               parallel reindex on N cores\n"
         "  spot --hook                        post-commit incremental update\n"
         "  spot -s \"pattern\" .ext             structural search\n"
         "  spot -s \"pat\" -r \"repl\" .ext       structural search + replace\n"
@@ -72,6 +72,14 @@ static b8 argeq(u8cs a, const char *b) {
 static b8 argIsExt(u8cs a) {
     if ($len(a) < 2 || a[0][0] != '.') return NO;
     return CAPOKnownExt(a);
+}
+
+// Match "-fVALUE" short flag with attached value, return value or NULL
+static char *argshortval(u8cs a, const char *flag) {
+    size_t flen = strlen(flag);
+    if ($len(a) > flen && memcmp(a[0], flag, flen) == 0)
+        return (char *)a[0] + flen;
+    return NULL;
 }
 
 // Match "--flag=value", return pointer to value after '=' or NULL
@@ -132,12 +140,14 @@ ok64 capocli() {
         } else if (argeq(a, "-h") || argeq(a, "--help")) {
             SPOTUsage();
             done;
-        } else if (argeq(a, "--fork") && i + 1 < argn) {
+        } else if ((argeq(a, "-f") || argeq(a, "--fork")) && i + 1 < argn) {
             i++;
             u8c *v[2] = {};
             $mv(v, $arg(i));
             nfork = (u32)atoi((char *)v[0]);
         } else if ((eqval = argeqval(a, "--fork"))) {
+            nfork = (u32)atoi(eqval);
+        } else if ((eqval = argshortval(a, "-f"))) {
             nfork = (u32)atoi(eqval);
         } else if (argeq(a, "--proc") && i + 1 < argn) {
             i++;
