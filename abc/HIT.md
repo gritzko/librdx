@@ -1,58 +1,94 @@
-# HITx.h — Generic Heap Iterator Template
+# HITx.h — Heap of ITerators
 
-A template for draining sorted data through a min-heap, supporting both
-primitives (e.g. u64) and sorted slices (e.g. u64cs). Parameterized by
-advancer `x`, merge policy `y`, and comparator `z`.
-
-## Usage
-
-Include `Sx.h` for type T first, then include `HITx.h`:
+A HIT is a min-heap of sorted slices (iterators). Instantiate with the
+**element** type; all slice/heap types are derived automatically.
 
 ```c
+fun void u64csSwap(u64cs *a, u64cs *b) { /* swap two slices */ }
+
 #define X(M, name) M##u64##name
 #include "HITx.h"
 #undef X
 ```
 
-For array types like u64cs that can't go through Sx.h, define `Swap`
-manually and provide the x/y/z function pointer typedefs. For Start,
-define `HIT_ENTRY_IS_SLICE` before inclusion:
+The only prerequisite is `X(,csSwap)` (e.g. `u64csSwap`) since array
+types can't go through Sx.h.
 
-```c
-#define HIT_ENTRY_IS_SLICE
-#define X(M, name) M##u64cs##name
-#include "HITx.h"
-#undef X
-#undef HIT_ENTRY_IS_SLICE
-```
+## Types
+
+| Derived type | Example   | Meaning                          |
+|-------------|-----------|----------------------------------|
+| X(,cs)      | u64cs     | Entry = const slice (iterator)   |
+| X(,css)     | u64css    | Heap = slice of entries          |
+| X(,csss)    | u64csss   | Slice of heaps (for IntersectMerge) |
 
 ## Functions
 
-- `HITTDownYZ(heap, at, z)` — sift down at position
-- `HITTUpYZ(heap, at, z)` — bubble up at position
-- `HITTHeapYZ(heap, z)` — Floyd's heapify
-- `HITTTopsYZ(heap, eqs, z)` — find equal-minimum group, move to front
-- `HITTEject(heap, at)` — swap with last, shrink
-- `HITTNextYZ(heap, out, x, y, z)` — drain one value into out slice
-- `HITTStartZ(heap, z)` — filter empty entries, compact, heapify
-  (requires `#define HIT_ENTRY_IS_SLICE` — only for slice-type entries)
-- `HITTSeekXZ(heap, key, x, z)` — advance heap until top >= key;
-  `x` seeks within one entry via binary search
+### Core
 
-## NextYZ flow
+| Function            | Description                            |
+|--------------------|----------------------------------------|
+| `HITTStart(heap)`  | Filter empties, compact, heapify       |
+| `HITTStep(heap)`   | Advance top, eject if done, sift down  |
+| `HITTMerge(heap, &out)` | Sorted deduplicated drain         |
+| `HITTIntersect(heap, &out, n)` | Emit only values in all N entries |
+| `HITTSeek(heap, &key)` | Binary-search advance to key       |
 
-1. TopsYZ — find equal-minimum entries
-2. `y(*out, tops)` — merge policy decides emit (OK) or skip (MISS)
-3. For each top: `x(&entry, &min)` — advance past min value
-   - OK → entry has more data, sift down
-   - NODATA → entry exhausted, eject + sift replacement
-4. If y returned OK, advance `out[0]`
+### IntersectMerge (HIT-of-HITs)
 
-## Separation of concerns
+| Function                        | Description                       |
+|--------------------------------|-----------------------------------|
+| `HITTsIntersectMerge(oh, &out)` | Intersect merged outputs of N inner HITs |
+| `HITTSkipValue(inner)`          | Advance inner HIT past current top value |
 
-- `x` (advancer): type-specific entry advancement. Primitives: always
-  return NODATA (consumed). Slices: advance past equal values, return
-  OK if more data remains.
-- `y` (merge policy): pure emit/skip decision. Union: always OK.
-  Intersection: OK only if `$len(tops) >= nruns`.
-- `z` (comparator): standard less-than.
+## Merge
+
+Drains the heap producing a sorted, deduplicated sequence. Each step
+pops the minimum, advances all entries that had that value, skips
+remaining duplicates.
+
+```c
+u64cs runs[3] = {{a, a+4}, {b, b+3}, {c, c+5}};
+u64css heap = {runs, runs + 3};
+HITu64Start(heap);
+u64 buf[64]; u64p out = buf;
+HITu64Merge(heap, &out);
+// buf[0..out-buf) contains sorted deduplicated merge
+```
+
+## Intersect
+
+Like Merge, but only emits values present in ALL N iterators.
+
+```c
+HITu64Start(heap);
+u64 buf[64]; u64p out = buf;
+HITu64Intersect(heap, &out, 3);  // 3 = number of runs
+```
+
+## IntersectMerge (HIT-of-HITs)
+
+Intersects the merged outputs of N inner HITs without intermediate
+buffers. Each inner HIT is a heap of sorted runs (e.g. mmapped index
+files). The outer heap walks them in lockstep: emit a value only when
+all inner HITs produce it.
+
+```c
+u64cs *outers[N][2];   // N inner HITs
+outers[i][0] = runs_i; outers[i][1] = runs_i + nruns_i;
+HITu64Start(outers[i]);  // start each inner HIT
+
+u64csss oh = {outers, outers + N};
+u64 buf[...]; u64p out = buf;
+HITu64sIntersectMerge(oh, &out);
+```
+
+## Seek
+
+Advances all entries until the heap top is >= key, using binary search
+within each entry.
+
+```c
+u64 key = 42;
+ok64 o = HITu64Seek(heap, &key);  // NODATA if all exhausted
+```

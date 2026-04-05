@@ -13,39 +13,10 @@ fun void u64csSwap(u64cs *a, u64cs *b) {
     (*a)[0] = (*b)[0]; (*a)[1] = (*b)[1];
     (*b)[0] = t0; (*b)[1] = t1;
 }
-typedef b8 (*u64csz)(u64cs const *, u64cs const *);
-typedef ok64 (*u64csx)(u64cs *, u64cs const *);
-typedef ok64 (*u64csy)(u64cs *, u64css);
 
-#define HIT_ENTRY_IS_SLICE
-#define X(M, name) M##u64cs##name
+#define X(M, name) M##u64##name
 #include "abc/HITx.h"
 #undef X
-#undef HIT_ENTRY_IS_SLICE
-
-fun b8 u64csHeadZ(u64cs const *a, u64cs const *b) {
-    return *(*a)[0] < *(*b)[0];
-}
-
-fun ok64 u64csSeekX(u64cs *a, u64cs const *b) {
-    u64c *const run[2] = {(*a)[0], (*a)[1]};
-    u64c *pos = $u64findge(run, (*b)[0]);
-    (*a)[0] = pos;
-    return $empty(*a) ? NODATA : OK;
-}
-
-fun ok64 CAPOHITSeek(u64css heap, u64 key) {
-    u64cs keyentry = {&key, &key + 1};
-    return HITu64csSeekXZ(heap, &keyentry, u64csSeekX, u64csHeadZ);
-}
-
-fun void CAPOHITStep(u64css heap) {
-    ++(*heap[0])[0];
-    if ($empty(*heap[0])) {
-        HITu64csEject(heap, 0);
-    }
-    if (!$empty(heap)) HITu64csDownYZ(heap, 0, u64csHeadZ);
-}
 
 // --- Test 0: TriPack roundtrip ---
 ok64 CAPO0() {
@@ -157,21 +128,11 @@ ok64 CAPO3() {
     // Merge with HIT should dedup
     u64cs runs[1] = {{(u64cp)arr, (u64cp)arr + 3}};
     u64css iter = {runs, runs + 1};
-    HITu64csStartZ(iter, u64csHeadZ);
+    HITu64Start(iter);
 
     u64 out[3];
     u64p op = out;
-    u64 prev = 0;
-    b8 first = YES;
-    while (!$empty(iter)) {
-        u64 entry = *(*iter[0])[0];
-        if (first || entry != prev) {
-            *op++ = entry;
-            prev = entry;
-            first = NO;
-        }
-        CAPOHITStep(iter);
-    }
+    HITu64Merge(iter, &op);
 
     // Should have 2 unique entries (e1 deduped)
     testeq((size_t)(op - out), (size_t)2);
@@ -215,11 +176,11 @@ ok64 CAPO5() {
 
     u64cs runs[1] = {{(u64cp)entries, (u64cp)entries + 4}};
     u64css iter = {runs, runs + 1};
-    HITu64csStartZ(iter, u64csHeadZ);
+    HITu64Start(iter);
 
     // Seek to tri2 prefix
     u64 prefix = CAPOTriPack(tri2);
-    ok64 o = CAPOHITSeek(iter, prefix);
+    ok64 o = HITu64Seek(iter, &prefix);
     want(o == OK);
     want(!$empty(iter));
     testeq(CAPOTriOf(*(*iter[0])[0]), prefix);
