@@ -16,9 +16,7 @@
 
 static ok64 CAPOMergeRead(u8cs *data, u8bp *mapped, u8csc path_arg) {
     sane(data != NULL && mapped != NULL);
-    a_pad(u8, path, FILE_PATH_MAX_LEN);
-    call(u8bFeed, path, path_arg);
-    call(PATHu8gTerm, PATHu8gIn(path));
+    a_path(path, path_arg);
     call(FILEMapRO, mapped, PATHu8cgIn(path));
     (*data)[0] = u8bDataHead(*mapped);
     (*data)[1] = u8bIdleHead(*mapped);
@@ -65,12 +63,10 @@ ok64 CAPOMerge(u8csc base_path, u8csc ours_path, u8csc theirs_path,
         u8cs result = {out[1], out[2]};
         if (!$empty(outpath)) {
             // Write to file
-            a_pad(u8, opath, FILE_PATH_MAX_LEN);
-            call(u8bFeed, opath, outpath);
-            call(PATHu8gTerm, PATHu8gIn(opath));
-            int fd = open((char *)u8bDataHead(opath),
-                          O_WRONLY | O_CREAT | O_TRUNC, 0644);
-            if (fd < 0) { u8bFree(out); o = FILEFAIL; goto cleanup; }
+            a_path(opath, outpath);
+            int fd = -1;
+            o = FILECreate(&fd, PATHu8cgIn(opath));
+            if (o != OK) { u8bFree(out); goto cleanup; }
             o = FILEFeedall(fd, result);
             close(fd);
         } else {

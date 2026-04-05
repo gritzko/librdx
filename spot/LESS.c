@@ -13,6 +13,7 @@
 #include "abc/FILE.h"
 #include "abc/PRO.h"
 #include "abc/TTY.h"
+#include "abc/UTF8.h"
 #include "spot/HUNK.h"
 #include "tok/TOK.h"
 
@@ -319,15 +320,6 @@ static void less_goto(int row, int col) {
 }
 
 // Feed one byte with fg tag, bg tag, and search highlight
-// UTF-8 sequence length from lead byte
-static u32 utf8len(u8 ch) {
-    if (ch < 0x80) return 1;
-    if ((ch & 0xE0) == 0xC0) return 2;
-    if ((ch & 0xF0) == 0xE0) return 3;
-    if ((ch & 0xF8) == 0xF0) return 4;
-    return 1;  // invalid lead, emit as single byte
-}
-
 static void scr_emit_char(u8cp p, u32 n, u8 fg_tag, u8 bg_tag, b8 in_search) {
     b8 bold = NO;
     int fg = LESSTagColor(fg_tag, &bold);
@@ -415,7 +407,7 @@ static void LESSRender(LESSstate *st) {
         for (u32 j = 0; j < w; ) {
             u32 pos = off + j;
             u8 ch = hk->text[0][pos];
-            u32 clen = utf8len(ch);
+            u32 clen = UTF8_LEN[ch >> 4];
             if (clen > w - j) clen = w - j;  // clamp to line end
             // Advance cursors past pos
             while (tok_i < ntoks &&

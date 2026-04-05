@@ -4,7 +4,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
 #include <unistd.h>
 
 #include "abc/FILE.h"
@@ -94,9 +93,13 @@ static ok64 INSTWriteAttributes(const char *gitcommondir) {
     }
 
     // Write atomically
-    int fd = open(attrpath, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-    test(fd >= 0, FAILSANITY);
-    u8c *data[2] = {(u8cp)content, (u8cp)content + pos};
+    a_pad(u8, apbuf, FILE_PATH_MAX_LEN);
+    u8cs aps = {(u8cp)attrpath, (u8cp)attrpath + strlen(attrpath)};
+    call(u8bFeed, apbuf, aps);
+    call(PATHu8gTerm, PATHu8gIn(apbuf));
+    int fd = -1;
+    call(FILECreate, &fd, PATHu8cgIn(apbuf));
+    u8csc data = {(u8cp)content, (u8cp)content + pos};
     ok64 o = FILEFeedall(fd, data);
     close(fd);
     test(o == OK, o);
@@ -120,43 +123,44 @@ static ok64 INSTWriteHook(const char *gitcommondir) {
     char hookpath[FILE_PATH_MAX_LEN];
     snprintf(hookpath, sizeof(hookpath), "%s/hooks/post-commit", gitcommondir);
 
+    a_pad(u8, hpbuf, FILE_PATH_MAX_LEN);
+    u8cs hps = {(u8cp)hookpath, (u8cp)hookpath + strlen(hookpath)};
+    call(u8bFeed, hpbuf, hps);
+    call(PATHu8gTerm, PATHu8gIn(hpbuf));
+
     // Check if hook already exists and contains spot --hook
-    struct stat st;
-    if (stat(hookpath, &st) == 0) {
-        // Read existing content
-        int fd = open(hookpath, O_RDONLY);
-        if (fd >= 0) {
-            char existing[4096];
-            ssize_t n = read(fd, existing, sizeof(existing) - 1);
-            close(fd);
-            if (n > 0) {
-                existing[n] = 0;
-                if (strstr(existing, "spot --hook") != NULL) {
-                    fprintf(stderr, "  hook: %s (already has spot --hook)\n",
-                            hookpath);
-                    done;
-                }
-                // Append to existing hook
-                fd = open(hookpath, O_WRONLY | O_APPEND);
-                test(fd >= 0, FAILSANITY);
-                const char *line = "spot --hook\n";
-                u8c *data[2] = {(u8cp)line, (u8cp)line + strlen(line)};
-                ok64 o = FILEFeedall(fd, data);
-                close(fd);
-                test(o == OK, o);
-                fprintf(stderr, "  hook: appended 'spot --hook' to %s\n",
-                        hookpath);
-                done;
-            }
-            // Empty file, overwrite below
+    u8bp existing_map = NULL;
+    ok64 mo = FILEMapRO(&existing_map, PATHu8cgIn(hpbuf));
+    if (mo == OK && existing_map != NULL) {
+        a_dup(u8c, ex, u8bDataC(existing_map));
+        if ($len(ex) > 0 && memmem(ex[0], $len(ex), "spot --hook", 11)) {
+            FILEUnMap(existing_map);
+            fprintf(stderr, "  hook: %s (already has spot --hook)\n", hookpath);
+            done;
         }
+        b8 was_empty = $empty(ex);
+        FILEUnMap(existing_map);
+
+        if (!was_empty) {
+            // Append to existing hook
+            int fd = -1;
+            call(FILEOpen, &fd, PATHu8cgIn(hpbuf), O_WRONLY | O_APPEND);
+            const char *line = "spot --hook\n";
+            u8csc data = {(u8cp)line, (u8cp)line + strlen(line)};
+            ok64 o = FILEFeedall(fd, data);
+            close(fd);
+            test(o == OK, o);
+            fprintf(stderr, "  hook: appended 'spot --hook' to %s\n", hookpath);
+            done;
+        }
+        // Empty file, overwrite below
     }
 
     // Write new hook
-    int fd = open(hookpath, O_WRONLY | O_CREAT | O_TRUNC, 0755);
-    test(fd >= 0, FAILSANITY);
+    int fd = -1;
+    call(FILECreate, &fd, PATHu8cgIn(hpbuf));
     const char *script = "#!/bin/sh\nspot --hook\n";
-    u8c *data[2] = {(u8cp)script, (u8cp)script + strlen(script)};
+    u8csc data = {(u8cp)script, (u8cp)script + strlen(script)};
     ok64 o = FILEFeedall(fd, data);
     close(fd);
     chmod(hookpath, 0755);

@@ -99,9 +99,8 @@ ok64 capocli() {
     size_t rlen = strlen(rootbuf);
     if (rlen > 0 && rootbuf[rlen - 1] == '\n') rootbuf[--rlen] = 0;
 
-    a_pad(u8, root, FILE_PATH_MAX_LEN);
     u8cs rbs = {(u8cp)rootbuf, (u8cp)rootbuf + rlen};
-    call(u8bFeed, root, rbs);
+    a_path(root, rbs);
     a_dup(u8c, reporoot, u8bDataC(root));
 
     // Parse args
@@ -327,7 +326,7 @@ ok64 capocli() {
         call(CAPOReindexProc, reporoot, nfork, proc);
     } else if (nfork > 0) {
         // Orchestrator: fork N children, wait, compact
-        a_pad(u8, capodir, FILE_PATH_MAX_LEN);
+        a_path(capodir);
         call(CAPOResolveDir, capodir, reporoot);
         a_dup(u8c, dirslice, u8bDataC(capodir));
         call(FILEMakeDirP, PATHu8cgIn(capodir));

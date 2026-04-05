@@ -63,10 +63,7 @@ static void CAPOCodecName(u8csp codec, u8csc ext) {
 
 ok64 CAPOResolveDir(path8b out, u8csc reporoot) {
     sane($ok(reporoot) && out != NULL);
-    a_pad(u8, gitpath, FILE_PATH_MAX_LEN);
-    call(PATHu8bFeed, gitpath, reporoot);
-    a_cstr(gitname, ".git");
-    call(PATHu8bPush, gitpath, gitname);
+    a_path(gitpath, reporoot, $cstr(".git"));
 
     ok64 isdir = FILEisdir(PATHu8cgIn(gitpath));
     if (isdir == OK) {
@@ -223,33 +220,62 @@ ok64 CAPOIndexWrite(u8csc dir, u64cs run, u64 seqno) {
     done;
 }
 
+// Callback context for listing .idx files
+typedef struct {
+    char (*names)[64];
+    u32 maxn;
+    u32 count;
+} CAPOListIdxCtx;
+
+static ok64 CAPOListIdxCB(voidp arg, path8p path) {
+    CAPOListIdxCtx *ctx = (CAPOListIdxCtx *)arg;
+    if (ctx->count >= ctx->maxn) return OK;
+    u8cs base = {};
+    PATHu8gBase(base, (u8c *const *)path);
+    size_t nlen = (size_t)$len(base);
+    if (nlen < 5 || nlen > 63) return OK;
+    if (memcmp(base[1] - 4, CAPO_IDX_EXT, 4) != 0) return OK;
+    memcpy(ctx->names[ctx->count], base[0], nlen);
+    ctx->names[ctx->count][nlen] = 0;
+    ctx->count++;
+    return OK;
+}
+
+// List .idx files in a directory, sorted by name.
+// Returns count; names stored in out[0..count)[0..64).
+static u32 CAPOListIdx(char out[][64], u32 maxn, u8csc dir) {
+    a_pad(u8, dpat, FILE_PATH_MAX_LEN);
+    if (PATHu8bFeed(dpat, dir) != OK) return 0;
+
+    CAPOListIdxCtx ctx = {.names = out, .maxn = maxn, .count = 0};
+    FILEScanDir(dpat, CAPOListIdxCB, &ctx);
+
+    // Sort by name
+    for (u32 i = 0; i + 1 < ctx.count; i++)
+        for (u32 j = i + 1; j < ctx.count; j++)
+            if (strcmp(out[i], out[j]) > 0) {
+                char tmp[64];
+                memcpy(tmp, out[i], 64);
+                memcpy(out[i], out[j], 64);
+                memcpy(out[j], tmp, 64);
+            }
+    return ctx.count;
+}
+
 ok64 CAPONextSeqno(u64p seqno, u8csc dir) {
     sane(seqno != NULL && $ok(dir));
     *seqno = 1;
-
-    a_pad(u8, pat, FILE_PATH_MAX_LEN);
-    call(PATHu8bFeed, pat, dir);
-
-    int dfd = -1;
-    ok64 o = FILEOpenDir(&dfd, PATHu8cgIn(pat));
-    if (o != OK) done;
-
+    char names[CAPO_MAX_LEVELS][64];
+    u32 n = CAPOListIdx(names, CAPO_MAX_LEVELS, dir);
     u64 maxseq = 0;
-    DIR *d = fdopendir(dfd);
-    if (d == NULL) { close(dfd); done; }
-
-    struct dirent *e;
-    while ((e = readdir(d)) != NULL) {
-        size_t nlen = strlen(e->d_name);
-        if (nlen < 5) continue;
-        if (strcmp(e->d_name + nlen - 4, CAPO_IDX_EXT) != 0) continue;
+    for (u32 i = 0; i < n; i++) {
+        size_t nlen = strlen(names[i]);
         size_t numlen = nlen - 4;
-        u8cs numslice = {(u8cp)e->d_name, (u8cp)e->d_name + numlen};
+        u8cs numslice = {(u8cp)names[i], (u8cp)names[i] + numlen};
         ok64 val = 0;
         ok64 r = RONutf8sDrain(&val, numslice);
         if (r == OK && val > maxseq) maxseq = val;
     }
-    closedir(d);
     *seqno = maxseq + 1;
     done;
 }
@@ -260,43 +286,12 @@ ok64 CAPOStackOpen(u64css stack, u8bp *maps, u32p nfiles, u8csc dir) {
     sane($ok(stack) && maps != NULL && nfiles != NULL && $ok(dir));
     *nfiles = 0;
 
-    a_pad(u8, dpat, FILE_PATH_MAX_LEN);
-    call(PATHu8bFeed, dpat, dir);
-
-    int dfd = -1;
-    ok64 o = FILEOpenDir(&dfd, PATHu8cgIn(dpat));
-    if (o != OK) done;
-
     char names[CAPO_MAX_LEVELS][64];
-    u32 count = 0;
-
-    DIR *d = fdopendir(dfd);
-    if (d == NULL) { close(dfd); done; }
-
-    struct dirent *e;
-    while ((e = readdir(d)) != NULL && count < CAPO_MAX_LEVELS) {
-        size_t nlen = strlen(e->d_name);
-        if (nlen < 5 || nlen > 63) continue;
-        if (strcmp(e->d_name + nlen - 4, CAPO_IDX_EXT) != 0) continue;
-        memcpy(names[count], e->d_name, nlen + 1);
-        count++;
-    }
-    closedir(d);
-
-    for (u32 i = 0; i + 1 < count; i++)
-        for (u32 j = i + 1; j < count; j++)
-            if (strcmp(names[i], names[j]) > 0) {
-                char tmp[64];
-                memcpy(tmp, names[i], 64);
-                memcpy(names[i], names[j], 64);
-                memcpy(names[j], tmp, 64);
-            }
+    u32 count = CAPOListIdx(names, CAPO_MAX_LEVELS, dir);
 
     for (u32 i = 0; i < count; i++) {
-        a_pad(u8, fpath, FILE_PATH_MAX_LEN);
-        call(PATHu8bFeed, fpath, dir);
         u8cs fn = {(u8cp)names[i], (u8cp)names[i] + strlen(names[i])};
-        call(PATHu8bPush, fpath, fn);
+        a_path(fpath, dir, fn);
 
         u8bp mapped = NULL;
         call(FILEMapRO, &mapped, PATHu8cgIn(fpath));
@@ -376,47 +371,17 @@ ok64 CAPOCompact(u8csc dir) {
     u64cs merged = {(u64cp)cbuf[0], (u64cp)(into[0])};
     call(CAPOIndexWrite, dir, merged, seqno);
 
-    a_pad(u8, dpat, FILE_PATH_MAX_LEN);
-    call(PATHu8bFeed, dpat, dir);
-
     char fnames[CAPO_MAX_LEVELS][64];
-    u32 fcount = 0;
-    int dfd = -1;
-    ok64 o = FILEOpenDir(&dfd, PATHu8cgIn(dpat));
-    if (o == OK) {
-        DIR *dd = fdopendir(dfd);
-        if (dd) {
-            struct dirent *e;
-            while ((e = readdir(dd)) != NULL && fcount < CAPO_MAX_LEVELS) {
-                size_t nlen = strlen(e->d_name);
-                if (nlen < 5 || nlen > 63) continue;
-                if (strcmp(e->d_name + nlen - 4, CAPO_IDX_EXT) != 0) continue;
-                memcpy(fnames[fcount], e->d_name, nlen + 1);
-                fcount++;
-            }
-            closedir(dd);
-        }
-    }
-
-    for (u32 i = 0; i + 1 < fcount; i++)
-        for (u32 j = i + 1; j < fcount; j++)
-            if (strcmp(fnames[i], fnames[j]) > 0) {
-                char tmp[64];
-                memcpy(tmp, fnames[i], 64);
-                memcpy(fnames[i], fnames[j], 64);
-                memcpy(fnames[j], tmp, 64);
-            }
+    u32 fcount = CAPOListIdx(fnames, CAPO_MAX_LEVELS, dir);
 
     CAPOStackClose(mmaps, nfiles);
 
     u32 unlinked = 0;
     for (u32 i = fcount; i > 0 && unlinked < m; i--) {
         if (i == fcount) continue;
-        a_pad(u8, ulpath, FILE_PATH_MAX_LEN);
-        call(PATHu8bFeed, ulpath, dir);
         u8cs ulfn = {(u8cp)fnames[i - 1],
                      (u8cp)fnames[i - 1] + strlen(fnames[i - 1])};
-        call(PATHu8bPush, ulpath, ulfn);
+        a_path(ulpath, dir, ulfn);
         unlink((char *)u8bDataHead(ulpath));
         unlinked++;
     }
@@ -458,9 +423,8 @@ static ok64 CAPOReindexWork(u8csc reporoot, u8csc dirslice, u64bp entries) {
                           (int)$len(reporoot), (char *)reporoot[0], line);
         if (pn <= 0 || pn >= (int)sizeof(fpath)) { skipped++; continue; }
 
-        a_pad(u8, fpbuf, FILE_PATH_MAX_LEN);
         u8cs fps = {(u8cp)fpath, (u8cp)fpath + pn};
-        call(PATHu8bFeed, fpbuf, fps);
+        a_path(fpbuf, fps);
 
         u8bp mapped = NULL;
         ok64 o = FILEMapRO(&mapped, PATHu8cgIn(fpbuf));
@@ -531,7 +495,7 @@ ok64 CAPOReindex(u8csc reporoot) {
     fprintf(stderr, "spot: repo root %.*s\n",
             (int)$len(reporoot), (char *)reporoot[0]);
 
-    a_pad(u8, capodir, FILE_PATH_MAX_LEN);
+    a_path(capodir);
     call(CAPOResolveDir, capodir, reporoot);
     a_dup(u8c, dirslice, u8bDataC(capodir));
     vcall("mkdir", FILEMakeDirP, PATHu8cgIn(capodir));
@@ -584,9 +548,8 @@ static ok64 CAPOReindexProcWork(u8csc reporoot, u8csc dirslice,
                           (int)$len(reporoot), (char *)reporoot[0], line);
         if (pn <= 0 || pn >= (int)sizeof(fpath)) { skipped++; continue; }
 
-        a_pad(u8, fpbuf, FILE_PATH_MAX_LEN);
         u8cs fps = {(u8cp)fpath, (u8cp)fpath + pn};
-        call(PATHu8bFeed, fpbuf, fps);
+        a_path(fpbuf, fps);
 
         u8bp mapped = NULL;
         ok64 o = FILEMapRO(&mapped, PATHu8cgIn(fpbuf));
@@ -653,7 +616,7 @@ ok64 CAPOReindexProc(u8csc reporoot, u32 nprocs, u32 proc) {
 
     fprintf(stderr, "spot[%u/%u]: starting\n", proc, nprocs);
 
-    a_pad(u8, capodir, FILE_PATH_MAX_LEN);
+    a_path(capodir);
     call(CAPOResolveDir, capodir, reporoot);
     a_dup(u8c, dirslice, u8bDataC(capodir));
     vcall("mkdir", FILEMakeDirP, PATHu8cgIn(capodir));
@@ -712,42 +675,14 @@ ok64 CAPOCompactAll(u8csc dir) {
         CAPOStackClose(mmaps, nfiles);
         u64bUnMap(mbuf);
 
-        a_pad(u8, dpat, FILE_PATH_MAX_LEN);
-        call(PATHu8bFeed, dpat, dir);
-        int dfd = -1;
-        ok64 o = FILEOpenDir(&dfd, PATHu8cgIn(dpat));
-        if (o == OK) {
+        {
             char fnames[CAPO_MAX_LEVELS][64];
-            u32 fcount = 0;
-            DIR *dd = fdopendir(dfd);
-            if (dd) {
-                struct dirent *e;
-                while ((e = readdir(dd)) != NULL && fcount < CAPO_MAX_LEVELS) {
-                    size_t nlen = strlen(e->d_name);
-                    if (nlen < 5 || nlen > 63) continue;
-                    if (strcmp(e->d_name + nlen - 4, CAPO_IDX_EXT) != 0) continue;
-                    memcpy(fnames[fcount], e->d_name, nlen + 1);
-                    fcount++;
-                }
-                closedir(dd);
-
-                for (u32 i = 0; i + 1 < fcount; i++)
-                    for (u32 j = i + 1; j < fcount; j++)
-                        if (strcmp(fnames[i], fnames[j]) > 0) {
-                            char tmp[64];
-                            memcpy(tmp, fnames[i], 64);
-                            memcpy(fnames[i], fnames[j], 64);
-                            memcpy(fnames[j], tmp, 64);
-                        }
-
-                for (u32 i = 0; i + 1 < fcount; i++) {
-                    a_pad(u8, ulpath, FILE_PATH_MAX_LEN);
-                    call(PATHu8bFeed, ulpath, dir);
-                    u8cs ulfn = {(u8cp)fnames[i],
-                                 (u8cp)fnames[i] + strlen(fnames[i])};
-                    call(PATHu8bPush, ulpath, ulfn);
-                    unlink((char *)u8bDataHead(ulpath));
-                }
+            u32 fcount = CAPOListIdx(fnames, CAPO_MAX_LEVELS, dir);
+            for (u32 i = 0; i + 1 < fcount; i++) {
+                u8cs ulfn = {(u8cp)fnames[i],
+                             (u8cp)fnames[i] + strlen(fnames[i])};
+                a_path(ulpath, dir, ulfn);
+                unlink((char *)u8bDataHead(ulpath));
             }
         }
 
@@ -927,9 +862,8 @@ static ok64 CAPOHookDiff(u8csc reporoot, u8csc dirslice,
                           (int)$len(reporoot), (char *)reporoot[0], line);
         if (pn <= 0 || pn >= (int)sizeof(fpath)) continue;
 
-        a_pad(u8, fpbuf, FILE_PATH_MAX_LEN);
         u8cs fps = {(u8cp)fpath, (u8cp)fpath + pn};
-        call(PATHu8bFeed, fpbuf, fps);
+        a_path(fpbuf, fps);
 
         u8bp mapped = NULL;
         ok64 o = FILEMapRO(&mapped, PATHu8cgIn(fpbuf));
@@ -967,7 +901,7 @@ static ok64 CAPOHookDiff(u8csc reporoot, u8csc dirslice,
 ok64 CAPOHook(u8csc reporoot) {
     sane($ok(reporoot));
 
-    a_pad(u8, capodir, FILE_PATH_MAX_LEN);
+    a_path(capodir);
     call(CAPOResolveDir, capodir, reporoot);
     a_dup(u8c, dirslice, u8bDataC(capodir));
     call(FILEMakeDirP, PATHu8cgIn(capodir));
@@ -1515,9 +1449,8 @@ ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot,
                           (int)$len(reporoot), (char *)reporoot[0], line);
         if (pn <= 0 || pn >= (int)sizeof(fpath)) continue;
 
-        a_pad(u8, fpbuf, FILE_PATH_MAX_LEN);
         u8cs fps = {(u8cp)fpath, (u8cp)fpath + pn};
-        call(PATHu8bFeed, fpbuf, fps);
+        a_path(fpbuf, fps);
 
         // Map file, tokenize, match — resources released below
         u8bp mapped = NULL;

@@ -48,7 +48,7 @@ ok64 CAPOGrep(u8csc substring, u8csc ext, u8csc reporoot, u32 ctx_lines,
     b8 has_trigrams = NO;
 
     if (nfiles == 0) {
-        a_pad(u8, capodir, FILE_PATH_MAX_LEN);
+        a_path(capodir);
         call(CAPOResolveDir, capodir, reporoot);
         a_dup(u8c, dirslice, u8bDataC(capodir));
 
@@ -450,7 +450,7 @@ ok64 CAPOPcreGrep(u8csc pattern, u8csc ext, u8csc reporoot, u32 ctx_lines,
     b8 has_trigrams = NO;
 
     if (nfiles == 0) {
-        a_pad(u8, capodir, FILE_PATH_MAX_LEN);
+        a_path(capodir);
         call(CAPOResolveDir, capodir, reporoot);
         a_dup(u8c, dirslice, u8bDataC(capodir));
 
