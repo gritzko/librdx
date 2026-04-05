@@ -319,7 +319,16 @@ static void less_goto(int row, int col) {
 }
 
 // Feed one byte with fg tag, bg tag, and search highlight
-static void scr_emit_byte(u8 ch, u8 fg_tag, u8 bg_tag, b8 in_search) {
+// UTF-8 sequence length from lead byte
+static u32 utf8len(u8 ch) {
+    if (ch < 0x80) return 1;
+    if ((ch & 0xE0) == 0xC0) return 2;
+    if ((ch & 0xF0) == 0xE0) return 3;
+    if ((ch & 0xF8) == 0xF0) return 4;
+    return 1;  // invalid lead, emit as single byte
+}
+
+static void scr_emit_char(u8cp p, u32 n, u8 fg_tag, u8 bg_tag, b8 in_search) {
     b8 bold = NO;
     int fg = LESSTagColor(fg_tag, &bold);
     b8 is_ins = (bg_tag == 'I');
@@ -332,10 +341,12 @@ static void scr_emit_byte(u8 ch, u8 fg_tag, u8 bg_tag, b8 in_search) {
         if (is_ins) escfeedBG256(out, 157);
         else if (is_del) escfeedBG256(out, 217);
         else if (in_search) escfeed(out, 7);
-        u8sFeed1(out, ch);
+        u8cs chars = {p, p + n};
+        u8sFeed(out, chars);
         escfeed(out, 0);  // reset
     } else {
-        u8sFeed1(out, ch);
+        u8cs chars = {p, p + n};
+        u8sFeed(out, chars);
     }
 }
 
@@ -401,9 +412,11 @@ static void LESSRender(LESSstate *st) {
                tok32Offset(hk->hili[0][hili_i]) <= off)
             hili_i++;
 
-        for (u32 j = 0; j < w; j++) {
+        for (u32 j = 0; j < w; ) {
             u32 pos = off + j;
             u8 ch = hk->text[0][pos];
+            u32 clen = utf8len(ch);
+            if (clen > w - j) clen = w - j;  // clamp to line end
             // Advance cursors past pos
             while (tok_i < ntoks &&
                    tok32Offset(hk->toks[0][tok_i]) <= pos)
@@ -416,7 +429,8 @@ static void LESSRender(LESSstate *st) {
             u8 bg_tag = (hili_i < nhili)
                             ? tok32Tag(hk->hili[0][hili_i]) : 'A';
             b8 in_search = less_search_at(st, hk->text, pos);
-            scr_emit_byte(ch, fg_tag, bg_tag, in_search);
+            scr_emit_char(hk->text[0] + pos, clen, fg_tag, bg_tag, in_search);
+            j += clen;
         }
     }
 
@@ -899,6 +913,12 @@ ok64 LESSPipeRun(int pipefd) {
     less_puts("\033[?25l");    // hide cursor
     less_puts("\033[?1049h");  // alt screen
 
+    // Show initial "nothing..." while waiting for data
+    u8bReset(less_scr);
+    scr_goto(st.rows, 1);
+    scr_puts(TTY_INVERSE TTY_ERASE_LINE " nothing..." TTY_RESET);
+    LESSScreenFlush();
+
     b8 pipe_eof = NO;
     b8 quit = NO;
     u32 indexed_nhunks = 0;
@@ -1122,6 +1142,14 @@ ok64 LESSPipeRun(int pipefd) {
         }
         if ((changed || key_pressed) && st.nlines > 0)
             LESSRender(&st);
+
+        // Pipe done, no results — show "nothing!" and wait for quit
+        if (pipe_eof && st.nlines == 0 && !quit) {
+            u8bReset(less_scr);
+            scr_goto(st.rows, 1);
+            scr_puts(TTY_INVERSE TTY_ERASE_LINE " nothing!" TTY_RESET);
+            LESSScreenFlush();
+        }
     }
 
     // Teardown
