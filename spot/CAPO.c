@@ -1519,58 +1519,44 @@ ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot,
         u8cs fps = {(u8cp)fpath, (u8cp)fpath + pn};
         call(PATHu8bFeed, fpbuf, fps);
 
+        // Map file, tokenize, match — resources released below
         u8bp mapped = NULL;
-        ok64 o = FILEMapRO(&mapped, PATHu8cgIn(fpbuf));
-        if (o != OK) continue;
-
-        a_dup(u8c, source, u8bDataC(mapped));
-
-        // Tokenize
         Bu32 toks = {};
-        size_t maxlen = $len(source) + 1;
-        o = u32bMap(toks, maxlen);
-        if (o != OK) { FILEUnMap(mapped); continue; }
-        o = SPOTTokenize(toks, source, file_ext);
-        if (o != OK) {
-            u32bUnMap(toks);
-            FILEUnMap(mapped);
-            continue;
-        }
-        {
-            u32 *dts[2] = {u32bDataHead(toks), u32bIdleHead(toks)};
-            u8cs dext = {file_ext[0], file_ext[1]};
-            if (!$empty(dext) && dext[0][0] == '.') dext[0]++;
-            DEFMark(dts, source, dext);
-        }
-        u32cp td = u32bDataHead(toks);
-        u32cp ti = u32bIdleHead(toks);
-        u32cs htoks = {(u32cp)td, (u32cp)ti};
+        ok64 o = FILEMapRO(&mapped, PATHu8cgIn(fpbuf));
+        if (o == OK) {
+            a_dup(u8c, source, u8bDataC(mapped));
+            o = u32bMap(toks, $len(source) + 1);
+            if (o == OK) o = SPOTTokenize(toks, source, file_ext);
+            if (o == OK) {
+                {
+                    u32 *dts[2] = {u32bDataHead(toks), u32bIdleHead(toks)};
+                    u8cs dext = {file_ext[0], file_ext[1]};
+                    if (!$empty(dext) && dext[0][0] == '.') dext[0]++;
+                    DEFMark(dts, source, dext);
+                }
+                u32cs htoks = {(u32cp)u32bDataHead(toks),
+                               (u32cp)u32bIdleHead(toks)};
 
-        signal(SIGABRT, capo_abrt_handler);
-        capo_in_match = 1;
-        if (sigsetjmp(capo_jmpbuf, 1) != 0) {
-            capo_in_match = 0;
-            signal(SIGABRT, SIG_DFL);
-            u32bUnMap(toks);
-            FILEUnMap(mapped);
-            continue;
+                signal(SIGABRT, capo_abrt_handler);
+                capo_in_match = 1;
+                if (sigsetjmp(capo_jmpbuf, 1) == 0) {
+                    if (!$empty(replace))
+                        CAPOSpotReplace(source, mapped, htoks, needle,
+                                        replace, file_ext, fpbuf, line,
+                                        &total_replacements,
+                                        &total_files_replaced);
+                    else
+                        CAPOSpotFile(source, htoks, needle, file_ext, line);
+                }
+                capo_in_match = 0;
+                signal(SIGABRT, SIG_DFL);
+            }
         }
-
-        if (!$empty(replace)) {
-            CAPOSpotReplace(source, mapped, htoks, needle, replace,
-                            file_ext, fpbuf, line,
-                            &total_replacements, &total_files_replaced);
-        } else {
-            CAPOSpotFile(source, htoks, needle, file_ext, line);
-        }
-
-        capo_in_match = 0;
-        signal(SIGABRT, SIG_DFL);
-
-        if ($empty(replace)) {
+        // Cleanup: always release, or defer for pager
+        if ($empty(replace) && mapped != NULL && !BNULL(toks)) {
             LESSDefer(mapped, toks);
         } else {
-            u32bUnMap(toks);
+            if (!BNULL(toks)) u32bUnMap(toks);
             if (mapped != NULL) FILEUnMap(mapped);
         }
     }
