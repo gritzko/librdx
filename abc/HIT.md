@@ -48,7 +48,7 @@ pops the minimum, advances all entries that had that value, skips
 remaining duplicates.
 
 ```c
-u64cs runs[3] = {{a, a+4}, {b, b+3}, {c, c+5}};
+u64cs runs[3] = { {a, a+4}, {b, b+3}, {c, c+5} };
 u64css heap = {runs, runs + 3};
 HITu64Start(heap);
 u64 buf[64]; u64p out = buf;
