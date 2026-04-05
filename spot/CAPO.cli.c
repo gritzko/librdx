@@ -13,25 +13,6 @@
 #include "spot/INST.h"
 #include "spot/LESS.h"
 
-// Usage:
-//   spot                             incremental update (full reindex if first run)
-//   spot file.c                      colorful cat (syntax highlight)
-//   spot -i | spot --index           full reindex
-//   spot --fork N                    parallel reindex on N cores
-//   spot --fork N --proc K           worker K of N (internal)
-//   spot --hook                      incremental (post-commit)
-//   spot -s "return 0;" .c           SPOT search
-//   spot -s "f(x,y)" -r "f(y,x)" .c SPOT search + replace
-//   spot -g "TODO" .c                grep in all leaves (incl. comments)
-//   spot -g "memmem"                 grep all parseable files
-//   spot -p "u\d+sFeed" .c           regex grep (Thompson NFA)
-//   spot --diff old new              token-level colored diff
-//   spot --gitdiff                   git external diff driver
-//   spot --merge base ours theirs    token-level 3-way merge (stdout)
-//   spot --merge base ours theirs -o out   merge to file
-//   git config: diff.spot.command "spot --gitdiff"
-//   git config: merge.spot.driver "spot --merge %O %A %B -o %A"
-
 static void SPOTUsage(void) {
     fprintf(stderr,
         "Usage: spot [options] [files...]\n"
@@ -43,8 +24,8 @@ static void SPOTUsage(void) {
         "  spot -u | --uncommitted            index staged + unstaged changes\n"
         "  spot -U | --untracked              also index untracked (new) files\n"
         "  spot --hook                        post-commit incremental update\n"
-        "  spot -s \"pattern\" .ext             structural search\n"
-        "  spot -s \"pat\" -r \"repl\" .ext       structural search + replace\n"
+        "  spot -s \"pattern\" .ext             code snippet search\n"
+        "  spot -s \"pat\" -r \"repl\" .ext       code snippet search + replace\n"
         "  spot -g \"text\" [.ext]              grep (substring, incl. comments)\n"
         "  spot -g \"text\" -C N [.ext]         grep with N lines of context\n"
         "  spot -p \"regex\" [.ext]             regex grep (Thompson NFA)\n"
