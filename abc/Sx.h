@@ -192,8 +192,8 @@ fun T *X(, sBsearch)(T const *p, X(, sc) data) {
     return (T *)$bsearch(p, data, X(, cmp));
 }
 
-// Find the first entry >= needle or $term if NONE TODO test
-fun T const *X($, findge)(X($c, c) haystack, T const *needle) {
+// Find the first entry >= needle, or $term if none.
+fun T const *X(, sFindGE)(X($c, c) haystack, T const *needle) {
     size_t b = 0, e = $len(haystack);
     if (e == 0) return haystack[1];
     while (e > b + 1) {
@@ -207,6 +207,14 @@ fun T const *X($, findge)(X($c, c) haystack, T const *needle) {
     }
     int c = X(, cmp)($atp(haystack, b), needle);
     return $atp(haystack, c < 0 ? e : b);
+}
+
+// Find sub-slice [sFindGE(lo), sFindGE(hi)) within a sorted haystack.
+fun void X(, sFindRange)(X(, s) out, X(, csc) haystack,
+                          T const *lo, T const *hi) {
+    out[0] = (T *)X(, sFindGE)(haystack, lo);
+    T const *const tail[2] = {out[0], haystack[1]};
+    out[1] = (T *)X(, sFindGE)(tail, hi);
 }
 
 #ifndef ABC_X_$

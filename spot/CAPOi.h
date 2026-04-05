@@ -33,7 +33,7 @@ void CAPOGrepCtx(u8csc source, u32 match_pos, u32 nctx,
 
 // --- Trigram query helpers ---
 ok64 CAPOCollectPaths(u64css iter, u64 tri_prefix, u32g hashes);
-void CAPOFilterInPlace(Bu32 hashbuf, u64css iter, u64 prefix);
+void CAPOFilterInPlace(u32bp hashbuf, u64css iter, u64 prefix);
 u32 CAPOIntersect(u32s a, u32csc b);
 int CAPOu32cmp(const void *a, const void *b);
 

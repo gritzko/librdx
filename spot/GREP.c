@@ -89,7 +89,6 @@ ok64 CAPOGrep(u8csc substring, u8csc ext, u8csc reporoot, u32 ctx_lines,
                         has_trigrams = YES;
                     } else {
                         u32sSort(u32bData(hashbuf1));
-                        HITu64Seek(seek_iter, &tri_prefix);
                         CAPOFilterInPlace(hashbuf1, seek_iter, tri_prefix);
                     }
                 }

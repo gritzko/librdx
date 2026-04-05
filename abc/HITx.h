@@ -154,7 +154,7 @@ fun ok64 X(HIT, Seek)(X(, css) heap, X(, cp) key) {
     HIT_E keyentry = {key, key + 1};
     while (!$empty(heap) && X(HIT, Z)(heap[0], &keyentry)) {
         X(, c) *const run[2] = {(*heap[0])[0], (*heap[0])[1]};
-        X(, c) *pos = X($, findge)(run, key);
+        X(, c) *pos = X(, sFindGE)(run, key);
         (*heap[0])[0] = pos;
         if ($empty(*heap[0])) {
             X(HIT, Eject)(heap, 0);
@@ -163,6 +163,28 @@ fun ok64 X(HIT, Seek)(X(, css) heap, X(, cp) key) {
         X(HIT, Down)(heap, 0);
     }
     return $empty(heap) ? NODATA : OK;
+}
+
+// --- SeekRange: trim all entries to [lo, hi), eject empty, re-heapify ---
+// After this, the heap only contains elements in [lo, hi).
+// No prefix checks needed during the walk — just drain until empty.
+
+fun ok64 X(HIT, SeekRange)(X(, css) heap, X(, cp) lo, X(, cp) hi) {
+    HIT_E *w = heap[0];
+    for (HIT_E *r = heap[0]; r < heap[1]; r++) {
+        if ($empty(*r)) continue;
+        HIT_T *sub[2];
+        X(, sFindRange)(sub, *r, lo, hi);
+        if (sub[0] < sub[1]) {
+            (*w)[0] = sub[0];
+            (*w)[1] = sub[1];
+            w++;
+        }
+    }
+    heap[1] = w;
+    if ($empty(heap)) return NODATA;
+    X(HIT, Heap)(heap);
+    return OK;
 }
 
 // --- SkipValue: advance inner HIT past its current top merged value ---

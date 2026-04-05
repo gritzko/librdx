@@ -926,52 +926,42 @@ ok64 CAPOHook(u8csc reporoot) {
 
 // --- Trigram query helpers ---
 
+// Seek a HIT to a prefix range [prefix, prefix + 1<<32).
+// After this, the HIT only contains entries within the prefix.
+static ok64 CAPOSeekPrefix(u64css iter, u64 prefix) {
+    u64 lo = prefix;
+    u64 hi = prefix + (1ULL << 32);
+    return HITu64SeekRange(iter, &lo, &hi);
+}
+
 ok64 CAPOCollectPaths(u64css iter, u64 tri_prefix, u32g hashes) {
-    ok64 o = HITu64Seek(iter, &tri_prefix);
+    ok64 o = CAPOSeekPrefix(iter, tri_prefix);
     if (o != OK) return OK;
 
     while (!$empty(iter)) {
-        u64 entry = *(*iter[0])[0];
-        if (CAPOTriOf(entry) != tri_prefix) break;
-        u32gFeed1(hashes, (u32)entry);
+        u32gFeed1(hashes, (u32)(*(*iter[0])[0]));
         HITu64Step(iter);
     }
     return OK;
 }
 
-// Get current path hash from a prefixed HIT, or UINT32_MAX if exhausted.
-static u32 CAPOHITHash(u64css iter, u64 prefix) {
-    if ($empty(iter)) return UINT32_MAX;
-    u64 entry = *(*iter[0])[0];
-    if (CAPOTriOf(entry) != CAPOTriOf(prefix)) return UINT32_MAX;
-    return (u32)entry;
-}
-
-// Advance a prefixed HIT past the given path hash value.
-static void CAPOHITSkip(u64css iter, u64 prefix, u32 val) {
-    while (!$empty(iter) && CAPOTriOf(*(*iter[0])[0]) == CAPOTriOf(prefix)
-           && (u32)(*(*iter[0])[0]) == val)
-        HITu64Step(iter);
-}
-
-// In-place intersect hashbuf against a trigram HIT's path hashes.
-// Both hashbuf data and the HIT's entries (within prefix) are sorted
-// by path hash. Walks both with two pointers, keeps only matches.
-// In-place intersect hashbuf against a single-prefix HIT.
-void CAPOFilterInPlace(Bu32 hashbuf, u64css iter, u64 prefix) {
+// In-place intersect hashbuf against a range-seeked HIT's path hashes.
+// Both hashbuf data and the HIT output are sorted by path hash.
+void CAPOFilterInPlace(u32bp hashbuf, u64css iter, u64 prefix) {
+    CAPOSeekPrefix(iter, prefix);
     u32s data = {};
     $mv(data, u32bData(hashbuf));
     u32 *r = data[0], *w = data[0];
-    u32 ph = CAPOHITHash(iter, prefix);
 
-    while (r < data[1] && ph != UINT32_MAX) {
+    while (r < data[1] && !$empty(iter)) {
+        u32 ph = (u32)(*(*iter[0])[0]);
         if (*r < ph) { r++; continue; }
-        if (*r > ph) { CAPOHITSkip(iter, prefix, ph); ph = CAPOHITHash(iter, prefix); continue; }
-        *w++ = *r;
+        if (*r > ph) { HITu64Step(iter); continue; }
         u32 matched = *r;
+        *w++ = matched;
         while (r < data[1] && *r == matched) r++;
-        CAPOHITSkip(iter, prefix, matched);
-        ph = CAPOHITHash(iter, prefix);
+        while (!$empty(iter) && (u32)(*(*iter[0])[0]) == matched)
+            HITu64Step(iter);
     }
     u32bShed(hashbuf, (size_t)(data[1] - w));
 }
@@ -1371,7 +1361,6 @@ ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot,
                         has_trigrams = YES;
                     } else {
                         u32sSort(u32bData(hashbuf1));
-                        HITu64Seek(seek_iter, &tri_prefix);
                         CAPOFilterInPlace(hashbuf1, seek_iter, tri_prefix);
                     }
                 }

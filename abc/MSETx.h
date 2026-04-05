@@ -167,7 +167,7 @@ fun ok64 X(MSET, SeekZ)(X(, css) iter, T key, X(, z) z) {
     while (!$empty(iter) && z(***iter, &key)) {
         X(, cs) *top = iter[0];
         X($c, c) run = {(*top)[0], (*top)[1]};
-        T const *pos = X($, findge)(run, &key);
+        T const *pos = X(, sFindGE)(run, &key);
         (*top)[0] = pos;
         if ($empty(*top)) {
             X(, cs) *last = iter[1] - 1;
