@@ -1536,13 +1536,12 @@ ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot,
             }
         }
 
-        // Filter by extension match
+        // Filter by extension (same lexer family, e.g. .c matches .h)
         u8cs file_ext = {};
         CAPOFindExt(file_ext, line, len);
         if ($empty(file_ext)) continue;
         if (nfiles == 0) {
-            if ($len(file_ext) != $len(ext) ||
-                memcmp(file_ext[0], ext[0], $len(ext)) != 0) continue;
+            if (!TOKSameLexer(file_ext, ext)) continue;
         }
 
         CAPOProgress(line);

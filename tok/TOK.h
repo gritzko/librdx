@@ -51,4 +51,7 @@ b8 TOKKnownExt(u8csc ext);
 // Return the extension string at index i in TOK_TABLE, or NULL if out of range
 const char *TOKExtAt(int i);
 
+// Check if two extensions use the same lexer (e.g. .c and .h both use CT)
+b8 TOKSameLexer(u8csc a, u8csc b);
+
 #endif

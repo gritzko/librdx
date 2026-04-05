@@ -161,9 +161,7 @@ ok64 CAPOGrep(u8csc substring, u8csc ext, u8csc reporoot, u32 ctx_lines,
         if ($empty(file_ext)) continue;
         if (!CAPOKnownExt(file_ext)) continue;
         if (nfiles == 0 && !$empty(target_ext)) {
-            if ($len(file_ext) != $len(target_ext) ||
-                memcmp(file_ext[0], target_ext[0], $len(target_ext)) != 0)
-                continue;
+            if (!TOKSameLexer(file_ext, target_ext)) continue;
         }
 
         CAPOProgress(line);
@@ -547,9 +545,7 @@ ok64 CAPOPcreGrep(u8csc pattern, u8csc ext, u8csc reporoot, u32 ctx_lines,
         if ($empty(file_ext)) continue;
         if (!CAPOKnownExt(file_ext)) continue;
         if (nfiles == 0 && !$empty(target_ext)) {
-            if ($len(file_ext) != $len(target_ext) ||
-                memcmp(file_ext[0], target_ext[0], $len(target_ext)) != 0)
-                continue;
+            if (!TOKSameLexer(file_ext, target_ext)) continue;
         }
 
         CAPOProgress(line);

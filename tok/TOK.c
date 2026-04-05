@@ -225,6 +225,28 @@ b8 TOKKnownExt(u8csc ext) {
     return NO;
 }
 
+static TOKfn TOKFindLexer(u8csc ext) {
+    for (const TOKentry *e = TOK_TABLE; e->ext != NULL; ++e)
+        if (TOKExtMatch(ext, e->ext)) return e->lexer;
+    return NULL;
+}
+
+static void TOKStripDot(u8cs out, u8csc ext) {
+    if (!$empty(ext) && ext[0][0] == '.') {
+        out[0] = ext[0] + 1; out[1] = ext[1];
+    } else {
+        $mv(out, ext);
+    }
+}
+
+b8 TOKSameLexer(u8csc a, u8csc b) {
+    u8cs na = {}, nb = {};
+    TOKStripDot(na, a); TOKStripDot(nb, b);
+    TOKfn fa = TOKFindLexer(na);
+    TOKfn fb = TOKFindLexer(nb);
+    return fa != NULL && fa == fb;
+}
+
 ok64 TOKLexer(TOKstate *state, u8csc ext) {
     sane($ok(state->data) && state != NULL);
     for (const TOKentry *e = TOK_TABLE; e->ext != NULL; ++e) {
