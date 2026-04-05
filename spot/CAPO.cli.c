@@ -40,6 +40,8 @@ static void SPOTUsage(void) {
         "  spot file.c                        syntax-highlighted cat\n"
         "  spot -i | --index                  full reindex\n"
         "  spot -f N | --fork N               parallel reindex on N cores\n"
+        "  spot -u | --uncommitted            index staged + unstaged changes\n"
+        "  spot -U | --untracked              also index untracked (new) files\n"
         "  spot --hook                        post-commit incremental update\n"
         "  spot -s \"pattern\" .ext             structural search\n"
         "  spot -s \"pat\" -r \"repl\" .ext       structural search + replace\n"
@@ -119,6 +121,8 @@ ok64 capocli() {
     b8 do_merge = NO;
     b8 do_diff = NO;
     b8 do_gitdiff = NO;
+    b8 do_uncommitted = NO;
+    b8 do_untracked = NO;
     b8 pipe_mode = isatty(STDOUT_FILENO) ? YES : NO;
     u8c *merge_out[2] = {};
     u8c *spot_ndl[2] = {};
@@ -171,6 +175,11 @@ ok64 capocli() {
             do_index = YES;
         } else if (argeq(a, "--hook")) {
             is_hook = YES;
+        } else if (argeq(a, "-u") || argeq(a, "--uncommitted")) {
+            do_uncommitted = YES;
+        } else if (argeq(a, "-U") || argeq(a, "--untracked")) {
+            do_uncommitted = YES;
+            do_untracked = YES;
         } else if ((argeq(a, "-s") || argeq(a, "--spot")) && i + 1 < argn) {
             i++;
             $mv(spot_ndl, $arg(i));
@@ -329,6 +338,8 @@ ok64 capocli() {
         u8cs ndl = {pcre_ndl[0], pcre_ndl[1]};
         u8css gf = {gfiles, gfiles + gnf};
         call(CAPOPcreGrep, ndl, ext, reporoot, grep_ctx, gf);
+    } else if (do_uncommitted) {
+        call(CAPOUncommitted, reporoot, do_untracked);
     } else if (is_hook) {
         call(CAPOHook, reporoot);
     } else if (nfork > 0 && proc != UINT32_MAX) {

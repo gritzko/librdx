@@ -838,14 +838,14 @@ static b8 CAPOHookDiffCmd(char *cmdbuf, size_t cmdsz,
     return NO;
 }
 
-static ok64 CAPOHookDiff(u8csc reporoot, u8csc dirslice,
-                          u64bp entries, const char *cmdbuf) {
-    sane($ok(reporoot) && $ok(dirslice) && entries != NULL);
+// Index files listed by a shell command. Returns count of indexed files.
+static ok64 CAPOIndexFromCmd(u8csc reporoot, u64bp entries,
+                              const char *cmdbuf, int *indexed) {
+    sane($ok(reporoot) && entries != NULL && cmdbuf != NULL);
 
     FILE *fp = popen(cmdbuf, "r");
     test(fp != NULL, FAILSANITY);
 
-    int indexed = 0;
     char line[FILE_PATH_MAX_LEN];
     while (fgets(line, sizeof(line), fp)) {
         size_t len = strlen(line);
@@ -879,11 +879,15 @@ static ok64 CAPOHookDiff(u8csc reporoot, u8csc dirslice,
         CAPOCodecName(codec, ext);
         fprintf(stderr, "OK\t%.*s\t%s\n",
                 (int)$len(codec), (char *)codec[0], line);
-        indexed++;
+        if (indexed) (*indexed)++;
     }
     pclose(fp);
-    fprintf(stderr, "%d file(s) re-indexed\n", indexed);
+    done;
+}
 
+// Flush pending entries to an index run and compact.
+static ok64 CAPOFlushEntries(u8csc dirslice, u64bp entries) {
+    sane($ok(dirslice) && entries != NULL);
     size_t pending = u64bDataLen(entries);
     if (pending > 0) {
         u64s data = {u64bDataHead(entries), u64bIdleHead(entries)};
@@ -893,8 +897,19 @@ static ok64 CAPOHookDiff(u8csc reporoot, u8csc dirslice,
         u64cs run = {(u64cp)data[0], (u64cp)data[1]};
         call(CAPOIndexWrite, dirslice, run, seqno);
     }
-
     call(CAPOCompact, dirslice);
+    done;
+}
+
+static ok64 CAPOHookDiff(u8csc reporoot, u8csc dirslice,
+                          u64bp entries, const char *cmdbuf) {
+    sane($ok(reporoot) && $ok(dirslice) && entries != NULL);
+
+    int indexed = 0;
+    call(CAPOIndexFromCmd, reporoot, entries, cmdbuf, &indexed);
+    fprintf(stderr, "%d file(s) re-indexed\n", indexed);
+
+    call(CAPOFlushEntries, dirslice, entries);
     done;
 }
 
@@ -922,6 +937,52 @@ ok64 CAPOHook(u8csc reporoot) {
 
     if (o == OK) CAPOCommitWrite(reporoot, dirslice);
     return o;
+}
+
+// --- Uncommitted: index staged + unstaged + untracked ---
+
+ok64 CAPOUncommitted(u8csc reporoot, b8 untracked) {
+    sane($ok(reporoot));
+
+    a_path(capodir);
+    call(CAPOResolveDir, capodir, reporoot);
+    a_dup(u8c, dirslice, u8bDataC(capodir));
+    call(FILEMakeDirP, PATHu8cgIn(capodir));
+
+    Bu64 entries = {};
+    call(u64bMap, entries, CAPO_SCRATCH_LEN);
+
+    int indexed = 0;
+
+    // staged + unstaged changes vs HEAD
+    a_pad(u8, cmd1, FILE_PATH_MAX_LEN + 128);
+    a_cstr(diff_pfx, "git -C ");
+    a_cstr(diff_sfx, " diff --name-only HEAD 2>/dev/null");
+    call(u8bFeed, cmd1, diff_pfx);
+    call(u8bFeed, cmd1, reporoot);
+    call(u8bFeed, cmd1, diff_sfx);
+    call(PATHu8gTerm, PATHu8gIn(cmd1));
+    call(CAPOIndexFromCmd, reporoot, entries,
+         (char *)u8bDataHead(cmd1), &indexed);
+
+    // untracked files (only with -U)
+    if (untracked) {
+        a_pad(u8, cmd2, FILE_PATH_MAX_LEN + 128);
+        a_cstr(ls_pfx, "git -C ");
+        a_cstr(ls_sfx, " ls-files --others --exclude-standard");
+        call(u8bFeed, cmd2, ls_pfx);
+        call(u8bFeed, cmd2, reporoot);
+        call(u8bFeed, cmd2, ls_sfx);
+        call(PATHu8gTerm, PATHu8gIn(cmd2));
+        call(CAPOIndexFromCmd, reporoot, entries,
+             (char *)u8bDataHead(cmd2), &indexed);
+    }
+
+    fprintf(stderr, "%d uncommitted file(s) indexed\n", indexed);
+    call(CAPOFlushEntries, dirslice, entries);
+
+    u64bUnMap(entries);
+    done;
 }
 
 // --- Trigram query helpers ---

@@ -26,6 +26,7 @@
       - stdlib legacy use is discouraged
       - POSIX calls are normally wrapped (e.g. FILE.h, POL.h)
       - utf8s for text slices, u8s for binary
+      - use abc/PATH over manual path construction, starting with a_pad()
       - PRO.h can not be imported by public headers as it pollutes the namespace.
         To use PRO.h macros (call, done, etc) a function must start with sane() check.
         Also, the main() has to be MAIN(), TEST() or fuzz() to declare PRO.h globals.

@@ -114,6 +114,9 @@ ok64 CAPOReindexProc(u8csc reporoot, u32 nprocs, u32 proc);
 // Incremental index: changed files only
 ok64 CAPOHook(u8csc reporoot);
 
+// Index staged + unstaged changes; if untracked, also new files
+ok64 CAPOUncommitted(u8csc reporoot, b8 untracked);
+
 // Compact all .idx files into a single run
 ok64 CAPOCompactAll(u8csc dir);
 
