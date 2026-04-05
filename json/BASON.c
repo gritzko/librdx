@@ -522,7 +522,7 @@ static ok64 BASONpOnString(u8cs tok, void *ctx) {
     sane($ok(tok) && ctx != NULL);
     BASONparse *p = (BASONparse *)ctx;
     u8cs body = {tok[0] + 1, tok[1] - 1};
-    u8cs utf8chk = {body[0], body[1]};
+    a_dup(u8c,utf8chk,body);
     test(utf8sValid(utf8chk) == OK, BASONBAD);
     // In object context, first string is a key
     if (p->depth > 0 && p->frame[p->depth - 1].ptype == 'O' &&

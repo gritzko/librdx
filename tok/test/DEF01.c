@@ -108,7 +108,7 @@ ok64 test_def01() {
         call(DEFMark, ts, src, ext);
 
         // collect N-tagged names
-        u32 const *tsc[2] = {ts[0], ts[1]};
+        a_dup(u32c, tsc, ts);
         u8s out = {g_outbuf, g_outbuf + sizeof(g_outbuf)};
         for (u32 i = 0; i < ctx.ntoks; i++) {
             u8 tag = tok32Tag(g_tokbuf[i]);

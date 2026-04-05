@@ -211,10 +211,12 @@ ok64 capocli() {
     }
 
     // Pipe mode: fork worker/pager for grep, spot, diff, cat
+    // Skip pager in replace mode (-r): output goes to stderr
     if (pipe_mode &&
         (grep_ndl[0] != NULL || pcre_ndl[0] != NULL ||
          spot_ndl[0] != NULL || do_diff || ntrail > 0) &&
-        !do_gitdiff && !do_merge && !do_index && !is_hook) {
+        !do_gitdiff && !do_merge && !do_index && !is_hook &&
+        spot_rep[0] == NULL) {
         int pfd[2];
         test(pipe(pfd) == 0, FAILSANITY);
         pid_t pid = fork();
@@ -268,7 +270,7 @@ ok64 capocli() {
         u8cs bp = {trail[0][0], trail[0][1]};
         u8cs op = {trail[1][0], trail[1][1]};
         u8cs tp = {trail[2][0], trail[2][1]};
-        u8cs mo = {merge_out[0], merge_out[1]};
+        a_dup(u8c,mo,merge_out);
         call(CAPOMerge, bp, op, tp, mo);
     } else if (grep_ndl[0] != NULL) {
         // GREP mode: .ext optional, file paths restrict search
@@ -292,7 +294,7 @@ ok64 capocli() {
                 ext[1] = pe[1];
             }
         }
-        u8cs ndl = {grep_ndl[0], grep_ndl[1]};
+        a_dup(u8c,ndl,grep_ndl);
         u8css gf = {gfiles, gfiles + gnf};
         call(CAPOGrep, ndl, ext, reporoot, grep_ctx, gf);
     } else if (pcre_ndl[0] != NULL) {
@@ -316,7 +318,7 @@ ok64 capocli() {
                 ext[1] = pe[1];
             }
         }
-        u8cs ndl = {pcre_ndl[0], pcre_ndl[1]};
+        a_dup(u8c,ndl,pcre_ndl);
         u8css gf = {gfiles, gfiles + gnf};
         call(CAPOPcreGrep, ndl, ext, reporoot, grep_ctx, gf);
     } else if (do_uncommitted) {
@@ -401,8 +403,8 @@ ok64 capocli() {
             fprintf(stderr, "spot: --spot requires a .ext argument\n");
             return FAILSANITY;
         }
-        u8cs ndl = {spot_ndl[0], spot_ndl[1]};
-        u8cs rep = {spot_rep[0], spot_rep[1]};
+        a_dup(u8c,ndl,spot_ndl);
+        a_dup(u8c,rep,spot_rep);
         u8css sf = {sfiles, sfiles + snf};
         call(CAPOSpot, ndl, rep, ext, reporoot, sf);
     } else if (do_index) {

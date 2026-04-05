@@ -163,7 +163,7 @@ ok64 CAPOGrep(u8csc substring, u8csc ext, u8csc reporoot, u32 ctx_lines,
                           (int)$len(reporoot), (char *)reporoot[0], line);
         if (pn <= 0 || pn >= (int)sizeof(fpath)) continue;
 
-        a_pad(u8, fpbuf, FILE_PATH_MAX_LEN);
+        a_path(fpbuf);
         u8cs fps = {(u8cp)fpath, (u8cp)fpath + pn};
         __ = PATHu8bFeed(fpbuf, fps);
         if (__ != OK) continue;
@@ -206,7 +206,7 @@ ok64 CAPOGrep(u8csc substring, u8csc ext, u8csc reporoot, u32 ctx_lines,
                                 if (to == OK) {
                                     u32 *dts[2] = {u32bDataHead(gtoks),
                                                    u32bIdleHead(gtoks)};
-                                    u8cs dext = {file_ext[0], file_ext[1]};
+                                    a_dup(u8c,dext,file_ext);
                                     if (!$empty(dext) && dext[0][0] == '.')
                                         dext[0]++;
                                     DEFMark(dts, source, dext);
@@ -423,7 +423,7 @@ ok64 CAPOPcreGrep(u8csc pattern, u8csc ext, u8csc reporoot, u32 ctx_lines,
     u32 patch_buf[512];
     nfau8g prog = {prog_buf, prog_buf + 512, prog_buf};
     u32 *ws_patch[2] = {patch_buf, patch_buf + 512};
-    u8cs pat = {pattern[0], pattern[1]};
+    a_dup(u8c,pat,pattern);
     ok64 co = NFAu8Compile(prog, pat, ws_patch);
     if (co != OK) {
         fprintf(stderr, "spot: bad regex: %s\n", ok64str(co));
@@ -540,7 +540,7 @@ ok64 CAPOPcreGrep(u8csc pattern, u8csc ext, u8csc reporoot, u32 ctx_lines,
                           (int)$len(reporoot), (char *)reporoot[0], line);
         if (pn <= 0 || pn >= (int)sizeof(fpath)) continue;
 
-        a_pad(u8, fpbuf, FILE_PATH_MAX_LEN);
+        a_path(fpbuf);
         u8cs fps = {(u8cp)fpath, (u8cp)fpath + pn};
         __ = PATHu8bFeed(fpbuf, fps);
         if (__ != OK) continue;
@@ -586,7 +586,7 @@ ok64 CAPOPcreGrep(u8csc pattern, u8csc ext, u8csc reporoot, u32 ctx_lines,
                             if (to == OK) {
                                 u32 *dts[2] = {u32bDataHead(gtoks),
                                                u32bIdleHead(gtoks)};
-                                u8cs dext = {file_ext[0], file_ext[1]};
+                                a_dup(u8c,dext,file_ext);
                                 if (!$empty(dext) && dext[0][0] == '.')
                                     dext[0]++;
                                 DEFMark(dts, source, dext);

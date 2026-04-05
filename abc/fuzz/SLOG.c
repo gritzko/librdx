@@ -7,8 +7,8 @@
 // Less-comparator: receives full TLV records, extracts leading u64
 fun b8 numStrLess(u8csc a, u8csc b) {
     // Drain TLV to get body
-    u8cs arec = {a[0], a[1]};
-    u8cs brec = {b[0], b[1]};
+    a_dup(u8c,arec,a);
+    a_dup(u8c,brec,b);
     u8 alit = 0, blit = 0;
     u8cs aval = {}, bval = {};
     TLVu8sDrain(arec, &alit, aval);
@@ -94,7 +94,7 @@ FUZZ(u64, SLOGfuzz) {
     must(o == OK, "SLOGClose failed");
 
     // Now seek each number, opening fresh each time
-    u8cs stream = {data[0], data[1]};
+    a_dup(u8c,stream,data);
 
     for (u64 *p = sorted[1]; p < sorted[2]; ++p) {
         u64 target = *p;

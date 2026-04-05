@@ -606,7 +606,7 @@ static ok64 BASTFeedMDNode(u8bp buf, u64bp idx, u8csc src, TSNode node,
         // We need to offset: inline tree positions are 0-based relative
         // to range_start, but src positions are absolute.
         // We create a shifted source slice for the inline walker.
-        u8cs isrc = {src[0], src[1]};
+        a_dup(u8c,isrc,src);
         // However, inline parser positions start at 0, not at s.
         // So we shift the source base back by s bytes so that
         // inline position 0 maps to src[0]+s.

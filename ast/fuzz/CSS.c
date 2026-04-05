@@ -34,7 +34,7 @@ FUZZ(u8, CSSfuzz) {
     // Parse selector — ignore errors, fuzz CSSParse itself
     aBpad(u8, qbuf, 4096);
     aBpad(u64, qidx, 256);
-    u8cs selector = {sel[0], sel[1]};
+    a_dup(u8c,selector,sel);
     CSSParse(qbuf, qidx, selector);
     u8cp qd0 = qbuf[1], qd1 = qbuf[2];
     u8cs query = {qd0, qd1};

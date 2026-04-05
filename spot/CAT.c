@@ -19,7 +19,7 @@ ok64 CAPOCat(u8css files, u8csc reporoot) {
         if (less_nhunks >= LESS_MAX_HUNKS) break;
 
         u8cs *fp = u8cssAtP(files, fi);
-        u8cs fpath_s = {(*fp)[0], (*fp)[1]};
+        a_dup(u8c,fpath_s,(*fp));
         if ($empty(fpath_s)) continue;
 
         // Resolve path against CWD (like cat)
@@ -79,7 +79,7 @@ ok64 CAPOCat(u8css files, u8csc reporoot) {
                 o = SPOTTokenize(toks, source, ext);
                 if (o == OK) {
                     u32 *dts[2] = {u32bDataHead(toks), u32bIdleHead(toks)};
-                    u8cs dext = {ext[0], ext[1]};
+                    a_dup(u8c,dext,ext);
                     if (!$empty(dext) && dext[0][0] == '.') dext[0]++;
                     DEFMark(dts, source, dext);
                     tokenized = YES;

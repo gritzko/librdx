@@ -234,7 +234,7 @@ ok64 SLOGu8bDrainSkips(u64gp into, u8csc body) {
     u64p newstart = into[1];
 
     // Drain blocked varints into gauge's rest portion
-    u8cs cur = {body[0], body[1]};
+    a_dup(u8c,cur,body);
     u64s rest = {into[1], into[2]};
     call(ZINTu8sDrainBlocked, cur, rest);
 

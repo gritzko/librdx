@@ -40,7 +40,7 @@ typedef struct {
 static ok64 BEStatusCB(voidp arg, u8cs key, u8cs val) {
     BEStatusCtx *ctx = (BEStatusCtx *)arg;
     u8cs rest = {key[0] + ctx->pfxlen, key[1]};
-    u8cs qs = {rest[0], rest[1]};
+    a_dup(u8c,qs,rest);
     if (u8csFind(qs, '?') != OK) {
         ctx->base_count++;
     } else {

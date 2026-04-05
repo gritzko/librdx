@@ -98,7 +98,7 @@ static ok64 BIFFFuzzParse(u8bp buf, u64bp idx, u8csc raw) {
         ++p;
     if (p >= raw[1]) return BADARG;
     if (*p != '{' && *p != '[') return BADARG;
-    u8cs json = {raw[0], raw[1]};
+    a_dup(u8c,json,raw);
     call(BASONParseJSON, buf, idx, json);
 
     // Verify: exactly one plex root, no duplicate keys

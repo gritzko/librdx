@@ -231,8 +231,8 @@ static ok64 CAPOListIdxCB(voidp arg, path8p path) {
     CAPOListIdxCtx *ctx = (CAPOListIdxCtx *)arg;
     if (ctx->count >= ctx->maxn) return OK;
     u8cs base = {};
-    u8csc pslice = {path[0], path[1]};
-    PATHu8sBase(base, pslice);
+    a_dup(u8c, pdata, u8bDataC(path));
+    PATHu8sBase(base, pdata);
     size_t nlen = (size_t)$len(base);
     if (nlen < 5 || nlen > 63) return OK;
     if (memcmp(base[1] - 4, CAPO_IDX_EXT, 4) != 0) return OK;
@@ -245,7 +245,7 @@ static ok64 CAPOListIdxCB(voidp arg, path8p path) {
 // List .idx files in a directory, sorted by name.
 // Returns count; names stored in out[0..count)[0..64).
 static u32 CAPOListIdx(char out[][64], u32 maxn, u8csc dir) {
-    a_pad(u8, dpat, FILE_PATH_MAX_LEN);
+    a_path(dpat);
     if (PATHu8bFeed(dpat, dir) != OK) return 0;
 
     CAPOListIdxCtx ctx = {.names = out, .maxn = maxn, .count = 0};
@@ -1383,7 +1383,7 @@ ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot,
     b8 has_trigrams = NO;
 
     if (nfiles == 0) {
-        a_pad(u8, capodir, FILE_PATH_MAX_LEN);
+        a_path(capodir);
         call(CAPOResolveDir, capodir, reporoot);
         a_dup(u8c, dirslice, u8bDataC(capodir));
 
@@ -1514,7 +1514,7 @@ ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot,
             if (o == OK) {
                 {
                     u32 *dts[2] = {u32bDataHead(toks), u32bIdleHead(toks)};
-                    u8cs dext = {file_ext[0], file_ext[1]};
+                    a_dup(u8c,dext,file_ext);
                     if (!$empty(dext) && dext[0][0] == '.') dext[0]++;
                     DEFMark(dts, source, dext);
                 }

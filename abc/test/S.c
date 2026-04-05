@@ -72,23 +72,23 @@ ok64 findtest() {
     u8cs slice = {data, data + 11};
 
     // Find existing character
-    u8cs s1 = {slice[0], slice[1]};
+    a_dup(u8c,s1,slice);
     want(u8csFind(s1, ':') == OK);
     want(*s1 == data + 5);
     want(**s1 == ':');
 
     // Find first character
-    u8cs s2 = {slice[0], slice[1]};
+    a_dup(u8c,s2,slice);
     want(u8csFind(s2, 'h') == OK);
     want(*s2 == data);
 
     // Find last character
-    u8cs s3 = {slice[0], slice[1]};
+    a_dup(u8c,s3,slice);
     want(u8csFind(s3, 'd') == OK);
     want(*s3 == data + 10);
 
     // Character not found
-    u8cs s4 = {slice[0], slice[1]};
+    a_dup(u8c,s4,slice);
     want(u8csFind(s4, 'z') == NONE);
 
     // Test sFind (mutable slice)
@@ -97,7 +97,7 @@ ok64 findtest() {
     want(*mslice == data + 5);
 
     // Test repeated search
-    u8cs s5 = {slice[0], slice[1]};
+    a_dup(u8c,s5,slice);
     int count = 0;
     while (u8csFind(s5, 'l') == OK) {
         count++;
@@ -116,28 +116,28 @@ ok64 findStest() {
     // Find "world"
     u8 needle1[] = "world";
     u8cs n1 = {needle1, needle1 + 5};
-    u8cs h1 = {haystack[0], haystack[1]};
+    a_dup(u8c,h1,haystack);
     want(u8csFindS(h1, n1) == OK);
     want(*h1 == data + 6);
 
     // Find "hello" (first occurrence)
     u8 needle2[] = "hello";
     u8cs n2 = {needle2, needle2 + 5};
-    u8cs h2 = {haystack[0], haystack[1]};
+    a_dup(u8c,h2,haystack);
     want(u8csFindS(h2, n2) == OK);
     want(*h2 == data);
 
     // Find "universe" (at end)
     u8 needle3[] = "universe";
     u8cs n3 = {needle3, needle3 + 8};
-    u8cs h3 = {haystack[0], haystack[1]};
+    a_dup(u8c,h3,haystack);
     want(u8csFindS(h3, n3) == OK);
     want(*h3 == data + 19);
 
     // Not found
     u8 needle4[] = "foo";
     u8cs n4 = {needle4, needle4 + 3};
-    u8cs h4 = {haystack[0], haystack[1]};
+    a_dup(u8c,h4,haystack);
     want(u8csFindS(h4, n4) == NONE);
 
     // Needle longer than haystack
@@ -145,18 +145,18 @@ ok64 findStest() {
     u8cs short_hay = {short_data, short_data + 2};
     u8 long_needle[] = "hello";
     u8cs ln = {long_needle, long_needle + 5};
-    u8cs h5 = {short_hay[0], short_hay[1]};
+    a_dup(u8c,h5,short_hay);
     want(u8csFindS(h5, ln) == NONE);
 
     // Empty needle
     u8cs empty = {needle1, needle1};
-    u8cs h6 = {haystack[0], haystack[1]};
+    a_dup(u8c,h6,haystack);
     want(u8csFindS(h6, empty) == NONE);
 
     // Find with repeated first char: "llo" in "hello world, hello universe"
     u8 needle5[] = "llo";
     u8cs n5 = {needle5, needle5 + 3};
-    u8cs h7 = {haystack[0], haystack[1]};
+    a_dup(u8c,h7,haystack);
     want(u8csFindS(h7, n5) == OK);
     want(*h7 == data + 2);  // "llo" starts at index 2
 
@@ -165,12 +165,12 @@ ok64 findStest() {
     u8cs hay2 = {data2, data2 + 11};
     u8 needle6[] = "ld";
     u8cs n6 = {needle6, needle6 + 2};
-    u8cs h8 = {hay2[0], hay2[1]};
+    a_dup(u8c,h8,hay2);
     want(u8csFindS(h8, n6) == OK);
     want(*h8 == data2 + 9);  // "ld" at index 9
 
     // Test repeated search: find all "hello" occurrences
-    u8cs h9 = {haystack[0], haystack[1]};
+    a_dup(u8c,h9,haystack);
     int count = 0;
     while (u8csFindS(h9, n2) == OK) {
         count++;

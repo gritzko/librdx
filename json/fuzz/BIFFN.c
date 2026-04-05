@@ -17,7 +17,7 @@ static ok64 BIFFNFuzzParse(u8bp buf, u8csc raw) {
         ++p;
     if (p >= raw[1]) return BADARG;
     if (*p != '{' && *p != '[') return BADARG;
-    u8cs json = {raw[0], raw[1]};
+    a_dup(u8c,json,raw);
     call(BASONParseJSON, buf, NULL, json);
     u8cp d0 = buf[1], d1 = buf[2];
     u8cs data = {d0, d1};

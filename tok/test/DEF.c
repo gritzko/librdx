@@ -43,7 +43,7 @@ ok64 def_test(u8csc src, u8csc ext, u8s out) {
 
     // collect tags of non-whitespace tokens
     u32 ntoks = (u32)$len(ts);
-    u32 const *tsc[2] = {ts[0], ts[1]};
+    a_dup(u32c, tsc, ts);
     for (u32 i = 0; i < ntoks; i++) {
         u32 tok = tsc[0][i];
         u8 tag = tok32Tag(tok);

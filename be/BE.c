@@ -2449,7 +2449,7 @@ ok64 BEMilestone(BEp be, u8cs name) {
 
     // Build main-only formula URI for BEScanChanged
     uri main_loc = be->loc;
-    u8cs main_q = {main_branch[0], main_branch[1]};
+    a_dup(u8c,main_q,main_branch);
     $mv(main_loc.query, main_q);
 
     // Phase 1: write merged base keys via BEScanChanged

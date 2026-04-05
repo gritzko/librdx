@@ -138,7 +138,7 @@ ok64 PATHu8sAddTmp(u8s idle, u8cs tmpl, u8csc data) {
 
 ok64 PATHu8gDup(path8g into, path8cg orig) {
     sane($ok(into) && $ok(orig));
-    u8cs odata = {orig[0], orig[1]};
+    a_dup(u8c,odata,orig);
     call(PATHu8sFeed, into + 1, odata);
     done;
 }
@@ -176,7 +176,7 @@ ok64 PATHu8gPop(path8g path) {
 
 ok64 PATHu8gAddTmp(path8g path, u8cs tmpl) {
     sane($ok(path) && $ok(tmpl) && !$empty(tmpl));
-    u8cs data = {path[0], path[1]};
+    a_dup(u8c,data,path);
     call(PATHu8sAddTmp, path + 1, tmpl, data);
     done;
 }
@@ -284,7 +284,7 @@ ok64 PATHu8gAbsolute(path8g abs, path8cg base, path8cg rel) {
     if (PATHu8gIsAbsolute(rel)) {
         // Copy rel to temp, then normalize into abs
         a_pad(u8, tmp, PATH_MAX);
-        u8cs reldata = {rel[0], rel[1]};
+        a_dup(u8c,reldata,rel);
         call(u8sFeed, tmp_idle, reldata);
         u8cg tmp_gc = {tmp[1], *tmp_idle, tmp[3]};
         abs[1] = abs[0];  // reset abs
@@ -300,7 +300,7 @@ ok64 PATHu8gAbsolute(path8g abs, path8cg base, path8cg rel) {
 
     // Normalize to resolve . and .. (copy to temp first)
     a_pad(u8, tmp2, PATH_MAX);
-    u8cs abs_data = {abs[0], abs[1]};
+    a_dup(u8c,abs_data,abs);
     call(u8sFeed, tmp2_idle, abs_data);
     u8cg tmp2_gc = {tmp2[1], *tmp2_idle, tmp2[3]};
     abs[1] = abs[0];  // reset abs

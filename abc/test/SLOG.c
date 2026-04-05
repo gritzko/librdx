@@ -18,8 +18,8 @@ fun ok64 writeRec(u8gp data, u64 val) {
 // Less-comparator for u64 values in TLV records
 // Now receives full TLV records, must drain to get body
 fun b8 u64TLVless(u8csc a, u8csc b) {
-    u8cs arec = {a[0], a[1]};
-    u8cs brec = {b[0], b[1]};
+    a_dup(u8c,arec,a);
+    a_dup(u8c,brec,b);
     u8 alit = 0, blit = 0;
     u8cs aval = {}, bval = {};
     TLVu8sDrain(arec, &alit, aval);
@@ -32,8 +32,8 @@ fun b8 u64TLVless(u8csc a, u8csc b) {
 // Less-comparator for NUM string records (parses leading number)
 // Now receives full TLV records, must drain to get body
 fun b8 numStrLess(u8csc a, u8csc b) {
-    u8cs arec = {a[0], a[1]};
-    u8cs brec = {b[0], b[1]};
+    a_dup(u8c,arec,a);
+    a_dup(u8c,brec,b);
     u8 alit = 0, blit = 0;
     u8cs aval = {}, bval = {};
     TLVu8sDrain(arec, &alit, aval);
@@ -164,7 +164,7 @@ ok64 SLOG2() {
         // Reset stack
         u64bReset(stk);
 
-        u8cs stream = {data[0], data[1]};
+        a_dup(u8c,stream,data);
         call(SLOGOpen, stkdi, stream);
 
         u64 target = targets[t];
@@ -225,7 +225,7 @@ ok64 SLOG3() {
     for (size_t t = 0; t < sizeof(tests) / sizeof(tests[0]); ++t) {
         u64bReset(stk);
 
-        u8cs stream = {data[0], data[1]};
+        a_dup(u8c,stream,data);
         call(SLOGOpen, stkdi, stream);
 
         u64 target = tests[t];
@@ -288,7 +288,7 @@ ok64 SLOG4() {
         u64bReset(stk);
         SLOGStatsReset();
 
-        u8cs stream = {data[0], data[1]};
+        a_dup(u8c,stream,data);
         call(SLOGOpen, stkdi, stream);
 
         a_pad(u8, tgtbuf, 16);
@@ -358,7 +358,7 @@ ok64 SLOG5() {
 
     for (size_t i = 0; i < 2; ++i) {
         u64bReset(stk);
-        u8cs stream = {data[0], data[1]};
+        a_dup(u8c,stream,data);
         call(SLOGOpen, stkdi, stream);
 
         u64 target = vals[i];
@@ -424,7 +424,7 @@ ok64 SLOG6() {
 
     for (size_t i = 0; i < 2; ++i) {
         u64bReset(stk);
-        u8cs stream = {data[0], data[1]};
+        a_dup(u8c,stream,data);
         call(SLOGOpen, stkdi, stream);
 
         u64 target = vals[i];
@@ -490,7 +490,7 @@ ok64 SLOG7() {
 
     for (size_t i = 0; i < 3; ++i) {
         u64bReset(stk);
-        u8cs stream = {data[0], data[1]};
+        a_dup(u8c,stream,data);
         call(SLOGOpen, stkdi, stream);
 
         u64 target = vals[i];
@@ -556,7 +556,7 @@ ok64 SLOG8() {
 
     for (size_t i = 0; i < 3; ++i) {
         u64bReset(stk);
-        u8cs stream = {data[0], data[1]};
+        a_dup(u8c,stream,data);
         call(SLOGOpen, stkdi, stream);
 
         u64 target = vals[i];
@@ -609,7 +609,7 @@ ok64 SLOG9() {
 
     for (size_t i = 0; i < 3; ++i) {
         u64bReset(stk);
-        u8cs stream = {data[0], data[1]};
+        a_dup(u8c,stream,data);
         call(SLOGOpen, stkdi, stream);
 
         u64 target = vals[i];

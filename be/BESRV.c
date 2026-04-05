@@ -78,7 +78,7 @@ static short BESRVError(BEClientp cl, u8cs status_line) {
 // we replace it with the full DB key.
 static ok64 BESRVRewriteRoot(u8bp wbuf, u8cs dbkey, u8cs val) {
     sane(wbuf != NULL && $ok(val) && !$empty(val));
-    u8cs from = {val[0], val[1]};
+    a_dup(u8c,from,val);
     u8 type = 0;
     u8cs key = {};
     u8cs children = {};
@@ -676,7 +676,7 @@ static short BESRVProcessDir(BEClientp cl, poller *p) {
             continue;
         }
 
-        u8cs component = {rest[0], rest[1]};
+        a_dup(u8c,component,rest);
         b8 is_dir = NO;
         for (u8cp pp = rest[0]; pp < rest[1]; pp++) {
             if (*pp == '/' || *pp == '?') {

@@ -113,19 +113,19 @@ fun ok64 PATHu8gFeed(path8g into, u8csc data) {
 
 // IsAbsolute
 fun b8 PATHu8gIsAbsolute(path8cg path) {
-    u8cs s = {path[0], path[1]};
+    a_dup(u8c,s,path);
     return PATHu8sIsAbsolute(s);
 }
 
 // Verify
 fun ok64 PATHu8gVerify(path8cg path) {
-    u8cs s = {path[0], path[1]};
+    a_dup(u8c,s,path);
     return PATHu8sVerify(s);
 }
 
 // Drain: consume one segment from gauge
 fun ok64 PATHu8gDrain(path8cg path, u8csp seg) {
-    u8cs t = {path[0], path[1]};
+    a_dup(u8c,t,path);
     ok64 o = PATHu8sDrain(t, seg);
     path[0] = t[0];
     return o;
@@ -133,19 +133,19 @@ fun ok64 PATHu8gDrain(path8cg path, u8csp seg) {
 
 // Base
 fun void PATHu8gBase(u8csp out, path8cg path) {
-    u8cs s = {path[0], path[1]};
+    a_dup(u8c,s,path);
     PATHu8sBase(out, s);
 }
 
 // Dir
 fun void PATHu8gDir(u8csp out, path8cg path) {
-    u8cs s = {path[0], path[1]};
+    a_dup(u8c,s,path);
     PATHu8sDir(out, s);
 }
 
 // Ext
 fun void PATHu8gExt(u8csp out, path8cg path) {
-    u8cs s = {path[0], path[1]};
+    a_dup(u8c,s,path);
     PATHu8sExt(out, s);
 }
 
@@ -170,7 +170,7 @@ fun ok64 PATHu8bFeed(path8b p, u8csc s) {
     return PATHu8gFeed(PATHu8gIn(p), s);
 }
 fun ok64 PATHu8bPush(path8b p, u8csc seg) {
-    u8cs s = {seg[0], seg[1]};
+    a_dup(u8c,s,seg);
     return PATHu8gPush(PATHu8gIn(p), s);
 }
 fun ok64 PATHu8bPop(path8b p) { return PATHu8gPop(PATHu8gIn(p)); }

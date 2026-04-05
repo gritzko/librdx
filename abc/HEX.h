@@ -68,13 +68,13 @@ fun ok64 HEXu8sDrainSome(u8s bin, u8cs hex) {
 
 fun ok64 HEXFeed(u8s hex, $cu8c bin) {
     if ($len(bin) * 2 > $len(hex)) return HEXNOROOM;
-    u8cs dup = {bin[0], bin[1]};
+    a_dup(u8c,dup,bin);
     return HEXu8sFeedSome(hex, dup);
 }
 
 fun ok64 HEXDrain(u8s bin, $cu8c hex) {
     if ($len(hex) > $len(bin) * 2) return HEXNOROOM;
-    u8cs dup = {hex[0], hex[1]};
+    a_dup(u8c,dup,hex);
     return HEXu8sDrainSome(bin, dup);
 }
 
