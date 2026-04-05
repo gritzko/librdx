@@ -53,6 +53,7 @@
 #include "SOLT.h"
 #include "TYST.h"
 #include "LLT.h"
+#include "MDT.h"
 #include "TOK.h"
 
 #include "abc/TEST.h"
@@ -911,6 +912,170 @@ ok64 LLTBasicTest() {
     done;
 }
 
+ok64 MDTBasicTest() {
+    sane(1);
+    TOK01Case cases[] = {
+        // headings: prefix R, content through inline
+        {"# Hello\n", "RRSS"},       // # + space (R,R), Hello (S), \n (S)
+        {"## Sub heading\n", "RRRSSSS"}, // ## + space (R,R,R), Sub (S), sp (S), heading (S), \n (S)
+        // inline code
+        {"`code`", "H"},
+        // bold with stars
+        {"**bold**", "G"},
+        // italic with star
+        {"*italic*", "G"},
+        // bold with underscores
+        {"__bold__", "G"},
+        // italic with underscore
+        {"_italic_", "G"},
+        // strikethrough
+        {"~~deleted~~", "G"},
+        // bold with inner content
+        {"**bold text**", "G"},
+        // italic with inner content
+        {"*italic text*", "G"},
+        // unmatched emphasis falls back to punct
+        {"**", "P"},
+        {"__", "P"},
+        // numbers
+        {"42", "L"},
+        {"3.14", "L"},
+        {"0xFF", "L"},
+        // plain words
+        {"hello", "S"},
+        {"hello world", "SSS"},
+        // punctuation
+        {"[", "P"},
+        {"]", "P"},
+        {"(", "P"},
+        {")", "P"},
+        {"!", "P"},
+        // horizontal rule (TOKSplitText splits each char, incl newline)
+        {"---\n", "RRRR"},
+        {"***\n", "RRRR"},
+        // whitespace
+        {"  \t", "S"},
+    };
+    int ncases = sizeof(cases) / sizeof(cases[0]);
+    RUN_CASES(MDTLexer, MDT, cases, ncases);
+    done;
+}
+
+ok64 MDTEmphTest() {
+    sane(1);
+    // emphasis in context
+    const char *input = "some **bold** and *italic* text";
+    TOK01ctx ctx = {};
+    MDTstate st = {
+        .data = {(u8c *)input, (u8c *)input + strlen(input)},
+        .cb = TOK01cb,
+        .ctx = &ctx,
+    };
+    ok64 o = MDTLexer(&st);
+    if (o != OK) {
+        fprintf(stderr, "FAIL MDTEmphTest: error %s\n", ok64str(o));
+        fail(TESTFAIL);
+    }
+    want(ctx.count > 0);
+    // "some" S, " " S, **bold** G, " " S, "and" S, " " S, *italic* G, " " S, "text" S
+    want(ctx.count == 9);
+    want(ctx.tags[0] == 'S');  // some
+    want(ctx.tags[2] == 'G');  // **bold**
+    want(ctx.tags[6] == 'G');  // *italic*
+    done;
+}
+
+ok64 MDTCodeFenceTest() {
+    sane(1);
+    // A fenced code block
+    const char *input = "```c\nint x;\n```";
+    TOK01ctx ctx = {};
+    MDTstate st = {
+        .data = {(u8c *)input, (u8c *)input + strlen(input)},
+        .cb = TOK01cb,
+        .ctx = &ctx,
+    };
+    ok64 o = MDTLexer(&st);
+    if (o != OK) {
+        fprintf(stderr, "FAIL MDTCodeFenceTest: error %s\n", ok64str(o));
+        fail(TESTFAIL);
+    }
+    want(ctx.count > 0);
+    // Entire block should be 'H' (code)
+    want(ctx.tags[0] == 'H');
+    done;
+}
+
+ok64 MDTFenceIsolationTest() {
+    sane(1);
+    // Emphasis inside code fence must NOT be tagged G
+    const char *input =
+        "```\n"
+        "**not bold**\n"
+        "```\n";
+    TOK01ctx ctx = {};
+    MDTstate st = {
+        .data = {(u8c *)input, (u8c *)input + strlen(input)},
+        .cb = TOK01cb,
+        .ctx = &ctx,
+    };
+    ok64 o = MDTLexer(&st);
+    if (o != OK) {
+        fprintf(stderr, "FAIL MDTFenceIsolationTest: error %s\n", ok64str(o));
+        fail(TESTFAIL);
+    }
+    want(ctx.count == 3);  // 3 lines, each emitted as one H token
+    for (int i = 0; i < ctx.count; i++)
+        want(ctx.tags[i] == 'H');
+    done;
+}
+
+ok64 MDTFileTest() {
+    sane(1);
+    const char *input =
+        "# Title\n"
+        "\n"
+        "Some text with `inline code` and **bold**.\n"
+        "\n"
+        "## Section\n"
+        "\n"
+        "- item 1\n"
+        "- item 2\n"
+        "\n"
+        "```python\n"
+        "def foo():\n"
+        "    pass\n"
+        "```\n"
+        "\n"
+        "A number: 42\n";
+    TOK01ctx ctx = {};
+    MDTstate st = {
+        .data = {(u8c *)input, (u8c *)input + strlen(input)},
+        .cb = TOK01cb,
+        .ctx = &ctx,
+    };
+    ok64 o = MDTLexer(&st);
+    if (o != OK) {
+        fprintf(stderr, "FAIL MDTFileTest: error %s\n", ok64str(o));
+        fail(TESTFAIL);
+    }
+    want(ctx.count > 0);
+
+    // Verify key properties:
+    // - heading prefix is R
+    want(ctx.tags[0] == 'R');
+    // - scan for H (inline code or code fence)
+    b8 found_code = NO;
+    b8 found_emph = NO;
+    for (int i = 0; i < ctx.count && i < 256; i++) {
+        if (ctx.tags[i] == 'H') found_code = YES;
+        if (ctx.tags[i] == 'G') found_emph = YES;
+    }
+    want(found_code);
+    want(found_emph);
+    done;
+}
+
 ok64 TOK01test() {
     sane(1);
     call(CTBasicTest);
@@ -954,6 +1119,11 @@ ok64 TOK01test() {
     call(GLSTBasicTest);
     call(SOLTBasicTest);
     call(LLTBasicTest);
+    call(MDTBasicTest);
+    call(MDTEmphTest);
+    call(MDTCodeFenceTest);
+    call(MDTFenceIsolationTest);
+    call(MDTFileTest);
     done;
 }
 

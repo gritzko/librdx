@@ -55,6 +55,7 @@
 #include "SOLT.h"
 #include "TYST.h"
 #include "TXTT.h"
+#include "MDT.h"
 #include "LLT.h"
 #include "abc/PRO.h"
 
@@ -197,8 +198,8 @@ static const TOKentry TOK_TABLE[] = {
     {"v",          (TOKfn)VERTLexer},
     {"sv",         (TOKfn)VERTLexer},
     {"ll",         (TOKfn)LLTLexer},
-    {"md",         (TOKfn)TXTTLexer},
-    {"markdown",   (TOKfn)TXTTLexer},
+    {"md",         (TOKfn)MDTLexer},
+    {"markdown",   (TOKfn)MDTLexer},
     {"txt",        (TOKfn)TXTTLexer},
     {"rst",        (TOKfn)TXTTLexer},
     {NULL,         NULL},

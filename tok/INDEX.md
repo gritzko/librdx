@@ -83,6 +83,7 @@ but without the tree-sitter dependency.
 | PWST.h  | PowerShell | ps1 psm1 psd1 |
 | SOLT.h  | Solidity | sol |
 | TYST.h  | Typst | typ |
+| MDT.h   | Markdown (block+inline two-pass) | md markdown |
 | AGDT.h  | Agda | agda |
 | VERT.h  | Verilog | v sv |
 
