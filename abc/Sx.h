@@ -184,7 +184,7 @@ fun T *X($, bsearch)(T const *p, X($c, c) data) {
     return (T *)$bsearch(p, data, X(, cmp));
 }
 
-fun void X(, sSort)(X(, s) data) { $sort(data, X(, cmp)); }
+// sSort: see QSORTx.h (inline comparator, no function pointer overhead)
 
 fun void X(, sSortFn)(X(, s) data, X(, cmpfn) fn) { $sort(data, fn); }
 

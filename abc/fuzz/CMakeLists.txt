@@ -38,6 +38,9 @@ add_executable(MSETfuzz MSET.c ../RON.c)
 
 add_executable(HITfuzz HIT.c ../RON.c)
 
+add_executable(QSORTfuzz QSORT.c)
+target_link_libraries(QSORTfuzz abc)
+
 #add_executable(SST SST.c)
 #target_link_options(SST PRIVATE "${FUZZ_LDD_FLAGS}")
 #target_compile_options(SST PRIVATE "${FUZZ_C_FLAGS}")

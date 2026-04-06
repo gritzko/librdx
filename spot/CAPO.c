@@ -391,17 +391,6 @@ ok64 CAPOCompact(u8csc dir) {
     done;
 }
 
-// --- Dedup sorted u64 array in place, return new end ---
-
-static u64p u64sDedup(u64s data) {
-    if ($empty(data)) return data[0];
-    u64p w = data[0] + 1;
-    for (u64p r = data[0] + 1; r < data[1]; r++) {
-        if (*r != *(r - 1)) *w++ = *r;
-    }
-    return w;
-}
-
 // --- Reindex ---
 
 static ok64 CAPOReindexWork(u8csc reporoot, u8csc dirslice, u64bp entries) {
@@ -469,17 +458,15 @@ static ok64 CAPOReindexWork(u8csc reporoot, u8csc dirslice, u64bp entries) {
 
         size_t pending = u64bDataLen(entries);
         if (pending >= CAPO_FLUSH_AT) {
-            u64s data = {u64bDataHead(entries), u64bIdleHead(entries)};
-            $sort(data, u64cmp);
-            u64p dend = u64sDedup(data);
-            size_t unique = (size_t)(dend - data[0]);
+            u64sp data = u64bData(entries);
+            u64sSort(data);
+            u64sDedup(data);
+            size_t unique = $len(data);
             if (unique * 2 <= pending) {
-                // dedup halved the data, delay flush
-                u64bShed(entries, pending - unique);
                 fprintf(stderr, "spot: dedup %zu -> %zu, delaying flush\n",
                         pending, unique);
             } else {
-                u64cs run = {(u64cp)data[0], (u64cp)dend};
+                u64cs run = {(u64cp)data[0], (u64cp)data[1]};
                 call(CAPOIndexWrite, dirslice, run, seqno++);
                 total_entries += $len(run);
                 fprintf(stderr, "spot: flushed %zu entries (%zu deduped)\n",
@@ -492,10 +479,10 @@ static ok64 CAPOReindexWork(u8csc reporoot, u8csc dirslice, u64bp entries) {
 
     size_t pending = u64bDataLen(entries);
     if (pending > 0) {
-        u64s data = {u64bDataHead(entries), u64bIdleHead(entries)};
-        $sort(data, u64cmp);
-        u64p dend = u64sDedup(data);
-        u64cs run = {(u64cp)data[0], (u64cp)dend};
+        u64sp data = u64bData(entries);
+        u64sSort(data);
+        u64sDedup(data);
+        u64cs run = {(u64cp)data[0], (u64cp)data[1]};
         call(CAPOIndexWrite, dirslice, run, seqno++);
         total_entries += $len(run);
     }
@@ -608,17 +595,16 @@ static ok64 CAPOReindexProcWork(u8csc reporoot, u8csc dirslice,
 
         size_t pending = u64bDataLen(entries);
         if (pending >= CAPO_FLUSH_AT) {
-            u64s data = {u64bDataHead(entries), u64bIdleHead(entries)};
-            $sort(data, u64cmp);
-            u64p dend = u64sDedup(data);
-            size_t unique = (size_t)(dend - data[0]);
+            u64sp data = u64bData(entries);
+            u64sSort(data);
+            u64sDedup(data);
+            size_t unique = $len(data);
             if (unique * 2 <= pending) {
-                u64bShed(entries, pending - unique);
                 fprintf(stderr, "spot[%u/%u]: dedup %zu -> %zu, delaying flush\n",
                         proc, nprocs, pending, unique);
             } else {
                 u64 seqno = (u64)nprocs * batch + proc + 1;
-                u64cs run = {(u64cp)data[0], (u64cp)dend};
+                u64cs run = {(u64cp)data[0], (u64cp)data[1]};
                 fprintf(stderr, "spot[%u/%u]: flushed %zu entries (%zu deduped)\n",
                         proc, nprocs, $len(run), pending - $len(run));
                 call(CAPOIndexWrite, dirslice, run, seqno);
@@ -632,11 +618,11 @@ static ok64 CAPOReindexProcWork(u8csc reporoot, u8csc dirslice,
 
     size_t pending = u64bDataLen(entries);
     if (pending > 0) {
-        u64s data = {u64bDataHead(entries), u64bIdleHead(entries)};
-        $sort(data, u64cmp);
-        u64p dend = u64sDedup(data);
+        u64sp data = u64bData(entries);
+        u64sSort(data);
+        u64sDedup(data);
         u64 seqno = (u64)nprocs * batch + proc + 1;
-        u64cs run = {(u64cp)data[0], (u64cp)dend};
+        u64cs run = {(u64cp)data[0], (u64cp)data[1]};
         call(CAPOIndexWrite, dirslice, run, seqno);
         total_entries += $len(run);
     }
@@ -925,12 +911,12 @@ static ok64 CAPOFlushEntries(u8csc dirslice, u64bp entries) {
     sane($ok(dirslice) && entries != NULL);
     size_t pending = u64bDataLen(entries);
     if (pending > 0) {
-        u64s data = {u64bDataHead(entries), u64bIdleHead(entries)};
-        $sort(data, u64cmp);
-        u64p dend = u64sDedup(data);
+        u64sp data = u64bData(entries);
+        u64sSort(data);
+        u64sDedup(data);
         u64 seqno = 0;
         call(CAPONextSeqno, &seqno, dirslice);
-        u64cs run = {(u64cp)data[0], (u64cp)dend};
+        u64cs run = {(u64cp)data[0], (u64cp)data[1]};
         call(CAPOIndexWrite, dirslice, run, seqno);
     }
     call(CAPOCompact, dirslice);

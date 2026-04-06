@@ -19,3 +19,7 @@ target_link_libraries(HEAPbench PRIVATE ${BENCH_LDD_FLAGS})
 add_executable(SORTbench SORT.cpp ../SORT.c)
 target_compile_options(SORTbench PRIVATE ${BENCH_CXX_FLAGS})
 target_link_libraries(SORTbench PRIVATE ${BENCH_LDD_FLAGS})
+
+add_executable(QSORTbench QSORT.cpp)
+target_compile_options(QSORTbench PRIVATE ${BENCH_CXX_FLAGS})
+target_link_libraries(QSORTbench PRIVATE ${BENCH_LDD_FLAGS})

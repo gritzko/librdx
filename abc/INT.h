@@ -77,14 +77,17 @@ fun int u512cmp(u512 const *a, u512 const *b) {
 
 #define X(M, name) M##u16##name
 #include "Bx.h"
+#include "QSORTx.h"
 #undef X
 
 #define X(M, name) M##u32##name
 #include "Bx.h"
+#include "QSORTx.h"
 #undef X
 
 #define X(M, name) M##u64##name
 #include "Bx.h"
+#include "QSORTx.h"
 #undef X
 
 fun int u64bcmp(u64b const *a, u64b const *b) {

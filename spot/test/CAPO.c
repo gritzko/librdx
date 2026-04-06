@@ -119,7 +119,7 @@ ok64 CAPO3() {
 
     u64 arr[] = {e2, e1, e1dup};
     u64s data = {arr, arr + 3};
-    $sort(data, u64cmp);
+    u64sSort(data);
 
     // After sort: entries grouped by trigram, then by path hash
     want(arr[0] <= arr[1]);
@@ -172,7 +172,7 @@ ok64 CAPO5() {
         CAPOEntry(tri2, p1), CAPOEntry(tri3, p2),
     };
     u64s data = {entries, entries + 4};
-    $sort(data, u64cmp);
+    u64sSort(data);
 
     u64cs runs[1] = {{(u64cp)entries, (u64cp)entries + 4}};
     u64css iter = {runs, runs + 1};
@@ -277,7 +277,7 @@ ok64 CAPO8() {
     // Sort should preserve this ordering
     u64 arr[] = {def_e, tri_e, men_e};
     u64s data = {arr, arr + 3};
-    $sort(data, u64cmp);
+    u64sSort(data);
     testeq(idx64Type(arr[0]), (u64)IDX64_TRI);
     testeq(idx64Type(arr[1]), (u64)IDX64_MEN);
     testeq(idx64Type(arr[2]), (u64)IDX64_DEF);
@@ -306,7 +306,7 @@ ok64 CAPO9() {
 
     // Sort and check for duplicates
     u64s data = {ebuf, ebuf + nentries};
-    $sort(data, u64cmp);
+    u64sSort(data);
 
     size_t dups = 0;
     for (size_t i = 1; i < nentries; i++) {
