@@ -5,6 +5,7 @@
 ok64 TOMLTonComment (u8cs tok, TOMLTstate* state);
 ok64 TOMLTonString (u8cs tok, TOMLTstate* state);
 ok64 TOMLTonNumber (u8cs tok, TOMLTstate* state);
+ok64 TOMLTonHeader (u8cs tok, TOMLTstate* state);
 ok64 TOMLTonWord (u8cs tok, TOMLTstate* state);
 ok64 TOMLTonPunct (u8cs tok, TOMLTstate* state);
 ok64 TOMLTonSpace (u8cs tok, TOMLTstate* state);
@@ -40,6 +41,12 @@ action on_number {
     tok[0] = (u8c*)ts;
     tok[1] = (u8c*)te;
     o = TOMLTonNumber(tok, state);
+    if (o!=OK) fbreak;
+}
+action on_header {
+    tok[0] = (u8c*)ts;
+    tok[1] = (u8c*)te;
+    o = TOMLTonHeader(tok, state);
     if (o!=OK) fbreak;
 }
 action on_word {
@@ -97,6 +104,10 @@ main := |*
 
     # ---- date/time (treat as word) ----
     dgt{4} [\-] dgt{2} [\-] dgt{2} ([T ] dgt{2} ":" dgt{2} (":" dgt{2} ("." dgt+)?)? ([Zz] | [+\-] dgt{2} ":" dgt{2})?)? => on_word;
+
+    # ---- table headers [key] and [[key]] ----
+    "[[" ( idalnum | [.\-] )+ "]]"                                => on_header;
+    "[" ( idalnum | [.\-] )+ "]"                                  => on_header;
 
     # ---- identifiers ----
     idalpha idalnum*                                              => on_word;
