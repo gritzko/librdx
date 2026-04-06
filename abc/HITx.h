@@ -114,6 +114,16 @@ fun void X(HIT, AdvanceTops)(X(, css) heap, size_t ntops) {
     }
 }
 
+// --- MergeBag: drain heap producing sorted output (keeps duplicates) ---
+
+fun void X(HIT, MergeBag)(X(, css) heap, X(, p) *out) {
+    while (!$empty(heap)) {
+        **out = *(*heap[0])[0];
+        ++*out;
+        X(HIT, Step)(heap);
+    }
+}
+
 // --- Merge: drain heap producing sorted deduplicated output ---
 
 fun void X(HIT, Merge)(X(, css) heap, X(, p) *out) {

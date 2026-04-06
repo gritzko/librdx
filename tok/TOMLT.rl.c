@@ -7,16 +7,17 @@
 ok64 TOMLTonComment (u8cs tok, TOMLTstate* state);
 ok64 TOMLTonString (u8cs tok, TOMLTstate* state);
 ok64 TOMLTonNumber (u8cs tok, TOMLTstate* state);
+ok64 TOMLTonHeader (u8cs tok, TOMLTstate* state);
 ok64 TOMLTonWord (u8cs tok, TOMLTstate* state);
 ok64 TOMLTonPunct (u8cs tok, TOMLTstate* state);
 ok64 TOMLTonSpace (u8cs tok, TOMLTstate* state);
 
 
-/* #line 113 "TOMLT.c.rl" */
+/* #line 124 "TOMLT.c.rl" */
 
 
 
-/* #line 15 "TOMLT.rl.c" */
+/* #line 16 "TOMLT.rl.c" */
 static const char _TOMLT_actions[] = {
 	0, 1, 0, 1, 1, 1, 2, 1, 
 	11, 1, 12, 1, 13, 1, 14, 1, 
@@ -26,10 +27,10 @@ static const char _TOMLT_actions[] = {
 	27, 1, 28, 1, 29, 1, 30, 1, 
 	31, 1, 32, 1, 33, 1, 34, 1, 
 	35, 1, 36, 1, 37, 1, 38, 1, 
-	39, 1, 40, 2, 2, 3, 2, 2, 
-	4, 2, 2, 5, 2, 2, 6, 2, 
-	2, 7, 2, 2, 8, 2, 2, 9, 
-	2, 2, 10
+	39, 1, 40, 1, 41, 1, 42, 2, 
+	2, 3, 2, 2, 4, 2, 2, 5, 
+	2, 2, 6, 2, 2, 7, 2, 2, 
+	8, 2, 2, 9, 2, 2, 10
 };
 
 static const short _TOMLT_key_offsets[] = {
@@ -40,11 +41,12 @@ static const short _TOMLT_key_offsets[] = {
 	139, 143, 145, 147, 149, 151, 157, 158, 
 	159, 160, 161, 163, 165, 166, 168, 170, 
 	172, 174, 175, 177, 179, 181, 183, 184, 
-	186, 188, 190, 192, 194, 213, 216, 217, 
-	218, 219, 220, 221, 222, 223, 228, 240, 
-	245, 248, 254, 257, 260, 263, 270, 282, 
-	288, 294, 301, 303, 308, 313, 319, 325, 
-	333, 342, 351, 360
+	186, 188, 190, 192, 194, 204, 213, 223, 
+	224, 244, 247, 248, 249, 250, 251, 252, 
+	253, 254, 259, 271, 276, 279, 285, 288, 
+	291, 294, 301, 313, 319, 325, 332, 334, 
+	339, 344, 350, 356, 364, 374, 383, 392, 
+	401
 };
 
 static const unsigned char _TOMLT_trans_keys[] = {
@@ -72,29 +74,34 @@ static const unsigned char _TOMLT_trans_keys[] = {
 	48u, 57u, 48u, 57u, 48u, 57u, 58u, 48u, 
 	57u, 48u, 57u, 48u, 57u, 48u, 57u, 58u, 
 	48u, 57u, 48u, 57u, 48u, 57u, 48u, 57u, 
-	48u, 57u, 32u, 34u, 35u, 39u, 43u, 45u, 
-	46u, 48u, 95u, 105u, 110u, 9u, 13u, 49u, 
-	57u, 65u, 90u, 97u, 122u, 32u, 9u, 13u, 
-	34u, 34u, 34u, 10u, 39u, 39u, 39u, 48u, 
-	105u, 110u, 49u, 57u, 46u, 66u, 69u, 79u, 
-	88u, 95u, 98u, 101u, 111u, 120u, 48u, 57u, 
+	48u, 57u, 93u, 95u, 45u, 46u, 48u, 57u, 
+	65u, 90u, 97u, 122u, 95u, 45u, 46u, 48u, 
+	57u, 65u, 90u, 97u, 122u, 93u, 95u, 45u, 
+	46u, 48u, 57u, 65u, 90u, 97u, 122u, 93u, 
+	32u, 34u, 35u, 39u, 43u, 45u, 46u, 48u, 
+	91u, 95u, 105u, 110u, 9u, 13u, 49u, 57u, 
+	65u, 90u, 97u, 122u, 32u, 9u, 13u, 34u, 
+	34u, 34u, 10u, 39u, 39u, 39u, 48u, 105u, 
+	110u, 49u, 57u, 46u, 66u, 69u, 79u, 88u, 
+	95u, 98u, 101u, 111u, 120u, 48u, 57u, 69u, 
+	95u, 101u, 48u, 57u, 95u, 48u, 57u, 46u, 
 	69u, 95u, 101u, 48u, 57u, 95u, 48u, 57u, 
-	46u, 69u, 95u, 101u, 48u, 57u, 95u, 48u, 
-	57u, 95u, 48u, 49u, 95u, 48u, 55u, 95u, 
-	48u, 57u, 65u, 70u, 97u, 102u, 46u, 66u, 
-	69u, 79u, 88u, 95u, 98u, 101u, 111u, 120u, 
-	48u, 57u, 46u, 69u, 95u, 101u, 48u, 57u, 
-	46u, 69u, 95u, 101u, 48u, 57u, 45u, 46u, 
-	69u, 95u, 101u, 48u, 57u, 32u, 84u, 43u, 
-	45u, 58u, 90u, 122u, 43u, 45u, 46u, 90u, 
-	122u, 43u, 45u, 90u, 122u, 48u, 57u, 46u, 
-	69u, 95u, 101u, 48u, 57u, 45u, 95u, 48u, 
-	57u, 65u, 90u, 97u, 122u, 45u, 95u, 110u, 
+	95u, 48u, 49u, 95u, 48u, 55u, 95u, 48u, 
+	57u, 65u, 70u, 97u, 102u, 46u, 66u, 69u, 
+	79u, 88u, 95u, 98u, 101u, 111u, 120u, 48u, 
+	57u, 46u, 69u, 95u, 101u, 48u, 57u, 46u, 
+	69u, 95u, 101u, 48u, 57u, 45u, 46u, 69u, 
+	95u, 101u, 48u, 57u, 32u, 84u, 43u, 45u, 
+	58u, 90u, 122u, 43u, 45u, 46u, 90u, 122u, 
+	43u, 45u, 90u, 122u, 48u, 57u, 46u, 69u, 
+	95u, 101u, 48u, 57u, 45u, 95u, 48u, 57u, 
+	65u, 90u, 97u, 122u, 91u, 95u, 45u, 46u, 
 	48u, 57u, 65u, 90u, 97u, 122u, 45u, 95u, 
-	102u, 48u, 57u, 65u, 90u, 97u, 122u, 45u, 
-	95u, 97u, 48u, 57u, 65u, 90u, 98u, 122u, 
-	45u, 95u, 110u, 48u, 57u, 65u, 90u, 97u, 
-	122u, 0
+	110u, 48u, 57u, 65u, 90u, 97u, 122u, 45u, 
+	95u, 102u, 48u, 57u, 65u, 90u, 97u, 122u, 
+	45u, 95u, 97u, 48u, 57u, 65u, 90u, 98u, 
+	122u, 45u, 95u, 110u, 48u, 57u, 65u, 90u, 
+	97u, 122u, 0
 };
 
 static const char _TOMLT_single_lengths[] = {
@@ -105,11 +112,12 @@ static const char _TOMLT_single_lengths[] = {
 	2, 0, 0, 0, 0, 0, 1, 1, 
 	1, 1, 0, 0, 1, 0, 0, 0, 
 	0, 1, 0, 0, 0, 0, 1, 0, 
-	0, 0, 0, 0, 11, 1, 1, 1, 
-	1, 1, 1, 1, 1, 3, 10, 3, 
-	1, 4, 1, 1, 1, 1, 10, 4, 
-	4, 5, 2, 5, 5, 4, 4, 2, 
-	3, 3, 3, 3
+	0, 0, 0, 0, 2, 1, 2, 1, 
+	12, 1, 1, 1, 1, 1, 1, 1, 
+	1, 3, 10, 3, 1, 4, 1, 1, 
+	1, 1, 10, 4, 4, 5, 2, 5, 
+	5, 4, 4, 2, 2, 3, 3, 3, 
+	3
 };
 
 static const char _TOMLT_range_lengths[] = {
@@ -120,11 +128,12 @@ static const char _TOMLT_range_lengths[] = {
 	1, 1, 1, 1, 1, 3, 0, 0, 
 	0, 0, 1, 1, 0, 1, 1, 1, 
 	1, 0, 1, 1, 1, 1, 0, 1, 
-	1, 1, 1, 1, 4, 1, 0, 0, 
-	0, 0, 0, 0, 0, 1, 1, 1, 
-	1, 1, 1, 1, 1, 3, 1, 1, 
-	1, 1, 0, 0, 0, 1, 1, 3, 
-	3, 3, 3, 3
+	1, 1, 1, 1, 4, 4, 4, 0, 
+	4, 1, 0, 0, 0, 0, 0, 0, 
+	0, 1, 1, 1, 1, 1, 1, 1, 
+	1, 3, 1, 1, 1, 1, 0, 0, 
+	0, 1, 1, 3, 4, 3, 3, 3, 
+	3
 };
 
 static const short _TOMLT_index_offsets[] = {
@@ -135,14 +144,15 @@ static const short _TOMLT_index_offsets[] = {
 	119, 123, 125, 127, 129, 131, 135, 137, 
 	139, 141, 143, 145, 147, 149, 151, 153, 
 	155, 157, 159, 161, 163, 165, 167, 169, 
-	171, 173, 175, 177, 179, 195, 198, 200, 
-	202, 204, 206, 208, 210, 212, 217, 229, 
-	234, 237, 243, 246, 249, 252, 257, 269, 
-	275, 281, 288, 291, 297, 303, 309, 315, 
-	321, 328, 335, 342
+	171, 173, 175, 177, 179, 186, 192, 199, 
+	201, 218, 221, 223, 225, 227, 229, 231, 
+	233, 235, 240, 252, 257, 260, 266, 269, 
+	272, 275, 280, 292, 298, 304, 311, 314, 
+	320, 326, 332, 338, 344, 351, 358, 365, 
+	372
 };
 
-static const char _TOMLT_indicies[] = {
+static const unsigned char _TOMLT_indicies[] = {
 	1, 2, 3, 0, 1, 4, 3, 0, 
 	0, 5, 0, 0, 0, 0, 0, 0, 
 	6, 1, 7, 7, 7, 1, 8, 8, 
@@ -165,66 +175,72 @@ static const char _TOMLT_indicies[] = {
 	40, 57, 56, 58, 56, 59, 56, 60, 
 	56, 61, 56, 62, 56, 63, 56, 64, 
 	56, 65, 56, 66, 56, 67, 56, 68, 
-	56, 69, 56, 71, 72, 73, 74, 75, 
-	75, 76, 77, 79, 80, 81, 71, 78, 
-	79, 79, 70, 71, 71, 82, 14, 83, 
-	85, 84, 86, 84, 87, 73, 31, 88, 
-	90, 89, 91, 89, 93, 94, 95, 43, 
-	92, 97, 98, 99, 100, 101, 102, 98, 
-	99, 100, 101, 43, 96, 104, 97, 104, 
-	36, 103, 38, 39, 103, 97, 99, 102, 
-	99, 43, 96, 41, 42, 105, 98, 44, 
-	106, 100, 45, 107, 101, 46, 46, 46, 
-	108, 97, 98, 99, 100, 101, 102, 98, 
-	99, 100, 101, 109, 96, 97, 99, 102, 
-	99, 110, 96, 97, 99, 102, 99, 111, 
-	96, 112, 97, 99, 102, 99, 43, 96, 
-	114, 114, 113, 115, 115, 116, 66, 66, 
-	113, 115, 115, 117, 66, 66, 113, 115, 
-	115, 66, 66, 69, 113, 97, 99, 102, 
-	99, 109, 96, 79, 79, 79, 79, 79, 
-	35, 79, 79, 119, 79, 79, 79, 118, 
-	79, 79, 120, 79, 79, 79, 118, 79, 
-	79, 121, 79, 79, 79, 118, 79, 79, 
-	120, 79, 79, 79, 118, 0
+	56, 69, 56, 71, 70, 70, 70, 70, 
+	70, 47, 72, 72, 72, 72, 72, 47, 
+	73, 72, 72, 72, 72, 72, 47, 74, 
+	47, 76, 77, 78, 79, 80, 80, 81, 
+	82, 85, 84, 86, 87, 76, 83, 84, 
+	84, 75, 76, 76, 88, 14, 89, 91, 
+	90, 92, 90, 93, 78, 31, 94, 96, 
+	95, 97, 95, 99, 100, 101, 43, 98, 
+	103, 104, 105, 106, 107, 108, 104, 105, 
+	106, 107, 43, 102, 110, 103, 110, 36, 
+	109, 38, 39, 109, 103, 105, 108, 105, 
+	43, 102, 41, 42, 111, 104, 44, 112, 
+	106, 45, 113, 107, 46, 46, 46, 114, 
+	103, 104, 105, 106, 107, 108, 104, 105, 
+	106, 107, 115, 102, 103, 105, 108, 105, 
+	116, 102, 103, 105, 108, 105, 117, 102, 
+	118, 103, 105, 108, 105, 43, 102, 120, 
+	120, 119, 121, 121, 122, 66, 66, 119, 
+	121, 121, 123, 66, 66, 119, 121, 121, 
+	66, 66, 69, 119, 103, 105, 108, 105, 
+	115, 102, 84, 84, 84, 84, 84, 35, 
+	124, 70, 70, 70, 70, 70, 98, 84, 
+	84, 126, 84, 84, 84, 125, 84, 84, 
+	127, 84, 84, 84, 125, 84, 84, 128, 
+	84, 84, 84, 125, 84, 84, 127, 84, 
+	84, 84, 125, 0
 };
 
 static const char _TOMLT_trans_targs[] = {
-	2, 0, 62, 3, 60, 4, 8, 5, 
-	6, 7, 9, 10, 11, 60, 12, 13, 
-	15, 14, 63, 16, 20, 17, 18, 19, 
-	21, 22, 23, 25, 66, 60, 60, 26, 
-	27, 28, 67, 60, 71, 60, 31, 72, 
-	60, 33, 74, 73, 75, 76, 77, 60, 
-	39, 60, 41, 43, 44, 45, 46, 82, 
-	60, 48, 49, 50, 51, 83, 53, 54, 
-	55, 56, 60, 58, 84, 85, 60, 61, 
-	1, 65, 24, 69, 60, 78, 86, 87, 
-	88, 90, 60, 60, 60, 64, 60, 60, 
-	60, 60, 68, 60, 60, 70, 38, 40, 
-	60, 29, 35, 32, 36, 37, 34, 60, 
-	30, 60, 60, 60, 60, 79, 80, 81, 
-	42, 60, 47, 52, 57, 59, 60, 89, 
-	87, 91
+	2, 0, 66, 3, 64, 4, 8, 5, 
+	6, 7, 9, 10, 11, 64, 12, 13, 
+	15, 14, 67, 16, 20, 17, 18, 19, 
+	21, 22, 23, 25, 70, 64, 64, 26, 
+	27, 28, 71, 64, 75, 64, 31, 76, 
+	64, 33, 78, 77, 79, 80, 81, 64, 
+	39, 64, 41, 43, 44, 45, 46, 86, 
+	64, 48, 49, 50, 51, 87, 53, 54, 
+	55, 56, 64, 58, 88, 89, 60, 64, 
+	62, 63, 64, 64, 65, 1, 69, 24, 
+	73, 64, 82, 90, 91, 92, 93, 95, 
+	64, 64, 64, 68, 64, 64, 64, 64, 
+	72, 64, 64, 74, 38, 40, 64, 29, 
+	35, 32, 36, 37, 34, 64, 30, 64, 
+	64, 64, 64, 83, 84, 85, 42, 64, 
+	47, 52, 57, 59, 61, 64, 94, 91, 
+	96
 };
 
 static const char _TOMLT_trans_actions[] = {
 	0, 0, 5, 0, 11, 0, 0, 0, 
-	0, 0, 0, 0, 0, 53, 0, 0, 
+	0, 0, 0, 0, 0, 57, 0, 0, 
 	0, 0, 0, 0, 0, 0, 0, 0, 
-	0, 0, 0, 0, 5, 13, 55, 0, 
-	0, 0, 0, 65, 79, 57, 0, 5, 
-	59, 0, 82, 85, 73, 70, 67, 63, 
+	0, 0, 0, 0, 5, 13, 59, 0, 
+	0, 0, 0, 69, 83, 61, 0, 5, 
+	63, 0, 86, 89, 77, 74, 71, 67, 
 	0, 15, 0, 0, 0, 0, 0, 5, 
-	61, 0, 0, 0, 0, 5, 0, 0, 
-	0, 0, 17, 0, 5, 5, 19, 0, 
-	0, 0, 0, 5, 21, 85, 85, 88, 
-	0, 0, 51, 29, 25, 0, 7, 23, 
-	31, 27, 0, 9, 49, 85, 0, 0, 
-	43, 0, 0, 0, 0, 0, 0, 39, 
-	0, 41, 37, 35, 33, 85, 85, 85, 
-	0, 45, 0, 0, 0, 0, 47, 0, 
-	76, 0
+	65, 0, 0, 0, 0, 5, 0, 0, 
+	0, 0, 17, 0, 5, 5, 0, 21, 
+	0, 0, 19, 23, 0, 0, 0, 0, 
+	5, 25, 89, 89, 92, 5, 0, 0, 
+	55, 33, 29, 0, 7, 27, 35, 31, 
+	0, 9, 53, 89, 0, 0, 47, 0, 
+	0, 0, 0, 0, 0, 43, 0, 45, 
+	41, 39, 37, 89, 89, 89, 0, 49, 
+	0, 0, 0, 0, 0, 51, 0, 80, 
+	0
 };
 
 static const char _TOMLT_to_state_actions[] = {
@@ -235,11 +251,12 @@ static const char _TOMLT_to_state_actions[] = {
 	0, 0, 0, 0, 0, 0, 0, 0, 
 	0, 0, 0, 0, 0, 0, 0, 0, 
 	0, 0, 0, 0, 0, 0, 0, 0, 
-	0, 0, 0, 0, 1, 0, 0, 0, 
+	0, 0, 0, 0, 0, 0, 0, 0, 
+	1, 0, 0, 0, 0, 0, 0, 0, 
 	0, 0, 0, 0, 0, 0, 0, 0, 
 	0, 0, 0, 0, 0, 0, 0, 0, 
 	0, 0, 0, 0, 0, 0, 0, 0, 
-	0, 0, 0, 0
+	0
 };
 
 static const char _TOMLT_from_state_actions[] = {
@@ -250,11 +267,12 @@ static const char _TOMLT_from_state_actions[] = {
 	0, 0, 0, 0, 0, 0, 0, 0, 
 	0, 0, 0, 0, 0, 0, 0, 0, 
 	0, 0, 0, 0, 0, 0, 0, 0, 
-	0, 0, 0, 0, 3, 0, 0, 0, 
+	0, 0, 0, 0, 0, 0, 0, 0, 
+	3, 0, 0, 0, 0, 0, 0, 0, 
 	0, 0, 0, 0, 0, 0, 0, 0, 
 	0, 0, 0, 0, 0, 0, 0, 0, 
 	0, 0, 0, 0, 0, 0, 0, 0, 
-	0, 0, 0, 0
+	0
 };
 
 static const short _TOMLT_eof_trans[] = {
@@ -265,21 +283,22 @@ static const short _TOMLT_eof_trans[] = {
 	41, 36, 41, 36, 36, 36, 48, 48, 
 	48, 48, 41, 41, 41, 41, 41, 57, 
 	57, 57, 57, 57, 57, 57, 57, 57, 
-	57, 57, 57, 57, 0, 83, 84, 85, 
-	85, 88, 89, 90, 90, 93, 97, 104, 
-	104, 97, 106, 107, 108, 109, 97, 97, 
-	97, 97, 114, 114, 114, 114, 97, 36, 
-	119, 119, 119, 119
+	57, 57, 57, 57, 48, 48, 48, 48, 
+	0, 89, 90, 91, 91, 94, 95, 96, 
+	96, 99, 103, 110, 110, 103, 112, 113, 
+	114, 115, 103, 103, 103, 103, 120, 120, 
+	120, 120, 103, 36, 99, 126, 126, 126, 
+	126
 };
 
-static const int TOMLT_start = 60;
-static const int TOMLT_first_final = 60;
+static const int TOMLT_start = 64;
+static const int TOMLT_first_final = 64;
 static const int TOMLT_error = 0;
 
-static const int TOMLT_en_main = 60;
+static const int TOMLT_en_main = 64;
 
 
-/* #line 116 "TOMLT.c.rl" */
+/* #line 127 "TOMLT.c.rl" */
 
 ok64 TOMLTLexer(TOMLTstate* state) {
 
@@ -298,7 +317,7 @@ ok64 TOMLTLexer(TOMLTstate* state) {
     u8cs tok = {p, p};
 
     
-/* #line 293 "TOMLT.rl.c" */
+/* #line 312 "TOMLT.rl.c" */
 	{
 	cs = TOMLT_start;
 	ts = 0;
@@ -306,9 +325,9 @@ ok64 TOMLTLexer(TOMLTstate* state) {
 	act = 0;
 	}
 
-/* #line 134 "TOMLT.c.rl" */
+/* #line 145 "TOMLT.c.rl" */
     
-/* #line 299 "TOMLT.rl.c" */
+/* #line 318 "TOMLT.rl.c" */
 	{
 	int _klen;
 	unsigned int _trans;
@@ -329,7 +348,7 @@ _resume:
 /* #line 1 "NONE" */
 	{ts = p;}
 	break;
-/* #line 318 "TOMLT.rl.c" */
+/* #line 337 "TOMLT.rl.c" */
 		}
 	}
 
@@ -400,39 +419,39 @@ _eof_trans:
 	{te = p+1;}
 	break;
 	case 3:
-/* #line 39 "TOMLT.c.rl" */
+/* #line 40 "TOMLT.c.rl" */
 	{act = 6;}
 	break;
 	case 4:
-/* #line 39 "TOMLT.c.rl" */
+/* #line 40 "TOMLT.c.rl" */
 	{act = 7;}
 	break;
 	case 5:
-/* #line 39 "TOMLT.c.rl" */
+/* #line 40 "TOMLT.c.rl" */
 	{act = 8;}
 	break;
 	case 6:
-/* #line 39 "TOMLT.c.rl" */
+/* #line 40 "TOMLT.c.rl" */
 	{act = 9;}
 	break;
 	case 7:
-/* #line 39 "TOMLT.c.rl" */
+/* #line 40 "TOMLT.c.rl" */
 	{act = 10;}
 	break;
 	case 8:
-/* #line 39 "TOMLT.c.rl" */
+/* #line 40 "TOMLT.c.rl" */
 	{act = 11;}
 	break;
 	case 9:
-/* #line 39 "TOMLT.c.rl" */
+/* #line 40 "TOMLT.c.rl" */
 	{act = 12;}
 	break;
 	case 10:
-/* #line 45 "TOMLT.c.rl" */
-	{act = 14;}
+/* #line 52 "TOMLT.c.rl" */
+	{act = 16;}
 	break;
 	case 11:
-/* #line 33 "TOMLT.c.rl" */
+/* #line 34 "TOMLT.c.rl" */
 	{te = p+1;{
     tok[0] = (u8c*)ts;
     tok[1] = (u8c*)te;
@@ -441,7 +460,7 @@ _eof_trans:
 }}
 	break;
 	case 12:
-/* #line 33 "TOMLT.c.rl" */
+/* #line 34 "TOMLT.c.rl" */
 	{te = p+1;{
     tok[0] = (u8c*)ts;
     tok[1] = (u8c*)te;
@@ -450,7 +469,7 @@ _eof_trans:
 }}
 	break;
 	case 13:
-/* #line 33 "TOMLT.c.rl" */
+/* #line 34 "TOMLT.c.rl" */
 	{te = p+1;{
     tok[0] = (u8c*)ts;
     tok[1] = (u8c*)te;
@@ -459,7 +478,7 @@ _eof_trans:
 }}
 	break;
 	case 14:
-/* #line 33 "TOMLT.c.rl" */
+/* #line 34 "TOMLT.c.rl" */
 	{te = p+1;{
     tok[0] = (u8c*)ts;
     tok[1] = (u8c*)te;
@@ -468,7 +487,7 @@ _eof_trans:
 }}
 	break;
 	case 15:
-/* #line 39 "TOMLT.c.rl" */
+/* #line 40 "TOMLT.c.rl" */
 	{te = p+1;{
     tok[0] = (u8c*)ts;
     tok[1] = (u8c*)te;
@@ -477,7 +496,7 @@ _eof_trans:
 }}
 	break;
 	case 16:
-/* #line 45 "TOMLT.c.rl" */
+/* #line 52 "TOMLT.c.rl" */
 	{te = p+1;{
     tok[0] = (u8c*)ts;
     tok[1] = (u8c*)te;
@@ -486,16 +505,25 @@ _eof_trans:
 }}
 	break;
 	case 17:
-/* #line 51 "TOMLT.c.rl" */
+/* #line 46 "TOMLT.c.rl" */
 	{te = p+1;{
     tok[0] = (u8c*)ts;
     tok[1] = (u8c*)te;
-    o = TOMLTonPunct(tok, state);
+    o = TOMLTonHeader(tok, state);
     if (o!=OK) {p++; goto _out; }
 }}
 	break;
 	case 18:
-/* #line 51 "TOMLT.c.rl" */
+/* #line 46 "TOMLT.c.rl" */
+	{te = p+1;{
+    tok[0] = (u8c*)ts;
+    tok[1] = (u8c*)te;
+    o = TOMLTonHeader(tok, state);
+    if (o!=OK) {p++; goto _out; }
+}}
+	break;
+	case 19:
+/* #line 58 "TOMLT.c.rl" */
 	{te = p+1;{
     tok[0] = (u8c*)ts;
     tok[1] = (u8c*)te;
@@ -503,8 +531,17 @@ _eof_trans:
     if (o!=OK) {p++; goto _out; }
 }}
 	break;
-	case 19:
-/* #line 27 "TOMLT.c.rl" */
+	case 20:
+/* #line 58 "TOMLT.c.rl" */
+	{te = p+1;{
+    tok[0] = (u8c*)ts;
+    tok[1] = (u8c*)te;
+    o = TOMLTonPunct(tok, state);
+    if (o!=OK) {p++; goto _out; }
+}}
+	break;
+	case 21:
+/* #line 28 "TOMLT.c.rl" */
 	{te = p;p--;{
     tok[0] = (u8c*)ts;
     tok[1] = (u8c*)te;
@@ -512,26 +549,8 @@ _eof_trans:
     if (o!=OK) {p++; goto _out; }
 }}
 	break;
-	case 20:
-/* #line 33 "TOMLT.c.rl" */
-	{te = p;p--;{
-    tok[0] = (u8c*)ts;
-    tok[1] = (u8c*)te;
-    o = TOMLTonString(tok, state);
-    if (o!=OK) {p++; goto _out; }
-}}
-	break;
-	case 21:
-/* #line 33 "TOMLT.c.rl" */
-	{te = p;p--;{
-    tok[0] = (u8c*)ts;
-    tok[1] = (u8c*)te;
-    o = TOMLTonString(tok, state);
-    if (o!=OK) {p++; goto _out; }
-}}
-	break;
 	case 22:
-/* #line 33 "TOMLT.c.rl" */
+/* #line 34 "TOMLT.c.rl" */
 	{te = p;p--;{
     tok[0] = (u8c*)ts;
     tok[1] = (u8c*)te;
@@ -540,7 +559,7 @@ _eof_trans:
 }}
 	break;
 	case 23:
-/* #line 33 "TOMLT.c.rl" */
+/* #line 34 "TOMLT.c.rl" */
 	{te = p;p--;{
     tok[0] = (u8c*)ts;
     tok[1] = (u8c*)te;
@@ -549,25 +568,25 @@ _eof_trans:
 }}
 	break;
 	case 24:
-/* #line 39 "TOMLT.c.rl" */
+/* #line 34 "TOMLT.c.rl" */
 	{te = p;p--;{
     tok[0] = (u8c*)ts;
     tok[1] = (u8c*)te;
-    o = TOMLTonNumber(tok, state);
+    o = TOMLTonString(tok, state);
     if (o!=OK) {p++; goto _out; }
 }}
 	break;
 	case 25:
-/* #line 39 "TOMLT.c.rl" */
+/* #line 34 "TOMLT.c.rl" */
 	{te = p;p--;{
     tok[0] = (u8c*)ts;
     tok[1] = (u8c*)te;
-    o = TOMLTonNumber(tok, state);
+    o = TOMLTonString(tok, state);
     if (o!=OK) {p++; goto _out; }
 }}
 	break;
 	case 26:
-/* #line 39 "TOMLT.c.rl" */
+/* #line 40 "TOMLT.c.rl" */
 	{te = p;p--;{
     tok[0] = (u8c*)ts;
     tok[1] = (u8c*)te;
@@ -576,7 +595,7 @@ _eof_trans:
 }}
 	break;
 	case 27:
-/* #line 39 "TOMLT.c.rl" */
+/* #line 40 "TOMLT.c.rl" */
 	{te = p;p--;{
     tok[0] = (u8c*)ts;
     tok[1] = (u8c*)te;
@@ -585,7 +604,7 @@ _eof_trans:
 }}
 	break;
 	case 28:
-/* #line 39 "TOMLT.c.rl" */
+/* #line 40 "TOMLT.c.rl" */
 	{te = p;p--;{
     tok[0] = (u8c*)ts;
     tok[1] = (u8c*)te;
@@ -594,7 +613,7 @@ _eof_trans:
 }}
 	break;
 	case 29:
-/* #line 39 "TOMLT.c.rl" */
+/* #line 40 "TOMLT.c.rl" */
 	{te = p;p--;{
     tok[0] = (u8c*)ts;
     tok[1] = (u8c*)te;
@@ -603,16 +622,25 @@ _eof_trans:
 }}
 	break;
 	case 30:
-/* #line 45 "TOMLT.c.rl" */
+/* #line 40 "TOMLT.c.rl" */
 	{te = p;p--;{
     tok[0] = (u8c*)ts;
     tok[1] = (u8c*)te;
-    o = TOMLTonWord(tok, state);
+    o = TOMLTonNumber(tok, state);
     if (o!=OK) {p++; goto _out; }
 }}
 	break;
 	case 31:
-/* #line 45 "TOMLT.c.rl" */
+/* #line 40 "TOMLT.c.rl" */
+	{te = p;p--;{
+    tok[0] = (u8c*)ts;
+    tok[1] = (u8c*)te;
+    o = TOMLTonNumber(tok, state);
+    if (o!=OK) {p++; goto _out; }
+}}
+	break;
+	case 32:
+/* #line 52 "TOMLT.c.rl" */
 	{te = p;p--;{
     tok[0] = (u8c*)ts;
     tok[1] = (u8c*)te;
@@ -620,8 +648,17 @@ _eof_trans:
     if (o!=OK) {p++; goto _out; }
 }}
 	break;
-	case 32:
-/* #line 51 "TOMLT.c.rl" */
+	case 33:
+/* #line 52 "TOMLT.c.rl" */
+	{te = p;p--;{
+    tok[0] = (u8c*)ts;
+    tok[1] = (u8c*)te;
+    o = TOMLTonWord(tok, state);
+    if (o!=OK) {p++; goto _out; }
+}}
+	break;
+	case 34:
+/* #line 58 "TOMLT.c.rl" */
 	{te = p;p--;{
     tok[0] = (u8c*)ts;
     tok[1] = (u8c*)te;
@@ -629,8 +666,8 @@ _eof_trans:
     if (o!=OK) {p++; goto _out; }
 }}
 	break;
-	case 33:
-/* #line 57 "TOMLT.c.rl" */
+	case 35:
+/* #line 64 "TOMLT.c.rl" */
 	{te = p;p--;{
     tok[0] = (u8c*)ts;
     tok[1] = (u8c*)te;
@@ -638,35 +675,26 @@ _eof_trans:
     if (o!=OK) {p++; goto _out; }
 }}
 	break;
-	case 34:
-/* #line 33 "TOMLT.c.rl" */
-	{{p = ((te))-1;}{
-    tok[0] = (u8c*)ts;
-    tok[1] = (u8c*)te;
-    o = TOMLTonString(tok, state);
-    if (o!=OK) {p++; goto _out; }
-}}
-	break;
-	case 35:
-/* #line 33 "TOMLT.c.rl" */
-	{{p = ((te))-1;}{
-    tok[0] = (u8c*)ts;
-    tok[1] = (u8c*)te;
-    o = TOMLTonString(tok, state);
-    if (o!=OK) {p++; goto _out; }
-}}
-	break;
 	case 36:
-/* #line 39 "TOMLT.c.rl" */
+/* #line 34 "TOMLT.c.rl" */
 	{{p = ((te))-1;}{
     tok[0] = (u8c*)ts;
     tok[1] = (u8c*)te;
-    o = TOMLTonNumber(tok, state);
+    o = TOMLTonString(tok, state);
     if (o!=OK) {p++; goto _out; }
 }}
 	break;
 	case 37:
-/* #line 39 "TOMLT.c.rl" */
+/* #line 34 "TOMLT.c.rl" */
+	{{p = ((te))-1;}{
+    tok[0] = (u8c*)ts;
+    tok[1] = (u8c*)te;
+    o = TOMLTonString(tok, state);
+    if (o!=OK) {p++; goto _out; }
+}}
+	break;
+	case 38:
+/* #line 40 "TOMLT.c.rl" */
 	{{p = ((te))-1;}{
     tok[0] = (u8c*)ts;
     tok[1] = (u8c*)te;
@@ -674,8 +702,17 @@ _eof_trans:
     if (o!=OK) {p++; goto _out; }
 }}
 	break;
-	case 38:
-/* #line 45 "TOMLT.c.rl" */
+	case 39:
+/* #line 40 "TOMLT.c.rl" */
+	{{p = ((te))-1;}{
+    tok[0] = (u8c*)ts;
+    tok[1] = (u8c*)te;
+    o = TOMLTonNumber(tok, state);
+    if (o!=OK) {p++; goto _out; }
+}}
+	break;
+	case 40:
+/* #line 52 "TOMLT.c.rl" */
 	{{p = ((te))-1;}{
     tok[0] = (u8c*)ts;
     tok[1] = (u8c*)te;
@@ -683,8 +720,8 @@ _eof_trans:
     if (o!=OK) {p++; goto _out; }
 }}
 	break;
-	case 39:
-/* #line 51 "TOMLT.c.rl" */
+	case 41:
+/* #line 58 "TOMLT.c.rl" */
 	{{p = ((te))-1;}{
     tok[0] = (u8c*)ts;
     tok[1] = (u8c*)te;
@@ -692,7 +729,7 @@ _eof_trans:
     if (o!=OK) {p++; goto _out; }
 }}
 	break;
-	case 40:
+	case 42:
 /* #line 1 "NONE" */
 	{	switch( act ) {
 	case 6:
@@ -751,7 +788,7 @@ _eof_trans:
     if (o!=OK) {p++; goto _out; }
 }
 	break;
-	case 14:
+	case 16:
 	{{p = ((te))-1;}
     tok[0] = (u8c*)ts;
     tok[1] = (u8c*)te;
@@ -762,7 +799,7 @@ _eof_trans:
 	}
 	}
 	break;
-/* #line 711 "TOMLT.rl.c" */
+/* #line 746 "TOMLT.rl.c" */
 		}
 	}
 
@@ -775,7 +812,7 @@ _again:
 /* #line 1 "NONE" */
 	{ts = 0;}
 	break;
-/* #line 722 "TOMLT.rl.c" */
+/* #line 757 "TOMLT.rl.c" */
 		}
 	}
 
@@ -795,7 +832,7 @@ _again:
 	_out: {}
 	}
 
-/* #line 135 "TOMLT.c.rl" */
+/* #line 146 "TOMLT.c.rl" */
 
     state->data[0] = p;
     if (o==OK && cs < TOMLT_first_final)

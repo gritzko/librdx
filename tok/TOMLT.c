@@ -37,6 +37,12 @@ ok64 TOMLTonNumber(u8cs tok, TOMLTstate *state) {
     done;
 }
 
+ok64 TOMLTonHeader(u8cs tok, TOMLTstate *state) {
+    sane($ok(tok) && state != NULL);
+    if (state->cb) return TOKSplitText('R', tok, state->cb, state->ctx);
+    done;
+}
+
 ok64 TOMLTonWord(u8cs tok, TOMLTstate *state) {
     sane($ok(tok) && state != NULL);
     if (state->cb) {

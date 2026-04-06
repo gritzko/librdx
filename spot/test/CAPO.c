@@ -285,6 +285,55 @@ ok64 CAPO8() {
     done;
 }
 
+// --- Test 9: CAPOIndexFile produces no duplicate entries after sort ---
+ok64 CAPO9() {
+    sane(1);
+    // Source with repeated identifiers generates duplicate trigrams
+    const char *src = "int aaa = aaa + aaa;";
+    u8csc source = {(u8cp)src, (u8cp)src + strlen(src)};
+    u8cs ext = $u8str(".c");
+    a_cstr(path, "dup.c");
+
+    size_t maxentries = 4096;
+    Bu64 entries = {};
+    call(u64bAlloc, entries, maxentries);
+    u64 *ebuf = entries[0];
+
+    call(CAPOIndexFile, entries, source, ext, path);
+
+    size_t nentries = u64bIdleHead(entries) - ebuf;
+    want(nentries > 0);
+
+    // Sort and check for duplicates
+    u64s data = {ebuf, ebuf + nentries};
+    $sort(data, u64cmp);
+
+    size_t dups = 0;
+    for (size_t i = 1; i < nentries; i++) {
+        if (ebuf[i] == ebuf[i - 1]) dups++;
+    }
+    // "aaa" trigram appears 3 times for same file → must have duplicates pre-dedup
+    want(dups > 0);
+
+    // After HIT merge, duplicates should be gone
+    u64cs runs[1] = {{(u64cp)ebuf, (u64cp)ebuf + nentries}};
+    u64css iter = {runs, runs + 1};
+    HITu64Start(iter);
+
+    u64 out[4096];
+    u64p op = out;
+    HITu64Merge(iter, &op);
+    size_t unique = (size_t)(op - out);
+    want(unique < nentries);
+    // Verify no dups in merged output
+    for (size_t i = 1; i < unique; i++) {
+        want(out[i] != out[i - 1]);
+    }
+
+    u64bFree(entries);
+    done;
+}
+
 ok64 CAPOtest() {
     sane(1);
     call(CAPO0);
@@ -296,6 +345,7 @@ ok64 CAPOtest() {
     call(CAPO6);
     call(CAPO7);
     call(CAPO8);
+    call(CAPO9);
     done;
 }
 
