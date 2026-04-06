@@ -70,6 +70,7 @@ list(APPEND TOK_HEADERS
     TYST.h
     TXTT.h
     MDT.h
+    MKDT.h
     LLT.h
 )
 
@@ -186,6 +187,8 @@ list(APPEND TOK_SOURCES
     TXTT.rl.c
     MDT.c
     MDT.rl.c
+    MKDT.c
+    MKDT.rl.c
     LLT.c
     LLT.rl.c
 )

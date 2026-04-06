@@ -56,6 +56,7 @@
 #include "TYST.h"
 #include "TXTT.h"
 #include "MDT.h"
+#include "MKDT.h"
 #include "LLT.h"
 #include "abc/PRO.h"
 
@@ -200,6 +201,8 @@ static const TOKentry TOK_TABLE[] = {
     {"ll",         (TOKfn)LLTLexer},
     {"md",         (TOKfn)MDTLexer},
     {"markdown",   (TOKfn)MDTLexer},
+    {"mkd",        (TOKfn)MKDTLexer},
+    {"sm",         (TOKfn)MKDTLexer},
     {"txt",        (TOKfn)TXTTLexer},
     {"rst",        (TOKfn)TXTTLexer},
     {NULL,         NULL},
