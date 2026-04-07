@@ -1,0 +1,3 @@
+[submodule "abc"]
+	path = abc
+	url = /home/gritzko/src/libabc
