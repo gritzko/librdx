@@ -263,7 +263,7 @@ ok64 CAPOGrep(u8csc substring, u8csc ext, u8csc reporoot, u32 ctx_lines,
                         hk->text[1] = source[0] + ctx_hi;
 
                         // Clip file-level toks to context region
-                        LESSClipToks(hk->toks, gts, source[0],
+                        HUNKu32sClip(less_arena, hk->toks, gts,
                                      ctx_lo, ctx_hi);
 
                         // Build sparse hili from match ranges
@@ -680,7 +680,7 @@ ok64 CAPOPcreGrep(u8csc pattern, u8csc ext, u8csc reporoot, u32 ctx_lines,
                     hk->text[1] = source[0] + ctx_hi;
 
                     // Clip file-level toks to context region
-                    LESSClipToks(hk->toks, gts, source[0],
+                    HUNKu32sClip(less_arena, hk->toks, gts,
                                  ctx_lo, ctx_hi);
 
                     // Build sparse hili from match ranges

@@ -1,25 +1,29 @@
-#include "CAPOi.h"
+#include "BRO.h"
 
 #include <stdio.h>
 #include <string.h>
 
+#include "abc/FILE.h"
+#include "abc/PATH.h"
 #include "abc/PRO.h"
-#include "spot/SPOT.h"
 #include "dog/DEF.h"
+#include "dog/HUNK.h"
+#include "dog/TOK.h"
 
 // --- Cat: syntax-highlighted file display ---
 
-ok64 CAPOCat(u8css files, u8csc reporoot) {
-    sane(!$empty(files) && $ok(reporoot));
+ok64 BROCat(u8css files, u8csc reporoot) {
+    sane(!$empty(files));
+    (void)reporoot;
     int nfiles = (int)$len(files);
 
-    call(LESSArenaInit);
+    call(BROArenaInit);
 
     for (int fi = 0; fi < nfiles; fi++) {
-        if (less_nhunks >= LESS_MAX_HUNKS) break;
+        if (bro_nhunks >= BRO_MAX_HUNKS) break;
 
         u8cs *fp = u8cssAtP(files, fi);
-        a_dup(u8c,fpath_s,(*fp));
+        a_dup(u8c, fpath_s, (*fp));
         if ($empty(fpath_s)) continue;
 
         // Resolve path against CWD (like cat)
@@ -32,13 +36,13 @@ ok64 CAPOCat(u8css files, u8csc reporoot) {
         // Extract extension
         u8cs ext = {};
         size_t plen = (size_t)(u8bIdleHead(fpbuf) - u8bDataHead(fpbuf));
-        CAPOFindExt(ext, u8bDataHead(fpbuf), plen);
+        HUNKu8sExt(ext, u8bDataHead(fpbuf), plen);
 
         // Map file
         u8bp mapped = NULL;
         ok64 o = FILEMapRO(&mapped, PATHu8cgIn(fpbuf));
         if (o != OK) {
-            fprintf(stderr, "spot: cannot open %.*s: %s\n",
+            fprintf(stderr, "bro: cannot open %.*s: %s\n",
                     (int)$len(fpath_s), (char *)fpath_s[0], ok64str(o));
             continue;
         }
@@ -47,8 +51,8 @@ ok64 CAPOCat(u8css files, u8csc reporoot) {
         u8cp src_idle = u8bIdleHead(mapped);
         u32 srclen = (u32)(src_idle - src_head);
 
-        LESShunk *hk = &less_hunks[less_nhunks];
-        *hk = (LESShunk){};
+        BROhunk *hk = &bro_hunks[bro_nhunks];
+        *hk = (BROhunk){};
 
         // Title
         char fpz[FILE_PATH_MAX_LEN];
@@ -56,10 +60,10 @@ ok64 CAPOCat(u8css files, u8csc reporoot) {
         if (fzl >= sizeof(fpz)) fzl = sizeof(fpz) - 1;
         memcpy(fpz, fpath_s[0], fzl);
         fpz[fzl] = 0;
-        u8gp g = u8aOpen(less_arena);
-        call(CAPOFormatTitle, u8gRest(g), fpz, "");
+        u8gp g = u8aOpen(bro_arena);
+        call(HUNKu8sFormatTitle, u8gRest(g), fpz, "");
         u8cs title = {};
-        u8aClose(less_arena, title);
+        u8aClose(bro_arena, title);
         if (!$empty(title)) {
             hk->title[0] = title[0];
             hk->title[1] = title[1];
@@ -71,17 +75,20 @@ ok64 CAPOCat(u8css files, u8csc reporoot) {
         // Tokenize
         Bu32 toks = {};
         b8 tokenized = NO;
-        if (!$empty(ext) && CAPOKnownExt(ext)) {
+        u8cs ext_nodot = {};
+        if (!$empty(ext) && ext[0][0] == '.') {
+            ext_nodot[0] = ext[0] + 1;
+            ext_nodot[1] = ext[1];
+        }
+        if (!$empty(ext_nodot) && TOKKnownExt(ext_nodot)) {
             size_t maxlen = srclen + 1;
             o = u32bMap(toks, maxlen);
             if (o == OK) {
                 u8cs source = {src_head, src_idle};
-                o = SPOTTokenize(toks, source, ext);
+                o = HUNKu32bTokenize(toks, source, ext);
                 if (o == OK) {
                     u32 *dts[2] = {u32bDataHead(toks), u32bIdleHead(toks)};
-                    a_dup(u8c,dext,ext);
-                    if (!$empty(dext) && dext[0][0] == '.') dext[0]++;
-                    DEFMark(dts, source, dext);
+                    DEFMark(dts, source, ext_nodot);
                     tokenized = YES;
                     hk->toks[0] = (u32cp)u32bDataHead(toks);
                     hk->toks[1] = (u32cp)u32bIdleHead(toks);
@@ -94,13 +101,13 @@ ok64 CAPOCat(u8css files, u8csc reporoot) {
 
         // No hili for cat (no diff/match highlights)
 
-        LESSHunkEmit();
-        LESSDefer(mapped, tokenized ? toks : (Bu32){});
+        BROHunkAdd();
+        BRODefer(mapped, tokenized ? toks : (Bu32){});
     }
 
-    if (less_nhunks > 0)
-        LESSRun(less_hunks, less_nhunks);
-    LESSArenaCleanup();
+    if (bro_nhunks > 0)
+        BRORun(bro_hunks, bro_nhunks);
+    BROArenaCleanup();
 
     done;
 }

@@ -1221,7 +1221,7 @@ ok64 CAPOBuildHunk(u8csc source, u32cs htoks, u32 ctx_lo, u32 ctx_hi,
     hk->text[1] = source[0] + ctx_hi;
 
     // Clip file-level toks to context region
-    LESSClipToks(hk->toks, htoks, source[0], ctx_lo, ctx_hi);
+    HUNKu32sClip(less_arena, hk->toks, htoks, ctx_lo, ctx_hi);
 
     // Build sparse hili from match ranges
     if (CAPO_COLOR) {

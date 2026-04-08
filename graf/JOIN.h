@@ -5,12 +5,12 @@
 // runs Myers diff on hash arrays, walks lockstep to merge.
 //
 
-#ifndef TOK_JOIN_H
-#define TOK_JOIN_H
+#ifndef GRAF_JOIN_H
+#define GRAF_JOIN_H
 
-#include "TOK.h"
 #include "abc/DIFF.h"
 #include "abc/RAP.h"
+#include "dog/TOK.h"
 
 // Packed tok32 tokens: use tok32Pack/tok32Tag/tok32Offset from TOK.h
 

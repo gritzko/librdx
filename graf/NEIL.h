@@ -1,5 +1,5 @@
-#ifndef SPOT_NEIL_H
-#define SPOT_NEIL_H
+#ifndef GRAF_NEIL_H
+#define GRAF_NEIL_H
 
 #include "abc/DIFF.h"
 #include "dog/TOK.h"

@@ -4,18 +4,18 @@
 # never as both DEL+INS (which shows them twice without colors).
 set -e
 
-SPOT="${1:-./build-debug/spot/spot}"
+GRAF="${1:-./build-debug/graf/graf}"
 DATADIR="$(dirname "$0")/data"
 
 OLD="$DATADIR/diff_old.c"
 NEW="$DATADIR/diff_new.c"
 
-if [ ! -x "$SPOT" ]; then
-    echo "FAIL: spot binary not found at $SPOT"
+if [ ! -x "$GRAF" ]; then
+    echo "FAIL: graf binary not found at $GRAF"
     exit 1
 fi
 
-OUT=$("$SPOT" --diff "$OLD" "$NEW" 2>&1 | perl -pe 's/\e\[[0-9;]*m//g')
+OUT=$("$GRAF" --diff "$OLD" "$NEW" 2>&1 | perl -pe 's/\e\[[0-9;]*m//g')
 FAILS=0
 
 # Lines present in both old and new must appear at most once in diff output.
@@ -63,7 +63,7 @@ echo "PASSED"
 HILI_OLD="$DATADIR/hili_old.c"
 HILI_NEW="$DATADIR/hili_new.c"
 
-HOUT=$("$SPOT" --diff "$HILI_OLD" "$HILI_NEW" 2>&1 | perl -pe 's/\e\[[0-9;]*m//g')
+HOUT=$("$GRAF" --diff "$HILI_OLD" "$HILI_NEW" 2>&1 | perl -pe 's/\e\[[0-9;]*m//g')
 HFAILS=0
 
 echo "=== inline highlight test ==="
@@ -97,57 +97,7 @@ fi
 
 echo "PASSED"
 
-# --- Multi-hunk coloring test ---
-# Tok/hili offsets must be hunk-text-relative. Before the fix, second and
-# subsequent hunks had absolute offsets, making all bytes the same color.
-# Here two change regions are separated by 8 unchanged lines (> 2*CTX_LINES),
-# producing two hunks. With SPOT_COLOR=1 we verify both have correct ANSI.
-
-MULTI_OLD="$DATADIR/multi_old.c"
-MULTI_NEW="$DATADIR/multi_new.c"
-
-MOUT=$(SPOT_COLOR=1 "$SPOT" --diff "$MULTI_OLD" "$MULTI_NEW" 2>&1)
-MFAILS=0
-
-echo "=== multi-hunk coloring test ==="
-
-# ESC[48;5;217m = bg 217 (DEL), ESC[48;5;157m = bg 157 (INS)
-BG_DEL=$(printf '\033[48;5;217m')
-BG_INS=$(printf '\033[48;5;157m')
-
-check_multi_color() {
-    local label="$1"
-    local pattern="$2"
-    local count
-    count=$(echo "$MOUT" | grep -cF "$pattern" || true)
-    if [ "$count" -eq 0 ]; then
-        echo "FAIL: $label not found"
-        MFAILS=$((MFAILS + 1))
-    else
-        echo "  OK: $label"
-    fi
-}
-
-# Hunk 1: MSTOpen has DEL bg, HITOpen has INS bg
-check_multi_color "hunk1 DEL bg on MSTOpen" "${BG_DEL}MSTOpen"
-check_multi_color "hunk1 INS bg on HITOpen" "${BG_INS}HITOpen"
-
-# Hunk 2: MSTSeek has DEL bg, HITSeek has INS bg
-check_multi_color "hunk2 DEL bg on MSTSeek" "${BG_DEL}MSTSeek"
-check_multi_color "hunk2 INS bg on HITSeek" "${BG_INS}HITSeek"
-
-# Hunk 2: keywords must have syntax color (ESC[94m = bright blue)
-KW_BLUE=$(printf '\033[94m')
-check_multi_color "hunk2 keyword coloring" "${KW_BLUE}if"
-
-if [ "$MFAILS" -gt 0 ]; then
-    echo "FAILED: $MFAILS multi-hunk coloring checks failed"
-    echo "--- raw output (cat -v) ---"
-    echo "$MOUT" | cat -v
-    exit 1
-fi
-
-echo "PASSED"
+# Color rendering moved to bro/ — coloring tests live there now.
 
 # --- NEIL cascade test ---
 # When consecutive lines change (MSTXxx -> HITXxx), the unchanged arguments
@@ -157,7 +107,7 @@ echo "PASSED"
 NEIL_OLD="$DATADIR/neil_old.c"
 NEIL_NEW="$DATADIR/neil_new.c"
 
-NOUT=$("$SPOT" --diff "$NEIL_OLD" "$NEIL_NEW" 2>&1 | perl -pe 's/\e\[[0-9;]*m//g')
+NOUT=$("$GRAF" --diff "$NEIL_OLD" "$NEIL_NEW" 2>&1 | perl -pe 's/\e\[[0-9;]*m//g')
 NFAILS=0
 
 echo "=== NEIL cascade test ==="

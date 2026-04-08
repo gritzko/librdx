@@ -2,48 +2,48 @@
 #define SPOT_LESS_H
 
 #include "abc/INT.h"
+#include "dog/HUNK.h"
 
-// A displayable hunk (file section, diff region, grep match context)
-typedef struct {
-    u8cs title;  // hunk header (file name, @@ line info, function context)
-    u8cs text;   // source text bytes
-    u32cs toks;  // packed tok32: syntax fg, text-relative offsets
-    u32cs hili;  // sparse tok32: bg highlights ('I'=INS, 'D'=DEL), text-relative
-} LESShunk;
+// Producer-side staging: build hunks in `less_arena`, emit them to
+// `spot_out_fd` via `spot_emit` (HUNKu8sFeed for TLV → bro pager,
+// HUNKu8sFeedText for plain text → stdout).
 
-// Interactive pager: displays hunks with syntax colors, diff highlighting,
-// status bar, and search. Falls back to plain fprintf when !isatty.
-ok64 LESSRun(LESShunk const *hunks, u32 nhunks);
+// LESShunk is just an alias kept so existing producer code compiles.
+// Field layout matches HUNKhunk so call sites need no changes.
+typedef HUNKhunk LESShunk;
 
-// >=0: worker writes TLV here; <0: sync mode (default)
-extern int less_pipe_fd;
+#define LESS_ARENA_SIZE (1UL << 24)   // 16MB
+#define LESS_MAX_HUNKS  4              // tiny scratch ring
+#define LESS_MAX_MAPS   1024
 
-// Call after filling less_hunks[less_nhunks]. Increments less_nhunks.
-// In pipe mode, serializes the hunk as TLV and writes to less_pipe_fd.
-void LESSHunkEmit(void);
-
-// Pager event loop: reads TLV hunks from pipefd, displays incrementally.
-ok64 LESSPipeRun(int pipefd);
-
-// --- LESS arena: shared scratch space for grep/diff/spot/cat ---
-#define LESS_ARENA_SIZE (1UL << 27)   // 128MB
-#define LESS_MAX_HUNKS 4096
-#define LESS_MAX_MAPS 1024
-
-extern Bu8 less_arena;
+extern Bu8      less_arena;
 extern LESShunk less_hunks[LESS_MAX_HUNKS];
-extern u8bp less_maps[LESS_MAX_MAPS];
-extern Bu32 less_toks[LESS_MAX_MAPS];
-extern u32 less_nhunks;
-extern u32 less_nmaps;
+extern u8bp     less_maps[LESS_MAX_MAPS];
+extern Bu32     less_toks[LESS_MAX_MAPS];
+extern u32      less_nhunks;
+extern u32      less_nmaps;
+
+// File descriptor for outgoing hunks.  STDOUT_FILENO when piped, else
+// the write end of a pipe to bro.  -1 = uninitialized.
+extern int spot_out_fd;
+
+// Hunk → bytes serializer.  Either HUNKu8sFeed (TLV) or
+// HUNKu8sFeedText (plain ASCII).  Selected by the CLI at startup.
+typedef ok64 (*spot_emit_fn)(u8s into, HUNKhunk const *hk);
+extern spot_emit_fn spot_emit;
 
 ok64 LESSArenaInit(void);
 void LESSArenaCleanup(void);
-u8p LESSArenaWrite(void const *data, size_t len);
+u8p  LESSArenaWrite(void const *data, size_t len);
 ok64 LESSArenaAlloc(u8s out, size_t len);
 void LESSDefer(u8bp mapped, Bu32 toks);
 
-// Clip file-level toks to [lo,hi), arena-copy rebased entries.
-void LESSClipToks(u32cs out, u32cs toks, u8cp base, u32 lo, u32 hi);
+// Serialize less_hunks[less_nhunks] via spot_emit, write to spot_out_fd,
+// rewind the staging arena.  Single-buffered: each emit reuses the slot.
+void LESSHunkEmit(void);
+
+// End-of-producer flush: cleans up deferred maps; the fd lifecycle
+// (close + waitpid) is handled by the CLI.
+ok64 LESSRun(LESShunk const *hunks, u32 nhunks);
 
 #endif

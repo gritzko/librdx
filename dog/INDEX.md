@@ -9,9 +9,10 @@ but without the tree-sitter dependency.
 | Header  | Purpose |
 |---------|---------|
 | TOK.h   | Common callback typedef `TOKcb`, dispatch API `TOKLexer()`, `TOKSplitText()` |
-| JOIN.h  | Token-level 3-way merge using packed u32 tokens and RAPHash |
 | BRCT.h  | Bracket matching and region detection on tokenized files |
 | DEF.h   | Mark symbol definitions (S→N) via enrichment + NFA patterns, see [DEF.md](DEF.md) |
+| HUNK.h  | Hunk TLV wire format (`HUNKu8sFeed`/`Drain`) + plain ASCII renderer (`HUNKu8sFeedText`), `HUNKu32sClip`, `HUNKu32bTokenize`, `HUNKu8sFormatTitle`, `HUNKu8sExt`, `HUNKcb` |
+| HOME.h  | Workspace finder: `HOMEFind` walks up to the nearest `.git`; `HOMEResolveSibling` finds tools next to the running binary |
 
 ## Tag mapping
 

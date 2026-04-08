@@ -90,20 +90,6 @@ ok64 CAPOGrep(u8csc substring, u8csc ext, u8csc reporoot, u32 ctx_lines,
 ok64 CAPOPcreGrep(u8csc pattern, u8csc ext, u8csc reporoot, u32 ctx_lines,
                    u8css files);
 
-// Colorful cat: syntax-highlighted file output
-ok64 CAPOCat(u8css files, u8csc reporoot);
-
-// Token-level 3-way merge (git merge driver)
-// spot --merge base ours theirs [-o output]
-ok64 CAPOMerge(u8csc base, u8csc ours, u8csc theirs, u8csc outpath);
-
-// Token-level diff with syntax-highlighted output
-// spot --diff old new
-// name: logical path for display
-// old_mode/new_mode: file permission strings (may be empty)
-ok64 CAPODiff(u8csc old_path, u8csc new_path, u8csc name,
-              u8csc old_mode, u8csc new_mode);
-
 // Full reindex: all tracked files
 ok64 CAPOReindex(u8csc reporoot);
 

@@ -193,23 +193,23 @@ list(APPEND TOK_SOURCES
     LLT.rl.c
 )
 
-list(APPEND TOK_HEADERS JOIN.h)
-list(APPEND TOK_SOURCES JOIN.c)
-
 list(APPEND TOK_HEADERS BRCT.h)
 list(APPEND TOK_SOURCES BRCT.c)
 
 list(APPEND TOK_HEADERS DEF.h)
 list(APPEND TOK_SOURCES DEF.c)
 
+list(APPEND TOK_HEADERS HUNK.h)
+list(APPEND TOK_SOURCES HUNK.c)
+
+list(APPEND TOK_HEADERS HOME.h)
+list(APPEND TOK_SOURCES HOME.c)
+
 add_library(dog STATIC ${TOK_HEADERS} ${TOK_SOURCES})
 target_link_libraries(dog abc-core)
 
 add_executable(dogtok TOK.cli.c)
 target_link_libraries(dogtok dog abc-core)
-
-add_executable(dogjoin JOIN.cli.c)
-target_link_libraries(dogjoin dog abc-core)
 
 add_subdirectory(test)
 
