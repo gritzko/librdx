@@ -2,7 +2,7 @@
 #define SPOT_NEIL_H
 
 #include "abc/DIFF.h"
-#include "tok/TOK.h"
+#include "dog/TOK.h"
 
 con ok64 NEILBAD = 0x1739254b28d;
 

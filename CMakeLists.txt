@@ -13,7 +13,6 @@ include(CTest)
 
 include_directories(.)
 
-option(WITH_ROCKS "build with RocksDB" ON)
 option(WITH_JS "build with JavaScriptCore" OFF)
 
 option(WITH_ASAN "build with ASAN" OFF)
@@ -55,8 +54,8 @@ set(BENCH_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -v")
 set(BENCH_LDD_FLAGS benchmark::benchmark)
 
 add_subdirectory(abc)
+add_subdirectory(dog)
 add_subdirectory(spot)
-add_subdirectory(tok)
 #add_subdirectory(fork)
 if (WITH_JS)
     add_subdirectory(js)

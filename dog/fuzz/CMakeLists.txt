@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(tok C)
+project(dog C)
 
 set(CMAKE_C_STANDARD 23)
 
@@ -13,10 +13,10 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${FUZZ_C_FLAGS}")
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${FUZZ_LDD_FLAGS}")
 
 add_executable(TOKfuzz TOK.c)
-target_link_libraries(TOKfuzz tok abc-core)
+target_link_libraries(TOKfuzz dog abc-core)
 
 add_executable(JOINfuzz JOIN.c)
-target_link_libraries(JOINfuzz tok abc-core)
+target_link_libraries(JOINfuzz dog abc-core)
 
 add_executable(TOK2fuzz TOK2.c)
-target_link_libraries(TOK2fuzz tok abc-core)
+target_link_libraries(TOK2fuzz dog abc-core)

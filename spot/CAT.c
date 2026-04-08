@@ -5,7 +5,7 @@
 
 #include "abc/PRO.h"
 #include "spot/SPOT.h"
-#include "tok/DEF.h"
+#include "dog/DEF.h"
 
 // --- Cat: syntax-highlighted file display ---
 

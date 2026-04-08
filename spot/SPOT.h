@@ -1,7 +1,7 @@
 #ifndef LIBRDX_SPOT_H
 #define LIBRDX_SPOT_H
 
-#include "tok/TOK.h"
+#include "dog/TOK.h"
 
 con ok64 SPOTEND = 0x1c65874e5cd;
 con ok64 SPOTBAD = 0x1c65874b28d;

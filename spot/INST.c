@@ -9,7 +9,7 @@
 #include "abc/FILE.h"
 #include "abc/PATH.h"
 #include "abc/PRO.h"
-#include "tok/TOK.h"
+#include "dog/TOK.h"
 
 // Resolve path of the running binary via /proc/self/exe
 static ok64 INSTSelfPath(char *out, size_t outsz) {

@@ -8,7 +8,7 @@
 #include "abc/PRO.h"
 #include "abc/SORT.h"
 #include "spot/SPOT.h"
-#include "tok/DEF.h"
+#include "dog/DEF.h"
 
 // --- Grep: substring search in source text (no tree) ---
 

@@ -15,7 +15,7 @@
 #include "abc/TTY.h"
 #include "abc/UTF8.h"
 #include "spot/HUNK.h"
-#include "tok/TOK.h"
+#include "dog/TOK.h"
 
 extern b8 CAPO_COLOR;
 

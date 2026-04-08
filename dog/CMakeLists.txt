@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(tok C)
+project(libdog C)
 
 set(CMAKE_C_STANDARD 23)
 
@@ -202,14 +202,14 @@ list(APPEND TOK_SOURCES BRCT.c)
 list(APPEND TOK_HEADERS DEF.h)
 list(APPEND TOK_SOURCES DEF.c)
 
-add_library(tok STATIC ${TOK_HEADERS} ${TOK_SOURCES})
-target_link_libraries(tok abc-core)
+add_library(dog STATIC ${TOK_HEADERS} ${TOK_SOURCES})
+target_link_libraries(dog abc-core)
 
-add_executable(toktok toktok.cli.c)
-target_link_libraries(toktok tok abc-core)
+add_executable(dogtok TOK.cli.c)
+target_link_libraries(dogtok dog abc-core)
 
-add_executable(tokjoin tokjoin.cli.c)
-target_link_libraries(tokjoin tok abc-core)
+add_executable(dogjoin JOIN.cli.c)
+target_link_libraries(dogjoin dog abc-core)
 
 add_subdirectory(test)
 

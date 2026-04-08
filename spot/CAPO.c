@@ -26,7 +26,7 @@ static void capo_abrt_handler(int sig) {
 #include "abc/PRO.h"
 #include "abc/SORT.h"
 #include "spot/SPOT.h"
-#include "tok/DEF.h"
+#include "dog/DEF.h"
 
 // --- Language detection via tok/ ---
 

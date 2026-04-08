@@ -12,4 +12,4 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${FUZZ_C_FLAGS}")
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${FUZZ_LDD_FLAGS}")
 
 add_executable(SPOTfuzz SPOT.c)
-target_link_libraries(SPOTfuzz spotlib tok abc)
+target_link_libraries(SPOTfuzz spotlib dog abc)

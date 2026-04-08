@@ -9,8 +9,8 @@
 #include "abc/PRO.h"
 #include "spot/HUNK.h"
 #include "spot/NEIL.h"
-#include "tok/DEF.h"
-#include "tok/JOIN.h"
+#include "dog/DEF.h"
+#include "dog/JOIN.h"
 
 // --- Merge: token-level 3-way merge ---
 

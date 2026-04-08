@@ -1,12 +1,12 @@
-# tok/ — Lightweight ragel-based tokenizers
+# libdog — lightweight ragel-based dogenizers
 
-Fast, dependency-free tokenizers for syntax highlighting. Each tokenizer is a
+Fast, dependency-free dogenizers for syntax highlighting. Each dogenizer is a
 hand-written [Ragel](http://www.colm.net/open-source/ragel/) scanner that
 classifies source bytes into tagged tokens: **D**=comment, **G**=string,
 **L**=number, **R**=keyword, **P**=punct, **H**=preproc, **S**=default.
 
-Produces output compatible with the `ast/` tree-sitter based tokenizers,
-but without the tree-sitter dependency (~100KB static lib vs ~10MB).
+libdog is an order of magnitude faster than tree-sitter, *but* it does not
+produce a tree, just a token stream.
 
 ## Supported languages
 
