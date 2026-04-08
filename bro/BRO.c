@@ -1066,19 +1066,14 @@ ok64 BROPipeRun(int pipefd) {
             st.nhunks = bro_nhunks;
             indexed_nhunks = bro_nhunks;
         }
-        // Render when: key pressed, or new hunks extend the visible area
-        b8 pipe_idle = (pr == 0) || pipe_eof;
-        if (indexed_nhunks > rendered_nhunks && pipe_idle) {
-            // Skip first title line on first render
+        // Render whenever new hunks have been indexed.  The 16ms poll
+        // timeout caps refresh at ~60 fps even when the producer
+        // streams quickly, so explicit debouncing isn't needed.
+        if (indexed_nhunks > rendered_nhunks) {
+            // Skip the first title line on the first render so the
+            // user lands on actual content, not the title separator.
             if (rendered_nhunks == 0 && st.nlines > 1) st.scroll = 1;
-            u32 visible_end = st.scroll + (u32)(st.rows - 1);
-            if (st.nlines <= visible_end || rendered_nhunks == 0)
-                changed = YES;
-            else if (st.nlines > 0) {
-                u8bReset(bro_scr);
-                BROStatusBar(&st);
-                BROScreenFlush();
-            }
+            changed = YES;
             rendered_nhunks = indexed_nhunks;
         }
         if ((changed || key_pressed) && st.nlines > 0)

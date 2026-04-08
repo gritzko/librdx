@@ -312,10 +312,13 @@ static const SPOTcase SPOT_CASES[] = {
         OK, "arr", NULL
     },
     {
+        // Lowercase placeholder is strictly single-token; (*fp) is
+        // multi-token so it must NOT bind to lowercase 'a'.  Use an
+        // uppercase placeholder for that.
         "LowerBracketParens",
         "T n = {a[0],a[1]};",
         "void f() { u8cs x = {(*fp)[0], (*fp)[1]}; }\n",
-        OK, "(*fp)", NULL
+        SPOTEND, NULL, NULL
     },
     {
         "LowerBracketNoMatch",

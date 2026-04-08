@@ -589,7 +589,10 @@ static ok64 CAPOReindexProcWork(u8csc reporoot, u8csc dirslice,
             }
         }
     }
-    pclose(fp);
+    int rc = pclose(fp);
+    if (rc != 0)
+        fprintf(stderr, "spot[%u/%u]: `%s` failed (status %d)\n",
+                proc, nprocs, cmdbuf, rc);
 
     size_t pending = u64bDataLen(entries);
     if (pending > 0) {
@@ -610,7 +613,8 @@ static ok64 CAPOReindexProcWork(u8csc reporoot, u8csc dirslice,
 ok64 CAPOReindexProc(u8csc reporoot, u32 nprocs, u32 proc) {
     sane($ok(reporoot) && proc < nprocs && nprocs > 0);
 
-    fprintf(stderr, "spot[%u/%u]: starting\n", proc, nprocs);
+    fprintf(stderr, "spot[%u/%u]: starting (root %.*s)\n",
+            proc, nprocs, (int)$len(reporoot), (char *)reporoot[0]);
 
     a_path(capodir);
     call(CAPOResolveDir, capodir, reporoot);
@@ -1333,11 +1337,16 @@ static ok64 CAPOSpotFile(u8csc source, u32cs htoks, u8csc needle,
             if (hi2 > ctx_hi) ctx_hi = hi2;
         }
 
-        // Collect subsequent matches within this context
+        // Collect subsequent matches within this context.
+        // The SPOT engine may report the same logical match multiple
+        // times with different uppercase-placeholder anchor positions
+        // (a wider span first, then a narrower one).  Dedupe by keeping
+        // the narrowest match: when a new entry is contained within the
+        // previous one, replace; otherwise append.
         range32 hls[CAPO_MAX_HLS];
         int nhl = 0;
         hls[nhl++] = (range32){slo, shi};
-        while (nhl < CAPO_MAX_HLS && SPOTNext(&st) == OK) {
+        while (nhl <= CAPO_MAX_HLS && SPOTNext(&st) == OK) {
             u32 s2 = st.src_rng.lo;
             u32 e2 = st.src_rng.hi;
             if (e2 <= s2 || e2 > (u32)$len(source)) continue;
@@ -1346,7 +1355,14 @@ static ok64 CAPOSpotFile(u8csc source, u32cs htoks, u8csc needle,
                 have_pending = YES;
                 break;
             }
-            hls[nhl++] = (range32){s2, e2};
+            // If the new range is contained in the previous one
+            // (same end, narrower start), replace — not append.
+            range32 *prev = &hls[nhl - 1];
+            if (s2 >= prev->lo && e2 <= prev->hi) {
+                *prev = (range32){s2, e2};
+            } else if (nhl < CAPO_MAX_HLS) {
+                hls[nhl++] = (range32){s2, e2};
+            }
             u32 lo2 = 0, hi2 = 0;
             CAPOGrepCtx(source, s2, 3, &lo2, &hi2);
             if (hi2 > ctx_hi) ctx_hi = hi2;
@@ -1492,8 +1508,15 @@ ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot,
         CAPOProgress(line);
 
         char fpath[FILE_PATH_MAX_LEN * 2];
-        int pn = snprintf(fpath, sizeof(fpath), "%.*s/%s",
+        int pn;
+        if (nfiles > 0) {
+            // CLI-supplied path: cwd-relative or absolute, use as-is.
+            pn = snprintf(fpath, sizeof(fpath), "%s", line);
+        } else {
+            // Path from git ls-files: relative to reporoot.
+            pn = snprintf(fpath, sizeof(fpath), "%.*s/%s",
                           (int)$len(reporoot), (char *)reporoot[0], line);
+        }
         if (pn <= 0 || pn >= (int)sizeof(fpath)) continue;
 
         u8cs fps = {(u8cp)fpath, (u8cp)fpath + pn};

@@ -226,18 +226,12 @@ static ok64 SPOTMatchFlat(SPOTbinds *b, SPOTntok *ntoks, int nntoks,
             u64 bit = 1ULL << idx;
 
             if (SPOTIsLower(c)) {
-                // Lowercase: bind to single leaf value or balanced bracket group
+                // Lowercase: bind to a single non-punct leaf token.
+                // Punctuation tokens (P) — operators, brackets, ';' ','
+                // — cannot satisfy a lowercase binding.  Use uppercase
+                // for multi-token / bracket groups.
+                if (tok32Tag(htoks[0][pos]) == 'P') fail(SPOTBAD);
                 u32 cap_srchi = leaf_srchi;
-                int ph_brace = SPOTBracketDir(hv);
-                while (ph_brace > 0) {
-                    int p2 = SPOTSkipWS(htoks, hbase, *hpos, hlen);
-                    if (p2 >= hlen) fail(SPOTBAD);
-                    u8cs hv2 = {}; tok32Val(hv2,htoks,hbase,p2);
-                    ph_brace += SPOTBracketDir(hv2);
-                    if (ph_brace < 0) fail(SPOTBAD);
-                    *hpos = p2 + 1;
-                    cap_srchi = tok32Offset(htoks[0][p2]);
-                }
                 if (b->nsubs > 0) b->subs[b->nsubs - 1].hi = cap_srchi;
                 if (b->bound & bit) {
                     u8cs bnd = {b->source_base + b->bind_matches[idx].hay.lo,
@@ -273,7 +267,11 @@ static ok64 SPOTMatchFlat(SPOTbinds *b, SPOTntok *ntoks, int nntoks,
                     if (!SPOTSliceEq(bnd, cap)) fail(SPOTBAD);
                     if (b->nsubs > 0) b->subs[b->nsubs - 1].hi = consumed;
                 } else {
-                    // Unbound uppercase: anchor-guided extension
+                    // Unbound uppercase: anchor-guided extension.
+                    // Refuse to start the binding on a closing bracket
+                    // — that would leave the capture unbalanced before
+                    // we even begin extending.
+                    if (SPOTBracketDir(hv) < 0) fail(SPOTBAD);
                     int anchor_idx = SPOTFindAnchor(ntoks, nntoks, from);
                     int gap = (anchor_idx >= 0) ? anchor_idx - from - 1 : -1;
 
@@ -414,6 +412,12 @@ static ok64 SPOTMatchFlat(SPOTbinds *b, SPOTntok *ntoks, int nntoks,
                     *b = saved_binds;
                     continue;
                 }
+                // Don't start an unbound uppercase capture on a
+                // closing bracket — it would be unbalanced.
+                if (SPOTBracketDir(hv) < 0) {
+                    *b = saved_binds;
+                    continue;
+                }
                 b->bound |= bit;
                 b->bind_matches[ph_idx] = (match32){
                     .hay = {leaf_srclo, leaf_srchi},
@@ -492,25 +496,12 @@ static ok64 SPOTMatchFlat(SPOTbinds *b, SPOTntok *ntoks, int nntoks,
             b8 tok_match = NO;
             if (is_ph && ph_idx >= 0 && SPOTIsLower(ph_c)) {
                 u64 bit = 1ULL << ph_idx;
-                // Consume balanced bracket group if opening bracket
-                u32 cap_srchi = leaf_srchi;
-                int ph_brace = SPOTBracketDir(hv);
-                b8 balanced = YES;
-                int save_hpos = *hpos;
-                while (ph_brace > 0) {
-                    int p2 = SPOTSkipWS(htoks, hbase, *hpos, hlen);
-                    if (p2 >= hlen) { balanced = NO; break; }
-                    u8cs hv2 = {}; tok32Val(hv2,htoks,hbase,p2);
-                    ph_brace += SPOTBracketDir(hv2);
-                    if (ph_brace < 0) { balanced = NO; break; }
-                    *hpos = p2 + 1;
-                    cap_srchi = tok32Offset(htoks[0][p2]);
-                }
-                if (!balanced) {
-                    *hpos = save_hpos;
+                // Lowercase: bind to a single non-punct leaf token.
+                if (tok32Tag(htoks[0][pos]) == 'P') {
                     *b = saved_binds;
                     continue;
                 }
+                u32 cap_srchi = leaf_srchi;
                 if (b->nsubs > 0) b->subs[b->nsubs - 1].hi = cap_srchi;
                 if (b->bound & bit) {
                     u8cs bnd2 = {b->source_base + b->bind_matches[ph_idx].hay.lo,

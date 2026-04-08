@@ -80,6 +80,8 @@ ok64 HOMEFind(path8b out) {
                 a_path(parent);
                 ok64 fo = HOMEFollowWorktree(parent, PATHu8cgIn(probe));
                 if (fo == OK) {
+                    // Replace `out` with the parent repo root (absolute).
+                    u8bReset(out);
                     a_dup(u8c, ps, u8bDataC(parent));
                     call(PATHu8bFeed, out, ps);
                 }
