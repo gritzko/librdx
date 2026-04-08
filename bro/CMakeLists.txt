@@ -25,3 +25,5 @@ add_executable(bro-cli BRO.cli.c)
 target_compile_definitions(bro-cli PRIVATE NDEBUG)
 target_link_libraries(bro-cli brolib dog abc-core)
 set_target_properties(bro-cli PROPERTIES OUTPUT_NAME bro)
+
+add_subdirectory(test)
