@@ -59,43 +59,18 @@ static void CAPOCodecName(u8csp codec, u8csc ext) {
     }
 }
 
-// --- Resolve spot index directory (handles worktrees) ---
+// --- Resolve spot index directory ---
+// Spot files live in <reporoot>/.dogs/spot/, where <reporoot> is the
+// workspace dir containing .git (file or directory). Caller is responsible
+// for creating the dir via FILEMakeDirP if it does not yet exist.
 
 ok64 CAPOResolveDir(path8b out, u8csc reporoot) {
     sane($ok(reporoot) && out != NULL);
-    a_path(gitpath, reporoot, $cstr(".git"));
-
-    ok64 isdir = FILEisdir(PATHu8cgIn(gitpath));
-    if (isdir == OK) {
-        call(PATHu8bFeed, out, reporoot);
-        a_cstr(dotgit, ".git");
-        call(PATHu8bPush, out, dotgit);
-        a_cstr(spotname, "spot");
-        call(PATHu8bPush, out, spotname);
-    } else {
-        u8bp mapped = NULL;
-        call(FILEMapRO, &mapped, PATHu8cgIn(gitpath));
-        a_dup(u8c, content, u8bDataC(mapped));
-        a_cstr(prefix, "gitdir: ");
-        test($len(content) > $len(prefix), PATHBAD);
-        u8cs pfxslice = {content[0], content[0] + $len(prefix)};
-        test($eq(pfxslice, prefix), PATHBAD);
-        u8cp start = content[0] + $len(prefix);
-        u8cp end = content[1];
-        while (end > start && (*(end - 1) == '\n' || *(end - 1) == '\r'))
-            end--;
-        u8cs gitdir = {start, end};
-        test(!$empty(gitdir), PATHBAD);
-        if (gitdir[0][0] == '/') {
-            call(PATHu8bFeed, out, gitdir);
-        } else {
-            call(PATHu8bFeed, out, reporoot);
-            call(PATHu8bPush, out, gitdir);
-        }
-        FILEUnMap(mapped);
-        a_cstr(caponame2, "spot");
-        call(PATHu8bPush, out, caponame2);
-    }
+    call(PATHu8bFeed, out, reporoot);
+    a_cstr(dotdogs, ".dogs");
+    call(PATHu8bPush, out, dotdogs);
+    a_cstr(spotname, "spot");
+    call(PATHu8bPush, out, spotname);
     done;
 }
 

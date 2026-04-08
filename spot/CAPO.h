@@ -23,7 +23,7 @@ extern b8 CAPO_TERM;   // stderr is a terminal
         }                                                                \
     }
 
-#define CAPO_DIR ".git/spot"
+#define CAPO_DIR ".dogs/spot"
 #define CAPO_IDX_EXT ".idx"
 #define CAPO_SEQNO_WIDTH 10
 #define CAPO_MAX_LEVELS 24
@@ -55,10 +55,10 @@ fun u64 CAPOEntry(u8cs tri, u8cs path) {
 // Index a single source file: parse, extract trigrams, append u64 entries
 ok64 CAPOIndexFile(u64bp entries, u8csc source, u8csc ext, u8csc path);
 
-// Write a sorted run to .git/spot/SEQNO.idx
+// Write a sorted run to .dogs/spot/SEQNO.idx
 ok64 CAPOIndexWrite(u8csc dir, u64cs run, u64 seqno);
 
-// Load index stack from .git/spot/*.idx files (mmap each)
+// Load index stack from .dogs/spot/*.idx files (mmap each)
 // stack: output array of runs; maps: output array of mapped buffers
 // Returns number of files loaded in *nfiles
 ok64 CAPOStackOpen(u64css stack, u8bp *maps, u32p nfiles, u8csc dir);
@@ -120,7 +120,7 @@ ok64 CAPOUncommitted(u8csc reporoot, b8 untracked);
 // Compact all .idx files into a single run
 ok64 CAPOCompactAll(u8csc dir);
 
-// Resolve spot index dir from reporoot (handles worktrees)
+// Resolve spot index dir from reporoot (<reporoot>/.dogs/spot)
 ok64 CAPOResolveDir(path8b out, u8csc reporoot);
 
 // Write current HEAD sha to capodir/COMMIT

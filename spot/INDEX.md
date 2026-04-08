@@ -37,7 +37,7 @@
 | `CAPOReindexProc` | Parallel reindex (worker K of N) |
 | `CAPOHook` | Incremental index update (post-commit hook) |
 | `CAPOCompact` | Compact LSM index runs |
-| `CAPOResolveDir` | Resolve .git/spot dir (handles worktrees) |
+| `CAPOResolveDir` | Resolve `<workspace>/.dogs/spot` dir |
 | `CAPOIndexFile` | Index one file: extract trigrams into u64 entries |
 
 ## Key functions (SPOT.h)
@@ -59,6 +59,6 @@
 
 ## Index format
 
-Trigram index lives in `.git/spot/*.idx`. Each entry is a u64:
+Trigram index lives in `.dogs/spot/*.idx` (next to `.git`). Each entry is a u64:
 upper 18 bits = trigram (3 RON64 chars), lower 32 bits = path hash.
 Files are sorted MSET runs, compacted via LSM-style merging.
