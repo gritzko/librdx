@@ -13,6 +13,7 @@
 #include <sys/wait.h>
 
 #include "abc/FILE.h"
+#include "abc/KV.h"
 #include "abc/PATH.h"
 #include "abc/PRO.h"
 #include "abc/RAP.h"
@@ -24,6 +25,12 @@
 #include "abc/Bx.h"
 #include "abc/QSORTx.h"
 #include "abc/MSETx.h"
+#undef X
+
+// --- HASHkv64: open-addressed hash table for path interning ---
+
+#define X(M, name) M##kv64##name
+#include "abc/HASHx.h"
 #undef X
 
 // --- Constants ---
@@ -128,14 +135,12 @@ static u32 dag_gens_get(dag_gens *g, u64 hashlet) {
     }
 }
 
-// --- Path log: append-only NUL-separated file + in-memory hash→id map ---
+// --- Path log: append-only NUL-separated file + HASHkv64 map ---
 
 typedef struct {
-    u64 *hashes;   // RAPHash of path string
-    u32 *ids;      // path_id = offset into PATHS file at time of insert
-    u32 count;
-    u32 next_id;   // next path_id to assign
-    int fd;        // open PATHS file for appending
+    Bkv64 map;      // kv64 hash table: key=RAPHash, val=path_id
+    u32 next_id;     // next path_id to assign (= byte offset in PATHS)
+    int fd;          // open PATHS file for appending
 } dag_paths;
 
 static ok64 dag_paths_init(dag_paths *p, u8cs dagdir) {
@@ -143,12 +148,7 @@ static ok64 dag_paths_init(dag_paths *p, u8cs dagdir) {
     memset(p, 0, sizeof(*p));
     p->fd = -1;
 
-    p->hashes = calloc(DAG_MAX_PATHS, sizeof(u64));
-    p->ids = calloc(DAG_MAX_PATHS, sizeof(u32));
-    if (!p->hashes || !p->ids) {
-        free(p->hashes); free(p->ids);
-        return DAGFAIL;
-    }
+    call(kv64bAllocate, p->map, DAG_MAX_PATHS);
 
     // Open/create PATHS file, read existing entries to populate map
     a_path(path, dagdir);
@@ -169,11 +169,9 @@ static ok64 dag_paths_init(dag_paths *p, u8cs dagdir) {
             u32 id = (u32)(cur - base);
             u8csc ps = {cur, nul};
             u64 h = RAPHash(ps);
-            u32 slot = (u32)(h >> 4) & (DAG_MAX_PATHS - 1);
-            while (p->hashes[slot] != 0) slot = (slot + 1) & (DAG_MAX_PATHS - 1);
-            p->hashes[slot] = h ? h : 1;
-            p->ids[slot] = id;
-            p->count++;
+            kv64 entry = {.key = h, .val = (u64)id};
+            kv64s idle = {kv64bHead(p->map), kv64bTerm(p->map)};
+            HASHkv64Put(idle, &entry);
             u32 after = (u32)(nul + 1 - base);
             if (after > p->next_id) p->next_id = after;
             cur = nul + 1;
@@ -184,7 +182,7 @@ static ok64 dag_paths_init(dag_paths *p, u8cs dagdir) {
     // Open for append
     p->fd = open((char *)u8bDataHead(path), O_WRONLY | O_CREAT | O_APPEND, 0644);
     if (p->fd < 0) {
-        free(p->hashes); free(p->ids);
+        kv64bFree(p->map);
         return DAGFAIL;
     }
     done;
@@ -192,7 +190,7 @@ static ok64 dag_paths_init(dag_paths *p, u8cs dagdir) {
 
 static void dag_paths_free(dag_paths *p) {
     if (p->fd >= 0) close(p->fd);
-    free(p->hashes); free(p->ids);
+    kv64bFree(p->map);
     memset(p, 0, sizeof(*p));
     p->fd = -1;
 }
@@ -201,21 +199,18 @@ static void dag_paths_free(dag_paths *p) {
 static u32 dag_paths_intern(dag_paths *p, char const *str, size_t len) {
     u8csc ps = {(u8cp)str, (u8cp)str + len};
     u64 h = RAPHash(ps);
-    u64 hkey = h ? h : 1;
-    u32 slot = (u32)(h >> 4) & (DAG_MAX_PATHS - 1);
-    while (p->hashes[slot] != 0) {
-        if (p->hashes[slot] == hkey) return p->ids[slot];
-        slot = (slot + 1) & (DAG_MAX_PATHS - 1);
-    }
+    kv64 probe = {.key = h, .val = 0};
+    kv64s tab = {kv64bHead(p->map), kv64bTerm(p->map)};
+    if (HASHkv64Get(&probe, tab) == OK) return (u32)probe.val;
+
     // New path: append to file
     u32 id = p->next_id;
     write(p->fd, str, len);
     write(p->fd, "\0", 1);
     p->next_id = id + (u32)len + 1;
 
-    p->hashes[slot] = hkey;
-    p->ids[slot] = id;
-    p->count++;
+    kv64 entry = {.key = h, .val = (u64)id};
+    HASHkv64Put(tab, &entry);
     return id;
 }
 
