@@ -191,7 +191,9 @@ ok64 capocli() {
         if (tty_out) {
             // Fork bro as the pager.  Parent stays the producer.
             char bropath[FILE_PATH_MAX_LEN];
-            HOMEResolveSibling(bropath, sizeof(bropath), "bro");
+            a$rg(a0, 0);
+            HOMEResolveSibling(bropath, sizeof(bropath),
+                               "bro", (char const *)a0[0]);
             int pfd[2];
             test(pipe(pfd) == 0, FAILSANITY);
             bro_pid = fork();

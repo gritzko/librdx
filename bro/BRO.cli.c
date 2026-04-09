@@ -15,7 +15,9 @@ static void BROUsage(void) {
         "  bro file.c [...]      syntax-highlighted cat\n"
         "\n"
         "Keys: q quit, space/f page down, b page up, j/k line, g/G top/end,\n"
-        "      / search, n/N next/prev, : goto line\n");
+        "      / search, n/N next/prev, : goto line,\n"
+        "      [ ] (or { }) prev/next hunk,\n"
+        "      ( ) prev/next change (centered)\n");
 }
 
 ok64 brocli() {

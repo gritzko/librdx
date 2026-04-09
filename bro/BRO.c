@@ -217,6 +217,137 @@ static ok64 BROBuildIndex(BROstate *st) {
     done;
 }
 
+// --- Navigation primitives ---
+// These walk the line index built by BROBuildIndex (or
+// BROExtendIndex). They are exposed via BRO.h for tests, so they take
+// raw arrays rather than BROstate.
+
+static b8 bro_hili_real(u8 tag) {
+    return (tag != 0 && tag != 'A') ? YES : NO;
+}
+
+// Find the line that contains byte offset `off` in hunk `h`.
+// Returns the largest line index i with lines[i].lo == h,
+// lines[i].hi != BRO_TITLE_LINE, and lines[i].hi <= off.
+// BRO_NONE if no such line exists.
+static u32 bro_line_for_off(range32 const *lines, u32 nlines,
+                            u32 h, u32 off) {
+    u32 best = BRO_NONE;
+    for (u32 i = 0; i < nlines; i++) {
+        if (lines[i].lo < h) continue;
+        if (lines[i].lo > h) break;  // hunks are appended in order
+        if (lines[i].hi == BRO_TITLE_LINE) continue;
+        if (lines[i].hi <= off) best = i;
+        else break;
+    }
+    return best;
+}
+
+u32 BROHunkNextLine(range32 const *lines, u32 nlines, u32 from) {
+    if (nlines == 0) return BRO_NONE;
+    u32 start = (from + 1 < nlines) ? (from + 1) : nlines;
+    for (u32 i = start; i < nlines; i++) {
+        if (lines[i].lo != lines[i - 1].lo) return i;
+    }
+    return BRO_NONE;
+}
+
+u32 BROHunkPrevLine(range32 const *lines, u32 nlines, u32 from) {
+    if (nlines == 0 || from == 0) return BRO_NONE;
+    if (from >= nlines) from = nlines - 1;
+    // Walk back to the start line of the current hunk.
+    u32 i = from;
+    while (i > 0 && lines[i - 1].lo == lines[i].lo) i--;
+    if (i < from) return i;  // mid-hunk: jump to start of current
+    // Already at the current hunk's start; step into the previous hunk.
+    if (i == 0) return BRO_NONE;
+    i--;
+    while (i > 0 && lines[i - 1].lo == lines[i].lo) i--;
+    return i;
+}
+
+u32 BROHunkCount(range32 const *lines, u32 nlines) {
+    if (nlines == 0) return 0;
+    u32 n = 1;
+    for (u32 i = 1; i < nlines; i++)
+        if (lines[i].lo != lines[i - 1].lo) n++;
+    return n;
+}
+
+u32 BROHunkIndexAt(range32 const *lines, u32 nlines, u32 at) {
+    if (nlines == 0) return 0;
+    if (at >= nlines) at = nlines - 1;
+    u32 n = 1;
+    for (u32 i = 1; i <= at; i++)
+        if (lines[i].lo != lines[i - 1].lo) n++;
+    return n;
+}
+
+u32 BROHiliCount(BROhunk const *hunks, u32 nhunks) {
+    u32 n = 0;
+    for (u32 h = 0; h < nhunks; h++) {
+        u32 nh = (u32)$len(hunks[h].hili);
+        for (u32 j = 0; j < nh; j++)
+            if (bro_hili_real(tok32Tag(hunks[h].hili[0][j]))) n++;
+    }
+    return n;
+}
+
+u32 BROHiliIndexAt(BROhunk const *hunks, u32 nhunks,
+                   range32 const *lines, u32 nlines, u32 at) {
+    u32 n = 0;
+    for (u32 h = 0; h < nhunks; h++) {
+        u32 nh = (u32)$len(hunks[h].hili);
+        for (u32 j = 0; j < nh; j++) {
+            tok32 t = hunks[h].hili[0][j];
+            if (!bro_hili_real(tok32Tag(t))) continue;
+            u32 start_off = (j == 0) ? 0
+                          : tok32Offset(hunks[h].hili[0][j - 1]);
+            u32 ln = bro_line_for_off(lines, nlines, h, start_off);
+            if (ln == BRO_NONE) continue;
+            if (ln <= at) n++;
+            else return n;
+        }
+    }
+    return n;
+}
+
+u32 BROHiliNextLine(BROhunk const *hunks, u32 nhunks,
+                    range32 const *lines, u32 nlines, u32 mid) {
+    for (u32 h = 0; h < nhunks; h++) {
+        u32 nh = (u32)$len(hunks[h].hili);
+        for (u32 j = 0; j < nh; j++) {
+            tok32 t = hunks[h].hili[0][j];
+            if (!bro_hili_real(tok32Tag(t))) continue;
+            u32 start_off = (j == 0) ? 0
+                          : tok32Offset(hunks[h].hili[0][j - 1]);
+            u32 ln = bro_line_for_off(lines, nlines, h, start_off);
+            if (ln == BRO_NONE) continue;
+            if (ln > mid) return ln;
+        }
+    }
+    return BRO_NONE;
+}
+
+u32 BROHiliPrevLine(BROhunk const *hunks, u32 nhunks,
+                    range32 const *lines, u32 nlines, u32 mid) {
+    u32 best = BRO_NONE;
+    for (u32 h = 0; h < nhunks; h++) {
+        u32 nh = (u32)$len(hunks[h].hili);
+        for (u32 j = 0; j < nh; j++) {
+            tok32 t = hunks[h].hili[0][j];
+            if (!bro_hili_real(tok32Tag(t))) continue;
+            u32 start_off = (j == 0) ? 0
+                          : tok32Offset(hunks[h].hili[0][j - 1]);
+            u32 ln = bro_line_for_off(lines, nlines, h, start_off);
+            if (ln == BRO_NONE) continue;
+            if (ln >= mid) return best;
+            best = ln;
+        }
+    }
+    return best;
+}
+
 // --- Rendering ---
 // All screen output is built into bro_scr[] buffer, flushed once.
 
@@ -354,6 +485,9 @@ static void BRORender(BROstate *st) {
                tok32Offset(hk->hili[0][hili_i]) <= off)
             hili_i++;
 
+        // Carry-over byte counter so a multi-byte search match stays
+        // highlighted across the whole run, not just its first char.
+        u32 search_left = 0;
         for (u32 j = 0; j < w; ) {
             u32 pos = off + j;
             u8 ch = hk->text[0][pos];
@@ -370,8 +504,12 @@ static void BRORender(BROstate *st) {
                 hili_i++;
             u8 bg_tag = (hili_i < nhili)
                             ? tok32Tag(hk->hili[0][hili_i]) : 'A';
-            b8 in_search = bro_search_at(st, hk->text, pos);
+            if (search_left == 0 && bro_search_at(st, hk->text, pos))
+                search_left = st->search_len;
+            b8 in_search = (search_left > 0) ? YES : NO;
             scr_emit_char(hk->text[0] + pos, clen, fg_tag, bg_tag, in_search);
+            if (search_left >= clen) search_left -= clen;
+            else search_left = 0;
             j += clen;
         }
     }
@@ -385,6 +523,17 @@ static void BRORender(BROstate *st) {
     BROScreenFlush();
 }
 
+// Set st->scroll so that line `target` lands on the middle row.
+// Clamps to [0, nlines - page].
+static void BROScrollCenter(BROstate *st, u32 target) {
+    u32 page = (st->rows > 1) ? (u32)(st->rows - 1) : 1;
+    u32 half = page / 2;
+    u32 s = (target > half) ? (target - half) : 0;
+    if (st->nlines > page && s > st->nlines - page)
+        s = st->nlines - page;
+    st->scroll = s;
+}
+
 static void BROStatusBar(BROstate *st) {
     scr_goto(st->rows, 1);
     scr_puts(TTY_INVERSE TTY_ERASE_LINE);
@@ -393,21 +542,42 @@ static void BROStatusBar(BROstate *st) {
     if (st->scroll < st->nlines)
         cur_hunk = st->lines[st->scroll].lo;
 
+    u32 hunk_tot = BROHunkCount(st->lines, st->nlines);
+    u32 hunk_idx = BROHunkIndexAt(st->lines, st->nlines, st->scroll);
+    u32 hili_tot = BROHiliCount(st->hunks, st->nhunks);
+    u32 hili_idx = BROHiliIndexAt(st->hunks, st->nhunks,
+                                  st->lines, st->nlines, st->scroll);
+
     BROhunk const *ch = &st->hunks[cur_hunk];
     // Build status text into idle space, snprintf is fine for one-off
     u8sp out = u8bIdle(bro_scr);
     int slen;
-    if (st->search_len > 0) {
+    if (hili_tot > 0 && st->search_len > 0) {
         slen = snprintf((char *)out[0], $len(out),
-                        " %.*s  line %u/%u  [/%.*s]",
+                        " %.*s  L%u/%u  H%u/%u  C%u/%u  [/%.*s]",
                         (int)$len(ch->title), (char *)ch->title[0],
                         st->scroll + 1, st->nlines,
+                        hunk_idx, hunk_tot, hili_idx, hili_tot,
+                        (int)st->search_len, st->search);
+    } else if (hili_tot > 0) {
+        slen = snprintf((char *)out[0], $len(out),
+                        " %.*s  L%u/%u  H%u/%u  C%u/%u",
+                        (int)$len(ch->title), (char *)ch->title[0],
+                        st->scroll + 1, st->nlines,
+                        hunk_idx, hunk_tot, hili_idx, hili_tot);
+    } else if (st->search_len > 0) {
+        slen = snprintf((char *)out[0], $len(out),
+                        " %.*s  L%u/%u  H%u/%u  [/%.*s]",
+                        (int)$len(ch->title), (char *)ch->title[0],
+                        st->scroll + 1, st->nlines,
+                        hunk_idx, hunk_tot,
                         (int)st->search_len, st->search);
     } else {
         slen = snprintf((char *)out[0], $len(out),
-                        " %.*s  line %u/%u",
+                        " %.*s  L%u/%u  H%u/%u",
                         (int)$len(ch->title), (char *)ch->title[0],
-                        st->scroll + 1, st->nlines);
+                        st->scroll + 1, st->nlines,
+                        hunk_idx, hunk_tot);
     }
     if (slen > 0) u8sFed(out, (size_t)slen);
     scr_puts(TTY_RESET);
@@ -726,6 +896,29 @@ ok64 BRORun(BROhunk const *hunks, u32 nhunks) {
             else
                 st.scroll = 0;
             BRORender(&st);
+        } else if (ch == ']' || ch == '}') {
+            u32 nx = BROHunkNextLine(st.lines, st.nlines, st.scroll);
+            if (nx != BRO_NONE) {
+                st.scroll = nx;
+                BRORender(&st);
+            }
+        } else if (ch == '[' || ch == '{') {
+            u32 pv = BROHunkPrevLine(st.lines, st.nlines, st.scroll);
+            if (pv != BRO_NONE) {
+                st.scroll = pv;
+                BRORender(&st);
+            }
+        } else if (ch == ')' || ch == '(') {
+            u32 mid = st.scroll + (page > 0 ? (page - 1) / 2 : 0);
+            u32 hl = (ch == ')')
+                ? BROHiliNextLine(st.hunks, st.nhunks,
+                                  st.lines, st.nlines, mid)
+                : BROHiliPrevLine(st.hunks, st.nhunks,
+                                  st.lines, st.nlines, mid);
+            if (hl != BRO_NONE) {
+                BROScrollCenter(&st, hl);
+                BRORender(&st);
+            }
         } else if (ch == 033) {
             // Escape sequence: read next bytes
             u8 seq[2] = {};
@@ -1026,6 +1219,23 @@ ok64 BROPipeRun(int pipefd) {
                     if (st.scroll >= half) st.scroll -= half;
                     else st.scroll = 0;
                     changed = YES;
+                } else if (ch == ']' || ch == '}') {
+                    u32 nx = BROHunkNextLine(st.lines, st.nlines, st.scroll);
+                    if (nx != BRO_NONE) { st.scroll = nx; changed = YES; }
+                } else if (ch == '[' || ch == '{') {
+                    u32 pv = BROHunkPrevLine(st.lines, st.nlines, st.scroll);
+                    if (pv != BRO_NONE) { st.scroll = pv; changed = YES; }
+                } else if (ch == ')' || ch == '(') {
+                    u32 mid = st.scroll + (page > 0 ? (page - 1) / 2 : 0);
+                    u32 hl = (ch == ')')
+                        ? BROHiliNextLine(st.hunks, st.nhunks,
+                                          st.lines, st.nlines, mid)
+                        : BROHiliPrevLine(st.hunks, st.nhunks,
+                                          st.lines, st.nlines, mid);
+                    if (hl != BRO_NONE) {
+                        BROScrollCenter(&st, hl);
+                        changed = YES;
+                    }
                 } else if (ch == 033) {
                     u8 seq[2] = {};
                     ssize_t n1 = read(st.tty_fd, &seq[0], 1);

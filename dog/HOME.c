@@ -120,23 +120,62 @@ ok64 HOMEFindDogs(path8b out) {
     done;
 }
 
-ok64 HOMEResolveSibling(char *out, size_t outsz, char const *name) {
+// Try dir/name — if it exists and is executable, write to out and return YES.
+static b8 home_try_sibling(char *out, size_t outsz,
+                           char const *dir, size_t dirlen,
+                           char const *name) {
+    int n = snprintf(out, outsz, "%.*s/%s", (int)dirlen, dir, name);
+    if (n <= 0 || (size_t)n >= outsz) return NO;
+    struct stat sb;
+    if (stat(out, &sb) == 0 && (sb.st_mode & S_IXUSR)) return YES;
+    return NO;
+}
+
+ok64 HOMEResolveSibling(char *out, size_t outsz,
+                        char const *name, char const *argv0) {
     sane(out != NULL && outsz > 0 && name != NULL);
-    char self[FILE_PATH_MAX_LEN];
-    ssize_t slen = readlink("/proc/self/exe", self, sizeof(self) - 1);
-    if (slen > 0) {
-        self[slen] = 0;
-        char *sl = strrchr(self, '/');
+
+    // 1. If argv0 contains '/', dirname(argv0) preserves symlinks.
+    if (argv0 != NULL) {
+        char const *sl = strrchr(argv0, '/');
         if (sl != NULL) {
-            *sl = 0;
-            int n = snprintf(out, outsz, "%s/%s", self, name);
-            if (n > 0 && (size_t)n < outsz) {
-                struct stat sb;
-                if (stat(out, &sb) == 0 && (sb.st_mode & S_IXUSR))
-                    done;
+            size_t dirlen = (size_t)(sl - argv0);
+            if (dirlen == 0) dirlen = 1;  // root "/"
+            if (home_try_sibling(out, outsz, argv0, dirlen, name))
+                done;
+        } else {
+            // 2. Bare name — search PATH for argv0, then try sibling.
+            char const *path = getenv("PATH");
+            if (path != NULL) {
+                char const *p = path;
+                while (*p) {
+                    char const *colon = p;
+                    while (*colon && *colon != ':') colon++;
+                    size_t plen = (size_t)(colon - p);
+                    if (plen > 0) {
+                        char probe[FILE_PATH_MAX_LEN];
+                        int n = snprintf(probe, sizeof(probe),
+                                         "%.*s/%s", (int)plen, p, argv0);
+                        if (n > 0 && (size_t)n < sizeof(probe)) {
+                            struct stat sb;
+                            if (stat(probe, &sb) == 0 &&
+                                (sb.st_mode & S_IXUSR)) {
+                                // Found argv0 in this PATH dir — look
+                                // for the sibling here (same dir).
+                                if (home_try_sibling(out, outsz,
+                                                     p, plen, name))
+                                    done;
+                                break;  // right dir, sibling absent
+                            }
+                        }
+                    }
+                    p = (*colon) ? colon + 1 : colon;
+                }
             }
         }
     }
+
+    // 3. Fallback: bare name for execvp PATH lookup.
     snprintf(out, outsz, "%s", name);
     done;
 }

@@ -89,7 +89,9 @@ ok64 grafcli() {
     if (produces_hunks) {
         if (tty_out) {
             char bropath[FILE_PATH_MAX_LEN];
-            HOMEResolveSibling(bropath, sizeof(bropath), "bro");
+            a$rg(a0, 0);
+            HOMEResolveSibling(bropath, sizeof(bropath),
+                               "bro", (char const *)a0[0]);
             int pfd[2];
             test(pipe(pfd) == 0, FAILSANITY);
             bro_pid = fork();

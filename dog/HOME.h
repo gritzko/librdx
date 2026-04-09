@@ -25,11 +25,14 @@ ok64 HOMEFindDogs(path8b out);
 // leaves `out` unmodified.
 ok64 HOMEFollowWorktree(path8b out, path8cg gitfile);
 
-// Resolve a sibling of the current executable: looks for `name` in
-// dirname(/proc/self/exe).  If found and executable, writes the
-// absolute path into `out` (NUL-terminated).  Otherwise writes the
-// bare `name` so the caller can fall back to PATH lookup via execvp.
-// Always returns OK (the bare-name fallback is a valid result).
-ok64 HOMEResolveSibling(char *out, size_t outsz, char const *name);
+// Resolve a peer binary: looks for `name` next to the caller's own
+// binary by deriving the directory from `argv0` (preserving symlinks).
+// If argv0 is a bare name (no '/'), searches PATH without resolving
+// symlinks.  If found and executable, writes the path into `out`
+// (NUL-terminated).  Otherwise writes the bare `name` so the caller
+// can fall back to PATH lookup via execvp.
+// Cross-platform (no /proc dependency).
+ok64 HOMEResolveSibling(char *out, size_t outsz,
+                        char const *name, char const *argv0);
 
 #endif
