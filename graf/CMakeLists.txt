@@ -14,10 +14,12 @@ list(APPEND GRAF_HEADERS
     JOIN.h
     NEIL.h
     TDIFF.h
+    WEAVE.h
 )
 
 list(APPEND GRAF_SOURCES
     GRAF.c
+    BLAME.c
     DAG.c
     DIFF.c
     JOIN.c
@@ -25,6 +27,7 @@ list(APPEND GRAF_SOURCES
     INST.c
     NEIL.c
     TDIFF.c
+    WEAVE.c
 )
 
 add_library(graflib STATIC ${GRAF_HEADERS} ${GRAF_SOURCES})

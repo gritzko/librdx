@@ -40,4 +40,8 @@ ok64 GRAFMerge(u8cs base_path, u8cs ours_path, u8cs theirs_path,
 // Install graf as git's diff/merge driver in the given workspace.
 ok64 GRAFInstall(u8cs reporoot);
 
+// Token-level blame via weave: walks PREV_BLOB chain, builds weave,
+// emits blame-annotated hunks via GRAFHunkEmit.
+ok64 GRAFBlame(u8cs filepath, u8cs reporoot);
+
 #endif

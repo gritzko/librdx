@@ -267,13 +267,9 @@ static ok64 dag_next_seqno(u64 *seqno, u8cs dagdir) {
 
 // --- Stack management ---
 
-typedef struct {
-    belt128cs runs[MSET_MAX_LEVELS];
-    u8bp      maps[MSET_MAX_LEVELS];
-    u32       n;
-} dag_stack;
+// dag_stack typedef is in DAG.h
 
-static ok64 dag_stack_open(dag_stack *st, u8cs dagdir) {
+ok64 dag_stack_open(dag_stack *st, u8cs dagdir) {
     sane(st && $ok(dagdir));
     memset(st, 0, sizeof(*st));
 
@@ -320,7 +316,7 @@ static ok64 dag_stack_open(dag_stack *st, u8cs dagdir) {
     done;
 }
 
-static void dag_stack_close(dag_stack *st) {
+void dag_stack_close(dag_stack *st) {
     if (!st) return;
     for (u32 i = 0; i < st->n; i++)
         if (st->maps[i]) FILEUnMap(st->maps[i]);
@@ -676,23 +672,23 @@ ok64 DAGHook(u8cs reporoot) {
     u64 seqno = 0;
     dag_next_seqno(&seqno, dagdir);
 
-    // Spawn git rev-list --all --not <bookmark1> <bookmark2> ...
-    char rlcmd[4096];
-    int pos = snprintf(rlcmd, sizeof(rlcmd),
-                       "git -C %.*s rev-list --topo-order --reverse --parents"
-                       " --all",
+    // Single git log stream: commit headers + raw diffs in one pipe.
+    char logcmd[4096];
+    int pos = snprintf(logcmd, sizeof(logcmd),
+                       "git -C %.*s log --all --topo-order --reverse --parents"
+                       " --raw -z --no-abbrev --diff-filter=ACMRT",
                        (int)$len(reporoot), (char *)reporoot[0]);
     if (nbookmarks > 0) {
-        pos += snprintf(rlcmd + pos, sizeof(rlcmd) - pos, " --not");
-        for (u32 i = 0; i < nbookmarks && pos < (int)sizeof(rlcmd) - 50; i++) {
+        pos += snprintf(logcmd + pos, sizeof(logcmd) - pos, " --not");
+        for (u32 i = 0; i < nbookmarks && pos < (int)sizeof(logcmd) - 50; i++) {
             char hex[41];
             DAGsha1ToHex(hex, &bookmarks[i]);
-            pos += snprintf(rlcmd + pos, sizeof(rlcmd) - pos, " %s", hex);
+            pos += snprintf(logcmd + pos, sizeof(logcmd) - pos, " %s", hex);
         }
     }
 
-    FILE *rl = popen(rlcmd, "r");
-    if (!rl) {
+    FILE *gl = popen(logcmd, "r");
+    if (!gl) {
         free(entries);
         dag_gens_free(&gens);
         dag_paths_free(&paths);
@@ -703,122 +699,79 @@ ok64 DAGHook(u8cs reporoot) {
     u32 indexed = 0;
     ok64 result = OK;
 
-    char line[8192];
-    while (fgets(line, sizeof(line), rl)) {
-        size_t llen = strlen(line);
-        while (llen > 0 && (line[llen - 1] == '\n' || line[llen - 1] == '\r'))
-            line[--llen] = 0;
-        if (llen < 40) continue;
+    // State for the current commit being processed
+    u64 commit_hash = 0;
+    u32 commit_gen = 0;
+    u64 parents[16] = {};
+    int npar = -1;  // -1 = no current commit
 
-        u64 commit_hash = 0;
-        u32 commit_gen = 0;
-        u64 parents[16] = {};
-        int npar = dag_parse_commit(line, llen, &gens, &stack,
-                                    &commit_hash, &commit_gen,
-                                    parents, 16);
-        if (npar < 0) continue;
+    // Read stream line by line.  "commit " lines start a new commit;
+    // colon lines are raw diff entries; everything else is skipped.
+    // With -z, colon records end with NUL, paths are NUL-separated.
+    // We read in large chunks and parse in-buffer.
+    size_t bufsz = 1 << 18;  // 256KB read buffer
+    char *buf = (char *)malloc(bufsz);
+    if (!buf) { pclose(gl); free(entries); dag_gens_free(&gens);
+                dag_paths_free(&paths); dag_stack_close(&stack); failc(DAGFAIL); }
+    size_t buflen = 0;
+    b8 eof = NO;
 
-        dag_gens_put(&gens, commit_hash, commit_gen);
-
-        // COMMIT_GEN
-        dag_emit(entries, &nentries, bufcap,
-                 DAG_COMMIT_GEN, commit_gen, commit_hash,
-                 DAG_COMMIT_GEN, commit_gen, commit_hash);
-
-        // COMMIT_PARENT (one per parent)
-        for (int p = 0; p < npar && p < 16; p++) {
-            u32 pgen = dag_gens_get(&gens, parents[p]);
-            if (pgen == 0) pgen = dag_stack_gen(&stack, parents[p]);
-            dag_emit(entries, &nentries, bufcap,
-                     DAG_COMMIT_PARENT, commit_gen, commit_hash,
-                     DAG_COMMIT_PARENT, pgen, parents[p]);
-        }
-
-        // FIXME: popen per commit is unacceptable for large repos.
-        // Replace with single `git log --all --raw -z --format=...`
-        // that streams both commit parentage and diff entries.
-        {
-            char dtcmd[2048];
-            if (npar > 0) {
-                // Diff against first parent
-                char parent_buf[44] = {};
-                char const *pp = line + 41; // skip commit sha + space
-                memcpy(parent_buf, pp, 40);
-                parent_buf[40] = 0;
-                snprintf(dtcmd, sizeof(dtcmd),
-                         "git -C %.*s diff-tree -r -M --no-commit-id -z %s %.40s",
-                         (int)$len(reporoot), (char *)reporoot[0],
-                         parent_buf, line);
-            } else {
-                // Root commit: --root shows all files as added
-                snprintf(dtcmd, sizeof(dtcmd),
-                         "git -C %.*s diff-tree -r --root --no-commit-id -z %.40s",
-                         (int)$len(reporoot), (char *)reporoot[0],
-                         line);
+    while (!eof || buflen > 0) {
+        // Fill buffer
+        if (!eof) {
+            size_t room = bufsz - buflen - 1;
+            if (room > 0) {
+                size_t got = fread(buf + buflen, 1, room, gl);
+                if (got == 0) eof = YES;
+                buflen += got;
             }
+        }
+        buf[buflen] = 0;
 
-            FILE *dt = popen(dtcmd, "r");
-            if (!dt) continue;
+        char *p = buf;
+        char *end = buf + buflen;
 
-            // diff-tree -z uses NUL separators
-            // Format: ":old_mode new_mode old_sha new_sha status\0path\0"
-            // For renames: "...status\0old_path\0new_path\0"
-            char dtbuf[65536];
-            size_t dtlen = fread(dtbuf, 1, sizeof(dtbuf) - 1, dt);
-            pclose(dt);
-            dtbuf[dtlen] = 0;
-
-            char *dp = dtbuf;
-            char *dend = dtbuf + dtlen;
-            while (dp < dend && *dp == ':') {
-                // Parse the colon record up to NUL
-                char *rec_end = dp;
-                while (rec_end < dend && *rec_end != 0) rec_end++;
-                size_t reclen = (size_t)(rec_end - dp);
+        while (p < end) {
+            if (*p == ':') {
+                // Colon record: parse diff entry
+                // Format: ":old_mode new_mode old_sha new_sha status\0path\0"
+                char *rec_end = p;
+                while (rec_end < end && *rec_end != 0) rec_end++;
+                if (rec_end >= end && !eof) break;  // incomplete, need more data
+                size_t reclen = (size_t)(rec_end - p);
 
                 dag_diff_entry de = {};
-                if (dag_parse_diff_rec(dp, reclen, &de)) {
-                    dp = rec_end + 1; // past NUL after colon record
+                if (dag_parse_diff_rec(p, reclen, &de) && npar >= 0) {
+                    p = rec_end + 1;  // past NUL
 
                     // Read first path (NUL-terminated)
-                    char path1[512] = {};
-                    if (dp < dend) {
-                        char *p1end = dp;
-                        while (p1end < dend && *p1end != 0) p1end++;
-                        size_t p1len = (size_t)(p1end - dp);
-                        if (p1len >= sizeof(path1)) p1len = sizeof(path1) - 1;
-                        memcpy(path1, dp, p1len);
-                        path1[p1len] = 0;
-                        dp = p1end + 1;
-                    }
-                    // Second path for renames/copies (NUL-terminated)
-                    char path2[512] = {};
-                    if ((de.status == 'R' || de.status == 'C') && dp < dend) {
-                        char *p2end = dp;
-                        while (p2end < dend && *p2end != 0) p2end++;
-                        size_t p2len = (size_t)(p2end - dp);
-                        if (p2len >= sizeof(path2)) p2len = sizeof(path2) - 1;
-                        memcpy(path2, dp, p2len);
-                        path2[p2len] = 0;
-                        dp = p2end + 1;
+                    char *p1 = p;
+                    while (p < end && *p != 0) p++;
+                    if (p >= end && !eof) { p = p1 - reclen - 1; break; }
+                    size_t p1len = (size_t)(p - p1);
+                    p++;  // past NUL
+
+                    // Second path for renames/copies
+                    char *p2 = NULL;
+                    size_t p2len = 0;
+                    if ((de.status == 'R' || de.status == 'C') && p < end) {
+                        p2 = p;
+                        while (p < end && *p != 0) p++;
+                        if (p >= end && !eof) { p = p1 - reclen - 1; break; }
+                        p2len = (size_t)(p - p2);
+                        p++;
                     }
 
-                    // Effective path: new path for renames, otherwise path1
-                    char const *epath = path1;
-                    size_t eplen = strlen(path1);
-                    if ((de.status == 'R' || de.status == 'C') && path2[0]) {
-                        epath = path2;
-                        eplen = strlen(path2);
-                    }
-
+                    char const *epath = p1;
+                    size_t eplen = p1len;
+                    if (p2 && p2len > 0) { epath = p2; eplen = p2len; }
                     if (eplen == 0) continue;
 
-                    // PREV_BLOB: new_blob → old_blob
+                    // PREV_BLOB
                     if (de.status != 'A' && de.status != 'D') {
                         u64 old_bh = DAGsha1Hashlet(&de.old_sha);
                         u64 new_bh = DAGsha1Hashlet(&de.new_sha);
                         if (old_bh && new_bh) {
-                            // old_blob gen: use parent commit gen
                             u32 pgen = (npar > 0) ? dag_gens_get(&gens, parents[0]) : 0;
                             if (pgen == 0 && npar > 0)
                                 pgen = dag_stack_gen(&stack, parents[0]);
@@ -828,41 +781,88 @@ ok64 DAGHook(u8cs reporoot) {
                         }
                     }
 
-                    // PATH_VER: (gen, path_id) → (gen, blob)
+                    // PATH_VER + BLOB_COMMIT
                     if (de.status != 'D') {
                         u64 new_bh = DAGsha1Hashlet(&de.new_sha);
                         u32 pid = dag_paths_intern(&paths, epath, eplen);
                         dag_emit(entries, &nentries, bufcap,
                                  DAG_PATH_VER, commit_gen, (u64)pid,
                                  DAG_PATH_VER, commit_gen, new_bh);
+                        dag_emit(entries, &nentries, bufcap,
+                                 DAG_BLOB_COMMIT, commit_gen, new_bh,
+                                 DAG_BLOB_COMMIT, commit_gen, commit_hash);
                     }
                 } else {
-                    // Skip malformed record
-                    dp = rec_end + 1;
-                    // Skip path field(s)
-                    while (dp < dend && *dp != ':' && *dp != 0) dp++;
-                    if (dp < dend && *dp == 0) dp++;
+                    p = rec_end + 1;
+                    // Skip path(s)
+                    while (p < end && *p != ':' && *p != '\n' && *p != 'c') {
+                        while (p < end && *p != 0 && *p != '\n') p++;
+                        if (p < end && *p == 0) p++;
+                    }
                 }
+            } else if (p + 7 <= end && memcmp(p, "commit ", 7) == 0 && p + 47 <= end) {
+                // Commit header: "commit <sha> [<parent>...]\n"
+                char *nl = p;
+                while (nl < end && *nl != '\n') nl++;
+                if (nl >= end && !eof) break;  // incomplete
+
+                p += 7;  // skip "commit "
+                size_t llen = (size_t)(nl - p);
+
+                // Parse as rev-list line: "<sha> <p1> <p2> ..."
+                npar = dag_parse_commit(p, llen, &gens, &stack,
+                                        &commit_hash, &commit_gen,
+                                        parents, 16);
+                if (npar >= 0) {
+                    dag_gens_put(&gens, commit_hash, commit_gen);
+
+                    dag_emit(entries, &nentries, bufcap,
+                             DAG_COMMIT_GEN, commit_gen, commit_hash,
+                             DAG_COMMIT_GEN, commit_gen, commit_hash);
+
+                    for (int pi = 0; pi < npar && pi < 16; pi++) {
+                        u32 pgen = dag_gens_get(&gens, parents[pi]);
+                        if (pgen == 0) pgen = dag_stack_gen(&stack, parents[pi]);
+                        dag_emit(entries, &nentries, bufcap,
+                                 DAG_COMMIT_PARENT, commit_gen, commit_hash,
+                                 DAG_COMMIT_PARENT, pgen, parents[pi]);
+                    }
+                    indexed++;
+                }
+                p = nl + 1;
+            } else if (*p == 0) {
+                // NUL separator between diff records / commits
+                p++;
+            } else {
+                // Skip non-commit, non-colon lines (Author, Date, message)
+                char *nl = p;
+                while (nl < end && *nl != '\n' && *nl != 0) nl++;
+                if (nl >= end && !eof) break;
+                p = nl + 1;
+            }
+
+            // Flush if buffer is getting full
+            if (nentries + 64 >= bufcap) {
+                belt128s d = {entries, entries + nentries};
+                belt128sSort(d);
+                belt128sDedup(d);
+                nentries = (size_t)(d[1] - d[0]);
+                belt128cs run = {entries, entries + nentries};
+                result = dag_index_write(dagdir, run, seqno);
+                if (result != OK) break;
+                seqno++;
+                nentries = 0;
             }
         }
 
-        indexed++;
+        // Shift unconsumed data to front
+        size_t consumed = (size_t)(p - buf);
+        buflen -= consumed;
+        if (buflen > 0) memmove(buf, p, buflen);
 
-        // Flush if buffer is getting full
-        if (nentries + 64 >= bufcap) {
-            belt128s d = {entries, entries + nentries};
-            belt128sSort(d);
-            belt128sDedup(d);
-            nentries = (size_t)(d[1] - d[0]);
-
-            belt128cs run = {entries, entries + nentries};
-            result = dag_index_write(dagdir, run, seqno);
-            if (result != OK) break;
-            seqno++;
-            nentries = 0;
-        }
+        if (result != OK) break;
     }
-    pclose(rl);
+    pclose(gl);
 
     // Flush remaining
     if (result == OK && nentries > 0) {
@@ -874,6 +874,7 @@ ok64 DAGHook(u8cs reporoot) {
         result = dag_index_write(dagdir, run, seqno);
     }
 
+    free(buf);
     free(entries);
     dag_gens_free(&gens);
     dag_paths_free(&paths);

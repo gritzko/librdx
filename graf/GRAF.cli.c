@@ -24,6 +24,7 @@ static void GRAFUsage(void) {
         "  graf --merge base ours theirs -o f merge to file\n"
         "  graf -n | --install                install as git diff/merge driver\n"
         "  graf --index                       index git object graph\n"
+        "  graf --blame file                  token-level blame\n"
         "\n"
         "Git integration (manual, or use graf -n):\n"
         "  git config diff.graf.command \"graf --gitdiff\"\n"
@@ -58,6 +59,7 @@ ok64 grafcli() {
     b8 do_merge = NO;
     b8 do_install = NO;
     b8 do_index = NO;
+    b8 do_blame = NO;
     u8c *merge_out[2] = {};
     u8c *trail[16][2] = {};
     int ntrail = 0;
@@ -82,6 +84,8 @@ ok64 grafcli() {
             do_install = YES;
         } else if (argeq(a, "--index")) {
             do_index = YES;
+        } else if (argeq(a, "--blame") || argeq(a, "-b")) {
+            do_blame = YES;
         } else {
             if (ntrail < 16) { $mv(trail[ntrail], a); ntrail++; }
         }
@@ -90,7 +94,7 @@ ok64 grafcli() {
     // Producers that emit hunks: select output fd + serializer.
     // Skip pager for --merge (writes resolved file) and --install.
     pid_t bro_pid = -1;
-    b8 produces_hunks = (do_diff || do_gitdiff) && !do_merge && !do_install;
+    b8 produces_hunks = (do_diff || do_gitdiff || do_blame) && !do_merge && !do_install;
     if (produces_hunks) {
         if (tty_out) {
             char bropath[FILE_PATH_MAX_LEN];
@@ -118,7 +122,19 @@ ok64 grafcli() {
         }
     }
 
-    if (do_index) {
+    if (do_blame) {
+        if (reporoot[0] == NULL) {
+            fprintf(stderr, "graf: --blame requires a git repo\n");
+            return FAILSANITY;
+        }
+        if (ntrail < 1) {
+            fprintf(stderr, "graf: --blame requires a file path\n");
+            return FAILSANITY;
+        }
+        u8cs fp = {trail[0][0], trail[0][1]};
+        a_dup(u8c, rr, reporoot);
+        call(GRAFBlame, fp, rr);
+    } else if (do_index) {
         if (reporoot[0] == NULL) {
             fprintf(stderr, "graf: --index requires a git repo\n");
             return FAILSANITY;
