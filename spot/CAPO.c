@@ -25,8 +25,9 @@ static void capo_abrt_handler(int sig) {
 #include "abc/ANSI.h"
 #include "abc/PRO.h"
 #include "abc/SORT.h"
-#include "spot/SPOT.h"
 #include "dog/DEF.h"
+#include "dog/HOME.h"
+#include "spot/SPOT.h"
 
 // --- Language detection via tok/ ---
 
@@ -66,7 +67,14 @@ static void CAPOCodecName(u8csp codec, u8csc ext) {
 
 ok64 CAPOResolveDir(path8b out, u8csc reporoot) {
     sane($ok(reporoot) && out != NULL);
-    call(PATHu8bFeed, out, reporoot);
+    (void)reporoot;
+    // Use HOMEFindDogs: for worktrees, tries the parent repo first
+    // (shared .dogs/), falls back to worktree-local .dogs/ if the
+    // parent is unreachable.
+    a_path(dogs_root);
+    call(HOMEFindDogs, dogs_root);
+    a_dup(u8c, dr, u8bDataC(dogs_root));
+    call(PATHu8bFeed, out, dr);
     a_cstr(dotdogs, ".dogs");
     call(PATHu8bPush, out, dotdogs);
     a_cstr(spotname, "spot");
@@ -371,9 +379,9 @@ ok64 CAPOCompact(u8csc dir) {
 static ok64 CAPOReindexWork(u8csc reporoot, u8csc dirslice, u64bp entries) {
     sane($ok(reporoot) && $ok(dirslice) && entries != NULL);
 
-    char cmdbuf[FILE_PATH_MAX_LEN + 32];
-    int n = snprintf(cmdbuf, sizeof(cmdbuf), "git -C %.*s ls-files",
-                     (int)$len(reporoot), (char *)reporoot[0]);
+    char cmdbuf[FILE_PATH_MAX_LEN * 2 + 256];
+    int n = snprintf(cmdbuf, sizeof(cmdbuf), "git -C %.*s ls-files && git -C %.*s submodule foreach --quiet --recursive 'git ls-files | sed \"s|^|$displaypath/|\"'",
+                     (int)$len(reporoot), (char *)reporoot[0], (int)$len(reporoot), (char *)reporoot[0]);
     test(n > 0 && n < (int)sizeof(cmdbuf), FAILSANITY);
 
     FILE *fp = popen(cmdbuf, "r");
@@ -505,9 +513,9 @@ static ok64 CAPOReindexProcWork(u8csc reporoot, u8csc dirslice,
                                 u64bp entries, u32 nprocs, u32 proc) {
     sane($ok(reporoot) && $ok(dirslice) && entries != NULL);
 
-    char cmdbuf[FILE_PATH_MAX_LEN + 32];
-    int n = snprintf(cmdbuf, sizeof(cmdbuf), "git -C %.*s ls-files",
-                     (int)$len(reporoot), (char *)reporoot[0]);
+    char cmdbuf[FILE_PATH_MAX_LEN * 2 + 256];
+    int n = snprintf(cmdbuf, sizeof(cmdbuf), "git -C %.*s ls-files && git -C %.*s submodule foreach --quiet --recursive 'git ls-files | sed \"s|^|$displaypath/|\"'",
+                     (int)$len(reporoot), (char *)reporoot[0], (int)$len(reporoot), (char *)reporoot[0]);
     test(n > 0 && n < (int)sizeof(cmdbuf), FAILSANITY);
 
     FILE *fp = popen(cmdbuf, "r");
@@ -613,8 +621,7 @@ static ok64 CAPOReindexProcWork(u8csc reporoot, u8csc dirslice,
 ok64 CAPOReindexProc(u8csc reporoot, u32 nprocs, u32 proc) {
     sane($ok(reporoot) && proc < nprocs && nprocs > 0);
 
-    fprintf(stderr, "spot[%u/%u]: starting (root %.*s)\n",
-            proc, nprocs, (int)$len(reporoot), (char *)reporoot[0]);
+    fprintf(stderr, "spot[%u/%u]: starting\n", proc, nprocs);
 
     a_path(capodir);
     call(CAPOResolveDir, capodir, reporoot);
@@ -1455,9 +1462,9 @@ ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot,
 
     FILE *fp = NULL;
     if (nfiles == 0) {
-        char cmdbuf[FILE_PATH_MAX_LEN + 32];
-        int cn = snprintf(cmdbuf, sizeof(cmdbuf), "git -C %.*s ls-files",
-                          (int)$len(reporoot), (char *)reporoot[0]);
+        char cmdbuf[FILE_PATH_MAX_LEN * 2 + 256];
+        int cn = snprintf(cmdbuf, sizeof(cmdbuf), "git -C %.*s ls-files && git -C %.*s submodule foreach --quiet --recursive 'git ls-files | sed \"s|^|$displaypath/|\"'",
+                          (int)$len(reporoot), (char *)reporoot[0], (int)$len(reporoot), (char *)reporoot[0]);
         test(cn > 0 && cn < (int)sizeof(cmdbuf), FAILSANITY);
         fp = popen(cmdbuf, "r");
         test(fp != NULL, FAILSANITY);

@@ -332,6 +332,44 @@ static const SPOTcase SPOT_CASES[] = {
         "void f() { u8cs z = {(*fp)[0], (*gp)[1]}; }\n",
         SPOTEND, NULL, NULL
     },
+
+    // --- Lowercase must reject punct tokens (operators, brackets, ;,) ---
+    // Regression: lowercase 'n' was matching 'P'-tagged tokens, so
+    // patterns like "T n = ..." would bind n to '=' or ']' etc.
+    {
+        "LowerRejectsEquals",
+        "T n = X;",
+        "void f() { int x = 1; }\n",
+        OK, "x", NULL  // n binds 'x', not '='
+    },
+    {
+        "LowerRejectsCloseBracket",
+        "T n = X;",
+        "void f() { a[i] = 1; }\n",
+        SPOTEND, NULL, NULL  // n cannot bind to '[', ']', or '='
+    },
+    {
+        "LowerRejectsSemicolon",
+        "a;",
+        "void f() { ;; ; x; }\n",
+        OK, "x", NULL  // a binds 'x', skipping bare ';' tokens
+    },
+
+    // --- Unbound uppercase must not start on a closing bracket ---
+    // Regression: 'T' could bind to a leading ')' or ']' producing
+    // unbalanced captures like "T n = " matching against "...] x = ...".
+    {
+        "UpperRejectsLeadingClose",
+        "T n = X;",
+        "void f() { foo(arr[0]); int x = 1; }\n",
+        OK, "int", NULL  // T must start at 'int', not at ')' or ']'
+    },
+    {
+        "UpperRejectsLeadingCloseDeep",
+        "T x = 0;",
+        "void f() { foo(arr[0]); int x = 0; }\n",
+        OK, "int", NULL  // T binds 'int', not the ')' or ']' before it
+    },
 };
 
 #define SPOT_NCASES (sizeof(SPOT_CASES) / sizeof(SPOT_CASES[0]))
