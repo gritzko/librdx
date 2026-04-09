@@ -1,4 +1,5 @@
 #include "GRAF.h"
+#include "DAG.h"
 
 #include <signal.h>
 #include <stdio.h>
@@ -22,6 +23,7 @@ static void GRAFUsage(void) {
         "  graf --merge base ours theirs      token-level 3-way merge\n"
         "  graf --merge base ours theirs -o f merge to file\n"
         "  graf -n | --install                install as git diff/merge driver\n"
+        "  graf --index                       index git object graph\n"
         "\n"
         "Git integration (manual, or use graf -n):\n"
         "  git config diff.graf.command \"graf --gitdiff\"\n"
@@ -55,6 +57,7 @@ ok64 grafcli() {
     b8 do_gitdiff = NO;
     b8 do_merge = NO;
     b8 do_install = NO;
+    b8 do_index = NO;
     u8c *merge_out[2] = {};
     u8c *trail[16][2] = {};
     int ntrail = 0;
@@ -77,6 +80,8 @@ ok64 grafcli() {
             $mv(merge_out, $arg(i));
         } else if (argeq(a, "-n") || argeq(a, "--install")) {
             do_install = YES;
+        } else if (argeq(a, "--index")) {
+            do_index = YES;
         } else {
             if (ntrail < 16) { $mv(trail[ntrail], a); ntrail++; }
         }
@@ -113,7 +118,14 @@ ok64 grafcli() {
         }
     }
 
-    if (do_install) {
+    if (do_index) {
+        if (reporoot[0] == NULL) {
+            fprintf(stderr, "graf: --index requires a git repo\n");
+            return FAILSANITY;
+        }
+        a_dup(u8c, rr, reporoot);
+        call(DAGHook, rr);
+    } else if (do_install) {
         if (reporoot[0] == NULL) {
             fprintf(stderr, "graf: --install requires a git repo\n");
             return FAILSANITY;
