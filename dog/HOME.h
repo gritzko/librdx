@@ -3,12 +3,20 @@
 
 #include "abc/PATH.h"
 
-// Walk up from cwd to find the workspace root: the first ancestor dir
-// containing a .git entry (file or directory). For worktrees (.git is a
-// file), follow it to the parent repo root. On any failure, fall back
-// to the dir containing the .git file. Returns FAILSANITY if no .git
-// is found above cwd.
+con ok64 NOHOME = 0x4836c65a56;
+
+// Walk up from cwd to the workspace dir (first ancestor with .git).
+// This is the worktree checkout dir — use it for `git ls-files` and
+// for resolving file paths.
+// Returns FAILSANITY if no .git is found above cwd.
 ok64 HOMEFind(path8b out);
+
+// Find the directory where .dogs/ should live:
+//   1. Walk up to .git.
+//   2. If .git is a directory → use that dir.
+//   3. If .git is a file (worktree) → follow to the parent repo root.
+//   4. If step 3 fails → fall back to the worktree dir from step 1.
+ok64 HOMEFindDogs(path8b out);
 
 // Follow a .git worktree file to the parent repo root.  On success,
 // writes the parent repo root (the dir containing the parent .git

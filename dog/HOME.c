@@ -31,7 +31,6 @@ ok64 HOMEFollowWorktree(path8b out, path8cg gitfile) {
         if (gds[0][0] == '/') {
             o = PATHu8bFeed(gitdir, gds);
         } else {
-            // Relative to dir containing the .git file.
             a_dupcg(u8, gf, gitfile);
             o = PATHu8bFeed(gitdir, gf);
             if (o == OK) o = PATHu8bPop(gitdir);
@@ -39,16 +38,12 @@ ok64 HOMEFollowWorktree(path8b out, path8cg gitfile) {
         }
         if (o != OK) goto out;
     }
-    // Verify the gitdir actually exists; this is the broken-worktree guard.
     o = FILEisdir(PATHu8cgIn(gitdir));
     if (o != OK) goto out;
-    // Expect layout: <root>/.git/worktrees/<name>
-    // Pop <name>, then "worktrees", then verify ".git" is a directory.
     o = PATHu8bPop(gitdir);
     if (o == OK) o = PATHu8bPop(gitdir);
     if (o == OK) o = FILEisdir(PATHu8cgIn(gitdir));
     if (o != OK) goto out;
-    // One more pop strips the trailing ".git" to land at the parent root.
     o = PATHu8bPop(gitdir);
     if (o != OK) goto out;
     {
@@ -60,12 +55,16 @@ out:
     return o;
 }
 
-ok64 HOMEFind(path8b out) {
+// Walk up from cwd to first dir containing .git.
+// Returns NOHOME if no .git found.
+// Sets *is_worktree to YES if .git is a file (worktree marker).
+static ok64 HOMEWalkUp(path8b out, b8 *is_worktree) {
     sane(out != NULL);
     char cwdbuf[FILE_PATH_MAX_LEN];
-    test(getcwd(cwdbuf, sizeof(cwdbuf)) != NULL, FAILSANITY);
+    test(getcwd(cwdbuf, sizeof(cwdbuf)) != NULL, NOHOME);
     u8cs cwds = {(u8cp)cwdbuf, (u8cp)cwdbuf + strlen(cwdbuf)};
     call(PATHu8bFeed, out, cwds);
+    if (is_worktree) *is_worktree = NO;
 
     a_cstr(dotgit, ".git");
     for (;;) {
@@ -75,27 +74,50 @@ ok64 HOMEFind(path8b out) {
         call(PATHu8bPush, probe, dotgit);
         struct stat sb = {};
         if (stat((char const *)*PATHu8cgIn(probe), &sb) == 0) {
-            if (!(sb.st_mode & S_IFDIR)) {
-                // .git is a file — worktree marker. Try to follow it.
-                a_path(parent);
-                ok64 fo = HOMEFollowWorktree(parent, PATHu8cgIn(probe));
-                if (fo == OK) {
-                    // Replace `out` with the parent repo root (absolute).
-                    u8bReset(out);
-                    a_dup(u8c, ps, u8bDataC(parent));
-                    call(PATHu8bFeed, out, ps);
-                }
-                // On failure, leave `out` as the worktree dir.
-            }
+            if (is_worktree)
+                *is_worktree = (sb.st_mode & S_IFDIR) ? NO : YES;
             done;
         }
 
         size_t before = $len(u8bDataC(out));
         call(PATHu8bPop, out);
         size_t after = $len(u8bDataC(out));
-        // Pop stops at "/" — bail when no progress is made.
-        test(after < before, FAILSANITY);
+        if (after >= before) return NOHOME;
     }
+}
+
+ok64 HOMEFind(path8b out) {
+    sane(out != NULL);
+    return HOMEWalkUp(out, NULL);
+}
+
+ok64 HOMEFindDogs(path8b out) {
+    sane(out != NULL);
+    b8 is_wt = NO;
+    call(HOMEWalkUp, out, &is_wt);
+
+    if (!is_wt) {
+        // .git is a directory — use this dir for .dogs/
+        done;
+    }
+
+    // .git is a file — worktree. Try following to the parent repo.
+    a_cstr(dotgit, ".git");
+    a_path(probe);
+    a_dup(u8c, cur, u8bDataC(out));
+    call(PATHu8bFeed, probe, cur);
+    call(PATHu8bPush, probe, dotgit);
+
+    a_path(parent);
+    ok64 fo = HOMEFollowWorktree(parent, PATHu8cgIn(probe));
+    if (fo == OK) {
+        // Parent repo found — use it for .dogs/
+        u8bReset(out);
+        a_dup(u8c, ps, u8bDataC(parent));
+        call(PATHu8bFeed, out, ps);
+    }
+    // If follow failed, keep out as the worktree dir (fallback).
+    done;
 }
 
 ok64 HOMEResolveSibling(char *out, size_t outsz, char const *name) {

@@ -65,16 +65,23 @@ void LESSDefer(u8bp mapped, Bu32 toks) {
 }
 
 // Serialize the just-built hunk via spot_emit, write to spot_out_fd,
-// rewind the staging arena so the slot is reusable.
+// then rewind the entire arena.  After emission the hunk's title, toks
+// and hili slices (which live in the arena) are dead — the pipe owns
+// the bytes now.  Full rewind keeps the arena from filling up across
+// hundreds of streaming hunks.
 void LESSHunkEmit(void) {
-    if (spot_emit == NULL || spot_out_fd < 0) return;
+    if (spot_emit == NULL || spot_out_fd < 0) {
+        // No output set up yet — accumulate nhunks for LESSRun.
+        less_nhunks++;
+        return;
+    }
     LESShunk *hk = &less_hunks[less_nhunks];
 
-    range64 mark;
-    Bu8mark(less_arena, &mark);
+    // TLV/text serialization goes into arena idle space (past title/toks/hili).
     u8cp start = u8bIdleHead(less_arena);
     if (spot_emit(u8bIdle(less_arena), hk) != OK) {
-        Bu8rewind(less_arena, mark);
+        // Reset arena: drop this hunk's title/toks/hili + failed TLV.
+        ((u8 **)less_arena)[2] = less_arena[1];
         return;
     }
 
@@ -85,8 +92,10 @@ void LESSHunkEmit(void) {
         u8csFed(ser, (size_t)w);
     }
 
-    // Rewind: scratch space (title, toks, hili, serialized bytes) is reused.
-    Bu8rewind(less_arena, mark);
+    // Full arena rewind: title, toks, hili, and serialized bytes are
+    // all consumed.  The hunk struct in less_hunks[0] will be reused
+    // next time CAPOBuildHunk runs.
+    ((u8 **)less_arena)[2] = less_arena[1];
 }
 
 ok64 LESSRun(LESShunk const *hunks, u32 nhunks) {

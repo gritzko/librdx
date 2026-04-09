@@ -106,9 +106,13 @@ ok64 CAPOGrep(u8csc substring, u8csc ext, u8csc reporoot, u32 ctx_lines,
 
     FILE *fp = NULL;
     if (nfiles == 0) {
-        char cmdbuf[FILE_PATH_MAX_LEN + 32];
-        int cn = snprintf(cmdbuf, sizeof(cmdbuf), "git -C %.*s ls-files",
-                          (int)$len(reporoot), (char *)reporoot[0]);
+        char cmdbuf[FILE_PATH_MAX_LEN * 2 + 256];
+        int cn = snprintf(cmdbuf, sizeof(cmdbuf),
+            "git -C %.*s ls-files && git -C %.*s submodule foreach"
+            " --quiet --recursive"
+            " 'git ls-files | sed \"s|^|$displaypath/|\"'",
+            (int)$len(reporoot), (char *)reporoot[0],
+            (int)$len(reporoot), (char *)reporoot[0]);
         test(cn > 0 && cn < (int)sizeof(cmdbuf), FAILSANITY);
         fp = popen(cmdbuf, "r");
         test(fp != NULL, FAILSANITY);
@@ -159,8 +163,13 @@ ok64 CAPOGrep(u8csc substring, u8csc ext, u8csc reporoot, u32 ctx_lines,
         CAPOProgress(line);
 
         char fpath[FILE_PATH_MAX_LEN * 2];
-        int pn = snprintf(fpath, sizeof(fpath), "%.*s/%s",
+        int pn;
+        if (nfiles > 0) {
+            pn = snprintf(fpath, sizeof(fpath), "%s", line);
+        } else {
+            pn = snprintf(fpath, sizeof(fpath), "%.*s/%s",
                           (int)$len(reporoot), (char *)reporoot[0], line);
+        }
         if (pn <= 0 || pn >= (int)sizeof(fpath)) continue;
 
         a_path(fpbuf);
@@ -485,9 +494,13 @@ ok64 CAPOPcreGrep(u8csc pattern, u8csc ext, u8csc reporoot, u32 ctx_lines,
 
     FILE *fp = NULL;
     if (nfiles == 0) {
-        char cmdbuf[FILE_PATH_MAX_LEN + 32];
-        int cn = snprintf(cmdbuf, sizeof(cmdbuf), "git -C %.*s ls-files",
-                          (int)$len(reporoot), (char *)reporoot[0]);
+        char cmdbuf[FILE_PATH_MAX_LEN * 2 + 256];
+        int cn = snprintf(cmdbuf, sizeof(cmdbuf),
+            "git -C %.*s ls-files && git -C %.*s submodule foreach"
+            " --quiet --recursive"
+            " 'git ls-files | sed \"s|^|$displaypath/|\"'",
+            (int)$len(reporoot), (char *)reporoot[0],
+            (int)$len(reporoot), (char *)reporoot[0]);
         test(cn > 0 && cn < (int)sizeof(cmdbuf), FAILSANITY);
         fp = popen(cmdbuf, "r");
         test(fp != NULL, FAILSANITY);
@@ -536,8 +549,13 @@ ok64 CAPOPcreGrep(u8csc pattern, u8csc ext, u8csc reporoot, u32 ctx_lines,
         CAPOProgress(line);
 
         char fpath[FILE_PATH_MAX_LEN * 2];
-        int pn = snprintf(fpath, sizeof(fpath), "%.*s/%s",
+        int pn;
+        if (nfiles > 0) {
+            pn = snprintf(fpath, sizeof(fpath), "%s", line);
+        } else {
+            pn = snprintf(fpath, sizeof(fpath), "%.*s/%s",
                           (int)$len(reporoot), (char *)reporoot[0], line);
+        }
         if (pn <= 0 || pn >= (int)sizeof(fpath)) continue;
 
         a_path(fpbuf);
