@@ -21,6 +21,8 @@ ok64 HUNKu8sFeed(u8s into, HUNKhunk const *hk) {
         u8cs hib = {(u8cp)hk->hili[0], (u8cp)hk->hili[1]};
         call(TLVu8sFeed, inner, HUNK_TLV_HILI, hib);
     }
+    if (!$empty(hk->path))
+        call(TLVu8sFeed, inner, HUNK_TLV_PATH, hk->path);
     call(TLVu8sEnd, into, inner, HUNK_TLV);
     done;
 }
@@ -50,6 +52,9 @@ ok64 HUNKu8sDrain(u8cs from, HUNKhunk *hk) {
         case HUNK_TLV_HILI:
             hk->hili[0] = (tok32c *)val[0];
             hk->hili[1] = (tok32c *)val[1];
+            break;
+        case HUNK_TLV_PATH:
+            $mv(hk->path, val);
             break;
         default:
             break;

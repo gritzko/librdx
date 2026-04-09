@@ -68,6 +68,12 @@ ok64 BROCat(u8css files, u8csc reporoot) {
             hk->title[0] = title[0];
             hk->title[1] = title[1];
         }
+        // Store the display path as hk->path
+        u8p pp = BROArenaWrite(fpz, fzl);
+        if (pp) {
+            hk->path[0] = pp;
+            hk->path[1] = pp + fzl;
+        }
 
         hk->text[0] = src_head;
         hk->text[1] = src_idle;

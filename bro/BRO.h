@@ -13,6 +13,7 @@ typedef struct {
     u8cs text;   // source text bytes
     u32cs toks;  // packed tok32: syntax fg, text-relative offsets
     u32cs hili;  // sparse tok32: bg highlights ('I'=INS, 'D'=DEL), text-relative
+    u8cs path;   // repo-relative file path (never trimmed)
 } BROhunk;
 
 // --- BRO arena: scratch space for cat-mode hunk staging ---

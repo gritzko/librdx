@@ -10,6 +10,7 @@
 #define HUNK_TLV_TXT  'X'  // source text bytes
 #define HUNK_TLV_TOK  'K'  // tok32 array (packed u32 LE)
 #define HUNK_TLV_HILI 'I'  // sparse tok32 bg highlights
+#define HUNK_TLV_PATH 'P'  // repo-relative file path (never trimmed)
 
 // A serializable code hunk
 typedef struct {
@@ -17,6 +18,7 @@ typedef struct {
     u8cs text;     // source text bytes
     tok32cs toks;  // packed tok32: syntax fg
     tok32cs hili;  // sparse tok32: bg highlights ('I'=INS, 'D'=DEL)
+    u8cs path;     // repo-relative file path (e.g. "src/foo.c")
 } HUNKhunk;
 
 // Producer callback: yields one hunk at a time.  Slices in `hk` are

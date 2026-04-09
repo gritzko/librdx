@@ -121,6 +121,11 @@ static ok64 emit_whole_file(Bu8 arena, char const *dispname,
     u8cs title = {};
     u8aClose(arena, title);
     if (!$empty(title)) { hk.title[0] = title[0]; hk.title[1] = title[1]; }
+    if (dispname) {
+        size_t plen = strlen(dispname);
+        u8p pp = arena_write(arena, (u8cp)dispname, plen);
+        if (pp) { hk.path[0] = pp; hk.path[1] = pp + plen; }
+    }
 
     u8p txp = arena_write(arena, data[0], dlen);
     if (txp) { hk.text[0] = txp; hk.text[1] = txp + dlen; }
@@ -335,6 +340,14 @@ ok64 DIFFu8cs(Bu8 arena,
             if (!$empty(_ttl)) {                                \
                 cur_hunk->title[0] = _ttl[0];                   \
                 cur_hunk->title[1] = _ttl[1];                   \
+            }                                                   \
+            if (dispname) {                                     \
+                size_t _pl = strlen(dispname);                  \
+                u8p _pp = arena_write(arena, (u8cp)dispname, _pl); \
+                if (_pp) {                                      \
+                    cur_hunk->path[0] = _pp;                    \
+                    cur_hunk->path[1] = _pp + _pl;              \
+                }                                               \
             }                                                   \
             cur_hunk->text[0] = dtxp;                           \
             cur_hunk->toks[0] = (u32cp)dtokp;                   \

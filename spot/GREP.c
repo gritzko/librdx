@@ -267,6 +267,14 @@ ok64 CAPOGrep(u8csc substring, u8csc ext, u8csc reporoot, u32 ctx_lines,
                                 hk->title[1] = _title[1];
                             }
                         }
+                        {
+                            size_t _pl = strlen(line);
+                            u8p _pp = LESSArenaWrite(line, _pl);
+                            if (_pp) {
+                                hk->path[0] = _pp;
+                                hk->path[1] = _pp + _pl;
+                            }
+                        }
 
                         hk->text[0] = source[0] + ctx_lo;
                         hk->text[1] = source[0] + ctx_hi;
@@ -691,6 +699,14 @@ ok64 CAPOPcreGrep(u8csc pattern, u8csc ext, u8csc reporoot, u32 ctx_lines,
                         if (!$empty(_title)) {
                             hk->title[0] = _title[0];
                             hk->title[1] = _title[1];
+                        }
+                    }
+                    {
+                        size_t _pl = strlen(line);
+                        u8p _pp = LESSArenaWrite(line, _pl);
+                        if (_pp) {
+                            hk->path[0] = _pp;
+                            hk->path[1] = _pp + _pl;
                         }
                     }
 

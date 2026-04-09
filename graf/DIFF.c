@@ -37,6 +37,8 @@ static ok64 emit_mode_change(u8cs name, u8cs old_mode, u8cs new_mode) {
     hk.title[1] = (u8cp)hdr + tl;
     hk.text[0] = (u8cp)body;
     hk.text[1] = (u8cp)body + bl;
+    hk.path[0] = name[0];
+    hk.path[1] = name[1];
     return GRAFHunkEmit(&hk, NULL);
 }
 

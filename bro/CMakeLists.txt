@@ -10,11 +10,13 @@ include_directories(.. .)
 
 list(APPEND BRO_HEADERS
     BRO.h
+    MAUS.h
 )
 
 list(APPEND BRO_SOURCES
     BRO.c
     CAT.c
+    MAUS.c
 )
 
 add_library(brolib STATIC ${BRO_HEADERS} ${BRO_SOURCES})

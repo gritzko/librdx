@@ -10,6 +10,7 @@
 #include <termios.h>
 #include <unistd.h>
 
+#include "MAUS.h"
 #include "abc/ANSI.h"
 #include "abc/FILE.h"
 #include "abc/PRO.h"
@@ -822,6 +823,7 @@ ok64 BRORun(BROhunk const *hunks, u32 nhunks) {
 
     // Alternate screen buffer
     bro_puts("\033[?1049h");
+    MAUSEnable(STDOUT_FILENO);
 
     // Start at line 1: skip the first hunk title (shown in status bar)
     if (st.nlines > 1) st.scroll = 1;
@@ -948,7 +950,45 @@ ok64 BRORun(BROhunk const *hunks, u32 nhunks) {
             if (seq[0] == '[') {
                 ssize_t n2 = read(st.tty_fd, &seq[1], 1);
                 if (n2 <= 0) continue;
-                switch (seq[1]) {
+                if (seq[1] == '<') {
+                    // SGR mouse: \033[< already consumed, read rest
+                    u8 mbuf[32];
+                    mbuf[0] = 033; mbuf[1] = '['; mbuf[2] = '<';
+                    int mi = 3;
+                    for (;;) {
+                        if (mi >= (int)sizeof(mbuf)) break;
+                        ssize_t r = read(st.tty_fd, &mbuf[mi], 1);
+                        if (r <= 0) break;
+                        u8 c = mbuf[mi++];
+                        if (c == 'M' || c == 'm') break;
+                    }
+                    MAUSevent mev = {};
+                    if (MAUSParse(&mev, mbuf, mi)) {
+                        if (mev.type == MAUS_WHEEL) {
+                            if (mev.button == MAUS_UP) {
+                                u32 step = 3;
+                                if (st.scroll >= step) st.scroll -= step;
+                                else st.scroll = 0;
+                            } else if (mev.button == MAUS_DOWN) {
+                                u32 step = 3;
+                                if (st.scroll + step < st.nlines)
+                                    st.scroll += step;
+                                else if (st.nlines > page)
+                                    st.scroll = st.nlines - page;
+                            }
+                            BRORender(&st);
+                        } else if (mev.type == MAUS_PRESS &&
+                                   mev.button == MAUS_LEFT) {
+                            // Click: check if on a title line
+                            u32 line = st.scroll + mev.row - 1;
+                            if (line < st.nlines &&
+                                st.lines[line].hi == BRO_TITLE_LINE) {
+                                // TODO: open file from title (task #10)
+                            }
+                        }
+                    }
+                } else {
+                    switch (seq[1]) {
                     case 'A':  // Up
                         if (st.scroll > 0) st.scroll--;
                         BRORender(&st);
@@ -958,7 +998,7 @@ ok64 BRORun(BROhunk const *hunks, u32 nhunks) {
                         BRORender(&st);
                         break;
                     case '5':  // PgUp: \033[5~
-                        (void)read(st.tty_fd, &seq[0], 1);  // consume '~'
+                        (void)read(st.tty_fd, &seq[0], 1);
                         if (st.scroll >= page)
                             st.scroll -= page;
                         else
@@ -966,7 +1006,7 @@ ok64 BRORun(BROhunk const *hunks, u32 nhunks) {
                         BRORender(&st);
                         break;
                     case '6':  // PgDn: \033[6~
-                        (void)read(st.tty_fd, &seq[0], 1);  // consume '~'
+                        (void)read(st.tty_fd, &seq[0], 1);
                         if (st.scroll + page < st.nlines)
                             st.scroll += page;
                         else if (st.nlines > page)
@@ -984,12 +1024,14 @@ ok64 BRORun(BROhunk const *hunks, u32 nhunks) {
                             st.scroll = 0;
                         BRORender(&st);
                         break;
+                    }
                 }
             }
         }
     }
 
-    // Restore: leave alternate screen, show cursor, reset terminal
+    // Restore: disable mouse, leave alternate screen, show cursor, reset
+    MAUSDisable(STDOUT_FILENO);
     bro_puts("\033[?1049l");
     bro_puts("\033[?25h");
     BRORawDisable(&st);
@@ -1067,6 +1109,7 @@ ok64 BROPipeRun(int pipefd) {
 
     bro_puts("\033[?25l");    // hide cursor
     bro_puts("\033[?1049h");  // alt screen
+    MAUSEnable(STDOUT_FILENO);
 
     // Show initial "nothing..." while waiting for data
     u8bReset(bro_scr);
@@ -1174,6 +1217,14 @@ ok64 BROPipeRun(int pipefd) {
                         hk->hili[1] = (u32cp)u8bIdleHead(bro_arena);
                     }
                 }
+                if (!$empty(h.path)) {
+                    u8p pp = BROArenaWrite(h.path[0],
+                                           (size_t)$len(h.path));
+                    if (pp) {
+                        hk->path[0] = pp;
+                        hk->path[1] = u8bIdleHead(bro_arena);
+                    }
+                }
                 bro_nhunks++;
             }
 
@@ -1262,7 +1313,42 @@ ok64 BROPipeRun(int pipefd) {
                     ssize_t n1 = read(st.tty_fd, &seq[0], 1);
                     if (n1 > 0 && seq[0] == '[') {
                         ssize_t n2 = read(st.tty_fd, &seq[1], 1);
-                        if (n2 > 0) {
+                        if (n2 > 0 && seq[1] == '<') {
+                            // SGR mouse
+                            u8 mbuf[32];
+                            mbuf[0] = 033; mbuf[1] = '['; mbuf[2] = '<';
+                            int mi = 3;
+                            for (;;) {
+                                if (mi >= (int)sizeof(mbuf)) break;
+                                ssize_t r = read(st.tty_fd, &mbuf[mi], 1);
+                                if (r <= 0) break;
+                                u8 c = mbuf[mi++];
+                                if (c == 'M' || c == 'm') break;
+                            }
+                            MAUSevent mev = {};
+                            if (MAUSParse(&mev, mbuf, mi)) {
+                                if (mev.type == MAUS_WHEEL) {
+                                    u32 step = 3;
+                                    if (mev.button == MAUS_UP) {
+                                        if (st.scroll >= step) st.scroll -= step;
+                                        else st.scroll = 0;
+                                    } else if (mev.button == MAUS_DOWN) {
+                                        if (st.scroll + step < st.nlines)
+                                            st.scroll += step;
+                                        else if (st.nlines > page)
+                                            st.scroll = st.nlines - page;
+                                    }
+                                    changed = YES;
+                                } else if (mev.type == MAUS_PRESS &&
+                                           mev.button == MAUS_LEFT) {
+                                    u32 line = st.scroll + mev.row - 1;
+                                    if (line < st.nlines &&
+                                        st.lines[line].hi == BRO_TITLE_LINE) {
+                                        // TODO: open file from title (task #10)
+                                    }
+                                }
+                            }
+                        } else if (n2 > 0) {
                             switch (seq[1]) {
                             case 'A': if (st.scroll > 0) st.scroll--; changed = YES; break;
                             case 'B': if (st.scroll + 1 < st.nlines) st.scroll++; changed = YES; break;
@@ -1320,6 +1406,7 @@ ok64 BROPipeRun(int pipefd) {
     }
 
     // Teardown
+    MAUSDisable(STDOUT_FILENO);
     bro_puts("\033[?1049l");
     bro_puts("\033[?25h");
     BRORawDisable(&st);
