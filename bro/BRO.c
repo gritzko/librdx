@@ -549,37 +549,58 @@ static void BROStatusBar(BROstate *st) {
                                   st->lines, st->nlines, st->scroll);
 
     BROhunk const *ch = &st->hunks[cur_hunk];
-    // Build status text into idle space, snprintf is fine for one-off
+
+    // Build the right-side stats first so we know how much room the
+    // title gets.  Use a small local buffer (stats are short).
+    char stats[128];
+    int sn;
+    if (hili_tot > 0 && st->search_len > 0)
+        sn = snprintf(stats, sizeof(stats),
+                      "  L%u/%u  H%u/%u  C%u/%u  [/%.*s]",
+                      st->scroll + 1, st->nlines,
+                      hunk_idx, hunk_tot, hili_idx, hili_tot,
+                      (int)st->search_len, st->search);
+    else if (hili_tot > 0)
+        sn = snprintf(stats, sizeof(stats),
+                      "  L%u/%u  H%u/%u  C%u/%u",
+                      st->scroll + 1, st->nlines,
+                      hunk_idx, hunk_tot, hili_idx, hili_tot);
+    else if (st->search_len > 0)
+        sn = snprintf(stats, sizeof(stats),
+                      "  L%u/%u  H%u/%u  [/%.*s]",
+                      st->scroll + 1, st->nlines,
+                      hunk_idx, hunk_tot,
+                      (int)st->search_len, st->search);
+    else
+        sn = snprintf(stats, sizeof(stats),
+                      "  L%u/%u  H%u/%u",
+                      st->scroll + 1, st->nlines,
+                      hunk_idx, hunk_tot);
+    if (sn < 0) sn = 0;
+    if ((size_t)sn >= sizeof(stats)) sn = (int)(sizeof(stats) - 1);
+
+    // Truncate title to fit: " <title><stats>" within cols.
+    u32 cols = st->cols;
+    u32 stats_w = (u32)sn;
+    u32 title_max = (cols > stats_w + 2) ? (cols - stats_w - 1) : 0;
+    u32 title_len = (u32)$len(ch->title);
+    if (title_len > title_max) title_len = title_max;
+
+    // Layout: " <title><padding><stats>" exactly cols wide.
+    // The title is left-aligned, stats right-aligned, gap filled with spaces.
+    u32 left_len = 1 + title_len;              // leading space + title
+    u32 pad = (cols > left_len + stats_w) ? (cols - left_len - stats_w) : 0;
+
     u8sp out = u8bIdle(bro_scr);
-    int slen;
-    if (hili_tot > 0 && st->search_len > 0) {
-        slen = snprintf((char *)out[0], $len(out),
-                        " %.*s  L%u/%u  H%u/%u  C%u/%u  [/%.*s]",
-                        (int)$len(ch->title), (char *)ch->title[0],
-                        st->scroll + 1, st->nlines,
-                        hunk_idx, hunk_tot, hili_idx, hili_tot,
-                        (int)st->search_len, st->search);
-    } else if (hili_tot > 0) {
-        slen = snprintf((char *)out[0], $len(out),
-                        " %.*s  L%u/%u  H%u/%u  C%u/%u",
-                        (int)$len(ch->title), (char *)ch->title[0],
-                        st->scroll + 1, st->nlines,
-                        hunk_idx, hunk_tot, hili_idx, hili_tot);
-    } else if (st->search_len > 0) {
-        slen = snprintf((char *)out[0], $len(out),
-                        " %.*s  L%u/%u  H%u/%u  [/%.*s]",
-                        (int)$len(ch->title), (char *)ch->title[0],
-                        st->scroll + 1, st->nlines,
-                        hunk_idx, hunk_tot,
-                        (int)st->search_len, st->search);
-    } else {
-        slen = snprintf((char *)out[0], $len(out),
-                        " %.*s  L%u/%u  H%u/%u",
-                        (int)$len(ch->title), (char *)ch->title[0],
-                        st->scroll + 1, st->nlines,
-                        hunk_idx, hunk_tot);
+    int slen = snprintf((char *)out[0], $len(out),
+                        " %.*s%*s%s",
+                        (int)title_len, (char *)ch->title[0],
+                        (int)pad, "",
+                        stats);
+    if (slen > 0) {
+        if ((u32)slen > cols) slen = (int)cols;
+        u8sFed(out, (size_t)slen);
     }
-    if (slen > 0) u8sFed(out, (size_t)slen);
     scr_puts(TTY_RESET);
 }
 
