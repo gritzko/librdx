@@ -26,6 +26,7 @@
 //      5  PATH_VER        (gen, path_id) → (gen, blob)
 
 #include "abc/INT.h"
+#include "dog/SHA1.h"
 
 con ok64 DAGFAIL    = 0x14a83ca495;
 con ok64 DAGNOROOM  = 0x14a85d86d8616;
@@ -73,6 +74,30 @@ fun belt128 DAGEntry(u8 atype, u32 agen, u64 ahash,
         .a = DAGPack(atype, agen, ahash),
         .b = DAGPack(btype, bgen, bhash)
     };
+}
+
+// --- sha1 → 40-bit hashlet ---
+
+fun u64 DAGsha1Hashlet(sha1 const *s) {
+    u64 h = 0;
+    memcpy(&h, s->data, 8);
+    return h & DAG_HASH_MASK;
+}
+
+fun ok64 DAGsha1FromHex(sha1 *out, char const *hex40) {
+    u8s sb = {out->data, out->data + 20};
+    u8cs hx = {(u8cp)hex40, (u8cp)hex40 + 40};
+    return HEXu8sDrainSome(sb, hx);
+}
+
+// sha1 → 40-char hex string (caller provides char[41] buffer)
+fun void DAGsha1ToHex(char *hex41, sha1 const *s) {
+    u8 buf[41];
+    u8s hx = {buf, buf + 40};
+    u8cs bn = {s->data, s->data + 20};
+    HEXu8sFeedSome(hx, bn);
+    memcpy(hex41, buf, 40);
+    hex41[40] = 0;
 }
 
 // --- Comparator: sort by (a, b) ---

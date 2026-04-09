@@ -13,7 +13,6 @@
 #include <sys/wait.h>
 
 #include "abc/FILE.h"
-#include "abc/HEX.h"
 #include "abc/PATH.h"
 #include "abc/PRO.h"
 #include "abc/RAP.h"
@@ -39,7 +38,7 @@
 #define DAG_GENS_MASK   (DAG_GENS_SIZE - 1)
 #define DAG_MAX_PATHS   (1 << 20)   // 1M paths in-memory map
 
-// --- COMMIT bookmark file ---
+// --- COMMIT bookmark file (stores sha1 as hex lines) ---
 
 static b8 dag_is_hex_sha(char const *s, size_t len) {
     if (len < 40) return NO;
@@ -51,7 +50,7 @@ static b8 dag_is_hex_sha(char const *s, size_t len) {
 }
 
 static ok64 dag_commit_read(u32 *count, u8cs dagdir,
-                             char shas[][44], u32 maxcount) {
+                             sha1 shas[], u32 maxcount) {
     sane(count != NULL && $ok(dagdir) && shas != NULL && maxcount > 0);
     *count = 0;
 
@@ -73,46 +72,12 @@ static ok64 dag_commit_read(u32 *count, u8cs dagdir,
         while (lend < end && *lend != '\n') lend++;
         size_t llen = (size_t)(lend - p);
         if (dag_is_hex_sha((char const *)p, llen)) {
-            memcpy(shas[*count], p, 40);
-            shas[*count][40] = 0;
+            DAGsha1FromHex(&shas[*count], (char const *)p);
             (*count)++;
         }
         p = lend;
     }
     FILEUnMap(mapped);
-    done;
-}
-
-static ok64 dag_commit_write(u8cs dagdir, char const newsha[40]) {
-    sane($ok(dagdir));
-
-    char shas[DAG_MAX_SHAS][44];
-    u32 sha_count = 0;
-    dag_commit_read(&sha_count, dagdir, shas, DAG_MAX_SHAS);
-
-    if (sha_count > 0 && memcmp(shas[sha_count - 1], newsha, 40) == 0) done;
-
-    u32 keep_start = 0;
-    if (sha_count >= DAG_MAX_SHAS)
-        keep_start = sha_count - DAG_MAX_SHAS + 1;
-
-    a_path(path, dagdir);
-    a_cstr(name, "/COMMIT");
-    call(u8bFeed, path, name);
-    call(PATHu8gTerm, PATHu8gIn(path));
-
-    int fd = -1;
-    call(FILECreate, &fd, PATHu8cgIn(path));
-    u8cs nl = {(u8cp)"\n", (u8cp)"\n" + 1};
-    for (u32 i = keep_start; i < sha_count; i++) {
-        u8cs data = {(u8cp)shas[i], (u8cp)shas[i] + 40};
-        call(FILEFeedall, fd, data);
-        call(FILEFeedall, fd, nl);
-    }
-    u8cs newdata = {(u8cp)newsha, (u8cp)newsha + 40};
-    call(FILEFeedall, fd, newdata);
-    call(FILEFeedall, fd, nl);
-    close(fd);
     done;
 }
 
@@ -493,22 +458,17 @@ static ok64 dag_compact(u8cs dagdir) {
     done;
 }
 
-// --- SHA hex → 40-bit hashlet ---
+// --- SHA hex → 40-bit hashlet (via sha1 type) ---
 
 static u64 dag_hex_to_hashlet(char const *hex40) {
-    u8 bin[20] = {};
-    u8s sb = {bin, bin + 20};
-    u8cs hx = {(u8cp)hex40, (u8cp)hex40 + 40};
-    if (HEXu8sDrainSome(sb, hx) != OK) return 0;
-    u64 h = 0;
-    memcpy(&h, bin, 8);
-    // Take low 40 bits (first 5 bytes of SHA-1)
-    return h & DAG_HASH_MASK;
+    sha1 s = {};
+    if (DAGsha1FromHex(&s, hex40) != OK) return 0;
+    return DAGsha1Hashlet(&s);
 }
 
 // --- Read all branch tips via git for-each-ref ---
 
-static u32 dag_read_tips(char tips[][44], u32 maxtips, u8cs reporoot) {
+static u32 dag_read_tips(sha1 tips[], u32 maxtips, u8cs reporoot) {
     char cmd[1024];
     snprintf(cmd, sizeof(cmd),
              "git -C %.*s for-each-ref --format='%%(objectname)'",
@@ -522,8 +482,7 @@ static u32 dag_read_tips(char tips[][44], u32 maxtips, u8cs reporoot) {
         while (l > 0 && (buf[l - 1] == '\n' || buf[l - 1] == '\r'))
             buf[--l] = 0;
         if (dag_is_hex_sha(buf, l)) {
-            memcpy(tips[count], buf, 40);
-            tips[count][40] = 0;
+            DAGsha1FromHex(&tips[count], buf);
             count++;
         }
     }
@@ -531,9 +490,9 @@ static u32 dag_read_tips(char tips[][44], u32 maxtips, u8cs reporoot) {
     return count;
 }
 
-// --- Write all branch tips to COMMIT ---
+// --- Write sha1 array to COMMIT as hex lines ---
 
-static ok64 dag_write_tips(u8cs dagdir, char tips[][44], u32 ntips) {
+static ok64 dag_write_tips(u8cs dagdir, sha1 const tips[], u32 ntips) {
     sane($ok(dagdir));
     if (ntips == 0) done;
 
@@ -546,7 +505,9 @@ static ok64 dag_write_tips(u8cs dagdir, char tips[][44], u32 ntips) {
     call(FILECreate, &fd, PATHu8cgIn(path));
     u8cs nl = {(u8cp)"\n", (u8cp)"\n" + 1};
     for (u32 i = 0; i < ntips; i++) {
-        u8cs data = {(u8cp)tips[i], (u8cp)tips[i] + 40};
+        char hex[41];
+        DAGsha1ToHex(hex, &tips[i]);
+        u8cs data = {(u8cp)hex, (u8cp)hex + 40};
         call(FILEFeedall, fd, data);
         call(FILEFeedall, fd, nl);
     }
@@ -554,27 +515,26 @@ static ok64 dag_write_tips(u8cs dagdir, char tips[][44], u32 ntips) {
     done;
 }
 
-// --- Build --not clause from saved SHAs (validated against repo) ---
+// --- Load saved bookmarks, validate they exist in repo ---
 
-static u32 dag_load_bookmarks(char out[][44], u32 maxout,
+static u32 dag_load_bookmarks(sha1 out[], u32 maxout,
                                u8cs dagdir, u8cs reporoot) {
-    char shas[DAG_MAX_SHAS][44];
+    sha1 shas[DAG_MAX_SHAS] = {};
     u32 sha_count = 0;
     dag_commit_read(&sha_count, dagdir, shas, DAG_MAX_SHAS);
 
-    // Validate each saved SHA still exists in the repo
     u32 valid = 0;
     for (u32 i = 0; i < sha_count && valid < maxout; i++) {
+        char hex[41];
+        DAGsha1ToHex(hex, &shas[i]);
         char cmd[1024];
         int n = snprintf(cmd, sizeof(cmd),
-                         "git -C %.*s cat-file -t %.40s >/dev/null 2>&1",
-                         (int)$len(reporoot), (char *)reporoot[0],
-                         shas[i]);
+                         "git -C %.*s cat-file -t %s >/dev/null 2>&1",
+                         (int)$len(reporoot), (char *)reporoot[0], hex);
         if (n <= 0 || n >= (int)sizeof(cmd)) continue;
         int rc = system(cmd);
         if (WIFEXITED(rc) && WEXITSTATUS(rc) == 0) {
-            memcpy(out[valid], shas[i], 40);
-            out[valid][40] = 0;
+            out[valid] = shas[i];
             valid++;
         }
     }
@@ -628,8 +588,8 @@ static int dag_parse_commit(char const *line, size_t llen,
 // (NUL-terminated; path(s) follow as separate NUL-terminated strings)
 
 typedef struct {
-    char old_sha[44];
-    char new_sha[44];
+    sha1 old_sha;
+    sha1 new_sha;
     char status;
 } dag_diff_entry;
 
@@ -653,16 +613,14 @@ static b8 dag_parse_diff_rec(char const *rec, size_t rlen,
 
     // old_sha
     if (p + 40 > end) return NO;
-    memcpy(out->old_sha, p, 40);
-    out->old_sha[40] = 0;
+    DAGsha1FromHex(&out->old_sha, p);
     p += 40;
     if (p >= end || *p != ' ') return NO;
     p++;
 
     // new_sha
     if (p + 40 > end) return NO;
-    memcpy(out->new_sha, p, 40);
-    out->new_sha[40] = 0;
+    DAGsha1FromHex(&out->new_sha, p);
     p += 40;
     if (p >= end || *p != ' ') return NO;
     p++;
@@ -686,12 +644,12 @@ ok64 DAGHook(u8cs reporoot) {
     call(FILEMakeDirP, PATHu8cgIn(dagpath));
 
     // Read current branch tips
-    char tips[DAG_MAX_SHAS][44] = {};
+    sha1 tips[DAG_MAX_SHAS] = {};
     u32 ntips = dag_read_tips(tips, DAG_MAX_SHAS, reporoot);
     if (ntips == 0) fail(DAGFAIL);
 
     // Load saved bookmarks (validated)
-    char bookmarks[DAG_MAX_SHAS][44] = {};
+    sha1 bookmarks[DAG_MAX_SHAS] = {};
     u32 nbookmarks = dag_load_bookmarks(bookmarks, DAG_MAX_SHAS,
                                          dagdir, reporoot);
     if (nbookmarks > 0)
@@ -731,9 +689,11 @@ ok64 DAGHook(u8cs reporoot) {
                        (int)$len(reporoot), (char *)reporoot[0]);
     if (nbookmarks > 0) {
         pos += snprintf(rlcmd + pos, sizeof(rlcmd) - pos, " --not");
-        for (u32 i = 0; i < nbookmarks && pos < (int)sizeof(rlcmd) - 50; i++)
-            pos += snprintf(rlcmd + pos, sizeof(rlcmd) - pos,
-                            " %.40s", bookmarks[i]);
+        for (u32 i = 0; i < nbookmarks && pos < (int)sizeof(rlcmd) - 50; i++) {
+            char hex[41];
+            DAGsha1ToHex(hex, &bookmarks[i]);
+            pos += snprintf(rlcmd + pos, sizeof(rlcmd) - pos, " %s", hex);
+        }
     }
 
     FILE *rl = popen(rlcmd, "r");
@@ -858,8 +818,8 @@ ok64 DAGHook(u8cs reporoot) {
 
                     // PREV_BLOB: new_blob → old_blob
                     if (de.status != 'A' && de.status != 'D') {
-                        u64 old_bh = dag_hex_to_hashlet(de.old_sha);
-                        u64 new_bh = dag_hex_to_hashlet(de.new_sha);
+                        u64 old_bh = DAGsha1Hashlet(&de.old_sha);
+                        u64 new_bh = DAGsha1Hashlet(&de.new_sha);
                         if (old_bh && new_bh) {
                             // old_blob gen: use parent commit gen
                             u32 pgen = (npar > 0) ? dag_gens_get(&gens, parents[0]) : 0;
@@ -873,7 +833,7 @@ ok64 DAGHook(u8cs reporoot) {
 
                     // PATH_VER: (gen, path_id) → (gen, blob)
                     if (de.status != 'D') {
-                        u64 new_bh = dag_hex_to_hashlet(de.new_sha);
+                        u64 new_bh = DAGsha1Hashlet(&de.new_sha);
                         u32 pid = dag_paths_intern(&paths, epath, eplen);
                         dag_emit(entries, &nentries, bufcap,
                                  DAG_PATH_VER, commit_gen, (u64)pid,
