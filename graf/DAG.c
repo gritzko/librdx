@@ -734,7 +734,9 @@ ok64 DAGHook(u8cs reporoot) {
                      DAG_COMMIT_PARENT, pgen, parents[p]);
         }
 
-        // Run git diff-tree to get file changes for this commit
+        // FIXME: popen per commit is unacceptable for large repos.
+        // Replace with single `git log --all --raw -z --format=...`
+        // that streams both commit parentage and diff entries.
         {
             char dtcmd[2048];
             if (npar > 0) {
