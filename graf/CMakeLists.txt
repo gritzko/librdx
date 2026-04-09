@@ -10,6 +10,7 @@ include_directories(.. .)
 
 list(APPEND GRAF_HEADERS
     GRAF.h
+    DAG.h
     JOIN.h
     NEIL.h
     TDIFF.h
@@ -17,6 +18,7 @@ list(APPEND GRAF_HEADERS
 
 list(APPEND GRAF_SOURCES
     GRAF.c
+    DAG.c
     DIFF.c
     JOIN.c
     MERGE.c
