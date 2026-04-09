@@ -506,29 +506,79 @@ static u64 dag_hex_to_hashlet(char const *hex40) {
     return h & DAG_HASH_MASK;
 }
 
-// --- Probe COMMIT bookmark for newest reachable saved sha ---
+// --- Read all branch tips via git for-each-ref ---
 
-static b8 dag_find_bookmark(char *out40, u8cs reporoot, u8cs dagdir) {
+static u32 dag_read_tips(char tips[][44], u32 maxtips, u8cs reporoot) {
+    char cmd[1024];
+    snprintf(cmd, sizeof(cmd),
+             "git -C %.*s for-each-ref --format='%%(objectname)'",
+             (int)$len(reporoot), (char *)reporoot[0]);
+    FILE *fp = popen(cmd, "r");
+    if (!fp) return 0;
+    u32 count = 0;
+    char buf[64];
+    while (fgets(buf, sizeof(buf), fp) && count < maxtips) {
+        size_t l = strlen(buf);
+        while (l > 0 && (buf[l - 1] == '\n' || buf[l - 1] == '\r'))
+            buf[--l] = 0;
+        if (dag_is_hex_sha(buf, l)) {
+            memcpy(tips[count], buf, 40);
+            tips[count][40] = 0;
+            count++;
+        }
+    }
+    pclose(fp);
+    return count;
+}
+
+// --- Write all branch tips to COMMIT ---
+
+static ok64 dag_write_tips(u8cs dagdir, char tips[][44], u32 ntips) {
+    sane($ok(dagdir));
+    if (ntips == 0) done;
+
+    a_path(path, dagdir);
+    a_cstr(name, "/COMMIT");
+    call(u8bFeed, path, name);
+    call(PATHu8gTerm, PATHu8gIn(path));
+
+    int fd = -1;
+    call(FILECreate, &fd, PATHu8cgIn(path));
+    u8cs nl = {(u8cp)"\n", (u8cp)"\n" + 1};
+    for (u32 i = 0; i < ntips; i++) {
+        u8cs data = {(u8cp)tips[i], (u8cp)tips[i] + 40};
+        call(FILEFeedall, fd, data);
+        call(FILEFeedall, fd, nl);
+    }
+    close(fd);
+    done;
+}
+
+// --- Build --not clause from saved SHAs (validated against repo) ---
+
+static u32 dag_load_bookmarks(char out[][44], u32 maxout,
+                               u8cs dagdir, u8cs reporoot) {
     char shas[DAG_MAX_SHAS][44];
     u32 sha_count = 0;
     dag_commit_read(&sha_count, dagdir, shas, DAG_MAX_SHAS);
-    if (sha_count == 0) return NO;
-    char chk[1024];
-    for (u32 i = sha_count; i > 0; i--) {
-        int n = snprintf(chk, sizeof(chk),
-                         "git -C %.*s merge-base --is-ancestor %.40s HEAD"
-                         " 2>/dev/null",
+
+    // Validate each saved SHA still exists in the repo
+    u32 valid = 0;
+    for (u32 i = 0; i < sha_count && valid < maxout; i++) {
+        char cmd[1024];
+        int n = snprintf(cmd, sizeof(cmd),
+                         "git -C %.*s cat-file -t %.40s >/dev/null 2>&1",
                          (int)$len(reporoot), (char *)reporoot[0],
-                         shas[i - 1]);
-        if (n <= 0 || n >= (int)sizeof(chk)) continue;
-        int rc = system(chk);
+                         shas[i]);
+        if (n <= 0 || n >= (int)sizeof(cmd)) continue;
+        int rc = system(cmd);
         if (WIFEXITED(rc) && WEXITSTATUS(rc) == 0) {
-            memcpy(out40, shas[i - 1], 40);
-            out40[40] = 0;
-            return YES;
+            memcpy(out[valid], shas[i], 40);
+            out[valid][40] = 0;
+            valid++;
         }
     }
-    return NO;
+    return valid;
 }
 
 // --- Emit helpers ---
@@ -635,31 +685,17 @@ ok64 DAGHook(u8cs reporoot) {
     a_dup(u8c, dagdir, u8bDataC(dagpath));
     call(FILEMakeDirP, PATHu8cgIn(dagpath));
 
-    // Read current HEAD
-    char head_hex[44] = {};
-    {
-        char cmd[1024];
-        snprintf(cmd, sizeof(cmd), "git -C %.*s rev-parse HEAD",
-                 (int)$len(reporoot), (char *)reporoot[0]);
-        FILE *fp = popen(cmd, "r");
-        if (!fp) failc(DAGFAIL);
-        char buf[64];
-        char *got = fgets(buf, sizeof(buf), fp);
-        pclose(fp);
-        if (!got) fail(DAGFAIL);
-        size_t l = strlen(buf);
-        while (l > 0 && (buf[l - 1] == '\n' || buf[l - 1] == '\r'))
-            buf[--l] = 0;
-        if (l < 40) fail(DAGFAIL);
-        memcpy(head_hex, buf, 40);
-        head_hex[40] = 0;
-    }
+    // Read current branch tips
+    char tips[DAG_MAX_SHAS][44] = {};
+    u32 ntips = dag_read_tips(tips, DAG_MAX_SHAS, reporoot);
+    if (ntips == 0) fail(DAGFAIL);
 
-    // Find bookmark
-    char bookmark[44] = {};
-    b8 incremental = dag_find_bookmark(bookmark, reporoot, dagdir);
-    if (incremental)
-        fprintf(stderr, "graf-dag: incremental from %.12s\n", bookmark);
+    // Load saved bookmarks (validated)
+    char bookmarks[DAG_MAX_SHAS][44] = {};
+    u32 nbookmarks = dag_load_bookmarks(bookmarks, DAG_MAX_SHAS,
+                                         dagdir, reporoot);
+    if (nbookmarks > 0)
+        fprintf(stderr, "graf-dag: incremental, %u bookmark(s)\n", nbookmarks);
     else
         fprintf(stderr, "graf-dag: full reindex\n");
 
@@ -687,18 +723,17 @@ ok64 DAGHook(u8cs reporoot) {
     u64 seqno = 0;
     dag_next_seqno(&seqno, dagdir);
 
-    // Spawn git rev-list
-    char rlcmd[2048];
-    if (incremental) {
-        snprintf(rlcmd, sizeof(rlcmd),
-                 "git -C %.*s rev-list --topo-order --reverse --parents"
-                 " --all --not %s",
-                 (int)$len(reporoot), (char *)reporoot[0], bookmark);
-    } else {
-        snprintf(rlcmd, sizeof(rlcmd),
-                 "git -C %.*s rev-list --topo-order --reverse --parents"
-                 " --all",
-                 (int)$len(reporoot), (char *)reporoot[0]);
+    // Spawn git rev-list --all --not <bookmark1> <bookmark2> ...
+    char rlcmd[4096];
+    int pos = snprintf(rlcmd, sizeof(rlcmd),
+                       "git -C %.*s rev-list --topo-order --reverse --parents"
+                       " --all",
+                       (int)$len(reporoot), (char *)reporoot[0]);
+    if (nbookmarks > 0) {
+        pos += snprintf(rlcmd + pos, sizeof(rlcmd) - pos, " --not");
+        for (u32 i = 0; i < nbookmarks && pos < (int)sizeof(rlcmd) - 50; i++)
+            pos += snprintf(rlcmd + pos, sizeof(rlcmd) - pos,
+                            " %.40s", bookmarks[i]);
     }
 
     FILE *rl = popen(rlcmd, "r");
@@ -890,7 +925,7 @@ ok64 DAGHook(u8cs reporoot) {
     if (result != OK) return result;
 
     dag_compact(dagdir);
-    dag_commit_write(dagdir, head_hex);
+    dag_write_tips(dagdir, tips, ntips);
 
     fprintf(stderr, "graf-dag: indexed %u commit(s)\n", indexed);
     done;
