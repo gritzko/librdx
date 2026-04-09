@@ -56,13 +56,13 @@ static ok64 sniff_index_paths(sniff *s) {
     done;
 }
 
-// --- Bootstrap: seed path list from git ls-tree --all ---
+// --- Bootstrap: seed path list from git ls-files ---
 
 static ok64 sniff_bootstrap(sniff *s, u8cs reporoot) {
     sane(s && $ok(reporoot));
     char cmd[1024];
     snprintf(cmd, sizeof(cmd),
-             "git -C %.*s ls-tree -r --name-only --all 2>/dev/null",
+             "git -C %.*s ls-files 2>/dev/null",
              (int)$len(reporoot), (char *)reporoot[0]);
     FILE *fp = popen(cmd, "r");
     if (!fp) done;  // not a git repo, nothing to seed
@@ -87,12 +87,12 @@ static ok64 sniff_bootstrap(sniff *s, u8cs reporoot) {
 
 // --- Init ---
 
-ok64 SNIFFInit(sniff *s, u8cs reporoot) {
-    sane(s && $ok(reporoot));
+ok64 SNIFFInit(sniff *s, u8cs dogsroot, u8cs worktree) {
+    sane(s && $ok(dogsroot));
     memset(s, 0, sizeof(*s));
 
     // Ensure .dogs/sniff/ exists
-    a_path(dir, reporoot);
+    a_path(dir, dogsroot);
     a_cstr(rel, "/" SNIFF_DIR);
     call(u8bFeed, dir, rel);
     call(PATHu8gTerm, PATHu8gIn(dir));
@@ -100,28 +100,36 @@ ok64 SNIFFInit(sniff *s, u8cs reporoot) {
 
     // Book paths file
     {
-        a_path(pp, reporoot);
+        a_path(pp, dogsroot);
         a_cstr(pr, "/" SNIFF_DIR "/paths");
         call(u8bFeed, pp, pr);
         call(PATHu8gTerm, PATHu8gIn(pp));
 
         ok64 o = FILEBook(&s->paths, PATHu8cgIn(pp), SNIFF_PATH_BOOK);
-        if (o != OK)
+        if (o == OK) {
+            // Existing file: all content is data
+            ((u8 **)s->paths)[2] = s->paths[3];
+        } else {
             call(FILEBookCreate, &s->paths, PATHu8cgIn(pp),
                  SNIFF_PATH_BOOK, 4096);
+        }
     }
 
     // Book changes file
     {
-        a_path(cp, reporoot);
+        a_path(cp, dogsroot);
         a_cstr(cr, "/" SNIFF_DIR "/changes");
         call(u8bFeed, cp, cr);
         call(PATHu8gTerm, PATHu8gIn(cp));
 
         ok64 o = FILEBook(&s->changes, PATHu8cgIn(cp), SNIFF_CHG_BOOK);
-        if (o != OK)
+        if (o == OK) {
+            // Existing file: all content is data
+            ((u8 **)s->changes)[2] = s->changes[3];
+        } else {
             call(FILEBookCreate, &s->changes, PATHu8cgIn(cp),
                  SNIFF_CHG_BOOK, 4096);
+        }
     }
 
     // Allocate offsets array (up to 1M paths)
@@ -133,9 +141,9 @@ ok64 SNIFFInit(sniff *s, u8cs reporoot) {
     // Build index from existing paths
     call(sniff_index_paths, s);
 
-    // Bootstrap: if paths log is empty, seed from git ls-tree
-    if (SNIFFCount(s) == 0 && $ok(reporoot)) {
-        call(sniff_bootstrap, s, reporoot);
+    // Bootstrap: if paths log is empty, seed from git ls-files
+    if (SNIFFCount(s) == 0 && $ok(worktree)) {
+        call(sniff_bootstrap, s, worktree);
     }
     done;
 }
@@ -215,8 +223,14 @@ ok64 SNIFFRecord(sniff *s, u32 index, u64 mtime_sec, u32 mtime_nsec) {
 
 void SNIFFFree(sniff *s) {
     if (!s) return;
-    if (s->paths) FILEUnBook(s->paths);
-    if (s->changes) FILEUnBook(s->changes);
+    if (s->paths) {
+        FILETrimBook(s->paths);
+        FILEUnBook(s->paths);
+    }
+    if (s->changes) {
+        FILETrimBook(s->changes);
+        FILEUnBook(s->changes);
+    }
     u32bFree(s->offsets);
     kv64bFree(s->hash);
     memset(s, 0, sizeof(*s));

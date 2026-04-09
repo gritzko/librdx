@@ -50,8 +50,10 @@ typedef struct {
 
 // --- Public API ---
 
-//  Load or create .dogs/sniff/ state.  reporoot from HOMEFind/HOMEFindDogs.
-ok64 SNIFFInit(sniff *s, u8cs reporoot);
+//  Load or create .dogs/sniff/ state.
+//  dogsroot: where .dogs/ lives (from HOMEFindDogs)
+//  worktree: checkout dir (from HOMEFind) — used for git bootstrap
+ok64 SNIFFInit(sniff *s, u8cs dogsroot, u8cs worktree);
 
 //  Re-read paths log if it grew (another dog appended).
 ok64 SNIFFUpdate(sniff *s);
