@@ -17,7 +17,7 @@ extern Bu8 graf_arena;
 extern int graf_out_fd;
 
 // Hunk → bytes serializer: HUNKu8sFeed (TLV) or HUNKu8sFeedText (plain).
-typedef ok64 (*graf_emit_fn)(u8s into, HUNKhunk const *hk);
+typedef ok64 (*graf_emit_fn)(u8s into, hunk const *hk);
 extern graf_emit_fn graf_emit;
 
 ok64 GRAFArenaInit(void);
@@ -25,7 +25,7 @@ void GRAFArenaCleanup(void);
 
 // Serialize one hunk via graf_emit and write to graf_out_fd.  Used as
 // a HUNKcb by graf's diff/merge wrappers.
-ok64 GRAFHunkEmit(HUNKhunk const *hk, void *ctx);
+ok64 GRAFHunkEmit(hunk const *hk, void *ctx);
 
 // User-facing diff entry: maps two files, calls dog/DIFF, streams
 // hunks via GRAFHunkEmit.

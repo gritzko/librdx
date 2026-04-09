@@ -23,18 +23,15 @@ static ok64 graf_read(u8cs *data, u8bp *mapped, u8cs path_arg) {
 // --- Mode-change-only hunk: emit a single one-liner ---
 static ok64 emit_mode_change(u8cs name, u8cs old_mode, u8cs new_mode) {
     sane(1);
-    char hdr[512];
-    int tl = snprintf(hdr, sizeof(hdr), "--- %.*s ---",
-                      (int)$len(name), (char *)name[0]);
     char body[256];
     int bl = snprintf(body, sizeof(body),
                       "old mode %.*s\nnew mode %.*s\n",
                       (int)$len(old_mode), (char *)old_mode[0],
                       (int)$len(new_mode), (char *)new_mode[0]);
-    if (tl <= 0 || bl <= 0) return OK;
-    HUNKhunk hk = {};
-    hk.title[0] = (u8cp)hdr;
-    hk.title[1] = (u8cp)hdr + tl;
+    if (bl <= 0) return OK;
+    hunk hk = {};
+    hk.path[0] = name[0];
+    hk.path[1] = name[1];
     hk.text[0] = (u8cp)body;
     hk.text[1] = (u8cp)body + bl;
     return GRAFHunkEmit(&hk, NULL);

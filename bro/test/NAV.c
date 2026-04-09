@@ -2,11 +2,12 @@
 //   BROHunkNextLine / BROHunkPrevLine / BROHunkCount / BROHunkIndexAt
 //   BROHiliNextLine / BROHiliPrevLine / BROHiliCount / BROHiliIndexAt
 //
-// Tests synthesize a small BROhunk[] and a matching range32 line index
+// Tests synthesize a small hunk[] and a matching range32 line index
 // (encoded by hand) and assert against expected results — no terminal,
 // no rendering, no I/O.
 
 #include "BRO.h"
+#include "MAUS.h"
 
 #include "abc/B.h"
 #include "abc/PRO.h"
@@ -175,7 +176,7 @@ ok64 NAVtest_hili_layout() {
     static u8 const t0[] = "h0";
     static u8 const t1[] = "h1";
 
-    BROhunk hunks[2] = {};
+    hunk hunks[2] = {};
     hunks[0].title[0] = (u8 const *)t0;
     hunks[0].title[1] = (u8 const *)t0 + 2;
     hunks[0].text[0]  = (u8 const *)h0_text;
@@ -231,7 +232,7 @@ ok64 NAVtest_hili_adjacent_kinds() {
     HILI(h, TOK('I', 4), TOK('D', 8), TOK('A', 20));
 
     static u8 const text[] = "0123456789xxxxxxxxxx";
-    BROhunk hunks[1] = {};
+    hunk hunks[1] = {};
     hunks[0].text[0] = (u8 const *)text;
     hunks[0].text[1] = (u8 const *)text + sizeof(text) - 1;
     hunks[0].hili[0] = h[0];
@@ -245,7 +246,7 @@ ok64 NAVtest_hili_adjacent_kinds() {
 ok64 NAVtest_hili_none() {
     sane(1);
     LINES(L, {0, 0});
-    BROhunk hunks[1] = {};
+    hunk hunks[1] = {};
     static u8 const text[] = "x";
     hunks[0].text[0] = (u8 const *)text;
     hunks[0].text[1] = (u8 const *)text + 1;
@@ -257,6 +258,64 @@ ok64 NAVtest_hili_none() {
     done;
 }
 
+// --- Mouse parsing tests -----------------------------------------------
+
+ok64 NAVtest_maus_press() {
+    sane(1);
+    // Left press at col=35, row=12: \033[<0;35;12M
+    u8 buf[] = "\033[<0;35;12M";
+    MAUSevent ev = {};
+    int n = MAUSParse(&ev, buf, (int)(sizeof(buf) - 1));
+    want(n > 0);
+    testeq(ev.type, MAUS_PRESS);
+    testeq(ev.button, MAUS_LEFT);
+    testeq(ev.col, 35);
+    testeq(ev.row, 12);
+    done;
+}
+
+ok64 NAVtest_maus_release() {
+    sane(1);
+    // Right release at col=1, row=100: \033[<2;1;100m
+    u8 buf[] = "\033[<2;1;100m";
+    MAUSevent ev = {};
+    int n = MAUSParse(&ev, buf, (int)(sizeof(buf) - 1));
+    want(n > 0);
+    testeq(ev.type, MAUS_RELEASE);
+    testeq(ev.button, MAUS_RIGHT);
+    testeq(ev.col, 1);
+    testeq(ev.row, 100);
+    done;
+}
+
+ok64 NAVtest_maus_wheel() {
+    sane(1);
+    // Wheel up at col=10, row=5: \033[<64;10;5M
+    u8 buf[] = "\033[<64;10;5M";
+    MAUSevent ev = {};
+    int n = MAUSParse(&ev, buf, (int)(sizeof(buf) - 1));
+    want(n > 0);
+    testeq(ev.type, MAUS_WHEEL);
+    testeq(ev.button, MAUS_UP);
+    // Wheel down: \033[<65;10;5M
+    u8 buf2[] = "\033[<65;10;5M";
+    n = MAUSParse(&ev, buf2, (int)(sizeof(buf2) - 1));
+    want(n > 0);
+    testeq(ev.type, MAUS_WHEEL);
+    testeq(ev.button, MAUS_DOWN);
+    done;
+}
+
+ok64 NAVtest_maus_incomplete() {
+    sane(1);
+    // Incomplete sequence should return 0
+    u8 buf[] = "\033[<0;35";
+    MAUSevent ev = {};
+    int n = MAUSParse(&ev, buf, (int)(sizeof(buf) - 1));
+    testeq(n, 0);
+    done;
+}
+
 ok64 NAVtest() {
     sane(1);
     call(NAVtest_hunk_layout);
@@ -265,6 +324,10 @@ ok64 NAVtest() {
     call(NAVtest_hili_layout);
     call(NAVtest_hili_adjacent_kinds);
     call(NAVtest_hili_none);
+    call(NAVtest_maus_press);
+    call(NAVtest_maus_release);
+    call(NAVtest_maus_wheel);
+    call(NAVtest_maus_incomplete);
     done;
 }
 

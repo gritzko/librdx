@@ -51,22 +51,15 @@ ok64 BROCat(u8css files, u8csc reporoot) {
         u8cp src_idle = u8bIdleHead(mapped);
         u32 srclen = (u32)(src_idle - src_head);
 
-        BROhunk *hk = &bro_hunks[bro_nhunks];
-        *hk = (BROhunk){};
+        hunk *hk = &bro_hunks[bro_nhunks];
+        *hk = (hunk){};
 
-        // Title
-        char fpz[FILE_PATH_MAX_LEN];
+        // Path (no formatted title — display title built at render time)
         size_t fzl = (size_t)$len(fpath_s);
-        if (fzl >= sizeof(fpz)) fzl = sizeof(fpz) - 1;
-        memcpy(fpz, fpath_s[0], fzl);
-        fpz[fzl] = 0;
-        u8gp g = u8aOpen(bro_arena);
-        call(HUNKu8sFormatTitle, u8gRest(g), fpz, "");
-        u8cs title = {};
-        u8aClose(bro_arena, title);
-        if (!$empty(title)) {
-            hk->title[0] = title[0];
-            hk->title[1] = title[1];
+        u8p pp = BROArenaWrite(fpath_s[0], fzl);
+        if (pp) {
+            hk->path[0] = pp;
+            hk->path[1] = pp + fzl;
         }
 
         hk->text[0] = src_head;

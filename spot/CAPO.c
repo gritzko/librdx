@@ -1213,18 +1213,26 @@ ok64 CAPOBuildHunk(u8csc source, u32cs htoks, u32 ctx_lo, u32 ctx_hi,
     LESShunk *hk = &less_hunks[less_nhunks];
     *hk = (LESShunk){};
 
-    // Title
+    // Path + title (function name) — display title formatted at render time
     if (needs_title || *first_hunk) {
         char funcname[256];
         CAPOFindFunc(source, ctx_lo, file_ext,
                      funcname, sizeof(funcname));
-        u8gp g = u8aOpen(less_arena);
-        call(CAPOFormatTitle, u8gRest(g), filepath, funcname);
-        u8cs title = {};
-        u8aClose(less_arena, title);
-        if (!$empty(title)) {
-            hk->title[0] = title[0];
-            hk->title[1] = title[1];
+        if (funcname[0]) {
+            size_t flen = strlen(funcname);
+            u8p fp = LESSArenaWrite(funcname, flen);
+            if (fp) {
+                hk->title[0] = fp;
+                hk->title[1] = fp + flen;
+            }
+        }
+    }
+    if (filepath) {
+        size_t plen = strlen(filepath);
+        u8p pp = LESSArenaWrite(filepath, plen);
+        if (pp) {
+            hk->path[0] = pp;
+            hk->path[1] = pp + plen;
         }
     }
 

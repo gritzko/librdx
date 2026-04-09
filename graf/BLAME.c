@@ -419,7 +419,7 @@ ok64 GRAFBlame(u8cs filepath, u8cs reporoot) {
 
         u8cs fdata = {u8bDataHead(outbuf),
                       u8bDataHead(outbuf) + u8bDataLen(outbuf)};
-        HUNKhunk hk = {};
+        hunk hk = {};
         hk.title[0] = (u8cp)title;
         hk.title[1] = (u8cp)title + strlen(title);
         $mv(hk.text, fdata);

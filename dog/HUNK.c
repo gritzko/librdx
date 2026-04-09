@@ -2,10 +2,11 @@
 
 #include <string.h>
 
+#include "abc/FILE.h"
 #include "abc/PRO.h"
 #include "dog/TOK.h"
 
-ok64 HUNKu8sFeed(u8s into, HUNKhunk const *hk) {
+ok64 HUNKu8sFeed(u8s into, hunk const *hk) {
     sane(u8sOK(into) && hk != NULL);
     u8s inner = {};
     call(TLVu8sStart, into, inner, HUNK_TLV);
@@ -21,17 +22,19 @@ ok64 HUNKu8sFeed(u8s into, HUNKhunk const *hk) {
         u8cs hib = {(u8cp)hk->hili[0], (u8cp)hk->hili[1]};
         call(TLVu8sFeed, inner, HUNK_TLV_HILI, hib);
     }
+    if (!$empty(hk->path))
+        call(TLVu8sFeed, inner, HUNK_TLV_PATH, hk->path);
     call(TLVu8sEnd, into, inner, HUNK_TLV);
     done;
 }
 
-ok64 HUNKu8sDrain(u8cs from, HUNKhunk *hk) {
+ok64 HUNKu8sDrain(u8cs from, hunk *hk) {
     sane($ok(from) && hk != NULL);
     u8 t = 0;
     u8cs body = {};
     call(TLVu8sDrain, from, &t, body);
     test(t == HUNK_TLV, TLVBADTYPE);
-    *hk = (HUNKhunk){};
+    *hk = (hunk){};
     while (!$empty(body)) {
         u8 st = 0;
         u8cs val = {};
@@ -51,6 +54,9 @@ ok64 HUNKu8sDrain(u8cs from, HUNKhunk *hk) {
             hk->hili[0] = (tok32c *)val[0];
             hk->hili[1] = (tok32c *)val[1];
             break;
+        case HUNK_TLV_PATH:
+            $mv(hk->path, val);
+            break;
         default:
             break;
         }
@@ -59,7 +65,7 @@ ok64 HUNKu8sDrain(u8cs from, HUNKhunk *hk) {
 }
 
 // For a byte at offset `pos`, return the active hili tag (or 0).
-static u8 hunk_hili_at(HUNKhunk const *hk, u32 pos) {
+static u8 hunk_hili_at(hunk const *hk, u32 pos) {
     if ($empty(hk->hili)) return 0;
     int n = (int)$len(hk->hili);
     int i = 0;
@@ -68,10 +74,23 @@ static u8 hunk_hili_at(HUNKhunk const *hk, u32 pos) {
     return tok32Tag(hk->hili[0][i]);
 }
 
-ok64 HUNKu8sFeedText(u8s into, HUNKhunk const *hk) {
+ok64 HUNKu8sFeedText(u8s into, hunk const *hk) {
     sane(u8sOK(into) && hk != NULL);
-    if (!$empty(hk->title)) {
-        u8sFeed(into, hk->title);
+    if (!$empty(hk->path) || !$empty(hk->title)) {
+        // Format display title from path + title (function name)
+        char pathz[FILE_PATH_MAX_LEN] = {};
+        char funcz[256] = {};
+        if (!$empty(hk->path)) {
+            size_t pl = (size_t)$len(hk->path);
+            if (pl >= sizeof(pathz)) pl = sizeof(pathz) - 1;
+            memcpy(pathz, hk->path[0], pl);
+        }
+        if (!$empty(hk->title)) {
+            size_t fl = (size_t)$len(hk->title);
+            if (fl >= sizeof(funcz)) fl = sizeof(funcz) - 1;
+            memcpy(funcz, hk->title[0], fl);
+        }
+        call(HUNKu8sFormatTitle, into, pathz[0] ? pathz : NULL, funcz);
         u8sFeed1(into, '\n');
     }
     u32 tlen = (u32)$len(hk->text);

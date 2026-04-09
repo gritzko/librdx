@@ -24,7 +24,7 @@ void GRAFArenaCleanup(void) {
         ((u8 **)graf_arena)[2] = graf_arena[1];
 }
 
-ok64 GRAFHunkEmit(HUNKhunk const *hk, void *ctx) {
+ok64 GRAFHunkEmit(hunk const *hk, void *ctx) {
     sane(hk != NULL);
     (void)ctx;
     if (graf_emit == NULL || graf_out_fd < 0) return OK;

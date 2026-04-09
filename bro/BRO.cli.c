@@ -17,7 +17,8 @@ static void BROUsage(void) {
         "Keys: q quit, space/f page down, b page up, j/k line, g/G top/end,\n"
         "      / search, n/N next/prev, : goto line,\n"
         "      [ ] (or { }) prev/next hunk,\n"
-        "      ( ) prev/next change (centered)\n");
+        "      ( ) prev/next change (centered),\n"
+        "      Enter/l open file, h/q back, click title to open\n");
 }
 
 ok64 brocli() {
