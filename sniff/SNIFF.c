@@ -24,16 +24,21 @@ static ok64 sniff_index_paths(sniff *s) {
     u32bReset(s->offsets);
     memset(kv64bHead(s->hash), 0, kv64bLen(s->hash) * sizeof(kv64));
 
-    u8cp base = u8bDataHead(s->paths);
-    u8cp end = u8bIdleHead(s->paths);
-    u8cp cur = base;
+    u8cs rest = {u8bDataHead(s->paths), u8bIdleHead(s->paths)};
 
-    while (cur < end) {
-        u8cp nl = cur;
-        while (nl < end && *nl != '\n') nl++;
-        if (nl == cur) { cur = nl + 1; continue; }
+    while (!$empty(rest)) {
+        u8cp linestart = rest[0];
+        u8cs scan = {rest[0], rest[1]};
+        if (u8csFind(scan, '\n') != OK) break;
+        // scan[0] now at '\n'; advance rest past it
+        rest[0] = scan[0];
+        ++rest[0];
 
-        u32 off = (u32)(cur - base);
+        u8csc ps = {linestart, scan[0]};
+        if ($empty(ps)) continue;
+
+        u8csc prefix = {u8bDataHead(s->paths), linestart};
+        u32 off = (u32)$len(prefix);
         u32 idx = u32bDataLen(s->offsets);
 
         // Append offset
@@ -43,13 +48,10 @@ static ok64 sniff_index_paths(sniff *s) {
         ++*idle;
 
         // Insert into hash
-        u8csc ps = {cur, nl};
         u64 h = RAPHash(ps);
         kv64 entry = {.key = h, .val = (u64)idx};
         kv64s tab = {kv64bHead(s->hash), kv64bTerm(s->hash)};
         HASHkv64Put(tab, &entry);
-
-        cur = nl + 1;
     }
     done;
 }
@@ -72,7 +74,7 @@ static ok64 sniff_bootstrap(sniff *s, u8cs reporoot) {
         while (len > 0 && (line[len - 1] == '\n' || line[len - 1] == '\r'))
             line[--len] = 0;
         if (len == 0) continue;
-        u8cs path = {(u8cp)line, (u8cp)line + len};
+        a$str(path, line);
         SNIFFIntern(s, path);
         count++;
     }
@@ -166,11 +168,8 @@ u32 SNIFFIntern(sniff *s, u8cs path) {
     u32 off = (u32)u8bDataLen(s->paths);
     u32 idx = u32bDataLen(s->offsets);
 
-    u8 **pidle = u8bIdle(s->paths);
-    memcpy(*pidle, path[0], plen);
-    *pidle += plen;
-    **pidle = '\n';
-    ++*pidle;
+    u8bFeed(s->paths, path);
+    u8bFeed1(s->paths, '\n');
 
     // Record offset
     u32 **oidle = u32bIdle(s->offsets);
@@ -191,13 +190,11 @@ u32 SNIFFIntern(sniff *s, u8cs path) {
 ok64 SNIFFPath(u8csp out, sniff const *s, u32 index) {
     sane(out && s);
     if (index >= u32bDataLen(s->offsets)) fail(SNIFFFAIL);
-    u32 off = *(u32bDataHead(s->offsets) + index);
-    u8cp base = u8bDataHead(s->paths);
-    u8cp start = base + off;
-    u8cp end = u8bIdleHead(s->paths);
-    u8cp nl = start;
-    while (nl < end && *nl != '\n') nl++;
-    u8cs range = {start, nl};
+    u32 off = *u32bDataAtP(s->offsets, index);
+    u8cp start = u8bDataAtP(s->paths, off);
+    u8cs scan = {start, u8bIdleHead(s->paths)};
+    u8csFind(scan, '\n');
+    u8cs range = {start, scan[0]};
     u8csMv(out, range);
     done;
 }
