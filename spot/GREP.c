@@ -253,18 +253,18 @@ ok64 CAPOGrep(u8csc substring, u8csc ext, u8csc reporoot, u32 ctx_lines,
                         LESShunk *hk = &less_hunks[less_nhunks];
                         *hk = (LESShunk){};
 
-                        // Title
+                        // Path + title (function name)
                         if (!contiguous || first_hunk) {
                             char funcname[256];
                             CAPOFindFunc(source, ctx_lo, file_ext,
                                          funcname, sizeof(funcname));
-                            u8gp _tg = u8aOpen(less_arena);
-                            call(CAPOFormatTitle, u8gRest(_tg), line, funcname);
-                            u8cs _title = {};
-                            u8aClose(less_arena, _title);
-                            if (!$empty(_title)) {
-                                hk->title[0] = _title[0];
-                                hk->title[1] = _title[1];
+                            if (funcname[0]) {
+                                size_t _fl = strlen(funcname);
+                                u8p _fp = LESSArenaWrite(funcname, _fl);
+                                if (_fp) {
+                                    hk->title[0] = _fp;
+                                    hk->title[1] = _fp + _fl;
+                                }
                             }
                         }
                         {
@@ -692,13 +692,13 @@ ok64 CAPOPcreGrep(u8csc pattern, u8csc ext, u8csc reporoot, u32 ctx_lines,
                         char funcname[256];
                         CAPOFindFunc(source, ctx_lo, file_ext,
                                      funcname, sizeof(funcname));
-                        u8gp _tg = u8aOpen(less_arena);
-                        call(CAPOFormatTitle, u8gRest(_tg), line, funcname);
-                        u8cs _title = {};
-                        u8aClose(less_arena, _title);
-                        if (!$empty(_title)) {
-                            hk->title[0] = _title[0];
-                            hk->title[1] = _title[1];
+                        if (funcname[0]) {
+                            size_t _fl = strlen(funcname);
+                            u8p _fp = LESSArenaWrite(funcname, _fl);
+                            if (_fp) {
+                                hk->title[0] = _fp;
+                                hk->title[1] = _fp + _fl;
+                            }
                         }
                     }
                     {

@@ -12,32 +12,38 @@
 #define HUNK_TLV_HILI 'I'  // sparse tok32 bg highlights
 #define HUNK_TLV_PATH 'P'  // repo-relative file path (never trimmed)
 
-// A serializable code hunk
+// A serializable code hunk.  The display title ("--- path :: func ---")
+// is NOT stored; it is formatted at render time from path + title.
 typedef struct {
-    u8cs title;    // hunk header ("--- path :: func ---")
+    u8cs path;     // repo-relative file path (e.g. "src/foo.c")
+    u8cs title;    // function/context name, or empty
     u8cs text;     // source text bytes
     tok32cs toks;  // packed tok32: syntax fg
     tok32cs hili;  // sparse tok32: bg highlights ('I'=INS, 'D'=DEL)
-    u8cs path;     // repo-relative file path (e.g. "src/foo.c")
-} HUNKhunk;
+} hunk;
+
+typedef hunk const hunkc;
+typedef hunk *hunks[2];
+typedef hunk const *hunkcs[2];
+typedef hunk *hunkb[4];
 
 // Producer callback: yields one hunk at a time.  Slices in `hk` are
 // borrowed for the duration of the call (zero-copy into source buffers).
-typedef ok64 (*HUNKcb)(HUNKhunk const *hk, void *ctx);
+typedef ok64 (*HUNKcb)(hunkc *hk, void *ctx);
 
 // Serialize a hunk as a nested TLV record.  Advances into[0].
-ok64 HUNKu8sFeed(u8s into, HUNKhunk const *hk);
+ok64 HUNKu8sFeed(u8s into, hunk const *hk);
 
 // Deserialize a hunk from TLV.  Advances from[0].
 // Slices in hk point into the original data (zero-copy).
-ok64 HUNKu8sDrain(u8cs from, HUNKhunk *hk);
+ok64 HUNKu8sDrain(u8cs from, hunk *hk);
 
 // Render a hunk as plain ASCII, no ANSI, git-diff-ish style:
-//   title line verbatim, then each text line prefixed with '+'/'-'/' '
+//   formatted title, then each text line prefixed with '+'/'-'/' '
 //   based on hili spans ('I'=insert, 'D'=delete).
 // If hili is empty, every line gets a leading space (grep/cat output).
 // A blank line is appended after the hunk.  Advances into[0].
-ok64 HUNKu8sFeedText(u8s into, HUNKhunk const *hk);
+ok64 HUNKu8sFeedText(u8s into, hunk const *hk);
 
 // Clip file-level toks to [lo,hi), arena-write rebased entries.
 // Output slice points into `arena` after this returns.

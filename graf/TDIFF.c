@@ -113,14 +113,9 @@ static ok64 emit_whole_file(Bu8 arena, char const *dispname,
                             u8cs data, u32cs toks, u8 hili_tag,
                             HUNKcb cb, void *ctx) {
     sane(cb != NULL);
-    HUNKhunk hk = {};
+    hunk hk = {};
     u32 dlen = (u32)$len(data);
 
-    u8gp tg = u8aOpen(arena);
-    call(HUNKu8sFormatTitle, u8gRest(tg), dispname, "");
-    u8cs title = {};
-    u8aClose(arena, title);
-    if (!$empty(title)) { hk.title[0] = title[0]; hk.title[1] = title[1]; }
     if (dispname) {
         size_t plen = strlen(dispname);
         u8p pp = arena_write(arena, (u8cp)dispname, plen);
@@ -292,8 +287,8 @@ ok64 DIFFu8cs(Bu8 arena,
         u8s diff_text_s = {};
         u8p dtxp = NULL;
         u32p dtokp = NULL, dhilp = NULL;
-        HUNKhunk cur_hunk_v = {};
-        HUNKhunk *cur_hunk = NULL;
+        hunk cur_hunk_v = {};
+        hunk *cur_hunk = NULL;
 
         if (arena_need > 0 &&
             arena_alloc(arena, diff_text_s, arena_need) == OK) {
@@ -328,18 +323,17 @@ ok64 DIFFu8cs(Bu8 arena,
                 cb(cur_hunk, ctx);                              \
             }                                                   \
             cur_hunk = &cur_hunk_v;                             \
-            *cur_hunk = (HUNKhunk){};                           \
+            *cur_hunk = (hunk){};                           \
             char _funcname[256];                                \
             DIFFFindFunc(new_data, (boff), ext_nodot,           \
                          _funcname, sizeof(_funcname));         \
-            u8gp _tg = u8aOpen(arena);                          \
-            call(HUNKu8sFormatTitle, u8gRest(_tg),              \
-                 dispname, _funcname);                          \
-            u8cs _ttl = {};                                     \
-            u8aClose(arena, _ttl);                              \
-            if (!$empty(_ttl)) {                                \
-                cur_hunk->title[0] = _ttl[0];                   \
-                cur_hunk->title[1] = _ttl[1];                   \
+            if (_funcname[0]) {                                 \
+                size_t _fl = strlen(_funcname);                 \
+                u8p _fp = arena_write(arena, (u8cp)_funcname, _fl); \
+                if (_fp) {                                      \
+                    cur_hunk->title[0] = _fp;                   \
+                    cur_hunk->title[1] = _fp + _fl;             \
+                }                                               \
             }                                                   \
             if (dispname) {                                     \
                 size_t _pl = strlen(dispname);                  \

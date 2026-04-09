@@ -2,7 +2,7 @@
 //   BROHunkNextLine / BROHunkPrevLine / BROHunkCount / BROHunkIndexAt
 //   BROHiliNextLine / BROHiliPrevLine / BROHiliCount / BROHiliIndexAt
 //
-// Tests synthesize a small BROhunk[] and a matching range32 line index
+// Tests synthesize a small hunk[] and a matching range32 line index
 // (encoded by hand) and assert against expected results — no terminal,
 // no rendering, no I/O.
 
@@ -176,7 +176,7 @@ ok64 NAVtest_hili_layout() {
     static u8 const t0[] = "h0";
     static u8 const t1[] = "h1";
 
-    BROhunk hunks[2] = {};
+    hunk hunks[2] = {};
     hunks[0].title[0] = (u8 const *)t0;
     hunks[0].title[1] = (u8 const *)t0 + 2;
     hunks[0].text[0]  = (u8 const *)h0_text;
@@ -232,7 +232,7 @@ ok64 NAVtest_hili_adjacent_kinds() {
     HILI(h, TOK('I', 4), TOK('D', 8), TOK('A', 20));
 
     static u8 const text[] = "0123456789xxxxxxxxxx";
-    BROhunk hunks[1] = {};
+    hunk hunks[1] = {};
     hunks[0].text[0] = (u8 const *)text;
     hunks[0].text[1] = (u8 const *)text + sizeof(text) - 1;
     hunks[0].hili[0] = h[0];
@@ -246,7 +246,7 @@ ok64 NAVtest_hili_adjacent_kinds() {
 ok64 NAVtest_hili_none() {
     sane(1);
     LINES(L, {0, 0});
-    BROhunk hunks[1] = {};
+    hunk hunks[1] = {};
     static u8 const text[] = "x";
     hunks[0].text[0] = (u8 const *)text;
     hunks[0].text[1] = (u8 const *)text + 1;

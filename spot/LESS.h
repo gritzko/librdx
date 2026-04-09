@@ -9,8 +9,8 @@
 // HUNKu8sFeedText for plain text → stdout).
 
 // LESShunk is just an alias kept so existing producer code compiles.
-// Field layout matches HUNKhunk so call sites need no changes.
-typedef HUNKhunk LESShunk;
+// Field layout matches hunk so call sites need no changes.
+typedef hunk LESShunk;
 
 #define LESS_ARENA_SIZE (1UL << 24)   // 16MB
 #define LESS_MAX_HUNKS  4              // tiny scratch ring
@@ -29,7 +29,7 @@ extern int spot_out_fd;
 
 // Hunk → bytes serializer.  Either HUNKu8sFeed (TLV) or
 // HUNKu8sFeedText (plain ASCII).  Selected by the CLI at startup.
-typedef ok64 (*spot_emit_fn)(u8s into, HUNKhunk const *hk);
+typedef ok64 (*spot_emit_fn)(u8s into, hunk const *hk);
 extern spot_emit_fn spot_emit;
 
 ok64 LESSArenaInit(void);
