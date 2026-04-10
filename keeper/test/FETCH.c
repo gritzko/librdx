@@ -1,0 +1,279 @@
+//  FETCH treadmill: clone a repo via ssh git-upload-pack,
+//  unpack objects, write them as loose objects into a new repo.
+//
+#include "keeper/GIT.h"
+#include "keeper/PACK.h"
+#include "keeper/PKT.h"
+#include "keeper/SHA1.h"
+#include "keeper/ZINF.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <sys/wait.h>
+#include <unistd.h>
+
+#include "abc/HEX.h"
+#include "abc/PRO.h"
+#include "abc/TEST.h"
+
+// Write a loose git object into <outdir>/objects/<xx>/<38hex>
+static ok64 write_loose(u8cp outdir, u64 outdirlen,
+                         u8cp objdata, u64 objlen) {
+    sane(outdir && objdata);
+
+    u8 sha[20];
+    SHA1Sum(sha, objdata, objlen);
+
+    u8 hex[40];
+    u8s hexs = {hex, hex + 40};
+    u8cs bins = {sha, sha + 20};
+    HEXu8sFeedSome(hexs, bins);
+
+    char path[512];
+    snprintf(path, sizeof(path), "%.*s/objects/%c%c",
+             (int)outdirlen, outdir, hex[0], hex[1]);
+    mkdir(path, 0755);
+
+    snprintf(path, sizeof(path), "%.*s/objects/%c%c/%.38s",
+             (int)outdirlen, outdir, hex[0], hex[1], hex + 2);
+
+    u8 zbuf[1 << 18];
+    u64 zlen = 0;
+    int r = ZINFDeflate(objdata, objlen, zbuf, sizeof(zbuf), &zlen);
+    if (r != 0) return PACKFAIL;
+
+    FILE *f = fopen(path, "wb");
+    if (!f) return GITFAIL;
+    fwrite(zbuf, 1, zlen, f);
+    fclose(f);
+
+    done;
+}
+
+static char const *type_str[] = {
+    [PACK_OBJ_COMMIT] = "commit",
+    [PACK_OBJ_TREE] = "tree",
+    [PACK_OBJ_BLOB] = "blob",
+    [PACK_OBJ_TAG] = "tag",
+};
+
+ok64 maintest() {
+    sane(1);
+
+    char const *repo = getenv("FETCH_REPO");
+    char const *outdir = getenv("FETCH_OUT");
+    if (!repo) repo = "/home/gritzko/src/treadmill/gits/repo";
+    if (!outdir) outdir = "/home/gritzko/src/treadmill/gits/copy";
+
+    // --- init output as bare repo ---
+    {
+        char cmd[512];
+        snprintf(cmd, sizeof(cmd),
+                 "rm -rf %s && git init --bare %s 2>/dev/null", outdir, outdir);
+        want(system(cmd) == 0);
+    }
+
+    // --- ssh pipe to git-upload-pack ---
+    char cmd[512];
+    snprintf(cmd, sizeof(cmd),
+             "ssh -o BatchMode=yes localhost git-upload-pack '%s'", repo);
+
+    int to_child[2], from_child[2];
+    want(pipe(to_child) == 0);
+    want(pipe(from_child) == 0);
+
+    pid_t pid = fork();
+    want(pid >= 0);
+
+    if (pid == 0) {
+        close(to_child[1]);
+        close(from_child[0]);
+        dup2(to_child[0], 0);
+        dup2(from_child[1], 1);
+        close(to_child[0]);
+        close(from_child[1]);
+        execl("/bin/sh", "sh", "-c", cmd, NULL);
+        _exit(127);
+    }
+
+    close(to_child[0]);
+    close(from_child[1]);
+    int wfd = to_child[1];
+    int rfd = from_child[0];
+
+    // --- read ref advertisement ---
+    u8 rbuf[1 << 20];
+    u64 rlen = 0;
+    {
+        ssize_t n = read(rfd, rbuf, sizeof(rbuf));
+        want(n > 0);
+        rlen = (u64)n;
+    }
+
+    u8cs adv = {rbuf, rbuf + rlen};
+    u8cs line = {};
+    ok64 o = PKTu8sDrain(adv, line);
+    want(o == OK);
+    want($len(line) >= 40);
+
+    u8 want_sha_hex[41];
+    memcpy(want_sha_hex, line[0], 40);
+    want_sha_hex[40] = 0;
+
+    // drain remaining refs until flush
+    for (;;) {
+        o = PKTu8sDrain(adv, line);
+        if (o == PKTFLUSH) break;
+        if (o == NODATA) {
+            ssize_t n = read(rfd, rbuf + rlen, sizeof(rbuf) - rlen);
+            if (n <= 0) { want(0); }
+            rlen += (u64)n;
+            adv[1] = rbuf + rlen;
+            continue;
+        }
+        want(o == OK);
+    }
+
+    fprintf(stderr, "  HEAD=%.*s\n", 40, want_sha_hex);
+
+    // --- send want + done ---
+    {
+        u8 wbuf[512];
+        u8s ws = {wbuf, wbuf + sizeof(wbuf)};
+
+        u8 pktpay[256];
+        int plen = snprintf((char *)pktpay, sizeof(pktpay),
+                            "want %.40s no-progress\n", want_sha_hex);
+        u8cs payload = {pktpay, pktpay + plen};
+        o = PKTu8sFeed(ws, payload);
+        want(o == OK);
+
+        o = PKTu8sFeedFlush(ws);
+        want(o == OK);
+
+        u8 donepay[] = "done\n";
+        u8cs donecs = {donepay, donepay + 5};
+        o = PKTu8sFeed(ws, donecs);
+        want(o == OK);
+
+        u64 wlen = ws[0] - wbuf;
+        want(write(wfd, wbuf, wlen) == (ssize_t)wlen);
+    }
+    close(wfd);
+
+    // --- read packfile response ---
+    rlen = 0;
+    for (;;) {
+        ssize_t n = read(rfd, rbuf + rlen, sizeof(rbuf) - rlen);
+        if (n <= 0) break;
+        rlen += (u64)n;
+    }
+    close(rfd);
+
+    u8cs resp = {rbuf, rbuf + rlen};
+
+    // NAK
+    o = PKTu8sDrain(resp, line);
+    want(o == OK && $len(line) >= 3);
+    want(memcmp(line[0], "NAK", 3) == 0);
+
+    // packfile header
+    pack_hdr hdr = {};
+    o = PACKDrainHdr(resp, &hdr);
+    want(o == OK && hdr.version == 2);
+
+    fprintf(stderr, "  pack: %u objects, %lu bytes\n",
+            hdr.count, (unsigned long)rlen);
+
+    // unpack each object
+    for (u32 i = 0; i < hdr.count; i++) {
+        pack_obj obj = {};
+        o = PACKDrainObjHdr(resp, &obj);
+        want(o == OK);
+        want(obj.type >= 1 && obj.type <= 4);
+
+        u8 content[1 << 18];
+        u8s into = {content, content + sizeof(content)};
+        o = PACKInflate(resp, into, obj.size);
+        want(o == OK);
+
+        // build git object: "<type> <size>\0<content>"
+        u8 objbuf[1 << 18];
+        int hdrlen = snprintf((char *)objbuf, sizeof(objbuf),
+                              "%s %lu", type_str[obj.type],
+                              (unsigned long)obj.size);
+        objbuf[hdrlen] = 0;
+        memcpy(objbuf + hdrlen + 1, content, obj.size);
+        u64 total = hdrlen + 1 + obj.size;
+
+        o = write_loose((u8cp)outdir, strlen(outdir), objbuf, total);
+        want(o == OK);
+
+        u8 sha[20];
+        SHA1Sum(sha, objbuf, total);
+        u8 shex[40];
+        u8s ss = {shex, shex + 40};
+        u8cs sb = {sha, sha + 20};
+        HEXu8sFeedSome(ss, sb);
+
+        fprintf(stderr, "  %s %4lu  %.40s\n",
+                type_str[obj.type], (unsigned long)obj.size, shex);
+    }
+
+    // --- write refs ---
+    {
+        char path[512];
+        snprintf(path, sizeof(path), "%s/refs/heads", outdir);
+        mkdir(path, 0755);
+
+        snprintf(path, sizeof(path), "%s/refs/heads/master", outdir);
+        FILE *f = fopen(path, "w");
+        want(f != NULL);
+        fprintf(f, "%.40s\n", want_sha_hex);
+        fclose(f);
+
+        snprintf(path, sizeof(path), "%s/HEAD", outdir);
+        f = fopen(path, "w");
+        want(f != NULL);
+        fprintf(f, "ref: refs/heads/master\n");
+        fclose(f);
+    }
+
+    // --- verify: git log ---
+    {
+        char vcmd[512];
+        snprintf(vcmd, sizeof(vcmd),
+                 "git --git-dir=%s log --oneline 2>&1", outdir);
+        FILE *p = popen(vcmd, "r");
+        want(p != NULL);
+        char buf[1024];
+        fprintf(stderr, "  --- git log ---\n");
+        while (fgets(buf, sizeof(buf), p))
+            fprintf(stderr, "  %s", buf);
+        want(pclose(p) == 0);
+    }
+
+    // --- verify: content match ---
+    {
+        char vcmd[1024];
+        snprintf(vcmd, sizeof(vcmd),
+                 "bash -c 'diff "
+                 "<(git --git-dir=%s show HEAD:README.md) "
+                 "<(git --git-dir=%s show HEAD:README.md)' 2>&1",
+                 repo, outdir);
+        FILE *p = popen(vcmd, "r");
+        char buf[1024];
+        while (fgets(buf, sizeof(buf), p))
+            fprintf(stderr, "  diff: %s", buf);
+        want(pclose(p) == 0);
+        fprintf(stderr, "  content OK\n");
+    }
+
+    { int status; waitpid(pid, &status, 0); }
+
+    done;
+}
+
+TEST(maintest)
