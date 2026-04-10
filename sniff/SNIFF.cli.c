@@ -223,56 +223,40 @@ static ok64 sniff_stop(u8cs reporoot) {
     done;
 }
 
-// --- Mode 4: Query (latest change per path) ---
+// --- Mode 4: Query (paths changed since token) ---
+//
+// Token = entry count in changes log. Each consumer remembers its
+// last token. On query, sniff prints deduplicated paths with entries
+// after that token, then the new token to stderr.
 
-static ok64 sniff_changed(sniff *s) {
+static ok64 sniff_changed(sniff *s, u64 since) {
     sane(s);
-    u32 npath = SNIFFCount(s);
-    if (npath == 0) {
-        fprintf(stderr, "sniff: no paths known\n");
-        done;
-    }
-
-    // Allocate a "seen" bitmap + mtime array
-    // Walk changes backward, first occurrence per index wins
-    u64 *latest_sec = calloc(npath, sizeof(u64));
-    u32 *latest_nsec = calloc(npath, sizeof(u32));
-    u8 *seen = calloc(npath, sizeof(u8));
-    if (!latest_sec || !latest_nsec || !seen) {
-        free(latest_sec);
-        free(latest_nsec);
-        free(seen);
-        fail(SNIFFFAIL);
-    }
-
-    // Walk changes log backward
     u64cs elog = {(u64cp)u8bDataHead(s->changes),
                   (u64cp)u8bIdleHead(s->changes)};
-    size_t nentries = $len(elog);
+    u64 total = (u64)$len(elog);
 
-    for (size_t i = nentries; i > 0; i--) {
-        u64 e = $at(elog, i - 1);
-        u32 idx = SNIFFChangeIndex(e);
-        if (idx >= npath) continue;
-        if (seen[idx]) continue;
-        seen[idx] = 1;
-        latest_sec[idx] = SNIFFChangeSec(e);
-        latest_nsec[idx] = SNIFFChangeNsec(e);
+    if (since > total) since = total;
+
+    // Collect unique path indices from entries [since..total)
+    u32 npath = SNIFFCount(s);
+    u8 *seen = calloc(npath, sizeof(u8));
+    if (!seen) fail(SNIFFFAIL);
+
+    for (u64 i = since; i < total; i++) {
+        u32 idx = SNIFFChangeIndex($at(elog, i));
+        if (idx < npath) seen[idx] = 1;
     }
 
-    // Print paths that have recorded changes
     for (u32 i = 0; i < npath; i++) {
         if (!seen[i]) continue;
         u8cs path = {};
         if (SNIFFPath(path, s, i) != OK) continue;
-        printf("%llu.%u\t%.*s\n",
-               (unsigned long long)latest_sec[i], latest_nsec[i],
-               (int)$len(path), (char *)path[0]);
+        printf("%.*s\n", (int)$len(path), (char *)path[0]);
     }
 
-    free(latest_sec);
-    free(latest_nsec);
     free(seen);
+    // Print new token to stderr so callers can save it
+    fprintf(stderr, "%llu\n", (unsigned long long)total);
     done;
 }
 
@@ -299,7 +283,7 @@ static void sniff_usage(void) {
             "  sniff                 index (stat all known paths)\n"
             "  sniff -w | --watch    start watch daemon\n"
             "  sniff --stop          stop watch daemon\n"
-            "  sniff -q | --changed  show latest change per path\n"
+            "  sniff -q [T]          paths changed since token T (0=all)\n"
             "  sniff -l | --list     list all known paths\n"
             "  sniff -h | --help     this message\n");
 }
@@ -331,6 +315,7 @@ ok64 sniffcli() {
     b8 do_stop = NO;
     b8 do_changed = NO;
     b8 do_list = NO;
+    u64 since_token = 0;
 
     for (u32 i = 1; i < $arglen; i++) {
         u8cs a = {};
@@ -344,6 +329,15 @@ ok64 sniffcli() {
             do_stop = YES;
         } else if (argeq(a, "-q") || argeq(a, "--changed")) {
             do_changed = YES;
+            // optional token argument
+            if (i + 1 < $arglen) {
+                u8cs v = {};
+                $mv(v, $arg(i + 1));
+                if (v[0][0] >= '0' && v[0][0] <= '9') {
+                    since_token = (u64)atoll((char *)v[0]);
+                    i++;
+                }
+            }
         } else if (argeq(a, "-l") || argeq(a, "--list")) {
             do_list = YES;
         } else {
@@ -367,7 +361,7 @@ ok64 sniffcli() {
     if (do_watch) {
         ret = sniff_daemon(&s, dogsroot, worktree);
     } else if (do_changed) {
-        ret = sniff_changed(&s);
+        ret = sniff_changed(&s, since_token);
     } else if (do_list) {
         ret = sniff_list(&s);
     } else {
