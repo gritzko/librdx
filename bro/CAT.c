@@ -6,9 +6,6 @@
 #include "abc/FILE.h"
 #include "abc/PATH.h"
 #include "abc/PRO.h"
-#include "dog/DEF.h"
-#include "dog/HUNK.h"
-#include "dog/TOK.h"
 
 // --- Cat: syntax-highlighted file display ---
 
@@ -33,11 +30,6 @@ ok64 BROCat(u8css files, u8csc reporoot) {
         __ = PATHu8gTerm(PATHu8gIn(fpbuf));
         if (__ != OK) continue;
 
-        // Extract extension
-        u8cs ext = {};
-        size_t plen = (size_t)(u8bIdleHead(fpbuf) - u8bDataHead(fpbuf));
-        HUNKu8sExt(ext, u8bDataHead(fpbuf), plen);
-
         // Map file
         u8bp mapped = NULL;
         ok64 o = FILEMapRO(&mapped, PATHu8cgIn(fpbuf));
@@ -47,14 +39,10 @@ ok64 BROCat(u8css files, u8csc reporoot) {
             continue;
         }
 
-        u8cp src_head = u8bDataHead(mapped);
-        u8cp src_idle = u8bIdleHead(mapped);
-        u32 srclen = (u32)(src_idle - src_head);
-
         hunk *hk = &bro_hunks[bro_nhunks];
         *hk = (hunk){};
 
-        // Path (no formatted title — display title built at render time)
+        // Path
         size_t fzl = (size_t)$len(fpath_s);
         u8p pp = BROArenaWrite(fpath_s[0], fzl);
         if (pp) {
@@ -62,37 +50,11 @@ ok64 BROCat(u8css files, u8csc reporoot) {
             hk->path[1] = pp + fzl;
         }
 
-        hk->text[0] = src_head;
-        hk->text[1] = src_idle;
+        hk->text[0] = u8bDataHead(mapped);
+        hk->text[1] = u8bIdleHead(mapped);
 
-        // Tokenize
         Bu32 toks = {};
-        b8 tokenized = NO;
-        u8cs ext_nodot = {};
-        if (!$empty(ext) && ext[0][0] == '.') {
-            ext_nodot[0] = ext[0] + 1;
-            ext_nodot[1] = ext[1];
-        }
-        if (!$empty(ext_nodot) && TOKKnownExt(ext_nodot)) {
-            size_t maxlen = srclen + 1;
-            o = u32bMap(toks, maxlen);
-            if (o == OK) {
-                u8cs source = {src_head, src_idle};
-                o = HUNKu32bTokenize(toks, source, ext);
-                if (o == OK) {
-                    u32 *dts[2] = {u32bDataHead(toks), u32bIdleHead(toks)};
-                    DEFMark(dts, source, ext_nodot);
-                    tokenized = YES;
-                    hk->toks[0] = (u32cp)u32bDataHead(toks);
-                    hk->toks[1] = (u32cp)u32bIdleHead(toks);
-                } else {
-                    u32bUnMap(toks);
-                    memset(toks, 0, sizeof(toks));
-                }
-            }
-        }
-
-        // No hili for cat (no diff/match highlights)
+        b8 tokenized = BROTokenize(toks, hk, fpath_s);
 
         BROHunkAdd();
         BRODefer(mapped, tokenized ? toks : (Bu32){});

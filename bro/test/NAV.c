@@ -14,8 +14,6 @@
 #include "abc/TEST.h"
 #include "dog/TOK.h"
 
-#define BRO_TITLE_LINE UINT32_MAX
-
 // --- helpers ----------------------------------------------------------
 
 // Build a tok32 from (tag, end_offset). Inlined as a constant expression
