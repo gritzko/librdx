@@ -1,4 +1,5 @@
-#include "spot/CAPO.h"
+#include "spot/CAPOi.h"
+#include "spot/SPOT.h"
 
 #include <string.h>
 
@@ -6,17 +7,6 @@
 #include "abc/PRO.h"
 #include "abc/SORT.h"
 #include "abc/TEST.h"
-
-// HIT for u64cs
-fun void u64csSwap(u64cs *a, u64cs *b) {
-    u64c *t0 = (*a)[0], *t1 = (*a)[1];
-    (*a)[0] = (*b)[0]; (*a)[1] = (*b)[1];
-    (*b)[0] = t0; (*b)[1] = t1;
-}
-
-#define X(M, name) M##u64##name
-#include "abc/HITx.h"
-#undef X
 
 // --- Test 0: TriPack roundtrip ---
 ok64 CAPO0() {
@@ -334,6 +324,90 @@ ok64 CAPO9() {
     done;
 }
 
+// --- Test A: HunkEmit produces valid TLV that roundtrips via Drain ---
+
+ok64 CAPOtestHunkEmit() {
+    sane(1);
+    // Set up a capture buffer instead of a pipe.
+    // spot_emit = HUNKu8sFeed, spot_out_fd = a temp file.
+    char tmppath[] = "/tmp/spot_hunk_test_XXXXXX";
+    int fd = mkstemp(tmppath);
+    test(fd >= 0, FAILSANITY);
+
+    spot_emit   = HUNKu8sFeed;
+    spot_out_fd = fd;
+    call(LESSArenaInit);
+
+    // Synthesize a hunk via CAPOBuildHunk
+    const char *src = "void foo() {\n    int x = 1;\n    int y = 2;\n}\n";
+    u8csc source = {(u8cp)src, (u8cp)src + strlen(src)};
+    u8cs ext = $u8str(".c");
+    Bu32 toks = {};
+    call(u32bMap, toks, strlen(src) + 1);
+    call(SPOTTokenize, toks, source, ext);
+    u32cs htoks = {(u32cp)u32bDataHead(toks), (u32cp)u32bIdleHead(toks)};
+
+    // One highlight range covering "int x = 1;" (bytes 18..28 approx)
+    range32 hls[1] = {{18, 28}};
+    b8 first = YES;
+    call(CAPOBuildHunk, source, htoks, 0, (u32)strlen(src),
+         hls, 1, ext, "test.c", YES, &first);
+
+    // Close and verify the file has content.
+    close(fd);
+    spot_out_fd = -1;
+    spot_emit   = NULL;
+
+    // Read back and drain
+    u8bp mapped = NULL;
+    a_pad(u8, pathbuf, 256);
+    u8cs ps = {(u8cp)tmppath, (u8cp)tmppath + strlen(tmppath)};
+    call(u8bFeed, pathbuf, ps);
+    call(PATHu8gTerm, PATHu8gIn(pathbuf));
+    call(FILEMapRO, &mapped, PATHu8cgIn(pathbuf));
+
+    a_dup(u8c, data, u8bDataC(mapped));
+    want($len(data) > 20);  // non-trivial TLV
+
+    hunk h = {};
+    ok64 o = HUNKu8sDrain(data, &h);
+    testeq(o, OK);
+    want(!$empty(h.text));
+    want(!$empty(h.path));
+    // text should contain the source
+    want($len(h.text) == strlen(src));
+    want(memcmp(h.text[0], src, strlen(src)) == 0);
+    // path should be "test.c"
+    want($len(h.path) == 6);
+    want(memcmp(h.path[0], "test.c", 6) == 0);
+
+    FILEUnMap(mapped);
+    u32bUnMap(toks);
+    LESSArenaCleanup();
+    unlink(tmppath);
+    done;
+}
+
+// --- Test B: CAPOKnownExt recognizes standard extensions ---
+ok64 CAPOtestKnownExt() {
+    sane(1);
+    u8cs c_ext = $u8str(".c");
+    u8cs h_ext = $u8str(".h");
+    u8cs py_ext = $u8str(".py");
+    u8cs go_ext = $u8str(".go");
+    u8cs txt_ext = $u8str(".xyz_unknown");
+
+    want(CAPOKnownExt(c_ext) == YES);
+    want(CAPOKnownExt(h_ext) == YES);
+    want(CAPOKnownExt(py_ext) == YES);
+    want(CAPOKnownExt(go_ext) == YES);
+    want(CAPOKnownExt(txt_ext) == NO);
+
+    u8cs empty = {};
+    want(CAPOKnownExt(empty) == NO);
+    done;
+}
+
 ok64 CAPOtest() {
     sane(1);
     call(CAPO0);
@@ -346,6 +420,8 @@ ok64 CAPOtest() {
     call(CAPO7);
     call(CAPO8);
     call(CAPO9);
+    call(CAPOtestHunkEmit);
+    call(CAPOtestKnownExt);
     done;
 }
 

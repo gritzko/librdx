@@ -48,15 +48,6 @@ u8p LESSArenaWrite(void const *data, size_t len) {
     return p;
 }
 
-ok64 LESSArenaAlloc(u8s out, size_t len) {
-    if (u8bIdleLen(less_arena) < len) return FAILSANITY;
-    $mv(out, u8bIdle(less_arena));
-    out[1] = out[0] + len;
-    u8sZero(out);
-    u8bFed(less_arena, len);
-    return OK;
-}
-
 void LESSDefer(u8bp mapped, Bu32 toks) {
     if (less_nmaps >= LESS_MAX_MAPS) return;
     less_maps[less_nmaps] = mapped;

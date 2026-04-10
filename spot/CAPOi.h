@@ -2,7 +2,6 @@
 #define SPOT_CAPOi_H
 
 #include "CAPO.h"
-#include "abc/DIFF.h"
 #include "abc/FILE.h"
 #include "spot/LESS.h"
 
@@ -26,8 +25,6 @@ void CAPOProgress(const char *line);
 b8 CAPOExtIs(u8csc ext, const char *a, const char *b);
 void CAPOFindFunc(u8csc source, u32 pos, u8csc ext,
                    char *out, size_t outsz);
-ok64 CAPOFormatTitle(u8s into,
-                     const char *filepath, const char *funcname);
 void CAPOGrepCtx(u8csc source, u32 match_pos, u32 nctx,
                   u32 *lo, u32 *hi);
 
@@ -52,16 +49,9 @@ fun void u64csSwap(u64cs *a, u64cs *b) {
 #include "abc/HITx.h"
 #undef X
 
-// --- DIFF template for u64 ---
-
-#define X(M, name) M##u64##name
-#include "abc/DIFFx.h"
-#undef X
-
 #define CAPO_MAX_HLS 64
-#define HUNK_MAX 64
 
-// --- Hunk building (shared by SPOT/GREP/DIF2) ---
+// --- Hunk building (shared by SPOT/GREP) ---
 ok64 CAPOBuildHunk(u8csc source, u32cs htoks, u32 ctx_lo, u32 ctx_hi,
                    range32 const *hls, int nhl,
                    u8csc file_ext, const char *filepath,

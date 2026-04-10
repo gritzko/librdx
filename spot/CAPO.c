@@ -31,7 +31,6 @@ static void capo_abrt_handler(int sig) {
 
 // --- Language detection via tok/ ---
 
-b8 CAPOKnownExt(u8csc ext);
 b8 CAPOKnownExt(u8csc ext) {
     if ($empty(ext)) return NO;
     u8cs nodot = {};
@@ -235,14 +234,9 @@ static u32 CAPOListIdx(char out[][64], u32 maxn, u8csc dir) {
     FILEScanDir(dpat, CAPOListIdxCB, &ctx);
 
     // Sort by name
-    for (u32 i = 0; i + 1 < ctx.count; i++)
-        for (u32 j = i + 1; j < ctx.count; j++)
-            if (strcmp(out[i], out[j]) > 0) {
-                char tmp[64];
-                memcpy(tmp, out[i], 64);
-                memcpy(out[i], out[j], 64);
-                memcpy(out[j], tmp, 64);
-            }
+    if (ctx.count > 1)
+        qsort(out, ctx.count, 64,
+              (int (*)(const void *, const void *))strcmp);
     return ctx.count;
 }
 
@@ -1147,60 +1141,6 @@ void CAPOFindFunc(u8csc source, u32 pos, u8csc ext,
             out[--copylen] = 0;
         return;
     }
-}
-
-// --- Hunk title formatter ---
-
-// Format "--- path :: func ---" with smart truncation to 64 visible chars.
-// filepath may be NULL, funcname may be empty ("").
-// Returns formatted length (0 if nothing to format).
-ok64 CAPOFormatTitle(u8s into,
-                     const char *filepath, const char *funcname) {
-    sane(into[0] != NULL);
-    u8p start = into[0];
-    if (filepath && funcname && funcname[0]) {
-        call(u8sPrintf, into, "--- %s :: %s ---", filepath, funcname);
-    } else if (filepath) {
-        call(u8sPrintf, into, "--- %s ---", filepath);
-    } else if (funcname && funcname[0]) {
-        call(u8sPrintf, into, "--- %s ---", funcname);
-    } else {
-        done;
-    }
-
-    int hlen = (int)(into[0] - start);
-    if (hlen > HUNK_MAX && filepath && funcname && funcname[0]) {
-        size_t plen = strlen(filepath);
-        int budget = HUNK_MAX - 12 - (int)plen;
-        if (budget < 1) budget = 1;
-        into[0] = start;
-        call(u8sPrintf, into, "--- %s :: %.*s ---",
-             filepath, budget, funcname);
-        hlen = (int)(into[0] - start);
-    }
-    if (hlen > HUNK_MAX && filepath) {
-        const char *p = filepath + strlen(filepath);
-        int budget = HUNK_MAX - 12 - 3;
-        if (funcname && funcname[0]) {
-            size_t flen = strlen(funcname);
-            if (flen > 20) flen = 20;
-            budget -= (int)flen + 4;
-        }
-        if (budget < 8) budget = 8;
-        while (p > filepath && (int)(filepath + strlen(filepath) - p) < budget)
-            p--;
-        into[0] = start;
-        if (funcname && funcname[0]) {
-            int favail = HUNK_MAX - 12 - 3 -
-                         (int)(filepath + strlen(filepath) - p);
-            if (favail < 1) favail = 1;
-            call(u8sPrintf, into, "--- ...%s :: %.*s ---",
-                 p, favail, funcname);
-        } else {
-            call(u8sPrintf, into, "--- ...%s ---", p);
-        }
-    }
-    done;
 }
 
 // --- Hunk building ---

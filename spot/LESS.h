@@ -8,8 +8,7 @@
 // `spot_out_fd` via `spot_emit` (HUNKu8sFeed for TLV → bro pager,
 // HUNKu8sFeedText for plain text → stdout).
 
-// LESShunk is just an alias kept so existing producer code compiles.
-// Field layout matches hunk so call sites need no changes.
+// LESShunk kept as alias for hunk during transition.
 typedef hunk LESShunk;
 
 #define LESS_ARENA_SIZE (1UL << 24)   // 16MB
@@ -35,7 +34,6 @@ extern spot_emit_fn spot_emit;
 ok64 LESSArenaInit(void);
 void LESSArenaCleanup(void);
 u8p  LESSArenaWrite(void const *data, size_t len);
-ok64 LESSArenaAlloc(u8s out, size_t len);
 void LESSDefer(u8bp mapped, Bu32 toks);
 
 // Serialize less_hunks[less_nhunks] via spot_emit, write to spot_out_fd,
