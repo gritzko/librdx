@@ -18,7 +18,8 @@ static void BROUsage(void) {
         "      / search, n/N next/prev, : goto line,\n"
         "      [ ] (or { }) prev/next hunk,\n"
         "      ( ) prev/next change (centered),\n"
-        "      Enter/l open file, h/q back, click title to open\n");
+        "      Enter/l open file, h/q back,\n"
+        "      m toggle mouse (wheel scroll, click to open)\n");
 }
 
 ok64 brocli() {

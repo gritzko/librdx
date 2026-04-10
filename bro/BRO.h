@@ -6,6 +6,7 @@
 #include "dog/HUNK.h"
 
 #define BRO_NONE UINT32_MAX
+#define BRO_TITLE_LINE UINT32_MAX
 
 // --- BRO arena: scratch space for cat-mode hunk staging ---
 #define BRO_ARENA_SIZE (1UL << 27)   // 128MB
@@ -23,11 +24,15 @@ extern u32     bro_nmaps;
 ok64 BROArenaInit(void);
 void BROArenaCleanup(void);
 u8p  BROArenaWrite(void const *data, size_t len);
-ok64 BROArenaAlloc(u8s out, size_t len);
 void BRODefer(u8bp mapped, Bu32 toks);
 
 // Bump bro_nhunks after the caller has filled bro_hunks[bro_nhunks].
 void BROHunkAdd(void);
+
+// Tokenize source in hk->text using the extension from pathslice.
+// Allocates toks buffer on success (caller must u32bUnMap).
+// Sets hk->toks. Returns YES if tokenized, NO otherwise.
+b8 BROTokenize(Bu32 toks, hunk *hk, u8csc pathslice);
 
 // Interactive pager: displays hunks with syntax colors, diff highlighting,
 // status bar, and search. Falls back to plain output when !isatty.
