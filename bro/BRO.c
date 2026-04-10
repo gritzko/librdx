@@ -197,9 +197,10 @@ static void BROGetSize(BROstate *st) {
     }
 }
 
-// Append lines for hunks [from..nhunks) into lines[nlines..maxlines).
+// Forward declarations for functions used before definition.
 static u32 BROAppendLines(range32 *lines, u32 nlines, u32 maxlines,
                           hunkc const *hunks, u32 from, u32 nhunks);
+static void BROScrollCenter(BROstate *st, u32 target);
 
 // --- Build line index ---
 
@@ -260,7 +261,8 @@ b8 BROTokenize(Bu32 toks, hunk *hk, u8csc pathslice) {
 // Open a file by repo-relative path, push current view onto stack.
 // `repo` is the NUL-terminated repo root path.  Returns OK if the
 // file was opened (st is updated in place); non-OK on error (st unchanged).
-static ok64 BROOpenFile(BROstate *st, u8csc relpath, char const *repo) {
+static ok64 BROOpenFile(BROstate *st, u8csc relpath, char const *repo,
+                        u32 target_line) {
     sane(st != NULL && !$empty(relpath) && repo != NULL);
     if (st->nsaves >= BRO_MAX_VIEWS) fail(NOROOM);
 
@@ -320,7 +322,24 @@ static ok64 BROOpenFile(BROstate *st, u8csc relpath, char const *repo) {
     st->nhunks = 1;
     memset(st->linesbuf, 0, sizeof(Brange32));
     call(BROBuildIndex, st);
-    st->scroll = (st->nlines > 1) ? 1 : 0;  // skip title line
+    // Scroll to target line (1-based file line number).
+    // Line index entry i corresponds to file-line = lineno for offset 0,
+    // incremented per newline. Scan for the closest match.
+    if (target_line > 1 && st->nlines > 1) {
+        // The file hunk starts at lineno=1. Each line index entry after
+        // the title adds one file line. Find the entry for target_line.
+        u32 file_ln = 1;
+        u32 best = 1;  // skip title
+        for (u32 i = 1; i < st->nlines; i++) {
+            if (st->lines[i].hi == BRO_TITLE_LINE) continue;
+            if (file_ln >= target_line) { best = i; break; }
+            file_ln++;
+            best = i;
+        }
+        BROScrollCenter(st, best);
+    } else {
+        st->scroll = (st->nlines > 1) ? 1 : 0;
+    }
     st->nsaves = idx + 1;
     done;
 }
@@ -366,7 +385,7 @@ static b8 BROTryOpen(BROstate *st, u32 line, char const *repo) {
         snprintf(st->flash, sizeof(st->flash), "no repo root found");
         return NO;
     }
-    ok64 o = BROOpenFile(st, hk->path, repo);
+    ok64 o = BROOpenFile(st, hk->path, repo, hk->lineno);
     if (o != OK) {
         snprintf(st->flash, sizeof(st->flash),
                  "open: %.*s: %s",
@@ -1430,6 +1449,7 @@ ok64 BROPipeRun(int pipefd) {
                         hk->path[1] = u8bIdleHead(bro_arena);
                     }
                 }
+                hk->lineno = tlv_hk.lineno;
                 bro_nhunks++;
             }
 

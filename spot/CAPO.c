@@ -1179,6 +1179,12 @@ ok64 CAPOBuildHunk(u8csc source, u32cs htoks, u32 ctx_lo, u32 ctx_hi,
     hk->text[0] = source[0] + ctx_lo;
     hk->text[1] = source[0] + ctx_hi;
 
+    // Compute 1-based line number from byte offset
+    u32 ln = 1;
+    for (u32 i = 0; i < ctx_lo; i++)
+        if (source[0][i] == '\n') ln++;
+    hk->lineno = ln;
+
     // Clip file-level toks to context region
     HUNKu32sClip(less_arena, hk->toks, htoks, ctx_lo, ctx_hi);
 

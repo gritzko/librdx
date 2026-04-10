@@ -11,6 +11,7 @@
 #define HUNK_TLV_TOK  'K'  // tok32 array (packed u32 LE)
 #define HUNK_TLV_HILI 'I'  // sparse tok32 bg highlights
 #define HUNK_TLV_PATH 'P'  // repo-relative file path (never trimmed)
+#define HUNK_TLV_LINE 'L'  // 1-based line number (4 bytes LE u32)
 
 // A serializable code hunk.  The display title ("--- path :: func ---")
 // is NOT stored; it is formatted at render time from path + title.
@@ -20,6 +21,7 @@ typedef struct {
     u8cs text;     // source text bytes
     tok32cs toks;  // packed tok32: syntax fg
     tok32cs hili;  // sparse tok32: bg highlights ('I'=INS, 'D'=DEL)
+    u32 lineno;    // 1-based line number of first text line in source file
 } hunk;
 
 typedef hunk const hunkc;

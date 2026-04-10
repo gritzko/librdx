@@ -24,6 +24,11 @@ ok64 HUNKu8sFeed(u8s into, hunk const *hk) {
     }
     if (!$empty(hk->path))
         call(TLVu8sFeed, inner, HUNK_TLV_PATH, hk->path);
+    if (hk->lineno > 0) {
+        u32 le = hk->lineno;
+        u8cs lb = {(u8cp)&le, (u8cp)&le + sizeof(le)};
+        call(TLVu8sFeed, inner, HUNK_TLV_LINE, lb);
+    }
     call(TLVu8sEnd, into, inner, HUNK_TLV);
     done;
 }
@@ -56,6 +61,10 @@ ok64 HUNKu8sDrain(u8cs from, hunk *hk) {
             break;
         case HUNK_TLV_PATH:
             $mv(hk->path, val);
+            break;
+        case HUNK_TLV_LINE:
+            if ($len(val) >= sizeof(u32))
+                memcpy(&hk->lineno, val[0], sizeof(u32));
             break;
         default:
             break;

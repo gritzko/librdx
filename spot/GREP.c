@@ -278,6 +278,12 @@ ok64 CAPOGrep(u8csc substring, u8csc ext, u8csc reporoot, u32 ctx_lines,
 
                         hk->text[0] = source[0] + ctx_lo;
                         hk->text[1] = source[0] + ctx_hi;
+                        {
+                            u32 ln = 1;
+                            for (u32 li = 0; li < ctx_lo; li++)
+                                if (source[0][li] == '\n') ln++;
+                            hk->lineno = ln;
+                        }
 
                         // Clip file-level toks to context region
                         HUNKu32sClip(less_arena, hk->toks, gts,
