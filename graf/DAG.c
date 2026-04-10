@@ -328,7 +328,7 @@ void dag_stack_close(dag_stack *st) {
 static u32 dag_stack_gen(dag_stack *st, u64 hashlet) {
     // Seek for COMMIT_GEN entry
     u64 key_a = DAGPack(DAG_COMMIT_GEN, 0, hashlet);
-    u64 key_a_hi = DAGPack(DAG_COMMIT_GEN, DAG_GEN_MASK, hashlet);
+    u64 key_a_hi = DAGPack(DAG_COMMIT_GEN, WHIFF_ID_MASK, hashlet);
     for (u32 r = 0; r < st->n; r++) {
         belt128cp base = st->runs[r][0];
         size_t len = (size_t)(st->runs[r][1] - st->runs[r][0]);

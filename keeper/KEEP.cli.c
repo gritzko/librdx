@@ -19,6 +19,7 @@ static void usage(void) {
     fprintf(stderr,
         "Usage: keeper <command> [args...]\n"
         "\n"
+        "  keeper import <packfile>   import a git packfile\n"
         "  keeper sync [remote]       fetch missing objects from remote\n"
         "  keeper get <hash-prefix>   cat object to stdout\n"
         "  keeper has <hash-prefix>   exit 0 if present, 1 if not\n"
@@ -75,8 +76,9 @@ ok64 keepercli() {
             fail(KEEPFAIL);
         }
         call(KEEPOpen, &k, reporoot);
-        hash64 h = hash64FromHex(prefix);
-        ok64 o = KEEPHas(&k, h);
+        size_t hexlen = $len(prefix);
+        u64 hashlet = wh64HashletFromHex((char const *)prefix[0], hexlen);
+        ok64 o = KEEPHas(&k, hashlet, hexlen);
         KEEPClose(&k);
         if (o == OK) {
             fprintf(stdout, "found\n");
@@ -94,10 +96,11 @@ ok64 keepercli() {
             fail(KEEPFAIL);
         }
         call(KEEPOpen, &k, reporoot);
-        hash64 h = hash64FromHex(prefix);
+        size_t hexlen = $len(prefix);
+        u64 hashlet = wh64HashletFromHex((char const *)prefix[0], hexlen);
         Bu8 out = {};
         call(u8bMap, out, 64UL << 20);
-        ok64 o = KEEPGet(&k, h, out);
+        ok64 o = KEEPGet(&k, hashlet, hexlen, out);
         if (o == OK) {
             u8cs data = {u8bDataHead(out), u8bDataHead(out) + u8bDataLen(out)};
             write(STDOUT_FILENO, data[0], $len(data));
@@ -107,6 +110,14 @@ ok64 keepercli() {
         u8bUnMap(out);
         KEEPClose(&k);
         if (o != OK) return o;
+
+    } else if (argeq(cmd, "import")) {
+        if (argn < 3) { fprintf(stderr, "keeper: import requires a packfile path\n"); fail(KEEPFAIL); }
+        u8cs path = {};
+        $mv(path, $arg(2));
+        call(KEEPOpen, &k, reporoot);
+        call(KEEPImport, &k, path);
+        KEEPClose(&k);
 
     } else if (argeq(cmd, "sync")) {
         u8cs remote = {};

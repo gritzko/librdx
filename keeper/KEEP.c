@@ -1,6 +1,6 @@
 //  KEEP: local git object store.
 //
-//  Stores git packfiles under .dogs/keeper/, indexed by hash64→w64
+//  Stores git packfiles under .dogs/keeper/, indexed by u64→w64
 //  in LSM sorted runs of kv64 entries.
 //
 #include "KEEP.h"
@@ -59,8 +59,11 @@ ok64 KEEPOpen(keeper *k, u8cs reporoot) {
 
     a_path(dir);
     call(keep_resolve_dir, dir, reporoot);
-    a_dup(u8c, keepdir, u8bDataC(dir));
-    $mv(k->root, keepdir);
+    size_t dlen = u8bDataLen(dir);
+    if (dlen >= sizeof(k->dir)) dlen = sizeof(k->dir) - 1;
+    memcpy(k->dir, u8bDataHead(dir), dlen);
+    k->dir[dlen] = 0;
+    u8cs keepdir = {(u8cp)k->dir, (u8cp)k->dir + dlen};
 
     // Ensure directory exists
     call(FILEMakeDirP, PATHu8cgIn(dir));
@@ -165,27 +168,36 @@ ok64 KEEPClose(keeper *k) {
     done;
 }
 
-// --- Lookup: hash64 → w64 val ---
+// --- Lookup: hashlet → wh64 val ---
+// hexlen: number of significant hex chars in the hashlet (6-10).
+// With 40-bit hashlets, max is 10.
 
-ok64 KEEPLookup(keeper *k, hash64 h, u64p val) {
+ok64 KEEPLookup(keeper *k, u64 hashlet, size_t hexlen, u64p val) {
     sane(k && val);
-    // Construct search key: match on the prefix bits, ignoring type
-    u64 prefix = hash64Prefix(h);
-    kv64 probe = {.key = h, .val = 0};
 
-    // Search each run via binary search
+    // Build range for prefix matching.
+    // Hashlet is in MS 40 bits of wh64, so pack with type=0, id=0.
+    // key_lo: hashlet with unspecified nibbles zeroed.
+    // key_hi: hashlet with unspecified nibbles set to 0xf.
+    if (hexlen > 10) hexlen = 10;
+    u64 nbits = hexlen * 4;
+    u64 shift = 40 - nbits;  // unspecified bits within the 40-bit field
+    u64 hmask = shift < 40 ? (WHIFF_OFF_MASK >> shift) << shift : WHIFF_OFF_MASK;
+    u64 hpre = hashlet & hmask;
+
+    u64 key_lo = wh64Pack(0, 0, hpre);
+    u64 key_hi = wh64Pack(0xf, WHIFF_ID_MASK, hpre | (~hmask & WHIFF_OFF_MASK));
+
     for (u32 r = 0; r < k->nruns; r++) {
         kv64cp base = k->runs[r][0];
         size_t len = (size_t)(k->runs[r][1] - base);
         size_t lo = 0, hi = len;
         while (lo < hi) {
             size_t mid = lo + (hi - lo) / 2;
-            // Compare on prefix only (mask out type bits in key)
-            u64 mk = base[mid].key & HASH_PREFIX_MASK;
-            if (mk < prefix) lo = mid + 1;
+            if (base[mid].key < key_lo) lo = mid + 1;
             else hi = mid;
         }
-        if (lo < len && (base[lo].key & HASH_PREFIX_MASK) == prefix) {
+        if (lo < len && base[lo].key >= key_lo && base[lo].key <= key_hi) {
             *val = base[lo].val;
             done;
         }
@@ -195,26 +207,26 @@ ok64 KEEPLookup(keeper *k, hash64 h, u64p val) {
 
 // --- Has ---
 
-ok64 KEEPHas(keeper *k, hash64 h) {
+ok64 KEEPHas(keeper *k, u64 hashlet, size_t hexlen) {
     u64 val = 0;
-    return KEEPLookup(k, h, &val);
+    return KEEPLookup(k, hashlet, hexlen, &val);
 }
 
 // --- Get: inflate object from pack ---
 
 #define KEEP_BUFSZ (1ULL << 26)  // 64 MB working buffer
 
-ok64 KEEPGet(keeper *k, hash64 h, u8bp out) {
+ok64 KEEPGet(keeper *k, u64 hashlet, size_t hexlen, u8bp out) {
     sane(k && out);
 
     u64 val = 0;
-    call(KEEPLookup, k, h, &val);
+    call(KEEPLookup, k, hashlet, hexlen, &val);
 
     u32 file_id = wh64Id(val);
     u64 offset  = wh64Off(val);
 
-    if (file_id >= k->npacks) return KEEPNONE;
-    u8bp pack_map = k->packs[file_id];
+    if (file_id < 1 || file_id > k->npacks) return KEEPNONE;
+    u8bp pack_map = k->packs[file_id - 1];
     u8cp pack = u8bDataHead(pack_map);
     u64 packlen = (u64)(u8bIdleHead(pack_map) - pack);
 
@@ -260,9 +272,9 @@ ok64 KEEPGet(keeper *k, hash64 h, u8bp out) {
             cur = cur - obj.ofs_delta;
         } else if (obj.type == PACK_OBJ_REF_DELTA) {
             // Look up base by SHA-1 prefix
-            hash64 base_h = hash64FromSha1(obj.ref_delta[0], HASH_SHA1);
+            u64 base_hashlet = wh64Hashlet(obj.ref_delta[0]);
             u64 base_val = 0;
-            rc = KEEPLookup(k, base_h, &base_val);
+            rc = KEEPLookup(k, base_hashlet, 10, &base_val);
             if (rc != OK) goto cleanup;
             // Base might be in a different pack file
             u32 bfile = wh64Id(base_val);
@@ -327,9 +339,9 @@ ok64 KEEPScan(keeper *k, u64 from_val, keep_cb cb, void *ctx) {
     u32 file_id = wh64Id(from_val);
     u64 offset  = wh64Off(from_val);
 
-    if (file_id >= k->npacks) return KEEPNONE;
-    u8cp pack = u8bDataHead(k->packs[file_id]);
-    u64 packlen = (u64)(u8bIdleHead(k->packs[file_id]) - pack);
+    if (file_id < 1 || file_id > k->npacks) return KEEPNONE;
+    u8cp pack = u8bDataHead(k->packs[file_id - 1]);
+    u64 packlen = (u64)(u8bIdleHead(k->packs[file_id - 1]) - pack);
 
     // Skip PACK header if at start
     if (offset == 0 && packlen >= 12) {
@@ -349,7 +361,7 @@ ok64 KEEPScan(keeper *k, u64 from_val, keep_cb cb, void *ctx) {
         if (obj.type >= 1 && obj.type <= 4 && obj.size <= KEEP_BUFSZ) {
             u8s into = {buf, buf + KEEP_BUFSZ};
             if (PACKInflate(from, into, obj.size) == OK) {
-                // Compute SHA-1 for hash64
+                // Compute SHA-1 for u64
                 // git object = "<type> <size>\0<content>"
                 char hdr[64];
                 int hlen = snprintf(hdr, sizeof(hdr), "%s %llu",
@@ -361,9 +373,9 @@ ok64 KEEPScan(keeper *k, u64 from_val, keep_cb cb, void *ctx) {
                 SHA1Sum(sha, NULL, 0);  // placeholder — need proper hash
                 // FIXME: compute proper git object SHA-1 (header + content)
 
-                hash64 h = hash64FromSha1(sha, HASH_SHA1);
+                u64 hashlet = wh64Hashlet(sha);
                 u8cs content = {buf, buf + obj.size};
-                o = cb(obj.type, content, h, ctx);
+                o = cb(obj.type, content, hashlet, ctx);
                 if (o != OK) break;
             }
         }
@@ -375,6 +387,145 @@ ok64 KEEPScan(keeper *k, u64 from_val, keep_cb cb, void *ctx) {
     }
 
     free(buf);
+    done;
+}
+
+// --- Import: read git .idx v2 file alongside .pack, build kv64 index ---
+//
+// Git pack index v2 format:
+//   magic (ff744f63), version (2), 256 fanout entries (u32 BE),
+//   N×20 SHA-1, N×u32 CRC, N×u32 offset (BE), [8-byte offsets for >2GB]
+//   pack SHA-1, index SHA-1
+
+ok64 KEEPImport(keeper *k, u8cs pack_path) {
+    sane(k && $ok(pack_path));
+
+    // NUL-terminate pack_path for FILEMapRO
+    a_path(pack_pp, pack_path);
+
+    // Derive .idx path from .pack path (replace extension)
+    a_pad(u8, idx_path_buf, 1024);
+    call(u8bFeed, idx_path_buf, pack_path);
+    size_t plen = u8bDataLen(idx_path_buf);
+    if (plen >= 5 && memcmp(u8bDataHead(idx_path_buf) + plen - 5, ".pack", 5) == 0)
+        ((u8 **)idx_path_buf)[2] -= 5;
+    else {
+        fprintf(stderr, "keeper: expected .pack file\n");
+        fail(KEEPFAIL);
+    }
+    a_cstr(idx_ext, ".idx");
+    call(u8bFeed, idx_path_buf, idx_ext);
+    call(PATHu8gTerm, PATHu8gIn(idx_path_buf));
+
+    // Map both files
+    u8bp pack_map = NULL, idx_map = NULL;
+    call(FILEMapRO, &pack_map, PATHu8cgIn(pack_pp));
+    ok64 io = FILEMapRO(&idx_map, PATHu8cgIn(idx_path_buf));
+    if (io != OK) { FILEUnMap(pack_map); return io; }
+
+    u8cp idx = u8bDataHead(idx_map);
+    u64 idx_len = (u64)(u8bIdleHead(idx_map) - idx);
+
+    // Verify idx v2 header
+    if (idx_len < 8 + 256*4 || idx[0] != 0xff || idx[1] != 0x74 ||
+        idx[2] != 0x4f || idx[3] != 0x63) {
+        fprintf(stderr, "keeper: not a git pack index v2\n");
+        FILEUnMap(pack_map); FILEUnMap(idx_map);
+        fail(KEEPFAIL);
+    }
+
+    // Read total object count from fanout[255]
+    u8cp fanout = idx + 8;
+    u32 nobjects = (fanout[255*4] << 24) | (fanout[255*4+1] << 16) |
+                   (fanout[255*4+2] << 8) | fanout[255*4+3];
+
+    // Pointers to the three tables
+    u8cp sha_table = idx + 8 + 256 * 4;               // N × 20 bytes
+    u8cp crc_table = sha_table + (u64)nobjects * 20;   // N × 4 bytes
+    u8cp off_table = crc_table + (u64)nobjects * 4;    // N × 4 bytes
+
+    if ((u64)(off_table + (u64)nobjects * 4 - idx) > idx_len) {
+        fprintf(stderr, "keeper: index file too small\n");
+        FILEUnMap(pack_map); FILEUnMap(idx_map);
+        fail(KEEPFAIL);
+    }
+
+    fprintf(stderr, "keeper: importing %u objects\n", nobjects);
+
+    // Determine file_id (1-based, matching filename NNNN.packs)
+    u32 file_id = k->npacks + 1;
+    u8cs kdir = {(u8cp)k->dir, (u8cp)k->dir + strlen(k->dir)};
+    {
+        a_pad(u8, dst, 1024);
+        call(u8bFeed, dst, kdir);
+        call(u8bFeed1, dst, '/');
+        call(RONu8sFeedPad, u8bIdle(dst), (u64)file_id, KEEP_SEQNO_W);
+        ((u8 **)dst)[2] += KEEP_SEQNO_W;
+        a_cstr(ext, KEEP_PACK_EXT);
+        call(u8bFeed, dst, ext);
+        call(PATHu8gTerm, PATHu8gIn(dst));
+
+        int fd = -1;
+        call(FILECreate, &fd, PATHu8cgIn(dst));
+        u8cs data = {u8bDataHead(pack_map),
+                     u8bDataHead(pack_map) + (u8bIdleHead(pack_map) - u8bDataHead(pack_map))};
+        call(FILEFeedall, fd, data);
+        close(fd);
+    }
+
+    // Build kv64 entries from the idx tables
+    kv64 *entries = (kv64 *)malloc((u64)nobjects * sizeof(kv64));
+    if (!entries) { FILEUnMap(pack_map); FILEUnMap(idx_map); failc(KEEPNOROOM); }
+
+    for (u32 i = 0; i < nobjects; i++) {
+        u8cp sha = sha_table + (u64)i * 20;
+        u64 hashlet = wh64Hashlet(sha);
+
+        // 4-byte offset (BE), high bit = large offset flag
+        u8cp offp = off_table + (u64)i * 4;
+        u64 off = ((u64)offp[0] << 24) | ((u64)offp[1] << 16) |
+                  ((u64)offp[2] << 8) | offp[3];
+
+        if (off & 0x80000000ULL) {
+            // Large offset: index into 8-byte offset table
+            // FIXME: handle >2GB packs
+            off &= 0x7FFFFFFF;
+        }
+
+        entries[i].key = wh64Pack(HASH_SHA1, 0, hashlet);
+        entries[i].val = wh64Pack(KEEP_PACK, file_id, off);
+    }
+
+    // Sort and dedup
+    kv64s sorted = {entries, entries + nobjects};
+    kv64sSort(sorted);
+    kv64sDedup(sorted);
+    u32 nentries = (u32)(sorted[1] - sorted[0]);
+
+    // Write .idx file
+    {
+        u64 seqno = (u64)file_id;
+        a_pad(u8, idxpath, 1024);
+        call(u8bFeed, idxpath, kdir);
+        call(u8bFeed1, idxpath, '/');
+        call(RONu8sFeedPad, u8bIdle(idxpath), seqno, KEEP_SEQNO_W);
+        ((u8 **)idxpath)[2] += KEEP_SEQNO_W;
+        a_cstr(ext2, KEEP_IDX_EXT);
+        call(u8bFeed, idxpath, ext2);
+        call(PATHu8gTerm, PATHu8gIn(idxpath));
+
+        int fd = -1;
+        call(FILECreate, &fd, PATHu8cgIn(idxpath));
+        u8cs data = {(u8cp)entries, (u8cp)(entries + nentries)};
+        call(FILEFeedall, fd, data);
+        close(fd);
+    }
+
+    free(entries);
+    FILEUnMap(pack_map);
+    FILEUnMap(idx_map);
+
+    fprintf(stderr, "keeper: indexed %u objects\n", nentries);
     done;
 }
 
