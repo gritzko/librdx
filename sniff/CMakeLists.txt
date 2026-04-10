@@ -10,3 +10,7 @@ include_directories(.. .)
 
 add_library(snifflib STATIC SNIFF.h SNIFF.c)
 target_link_libraries(snifflib abc-core)
+
+add_executable(sniff-cli SNIFF.cli.c ../abc/FSW.c)
+target_link_libraries(sniff-cli snifflib dog abc-core)
+set_target_properties(sniff-cli PROPERTIES OUTPUT_NAME sniff)
