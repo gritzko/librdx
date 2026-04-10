@@ -1,11 +1,16 @@
-//  BLAME: token-level blame via weave + DAG index.
+//  BLAME: token-level blame via git log history + weave.
 //
-//  Walks the PREV_BLOB chain, builds a weave, then renders
-//  blame annotations per line.  Emits hunks via GRAFHunkEmit
-//  (TLV to bro on tty, plain text when piped).
+//  Walks file history via `git log --follow --no-merges`, builds
+//  a weave from successive blob versions, renders blame annotations
+//  per line.  Emits hunks via GRAFHunkEmit (TLV to bro on tty,
+//  plain text when piped).
+//
+//  WEAVE DIFF: fetches from/to blobs via `git show`, runs pairwise
+//  token-level diff via DIFFu8cs.
 //
 #include "GRAF.h"
 #include "DAG.h"
+#include "TDIFF.h"
 #include "WEAVE.h"
 
 #include <stdio.h>
@@ -26,7 +31,7 @@ typedef struct {
     u32 gen;
 } blame_ver;
 
-#define BLAME_MAX_VERS 4096
+#define BLAME_MAX_VERS 256
 #define BLAME_MAX_AUTHORS 256
 
 // --- Author table: gen → author + date ---
@@ -147,31 +152,98 @@ static void blame_fetch_author(blame_author *ba,
 
 // --- Walk PREV_BLOB chain from the index ---
 
-static u32 blame_walk_chain(blame_ver *vers, u32 maxvers,
-                             dag_stack const *st,
-                             u64 start_blob, u32 start_gen) {
-    u32 n = 0;
-    u64 bh = start_blob;
-    u32 gen = start_gen;
+// Walk file history via git log (correct merge handling).
+// Returns versions newest-first.  Each version has the blob SHA
+// (as hashlet), the commit SHA (as hashlet), and a synthetic gen
+// (sequence number, newest = highest).
+static u32 blame_walk_history(blame_ver *vers, u32 maxvers,
+                               u8cs filepath, u8cs reporoot) {
+    char cmd[2048];
+    snprintf(cmd, sizeof(cmd),
+             "git -C %.*s log --all --follow --no-merges"
+             " --diff-filter=ACMRT --format='%%H'"
+             " --raw --no-abbrev -z -- %.*s 2>/dev/null",
+             (int)$len(reporoot), (char *)reporoot[0],
+             (int)$len(filepath), (char *)filepath[0]);
+    FILE *fp = popen(cmd, "r");
+    if (!fp) return 0;
 
-    while (n < maxvers) {
-        vers[n].blob_hashlet = bh;
-        vers[n].gen = gen;
-        vers[n].commit_hashlet = 0;
+    // Read entire output into buffer
+    char buf[1 << 18];
+    size_t total = 0;
+    size_t n;
+    while ((n = fread(buf + total, 1, sizeof(buf) - total - 1, fp)) > 0)
+        total += n;
+    pclose(fp);
+    buf[total] = 0;
 
-        belt128cp bc = DAGLookup(st, DAG_BLOB_COMMIT, bh);
-        if (bc) vers[n].commit_hashlet = DAGHashlet(bc->b);
-        n++;
+    // Parse: with -z, format is NUL-separated:
+    // "<sha>\0:<modes> <old_sha> <new_sha> <status>\0<path>\0<next_sha>\0..."
+    u32 count = 0;
+    char *p = buf;
+    char *end = buf + total;
 
-        // Walk backward: find PREV_BLOB with b.gen < current gen
-        belt128cp prev = DAGLookup(st, DAG_PREV_BLOB, bh);
-        if (!prev) break;
-        u32 pgen = DAGGen(prev->b);
-        if (pgen >= gen) break;  // must go backward
-        bh = DAGHashlet(prev->b);
-        gen = pgen;
+    while (p < end && count < maxvers) {
+        // Skip NULs and whitespace
+        while (p < end && (*p == 0 || *p == '\n' || *p == '\r')) p++;
+        if (p >= end) break;
+
+        // Expect commit SHA (40 hex chars)
+        if (p + 40 > end || !((*p >= '0' && *p <= '9') || (*p >= 'a' && *p <= 'f')))
+            { p++; continue; }
+        char commit_hex[44];
+        memcpy(commit_hex, p, 40);
+        commit_hex[40] = 0;
+        p += 40;
+        // Skip past NUL after commit SHA
+        while (p < end && (*p == 0 || *p == '\n')) p++;
+
+        // Parse raw diff entries: ":old_mode new_mode old_sha new_sha status\0path\0"
+        while (p < end && *p == ':') {
+            // Skip to old_sha (past ":old_mode new_mode ")
+            char *q = p + 1;
+            while (q < end && *q != ' ') q++;  // skip old_mode
+            if (q < end) q++;
+            while (q < end && *q != ' ') q++;  // skip new_mode
+            if (q < end) q++;
+            // q now at old_sha
+            char *old_sha_p = q;
+            while (q < end && *q != ' ') q++;  // skip old_sha
+            if (q < end) q++;
+            // q now at new_sha
+            char *new_sha_p = q;
+            while (q < end && *q != ' ') q++;  // skip new_sha
+            if (q < end) q++;
+            // q now at status
+            char status = (q < end) ? *q : '?';
+
+            // Skip to end of record (NUL-terminated with -z)
+            while (q < end && *q != 0 && *q != '\n') q++;
+            if (q < end && *q == 0) q++;  // past NUL
+            // Skip path
+            while (q < end && *q != 0 && *q != '\n' && *q != ':') q++;
+            if (q < end && *q == 0) q++;
+            // Skip second path for renames
+            if ((status == 'R' || status == 'C') && q < end && *q != ':' && *q != '\n') {
+                while (q < end && *q != 0 && *q != '\n') q++;
+                if (q < end && *q == 0) q++;
+            }
+            p = q;
+
+            if (new_sha_p + 40 <= end &&
+                ((new_sha_p[0] >= '0' && new_sha_p[0] <= '9') ||
+                 (new_sha_p[0] >= 'a' && new_sha_p[0] <= 'f'))) {
+                sha1 cs = {}, bs = {};
+                DAGsha1FromHex(&cs, commit_hex);
+                DAGsha1FromHex(&bs, new_sha_p);
+                vers[count].commit_hashlet = DAGsha1Hashlet(&cs);
+                vers[count].blob_hashlet = DAGsha1Hashlet(&bs);
+                vers[count].gen = maxvers - count;
+                count++;
+            }
+        }
     }
-    return n;
+    return count;
 }
 
 // --- Find author for a gen in the author table ---
@@ -192,53 +264,9 @@ ok64 GRAFBlame(u8cs filepath, u8cs reporoot) {
 
     call(GRAFArenaInit);
 
-    // Open DAG index
-    a_path(dagpath, reporoot);
-    a_cstr(dagrel, "/.dogs/graf");
-    call(u8bFeed, dagpath, dagrel);
-    call(PATHu8gTerm, PATHu8gIn(dagpath));
-    a_dup(u8c, dagdir, u8bDataC(dagpath));
-
-    dag_stack st = {};
-    call(dag_stack_open, &st, dagdir);
-
-    // Get current blob for the file: git ls-tree HEAD -- <file>
-    char cmd[2048];
-    snprintf(cmd, sizeof(cmd),
-             "git -C %.*s ls-tree HEAD -- %.*s",
-             (int)$len(reporoot), (char *)reporoot[0],
-             (int)$len(filepath), (char *)filepath[0]);
-    FILE *fp = popen(cmd, "r");
-    if (!fp) { dag_stack_close(&st); fail(DAGFAIL); }
-    char lbuf[512];
-    char *got = fgets(lbuf, sizeof(lbuf), fp);
-    pclose(fp);
-    if (!got) { dag_stack_close(&st); fail(DAGFAIL); }
-
-    // Parse: "mode type sha\tpath"
-    char *tab = strchr(lbuf, '\t');
-    if (!tab) { dag_stack_close(&st); fail(DAGFAIL); }
-    // Find the sha (third space-separated field)
-    char *p = lbuf;
-    while (*p && *p != ' ') p++; // skip mode
-    while (*p == ' ') p++;
-    while (*p && *p != ' ') p++; // skip type
-    while (*p == ' ') p++;
-    // p now points to sha
-    if (p + 40 > tab) { dag_stack_close(&st); fail(DAGFAIL); }
-
-    sha1 head_blob = {};
-    DAGsha1FromHex(&head_blob, p);
-    u64 head_bh = DAGsha1Hashlet(&head_blob);
-
-    // Find gen for HEAD blob via BLOB_COMMIT
-    u32 head_gen = 0;
-    belt128cp bc = DAGLookup(&st, DAG_BLOB_COMMIT, head_bh);
-    if (bc) head_gen = DAGGen(bc->a);
-
-    // Walk PREV_BLOB chain
+    // Walk file history via git log (handles merges correctly)
     blame_ver vers[BLAME_MAX_VERS];
-    u32 nvers = blame_walk_chain(vers, BLAME_MAX_VERS, &st, head_bh, head_gen);
+    u32 nvers = blame_walk_history(vers, BLAME_MAX_VERS, filepath, reporoot);
 
     // Reverse to oldest first, then deduplicate (keep first = oldest)
     for (u32 i = 0; i < nvers / 2; i++) {
@@ -302,8 +330,6 @@ ok64 GRAFBlame(u8cs filepath, u8cs reporoot) {
     }
     u8bUnMap(blob_a);
     u8bUnMap(blob_b);
-
-    dag_stack_close(&st);
 
     // Render blame: "hashlet name date code"
     //   7-char hashlet (greenish grey), 12-char name (bluish grey),
@@ -414,7 +440,7 @@ ok64 GRAFBlame(u8cs filepath, u8cs reporoot) {
     // Emit blame as a single hunk (no syntax highlighting on annotated text)
     {
         char title[128];
-        snprintf(title, sizeof(title), "--- %.*s (blame) ---",
+        snprintf(title, sizeof(title), "%.*s (blame)",
                  (int)$len(filepath), (char *)filepath[0]);
 
         u8cs fdata = {u8bDataHead(outbuf),
@@ -428,6 +454,85 @@ ok64 GRAFBlame(u8cs filepath, u8cs reporoot) {
 
     u8bUnMap(outbuf);
     WEAVEFree(&wv);
+    GRAFArenaCleanup();
+    done;
+}
+
+// --- Weave diff ---
+
+ok64 GRAFWeaveDiff(u8cs filepath, u8cs reporoot, u8cs from, u8cs to) {
+    sane($ok(filepath) && $ok(reporoot));
+
+    call(GRAFArenaInit);
+
+    u8cs ext = {};
+    HUNKu8sExt(ext, filepath[0], $len(filepath));
+    if (!$empty(ext) && *ext[0] == '.') ext[0]++;
+
+    // Fetch from/to blobs via git show, then pairwise diff.
+    // Fetch blobs directly; weave extraction needs ordering fix first.
+    Bu8 from_buf = {}, to_buf = {};
+    call(u8bMap, from_buf, 16UL << 20);
+    call(u8bMap, to_buf, 16UL << 20);
+
+    // Fetch to-blob (HEAD or --to commit)
+    {
+        char gcmd[2048];
+        if (!$empty(to))
+            snprintf(gcmd, sizeof(gcmd), "git -C %.*s show %.*s:%.*s 2>/dev/null",
+                     (int)$len(reporoot), (char *)reporoot[0],
+                     (int)$len(to), (char *)to[0],
+                     (int)$len(filepath), (char *)filepath[0]);
+        else
+            snprintf(gcmd, sizeof(gcmd), "git -C %.*s show HEAD:%.*s 2>/dev/null",
+                     (int)$len(reporoot), (char *)reporoot[0],
+                     (int)$len(filepath), (char *)filepath[0]);
+        FILE *gf = popen(gcmd, "r");
+        if (gf) {
+            char chunk[8192]; size_t n;
+            while ((n = fread(chunk, 1, sizeof(chunk), gf)) > 0) {
+                u8cs data = {(u8cp)chunk, (u8cp)chunk + n};
+                u8bFeed(to_buf, data);
+            }
+            pclose(gf);
+        }
+    }
+
+    // Fetch from-blob (--from commit, empty if not specified)
+    if (!$empty(from)) {
+        char gcmd[2048];
+        snprintf(gcmd, sizeof(gcmd), "git -C %.*s show %.*s:%.*s 2>/dev/null",
+                 (int)$len(reporoot), (char *)reporoot[0],
+                 (int)$len(from), (char *)from[0],
+                 (int)$len(filepath), (char *)filepath[0]);
+        FILE *gf = popen(gcmd, "r");
+        if (gf) {
+            char chunk[8192]; size_t n;
+            while ((n = fread(chunk, 1, sizeof(chunk), gf)) > 0) {
+                u8cs data = {(u8cp)chunk, (u8cp)chunk + n};
+                u8bFeed(from_buf, data);
+            }
+            pclose(gf);
+        }
+    }
+
+    // Run the standard token-level diff
+    {
+        u8cs old_data = {u8bDataHead(from_buf),
+                         u8bDataHead(from_buf) + u8bDataLen(from_buf)};
+        u8cs new_data = {u8bDataHead(to_buf),
+                         u8bDataHead(to_buf) + u8bDataLen(to_buf)};
+
+        char dispname[512];
+        snprintf(dispname, sizeof(dispname), "%.*s",
+                 (int)$len(filepath), (char *)filepath[0]);
+
+        call(DIFFu8cs, graf_arena, old_data, new_data,
+             ext, dispname, GRAFHunkEmit, NULL);
+    }
+
+    u8bUnMap(from_buf);
+    u8bUnMap(to_buf);
     GRAFArenaCleanup();
     done;
 }

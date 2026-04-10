@@ -44,4 +44,9 @@ ok64 GRAFInstall(u8cs reporoot);
 // emits blame-annotated hunks via GRAFHunkEmit.
 ok64 GRAFBlame(u8cs filepath, u8cs reporoot);
 
+// Weave diff: history-aware diff between two versions of a file.
+// from/to are commit prefixes (empty = root / HEAD respectively).
+// Scans the weave, classifies tokens as context/ins/del, emits hunks.
+ok64 GRAFWeaveDiff(u8cs filepath, u8cs reporoot, u8cs from, u8cs to);
+
 #endif
