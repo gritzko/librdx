@@ -221,6 +221,7 @@ ok64 DIFFu8cs(Bu8 arena,
         #define CTX_LINES 3
         u32 nedl = (u32)(edl[0] - edl[2]);
 
+
         // Phase 1: visible-line intervals
         Bu32 visbuf = {};
         u32 *vis = NULL;
@@ -538,9 +539,21 @@ ok64 DIFFu8cs(Bu8 arena,
                     }
                 }
 
+                // Insert synthetic newline between DEL and INS when the
+                // DEL block contains a newline (spans multiple lines) but
+                // doesn't end with one.  This prevents concatenation of
+                // old and new content on the same output line.
+                b8 del_has_nl = NO;
+                for (u64 di = base_oi + prefix;
+                     di < base_oi + del_total - suffix && !del_has_nl; di++) {
+                    u8cs dv = {};
+                    tok32Val(dv, old_ts, old_f.data[0], (int)di);
+                    $for(u8c, cp, dv)
+                        if (*cp == '\n') { del_has_nl = YES; break; }
+                }
                 if (del_total > prefix + suffix &&
                     ins_total > prefix + suffix &&
-                    (dtxp == (u8p)cur_hunk->text[0] || *(dtxp - 1) == '\n')) {
+                    del_has_nl) {
                     u64 last_del = base_oi + del_total - suffix - 1;
                     u8cs ldv = {};
                     tok32Val(ldv, old_ts, old_f.data[0], (int)last_del);

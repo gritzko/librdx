@@ -140,3 +140,59 @@ if [ "$NFAILS" -gt 0 ]; then
 fi
 
 echo "PASSED"
+
+# --- Token boundary test ---
+# When `for (i = 0` becomes `for (size_t i = 0`, the shared prefix
+# `for (` must not cause the DEL and INS content to concatenate on
+# the same output line.  `for (` must appear exactly once in context
+# or deletion, never as `for (for (`.
+
+TOKBND_OLD="$DATADIR/tokbnd_old.c"
+TOKBND_NEW="$DATADIR/tokbnd_new.c"
+
+TOUT=$("$GRAF" --diff "$TOKBND_OLD" "$TOKBND_NEW" 2>&1 | perl -pe 's/\e\[[0-9;]*m//g')
+TFAILS=0
+
+echo "=== token boundary test ==="
+
+check_tokbnd() {
+    local pattern="$1"
+    local desc="$2"
+    if echo "$TOUT" | grep -qF "$pattern"; then
+        echo "FAIL: found '$pattern' — $desc"
+        TFAILS=$((TFAILS + 1))
+    else
+        echo "  OK: no '$pattern'"
+    fi
+}
+
+# These concatenations must NOT appear
+check_tokbnd "for (for (" "DEL/INS concatenated"
+check_tokbnd "for (size_t for (" "INS/DEL concatenated"
+
+# The deletion must contain 'for (' (the shared prefix that's deleted
+# because the old line structure differs).  Token-level diff may split
+# the old line differently than line-level diff.
+if ! echo "$TOUT" | grep -q '^-.*for ('; then
+    echo "FAIL: no deletion line with 'for (' found"
+    TFAILS=$((TFAILS + 1))
+else
+    echo "  OK: deletion with 'for (' present"
+fi
+
+# The correct insertion line must exist
+if ! echo "$TOUT" | grep -qF 'for (size_t i = 0'; then
+    echo "FAIL: insertion 'for (size_t i = 0' not found"
+    TFAILS=$((TFAILS + 1))
+else
+    echo "  OK: insertion 'for (size_t i = 0' present"
+fi
+
+if [ "$TFAILS" -gt 0 ]; then
+    echo "FAILED: $TFAILS token boundary checks failed"
+    echo "--- full output ---"
+    echo "$TOUT"
+    exit 1
+fi
+
+echo "PASSED"
