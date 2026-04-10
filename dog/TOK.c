@@ -58,6 +58,7 @@
 #include "MDT.h"
 #include "MKDT.h"
 #include "LLT.h"
+#include "abc/PATH.h"
 #include "abc/PRO.h"
 
 fun b8 TOKIsAlpha_(u8 c) {
@@ -208,6 +209,29 @@ static const TOKentry TOK_TABLE[] = {
     {NULL,         NULL},
 };
 
+// Filename → lexer table for files whose names are their type.
+static const TOKentry TOK_NAME_TABLE[] = {
+    {"CMakeLists.txt", (TOKfn)CMKTLexer},
+    {"Makefile",       (TOKfn)MAKTLexer},
+    {"makefile",       (TOKfn)MAKTLexer},
+    {"GNUmakefile",    (TOKfn)MAKTLexer},
+    {"Dockerfile",     (TOKfn)DKFTLexer},
+    {"Vagrantfile",    (TOKfn)RBTLexer},
+    {"Gemfile",        (TOKfn)RBTLexer},
+    {"Rakefile",       (TOKfn)RBTLexer},
+    {"Justfile",       (TOKfn)MAKTLexer},
+    {".gitignore",     (TOKfn)SHTLexer},
+    {".gitattributes", (TOKfn)SHTLexer},
+    {".gitmodules",    (TOKfn)TOMLTLexer},
+    {".bashrc",        (TOKfn)SHTLexer},
+    {".bash_profile",  (TOKfn)SHTLexer},
+    {".profile",       (TOKfn)SHTLexer},
+    {".zshrc",         (TOKfn)SHTLexer},
+    {".vimrc",         (TOKfn)VIMTLexer},
+    {".clang-format",  (TOKfn)YMLTLexer},
+    {NULL,             NULL},
+};
+
 const char *TOKExtAt(int i) {
     if (i < 0) return NULL;
     int n = (int)(sizeof(TOK_TABLE) / sizeof(TOK_TABLE[0])) - 1;
@@ -215,51 +239,89 @@ const char *TOKExtAt(int i) {
     return TOK_TABLE[i].ext;
 }
 
-static b8 TOKExtMatch(u8csc ext, const char *pat) {
-    u64 len = u8csLen(ext);
+static b8 TOKSliceMatch(u8csc s, const char *pat) {
+    u64 len = u8csLen(s);
     u64 plen = 0;
     while (pat[plen]) ++plen;
     if (len != plen) return NO;
-    return __builtin_memcmp(ext[0], pat, len) == 0;
+    return __builtin_memcmp(s[0], pat, len) == 0;
 }
 
-b8 TOKKnownExt(u8csc ext) {
-    for (const TOKentry *e = TOK_TABLE; e->ext != NULL; ++e)
-        if (TOKExtMatch(ext, e->ext)) return YES;
-    return NO;
-}
+// Wrappers around abc/PATH for basename and extension extraction.
 
-static TOKfn TOKFindLexer(u8csc ext) {
-    for (const TOKentry *e = TOK_TABLE; e->ext != NULL; ++e)
-        if (TOKExtMatch(ext, e->ext)) return e->lexer;
+// Try the name table against the basename of `path`.
+static TOKfn TOKFindByName(u8csc path) {
+    u8cs base = {};
+    PATHu8sBase(base, path);
+    if ($empty(base)) return NULL;
+    for (const TOKentry *e = TOK_NAME_TABLE; e->ext != NULL; ++e)
+        if (TOKSliceMatch(base, e->ext)) return e->lexer;
     return NULL;
 }
 
-static void TOKStripDot(u8cs out, u8csc ext) {
-    if (!$empty(ext) && ext[0][0] == '.') {
-        out[0] = ext[0] + 1; out[1] = ext[1];
-    } else {
-        $mv(out, ext);
+// Try the ext table against the extension of `path`.
+static TOKfn TOKFindByExt(u8csc path) {
+    u8cs ext = {};
+    PATHu8sExt(ext, path);
+    if ($empty(ext)) return NULL;
+    for (const TOKentry *e = TOK_TABLE; e->ext != NULL; ++e)
+        if (TOKSliceMatch(ext, e->ext)) return e->lexer;
+    return NULL;
+}
+
+// Resolve lexer for a path, filename, or bare extension.
+// Tries: 1) name table by basename, 2) ext table by extension.
+static TOKfn TOKResolve(u8csc input) {
+    if ($empty(input)) return NULL;
+    // If input has no dot and no slash, treat as bare ext directly.
+    b8 has_dot = NO, has_slash = NO;
+    $for(u8c, p, input) {
+        if (*p == '.') has_dot = YES;
+        if (*p == '/') has_slash = YES;
     }
+    if (!has_dot && !has_slash) {
+        // Bare extension like "c" or "py" — try ext table first.
+        for (const TOKentry *e = TOK_TABLE; e->ext != NULL; ++e)
+            if (TOKSliceMatch(input, e->ext)) return e->lexer;
+        // Then name table for extensionless filenames (Makefile, etc.).
+        TOKfn fn = TOKFindByName(input);
+        if (fn) return fn;
+        return NULL;
+    }
+    // Strip leading dot if caller passed ".c" style.
+    u8cs stripped = {};
+    if (input[0][0] == '.' && !has_slash && $len(input) > 1) {
+        // Could be ".c" (dotted ext) or ".gitignore" (dotfile name).
+        // Try name table for dotfiles first.
+        TOKfn fn = TOKFindByName(input);
+        if (fn) return fn;
+        // Then try as dotted ext.
+        stripped[0] = input[0] + 1;
+        stripped[1] = input[1];
+        for (const TOKentry *e = TOK_TABLE; e->ext != NULL; ++e)
+            if (TOKSliceMatch(stripped, e->ext)) return e->lexer;
+        return NULL;
+    }
+    // Full path or filename: try name, then ext.
+    TOKfn fn = TOKFindByName(input);
+    if (fn) return fn;
+    return TOKFindByExt(input);
+}
+
+b8 TOKKnownExt(u8csc ext) {
+    return TOKResolve(ext) != NULL;
 }
 
 b8 TOKSameLexer(u8csc a, u8csc b) {
-    u8cs na = {}, nb = {};
-    TOKStripDot(na, a); TOKStripDot(nb, b);
-    TOKfn fa = TOKFindLexer(na);
-    TOKfn fb = TOKFindLexer(nb);
+    TOKfn fa = TOKResolve(a);
+    TOKfn fb = TOKResolve(b);
     return fa != NULL && fa == fb;
 }
 
 ok64 TOKLexer(TOKstate *state, u8csc ext) {
     sane($ok(state->data) && state != NULL);
-    for (const TOKentry *e = TOK_TABLE; e->ext != NULL; ++e) {
-        if (TOKExtMatch(ext, e->ext)) {
-            call(e->lexer, state);
-            done;
-        }
-    }
-    TOKfn fallback = (TOKfn)TXTTLexer;
-    call(fallback, state);
+    TOKfn fn = TOKResolve(ext);
+    if (fn == NULL) fn = (TOKfn)TXTTLexer;
+    call(fn, state);
     done;
 }

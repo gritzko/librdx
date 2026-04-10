@@ -1,0 +1,26 @@
+#ifndef XX_DELT_H
+#define XX_DELT_H
+
+//  DELT: git delta instruction parser/applier
+//
+//  Git delta format (after zlib decompression):
+//    <base-size-varint> <result-size-varint>
+//    (<copy-instruction> | <insert-instruction>)*
+//
+//  Copy:  high bit set, lower 7 bits select which of the next
+//         1-4 bytes encode offset and 1-3 bytes encode size.
+//  Insert: high bit clear, value 1..127 = number of literal bytes.
+
+#include "abc/INT.h"
+
+con ok64 DELTFAIL = 0xe45503ca495;
+con ok64 DELTBADFMT = 0xe45502ca34f59d;
+
+//  Apply delta instructions to a base object.
+//  `delta`  — decompressed delta instruction stream
+//  `base`   — base object content
+//  `out`    — output gauge; written data in left portion after return
+//  Returns OK, advances `delta` to end.
+ok64 DELTApply(u8cs delta, u8cs base, u8g out);
+
+#endif
