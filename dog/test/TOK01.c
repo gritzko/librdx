@@ -1076,6 +1076,77 @@ ok64 MDTFileTest() {
     done;
 }
 
+// --- TOKResolve: name table, ext table, paths, dotfiles ---
+
+#define TOK_KNOWN(s)  do { u8cs _s = $u8str(s); want(TOKKnownExt(_s) == YES); } while(0)
+#define TOK_UNKNOWN(s) do { u8cs _s = $u8str(s); want(TOKKnownExt(_s) == NO); } while(0)
+#define TOK_SAME(a, b) do { u8cs _a = $u8str(a), _b = $u8str(b); want(TOKSameLexer(_a, _b) == YES); } while(0)
+#define TOK_DIFF(a, b) do { u8cs _a = $u8str(a), _b = $u8str(b); want(TOKSameLexer(_a, _b) == NO); } while(0)
+
+ok64 TOKResolveTest() {
+    sane(1);
+
+    // Bare extensions
+    TOK_KNOWN("c");
+    TOK_KNOWN("py");
+    TOK_UNKNOWN("zzz_unknown");
+
+    // Dotted extensions
+    TOK_KNOWN(".c");
+    TOK_KNOWN(".go");
+    TOK_UNKNOWN(".nope");
+
+    // Name-table filenames
+    TOK_KNOWN("CMakeLists.txt");
+    TOK_KNOWN("Makefile");
+    TOK_KNOWN("Dockerfile");
+    TOK_KNOWN("Vagrantfile");
+
+    // Dotfiles
+    TOK_KNOWN(".gitignore");
+    TOK_KNOWN(".bashrc");
+    TOK_KNOWN(".vimrc");
+    TOK_KNOWN(".clang-format");
+    TOK_UNKNOWN(".randomfile");
+
+    // Full paths
+    TOK_KNOWN("src/CMakeLists.txt");
+    TOK_KNOWN("/home/user/Makefile");
+    TOK_KNOWN("foo/bar/baz.c");
+    TOK_KNOWN("foo/bar/.gitignore");
+    TOK_UNKNOWN("no/extension/here");
+
+    // SameLexer
+    TOK_SAME(".c", ".h");
+    TOK_SAME("c", "h");
+    TOK_SAME("foo.c", "bar.h");
+    TOK_DIFF(".c", ".py");
+    TOK_SAME("CMakeLists.txt", ".cmake");
+    TOK_SAME("Makefile", ".mk");
+
+    // Dispatch: CMakeLists.txt gets cmake lexer
+    {
+        const char *input = "cmake_minimum_required(VERSION 3.20)";
+        TOK01ctx ctx = {};
+        TOKstate state = {
+            .data = {(u8c *)input, (u8c *)input + strlen(input)},
+            .cb = TOK01cb,
+            .ctx = &ctx,
+        };
+        u8cs name = $u8str("CMakeLists.txt");
+        call(TOKLexer, &state, name);
+        want(ctx.count > 0);
+        want(ctx.tags[0] == 'R');  // cmake keyword
+    }
+
+    done;
+}
+
+#undef TOK_KNOWN
+#undef TOK_UNKNOWN
+#undef TOK_SAME
+#undef TOK_DIFF
+
 ok64 TOK01test() {
     sane(1);
     call(CTBasicTest);
@@ -1124,6 +1195,7 @@ ok64 TOK01test() {
     call(MDTCodeFenceTest);
     call(MDTFenceIsolationTest);
     call(MDTFileTest);
+    call(TOKResolveTest);
     done;
 }
 
