@@ -1,8 +1,12 @@
-//  BLAME: token-level blame via weave + DAG index.
+//  BLAME: token-level blame via git log history + weave.
 //
-//  Walks the PREV_BLOB chain, builds a weave, then renders
-//  blame annotations per line.  Emits hunks via GRAFHunkEmit
-//  (TLV to bro on tty, plain text when piped).
+//  Walks file history via `git log --follow --no-merges`, builds
+//  a weave from successive blob versions, renders blame annotations
+//  per line.  Emits hunks via GRAFHunkEmit (TLV to bro on tty,
+//  plain text when piped).
+//
+//  WEAVE DIFF: fetches from/to blobs via `git show`, runs pairwise
+//  token-level diff via DIFFu8cs.
 //
 #include "GRAF.h"
 #include "DAG.h"
@@ -27,7 +31,7 @@ typedef struct {
     u32 gen;
 } blame_ver;
 
-#define BLAME_MAX_VERS 4096
+#define BLAME_MAX_VERS 256
 #define BLAME_MAX_AUTHORS 256
 
 // --- Author table: gen → author + date ---
@@ -454,30 +458,6 @@ ok64 GRAFBlame(u8cs filepath, u8cs reporoot) {
     done;
 }
 
-// --- Resolve commit prefix to gen via index ---
-
-static u32 blame_resolve_commit(u8cs prefix, u8cs reporoot,
-                                 dag_stack const *st) {
-    if ($empty(prefix)) return 0;
-    // Use git rev-parse to get full SHA, then hashlet, then lookup COMMIT_GEN
-    char cmd[1024];
-    snprintf(cmd, sizeof(cmd),
-             "git -C %.*s rev-parse %.*s 2>/dev/null",
-             (int)$len(reporoot), (char *)reporoot[0],
-             (int)$len(prefix), (char *)prefix[0]);
-    FILE *fp = popen(cmd, "r");
-    if (!fp) return 0;
-    char buf[64];
-    char *got = fgets(buf, sizeof(buf), fp);
-    pclose(fp);
-    if (!got || strlen(buf) < 40) return 0;
-    sha1 s = {};
-    DAGsha1FromHex(&s, buf);
-    u64 hashlet = DAGsha1Hashlet(&s);
-    belt128cp e = DAGLookup(st, DAG_COMMIT_GEN, hashlet);
-    return e ? DAGGen(e->a) : 0;
-}
-
 // --- Weave diff ---
 
 ok64 GRAFWeaveDiff(u8cs filepath, u8cs reporoot, u8cs from, u8cs to) {
@@ -490,7 +470,7 @@ ok64 GRAFWeaveDiff(u8cs filepath, u8cs reporoot, u8cs from, u8cs to) {
     if (!$empty(ext) && *ext[0] == '.') ext[0]++;
 
     // Fetch from/to blobs via git show, then pairwise diff.
-    // FIXME: use weave extraction once WEAVEAdd ordering is fixed.
+    // Fetch blobs directly; weave extraction needs ordering fix first.
     Bu8 from_buf = {}, to_buf = {};
     call(u8bMap, from_buf, 16UL << 20);
     call(u8bMap, to_buf, 16UL << 20);
