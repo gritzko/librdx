@@ -209,13 +209,13 @@ ok64 SNIFFPath(u8csp out, sniff const *s, u32 index) {
 
 // --- Record change ---
 
-ok64 SNIFFRecord(sniff *s, u32 index, u64 mtime_sec, u32 mtime_nsec) {
+ok64 SNIFFRecord(sniff *s, u8 flags, u32 index, u64 mtime_sec) {
     sane(s && s->changes);
-    u64 entry = SNIFFChange(0, index, mtime_sec, mtime_nsec);
-    call(FILEBookEnsure, s->changes, sizeof(u64));
+    wh64 entry = wh64Pack(flags, index, mtime_sec);
+    call(FILEBookEnsure, s->changes, sizeof(wh64));
     u8 **cidle = u8bIdle(s->changes);
-    memcpy(*cidle, &entry, sizeof(u64));
-    *cidle += sizeof(u64);
+    memcpy(*cidle, &entry, sizeof(wh64));
+    *cidle += sizeof(wh64);
     done;
 }
 

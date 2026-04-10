@@ -49,8 +49,7 @@ static ok64 sniff_index(sniff *s, u8cs reporoot) {
         struct stat sb = {};
         if (FILEStat(&sb, PATHu8cgIn(fp)) != OK) continue;
 
-        SNIFFRecord(s, i, (u64)sb.st_mtim.tv_sec,
-                    (u32)sb.st_mtim.tv_nsec);
+        SNIFFRecord(s, 0, i, (u64)sb.st_mtim.tv_sec);
         count++;
     }
     fprintf(stderr, "sniff: indexed %u file(s)\n", count);
@@ -118,8 +117,7 @@ static ok64 sniff_rescan(sniff *s, u8cs reporoot) {
         struct stat sb = {};
         if (FILEStat(&sb, PATHu8cgIn(fp)) != OK) continue;
 
-        SNIFFRecord(s, i, (u64)sb.st_mtim.tv_sec,
-                    (u32)sb.st_mtim.tv_nsec);
+        SNIFFRecord(s, 0, i, (u64)sb.st_mtim.tv_sec);
     }
     done;
 }
@@ -243,7 +241,7 @@ static ok64 sniff_changed(sniff *s, u64 since) {
     if (!seen) fail(SNIFFFAIL);
 
     for (u64 i = since; i < total; i++) {
-        u32 idx = SNIFFChangeIndex($at(elog, i));
+        u32 idx = wh64Id($at(elog, i));
         if (idx < npath) seen[idx] = 1;
     }
 
