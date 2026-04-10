@@ -19,6 +19,7 @@ static void BROUsage(void) {
         "      [ ] (or { }) prev/next hunk,\n"
         "      ( ) prev/next change (centered),\n"
         "      Enter/l open file, h/q back,\n"
+        "      s spot file, S spot repo (Tab completes),\n"
         "      m toggle mouse (wheel scroll, click to open)\n");
 }
 

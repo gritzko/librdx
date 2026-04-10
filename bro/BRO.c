@@ -1,8 +1,10 @@
 #include "BRO.h"
 
+#include <ctype.h>
 #include <fcntl.h>
 #include <poll.h>
 #include <signal.h>
+#include <sys/wait.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1020,6 +1022,237 @@ static ok64 BROPlain(hunk const *hunks, u32 nhunks) {
     done;
 }
 
+// --- Spot invocation ---
+
+// Resolve spot binary path (lazy, cached).
+static char bro_spot_path[FILE_PATH_MAX_LEN] = {};
+static void bro_resolve_spot(void) {
+    if (bro_spot_path[0]) return;
+    a$rg(a0, 0);
+    HOMEResolveSibling(bro_spot_path, sizeof(bro_spot_path),
+                       "spot", (char const *)a0[0]);
+}
+
+// Collect unique words from hunk text matching a prefix.
+// Words = runs of [a-zA-Z0-9_] starting with [a-zA-Z_].
+// Returns count of matches written to out[0..maxout).
+static int bro_collect_words(hunkc const *hunks, u32 nhunks,
+                             char const *prefix, int pfxlen,
+                             char out[][64], int maxout) {
+    int n = 0;
+    for (u32 h = 0; h < nhunks && n < maxout; h++) {
+        u32 tlen = (u32)$len(hunks[h].text);
+        if (tlen == 0) continue;
+        u8cp txt = hunks[h].text[0];
+        u32 i = 0;
+        while (i < tlen && n < maxout) {
+            if (!isalpha(txt[i]) && txt[i] != '_') { i++; continue; }
+            u32 ws = i;
+            while (i < tlen && (isalnum(txt[i]) || txt[i] == '_')) i++;
+            u32 wlen = i - ws;
+            if (wlen < 2 || wlen >= 64) continue;
+            if ((int)wlen < pfxlen) continue;
+            if (pfxlen > 0 && memcmp(txt + ws, prefix, (size_t)pfxlen) != 0)
+                continue;
+            // Dedup
+            char word[64];
+            memcpy(word, txt + ws, wlen);
+            word[wlen] = 0;
+            b8 dup = NO;
+            for (int j = 0; j < n; j++)
+                if (strcmp(out[j], word) == 0) { dup = YES; break; }
+            if (!dup) {
+                memcpy(out[n], word, wlen + 1);
+                n++;
+            }
+        }
+    }
+    return n;
+}
+
+// Interactive spot prompt with Tab completion.
+// Returns the accepted token in buf (NUL-terminated), or buf[0]==0 on cancel.
+static void BROReadSpot(BROstate *st, char *buf, int bufsz, b8 file_scoped) {
+    int len = 0;
+    buf[0] = 0;
+
+    // Completion state
+    char matches[256][64];
+    int nmatch = 0, match_idx = -1;
+    b8 matches_valid = NO;
+
+    for (;;) {
+        // Render prompt
+        bro_goto(st->rows, 1);
+        bro_puts(TTY_INVERSE TTY_ERASE_LINE);
+        bro_puts(file_scoped ? " spot> " : " SPOT> ");
+        if (len > 0) {
+            u8cs bs = {(u8cp)buf, (u8cp)buf + len};
+            bro_write(bs);
+        }
+        bro_puts(TTY_RESET);
+
+        u8 ch = 0;
+        ssize_t nr = read(st->tty_fd, &ch, 1);
+        if (nr <= 0) continue;
+        if (ch == '\n' || ch == '\r') break;
+        if (ch == 27) { len = 0; buf[0] = 0; break; }
+        if (ch == 127 || ch == 8) {
+            if (len > 0) { len--; buf[len] = 0; matches_valid = NO; }
+            continue;
+        }
+        if (ch == '\t') {
+            // Tab completion
+            if (!matches_valid) {
+                nmatch = bro_collect_words(st->hunks, st->nhunks,
+                                           buf, len, matches, 256);
+                match_idx = -1;
+                matches_valid = YES;
+            }
+            if (nmatch > 0) {
+                match_idx = (match_idx + 1) % nmatch;
+                int mlen = (int)strlen(matches[match_idx]);
+                if (mlen >= bufsz) mlen = bufsz - 1;
+                memcpy(buf, matches[match_idx], (size_t)mlen);
+                buf[mlen] = 0;
+                len = mlen;
+            }
+            continue;
+        }
+        if (ch >= 32 && len < bufsz - 1) {
+            buf[len++] = (char)ch;
+            buf[len] = 0;
+            matches_valid = NO;
+        }
+    }
+}
+
+// Fork spot, drain all TLV hunks, push as new view.
+// Returns OK if hunks were produced and view pushed.
+static ok64 BROForkSpot(BROstate *st, char const *token,
+                        char const *filepath, char const *repo) {
+    sane(st != NULL && token != NULL && token[0] != 0);
+    if (st->nsaves >= BRO_MAX_VIEWS) fail(NOROOM);
+
+    bro_resolve_spot();
+
+    int pfd[2];
+    if (pipe(pfd) != 0) fail(FAILSANITY);
+
+    pid_t pid = fork();
+    if (pid < 0) { close(pfd[0]); close(pfd[1]); fail(FAILSANITY); }
+
+    if (pid == 0) {
+        // Child: run spot -g <token> [filepath]
+        close(pfd[0]);
+        dup2(pfd[1], STDOUT_FILENO);
+        close(pfd[1]);
+        if (filepath)
+            execlp(bro_spot_path, "spot", "-g", token, filepath, (char *)NULL);
+        else
+            execlp(bro_spot_path, "spot", "-g", token, (char *)NULL);
+        _exit(127);
+    }
+
+    // Parent: read TLV hunks from pipe
+    close(pfd[1]);
+
+    // Use a temporary arena-like approach: drain into bro_arena at current pos.
+    // Save the arena position to restore if we fail.
+    u8p arena_save = u8bIdleHead(bro_arena);
+    u32 hunks_save = bro_nhunks;
+
+    // Read buffer
+    u8 rdbuf[1 << 16];
+    u8 pending[1 << 16];
+    int pend_len = 0;
+
+    for (;;) {
+        ssize_t nr = read(pfd[0], rdbuf, sizeof(rdbuf));
+        if (nr <= 0) break;
+        // Append to pending
+        if (pend_len + (int)nr > (int)sizeof(pending)) {
+            nr = (ssize_t)(sizeof(pending) - pend_len);
+            if (nr <= 0) break;
+        }
+        memcpy(pending + pend_len, rdbuf, (size_t)nr);
+        pend_len += (int)nr;
+
+        // Drain complete TLV records
+        u8cs from = {(u8cp)pending, (u8cp)pending + pend_len};
+        while (!$empty(from) && bro_nhunks < BRO_MAX_HUNKS) {
+            u8cs save = {from[0], from[1]};
+            hunk tlv_hk = {};
+            ok64 o = HUNKu8sDrain(from, &tlv_hk);
+            if (o != OK) { $mv(from, save); break; }
+            hunk *hk = &bro_hunks[bro_nhunks];
+            *hk = (hunk){};
+            if (!$empty(tlv_hk.title)) {
+                u8p tp = BROArenaWrite(tlv_hk.title[0], (size_t)$len(tlv_hk.title));
+                if (tp) { hk->title[0] = tp; hk->title[1] = u8bIdleHead(bro_arena); }
+            }
+            if (!$empty(tlv_hk.text)) {
+                u8p xp = BROArenaWrite(tlv_hk.text[0], (size_t)$len(tlv_hk.text));
+                if (xp) { hk->text[0] = xp; hk->text[1] = u8bIdleHead(bro_arena); }
+            }
+            if (!$empty(tlv_hk.toks)) {
+                u8p tkp = BROArenaWrite(tlv_hk.toks[0],
+                              (size_t)((u8cp)tlv_hk.toks[1] - (u8cp)tlv_hk.toks[0]));
+                if (tkp) { hk->toks[0] = (u32cp)tkp; hk->toks[1] = (u32cp)u8bIdleHead(bro_arena); }
+            }
+            if (!$empty(tlv_hk.hili)) {
+                u8p hp = BROArenaWrite(tlv_hk.hili[0],
+                             (size_t)((u8cp)tlv_hk.hili[1] - (u8cp)tlv_hk.hili[0]));
+                if (hp) { hk->hili[0] = (u32cp)hp; hk->hili[1] = (u32cp)u8bIdleHead(bro_arena); }
+            }
+            if (!$empty(tlv_hk.path)) {
+                u8p pp = BROArenaWrite(tlv_hk.path[0], (size_t)$len(tlv_hk.path));
+                if (pp) { hk->path[0] = pp; hk->path[1] = u8bIdleHead(bro_arena); }
+            }
+            hk->lineno = tlv_hk.lineno;
+            bro_nhunks++;
+        }
+        // Compact pending
+        int consumed = pend_len - (int)$len(from);
+        if (consumed > 0) {
+            pend_len -= consumed;
+            memmove(pending, pending + consumed, (size_t)pend_len);
+        }
+    }
+
+    close(pfd[0]);
+    int status = 0;
+    waitpid(pid, &status, 0);
+
+    u32 new_nhunks = bro_nhunks - hunks_save;
+    if (new_nhunks == 0) {
+        // No results — restore arena, flash message
+        bro_nhunks = hunks_save;
+        // Reset arena idle pointer
+        ((u8 **)bro_arena)[2] = arena_save;
+        snprintf(st->flash, sizeof(st->flash), "spot: no results");
+        fail(FAILSANITY);
+    }
+
+    // Save current view and switch to spot results
+    int idx = st->nsaves;
+    BROsave *sv = &st->saves[idx];
+    sv->hunks = st->hunks;
+    sv->nhunks = st->nhunks;
+    sv->lines = st->lines;
+    memcpy(sv->linesbuf, st->linesbuf, sizeof(Brange32));
+    sv->nlines = st->nlines;
+    sv->scroll = st->scroll;
+
+    st->hunks = bro_hunks + hunks_save;
+    st->nhunks = new_nhunks;
+    memset(st->linesbuf, 0, sizeof(Brange32));
+    call(BROBuildIndex, st);
+    st->scroll = (st->nlines > 1) ? 1 : 0;
+    st->nsaves = idx + 1;
+    done;
+}
+
 // --- Unified key handler ---
 // Returns: -1 = quit, 0 = no change, 1 = changed (needs render).
 
@@ -1116,6 +1349,29 @@ static int BROHandleKey(BROstate *st, u8 ch, char const *repo) {
         if (st->mouse_on) MAUSEnable(STDOUT_FILENO);
         else MAUSDisable(STDOUT_FILENO);
         return BRO_KEY_NONE;
+    }
+    if (ch == 's' || ch == 'S') {
+        b8 file_scoped = (ch == 's');
+        char token[256] = {};
+        BROReadSpot(st, token, sizeof(token), file_scoped);
+        if (token[0] == 0) return BRO_KEY_CHANGED;
+        // Get file path for file-scoped search
+        char const *fpath = NULL;
+        char fpathz[FILE_PATH_MAX_LEN] = {};
+        if (file_scoped && st->scroll < st->nlines) {
+            u32 hi = st->lines[st->scroll].lo;
+            hunkc const *hk = &st->hunks[hi];
+            if (!$empty(hk->path)) {
+                size_t pl = (size_t)$len(hk->path);
+                if (pl >= sizeof(fpathz)) pl = sizeof(fpathz) - 1;
+                memcpy(fpathz, hk->path[0], pl);
+                fpath = fpathz;
+            }
+        }
+        ok64 o = BROForkSpot(st, token, fpath, repo);
+        if (o != OK && st->flash[0] == 0)
+            snprintf(st->flash, sizeof(st->flash), "spot failed: %s", ok64str(o));
+        return BRO_KEY_CHANGED;
     }
     if (ch == 033) {
         u8 seq[2] = {};
