@@ -5,6 +5,7 @@
 #include <unistd.h>
 
 #include "abc/FILE.h"
+#include "abc/PATH.h"
 #include "abc/PRO.h"
 
 static void BROUsage(void) {
@@ -19,7 +20,7 @@ static void BROUsage(void) {
         "      [ ] (or { }) prev/next hunk,\n"
         "      ( ) prev/next change (centered),\n"
         "      Enter/l open file, h/q back,\n"
-        "      s spot file, S spot repo (Tab completes),\n"
+        "      s/S snippet (file/repo), ? grep repo (Tab completes),\n"
         "      m toggle mouse (wheel scroll, click to open)\n");
 }
 
@@ -39,7 +40,6 @@ ok64 brocli() {
         u8c *a[2] = {};
         $mv(a, $arg(i));
         if ($len(a) >= 1 && a[0][0] == '-') {
-            // -h / --help
             if (($len(a) == 2 && a[0][1] == 'h') ||
                 ($len(a) == 6 && memcmp(a[0], "--help", 6) == 0)) {
                 BROUsage();
@@ -55,9 +55,43 @@ ok64 brocli() {
     }
 
     if (nf > 0) {
-        u8css cf = {files, files + nf};
-        u8cs nomark = {};
-        call(BROCat, cf, nomark);
+        // Cat mode: map files, tokenize, display via BRORun.
+        call(BROArenaInit);
+        for (int fi = 0; fi < nf; fi++) {
+            if (bro_nhunks >= BRO_MAX_HUNKS) break;
+            a_dup(u8c, fp, files[fi]);
+            if ($empty(fp)) continue;
+
+            a_pad(u8, fpbuf, FILE_PATH_MAX_LEN);
+            __ = u8bFeed(fpbuf, fp);
+            if (__ != OK) continue;
+            __ = PATHu8gTerm(PATHu8gIn(fpbuf));
+            if (__ != OK) continue;
+
+            u8bp mapped = NULL;
+            ok64 o = FILEMapRO(&mapped, PATHu8cgIn(fpbuf));
+            if (o != OK) {
+                fprintf(stderr, "bro: cannot open %.*s: %s\n",
+                        (int)$len(fp), (char *)fp[0], ok64str(o));
+                continue;
+            }
+
+            hunk *hk = &bro_hunks[bro_nhunks];
+            *hk = (hunk){};
+            size_t pl = (size_t)$len(fp);
+            u8p pp = BROArenaWrite(fp[0], pl);
+            if (pp) { hk->path[0] = pp; hk->path[1] = pp + pl; }
+            hk->text[0] = u8bDataHead(mapped);
+            hk->text[1] = u8bIdleHead(mapped);
+
+            Bu32 toks = {};
+            b8 tok = BROTokenize(toks, hk, fp);
+            BROHunkAdd();
+            BRODefer(mapped, tok ? toks : (Bu32){});
+        }
+        if (bro_nhunks > 0)
+            BRORun(bro_hunks, bro_nhunks);
+        BROArenaCleanup();
     } else {
         call(BROPipeRun, STDIN_FILENO);
     }
