@@ -2,194 +2,152 @@
 
 #include <string.h>
 
+#include "abc/PATH.h"
 #include "abc/PRO.h"
-
-// Find ".git/" or ".git" at end of path — splits repo address from file path.
-// Returns pointer to the '.' of ".git" or NULL if not found.
-static u8cp guri_find_git(u8cs path) {
-    if ($empty(path)) return NULL;
-    u8cp p = path[0];
-    u8cp e = path[1];
-    while (p + 3 < e) {
-        if (p[0] == '.' && p[1] == 'g' && p[2] == 'i' && p[3] == 't') {
-            u8cp after = p + 4;
-            if (after == e || *after == '/') return p;
-        }
-        p++;
-    }
-    // Check if path ends with ".git" exactly
-    if (e - path[0] >= 4) {
-        u8cp tail = e - 4;
-        if (tail[0] == '.' && tail[1] == 'g' && tail[2] == 'i' && tail[3] == 't')
-            return tail;
-    }
-    return NULL;
-}
 
 ok64 GURIu8sDrain(u8cs input, gurip g) {
     sane(g != NULL && $ok(input));
     memset(g, 0, sizeof(guri));
-
     if ($empty(input)) done;
-
-    // Parse as standard URI first.
-    $mv(g->base.data, input);
-    ok64 o = URILexer(&g->base);
-    if (o != OK) return o;
-
-    // --- Remote (authority) ---
-    if (!$empty(g->base.authority)) {
-        g->has_remote = YES;
-        $mv(g->remote, g->base.authority);
-        // Strip leading "//" from authority if present
-        if ($len(g->remote) >= 2 &&
-            g->remote[0][0] == '/' && g->remote[0][1] == '/')
-            g->remote[0] += 2;
-    }
-
-    // --- Ref (query) ---
-    if (!$empty(g->base.query)) {
-        g->has_ref = YES;
-        $mv(g->ref, g->base.query);
-        // Detect range: contains ".." but not "..."
-        u8cp p = g->ref[0];
-        u8cp e = g->ref[1];
-        while (p + 1 < e) {
-            if (p[0] == '.' && p[1] == '.') {
-                if (p + 2 < e && p[2] == '.') { p += 3; continue; }
-                g->is_range = YES;
-                break;
-            }
-            p++;
-        }
-    }
-
-    // --- Search (fragment) ---
-    if (!$empty(g->base.fragment)) {
-        g->has_search = YES;
-        $mv(g->search, g->base.fragment);
-    }
-
-    // --- Path: split at .git/ boundary ---
-    u8cs full_path = {};
-    $mv(full_path, g->base.path);
-
-    // Strip leading / from path for repo-relative interpretation
-    if (!$empty(full_path) && full_path[0][0] == '/')
-        full_path[0]++;
-
-    if (!$empty(full_path)) {
-        u8cp git_marker = guri_find_git(full_path);
-        if (git_marker != NULL) {
-            // Everything up to and including .git is the repo address
-            g->has_repo = YES;
-            g->repo[0] = full_path[0];
-            g->repo[1] = git_marker + 4;  // past "git"
-            // File path is after ".git/"
-            u8cp after = git_marker + 4;
-            if (after < full_path[1] && *after == '/') after++;
-            if (after < full_path[1]) {
-                g->has_path = YES;
-                g->path[0] = after;
-                g->path[1] = full_path[1];
-            }
-        } else {
-            // No .git/ — entire path is a file path.
-            // But if we have authority, the path might include
-            // owner/repo before the file.  Without .git/ we can't
-            // distinguish, so treat entire path as repo-relative file.
-            if (!$empty(full_path)) {
-                g->has_path = YES;
-                $mv(g->path, full_path);
-            }
-        }
-    }
-
-    // --- Detect extension filter: bare ".ext" path like ".c" ---
-    if (g->has_path && !$empty(g->path)) {
-        u8cp p0 = g->path[0];
-        if (*p0 == '.' && $len(g->path) > 1) {
-            // Check it's a bare ext: no slashes, starts with dot, not ".."
-            b8 bare = YES;
-            if (p0[1] == '.') bare = NO;  // ".." is not an ext
-            $for(u8c, ch, g->path) {
-                if (*ch == '/') { bare = NO; break; }
-            }
-            if (bare) {
-                g->is_ext_filter = YES;
-                g->ext[0] = p0 + 1;  // skip the dot
-                g->ext[1] = g->path[1];
-            }
-        }
-    }
-
-    // --- Detect trailing slash (directory) ---
-    if (g->has_path && !$empty(g->path)) {
-        if (*(g->path[1] - 1) == '/') g->is_dir = YES;
-    }
-
-    // --- Extract file extension if not an ext filter ---
-    if (g->has_path && !g->is_ext_filter && !$empty(g->path)) {
-        // Walk back from end to find last dot (skip slashes)
-        u8cp p = g->path[1];
-        while (p > g->path[0]) {
-            p--;
-            if (*p == '/') break;
-            if (*p == '.') {
-                g->ext[0] = p + 1;
-                g->ext[1] = g->path[1];
-                break;
-            }
-        }
-    }
-
+    $mv(g->data, input);
+    call(URILexer, g);
     done;
 }
 
-ok64 GURIu8sFeed(u8s into, guricp g) {
-    sane(g != NULL && u8sOK(into));
+// --- Introspection helpers ---
 
-    if (g->has_remote) {
-        u8sFeed1(into, '/');
-        u8sFeed1(into, '/');
-        u8sFeed(into, g->remote);
+// Find ".git" marker in a path slice.  Sets `at` to the ".git" range.
+static b8 guri_find_git(u8cs at, u8csc path) {
+    if ($empty(path) || $len(path) < 4) return NO;
+    a_cstr(marker, ".git");
+    size_t mlen = $len(marker);
+    u8cp found = memmem(path[0], (size_t)$len(path), marker[0], mlen);
+    while (found != NULL) {
+        u8cp after = found + mlen;
+        if (after >= path[1] || *after == '/') {
+            at[0] = found;
+            at[1] = found + mlen;
+            return YES;
+        }
+        size_t rest = (size_t)(path[1] - (after));
+        found = memmem(after, rest, marker[0], mlen);
     }
+    return NO;
+}
 
-    if (g->has_repo) {
-        u8sFeed1(into, '/');
-        u8sFeed(into, g->repo);
-        if (g->has_path) u8sFeed1(into, '/');
+// Get the effective file path (stripped of leading / and .git/ prefix).
+static void guri_file_path(u8cs out, u8csc uri_path) {
+    out[0] = NULL; out[1] = NULL;
+    if ($empty(uri_path)) return;
+    a_dup(u8c, p, uri_path);
+    // Strip leading /
+    if (!$empty(p) && p[0][0] == '/') p[0]++;
+    if ($empty(p)) return;
+    // Split at .git/ if present
+    u8cs git_at = {};
+    if (guri_find_git(git_at, p)) {
+        u8cp after = git_at[1];
+        if (after < p[1] && *after == '/') after++;
+        if (after < p[1]) { out[0] = after; out[1] = p[1]; }
+    } else {
+        $mv(out, p);
     }
+}
 
-    if (g->has_path) {
-        if (!g->has_repo && !g->has_remote)
-            ;  // bare path, no leading /
-        u8sFeed(into, g->path);
+void GURIRemote(u8csp out, guricp g) {
+    out[0] = NULL; out[1] = NULL;
+    if ($empty(g->authority)) return;
+    a_dup(u8c, a, g->authority);
+    // Strip leading "//"
+    if ($len(a) >= 2 && a[0][0] == '/' && a[0][1] == '/')
+        a[0] += 2;
+    $mv(out, a);
+}
+
+void GURIRepo(u8csp out, guricp g) {
+    out[0] = NULL; out[1] = NULL;
+    if ($empty(g->path)) return;
+    a_dup(u8c, p, g->path);
+    if (!$empty(p) && p[0][0] == '/') p[0]++;
+    u8cs git_at = {};
+    if (guri_find_git(git_at, p)) {
+        out[0] = p[0];
+        out[1] = git_at[1];
     }
+}
 
-    if (g->has_ref) {
-        u8sFeed1(into, '?');
-        u8sFeed(into, g->ref);
+void GURIPath(u8csp out, guricp g) {
+    guri_file_path(out, g->path);
+}
+
+void GURIExt(u8csp out, guricp g) {
+    u8cs fp = {};
+    guri_file_path(fp, g->path);
+    if ($empty(fp)) { out[0] = NULL; out[1] = NULL; return; }
+    // For bare .ext filters, the ext is everything after the dot
+    if (fp[0][0] == '.' && $len(fp) > 1 && fp[0][1] != '.') {
+        b8 bare = YES;
+        $for(u8c, ch, fp) { if (*ch == '/') { bare = NO; break; } }
+        if (bare) {
+            out[0] = fp[0] + 1;
+            out[1] = fp[1];
+            return;
+        }
     }
+    PATHu8sExt(out, fp);
+}
 
-    if (g->has_search) {
-        u8sFeed1(into, '#');
-        u8sFeed(into, g->search);
+b8 GURIHasRepo(guricp g) {
+    u8cs git_at = {};
+    a_dup(u8c, p, g->path);
+    if ($empty(p)) return NO;
+    if (p[0][0] == '/') p[0]++;
+    return guri_find_git(git_at, p);
+}
+
+b8 GURIHasPath(guricp g) {
+    u8cs fp = {};
+    guri_file_path(fp, g->path);
+    return !$empty(fp);
+}
+
+b8 GURIIsExtFilter(guricp g) {
+    u8cs fp = {};
+    guri_file_path(fp, g->path);
+    if ($empty(fp) || $len(fp) <= 1) return NO;
+    if (fp[0][0] != '.' || fp[0][1] == '.') return NO;
+    $for(u8c, ch, fp) { if (*ch == '/') return NO; }
+    return YES;
+}
+
+b8 GURIIsDir(guricp g) {
+    u8cs fp = {};
+    guri_file_path(fp, g->path);
+    if ($empty(fp)) return NO;
+    return *(fp[1] - 1) == '/';
+}
+
+b8 GURIIsRange(guricp g) {
+    if ($empty(g->query)) return NO;
+    a_dup(u8c, scan, g->query);
+    while ($len(scan) >= 2) {
+        if (scan[0][0] == '.' && scan[0][1] == '.') {
+            if ($len(scan) >= 3 && scan[0][2] == '.') {
+                u8csFed(scan, 3);
+                continue;
+            }
+            return YES;
+        }
+        u8csFed(scan, 1);
     }
-
-    done;
+    return NO;
 }
 
 u8 GURISearchType(guricp g) {
-    if (!g->has_search || $empty(g->search)) return GURI_SEARCH_NONE;
-    u8 first = g->search[0][0];
-    // 'quoted' = structural search
+    if ($empty(g->fragment)) return GURI_SEARCH_NONE;
+    u8 first = g->fragment[0][0];
     if (first == '\'') return GURI_SEARCH_SPOT;
-    // /slashed/ = regex
     if (first == '/') return GURI_SEARCH_REGEX;
-    // Numeric = line number or L-range
-    if (first >= '0' && first <= '9') return GURI_SEARCH_LINE;
-    if (first == 'L') return GURI_SEARCH_LINE;
-    // Everything else = grep
+    if ((first >= '0' && first <= '9') || first == 'L') return GURI_SEARCH_LINE;
     return GURI_SEARCH_GREP;
 }

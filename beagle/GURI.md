@@ -1,8 +1,8 @@
 # GURI — Git URI addressing
 
-GURI extends standard URI syntax for git repo navigation.
-Every resource — local file, remote branch, line range, search
-result — has one address.
+GURI maps git resources onto standard URIs.  The `guri` type IS `uri`
+from abc/URI.h — no wrapper, no extra fields.  Git-specific meaning
+is extracted by introspection functions.
 
 ## Grammar
 
@@ -10,87 +10,72 @@ result — has one address.
 [//authority] [path] [?ref] [#search]
 ```
 
-| Part | Meaning | Examples |
-|------|---------|---------|
-| `//authority` | Remote host or alias | `//github.com`, `//origin` |
-| `path` | Repo-relative file or dir | `abc/MSET.h`, `src/`, `.c` |
-| `?ref` | Git ref: branch, tag, SHA, range | `?main`, `?HEAD~3`, `?main..feat` |
-| `#search` | Line, grep, structural, regex | `#42`, `#TODO`, `#'f(x)'`, `#/\d+/` |
+| Part | URI field | Git meaning |
+|------|-----------|-------------|
+| `//authority` | authority | Remote host or alias |
+| path | path | Repo-relative file, dir, or `.ext` filter |
+| `?ref` | query | Branch, tag, SHA, range |
+| `#search` | fragment | Line, grep, spot pattern, regex |
 
-## Path conventions
-
-| Path form | Meaning |
-|-----------|---------|
-| `abc/MSET.h` | File (working tree) |
-| `abc/` | Directory |
-| `.c` | Extension filter (all `.c` files) |
-| `.` | Working tree root |
-| `gritzko/dogs.git/abc/MSET.h` | `.git/` splits repo address from file path |
-
-## Search types (#fragment)
-
-| Syntax | Type | Example |
-|--------|------|---------|
-| `42`, `L10-L20` | Line number / range | `abc/MSET.h#42` |
-| bare text | Substring grep | `.c#TODO` |
-| `'quoted'` | Structural search (spot) | `.c#'f(x,y)'` |
-| `/slashed/` | Regex grep | `.c#/u\d+sFeed/` |
+The `.git/` marker in the path splits the repo address from the
+file path: `//github.com/user/repo.git/src/foo.c?main`.
 
 ## Examples
 
 ```
-abc/MSET.h                          local working tree file
-abc/MSET.h?main                     file at branch main
-abc/MSET.h?HEAD~3#42               line 42, three commits back
-.c#TODO                             grep all C files for TODO
+abc/MSET.h                          local file
+abc/MSET.h?main                     file at ref
+abc/MSET.h?main#42                  line 42 at ref
+.c#TODO                             grep all C files
 .c#'ok64 o = OK;'                   structural search
-?main..feat                         commit range (diff/log)
-//origin/abc/MSET.h?feat            file on remote at branch
+?main..feat                         commit range
+//origin/abc/MSET.h?feat            remote file at ref
 //github.com/gritzko/dogs.git/abc/MSET.h?main
 ```
 
-## Ref syntax (?query)
+## Introspection API
 
-| Form | Meaning |
-|------|---------|
-| `?main` | Branch |
-| `?v1.0` | Tag |
-| `?abc123` | SHA prefix |
-| `?HEAD~3` | Relative ref |
-| `?main..feat` | Two-dot range (log/diff) |
-| `?main...feat` | Three-dot range (merge-base) |
-
-## API
+`guri` is `uri`.  Parse with `GURIu8sDrain`, then query:
 
 ```c
-#include "beagle/GURI.h"
-
 guri g = {};
-u8cs input = $u8str("//origin/abc/MSET.h?main#42");
+u8cs input = ...; // "//origin/abc/MSET.h?main#42"
 GURIu8sDrain(input, &g);
 
-g.remote   → "origin"
-g.path     → "abc/MSET.h"
-g.ref      → "main"
-g.search   → "42"
-g.ext      → "h"
-g.has_remote  = YES
-g.has_path    = YES
-g.has_ref     = YES
-g.has_search  = YES
+u8cs remote = {}, path = {}, ref = {}, ext = {};
+GURIRemote(remote, &g);   // → "origin"
+GURIPath(path, &g);        // → "abc/MSET.h"
+GURIRef(ref, &g);          // → "main"  (= g.query)
+GURISearch(search, &g);    // → "42"    (= g.fragment)
+GURIExt(ext, &g);          // → "h"
 
-GURISearchType(&g) → GURI_SEARCH_LINE
+GURIHasRemote(&g)   // YES
+GURIHasPath(&g)      // YES
+GURIIsRange(&g)      // NO
+GURISearchType(&g)   // GURI_SEARCH_LINE
 ```
 
-## Introspection flags
+| Function | Returns |
+|----------|---------|
+| `GURIRemote` | Authority without `//` |
+| `GURIRepo` | Path portion before `.git/` |
+| `GURIPath` | File path after `.git/` (or whole path) |
+| `GURIRef` | Query = git ref |
+| `GURISearch` | Fragment = search spec |
+| `GURIExt` | File extension (abc/PATH) |
+| `GURIHasRemote` | `//authority` present? |
+| `GURIHasRepo` | `.git/` boundary found? |
+| `GURIHasPath` | File path present? |
+| `GURIIsExtFilter` | Bare `.ext` like `.c`? |
+| `GURIIsDir` | Trailing `/`? |
+| `GURIIsRange` | Ref has `..` (not `...`)? |
+| `GURISearchType` | LINE / GREP / SPOT / REGEX |
 
-| Flag | Meaning |
-|------|---------|
-| `has_remote` | `//authority` present |
-| `has_repo` | `.git/` boundary found |
-| `has_path` | File path present |
-| `has_ref` | `?ref` present |
-| `has_search` | `#search` present |
-| `is_ext_filter` | Path is bare `.ext` |
-| `is_dir` | Path ends with `/` |
-| `is_range` | Ref contains `..` |
+## Search types
+
+| Fragment syntax | Type | Constant |
+|----------------|------|----------|
+| `42`, `L10-L20` | Line | `GURI_SEARCH_LINE` |
+| bare text | Grep | `GURI_SEARCH_GREP` |
+| `'quoted'` | Spot | `GURI_SEARCH_SPOT` |
+| `/slashed/` | Regex | `GURI_SEARCH_REGEX` |

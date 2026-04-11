@@ -20,4 +20,9 @@ add_library(beaglelib STATIC ${BEAGLE_HEADERS} ${BEAGLE_SOURCES})
 target_compile_definitions(beaglelib PRIVATE NDEBUG)
 target_link_libraries(beaglelib dog abc-core)
 
+add_executable(be-cli BE.cli.c)
+target_compile_definitions(be-cli PRIVATE NDEBUG)
+target_link_libraries(be-cli beaglelib dog abc-core)
+set_target_properties(be-cli PROPERTIES OUTPUT_NAME be)
+
 add_subdirectory(test)

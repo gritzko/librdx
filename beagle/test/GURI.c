@@ -5,24 +5,22 @@
 #include "abc/PRO.h"
 #include "abc/TEST.h"
 
-// --- Table-driven GURI parser test ---
-//
-// Each row: input string, then expected values for each field.
-// NULL = expect empty/unset.  The test parses, checks every field,
-// and verifies GURISearchType + round-trip via GURIu8sFeed.
+// --- Table-driven GURI test ---
+// Each row: input + expected values from introspection functions.
+// NULL = expect empty slice.
 
 typedef struct {
     const char *input;
 
-    // Expected parsed components (NULL = empty)
-    const char *remote;
-    const char *repo;
-    const char *path;
-    const char *ref;
-    const char *search;
-    const char *ext;
+    // Expected from introspection functions
+    const char *remote;     // GURIRemote
+    const char *repo;       // GURIRepo
+    const char *path;       // GURIPath
+    const char *ref;        // GURIRef
+    const char *search;     // GURISearch
+    const char *ext;        // GURIExt
 
-    // Expected flags
+    // Expected from boolean introspection
     b8 has_remote;
     b8 has_repo;
     b8 has_path;
@@ -32,7 +30,6 @@ typedef struct {
     b8 is_dir;
     b8 is_range;
 
-    // Expected search type
     u8 search_type;
 } GURICase;
 
@@ -55,7 +52,7 @@ static const GURICase GURI_CASES[] = {
         .has_path = YES,
     },
 
-    // --- Bare path with ref ---
+    // --- Path + ref ---
     {
         .input = "abc/MSET.h?main",
         .path = "abc/MSET.h", .ref = "main", .ext = "h",
@@ -67,7 +64,7 @@ static const GURICase GURI_CASES[] = {
         .has_path = YES, .has_ref = YES,
     },
 
-    // --- Path with ref and search ---
+    // --- Path + ref + search ---
     {
         .input = "abc/MSET.h?main#42",
         .path = "abc/MSET.h", .ref = "main", .search = "42",
@@ -110,7 +107,7 @@ static const GURICase GURI_CASES[] = {
         .search_type = GURI_SEARCH_REGEX,
     },
 
-    // --- Remote with alias ---
+    // --- Remote alias ---
     {
         .input = "//origin/abc/MSET.h?feat",
         .remote = "origin", .path = "abc/MSET.h",
@@ -121,7 +118,6 @@ static const GURICase GURI_CASES[] = {
         .input = "//origin/",
         .remote = "origin",
         .has_remote = YES,
-        // path is empty after stripping leading "/"
     },
 
     // --- Full remote with .git/ boundary ---
@@ -141,7 +137,7 @@ static const GURICase GURI_CASES[] = {
         .has_remote = YES, .has_repo = YES, .has_ref = YES,
     },
 
-    // --- Ref-only (no path) ---
+    // --- Ref only ---
     {
         .input = "?main",
         .ref = "main",
@@ -163,7 +159,7 @@ static const GURICase GURI_CASES[] = {
         .has_ref = YES,
     },
 
-    // --- Directory paths ---
+    // --- Directories ---
     {
         .input = "abc/",
         .path = "abc/",
@@ -177,7 +173,7 @@ static const GURICase GURI_CASES[] = {
         .is_dir = YES,
     },
 
-    // --- Search types ---
+    // --- Grep search ---
     {
         .input = "abc/MSET.h#MSETOpen",
         .path = "abc/MSET.h", .search = "MSETOpen", .ext = "h",
@@ -197,13 +193,12 @@ static const GURICase GURI_CASES[] = {
         .input = "?main...feat",
         .ref = "main...feat",
         .has_ref = YES,
-        // three dots is not a range (git diff --merge-base syntax)
     },
 };
 
 #define GURI_NCASES (sizeof(GURI_CASES) / sizeof(GURI_CASES[0]))
 
-static b8 guri_slice_eq(u8cs s, const char *expect) {
+static b8 guri_eq(u8cs s, const char *expect) {
     if (expect == NULL) return $empty(s);
     size_t elen = strlen(expect);
     if ((size_t)$len(s) != elen) return NO;
@@ -226,50 +221,52 @@ ok64 GURITestTable() {
             fail(TESTFAIL);
         }
 
-        #define CHECK_SLICE(field, expect) do { \
-            if (!guri_slice_eq(g.field, expect)) { \
-                fprintf(stderr, "FAIL [%zu] %s: " #field \
-                    " got '%.*s' want '%s'\n", \
-                    i, tc->input, \
-                    (int)$len(g.field), \
-                    $empty(g.field) ? "" : (char*)g.field[0], \
+        // Extract via introspection functions
+        u8cs remote = {}, repo = {}, path = {}, ref = {}, search = {}, ext = {};
+        GURIRemote(remote, &g);
+        GURIRepo(repo, &g);
+        GURIPath(path, &g);
+        GURIRef(ref, &g);
+        GURISearch(search, &g);
+        GURIExt(ext, &g);
+
+        #define CHECK_SLICE(name, slice, expect) do { \
+            if (!guri_eq(slice, expect)) { \
+                fprintf(stderr, "FAIL [%zu] %s: %s got '%.*s' want '%s'\n", \
+                    i, tc->input, name, \
+                    (int)$len(slice), \
+                    $empty(slice) ? "" : (char*)(slice)[0], \
                     expect ? expect : "(null)"); \
                 fail(TESTFAIL); \
             } \
         } while(0)
 
-        #define CHECK_FLAG(field, expect) do { \
-            if (g.field != expect) { \
-                fprintf(stderr, "FAIL [%zu] %s: " #field \
-                    " got %d want %d\n", \
-                    i, tc->input, g.field, expect); \
+        #define CHECK_FLAG(name, got, expect) do { \
+            if ((got) != (expect)) { \
+                fprintf(stderr, "FAIL [%zu] %s: %s got %d want %d\n", \
+                    i, tc->input, name, (got), (expect)); \
                 fail(TESTFAIL); \
             } \
         } while(0)
 
-        CHECK_SLICE(remote, tc->remote);
-        CHECK_SLICE(repo, tc->repo);
-        CHECK_SLICE(path, tc->path);
-        CHECK_SLICE(ref, tc->ref);
-        CHECK_SLICE(search, tc->search);
-        CHECK_SLICE(ext, tc->ext);
+        CHECK_SLICE("remote", remote, tc->remote);
+        CHECK_SLICE("repo", repo, tc->repo);
+        CHECK_SLICE("path", path, tc->path);
+        CHECK_SLICE("ref", ref, tc->ref);
+        CHECK_SLICE("search", search, tc->search);
+        CHECK_SLICE("ext", ext, tc->ext);
 
-        CHECK_FLAG(has_remote, tc->has_remote);
-        CHECK_FLAG(has_repo, tc->has_repo);
-        CHECK_FLAG(has_path, tc->has_path);
-        CHECK_FLAG(has_ref, tc->has_ref);
-        CHECK_FLAG(has_search, tc->has_search);
-        CHECK_FLAG(is_ext_filter, tc->is_ext_filter);
-        CHECK_FLAG(is_dir, tc->is_dir);
-        CHECK_FLAG(is_range, tc->is_range);
+        CHECK_FLAG("has_remote", GURIHasRemote(&g), tc->has_remote);
+        CHECK_FLAG("has_repo", GURIHasRepo(&g), tc->has_repo);
+        CHECK_FLAG("has_path", GURIHasPath(&g), tc->has_path);
+        CHECK_FLAG("has_ref", GURIHasRef(&g), tc->has_ref);
+        CHECK_FLAG("has_search", GURIHasSearch(&g), tc->has_search);
+        CHECK_FLAG("is_ext_filter", GURIIsExtFilter(&g), tc->is_ext_filter);
+        CHECK_FLAG("is_dir", GURIIsDir(&g), tc->is_dir);
+        CHECK_FLAG("is_range", GURIIsRange(&g), tc->is_range);
 
         if (tc->search_type != 0) {
-            u8 got = GURISearchType(&g);
-            if (got != tc->search_type) {
-                fprintf(stderr, "FAIL [%zu] %s: search_type got %d want %d\n",
-                        i, tc->input, got, tc->search_type);
-                fail(TESTFAIL);
-            }
+            CHECK_FLAG("search_type", GURISearchType(&g), tc->search_type);
         }
 
         #undef CHECK_SLICE
