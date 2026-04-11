@@ -86,6 +86,8 @@ ok64 capocli() {
     u32 nfork = 0, proc = UINT32_MAX;
     b8 is_hook = NO;
     b8 do_index = NO;
+    b8 do_update = NO;
+    b8 do_status = NO;
     b8 do_uncommitted = NO;
     b8 do_untracked = NO;
     b8 tty_out = isatty(STDOUT_FILENO) ? YES : NO;
@@ -128,6 +130,10 @@ ok64 capocli() {
             do_index = YES;
         } else if (argeq(a, "--hook")) {
             is_hook = YES;
+        } else if (argeq(a, "--update")) {
+            do_update = YES;
+        } else if (argeq(a, "--status")) {
+            do_status = YES;
         } else if (argeq(a, "-u") || argeq(a, "--uncommitted")) {
             do_uncommitted = YES;
         } else if (argeq(a, "-U") || argeq(a, "--untracked")) {
@@ -217,7 +223,27 @@ ok64 capocli() {
         }
     }
 
-    if (grep_ndl[0] != NULL) {
+    if (do_status) {
+        // DOG convention: --status = short status report
+        a_path(capodir);
+        call(CAPOResolveDir, capodir, reporoot);
+        a_dup(u8c, dirslice, u8bDataC(capodir));
+        // Count index files
+        u64cs runs[CAPO_MAX_LEVELS] = {};
+        u64css stack = {runs, runs};
+        u8bp mmaps[CAPO_MAX_LEVELS] = {};
+        u32 nidxfiles = 0;
+        call(CAPOStackOpen, stack, mmaps, &nidxfiles, dirslice);
+        u64 total = 0;
+        for (u32 i = 0; i < nidxfiles; i++)
+            total += (u64)$len(runs[i]);
+        CAPOStackClose(mmaps, nidxfiles);
+        fprintf(stderr, "spot: %u index files, %llu entries\n",
+                nidxfiles, (unsigned long long)total);
+    } else if (do_update) {
+        // DOG convention: --update = incremental index update
+        call(CAPOHook, reporoot);
+    } else if (grep_ndl[0] != NULL) {
         // GREP mode: .ext optional, file paths restrict search
         u8cs ext = {};
         u8cs gfiles[16] = {};
