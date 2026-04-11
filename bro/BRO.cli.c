@@ -39,8 +39,9 @@ ok64 brocli() {
         u8c *a[2] = {};
         $mv(a, $arg(i));
         if ($len(a) >= 1 && a[0][0] == '-') {
-            if (($len(a) == 2 && a[0][1] == 'h') ||
-                ($len(a) == 6 && memcmp(a[0], "--help", 6) == 0)) {
+            a_cstr(help_flag, "--help");
+            a_cstr(h_flag, "-h");
+            if ($eq(a, h_flag) || $eq(a, help_flag)) {
                 BROUsage();
                 done;
             }

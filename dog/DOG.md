@@ -8,7 +8,8 @@
       - `--tlv -t` provide output in hunk TLV mode (see HUNK)
       - `--install -i` install hook(s) in a git repo
  3. Each dog keeps its state in `$REPO_ROOT/.dogs/name`
- 4. Dogs must understand the URI syntax of GURI
+ 4. Dogs must understand the URI syntax of GURI. 
+    Dog's CLI is callable as `name URI`.
  5. Dogs find their home and each other using dog/HOME
  6. If `.dogs/keeper` is present, keeper has the data; if
     not, `git` has the data
@@ -17,3 +18,5 @@
       - `ok64 DOGOpen(name* state, path8s home, b8 rw)`
       - `ok64 DOGClose(name* state)`
  9. `.dogs/DOGS` lists the dogs `beagle` invokes by default
+10. `be` dispatches HTTP-like command vocabulary to 
+    appropriate dogs.

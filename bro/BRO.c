@@ -18,6 +18,7 @@
 #include "abc/PATH.h"
 #include "abc/PRO.h"
 #include "abc/TTY.h"
+#include "abc/URI.h"
 #include "abc/UTF8.h"
 #include "dog/DEF.h"
 #include "dog/HOME.h"
@@ -203,6 +204,12 @@ static void BROGetSize(BROstate *st) {
 static u32 BROAppendLines(range32 *lines, u32 nlines, u32 maxlines,
                           hunkc const *hunks, u32 from, u32 nhunks);
 static void BROScrollCenter(BROstate *st, u32 target);
+static void BROReadSpot(BROstate *st, char *buf, int bufsz,
+                        char const *prompt);
+static ok64 BROForkSpot(BROstate *st, char const *flag,
+                        char const *token, char const *filepath,
+                        char const *repo);
+static u32 BROSearchNext(BROstate *st, u32 from, int direction);
 
 // --- Build line index ---
 
@@ -546,9 +553,10 @@ static void BROScreenFlush(void) {
     u8bReset(bro_scr);
 }
 
-// Feed string literal
+// Feed string literal (use scr_puts("text") only with literals/known-len)
 static void scr_puts(char const *s) {
-    u8sFeed(u8bIdle(bro_scr), (u8csc){(u8cp)s, (u8cp)s + strlen(s)});
+    a_cstr(cs, s);
+    u8sFeed(u8bIdle(bro_scr), cs);
 }
 
 // Feed goto escape: \033[row;colH
@@ -565,7 +573,8 @@ static void scr_goto(int row, int col) {
 
 // Direct write helpers (for prompts/setup, not screen rendering)
 static void bro_puts(char const *s) {
-    (void)write(STDOUT_FILENO, s, strlen(s));
+    a_cstr(cs, s);
+    (void)write(STDOUT_FILENO, cs[0], $len(cs));
 }
 static void bro_write(u8csc s) {
     (void)write(STDOUT_FILENO, s[0], $len(s));
@@ -608,7 +617,9 @@ static void scr_emit_char(u8cp p, u32 n, u8 fg_tag, u8 bg_tag, b8 in_search) {
 static b8 bro_search_at(BROstate *st, u8csc text, u32 pos) {
     if (st->search_len == 0) return NO;
     if (pos + st->search_len > (u32)$len(text)) return NO;
-    return memcmp(&text[0][pos], st->search, st->search_len) == 0 ? YES : NO;
+    u8cs hay = {text[0] + pos, text[0] + pos + st->search_len};
+    u8cs ndl = {(u8cp)st->search, (u8cp)st->search + st->search_len};
+    return $eq(hay, ndl);
 }
 
 static void BROStatusBar(BROstate *st);
@@ -856,12 +867,13 @@ static u32 BROSearchNext(BROstate *st, u32 from, int direction) {
             line_end++;
         // Search within this line
         u32 w = line_end - off;
+        u8cs ndl = {(u8cp)st->search, (u8cp)st->search + st->search_len};
         if (w >= st->search_len) {
             u32 limit = w - st->search_len + 1;
             for (u32 j = 0; j < limit; j++) {
-                if (memcmp(&hk->text[0][off + j], st->search,
-                           st->search_len) == 0)
-                    return i;
+                u8cs hay = {hk->text[0] + off + j,
+                            hk->text[0] + off + j + st->search_len};
+                if ($eq(hay, ndl)) return i;
             }
         }
     }
@@ -902,38 +914,169 @@ static void BROReadSearch(BROstate *st) {
 }
 
 // Read line number from user (displayed in status bar)
-static void BROReadGoto(BROstate *st) {
-    char buf[32] = {};
-    u32 len = 0;
+// Strip trailing .ext from fragment text. Writes ext to ext_out
+// (incl dot, e.g. ".c"), trims from frag in place. Returns YES if found.
+static b8 bro_strip_ext(char *frag, char *ext_out, int ext_sz) {
+    int fl = (int)strlen(frag);
+    int di = fl;
+    while (di > 0 && isalnum((u8)frag[di - 1])) di--;
+    if (di <= 0 || frag[di - 1] != '.') return NO;
+    int es = di - 1;
+    if (es > 0 && frag[es - 1] != ' ' &&
+        frag[es - 1] != '\'' && frag[es - 1] != '/') return NO;
+    int elen = fl - es;
+    if (elen <= 1 || elen >= ext_sz) return NO;
+    memcpy(ext_out, frag + es, (size_t)elen);
+    ext_out[elen] = 0;
+    int trim = es;
+    while (trim > 0 && frag[trim - 1] == ' ') trim--;
+    frag[trim] = 0;
+    return YES;
+}
 
-    for (;;) {
-        bro_goto(st->rows, 1);
-        bro_puts(TTY_INVERSE TTY_ERASE_LINE);
-        bro_puts(" :");
-        if (len > 0) {
-            u8cs bs = {(u8cp)buf, (u8cp)buf + len};
-            bro_write(bs);
-        }
-        bro_puts(TTY_RESET);
+// Dispatch a GURI fragment (line/grep/snippet/regex) via spot.
+// Handles ext stripping and default ext from current hunk.
+static void BRODispatchFragment(BROstate *st, char *frag,
+                                char const *repo) {
+    if (frag[0] == 0) return;
 
-        u8 ch = 0;
-        ssize_t n = read(st->tty_fd, &ch, 1);
-        if (n <= 0) continue;
-        if (ch == '\n' || ch == '\r') break;
-        if (ch == 27) { len = 0; break; }
-        if (ch == 127 || ch == 8) {
-            if (len > 0) len--;
-            continue;
-        }
-        if (ch >= '0' && ch <= '9' && len < sizeof(buf) - 1)
-            buf[len++] = (char)ch;
+    // Strip trailing .ext
+    char ext_arg[16] = {};
+    bro_strip_ext(frag, ext_arg, sizeof(ext_arg));
+    if (frag[0] == 0) return;
+
+    // Line number
+    if (frag[0] >= '0' && frag[0] <= '9') {
+        u32 target = (u32)atoi(frag);
+        if (target > 0) target--;
+        if (target >= st->nlines) target = st->nlines > 0 ? st->nlines - 1 : 0;
+        st->scroll = target;
+        return;
     }
 
-    if (len > 0) {
-        buf[len] = 0;
+    // Classify search type
+    int fl = (int)strlen(frag);
+    char const *flag = "-g";
+    char const *pattern = frag;
+    char unquoted[256] = {};
+    if (fl >= 2 && frag[0] == '\'' && frag[fl - 1] == '\'') {
+        flag = "-s";
+        memcpy(unquoted, frag + 1, (size_t)(fl - 2));
+        pattern = unquoted;
+    } else if (fl >= 2 && frag[0] == '/' && frag[fl - 1] == '/') {
+        flag = "-p";
+        memcpy(unquoted, frag + 1, (size_t)(fl - 2));
+        pattern = unquoted;
+    }
+
+    // Resolve ext: explicit > current hunk's ext
+    char const *arg = NULL;
+    char argz[16] = {};
+    if (ext_arg[0]) {
+        arg = ext_arg;
+    } else if (st->scroll < st->nlines) {
+        u32 hi = st->lines[st->scroll].lo;
+        hunkc const *hk = &st->hunks[hi];
+        if (!$empty(hk->path)) {
+            u8cs ext = {};
+            HUNKu8sExt(ext, hk->path[0], (size_t)$len(hk->path));
+            if (!$empty(ext)) {
+                size_t el = (size_t)$len(ext);
+                if (el < sizeof(argz)) {
+                    memcpy(argz, ext[0], el);
+                    arg = argz;
+                }
+            }
+        }
+    }
+
+    ok64 o = BROForkSpot(st, flag, pattern, arg, repo);
+    if (o != OK && st->flash[0] == 0)
+        snprintf(st->flash, sizeof(st->flash), "spot: %s", ok64str(o));
+}
+
+// Unified URI prompt. Accepts: line number, path, path#fragment,
+// #fragment, or bare fragment. Uses abc/URI to parse.
+static void BROReadURI(BROstate *st, char const *repo) {
+    char buf[512] = {};
+    BROReadSpot(st, buf, sizeof(buf), " : ");
+    if (buf[0] == 0) return;
+
+    // Parse with abc/URI
+    u8cs input = {(u8cp)buf, (u8cp)buf + strlen(buf)};
+    uri u = {};
+    $mv(u.data, input);
+    ok64 po = URILexer(&u);
+
+    // If URI parsing fails, treat as plain goto-line or search
+    if (po != OK) {
+        if (buf[0] >= '0' && buf[0] <= '9') {
+            u32 target = (u32)atoi(buf);
+            if (target > 0) target--;
+            if (target >= st->nlines)
+                target = st->nlines > 0 ? st->nlines - 1 : 0;
+            st->scroll = target;
+        }
+        return;
+    }
+
+    b8 has_path = !$empty(u.path);
+    b8 has_frag = !$empty(u.fragment);
+
+    // Path component → open file
+    if (has_path) {
+        // NUL-terminate path for BROOpenFile
+        char pathz[FILE_PATH_MAX_LEN] = {};
+        size_t pl = (size_t)$len(u.path);
+        if (pl >= sizeof(pathz)) pl = sizeof(pathz) - 1;
+        memcpy(pathz, u.path[0], pl);
+
+        // Determine target line from fragment (if numeric)
+        u32 target_line = 0;
+        if (has_frag && u.fragment[0][0] >= '0' && u.fragment[0][0] <= '9') {
+            char lnbuf[32] = {};
+            size_t fl = (size_t)$len(u.fragment);
+            if (fl >= sizeof(lnbuf)) fl = sizeof(lnbuf) - 1;
+            memcpy(lnbuf, u.fragment[0], fl);
+            target_line = (u32)atoi(lnbuf);
+        }
+
+        u8cs relpath = {(u8cp)pathz, (u8cp)pathz + pl};
+        ok64 o = BROOpenFile(st, relpath, repo, target_line);
+        if (o != OK)
+            snprintf(st->flash, sizeof(st->flash),
+                     "open: %s: %s", pathz, ok64str(o));
+
+        // If fragment is non-numeric, set it as search pattern after opening
+        if (o == OK && has_frag &&
+            !(u.fragment[0][0] >= '0' && u.fragment[0][0] <= '9')) {
+            size_t fl = (size_t)$len(u.fragment);
+            if (fl < sizeof(st->search)) {
+                memcpy(st->search, u.fragment[0], fl);
+                st->search_len = (u32)fl;
+                u32 f = BROSearchNext(st, st->scroll, +1);
+                if (f != UINT32_MAX) st->scroll = f;
+            }
+        }
+        return;
+    }
+
+    // Fragment only → dispatch as GURI search
+    if (has_frag) {
+        char frag[256] = {};
+        size_t fl = (size_t)$len(u.fragment);
+        if (fl >= sizeof(frag)) fl = sizeof(frag) - 1;
+        memcpy(frag, u.fragment[0], fl);
+        BRODispatchFragment(st, frag, repo);
+        return;
+    }
+
+    // Bare text without # → treat as goto line or local search
+    if (buf[0] >= '0' && buf[0] <= '9') {
         u32 target = (u32)atoi(buf);
-        if (target > 0) target--;  // 1-based to 0-based
-        if (target >= st->nlines) target = st->nlines > 0 ? st->nlines - 1 : 0;
+        if (target > 0) target--;
+        if (target >= st->nlines)
+            target = st->nlines > 0 ? st->nlines - 1 : 0;
         st->scroll = target;
     }
 }
@@ -1038,17 +1181,18 @@ static void bro_resolve_spot(void) {
 // Returns count of matches written to out[0..maxout).
 // Scan one hunk for words matching prefix, append unique to out.
 // Check if word contains needle as a substring (case-sensitive).
-static b8 bro_has_substr(char const *word, int wlen,
-                         char const *ndl, int nlen) {
-    if (nlen <= 0) return YES;
-    if (nlen > wlen) return NO;
-    int limit = wlen - nlen + 1;
-    for (int i = 0; i < limit; i++)
-        if (memcmp(word + i, ndl, (size_t)nlen) == 0) return YES;
+static b8 bro_has_substr(u8csc word, u8csc ndl) {
+    if ($empty(ndl)) return YES;
+    if ($len(ndl) > $len(word)) return NO;
+    u64 limit = $len(word) - $len(ndl) + 1;
+    for (u64 i = 0; i < limit; i++) {
+        u8cs hay = {word[0] + i, word[0] + i + $len(ndl)};
+        if ($eq(hay, ndl)) return YES;
+    }
     return NO;
 }
 
-static int bro_scan_hunk(hunkc const *hk, char const *ndl, int nlen,
+static int bro_scan_hunk(hunkc const *hk, u8csc ndl,
                          b8 substr, char out[][64], int n, int maxout) {
     u32 tlen = (u32)$len(hk->text);
     if (tlen == 0) return n;
@@ -1060,23 +1204,24 @@ static int bro_scan_hunk(hunkc const *hk, char const *ndl, int nlen,
         while (i < tlen && (isalnum(txt[i]) || txt[i] == '_')) i++;
         u32 wlen = i - ws;
         if (wlen < 2 || wlen >= 64) continue;
-        if ((int)wlen < nlen) continue;
-        if (nlen > 0) {
+        if ((u32)$len(ndl) > wlen) continue;
+        u8cs word_s = {txt + ws, txt + ws + wlen};
+        if (!$empty(ndl)) {
             if (substr) {
-                if (!bro_has_substr((char *)txt + ws, (int)wlen, ndl, nlen))
-                    continue;
+                if (!bro_has_substr(word_s, ndl)) continue;
             } else {
-                if (memcmp(txt + ws, ndl, (size_t)nlen) != 0)
-                    continue;
+                u8cs pfx = {word_s[0], word_s[0] + $len(ndl)};
+                if (!$eq(pfx, ndl)) continue;
             }
         }
-        char word[64];
-        memcpy(word, txt + ws, wlen);
-        word[wlen] = 0;
+        a_pad(u8, wbuf, 64);
+        u8bFeed(wbuf, word_s);
+        u8sFeed1(wbuf_idle, 0);  // NUL for strcmp
+        char *wp = (char *)u8bDataHead(wbuf);
         b8 dup = NO;
         for (int j = 0; j < n; j++)
-            if (strcmp(out[j], word) == 0) { dup = YES; break; }
-        if (!dup) { memcpy(out[n], word, wlen + 1); n++; }
+            if (strcmp(out[j], wp) == 0) { dup = YES; break; }
+        if (!dup) { memcpy(out[n], wp, wlen + 1); n++; }
     }
     return n;
 }
@@ -1084,20 +1229,19 @@ static int bro_scan_hunk(hunkc const *hk, char const *ndl, int nlen,
 // Collect unique words matching needle. Tries prefix first; if no
 // matches, retries as substring.
 static int bro_collect_words(hunkc const *hunks, u32 nhunks,
-                             u32 start_hunk,
-                             char const *ndl, int nlen,
+                             u32 start_hunk, u8csc ndl,
                              char out[][64], int maxout) {
     // Pass 1: prefix match
     int n = 0;
     for (u32 k = 0; k < nhunks && n < maxout; k++) {
         u32 h = (start_hunk + k) % nhunks;
-        n = bro_scan_hunk(&hunks[h], ndl, nlen, NO, out, n, maxout);
+        n = bro_scan_hunk(&hunks[h], ndl, NO, out, n, maxout);
     }
-    if (n > 0 || nlen == 0) return n;
+    if (n > 0 || $empty(ndl)) return n;
     // Pass 2: substring match
     for (u32 k = 0; k < nhunks && n < maxout; k++) {
         u32 h = (start_hunk + k) % nhunks;
-        n = bro_scan_hunk(&hunks[h], ndl, nlen, YES, out, n, maxout);
+        n = bro_scan_hunk(&hunks[h], ndl, YES, out, n, maxout);
     }
     return n;
 }
@@ -1152,9 +1296,10 @@ static void BROReadSpot(BROstate *st, char *buf, int bufsz,
             if (!matches_valid) {
                 u32 sh = (st->scroll < st->nlines)
                        ? st->lines[st->scroll].lo : 0;
+                u8cs wndl = {(u8cp)buf + wstart,
+                             (u8cp)buf + wstart + pfxlen};
                 nmatch = bro_collect_words(st->hunks, st->nhunks,
-                                           sh, buf + wstart, pfxlen,
-                                           matches, 256);
+                                           sh, wndl, matches, 256);
                 match_idx = -1;
                 matches_valid = YES;
             }
@@ -1216,26 +1361,27 @@ static ok64 BROForkSpot(BROstate *st, char const *flag,
     u8p arena_save = u8bIdleHead(bro_arena);
     u32 hunks_save = bro_nhunks;
 
-    // Read buffer
-    u8 rdbuf[1 << 16];
-    u8 pending[1 << 16];
-    int pend_len = 0;
+    // Read buffer — heap allocated, not 128KB on stack
+    Bu8 pdbuf = {};
+    ok64 mo2 = u8bMap(pdbuf, 1UL << 16);
+    if (mo2 != OK) { close(pfd[0]); waitpid(pid, NULL, 0); fail(mo2); }
 
     for (;;) {
-        ssize_t nr = read(pfd[0], rdbuf, sizeof(rdbuf));
-        if (nr <= 0) break;
-        // Append to pending
-        if (pend_len + (int)nr > (int)sizeof(pending)) {
-            nr = (ssize_t)(sizeof(pending) - pend_len);
-            if (nr <= 0) break;
+        // Read into idle space
+        size_t space = u8bIdleLen(pdbuf);
+        if (space == 0) {
+            ok64 ro = u8bReMap(pdbuf, u8bSize(pdbuf) * 2);
+            if (ro != OK) break;
+            space = u8bIdleLen(pdbuf);
         }
-        memcpy(pending + pend_len, rdbuf, (size_t)nr);
-        pend_len += (int)nr;
+        ssize_t nr = read(pfd[0], u8bIdleHead(pdbuf), space);
+        if (nr <= 0) break;
+        u8bFed(pdbuf, (size_t)nr);
 
         // Drain complete TLV records
-        u8cs from = {(u8cp)pending, (u8cp)pending + pend_len};
+        a_dup(u8 const, from, u8bDataC(pdbuf));
         while (!$empty(from) && bro_nhunks < BRO_MAX_HUNKS) {
-            u8cs save = {from[0], from[1]};
+            a_dup(u8 const, save, from);
             hunk tlv_hk = {};
             ok64 o = HUNKu8sDrain(from, &tlv_hk);
             if (o != OK) { $mv(from, save); break; }
@@ -1250,13 +1396,13 @@ static ok64 BROForkSpot(BROstate *st, char const *flag,
                 if (xp) { hk->text[0] = xp; hk->text[1] = u8bIdleHead(bro_arena); }
             }
             if (!$empty(tlv_hk.toks)) {
-                u8p tkp = BROArenaWrite(tlv_hk.toks[0],
-                              (size_t)((u8cp)tlv_hk.toks[1] - (u8cp)tlv_hk.toks[0]));
+                size_t tn = (size_t)((u8cp)tlv_hk.toks[1] - (u8cp)tlv_hk.toks[0]);
+                u8p tkp = BROArenaWrite(tlv_hk.toks[0], tn);
                 if (tkp) { hk->toks[0] = (u32cp)tkp; hk->toks[1] = (u32cp)u8bIdleHead(bro_arena); }
             }
             if (!$empty(tlv_hk.hili)) {
-                u8p hp = BROArenaWrite(tlv_hk.hili[0],
-                             (size_t)((u8cp)tlv_hk.hili[1] - (u8cp)tlv_hk.hili[0]));
+                size_t hn = (size_t)((u8cp)tlv_hk.hili[1] - (u8cp)tlv_hk.hili[0]);
+                u8p hp = BROArenaWrite(tlv_hk.hili[0], hn);
                 if (hp) { hk->hili[0] = (u32cp)hp; hk->hili[1] = (u32cp)u8bIdleHead(bro_arena); }
             }
             if (!$empty(tlv_hk.path)) {
@@ -1266,13 +1412,14 @@ static ok64 BROForkSpot(BROstate *st, char const *flag,
             hk->lineno = tlv_hk.lineno;
             bro_nhunks++;
         }
-        // Compact pending
-        int consumed = pend_len - (int)$len(from);
+        // Compact: shift consumed data out
+        size_t consumed = u8bDataLen(pdbuf) - $len(from);
         if (consumed > 0) {
-            pend_len -= consumed;
-            memmove(pending, pending + consumed, (size_t)pend_len);
+            u8bUsed(pdbuf, consumed);
+            u8bShift(pdbuf, 0);
         }
     }
+    u8bUnMap(pdbuf);
 
     close(pfd[0]);
     int status = 0;
@@ -1349,7 +1496,7 @@ static int BROHandleKey(BROstate *st, u8 ch, char const *repo) {
         st->scroll = (st->nlines > page) ? st->nlines - page : 0;
         return BRO_KEY_CHANGED;
     }
-    if (ch == ':') { BROReadGoto(st); return BRO_KEY_CHANGED; }
+    if (ch == ':' || ch == '#') { BROReadURI(st, repo); return BRO_KEY_CHANGED; }
     if (ch == '/') {
         BROReadSearch(st);
         if (st->search_len > 0) {
@@ -1411,89 +1558,6 @@ static int BROHandleKey(BROstate *st, u8 ch, char const *repo) {
             u32 f = BROSearchNext(st, st->scroll, +1);
             if (f != UINT32_MAX) st->scroll = f;
         }
-        return BRO_KEY_CHANGED;
-    }
-    if (ch == '#') {
-        // GURI fragment prompt: #42 line, #text.c grep,
-        // #'snippet'.c spot, #/regex/.c regex
-        char frag[256] = {};
-        BROReadSpot(st, frag, sizeof(frag), " # ");
-        if (frag[0] == 0) return BRO_KEY_CHANGED;
-
-        // Strip trailing .ext if present
-        char ext_arg[16] = {};
-        {
-            int fl = (int)strlen(frag);
-            int di = fl;
-            while (di > 0 && isalnum((u8)frag[di - 1])) di--;
-            if (di > 0 && frag[di - 1] == '.') {
-                int es = di - 1;
-                if (es == 0 || frag[es - 1] == ' ' ||
-                    frag[es - 1] == '\'' || frag[es - 1] == '/') {
-                    int elen = fl - es;
-                    if (elen > 1 && elen < (int)sizeof(ext_arg)) {
-                        memcpy(ext_arg, frag + es, (size_t)elen);
-                        int trim = es;
-                        while (trim > 0 && frag[trim - 1] == ' ') trim--;
-                        frag[trim] = 0;
-                        if (frag[0] == 0) return BRO_KEY_CHANGED;
-                    }
-                }
-            }
-        }
-
-        // Classify by GURI search type
-        int fl = (int)strlen(frag);
-        if (frag[0] >= '0' && frag[0] <= '9') {
-            // Line number — goto (local)
-            u32 target = (u32)atoi(frag);
-            if (target > 0 && target <= st->nlines) {
-                st->scroll = target - 1;
-            }
-            return BRO_KEY_CHANGED;
-        }
-
-        char const *flag = "-g";   // default: grep
-        char const *pattern = frag;
-        char unquoted[256] = {};
-
-        if (fl >= 2 && frag[0] == '\'' && frag[fl - 1] == '\'') {
-            // 'snippet' — spot snippet search
-            flag = "-s";
-            memcpy(unquoted, frag + 1, (size_t)(fl - 2));
-            pattern = unquoted;
-        } else if (fl >= 2 && frag[0] == '/' && frag[fl - 1] == '/') {
-            // /regex/ — spot regex search
-            flag = "-p";
-            memcpy(unquoted, frag + 1, (size_t)(fl - 2));
-            pattern = unquoted;
-        }
-        // else: bare text — grep
-
-        // Default ext from current hunk if not specified
-        char const *arg = NULL;
-        char argz[16] = {};
-        if (ext_arg[0]) {
-            arg = ext_arg;
-        } else if (st->scroll < st->nlines) {
-            u32 hi = st->lines[st->scroll].lo;
-            hunkc const *hk = &st->hunks[hi];
-            if (!$empty(hk->path)) {
-                u8cs ext = {};
-                HUNKu8sExt(ext, hk->path[0], (size_t)$len(hk->path));
-                if (!$empty(ext)) {
-                    size_t el = (size_t)$len(ext);
-                    if (el < sizeof(argz)) {
-                        memcpy(argz, ext[0], el);
-                        arg = argz;
-                    }
-                }
-            }
-        }
-
-        ok64 o = BROForkSpot(st, flag, pattern, arg, repo);
-        if (o != OK && st->flash[0] == 0)
-            snprintf(st->flash, sizeof(st->flash), "spot: %s", ok64str(o));
         return BRO_KEY_CHANGED;
     }
     if (ch == 033) {
