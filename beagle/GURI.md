@@ -20,6 +20,11 @@ is extracted by introspection functions.
 The `.git/` marker in the path splits the repo address from the
 file path: `//github.com/user/repo.git/src/foo.c?main`.
 
+Short refs like `?main` are ambiguous — resolved by trying
+refs/heads, refs/tags, then SHA prefix, same order as git.
+Use the full path (`?refs/heads/main`, `?refs/tags/v1.0`)
+when disambiguation is needed.
+
 ## Examples
 
 ```
