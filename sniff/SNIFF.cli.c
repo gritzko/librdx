@@ -196,21 +196,30 @@ static ok64 sniff_stop(u8cs reporoot) {
     done;
 }
 
-// --- Mode: Status (paths changed since token) ---
+// --- Mode: Status (scan worktree, compare mtime against checkout) ---
 
-static ok64 sniff_status(sniff *s) {
+static ok64 sniff_status(sniff *s, u8cs reporoot) {
     sane(s);
     u32 n = SNIFFCount(s);
     u32 dirty = 0;
 
     for (u32 i = 0; i < n; i++) {
         u64 co = SNIFFGet(s, SNIFF_CHECKOUT, i);
-        u64 ch = SNIFFGet(s, SNIFF_CHANGED, i);
-        if (ch == 0 || ch == co) continue;
+        if (co == 0) continue;  // no checkout record
 
-        u8cs path = {};
-        if (SNIFFPath(path, s, i) != OK) continue;
-        printf("%.*s\n", (int)$len(path), (char *)path[0]);
+        u8cs rel = {};
+        if (SNIFFPath(rel, s, i) != OK) continue;
+
+        a_path(fp);
+        if (sniff_fullpath(fp, reporoot, rel) != OK) continue;
+
+        struct stat sb = {};
+        if (FILEStat(&sb, PATHu8cgIn(fp)) != OK) continue;
+
+        u64 now = (u64)sb.st_mtim.tv_sec;
+        if (now == co) continue;
+
+        printf("%.*s\n", (int)$len(rel), (char *)rel[0]);
         dirty++;
     }
 
@@ -331,7 +340,7 @@ ok64 sniffcli() {
     } else if (do_watch) {
         ret = sniff_daemon(&s, reporoot);
     } else if (do_status) {
-        ret = sniff_status(&s);
+        ret = sniff_status(&s, reporoot);
     } else if (do_list) {
         ret = sniff_list(&s);
     } else if (do_update) {

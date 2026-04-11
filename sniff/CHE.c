@@ -8,6 +8,7 @@
 #include <unistd.h>
 
 #include "abc/FILE.h"
+#include "abc/HEX.h"
 #include "abc/PATH.h"
 #include "abc/PRO.h"
 #include "keeper/GIT.h"
@@ -24,9 +25,9 @@ static ok64 che_fullpath(path8b out, u8cs reporoot, u8cs rel) {
     done;
 }
 
-// Recursive tree checkout
+// Recursive tree checkout.  seen[idx]=1 for every path visited.
 static ok64 che_tree(sniff *s, keeper *k, u8cs reporoot,
-                     u8cp tree_sha, u8cs prefix) {
+                     u8cp tree_sha, u8cs prefix, u8p seen) {
     sane(s && k && tree_sha);
 
     u64 hashlet = wh64Hashlet(tree_sha);
@@ -37,7 +38,6 @@ static ok64 che_tree(sniff *s, keeper *k, u8cs reporoot,
     if (o != OK) { u8bFree(buf); fail(o); }
     if (otype != KEEP_OBJ_TREE) { u8bFree(buf); fail(SNIFFFAIL); }
 
-    // Copy tree content (KEEPGet may reuse buffer)
     size_t tsz = u8bDataLen(buf);
     u8 *tcopy = malloc(tsz);
     if (!tcopy) { u8bFree(buf); fail(SNIFFFAIL); }
@@ -56,7 +56,6 @@ static ok64 che_tree(sniff *s, keeper *k, u8cs reporoot,
         ++name_start;
         u8cs name_s = {name_start, file[1]};
 
-        // mode 40000=tree, 100644/100755=file, 160000=submodule, 120000=symlink
         b8 is_dir = ($at(mode_s, 0) == '4');
         b8 is_submodule = ($len(mode_s) >= 2 &&
                            $at(mode_s, 0) == '1' && $at(mode_s, 1) == '6');
@@ -64,7 +63,6 @@ static ok64 che_tree(sniff *s, keeper *k, u8cs reporoot,
                          $at(mode_s, 0) == '1' && $at(mode_s, 1) == '2');
         if (is_submodule) continue;
 
-        // Build relative path: prefix/name
         a_pad(u8, rel, 2048);
         if (!$empty(prefix)) {
             u8bFeed(rel, prefix);
@@ -82,12 +80,14 @@ static ok64 che_tree(sniff *s, keeper *k, u8cs reporoot,
             FILEMakeDir(PATHu8cgIn(dp));
 
             u32 idx = SNIFFIntern(s, relpath);
+            seen[idx] = 1;
             SNIFFRecord(s, SNIFF_HASHLET, idx, entry_hashlet);
 
-            result = che_tree(s, k, reporoot, esha[0], relpath);
+            result = che_tree(s, k, reporoot, esha[0], relpath, seen);
             if (result != OK) break;
         } else {
             u32 idx = SNIFFIntern(s, relpath);
+            seen[idx] = 1;
 
             // Skip unchanged
             u64 old_hashlet = SNIFFGet(s, SNIFF_HASHLET, idx);
@@ -117,6 +117,8 @@ static ok64 che_tree(sniff *s, keeper *k, u8cs reporoot,
             if (result != OK) { u8bFree(blob); break; }
 
             if (is_symlink) {
+                // Remove existing file/symlink before creating
+                unlink((char *)u8bDataHead(fp));
                 u8bFeed1(blob, 0);
                 symlink((char *)u8bDataHead(blob),
                         (char *)u8bDataHead(fp));
@@ -147,6 +149,38 @@ static ok64 che_tree(sniff *s, keeper *k, u8cs reporoot,
     return result;
 }
 
+// Remove tracked files not in the new tree
+static ok64 che_prune(sniff *s, u8cs reporoot, u8cp seen) {
+    sane(s);
+    u32 n = SNIFFCount(s);
+    u32 removed = 0;
+
+    for (u32 i = 0; i < n; i++) {
+        if (seen[i]) continue;
+        // Only prune if we had a hashlet (i.e. it was checked out)
+        u64 h = SNIFFGet(s, SNIFF_HASHLET, i);
+        if (h == 0) continue;
+
+        u8cs rel = {};
+        if (SNIFFPath(rel, s, i) != OK) continue;
+
+        a_path(fp);
+        if (che_fullpath(fp, reporoot, rel) != OK) continue;
+
+        // Remove file or symlink
+        unlink((char *)u8bDataHead(fp));
+
+        // Clear state
+        SNIFFRecord(s, SNIFF_HASHLET, i, 0);
+        SNIFFRecord(s, SNIFF_CHECKOUT, i, 0);
+        removed++;
+    }
+
+    if (removed > 0)
+        fprintf(stderr, "sniff: removed %u stale file(s)\n", removed);
+    done;
+}
+
 // --- Public API ---
 
 ok64 CHECheckout(sniff *s, keeper *k, u8cs reporoot, u8cs hex) {
@@ -156,14 +190,52 @@ ok64 CHECheckout(sniff *s, keeper *k, u8cs reporoot, u8cs hex) {
     if (hexlen > 10) hexlen = 10;
     u64 hashlet = wh64HashletFromHex((char const *)hex[0], hexlen);
 
-    // Get commit
+    // Get object (may be tag or commit)
     Bu8 buf = {};
     call(u8bAllocate, buf, 1UL << 24);
     u8 otype = 0;
     ok64 o = KEEPGet(k, hashlet, hexlen, buf, &otype);
-    if (o != OK || otype != KEEP_OBJ_COMMIT) {
+    if (o != OK) {
         u8bFree(buf);
-        fprintf(stderr, "sniff: object not found or not a commit\n");
+        fprintf(stderr, "sniff: object not found\n");
+        fail(SNIFFFAIL);
+    }
+
+    // Dereference annotated tag → commit
+    if (otype == KEEP_OBJ_TAG) {
+        u8cs body = {u8bDataHead(buf), u8bIdleHead(buf)};
+        u8cs field = {}, value = {};
+        u8 target_sha[GIT_SHA1_LEN] = {};
+        b8 found = NO;
+        while (GITu8sDrainCommit(body, field, value) == OK) {
+            if ($empty(field)) break;
+            if ($len(field) == 6 && memcmp(field[0], "object", 6) == 0 &&
+                $len(value) >= 40) {
+                u8s bin = {target_sha, target_sha + GIT_SHA1_LEN};
+                u8cs hex_s = {value[0], value[0] + 40};
+                HEXu8sDrainSome(bin, hex_s);
+                found = YES;
+                break;
+            }
+        }
+        if (!found) {
+            u8bFree(buf);
+            fprintf(stderr, "sniff: bad tag (no object)\n");
+            fail(SNIFFFAIL);
+        }
+        u64 commit_hashlet = wh64Hashlet(target_sha);
+        u8bReset(buf);
+        o = KEEPGet(k, commit_hashlet, 10, buf, &otype);
+        if (o != OK || otype != KEEP_OBJ_COMMIT) {
+            u8bFree(buf);
+            fprintf(stderr, "sniff: tag target not a commit\n");
+            fail(SNIFFFAIL);
+        }
+    }
+
+    if (otype != KEEP_OBJ_COMMIT) {
+        u8bFree(buf);
+        fprintf(stderr, "sniff: not a commit\n");
         fail(SNIFFFAIL);
     }
 
@@ -177,10 +249,23 @@ ok64 CHECheckout(sniff *s, keeper *k, u8cs reporoot, u8cs hex) {
         fail(SNIFFFAIL);
     }
 
+    // Allocate seen bitmap
+    u32 npath = SNIFFCount(s);
+    // Reserve space for new paths too (tree may add up to ~10K)
+    u32 seen_size = npath + SNIFF_HASH_SIZE;
+    u8 *seen = calloc(seen_size, sizeof(u8));
+    if (!seen) fail(SNIFFFAIL);
+
     // Checkout tree
     u8cs no_prefix = {};
-    call(che_tree, s, k, reporoot, tree_sha, no_prefix);
+    o = che_tree(s, k, reporoot, tree_sha, no_prefix, seen);
 
-    fprintf(stderr, "sniff: checkout done\n");
-    done;
+    // Prune files not in the new tree
+    if (o == OK)
+        o = che_prune(s, reporoot, seen);
+
+    free(seen);
+    if (o == OK)
+        fprintf(stderr, "sniff: checkout done\n");
+    return o;
 }
