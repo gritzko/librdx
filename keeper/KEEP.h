@@ -30,8 +30,8 @@ con ok64 KEEPNONE    = 0x11c55d85ce;
 //  Hashlet: 40-bit big-endian SHA prefix (first byte on top).
 //  Sort on key groups same hashlet together (type in LS bits).
 
-#define HASH_SHA1   0   // hash type for git SHA-1
-#define KEEP_PACK   0   // val type for concatenated git packfiles
+#define HASH_SHA1   1   // hash type for git SHA-1
+#define KEEP_PACK   1   // val type for concatenated git packfiles
 #define HASH_MIN_HEX 6
 
 // --- Keeper state ---

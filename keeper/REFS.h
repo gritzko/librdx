@@ -35,10 +35,10 @@ con ok64 REFSBAD   = 0x11c538b28d;
 
 // --- ref record ---
 
-#define REF_ALIAS  0  // //name → full URL
-#define REF_SHA    1  // ?refname → ?sha
-#define REF_TAG    2  // tag ref
-#define REF_BRANCH 3  // branch ref
+#define REF_ALIAS  1  // //name → full URL
+#define REF_SHA    2  // ?refname → ?sha
+#define REF_TAG    3  // tag ref
+#define REF_BRANCH 4  // branch ref
 
 typedef struct {
     ron60 time;
