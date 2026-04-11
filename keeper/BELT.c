@@ -120,7 +120,7 @@ ok64 BELTIndexWrite(u8cs idx_dir, belt128cs run, u64 seqno) {
     call(FILECreate, &fd, PATHu8cgIn(path));
     size_t bytes = $len(run) * sizeof(belt128);
     u8cs data = {(u8cp)run[0], (u8cp)run[0] + bytes};
-    call(FILEFeedall, fd, data);
+    call(FILEFeedAll, fd, data);
     close(fd);
     done;
 }

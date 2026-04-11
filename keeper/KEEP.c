@@ -598,6 +598,203 @@ ok64 KEEPScan(keeper *k, u64 from_val, keep_cb cb, void *ctx) {
     done;
 }
 
+// --- Put: store a batch of objects locally ---
+
+static ok64 keep_build_pack_path(u8bp path, u8csc dir, u32 file_id) {
+    u8bFeed(path, dir);
+    u8bFeed1(path, '/');
+    RONu8sFeedPad(u8bIdle(path), (u64)file_id, KEEP_SEQNO_W);
+    ((u8 **)path)[2] += KEEP_SEQNO_W;
+    return OK;
+}
+
+// Pack object varint header: type(3 bits) in bits 4-6 of first byte,
+// size in remaining bits (variable length).
+static size_t keep_encode_obj_hdr(u8 *out, u8 type, u64 size) {
+    u8 *p = out;
+    *p = (u8)((type << 4) | (size & 0x0f));
+    size >>= 4;
+    while (size > 0) {
+        *p |= 0x80;
+        p++;
+        *p = (u8)(size & 0x7f);
+        size >>= 7;
+    }
+    return (size_t)(p - out + 1);
+}
+
+ok64 KEEPPut(keeper *k, u8csc *objects, wh64 *whiffs, u32 nobjs) {
+    sane(k && objects && whiffs && nobjs > 0);
+
+    static char const *type_names[] = {
+        [KEEP_OBJ_COMMIT] = "commit",
+        [KEEP_OBJ_TREE] = "tree",
+        [KEEP_OBJ_BLOB] = "blob",
+        [KEEP_OBJ_TAG] = "tag",
+    };
+
+    u32 file_id = k->npacks + 1;
+
+    // Build packfile in memory:
+    //   "PACK" version(2) count(nobjs)  [12 bytes header]
+    //   for each object: varint(type|size) + deflated(content)
+    //   trailing SHA-1 of entire pack
+    Bu8 pack = {};
+    u64 est_size = 12 + 20;
+    for (u32 i = 0; i < nobjs; i++)
+        est_size += u8csLen(objects[i]) + 64;  // generous
+    call(u8bMap, pack, est_size);
+
+    // Pack header: "PACK" + version 2 + count (big-endian)
+    u8 pack_hdr_bytes[12] = {'P','A','C','K', 0,0,0,2, 0,0,0,0};
+    pack_hdr_bytes[8]  = (u8)(nobjs >> 24);
+    pack_hdr_bytes[9]  = (u8)(nobjs >> 16);
+    pack_hdr_bytes[10] = (u8)(nobjs >> 8);
+    pack_hdr_bytes[11] = (u8)(nobjs);
+    u8cs hdr_slice = {pack_hdr_bytes, pack_hdr_bytes + 12};
+    u8bFeed(pack, hdr_slice);
+
+    // Index entries
+    kv64 *entries = calloc(nobjs, sizeof(kv64));
+    if (!entries) { u8bUnMap(pack); fail(KEEPNOROOM); }
+
+    for (u32 i = 0; i < nobjs; i++) {
+        u8 type = wh64Type(whiffs[i]);
+        if (type < 1 || type > 4) {
+            free(entries); u8bUnMap(pack);
+            fail(KEEPFAIL);
+        }
+        u64 content_sz = u8csLen(objects[i]);
+
+        // Compute git SHA-1: "type size\0" + content
+        a_pad(u8, shabuf, 64);
+        u8bFeed(shabuf, (u8cs){(u8cp)type_names[type],
+                (u8cp)type_names[type] + strlen(type_names[type])});
+        u8bFeed1(shabuf, ' ');
+        // feed decimal size
+        a_pad(u8, numbuf, 32);
+        {
+            char tmp[32];
+            int nlen = snprintf(tmp, sizeof(tmp), "%llu",
+                                (unsigned long long)content_sz);
+            u8cs ns = {(u8cp)tmp, (u8cp)tmp + nlen};
+            u8bFeed(numbuf, ns);
+        }
+        u8bFeed(shabuf, (u8cs){u8bDataHead(numbuf),
+                u8bDataHead(numbuf) + u8bDataLen(numbuf)});
+        u8bFeed1(shabuf, 0);  // NUL separator
+
+        // SHA-1 = hash(header + content)
+        u64 hdr_len = u8bDataLen(shabuf);
+        Bu8 hashbuf = {};
+        u8bMap(hashbuf, hdr_len + content_sz);
+        a_dup(u8c, hdata, u8bData(shabuf));
+        u8bFeed(hashbuf, hdata);
+        u8bFeed(hashbuf, objects[i]);
+
+        u8 sha[20];
+        SHA1Sum(sha, u8bDataHead(hashbuf), u8bDataLen(hashbuf));
+        u8bUnMap(hashbuf);
+
+        // Record offset within pack
+        u64 obj_offset = u8bDataLen(pack);
+
+        // Write pack object: varint header + deflated content
+        a_pad(u8, objhdr, 16);
+        size_t hlen = keep_encode_obj_hdr(u8bIdleHead(objhdr), type, content_sz);
+        u8bFed(objhdr, hlen);
+        a_dup(u8c, oh, u8bData(objhdr));
+        u8bFeed(pack, oh);
+
+        // Deflate content
+        u64 deflated_cap = content_sz + 64;
+        u64 produced = 0;
+        // Ensure pack has room
+        while (u8bIdleLen(pack) < deflated_cap) {
+            deflated_cap = u8bIdleLen(pack);
+            if (deflated_cap < 64) deflated_cap = 64;
+            break;
+        }
+        int zr = ZINFDeflate(objects[i][0], content_sz,
+                             u8bIdleHead(pack), u8bIdleLen(pack),
+                             &produced);
+        if (zr != 0) {
+            free(entries); u8bUnMap(pack);
+            fail(KEEPFAIL);
+        }
+        u8bFed(pack, (size_t)produced);
+
+        // Build index entry
+        u64 hashlet = wh64Hashlet(sha);
+        entries[i].key = wh64Pack(HASH_SHA1, 0, hashlet);
+        entries[i].val = wh64Pack(KEEP_PACK, file_id, obj_offset);
+        whiffs[i] = wh64Pack(type, file_id, hashlet);
+    }
+
+    // Trailing SHA-1 of entire pack
+    u8 pack_sha[20];
+    SHA1Sum(pack_sha, u8bDataHead(pack), u8bDataLen(pack));
+    u8cs pack_sha_s = {pack_sha, pack_sha + 20};
+    u8bFeed(pack, pack_sha_s);
+
+    // Write .packs file
+    a_pad(u8, packpath, 1024);
+    a_cstr(kdir, k->dir);
+    call(keep_build_pack_path, packpath, kdir, file_id);
+    a_cstr(pext, KEEP_PACK_EXT);
+    u8bFeed(packpath, pext);
+    PATHu8gTerm(PATHu8gIn(packpath));
+
+    int fd = -1;
+    ok64 o = FILECreate(&fd, PATHu8cgIn(packpath));
+    if (o != OK) { free(entries); u8bUnMap(pack); fail(KEEPFAIL); }
+    a_dup(u8c, pdata, u8bData(pack));
+    FILEFeedAll(fd, pdata);
+    close(fd);
+    u8bUnMap(pack);
+
+    // Mmap the new pack
+    u8bp mapped = NULL;
+    if (FILEMapRO(&mapped, PATHu8cgIn(packpath)) == OK &&
+        k->npacks < KEEP_MAX_FILES) {
+        k->packs[k->npacks] = mapped;
+        k->npacks++;
+    }
+
+    // Sort and write index
+    kv64s sorted = {entries, entries + nobjs};
+    kv64sSort(sorted);
+
+    a_pad(u8, idxpath, 1024);
+    call(keep_build_pack_path, idxpath, kdir, file_id);
+    a_cstr(iext, KEEP_IDX_EXT);
+    u8bFeed(idxpath, iext);
+    PATHu8gTerm(PATHu8gIn(idxpath));
+
+    fd = -1;
+    FILECreate(&fd, PATHu8cgIn(idxpath));
+    if (fd >= 0) {
+        u8cs idata = {(u8cp)entries, (u8cp)(entries + nobjs)};
+        FILEFeedAll(fd, idata);
+        close(fd);
+    }
+
+    // Mmap index
+    u8bp imapped = NULL;
+    if (FILEMapRO(&imapped, PATHu8cgIn(idxpath)) == OK &&
+        k->nruns < KEEP_MAX_LEVELS) {
+        kv64cp base = (kv64cp)u8bDataHead(imapped);
+        size_t n = u8bDataLen(imapped) / sizeof(kv64);
+        k->runs[k->nruns][0] = base;
+        k->runs[k->nruns][1] = base + n;
+        k->run_maps[k->nruns] = imapped;
+        k->nruns++;
+    }
+
+    free(entries);
+    done;
+}
+
 // --- Import: read git .idx v2 file alongside .pack, build kv64 index ---
 //
 // Git pack index v2 format:
@@ -677,7 +874,7 @@ ok64 KEEPImport(keeper *k, u8cs pack_path) {
         call(FILECreate, &fd, PATHu8cgIn(dst));
         u8cs data = {u8bDataHead(pack_map),
                      u8bDataHead(pack_map) + (u8bIdleHead(pack_map) - u8bDataHead(pack_map))};
-        call(FILEFeedall, fd, data);
+        call(FILEFeedAll, fd, data);
         close(fd);
     }
 
@@ -725,7 +922,7 @@ ok64 KEEPImport(keeper *k, u8cs pack_path) {
         int fd = -1;
         call(FILECreate, &fd, PATHu8cgIn(idxpath));
         u8cs data = {(u8cp)entries, (u8cp)(entries + nentries)};
-        call(FILEFeedall, fd, data);
+        call(FILEFeedAll, fd, data);
         close(fd);
     }
 
@@ -1132,7 +1329,7 @@ ok64 KEEPSync(keeper *k, u8cs remote,
         ok64 o = FILECreate(&fd, PATHu8cgIn(dst));
         if (o != OK) goto sync_fail;
         u8cs data = {packbase, packbase + packlen};
-        FILEFeedall(fd, data);
+        FILEFeedAll(fd, data);
         close(fd);
     }
 
@@ -1437,7 +1634,7 @@ ok64 KEEPSync(keeper *k, u8cs remote,
             FILECreate(&fd, PATHu8cgIn(idxpath));
             if (fd >= 0) {
                 u8cs data = {(u8cp)sorted_entries, (u8cp)(sorted_entries + nfinal)};
-                FILEFeedall(fd, data);
+                FILEFeedAll(fd, data);
                 close(fd);
             }
 

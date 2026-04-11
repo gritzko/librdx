@@ -88,6 +88,66 @@ ok64 KEEPempty() {
     done;
 }
 
+ok64 KEEPput() {
+    sane(1);
+    call(FILEInit);
+
+    char tmpdir[] = "/tmp/keeper-put-XXXXXX";
+    want(mkdtemp(tmpdir) != NULL);
+
+    a_cstr(root, tmpdir);
+    keeper k = {};
+    call(KEEPOpen, &k, root);
+    want(k.npacks == 0);
+
+    // Store two blobs
+    a_cstr(blob1, "hello world\n");
+    a_cstr(blob2, "goodbye world\n");
+    u8csc objs[2] = {};
+    u8csMv(objs[0], blob1);
+    u8csMv(objs[1], blob2);
+    wh64 wh[2] = {
+        wh64Pack(KEEP_OBJ_BLOB, 0, 0),
+        wh64Pack(KEEP_OBJ_BLOB, 0, 0),
+    };
+
+    call(KEEPPut, &k, objs, wh, 2);
+    want(k.npacks == 1);
+    want(k.nruns == 1);
+
+    // Both whiffs should now have hashlets
+    u64 h0 = wh64Off(wh[0]);
+    u64 h1 = wh64Off(wh[1]);
+    want(h0 != 0);
+    want(h1 != 0);
+    want(h0 != h1);
+
+    // Should be retrievable
+    want(KEEPHas(&k, h0, 10) == OK);
+    want(KEEPHas(&k, h1, 10) == OK);
+
+    // Get content back
+    Bu8 out = {};
+    call(u8bMap, out, 1UL << 20);
+    u8 obj_type = 0;
+    call(KEEPGet, &k, h0, 10, out, &obj_type);
+    want(obj_type == KEEP_OBJ_BLOB);
+    want(u8bDataLen(out) == u8csLen(blob1));
+    want(memcmp(u8bDataHead(out), blob1[0], u8csLen(blob1)) == 0);
+
+    u8bUnMap(out);
+    call(KEEPClose, &k);
+
+    a_pad(u8, rmbuf, 256);
+    a_cstr(rmcmd, "rm -rf ");
+    u8bFeed(rmbuf, rmcmd);
+    u8bFeed(rmbuf, root);
+    u8bFeed1(rmbuf, 0);
+    system((char *)u8bDataHead(rmbuf));
+
+    done;
+}
+
 ok64 maintest() {
     sane(1);
     fprintf(stderr, "WH64hashlet...\n");
@@ -96,6 +156,8 @@ ok64 maintest() {
     call(WH64pack);
     fprintf(stderr, "KEEPempty...\n");
     call(KEEPempty);
+    fprintf(stderr, "KEEPput...\n");
+    call(KEEPput);
     fprintf(stderr, "all passed\n");
     done;
 }

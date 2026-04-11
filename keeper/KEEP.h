@@ -98,6 +98,13 @@ ok64 KEEPImport(keeper *k, u8cs pack_path);
 ok64 KEEPSync(keeper *k, u8cs remote,
               char const *const *wants, char const *const *haves);
 
+//  Store a batch of objects.  Deflates, appends to .packs, indexes.
+//  objects: content bodies (parallel with whiffs)
+//  whiffs:  in:  wh64Pack(type, 0, 0) per object
+//           out: wh64Pack(type, file_id, offset) — also hashlet as key
+//  Returns hashlets in whiffs[i] (caller can read via wh64Off).
+ok64 KEEPPut(keeper *k, u8csc *objects, wh64 *whiffs, u32 nobjs);
+
 //  Walk objects in a pack file from a given val position.
 typedef ok64 (*keep_cb)(u8 type, u8cs content, u64 hashlet, void *ctx);
 ok64 KEEPScan(keeper *k, u64 from_val, keep_cb cb, void *ctx);
