@@ -18,6 +18,7 @@
 #include "abc/PATH.h"
 #include "abc/PRO.h"
 #include "abc/TTY.h"
+#include "abc/URI.h"
 #include "abc/UTF8.h"
 #include "dog/DEF.h"
 #include "dog/HOME.h"
@@ -203,6 +204,12 @@ static void BROGetSize(BROstate *st) {
 static u32 BROAppendLines(range32 *lines, u32 nlines, u32 maxlines,
                           hunkc const *hunks, u32 from, u32 nhunks);
 static void BROScrollCenter(BROstate *st, u32 target);
+static void BROReadSpot(BROstate *st, char *buf, int bufsz,
+                        char const *prompt);
+static ok64 BROForkSpot(BROstate *st, char const *flag,
+                        char const *token, char const *filepath,
+                        char const *repo);
+static u32 BROSearchNext(BROstate *st, u32 from, int direction);
 
 // --- Build line index ---
 
@@ -902,38 +909,169 @@ static void BROReadSearch(BROstate *st) {
 }
 
 // Read line number from user (displayed in status bar)
-static void BROReadGoto(BROstate *st) {
-    char buf[32] = {};
-    u32 len = 0;
+// Strip trailing .ext from fragment text. Writes ext to ext_out
+// (incl dot, e.g. ".c"), trims from frag in place. Returns YES if found.
+static b8 bro_strip_ext(char *frag, char *ext_out, int ext_sz) {
+    int fl = (int)strlen(frag);
+    int di = fl;
+    while (di > 0 && isalnum((u8)frag[di - 1])) di--;
+    if (di <= 0 || frag[di - 1] != '.') return NO;
+    int es = di - 1;
+    if (es > 0 && frag[es - 1] != ' ' &&
+        frag[es - 1] != '\'' && frag[es - 1] != '/') return NO;
+    int elen = fl - es;
+    if (elen <= 1 || elen >= ext_sz) return NO;
+    memcpy(ext_out, frag + es, (size_t)elen);
+    ext_out[elen] = 0;
+    int trim = es;
+    while (trim > 0 && frag[trim - 1] == ' ') trim--;
+    frag[trim] = 0;
+    return YES;
+}
 
-    for (;;) {
-        bro_goto(st->rows, 1);
-        bro_puts(TTY_INVERSE TTY_ERASE_LINE);
-        bro_puts(" :");
-        if (len > 0) {
-            u8cs bs = {(u8cp)buf, (u8cp)buf + len};
-            bro_write(bs);
-        }
-        bro_puts(TTY_RESET);
+// Dispatch a GURI fragment (line/grep/snippet/regex) via spot.
+// Handles ext stripping and default ext from current hunk.
+static void BRODispatchFragment(BROstate *st, char *frag,
+                                char const *repo) {
+    if (frag[0] == 0) return;
 
-        u8 ch = 0;
-        ssize_t n = read(st->tty_fd, &ch, 1);
-        if (n <= 0) continue;
-        if (ch == '\n' || ch == '\r') break;
-        if (ch == 27) { len = 0; break; }
-        if (ch == 127 || ch == 8) {
-            if (len > 0) len--;
-            continue;
-        }
-        if (ch >= '0' && ch <= '9' && len < sizeof(buf) - 1)
-            buf[len++] = (char)ch;
+    // Strip trailing .ext
+    char ext_arg[16] = {};
+    bro_strip_ext(frag, ext_arg, sizeof(ext_arg));
+    if (frag[0] == 0) return;
+
+    // Line number
+    if (frag[0] >= '0' && frag[0] <= '9') {
+        u32 target = (u32)atoi(frag);
+        if (target > 0) target--;
+        if (target >= st->nlines) target = st->nlines > 0 ? st->nlines - 1 : 0;
+        st->scroll = target;
+        return;
     }
 
-    if (len > 0) {
-        buf[len] = 0;
+    // Classify search type
+    int fl = (int)strlen(frag);
+    char const *flag = "-g";
+    char const *pattern = frag;
+    char unquoted[256] = {};
+    if (fl >= 2 && frag[0] == '\'' && frag[fl - 1] == '\'') {
+        flag = "-s";
+        memcpy(unquoted, frag + 1, (size_t)(fl - 2));
+        pattern = unquoted;
+    } else if (fl >= 2 && frag[0] == '/' && frag[fl - 1] == '/') {
+        flag = "-p";
+        memcpy(unquoted, frag + 1, (size_t)(fl - 2));
+        pattern = unquoted;
+    }
+
+    // Resolve ext: explicit > current hunk's ext
+    char const *arg = NULL;
+    char argz[16] = {};
+    if (ext_arg[0]) {
+        arg = ext_arg;
+    } else if (st->scroll < st->nlines) {
+        u32 hi = st->lines[st->scroll].lo;
+        hunkc const *hk = &st->hunks[hi];
+        if (!$empty(hk->path)) {
+            u8cs ext = {};
+            HUNKu8sExt(ext, hk->path[0], (size_t)$len(hk->path));
+            if (!$empty(ext)) {
+                size_t el = (size_t)$len(ext);
+                if (el < sizeof(argz)) {
+                    memcpy(argz, ext[0], el);
+                    arg = argz;
+                }
+            }
+        }
+    }
+
+    ok64 o = BROForkSpot(st, flag, pattern, arg, repo);
+    if (o != OK && st->flash[0] == 0)
+        snprintf(st->flash, sizeof(st->flash), "spot: %s", ok64str(o));
+}
+
+// Unified URI prompt. Accepts: line number, path, path#fragment,
+// #fragment, or bare fragment. Uses abc/URI to parse.
+static void BROReadURI(BROstate *st, char const *repo) {
+    char buf[512] = {};
+    BROReadSpot(st, buf, sizeof(buf), " : ");
+    if (buf[0] == 0) return;
+
+    // Parse with abc/URI
+    u8cs input = {(u8cp)buf, (u8cp)buf + strlen(buf)};
+    uri u = {};
+    $mv(u.data, input);
+    ok64 po = URILexer(&u);
+
+    // If URI parsing fails, treat as plain goto-line or search
+    if (po != OK) {
+        if (buf[0] >= '0' && buf[0] <= '9') {
+            u32 target = (u32)atoi(buf);
+            if (target > 0) target--;
+            if (target >= st->nlines)
+                target = st->nlines > 0 ? st->nlines - 1 : 0;
+            st->scroll = target;
+        }
+        return;
+    }
+
+    b8 has_path = !$empty(u.path);
+    b8 has_frag = !$empty(u.fragment);
+
+    // Path component → open file
+    if (has_path) {
+        // NUL-terminate path for BROOpenFile
+        char pathz[FILE_PATH_MAX_LEN] = {};
+        size_t pl = (size_t)$len(u.path);
+        if (pl >= sizeof(pathz)) pl = sizeof(pathz) - 1;
+        memcpy(pathz, u.path[0], pl);
+
+        // Determine target line from fragment (if numeric)
+        u32 target_line = 0;
+        if (has_frag && u.fragment[0][0] >= '0' && u.fragment[0][0] <= '9') {
+            char lnbuf[32] = {};
+            size_t fl = (size_t)$len(u.fragment);
+            if (fl >= sizeof(lnbuf)) fl = sizeof(lnbuf) - 1;
+            memcpy(lnbuf, u.fragment[0], fl);
+            target_line = (u32)atoi(lnbuf);
+        }
+
+        u8cs relpath = {(u8cp)pathz, (u8cp)pathz + pl};
+        ok64 o = BROOpenFile(st, relpath, repo, target_line);
+        if (o != OK)
+            snprintf(st->flash, sizeof(st->flash),
+                     "open: %s: %s", pathz, ok64str(o));
+
+        // If fragment is non-numeric, set it as search pattern after opening
+        if (o == OK && has_frag &&
+            !(u.fragment[0][0] >= '0' && u.fragment[0][0] <= '9')) {
+            size_t fl = (size_t)$len(u.fragment);
+            if (fl < sizeof(st->search)) {
+                memcpy(st->search, u.fragment[0], fl);
+                st->search_len = (u32)fl;
+                u32 f = BROSearchNext(st, st->scroll, +1);
+                if (f != UINT32_MAX) st->scroll = f;
+            }
+        }
+        return;
+    }
+
+    // Fragment only → dispatch as GURI search
+    if (has_frag) {
+        char frag[256] = {};
+        size_t fl = (size_t)$len(u.fragment);
+        if (fl >= sizeof(frag)) fl = sizeof(frag) - 1;
+        memcpy(frag, u.fragment[0], fl);
+        BRODispatchFragment(st, frag, repo);
+        return;
+    }
+
+    // Bare text without # → treat as goto line or local search
+    if (buf[0] >= '0' && buf[0] <= '9') {
         u32 target = (u32)atoi(buf);
-        if (target > 0) target--;  // 1-based to 0-based
-        if (target >= st->nlines) target = st->nlines > 0 ? st->nlines - 1 : 0;
+        if (target > 0) target--;
+        if (target >= st->nlines)
+            target = st->nlines > 0 ? st->nlines - 1 : 0;
         st->scroll = target;
     }
 }
@@ -1349,7 +1487,7 @@ static int BROHandleKey(BROstate *st, u8 ch, char const *repo) {
         st->scroll = (st->nlines > page) ? st->nlines - page : 0;
         return BRO_KEY_CHANGED;
     }
-    if (ch == ':') { BROReadGoto(st); return BRO_KEY_CHANGED; }
+    if (ch == ':' || ch == '#') { BROReadURI(st, repo); return BRO_KEY_CHANGED; }
     if (ch == '/') {
         BROReadSearch(st);
         if (st->search_len > 0) {
@@ -1411,89 +1549,6 @@ static int BROHandleKey(BROstate *st, u8 ch, char const *repo) {
             u32 f = BROSearchNext(st, st->scroll, +1);
             if (f != UINT32_MAX) st->scroll = f;
         }
-        return BRO_KEY_CHANGED;
-    }
-    if (ch == '#') {
-        // GURI fragment prompt: #42 line, #text.c grep,
-        // #'snippet'.c spot, #/regex/.c regex
-        char frag[256] = {};
-        BROReadSpot(st, frag, sizeof(frag), " # ");
-        if (frag[0] == 0) return BRO_KEY_CHANGED;
-
-        // Strip trailing .ext if present
-        char ext_arg[16] = {};
-        {
-            int fl = (int)strlen(frag);
-            int di = fl;
-            while (di > 0 && isalnum((u8)frag[di - 1])) di--;
-            if (di > 0 && frag[di - 1] == '.') {
-                int es = di - 1;
-                if (es == 0 || frag[es - 1] == ' ' ||
-                    frag[es - 1] == '\'' || frag[es - 1] == '/') {
-                    int elen = fl - es;
-                    if (elen > 1 && elen < (int)sizeof(ext_arg)) {
-                        memcpy(ext_arg, frag + es, (size_t)elen);
-                        int trim = es;
-                        while (trim > 0 && frag[trim - 1] == ' ') trim--;
-                        frag[trim] = 0;
-                        if (frag[0] == 0) return BRO_KEY_CHANGED;
-                    }
-                }
-            }
-        }
-
-        // Classify by GURI search type
-        int fl = (int)strlen(frag);
-        if (frag[0] >= '0' && frag[0] <= '9') {
-            // Line number — goto (local)
-            u32 target = (u32)atoi(frag);
-            if (target > 0 && target <= st->nlines) {
-                st->scroll = target - 1;
-            }
-            return BRO_KEY_CHANGED;
-        }
-
-        char const *flag = "-g";   // default: grep
-        char const *pattern = frag;
-        char unquoted[256] = {};
-
-        if (fl >= 2 && frag[0] == '\'' && frag[fl - 1] == '\'') {
-            // 'snippet' — spot snippet search
-            flag = "-s";
-            memcpy(unquoted, frag + 1, (size_t)(fl - 2));
-            pattern = unquoted;
-        } else if (fl >= 2 && frag[0] == '/' && frag[fl - 1] == '/') {
-            // /regex/ — spot regex search
-            flag = "-p";
-            memcpy(unquoted, frag + 1, (size_t)(fl - 2));
-            pattern = unquoted;
-        }
-        // else: bare text — grep
-
-        // Default ext from current hunk if not specified
-        char const *arg = NULL;
-        char argz[16] = {};
-        if (ext_arg[0]) {
-            arg = ext_arg;
-        } else if (st->scroll < st->nlines) {
-            u32 hi = st->lines[st->scroll].lo;
-            hunkc const *hk = &st->hunks[hi];
-            if (!$empty(hk->path)) {
-                u8cs ext = {};
-                HUNKu8sExt(ext, hk->path[0], (size_t)$len(hk->path));
-                if (!$empty(ext)) {
-                    size_t el = (size_t)$len(ext);
-                    if (el < sizeof(argz)) {
-                        memcpy(argz, ext[0], el);
-                        arg = argz;
-                    }
-                }
-            }
-        }
-
-        ok64 o = BROForkSpot(st, flag, pattern, arg, repo);
-        if (o != OK && st->flash[0] == 0)
-            snprintf(st->flash, sizeof(st->flash), "spot: %s", ok64str(o));
         return BRO_KEY_CHANGED;
     }
     if (ch == 033) {
