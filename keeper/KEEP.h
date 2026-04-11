@@ -21,83 +21,18 @@ con ok64 KEEPFAIL    = 0x11c53ca495;
 con ok64 KEEPNOROOM  = 0x11c55d86d8616;
 con ok64 KEEPNONE    = 0x11c55d85ce;
 
-// --- hash64: 60-bit hash prefix + 4-bit hash type ---
-
-typedef u64 hash64;
-
-//  hash64 layout: type[4] | sha1_prefix[60]
-//                 bits 63-60   bits 59-0
+// --- Keeper uses whiff (wh64) for both keys and vals ---
 //
-//  Type in the HIGH 4 bits so short hex prefixes (≤14 chars)
-//  lose no information.  On little-endian, the u64's low bytes
-//  hold the FIRST bytes of SHA-1 — matching git's hex prefix
-//  order.  Type goes in the top nibble of byte[7], which is
-//  zero for prefixes shorter than 15 hex chars.
+//  Index kv64 entry:
+//    key = wh64Pack(HASH_SHA1, 0, hashlet)   hashlet from wh64Hashlet()
+//    val = wh64Pack(KEEP_PACK, file_id, offset)
+//
+//  Hashlet: 40-bit big-endian SHA prefix (first byte on top).
+//  Sort on key groups same hashlet together (type in LS bits).
 
-#define HASH_SHA1       0   // git SHA-1 (only type for now)
-#define HASH_TYPE_SHIFT 60
-#define HASH_TYPE_MASK  (0xfULL << HASH_TYPE_SHIFT)
-#define HASH_PREFIX_MASK (~HASH_TYPE_MASK)
-#define HASH_MIN_HEX   6
-
-// Construct hash64 from raw SHA-1 bytes (first 8 bytes)
-fun hash64 hash64FromSha1(u8cp sha, u8 type) {
-    u64 h = 0;
-    memcpy(&h, sha, 8);
-    return (h & HASH_PREFIX_MASK) | ((u64)(type & 0xf) << HASH_TYPE_SHIFT);
-}
-
-// Construct hash64 from hex prefix (6-15 chars).
-// Parses hex into SHA-1 byte order (first hex char = high nibble of byte 0).
-fun hash64 hash64FromHex(u8cs hex) {
-    u8 bin[8] = {};
-    size_t hlen = $len(hex);
-    if (hlen > 15) hlen = 15;
-    for (size_t i = 0; i < hlen; i++) {
-        u8 c = hex[0][i];
-        u8 nib = 0;
-        if (c >= '0' && c <= '9') nib = c - '0';
-        else if (c >= 'a' && c <= 'f') nib = c - 'a' + 10;
-        else if (c >= 'A' && c <= 'F') nib = c - 'A' + 10;
-        if (i & 1) bin[i / 2] |= nib;
-        else bin[i / 2] = nib << 4;
-    }
-    u64 h = 0;
-    memcpy(&h, bin, 8);
-    return (h & HASH_PREFIX_MASK) | ((u64)HASH_SHA1 << HASH_TYPE_SHIFT);
-}
-
-// Write hash64 as hex into a u8s slice (up to 15 hex chars).
-fun ok64 hash64ToHex(u8s out, hash64 h) {
-    u8 bin[8] = {};
-    u64 prefix = h & HASH_PREFIX_MASK;
-    memcpy(bin, &prefix, 8);
-    size_t maxhex = $len(out);
-    if (maxhex > 15) maxhex = 15;
-    for (size_t i = 0; i < maxhex; i++) {
-        u8 nib = (i & 1) ? (bin[i/2] & 0xf) : (bin[i/2] >> 4);
-        u8sFeed1(out, "0123456789abcdef"[nib]);
-    }
-    return OK;
-}
-
-// Trim trailing zero hex chars to find the effective prefix length.
-fun size_t hash64HexLen(hash64 h) {
-    u8 bin[8] = {};
-    u64 prefix = h & HASH_PREFIX_MASK;
-    memcpy(bin, &prefix, 8);
-    size_t len = 15;
-    while (len > HASH_MIN_HEX && bin[(len - 1) / 2] == 0) len -= 2;
-    if (len > HASH_MIN_HEX && (bin[(len - 1) / 2] & 0xf) == 0) len--;
-    return len;
-}
-
-fun u8  hash64Type(hash64 h)   { return (u8)((h >> HASH_TYPE_SHIFT) & 0xf); }
-fun u64 hash64Prefix(hash64 h) { return h & HASH_PREFIX_MASK; }
-
-// --- val is w64: type[4] | file_id[20] | offset[40] ---
-//  type 0 = concatenated git packfiles
-#define KEEP_PACK 0
+#define HASH_SHA1   0   // hash type for git SHA-1
+#define KEEP_PACK   0   // val type for concatenated git packfiles
+#define HASH_MIN_HEX 6
 
 // --- Keeper state ---
 
@@ -116,7 +51,7 @@ typedef struct {
     kv64cs runs[KEEP_MAX_LEVELS];   // LSM index runs
     u8bp   run_maps[KEEP_MAX_LEVELS];
     u32    nruns;
-    u8cs   root;                    // repo root
+    char   dir[1024];               // resolved .dogs/keeper/ path
 } keeper;
 
 // --- Public API ---
@@ -127,21 +62,31 @@ ok64 KEEPOpen(keeper *k, u8cs reporoot);
 //  Close and unmap everything.
 ok64 KEEPClose(keeper *k);
 
-//  Retrieve object by hash.  Inflates from pack, chases deltas.
-//  Returns object content in `out` (caller provides mapped buf).
-ok64 KEEPGet(keeper *k, hash64 h, u8bp out);
+// Git object types (from packfile format)
+#define KEEP_OBJ_COMMIT 1
+#define KEEP_OBJ_TREE   2
+#define KEEP_OBJ_BLOB   3
+#define KEEP_OBJ_TAG    4
 
-//  Check if object exists in the store.
-ok64 KEEPHas(keeper *k, hash64 h);
+//  Retrieve object by hashlet.  Inflates from pack, chases deltas.
+//  Returns object body in `out`, type in `*out_type`.
+ok64 KEEPGet(keeper *k, u64 hashlet, size_t hexlen, u8bp out, u8p out_type);
 
-//  Raw index lookup: hash64 → val (offset|file|flags).
-ok64 KEEPLookup(keeper *k, hash64 h, u64p val);
+//  Check if object exists in the store (hexlen = prefix length).
+ok64 KEEPHas(keeper *k, u64 hashlet, size_t hexlen);
+
+//  Raw index lookup: hashlet → val wh64 (type|file|offset).
+//  hexlen: prefix length for partial matching (10 = full 40-bit).
+ok64 KEEPLookup(keeper *k, u64 hashlet, size_t hexlen, u64p val);
+
+//  Import a git packfile into the store.
+ok64 KEEPImport(keeper *k, u8cs pack_path);
 
 //  Fetch missing objects from remote.
 ok64 KEEPSync(keeper *k, u8cs remote);
 
 //  Walk objects in a pack file from a given val position.
-typedef ok64 (*keep_cb)(u8 type, u8cs content, hash64 h, void *ctx);
+typedef ok64 (*keep_cb)(u8 type, u8cs content, u64 hashlet, void *ctx);
 ok64 KEEPScan(keeper *k, u64 from_val, keep_cb cb, void *ctx);
 
 #endif

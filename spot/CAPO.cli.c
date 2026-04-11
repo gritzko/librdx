@@ -73,19 +73,19 @@ static char *argeqval(u8cs a, const char *flag) {
 ok64 capocli() {
     sane(1);
     call(FILEInit);
-    CAPO_TERM = isatty(STDERR_FILENO) ? YES : NO;
-    CAPO_COLOR = isatty(STDOUT_FILENO) ? YES : NO;
-    if (getenv("SPOT_COLOR")) CAPO_COLOR = YES;
 
-    // Find workspace root: walk up from cwd until we hit a .git entry.
-    a_path(root);
-    call(HOMEFind, root);
-    a_dup(u8c, reporoot, u8bDataC(root));
+    // Open spot state per DOG convention
+    spot dog = {};
+    call(SPOTOpen, &dog, NO);
+    if (getenv("SPOT_COLOR")) { dog.color = YES; CAPO_COLOR = YES; }
+    a_dup(u8c, reporoot, u8bDataC(dog.home));
 
     // Parse args
     u32 nfork = 0, proc = UINT32_MAX;
     b8 is_hook = NO;
     b8 do_index = NO;
+    b8 do_update = NO;
+    b8 do_status = NO;
     b8 do_uncommitted = NO;
     b8 do_untracked = NO;
     b8 tty_out = isatty(STDOUT_FILENO) ? YES : NO;
@@ -131,6 +131,10 @@ ok64 capocli() {
             force_tlv = YES;
         } else if (argeq(a, "--hook")) {
             is_hook = YES;
+        } else if (argeq(a, "--update")) {
+            do_update = YES;
+        } else if (argeq(a, "--status")) {
+            do_status = YES;
         } else if (argeq(a, "-u") || argeq(a, "--uncommitted")) {
             do_uncommitted = YES;
         } else if (argeq(a, "-U") || argeq(a, "--untracked")) {
@@ -215,17 +219,41 @@ ok64 capocli() {
                 _exit(127);
             }
             close(pfd[0]);
-            spot_out_fd = pfd[1];
-            spot_emit   = HUNKu8sFeed;
+            dog.out_fd = pfd[1];
+            dog.emit   = HUNKu8sFeed;
+            spot_out_fd = dog.out_fd;
+            spot_emit   = dog.emit;
             signal(SIGPIPE, SIG_IGN);
         } else {
             // Plain text mode: write git-style ASCII to stdout.
-            spot_out_fd = STDOUT_FILENO;
-            spot_emit   = HUNKu8sFeedText;
+            dog.out_fd = STDOUT_FILENO;
+            dog.emit   = HUNKu8sFeedText;
+            spot_out_fd = dog.out_fd;
+            spot_emit   = dog.emit;
         }
     }
 
-    if (grep_ndl[0] != NULL) {
+    if (do_status) {
+        // DOG convention: --status = short status report
+        a_path(capodir);
+        call(CAPOResolveDir, capodir, reporoot);
+        a_dup(u8c, dirslice, u8bDataC(capodir));
+        // Count index files
+        u64cs runs[CAPO_MAX_LEVELS] = {};
+        u64css stack = {runs, runs};
+        u8bp mmaps[CAPO_MAX_LEVELS] = {};
+        u32 nidxfiles = 0;
+        call(CAPOStackOpen, stack, mmaps, &nidxfiles, dirslice);
+        u64 total = 0;
+        for (u32 i = 0; i < nidxfiles; i++)
+            total += (u64)$len(runs[i]);
+        CAPOStackClose(mmaps, nidxfiles);
+        fprintf(stderr, "spot: %u index files, %llu entries\n",
+                nidxfiles, (unsigned long long)total);
+    } else if (do_update) {
+        // DOG convention: --update = incremental index update
+        call(CAPOHook, reporoot);
+    } else if (grep_ndl[0] != NULL) {
         // GREP mode: .ext optional, file paths restrict search
         u8cs ext = {};
         u8cs gfiles[16] = {};
@@ -381,6 +409,7 @@ ok64 capocli() {
         if (WIFEXITED(st) && WEXITSTATUS(st) == 127)
             fprintf(stderr, "spot: bro pager not found\n");
     }
+    SPOTClose(&dog);
     done;
 }
 

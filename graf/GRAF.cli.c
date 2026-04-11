@@ -23,7 +23,8 @@ static void GRAFUsage(void) {
         "  graf --merge base ours theirs      token-level 3-way merge\n"
         "  graf --merge base ours theirs -o f merge to file\n"
         "  graf -n | --install                install as git diff/merge driver\n"
-        "  graf --index                       index git object graph\n"
+        "  graf -i | --index                  index git object graph\n"
+        "  graf -s | --status                 show index stats\n"
         "  graf --blame file                  token-level blame\n"
         "  graf --weave file [--from c] [--to c]  weave diff\n"
         "\n"
@@ -60,6 +61,7 @@ ok64 grafcli() {
     b8 do_merge = NO;
     b8 do_install = NO;
     b8 do_index = NO;
+    b8 do_status = NO;
     b8 do_blame = NO;
     b8 do_weave = NO;
     u8c *merge_out[2] = {};
@@ -86,8 +88,10 @@ ok64 grafcli() {
             $mv(merge_out, $arg(i));
         } else if (argeq(a, "-n") || argeq(a, "--install")) {
             do_install = YES;
-        } else if (argeq(a, "--index")) {
+        } else if (argeq(a, "-i") || argeq(a, "--index")) {
             do_index = YES;
+        } else if (argeq(a, "-s") || argeq(a, "--status")) {
+            do_status = YES;
         } else if (argeq(a, "--blame") || argeq(a, "-b")) {
             do_blame = YES;
         } else if (argeq(a, "--weave") || argeq(a, "-w")) {
@@ -160,6 +164,16 @@ ok64 grafcli() {
         u8cs fp = {trail[0][0], trail[0][1]};
         a_dup(u8c, rr, reporoot);
         call(GRAFBlame, fp, rr);
+    } else if (do_status) {
+        graf g = {};
+        a_dup(u8c, rr, reporoot);
+        call(GRAFOpen, &g, rr);
+        u64 total_entries = 0;
+        for (u32 i = 0; i < g.idx.n; i++)
+            total_entries += (u64)(g.idx.runs[i][1] - g.idx.runs[i][0]);
+        fprintf(stdout, "graf: %u index run(s), %llu entries\n",
+                g.idx.n, (unsigned long long)total_entries);
+        GRAFClose(&g);
     } else if (do_index) {
         if (reporoot[0] == NULL) {
             fprintf(stderr, "graf: --index requires a git repo\n");

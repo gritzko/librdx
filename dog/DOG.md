@@ -14,6 +14,6 @@
     not, `git` has the data
  7. Last-seen-commit tracking is in `.dog/name/COMMIT`.
  8. The static lib must have `name` control struct and
-      - `DOGOpen(name* state, path8s home, b8 rw)`
-      - `DOGClose(name* state)`
+      - `ok64 DOGOpen(name* state, path8s home, b8 rw)`
+      - `ok64 DOGClose(name* state)`
  9. `.dogs/DOGS` lists the dogs `beagle` invokes by default

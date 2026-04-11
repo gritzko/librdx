@@ -85,50 +85,52 @@ static ok64 sniff_bootstrap(sniff *s, u8cs reporoot) {
     done;
 }
 
-// --- Init ---
+// --- Open ---
 
-ok64 SNIFFInit(sniff *s, u8cs dogsroot, u8cs worktree) {
-    sane(s && $ok(dogsroot));
+ok64 SNIFFOpen(sniff *s, u8cs reporoot, b8 rw) {
+    sane(s && $ok(reporoot));
     memset(s, 0, sizeof(*s));
 
     // Ensure .dogs/sniff/ exists
-    a_path(dir, dogsroot);
+    a_path(dir, reporoot);
     a_cstr(rel, "/" SNIFF_DIR);
     call(u8bFeed, dir, rel);
     call(PATHu8gTerm, PATHu8gIn(dir));
-    call(FILEMakeDirP, PATHu8cgIn(dir));
+    if (rw) call(FILEMakeDirP, PATHu8cgIn(dir));
 
     // Book paths file
     {
-        a_path(pp, dogsroot);
+        a_path(pp, reporoot);
         a_cstr(pr, "/" SNIFF_DIR "/paths");
         call(u8bFeed, pp, pr);
         call(PATHu8gTerm, PATHu8gIn(pp));
 
         ok64 o = FILEBook(&s->paths, PATHu8cgIn(pp), SNIFF_PATH_BOOK);
         if (o == OK) {
-            // Existing file: all content is data
             ((u8 **)s->paths)[2] = s->paths[3];
-        } else {
+        } else if (rw) {
             call(FILEBookCreate, &s->paths, PATHu8cgIn(pp),
                  SNIFF_PATH_BOOK, 4096);
+        } else {
+            fail(o);
         }
     }
 
     // Book changes file
     {
-        a_path(cp, dogsroot);
+        a_path(cp, reporoot);
         a_cstr(cr, "/" SNIFF_DIR "/changes");
         call(u8bFeed, cp, cr);
         call(PATHu8gTerm, PATHu8gIn(cp));
 
         ok64 o = FILEBook(&s->changes, PATHu8cgIn(cp), SNIFF_CHG_BOOK);
         if (o == OK) {
-            // Existing file: all content is data
             ((u8 **)s->changes)[2] = s->changes[3];
-        } else {
+        } else if (rw) {
             call(FILEBookCreate, &s->changes, PATHu8cgIn(cp),
                  SNIFF_CHG_BOOK, 4096);
+        } else {
+            fail(o);
         }
     }
 
@@ -142,8 +144,8 @@ ok64 SNIFFInit(sniff *s, u8cs dogsroot, u8cs worktree) {
     call(sniff_index_paths, s);
 
     // Bootstrap: if paths log is empty, seed from git ls-files
-    if (SNIFFCount(s) == 0 && $ok(worktree)) {
-        call(sniff_bootstrap, s, worktree);
+    if (rw && SNIFFCount(s) == 0) {
+        call(sniff_bootstrap, s, reporoot);
     }
     done;
 }
@@ -219,10 +221,10 @@ ok64 SNIFFRecord(sniff *s, u8 flags, u32 index, u64 mtime_sec) {
     done;
 }
 
-// --- Free ---
+// --- Close ---
 
-void SNIFFFree(sniff *s) {
-    if (!s) return;
+ok64 SNIFFClose(sniff *s) {
+    sane(s);
     if (s->paths) {
         FILETrimBook(s->paths);
         FILEUnBook(s->paths);
@@ -234,4 +236,5 @@ void SNIFFFree(sniff *s) {
     u32bFree(s->offsets);
     kv64bFree(s->hash);
     memset(s, 0, sizeof(*s));
+    done;
 }
