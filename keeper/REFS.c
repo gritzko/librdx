@@ -1,0 +1,311 @@
+#include "REFS.h"
+
+#include "abc/PRO.h"
+#include <stdlib.h>
+#include <time.h>
+
+static ron60 refs_now(void) {
+    time_t t = time(NULL);
+    struct tm *tm = localtime(&t);
+    ron60 r = 0;
+    RONOfTime(&r, tm);
+    return r;
+}
+
+// --- Format one line: timestamp\tfrom\tto\n ---
+
+static ok64 refs_format_line(u8bp buf, refcp r) {
+    u8bReset(buf);
+    RONutf8sFeed(u8bIdle(buf), r->time);
+    u8bFeed1(buf, '\t');
+    u8bFeed(buf, r->key);
+    u8bFeed1(buf, '\t');
+    u8bFeed(buf, r->val);
+    u8bFeed1(buf, '\n');
+    return OK;
+}
+
+// --- Open REFS file for append ---
+
+static int refs_open_append(u8csc dir) {
+    a_cstr(fname, REFS_FILE);
+    a_path(path, dir, fname);
+    return open((char *)u8bDataHead(path), O_WRONLY | O_CREAT | O_APPEND, 0644);
+}
+
+// --- Append ---
+
+ok64 REFSAppend(u8csc dir, u8csc from_uri, u8csc to_uri) {
+    sane($ok(dir) && $ok(from_uri) && $ok(to_uri));
+
+    int fd = refs_open_append(dir);
+    if (fd < 0) fail(REFSFAIL);
+
+    ref r = {.time = refs_now()};
+    r.key[0] = from_uri[0]; r.key[1] = from_uri[1];
+    r.val[0] = to_uri[0];  r.val[1] = to_uri[1];
+
+    a_pad(u8, line, 2048);
+    ok64 o = refs_format_line(line, &r);
+    if (o != OK) { close(fd); return o; }
+
+    a_dup(u8c, data, u8bData(line));
+    o = FILEFeed(fd, data);
+    close(fd);
+    if (o != OK) fail(REFSFAIL);
+
+    done;
+}
+
+// --- Sync record: bulk append ref records ---
+
+ok64 REFSSyncRecord(u8csc dir, refcp arr, u32 nrefs) {
+    sane($ok(dir) && nrefs > 0);
+
+    int fd = refs_open_append(dir);
+    if (fd < 0) fail(REFSFAIL);
+
+    a_pad(u8, line, 2048);
+
+    for (u32 i = 0; i < nrefs; i++) {
+        ok64 o = refs_format_line(line, &arr[i]);
+        if (o != OK) { close(fd); return o; }
+        a_dup(u8c, ldata, u8bData(line));
+        o = FILEFeed(fd, ldata);
+        if (o != OK) { close(fd); fail(REFSFAIL); }
+    }
+
+    close(fd);
+    done;
+}
+
+// --- Parse one line into ref record ---
+// Line: timestamp\tkey\tval (no trailing \n)
+
+static b8 refs_parse_line(refp out, u8csc line) {
+    if (u8csEmpty(line)) return NO;
+
+    a_dup(u8c, rest, line);
+
+    // find first \t → end of timestamp
+    if (u8csFind(rest, '\t') != OK) return NO;
+    u8cs ts_str = {line[0], rest[0]};
+    u8csUsed(rest, 1);
+
+    // find second \t → end of key
+    u8cp key_head = rest[0];
+    if (u8csFind(rest, '\t') != OK) return NO;
+    out->key[0] = key_head;
+    out->key[1] = rest[0];
+    u8csUsed(rest, 1);
+
+    // remainder is val
+    if (u8csEmpty(rest)) return NO;
+    u8csMv(out->val, rest);
+
+    // decode timestamp
+    a_dup(u8c, ts_dup, ts_str);
+    out->time = 0;
+    RONutf8sDrain(&out->time, ts_dup);
+
+    // classify
+    if (u8csLen(out->key) >= 2 &&
+        out->key[0][0] == '/' && out->key[0][1] == '/')
+        out->type = REF_ALIAS;
+    else
+        out->type = REF_SHA;
+
+    return YES;
+}
+
+// --- Dedup helper: find or insert ---
+
+static void refs_upsert(refp arr, u32 *n, u32 max, refcp entry) {
+    for (u32 i = 0; i < *n; i++) {
+        if (REFMatch(&arr[i], entry->key)) {
+            if (entry->time >= arr[i].time) arr[i] = *entry;
+            return;
+        }
+    }
+    if (*n < max) arr[(*n)++] = *entry;
+}
+
+// --- Load: scan file, collect latest per key ---
+
+ok64 REFSLoad(refp arr, u32p out_n, u32 max, u8bp *map, u8csc dir) {
+    sane(arr && out_n && map);
+
+    a_cstr(fname, REFS_FILE);
+    a_path(path, dir, fname);
+    ok64 o = FILEMapRO(map, PATHu8cgIn(path));
+    if (o != OK) { *out_n = 0; return OK; }
+
+    u32 n = 0;
+    a_dup(u8c, scan, u8bData(*map));
+
+    while (!u8csEmpty(scan)) {
+        a_dup(u8c, probe, scan);
+        if (u8csFind(probe, '\n') == OK) {
+            u8cs line = {scan[0], probe[0]};
+            scan[0] = probe[0] + 1;
+
+            ref entry = {};
+            if (refs_parse_line(&entry, line))
+                refs_upsert(arr, &n, max, &entry);
+        } else {
+            // last line, no trailing \n
+            ref entry = {};
+            if (refs_parse_line(&entry, scan))
+                refs_upsert(arr, &n, max, &entry);
+            break;
+        }
+    }
+
+    *out_n = n;
+    done;
+}
+
+// --- Each ---
+
+ok64 REFSEach(u8csc dir, refs_cb cb, void *ctx) {
+    sane($ok(dir) && cb != NULL);
+
+    u8bp map = NULL;
+    ref *arr = calloc(REFS_MAX_REFS, sizeof(ref));
+    if (!arr) fail(REFSFAIL);
+
+    u32 n = 0;
+    ok64 o = REFSLoad(arr, &n, REFS_MAX_REFS, &map, dir);
+    if (o != OK) { free(arr); return o; }
+
+    for (u32 i = 0; i < n; i++) {
+        o = cb(&arr[i], ctx);
+        if (o != OK) break;
+    }
+
+    free(arr);
+    if (map) u8bUnMap(map);
+    done;
+}
+
+// --- Resolve ---
+
+ok64 REFSResolve(urip resolved, u8bp arena, u8csc dir, u8csc input) {
+    sane($ok(dir) && $ok(input) && resolved != NULL && arena != NULL);
+
+    uri u = {};
+    u.data[0] = input[0]; u.data[1] = input[1];
+    call(URILexer, &u);
+
+    u8bp map = NULL;
+    ref *arr = calloc(REFS_MAX_REFS, sizeof(ref));
+    if (!arr) fail(REFSFAIL);
+
+    u32 n = 0;
+    ok64 o = REFSLoad(arr, &n, REFS_MAX_REFS, &map, dir);
+    if (o != OK) { free(arr); return o; }
+
+    // resolve authority (alias): //name → full URL
+    if (!u8csEmpty(u.authority)) {
+        a_pad(u8, keybuf, 256);
+        a_cstr(slashes, "//");
+        u8bFeed(keybuf, slashes);
+        u8bFeed(keybuf, u.authority);
+
+        for (int chain = 0; chain < REFS_MAX_CHAIN; chain++) {
+            a_dup(u8c, key, u8bData(keybuf));
+
+            refp found = NULL;
+            for (u32 i = 0; i < n; i++) {
+                if (REFMatch(&arr[i], key)) { found = &arr[i]; break; }
+            }
+            if (!found) break;
+
+            u8bFeed(arena, found->val);
+            size_t vlen = u8csLen(found->val);
+            u8cs aval = {u8bIdleHead(arena) - vlen, u8bIdleHead(arena)};
+
+            uri next = {};
+            u8csMv(next.data, aval);
+            ok64 oo = URILexer(&next);
+            if (oo != OK) break;
+
+            if (!u8csEmpty(next.scheme)) {
+                *resolved = next;
+                break;
+            }
+            u8bReset(keybuf);
+            u8bFeed(keybuf, found->val);
+        }
+    }
+
+    // resolve query (ref): ?refname → ?sha
+    if (!u8csEmpty(u.query)) {
+        a_pad(u8, qbuf, 256);
+        u8bFeed1(qbuf, '?');
+        u8bFeed(qbuf, u.query);
+        a_dup(u8c, qkey, u8bData(qbuf));
+
+        for (u32 i = 0; i < n; i++) {
+            if (REFMatch(&arr[i], qkey)) {
+                a_dup(u8c, val, arr[i].val);
+                if (!u8csEmpty(val) && *val[0] == '?')
+                    u8csUsed(val, 1);
+                u8bFeed(arena, val);
+                size_t vlen = u8csLen(val);
+                resolved->query[0] = u8bIdleHead(arena) - vlen;
+                resolved->query[1] = u8bIdleHead(arena);
+                break;
+            }
+        }
+    }
+
+    free(arr);
+    if (map) u8bUnMap(map);
+    done;
+}
+
+// --- Compact ---
+
+ok64 REFSCompact(u8csc dir) {
+    sane($ok(dir));
+
+    u8bp map = NULL;
+    ref *arr = calloc(REFS_MAX_REFS, sizeof(ref));
+    if (!arr) fail(REFSFAIL);
+
+    u32 n = 0;
+    ok64 o = REFSLoad(arr, &n, REFS_MAX_REFS, &map, dir);
+    if (o != OK) { free(arr); return o; }
+
+    if (n == 0) {
+        free(arr);
+        if (map) u8bUnMap(map);
+        done;
+    }
+
+    a_cstr(tmpname, "REFS.tmp");
+    a_cstr(fname, REFS_FILE);
+    a_path(tmppath, dir, tmpname);
+    int fd = -1;
+    o = FILECreate(&fd, PATHu8cgIn(tmppath));
+    if (o != OK) { free(arr); if (map) u8bUnMap(map); fail(REFSFAIL); }
+
+    a_pad(u8, line, 2048);
+    for (u32 i = 0; i < n; i++) {
+        ok64 oo = refs_format_line(line, &arr[i]);
+        if (oo != OK) { close(fd); free(arr); if (map) u8bUnMap(map); return oo; }
+        a_dup(u8c, ldata, u8bData(line));
+        oo = FILEFeed(fd, ldata);
+        if (oo != OK) { close(fd); free(arr); if (map) u8bUnMap(map); return oo; }
+    }
+    close(fd);
+    free(arr);
+    if (map) u8bUnMap(map);
+
+    a_path(fpath, dir, fname);
+    o = FILERename(PATHu8cgIn(tmppath), PATHu8cgIn(fpath));
+    if (o != OK) fail(REFSFAIL);
+
+    done;
+}

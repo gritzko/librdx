@@ -6,6 +6,7 @@
 //  keeper info                  show stats
 //
 #include "KEEP.h"
+#include "REFS.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -17,15 +18,33 @@
 
 static void usage(void) {
     fprintf(stderr,
-        "Usage: keeper [options] [args...]\n"
+        "Usage: keeper [URI | command] [args...]\n"
         "\n"
-        "  keeper -i | --index <packfile>  import a git packfile\n"
-        "  keeper -u | --update [remote]   fetch missing objects\n"
-        "  keeper -s | --status            show store stats\n"
-        "  keeper get <hash-prefix>        cat object to stdout\n"
-        "  keeper has <hash-prefix>        check if object exists\n"
-        "  keeper --verify <full-sha>      verify object + recurse\n"
+        "  URI syntax:\n"
+        "    keeper //remote/path           sync all refs\n"
+        "    keeper //remote/path?ref       sync specific ref\n"
+        "    keeper //alias                 sync via alias\n"
+        "    keeper ?refname                resolve ref → SHA\n"
+        "    keeper #hashprefix             cat object to stdout\n"
+        "\n"
+        "  Commands:\n"
+        "    keeper -i <packfile>           import a git packfile\n"
+        "    keeper -s                      show store stats\n"
+        "    keeper get <hash-prefix>       cat object to stdout\n"
+        "    keeper has <hash-prefix>       check if object exists\n"
+        "    keeper --verify <full-sha>     verify object + recurse\n"
+        "    keeper --refs                  list known refs\n"
+        "    keeper --alias <name> <uri>    add remote alias\n"
     );
+}
+
+static ok64 refs_print_cb(refcp r, void *ctx) {
+    int *count = (int *)ctx;
+    fprintf(stdout, "  %.*s\t→ %.*s\n",
+            (int)$len(r->key), (char *)r->key[0],
+            (int)$len(r->val), (char *)r->val[0]);
+    (*count)++;
+    return OK;
 }
 
 static b8 argeq(u8cs a, char const *b) {
@@ -172,9 +191,193 @@ ok64 keepercli() {
         KEEPClose(&k);
         if (o != OK) return o;
 
+    } else if (argeq(cmd, "--refs")) {
+        call(KEEPOpen, &k, reporoot);
+        u8cs keepdir = {(u8cp)k.dir, (u8cp)k.dir + strlen(k.dir)};
+        int rcount = 0;
+        ok64 o = REFSEach(keepdir, refs_print_cb, &rcount);
+        KEEPClose(&k);
+        if (o != OK && o != REFSNONE)
+            fprintf(stderr, "keeper: refs: %s\n", ok64str(o));
+        fprintf(stdout, "keeper: %d ref(s)\n", rcount);
+
+    } else if (argeq(cmd, "--alias")) {
+        if (argn < 4) {
+            fprintf(stderr, "keeper: --alias requires <name> <uri>\n");
+            fail(KEEPFAIL);
+        }
+        u8cs aname = {};
+        $mv(aname, $arg(2));
+        u8cs target = {};
+        $mv(target, $arg(3));
+
+        call(KEEPOpen, &k, reporoot);
+        u8cs keepdir = {(u8cp)k.dir, (u8cp)k.dir + strlen(k.dir)};
+
+        // build "//name" as from-URI
+        a_pad(u8, fbuf, 256);
+        a_cstr(slashes, "//");
+        u8bFeed(fbuf, slashes);
+        u8bFeed(fbuf, aname);
+        a_dup(u8c, from, u8bData(fbuf));
+
+        ok64 o = REFSAppend(keepdir, from, target);
+        KEEPClose(&k);
+        if (o != OK) return o;
+        fprintf(stdout, "keeper: alias %.*s → %.*s\n",
+                (int)$len(from), (char *)from[0],
+                (int)$len(target), (char *)target[0]);
+
     } else {
-        usage();
-        fail(KEEPFAIL);
+        // Parse as URI: //host/path?ref#hash
+        uri g = {};
+        g.data[0] = cmd[0]; g.data[1] = cmd[1];
+        ok64 uo = URILexer(&g);
+        if (uo != OK) { usage(); fail(KEEPFAIL); }
+
+        call(KEEPOpen, &k, reporoot);
+        u8cs keepdir = {(u8cp)k.dir, (u8cp)k.dir + strlen(k.dir)};
+
+        if (!u8csEmpty(g.authority)) {
+            // //host/path?ref → sync from remote
+
+            // Try alias resolution
+            a_pad(u8, apad, 256);
+            u8bFeed(apad, g.authority);  // includes //
+            a_dup(u8c, akey, u8bData(apad));
+
+            u8bp rmap = NULL;
+            ref rarr[REFS_MAX_REFS];
+            u32 rn = 0;
+            REFSLoad(rarr, &rn, REFS_MAX_REFS, &rmap, keepdir);
+
+            // Resolve alias → get host+path from value
+            u8cs rhost = {};
+            u8cs rpath = {};
+            u8csMv(rhost, g.host);
+            u8csMv(rpath, g.path);
+            for (u32 i = 0; i < rn; i++) {
+                if (REFMatch(&rarr[i], akey)) {
+                    // parse alias value as URI to get host/path
+                    uri resolved = {};
+                    resolved.data[0] = rarr[i].val[0];
+                    resolved.data[1] = rarr[i].val[1];
+                    if (URILexer(&resolved) == OK && !u8csEmpty(resolved.host)) {
+                        u8csMv(rhost, resolved.host);
+                        u8csMv(rpath, resolved.path);
+                    }
+                    break;
+                }
+            }
+
+            // Build "host path" for KEEPSync
+            a_pad(u8, rbuf, 1024);
+            u8bFeed(rbuf, rhost);
+            if (!u8csEmpty(rpath)) {
+                u8bFeed1(rbuf, ' ');
+                u8bFeed(rbuf, rpath);
+            }
+            a_dup(u8c, remote, u8bData(rbuf));
+
+            // If ?ref → resolve to SHA for --want
+            char const *want_list[2] = {};
+            int nwants = 0;
+            if (!u8csEmpty(g.query)) {
+                a_pad(u8, qbuf, 256);
+                u8bFeed1(qbuf, '?');
+                u8bFeed(qbuf, g.query);
+                a_dup(u8c, qkey, u8bData(qbuf));
+
+                static char wantsha[44];
+                for (u32 i = 0; i < rn; i++) {
+                    if (REFMatch(&rarr[i], qkey)) {
+                        a_dup(u8c, val, rarr[i].val);
+                        if (!u8csEmpty(val) && *val[0] == '?')
+                            u8csUsed(val, 1);
+                        snprintf(wantsha, 44, "%.*s",
+                                 (int)u8csLen(val), (char *)val[0]);
+                        want_list[0] = wantsha;
+                        nwants = 1;
+                        break;
+                    }
+                }
+                if (nwants == 0 && u8csLen(g.query) >= 6) {
+                    snprintf(wantsha, 44, "%.*s",
+                             (int)u8csLen(g.query), (char *)g.query[0]);
+                    want_list[0] = wantsha;
+                    nwants = 1;
+                }
+            }
+            if (rmap) u8bUnMap(rmap);
+
+            ok64 o = KEEPSync(&k, remote,
+                              nwants > 0 ? want_list : NULL, NULL);
+            KEEPClose(&k);
+            if (o != OK) return o;
+
+        } else if (!u8csEmpty(g.query)) {
+            // ?refname → resolve and print SHA
+            a_pad(u8, qbuf, 256);
+            u8bFeed1(qbuf, '?');
+            u8bFeed(qbuf, g.query);
+            a_dup(u8c, qkey, u8bData(qbuf));
+
+            u8bp rmap = NULL;
+            ref rarr[REFS_MAX_REFS];
+            u32 rn = 0;
+            REFSLoad(rarr, &rn, REFS_MAX_REFS, &rmap, keepdir);
+
+            b8 found = NO;
+            for (u32 i = 0; i < rn; i++) {
+                if (REFMatch(&rarr[i], qkey)) {
+                    a_dup(u8c, val, rarr[i].val);
+                    if (!u8csEmpty(val) && *val[0] == '?')
+                        u8csUsed(val, 1);
+                    fprintf(stdout, "%.*s\n",
+                            (int)u8csLen(val), (char *)val[0]);
+                    found = YES;
+                    break;
+                }
+            }
+            if (rmap) u8bUnMap(rmap);
+            KEEPClose(&k);
+            if (!found) {
+                fprintf(stderr, "keeper: ref not found\n");
+                return REFSNONE;
+            }
+
+        } else if (!u8csEmpty(g.fragment)) {
+            // #hashprefix → get object
+            u8cs prefix = {};
+            u8csMv(prefix, g.fragment);
+            if (u8csLen(prefix) < HASH_MIN_HEX) {
+                fprintf(stderr, "keeper: hash too short (min %d)\n",
+                        HASH_MIN_HEX);
+                KEEPClose(&k);
+                fail(KEEPFAIL);
+            }
+            size_t hexlen = u8csLen(prefix);
+            u64 hashlet = wh64HashletFromHex(
+                (char const *)prefix[0], hexlen);
+            Bu8 out = {};
+            call(u8bMap, out, 64UL << 20);
+            u8 obj_type = 0;
+            ok64 o = KEEPGet(&k, hashlet, hexlen, out, &obj_type);
+            if (o == OK) {
+                a_dup(u8c, data, u8bData(out));
+                write(STDOUT_FILENO, data[0], u8csLen(data));
+            } else {
+                fprintf(stderr, "keeper: object not found\n");
+            }
+            u8bUnMap(out);
+            KEEPClose(&k);
+            if (o != OK) return o;
+
+        } else {
+            KEEPClose(&k);
+            usage();
+            fail(KEEPFAIL);
+        }
     }
 
     done;

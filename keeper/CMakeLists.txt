@@ -10,7 +10,7 @@ find_package(OpenSSL REQUIRED)
 add_library(gitcompat STATIC GIT.c PKT.c PACK.c DELT.c ZINF.c SHA1.c IGNO.c BELT.c WALK.c)
 target_link_libraries(gitcompat abc-core ZLIB::ZLIB OpenSSL::Crypto)
 
-add_library(keeplib STATIC KEEP.c)
+add_library(keeplib STATIC KEEP.c REFS.c)
 target_link_libraries(keeplib gitcompat dog abc-core)
 
 add_executable(keeper-cli KEEP.cli.c)
