@@ -66,8 +66,8 @@ ok64 keepercli() {
     ok64 rho = HOMEFind(root);
     u8cs reporoot = {};
     if (rho == OK) {
-        reporoot[0] = u8bDataHead(root);
-        reporoot[1] = u8bDataHead(root) + u8bDataLen(root);
+        a_dup(u8c, rr, u8bData(root));
+        u8csMv(reporoot, rr);
     }
 
     keeper k = {};
@@ -78,10 +78,10 @@ ok64 keepercli() {
                 k.npacks, k.nruns);
         u64 total_pack = 0;
         for (u32 i = 0; i < k.npacks; i++)
-            total_pack += (u64)(u8bIdleHead(k.packs[i]) - u8bDataHead(k.packs[i]));
+            total_pack += (u64)u8bDataLen(k.packs[i]);
         u64 total_idx = 0;
         for (u32 i = 0; i < k.nruns; i++)
-            total_idx += (u64)(k.runs[i][1] - k.runs[i][0]) * sizeof(kv64);
+            total_idx += (u64)kv64csLen(k.runs[i]) * sizeof(kv64);
         fprintf(stdout, "  packs: %llu bytes\n", (unsigned long long)total_pack);
         fprintf(stdout, "  index: %llu entries\n",
                 (unsigned long long)(total_idx / sizeof(kv64)));
@@ -123,8 +123,8 @@ ok64 keepercli() {
         u8 obj_type = 0;
         ok64 o = KEEPGet(&k, hashlet, hexlen, out, &obj_type);
         if (o == OK) {
-            u8cs data = {u8bDataHead(out), u8bDataHead(out) + u8bDataLen(out)};
-            write(STDOUT_FILENO, data[0], $len(data));
+            a_dup(u8c, data, u8bData(out));
+            write(STDOUT_FILENO, data[0], u8csLen(data));
         } else {
             fprintf(stderr, "keeper: object not found\n");
         }
@@ -193,7 +193,7 @@ ok64 keepercli() {
 
     } else if (argeq(cmd, "--refs")) {
         call(KEEPOpen, &k, reporoot);
-        u8cs keepdir = {(u8cp)k.dir, (u8cp)k.dir + strlen(k.dir)};
+        a_cstr(keepdir, k.dir);
         int rcount = 0;
         ok64 o = REFSEach(keepdir, refs_print_cb, &rcount);
         KEEPClose(&k);
@@ -212,7 +212,7 @@ ok64 keepercli() {
         $mv(target, $arg(3));
 
         call(KEEPOpen, &k, reporoot);
-        u8cs keepdir = {(u8cp)k.dir, (u8cp)k.dir + strlen(k.dir)};
+        a_cstr(keepdir, k.dir);
 
         // build "//name" as from-URI
         a_pad(u8, fbuf, 256);
@@ -236,7 +236,7 @@ ok64 keepercli() {
         if (uo != OK) { usage(); fail(KEEPFAIL); }
 
         call(KEEPOpen, &k, reporoot);
-        u8cs keepdir = {(u8cp)k.dir, (u8cp)k.dir + strlen(k.dir)};
+        a_cstr(keepdir, k.dir);
 
         if (!u8csEmpty(g.authority)) {
             // //host/path?ref → sync from remote
