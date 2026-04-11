@@ -14,7 +14,7 @@ ok64 MDTonPunct (u8cs tok, MDTstate* state);
 ok64 MDTonSpace (u8cs tok, MDTstate* state);
 
 
-/* #line 139 "MDT.c.rl" */
+/* #line 142 "MDT.c.rl" */
 
 
 
@@ -28,18 +28,18 @@ static const char _MDT_actions[] = {
 	25, 1, 26, 1, 27, 1, 28, 1, 
 	29, 1, 30, 1, 31, 1, 32, 1, 
 	33, 1, 34, 1, 35, 1, 36, 1, 
-	37, 2, 2, 3, 2, 2, 4, 2, 
-	2, 5, 2, 2, 6, 2, 2, 7, 
-	2, 2, 8
+	37, 1, 38, 2, 2, 3, 2, 2, 
+	4, 2, 2, 5, 2, 2, 6, 2, 
+	2, 7, 2, 2, 8
 };
 
 static const unsigned char _MDT_key_offsets[] = {
-	0, 0, 10, 11, 12, 14, 16, 18, 
-	20, 22, 28, 29, 30, 31, 32, 33, 
-	35, 37, 39, 41, 42, 43, 45, 47, 
-	86, 90, 94, 99, 103, 105, 107, 112, 
-	114, 117, 123, 124, 131, 141, 149, 159, 
-	167, 175, 177, 178, 182
+	0, 10, 11, 12, 14, 16, 18, 20, 
+	22, 28, 29, 30, 31, 32, 33, 35, 
+	37, 39, 41, 42, 43, 45, 47, 86, 
+	90, 94, 99, 103, 105, 107, 112, 114, 
+	117, 123, 124, 131, 141, 149, 159, 167, 
+	175, 177, 178, 182
 };
 
 static const unsigned char _MDT_trans_keys[] = {
@@ -70,30 +70,30 @@ static const unsigned char _MDT_trans_keys[] = {
 };
 
 static const char _MDT_single_lengths[] = {
-	0, 2, 1, 1, 2, 2, 2, 2, 
-	2, 0, 1, 1, 1, 1, 1, 2, 
-	2, 2, 2, 1, 1, 2, 2, 15, 
-	2, 0, 3, 2, 2, 0, 3, 0, 
-	1, 0, 1, 1, 2, 2, 2, 2, 
-	2, 2, 1, 2, 0
+	2, 1, 1, 2, 2, 2, 2, 2, 
+	0, 1, 1, 1, 1, 1, 2, 2, 
+	2, 2, 1, 1, 2, 2, 15, 2, 
+	0, 3, 2, 2, 0, 3, 0, 1, 
+	0, 1, 1, 2, 2, 2, 2, 2, 
+	2, 1, 2, 0
 };
 
 static const char _MDT_range_lengths[] = {
-	0, 4, 0, 0, 0, 0, 0, 0, 
-	0, 3, 0, 0, 0, 0, 0, 0, 
-	0, 0, 0, 0, 0, 0, 0, 12, 
-	1, 2, 1, 1, 0, 1, 1, 1, 
-	1, 3, 0, 3, 4, 3, 4, 3, 
-	3, 0, 0, 1, 1
+	4, 0, 0, 0, 0, 0, 0, 0, 
+	3, 0, 0, 0, 0, 0, 0, 0, 
+	0, 0, 0, 0, 0, 0, 12, 1, 
+	2, 1, 1, 0, 1, 1, 1, 1, 
+	3, 0, 3, 4, 3, 4, 3, 3, 
+	0, 0, 1, 1
 };
 
 static const unsigned char _MDT_index_offsets[] = {
-	0, 0, 7, 9, 11, 14, 17, 20, 
-	23, 26, 30, 32, 34, 36, 38, 40, 
-	43, 46, 49, 52, 54, 56, 59, 62, 
-	90, 94, 97, 102, 106, 109, 111, 116, 
-	118, 121, 125, 127, 132, 139, 145, 152, 
-	158, 164, 167, 169, 173
+	0, 7, 9, 11, 14, 17, 20, 23, 
+	26, 30, 32, 34, 36, 38, 40, 43, 
+	46, 49, 52, 54, 56, 59, 62, 90, 
+	94, 97, 102, 106, 109, 111, 116, 118, 
+	121, 125, 127, 132, 139, 145, 152, 158, 
+	164, 167, 169, 173
 };
 
 static const char _MDT_indicies[] = {
@@ -104,11 +104,11 @@ static const char _MDT_indicies[] = {
 	16, 0, 17, 16, 18, 16, 19, 16, 
 	20, 22, 21, 23, 25, 24, 23, 26, 
 	24, 0, 28, 27, 30, 29, 31, 29, 
-	32, 34, 33, 32, 35, 33, 38, 36, 
+	32, 34, 33, 32, 35, 33, 38, 37, 
 	40, 41, 42, 42, 43, 44, 46, 47, 
-	37, 49, 50, 51, 37, 37, 36, 37, 
-	39, 37, 39, 45, 39, 48, 39, 48, 
-	39, 52, 36, 36, 36, 53, 1, 1, 
+	36, 49, 50, 51, 36, 36, 37, 36, 
+	39, 36, 39, 45, 39, 48, 39, 48, 
+	39, 52, 37, 37, 37, 53, 1, 1, 
 	54, 55, 55, 56, 54, 7, 57, 57, 
 	57, 10, 55, 55, 54, 58, 23, 60, 
 	61, 61, 45, 59, 60, 62, 60, 45, 
@@ -122,66 +122,66 @@ static const char _MDT_indicies[] = {
 };
 
 static const char _MDT_trans_targs[] = {
-	23, 1, 2, 3, 4, 5, 23, 6, 
-	23, 23, 7, 8, 23, 23, 33, 11, 
-	12, 13, 14, 23, 23, 15, 23, 23, 
-	16, 17, 23, 18, 23, 19, 20, 23, 
-	23, 21, 22, 23, 24, 0, 23, 23, 
-	25, 26, 28, 29, 30, 32, 34, 23, 
-	35, 36, 41, 42, 44, 23, 23, 23, 
-	27, 23, 29, 23, 31, 9, 23, 23, 
-	10, 23, 37, 38, 35, 23, 39, 40, 
-	35, 43, 23, 23
+	22, 0, 1, 2, 3, 4, 22, 5, 
+	22, 22, 6, 7, 22, 22, 32, 10, 
+	11, 12, 13, 22, 22, 14, 22, 22, 
+	15, 16, 22, 17, 22, 18, 19, 22, 
+	22, 20, 21, 22, 22, 23, 22, 22, 
+	24, 25, 27, 28, 29, 31, 33, 22, 
+	34, 35, 40, 41, 43, 22, 22, 22, 
+	26, 22, 28, 22, 30, 8, 22, 22, 
+	9, 22, 36, 37, 34, 22, 38, 39, 
+	34, 42, 22, 22
 };
 
 static const char _MDT_trans_actions[] = {
-	61, 0, 0, 0, 0, 0, 23, 0, 
-	15, 55, 0, 0, 13, 53, 0, 0, 
-	0, 0, 0, 11, 59, 0, 19, 63, 
+	63, 0, 0, 0, 0, 0, 23, 0, 
+	15, 57, 0, 0, 13, 55, 0, 0, 
+	0, 0, 0, 11, 61, 0, 19, 65, 
 	0, 0, 17, 0, 9, 0, 0, 7, 
-	57, 0, 0, 21, 0, 0, 31, 29, 
-	5, 5, 0, 80, 5, 0, 5, 27, 
-	77, 5, 5, 0, 0, 49, 47, 25, 
-	5, 39, 71, 37, 0, 0, 35, 33, 
-	0, 45, 5, 74, 68, 41, 77, 77, 
-	65, 5, 43, 51
+	59, 0, 0, 21, 33, 0, 31, 29, 
+	5, 5, 0, 82, 5, 0, 5, 27, 
+	79, 5, 5, 0, 0, 51, 49, 25, 
+	5, 41, 73, 39, 0, 0, 37, 35, 
+	0, 47, 5, 76, 70, 43, 79, 79, 
+	67, 5, 45, 53
 };
 
 static const char _MDT_to_state_actions[] = {
 	0, 0, 0, 0, 0, 0, 0, 0, 
 	0, 0, 0, 0, 0, 0, 0, 0, 
-	0, 0, 0, 0, 0, 0, 0, 1, 
+	0, 0, 0, 0, 0, 0, 1, 0, 
 	0, 0, 0, 0, 0, 0, 0, 0, 
 	0, 0, 0, 0, 0, 0, 0, 0, 
-	0, 0, 0, 0, 0
+	0, 0, 0, 0
 };
 
 static const char _MDT_from_state_actions[] = {
 	0, 0, 0, 0, 0, 0, 0, 0, 
 	0, 0, 0, 0, 0, 0, 0, 0, 
-	0, 0, 0, 0, 0, 0, 0, 3, 
+	0, 0, 0, 0, 0, 0, 3, 0, 
 	0, 0, 0, 0, 0, 0, 0, 0, 
 	0, 0, 0, 0, 0, 0, 0, 0, 
-	0, 0, 0, 0, 0
+	0, 0, 0, 0
 };
 
 static const unsigned char _MDT_eof_trans[] = {
-	0, 1, 1, 1, 1, 1, 1, 10, 
-	10, 14, 1, 1, 1, 1, 1, 21, 
-	24, 24, 1, 1, 1, 33, 33, 0, 
-	54, 55, 55, 58, 55, 24, 60, 63, 
-	60, 64, 55, 24, 66, 66, 70, 66, 
-	66, 55, 55, 75, 76
+	1, 1, 1, 1, 1, 1, 10, 10, 
+	14, 1, 1, 1, 1, 1, 21, 24, 
+	24, 1, 1, 1, 33, 33, 0, 54, 
+	55, 55, 58, 55, 24, 60, 63, 60, 
+	64, 55, 24, 66, 66, 70, 66, 66, 
+	55, 55, 75, 76
 };
 
-static const int MDT_start = 23;
-static const int MDT_first_final = 23;
-static const int MDT_error = 0;
+static const int MDT_start = 22;
+static const int MDT_first_final = 22;
+static const int MDT_error = -1;
 
-static const int MDT_en_main = 23;
+static const int MDT_en_main = 22;
 
 
-/* #line 142 "MDT.c.rl" */
+/* #line 145 "MDT.c.rl" */
 
 ok64 MDTInlineLexer(MDTstate* state) {
 
@@ -208,7 +208,7 @@ ok64 MDTInlineLexer(MDTstate* state) {
 	act = 0;
 	}
 
-/* #line 160 "MDT.c.rl" */
+/* #line 163 "MDT.c.rl" */
     
 /* #line 201 "MDT.rl.c" */
 	{
@@ -220,8 +220,6 @@ ok64 MDTInlineLexer(MDTstate* state) {
 
 	if ( p == pe )
 		goto _test_eof;
-	if ( cs == 0 )
-		goto _out;
 _resume:
 	_acts = _MDT_actions + _MDT_from_state_actions[cs];
 	_nacts = (unsigned int) *_acts++;
@@ -231,7 +229,7 @@ _resume:
 /* #line 1 "NONE" */
 	{ts = p;}
 	break;
-/* #line 220 "MDT.rl.c" */
+/* #line 218 "MDT.rl.c" */
 		}
 	}
 
@@ -443,11 +441,11 @@ _eof_trans:
 }}
 	break;
 	case 22:
-/* #line 53 "MDT.c.rl" */
-	{te = p;p--;{
+/* #line 65 "MDT.c.rl" */
+	{te = p+1;{
     tok[0] = (u8c*)ts;
     tok[1] = (u8c*)te;
-    o = MDTonNumber(tok, state);
+    o = MDTonPunct(tok, state);
     if (o!=OK) {p++; goto _out; }
 }}
 	break;
@@ -470,11 +468,11 @@ _eof_trans:
 }}
 	break;
 	case 25:
-/* #line 65 "MDT.c.rl" */
+/* #line 53 "MDT.c.rl" */
 	{te = p;p--;{
     tok[0] = (u8c*)ts;
     tok[1] = (u8c*)te;
-    o = MDTonPunct(tok, state);
+    o = MDTonNumber(tok, state);
     if (o!=OK) {p++; goto _out; }
 }}
 	break;
@@ -497,15 +495,6 @@ _eof_trans:
 }}
 	break;
 	case 28:
-/* #line 59 "MDT.c.rl" */
-	{te = p;p--;{
-    tok[0] = (u8c*)ts;
-    tok[1] = (u8c*)te;
-    o = MDTonWord(tok, state);
-    if (o!=OK) {p++; goto _out; }
-}}
-	break;
-	case 29:
 /* #line 65 "MDT.c.rl" */
 	{te = p;p--;{
     tok[0] = (u8c*)ts;
@@ -514,7 +503,25 @@ _eof_trans:
     if (o!=OK) {p++; goto _out; }
 }}
 	break;
+	case 29:
+/* #line 59 "MDT.c.rl" */
+	{te = p;p--;{
+    tok[0] = (u8c*)ts;
+    tok[1] = (u8c*)te;
+    o = MDTonWord(tok, state);
+    if (o!=OK) {p++; goto _out; }
+}}
+	break;
 	case 30:
+/* #line 65 "MDT.c.rl" */
+	{te = p;p--;{
+    tok[0] = (u8c*)ts;
+    tok[1] = (u8c*)te;
+    o = MDTonPunct(tok, state);
+    if (o!=OK) {p++; goto _out; }
+}}
+	break;
+	case 31:
 /* #line 71 "MDT.c.rl" */
 	{te = p;p--;{
     tok[0] = (u8c*)ts;
@@ -523,7 +530,7 @@ _eof_trans:
     if (o!=OK) {p++; goto _out; }
 }}
 	break;
-	case 31:
+	case 32:
 /* #line 59 "MDT.c.rl" */
 	{te = p;p--;{
     tok[0] = (u8c*)ts;
@@ -532,21 +539,12 @@ _eof_trans:
     if (o!=OK) {p++; goto _out; }
 }}
 	break;
-	case 32:
+	case 33:
 /* #line 53 "MDT.c.rl" */
 	{{p = ((te))-1;}{
     tok[0] = (u8c*)ts;
     tok[1] = (u8c*)te;
     o = MDTonNumber(tok, state);
-    if (o!=OK) {p++; goto _out; }
-}}
-	break;
-	case 33:
-/* #line 65 "MDT.c.rl" */
-	{{p = ((te))-1;}{
-    tok[0] = (u8c*)ts;
-    tok[1] = (u8c*)te;
-    o = MDTonPunct(tok, state);
     if (o!=OK) {p++; goto _out; }
 }}
 	break;
@@ -560,15 +558,6 @@ _eof_trans:
 }}
 	break;
 	case 35:
-/* #line 59 "MDT.c.rl" */
-	{{p = ((te))-1;}{
-    tok[0] = (u8c*)ts;
-    tok[1] = (u8c*)te;
-    o = MDTonWord(tok, state);
-    if (o!=OK) {p++; goto _out; }
-}}
-	break;
-	case 36:
 /* #line 65 "MDT.c.rl" */
 	{{p = ((te))-1;}{
     tok[0] = (u8c*)ts;
@@ -577,7 +566,25 @@ _eof_trans:
     if (o!=OK) {p++; goto _out; }
 }}
 	break;
+	case 36:
+/* #line 59 "MDT.c.rl" */
+	{{p = ((te))-1;}{
+    tok[0] = (u8c*)ts;
+    tok[1] = (u8c*)te;
+    o = MDTonWord(tok, state);
+    if (o!=OK) {p++; goto _out; }
+}}
+	break;
 	case 37:
+/* #line 65 "MDT.c.rl" */
+	{{p = ((te))-1;}{
+    tok[0] = (u8c*)ts;
+    tok[1] = (u8c*)te;
+    o = MDTonPunct(tok, state);
+    if (o!=OK) {p++; goto _out; }
+}}
+	break;
+	case 38:
 /* #line 1 "NONE" */
 	{	switch( act ) {
 	case 6:
@@ -631,7 +638,7 @@ _eof_trans:
 	}
 	}
 	break;
-/* #line 583 "MDT.rl.c" */
+/* #line 589 "MDT.rl.c" */
 		}
 	}
 
@@ -644,12 +651,10 @@ _again:
 /* #line 1 "NONE" */
 	{ts = 0;}
 	break;
-/* #line 594 "MDT.rl.c" */
+/* #line 600 "MDT.rl.c" */
 		}
 	}
 
-	if ( cs == 0 )
-		goto _out;
 	if ( ++p != pe )
 		goto _resume;
 	_test_eof: {}
@@ -664,7 +669,7 @@ _again:
 	_out: {}
 	}
 
-/* #line 161 "MDT.c.rl" */
+/* #line 164 "MDT.c.rl" */
 
     state->data[0] = p;
     if (o==OK && cs < MDT_first_final)
