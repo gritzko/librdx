@@ -24,6 +24,7 @@ static void usage(void) {
         "  keeper -s | --status            show store stats\n"
         "  keeper get <hash-prefix>        cat object to stdout\n"
         "  keeper has <hash-prefix>        check if object exists\n"
+        "  keeper --verify <full-sha>      verify object + recurse\n"
     );
 }
 
@@ -120,11 +121,54 @@ ok64 keepercli() {
         call(KEEPImport, &k, path);
         KEEPClose(&k);
 
+    } else if (argeq(cmd, "--verify")) {
+        if (argn < 3) { fprintf(stderr, "keeper: --verify requires a full SHA\n"); fail(KEEPFAIL); }
+        u8cs sha = {};
+        $mv(sha, $arg(2));
+        call(KEEPOpen, &k, reporoot);
+        ok64 o = KEEPVerify(&k, sha);
+        KEEPClose(&k);
+        if (o != OK) return o;
+
     } else if (argeq(cmd, "-u") || argeq(cmd, "--update") || argeq(cmd, "sync")) {
         u8cs remote = {};
         if (argn >= 3) $mv(remote, $arg(2));
+
+        // Collect --want and --have args
+        char const *want_list[64] = {};
+        char const *have_list[64] = {};
+        int nwants = 0, nhaves = 0;
+        for (int i = 3; i < argn; i++) {
+            u8cs a = {};
+            $mv(a, $arg(i));
+            if (argeq(a, "--want") && i + 1 < argn) {
+                i++;
+                u8cs v = {};
+                $mv(v, $arg(i));
+                // Copy to static buffer
+                static char wbuf[64][44];
+                if (nwants < 63) {
+                    snprintf(wbuf[nwants], 44, "%.*s", (int)$len(v), (char*)v[0]);
+                    want_list[nwants] = wbuf[nwants];
+                    nwants++;
+                }
+            } else if (argeq(a, "--have") && i + 1 < argn) {
+                i++;
+                u8cs v = {};
+                $mv(v, $arg(i));
+                static char hbuf[64][44];
+                if (nhaves < 63) {
+                    snprintf(hbuf[nhaves], 44, "%.*s", (int)$len(v), (char*)v[0]);
+                    have_list[nhaves] = hbuf[nhaves];
+                    nhaves++;
+                }
+            }
+        }
+
         call(KEEPOpen, &k, reporoot);
-        ok64 o = KEEPSync(&k, remote);
+        ok64 o = KEEPSync(&k, remote,
+                          nwants > 0 ? want_list : NULL,
+                          nhaves > 0 ? have_list : NULL);
         KEEPClose(&k);
         if (o != OK) return o;
 

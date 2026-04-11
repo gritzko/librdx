@@ -89,6 +89,7 @@ ok64 capocli() {
     b8 do_uncommitted = NO;
     b8 do_untracked = NO;
     b8 tty_out = isatty(STDOUT_FILENO) ? YES : NO;
+    b8 force_tlv = NO;
     u8c *spot_ndl[2] = {};
     u8c *spot_rep[2] = {};
     u8c *grep_ndl[2] = {};
@@ -126,6 +127,8 @@ ok64 capocli() {
             proc = (u32)atoi(eqval);
         } else if (argeq(a, "-i") || argeq(a, "--index")) {
             do_index = YES;
+        } else if (argeq(a, "--tlv")) {
+            force_tlv = YES;
         } else if (argeq(a, "--hook")) {
             is_hook = YES;
         } else if (argeq(a, "--update")) {
@@ -192,7 +195,12 @@ ok64 capocli() {
          spot_ndl[0] != NULL) &&
         !do_index && !is_hook && spot_rep[0] == NULL;
     if (produces_hunks) {
-        if (tty_out) {
+        if (force_tlv) {
+            // TLV to stdout (invoked by bro, no pager fork)
+            spot_out_fd = STDOUT_FILENO;
+            spot_emit   = HUNKu8sFeed;
+            signal(SIGPIPE, SIG_IGN);
+        } else if (tty_out) {
             // Fork bro as the pager.  Parent stays the producer.
             char bropath[FILE_PATH_MAX_LEN];
             a$rg(a0, 0);
