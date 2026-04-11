@@ -193,51 +193,120 @@ ok64 becli() {
     }
 
     u8 verb = BEParseVerb(verb_arg);
+    b8 verbless = NO;
     if (verb == 0) {
-        // No known verb — maybe it's a bare URI (implicit GET)
-        verb = BE_GET;
-        // Reparse: arg 1 is the URI, not the verb
-        // (handled below by starting URI scan from arg 1)
+        // No known verb — bare URI → view mode (no verb)
+        verbless = YES;
     }
 
     // Collect remaining args: URI + flags
-    int uri_start = (verb == BE_GET && BEParseVerb(verb_arg) == 0) ? 1 : 2;
+    int uri_start = verbless ? 1 : 2;
     guri g = {};
     b8 have_uri = NO;
 
-    // Scan for the first non-flag arg as the URI
     for (int i = uri_start; i < argn; i++) {
         a$rg(a, i);
-        if ($len(a) >= 1 && a[0][0] == '-') continue;  // skip flags
+        if ($len(a) >= 1 && a[0][0] == '-') continue;
         ok64 po = GURIu8sDrain(a, &g);
         if (po == OK) { have_uri = YES; break; }
     }
 
-    // --- Dispatch ---
-    fprintf(stderr, "be: verb=%d", verb);
+    if (!have_uri && !verbless) {
+        // Verb with no URI
+        if (verb == BE_STATUS) {
+            call(BEDefault);
+            done;
+        }
+        BEUsage();
+        done;
+    }
+
+    // Extract URI components
+    u8cs remote = {}, path = {}, ref = {}, search = {};
     if (have_uri) {
-        u8cs remote = {}, path = {}, ref = {}, search = {};
         GURIRemote(remote, &g);
         GURIPath(path, &g);
         GURIRef(ref, &g);
         GURISearch(search, &g);
-        if (!$empty(remote))
-            fprintf(stderr, " remote=%.*s", (int)$len(remote), (char *)remote[0]);
-        if (!$empty(path))
-            fprintf(stderr, " path=%.*s", (int)$len(path), (char *)path[0]);
-        if (!$empty(ref))
-            fprintf(stderr, " ref=%.*s", (int)$len(ref), (char *)ref[0]);
-        if (!$empty(search))
-            fprintf(stderr, " search=%.*s", (int)$len(search), (char *)search[0]);
-        if (GURIIsExtFilter(&g))
-            fprintf(stderr, " [ext-filter]");
-        if (GURIIsRange(&g))
-            fprintf(stderr, " [range]");
-        fprintf(stderr, " search_type=%d", GURISearchType(&g));
     }
-    fprintf(stderr, "\n");
 
-    // TODO: actual dispatch to spot/bro/graf based on verb + URI
+    u8 stype = have_uri ? GURISearchType(&g) : GURI_SEARCH_NONE;
+
+    // --- Dispatch ---
+
+    if (verbless) {
+        // No verb = view/search (read-only, never mutates)
+        if (have_uri && !$empty(search)) {
+            // Search → spot with URI arg
+            char uri_z[FILE_PATH_MAX_LEN];
+            a$rg(uri_arg, 1);
+            snprintf(uri_z, sizeof(uri_z), "%.*s",
+                     (int)$len(uri_arg), (char *)uri_arg[0]);
+            char *argv[] = {"spot", uri_z, NULL};
+            call(BERun, "spot", argv);
+        } else if (have_uri && !$empty(path)) {
+            // View file → bro
+            char path_z[FILE_PATH_MAX_LEN];
+            snprintf(path_z, sizeof(path_z), "%.*s",
+                     (int)$len(path), (char *)path[0]);
+            char *argv[] = {"bro", path_z, NULL};
+            call(BERun, "bro", argv);
+        } else {
+            // Bare `be .` or unknown → status
+            call(BEDefault);
+        }
+
+    } else if (verb == BE_GET) {
+        // GET = repo → worktree
+        if (!$empty(remote)) {
+            // //remote or //remote?ref → keeper fetch
+            char uri_z[FILE_PATH_MAX_LEN];
+            a$rg(uri_arg, 2);
+            snprintf(uri_z, sizeof(uri_z), "%.*s",
+                     (int)$len(uri_arg), (char *)uri_arg[0]);
+            char *argv[] = {"keeper", uri_z, NULL};
+            call(BERun, "keeper", argv);
+        } else if (!$empty(ref) && $empty(path)) {
+            // ?ref → keeper resolve
+            char uri_z[256];
+            a$rg(uri_arg, 2);
+            snprintf(uri_z, sizeof(uri_z), "%.*s",
+                     (int)$len(uri_arg), (char *)uri_arg[0]);
+            char *argv[] = {"keeper", uri_z, NULL};
+            call(BERun, "keeper", argv);
+        } else if (!$empty(search) && search[0][0] != 'L' &&
+                   !(search[0][0] >= '0' && search[0][0] <= '9')) {
+            // #hash → keeper cat object
+            char uri_z[256];
+            a$rg(uri_arg, 2);
+            snprintf(uri_z, sizeof(uri_z), "%.*s",
+                     (int)$len(uri_arg), (char *)uri_arg[0]);
+            char *argv[] = {"keeper", uri_z, NULL};
+            call(BERun, "keeper", argv);
+        } else {
+            // path?ref → checkout (sniff, future)
+            fprintf(stderr, "be: get checkout not yet implemented\n");
+        }
+
+    } else if (verb == BE_DIFF) {
+        // DIFF → graf
+        char uri_z[FILE_PATH_MAX_LEN];
+        if (have_uri) {
+            a$rg(uri_arg, 2);
+            snprintf(uri_z, sizeof(uri_z), "%.*s",
+                     (int)$len(uri_arg), (char *)uri_arg[0]);
+        }
+        // TODO: translate URI to graf --diff args
+        fprintf(stderr, "be: diff dispatch not yet implemented\n");
+
+    } else if (verb == BE_PATCH) {
+        // PATCH → spot replace
+        // TODO: parse #'old'->'new'.ext from URI
+        fprintf(stderr, "be: patch dispatch not yet implemented\n");
+
+    } else {
+        fprintf(stderr, "be: verb %d not yet implemented\n", verb);
+    }
 
     done;
 }
