@@ -72,7 +72,7 @@ static ok64 che_tree(sniff *s, keeper *k, u8cs reporoot,
         if (is_dir) {
             a_path(dp);
             SNIFFFullpath(dp, reporoot, relpath);
-            FILEMakeDir(PATHu8cgIn(dp));
+            FILEMakeDirP(PATHu8cgIn(dp));
 
             u32 idx = SNIFFIntern(s, relpath);
             seen[idx] = 1;

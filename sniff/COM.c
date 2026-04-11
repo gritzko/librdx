@@ -1,0 +1,465 @@
+//  COM: commit changed worktree files to keeper.
+//
+#include "COM.h"
+
+#include <string.h>
+#include <sys/stat.h>
+#include <time.h>
+
+#include "abc/FILE.h"
+#include "abc/HEX.h"
+#include "abc/PATH.h"
+#include "abc/PRO.h"
+#include "keeper/GIT.h"
+#include "keeper/SHA1.h"
+#include "keeper/WALK.h"
+
+// --- Collect old tree SHAs: path_index → sha[20] ---
+
+typedef struct {
+    sniff *s;
+    u8p    shas;       // shas[idx * 20 .. (idx+1) * 20]
+    u32    capacity;
+} sha_ctx;
+
+static void com_set_sha(sha_ctx *ctx, u32 idx, u8cp sha) {
+    if (idx >= ctx->capacity) return;
+    memcpy(ctx->shas + (size_t)idx * GIT_SHA1_LEN, sha, GIT_SHA1_LEN);
+}
+
+static u8cp com_get_sha(sha_ctx const *ctx, u32 idx) {
+    if (idx >= ctx->capacity) return NULL;
+    u8cp p = ctx->shas + (size_t)idx * GIT_SHA1_LEN;
+    // Check if all zeros (not set)
+    for (int i = 0; i < GIT_SHA1_LEN; i++)
+        if (p[i] != 0) return p;
+    return NULL;
+}
+
+static ok64 com_collect_tree(sha_ctx *ctx, keeper *k,
+                             u8cp tree_sha, u8cs prefix) {
+    sane(ctx && k && tree_sha);
+
+    u64 hashlet = wh64Hashlet(tree_sha);
+    Bu8 buf = {};
+    call(u8bAllocate, buf, 1UL << 24);
+    u8 otype = 0;
+    ok64 o = KEEPGet(k, hashlet, 10, buf, &otype);
+    if (o != OK) { u8bFree(buf); fail(o); }
+    if (otype != KEEP_OBJ_TREE) { u8bFree(buf); fail(SNIFFFAIL); }
+
+    size_t tsz = u8bDataLen(buf);
+    Bu8 tcopy = {};
+    o = u8bAllocate(tcopy, tsz);
+    if (o != OK) { u8bFree(buf); fail(o); }
+    u8bFeed(tcopy, u8bDataC(buf));
+    u8bFree(buf);
+
+    u8cs tree = {u8bDataHead(tcopy), u8bIdleHead(tcopy)};
+    u8cs file = {}, esha = {};
+
+    while (GITu8sDrainTree(tree, file, esha) == OK) {
+        u8cs scan = {file[0], file[1]};
+        if (u8csFind(scan, ' ') != OK) continue;
+        u8cs mode_s = {file[0], scan[0]};
+        u8cs name_s = {scan[0], file[1]};
+        ++name_s[0];
+
+        b8 is_submodule = ($len(mode_s) >= 2 &&
+                           $at(mode_s, 0) == '1' && $at(mode_s, 1) == '6');
+        if (is_submodule) continue;
+
+        a_pad(u8, rel, 2048);
+        if (!$empty(prefix)) {
+            u8bFeed(rel, prefix);
+            u8bFeed1(rel, '/');
+        }
+        u8bFeed(rel, name_s);
+        PATHu8gTerm(PATHu8gIn(rel));
+        u8cs relpath = {u8bDataHead(rel), rel[2]};
+
+        u32 idx = SNIFFIntern(ctx->s, relpath);
+        com_set_sha(ctx, idx, esha[0]);
+
+        b8 is_dir = ($at(mode_s, 0) == '4');
+        if (is_dir) {
+            com_collect_tree(ctx, k, esha[0], relpath);
+        }
+    }
+
+    u8bFree(tcopy);
+    done;
+}
+
+// --- Tree entry for building ---
+
+typedef struct {
+    u32 path_idx;      // sniff path index
+    u8  sha[GIT_SHA1_LEN];
+    u8  mode[8];
+    u8  mode_len;
+    b8  is_dir;
+} tree_entry;
+
+// Extract the basename from a relative path
+static void com_basename(u8csp out, u8cs rel) {
+    // Find last '/'
+    u8cs scan = {rel[0], rel[1]};
+    u8cp last = rel[0];
+    while (u8csFind(scan, '/') == OK) {
+        last = scan[0];
+        ++last;
+    }
+    out[0] = last;
+    out[1] = rel[1];
+}
+
+static int com_entry_cmp(const void *a, const void *b) {
+    tree_entry const *ea = a;
+    tree_entry const *eb = b;
+    // Need to compare basenames, not full paths
+    // But we don't have the names here — use path_idx ordering
+    // which is insertion order. For correctness, we'd need the
+    // actual names. Store them separately? For now, use the
+    // path string from sniff.
+    // This is called from qsort so we can't use sniff pointer.
+    // We'll sort entries with their names in the caller.
+    return 0;
+}
+
+// Build tree for one directory level. Adds blobs for changed files
+// via KEEPPackFeed, recurses for subdirectories.
+static ok64 com_build_tree(sniff *s, keeper *k, keep_pack *p,
+                           sha_ctx *sha_tab, u8cs reporoot,
+                           u8cs dir_prefix, u8 sha_out[20]) {
+    sane(s && k && p && sha_tab && sha_out);
+
+    tree_entry entries[4096];
+    u8cs       names[4096];  // basename for each entry
+    u32 nentries = 0;
+    u32 n = SNIFFCount(s);
+
+    for (u32 i = 0; i < n; i++) {
+        u64 h = SNIFFGet(s, SNIFF_HASHLET, i);
+        if (h == 0) continue;
+
+        u8cs rel = {};
+        if (SNIFFPath(rel, s, i) != OK) continue;
+
+        // Check if rel is under dir_prefix
+        size_t plen = $len(dir_prefix);
+        if (plen > 0) {
+            if ($len(rel) <= plen) continue;
+            if (memcmp(rel[0], dir_prefix[0], plen) != 0) continue;
+            if ($at(rel, plen) != '/') continue;
+            rel[0] = $atp(rel, plen + 1);
+        }
+
+        // Check if direct child (no further /)
+        u8cs check = {rel[0], rel[1]};
+        b8 has_slash = (u8csFind(check, '/') == OK);
+
+        if (has_slash) {
+            // Subdirectory — extract dir name (up to first /)
+            u8cs dirname = {rel[0], check[0]};
+
+            // Dedup: check if already added as dir; also evict file dup
+            b8 dup = NO;
+            for (u32 j = 0; j < nentries; j++) {
+                if ($len(names[j]) != $len(dirname)) continue;
+                if (memcmp(names[j][0], dirname[0], $len(dirname)) != 0)
+                    continue;
+                if (entries[j].is_dir) { dup = YES; break; }
+                // Evict file entry that shadows this dir
+                entries[j] = entries[nentries - 1];
+                names[j][0] = names[nentries - 1][0];
+                names[j][1] = names[nentries - 1][1];
+                nentries--;
+                j--;
+            }
+            if (dup) continue;
+            if (nentries >= 4096) continue;
+
+            // Build full subdir prefix
+            a_pad(u8, subdir, 2048);
+            if (!$empty(dir_prefix)) {
+                u8bFeed(subdir, dir_prefix);
+                u8bFeed1(subdir, '/');
+            }
+            u8bFeed(subdir, dirname);
+            PATHu8gTerm(PATHu8gIn(subdir));
+            u8cs sub = {u8bDataHead(subdir), subdir[2]};
+
+            tree_entry *e = &entries[nentries];
+            e->path_idx = i;
+            e->is_dir = YES;
+            memcpy(e->mode, "40000", 5);
+            e->mode_len = 5;
+            // dirname points into SNIFFPath's mmap — stable
+            names[nentries][0] = dirname[0];
+            names[nentries][1] = dirname[1];
+
+            call(com_build_tree, s, k, p, sha_tab, reporoot, sub, e->sha);
+            nentries++;
+        } else {
+            // Direct child file — skip if already added as a dir
+            b8 is_dup_dir = NO;
+            for (u32 j = 0; j < nentries; j++) {
+                if (!entries[j].is_dir) continue;
+                if ($len(names[j]) == $len(rel) &&
+                    memcmp(names[j][0], rel[0], $len(rel)) == 0) {
+                    is_dup_dir = YES;
+                    break;
+                }
+            }
+            if (is_dup_dir) continue;
+            if (nentries >= 4096) continue;
+            tree_entry *e = &entries[nentries];
+            e->path_idx = i;
+            e->is_dir = NO;
+
+            // Get the full relative path for this file
+            u8cs full_rel = {};
+            SNIFFPath(full_rel, s, i);
+
+            u64 co = SNIFFGet(s, SNIFF_CHECKOUT, i);
+            u64 ch = SNIFFGet(s, SNIFF_CHANGED, i);
+            b8 changed = (ch != 0 && ch != co);
+
+            // Detect mode early (need it for blob reading)
+            a_path(fp);
+            call(SNIFFFullpath, fp, reporoot, full_rel);
+            struct stat lsb = {};
+            b8 is_link = (lstat((char *)u8bDataHead(fp), &lsb) == 0 &&
+                          S_ISLNK(lsb.st_mode));
+
+            if (changed) {
+                // Read file/symlink content, feed as blob
+                Bu8 content = {};
+                call(u8bAllocate, content, 1UL << 24);
+                if (is_link) {
+                    char target[1024];
+                    ssize_t tlen = readlink(
+                        (char *)u8bDataHead(fp), target, sizeof(target));
+                    if (tlen > 0) {
+                        u8cs ts = {(u8cp)target, (u8cp)target + tlen};
+                        u8bFeed(content, ts);
+                    }
+                } else {
+                    int fd = -1;
+                    ok64 o = FILEOpen(&fd, PATHu8cgIn(fp), O_RDONLY);
+                    if (o != OK) { u8bFree(content); continue; }
+                    FILEdrainall(u8bIdle(content), fd);
+                    FILEClose(&fd);
+                }
+                u8cs blob = {u8bDataHead(content), u8bIdleHead(content)};
+                call(KEEPPackFeed, k, p, KEEP_OBJ_BLOB, blob, e->sha);
+                u8bFree(content);
+            } else {
+                u8cp old_sha = com_get_sha(sha_tab, i);
+                if (!old_sha) continue;
+                memcpy(e->sha, old_sha, GIT_SHA1_LEN);
+            }
+
+            // Detect file mode from earlier lstat
+            if (lsb.st_mode != 0) {
+                if (is_link) {
+                    memcpy(e->mode, "120000", 6);
+                    e->mode_len = 6;
+                } else if (lsb.st_mode & S_IXUSR) {
+                    memcpy(e->mode, "100755", 6);
+                    e->mode_len = 6;
+                } else {
+                    memcpy(e->mode, "100644", 6);
+                    e->mode_len = 6;
+                }
+            } else {
+                memcpy(e->mode, "100644", 6);
+                e->mode_len = 6;
+            }
+
+            // rel points into SNIFFPath's mmap — stable
+            names[nentries][0] = rel[0];
+            names[nentries][1] = rel[1];
+            nentries++;
+        }
+    }
+
+    // Sort entries by name (git tree format requires sorted)
+    // Simple insertion sort since entries are small
+    for (u32 i = 1; i < nentries; i++) {
+        tree_entry etmp = entries[i];
+        u8cs ntmp = {names[i][0], names[i][1]};
+        u32 j = i;
+        while (j > 0) {
+            size_t la = $len(names[j - 1]);
+            size_t lb = $len(ntmp);
+            size_t minl = la < lb ? la : lb;
+            int c = memcmp(names[j - 1][0], ntmp[0], minl);
+            if (c == 0) c = (la > lb) - (la < lb);
+            if (c <= 0) break;
+            entries[j] = entries[j - 1];
+            names[j][0] = names[j - 1][0];
+            names[j][1] = names[j - 1][1];
+            j--;
+        }
+        entries[j] = etmp;
+        names[j][0] = ntmp[0];
+        names[j][1] = ntmp[1];
+    }
+
+    // Serialize tree object
+    Bu8 tree = {};
+    call(u8bAllocate, tree, nentries * 80);
+    for (u32 i = 0; i < nentries; i++) {
+        tree_entry *e = &entries[i];
+        u8cs mode = {e->mode, e->mode + e->mode_len};
+        u8bFeed(tree, mode);
+        u8bFeed1(tree, ' ');
+        u8bFeed(tree, names[i]);
+        u8bFeed1(tree, 0);
+        u8cs sha = {e->sha, e->sha + GIT_SHA1_LEN};
+        u8bFeed(tree, sha);
+    }
+
+    u8cs tree_data = {u8bDataHead(tree), u8bIdleHead(tree)};
+    call(KEEPPackFeed, k, p, KEEP_OBJ_TREE, tree_data, sha_out);
+    u8bFree(tree);
+    done;
+}
+
+// --- Public API ---
+
+ok64 COMCommit(sniff *s, keeper *k, u8cs reporoot,
+               u8cs parent_hex, u8cs message, u8cs author,
+               u8 sha_out[20]) {
+    sane(s && k && $ok(parent_hex) && $ok(message) && $ok(author));
+
+    // Resolve parent commit
+    size_t hexlen = $len(parent_hex);
+    if (hexlen > 10) hexlen = 10;
+    u64 parent_hashlet = wh64HashletFromHex(
+        (char const *)parent_hex[0], hexlen);
+
+    Bu8 cbuf = {};
+    call(u8bAllocate, cbuf, 1UL << 24);
+    u8 ctype = 0;
+    call(KEEPGet, k, parent_hashlet, hexlen, cbuf, &ctype);
+
+    // Dereference tag
+    if (ctype == KEEP_OBJ_TAG) {
+        u8cs body = {u8bDataHead(cbuf), u8bIdleHead(cbuf)};
+        u8cs field = {}, value = {};
+        a_pad(u8, shabin, GIT_SHA1_LEN);
+        while (GITu8sDrainCommit(body, field, value) == OK) {
+            if ($empty(field)) break;
+            if ($len(field) == 6 && memcmp(field[0], "object", 6) == 0 &&
+                $len(value) >= 40) {
+                u8cs hex40 = {value[0], $atp(value, 40)};
+                HEXu8sDrainSome(shabin_idle, hex40);
+                break;
+            }
+        }
+        u64 ch = wh64Hashlet(u8bDataHead(shabin));
+        u8bReset(cbuf);
+        call(KEEPGet, k, ch, 10, cbuf, &ctype);
+    }
+    if (ctype != KEEP_OBJ_COMMIT) { u8bFree(cbuf); fail(SNIFFFAIL); }
+
+    // Compute parent's full SHA from its content
+    u8 parent_sha[GIT_SHA1_LEN] = {};
+    {
+        size_t csz = u8bDataLen(cbuf);
+        char hdr[64];
+        int hlen = snprintf(hdr, sizeof(hdr), "commit %zu", csz);
+        Bu8 tmp = {};
+        u8bAllocate(tmp, (u64)hlen + 1 + csz);
+        u8cs hs = {(u8cp)hdr, (u8cp)hdr + hlen};
+        u8bFeed(tmp, hs);
+        u8bFeed1(tmp, 0);
+        u8bFeed(tmp, u8bDataC(cbuf));
+        SHA1Sum(parent_sha, u8bDataHead(tmp), u8bDataLen(tmp));
+        u8bFree(tmp);
+    }
+
+    // Get parent's tree SHA
+    u8 parent_tree_sha[GIT_SHA1_LEN] = {};
+    u8cs commit_body = {u8bDataHead(cbuf), u8bIdleHead(cbuf)};
+    call(WALKCommitTree, commit_body, parent_tree_sha);
+    u8bFree(cbuf);
+
+    // Collect old tree SHAs
+    u32 npath = SNIFFCount(s);
+    u32 cap = npath + SNIFF_HASH_SIZE;
+    Bu8 sha_mem = {};
+    call(u8bAllocate, sha_mem, (u64)cap * GIT_SHA1_LEN);
+    memset(u8bDataHead(sha_mem), 0, (u64)cap * GIT_SHA1_LEN);
+    sha_ctx sha_tab = {.s = s, .shas = u8bDataHead(sha_mem),
+                       .capacity = cap};
+
+    u8cs no_prefix = {};
+    call(com_collect_tree, &sha_tab, k, parent_tree_sha, no_prefix);
+
+    // Start incremental pack
+    keep_pack p = {};
+    call(KEEPPackOpen, k, &p);
+
+    // Build new root tree
+    u8 root_tree_sha[GIT_SHA1_LEN] = {};
+    ok64 o = com_build_tree(s, k, &p, &sha_tab, reporoot,
+                            no_prefix, root_tree_sha);
+    u8bFree(sha_mem);
+    if (o != OK) { KEEPPackClose(k, &p); return o; }
+
+    // Build commit object
+    Bu8 com = {};
+    call(u8bAllocate, com, 4096);
+
+    a_cstr(tree_label, "tree ");
+    u8bFeed(com, tree_label);
+    a_pad(u8, tree_hex, 40);
+    u8cs tsha = {root_tree_sha, root_tree_sha + GIT_SHA1_LEN};
+    HEXu8sFeedSome(tree_hex_idle, tsha);
+    u8bFeed(com, u8bDataC(tree_hex));
+    u8bFeed1(com, '\n');
+
+    a_cstr(par_label, "parent ");
+    u8bFeed(com, par_label);
+    a_pad(u8, par_hex, 40);
+    u8cs psha = {parent_sha, parent_sha + GIT_SHA1_LEN};
+    HEXu8sFeedSome(par_hex_idle, psha);
+    u8bFeed(com, u8bDataC(par_hex));
+    u8bFeed1(com, '\n');
+
+    time_t now = time(NULL);
+    char ts[64];
+    int tslen = snprintf(ts, sizeof(ts), " %lld +0000\n", (long long)now);
+    u8cs ts_s = {(u8cp)ts, (u8cp)ts + tslen};
+
+    a_cstr(auth_label, "author ");
+    u8bFeed(com, auth_label);
+    u8bFeed(com, author);
+    u8bFeed(com, ts_s);
+
+    a_cstr(comm_label, "committer ");
+    u8bFeed(com, comm_label);
+    u8bFeed(com, author);
+    u8bFeed(com, ts_s);
+
+    u8bFeed1(com, '\n');
+    u8bFeed(com, message);
+    u8bFeed1(com, '\n');
+
+    u8cs com_data = {u8bDataHead(com), u8bIdleHead(com)};
+    call(KEEPPackFeed, k, &p, KEEP_OBJ_COMMIT, com_data, sha_out);
+    u8bFree(com);
+
+    call(KEEPPackClose, k, &p);
+
+    a_pad(u8, out_hex, 40);
+    u8cs osha = {sha_out, sha_out + GIT_SHA1_LEN};
+    HEXu8sFeedSome(out_hex_idle, osha);
+    fprintf(stderr, "sniff: commit %.*s\n",
+            (int)u8bDataLen(out_hex), (char *)u8bDataHead(out_hex));
+    done;
+}

@@ -9,6 +9,7 @@
 #include <unistd.h>
 
 #include "CHE.h"
+#include "COM.h"
 
 #include "abc/FILE.h"
 #include "abc/FSW.h"
@@ -252,6 +253,7 @@ static void sniff_usage(void) {
             "  sniff -w | --watch    start watch daemon\n"
             "  sniff --stop          stop watch daemon\n"
             "  sniff -c <hex>        checkout commit from keeper\n"
+            "  sniff -m <msg> --parent <hex>  commit changed files\n"
             "  sniff -l | --list     list all known paths\n"
             "  sniff -h | --help     this message\n");
 }
@@ -268,6 +270,7 @@ ok64 sniffcli() {
     if (ho != OK) {
         char cwd[1024];
         if (!getcwd(cwd, sizeof(cwd))) fail(SNIFFFAIL);
+        u8bReset(root);
         a_cstr(cwds, cwd);
         call(u8bFeed, root, cwds);
         call(PATHu8gTerm, PATHu8gIn(root));
@@ -282,6 +285,9 @@ ok64 sniffcli() {
     b8 do_stop = NO;
     b8 do_list = NO;
     u8cs checkout_hex = {};
+    u8cs commit_msg = {};
+    u8cs commit_parent = {};
+    u8cs commit_author = {};
 
     for (u32 i = 1; i < $arglen; i++) {
         u8cs a = {};
@@ -299,6 +305,16 @@ ok64 sniffcli() {
                    && i + 1 < $arglen) {
             i++;
             $mv(checkout_hex, $arg(i));
+        } else if ((argeq(a, "-m") || argeq(a, "--commit"))
+                   && i + 1 < $arglen) {
+            i++;
+            $mv(commit_msg, $arg(i));
+        } else if (argeq(a, "--parent") && i + 1 < $arglen) {
+            i++;
+            $mv(commit_parent, $arg(i));
+        } else if (argeq(a, "--author") && i + 1 < $arglen) {
+            i++;
+            $mv(commit_author, $arg(i));
         } else if (argeq(a, "-w") || argeq(a, "--watch")) {
             do_watch = YES;
         } else if (argeq(a, "--stop")) {
@@ -318,12 +334,32 @@ ok64 sniffcli() {
         done;
     }
 
-    b8 rw = do_index || do_update || do_watch || $ok(checkout_hex);
+    b8 rw = do_index || do_update || do_watch || $ok(checkout_hex)
+             || $ok(commit_msg);
     sniff s = {};
     call(SNIFFOpen, &s, reporoot, rw);
 
     ok64 ret = OK;
-    if ($ok(checkout_hex)) {
+    if ($ok(commit_msg)) {
+        if (!$ok(commit_parent)) {
+            fprintf(stderr, "sniff: --commit requires --parent\n");
+            ret = SNIFFFAIL;
+        } else {
+            if (!$ok(commit_author)) {
+                a_cstr(def, "sniff <sniff@dogs>");
+                commit_author[0] = def[0];
+                commit_author[1] = def[1];
+            }
+            keeper k = {};
+            ret = KEEPOpen(&k, reporoot);
+            if (ret == OK) {
+                u8 sha[20] = {};
+                ret = COMCommit(&s, &k, reporoot, commit_parent,
+                                commit_msg, commit_author, sha);
+                KEEPClose(&k);
+            }
+        }
+    } else if ($ok(checkout_hex)) {
         ret = sniff_checkout(&s, reporoot, checkout_hex);
     } else if (do_watch) {
         ret = sniff_daemon(&s, reporoot);
