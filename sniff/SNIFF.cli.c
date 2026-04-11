@@ -1,4 +1,4 @@
-//  sniff CLI — index, watch daemon, status
+//  sniff CLI — index, watch daemon, status, checkout
 //
 #include "SNIFF.h"
 
@@ -8,6 +8,8 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
+
+#include "CHE.h"
 
 #include "abc/FILE.h"
 #include "abc/FSW.h"
@@ -216,6 +218,17 @@ static ok64 sniff_status(sniff *s) {
     done;
 }
 
+// --- Mode: Checkout ---
+
+static ok64 sniff_checkout(sniff *s, u8cs reporoot, u8cs hex) {
+    sane(s && $ok(hex));
+    keeper k = {};
+    call(KEEPOpen, &k, reporoot);
+    ok64 o = CHECheckout(s, &k, reporoot, hex);
+    KEEPClose(&k);
+    return o;
+}
+
 // --- Mode: List all paths ---
 
 static ok64 sniff_list(sniff *s) {
@@ -241,6 +254,7 @@ static void sniff_usage(void) {
             "  sniff -s | --status   dirty files (changed since checkout)\n"
             "  sniff -w | --watch    start watch daemon\n"
             "  sniff --stop          stop watch daemon\n"
+            "  sniff -c <hex>        checkout commit from keeper\n"
             "  sniff -l | --list     list all known paths\n"
             "  sniff -h | --help     this message\n");
 }
@@ -251,9 +265,16 @@ ok64 sniffcli() {
     sane(1);
     call(FILEInit);
 
-    // Find worktree root
+    // Find worktree root (HOMEFind for git repos, cwd fallback for keeper-only)
     a_path(root);
-    call(HOMEFind, root);
+    ok64 ho = HOMEFind(root);
+    if (ho != OK) {
+        char cwd[1024];
+        if (!getcwd(cwd, sizeof(cwd))) fail(SNIFFFAIL);
+        a_cstr(cwds, cwd);
+        call(u8bFeed, root, cwds);
+        call(PATHu8gTerm, PATHu8gIn(root));
+    }
     a_dup(u8c, reporoot, u8bDataC(root));
 
     // Parse args
@@ -263,6 +284,7 @@ ok64 sniffcli() {
     b8 do_watch = NO;
     b8 do_stop = NO;
     b8 do_list = NO;
+    u8cs checkout_hex = {};
 
     for (u32 i = 1; i < $arglen; i++) {
         u8cs a = {};
@@ -276,6 +298,10 @@ ok64 sniffcli() {
             do_update = YES;
         } else if (argeq(a, "-s") || argeq(a, "--status")) {
             do_status = YES;
+        } else if ((argeq(a, "-c") || argeq(a, "--checkout"))
+                   && i + 1 < $arglen) {
+            i++;
+            $mv(checkout_hex, $arg(i));
         } else if (argeq(a, "-w") || argeq(a, "--watch")) {
             do_watch = YES;
         } else if (argeq(a, "--stop")) {
@@ -295,12 +321,14 @@ ok64 sniffcli() {
         done;
     }
 
-    b8 rw = do_index || do_update || do_watch;
+    b8 rw = do_index || do_update || do_watch || $ok(checkout_hex);
     sniff s = {};
     call(SNIFFOpen, &s, reporoot, rw);
 
     ok64 ret = OK;
-    if (do_watch) {
+    if ($ok(checkout_hex)) {
+        ret = sniff_checkout(&s, reporoot, checkout_hex);
+    } else if (do_watch) {
         ret = sniff_daemon(&s, reporoot);
     } else if (do_status) {
         ret = sniff_status(&s);
