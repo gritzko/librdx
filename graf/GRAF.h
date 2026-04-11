@@ -3,50 +3,56 @@
 
 #include "abc/INT.h"
 #include "dog/HUNK.h"
-
-// Producer-side staging for graf — same shape as spot/LESS.h.
-// Build hunks in `graf_arena`, emit them via `graf_emit` and write
-// the resulting bytes to `graf_out_fd`.
+#include "graf/DAG.h"
 
 #define GRAF_ARENA_SIZE (1UL << 24)   // 16MB
 
-extern Bu8 graf_arena;
-
-// File descriptor for outgoing hunks.  STDOUT_FILENO when piped, else
-// the write end of a pipe to bro.  -1 = uninitialized.
-extern int graf_out_fd;
-
 // Hunk → bytes serializer: HUNKu8sFeed (TLV) or HUNKu8sFeedText (plain).
 typedef ok64 (*graf_emit_fn)(u8s into, hunk const *hk);
+
+// --- graf control struct (per DOG.md rule 8) ---
+
+typedef struct {
+    Bu8          arena;      // hunk staging buffer
+    int          out_fd;     // output fd (-1 = uninitialized)
+    graf_emit_fn emit;       // serializer (TLV or plain text)
+    dag_stack    idx;        // DAG index (LSM sorted runs)
+    char         dir[1024];  // resolved .dogs/graf/ path
+} graf;
+
+//  Open graf state.  dogsroot empty → HOMEFindDogs from cwd.
+ok64 GRAFOpen(graf *g, u8cs dogsroot);
+
+//  Close and free resources.
+ok64 GRAFClose(graf *g);
+
+// --- Legacy globals (used by existing diff/merge code) ---
+
+extern Bu8          graf_arena;
+extern int          graf_out_fd;
 extern graf_emit_fn graf_emit;
 
 ok64 GRAFArenaInit(void);
 void GRAFArenaCleanup(void);
 
-// Serialize one hunk via graf_emit and write to graf_out_fd.  Used as
-// a HUNKcb by graf's diff/merge wrappers.
+// Serialize one hunk via graf_emit and write to graf_out_fd.
 ok64 GRAFHunkEmit(hunk const *hk, void *ctx);
 
-// User-facing diff entry: maps two files, calls dog/DIFF, streams
-// hunks via GRAFHunkEmit.
+// User-facing diff entry.
 ok64 GRAFDiff(u8cs old_path, u8cs new_path, u8cs name,
               u8cs old_mode, u8cs new_mode);
 
-// 3-way merge entry: writes resolved bytes to outpath (or stdout if
-// outpath is empty).
+// 3-way merge entry.
 ok64 GRAFMerge(u8cs base_path, u8cs ours_path, u8cs theirs_path,
                u8cs outpath);
 
-// Install graf as git's diff/merge driver in the given workspace.
+// Install graf as git's diff/merge driver.
 ok64 GRAFInstall(u8cs reporoot);
 
-// Token-level blame via weave: walks PREV_BLOB chain, builds weave,
-// emits blame-annotated hunks via GRAFHunkEmit.
+// Token-level blame.
 ok64 GRAFBlame(u8cs filepath, u8cs reporoot);
 
-// Weave diff: history-aware diff between two versions of a file.
-// from/to are commit prefixes (empty = root / HEAD respectively).
-// Scans the weave, classifies tokens as context/ins/del, emits hunks.
+// Weave diff between two commits.
 ok64 GRAFWeaveDiff(u8cs filepath, u8cs reporoot, u8cs from, u8cs to);
 
 #endif

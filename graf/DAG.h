@@ -28,11 +28,12 @@
 
 #include "abc/INT.h"
 #include "dog/SHA1.h"
+#include "dog/WHIFF.h"
 
 con ok64 DAGFAIL    = 0x14a83ca495;
 con ok64 DAGNOROOM  = 0x14a85d86d8616;
 
-// --- belt128: 16-byte index record ---
+// --- belt128: 16-byte index record (two wh64 words) ---
 
 typedef struct belt128 {
     u64 a;
@@ -44,7 +45,7 @@ typedef belt128 *belt128p;
 typedef belt128 const *belt128cp;
 typedef belt128 const *belt128cs[2];
 
-// Entry types (low 4 bits of .a)
+// Entry types (low 4 bits of .a, same position as wh64Type)
 #define DAG_COMMIT_PARENT  1
 #define DAG_COMMIT_TREE    2
 #define DAG_COMMIT_GEN     3
@@ -52,43 +53,24 @@ typedef belt128 const *belt128cs[2];
 #define DAG_PATH_VER       5
 #define DAG_BLOB_COMMIT    6
 
-#define DAG_TYPE_MASK     0xfULL
-#define DAG_TYPE_BITS     4
-#define DAG_GEN_BITS      20
-#define DAG_GEN_MASK      ((1ULL << DAG_GEN_BITS) - 1)
-#define DAG_GEN_SHIFT     DAG_TYPE_BITS   // gen starts at bit 4
-#define DAG_HASH_BITS     40
-#define DAG_HASH_MASK     ((1ULL << DAG_HASH_BITS) - 1)
-#define DAG_HASH_SHIFT    (DAG_TYPE_BITS + DAG_GEN_BITS)  // hashlet starts at bit 24
-
-// --- Pack/unpack ---
-//  Layout: type[4] | gen[20] | hashlet[40] = 64 bits
-//  Bits:   [0:3]     [4:23]    [24:63]
-
-fun u64 DAGPack(u8 type, u32 gen, u64 hashlet) {
-    return ((u64)type & DAG_TYPE_MASK) |
-           (((u64)gen & DAG_GEN_MASK) << DAG_GEN_SHIFT) |
-           ((hashlet & DAG_HASH_MASK) << DAG_HASH_SHIFT);
-}
-
-fun u8  DAGType(u64 v)    { return (u8)(v & DAG_TYPE_MASK); }
-fun u32 DAGGen(u64 v)     { return (u32)((v >> DAG_GEN_SHIFT) & DAG_GEN_MASK); }
-fun u64 DAGHashlet(u64 v) { return (v >> DAG_HASH_SHIFT) & DAG_HASH_MASK; }
+// belt128 a/b use the whiff layout: type[4] | id[20] | hashlet[40]
+#define DAGPack    wh64Pack
+#define DAGType    wh64Type
+#define DAGGen     wh64Id
+#define DAGHashlet wh64Off
 
 fun belt128 DAGEntry(u8 atype, u32 agen, u64 ahash,
                      u8 btype, u32 bgen, u64 bhash) {
     return (belt128){
-        .a = DAGPack(atype, agen, ahash),
-        .b = DAGPack(btype, bgen, bhash)
+        .a = wh64Pack(atype, agen, ahash),
+        .b = wh64Pack(btype, bgen, bhash)
     };
 }
 
-// --- sha1 → 40-bit hashlet ---
+// --- sha1 helpers ---
 
 fun u64 DAGsha1Hashlet(sha1 const *s) {
-    u64 h = 0;
-    memcpy(&h, s->data, 8);
-    return h & DAG_HASH_MASK;
+    return wh64Hashlet(s->data);
 }
 
 fun ok64 DAGsha1FromHex(sha1 *out, char const *hex40) {
@@ -97,7 +79,6 @@ fun ok64 DAGsha1FromHex(sha1 *out, char const *hex40) {
     return HEXu8sDrainSome(sb, hx);
 }
 
-// sha1 → 40-char hex string (caller provides char[41] buffer)
 fun void DAGsha1ToHex(char *hex41, sha1 const *s) {
     u8 buf[41];
     u8s hx = {buf, buf + 40};
@@ -107,17 +88,8 @@ fun void DAGsha1ToHex(char *hex41, sha1 const *s) {
     hex41[40] = 0;
 }
 
-// --- Hashlet → 10-char hex prefix (for git CLI lookups) ---
-
-fun void DAGHashletToHex(char *out11, u64 hashlet) {
-    u8 bin[8] = {};
-    memcpy(bin, &hashlet, 5);
-    u8 hex[12];
-    u8s hx = {hex, hex + 10};
-    u8cs bn = {bin, bin + 5};
-    HEXu8sFeedSome(hx, bn);
-    memcpy(out11, hex, 10);
-    out11[10] = 0;
+fun void DAGHashletToHex(char *out, u64 hashlet) {
+    wh64HashletHex(out, hashlet, 10);
 }
 
 // --- Comparator: sort by (a, b) ---
@@ -151,7 +123,7 @@ void dag_stack_close(dag_stack *st);
 //  Returns NULL if not found.  Scans across type-interleaved entries.
 fun belt128cp DAGLookup(dag_stack const *st, u8 type, u64 hashlet) {
     u64 key_lo = DAGPack(type, 0, hashlet);
-    u64 key_hi = DAGPack(type, DAG_GEN_MASK, hashlet);
+    u64 key_hi = DAGPack(type, WHIFF_ID_MASK, hashlet);
     for (u32 r = 0; r < st->n; r++) {
         belt128cp base = st->runs[r][0];
         size_t len = (size_t)(st->runs[r][1] - base);
