@@ -192,36 +192,31 @@ ok64 capocli() {
             u8cs search = {};
             $mv(search, gu.fragment);
 
-            // Detect search type from first char
-            u8 first = search[0][0];
+            u8 first = *search[0];
 
             // Split trailing .ext from fragment: "#TODO.c" → search="TODO", ext=".c"
-            // Walk back from end; if we hit a dot before any non-alnum, that's the ext.
             u8cs sext = {};
-            u8cp p = search[1];
-            while (p > search[0]) {
-                p--;
-                if (*p == '.') {
-                    sext[0] = p;
+            $rof(u8c, rp, search) {
+                if (*rp == '.') {
+                    sext[0] = rp;
                     sext[1] = search[1];
-                    search[1] = p;  // trim ext from search
+                    search[1] = rp;
                     break;
                 }
-                // Stop at non-identifier chars (search pattern body)
-                if (*p == '\'' || *p == '/' || *p == ' ') break;
+                if (*rp == '\'' || *rp == '/' || *rp == ' ') break;
             }
 
             if (first == '\'') {
                 // 'quoted' → structural search; strip quotes
                 if ($len(search) >= 2) {
-                    search[0]++;
+                    u8csFed(search, 1);
                     if (*(search[1] - 1) == '\'') search[1]--;
                 }
                 $mv(spot_ndl, search);
             } else if (first == '/') {
                 // /slashed/ → regex; strip slashes
                 if ($len(search) >= 2) {
-                    search[0]++;
+                    u8csFed(search, 1);
                     if (*(search[1] - 1) == '/') search[1]--;
                 }
                 $mv(pcre_ndl, search);
@@ -234,10 +229,9 @@ ok64 capocli() {
 
             // Path from URI → explicit file
             if (!$empty(gu.path)) {
-                // Strip leading /
                 u8cs gpath = {};
                 $mv(gpath, gu.path);
-                if (gpath[0][0] == '/') gpath[0]++;
+                if (*gpath[0] == '/') u8csFed(gpath, 1);
                 if (!$empty(gpath)) {
                     ntrail = 1;
                     $mv(trail[0], gpath);
