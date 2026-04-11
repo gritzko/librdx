@@ -148,6 +148,85 @@ ok64 KEEPput() {
     done;
 }
 
+ok64 KEEPpackIncremental() {
+    sane(1);
+    call(FILEInit);
+
+    char tmpdir[] = "/tmp/keeper-pack-XXXXXX";
+    want(mkdtemp(tmpdir) != NULL);
+
+    a_cstr(root, tmpdir);
+    keeper k = {};
+    call(KEEPOpen, &k, root);
+
+    keep_pack p = {};
+    call(KEEPPackOpen, &k, &p);
+
+    // Feed blob: "hello world\n"
+    // git SHA-1 = 3b18e512dba79e4c8300dd08aeb37f8e728b8dad
+    a_cstr(blob_content, "hello world\n");
+    u8 blob_sha[20] = {};
+    call(KEEPPackFeed, &k, &p, KEEP_OBJ_BLOB, blob_content, blob_sha);
+
+    // Verify blob SHA matches git
+    u8 expected_blob_sha[20] = {
+        0x3b,0x18,0xe5,0x12,0xdb,0xa7,0x9e,0x4c,0x83,0x00,
+        0xdd,0x08,0xae,0xb3,0x7f,0x8e,0x72,0x8b,0x8d,0xad};
+    want(memcmp(blob_sha, expected_blob_sha, 20) == 0);
+
+    // Build tree content: "100644 hello.txt\0" + 20-byte blob SHA
+    a_pad(u8, tree_buf, 256);
+    a_cstr(tree_mode, "100644 hello.txt");
+    u8bFeed(tree_buf, tree_mode);
+    u8bFeed1(tree_buf, 0);  // NUL separator
+    u8cs sha_slice = {blob_sha, blob_sha + 20};
+    u8bFeed(tree_buf, sha_slice);
+
+    a_dup(u8c, tree_content, u8bData(tree_buf));
+    u8 tree_sha[20] = {};
+    call(KEEPPackFeed, &k, &p, KEEP_OBJ_TREE, tree_content, tree_sha);
+
+    // Verify tree SHA matches git: 68aba62e560c0ebc3396e8ae9335232cd93a3f60
+    u8 expected_tree_sha[20] = {
+        0x68,0xab,0xa6,0x2e,0x56,0x0c,0x0e,0xbc,0x33,0x96,
+        0xe8,0xae,0x93,0x35,0x23,0x2c,0xd9,0x3a,0x3f,0x60};
+    want(memcmp(tree_sha, expected_tree_sha, 20) == 0);
+
+    call(KEEPPackClose, &k, &p);
+    want(k.npacks == 1);
+    want(k.nruns == 1);
+
+    // Retrieve blob
+    u64 blob_hashlet = wh64Hashlet(blob_sha);
+    Bu8 out = {};
+    call(u8bMap, out, 1UL << 20);
+    u8 obj_type = 0;
+    call(KEEPGet, &k, blob_hashlet, 10, out, &obj_type);
+    want(obj_type == KEEP_OBJ_BLOB);
+    want(u8bDataLen(out) == u8csLen(blob_content));
+    want(memcmp(u8bDataHead(out), blob_content[0], u8csLen(blob_content)) == 0);
+
+    // Retrieve tree
+    u8bReset(out);
+    u64 tree_hashlet = wh64Hashlet(tree_sha);
+    call(KEEPGet, &k, tree_hashlet, 10, out, &obj_type);
+    want(obj_type == KEEP_OBJ_TREE);
+    want(u8bDataLen(out) == u8csLen(tree_content));
+    want(memcmp(u8bDataHead(out), tree_content[0], u8csLen(tree_content)) == 0);
+
+    u8bUnMap(out);
+    call(KEEPClose, &k);
+
+    a_pad(u8, rmbuf, 256);
+    a_cstr(rmcmd, "rm -rf ");
+    u8bFeed(rmbuf, rmcmd);
+    u8bFeed(rmbuf, root);
+    u8bFeed1(rmbuf, 0);
+    system((char *)u8bDataHead(rmbuf));
+
+    done;
+}
+
 ok64 maintest() {
     sane(1);
     fprintf(stderr, "WH64hashlet...\n");
@@ -158,6 +237,8 @@ ok64 maintest() {
     call(KEEPempty);
     fprintf(stderr, "KEEPput...\n");
     call(KEEPput);
+    fprintf(stderr, "KEEPpackIncremental...\n");
+    call(KEEPpackIncremental);
     fprintf(stderr, "all passed\n");
     done;
 }
