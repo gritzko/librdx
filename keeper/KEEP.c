@@ -51,23 +51,29 @@ static ok64 keep_resolve_dir(path8b out, u8cs reporoot) {
         ok64 o = HOMEFindDogs(out);
         if (o != OK) {
             // Walk up from cwd looking for .dogs/
-            char cwd[1024];
-            if (!getcwd(cwd, sizeof(cwd))) fail(KEEPFAIL);
-            char *p = cwd + strlen(cwd);
-            while (p > cwd) {
-                char probe[1100];
-                snprintf(probe, sizeof(probe), "%.*s/.dogs",
-                         (int)(p - cwd), cwd);
-                struct stat st;
-                if (stat(probe, &st) == 0 && S_ISDIR(st.st_mode)) {
-                    u8cs found = {(u8cp)cwd, (u8cp)p};
+            a_pad(u8, cwdbuf, FILE_PATH_MAX_LEN);
+            test(getcwd((char *)u8bIdleHead(cwdbuf),
+                        u8bIdleLen(cwdbuf)) != NULL, KEEPFAIL);
+            u8bFed(cwdbuf, strlen((char *)u8bIdleHead(cwdbuf)));
+            a_path(cur);
+            a_dup(u8c, cwds, u8bData(cwdbuf));
+            call(PATHu8bFeed, cur, cwds);
+
+            a_cstr(dotdogs, ".dogs");
+            for (;;) {
+                a_path(probe);
+                a_dup(u8c, curslice, u8bData(cur));
+                call(PATHu8bFeed, probe, curslice);
+                call(PATHu8bPush, probe, dotdogs);
+                if (FILEisdir(PATHu8cgIn(probe)) == OK) {
+                    a_dup(u8c, found, u8bData(cur));
                     call(PATHu8bFeed, out, found);
                     goto found_root;
                 }
-                while (p > cwd && *(p-1) != '/') p--;
-                if (p > cwd) p--;
+                size_t before = u8bDataLen(cur);
+                call(PATHu8bPop, cur);
+                if (u8bDataLen(cur) >= before) fail(KEEPFAIL);
             }
-            fail(KEEPFAIL);
         }
     } else {
         call(PATHu8bFeed, out, reporoot);
@@ -87,11 +93,12 @@ ok64 KEEPOpen(keeper *k, u8cs reporoot) {
 
     a_path(dir);
     call(keep_resolve_dir, dir, reporoot);
-    size_t dlen = u8bDataLen(dir);
+    a_dup(u8c, dirdata, u8bData(dir));
+    size_t dlen = u8csLen(dirdata);
     if (dlen >= sizeof(k->dir)) dlen = sizeof(k->dir) - 1;
-    memcpy(k->dir, u8bDataHead(dir), dlen);
+    memcpy(k->dir, dirdata[0], dlen);
     k->dir[dlen] = 0;
-    u8cs keepdir = {(u8cp)k->dir, (u8cp)k->dir + dlen};
+    a_cstr(keepdir, k->dir);
 
     // Ensure directory exists
     call(FILEMakeDirP, PATHu8cgIn(dir));
@@ -655,7 +662,7 @@ ok64 KEEPImport(keeper *k, u8cs pack_path) {
 
     // Determine file_id (1-based, matching filename NNNN.packs)
     u32 file_id = k->npacks + 1;
-    u8cs kdir = {(u8cp)k->dir, (u8cp)k->dir + strlen(k->dir)};
+    a_cstr(kdir, k->dir);
     {
         a_pad(u8, dst, 1024);
         call(u8bFeed, dst, kdir);
@@ -854,23 +861,31 @@ ok64 KEEPSync(keeper *k, u8cs remote,
         return KEEPFAIL;
     }
 
-    // Parse remote: "ssh host path" or just "path" for local
-    char remote_str[1024];
-    snprintf(remote_str, sizeof(remote_str), "%.*s",
-             (int)$len(remote), (char *)remote[0]);
-
+    // Parse remote: "host /path" or just "/path" for local
     // Build command: ssh host git-upload-pack 'path'
     // or local: git-upload-pack 'path'
-    char cmd[2048];
-    char *space = strchr(remote_str, ' ');
-    if (space) {
-        *space = 0;
-        char *host = remote_str;
-        char *path = space + 1;
-        snprintf(cmd, sizeof(cmd), "ssh %s git-upload-pack '%s'", host, path);
+    a_pad(u8, cmdbuf, 2048);
+    a_dup(u8c, rscan, remote);
+    if (u8csFind(rscan, ' ') == OK) {
+        u8cs host = {remote[0], rscan[0]};
+        u8cs rpath = {rscan[0] + 1, remote[1]};
+        a_cstr(ssh_pre, "ssh ");
+        a_cstr(gup, " git-upload-pack '");
+        a_cstr(sq, "'");
+        u8bFeed(cmdbuf, ssh_pre);
+        u8bFeed(cmdbuf, host);
+        u8bFeed(cmdbuf, gup);
+        u8bFeed(cmdbuf, rpath);
+        u8bFeed(cmdbuf, sq);
     } else {
-        snprintf(cmd, sizeof(cmd), "git-upload-pack '%s'", remote_str);
+        a_cstr(gup, "git-upload-pack '");
+        a_cstr(sq, "'");
+        u8bFeed(cmdbuf, gup);
+        u8bFeed(cmdbuf, remote);
+        u8bFeed(cmdbuf, sq);
     }
+    u8bFeed1(cmdbuf, 0);  // NUL terminate for popen
+    char *cmd = (char *)u8bDataHead(cmdbuf);
 
     fprintf(stderr, "keeper: connecting: %s\n", cmd);
 
@@ -1104,7 +1119,7 @@ ok64 KEEPSync(keeper *k, u8cs remote,
     u32 file_id = k->npacks + 1;
     {
         a_pad(u8, dst, 1024);
-        u8cs kdir = {(u8cp)k->dir, (u8cp)k->dir + strlen(k->dir)};
+        a_cstr(kdir, k->dir);
         u8bFeed(dst, kdir);
         u8bFeed1(dst, '/');
         RONu8sFeedPad(u8bIdle(dst), (u64)file_id, KEEP_SEQNO_W);
@@ -1141,7 +1156,7 @@ ok64 KEEPSync(keeper *k, u8cs remote,
 
         // Mmap the new pack into keeper so KEEPLookup/keep_resolve can use it
         {
-            u8cs kdir = {(u8cp)k->dir, (u8cp)k->dir + strlen(k->dir)};
+            a_cstr(kdir, k->dir);
             a_path(pp, kdir);
             char fn[32];
             snprintf(fn, sizeof(fn), "/%010u%s", file_id, KEEP_PACK_EXT);
@@ -1408,7 +1423,7 @@ ok64 KEEPSync(keeper *k, u8cs remote,
             kv64sDedup(sorted);
             u32 nfinal = (u32)(sorted[1] - sorted[0]);
 
-            u8cs kdir = {(u8cp)k->dir, (u8cp)k->dir + strlen(k->dir)};
+            a_cstr(kdir, k->dir);
             a_pad(u8, idxpath, 1024);
             u8bFeed(idxpath, kdir);
             u8bFeed1(idxpath, '/');
@@ -1453,30 +1468,35 @@ sync_done:
 
     // Record refs in the reflog
     if (nrefs > 0) {
-        u8cs kdir = {(u8cp)k->dir, (u8cp)k->dir + strlen(k->dir)};
+        a_cstr(kdir, k->dir);
         ref *refarr = calloc(nrefs, sizeof(ref));
         if (refarr) {
             time_t _t = time(NULL);
             struct tm *_tm = localtime(&_t);
             ron60 now = 0;
             RONOfTime(&now, _tm);
+            // Build ?refname and ?sha strings into a shared pad
+            // Each ref needs max ~260 bytes for key + ~44 for val
+            Bu8 strbuf = {};
+            u8bMap(strbuf, (u64)nrefs * 310);
             for (u32 i = 0; i < nrefs; i++) {
                 refarr[i].time = now;
                 refarr[i].type = REF_SHA;
                 // key = "?refname"
+                refarr[i].key[0] = u8bIdleHead(strbuf);
+                u8bFeed1(strbuf, '?');
+                a_cstr(rn, refnames[i]);
+                u8bFeed(strbuf, rn);
+                refarr[i].key[1] = u8bIdleHead(strbuf);
                 // val = "?sha"
-                // We build these in-place using the static buffers
-                // For now, point directly — REFSSyncRecord copies to file
-                static char kbuf[MAX_REFS][260];
-                static char vbuf[MAX_REFS][44];
-                snprintf(kbuf[i], 260, "?%s", refnames[i]);
-                snprintf(vbuf[i], 44, "?%s", refs[i]);
-                refarr[i].key[0] = (u8cp)kbuf[i];
-                refarr[i].key[1] = (u8cp)kbuf[i] + strlen(kbuf[i]);
-                refarr[i].val[0] = (u8cp)vbuf[i];
-                refarr[i].val[1] = (u8cp)vbuf[i] + strlen(vbuf[i]);
+                refarr[i].val[0] = u8bIdleHead(strbuf);
+                u8bFeed1(strbuf, '?');
+                u8cs sha = {(u8cp)refs[i], (u8cp)refs[i] + 40};
+                u8bFeed(strbuf, sha);
+                refarr[i].val[1] = u8bIdleHead(strbuf);
             }
             ok64 ro = REFSSyncRecord(kdir, refarr, nrefs);
+            u8bUnMap(strbuf);
             if (ro != OK)
                 fprintf(stderr, "keeper: warning: failed to record refs\n");
             else
