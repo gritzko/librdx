@@ -1,25 +1,16 @@
 #include "MAUS.h"
 
-#include <string.h>
 #include <unistd.h>
 
+#define MAUS_SEQ_ON  "\033[?1000h\033[?1002h\033[?1006h"
+#define MAUS_SEQ_OFF "\033[?1006l\033[?1002l\033[?1000l"
+
 void MAUSEnable(int fd) {
-    // 1000: basic press/release tracking
-    // 1002: also report drag (button-motion) events
-    // 1006: SGR extended coordinates (no 223-col limit)
-    char const *seq =
-        "\033[?1000h"
-        "\033[?1002h"
-        "\033[?1006h";
-    (void)write(fd, seq, strlen(seq));
+    (void)write(fd, MAUS_SEQ_ON, sizeof(MAUS_SEQ_ON) - 1);
 }
 
 void MAUSDisable(int fd) {
-    char const *seq =
-        "\033[?1006l"
-        "\033[?1002l"
-        "\033[?1000l";
-    (void)write(fd, seq, strlen(seq));
+    (void)write(fd, MAUS_SEQ_OFF, sizeof(MAUS_SEQ_OFF) - 1);
 }
 
 // Parse SGR mouse: \033[<Btn;Col;RowM  (press/drag)
