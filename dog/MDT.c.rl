@@ -134,6 +134,9 @@ main := |*
     # ---- UTF-8 multibyte ----
     (0x80..0xff) (0x80..0xbf)*                           => on_word;
 
+    # ---- catch-all: any byte not matched above ----
+    any8                                                 => on_punct;
+
 *|;
 
 }%%
