@@ -5,9 +5,9 @@
 //
 //  On disk (.dogs/sniff/):
 //    paths     newline-separated path strings, append-only, Book-mmap'd
-//    changes   flat append-only log of w64 change entries
+//    changes   flat append-only log of wh64 change entries
 //
-//  Change entry (w64):
+//  Change entry (wh64):
 //    type[4]=flags | id[20]=path_index | off[40]=mtime_sec
 //
 //  In RAM (rebuilt from paths on init/update):
@@ -37,10 +37,11 @@ typedef struct {
 
 // --- Public API ---
 
-//  Load or create .dogs/sniff/ state.
-//  dogsroot: where .dogs/ lives (from HOMEFindDogs)
-//  worktree: checkout dir (from HOMEFind) — used for git bootstrap
-ok64 SNIFFInit(sniff *s, u8cs dogsroot, u8cs worktree);
+//  Open .dogs/sniff/ state.  reporoot from HOMEFind.
+ok64 SNIFFOpen(sniff *s, u8cs reporoot, b8 rw);
+
+//  Close and unmap everything.
+ok64 SNIFFClose(sniff *s);
 
 //  Re-read paths log if it grew (another dog appended).
 ok64 SNIFFUpdate(sniff *s);
@@ -48,7 +49,7 @@ ok64 SNIFFUpdate(sniff *s);
 //  path→index.  Appends to paths log if new.
 u32  SNIFFIntern(sniff *s, u8cs path);
 
-//  index→path string (pointer into booked mmap, stable until FILEUnBook).
+//  index→path string (pointer into booked mmap, stable until close).
 ok64 SNIFFPath(u8csp out, sniff const *s, u32 index);
 
 //  Number of known paths.
@@ -58,8 +59,5 @@ fun u32 SNIFFCount(sniff const *s) {
 
 //  Record a filesystem change to the changes log.
 ok64 SNIFFRecord(sniff *s, u8 flags, u32 index, u64 mtime_sec);
-
-//  Cleanup.
-void SNIFFFree(sniff *s);
 
 #endif
