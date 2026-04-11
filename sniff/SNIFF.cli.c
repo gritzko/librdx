@@ -35,7 +35,8 @@ static ok64 sniff_fullpath(path8b out, u8cs reporoot, u8cs rel) {
 
 // --- Mode: Index (stat all git-tracked paths, record mtimes) ---
 
-static ok64 sniff_index(sniff *s, u8cs reporoot) {
+// Stat all known paths, record mtime with given type.
+static ok64 sniff_stat_all(sniff *s, u8cs reporoot, u8 type) {
     sane(s);
     u32 n = SNIFFCount(s);
     u32 count = 0;
@@ -49,7 +50,7 @@ static ok64 sniff_index(sniff *s, u8cs reporoot) {
         struct stat sb = {};
         if (FILEStat(&sb, PATHu8cgIn(fp)) != OK) continue;
 
-        SNIFFRecord(s, 0, i, (u64)sb.st_mtim.tv_sec);
+        SNIFFRecord(s, type, i, (u64)sb.st_mtim.tv_sec);
         count++;
     }
     fprintf(stderr, "sniff: indexed %u file(s)\n", count);
@@ -100,24 +101,6 @@ static ok64 sniff_watchdir_cb(voidp arg, path8p path) {
     ok64 o = FSWDir(ctx->wfd, p);
     if (o == OK) ctx->count++;
     return OK;
-}
-
-static ok64 sniff_rescan(sniff *s, u8cs reporoot) {
-    sane(s);
-    u32 n = SNIFFCount(s);
-    for (u32 i = 0; i < n; i++) {
-        u8cs rel = {};
-        if (SNIFFPath(rel, s, i) != OK) continue;
-
-        a_path(fp);
-        if (sniff_fullpath(fp, reporoot, rel) != OK) continue;
-
-        struct stat sb = {};
-        if (FILEStat(&sb, PATHu8cgIn(fp)) != OK) continue;
-
-        SNIFFRecord(s, 0, i, (u64)sb.st_mtim.tv_sec);
-    }
-    done;
 }
 
 static ok64 sniff_drain_cb(u8cs path, void *ctx) {
@@ -171,7 +154,7 @@ static ok64 sniff_daemon(sniff *s, u8cs reporoot) {
         ok64 o = FSWPoll(wfd, 1000);
         if (o != OK) continue;
         FSWDrain(wfd, sniff_drain_cb, NULL);
-        sniff_rescan(s, reporoot);
+        sniff_stat_all(s, reporoot, SNIFF_CHANGED);
     }
 
     FSWClose(wfd);
@@ -213,32 +196,23 @@ static ok64 sniff_stop(u8cs reporoot) {
 
 // --- Mode: Status (paths changed since token) ---
 
-static ok64 sniff_status(sniff *s, u64 since) {
+static ok64 sniff_status(sniff *s) {
     sane(s);
-    u64cs elog = {(u64cp)u8bDataHead(s->changes),
-                  (u64cp)u8bIdleHead(s->changes)};
-    u64 total = (u64)$len(elog);
+    u32 n = SNIFFCount(s);
+    u32 dirty = 0;
 
-    if (since > total) since = total;
+    for (u32 i = 0; i < n; i++) {
+        u64 co = SNIFFGet(s, SNIFF_CHECKOUT, i);
+        u64 ch = SNIFFGet(s, SNIFF_CHANGED, i);
+        if (ch == 0 || ch == co) continue;
 
-    u32 npath = SNIFFCount(s);
-    u8 *seen = calloc(npath, sizeof(u8));
-    if (!seen) fail(SNIFFFAIL);
-
-    for (u64 i = since; i < total; i++) {
-        u32 idx = wh64Id($at(elog, i));
-        if (idx < npath) seen[idx] = 1;
-    }
-
-    for (u32 i = 0; i < npath; i++) {
-        if (!seen[i]) continue;
         u8cs path = {};
         if (SNIFFPath(path, s, i) != OK) continue;
         printf("%.*s\n", (int)$len(path), (char *)path[0]);
+        dirty++;
     }
 
-    free(seen);
-    fprintf(stderr, "%llu\n", (unsigned long long)total);
+    fprintf(stderr, "sniff: %u dirty file(s)\n", dirty);
     done;
 }
 
@@ -264,7 +238,7 @@ static void sniff_usage(void) {
             "\n"
             "  sniff -i | --index    rebuild index (stat all tracked paths)\n"
             "  sniff -u | --update   update index (incremental)\n"
-            "  sniff -s [T]          status (paths changed since token T)\n"
+            "  sniff -s | --status   dirty files (changed since checkout)\n"
             "  sniff -w | --watch    start watch daemon\n"
             "  sniff --stop          stop watch daemon\n"
             "  sniff -l | --list     list all known paths\n"
@@ -289,7 +263,6 @@ ok64 sniffcli() {
     b8 do_watch = NO;
     b8 do_stop = NO;
     b8 do_list = NO;
-    u64 since_token = 0;
 
     for (u32 i = 1; i < $arglen; i++) {
         u8cs a = {};
@@ -303,14 +276,6 @@ ok64 sniffcli() {
             do_update = YES;
         } else if (argeq(a, "-s") || argeq(a, "--status")) {
             do_status = YES;
-            if (i + 1 < $arglen) {
-                u8cs v = {};
-                $mv(v, $arg(i + 1));
-                if (v[0][0] >= '0' && v[0][0] <= '9') {
-                    since_token = (u64)atoll((char *)v[0]);
-                    i++;
-                }
-            }
         } else if (argeq(a, "-w") || argeq(a, "--watch")) {
             do_watch = YES;
         } else if (argeq(a, "--stop")) {
@@ -338,13 +303,13 @@ ok64 sniffcli() {
     if (do_watch) {
         ret = sniff_daemon(&s, reporoot);
     } else if (do_status) {
-        ret = sniff_status(&s, since_token);
+        ret = sniff_status(&s);
     } else if (do_list) {
         ret = sniff_list(&s);
     } else if (do_update) {
-        ret = sniff_index(&s, reporoot);
+        ret = sniff_stat_all(&s, reporoot, SNIFF_CHANGED);
     } else {
-        ret = sniff_index(&s, reporoot);
+        ret = sniff_stat_all(&s, reporoot, SNIFF_CHECKOUT);
     }
 
     SNIFFClose(&s);
