@@ -1540,3 +1540,60 @@ ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot,
     if (!BNULL(hashbuf1)) u32bUnMap(hashbuf1);
     done;
 }
+
+// --- DOG control struct ---
+
+ok64 SPOTOpen(spotp s, b8 rw) {
+    sane(s != NULL);
+    (void)rw;
+    memset(s, 0, sizeof(spot));
+    s->out_fd = -1;
+    s->color = isatty(STDOUT_FILENO) ? YES : NO;
+    s->term = isatty(STDERR_FILENO) ? YES : NO;
+
+    a_path(root);
+    ok64 ho = HOMEFind(root);
+    if (ho == OK) {
+        a_dup(u8c, rs, u8bDataC(root));
+        size_t rlen = (size_t)$len(rs);
+        if (rlen >= sizeof(s->home_str)) rlen = sizeof(s->home_str) - 1;
+        memcpy(s->home_str, rs[0], rlen);
+        s->home_str[rlen] = 0;
+        s->home[0] = (u8cp)s->home_str;
+        s->home[1] = (u8cp)s->home_str + rlen;
+
+        a_path(dogsdir);
+        if (CAPOResolveDir(dogsdir, s->home) == OK) {
+            a_dup(u8c, ds, u8bDataC(dogsdir));
+            size_t dlen = (size_t)$len(ds);
+            if (dlen >= sizeof(s->dogs_str)) dlen = sizeof(s->dogs_str) - 1;
+            memcpy(s->dogs_str, ds[0], dlen);
+            s->dogs_str[dlen] = 0;
+            s->dogs[0] = (u8cp)s->dogs_str;
+            s->dogs[1] = (u8cp)s->dogs_str + dlen;
+        }
+    }
+
+    call(u8bMap, s->arena, LESS_ARENA_SIZE);
+
+    less_arena[0] = s->arena[0];
+    less_arena[1] = s->arena[1];
+    less_arena[2] = s->arena[2];
+    less_arena[3] = s->arena[3];
+    CAPO_COLOR = s->color;
+    CAPO_TERM  = s->term;
+
+    done;
+}
+
+void SPOTClose(spotp s) {
+    if (s == NULL) return;
+    for (u32 i = 0; i < s->nmaps; i++) {
+        if (s->toks[i][0] != NULL) u32bUnMap(s->toks[i]);
+        if (s->maps[i] != NULL)    FILEUnMap(s->maps[i]);
+    }
+    s->nhunks = 0;
+    s->nmaps  = 0;
+    less_nhunks = 0;
+    less_nmaps  = 0;
+}

@@ -141,4 +141,36 @@ fun idx64 CAPOSymEntry(u64 type, u8cs name, u8cs path) {
     return (type << 62) | CAPOSymKey(name) | (u64)CAPOPathHash(path);
 }
 
+// --- DOG control struct (DOG.md rule 8) ---
+
+#include "abc/FILE.h"
+#include "dog/HUNK.h"
+#include "spot/LESS.h"
+
+typedef struct {
+    char home_str[FILE_PATH_MAX_LEN];
+    char dogs_str[FILE_PATH_MAX_LEN];
+    u8cs home;       // worktree root (slice into home_str)
+    u8cs dogs;       // .dogs/spot/ dir (slice into dogs_str)
+
+    Bu8      arena;
+    hunk     hunks[LESS_MAX_HUNKS];
+    u8bp     maps[LESS_MAX_MAPS];
+    Bu32     toks[LESS_MAX_MAPS];
+    u32      nhunks;
+    u32      nmaps;
+
+    int          out_fd;
+    spot_emit_fn emit;
+
+    b8 color;
+    b8 term;
+} spot;
+
+typedef spot *spotp;
+typedef spot const *spotcp;
+
+ok64 SPOTOpen(spotp s, b8 rw);
+void SPOTClose(spotp s);
+
 #endif
