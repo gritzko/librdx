@@ -183,6 +183,8 @@ ok64 KEEPOpen(keeper *k, u8cs reporoot) {
     // Pre-allocate working buffers for KEEPGet (mmap, reset per call)
     call(u8bMap, k->buf1, KEEP_BUFSZ);
     call(u8bMap, k->buf2, KEEP_BUFSZ);
+    call(u8bMap, k->buf3, KEEP_BUFSZ);
+    call(u8bMap, k->buf4, KEEP_BUFSZ);
 
     done;
 }
@@ -197,6 +199,8 @@ ok64 KEEPClose(keeper *k) {
         if (k->run_maps[i]) FILEUnMap(k->run_maps[i]);
     if (k->buf1[0]) u8bUnMap(k->buf1);
     if (k->buf2[0]) u8bUnMap(k->buf2);
+    if (k->buf3[0]) u8bUnMap(k->buf3);
+    if (k->buf4[0]) u8bUnMap(k->buf4);
     memset(k, 0, sizeof(*k));
     done;
 }
@@ -224,6 +228,7 @@ ok64 KEEPLookup(keeper *k, u64 hashlet, size_t hexlen, u64p val) {
     for (u32 r = 0; r < k->nruns; r++) {
         kv64cp base = k->runs[r][0];
         size_t len = (size_t)(k->runs[r][1] - base);
+        if (len == 0) continue;
         size_t lo = 0, hi = len;
         while (lo < hi) {
             size_t mid = lo + (hi - lo) / 2;
@@ -743,15 +748,25 @@ static void keep_git_sha1(u8 sha[20], u8 type, u8cp content, u64 sz, u8p tmp) {
     SHA1Sum(sha, tmp, hlen + 1 + sz);
 }
 
-// Resolve object at offset, chasing OFS/REF deltas via hash table idx.
-static ok64 keep_resolve(u8cp pack, u64 packlen, kv64s idx,
+// Resolve object at offset, chasing OFS/REF deltas.
+// Uses keeper's full index for REF_DELTA base resolution.
+static ok64 keep_resolve(keeper *k, u8cp pack_init, u64 packlen_init,
                           u64 off, u8 *out_type,
-                          u8p buf1, u8p buf2, u64 bufsz,
-                          u8p *result, u64 *outsz) {
-    sane(pack && buf1 && buf2 && result && outsz);
+                          u8p *result, u64 *outsz,
+                          kv64s local_ht) {
+    sane(pack_init && result && outsz);
+    u8bReset(k->buf3);
+    u8bReset(k->buf4);
+    u8p buf1 = u8bHead(k->buf3);
+    u8p buf2 = u8bHead(k->buf4);
+    u64 bufsz = KEEP_BUFSZ;
     u64 chain[256];
+    u8cp chain_pack[256];
+    u64 chain_packlen[256];
     int depth = 0;
     u64 cur = off;
+    u8cp pack = pack_init;
+    u64 packlen = packlen_init;
 
     for (;;) {
         pack_obj obj = {};
@@ -769,17 +784,37 @@ static ok64 keep_resolve(u8cp pack, u64 packlen, kv64s idx,
         }
 
         if (depth >= 256) return KEEPFAIL;
-        chain[depth++] = cur;
+        chain[depth] = cur;
+        chain_pack[depth] = pack;
+        chain_packlen[depth] = packlen;
+        depth++;
 
         if (obj.type == PACK_OBJ_OFS_DELTA) {
             cur = cur - obj.ofs_delta;
         } else if (obj.type == PACK_OBJ_REF_DELTA) {
+            // Try local hash table first (intra-pack), then LSM (cross-pack)
             u64 sha_key = 0;
             memcpy(&sha_key, obj.ref_delta[0], 8);
             kv64 lookup = {.key = sha_key, .val = 0};
-            ok64 o = HASHkv64Get(&lookup, idx);
-            if (o != OK) return o;
-            cur = lookup.val;
+            u64 val = 0;
+            b8 found = NO;
+            if (!$empty(local_ht) && HASHkv64Get(&lookup, local_ht) == OK) {
+                // Local hash table: val = raw pack offset, same pack
+                cur = lookup.val;
+                // pack/packlen stay as-is (same pack)
+                found = YES;
+            }
+            if (!found) {
+                u64 hashlet = wh64Hashlet(obj.ref_delta[0]);
+                u64 lsm_val = 0;
+                ok64 o = KEEPLookup(k, hashlet, 10, &lsm_val);
+                if (o != OK) return o;
+                u32 fid = wh64Id(lsm_val);
+                if (fid < 1 || fid > k->npacks) return KEEPFAIL;
+                pack = u8bDataHead(k->packs[fid - 1]);
+                packlen = (u64)(u8bIdleHead(k->packs[fid - 1]) - pack);
+                cur = wh64Off(lsm_val);
+            }
         } else {
             return KEEPFAIL;
         }
@@ -789,7 +824,7 @@ static ok64 keep_resolve(u8cp pack, u64 packlen, kv64s idx,
     u8p dst = buf2;
     for (int i = depth - 1; i >= 0; i--) {
         pack_obj dobj = {};
-        u8cs from = {pack + chain[i], pack + packlen};
+        u8cs from = {chain_pack[i] + chain[i], chain_pack[i] + chain_packlen[i]};
         call(PACKDrainObjHdr, from, &dobj);
         u8p dinst = dst + bufsz / 2;
         if (dobj.size > bufsz / 2) return KEEPNOROOM;
@@ -805,6 +840,9 @@ static ok64 keep_resolve(u8cp pack, u64 packlen, kv64s idx,
     *result = src;
     done;
 }
+
+// Update KEEPGet's delta loop too — it uses k->packs directly
+// so it already handles cross-pack via the initial lookup.
 
 ok64 KEEPSync(keeper *k, u8cs remote,
               char const *const *wants, char const *const *haves) {
@@ -1090,82 +1128,277 @@ ok64 KEEPSync(keeper *k, u8cs remote,
             scan[0] += consumed;
         }
 
-        // Multi-pass delta resolution + SHA-1 → kv64 index
-        u64 tblsz = ((u64)hdr.count * 4 + 15) & ~15ULL;
-        if (tblsz < 256) tblsz = 256;
-        kv64 *idxmem = calloc(tblsz, sizeof(kv64));
-        if (!idxmem) { free(offsets); free(types_arr); goto sync_fail; }
-        kv64s idx = {idxmem, idxmem + tblsz};
-
-        b8 *done_flag = calloc(hdr.count, 1);
-        if (!done_flag) { free(idxmem); free(offsets); free(types_arr); goto sync_fail; }
-
-        u32 total_indexed = 0;
-        kv64 *sorted_entries = malloc(hdr.count * sizeof(kv64));
-        u32 nsorted = 0;
-
-        for (int pass = 0; pass < 32; pass++) {
-            u32 progress = 0;
-            for (u32 i = 0; i < hdr.count; i++) {
-                if (done_flag[i]) continue;
-                u8 obj_type = 0;
-                u8p content = NULL;
-                u64 content_sz = 0;
-
-                if (types_arr[i] >= 1 && types_arr[i] <= 4) {
-                    obj_type = types_arr[i];
-                    pack_obj obj = {};
-                    u8cs from = {packbase + offsets[i], packbase + packlen};
-                    if (PACKDrainObjHdr(from, &obj) != OK) { done_flag[i] = 1; continue; }
-                    if (obj.size > SYNC_BUFSZ) { done_flag[i] = 1; continue; }
-                    u8s into = {buf1, buf1 + SYNC_BUFSZ};
-                    if (PACKInflate(from, into, obj.size) != OK) { done_flag[i] = 1; continue; }
-                    content = buf1;
-                    content_sz = obj.size;
-                } else {
-                    if (keep_resolve(packbase, packlen, idx,
-                                      offsets[i], &obj_type,
-                                      buf1, buf2, SYNC_BUFSZ,
-                                      &content, &content_sz) != OK) continue;
-                }
-
-                if (obj_type < 1 || obj_type > 4) { done_flag[i] = 1; continue; }
-
-                u8 sha[20];
-                keep_git_sha1(sha, obj_type, content, content_sz, objbuf);
-
-                // Insert into hash table for REF_DELTA resolution
-                u64 sha_key = 0;
-                memcpy(&sha_key, sha, 8);
-                kv64 entry = {.key = sha_key, .val = offsets[i]};
-                HASHkv64Put(idx, &entry);
-
-                // Also build sorted kv64 for LSM index
-                if (sorted_entries && nsorted < hdr.count) {
-                    u64 hashlet = wh64Hashlet(sha);
-                    sorted_entries[nsorted].key = wh64Pack(HASH_SHA1, 0, hashlet);
-                    sorted_entries[nsorted].val = wh64Pack(KEEP_PACK, file_id, offsets[i]);
-                    nsorted++;
-                }
-
-                done_flag[i] = 1;
-                total_indexed++;
-                progress++;
+        // Mmap the new pack into keeper so KEEPLookup/keep_resolve can use it
+        {
+            u8cs kdir = {(u8cp)k->dir, (u8cp)k->dir + strlen(k->dir)};
+            a_path(pp, kdir);
+            char fn[32];
+            snprintf(fn, sizeof(fn), "/%010u%s", file_id, KEEP_PACK_EXT);
+            a_cstr(fns, fn);
+            u8bFeed(pp, fns);
+            PATHu8gTerm(PATHu8gIn(pp));
+            u8bp mapped = NULL;
+            if (FILEMapRO(&mapped, PATHu8cgIn(pp)) == OK) {
+                k->packs[k->npacks] = mapped;
+                k->npacks++;
             }
-            fprintf(stderr, "keeper: pass %d: +%u (%u/%u)\n",
-                    pass, progress, total_indexed, hdr.count);
-            if (progress == 0) break;
         }
 
-        // Sort and write LSM index
-        if (sorted_entries && nsorted > 0) {
-            kv64s sorted = {sorted_entries, sorted_entries + nsorted};
+        // Switch packbase to the mmap'd copy
+        packbase = u8bDataHead(k->packs[k->npacks - 1]);
+        packlen = (u64)(u8bIdleHead(k->packs[k->npacks - 1]) - packbase);
+
+        // DFS indexing: build delta dependency tree, walk depth-first.
+        // Each object inflated exactly once, max chain_depth in RAM.
+
+        typedef struct { u64 offset; u32 child; u32 sibling; } pack_node;
+        pack_node *nodes = calloc(hdr.count + 1, sizeof(pack_node));  // 1-based
+        kv64 *sorted_entries = malloc(hdr.count * sizeof(kv64));
+        if (!nodes || !sorted_entries) {
+            free(nodes); free(sorted_entries);
+            free(offsets); free(types_arr);
+            goto sync_fail;
+        }
+
+        // Build tree: map offset → index for OFS_DELTA parent lookup
+        for (u32 i = 0; i < hdr.count; i++)
+            nodes[i + 1].offset = offsets[i];
+
+        // Phase 1: link OFS_DELTA by offset
+        for (u32 i = 0; i < hdr.count; i++) {
+            if (types_arr[i] != PACK_OBJ_OFS_DELTA) continue;
+            pack_obj obj = {};
+            u8cs from = {packbase + offsets[i], packbase + packlen};
+            if (PACKDrainObjHdr(from, &obj) != OK) continue;
+            u64 base_off = offsets[i] - obj.ofs_delta;
+            u32 lo = 0, hi = hdr.count;
+            while (lo < hi) {
+                u32 mid = lo + (hi - lo) / 2;
+                if (offsets[mid] < base_off) lo = mid + 1;
+                else hi = mid;
+            }
+            if (lo < hdr.count && offsets[lo] == base_off) {
+                u32 parent = lo + 1, me = i + 1;
+                nodes[me].sibling = nodes[parent].child;
+                nodes[parent].child = me;
+            }
+        }
+
+        // Phase 2: resolve base objects, build SHA→index hash table
+        u64 tblsz = ((u64)hdr.count * 4 + 15) & ~15ULL;
+        if (tblsz < 256) tblsz = 256;
+        kv64 *htmem = calloc(tblsz, sizeof(kv64));
+        kv64s ht = {htmem, htmem + tblsz};
+        u32 total_indexed = 0;
+        u32 skipped = 0;
+        b8 *resolved = calloc(hdr.count + 1, 1);
+
+        u8bReset(k->buf1);
+        for (u32 i = 0; i < hdr.count; i++) {
+            if (types_arr[i] < 1 || types_arr[i] > 4) continue;
+            pack_obj obj = {};
+            u8cs from = {packbase + offsets[i], packbase + packlen};
+            if (PACKDrainObjHdr(from, &obj) != OK) continue;
+            if (obj.size > u8bIdleLen(k->buf1)) continue;
+            u8p cs = u8bIdleHead(k->buf1);
+            u8s into = {cs, u8bTerm(k->buf1)};
+            if (PACKInflate(from, into, obj.size) != OK) continue;
+            u8 sha[20];
+            keep_git_sha1(sha, obj.type, cs, obj.size, objbuf);
+            u64 sha_key = 0;
+            memcpy(&sha_key, sha, 8);
+            kv64 entry = {.key = sha_key, .val = offsets[i]};
+            HASHkv64Put(ht, &entry);
+            // Emit to sorted_entries
+            sorted_entries[total_indexed].key =
+                wh64Pack(HASH_SHA1, 0, wh64Hashlet(sha));
+            sorted_entries[total_indexed].val =
+                wh64Pack(KEEP_PACK, file_id, offsets[i]);
+            total_indexed++;
+            resolved[i + 1] = YES;
+            // Don't advance buf1 — reuse space for next base
+        }
+
+        fprintf(stderr, "keeper: %u base objects resolved\n", total_indexed);
+
+        u8 sha[20];
+        #define MAX_CHAIN 64
+        struct { u8p d_start; u8p d_end; u32 node; u8 base_type; } stk[MAX_CHAIN];
+
+        for (int round = 0; round < 64; round++) {
+            // Link REF_DELTAs to bases found in hash table
+            u32 nlinked = 0;
+            for (u32 i = 0; i < hdr.count; i++) {
+                if (types_arr[i] != PACK_OBJ_REF_DELTA) continue;
+                if (resolved[i + 1]) continue;
+                // Already linked from a previous round? check child
+                // (nodes consumed during DFS, so re-parse)
+                pack_obj obj = {};
+                u8cs from = {packbase + offsets[i], packbase + packlen};
+                if (PACKDrainObjHdr(from, &obj) != OK) continue;
+                u64 sha_key = 0;
+                memcpy(&sha_key, obj.ref_delta[0], 8);
+                kv64 lookup = {.key = sha_key, .val = 0};
+                if (HASHkv64Get(&lookup, ht) == OK) {
+                    // val = pack offset; find index via bsearch
+                    u64 boff = lookup.val;
+                    u32 plo = 0, phi = hdr.count;
+                    while (plo < phi) {
+                        u32 pm = plo + (phi - plo) / 2;
+                        if (offsets[pm] < boff) plo = pm + 1;
+                        else phi = pm;
+                    }
+                    if (plo >= hdr.count || offsets[plo] != boff) continue;
+                    u32 parent = plo + 1;
+                    u32 me = i + 1;
+                    nodes[me].sibling = nodes[parent].child;
+                    nodes[parent].child = me;
+                    nlinked++;
+                }
+            }
+
+            if (round == 0) {
+                fprintf(stderr, "keeper: round 0: %u base objects + %u linked\n",
+                        total_indexed, nlinked);
+            }
+            if (nlinked == 0 && round > 0) break;
+
+            // DFS: walk all nodes that have children and are resolved
+            u32 round_indexed = 0;
+            for (u32 root_idx = 1; root_idx <= hdr.count; root_idx++) {
+                if (!nodes[root_idx].child) continue;
+                if (!resolved[root_idx]) continue;
+
+                // Root is already resolved — its content needs to be re-inflated
+                // for the DFS. Use keep_resolve to get it.
+                u8bReset(k->buf1);
+                u8p content = NULL;
+                u64 content_sz = 0;
+                u8 root_type = 0;
+
+                if (types_arr[root_idx - 1] >= 1 && types_arr[root_idx - 1] <= 4) {
+                    root_type = types_arr[root_idx - 1];
+                    pack_obj obj = {};
+                    u8cs from = {packbase + offsets[root_idx - 1], packbase + packlen};
+                    if (PACKDrainObjHdr(from, &obj) != OK) continue;
+                    if (obj.size > u8bIdleLen(k->buf1)) continue;
+                    u8p cs = u8bIdleHead(k->buf1);
+                    u8s into = {cs, u8bTerm(k->buf1)};
+                    if (PACKInflate(from, into, obj.size) != OK) continue;
+                    u8bFed(k->buf1, obj.size);
+                    content = cs;
+                    content_sz = obj.size;
+                } else {
+                    // Delta root: use keep_resolve
+                    if (keep_resolve(k, packbase, packlen,
+                                      offsets[root_idx - 1], &root_type,
+                                      &content, &content_sz, ht) != OK) continue;
+                    // Copy result into buf1 (keep_resolve uses buf3/buf4)
+                    u8p cs = u8bIdleHead(k->buf1);
+                    memcpy(cs, content, content_sz);
+                    u8bFed(k->buf1, content_sz);
+                    content = cs;
+                }
+
+                // Push root onto DFS stack
+                int top = 0;
+                stk[0].d_start = content;
+                stk[0].d_end = content + content_sz;
+                stk[0].node = root_idx;
+                stk[0].base_type = root_type;
+
+                while (top >= 0) {
+                    u32 cur = stk[top].node;
+                    u32 child = nodes[cur].child;
+                    if (!child) {
+                        // Backtrack: shed this level's data from buf1
+                        if (top > 0)
+                            ((u8**)k->buf1)[2] = stk[top].d_start;
+                        top--;
+                        continue;
+                    }
+
+                    nodes[cur].child = nodes[child].sibling;
+
+                    if (top + 1 >= MAX_CHAIN) { skipped++; continue; }
+
+                    u8p base_s = stk[top].d_start;
+                    u64 base_sz = (u64)(stk[top].d_end - stk[top].d_start);
+
+                    pack_obj dobj = {};
+                    u8cs dfrom = {packbase + offsets[child - 1], packbase + packlen};
+                    if (PACKDrainObjHdr(dfrom, &dobj) != OK) { skipped++; continue; }
+
+                    if (dobj.size > KEEP_BUFSZ / 2) { skipped++; continue; }
+                    u8s dinto = {objbuf, objbuf + KEEP_BUFSZ / 2};
+                    if (PACKInflate(dfrom, dinto, dobj.size) != OK) { skipped++; continue; }
+
+                    u8cs delta_sl = {objbuf, objbuf + dobj.size};
+                    u8cs base_sl = {base_s, base_s + base_sz};
+                    u8p rstart = u8bIdleHead(k->buf1);
+                    u8g aout = {rstart, rstart, u8bTerm(k->buf1)};
+                    if (DELTApply(delta_sl, base_sl, aout) != OK) { skipped++; continue; }
+                    u64 rsz = u8gLeftLen(aout);
+                    u8bFed(k->buf1, rsz);
+
+                    // Emit
+                    keep_git_sha1(sha, stk[0].base_type, rstart, rsz,
+                                  objbuf + KEEP_BUFSZ / 2);
+                    sorted_entries[total_indexed].key =
+                        wh64Pack(HASH_SHA1, 0, wh64Hashlet(sha));
+                    sorted_entries[total_indexed].val =
+                        wh64Pack(KEEP_PACK, file_id, offsets[child - 1]);
+                    total_indexed++;
+                    round_indexed++;
+                    resolved[child] = YES;
+
+                    // Add to hash table for future rounds
+                    u64 sha_key = 0;
+                    memcpy(&sha_key, sha, 8);
+                    kv64 entry = {.key = sha_key, .val = offsets[child - 1]};
+                    HASHkv64Put(ht, &entry);
+
+                    // Push child
+                    top++;
+                    stk[top].d_start = rstart;
+                    stk[top].d_end = rstart + rsz;
+                    stk[top].node = child;
+                    stk[top].base_type = stk[0].base_type;
+                }
+            }
+
+            // Count how many unresolved REF_DELTAs could be linked now
+            u32 could_link = 0;
+            for (u32 i = 0; i < hdr.count; i++) {
+                if (types_arr[i] != PACK_OBJ_REF_DELTA) continue;
+                if (resolved[i + 1]) continue;
+                pack_obj tobj = {};
+                u8cs tfrom = {packbase + offsets[i], packbase + packlen};
+                if (PACKDrainObjHdr(tfrom, &tobj) != OK) continue;
+                u64 tkey = 0;
+                memcpy(&tkey, tobj.ref_delta[0], 8);
+                kv64 tl = {.key = tkey, .val = 0};
+                if (HASHkv64Get(&tl, ht) == OK) could_link++;
+            }
+            fprintf(stderr, "keeper: round %d: +%u (%u/%u) could_link=%u\n",
+                    round, round_indexed, total_indexed, hdr.count, could_link);
+            if (round_indexed == 0 && could_link == 0) break;
+        }
+
+        free(htmem);
+        free(resolved);
+        fprintf(stderr, "keeper: indexed %u objects (%u skipped)\n",
+                total_indexed, skipped);
+
+        // Sort, dedup, write as one LSM run
+        if (total_indexed > 0) {
+            kv64s sorted = {sorted_entries, sorted_entries + total_indexed};
             kv64sSort(sorted);
             kv64sDedup(sorted);
-            nsorted = (u32)(sorted[1] - sorted[0]);
+            u32 nfinal = (u32)(sorted[1] - sorted[0]);
 
-            a_pad(u8, idxpath, 1024);
             u8cs kdir = {(u8cp)k->dir, (u8cp)k->dir + strlen(k->dir)};
+            a_pad(u8, idxpath, 1024);
             u8bFeed(idxpath, kdir);
             u8bFeed1(idxpath, '/');
             RONu8sFeedPad(u8bIdle(idxpath), (u64)file_id, KEEP_SEQNO_W);
@@ -1177,15 +1410,28 @@ ok64 KEEPSync(keeper *k, u8cs remote,
             int fd = -1;
             FILECreate(&fd, PATHu8cgIn(idxpath));
             if (fd >= 0) {
-                u8cs data = {(u8cp)sorted_entries, (u8cp)(sorted_entries + nsorted)};
+                u8cs data = {(u8cp)sorted_entries, (u8cp)(sorted_entries + nfinal)};
                 FILEFeedall(fd, data);
                 close(fd);
             }
+
+            // Mmap into keeper's runs
+            u8bp mapped = NULL;
+            if (FILEMapRO(&mapped, PATHu8cgIn(idxpath)) == OK &&
+                k->nruns < KEEP_MAX_LEVELS) {
+                kv64cp base = (kv64cp)u8bDataHead(mapped);
+                size_t n = (u8bIdleHead(mapped) - u8bDataHead(mapped)) / sizeof(kv64);
+                k->runs[k->nruns][0] = base;
+                k->runs[k->nruns][1] = base + n;
+                k->run_maps[k->nruns] = mapped;
+                k->nruns++;
+            }
+
+            // TODO: compact LSM if 1/8 invariant violated
         }
 
         free(sorted_entries);
-        free(done_flag);
-        free(idxmem);
+        free(nodes);
         free(offsets);
         free(types_arr);
     }

@@ -52,8 +52,10 @@ typedef struct {
     u8bp   run_maps[KEEP_MAX_LEVELS];
     u32    nruns;
     char   dir[1024];               // resolved .dogs/keeper/ path
-    Bu8    buf1;                    // pre-allocated working buffer (mmap'd)
-    Bu8    buf2;                    // pre-allocated working buffer (mmap'd)
+    Bu8    buf1;                    // working buffer for KEEPGet base inflate
+    Bu8    buf2;                    // working buffer for KEEPGet delta apply
+    Bu8    buf3;                    // working buffer for keep_resolve base
+    Bu8    buf4;                    // working buffer for keep_resolve delta
 } keeper;
 
 // --- Public API ---
