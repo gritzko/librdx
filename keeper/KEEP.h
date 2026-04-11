@@ -62,8 +62,15 @@ ok64 KEEPOpen(keeper *k, u8cs reporoot);
 //  Close and unmap everything.
 ok64 KEEPClose(keeper *k);
 
+// Git object types (from packfile format)
+#define KEEP_OBJ_COMMIT 1
+#define KEEP_OBJ_TREE   2
+#define KEEP_OBJ_BLOB   3
+#define KEEP_OBJ_TAG    4
+
 //  Retrieve object by hashlet.  Inflates from pack, chases deltas.
-ok64 KEEPGet(keeper *k, u64 hashlet, size_t hexlen, u8bp out);
+//  Returns object body in `out`, type in `*out_type`.
+ok64 KEEPGet(keeper *k, u64 hashlet, size_t hexlen, u8bp out, u8p out_type);
 
 //  Check if object exists in the store (hexlen = prefix length).
 ok64 KEEPHas(keeper *k, u64 hashlet, size_t hexlen);

@@ -216,7 +216,7 @@ ok64 KEEPHas(keeper *k, u64 hashlet, size_t hexlen) {
 
 #define KEEP_BUFSZ (1ULL << 26)  // 64 MB working buffer
 
-ok64 KEEPGet(keeper *k, u64 hashlet, size_t hexlen, u8bp out) {
+ok64 KEEPGet(keeper *k, u64 hashlet, size_t hexlen, u8bp out, u8p out_type) {
     sane(k && out);
 
     u64 val = 0;
@@ -318,6 +318,7 @@ ok64 KEEPGet(keeper *k, u64 hashlet, size_t hexlen, u8bp out) {
     }
 
     result = src;
+    if (out_type) *out_type = obj_type;
 
     // Copy result into caller's output buffer
     {

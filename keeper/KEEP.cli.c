@@ -17,13 +17,13 @@
 
 static void usage(void) {
     fprintf(stderr,
-        "Usage: keeper <command> [args...]\n"
+        "Usage: keeper [options] [args...]\n"
         "\n"
-        "  keeper import <packfile>   import a git packfile\n"
-        "  keeper sync [remote]       fetch missing objects from remote\n"
-        "  keeper get <hash-prefix>   cat object to stdout\n"
-        "  keeper has <hash-prefix>   exit 0 if present, 1 if not\n"
-        "  keeper info                show store stats\n"
+        "  keeper -i | --index <packfile>  import a git packfile\n"
+        "  keeper -u | --update [remote]   fetch missing objects\n"
+        "  keeper -s | --status            show store stats\n"
+        "  keeper get <hash-prefix>        cat object to stdout\n"
+        "  keeper has <hash-prefix>        check if object exists\n"
     );
 }
 
@@ -52,7 +52,7 @@ ok64 keepercli() {
 
     keeper k = {};
 
-    if (argeq(cmd, "info")) {
+    if (argeq(cmd, "-s") || argeq(cmd, "--status") || argeq(cmd, "info")) {
         call(KEEPOpen, &k, reporoot);
         fprintf(stdout, "keeper: %u pack file(s), %u index run(s)\n",
                 k.npacks, k.nruns);
@@ -100,7 +100,8 @@ ok64 keepercli() {
         u64 hashlet = wh64HashletFromHex((char const *)prefix[0], hexlen);
         Bu8 out = {};
         call(u8bMap, out, 64UL << 20);
-        ok64 o = KEEPGet(&k, hashlet, hexlen, out);
+        u8 obj_type = 0;
+        ok64 o = KEEPGet(&k, hashlet, hexlen, out, &obj_type);
         if (o == OK) {
             u8cs data = {u8bDataHead(out), u8bDataHead(out) + u8bDataLen(out)};
             write(STDOUT_FILENO, data[0], $len(data));
@@ -111,7 +112,7 @@ ok64 keepercli() {
         KEEPClose(&k);
         if (o != OK) return o;
 
-    } else if (argeq(cmd, "import")) {
+    } else if (argeq(cmd, "-i") || argeq(cmd, "--index") || argeq(cmd, "import")) {
         if (argn < 3) { fprintf(stderr, "keeper: import requires a packfile path\n"); fail(KEEPFAIL); }
         u8cs path = {};
         $mv(path, $arg(2));
@@ -119,7 +120,7 @@ ok64 keepercli() {
         call(KEEPImport, &k, path);
         KEEPClose(&k);
 
-    } else if (argeq(cmd, "sync")) {
+    } else if (argeq(cmd, "-u") || argeq(cmd, "--update") || argeq(cmd, "sync")) {
         u8cs remote = {};
         if (argn >= 3) $mv(remote, $arg(2));
         call(KEEPOpen, &k, reporoot);

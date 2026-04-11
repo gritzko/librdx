@@ -3,13 +3,61 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "abc/FILE.h"
+#include "abc/PATH.h"
 #include "abc/PRO.h"
+#include "dog/HOME.h"
 #include "dog/HUNK.h"
 
-// --- Producer-side staging state ---
+// --- Producer-side staging state (legacy globals) ---
 Bu8          graf_arena   = {};
 int          graf_out_fd  = -1;
 graf_emit_fn graf_emit    = NULL;
+
+// --- GRAFOpen / GRAFClose ---
+
+ok64 GRAFOpen(graf *g, u8cs dogsroot) {
+    sane(g);
+    memset(g, 0, sizeof(*g));
+    g->out_fd = -1;
+
+    // Resolve .dogs/graf/ path
+    a_path(dir);
+    if ($empty(dogsroot)) {
+        call(HOMEFindDogs, dir);
+    } else {
+        call(PATHu8bFeed, dir, dogsroot);
+    }
+    a_cstr(rel, "/graf");
+    call(u8bFeed, dir, rel);
+    call(PATHu8gTerm, PATHu8gIn(dir));
+
+    size_t dlen = u8bDataLen(dir);
+    if (dlen >= sizeof(g->dir)) dlen = sizeof(g->dir) - 1;
+    memcpy(g->dir, u8bDataHead(dir), dlen);
+    g->dir[dlen] = 0;
+
+    // Ensure directory exists
+    call(FILEMakeDirP, PATHu8cgIn(dir));
+
+    // Open DAG index
+    u8cs dagdir = {(u8cp)g->dir, (u8cp)g->dir + dlen};
+    call(dag_stack_open, &g->idx, dagdir);
+
+    // Map arena
+    call(u8bMap, g->arena, GRAF_ARENA_SIZE);
+
+    done;
+}
+
+ok64 GRAFClose(graf *g) {
+    sane(g);
+    dag_stack_close(&g->idx);
+    if (g->arena[0]) u8bUnMap(g->arena);
+    g->out_fd = -1;
+    g->emit = NULL;
+    done;
+}
 
 ok64 GRAFArenaInit(void) {
     if (graf_arena[0] != NULL) {
