@@ -1,4 +1,4 @@
-//  COM: commit changed worktree files to keeper.
+//  COM: commit worktree files to keeper.
 //
 #include "COM.h"
 
@@ -18,7 +18,7 @@
 
 typedef struct {
     sniff *s;
-    u8p    shas;       // shas[idx * 20 .. (idx+1) * 20]
+    u8p    shas;
     u32    capacity;
 } sha_ctx;
 
@@ -30,7 +30,6 @@ static void com_set_sha(sha_ctx *ctx, u32 idx, u8cp sha) {
 static u8cp com_get_sha(sha_ctx const *ctx, u32 idx) {
     if (idx >= ctx->capacity) return NULL;
     u8cp p = ctx->shas + (size_t)idx * GIT_SHA1_LEN;
-    // Check if all zeros (not set)
     for (int i = 0; i < GIT_SHA1_LEN; i++)
         if (p[i] != 0) return p;
     return NULL;
@@ -61,9 +60,9 @@ static ok64 com_collect_tree(sha_ctx *ctx, keeper *k,
     while (GITu8sDrainTree(tree, file, esha) == OK) {
         u8cs scan = {file[0], file[1]};
         if (u8csFind(scan, ' ') != OK) continue;
-        u8cs mode_s = {file[0], scan[0]};
         u8cs name_s = {scan[0], file[1]};
         ++name_s[0];
+        u8cs mode_s = {file[0], scan[0]};
 
         b8 is_submodule = ($len(mode_s) >= 2 &&
                            $at(mode_s, 0) == '1' && $at(mode_s, 1) == '6');
@@ -82,67 +81,39 @@ static ok64 com_collect_tree(sha_ctx *ctx, keeper *k,
         com_set_sha(ctx, idx, esha[0]);
 
         b8 is_dir = ($at(mode_s, 0) == '4');
-        if (is_dir) {
+        if (is_dir)
             com_collect_tree(ctx, k, esha[0], relpath);
-        }
     }
 
     u8bFree(tcopy);
     done;
 }
 
-// --- Tree entry for building ---
+// --- Tree entry ---
 
 typedef struct {
-    u32 path_idx;      // sniff path index
+    u32 path_idx;
     u8  sha[GIT_SHA1_LEN];
     u8  mode[8];
     u8  mode_len;
     b8  is_dir;
 } tree_entry;
 
-// Extract the basename from a relative path
-static void com_basename(u8csp out, u8cs rel) {
-    // Find last '/'
-    u8cs scan = {rel[0], rel[1]};
-    u8cp last = rel[0];
-    while (u8csFind(scan, '/') == OK) {
-        last = scan[0];
-        ++last;
-    }
-    out[0] = last;
-    out[1] = rel[1];
-}
-
-static int com_entry_cmp(const void *a, const void *b) {
-    tree_entry const *ea = a;
-    tree_entry const *eb = b;
-    // Need to compare basenames, not full paths
-    // But we don't have the names here — use path_idx ordering
-    // which is insertion order. For correctness, we'd need the
-    // actual names. Store them separately? For now, use the
-    // path string from sniff.
-    // This is called from qsort so we can't use sniff pointer.
-    // We'll sort entries with their names in the caller.
-    return 0;
-}
-
-// Build tree for one directory level. Adds blobs for changed files
-// via KEEPPackFeed, recurses for subdirectories.
+// Build tree for one directory level.
+// commit_set: NULL=all changed, else only commit_set[idx]==1 files.
+// Files missing from disk are excluded (deletions).
 static ok64 com_build_tree(sniff *s, keeper *k, keep_pack *p,
                            sha_ctx *sha_tab, u8cs reporoot,
-                           u8cs dir_prefix, u8 sha_out[20]) {
+                           u8cs dir_prefix, u8cp commit_set,
+                           u8 sha_out[20]) {
     sane(s && k && p && sha_tab && sha_out);
 
     tree_entry entries[4096];
-    u8cs       names[4096];  // basename for each entry
+    u8cs       names[4096];
     u32 nentries = 0;
     u32 n = SNIFFCount(s);
 
     for (u32 i = 0; i < n; i++) {
-        u64 h = SNIFFGet(s, SNIFF_HASHLET, i);
-        if (h == 0) continue;
-
         u8cs rel = {};
         if (SNIFFPath(rel, s, i) != OK) continue;
 
@@ -160,17 +131,15 @@ static ok64 com_build_tree(sniff *s, keeper *k, keep_pack *p,
         b8 has_slash = (u8csFind(check, '/') == OK);
 
         if (has_slash) {
-            // Subdirectory — extract dir name (up to first /)
             u8cs dirname = {rel[0], check[0]};
 
-            // Dedup: check if already added as dir; also evict file dup
+            // Dedup: check existing, evict file shadows
             b8 dup = NO;
             for (u32 j = 0; j < nentries; j++) {
                 if ($len(names[j]) != $len(dirname)) continue;
                 if (memcmp(names[j][0], dirname[0], $len(dirname)) != 0)
                     continue;
                 if (entries[j].is_dir) { dup = YES; break; }
-                // Evict file entry that shadows this dir
                 entries[j] = entries[nentries - 1];
                 names[j][0] = names[nentries - 1][0];
                 names[j][1] = names[nentries - 1][1];
@@ -180,7 +149,6 @@ static ok64 com_build_tree(sniff *s, keeper *k, keep_pack *p,
             if (dup) continue;
             if (nentries >= 4096) continue;
 
-            // Build full subdir prefix
             a_pad(u8, subdir, 2048);
             if (!$empty(dir_prefix)) {
                 u8bFeed(subdir, dir_prefix);
@@ -195,14 +163,18 @@ static ok64 com_build_tree(sniff *s, keeper *k, keep_pack *p,
             e->is_dir = YES;
             memcpy(e->mode, "40000", 5);
             e->mode_len = 5;
-            // dirname points into SNIFFPath's mmap — stable
             names[nentries][0] = dirname[0];
             names[nentries][1] = dirname[1];
 
-            call(com_build_tree, s, k, p, sha_tab, reporoot, sub, e->sha);
+            ok64 o = com_build_tree(s, k, p, sha_tab, reporoot,
+                                    sub, commit_set, e->sha);
+            if (o != OK) return o;
+            // Skip empty subtrees (deleted dirs)
+            u8 zero_sha[GIT_SHA1_LEN] = {};
+            if (memcmp(e->sha, zero_sha, GIT_SHA1_LEN) == 0) continue;
             nentries++;
         } else {
-            // Direct child file — skip if already added as a dir
+            // Direct child file — skip dir duplicates
             b8 is_dup_dir = NO;
             for (u32 j = 0; j < nentries; j++) {
                 if (!entries[j].is_dir) continue;
@@ -213,30 +185,42 @@ static ok64 com_build_tree(sniff *s, keeper *k, keep_pack *p,
                 }
             }
             if (is_dup_dir) continue;
+
+            // Check if file exists on disk
+            u8cs full_rel = {};
+            SNIFFPath(full_rel, s, i);
+            a_path(fp);
+            SNIFFFullpath(fp, reporoot, full_rel);
+            struct stat lsb = {};
+            b8 exists = (lstat((char *)u8bDataHead(fp), &lsb) == 0);
+            if (!exists) continue;  // deleted file — exclude
+
+            // Determine if this file is "changed" for commit purposes
+            b8 is_new = (SNIFFGet(s, SNIFF_HASHLET, i) == 0);
+            u64 co = SNIFFGet(s, SNIFF_CHECKOUT, i);
+            u64 ch = SNIFFGet(s, SNIFF_CHANGED, i);
+            b8 mtime_changed = (ch != 0 && ch != co);
+            b8 changed = is_new || mtime_changed;
+
+            // If commit_set specified, only include selected files
+            // (changed ones get new blobs, others keep old SHA)
+            if (commit_set && commit_set[i]) {
+                changed = YES;  // force new blob for selected files
+            } else if (commit_set && !commit_set[i] && changed) {
+                changed = NO;  // not selected, keep old SHA
+            }
+
             if (nentries >= 4096) continue;
             tree_entry *e = &entries[nentries];
             e->path_idx = i;
             e->is_dir = NO;
 
-            // Get the full relative path for this file
-            u8cs full_rel = {};
-            SNIFFPath(full_rel, s, i);
-
-            u64 co = SNIFFGet(s, SNIFF_CHECKOUT, i);
-            u64 ch = SNIFFGet(s, SNIFF_CHANGED, i);
-            b8 changed = (ch != 0 && ch != co);
-
-            // Detect mode early (need it for blob reading)
-            a_path(fp);
-            call(SNIFFFullpath, fp, reporoot, full_rel);
-            struct stat lsb = {};
-            b8 is_link = (lstat((char *)u8bDataHead(fp), &lsb) == 0 &&
-                          S_ISLNK(lsb.st_mode));
+            b8 is_link = S_ISLNK(lsb.st_mode);
 
             if (changed) {
-                // Read file/symlink content, feed as blob
                 Bu8 content = {};
-                call(u8bAllocate, content, 1UL << 24);
+                ok64 o = u8bAllocate(content, 1UL << 24);
+                if (o != OK) continue;
                 if (is_link) {
                     char target[1024];
                     ssize_t tlen = readlink(
@@ -247,46 +231,40 @@ static ok64 com_build_tree(sniff *s, keeper *k, keep_pack *p,
                     }
                 } else {
                     int fd = -1;
-                    ok64 o = FILEOpen(&fd, PATHu8cgIn(fp), O_RDONLY);
+                    o = FILEOpen(&fd, PATHu8cgIn(fp), O_RDONLY);
                     if (o != OK) { u8bFree(content); continue; }
                     FILEdrainall(u8bIdle(content), fd);
                     FILEClose(&fd);
                 }
                 u8cs blob = {u8bDataHead(content), u8bIdleHead(content)};
-                call(KEEPPackFeed, k, p, KEEP_OBJ_BLOB, blob, e->sha);
+                o = KEEPPackFeed(k, p, KEEP_OBJ_BLOB, blob, e->sha);
                 u8bFree(content);
+                if (o != OK) return o;
             } else {
                 u8cp old_sha = com_get_sha(sha_tab, i);
                 if (!old_sha) continue;
                 memcpy(e->sha, old_sha, GIT_SHA1_LEN);
             }
 
-            // Detect file mode from earlier lstat
-            if (lsb.st_mode != 0) {
-                if (is_link) {
-                    memcpy(e->mode, "120000", 6);
-                    e->mode_len = 6;
-                } else if (lsb.st_mode & S_IXUSR) {
-                    memcpy(e->mode, "100755", 6);
-                    e->mode_len = 6;
-                } else {
-                    memcpy(e->mode, "100644", 6);
-                    e->mode_len = 6;
-                }
+            // Mode from lstat
+            if (is_link) {
+                memcpy(e->mode, "120000", 6);
+                e->mode_len = 6;
+            } else if (lsb.st_mode & S_IXUSR) {
+                memcpy(e->mode, "100755", 6);
+                e->mode_len = 6;
             } else {
                 memcpy(e->mode, "100644", 6);
                 e->mode_len = 6;
             }
 
-            // rel points into SNIFFPath's mmap — stable
             names[nentries][0] = rel[0];
             names[nentries][1] = rel[1];
             nentries++;
         }
     }
 
-    // Sort entries by name (git tree format requires sorted)
-    // Simple insertion sort since entries are small
+    // Sort entries by name (insertion sort)
     for (u32 i = 1; i < nentries; i++) {
         tree_entry etmp = entries[i];
         u8cs ntmp = {names[i][0], names[i][1]};
@@ -308,7 +286,13 @@ static ok64 com_build_tree(sniff *s, keeper *k, keep_pack *p,
         names[j][1] = ntmp[1];
     }
 
-    // Serialize tree object
+    // Empty tree → signal to parent via zeroed sha_out
+    if (nentries == 0) {
+        memset(sha_out, 0, GIT_SHA1_LEN);
+        done;
+    }
+
+    // Serialize tree
     Bu8 tree = {};
     call(u8bAllocate, tree, nentries * 80);
     for (u32 i = 0; i < nentries; i++) {
@@ -332,10 +316,9 @@ static ok64 com_build_tree(sniff *s, keeper *k, keep_pack *p,
 
 ok64 COMCommit(sniff *s, keeper *k, u8cs reporoot,
                u8cs parent_hex, u8cs message, u8cs author,
-               u8 sha_out[20]) {
+               u8cp commit_set, u8 sha_out[20]) {
     sane(s && k && $ok(parent_hex) && $ok(message) && $ok(author));
 
-    // Resolve parent commit
     size_t hexlen = $len(parent_hex);
     if (hexlen > 10) hexlen = 10;
     u64 parent_hashlet = wh64HashletFromHex(
@@ -366,7 +349,7 @@ ok64 COMCommit(sniff *s, keeper *k, u8cs reporoot,
     }
     if (ctype != KEEP_OBJ_COMMIT) { u8bFree(cbuf); fail(SNIFFFAIL); }
 
-    // Compute parent's full SHA from its content
+    // Parent SHA from content
     u8 parent_sha[GIT_SHA1_LEN] = {};
     {
         size_t csz = u8bDataLen(cbuf);
@@ -382,7 +365,7 @@ ok64 COMCommit(sniff *s, keeper *k, u8cs reporoot,
         u8bFree(tmp);
     }
 
-    // Get parent's tree SHA
+    // Parent's tree SHA
     u8 parent_tree_sha[GIT_SHA1_LEN] = {};
     u8cs commit_body = {u8bDataHead(cbuf), u8bIdleHead(cbuf)};
     call(WALKCommitTree, commit_body, parent_tree_sha);
@@ -400,14 +383,14 @@ ok64 COMCommit(sniff *s, keeper *k, u8cs reporoot,
     u8cs no_prefix = {};
     call(com_collect_tree, &sha_tab, k, parent_tree_sha, no_prefix);
 
-    // Start incremental pack
+    // Start pack
     keep_pack p = {};
     call(KEEPPackOpen, k, &p);
 
-    // Build new root tree
+    // Build tree
     u8 root_tree_sha[GIT_SHA1_LEN] = {};
     ok64 o = com_build_tree(s, k, &p, &sha_tab, reporoot,
-                            no_prefix, root_tree_sha);
+                            no_prefix, commit_set, root_tree_sha);
     u8bFree(sha_mem);
     if (o != OK) { KEEPPackClose(k, &p); return o; }
 

@@ -241,7 +241,7 @@ ok64 SNIFFCheckoutCommit() {
     a_cstr(msg, "second commit");
     a_cstr(author, "Test <t@t>");
     u8 new_sha[20] = {};
-    call(COMCommit, &s, &k, root, hex, msg, author, new_sha);
+    call(COMCommit, &s, &k, root, hex, msg, author, NULL, new_sha);
 
     // Verify new commit exists
     u64 new_hashlet = wh64Hashlet(new_sha);
