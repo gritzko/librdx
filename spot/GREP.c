@@ -106,6 +106,11 @@ ok64 CAPOGrep(u8csc substring, u8csc ext, u8csc reporoot, u32 ctx_lines,
 
     FILE *fp = NULL;
     if (nfiles == 0) {
+        if ($empty(reporoot)) {
+            fprintf(stderr, "spot: no git repo found\n");
+            LESSArenaCleanup();
+            done;
+        }
         char cmdbuf[FILE_PATH_MAX_LEN * 2 + 256];
         int cn = snprintf(cmdbuf, sizeof(cmdbuf),
             "git -C %.*s ls-files && git -C %.*s submodule foreach"

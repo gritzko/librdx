@@ -13,6 +13,7 @@
 #include "abc/FILE.h"
 #include "abc/PATH.h"
 #include "abc/PRO.h"
+#include "abc/URI.h"
 #include "dog/HOME.h"
 #include "dog/HUNK.h"
 #include "spot/LESS.h"
@@ -78,7 +79,7 @@ ok64 capocli() {
     spot dog = {};
     call(SPOTOpen, &dog, NO);
     if (getenv("SPOT_COLOR")) { dog.color = YES; CAPO_COLOR = YES; }
-    a_dup(u8c, reporoot, u8bDataC(dog.home));
+    a_dup(u8c, reporoot, dog.home);
 
     // Parse args
     u32 nfork = 0, proc = UINT32_MAX;
@@ -178,6 +179,77 @@ ok64 capocli() {
             grep_ctx = (u32)atoi((char *)v[0]);
         } else {
             if (ntrail < 16) { $mv(trail[ntrail], a); ntrail++; }
+        }
+    }
+
+    // --- URI dispatch: if no -s/-g/-p flags, try parsing trailing arg as URI ---
+    // Spot understands: path = file, #fragment = search, trailing .ext = filter.
+    if (spot_ndl[0] == NULL && grep_ndl[0] == NULL && pcre_ndl[0] == NULL &&
+        ntrail > 0) {
+        uri gu = {};
+        $mv(gu.data, trail[0]);
+        if (URILexer(&gu) == OK && !$empty(gu.fragment)) {
+            u8cs search = {};
+            $mv(search, gu.fragment);
+
+            // Detect search type from first char
+            u8 first = search[0][0];
+
+            // Split trailing .ext from fragment: "#TODO.c" → search="TODO", ext=".c"
+            // Walk back from end; if we hit a dot before any non-alnum, that's the ext.
+            u8cs sext = {};
+            u8cp p = search[1];
+            while (p > search[0]) {
+                p--;
+                if (*p == '.') {
+                    sext[0] = p;
+                    sext[1] = search[1];
+                    search[1] = p;  // trim ext from search
+                    break;
+                }
+                // Stop at non-identifier chars (search pattern body)
+                if (*p == '\'' || *p == '/' || *p == ' ') break;
+            }
+
+            if (first == '\'') {
+                // 'quoted' → structural search; strip quotes
+                if ($len(search) >= 2) {
+                    search[0]++;
+                    if (*(search[1] - 1) == '\'') search[1]--;
+                }
+                $mv(spot_ndl, search);
+            } else if (first == '/') {
+                // /slashed/ → regex; strip slashes
+                if ($len(search) >= 2) {
+                    search[0]++;
+                    if (*(search[1] - 1) == '/') search[1]--;
+                }
+                $mv(pcre_ndl, search);
+            } else if (first >= '0' && first <= '9') {
+                // Line number — not a search, ignore for spot
+            } else {
+                // Bare text → grep
+                $mv(grep_ndl, search);
+            }
+
+            // Path from URI → explicit file
+            if (!$empty(gu.path)) {
+                // Strip leading /
+                u8cs gpath = {};
+                $mv(gpath, gu.path);
+                if (gpath[0][0] == '/') gpath[0]++;
+                if (!$empty(gpath)) {
+                    ntrail = 1;
+                    $mv(trail[0], gpath);
+                } else {
+                    ntrail = 0;
+                }
+            } else if (!$empty(sext)) {
+                ntrail = 1;
+                $mv(trail[0], sext);
+            } else {
+                ntrail = 0;
+            }
         }
     }
 
