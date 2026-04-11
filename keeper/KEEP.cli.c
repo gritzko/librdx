@@ -6,6 +6,7 @@
 //  keeper info                  show stats
 //
 #include "KEEP.h"
+#include "REFS.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -25,7 +26,19 @@ static void usage(void) {
         "  keeper get <hash-prefix>        cat object to stdout\n"
         "  keeper has <hash-prefix>        check if object exists\n"
         "  keeper --verify <full-sha>      verify object + recurse\n"
+        "  keeper --refs                   list known refs\n"
+        "  keeper --alias <name> <uri>     add remote alias\n"
     );
+}
+
+static ok64 refs_print_cb(u8cs from, u8cs to, ron60 stamp, void *ctx) {
+    (void)stamp;
+    int *count = (int *)ctx;
+    fprintf(stdout, "  %.*s\t→ %.*s\n",
+            (int)$len(from), (char *)from[0],
+            (int)$len(to), (char *)to[0]);
+    (*count)++;
+    return OK;
 }
 
 static b8 argeq(u8cs a, char const *b) {
@@ -171,6 +184,45 @@ ok64 keepercli() {
                           nhaves > 0 ? have_list : NULL);
         KEEPClose(&k);
         if (o != OK) return o;
+
+    } else if (argeq(cmd, "--refs")) {
+        call(KEEPOpen, &k, reporoot);
+        u8cs keepdir = {(u8cp)k.dir, (u8cp)k.dir + strlen(k.dir)};
+        int rcount = 0;
+        ok64 o = REFSEach(keepdir, refs_print_cb, &rcount);
+        KEEPClose(&k);
+        if (o != OK && o != REFSNONE)
+            fprintf(stderr, "keeper: refs: %s\n", ok64str(o));
+        fprintf(stdout, "keeper: %d ref(s)\n", rcount);
+
+    } else if (argeq(cmd, "--alias")) {
+        if (argn < 4) {
+            fprintf(stderr, "keeper: --alias requires <name> <uri>\n");
+            fail(KEEPFAIL);
+        }
+        u8cs aname = {};
+        $mv(aname, $arg(2));
+        u8cs target = {};
+        $mv(target, $arg(3));
+
+        call(KEEPOpen, &k, reporoot);
+        u8cs keepdir = {(u8cp)k.dir, (u8cp)k.dir + strlen(k.dir)};
+
+        // build "//name" as from-URI
+        a_pad(u8, fbuf, 256);
+        u8p fp = u8bIdleHead(fbuf);
+        *fp++ = '/'; *fp++ = '/';
+        memcpy(fp, aname[0], $len(aname));
+        fp += $len(aname);
+        u8bFed(fbuf, (size_t)(fp - u8bIdleHead(fbuf)));
+        a_dup(u8c, from, u8bData(fbuf));
+
+        ok64 o = REFSAppend(keepdir, from, target);
+        KEEPClose(&k);
+        if (o != OK) return o;
+        fprintf(stdout, "keeper: alias %.*s → %.*s\n",
+                (int)$len(from), (char *)from[0],
+                (int)$len(target), (char *)target[0]);
 
     } else {
         usage();
