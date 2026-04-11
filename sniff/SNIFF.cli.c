@@ -1,4 +1,4 @@
-//  sniff CLI — index, watch daemon, query
+//  sniff CLI — index, watch daemon, status
 //
 #include "SNIFF.h"
 
@@ -22,8 +22,6 @@ static b8 argeq(u8cs a, const char *b) {
     return $len(a) == blen && memcmp(a[0], b, blen) == 0;
 }
 
-// --- Mode 1: Index (stat all git-tracked paths, record mtimes) ---
-
 // Build absolute path from reporoot + relative path (with / separator)
 static ok64 sniff_fullpath(path8b out, u8cs reporoot, u8cs rel) {
     sane($ok(reporoot) && $ok(rel));
@@ -34,6 +32,8 @@ static ok64 sniff_fullpath(path8b out, u8cs reporoot, u8cs rel) {
     call(PATHu8gTerm, PATHu8gIn(out));
     done;
 }
+
+// --- Mode: Index (stat all git-tracked paths, record mtimes) ---
 
 static ok64 sniff_index(sniff *s, u8cs reporoot) {
     sane(s);
@@ -56,7 +56,7 @@ static ok64 sniff_index(sniff *s, u8cs reporoot) {
     done;
 }
 
-// --- Mode 2: Watch daemon ---
+// --- Mode: Watch daemon ---
 
 static volatile sig_atomic_t sniff_quit = 0;
 
@@ -89,7 +89,6 @@ static ok64 sniff_rm_pid(u8cs reporoot) {
     done;
 }
 
-// Callback for FILEScan: add each directory to FSW
 typedef struct {
     int wfd;
     u32 count;
@@ -100,10 +99,9 @@ static ok64 sniff_watchdir_cb(voidp arg, path8p path) {
     u8csc p = {*path, path[1]};
     ok64 o = FSWDir(ctx->wfd, p);
     if (o == OK) ctx->count++;
-    return OK;  // keep going even if one dir fails
+    return OK;
 }
 
-// After FSWPoll wakeup, stat all known paths and record changes.
 static ok64 sniff_rescan(sniff *s, u8cs reporoot) {
     sane(s);
     u32 n = SNIFFCount(s);
@@ -122,25 +120,21 @@ static ok64 sniff_rescan(sniff *s, u8cs reporoot) {
     done;
 }
 
-// Drain callback: just consume events
 static ok64 sniff_drain_cb(u8cs path, void *ctx) {
     (void)path;
     (void)ctx;
     return OK;
 }
 
-static ok64 sniff_daemon(sniff *s, u8cs dogsroot, u8cs worktree) {
+static ok64 sniff_daemon(sniff *s, u8cs reporoot) {
     sane(s);
 
-    // Daemonize: fork, setsid, redirect stdio
     pid_t pid = fork();
     if (pid < 0) fail(SNIFFFAIL);
     if (pid > 0) {
-        // Parent: print child PID and exit
         fprintf(stderr, "sniff: daemon pid %d\n", (int)pid);
         _exit(0);
     }
-    // Child continues
     setsid();
     int devnull = open("/dev/null", O_RDWR);
     if (devnull >= 0) {
@@ -150,46 +144,42 @@ static ok64 sniff_daemon(sniff *s, u8cs dogsroot, u8cs worktree) {
         if (devnull > STDERR_FILENO) close(devnull);
     }
 
-    call(sniff_write_pid, dogsroot);
+    call(sniff_write_pid, reporoot);
 
-    // Signal handling
     struct sigaction sa = {.sa_handler = sniff_sighandler};
     sigemptyset(&sa.sa_mask);
     sigaction(SIGTERM, &sa, NULL);
     sigaction(SIGINT, &sa, NULL);
 
-    // Init FSW and watch all directories under the worktree
     int wfd = -1;
     call(FSWInit, &wfd);
 
     {
-        u8csc rp = {worktree[0], worktree[1]};
+        u8csc rp = {reporoot[0], reporoot[1]};
         FSWDir(wfd, rp);
     }
 
     watchdir_ctx wctx = {.wfd = wfd};
     {
-        a_path(wp, worktree);
+        a_path(wp, reporoot);
         FILEScan(wp,
                  (FILE_SCAN)(FILE_SCAN_DIRS | FILE_SCAN_DEEP),
                  sniff_watchdir_cb, &wctx);
     }
 
-    // Main loop
     while (!sniff_quit) {
-        ok64 o = FSWPoll(wfd, 1000);  // 1s timeout for signal check
+        ok64 o = FSWPoll(wfd, 1000);
         if (o != OK) continue;
-
         FSWDrain(wfd, sniff_drain_cb, NULL);
-        sniff_rescan(s, worktree);
+        sniff_rescan(s, reporoot);
     }
 
     FSWClose(wfd);
-    sniff_rm_pid(dogsroot);
+    sniff_rm_pid(reporoot);
     done;
 }
 
-// --- Mode 3: Stop daemon ---
+// --- Mode: Stop daemon ---
 
 static ok64 sniff_stop(u8cs reporoot) {
     sane($ok(reporoot));
@@ -221,13 +211,9 @@ static ok64 sniff_stop(u8cs reporoot) {
     done;
 }
 
-// --- Mode 4: Query (paths changed since token) ---
-//
-// Token = entry count in changes log. Each consumer remembers its
-// last token. On query, sniff prints deduplicated paths with entries
-// after that token, then the new token to stderr.
+// --- Mode: Status (paths changed since token) ---
 
-static ok64 sniff_changed(sniff *s, u64 since) {
+static ok64 sniff_status(sniff *s, u64 since) {
     sane(s);
     u64cs elog = {(u64cp)u8bDataHead(s->changes),
                   (u64cp)u8bIdleHead(s->changes)};
@@ -235,7 +221,6 @@ static ok64 sniff_changed(sniff *s, u64 since) {
 
     if (since > total) since = total;
 
-    // Collect unique path indices from entries [since..total)
     u32 npath = SNIFFCount(s);
     u8 *seen = calloc(npath, sizeof(u8));
     if (!seen) fail(SNIFFFAIL);
@@ -253,12 +238,11 @@ static ok64 sniff_changed(sniff *s, u64 since) {
     }
 
     free(seen);
-    // Print new token to stderr so callers can save it
     fprintf(stderr, "%llu\n", (unsigned long long)total);
     done;
 }
 
-// --- Mode 5: List all paths ---
+// --- Mode: List all paths ---
 
 static ok64 sniff_list(sniff *s) {
     sane(s);
@@ -278,10 +262,11 @@ static void sniff_usage(void) {
     fprintf(stderr,
             "Usage: sniff [options]\n"
             "\n"
-            "  sniff                 index (stat all known paths)\n"
+            "  sniff -i | --index    rebuild index (stat all tracked paths)\n"
+            "  sniff -u | --update   update index (incremental)\n"
+            "  sniff -s [T]          status (paths changed since token T)\n"
             "  sniff -w | --watch    start watch daemon\n"
             "  sniff --stop          stop watch daemon\n"
-            "  sniff -q [T]          paths changed since token T (0=all)\n"
             "  sniff -l | --list     list all known paths\n"
             "  sniff -h | --help     this message\n");
 }
@@ -292,26 +277,17 @@ ok64 sniffcli() {
     sane(1);
     call(FILEInit);
 
-    // Find worktree root (for git commands and file paths)
-    a_path(wtroot);
-    call(HOMEFind, wtroot);
-    a_dup(u8c, worktree, u8bDataC(wtroot));
-
-    // Find .dogs/ location (may differ for worktrees)
-    a_path(dgroot);
-    ok64 ho = HOMEFindDogs(dgroot);
-    if (ho != OK) {
-        // Fallback: use worktree root
-        u8bReset(dgroot);
-        call(u8bFeed, dgroot, worktree);
-        call(PATHu8gTerm, PATHu8gIn(dgroot));
-    }
-    a_dup(u8c, dogsroot, u8bDataC(dgroot));
+    // Find worktree root
+    a_path(root);
+    call(HOMEFind, root);
+    a_dup(u8c, reporoot, u8bDataC(root));
 
     // Parse args
+    b8 do_index = NO;
+    b8 do_update = NO;
+    b8 do_status = NO;
     b8 do_watch = NO;
     b8 do_stop = NO;
-    b8 do_changed = NO;
     b8 do_list = NO;
     u64 since_token = 0;
 
@@ -321,13 +297,12 @@ ok64 sniffcli() {
         if (argeq(a, "-h") || argeq(a, "--help")) {
             sniff_usage();
             done;
-        } else if (argeq(a, "-w") || argeq(a, "--watch")) {
-            do_watch = YES;
-        } else if (argeq(a, "--stop")) {
-            do_stop = YES;
-        } else if (argeq(a, "-q") || argeq(a, "--changed")) {
-            do_changed = YES;
-            // optional token argument
+        } else if (argeq(a, "-i") || argeq(a, "--index")) {
+            do_index = YES;
+        } else if (argeq(a, "-u") || argeq(a, "--update")) {
+            do_update = YES;
+        } else if (argeq(a, "-s") || argeq(a, "--status")) {
+            do_status = YES;
             if (i + 1 < $arglen) {
                 u8cs v = {};
                 $mv(v, $arg(i + 1));
@@ -336,6 +311,10 @@ ok64 sniffcli() {
                     i++;
                 }
             }
+        } else if (argeq(a, "-w") || argeq(a, "--watch")) {
+            do_watch = YES;
+        } else if (argeq(a, "--stop")) {
+            do_stop = YES;
         } else if (argeq(a, "-l") || argeq(a, "--list")) {
             do_list = YES;
         } else {
@@ -346,27 +325,29 @@ ok64 sniffcli() {
         }
     }
 
-    // --stop doesn't need SNIFFInit
     if (do_stop) {
-        call(sniff_stop, dogsroot);
+        call(sniff_stop, reporoot);
         done;
     }
 
+    b8 rw = do_index || do_update || do_watch;
     sniff s = {};
-    call(SNIFFInit, &s, dogsroot, worktree);
+    call(SNIFFOpen, &s, reporoot, rw);
 
     ok64 ret = OK;
     if (do_watch) {
-        ret = sniff_daemon(&s, dogsroot, worktree);
-    } else if (do_changed) {
-        ret = sniff_changed(&s, since_token);
+        ret = sniff_daemon(&s, reporoot);
+    } else if (do_status) {
+        ret = sniff_status(&s, since_token);
     } else if (do_list) {
         ret = sniff_list(&s);
+    } else if (do_update) {
+        ret = sniff_index(&s, reporoot);
     } else {
-        ret = sniff_index(&s, worktree);
+        ret = sniff_index(&s, reporoot);
     }
 
-    SNIFFFree(&s);
+    SNIFFClose(&s);
     return ret;
 }
 
