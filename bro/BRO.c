@@ -1404,71 +1404,96 @@ static int BROHandleKey(BROstate *st, u8 ch, char const *repo) {
         else MAUSDisable(STDOUT_FILENO);
         return BRO_KEY_NONE;
     }
-    if (ch == 's' || ch == 'S' || ch == '?') {
-        b8 is_snippet = (ch == 's' || ch == 'S');
-        b8 file_scoped = (ch == 's');
-        char const *flag = is_snippet ? "-s" : "-g";
-        char const *prompt = (ch == 's') ? " snip> "
-                           : (ch == 'S') ? " SNIP> "
-                           :               " grep> ";
-        char token[256] = {};
-        BROReadSpot(st, token, sizeof(token), prompt);
-        if (token[0] == 0) return BRO_KEY_CHANGED;
-        // If token ends with .ext (e.g. "Arena .c"), strip it as
-        // an explicit extension override.
-        char explicit_ext[16] = {};
+    if (ch == '\'') {
+        // Local token search (GURI-consistent alias for /)
+        BROReadSearch(st);
+        if (st->search_len > 0) {
+            u32 f = BROSearchNext(st, st->scroll, +1);
+            if (f != UINT32_MAX) st->scroll = f;
+        }
+        return BRO_KEY_CHANGED;
+    }
+    if (ch == '#') {
+        // GURI fragment prompt: #42 line, #text.c grep,
+        // #'snippet'.c spot, #/regex/.c regex
+        char frag[256] = {};
+        BROReadSpot(st, frag, sizeof(frag), " # ");
+        if (frag[0] == 0) return BRO_KEY_CHANGED;
+
+        // Strip trailing .ext if present
+        char ext_arg[16] = {};
         {
-            int tl = (int)strlen(token);
-            // Scan backward for a trailing ".xxx" preceded by space
-            int di = tl;
-            while (di > 0 && isalnum((u8)token[di - 1])) di--;
-            if (di > 0 && token[di - 1] == '.') {
-                int ext_start = di - 1;
-                // Must be preceded by whitespace (or start of string)
-                if (ext_start == 0 ||
-                    token[ext_start - 1] == ' ') {
-                    int elen = tl - ext_start;
-                    if (elen > 1 && elen < (int)sizeof(explicit_ext)) {
-                        memcpy(explicit_ext, token + ext_start, (size_t)elen);
-                        // Trim the extension (and preceding space) from token
-                        int trim = ext_start;
-                        while (trim > 0 && token[trim - 1] == ' ') trim--;
-                        token[trim] = 0;
-                        if (token[0] == 0) return BRO_KEY_CHANGED;
+            int fl = (int)strlen(frag);
+            int di = fl;
+            while (di > 0 && isalnum((u8)frag[di - 1])) di--;
+            if (di > 0 && frag[di - 1] == '.') {
+                int es = di - 1;
+                if (es == 0 || frag[es - 1] == ' ' ||
+                    frag[es - 1] == '\'' || frag[es - 1] == '/') {
+                    int elen = fl - es;
+                    if (elen > 1 && elen < (int)sizeof(ext_arg)) {
+                        memcpy(ext_arg, frag + es, (size_t)elen);
+                        int trim = es;
+                        while (trim > 0 && frag[trim - 1] == ' ') trim--;
+                        frag[trim] = 0;
+                        if (frag[0] == 0) return BRO_KEY_CHANGED;
                     }
                 }
             }
         }
+
+        // Classify by GURI search type
+        int fl = (int)strlen(frag);
+        if (frag[0] >= '0' && frag[0] <= '9') {
+            // Line number — goto (local)
+            u32 target = (u32)atoi(frag);
+            if (target > 0 && target <= st->nlines) {
+                st->scroll = target - 1;
+            }
+            return BRO_KEY_CHANGED;
+        }
+
+        char const *flag = "-g";   // default: grep
+        char const *pattern = frag;
+        char unquoted[256] = {};
+
+        if (fl >= 2 && frag[0] == '\'' && frag[fl - 1] == '\'') {
+            // 'snippet' — spot snippet search
+            flag = "-s";
+            memcpy(unquoted, frag + 1, (size_t)(fl - 2));
+            pattern = unquoted;
+        } else if (fl >= 2 && frag[0] == '/' && frag[fl - 1] == '/') {
+            // /regex/ — spot regex search
+            flag = "-p";
+            memcpy(unquoted, frag + 1, (size_t)(fl - 2));
+            pattern = unquoted;
+        }
+        // else: bare text — grep
+
+        // Default ext from current hunk if not specified
         char const *arg = NULL;
-        char argz[FILE_PATH_MAX_LEN] = {};
-        if (explicit_ext[0]) {
-            // User-specified extension overrides default
-            memcpy(argz, explicit_ext, strlen(explicit_ext) + 1);
-            arg = argz;
+        char argz[16] = {};
+        if (ext_arg[0]) {
+            arg = ext_arg;
         } else if (st->scroll < st->nlines) {
             u32 hi = st->lines[st->scroll].lo;
             hunkc const *hk = &st->hunks[hi];
             if (!$empty(hk->path)) {
-                if (is_snippet) {
-                    u8cs ext = {};
-                    HUNKu8sExt(ext, hk->path[0], (size_t)$len(hk->path));
-                    if (!$empty(ext)) {
-                        size_t el = (size_t)$len(ext);
-                        if (el >= sizeof(argz)) el = sizeof(argz) - 1;
+                u8cs ext = {};
+                HUNKu8sExt(ext, hk->path[0], (size_t)$len(hk->path));
+                if (!$empty(ext)) {
+                    size_t el = (size_t)$len(ext);
+                    if (el < sizeof(argz)) {
                         memcpy(argz, ext[0], el);
                         arg = argz;
                     }
-                } else if (file_scoped) {
-                    size_t pl = (size_t)$len(hk->path);
-                    if (pl >= sizeof(argz)) pl = sizeof(argz) - 1;
-                    memcpy(argz, hk->path[0], pl);
-                    arg = argz;
                 }
             }
         }
-        ok64 o = BROForkSpot(st, flag, token, arg, repo);
+
+        ok64 o = BROForkSpot(st, flag, pattern, arg, repo);
         if (o != OK && st->flash[0] == 0)
-            snprintf(st->flash, sizeof(st->flash), "spot failed: %s", ok64str(o));
+            snprintf(st->flash, sizeof(st->flash), "spot: %s", ok64str(o));
         return BRO_KEY_CHANGED;
     }
     if (ch == 033) {

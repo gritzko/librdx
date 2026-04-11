@@ -16,11 +16,10 @@ static void BROUsage(void) {
         "  bro file.c [...]      syntax-highlighted cat\n"
         "\n"
         "Keys: q quit, space/f page down, b page up, j/k line, g/G top/end,\n"
-        "      / search, n/N next/prev, : goto line,\n"
-        "      [ ] (or { }) prev/next hunk,\n"
-        "      ( ) prev/next change (centered),\n"
+        "      / or ' search, n/N next/prev, : goto line,\n"
+        "      # GURI search (text=grep, 'snap'=snippet, /re/=regex, .ext),\n"
+        "      [ ] { } prev/next hunk, ( ) prev/next change,\n"
         "      Enter/l open file, h/q back,\n"
-        "      s/S snippet (file/repo), ? grep repo (Tab completes),\n"
         "      m toggle mouse (wheel scroll, click to open)\n");
 }
 
