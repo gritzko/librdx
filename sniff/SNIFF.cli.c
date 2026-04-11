@@ -4,7 +4,6 @@
 
 #include <signal.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -24,17 +23,6 @@ static b8 argeq(u8cs a, const char *b) {
     return $len(a) == blen && memcmp(a[0], b, blen) == 0;
 }
 
-// Build absolute path from reporoot + relative path (with / separator)
-static ok64 sniff_fullpath(path8b out, u8cs reporoot, u8cs rel) {
-    sane($ok(reporoot) && $ok(rel));
-    a_cstr(sep, "/");
-    call(u8bFeed, out, reporoot);
-    call(u8bFeed, out, sep);
-    call(u8bFeed, out, rel);
-    call(PATHu8gTerm, PATHu8gIn(out));
-    done;
-}
-
 // --- Mode: Index (stat all git-tracked paths, record mtimes) ---
 
 // Stat all known paths, record mtime with given type.
@@ -47,7 +35,7 @@ static ok64 sniff_stat_all(sniff *s, u8cs reporoot, u8 type) {
         if (SNIFFPath(rel, s, i) != OK) continue;
 
         a_path(fp);
-        if (sniff_fullpath(fp, reporoot, rel) != OK) continue;
+        if (SNIFFFullpath(fp, reporoot, rel) != OK) continue;
 
         struct stat sb = {};
         if (FILEStat(&sb, PATHu8cgIn(fp)) != OK) continue;
@@ -211,7 +199,7 @@ static ok64 sniff_status(sniff *s, u8cs reporoot) {
         if (SNIFFPath(rel, s, i) != OK) continue;
 
         a_path(fp);
-        if (sniff_fullpath(fp, reporoot, rel) != OK) continue;
+        if (SNIFFFullpath(fp, reporoot, rel) != OK) continue;
 
         struct stat sb = {};
         if (FILEStat(&sb, PATHu8cgIn(fp)) != OK) continue;

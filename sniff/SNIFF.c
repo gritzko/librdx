@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "abc/FILE.h"
+#include "abc/HEX.h"
 #include "abc/KV.h"
 #include "abc/PATH.h"
 #include "abc/PRO.h"
@@ -95,29 +96,24 @@ static ok64 sniff_bootstrap(sniff *s, u8cs reporoot) {
         if (!tab) continue;
         char *pathstr = tab + 1;
 
-        // Parse sha1 (after "mode ")
+        // Parse sha1 hex (between first space and tab)
         char *sha_start = strchr(line, ' ');
         if (!sha_start || sha_start >= tab) continue;
         sha_start++;
 
-        // Convert hex sha to bytes for hashlet
-        u8 sha_bytes[8] = {};
-        for (int i = 0; i < 8 && sha_start[i * 2] && sha_start[i * 2 + 1]; i++) {
-            u8 hi = 0, lo = 0;
-            char c = sha_start[i * 2];
-            if (c >= '0' && c <= '9') hi = c - '0';
-            else if (c >= 'a' && c <= 'f') hi = c - 'a' + 10;
-            c = sha_start[i * 2 + 1];
-            if (c >= '0' && c <= '9') lo = c - '0';
-            else if (c >= 'a' && c <= 'f') lo = c - 'a' + 10;
-            sha_bytes[i] = (hi << 4) | lo;
-        }
+        // Convert first 16 hex chars → 8 bytes for hashlet
+        a_pad(u8, shabin, 8);
+        u8cs hex16 = {(u8cp)sha_start, (u8cp)sha_start};
+        if (tab - sha_start >= 16)
+            hex16[1] = (u8cp)sha_start + 16;
+        else
+            continue;
+        HEXu8sDrainSome(shabin_idle, hex16);
 
         a$str(path, pathstr);
         u32 idx = SNIFFIntern(s, path);
 
-        // Record hashlet
-        u64 hashlet = wh64Hashlet(sha_bytes);
+        u64 hashlet = wh64Hashlet(u8bDataHead(shabin));
         SNIFFRecord(s, SNIFF_HASHLET, idx, hashlet);
 
         count++;

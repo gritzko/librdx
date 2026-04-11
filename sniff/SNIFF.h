@@ -21,6 +21,7 @@
 
 #include "abc/INT.h"
 #include "abc/KV.h"
+#include "abc/PATH.h"
 #include "dog/WHIFF.h"
 
 con ok64 SNIFFFAIL   = 0x7549f3ca495;
@@ -72,6 +73,15 @@ ok64 SNIFFPath(u8csp out, sniff const *s, u32 index);
 //  Number of known paths.
 fun u32 SNIFFCount(sniff const *s) {
     return u32bDataLen(s->offsets);
+}
+
+//  Build absolute path: reporoot/rel.
+fun ok64 SNIFFFullpath(path8b out, u8cs reporoot, u8cs rel) {
+    a_cstr(sep, "/");
+    u8bFeed(out, reporoot);
+    u8bFeed(out, sep);
+    u8bFeed(out, rel);
+    return PATHu8gTerm(PATHu8gIn(out));
 }
 
 //  Record a change entry to the log.
