@@ -950,6 +950,10 @@ ok64 MDTBasicTest() {
         {"(", "P"},
         {")", "P"},
         {"!", "P"},
+        // chars previously missing from punct class
+        {"?", "P"},
+        {"$", "P"},
+        {"%", "P"},
         // horizontal rule (TOKSplitText splits each char, incl newline)
         {"---\n", "RRRR"},
         {"***\n", "RRRR"},
