@@ -1036,43 +1036,76 @@ static void bro_resolve_spot(void) {
 // Collect unique words from hunk text matching a prefix.
 // Words = runs of [a-zA-Z0-9_] starting with [a-zA-Z_].
 // Returns count of matches written to out[0..maxout).
-static int bro_collect_words(hunkc const *hunks, u32 nhunks,
-                             char const *prefix, int pfxlen,
-                             char out[][64], int maxout) {
-    int n = 0;
-    for (u32 h = 0; h < nhunks && n < maxout; h++) {
-        u32 tlen = (u32)$len(hunks[h].text);
-        if (tlen == 0) continue;
-        u8cp txt = hunks[h].text[0];
-        u32 i = 0;
-        while (i < tlen && n < maxout) {
-            if (!isalpha(txt[i]) && txt[i] != '_') { i++; continue; }
-            u32 ws = i;
-            while (i < tlen && (isalnum(txt[i]) || txt[i] == '_')) i++;
-            u32 wlen = i - ws;
-            if (wlen < 2 || wlen >= 64) continue;
-            if ((int)wlen < pfxlen) continue;
-            if (pfxlen > 0 && memcmp(txt + ws, prefix, (size_t)pfxlen) != 0)
-                continue;
-            // Dedup
-            char word[64];
-            memcpy(word, txt + ws, wlen);
-            word[wlen] = 0;
-            b8 dup = NO;
-            for (int j = 0; j < n; j++)
-                if (strcmp(out[j], word) == 0) { dup = YES; break; }
-            if (!dup) {
-                memcpy(out[n], word, wlen + 1);
-                n++;
+// Scan one hunk for words matching prefix, append unique to out.
+// Check if word contains needle as a substring (case-sensitive).
+static b8 bro_has_substr(char const *word, int wlen,
+                         char const *ndl, int nlen) {
+    if (nlen <= 0) return YES;
+    if (nlen > wlen) return NO;
+    int limit = wlen - nlen + 1;
+    for (int i = 0; i < limit; i++)
+        if (memcmp(word + i, ndl, (size_t)nlen) == 0) return YES;
+    return NO;
+}
+
+static int bro_scan_hunk(hunkc const *hk, char const *ndl, int nlen,
+                         b8 substr, char out[][64], int n, int maxout) {
+    u32 tlen = (u32)$len(hk->text);
+    if (tlen == 0) return n;
+    u8cp txt = hk->text[0];
+    u32 i = 0;
+    while (i < tlen && n < maxout) {
+        if (!isalpha(txt[i]) && txt[i] != '_') { i++; continue; }
+        u32 ws = i;
+        while (i < tlen && (isalnum(txt[i]) || txt[i] == '_')) i++;
+        u32 wlen = i - ws;
+        if (wlen < 2 || wlen >= 64) continue;
+        if ((int)wlen < nlen) continue;
+        if (nlen > 0) {
+            if (substr) {
+                if (!bro_has_substr((char *)txt + ws, (int)wlen, ndl, nlen))
+                    continue;
+            } else {
+                if (memcmp(txt + ws, ndl, (size_t)nlen) != 0)
+                    continue;
             }
         }
+        char word[64];
+        memcpy(word, txt + ws, wlen);
+        word[wlen] = 0;
+        b8 dup = NO;
+        for (int j = 0; j < n; j++)
+            if (strcmp(out[j], word) == 0) { dup = YES; break; }
+        if (!dup) { memcpy(out[n], word, wlen + 1); n++; }
+    }
+    return n;
+}
+
+// Collect unique words matching needle. Tries prefix first; if no
+// matches, retries as substring.
+static int bro_collect_words(hunkc const *hunks, u32 nhunks,
+                             u32 start_hunk,
+                             char const *ndl, int nlen,
+                             char out[][64], int maxout) {
+    // Pass 1: prefix match
+    int n = 0;
+    for (u32 k = 0; k < nhunks && n < maxout; k++) {
+        u32 h = (start_hunk + k) % nhunks;
+        n = bro_scan_hunk(&hunks[h], ndl, nlen, NO, out, n, maxout);
+    }
+    if (n > 0 || nlen == 0) return n;
+    // Pass 2: substring match
+    for (u32 k = 0; k < nhunks && n < maxout; k++) {
+        u32 h = (start_hunk + k) % nhunks;
+        n = bro_scan_hunk(&hunks[h], ndl, nlen, YES, out, n, maxout);
     }
     return n;
 }
 
 // Interactive spot prompt with Tab completion.
 // Returns the accepted token in buf (NUL-terminated), or buf[0]==0 on cancel.
-static void BROReadSpot(BROstate *st, char *buf, int bufsz, b8 file_scoped) {
+static void BROReadSpot(BROstate *st, char *buf, int bufsz,
+                        char const *prompt) {
     int len = 0;
     buf[0] = 0;
 
@@ -1085,10 +1118,17 @@ static void BROReadSpot(BROstate *st, char *buf, int bufsz, b8 file_scoped) {
         // Render prompt
         bro_goto(st->rows, 1);
         bro_puts(TTY_INVERSE TTY_ERASE_LINE);
-        bro_puts(file_scoped ? " spot> " : " SPOT> ");
+        bro_puts(prompt);
         if (len > 0) {
             u8cs bs = {(u8cp)buf, (u8cp)buf + len};
             bro_write(bs);
+        }
+        // Show match count after Tab
+        if (matches_valid) {
+            char info[32];
+            int il = snprintf(info, sizeof(info), " [%d/%d]",
+                              nmatch > 0 ? match_idx + 1 : 0, nmatch);
+            if (il > 0) (void)write(STDOUT_FILENO, info, (size_t)il);
         }
         bro_puts(TTY_RESET);
 
@@ -1102,20 +1142,31 @@ static void BROReadSpot(BROstate *st, char *buf, int bufsz, b8 file_scoped) {
             continue;
         }
         if (ch == '\t') {
-            // Tab completion
+            // Tab: complete the last word (separated by non-alpha).
+            // Find where the last word starts.
+            int wstart = len;
+            while (wstart > 0 && (isalnum((u8)buf[wstart - 1]) ||
+                                  buf[wstart - 1] == '_'))
+                wstart--;
+            int pfxlen = len - wstart;
             if (!matches_valid) {
+                u32 sh = (st->scroll < st->nlines)
+                       ? st->lines[st->scroll].lo : 0;
                 nmatch = bro_collect_words(st->hunks, st->nhunks,
-                                           buf, len, matches, 256);
+                                           sh, buf + wstart, pfxlen,
+                                           matches, 256);
                 match_idx = -1;
                 matches_valid = YES;
             }
             if (nmatch > 0) {
                 match_idx = (match_idx + 1) % nmatch;
                 int mlen = (int)strlen(matches[match_idx]);
-                if (mlen >= bufsz) mlen = bufsz - 1;
-                memcpy(buf, matches[match_idx], (size_t)mlen);
-                buf[mlen] = 0;
-                len = mlen;
+                int newlen = wstart + mlen;
+                if (newlen >= bufsz) newlen = bufsz - 1;
+                memcpy(buf + wstart, matches[match_idx],
+                       (size_t)(newlen - wstart));
+                buf[newlen] = 0;
+                len = newlen;
             }
             continue;
         }
@@ -1129,8 +1180,9 @@ static void BROReadSpot(BROstate *st, char *buf, int bufsz, b8 file_scoped) {
 
 // Fork spot, drain all TLV hunks, push as new view.
 // Returns OK if hunks were produced and view pushed.
-static ok64 BROForkSpot(BROstate *st, char const *token,
-                        char const *filepath, char const *repo) {
+static ok64 BROForkSpot(BROstate *st, char const *flag,
+                        char const *token, char const *filepath,
+                        char const *repo) {
     sane(st != NULL && token != NULL && token[0] != 0);
     if (st->nsaves >= BRO_MAX_VIEWS) fail(NOROOM);
 
@@ -1148,9 +1200,11 @@ static ok64 BROForkSpot(BROstate *st, char const *token,
         dup2(pfd[1], STDOUT_FILENO);
         close(pfd[1]);
         if (filepath)
-            execlp(bro_spot_path, "spot", "-g", token, filepath, (char *)NULL);
+            execlp(bro_spot_path, "spot", "--tlv", flag, token,
+                   filepath, (char *)NULL);
         else
-            execlp(bro_spot_path, "spot", "-g", token, (char *)NULL);
+            execlp(bro_spot_path, "spot", "--tlv", flag, token,
+                   (char *)NULL);
         _exit(127);
     }
 
@@ -1350,27 +1404,96 @@ static int BROHandleKey(BROstate *st, u8 ch, char const *repo) {
         else MAUSDisable(STDOUT_FILENO);
         return BRO_KEY_NONE;
     }
-    if (ch == 's' || ch == 'S') {
-        b8 file_scoped = (ch == 's');
-        char token[256] = {};
-        BROReadSpot(st, token, sizeof(token), file_scoped);
-        if (token[0] == 0) return BRO_KEY_CHANGED;
-        // Get file path for file-scoped search
-        char const *fpath = NULL;
-        char fpathz[FILE_PATH_MAX_LEN] = {};
-        if (file_scoped && st->scroll < st->nlines) {
+    if (ch == '\'') {
+        // Local token search (GURI-consistent alias for /)
+        BROReadSearch(st);
+        if (st->search_len > 0) {
+            u32 f = BROSearchNext(st, st->scroll, +1);
+            if (f != UINT32_MAX) st->scroll = f;
+        }
+        return BRO_KEY_CHANGED;
+    }
+    if (ch == '#') {
+        // GURI fragment prompt: #42 line, #text.c grep,
+        // #'snippet'.c spot, #/regex/.c regex
+        char frag[256] = {};
+        BROReadSpot(st, frag, sizeof(frag), " # ");
+        if (frag[0] == 0) return BRO_KEY_CHANGED;
+
+        // Strip trailing .ext if present
+        char ext_arg[16] = {};
+        {
+            int fl = (int)strlen(frag);
+            int di = fl;
+            while (di > 0 && isalnum((u8)frag[di - 1])) di--;
+            if (di > 0 && frag[di - 1] == '.') {
+                int es = di - 1;
+                if (es == 0 || frag[es - 1] == ' ' ||
+                    frag[es - 1] == '\'' || frag[es - 1] == '/') {
+                    int elen = fl - es;
+                    if (elen > 1 && elen < (int)sizeof(ext_arg)) {
+                        memcpy(ext_arg, frag + es, (size_t)elen);
+                        int trim = es;
+                        while (trim > 0 && frag[trim - 1] == ' ') trim--;
+                        frag[trim] = 0;
+                        if (frag[0] == 0) return BRO_KEY_CHANGED;
+                    }
+                }
+            }
+        }
+
+        // Classify by GURI search type
+        int fl = (int)strlen(frag);
+        if (frag[0] >= '0' && frag[0] <= '9') {
+            // Line number — goto (local)
+            u32 target = (u32)atoi(frag);
+            if (target > 0 && target <= st->nlines) {
+                st->scroll = target - 1;
+            }
+            return BRO_KEY_CHANGED;
+        }
+
+        char const *flag = "-g";   // default: grep
+        char const *pattern = frag;
+        char unquoted[256] = {};
+
+        if (fl >= 2 && frag[0] == '\'' && frag[fl - 1] == '\'') {
+            // 'snippet' — spot snippet search
+            flag = "-s";
+            memcpy(unquoted, frag + 1, (size_t)(fl - 2));
+            pattern = unquoted;
+        } else if (fl >= 2 && frag[0] == '/' && frag[fl - 1] == '/') {
+            // /regex/ — spot regex search
+            flag = "-p";
+            memcpy(unquoted, frag + 1, (size_t)(fl - 2));
+            pattern = unquoted;
+        }
+        // else: bare text — grep
+
+        // Default ext from current hunk if not specified
+        char const *arg = NULL;
+        char argz[16] = {};
+        if (ext_arg[0]) {
+            arg = ext_arg;
+        } else if (st->scroll < st->nlines) {
             u32 hi = st->lines[st->scroll].lo;
             hunkc const *hk = &st->hunks[hi];
             if (!$empty(hk->path)) {
-                size_t pl = (size_t)$len(hk->path);
-                if (pl >= sizeof(fpathz)) pl = sizeof(fpathz) - 1;
-                memcpy(fpathz, hk->path[0], pl);
-                fpath = fpathz;
+                u8cs ext = {};
+                HUNKu8sExt(ext, hk->path[0], (size_t)$len(hk->path));
+                if (!$empty(ext)) {
+                    size_t el = (size_t)$len(ext);
+                    if (el < sizeof(argz)) {
+                        memcpy(argz, ext[0], el);
+                        arg = argz;
+                    }
+                }
             }
         }
-        ok64 o = BROForkSpot(st, token, fpath, repo);
+
+        ok64 o = BROForkSpot(st, flag, pattern, arg, repo);
         if (o != OK && st->flash[0] == 0)
-            snprintf(st->flash, sizeof(st->flash), "spot failed: %s", ok64str(o));
+            snprintf(st->flash, sizeof(st->flash), "spot: %s", ok64str(o));
         return BRO_KEY_CHANGED;
     }
     if (ch == 033) {

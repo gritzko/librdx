@@ -41,9 +41,6 @@ ok64 BRORun(hunkc const *hunks, u32 nhunks);
 // Pager event loop: reads TLV hunks from pipefd, displays incrementally.
 ok64 BROPipeRun(int pipefd);
 
-// Cat mode: syntax-highlight one or more files via the pager.
-ok64 BROCat(u8css files, u8csc reporoot);
-
 // --- Navigation primitives (exposed for testing) ---
 
 // Next hunk start strictly after line `from`.

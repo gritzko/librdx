@@ -15,7 +15,6 @@ list(APPEND BRO_HEADERS
 
 list(APPEND BRO_SOURCES
     BRO.c
-    CAT.c
     MAUS.c
 )
 
