@@ -52,6 +52,10 @@ typedef struct {
     u8bp   run_maps[KEEP_MAX_LEVELS];
     u32    nruns;
     char   dir[1024];               // resolved .dogs/keeper/ path
+    Bu8    buf1;                    // working buffer for KEEPGet base inflate
+    Bu8    buf2;                    // working buffer for KEEPGet delta apply
+    Bu8    buf3;                    // working buffer for keep_resolve base
+    Bu8    buf4;                    // working buffer for keep_resolve delta
 } keeper;
 
 // --- Public API ---
@@ -79,11 +83,20 @@ ok64 KEEPHas(keeper *k, u64 hashlet, size_t hexlen);
 //  hexlen: prefix length for partial matching (10 = full 40-bit).
 ok64 KEEPLookup(keeper *k, u64 hashlet, size_t hexlen, u64p val);
 
+//  Verify object by full SHA-1: get from store, recompute hash,
+//  compare.  For commits: also verifies tree.  For trees: verifies
+//  all children recursively.  Reports errors to stderr.
+ok64 KEEPVerify(keeper *k, u8cs hex_sha);
+
 //  Import a git packfile into the store.
 ok64 KEEPImport(keeper *k, u8cs pack_path);
 
-//  Fetch missing objects from remote.
-ok64 KEEPSync(keeper *k, u8cs remote);
+//  Fetch objects from remote via git-upload-pack.
+//  wants/haves: arrays of 40-char hex SHA strings (NULL-terminated).
+//  If wants is NULL, wants all advertised refs.
+//  If haves is NULL, sends no haves (full clone).
+ok64 KEEPSync(keeper *k, u8cs remote,
+              char const *const *wants, char const *const *haves);
 
 //  Walk objects in a pack file from a given val position.
 typedef ok64 (*keep_cb)(u8 type, u8cs content, u64 hashlet, void *ctx);
