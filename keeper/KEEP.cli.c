@@ -31,12 +31,11 @@ static void usage(void) {
     );
 }
 
-static ok64 refs_print_cb(u8cs from, u8cs to, ron60 stamp, void *ctx) {
-    (void)stamp;
+static ok64 refs_print_cb(refcp r, void *ctx) {
     int *count = (int *)ctx;
     fprintf(stdout, "  %.*s\t→ %.*s\n",
-            (int)$len(from), (char *)from[0],
-            (int)$len(to), (char *)to[0]);
+            (int)$len(r->key), (char *)r->key[0],
+            (int)$len(r->val), (char *)r->val[0]);
     (*count)++;
     return OK;
 }

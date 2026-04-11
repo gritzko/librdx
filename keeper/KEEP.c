@@ -4,6 +4,7 @@
 //  in LSM sorted runs of kv64 entries.
 //
 #include "KEEP.h"
+#include "REFS.h"
 
 #include "DELT.h"
 #include "PACK.h"
@@ -934,9 +935,12 @@ ok64 KEEPSync(keeper *k, u8cs remote,
 
     // Drain remaining refs until flush
     #define MAX_REFS 1024
-    char refs[MAX_REFS][44];
+    char refs[MAX_REFS][44];       // SHA hex per ref
+    char refnames[MAX_REFS][256];  // ref name per ref
     u32 nrefs = 0;
-    memcpy(refs[nrefs++], head_hex, 41);
+    memcpy(refs[nrefs], head_hex, 41);
+    snprintf(refnames[nrefs], 256, "HEAD");
+    nrefs++;
 
     for (;;) {
         ok64 o = PKTu8sDrain(adv, line);
@@ -949,7 +953,7 @@ ok64 KEEPSync(keeper *k, u8cs remote,
             continue;
         }
         if (o != OK) break;
-        if ($len(line) >= 40 && nrefs < MAX_REFS) {
+        if ($len(line) >= 42 && nrefs < MAX_REFS) {
             // Skip peeled tag lines (contain ^{})
             u8cp hat = line[0];
             b8 peeled = NO;
@@ -957,13 +961,20 @@ ok64 KEEPSync(keeper *k, u8cs remote,
                 if (*hat == '^' && *(hat+1) == '{') { peeled = YES; break; }
                 else hat++;
             if (peeled) continue;
-            // Skip duplicate SHAs
-            b8 dup = NO;
-            for (u32 j = 0; j < nrefs; j++)
-                if (memcmp(refs[j], line[0], 40) == 0) { dup = YES; break; }
-            if (dup) continue;
+
+            // Extract ref name: after SHA + space, until NUL/space/newline
+            u8cp namestart = line[0] + 41;
+            u8cp nameend = namestart;
+            while (nameend < line[1] && *nameend != 0 &&
+                   *nameend != ' ' && *nameend != '\n')
+                nameend++;
+            size_t namelen = (size_t)(nameend - namestart);
+            if (namelen == 0 || namelen >= 256) continue;
+
             memcpy(refs[nrefs], line[0], 40);
             refs[nrefs][40] = 0;
+            memcpy(refnames[nrefs], namestart, namelen);
+            refnames[nrefs][namelen] = 0;
             nrefs++;
         }
     }
@@ -1439,6 +1450,40 @@ ok64 KEEPSync(keeper *k, u8cs remote,
 sync_done:
     u8bUnMap(rbuf_b); u8bUnMap(objbuf_b);
     { int status; waitpid(pid, &status, 0); }
+
+    // Record refs in the reflog
+    if (nrefs > 0) {
+        u8cs kdir = {(u8cp)k->dir, (u8cp)k->dir + strlen(k->dir)};
+        ref *refarr = calloc(nrefs, sizeof(ref));
+        if (refarr) {
+            time_t _t = time(NULL);
+            struct tm *_tm = localtime(&_t);
+            ron60 now = 0;
+            RONOfTime(&now, _tm);
+            for (u32 i = 0; i < nrefs; i++) {
+                refarr[i].time = now;
+                refarr[i].type = REF_SHA;
+                // key = "?refname"
+                // val = "?sha"
+                // We build these in-place using the static buffers
+                // For now, point directly — REFSSyncRecord copies to file
+                static char kbuf[MAX_REFS][260];
+                static char vbuf[MAX_REFS][44];
+                snprintf(kbuf[i], 260, "?%s", refnames[i]);
+                snprintf(vbuf[i], 44, "?%s", refs[i]);
+                refarr[i].key[0] = (u8cp)kbuf[i];
+                refarr[i].key[1] = (u8cp)kbuf[i] + strlen(kbuf[i]);
+                refarr[i].val[0] = (u8cp)vbuf[i];
+                refarr[i].val[1] = (u8cp)vbuf[i] + strlen(vbuf[i]);
+            }
+            ok64 ro = REFSSyncRecord(kdir, refarr, nrefs);
+            if (ro != OK)
+                fprintf(stderr, "keeper: warning: failed to record refs\n");
+            else
+                fprintf(stderr, "keeper: recorded %u ref(s)\n", nrefs);
+            free(refarr);
+        }
+    }
 
     fprintf(stderr, "keeper: sync complete\n");
     done;
