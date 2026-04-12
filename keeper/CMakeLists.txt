@@ -7,7 +7,7 @@ include_directories(.. .)
 find_package(ZLIB REQUIRED)
 find_package(OpenSSL REQUIRED)
 
-add_library(gitcompat STATIC GIT.c PKT.c PACK.c DELT.c ZINF.c SHA1.c IGNO.c BELT.c WALK.c)
+add_library(gitcompat STATIC GIT.c PKT.c PACK.c DELT.c ZINF.c SHA1.c BELT.c WALK.c)
 target_link_libraries(gitcompat abc-core ZLIB::ZLIB OpenSSL::Crypto)
 
 add_library(keeplib STATIC KEEP.c REFS.c)

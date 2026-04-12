@@ -64,6 +64,7 @@ static ok64 sniff_aggregate(sniff *s) {
     kv64s tab = {kv64bHead(s->state), kv64bTerm(s->state)};
 
     $for(u64c, e, elog) {
+        if (*e == 0) continue;  // skip padding
         u64 key = SNIFF_KEY(wh64Type(*e), wh64Id(*e));
         kv64 entry = {.key = key, .val = wh64Off(*e)};
         HASHkv64Put(tab, &entry);
@@ -252,9 +253,9 @@ ok64 SNIFFRecord(sniff *s, u8 type, u32 index, u64 off) {
     sane(s && s->changes);
     wh64 entry = wh64Pack(type, index, off);
     call(FILEBookEnsure, s->changes, sizeof(wh64));
-    u8 **cidle = u8bIdle(s->changes);
-    memcpy(*cidle, &entry, sizeof(wh64));
-    *cidle += sizeof(wh64);
+    u8p *idle = (u8p *)&s->changes[2];
+    memcpy(*idle, &entry, sizeof(wh64));
+    *idle += sizeof(wh64);
 
     // Update state hash
     u64 key = SNIFF_KEY(type, index);
