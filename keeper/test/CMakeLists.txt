@@ -7,12 +7,6 @@ include_directories(.. ../..)
 set(TEST_CXX_FLAGS "-g")
 set(TEST_LDD_FLAGS "-g")
 
-add_executable(IGNOtest IGNO.c)
-target_link_options(IGNOtest PRIVATE ${TEST_LDD_FLAGS})
-target_compile_options(IGNOtest PRIVATE ${TEST_CXX_FLAGS})
-target_link_libraries(IGNOtest gitcompat abc-core)
-add_test(NAME IGNOtest COMMAND IGNOtest)
-
 add_executable(GITtest GIT.c)
 target_link_options(GITtest PRIVATE ${TEST_LDD_FLAGS})
 target_compile_options(GITtest PRIVATE ${TEST_CXX_FLAGS})

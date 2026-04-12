@@ -8,7 +8,7 @@ include(CTest)
 
 include_directories(.. .)
 
-add_library(snifflib STATIC SNIFF.h SNIFF.c CHE.h CHE.c COM.h COM.c IGNO.h IGNO.c)
+add_library(snifflib STATIC SNIFF.h SNIFF.c CHE.h CHE.c COM.h COM.c)
 target_link_libraries(snifflib keeplib gitcompat dog abc-core)
 
 add_executable(sniff-cli SNIFF.cli.c ../abc/FSW.c)

@@ -36,3 +36,10 @@ target_compile_options(DEF01test PRIVATE ${TEST_CXX_FLAGS})
 target_compile_definitions(DEF01test PRIVATE TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data")
 target_link_libraries(DEF01test dog abc-core)
 add_test(NAME DEF01test COMMAND DEF01test)
+
+add_executable(IGNOtest IGNO.c)
+target_link_options(IGNOtest PRIVATE ${TEST_LDD_FLAGS})
+target_compile_options(IGNOtest PRIVATE ${TEST_CXX_FLAGS})
+target_link_libraries(IGNOtest dog abc-core)
+add_test(NAME IGNOtest COMMAND IGNOtest)
+

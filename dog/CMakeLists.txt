@@ -76,6 +76,7 @@ list(APPEND TOK_HEADERS
 
 list(APPEND TOK_SOURCES
     TOK.c
+    IGNO.c
     CT.c
     CT.rl.c
     GOT.c

@@ -10,7 +10,7 @@
 
 #include "CHE.h"
 #include "COM.h"
-#include "IGNO.h"
+#include "dog/IGNO.h"
 
 #include "abc/FILE.h"
 #include "abc/FSW.h"
