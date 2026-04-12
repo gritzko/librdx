@@ -233,7 +233,7 @@ static ok64 dag_index_write(u8cs dagdir, belt128cs run, u64 seqno) {
     call(FILECreate, &fd, PATHu8cgIn(path));
     size_t bytes = $len(run) * sizeof(belt128);
     u8cs data = {(u8cp)run[0], (u8cp)run[0] + bytes};
-    call(FILEFeedall, fd, data);
+    call(FILEFeedAll, fd, data);
     close(fd);
     done;
 }
@@ -499,8 +499,8 @@ static ok64 dag_write_tips(u8cs dagdir, sha1 const tips[], u32 ntips) {
         char hex[41];
         DAGsha1ToHex(hex, &tips[i]);
         u8cs data = {(u8cp)hex, (u8cp)hex + 40};
-        call(FILEFeedall, fd, data);
-        call(FILEFeedall, fd, nl);
+        call(FILEFeedAll, fd, data);
+        call(FILEFeedAll, fd, nl);
     }
     close(fd);
     done;

@@ -23,4 +23,12 @@ con ok64 DELTBADFMT = 0xe45502ca34f59d;
 //  Returns OK, advances `delta` to end.
 ok64 DELTApply(u8cs delta, u8cs base, u8g out);
 
+//  Encode delta: produce git delta instruction stream.
+//  `base`   — base object content
+//  `target` — target object content
+//  `out`    — output buffer; delta instructions appended to DATA
+//  Returns OK.  If delta is larger than target, returns DELTFAIL
+//  (caller should store raw instead).
+ok64 DELTEncode(u8csc base, u8csc target, u8bp out);
+
 #endif

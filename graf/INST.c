@@ -94,7 +94,7 @@ static ok64 INSTWriteAttributes(const char *gitcommondir) {
     int fd = -1;
     call(FILECreate, &fd, PATHu8cgIn(apbuf));
     u8csc data = {(u8cp)content, (u8cp)content + pos};
-    ok64 o = FILEFeedall(fd, data);
+    ok64 o = FILEFeedAll(fd, data);
     close(fd);
     test(o == OK, o);
     done;

@@ -64,10 +64,10 @@ ok64 GRAFMerge(u8cs base_path, u8cs ours_path, u8cs theirs_path,
             int fd = -1;
             o = FILECreate(&fd, PATHu8cgIn(opath));
             if (o != OK) { u8bFree(out); goto cleanup; }
-            o = FILEFeedall(fd, result);
+            o = FILEFeedAll(fd, result);
             close(fd);
         } else {
-            o = FILEFeedall(STDOUT_FILENO, result);
+            o = FILEFeedAll(STDOUT_FILENO, result);
         }
         u8bFree(out);
     }

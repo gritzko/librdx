@@ -197,7 +197,7 @@ ok64 CAPOIndexWrite(u8csc dir, u64cs run, u64 seqno) {
     call(FILECreate, &fd, PATHu8cgIn(path));
     size_t bytes = $len(run) * sizeof(u64);
     u8cs data = {(u8cp)run[0], (u8cp)run[0] + bytes};
-    call(FILEFeedall, fd, data);
+    call(FILEFeedAll, fd, data);
     close(fd);
     done;
 }
@@ -740,12 +740,12 @@ ok64 CAPOCommitWrite(u8csc reporoot, u8csc capodir) {
     u8cs nl = {(u8cp)"\n", (u8cp)"\n" + 1};
     for (u32 i = keep_start; i < sha_count; i++) {
         u8cs data = {(u8cp)shas[i], (u8cp)shas[i] + 40};
-        call(FILEFeedall, fd, data);
-        call(FILEFeedall, fd, nl);
+        call(FILEFeedAll, fd, data);
+        call(FILEFeedAll, fd, nl);
     }
     u8cs newdata = {(u8cp)newsha, (u8cp)newsha + 40};
-    call(FILEFeedall, fd, newdata);
-    call(FILEFeedall, fd, nl);
+    call(FILEFeedAll, fd, newdata);
+    call(FILEFeedAll, fd, nl);
     close(fd);
     done;
 }
@@ -1243,7 +1243,7 @@ static ok64 CAPOSpotReplace(u8csc source, u8bp mapped, u32cs htoks,
             int fd = -1;
             ok64 wo = FILECreate(&fd, PATHu8cgIn(fpbuf));
             if (wo == OK) {
-                FILEFeedall(fd, result);
+                FILEFeedAll(fd, result);
                 close(fd);
                 CAPOProgress(NULL);
                 fprintf(stderr, "replaced: %s (%d)\n",

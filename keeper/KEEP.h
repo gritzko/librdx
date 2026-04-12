@@ -30,8 +30,8 @@ con ok64 KEEPNONE    = 0x11c55d85ce;
 //  Hashlet: 40-bit big-endian SHA prefix (first byte on top).
 //  Sort on key groups same hashlet together (type in LS bits).
 
-#define HASH_SHA1   0   // hash type for git SHA-1
-#define KEEP_PACK   0   // val type for concatenated git packfiles
+#define HASH_SHA1   1   // hash type for git SHA-1
+#define KEEP_PACK   1   // val type for concatenated git packfiles
 #define HASH_MIN_HEX 6
 
 // --- Keeper state ---
@@ -97,6 +97,36 @@ ok64 KEEPImport(keeper *k, u8cs pack_path);
 //  If haves is NULL, sends no haves (full clone).
 ok64 KEEPSync(keeper *k, u8cs remote,
               char const *const *wants, char const *const *haves);
+
+//  Store a batch of objects (convenience wrapper over Open/Feed/Close).
+ok64 KEEPPut(keeper *k, u8csc *objects, wh64 *whiffs, u32 nobjs);
+
+// --- Incremental pack writer ---
+//
+//  KEEPPackOpen:  start a new .packs file, write PACK header (count=0).
+//  KEEPPackFeed:  append one object, compute SHA-1, return it.
+//  KEEPPackClose: patch object count, write trailing SHA, build index.
+//
+//  Between Open and Close, the caller gets full SHA-1 per object and
+//  can use them to build trees/commits that reference the SHAs.
+
+#define KEEP_PACK_MAX_OBJS (1u << 20)
+
+typedef struct {
+    int      fd;                    // open pack file
+    u32      file_id;               // sequence number
+    u32      nobjs;                 // objects written so far
+    u64      pack_offset;           // current write position in file
+    Bkv64    entries;               // index entries buffer
+} keep_pack;
+
+ok64 KEEPPackOpen(keeper *k, keep_pack *p);
+
+//  Feed one object.  sha_out receives the 20-byte git SHA-1.
+ok64 KEEPPackFeed(keeper *k, keep_pack *p,
+                  u8 type, u8csc content, u8 sha_out[20]);
+
+ok64 KEEPPackClose(keeper *k, keep_pack *p);
 
 //  Walk objects in a pack file from a given val position.
 typedef ok64 (*keep_cb)(u8 type, u8cs content, u64 hashlet, void *ctx);

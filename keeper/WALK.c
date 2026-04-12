@@ -762,7 +762,7 @@ ok64 WALKCheckout(walk *w, u8cp tree_sha, u8cs dest) {
             result = FILECreate(&fd, PATHu8cgIn(path));
             if (result != OK) break;
             u8cs data = {bcontent, bcontent + bsz};
-            result = FILEFeedall(fd, data);
+            result = FILEFeedAll(fd, data);
             close(fd);
             if (result != OK) break;
 

@@ -8,9 +8,9 @@
 //    state.log   flat append-only log of wh64 entries
 //
 //  Change entry types (wh64: type[4] | id[20] | off[40]):
-//    SNIFF_HASHLET  (0)  id=path_index, off=sha hashlet (base version)
-//    SNIFF_CHECKOUT (1)  id=path_index, off=mtime at checkout
-//    SNIFF_CHANGED  (2)  id=path_index, off=mtime observed
+//    SNIFF_HASHLET  (1)  id=path_index, off=sha hashlet (base version)
+//    SNIFF_CHECKOUT (2)  id=path_index, off=mtime at checkout
+//    SNIFF_CHANGED  (3)  id=path_index, off=mtime observed
 //
 //  Dirs also get path indices; type=0 carries tree object hashlets.
 //
@@ -34,9 +34,9 @@ con ok64 SNIFFNOROOM = 0x7549f5d86d8616;
 
 // --- Entry types ---
 
-#define SNIFF_HASHLET   0   // base object hashlet
-#define SNIFF_CHECKOUT  1   // mtime at checkout (clean state)
-#define SNIFF_CHANGED   2   // mtime observed (dirty)
+#define SNIFF_HASHLET   1   // base object hashlet
+#define SNIFF_CHECKOUT  2   // mtime at checkout (clean state)
+#define SNIFF_CHANGED   3   // mtime observed (dirty)
 
 // Key for state hash: low 24 bits of wh64 (type | id<<4)
 #define SNIFF_KEY(type, id) \

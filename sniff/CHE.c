@@ -118,7 +118,7 @@ static ok64 che_tree(sniff *s, keeper *k, u8cs reporoot,
                 result = FILECreate(&fd, PATHu8cgIn(fp));
                 if (result != OK) { u8bFree(blob); break; }
                 u8cs data = {u8bDataHead(blob), u8bIdleHead(blob)};
-                result = FILEFeedall(fd, data);
+                result = FILEFeedAll(fd, data);
                 FILEClose(&fd);
                 if (result != OK) { u8bFree(blob); break; }
 
