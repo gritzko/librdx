@@ -38,13 +38,7 @@ add_executable(graf-cli GRAF.cli.c)
 target_compile_definitions(graf-cli PRIVATE NDEBUG)
 target_link_libraries(graf-cli graflib dog abc-core)
 add_dependencies(graf-cli bro-cli)
-set_target_properties(graf-cli PROPERTIES OUTPUT_NAME graf)
-
-# graf is built next to bro so HOMEResolveSibling finds it.
-add_custom_command(TARGET graf-cli POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        $<TARGET_FILE:bro-cli> ${CMAKE_CURRENT_BINARY_DIR}/bro
-)
+set_target_properties(graf-cli PROPERTIES OUTPUT_NAME graf RUNTIME_OUTPUT_DIRECTORY ${DOG_BIN_DIR})
 
 add_subdirectory(test)
 

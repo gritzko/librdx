@@ -48,6 +48,8 @@ if (WITH_FUZZ)
     add_compile_options(-fsanitize=fuzzer-no-link)
 endif ()
 
+set(DOG_BIN_DIR ${CMAKE_BINARY_DIR}/bin)
+
 set(TEST_CXX_FLAGS "-g")
 set(TEST_LDD_FLAGS "-g")
 set(BENCH_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -v")
