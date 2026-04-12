@@ -40,13 +40,7 @@ target_compile_definitions(spot-cli PRIVATE NDEBUG)
 target_include_directories(spot-cli PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 add_dependencies(spot-cli spot-version bro-cli)
 target_link_libraries(spot-cli spotlib dog abc-core)
-set_target_properties(spot-cli PROPERTIES OUTPUT_NAME spot)
-
-# bro is built next to spot so SPOTResolveBro finds it without PATH lookup.
-add_custom_command(TARGET spot-cli POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        $<TARGET_FILE:bro-cli> ${CMAKE_CURRENT_BINARY_DIR}/bro
-)
+set_target_properties(spot-cli PROPERTIES OUTPUT_NAME spot RUNTIME_OUTPUT_DIRECTORY ${DOG_BIN_DIR})
 
 add_subdirectory(test)
 

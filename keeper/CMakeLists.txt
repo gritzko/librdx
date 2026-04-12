@@ -15,7 +15,7 @@ target_link_libraries(keeplib gitcompat dog abc-core)
 
 add_executable(keeper-cli KEEP.cli.c)
 target_link_libraries(keeper-cli keeplib gitcompat dog abc-core)
-set_target_properties(keeper-cli PROPERTIES OUTPUT_NAME keeper)
+set_target_properties(keeper-cli PROPERTIES OUTPUT_NAME keeper RUNTIME_OUTPUT_DIRECTORY ${DOG_BIN_DIR})
 
 add_executable(git-dl git-dl.cli.c)
 target_link_libraries(git-dl gitcompat abc-core)

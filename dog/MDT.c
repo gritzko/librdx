@@ -132,6 +132,13 @@ static b8 MDTThematicBreak(u8csc line) {
     return count >= 3;
 }
 
+// Wrapper callback: remap S → N for heading content
+static ok64 MDTHeadingCb(u8 tag, u8cs tok, void *ctx) {
+    MDTstate *st = (MDTstate *)ctx;
+    if (tag == 'S') tag = 'N';
+    return st->cb(tag, tok, st->ctx);
+}
+
 // Emit heading: prefix (#+ space) as R, content through inline.
 static ok64 MDTEmitHeading(MDTstate *state, u8csc line) {
     u8c *p = (u8c *)line[0];
@@ -159,9 +166,10 @@ static ok64 MDTEmitHeading(MDTstate *state, u8csc line) {
     b8 has_nl = NO;
     if (ce > p && ce[-1] == '\n') { ce--; has_nl = YES; }
 
-    // Run inline on heading content
+    // Run inline on heading content, remapping S → N
     if (p < ce) {
-        MDTstate ist = {.data = {p, ce}, .cb = state->cb, .ctx = state->ctx};
+        MDTstate wrap = {.data = {NULL, NULL}, .cb = state->cb, .ctx = state->ctx};
+        MDTstate ist = {.data = {p, ce}, .cb = MDTHeadingCb, .ctx = &wrap};
         ok64 o = MDTInlineLexer(&ist);
         if (o != OK) return o;
     }

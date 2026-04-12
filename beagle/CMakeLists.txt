@@ -23,6 +23,6 @@ target_link_libraries(beaglelib dog abc-core)
 add_executable(be-cli BE.cli.c)
 target_compile_definitions(be-cli PRIVATE NDEBUG)
 target_link_libraries(be-cli beaglelib dog abc-core)
-set_target_properties(be-cli PROPERTIES OUTPUT_NAME be)
+set_target_properties(be-cli PROPERTIES OUTPUT_NAME be RUNTIME_OUTPUT_DIRECTORY ${DOG_BIN_DIR})
 
 add_subdirectory(test)

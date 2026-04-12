@@ -915,9 +915,9 @@ ok64 LLTBasicTest() {
 ok64 MDTBasicTest() {
     sane(1);
     TOK01Case cases[] = {
-        // headings: prefix R, content through inline
-        {"# Hello\n", "RRSS"},       // # + space (R,R), Hello (S), \n (S)
-        {"## Sub heading\n", "RRRSSSS"}, // ## + space (R,R,R), Sub (S), sp (S), heading (S), \n (S)
+        // headings: prefix R, content S→N, trailing \n stays S
+        {"# Hello\n", "RRNS"},       // # + space (R,R), Hello (N), \n (S)
+        {"## Sub heading\n", "RRRNNNS"}, // ## + space (R,R,R), Sub (N), sp (N), heading (N), \n (S)
         // inline code
         {"`code`", "H"},
         // bold with stars

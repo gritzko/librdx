@@ -1,0 +1,59 @@
+# git dogs — directory index
+
+## Libraries
+
+| Dir | What | README |
+|-----|------|--------|
+| `abc/` | Foundation C library: slices, buffers, hashing, TLV, diff, NFA, file I/O. No runtime, no GC. | [abc/INDEX.md](abc/INDEX.md) |
+| `dog/` | Language dogenizers (ragel-based, 30+ languages), shared infra: HUNK wire format, HOME workspace finder, TOK dispatch. | [dog/INDEX.md](dog/INDEX.md) |
+
+## Dogs (tools)
+
+Each dog follows the [DOG API](dog/DOG.md): static lib + executable,
+`--update`/`--status`/`--tlv` flags, state in `.dogs/name/`.
+
+| Dir | Dog | Role | README |
+|-----|-----|------|--------|
+| `spot/` | **spot** | Structural code search, grep, regex, replace. Trigram index in `.dogs/spot/`. | [spot/README.md](spot/README.md) |
+| `bro/` | **bro** | Interactive syntax-highlighted pager. Also `bro file.c` for colorful cat. | [bro/INDEX.md](bro/INDEX.md) |
+| `graf/` | **graf** | Token-level diff, 3-way merge, git diff/merge driver. | [graf/INDEX.md](graf/INDEX.md) |
+| `keeper/` | **keeper** | Git object store: packs, fetch, refs. Replaces `.git/objects/`. State in `.dogs/keeper/`. | [keeper/INDEX.md](keeper/INDEX.md) |
+| `sniff/` | **sniff** | Worktree management: checkout, status, staging. | [sniff/INDEX.md](sniff/INDEX.md) |
+| `beagle/` | **be** | Dispatcher: ties the dogs together. URI-based CLI (`be verb URI`). | [beagle/README.md](beagle/README.md) |
+
+## Other
+
+| Dir | What |
+|-----|------|
+| `js/` | JavaScriptCore bindings (optional, `WITH_JS`) |
+| `scripts/` | CI, fuzzing, utilities (`ci-fast.sh`) |
+| `build-*/` | Build directories (not tracked) |
+
+## Architecture
+
+```
+abc          foundation (slices, buffers, crypto, diff, TLV)
+ └── dog     tokenizers + shared infra (HUNK, HOME, TOK)
+      ├── spot     search & index
+      ├── bro      display & pager
+      ├── graf     diff & merge
+      ├── keeper   object store & fetch
+      ├── sniff    worktree ops
+      └── beagle   dispatcher (be)
+```
+
+Dogs communicate via TLV hunks on pipes (`--tlv` flag) or through
+static-library API and shared data.
+`be` dispatches based on verb + [GURI](beagle/GURI.md) URI pattern.
+
+## Key docs
+
+| File | What |
+|------|------|
+| [README.md](README.md) | Project overview and quick start |
+| [CLAUDE.md](CLAUDE.md) | Coding guidelines and ABC style |
+| [DONT.md](DONT.md) | Anti-patterns to avoid |
+| [dog/DOG.md](dog/DOG.md) | Dog API convention |
+| [beagle/GURI.md](beagle/GURI.md) | Git URI addressing spec |
+| [abc/S.md](abc/S.md) | Slice idioms |
+| [abc/B.md](abc/B.md) | Buffer idioms |

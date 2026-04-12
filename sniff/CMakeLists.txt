@@ -13,4 +13,4 @@ target_link_libraries(snifflib keeplib gitcompat dog abc-core)
 
 add_executable(sniff-cli SNIFF.cli.c ../abc/FSW.c)
 target_link_libraries(sniff-cli snifflib)
-set_target_properties(sniff-cli PROPERTIES OUTPUT_NAME sniff)
+set_target_properties(sniff-cli PROPERTIES OUTPUT_NAME sniff RUNTIME_OUTPUT_DIRECTORY ${DOG_BIN_DIR})
