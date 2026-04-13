@@ -6,15 +6,15 @@
 # Connects to remote, gets tag list, clones oldest of 10 tags,
 # incrementally updates to each newer tag, verifies each.
 
-# set -e  # don't exit on first failure
-
 REMOTE="${1:?usage: treadmill.sh <remote> [keeper-binary]}"
 KEEPER="${2:-keeper}"
-WORKDIR=$(mktemp -d /tmp/keeper-treadmill-XXXXXX)
+WORKDIR="${WORKDIR:-$(mktemp -d /tmp/keeper-treadmill-XXXXXX)}"
 HOST="${REMOTE%% *}"
 REPO="${REMOTE#* }"
 
 echo "=== treadmill: remote=$REMOTE workdir=$WORKDIR ==="
+
+mkdir -p "$WORKDIR/.dogs/keeper"
 
 # Get tags via git-upload-pack ref advertisement
 echo "--- listing tags ---"
@@ -37,12 +37,9 @@ echo "$TAGS" | awk '{print "  " $1}'
 
 if [ "$NTAGS" -lt 2 ]; then
     echo "FAIL: need at least 2 tags"
-    rm -rf "$WORKDIR"
     exit 1
 fi
 
-# Setup workdir
-mkdir -p "$WORKDIR/.dogs/keeper"
 cd "$WORKDIR"
 
 PREV_SHA=""
@@ -88,5 +85,4 @@ echo ""
 echo "=== treadmill: $PASS passed, $FAIL failed out of $STEP ==="
 echo "=== $("$KEEPER" -s 2>&1) ==="
 
-rm -rf "$WORKDIR"
 [ "$FAIL" -eq 0 ] && exit 0 || exit 1

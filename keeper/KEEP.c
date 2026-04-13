@@ -16,6 +16,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <openssl/evp.h>
+
 #include "abc/FILE.h"
 #include "abc/HEX.h"
 #include "abc/PATH.h"
@@ -85,6 +87,88 @@ found_root:;
     done;
 }
 
+// --- Scan helper: find and mmap files matching extension ---
+
+static ok64 keep_scan_dir(u8csc dir, char const *ext,
+                          u8bp *maps, u32 *count, u32 max) {
+    a_path(dpat);
+    PATHu8bFeed(dpat, dir);
+    DIR *dp = opendir((char *)u8bDataHead(dpat));
+    if (!dp) return OK;  // dir doesn't exist yet
+
+    size_t extlen = strlen(ext);
+    char names[KEEP_MAX_FILES][64];
+    u32 nfound = 0;
+    struct dirent *e;
+    while ((e = readdir(dp)) != NULL && nfound < max) {
+        size_t nlen = strlen(e->d_name);
+        if (nlen <= extlen || nlen > 63) continue;
+        if (strcmp(e->d_name + nlen - extlen, ext) != 0) continue;
+        memcpy(names[nfound], e->d_name, nlen + 1);
+        nfound++;
+    }
+    closedir(dp);
+
+    // Sort by name
+    for (u32 i = 0; i + 1 < nfound; i++)
+        for (u32 j = i + 1; j < nfound; j++)
+            if (strcmp(names[i], names[j]) > 0) {
+                char tmp[64];
+                memcpy(tmp, names[i], 64);
+                memcpy(names[i], names[j], 64);
+                memcpy(names[j], tmp, 64);
+            }
+
+    for (u32 i = 0; i < nfound && *count < max; i++) {
+        u8cs fn = {(u8cp)names[i], (u8cp)names[i] + strlen(names[i])};
+        a_path(fpath, dir, fn);
+        u8bp mapped = NULL;
+        if (FILEMapRO(&mapped, PATHu8cgIn(fpath)) == OK) {
+            maps[*count] = mapped;
+            (*count)++;
+        }
+    }
+    return OK;
+}
+
+static ok64 keep_scan_packs(keeper *k, u8csc keepdir) {
+    // New layout: log/*.pack
+    a_pad(u8, logdir, 1024);
+    u8bFeed(logdir, keepdir);
+    a_cstr(logsep, "/" KEEP_LOG_DIR);
+    u8bFeed(logdir, logsep);
+    PATHu8gTerm(PATHu8gIn(logdir));
+    a_dup(u8c, ld, u8bData(logdir));
+    keep_scan_dir(ld, KEEP_PACK_EXT, k->packs, &k->npacks, KEEP_MAX_FILES);
+
+    // Old layout: keeper/*.packs
+    keep_scan_dir(keepdir, ".packs", k->packs, &k->npacks, KEEP_MAX_FILES);
+
+    // New layout: idx/*.idx
+    a_pad(u8, idxdir, 1024);
+    u8bFeed(idxdir, keepdir);
+    a_cstr(idxsep, "/" KEEP_IDX_DIR);
+    u8bFeed(idxdir, idxsep);
+    PATHu8gTerm(PATHu8gIn(idxdir));
+    a_dup(u8c, id, u8bData(idxdir));
+
+    u8bp idx_maps[KEEP_MAX_LEVELS] = {};
+    u32 nidx = 0;
+    keep_scan_dir(id, KEEP_IDX_EXT, idx_maps, &nidx, KEEP_MAX_LEVELS);
+    // Old layout: keeper/*.idx
+    keep_scan_dir(keepdir, KEEP_IDX_EXT, idx_maps, &nidx, KEEP_MAX_LEVELS);
+
+    for (u32 i = 0; i < nidx && k->nruns < KEEP_MAX_LEVELS; i++) {
+        kv64cp base = (kv64cp)u8bDataHead(idx_maps[i]);
+        u32 n = (u32)(u8bDataLen(idx_maps[i]) / sizeof(kv64));
+        k->runs[k->nruns][0] = base;
+        k->runs[k->nruns][1] = base + n;
+        k->run_maps[k->nruns] = idx_maps[i];
+        k->nruns++;
+    }
+    return OK;
+}
+
 // --- Open: mmap pack files + load index runs ---
 
 ok64 KEEPOpen(keeper *k, u8cs reporoot) {
@@ -100,93 +184,28 @@ ok64 KEEPOpen(keeper *k, u8cs reporoot) {
     k->dir[dlen] = 0;
     a_cstr(keepdir, k->dir);
 
-    // Ensure directory exists
+    // Ensure directories exist
     call(FILEMakeDirP, PATHu8cgIn(dir));
-
-    // Scan .packs files
     {
-        a_path(dpat);
-        call(PATHu8bFeed, dpat, keepdir);
-        DIR *d = opendir((char *)u8bDataHead(dpat));
-        if (d) {
-            char names[KEEP_MAX_FILES][64];
-            u32 count = 0;
-            struct dirent *e;
-            while ((e = readdir(d)) != NULL && count < KEEP_MAX_FILES) {
-                size_t nlen = strlen(e->d_name);
-                if (nlen < 7) continue;  // SEQNO + .packs
-                if (strcmp(e->d_name + nlen - 6, KEEP_PACK_EXT) != 0) continue;
-                if (nlen > 63) continue;
-                memcpy(names[count], e->d_name, nlen + 1);
-                count++;
-            }
-            closedir(d);
-
-            // Sort by name
-            for (u32 i = 0; i + 1 < count; i++)
-                for (u32 j = i + 1; j < count; j++)
-                    if (strcmp(names[i], names[j]) > 0) {
-                        char tmp[64];
-                        memcpy(tmp, names[i], 64);
-                        memcpy(names[i], names[j], 64);
-                        memcpy(names[j], tmp, 64);
-                    }
-
-            for (u32 i = 0; i < count; i++) {
-                u8cs fn = {(u8cp)names[i], (u8cp)names[i] + strlen(names[i])};
-                a_path(fpath, keepdir, fn);
-                u8bp mapped = NULL;
-                if (FILEMapRO(&mapped, PATHu8cgIn(fpath)) == OK) {
-                    k->packs[k->npacks] = mapped;
-                    k->npacks++;
-                }
-            }
-        }
+        a_pad(u8, logdir, 1024);
+        u8bFeed(logdir, keepdir);
+        a_cstr(logrel, "/" KEEP_LOG_DIR);
+        u8bFeed(logdir, logrel);
+        PATHu8gTerm(PATHu8gIn(logdir));
+        FILEMakeDirP(PATHu8cgIn(logdir));
+    }
+    {
+        a_pad(u8, idxdir, 1024);
+        u8bFeed(idxdir, keepdir);
+        a_cstr(idxrel, "/" KEEP_IDX_DIR);
+        u8bFeed(idxdir, idxrel);
+        PATHu8gTerm(PATHu8gIn(idxdir));
+        FILEMakeDirP(PATHu8cgIn(idxdir));
     }
 
-    // Scan .idx files
-    {
-        a_path(dpat);
-        call(PATHu8bFeed, dpat, keepdir);
-        DIR *d = opendir((char *)u8bDataHead(dpat));
-        if (d) {
-            char names[KEEP_MAX_LEVELS][64];
-            u32 count = 0;
-            struct dirent *e;
-            while ((e = readdir(d)) != NULL && count < KEEP_MAX_LEVELS) {
-                size_t nlen = strlen(e->d_name);
-                if (nlen < 5) continue;
-                if (strcmp(e->d_name + nlen - 4, KEEP_IDX_EXT) != 0) continue;
-                if (nlen > 63) continue;
-                memcpy(names[count], e->d_name, nlen + 1);
-                count++;
-            }
-            closedir(d);
-
-            for (u32 i = 0; i + 1 < count; i++)
-                for (u32 j = i + 1; j < count; j++)
-                    if (strcmp(names[i], names[j]) > 0) {
-                        char tmp[64];
-                        memcpy(tmp, names[i], 64);
-                        memcpy(names[i], names[j], 64);
-                        memcpy(names[j], tmp, 64);
-                    }
-
-            for (u32 i = 0; i < count; i++) {
-                u8cs fn = {(u8cp)names[i], (u8cp)names[i] + strlen(names[i])};
-                a_path(fpath, keepdir, fn);
-                u8bp mapped = NULL;
-                if (FILEMapRO(&mapped, PATHu8cgIn(fpath)) == OK) {
-                    kv64cp base = (kv64cp)u8bDataHead(mapped);
-                    size_t n = (u8bIdleHead(mapped) - u8bDataHead(mapped)) / sizeof(kv64);
-                    k->runs[k->nruns][0] = base;
-                    k->runs[k->nruns][1] = base + n;
-                    k->run_maps[k->nruns] = mapped;
-                    k->nruns++;
-                }
-            }
-        }
-    }
+    // Scan pack files: log/*.pack (new) + keeper/*.packs (old compat)
+    // Scan idx files: idx/*.idx (new) + keeper/*.idx (old compat)
+    call(keep_scan_packs, k, keepdir);
 
     // Pre-allocate working buffers for KEEPGet (mmap, reset per call)
     call(u8bMap, k->buf1, KEEP_BUFSZ);
@@ -215,23 +234,23 @@ ok64 KEEPClose(keeper *k) {
 
 // --- Lookup: hashlet → wh64 val ---
 // hexlen: number of significant hex chars in the hashlet (6-10).
-// With 40-bit hashlets, max is 10.
+// With 60-bit hashlets, max is 15 hex chars.
 
-ok64 KEEPLookup(keeper *k, u64 hashlet, size_t hexlen, u64p val) {
+ok64 KEEPLookup(keeper *k, u64 hashlet60, size_t hexlen, u64p val) {
     sane(k && val);
 
     // Build range for prefix matching.
-    // Hashlet is in MS 40 bits of wh64, so pack with type=0, id=0.
-    // key_lo: hashlet with unspecified nibbles zeroed.
-    // key_hi: hashlet with unspecified nibbles set to 0xf.
-    if (hexlen > 10) hexlen = 10;
+    // key = hashlet60[60] | type[4].
+    // key_lo: hashlet prefix with low bits zeroed, type=0.
+    // key_hi: hashlet prefix with low bits all-ones, type=0xf.
+    if (hexlen > 15) hexlen = 15;
     u64 nbits = hexlen * 4;
-    u64 shift = 40 - nbits;  // unspecified bits within the 40-bit field
-    u64 hmask = shift < 40 ? (WHIFF_OFF_MASK >> shift) << shift : WHIFF_OFF_MASK;
-    u64 hpre = hashlet & hmask;
+    u64 shift = 60 - nbits;
+    u64 hmask = shift < 60 ? (KEEP_HASHLET_MASK >> shift) << shift : KEEP_HASHLET_MASK;
+    u64 hpre = hashlet60 & hmask;
 
-    u64 key_lo = wh64Pack(0, 0, hpre);
-    u64 key_hi = wh64Pack(0xf, WHIFF_ID_MASK, hpre | (~hmask & WHIFF_OFF_MASK));
+    u64 key_lo = keepKeyPack(0, hpre);
+    u64 key_hi = keepKeyPack(0xf, hpre | (~hmask & KEEP_HASHLET_MASK));
 
     for (u32 r = 0; r < k->nruns; r++) {
         kv64cp base = k->runs[r][0];
@@ -253,9 +272,9 @@ ok64 KEEPLookup(keeper *k, u64 hashlet, size_t hexlen, u64p val) {
 
 // --- Has ---
 
-ok64 KEEPHas(keeper *k, u64 hashlet, size_t hexlen) {
+ok64 KEEPHas(keeper *k, u64 hashlet60, size_t hexlen) {
     u64 val = 0;
-    return KEEPLookup(k, hashlet, hexlen, &val);
+    return KEEPLookup(k, hashlet60, hexlen, &val);
 }
 
 // --- Get: inflate object from pack ---
@@ -317,7 +336,7 @@ ok64 KEEPGet(keeper *k, u64 hashlet, size_t hexlen, u8bp out, u8p out_type) {
             cur = cur - obj.ofs_delta;
         } else if (obj.type == PACK_OBJ_REF_DELTA) {
             // Look up base by SHA-1 prefix
-            u64 base_hashlet = wh64Hashlet(obj.ref_delta[0]);
+            u64 base_hashlet = keepHashlet60(obj.ref_delta[0]);
             u64 base_val = 0;
             rc = KEEPLookup(k, base_hashlet, 10, &base_val);
             if (rc != OK) goto cleanup;
@@ -397,7 +416,7 @@ static void verify_mark(u64 hashlet) {
 
 static ok64 keep_verify_sha(keeper *k, u8 expected_sha[20],
                              u32 *checked, u32 *failed) {
-    u64 hashlet = wh64Hashlet(expected_sha);
+    u64 hashlet = keepHashlet60(expected_sha);
     if (verify_seen(hashlet)) return OK;  // already verified
     verify_mark(hashlet);
 
@@ -409,10 +428,10 @@ static ok64 keep_verify_sha(keeper *k, u8 expected_sha[20],
     obj[3] = objmem + VERIFY_BUFSZ;
     u8 obj_type = 0;
 
-    ok64 rc = KEEPGet(k, hashlet, 10, obj, &obj_type);
+    ok64 rc = KEEPGet(k, hashlet, 15, obj, &obj_type);
     if (rc != OK) {
         char hex[12];
-        wh64HashletHex(hex, hashlet, 10);
+        keepHashlet60Hex(hex, hashlet, 10);
         fprintf(stderr, "  MISS: %s\n", hex);
         (*failed)++;
         free(objmem);
@@ -447,8 +466,8 @@ static ok64 keep_verify_sha(keeper *k, u8 expected_sha[20],
 
     if (memcmp(actual_sha, expected_sha, 20) != 0) {
         char hex_exp[12], hex_got[12];
-        wh64HashletHex(hex_exp, wh64Hashlet(expected_sha), 10);
-        wh64HashletHex(hex_got, wh64Hashlet(actual_sha), 10);
+        keepHashlet60Hex(hex_exp, keepHashlet60(expected_sha), 10);
+        keepHashlet60Hex(hex_got, keepHashlet60(actual_sha), 10);
         fprintf(stderr, "  HASH MISMATCH: expected %s got %s\n", hex_exp, hex_got);
         (*failed)++;
         u8bUnMap(obj);
@@ -473,7 +492,7 @@ static ok64 keep_verify_sha(keeper *k, u8 expected_sha[20],
                 ok64 o = keep_verify_sha(k, tree_sha, checked, failed);
                 if (o != OK) {
                     char hex[12];
-                    wh64HashletHex(hex, wh64Hashlet(tree_sha), 10);
+                    keepHashlet60Hex(hex, keepHashlet60(tree_sha), 10);
                     fprintf(stderr, "  tree %s verify failed\n", hex);
                 }
                 break;
@@ -487,12 +506,15 @@ static ok64 keep_verify_sha(keeper *k, u8 expected_sha[20],
             ok64 o = GITu8sDrainTree(body, entry_field, entry_sha);
             if (o != OK) break;
             if ($len(entry_sha) != 20) continue;
+            // Skip gitlinks (submodule refs) — mode 160000, commit in another repo
+            if ($len(entry_field) > 6 && memcmp(entry_field[0], "160000", 6) == 0)
+                continue;
             u8 child_sha[20];
             memcpy(child_sha, entry_sha[0], 20);
             o = keep_verify_sha(k, child_sha, checked, failed);
             if (o != OK) {
                 char hex[12];
-                wh64HashletHex(hex, wh64Hashlet(child_sha), 10);
+                keepHashlet60Hex(hex, keepHashlet60(child_sha), 10);
                 fprintf(stderr, "  child %s verify failed\n", hex);
             }
         }
@@ -581,7 +603,7 @@ ok64 KEEPScan(keeper *k, u64 from_val, keep_cb cb, void *ctx) {
                 SHA1Sum(sha, NULL, 0);  // placeholder — need proper hash
                 // FIXME: compute proper git object SHA-1 (header + content)
 
-                u64 hashlet = wh64Hashlet(sha);
+                u64 hashlet = keepHashlet60(sha);
                 u8cs content = {buf, buf + obj.size};
                 o = cb(obj.type, content, hashlet, ctx);
                 if (o != OK) break;
@@ -656,109 +678,126 @@ static void keep_feed_obj_hdr(u8bp buf, u8 type, u64 size) {
 ok64 KEEPPackOpen(keeper *k, keep_pack *p) {
     sane(k && p);
     memset(p, 0, sizeof(*p));
-    p->fd = -1;
     p->file_id = k->npacks + 1;
 
     call(kv64bAllocate, p->entries, KEEP_PACK_MAX_OBJS);
 
+    // Build path: dir/log/NNNNNNNNNN.pack
     a_cstr(kdir, k->dir);
+    a_cstr(logdir, "/" KEEP_LOG_DIR);
+    a_pad(u8, logpath, 1024);
+    u8bFeed(logpath, kdir);
+    u8bFeed(logpath, logdir);
+    PATHu8gTerm(PATHu8gIn(logpath));
+    FILEMakeDirP(PATHu8cgIn(logpath));
+
     a_pad(u8, packpath, 1024);
-    call(keep_build_pack_path, packpath, kdir, p->file_id);
+    u8bFeed(packpath, kdir);
+    u8bFeed(packpath, logdir);
+    u8bFeed1(packpath, '/');
+    RONu8sFeedPad(u8bIdle(packpath), (u64)p->file_id, KEEP_SEQNO_W);
+    ((u8 **)packpath)[2] += KEEP_SEQNO_W;
     a_cstr(pext, KEEP_PACK_EXT);
     u8bFeed(packpath, pext);
     PATHu8gTerm(PATHu8gIn(packpath));
 
-    call(FILECreate, &p->fd, PATHu8cgIn(packpath));
+    // FILEBook: reserve 1GB VA, create with 4KB initial
+    call(FILEBookCreate, &p->log, PATHu8cgIn(packpath),
+         1ULL << 30, 4096);
 
-    // Write placeholder header (count=0, patched in Close)
-    a_pad(u8, hdrbuf, 16);
+    // Write PACK header directly into mmap
     u8 hdr_bytes[12] = {'P','A','C','K', 0,0,0,2, 0,0,0,0};
     u8cs hdr_s = {hdr_bytes, hdr_bytes + 12};
-    u8bFeed(hdrbuf, hdr_s);
-    a_dup(u8c, hd, u8bData(hdrbuf));
-    FILEFeed(p->fd, hd);
-    p->pack_offset = 12;
+    u8bFeed(p->log, hdr_s);
 
     done;
 }
 
 ok64 KEEPPackFeed(keeper *k, keep_pack *p,
                   u8 type, u8csc content, u8 sha_out[20]) {
-    sane(k && p && p->fd >= 0 && type >= 1 && type <= 4);
+    sane(k && p && p->log && type >= 1 && type <= 4);
 
     keep_obj_sha(sha_out, type, content);
 
-    // Encode varint header
+    u64 obj_offset = u8bDataLen(p->log);
+
+    // Encode varint header into log
+    call(FILEBookEnsure, p->log, 16);
     a_pad(u8, ohdr, 16);
     keep_feed_obj_hdr(ohdr, type, u8csLen(content));
     a_dup(u8c, oh, u8bData(ohdr));
-    FILEFeed(p->fd, oh);
+    u8bFeed(p->log, oh);
 
-    // Deflate content
+    // Deflate content directly into log
     u64 clen = u8csLen(content);
-    Bu8 zbuf = {};
-    u8bMap(zbuf, clen + 256);
+    u64 need = clen + 256;
+    call(FILEBookEnsure, p->log, need);
     u64 produced = 0;
     int zr = ZINFDeflate(content[0], clen,
-                         u8bIdleHead(zbuf), u8bIdleLen(zbuf),
+                         u8bIdleHead(p->log), u8bIdleLen(p->log),
                          &produced);
-    if (zr != 0) { u8bUnMap(zbuf); fail(KEEPFAIL); }
-    u8bFed(zbuf, (size_t)produced);
-    a_dup(u8c, zdata, u8bData(zbuf));
-    FILEFeed(p->fd, zdata);
-    u8bUnMap(zbuf);
+    if (zr != 0) fail(KEEPFAIL);
+    u8bFed(p->log, (size_t)produced);
 
     // Build index entry
-    u64 hashlet = wh64Hashlet(sha_out);
+    u64 hashlet = keepHashlet60(sha_out);
     kv64 entry = {
-        .key = wh64Pack(HASH_SHA1, 0, hashlet),
-        .val = wh64Pack(KEEP_PACK, p->file_id, p->pack_offset),
+        .key = keepKeyPack(type, hashlet),
+        .val = wh64Pack(KEEP_VAL_FLAGS, p->file_id, obj_offset),
     };
     kv64bPush(p->entries, &entry);
 
-    p->pack_offset += u8bDataLen(ohdr) + produced;
     p->nobjs++;
-
     done;
 }
 
 ok64 KEEPPackClose(keeper *k, keep_pack *p) {
-    sane(k && p && p->fd >= 0);
+    sane(k && p && p->log);
 
     // Patch object count in header (offset 8, 4 bytes big-endian)
-    u8 cnt[4] = {
-        (u8)(p->nobjs >> 24), (u8)(p->nobjs >> 16),
-        (u8)(p->nobjs >> 8),  (u8)(p->nobjs),
-    };
-    lseek(p->fd, 8, SEEK_SET);
-    write(p->fd, cnt, 4);
-    lseek(p->fd, 0, SEEK_END);
+    u8p hdr = u8bDataHead(p->log);
+    hdr[8]  = (u8)(p->nobjs >> 24);
+    hdr[9]  = (u8)(p->nobjs >> 16);
+    hdr[10] = (u8)(p->nobjs >> 8);
+    hdr[11] = (u8)(p->nobjs);
 
-    // TODO: compute trailing SHA-1 of pack
-    close(p->fd);
-    p->fd = -1;
+    // Compute trailing SHA-1 and append
+    u8 pack_sha[20];
+    SHA1Sum(pack_sha, u8bDataHead(p->log), u8bDataLen(p->log));
+    call(FILEBookEnsure, p->log, 20);
+    u8cs sha_s = {pack_sha, pack_sha + 20};
+    u8bFeed(p->log, sha_s);
 
-    // Mmap the new pack
-    a_cstr(kdir, k->dir);
-    a_pad(u8, packpath, 1024);
-    call(keep_build_pack_path, packpath, kdir, p->file_id);
-    a_cstr(pext, KEEP_PACK_EXT);
-    u8bFeed(packpath, pext);
-    PATHu8gTerm(PATHu8gIn(packpath));
+    // Trim file to actual data, keep mmap for reading
+    call(FILETrimBook, p->log);
 
-    u8bp mapped = NULL;
-    if (FILEMapRO(&mapped, PATHu8cgIn(packpath)) == OK &&
-        k->npacks < KEEP_MAX_FILES) {
-        k->packs[k->npacks] = mapped;
+    // Add to keeper's pack array
+    if (k->npacks < KEEP_MAX_FILES) {
+        k->packs[k->npacks] = p->log;
         k->npacks++;
+        p->log = NULL;  // ownership transferred
+    } else {
+        FILEUnBook(p->log);
     }
 
     // Sort index entries, write .idx file
     a_dup(kv64, sorted, kv64bData(p->entries));
     kv64sSort(sorted);
 
+    a_cstr(kdir, k->dir);
+    a_cstr(idxdir, "/" KEEP_IDX_DIR);
+    a_pad(u8, idxdirpath, 1024);
+    u8bFeed(idxdirpath, kdir);
+    u8bFeed(idxdirpath, idxdir);
+    PATHu8gTerm(PATHu8gIn(idxdirpath));
+    FILEMakeDirP(PATHu8cgIn(idxdirpath));
+
     a_pad(u8, idxpath, 1024);
-    call(keep_build_pack_path, idxpath, kdir, p->file_id);
+    u8bFeed(idxpath, kdir);
+    u8bFeed(idxpath, idxdir);
+    u8bFeed1(idxpath, '/');
+    RONu8sFeedPad(u8bIdle(idxpath), (u64)p->file_id, KEEP_SEQNO_W);
+    ((u8 **)idxpath)[2] += KEEP_SEQNO_W;
     a_cstr(iext, KEEP_IDX_EXT);
     u8bFeed(idxpath, iext);
     PATHu8gTerm(PATHu8gIn(idxpath));
@@ -801,11 +840,11 @@ ok64 KEEPPut(keeper *k, u8csc *objects, wh64 *whiffs, u32 nobjs) {
         u8 sha[20];
         ok64 o = KEEPPackFeed(k, &p, type, objects[i], sha);
         if (o != OK) {
-            if (p.fd >= 0) close(p.fd);
+            if (p.log) FILEUnBook(p.log);
             kv64bFree(p.entries);
             return o;
         }
-        u64 hashlet = wh64Hashlet(sha);
+        u64 hashlet = keepHashlet60(sha);
         whiffs[i] = wh64Pack(type, p.file_id, hashlet);
     }
 
@@ -881,7 +920,8 @@ ok64 KEEPImport(keeper *k, u8cs pack_path) {
     {
         a_pad(u8, dst, 1024);
         call(u8bFeed, dst, kdir);
-        call(u8bFeed1, dst, '/');
+        a_cstr(logsep, "/" KEEP_LOG_DIR "/");
+        call(u8bFeed, dst, logsep);
         call(RONu8sFeedPad, u8bIdle(dst), (u64)file_id, KEEP_SEQNO_W);
         ((u8 **)dst)[2] += KEEP_SEQNO_W;
         a_cstr(ext, KEEP_PACK_EXT);
@@ -890,8 +930,7 @@ ok64 KEEPImport(keeper *k, u8cs pack_path) {
 
         int fd = -1;
         call(FILECreate, &fd, PATHu8cgIn(dst));
-        u8cs data = {u8bDataHead(pack_map),
-                     u8bDataHead(pack_map) + (u8bIdleHead(pack_map) - u8bDataHead(pack_map))};
+        a_dup(u8c, data, u8bData(pack_map));
         call(FILEFeedAll, fd, data);
         close(fd);
     }
@@ -902,7 +941,7 @@ ok64 KEEPImport(keeper *k, u8cs pack_path) {
 
     for (u32 i = 0; i < nobjects; i++) {
         u8cp sha = sha_table + (u64)i * 20;
-        u64 hashlet = wh64Hashlet(sha);
+        u64 hashlet = keepHashlet60(sha);
 
         // 4-byte offset (BE), high bit = large offset flag
         u8cp offp = off_table + (u64)i * 4;
@@ -915,8 +954,9 @@ ok64 KEEPImport(keeper *k, u8cs pack_path) {
             off &= 0x7FFFFFFF;
         }
 
-        entries[i].key = wh64Pack(HASH_SHA1, 0, hashlet);
-        entries[i].val = wh64Pack(KEEP_PACK, file_id, off);
+        // git idx v2 doesn't carry type; use 0 (lookup spans all types)
+        entries[i].key = keepKeyPack(0, hashlet);
+        entries[i].val = wh64Pack(KEEP_VAL_FLAGS, file_id, off);
     }
 
     // Sort and dedup
@@ -925,12 +965,13 @@ ok64 KEEPImport(keeper *k, u8cs pack_path) {
     kv64sDedup(sorted);
     u32 nentries = (u32)(sorted[1] - sorted[0]);
 
-    // Write .idx file
+    // Write .idx file to idx/
     {
         u64 seqno = (u64)file_id;
         a_pad(u8, idxpath, 1024);
         call(u8bFeed, idxpath, kdir);
-        call(u8bFeed1, idxpath, '/');
+        a_cstr(idxsep, "/" KEEP_IDX_DIR "/");
+        call(u8bFeed, idxpath, idxsep);
         call(RONu8sFeedPad, u8bIdle(idxpath), seqno, KEEP_SEQNO_W);
         ((u8 **)idxpath)[2] += KEEP_SEQNO_W;
         a_cstr(ext2, KEEP_IDX_EXT);
@@ -959,16 +1000,24 @@ ok64 KEEPImport(keeper *k, u8cs pack_path) {
 #include <sys/wait.h>
 
 // Compute git object SHA-1: hash("<type> <size>\0<content>")
-static void keep_git_sha1(u8 sha[20], u8 type, u8cp content, u64 sz, u8p tmp) {
+// Uses two separate SHA1Sum calls to avoid copying content into a
+// scratch buffer (which could overlap with content in the same mmap).
+static void keep_git_sha1(u8 sha[20], u8 type, u8cp content, u64 sz) {
     static char const *type_str[] = {
         [1] = "commit", [2] = "tree", [3] = "blob", [4] = "tag"};
     char hbuf[64];
     int hlen = snprintf(hbuf, sizeof(hbuf), "%s %lu",
                         type_str[type], (unsigned long)sz);
-    memcpy(tmp, hbuf, hlen);
-    tmp[hlen] = 0;
-    memcpy(tmp + hlen + 1, content, sz);
-    SHA1Sum(sha, tmp, hlen + 1 + sz);
+    hbuf[hlen] = 0;
+    // EVP incremental hash: header + NUL + content
+    EVP_MD_CTX *ctx = EVP_MD_CTX_new();
+    if (!ctx) { memset(sha, 0, 20); return; }
+    EVP_DigestInit_ex(ctx, EVP_sha1(), NULL);
+    EVP_DigestUpdate(ctx, hbuf, hlen + 1);
+    EVP_DigestUpdate(ctx, content, sz);
+    unsigned int olen = 20;
+    EVP_DigestFinal_ex(ctx, sha, &olen);
+    EVP_MD_CTX_free(ctx);
 }
 
 // Resolve object at offset, chasing OFS/REF deltas.
@@ -1028,7 +1077,7 @@ static ok64 keep_resolve(keeper *k, u8cp pack_init, u64 packlen_init,
                 found = YES;
             }
             if (!found) {
-                u64 hashlet = wh64Hashlet(obj.ref_delta[0]);
+                u64 hashlet = keepHashlet60(obj.ref_delta[0]);
                 u64 lsm_val = 0;
                 ok64 o = KEEPLookup(k, hashlet, 10, &lsm_val);
                 if (o != OK) return o;
@@ -1330,13 +1379,14 @@ ok64 KEEPSync(keeper *k, u8cs remote,
     fprintf(stderr, "keeper: received %u objects, %llu bytes\n",
             hdr.count, (unsigned long long)packlen);
 
-    // Save packfile
+    // Save packfile to log/
     u32 file_id = k->npacks + 1;
     {
         a_pad(u8, dst, 1024);
         a_cstr(kdir, k->dir);
         u8bFeed(dst, kdir);
-        u8bFeed1(dst, '/');
+        a_cstr(logsep, "/" KEEP_LOG_DIR "/");
+        u8bFeed(dst, logsep);
         RONu8sFeedPad(u8bIdle(dst), (u64)file_id, KEEP_SEQNO_W);
         ((u8 **)dst)[2] += KEEP_SEQNO_W;
         a_cstr(ext, KEEP_PACK_EXT);
@@ -1371,12 +1421,15 @@ ok64 KEEPSync(keeper *k, u8cs remote,
 
         // Mmap the new pack into keeper so KEEPLookup/keep_resolve can use it
         {
+            a_pad(u8, pp, 1024);
             a_cstr(kdir, k->dir);
-            a_path(pp, kdir);
-            char fn[32];
-            snprintf(fn, sizeof(fn), "/%010u%s", file_id, KEEP_PACK_EXT);
-            a_cstr(fns, fn);
-            u8bFeed(pp, fns);
+            u8bFeed(pp, kdir);
+            a_cstr(logsep, "/" KEEP_LOG_DIR "/");
+            u8bFeed(pp, logsep);
+            RONu8sFeedPad(u8bIdle(pp), (u64)file_id, KEEP_SEQNO_W);
+            ((u8 **)pp)[2] += KEEP_SEQNO_W;
+            a_cstr(pext, KEEP_PACK_EXT);
+            u8bFeed(pp, pext);
             PATHu8gTerm(PATHu8gIn(pp));
             u8bp mapped = NULL;
             if (FILEMapRO(&mapped, PATHu8cgIn(pp)) == OK) {
@@ -1445,16 +1498,16 @@ ok64 KEEPSync(keeper *k, u8cs remote,
             u8s into = {cs, u8bTerm(k->buf1)};
             if (PACKInflate(from, into, obj.size) != OK) continue;
             u8 sha[20];
-            keep_git_sha1(sha, obj.type, cs, obj.size, objbuf);
+            keep_git_sha1(sha, obj.type, cs, obj.size);
             u64 sha_key = 0;
             memcpy(&sha_key, sha, 8);
             kv64 entry = {.key = sha_key, .val = offsets[i]};
             HASHkv64Put(ht, &entry);
             // Emit to sorted_entries
             sorted_entries[total_indexed].key =
-                wh64Pack(HASH_SHA1, 0, wh64Hashlet(sha));
+                keepKeyPack(types_arr[i], keepHashlet60(sha));
             sorted_entries[total_indexed].val =
-                wh64Pack(KEEP_PACK, file_id, offsets[i]);
+                wh64Pack(KEEP_VAL_FLAGS, file_id, offsets[i]);
             total_indexed++;
             resolved[i + 1] = YES;
             // Don't advance buf1 — reuse space for next base
@@ -1583,12 +1636,11 @@ ok64 KEEPSync(keeper *k, u8cs remote,
                     u8bFed(k->buf1, rsz);
 
                     // Emit
-                    keep_git_sha1(sha, stk[0].base_type, rstart, rsz,
-                                  objbuf + KEEP_BUFSZ / 2);
+                    keep_git_sha1(sha, stk[0].base_type, rstart, rsz);
                     sorted_entries[total_indexed].key =
-                        wh64Pack(HASH_SHA1, 0, wh64Hashlet(sha));
+                        keepKeyPack(stk[0].base_type, keepHashlet60(sha));
                     sorted_entries[total_indexed].val =
-                        wh64Pack(KEEP_PACK, file_id, offsets[child - 1]);
+                        wh64Pack(KEEP_VAL_FLAGS, file_id, offsets[child - 1]);
                     total_indexed++;
                     round_indexed++;
                     resolved[child] = YES;
@@ -1627,6 +1679,58 @@ ok64 KEEPSync(keeper *k, u8cs remote,
         }
 
         free(htmem);
+
+        // Cross-pack REF_DELTA resolution: unresolved deltas whose base
+        // is in a previously-fetched pack (thin pack support).
+        {
+            u32 cross_resolved = 0;
+            for (u32 i = 0; i < hdr.count; i++) {
+                if (resolved[i + 1]) continue;
+                if (types_arr[i] != PACK_OBJ_REF_DELTA) continue;
+
+                pack_obj obj = {};
+                u8cs from = {packbase + offsets[i], packbase + packlen};
+                if (PACKDrainObjHdr(from, &obj) != OK) continue;
+
+                // Look up base in full keeper index (previous packs)
+                u64 base_hashlet = keepHashlet60(obj.ref_delta[0]);
+                u8 base_type = 0;
+                u8bReset(k->buf3);
+                ok64 go = KEEPGet(k, base_hashlet, 15, k->buf3, &base_type);
+                if (go != OK) continue;
+
+                // Inflate this delta
+                u8bReset(k->buf4);
+                u64 consumed = 0, produced = 0;
+                if (obj.size > KEEP_BUFSZ / 2) continue;
+                ZINFInflate(from[0], u8csLen(from), u8bIdleHead(k->buf4),
+                            KEEP_BUFSZ / 2, &consumed, &produced);
+                if (produced == 0) continue;
+
+                // Apply delta
+                u8cs delta_sl = {u8bIdleHead(k->buf4), u8bIdleHead(k->buf4) + produced};
+                a_dup(u8c, base_sl, u8bData(k->buf3));
+                u8p rstart = u8bIdleHead(k->buf1);
+                u8g aout = {rstart, rstart, u8bTerm(k->buf1)};
+                if (DELTApply(delta_sl, base_sl, aout) != OK) continue;
+                u64 rsz = u8gLeftLen(aout);
+
+                // Compute SHA
+                u8 sha[20];
+                keep_git_sha1(sha, base_type, rstart, rsz);
+                sorted_entries[total_indexed].key =
+                    keepKeyPack(base_type, keepHashlet60(sha));
+                sorted_entries[total_indexed].val =
+                    wh64Pack(KEEP_VAL_FLAGS, file_id, offsets[i]);
+                total_indexed++;
+                cross_resolved++;
+                resolved[i + 1] = YES;
+            }
+            if (cross_resolved > 0)
+                fprintf(stderr, "keeper: cross-pack: resolved %u REF_DELTAs\n",
+                        cross_resolved);
+        }
+
         free(resolved);
         fprintf(stderr, "keeper: indexed %u objects (%u skipped)\n",
                 total_indexed, skipped);
@@ -1641,7 +1745,8 @@ ok64 KEEPSync(keeper *k, u8cs remote,
             a_cstr(kdir, k->dir);
             a_pad(u8, idxpath, 1024);
             u8bFeed(idxpath, kdir);
-            u8bFeed1(idxpath, '/');
+            a_cstr(idxsep, "/" KEEP_IDX_DIR "/");
+            u8bFeed(idxpath, idxsep);
             RONu8sFeedPad(u8bIdle(idxpath), (u64)file_id, KEEP_SEQNO_W);
             ((u8 **)idxpath)[2] += KEEP_SEQNO_W;
             a_cstr(ext, KEEP_IDX_EXT);

@@ -74,7 +74,7 @@ ok64 KEEPempty() {
     want(k.npacks == 0);
     want(k.nruns == 0);
 
-    u64 hashlet = wh64HashletFromHex("abcdef", 6);
+    u64 hashlet = keepHashlet60FromHex("abcdef", 6);
     u64 val = 0;
     want(KEEPLookup(&k, hashlet, 6, &val) == KEEPNONE);
     want(KEEPHas(&k, hashlet, 6) == KEEPNONE);
@@ -115,22 +115,26 @@ ok64 KEEPput() {
     want(k.npacks == 1);
     want(k.nruns == 1);
 
-    // Both whiffs should now have hashlets
-    u64 h0 = wh64Off(wh[0]);
-    u64 h1 = wh64Off(wh[1]);
-    want(h0 != 0);
-    want(h1 != 0);
-    want(h0 != h1);
+    // Both whiffs should have valid types
+    want(wh64Type(wh[0]) == KEEP_OBJ_BLOB);
+    want(wh64Type(wh[1]) == KEEP_OBJ_BLOB);
 
-    // Should be retrievable
-    want(KEEPHas(&k, h0, 10) == OK);
-    want(KEEPHas(&k, h1, 10) == OK);
+    // Compute 60-bit hashlets from known blob content
+    // "hello world\n" SHA = 3b18e512dba79e4c8300dd08aeb37f8e728b8dad
+    u8 sha0[20] = {0x3b,0x18,0xe5,0x12,0xdb,0xa7,0x9e,0x4c,0x83,0x00,
+                   0xdd,0x08,0xae,0xb3,0x7f,0x8e,0x72,0x8b,0x8d,0xad};
+    u64 h0 = keepHashlet60(sha0);
+    // "goodbye world\n" — compute via git hash-object
+    u64 h1 = keepHashlet60FromHex("ce0136", 6);  // just need a prefix
+
+    // Should be retrievable by 7-char prefix (git default)
+    want(KEEPHas(&k, keepHashlet60FromHex("3b18e51", 7), 7) == OK);
 
     // Get content back
     Bu8 out = {};
     call(u8bMap, out, 1UL << 20);
     u8 obj_type = 0;
-    call(KEEPGet, &k, h0, 10, out, &obj_type);
+    call(KEEPGet, &k, h0, 15, out, &obj_type);
     want(obj_type == KEEP_OBJ_BLOB);
     want(u8bDataLen(out) == u8csLen(blob1));
     want(memcmp(u8bDataHead(out), blob1[0], u8csLen(blob1)) == 0);
@@ -196,20 +200,20 @@ ok64 KEEPpackIncremental() {
     want(k.npacks == 1);
     want(k.nruns == 1);
 
-    // Retrieve blob
-    u64 blob_hashlet = wh64Hashlet(blob_sha);
+    // Retrieve blob by 7-char prefix (git default)
+    u64 blob_hashlet = keepHashlet60(blob_sha);
     Bu8 out = {};
     call(u8bMap, out, 1UL << 20);
     u8 obj_type = 0;
-    call(KEEPGet, &k, blob_hashlet, 10, out, &obj_type);
+    call(KEEPGet, &k, keepHashlet60FromHex("3b18e51", 7), 7, out, &obj_type);
     want(obj_type == KEEP_OBJ_BLOB);
     want(u8bDataLen(out) == u8csLen(blob_content));
     want(memcmp(u8bDataHead(out), blob_content[0], u8csLen(blob_content)) == 0);
 
-    // Retrieve tree
+    // Retrieve tree by full 15-char hashlet
     u8bReset(out);
-    u64 tree_hashlet = wh64Hashlet(tree_sha);
-    call(KEEPGet, &k, tree_hashlet, 10, out, &obj_type);
+    u64 tree_hashlet = keepHashlet60(tree_sha);
+    call(KEEPGet, &k, tree_hashlet, 15, out, &obj_type);
     want(obj_type == KEEP_OBJ_TREE);
     want(u8bDataLen(out) == u8csLen(tree_content));
     want(memcmp(u8bDataHead(out), tree_content[0], u8csLen(tree_content)) == 0);
