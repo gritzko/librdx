@@ -16,7 +16,6 @@
 
 static char const *const BE_VERB_NAMES[] = {
     "get", "put", "patch", "diff", "merge", "delete", "sync",
-    "show", "cat", "log", "add", "commit", "push", "pull", "rm",
     "status",
     NULL
 };
@@ -36,9 +35,6 @@ static void BEUsage(void) {
         "  status               show repo status\n"
         "\n"
         "URI format: [//remote] [path] [?ref] [#search]\n"
-        "\n"
-        "Aliases: show=get, cat=get, log=get, add=put,\n"
-        "         commit=put, push=sync, pull=sync, rm=delete\n"
         "\n"
         "Bare `be` = ensure indexes are current, show status.\n"
     );
@@ -119,27 +115,6 @@ static ok64 BEDefault(void) {
     done;
 }
 
-// Resolve verb aliases to canonical name
-static char const *be_canon_verb(u8csc verb) {
-    a_cstr(v_show,   "show");   a_cstr(v_cat,    "cat");
-    a_cstr(v_log,    "log");    a_cstr(v_add,    "add");
-    a_cstr(v_commit, "commit"); a_cstr(v_push,   "push");
-    a_cstr(v_pull,   "pull");   a_cstr(v_rm,     "rm");
-    a_cstr(v_status, "status");
-    if ($eq(verb, v_show) || $eq(verb, v_cat) || $eq(verb, v_log))
-        return "get";
-    if ($eq(verb, v_add) || $eq(verb, v_commit))
-        return "put";
-    if ($eq(verb, v_push) || $eq(verb, v_pull))
-        return "sync";
-    if ($eq(verb, v_rm))
-        return "delete";
-    if ($eq(verb, v_status))
-        return "status";
-    // Already canonical — return verb data directly (borrowed from argv)
-    return (char const *)verb[0];
-}
-
 // --- Main ---
 
 ok64 becli() {
@@ -167,12 +142,7 @@ ok64 becli() {
     a_cstr(v_sync,   "sync");   a_cstr(v_status, "status");
 
     u8cs verb = {};
-    if (!$empty(c.verb)) {
-        // Resolve alias
-        char const *canon = be_canon_verb(c.verb);
-        a_cstr(cv, canon);
-        $mv(verb, cv);
-    }
+    $mv(verb, c.verb);
 
     // Get first URI if available
     uri *u = (c.nuris > 0) ? &c.uris[0] : NULL;

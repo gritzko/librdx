@@ -27,6 +27,7 @@ but without the tree-sitter dependency.
 | S   | Default (identifier, whitespace) | default |
 | N   | Defined name (from DEF pass) | — |
 | C   | Function call (from DEF pass) | — |
+| F   | Filename or path | #490d49 |
 
 ## Language tokenizers
 
