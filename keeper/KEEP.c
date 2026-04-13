@@ -16,7 +16,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <openssl/evp.h>
+#include "sha1dc/sha1.h"
 
 #include "abc/FILE.h"
 #include "abc/HEX.h"
@@ -283,7 +283,8 @@ ok64 KEEPGet(keeper *k, u64 hashlet, size_t hexlen, u8bp out, u8p out_type) {
     sane(k && out);
 
     u64 val = 0;
-    call(KEEPLookup, k, hashlet, hexlen, &val);
+    ok64 lo = KEEPLookup(k, hashlet, hexlen, &val);
+    if (lo != OK) return lo;
 
     u32 file_id = wh64Id(val);
     u64 offset  = wh64Off(val);
@@ -343,10 +344,18 @@ ok64 KEEPGet(keeper *k, u64 hashlet, size_t hexlen, u8bp out, u8p out_type) {
             // Base might be in a different pack file
             u32 bfile = wh64Id(base_val);
             if (bfile != file_id) {
-                // Cross-file delta — need recursive get
-                // For now, fail; proper impl would recurse
-                rc = KEEPFAIL;
-                goto cleanup;
+                // Cross-file: get base recursively, apply delta chain
+                u8bReset(k->buf3);
+                u8 btype = 0;
+                rc = KEEPGet(k, base_hashlet, 15, k->buf3, &btype);
+                if (rc != OK) goto cleanup;
+                obj_type = btype;
+                // buf3 has the base content; copy to buf1
+                a_dup(u8c, bdata, u8bData(k->buf3));
+                memcpy(buf1, bdata[0], u8csLen(bdata));
+                result = buf1;
+                outsz = u8csLen(bdata);
+                break;  // apply delta chain from here
             }
             cur = wh64Off(base_val);
         } else {
@@ -1000,8 +1009,7 @@ ok64 KEEPImport(keeper *k, u8cs pack_path) {
 #include <sys/wait.h>
 
 // Compute git object SHA-1: hash("<type> <size>\0<content>")
-// Uses two separate SHA1Sum calls to avoid copying content into a
-// scratch buffer (which could overlap with content in the same mmap).
+// Incremental: feeds header and content separately (no copy needed).
 static void keep_git_sha1(u8 sha[20], u8 type, u8cp content, u64 sz) {
     static char const *type_str[] = {
         [1] = "commit", [2] = "tree", [3] = "blob", [4] = "tag"};
@@ -1009,15 +1017,12 @@ static void keep_git_sha1(u8 sha[20], u8 type, u8cp content, u64 sz) {
     int hlen = snprintf(hbuf, sizeof(hbuf), "%s %lu",
                         type_str[type], (unsigned long)sz);
     hbuf[hlen] = 0;
-    // EVP incremental hash: header + NUL + content
-    EVP_MD_CTX *ctx = EVP_MD_CTX_new();
-    if (!ctx) { memset(sha, 0, 20); return; }
-    EVP_DigestInit_ex(ctx, EVP_sha1(), NULL);
-    EVP_DigestUpdate(ctx, hbuf, hlen + 1);
-    EVP_DigestUpdate(ctx, content, sz);
-    unsigned int olen = 20;
-    EVP_DigestFinal_ex(ctx, sha, &olen);
-    EVP_MD_CTX_free(ctx);
+    SHA1_CTX ctx;
+    SHA1DCInit(&ctx);
+    SHA1DCSetSafeHash(&ctx, 0);
+    SHA1DCUpdate(&ctx, hbuf, hlen + 1);
+    SHA1DCUpdate(&ctx, (char const *)content, (size_t)sz);
+    SHA1DCFinal(sha, &ctx);
 }
 
 // Resolve object at offset, chasing OFS/REF deltas.
