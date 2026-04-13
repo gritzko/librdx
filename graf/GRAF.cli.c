@@ -11,21 +11,21 @@
 #include "abc/FILE.h"
 #include "abc/PATH.h"
 #include "abc/PRO.h"
-#include "dog/HOME.h"
+#include "dog/CLI.h"
 #include "dog/HUNK.h"
 
 static void GRAFUsage(void) {
     fprintf(stderr,
-        "Usage: graf [options] [files...]\n"
+        "Usage: graf [flags] [URI|files...]\n"
         "\n"
-        "  graf -d | --diff old new           token-level colored diff\n"
-        "  graf --gitdiff                     git external diff driver\n"
-        "  graf --merge base ours theirs      token-level 3-way merge\n"
-        "  graf --merge base ours theirs -o f merge to file\n"
-        "  graf -n | --install                install as git diff/merge driver\n"
-        "  graf -i | --index                  index git object graph\n"
-        "  graf -s | --status                 show index stats\n"
-        "  graf --blame file                  token-level blame\n"
+        "  graf -d old new               token-level colored diff\n"
+        "  graf --gitdiff                git external diff driver\n"
+        "  graf --merge base ours theirs token-level 3-way merge\n"
+        "  graf --merge base ours theirs -o f  merge to file\n"
+        "  graf -n | --install           install as git diff/merge driver\n"
+        "  graf -i | --index             index git object graph\n"
+        "  graf -s | --status            show index stats\n"
+        "  graf --blame file             token-level blame\n"
         "  graf --weave file [--from c] [--to c]  weave diff\n"
         "\n"
         "Git integration (manual, or use graf -n):\n"
@@ -34,85 +34,41 @@ static void GRAFUsage(void) {
     );
 }
 
-static b8 argeq(u8cs a, const char *b) {
-    size_t blen = strlen(b);
-    return $len(a) == blen && memcmp(a[0], b, blen) == 0;
-}
+con char *graf_val_flags = "-o\0--from\0--to\0";
 
 ok64 grafcli() {
     sane(1);
     call(FILEInit);
 
-    b8 tty_out = isatty(STDOUT_FILENO) ? YES : NO;
+    cli c = {};
+    call(CLIParse, &c, NULL, graf_val_flags);
 
-    // Find workspace root for --install
-    a_path(root);
-    ok64 rho = HOMEFind(root);
-    a_dup(u8c, reporoot, u8bDataC(root));
-    if (rho != OK) {
-        // Not in a git repo: still allow --diff/--merge with explicit paths
-        reporoot[0] = NULL;
-        reporoot[1] = NULL;
-    }
-
-    // Parse args
-    b8 do_diff = NO;
-    b8 do_gitdiff = NO;
-    b8 do_merge = NO;
-    b8 do_install = NO;
-    b8 do_index = NO;
-    b8 do_status = NO;
-    b8 do_blame = NO;
-    b8 do_weave = NO;
-    u8c *merge_out[2] = {};
-    u8c *weave_from[2] = {};
-    u8c *weave_to[2] = {};
-    u8c *trail[16][2] = {};
-    int ntrail = 0;
-    int argn = (int)$arglen;
-
-    for (int i = 1; i < argn; i++) {
-        u8c *a[2] = {};
-        $mv(a, $arg(i));
-        if (argeq(a, "-h") || argeq(a, "--help")) {
-            GRAFUsage();
-            done;
-        } else if (argeq(a, "-d") || argeq(a, "--diff")) {
-            do_diff = YES;
-        } else if (argeq(a, "--gitdiff")) {
-            do_gitdiff = YES;
-        } else if (argeq(a, "--merge")) {
-            do_merge = YES;
-        } else if (argeq(a, "-o") && i + 1 < argn) {
-            i++;
-            $mv(merge_out, $arg(i));
-        } else if (argeq(a, "-n") || argeq(a, "--install")) {
-            do_install = YES;
-        } else if (argeq(a, "-i") || argeq(a, "--index")) {
-            do_index = YES;
-        } else if (argeq(a, "-s") || argeq(a, "--status")) {
-            do_status = YES;
-        } else if (argeq(a, "--blame") || argeq(a, "-b")) {
-            do_blame = YES;
-        } else if (argeq(a, "--weave") || argeq(a, "-w")) {
-            do_weave = YES;
-        } else if (argeq(a, "--from") && i + 1 < argn) {
-            i++;
-            $mv(weave_from, $arg(i));
-        } else if (argeq(a, "--to") && i + 1 < argn) {
-            i++;
-            $mv(weave_to, $arg(i));
-        } else {
-            if (ntrail < 16) { $mv(trail[ntrail], a); ntrail++; }
-        }
-    }
+    u8cs reporoot = {};
+    u8csMv(reporoot, c.repo);
 
     // Producers that emit hunks: select output fd + serializer.
-    // Skip pager for --merge (writes resolved file) and --install.
+    b8 do_diff    = CLIHas(&c, "-d") || CLIHas(&c, "--diff");
+    b8 do_gitdiff = CLIHas(&c, "--gitdiff");
+    b8 do_merge   = CLIHas(&c, "--merge");
+    b8 do_install = CLIHas(&c, "-n") || CLIHas(&c, "--install");
+    b8 do_index   = CLIHas(&c, "-i") || CLIHas(&c, "--index");
+    b8 do_status  = CLIHas(&c, "-s") || CLIHas(&c, "--status");
+    b8 do_blame   = CLIHas(&c, "--blame") || CLIHas(&c, "-b");
+    b8 do_weave   = CLIHas(&c, "--weave") || CLIHas(&c, "-w");
+
+    u8cs merge_out = {};
+    CLIFlag(&merge_out, &c, "-o");
+    u8cs weave_from = {};
+    CLIFlag(&weave_from, &c, "--from");
+    u8cs weave_to = {};
+    CLIFlag(&weave_to, &c, "--to");
+
+    // URI args become trail (file paths etc)
     pid_t bro_pid = -1;
-    b8 produces_hunks = (do_diff || do_gitdiff || do_blame || do_weave) && !do_merge && !do_install;
+    b8 produces_hunks = (do_diff || do_gitdiff || do_blame || do_weave) &&
+                        !do_merge && !do_install;
     if (produces_hunks) {
-        if (tty_out) {
+        if (c.tty_out) {
             char bropath[FILE_PATH_MAX_LEN];
             a$rg(a0, 0);
             HOMEResolveSibling(bropath, sizeof(bropath),
@@ -138,6 +94,17 @@ ok64 grafcli() {
         }
     }
 
+    // Extract file paths from URIs (path component or full data)
+    u8cs trail[16] = {};
+    u32 ntrail = 0;
+    for (u32 i = 0; i < c.nuris && ntrail < 16; i++) {
+        if (!u8csEmpty(c.uris[i].path))
+            u8csMv(trail[ntrail], c.uris[i].path);
+        else
+            u8csMv(trail[ntrail], c.uris[i].data);
+        ntrail++;
+    }
+
     if (do_weave) {
         if (reporoot[0] == NULL) {
             fprintf(stderr, "graf: --weave requires a git repo\n");
@@ -147,11 +114,7 @@ ok64 grafcli() {
             fprintf(stderr, "graf: --weave requires a file path\n");
             return FAILSANITY;
         }
-        u8cs fp = {trail[0][0], trail[0][1]};
-        a_dup(u8c, rr, reporoot);
-        a_dup(u8c, wf, weave_from);
-        a_dup(u8c, wt, weave_to);
-        call(GRAFWeaveDiff, fp, rr, wf, wt);
+        call(GRAFWeaveDiff, trail[0], reporoot, weave_from, weave_to);
     } else if (do_blame) {
         if (reporoot[0] == NULL) {
             fprintf(stderr, "graf: --blame requires a git repo\n");
@@ -161,13 +124,10 @@ ok64 grafcli() {
             fprintf(stderr, "graf: --blame requires a file path\n");
             return FAILSANITY;
         }
-        u8cs fp = {trail[0][0], trail[0][1]};
-        a_dup(u8c, rr, reporoot);
-        call(GRAFBlame, fp, rr);
+        call(GRAFBlame, trail[0], reporoot);
     } else if (do_status) {
         graf g = {};
-        a_dup(u8c, rr, reporoot);
-        call(GRAFOpen, &g, rr);
+        call(GRAFOpen, &g, reporoot);
         u64 total_entries = 0;
         for (u32 i = 0; i < g.idx.n; i++)
             total_entries += (u64)(g.idx.runs[i][1] - g.idx.runs[i][0]);
@@ -179,46 +139,32 @@ ok64 grafcli() {
             fprintf(stderr, "graf: --index requires a git repo\n");
             return FAILSANITY;
         }
-        a_dup(u8c, rr, reporoot);
-        call(DAGHook, rr);
+        call(DAGHook, reporoot);
     } else if (do_install) {
         if (reporoot[0] == NULL) {
             fprintf(stderr, "graf: --install requires a git repo\n");
             return FAILSANITY;
         }
-        a_dup(u8c, rr, reporoot);
-        call(GRAFInstall, rr);
+        call(GRAFInstall, reporoot);
     } else if (do_gitdiff) {
-        // git diff driver: path old-file old-hex old-mode new-file new-hex new-mode
         if (ntrail < 7) {
             fprintf(stderr, "graf: --gitdiff expects 7 args from git\n");
             return FAILSANITY;
         }
-        u8cs nm = {trail[0][0], trail[0][1]};
-        u8cs op = {trail[1][0], trail[1][1]};
-        u8cs om = {trail[3][0], trail[3][1]};
-        u8cs np = {trail[4][0], trail[4][1]};
-        u8cs nwm = {trail[6][0], trail[6][1]};
-        call(GRAFDiff, op, np, nm, om, nwm);
+        call(GRAFDiff, trail[1], trail[4], trail[0], trail[3], trail[6]);
     } else if (do_diff) {
         if (ntrail < 2) {
             fprintf(stderr, "graf: --diff requires 2 files: old new\n");
             return FAILSANITY;
         }
-        u8cs op = {trail[0][0], trail[0][1]};
-        u8cs np = {trail[1][0], trail[1][1]};
         u8cs nomode = {};
-        call(GRAFDiff, op, np, np, nomode, nomode);
+        call(GRAFDiff, trail[0], trail[1], trail[1], nomode, nomode);
     } else if (do_merge) {
         if (ntrail < 3) {
             fprintf(stderr, "graf: --merge requires 3 files: base ours theirs\n");
             return FAILSANITY;
         }
-        u8cs bp = {trail[0][0], trail[0][1]};
-        u8cs op = {trail[1][0], trail[1][1]};
-        u8cs tp = {trail[2][0], trail[2][1]};
-        a_dup(u8c, mo, merge_out);
-        call(GRAFMerge, bp, op, tp, mo);
+        call(GRAFMerge, trail[0], trail[1], trail[2], merge_out);
     } else {
         GRAFUsage();
         return FAILSANITY;

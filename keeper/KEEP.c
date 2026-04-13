@@ -16,8 +16,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "sha1dc/sha1.h"
-
 #include "abc/FILE.h"
 #include "abc/HEX.h"
 #include "abc/PATH.h"
@@ -337,7 +335,7 @@ ok64 KEEPGet(keeper *k, u64 hashlet, size_t hexlen, u8bp out, u8p out_type) {
             cur = cur - obj.ofs_delta;
         } else if (obj.type == PACK_OBJ_REF_DELTA) {
             // Look up base by SHA-1 prefix
-            u64 base_hashlet = keepHashlet60(obj.ref_delta[0]);
+            u64 base_hashlet = keepHashlet60(obj.ref_delta);
             u64 base_val = 0;
             rc = KEEPLookup(k, base_hashlet, 10, &base_val);
             if (rc != OK) goto cleanup;
@@ -423,9 +421,9 @@ static void verify_mark(u64 hashlet) {
         verify_visited[verify_nvisited++] = hashlet;
 }
 
-static ok64 keep_verify_sha(keeper *k, u8 expected_sha[20],
+static ok64 keep_verify_sha(keeper *k, sha1 expected_sha,
                              u32 *checked, u32 *failed) {
-    u64 hashlet = keepHashlet60(expected_sha);
+    u64 hashlet = ({ a_rawc(_s, expected_sha); keepHashlet60(_s); });
     if (verify_seen(hashlet)) return OK;  // already verified
     verify_mark(hashlet);
 
@@ -469,14 +467,14 @@ static ok64 keep_verify_sha(keeper *k, u8 expected_sha[20],
     tmp[hlen] = 0;
     memcpy(tmp + hlen + 1, content, content_sz);
 
-    u8 actual_sha[20];
-    SHA1Sum(actual_sha, tmp, hlen + 1 + content_sz);
+    sha1 actual_sha = {};
+    { u8csc _d = {tmp, tmp + hlen + 1 + content_sz}; SHA1Sum(&actual_sha, _d); };
     free(tmp);
 
-    if (memcmp(actual_sha, expected_sha, 20) != 0) {
+    if (sha1cmp(&actual_sha, &expected_sha) != 0) {
         char hex_exp[12], hex_got[12];
-        keepHashlet60Hex(hex_exp, keepHashlet60(expected_sha), 10);
-        keepHashlet60Hex(hex_got, keepHashlet60(actual_sha), 10);
+        keepHashlet60Hex(hex_exp, ({ a_rawc(_s, expected_sha); keepHashlet60(_s); }), 10);
+        keepHashlet60Hex(hex_got, ({ a_rawc(_s, actual_sha); keepHashlet60(_s); }), 10);
         fprintf(stderr, "  HASH MISMATCH: expected %s got %s\n", hex_exp, hex_got);
         (*failed)++;
         u8bUnMap(obj);
@@ -494,14 +492,14 @@ static ok64 keep_verify_sha(keeper *k, u8 expected_sha[20],
             if ($empty(field)) break;
             if ($len(field) == 4 && memcmp(field[0], "tree", 4) == 0 &&
                 $len(value) >= 40) {
-                u8 tree_sha[20];
-                u8s sb = {tree_sha, tree_sha + 20};
+                sha1 tree_sha = {};
+                u8s sb = {tree_sha.data, tree_sha.data + 20};
                 u8cs hx = {value[0], value[0] + 40};
                 HEXu8sDrainSome(sb, hx);
                 ok64 o = keep_verify_sha(k, tree_sha, checked, failed);
                 if (o != OK) {
                     char hex[12];
-                    keepHashlet60Hex(hex, keepHashlet60(tree_sha), 10);
+                    keepHashlet60Hex(hex, ({ a_rawc(_s, tree_sha); keepHashlet60(_s); }), 10);
                     fprintf(stderr, "  tree %s verify failed\n", hex);
                 }
                 break;
@@ -518,12 +516,12 @@ static ok64 keep_verify_sha(keeper *k, u8 expected_sha[20],
             // Skip gitlinks (submodule refs) — mode 160000, commit in another repo
             if ($len(entry_field) > 6 && memcmp(entry_field[0], "160000", 6) == 0)
                 continue;
-            u8 child_sha[20];
-            memcpy(child_sha, entry_sha[0], 20);
+            sha1 child_sha = {};
+            memcpy(child_sha.data, entry_sha[0], 20);
             o = keep_verify_sha(k, child_sha, checked, failed);
             if (o != OK) {
                 char hex[12];
-                keepHashlet60Hex(hex, keepHashlet60(child_sha), 10);
+                keepHashlet60Hex(hex, ({ a_rawc(_s, child_sha); keepHashlet60(_s); }), 10);
                 fprintf(stderr, "  child %s verify failed\n", hex);
             }
         }
@@ -535,8 +533,8 @@ static ok64 keep_verify_sha(keeper *k, u8 expected_sha[20],
             if ($empty(field)) break;
             if ($len(field) == 6 && memcmp(field[0], "object", 6) == 0 &&
                 $len(value) >= 40) {
-                u8 target_sha[20];
-                u8s sb = {target_sha, target_sha + 20};
+                sha1 target_sha = {};
+                u8s sb = {target_sha.data, target_sha.data + 20};
                 u8cs hx = {value[0], value[0] + 40};
                 HEXu8sDrainSome(sb, hx);
                 keep_verify_sha(k, target_sha, checked, failed);
@@ -558,8 +556,8 @@ ok64 KEEPVerify(keeper *k, u8cs hex_sha) {
         return KEEPFAIL;
     }
 
-    u8 sha[20];
-    u8s sb = {sha, sha + 20};
+    sha1 sha = {};
+    u8s sb = {sha.data, sha.data + 20};
     u8cs hx = {hex_sha[0], hex_sha[0] + 40};
     HEXu8sDrainSome(sb, hx);
 
@@ -608,11 +606,11 @@ ok64 KEEPScan(keeper *k, u64 from_val, keep_cb cb, void *ctx) {
                     obj.type == 2 ? "tree" :
                     obj.type == 3 ? "blob" : "tag",
                     (unsigned long long)obj.size);
-                u8 sha[20];
-                SHA1Sum(sha, NULL, 0);  // placeholder — need proper hash
+                sha1 sha = {};
+                // FIXME: proper SHA requires inflate+hash
                 // FIXME: compute proper git object SHA-1 (header + content)
 
-                u64 hashlet = keepHashlet60(sha);
+                u64 hashlet = ({ a_rawc(_s, sha); keepHashlet60(_s); });
                 u8cs content = {buf, buf + obj.size};
                 o = cb(obj.type, content, hashlet, ctx);
                 if (o != OK) break;
@@ -647,7 +645,7 @@ con char *keep_type_names[] = {
 };
 
 // Compute git object SHA-1: SHA1("type size\0" + content)
-static void keep_obj_sha(u8 sha_out[20], u8 type, u8csc content) {
+static void keep_obj_sha(sha1 *out, u8 type, u8csc content) {
     a_pad(u8, hdr, 64);
     a_cstr(tname, keep_type_names[type]);
     u8bFeed(hdr, tname);
@@ -659,15 +657,12 @@ static void keep_obj_sha(u8 sha_out[20], u8 type, u8csc content) {
     u8bFeed(hdr, ns);
     u8bFeed1(hdr, 0);
 
-    u64 hlen = u8bDataLen(hdr);
-    u64 clen = u8csLen(content);
-    Bu8 all = {};
-    u8bMap(all, hlen + clen);
+    SHA1state ctx;
+    SHA1Open(&ctx);
     a_dup(u8c, hdata, u8bData(hdr));
-    u8bFeed(all, hdata);
-    u8bFeed(all, content);
-    SHA1Sum(sha_out, u8bDataHead(all), u8bDataLen(all));
-    u8bUnMap(all);
+    SHA1Feed(&ctx, hdata);
+    SHA1Feed(&ctx, content);
+    SHA1Close(&ctx, out);
 }
 
 // Encode pack object varint header into buffer
@@ -723,7 +718,7 @@ ok64 KEEPPackOpen(keeper *k, keep_pack *p) {
 }
 
 ok64 KEEPPackFeed(keeper *k, keep_pack *p,
-                  u8 type, u8csc content, u8 sha_out[20]) {
+                  u8 type, u8csc content, sha1 *sha_out) {
     sane(k && p && p->log && type >= 1 && type <= 4);
 
     keep_obj_sha(sha_out, type, content);
@@ -749,7 +744,7 @@ ok64 KEEPPackFeed(keeper *k, keep_pack *p,
     u8bFed(p->log, (size_t)produced);
 
     // Build index entry
-    u64 hashlet = keepHashlet60(sha_out);
+    u64 hashlet = ({ a_rawc(_s, *sha_out); keepHashlet60(_s); });
     kv64 entry = {
         .key = keepKeyPack(type, hashlet),
         .val = wh64Pack(KEEP_VAL_FLAGS, p->file_id, obj_offset),
@@ -771,10 +766,11 @@ ok64 KEEPPackClose(keeper *k, keep_pack *p) {
     hdr[11] = (u8)(p->nobjs);
 
     // Compute trailing SHA-1 and append
-    u8 pack_sha[20];
-    SHA1Sum(pack_sha, u8bDataHead(p->log), u8bDataLen(p->log));
+    sha1 pack_sha = {};
+    a_dup(u8c, pack_data, u8bData(p->log));
+    SHA1Sum(&pack_sha, pack_data);
     call(FILEBookEnsure, p->log, 20);
-    u8cs sha_s = {pack_sha, pack_sha + 20};
+    a_rawc(sha_s, pack_sha);
     u8bFeed(p->log, sha_s);
 
     // Trim file to actual data, keep mmap for reading
@@ -845,19 +841,249 @@ ok64 KEEPPut(keeper *k, u8csc *objects, wh64 *whiffs, u32 nobjs) {
 
     for (u32 i = 0; i < nobjs; i++) {
         u8 type = wh64Type(whiffs[i]);
-        u8 sha[20];
-        ok64 o = KEEPPackFeed(k, &p, type, objects[i], sha);
+        sha1 sha = {};
+        ok64 o = KEEPPackFeed(k, &p, type, objects[i], &sha);
         if (o != OK) {
             if (p.log) FILEUnBook(p.log);
             kv64bFree(p.entries);
             return o;
         }
-        u64 hashlet = keepHashlet60(sha);
+        u64 hashlet = ({ a_rawc(_s, sha); keepHashlet60(_s); });
         whiffs[i] = wh64Pack(type, p.file_id, hashlet);
     }
 
     call(KEEPPackClose, k, &p);
     done;
+}
+
+// --- Walk: recursive tree traversal with URI callbacks ---
+
+// Resolve ref string to a 20-byte tree SHA.
+// Handles: 40-char hex SHA (commit or tree), ?refname via REFS.
+static ok64 keep_resolve_tree(keeper *k, uricp target, sha1 *tree_sha) {
+    sane(k);
+
+    sha1 commit_sha = {};
+
+    // Try fragment (#hash) or query (?ref)
+    if (!u8csEmpty(target->fragment)) {
+        // Fragment = hex SHA prefix
+        u64 hashlet = keepHashlet60FromHex(target->fragment);
+        u8 type = 0;
+        u8bReset(k->buf1);
+        call(KEEPGet, k, hashlet, u8csLen(target->fragment), k->buf1, &type);
+        if (type == KEEP_OBJ_TREE) {
+            // Already a tree — compute its SHA
+            a_dup(u8c, content, u8bData(k->buf1));
+            keep_obj_sha(tree_sha, KEEP_OBJ_TREE, content);
+            done;
+        }
+        if (type != KEEP_OBJ_COMMIT) fail(KEEPFAIL);
+        // Parse tree SHA from commit
+        a_dup(u8c, body, u8bData(k->buf1));
+        u8cs field = {}, value = {};
+        while (GITu8sDrainCommit(body, field, value) == OK) {
+            if (u8csEmpty(field)) break;
+            if (u8csLen(field) == 4 && memcmp(field[0], "tree", 4) == 0 &&
+                u8csLen(value) >= 40) {
+                u8s sb = {tree_sha->data, tree_sha->data + 20};
+                u8cs hx = {value[0], value[0] + 40};
+                HEXu8sDrainSome(sb, hx);
+                done;
+            }
+        }
+        fail(KEEPFAIL);
+    }
+
+    if (!u8csEmpty(target->query)) {
+        // Resolve ?ref via REFS
+        a_cstr(keepdir, k->dir);
+        a_pad(u8, qbuf, 256);
+        u8bFeed1(qbuf, '?');
+        u8bFeed(qbuf, target->query);
+        a_dup(u8c, qkey, u8bData(qbuf));
+
+        u8bp rmap = NULL;
+        ref rarr[REFS_MAX_REFS];
+        u32 rn = 0;
+        REFSLoad(rarr, &rn, REFS_MAX_REFS, &rmap, keepdir);
+
+        b8 found = NO;
+        for (u32 i = 0; i < rn; i++) {
+            if (REFMatch(&rarr[i], qkey)) {
+                a_dup(u8c, val, rarr[i].val);
+                if (!u8csEmpty(val) && *val[0] == '?')
+                    u8csUsed(val, 1);
+                // val is hex SHA of commit
+                if (u8csLen(val) >= 40) {
+                    u8s sb = {commit_sha.data, commit_sha.data + 20};
+                    u8cs hx = {val[0], val[0] + 40};
+                    HEXu8sDrainSome(sb, hx);
+                    found = YES;
+                }
+                break;
+            }
+        }
+        if (rmap) u8bUnMap(rmap);
+        if (!found) fail(KEEPNONE);
+
+        // Get commit, extract tree SHA
+        u64 hashlet = ({ a_rawc(_s, commit_sha); keepHashlet60(_s); });
+        u8 type = 0;
+        u8bReset(k->buf1);
+        call(KEEPGet, k, hashlet, 15, k->buf1, &type);
+        if (type != KEEP_OBJ_COMMIT && type != KEEP_OBJ_TAG) fail(KEEPFAIL);
+
+        // If tag, get the commit it points to
+        if (type == KEEP_OBJ_TAG) {
+            a_dup(u8c, tbody, u8bData(k->buf1));
+            u8cs tf = {}, tv = {};
+            while (GITu8sDrainCommit(tbody, tf, tv) == OK) {
+                if (u8csEmpty(tf)) break;
+                if (u8csLen(tf) == 6 && memcmp(tf[0], "object", 6) == 0 &&
+                    u8csLen(tv) >= 40) {
+                    u8s sb2 = {commit_sha.data, commit_sha.data + 20};
+                    u8cs hx2 = {tv[0], tv[0] + 40};
+                    HEXu8sDrainSome(sb2, hx2);
+                    break;
+                }
+            }
+            hashlet = ({ a_rawc(_s, commit_sha); keepHashlet60(_s); });
+            u8bReset(k->buf1);
+            call(KEEPGet, k, hashlet, 15, k->buf1, &type);
+        }
+
+        a_dup(u8c, body, u8bData(k->buf1));
+        u8cs field = {}, value = {};
+        while (GITu8sDrainCommit(body, field, value) == OK) {
+            if (u8csEmpty(field)) break;
+            if (u8csLen(field) == 4 && memcmp(field[0], "tree", 4) == 0 &&
+                u8csLen(value) >= 40) {
+                u8s sb = {tree_sha->data, tree_sha->data + 20};
+                u8cs hx = {value[0], value[0] + 40};
+                HEXu8sDrainSome(sb, hx);
+                done;
+            }
+        }
+        fail(KEEPFAIL);
+    }
+
+    fail(KEEPFAIL);  // no ref or hash in URI
+}
+
+// Recursive tree walk
+static ok64 keep_walk_tree(keeper *k, u8csc tree_sha,
+                           u8bp pathbuf, uricp base_uri,
+                           KEEP_WALK mode, keep_walk_f cb, voidp ctx) {
+    u64 hashlet = keepHashlet60(tree_sha);
+    u8 type = 0;
+    u8bReset(k->buf3);
+    ok64 o = KEEPGet(k, hashlet, 15, k->buf3, &type);
+    if (o != OK) return o;
+    if (type != KEEP_OBJ_TREE) return KEEPFAIL;
+
+    a_dup(u8c, body, u8bData(k->buf3));
+    size_t path_save = u8bDataLen(pathbuf);
+
+    while (!u8csEmpty(body)) {
+        u8cs entry_field = {}, entry_sha = {};
+        o = GITu8sDrainTree(body, entry_field, entry_sha);
+        if (o != OK) break;
+        if (u8csLen(entry_sha) != 20) continue;
+
+        // Skip gitlinks (submodule refs, mode 160000)
+        if (u8csLen(entry_field) > 6 && memcmp(entry_field[0], "160000", 6) == 0)
+            continue;
+
+        // Extract name: after mode + space
+        u8cs name = {};
+        a_dup(u8c, ef, entry_field);
+        if (u8csFind(ef, ' ') == OK) {
+            u8csUsed(ef, 1);
+            u8csMv(name, ef);
+        } else {
+            u8csMv(name, entry_field);
+        }
+
+        // Is this a subtree? mode starts with "40" (40000)
+        b8 is_tree = (entry_field[0][0] == '4');
+
+        // Build path: append /name to pathbuf
+        if (path_save > 0) u8bFeed1(pathbuf, '/');
+        u8bFeed(pathbuf, name);
+        PATHu8gTerm(PATHu8gIn(pathbuf));
+
+        if (is_tree) {
+            if (mode & KEEP_WALK_TREES) {
+                uri entry = *base_uri;
+                a_dup(u8c, pslice, u8bData(pathbuf));
+                entry.path[0] = pslice[0];
+                entry.path[1] = pslice[1];
+                u8cs empty = {};
+                o = cb(ctx, &entry, KEEP_OBJ_TREE, empty);
+                if (o != OK) return o;
+            }
+            if (mode & KEEP_WALK_DEEP) {
+                // Save buf3 state — recursive call will overwrite it
+                size_t b3_save = u8bDataLen(k->buf3);
+                Bu8 saved_tree = {};
+                u8bMap(saved_tree, b3_save);
+                a_dup(u8c, b3data, u8bData(k->buf3));
+                u8bFeed(saved_tree, b3data);
+
+                o = keep_walk_tree(k, entry_sha, pathbuf,
+                                   base_uri, mode, cb, ctx);
+
+                // Restore buf3
+                u8bReset(k->buf3);
+                a_dup(u8c, sdata, u8bData(saved_tree));
+                u8bFeed(k->buf3, sdata);
+                u8bUnMap(saved_tree);
+                // Restore body scan position
+                body[0] = u8bDataHead(k->buf3) + (body[0] - b3data[0]);
+                body[1] = u8bDataHead(k->buf3) + u8bDataLen(k->buf3);
+
+                if (o != OK) return o;
+            }
+        } else if (mode & KEEP_WALK_BLOBS) {
+            uri entry = *base_uri;
+            a_dup(u8c, pslice, u8bData(pathbuf));
+            entry.path[0] = pslice[0];
+            entry.path[1] = pslice[1];
+
+            u8cs content = {};
+            if (mode & KEEP_WALK_CONTENT) {
+                u8bReset(k->buf4);
+                u8 btype = 0;
+                u64 bhash = keepHashlet60(entry_sha);
+                ok64 go = KEEPGet(k, bhash, 15, k->buf4, &btype);
+                if (go == OK) {
+                    content[0] = u8bDataHead(k->buf4);
+                    content[1] = u8bDataHead(k->buf4) + u8bDataLen(k->buf4);
+                }
+            }
+            o = cb(ctx, &entry, KEEP_OBJ_BLOB, content);
+            if (o != OK) return o;
+        }
+
+        // Restore pathbuf to saved length
+        ((u8 **)pathbuf)[2] = u8bDataHead(pathbuf) + path_save;
+        PATHu8gTerm(PATHu8gIn(pathbuf));
+    }
+
+    return OK;
+}
+
+ok64 KEEPWalk(keeper *k, uricp target, KEEP_WALK mode,
+              keep_walk_f cb, voidp ctx) {
+    sane(k && target && cb);
+
+    sha1 tree_sha = {};
+    call(keep_resolve_tree, k, target, &tree_sha);
+
+    a_pad(u8, pathbuf, 4096);
+    a_rawc(ts, tree_sha);
+    return keep_walk_tree(k, ts, pathbuf, target, mode, cb, ctx);
 }
 
 // --- Import: read git .idx v2 file alongside .pack, build kv64 index ---
@@ -949,7 +1175,7 @@ ok64 KEEPImport(keeper *k, u8cs pack_path) {
 
     for (u32 i = 0; i < nobjects; i++) {
         u8cp sha = sha_table + (u64)i * 20;
-        u64 hashlet = keepHashlet60(sha);
+        u64 hashlet = ({ a_rawc(_s, sha); keepHashlet60(_s); });
 
         // 4-byte offset (BE), high bit = large offset flag
         u8cp offp = off_table + (u64)i * 4;
@@ -1009,19 +1235,26 @@ ok64 KEEPImport(keeper *k, u8cs pack_path) {
 
 // Compute git object SHA-1: hash("<type> <size>\0<content>")
 // Incremental: feeds header and content separately (no copy needed).
-static void keep_git_sha1(u8 sha[20], u8 type, u8cp content, u64 sz) {
+static void keep_git_sha1(sha1 *out, u8 type, u8csc content) {
     static char const *type_str[] = {
         [1] = "commit", [2] = "tree", [3] = "blob", [4] = "tag"};
-    char hbuf[64];
-    int hlen = snprintf(hbuf, sizeof(hbuf), "%s %lu",
-                        type_str[type], (unsigned long)sz);
-    hbuf[hlen] = 0;
-    SHA1_CTX ctx;
-    SHA1DCInit(&ctx);
-    SHA1DCSetSafeHash(&ctx, 0);
-    SHA1DCUpdate(&ctx, hbuf, hlen + 1);
-    SHA1DCUpdate(&ctx, (char const *)content, (size_t)sz);
-    SHA1DCFinal(sha, &ctx);
+    a_pad(u8, hdr, 64);
+    a_cstr(tname, type_str[type]);
+    u8bFeed(hdr, tname);
+    u8bFeed1(hdr, ' ');
+    char tmp[32];
+    int nlen = snprintf(tmp, sizeof(tmp), "%llu",
+                        (unsigned long long)u8csLen(content));
+    u8cs ns = {(u8cp)tmp, (u8cp)tmp + nlen};
+    u8bFeed(hdr, ns);
+    u8bFeed1(hdr, 0);
+
+    SHA1state ctx;
+    SHA1Open(&ctx);
+    a_dup(u8c, hdata, u8bData(hdr));
+    SHA1Feed(&ctx, hdata);
+    SHA1Feed(&ctx, content);
+    SHA1Close(&ctx, out);
 }
 
 // Resolve object at offset, chasing OFS/REF deltas.
@@ -1081,7 +1314,7 @@ static ok64 keep_resolve(keeper *k, u8cp pack_init, u64 packlen_init,
                 found = YES;
             }
             if (!found) {
-                u64 hashlet = keepHashlet60(obj.ref_delta[0]);
+                u64 hashlet = keepHashlet60(obj.ref_delta);
                 u64 lsm_val = 0;
                 ok64 o = KEEPLookup(k, hashlet, 10, &lsm_val);
                 if (o != OK) return o;
@@ -1501,15 +1734,15 @@ ok64 KEEPSync(keeper *k, u8cs remote,
             u8p cs = u8bIdleHead(k->buf1);
             u8s into = {cs, u8bTerm(k->buf1)};
             if (PACKInflate(from, into, obj.size) != OK) continue;
-            u8 sha[20];
-            keep_git_sha1(sha, obj.type, cs, obj.size);
+            sha1 sha = {};
+            { u8csc _c = {cs, cs + obj.size}; keep_git_sha1(&sha, obj.type, _c); }
             u64 sha_key = 0;
-            memcpy(&sha_key, sha, 8);
+            memcpy(&sha_key, sha.data, 8);
             kv64 entry = {.key = sha_key, .val = offsets[i]};
             HASHkv64Put(ht, &entry);
             // Emit to sorted_entries
             sorted_entries[total_indexed].key =
-                keepKeyPack(types_arr[i], keepHashlet60(sha));
+                keepKeyPack(types_arr[i], ({ a_rawc(_s, sha); keepHashlet60(_s); }));
             sorted_entries[total_indexed].val =
                 wh64Pack(KEEP_VAL_FLAGS, file_id, offsets[i]);
             total_indexed++;
@@ -1519,7 +1752,7 @@ ok64 KEEPSync(keeper *k, u8cs remote,
 
         fprintf(stderr, "keeper: %u base objects resolved\n", total_indexed);
 
-        u8 sha[20];
+        sha1 sha = {};
         #define MAX_CHAIN 64
         struct { u8p d_start; u8p d_end; u32 node; u8 base_type; } stk[MAX_CHAIN];
 
@@ -1640,9 +1873,9 @@ ok64 KEEPSync(keeper *k, u8cs remote,
                     u8bFed(k->buf1, rsz);
 
                     // Emit
-                    keep_git_sha1(sha, stk[0].base_type, rstart, rsz);
+                    { u8csc _c = {rstart, rstart + rsz}; keep_git_sha1(&sha, stk[0].base_type, _c); }
                     sorted_entries[total_indexed].key =
-                        keepKeyPack(stk[0].base_type, keepHashlet60(sha));
+                        keepKeyPack(stk[0].base_type, ({ a_rawc(_s, sha); keepHashlet60(_s); }));
                     sorted_entries[total_indexed].val =
                         wh64Pack(KEEP_VAL_FLAGS, file_id, offsets[child - 1]);
                     total_indexed++;
@@ -1651,7 +1884,7 @@ ok64 KEEPSync(keeper *k, u8cs remote,
 
                     // Add to hash table for future rounds
                     u64 sha_key = 0;
-                    memcpy(&sha_key, sha, 8);
+                    memcpy(&sha_key, sha.data, 8);
                     kv64 entry = {.key = sha_key, .val = offsets[child - 1]};
                     HASHkv64Put(ht, &entry);
 
@@ -1697,7 +1930,7 @@ ok64 KEEPSync(keeper *k, u8cs remote,
                 if (PACKDrainObjHdr(from, &obj) != OK) continue;
 
                 // Look up base in full keeper index (previous packs)
-                u64 base_hashlet = keepHashlet60(obj.ref_delta[0]);
+                u64 base_hashlet = keepHashlet60(obj.ref_delta);
                 u8 base_type = 0;
                 u8bReset(k->buf3);
                 ok64 go = KEEPGet(k, base_hashlet, 15, k->buf3, &base_type);
@@ -1720,10 +1953,10 @@ ok64 KEEPSync(keeper *k, u8cs remote,
                 u64 rsz = u8gLeftLen(aout);
 
                 // Compute SHA
-                u8 sha[20];
-                keep_git_sha1(sha, base_type, rstart, rsz);
+                sha1 sha = {};
+                { u8csc _c = {rstart, rstart + rsz}; keep_git_sha1(&sha, base_type, _c); }
                 sorted_entries[total_indexed].key =
-                    keepKeyPack(base_type, keepHashlet60(sha));
+                    keepKeyPack(base_type, ({ a_rawc(_s, sha); keepHashlet60(_s); }));
                 sorted_entries[total_indexed].val =
                     wh64Pack(KEEP_VAL_FLAGS, file_id, offsets[i]);
                 total_indexed++;
