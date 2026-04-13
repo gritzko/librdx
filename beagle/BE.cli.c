@@ -1,4 +1,5 @@
-#include "GURI.h"
+#include "abc/URI.h"
+#include "dog/FRAG.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -201,18 +202,18 @@ ok64 becli() {
 
     // Collect remaining args: URI + flags
     int uri_start = verbless ? 1 : 2;
-    guri g = {};
+    uri u = {};
+    frag fr = {};
     b8 have_uri = NO;
 
     for (int i = uri_start; i < argn; i++) {
         a$rg(a, i);
         if ($len(a) >= 1 && a[0][0] == '-') continue;
-        ok64 po = GURIu8sDrain(a, &g);
-        if (po == OK) { have_uri = YES; break; }
+        $mv(u.data, a);
+        if (URILexer(&u) == OK) { have_uri = YES; break; }
     }
 
     if (!have_uri && !verbless) {
-        // Verb with no URI
         if (verb == BE_STATUS) {
             call(BEDefault);
             done;
@@ -221,30 +222,40 @@ ok64 becli() {
         done;
     }
 
-    // Extract URI components
-    u8cs remote = {}, path = {}, ref = {}, search = {};
-    if (have_uri) {
-        GURIRemote(remote, &g);
-        GURIPath(path, &g);
-        GURIRef(ref, &g);
-        GURISearch(search, &g);
-    }
+    // Parse fragment
+    if (have_uri && !$empty(u.fragment))
+        FRAGu8sDrain(u.fragment, &fr);
 
-    u8 stype = have_uri ? GURISearchType(&g) : GURI_SEARCH_NONE;
+    // Extract URI components directly
+    u8cs remote = {};  // authority sans //
+    if (!$empty(u.authority)) {
+        $mv(remote, u.authority);
+        if ($len(remote) >= 2 && remote[0][0] == '/' && remote[0][1] == '/')
+            u8csFed(remote, 2);
+    }
+    u8cs path = {};  // file path (strip leading /)
+    if (!$empty(u.path)) {
+        $mv(path, u.path);
+        if (*path[0] == '/') u8csFed(path, 1);
+    }
 
     // --- Dispatch ---
 
+    // Shorthand: pass the original URI arg through to a dog
+    int uri_argi = verbless ? 1 : 2;
+
     if (verbless) {
         // No verb = view/search (read-only, never mutates)
-        if (have_uri && !$empty(search)) {
+        if (fr.type == FRAG_SPOT || fr.type == FRAG_PCRE ||
+            fr.type == FRAG_IDENT) {
             // Search → spot with URI arg
+            a$rg(ua, uri_argi);
             char uri_z[FILE_PATH_MAX_LEN];
-            a$rg(uri_arg, 1);
             snprintf(uri_z, sizeof(uri_z), "%.*s",
-                     (int)$len(uri_arg), (char *)uri_arg[0]);
+                     (int)$len(ua), (char *)ua[0]);
             char *argv[] = {"spot", uri_z, NULL};
             call(BERun, "spot", argv);
-        } else if (have_uri && !$empty(path)) {
+        } else if (!$empty(path)) {
             // View file → bro
             char path_z[FILE_PATH_MAX_LEN];
             snprintf(path_z, sizeof(path_z), "%.*s",
@@ -252,35 +263,18 @@ ok64 becli() {
             char *argv[] = {"bro", path_z, NULL};
             call(BERun, "bro", argv);
         } else {
-            // Bare `be .` or unknown → status
             call(BEDefault);
         }
 
     } else if (verb == BE_GET) {
-        // GET = repo → worktree
-        if (!$empty(remote)) {
-            // //remote or //remote?ref → keeper fetch
-            char uri_z[FILE_PATH_MAX_LEN];
-            a$rg(uri_arg, 2);
-            snprintf(uri_z, sizeof(uri_z), "%.*s",
-                     (int)$len(uri_arg), (char *)uri_arg[0]);
-            char *argv[] = {"keeper", uri_z, NULL};
-            call(BERun, "keeper", argv);
-        } else if (!$empty(ref) && $empty(path)) {
-            // ?ref → keeper resolve
-            char uri_z[256];
-            a$rg(uri_arg, 2);
-            snprintf(uri_z, sizeof(uri_z), "%.*s",
-                     (int)$len(uri_arg), (char *)uri_arg[0]);
-            char *argv[] = {"keeper", uri_z, NULL};
-            call(BERun, "keeper", argv);
-        } else if (!$empty(search) && search[0][0] != 'L' &&
-                   !(search[0][0] >= '0' && search[0][0] <= '9')) {
-            // #hash → keeper cat object
-            char uri_z[256];
-            a$rg(uri_arg, 2);
-            snprintf(uri_z, sizeof(uri_z), "%.*s",
-                     (int)$len(uri_arg), (char *)uri_arg[0]);
+        // GET = repo → worktree.  Pass URI through to keeper.
+        a$rg(ua, uri_argi);
+        char uri_z[FILE_PATH_MAX_LEN];
+        snprintf(uri_z, sizeof(uri_z), "%.*s",
+                 (int)$len(ua), (char *)ua[0]);
+        if (!$empty(remote) || !$empty(u.query) ||
+            (fr.type == FRAG_IDENT && $empty(path))) {
+            // //remote, ?ref, #hash → keeper
             char *argv[] = {"keeper", uri_z, NULL};
             call(BERun, "keeper", argv);
         } else {
