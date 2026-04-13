@@ -418,9 +418,9 @@ ok64 sniffcli() {
             keeper k = {};
             ret = KEEPOpen(&k, reporoot);
             if (ret == OK) {
-                u8 sha[20] = {};
+                sha1 sha = {};
                 ret = COMCommit(&s, &k, reporoot, commit_parent,
-                                commit_msg, commit_author, cset, sha);
+                                commit_msg, commit_author, cset, &sha);
                 KEEPClose(&k);
             }
         }
