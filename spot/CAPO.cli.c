@@ -91,38 +91,38 @@ ok64 capocli() {
     if (do_untracked) do_uncommitted = YES;
 
     u32 nfork = 0;
-    CLIFlag(&v, &c, "-f");
+    CLIFlag(v, &c, "-f");
     if (!$empty(v)) nfork = (u32)atoi((char *)v[0]);
-    CLIFlag(&v, &c, "--fork");
+    CLIFlag(v, &c, "--fork");
     if (!$empty(v)) nfork = (u32)atoi((char *)v[0]);
 
     u32 proc = UINT32_MAX;
-    CLIFlag(&v, &c, "--proc");
+    CLIFlag(v, &c, "--proc");
     if (!$empty(v)) proc = (u32)atoi((char *)v[0]);
 
     u32 grep_ctx = 3;
-    CLIFlag(&v, &c, "-C");
+    CLIFlag(v, &c, "-C");
     if (!$empty(v)) grep_ctx = (u32)atoi((char *)v[0]);
-    CLIFlag(&v, &c, "--context");
+    CLIFlag(v, &c, "--context");
     if (!$empty(v)) grep_ctx = (u32)atoi((char *)v[0]);
 
     // Search patterns from flags
     u8cs spot_ndl = {}, spot_rep = {}, grep_ndl = {}, pcre_ndl = {};
-    CLIFlag(&v, &c, "-s");
+    CLIFlag(v, &c, "-s");
     if (!$empty(v)) { $mv(spot_ndl, v); }
-    CLIFlag(&v, &c, "--spot");
+    CLIFlag(v, &c, "--spot");
     if (!$empty(v)) { $mv(spot_ndl, v); }
-    CLIFlag(&v, &c, "-r");
+    CLIFlag(v, &c, "-r");
     if (!$empty(v)) { $mv(spot_rep, v); }
-    CLIFlag(&v, &c, "--replace");
+    CLIFlag(v, &c, "--replace");
     if (!$empty(v)) { $mv(spot_rep, v); }
-    CLIFlag(&v, &c, "-g");
+    CLIFlag(v, &c, "-g");
     if (!$empty(v)) { $mv(grep_ndl, v); }
-    CLIFlag(&v, &c, "--grep");
+    CLIFlag(v, &c, "--grep");
     if (!$empty(v)) { $mv(grep_ndl, v); }
-    CLIFlag(&v, &c, "-p");
+    CLIFlag(v, &c, "-p");
     if (!$empty(v)) { $mv(pcre_ndl, v); }
-    CLIFlag(&v, &c, "--pcre");
+    CLIFlag(v, &c, "--pcre");
     if (!$empty(v)) { $mv(pcre_ndl, v); }
 
     // Collect trail args: extensions (.c) and file paths from URIs

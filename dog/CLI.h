@@ -52,7 +52,7 @@ fun void CLIFlag(u8csp out, cli const *c, char const *flag) {
 // Check if a flag is present (boolean test).
 fun b8 CLIHas(cli const *c, char const *flag) {
     u8cs v = {};
-    CLIFlag(&v, c, flag);
+    CLIFlag(v, c, flag);
     return v[0] != NULL;
 }
 

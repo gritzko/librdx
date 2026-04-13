@@ -10,6 +10,7 @@
 
 #include "CHE.h"
 #include "COM.h"
+#include "dog/CLI.h"
 #include "dog/IGNO.h"
 
 #include "abc/FILE.h"
@@ -17,16 +18,8 @@
 #include "abc/PATH.h"
 #include "abc/PRO.h"
 #include "abc/UTF8.h"
-#include "dog/HOME.h"
 
 // --- Helpers ---
-
-static b8 argeq(u8cs a, const char *b) {
-    size_t blen = strlen(b);
-    return $len(a) == blen && memcmp(a[0], b, blen) == 0;
-}
-
-// --- Mode: Index ---
 
 static ok64 sniff_stat_all(sniff *s, u8cs reporoot, u8 type) {
     sane(s);
@@ -298,20 +291,37 @@ static ok64 sniff_list(sniff *s) {
 
 static void sniff_usage(void) {
     fprintf(stderr,
-            "Usage: sniff [options]\n"
+            "Usage: sniff <command> [options] [files...]\n"
             "\n"
-            "  sniff -i | --index       rebuild index\n"
-            "  sniff -u | --update      update mtimes\n"
-            "  sniff -s | --status      show dirty/deleted files\n"
-            "  sniff -o <hex>           checkout commit from keeper\n"
-            "  sniff -c -m <msg> --parent <hex>   commit tracked changes\n"
-            "  sniff -a -m <msg> --parent <hex>   commit all (scan new)\n"
-            "  sniff -t f1 f2 -m <msg> --parent <hex>  commit listed files\n"
-            "  sniff -w | --watch       start watch daemon\n"
-            "  sniff --stop             stop watch daemon\n"
-            "  sniff -l | --list        list all known paths\n"
-            "  sniff -h | --help        this message\n");
+            "  sniff index                rebuild index\n"
+            "  sniff update               update mtimes\n"
+            "  sniff status               show dirty/deleted files\n"
+            "  sniff checkout <hex>       checkout commit from keeper\n"
+            "  sniff commit -m <msg> --parent <hex>   commit changes\n"
+            "  sniff commit -a -m <msg> --parent <hex>  commit all\n"
+            "  sniff commit -m <msg> --parent <hex> f1 f2  commit files\n"
+            "  sniff watch                start watch daemon\n"
+            "  sniff stop                 stop watch daemon\n"
+            "  sniff list                 list all known paths\n"
+            "  sniff help                 this message\n"
+            "\n"
+            "  Flags:\n"
+            "    -m <msg>       commit message\n"
+            "    --parent <hex> parent commit SHA\n"
+            "    --author <who> author string\n"
+            "    -a             commit all (scan for new files)\n");
 }
+
+// --- Verb names ---
+
+static char const *const sniff_verbs[] = {
+    "index", "update", "status", "checkout",
+    "commit", "watch", "stop", "list", "help", NULL
+};
+
+// Value flags: -m, --parent, --author (NUL-separated, triple-NUL end)
+static char const sniff_val_flags[] =
+    "-m\0--parent\0--author\0";
 
 // --- Entry ---
 
@@ -319,92 +329,60 @@ ok64 sniffcli() {
     sane(1);
     call(FILEInit);
 
-    a_path(root);
-    ok64 ho = HOMEFind(root);
-    if (ho != OK) {
+    cli c = {};
+    call(CLIParse, &c, sniff_verbs, sniff_val_flags);
+
+    u8cs reporoot = {};
+    if ($ok(c.repo)) {
+        $mv(reporoot, c.repo);
+    } else {
         char cwd[1024];
         if (!getcwd(cwd, sizeof(cwd))) fail(SNIFFFAIL);
-        u8bReset(root);
         a_cstr(cwds, cwd);
-        call(u8bFeed, root, cwds);
-        call(PATHu8gTerm, PATHu8gIn(root));
-    }
-    a_dup(u8c, reporoot, u8bDataC(root));
-
-    // Parse args
-    b8 do_index = NO, do_update = NO, do_status = NO;
-    b8 do_watch = NO, do_stop = NO, do_list = NO;
-    b8 do_commit = NO, do_commit_all = NO, do_commit_it = NO;
-    u8cs checkout_hex = {};
-    u8cs commit_msg = {};
-    u8cs commit_parent = {};
-    u8cs commit_author = {};
-    u8cs commit_files[64] = {};
-    u32 ncommit_files = 0;
-
-    for (u32 i = 1; i < $arglen; i++) {
-        u8cs a = {};
-        $mv(a, $arg(i));
-        if (argeq(a, "-h") || argeq(a, "--help")) {
-            sniff_usage(); done;
-        } else if (argeq(a, "-i") || argeq(a, "--index")) {
-            do_index = YES;
-        } else if (argeq(a, "-u") || argeq(a, "--update")) {
-            do_update = YES;
-        } else if (argeq(a, "-s") || argeq(a, "--status")) {
-            do_status = YES;
-        } else if ((argeq(a, "-o") || argeq(a, "--checkout"))
-                   && i + 1 < $arglen) {
-            i++; $mv(checkout_hex, $arg(i));
-        } else if (argeq(a, "-c") || argeq(a, "--commit")) {
-            do_commit = YES;
-        } else if (argeq(a, "-a") || argeq(a, "--commit-all")) {
-            do_commit_all = YES;
-        } else if (argeq(a, "-t") || argeq(a, "--commit-it")) {
-            do_commit_it = YES;
-            // Consume trailing file args until next flag
-            while (i + 1 < $arglen) {
-                u8cs peek = {};
-                $mv(peek, $arg(i + 1));
-                if ($len(peek) > 0 && peek[0][0] == '-') break;
-                if (ncommit_files < 64) {
-                    commit_files[ncommit_files][0] = peek[0];
-                    commit_files[ncommit_files][1] = peek[1];
-                    ncommit_files++;
-                }
-                i++;
-            }
-        } else if ((argeq(a, "-m") || argeq(a, "--message"))
-                   && i + 1 < $arglen) {
-            i++; $mv(commit_msg, $arg(i));
-        } else if (argeq(a, "--parent") && i + 1 < $arglen) {
-            i++; $mv(commit_parent, $arg(i));
-        } else if (argeq(a, "--author") && i + 1 < $arglen) {
-            i++; $mv(commit_author, $arg(i));
-        } else if (argeq(a, "-w") || argeq(a, "--watch")) {
-            do_watch = YES;
-        } else if (argeq(a, "--stop")) {
-            do_stop = YES;
-        } else if (argeq(a, "-l") || argeq(a, "--list")) {
-            do_list = YES;
-        } else {
-            fprintf(stderr, "sniff: unknown option: %.*s\n",
-                    (int)$len(a), (char *)a[0]);
-            sniff_usage(); fail(SNIFFFAIL);
-        }
+        reporoot[0] = cwds[0];
+        reporoot[1] = cwds[1];
     }
 
-    if (do_stop) { call(sniff_stop, reporoot); done; }
+    a_cstr(v_help, "help");
+    a_cstr(v_index, "index");
+    a_cstr(v_update, "update");
+    a_cstr(v_status, "status");
+    a_cstr(v_checkout, "checkout");
+    a_cstr(v_commit, "commit");
+    a_cstr(v_watch, "watch");
+    a_cstr(v_stop, "stop");
+    a_cstr(v_list, "list");
 
-    b8 any_commit = do_commit || do_commit_all || do_commit_it;
-    b8 rw = do_index || do_update || do_watch || $ok(checkout_hex)
-             || any_commit;
+    if ($eq(c.verb, v_help) || CLIHas(&c, "-h") || CLIHas(&c, "--help")) {
+        sniff_usage(); done;
+    }
+
+    if ($eq(c.verb, v_stop)) {
+        call(sniff_stop, reporoot); done;
+    }
+
+    b8 is_checkout = $eq(c.verb, v_checkout);
+    b8 is_commit = $eq(c.verb, v_commit);
+    b8 is_index = $eq(c.verb, v_index);
+    b8 is_update = $eq(c.verb, v_update);
+    b8 is_watch = $eq(c.verb, v_watch);
+    b8 is_status = $eq(c.verb, v_status);
+    b8 is_list = $eq(c.verb, v_list);
+
+    b8 rw = is_index || is_update || is_watch || is_checkout || is_commit;
     sniff s = {};
     call(SNIFFOpen, &s, reporoot, rw);
 
     ok64 ret = OK;
 
-    if (any_commit) {
+    if (is_commit) {
+        u8cs commit_msg = {};
+        CLIFlag(commit_msg, &c, "-m");
+        u8cs commit_parent = {};
+        CLIFlag(commit_parent, &c, "--parent");
+        u8cs commit_author = {};
+        CLIFlag(commit_author, &c, "--author");
+
         if (!$ok(commit_msg) || !$ok(commit_parent)) {
             fprintf(stderr, "sniff: commit requires -m and --parent\n");
             ret = SNIFFFAIL;
@@ -415,29 +393,27 @@ ok64 sniffcli() {
                 commit_author[1] = def[1];
             }
 
-            // For commit-all: scan worktree for new files
-            if (do_commit_all)
+            b8 do_all = CLIHas(&c, "-a");
+
+            if (do_all)
                 sniff_scan_new(&s, reporoot);
 
-            // Update mtimes for all tracked files
             sniff_stat_all(&s, reporoot, SNIFF_CHANGED);
 
-            // Build commit_set if needed
+            // URIs are explicit file paths to commit
             u8p cset = NULL;
             u32 npaths = SNIFFCount(&s);
 
-            if (do_commit_it) {
-                // Explicit file list
+            if (c.nuris > 0) {
                 Bu8 csbuf = {};
                 u8bAllocate(csbuf, npaths);
                 memset(u8bDataHead(csbuf), 0, npaths);
                 cset = u8bDataHead(csbuf);
-                for (u32 f = 0; f < ncommit_files; f++) {
-                    u32 idx = SNIFFIntern(&s, commit_files[f]);
+                for (u32 f = 0; f < c.nuris; f++) {
+                    u32 idx = SNIFFIntern(&s, c.uris[f].data);
                     if (idx < npaths) cset[idx] = 1;
                 }
             }
-            // -c and -a: commit_set=NULL means "all changed"
 
             keeper k = {};
             ret = KEEPOpen(&k, reporoot);
@@ -448,17 +424,23 @@ ok64 sniffcli() {
                 KEEPClose(&k);
             }
         }
-    } else if ($ok(checkout_hex)) {
-        ret = sniff_checkout(&s, reporoot, checkout_hex);
-    } else if (do_watch) {
+    } else if (is_checkout) {
+        if (c.nuris < 1) {
+            fprintf(stderr, "sniff: checkout requires a commit hex\n");
+            ret = SNIFFFAIL;
+        } else {
+            ret = sniff_checkout(&s, reporoot, c.uris[0].data);
+        }
+    } else if (is_watch) {
         ret = sniff_daemon(&s, reporoot);
-    } else if (do_status) {
+    } else if (is_status) {
         ret = sniff_status(&s, reporoot);
-    } else if (do_list) {
+    } else if (is_list) {
         ret = sniff_list(&s);
-    } else if (do_update) {
+    } else if (is_update) {
         ret = sniff_stat_all(&s, reporoot, SNIFF_CHANGED);
     } else {
+        // Default: index (record SNIFF_CHECKOUT mtimes)
         ret = sniff_stat_all(&s, reporoot, SNIFF_CHECKOUT);
     }
 

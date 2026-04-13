@@ -12,7 +12,7 @@ ok64 IGNOtest1() {
     memset(&ig, 0, sizeof(ig));
 
     // Add pattern: *.o
-    static con u8 pat1[] = "*.o";
+    con u8 pat1[] = "*.o";
     ig.patterns[0].pattern[0] = pat1;
     ig.patterns[0].pattern[1] = pat1 + 3;
     ig.patterns[0].negated = NO;
@@ -38,7 +38,7 @@ ok64 IGNOtest2() {
     memset(&ig, 0, sizeof(ig));
 
     // Add pattern: build/
-    static con u8 pat1[] = "build";
+    con u8 pat1[] = "build";
     ig.patterns[0].pattern[0] = pat1;
     ig.patterns[0].pattern[1] = pat1 + 5;
     ig.patterns[0].negated = NO;
