@@ -14,32 +14,30 @@
 #include "keeper/SHA1.h"
 #include "keeper/WALK.h"
 
-// --- Collect old tree SHAs: path_index → sha[20] ---
+// --- Collect old tree SHAs: path_index → sha1 ---
 
 typedef struct {
     sniff *s;
-    u8p    shas;
+    sha1s  shas;
     u32    capacity;
 } sha_ctx;
 
-static void com_set_sha(sha_ctx *ctx, u32 idx, u8cp sha) {
+static void com_set_sha(sha_ctx *ctx, u32 idx, sha1 const *sha) {
     if (idx >= ctx->capacity) return;
-    memcpy(ctx->shas + (size_t)idx * GIT_SHA1_LEN, sha, GIT_SHA1_LEN);
+    ctx->shas[0][idx] = *sha;
 }
 
-static u8cp com_get_sha(sha_ctx const *ctx, u32 idx) {
+static sha1cp com_get_sha(sha_ctx const *ctx, u32 idx) {
     if (idx >= ctx->capacity) return NULL;
-    u8cp p = ctx->shas + (size_t)idx * GIT_SHA1_LEN;
-    for (int i = 0; i < GIT_SHA1_LEN; i++)
-        if (p[i] != 0) return p;
-    return NULL;
+    if (sha1empty(&ctx->shas[0][idx])) return NULL;
+    return &ctx->shas[0][idx];
 }
 
 static ok64 com_collect_tree(sha_ctx *ctx, keeper *k,
-                             u8cp tree_sha, u8cs prefix) {
+                             sha1 const *tree_sha, u8cs prefix) {
     sane(ctx && k && tree_sha);
 
-    u64 hashlet = keepHashlet60(({ a_rawc(_r, tree_sha); _r; }));
+    u64 hashlet = keepSha1Hashlet60(tree_sha);
     Bu8 buf = {};
     call(u8bAllocate, buf, 1UL << 24);
     u8 otype = 0;
@@ -78,11 +76,12 @@ static ok64 com_collect_tree(sha_ctx *ctx, keeper *k,
         u8cs relpath = {u8bDataHead(rel), rel[2]};
 
         u32 idx = SNIFFIntern(ctx->s, relpath);
-        com_set_sha(ctx, idx, esha[0]);
+        sha1cp esha1 = (sha1cp)esha[0];
+        com_set_sha(ctx, idx, esha1);
 
         b8 is_dir = ($at(mode_s, 0) == '4');
         if (is_dir)
-            com_collect_tree(ctx, k, esha[0], relpath);
+            com_collect_tree(ctx, k, esha1, relpath);
     }
 
     u8bFree(tcopy);
@@ -92,11 +91,11 @@ static ok64 com_collect_tree(sha_ctx *ctx, keeper *k,
 // --- Tree entry ---
 
 typedef struct {
-    u32 path_idx;
-    u8  sha[GIT_SHA1_LEN];
-    u8  mode[8];
-    u8  mode_len;
-    b8  is_dir;
+    u32  path_idx;
+    sha1 sha;
+    u8   mode[8];
+    u8   mode_len;
+    b8   is_dir;
 } tree_entry;
 
 // Build tree for one directory level.
@@ -105,7 +104,7 @@ typedef struct {
 static ok64 com_build_tree(sniff *s, keeper *k, keep_pack *p,
                            sha_ctx *sha_tab, u8cs reporoot,
                            u8cs dir_prefix, u8cp commit_set,
-                           u8 sha_out[20]) {
+                           sha1 *sha_out) {
     sane(s && k && p && sha_tab && sha_out);
 
     tree_entry entries[4096];
@@ -167,11 +166,10 @@ static ok64 com_build_tree(sniff *s, keeper *k, keep_pack *p,
             names[nentries][1] = dirname[1];
 
             ok64 o = com_build_tree(s, k, p, sha_tab, reporoot,
-                                    sub, commit_set, e->sha);
+                                    sub, commit_set, &e->sha);
             if (o != OK) return o;
             // Skip empty subtrees (deleted dirs)
-            u8 zero_sha[GIT_SHA1_LEN] = {};
-            if (memcmp(e->sha, zero_sha, GIT_SHA1_LEN) == 0) continue;
+            if (sha1empty(&e->sha)) continue;
             nentries++;
         } else {
             // Direct child file — skip dir duplicates
@@ -237,13 +235,13 @@ static ok64 com_build_tree(sniff *s, keeper *k, keep_pack *p,
                     FILEClose(&fd);
                 }
                 u8cs blob = {u8bDataHead(content), u8bIdleHead(content)};
-                o = KEEPPackFeed(k, p, KEEP_OBJ_BLOB, blob, e->sha);
+                o = KEEPPackFeed(k, p, KEEP_OBJ_BLOB, blob, &e->sha);
                 u8bFree(content);
                 if (o != OK) return o;
             } else {
-                u8cp old_sha = com_get_sha(sha_tab, i);
+                sha1cp old_sha = com_get_sha(sha_tab, i);
                 if (!old_sha) continue;
-                memcpy(e->sha, old_sha, GIT_SHA1_LEN);
+                e->sha = *old_sha;
             }
 
             // Mode from lstat
@@ -288,7 +286,7 @@ static ok64 com_build_tree(sniff *s, keeper *k, keep_pack *p,
 
     // Empty tree → signal to parent via zeroed sha_out
     if (nentries == 0) {
-        memset(sha_out, 0, GIT_SHA1_LEN);
+        memset(sha_out, 0, sizeof(*sha_out));
         done;
     }
 
@@ -302,7 +300,7 @@ static ok64 com_build_tree(sniff *s, keeper *k, keep_pack *p,
         u8bFeed1(tree, ' ');
         u8bFeed(tree, names[i]);
         u8bFeed1(tree, 0);
-        u8cs sha = {e->sha, e->sha + GIT_SHA1_LEN};
+        a_rawc(sha, e->sha);
         u8bFeed(tree, sha);
     }
 
@@ -316,7 +314,7 @@ static ok64 com_build_tree(sniff *s, keeper *k, keep_pack *p,
 
 ok64 COMCommit(sniff *s, keeper *k, u8cs reporoot,
                u8cs parent_hex, u8cs message, u8cs author,
-               u8cp commit_set, u8 sha_out[20]) {
+               u8cp commit_set, sha1 *sha_out) {
     sane(s && k && $ok(parent_hex) && $ok(message) && $ok(author));
 
     size_t hexlen = $len(parent_hex);
@@ -332,24 +330,25 @@ ok64 COMCommit(sniff *s, keeper *k, u8cs reporoot,
     if (ctype == KEEP_OBJ_TAG) {
         u8cs body = {u8bDataHead(cbuf), u8bIdleHead(cbuf)};
         u8cs field = {}, value = {};
-        a_pad(u8, shabin, GIT_SHA1_LEN);
+        sha1 tag_sha = {};
+        a_raw(tag_bin, tag_sha);
         while (GITu8sDrainCommit(body, field, value) == OK) {
             if ($empty(field)) break;
             if ($len(field) == 6 && memcmp(field[0], "object", 6) == 0 &&
                 $len(value) >= 40) {
                 u8cs hex40 = {value[0], $atp(value, 40)};
-                HEXu8sDrainSome(shabin_idle, hex40);
+                HEXu8sDrainSome(tag_bin, hex40);
                 break;
             }
         }
-        u64 ch = ({ a_rawcp(_r, u8bDataHead(shabin)); keepHashlet60(_r); });
+        u64 ch = keepSha1Hashlet60(&tag_sha);
         u8bReset(cbuf);
         call(KEEPGet, k, ch, 15, cbuf, &ctype);
     }
     if (ctype != KEEP_OBJ_COMMIT) { u8bFree(cbuf); fail(SNIFFFAIL); }
 
     // Parent SHA from content
-    u8 parent_sha[GIT_SHA1_LEN] = {};
+    sha1 parent_sha = {};
     {
         size_t csz = u8bDataLen(cbuf);
         char hdr[64];
@@ -360,37 +359,39 @@ ok64 COMCommit(sniff *s, keeper *k, u8cs reporoot,
         u8bFeed(tmp, hs);
         u8bFeed1(tmp, 0);
         u8bFeed(tmp, u8bDataC(cbuf));
-        { sha1 _h; a_dup(u8c, _d, u8bData(tmp)); SHA1Sum(&_h, _d); memcpy(parent_sha, _h.data, 20); }
+        a_dup(u8c, _d, u8bData(tmp));
+        SHA1Sum(&parent_sha, _d);
         u8bFree(tmp);
     }
 
     // Parent's tree SHA
-    u8 parent_tree_sha[GIT_SHA1_LEN] = {};
+    sha1 parent_tree_sha = {};
     u8cs commit_body = {u8bDataHead(cbuf), u8bIdleHead(cbuf)};
-    call(WALKCommitTree, commit_body, parent_tree_sha);
+    call(WALKCommitTree, commit_body, parent_tree_sha.data);  // keeper API boundary
     u8bFree(cbuf);
 
     // Collect old tree SHAs
     u32 npath = SNIFFCount(s);
     u32 cap = npath + SNIFF_HASH_SIZE;
-    Bu8 sha_mem = {};
-    call(u8bAllocate, sha_mem, (u64)cap * GIT_SHA1_LEN);
-    memset(u8bDataHead(sha_mem), 0, (u64)cap * GIT_SHA1_LEN);
-    sha_ctx sha_tab = {.s = s, .shas = u8bDataHead(sha_mem),
+    Bsha1 sha_mem = {};
+    call(sha1bAllocate, sha_mem, cap);
+    memset(sha1bHead(sha_mem), 0, (u64)cap * sizeof(sha1));
+    sha1s sha_slice = {sha1bHead(sha_mem), sha1bHead(sha_mem) + cap};
+    sha_ctx sha_tab = {.s = s, .shas = {sha_slice[0], sha_slice[1]},
                        .capacity = cap};
 
     u8cs no_prefix = {};
-    call(com_collect_tree, &sha_tab, k, parent_tree_sha, no_prefix);
+    call(com_collect_tree, &sha_tab, k, &parent_tree_sha, no_prefix);
 
     // Start pack
     keep_pack p = {};
     call(KEEPPackOpen, k, &p);
 
     // Build tree
-    u8 root_tree_sha[GIT_SHA1_LEN] = {};
+    sha1 root_tree_sha = {};
     ok64 o = com_build_tree(s, k, &p, &sha_tab, reporoot,
-                            no_prefix, commit_set, root_tree_sha);
-    u8bFree(sha_mem);
+                            no_prefix, commit_set, &root_tree_sha);
+    sha1bFree(sha_mem);
     if (o != OK) { KEEPPackClose(k, &p); return o; }
 
     // Build commit object
@@ -400,7 +401,7 @@ ok64 COMCommit(sniff *s, keeper *k, u8cs reporoot,
     a_cstr(tree_label, "tree ");
     u8bFeed(com, tree_label);
     a_pad(u8, tree_hex, 40);
-    u8cs tsha = {root_tree_sha, root_tree_sha + GIT_SHA1_LEN};
+    a_rawc(tsha, root_tree_sha);
     HEXu8sFeedSome(tree_hex_idle, tsha);
     u8bFeed(com, u8bDataC(tree_hex));
     u8bFeed1(com, '\n');
@@ -408,7 +409,7 @@ ok64 COMCommit(sniff *s, keeper *k, u8cs reporoot,
     a_cstr(par_label, "parent ");
     u8bFeed(com, par_label);
     a_pad(u8, par_hex, 40);
-    u8cs psha = {parent_sha, parent_sha + GIT_SHA1_LEN};
+    a_rawc(psha, parent_sha);
     HEXu8sFeedSome(par_hex_idle, psha);
     u8bFeed(com, u8bDataC(par_hex));
     u8bFeed1(com, '\n');
@@ -439,7 +440,7 @@ ok64 COMCommit(sniff *s, keeper *k, u8cs reporoot,
     call(KEEPPackClose, k, &p);
 
     a_pad(u8, out_hex, 40);
-    u8cs osha = {sha_out, sha_out + GIT_SHA1_LEN};
+    u8cs osha = {sha_out->data, sha_out->data + GIT_SHA1_LEN};
     HEXu8sFeedSome(out_hex_idle, osha);
     fprintf(stderr, "sniff: commit %.*s\n",
             (int)u8bDataLen(out_hex), (char *)u8bDataHead(out_hex));

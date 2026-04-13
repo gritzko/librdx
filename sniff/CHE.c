@@ -15,10 +15,10 @@
 
 // Recursive tree checkout.  seen[idx]=1 for every path visited.
 static ok64 che_tree(sniff *s, keeper *k, u8cs reporoot,
-                     u8cp tree_sha, u8cs prefix, u8p seen) {
+                     sha1 const *tree_sha, u8cs prefix, u8p seen) {
     sane(s && k && tree_sha);
 
-    u64 hashlet = keepHashlet60(({ a_rawc(_r, tree_sha); _r; }));
+    u64 hashlet = keepSha1Hashlet60(tree_sha);
     Bu8 buf = {};
     call(u8bAllocate, buf, 1UL << 24);
     u8 otype = 0;
@@ -78,7 +78,7 @@ static ok64 che_tree(sniff *s, keeper *k, u8cs reporoot,
             seen[idx] = 1;
             SNIFFRecord(s, SNIFF_HASHLET, idx, entry_hashlet);
 
-            result = che_tree(s, k, reporoot, esha[0], relpath, seen);
+            result = che_tree(s, k, reporoot, (sha1cp)esha[0], relpath, seen);
             if (result != OK) break;
         } else {
             u32 idx = SNIFFIntern(s, relpath);
@@ -193,15 +193,15 @@ ok64 CHECheckout(sniff *s, keeper *k, u8cs reporoot, u8cs hex) {
     if (otype == KEEP_OBJ_TAG) {
         u8cs body = {u8bDataHead(buf), u8bIdleHead(buf)};
         u8cs field = {}, value = {};
-        a_pad(u8, shabin, GIT_SHA1_LEN);
+        sha1 tag_sha = {};
+        a_raw(tag_bin, tag_sha);
         b8 found = NO;
         while (GITu8sDrainCommit(body, field, value) == OK) {
             if ($empty(field)) break;
             if ($len(field) == 6 && memcmp(field[0], "object", 6) == 0 &&
                 $len(value) >= 40) {
-                u8cs hex40 = {value[0], value[0]};
-                hex40[1] = $atp(value, 40);
-                HEXu8sDrainSome(shabin_idle, hex40);
+                u8cs hex40 = {value[0], $atp(value, 40)};
+                HEXu8sDrainSome(tag_bin, hex40);
                 found = YES;
                 break;
             }
@@ -211,7 +211,7 @@ ok64 CHECheckout(sniff *s, keeper *k, u8cs reporoot, u8cs hex) {
             fprintf(stderr, "sniff: bad tag (no object)\n");
             fail(SNIFFFAIL);
         }
-        u64 commit_hashlet = ({ a_rawcp(_r, u8bDataHead(shabin)); keepHashlet60(_r); });
+        u64 commit_hashlet = keepSha1Hashlet60(&tag_sha);
         u8bReset(buf);
         o = KEEPGet(k, commit_hashlet, 15, buf, &otype);
         if (o != OK || otype != KEEP_OBJ_COMMIT) {
@@ -228,9 +228,9 @@ ok64 CHECheckout(sniff *s, keeper *k, u8cs reporoot, u8cs hex) {
     }
 
     // Extract tree SHA
-    u8 tree_sha[GIT_SHA1_LEN] = {};
+    sha1 tree_sha = {};
     u8cs commit = {u8bDataHead(buf), u8bIdleHead(buf)};
-    o = WALKCommitTree(commit, tree_sha);
+    o = WALKCommitTree(commit, tree_sha.data);  // keeper API boundary
     u8bFree(buf);
     if (o != OK) {
         fprintf(stderr, "sniff: bad commit (no tree)\n");
@@ -245,7 +245,7 @@ ok64 CHECheckout(sniff *s, keeper *k, u8cs reporoot, u8cs hex) {
     memset(u8bDataHead(seen_buf), 0, seen_size);
 
     u8cs no_prefix = {};
-    o = che_tree(s, k, reporoot, tree_sha, no_prefix, u8bDataHead(seen_buf));
+    o = che_tree(s, k, reporoot, &tree_sha, no_prefix, u8bDataHead(seen_buf));
 
     if (o == OK)
         o = che_prune(s, reporoot, u8bDataHead(seen_buf));

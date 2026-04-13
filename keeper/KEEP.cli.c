@@ -86,7 +86,7 @@ ok64 keepercli() {
     }
 
     u8cs import_path = {};
-    CLIFlag(&import_path, &c, "-i");
+    CLIFlag(import_path, &c, "-i");
     if (import_path[0]) {
         call(KEEPOpen, &k, c.repo);
         call(KEEPImport, &k, import_path);
@@ -95,7 +95,7 @@ ok64 keepercli() {
     }
 
     u8cs verify_sha = {};
-    CLIFlag(&verify_sha, &c, "--verify");
+    CLIFlag(verify_sha, &c, "--verify");
     if (verify_sha[0]) {
         call(KEEPOpen, &k, c.repo);
         ok64 o = KEEPVerify(&k, verify_sha);
@@ -117,7 +117,7 @@ ok64 keepercli() {
     }
 
     u8cs alias_name = {};
-    CLIFlag(&alias_name, &c, "--alias");
+    CLIFlag(alias_name, &c, "--alias");
     if (alias_name[0] && c.nuris > 0) {
         call(KEEPOpen, &k, c.repo);
         a_cstr(keepdir, k.dir);

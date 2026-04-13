@@ -57,11 +57,11 @@ ok64 grafcli() {
     b8 do_weave   = CLIHas(&c, "--weave") || CLIHas(&c, "-w");
 
     u8cs merge_out = {};
-    CLIFlag(&merge_out, &c, "-o");
+    CLIFlag(merge_out, &c, "-o");
     u8cs weave_from = {};
-    CLIFlag(&weave_from, &c, "--from");
+    CLIFlag(weave_from, &c, "--from");
     u8cs weave_to = {};
-    CLIFlag(&weave_to, &c, "--to");
+    CLIFlag(weave_to, &c, "--to");
 
     // URI args become trail (file paths etc)
     pid_t bro_pid = -1;

@@ -165,27 +165,27 @@ ok64 SNIFFCheckoutCommit() {
 
     // Blob: "hello\n"
     a_cstr(blob_data, "hello\n");
-    u8 blob_sha[20] = {};
-    call(KEEPPackFeed, &k, &p, KEEP_OBJ_BLOB, blob_data, blob_sha);
+    sha1 blob_sha = {};
+    call(KEEPPackFeed, &k, &p, KEEP_OBJ_BLOB, blob_data, &blob_sha);
 
     // Tree: one entry "100644 test.txt\0<sha>"
     a_pad(u8, tree_buf, 256);
     a_cstr(tm, "100644 test.txt");
     u8bFeed(tree_buf, tm);
     u8bFeed1(tree_buf, 0);
-    u8cs sha_s = {blob_sha, blob_sha + 20};
+    a_rawc(sha_s, blob_sha);
     u8bFeed(tree_buf, sha_s);
     a_dup(u8c, tree_content, u8bData(tree_buf));
 
-    u8 tree_sha[20] = {};
-    call(KEEPPackFeed, &k, &p, KEEP_OBJ_TREE, tree_content, tree_sha);
+    sha1 tree_sha = {};
+    call(KEEPPackFeed, &k, &p, KEEP_OBJ_TREE, tree_content, &tree_sha);
 
     // Commit
     a_pad(u8, cbuf, 512);
     a_cstr(c1, "tree ");
     u8bFeed(cbuf, c1);
     a_pad(u8, thex, 40);
-    u8cs ts = {tree_sha, tree_sha + 20};
+    a_rawc(ts, tree_sha);
     HEXu8sFeedSome(thex_idle, ts);
     u8bFeed(cbuf, u8bDataC(thex));
     a_cstr(c2, "\nauthor Test <t@t> 1700000000 +0000\n"
@@ -193,13 +193,13 @@ ok64 SNIFFCheckoutCommit() {
     u8bFeed(cbuf, c2);
     a_dup(u8c, commit_content, u8bData(cbuf));
 
-    u8 commit_sha[20] = {};
-    call(KEEPPackFeed, &k, &p, KEEP_OBJ_COMMIT, commit_content, commit_sha);
+    sha1 commit_sha = {};
+    call(KEEPPackFeed, &k, &p, KEEP_OBJ_COMMIT, commit_content, &commit_sha);
     call(KEEPPackClose, &k, &p);
 
     // Hex of commit SHA for CLI
     a_pad(u8, commit_hex, 40);
-    u8cs csha_s = {commit_sha, commit_sha + 20};
+    a_rawc(csha_s, commit_sha);
     HEXu8sFeedSome(commit_hex_idle, csha_s);
 
     // Now checkout via sniff
@@ -240,11 +240,11 @@ ok64 SNIFFCheckoutCommit() {
     // Commit
     a_cstr(msg, "second commit");
     a_cstr(author, "Test <t@t>");
-    u8 new_sha[20] = {};
-    call(COMCommit, &s, &k, root, hex, msg, author, NULL, new_sha);
+    sha1 new_sha = {};
+    call(COMCommit, &s, &k, root, hex, msg, author, NULL, &new_sha);
 
     // Verify new commit exists
-    u64 new_hashlet = keepHashlet60(({ a_rawc(_r, new_sha); _r; }));
+    u64 new_hashlet = keepSha1Hashlet60(&new_sha);
     want(KEEPHas(&k, new_hashlet, 15) == OK);
 
     // Verify via KEEPGet

@@ -117,6 +117,16 @@ fun u64 wh64FromHex60(u8csc hex) {
     return wh64HashletFromHex(hex, 60);
 }
 
+// Hex prefix → 40-bit hashlet (convenience for sniff state)
+fun u64 wh64HexHashlet(u8csc hex) {
+    return wh64HashletFromHex(hex, 40);
+}
+
+// Hex prefix → 60-bit hashlet (convenience for keeper index)
+fun u64 wh64HexHashlet60(u8csc hex) {
+    return wh64HashletFromHex(hex, 60);
+}
+
 // Compare hashlet against hex prefix of any length.
 fun b8 wh64HashletMatch(u64 hashlet, u8csc hex, size_t width) {
     char full[16];
