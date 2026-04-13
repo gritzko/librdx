@@ -5,7 +5,6 @@ set(CMAKE_C_STANDARD 23)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS on)
 
-include(CTest)
 
 include_directories(.. .)
 

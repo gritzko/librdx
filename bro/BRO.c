@@ -634,6 +634,7 @@ static int bro_format_title(char *buf, size_t bufsz, hunkc const *hk) {
     u8cs _p = {}, _t = {};
     BROHunkPath(&_p, hk);
     BROHunkTitle(&_t, hk);
+    u32 ln = BROHunkLine(hk);
     if (!$empty(_p)) {
         size_t pl = (size_t)$len(_p);
         if (pl >= sizeof(pathz)) pl = sizeof(pathz) - 1;
@@ -644,10 +645,13 @@ static int bro_format_title(char *buf, size_t bufsz, hunkc const *hk) {
         if (fl >= sizeof(funcz)) fl = sizeof(funcz) - 1;
         memcpy(funcz, _t[0], fl);
     }
-    // Use the same format as HUNKu8sFormatTitle but into a char buf.
     int n = 0;
-    if (pathz[0] && funcz[0])
+    if (pathz[0] && funcz[0] && ln > 0)
+        n = snprintf(buf, bufsz, "--- %s :: %s:%u ---", pathz, funcz, ln);
+    else if (pathz[0] && funcz[0])
         n = snprintf(buf, bufsz, "--- %s :: %s ---", pathz, funcz);
+    else if (pathz[0] && ln > 0)
+        n = snprintf(buf, bufsz, "--- %s:%u ---", pathz, ln);
     else if (pathz[0])
         n = snprintf(buf, bufsz, "--- %s ---", pathz);
     else if (funcz[0])

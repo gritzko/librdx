@@ -1,7 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 project(git_test C)
 set(CMAKE_C_STANDARD 23)
-include(CTest)
 include_directories(.. ../..)
 
 set(TEST_CXX_FLAGS "-g")

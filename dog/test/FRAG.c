@@ -66,6 +66,14 @@ static const FRAGCase FRAG_CASES[] = {
     // --- Regex with escaped slash ---
     {"/u8s\\/Feed/",      FRAG_PCRE,  "u8s\\/Feed", 0, 0, {NULL}},
     {"/a\\/b\\/c/.c",     FRAG_PCRE,  "a\\/b\\/c", 0, 0, {"c", NULL}},
+
+    // --- Percent-encoded identifiers ---
+    {"ok64%20HUNKu8sFeed", FRAG_IDENT, "ok64%20HUNKu8sFeed", 0, 0, {NULL}},
+    {"ok64%20HUNKu8sFeed:42", FRAG_IDENT, "ok64%20HUNKu8sFeed", 42, 0, {NULL}},
+
+    // --- Spot with line spec ---
+    {"'ok64 HUNKu8sFeed(u8s into)':42", FRAG_SPOT, "ok64 HUNKu8sFeed(u8s into)", 42, 0, {NULL}},
+    {"'func name':10-20.c", FRAG_SPOT, "func name", 10, 20, {"c", NULL}},
 };
 
 #define FRAG_NCASES (sizeof(FRAG_CASES) / sizeof(FRAG_CASES[0]))
@@ -146,9 +154,70 @@ ok64 FRAGTestTable() {
     done;
 }
 
+ok64 FRAGTestEsc() {
+    sane(1);
+    // Roundtrip: raw → esc → unesc should equal raw
+    const char *cases[] = {
+        "HUNKu8sFeed",
+        "ok64 HUNKu8sFeed(u8s into, hunk const *hk)",
+        "tab\there",
+        "line\nbreak",
+        "hash#middle",
+        "pct%already",
+        "",
+        NULL,
+    };
+    for (int i = 0; cases[i]; i++) {
+        size_t rlen = strlen(cases[i]);
+        u8cs raw = {(u8cp)cases[i], (u8cp)cases[i] + rlen};
+
+        u8 ebuf[1024] = {};
+        u8s esc = {ebuf, ebuf + sizeof(ebuf)};
+        ok64 o = FRAGu8sEsc(esc, raw);
+        test(o == OK, TESTFAIL);
+
+        u8cs edata = {ebuf, esc[0]};
+        u8 dbuf[1024] = {};
+        u8s dec = {dbuf, dbuf + sizeof(dbuf)};
+        o = FRAGu8sUnesc(dec, edata);
+        test(o == OK, TESTFAIL);
+
+        u8cs ddata = {dbuf, dec[0]};
+        if ((size_t)$len(ddata) != rlen ||
+            (rlen > 0 && memcmp(ddata[0], cases[i], rlen) != 0)) {
+            fprintf(stderr, "FAIL esc roundtrip [%d] '%s'\n", i, cases[i]);
+            fail(TESTFAIL);
+        }
+    }
+
+    // Plain ident should pass through unchanged
+    const char *plain = "HUNKu8sFeed";
+    u8cs pr = {(u8cp)plain, (u8cp)plain + strlen(plain)};
+    u8 pbuf[256] = {};
+    u8s ps = {pbuf, pbuf + sizeof(pbuf)};
+    call(FRAGu8sEsc, ps, pr);
+    u8cs pd = {pbuf, ps[0]};
+    test((size_t)$len(pd) == strlen(plain), TESTFAIL);
+    test(memcmp(pd[0], plain, strlen(plain)) == 0, TESTFAIL);
+
+    // # and % must be escaped
+    const char *special = "#%";
+    u8cs sr = {(u8cp)special, (u8cp)special + 2};
+    u8 sbuf[32] = {};
+    u8s ss = {sbuf, sbuf + sizeof(sbuf)};
+    call(FRAGu8sEsc, ss, sr);
+    u8cs sd = {sbuf, ss[0]};
+    // "#%" → "%23%25" (6 bytes)
+    test($len(sd) == 6, TESTFAIL);
+    test(memcmp(sd[0], "%23%25", 6) == 0, TESTFAIL);
+
+    done;
+}
+
 ok64 FRAGtest() {
     sane(1);
     call(FRAGTestTable);
+    call(FRAGTestEsc);
     done;
 }
 

@@ -57,9 +57,10 @@ ok64 HUNKu32bTokenize(u32bp toks, u8csc source, u8csc ext);
 // Returns empty if no extension or path ends in '/'.
 void HUNKu8sExt(u8cs out, u8cp path, size_t len);
 
-// Format "--- path :: func ---" hunk title with smart truncation.
-// filepath may be NULL, funcname may be empty ("").
-ok64 HUNKu8sFormatTitle(u8s into, char const *filepath, char const *funcname);
+// Format "--- path :: func:42 ---" hunk title with smart truncation.
+// filepath may be NULL, funcname may be empty (""), lineno 0 = omit.
+ok64 HUNKu8sFormatTitle(u8s into, char const *filepath, char const *funcname,
+                        u32 lineno);
 
 // Maximum visible width of a formatted hunk title.
 #define HUNK_TITLE_MAX 64

@@ -58,4 +58,12 @@ typedef frag const *fragcp;
 // All slices point into the original input.
 ok64 FRAGu8sDrain(u8cs input, fragp f);
 
+// Percent-encode chars illegal in URI fragment (RFC 3986).
+// Encodes: control chars (0x00-0x1F, 0x7F), non-ASCII (0x80+), '#', '%'.
+// Everything else in printable ASCII passes through.
+ok64 FRAGu8sEsc(u8s into, u8cs raw);
+
+// Percent-decode %XX sequences.
+ok64 FRAGu8sUnesc(u8s into, u8cs esc);
+
 #endif

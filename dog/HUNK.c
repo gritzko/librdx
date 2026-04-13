@@ -88,8 +88,8 @@ ok64 HUNKu8sFeedText(u8s into, hunk const *hk) {
             if (pl >= sizeof(pathz)) pl = sizeof(pathz) - 1;
             memcpy(pathz, p[0], pl);
         }
+        u32 lineno = 0;
         if (!$empty(hu.fragment)) {
-            // Fragment body before ':' or '.' is the symbol name
             frag fr = {};
             FRAGu8sDrain(hu.fragment, &fr);
             if (fr.type == FRAG_IDENT && !$empty(fr.body)) {
@@ -97,8 +97,10 @@ ok64 HUNKu8sFeedText(u8s into, hunk const *hk) {
                 if (fl >= sizeof(funcz)) fl = sizeof(funcz) - 1;
                 memcpy(funcz, fr.body[0], fl);
             }
+            if (fr.line > 0) lineno = fr.line;
         }
-        call(HUNKu8sFormatTitle, into, pathz[0] ? pathz : NULL, funcz);
+        call(HUNKu8sFormatTitle, into,
+             pathz[0] ? pathz : NULL, funcz, lineno);
         u8sFeed1(into, '\n');
     }
     u32 tlen = (u32)$len(hk->text);
@@ -216,11 +218,16 @@ void HUNKu8sExt(u8cs out, u8cp path, size_t len) {
     }
 }
 
-ok64 HUNKu8sFormatTitle(u8s into, char const *filepath, char const *funcname) {
+ok64 HUNKu8sFormatTitle(u8s into, char const *filepath, char const *funcname,
+                        u32 lineno) {
     sane(into[0] != NULL);
     u8p start = into[0];
-    if (filepath && funcname && funcname[0]) {
+    if (filepath && funcname && funcname[0] && lineno > 0) {
+        call(u8sPrintf, into, "--- %s :: %s:%u ---", filepath, funcname, lineno);
+    } else if (filepath && funcname && funcname[0]) {
         call(u8sPrintf, into, "--- %s :: %s ---", filepath, funcname);
+    } else if (filepath && lineno > 0) {
+        call(u8sPrintf, into, "--- %s:%u ---", filepath, lineno);
     } else if (filepath) {
         call(u8sPrintf, into, "--- %s ---", filepath);
     } else if (funcname && funcname[0]) {
@@ -267,15 +274,18 @@ ok64 HUNKu8sFormatTitle(u8s into, char const *filepath, char const *funcname) {
 ok64 HUNKu8sMakeURI(u8s into, u8csc path, char const *symbol, u32 lineno) {
     sane(u8sOK(into));
     if (!$empty(path)) u8sFeed(into, path);
-    if ((symbol && symbol[0]) || lineno > 0)
+    b8 has_sym = (symbol && symbol[0]);
+    if (has_sym || lineno > 0)
         u8sFeed1(into, '#');
-    if (symbol && symbol[0]) {
+    if (has_sym) {
         u8cs sym = {(u8cp)symbol, (u8cp)symbol + strlen(symbol)};
         u8sFeed(into, sym);
-    }
-    if (lineno > 0) {
-        u8sFeed1(into, ':');
-        utf8sFeed10(into, (u64)lineno);
+        if (lineno > 0) {
+            u8sFeed1(into, ':');   // separator after symbol
+            utf8sFeed10(into, (u64)lineno);
+        }
+    } else if (lineno > 0) {
+        utf8sFeed10(into, (u64)lineno);  // bare line number
     }
     done;
 }

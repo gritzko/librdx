@@ -20,7 +20,6 @@ if(NOT JSC_LIB)
     return()
 endif()
 
-include(CTest)
 
 include_directories(
     ${JSC_INCLUDE_DIR}

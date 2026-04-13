@@ -1,7 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 project(keeper C)
 set(CMAKE_C_STANDARD 23)
-include(CTest)
 include_directories(.. .)
 
 find_package(ZLIB REQUIRED)
