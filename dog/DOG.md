@@ -1,12 +1,15 @@
 #   Dog API
 
  1. Each dog provides a static library and an executable.
- 2. The executables have common options:
+ 2. CLI convention: `dog [verb] [--flags] URI*` (see dog/CLI.h).
+    Common flags (each dog picks which to support):
       - `--index -i` rebuild the index
       - `--update -u` _update_ the index
-      - `--status -s` report status (short)
+      - `--status` report status (short)
       - `--tlv -t` provide output in hunk TLV mode (see HUNK)
-      - `--install -i` install hook(s) in a git repo
+      - `--install -n` install hook(s) in a git repo
+    dog/CLI parses flags, verbs, and URIs into a `cli` struct.
+    Flags are interleaved `[flag, val]` pairs in `cli.flags`.
  3. Each dog keeps its state in `$REPO_ROOT/.dogs/name`
  4. Dogs must understand the URI syntax (see below).
     Dog's CLI is callable as `name URI`.

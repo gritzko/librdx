@@ -1,87 +1,60 @@
 #include "BRO.h"
 
 #include <stdio.h>
-#include <string.h>
 #include <sys/stat.h>
-#include <unistd.h>
 
-#include "abc/FILE.h"
-#include "abc/PATH.h"
 #include "abc/PRO.h"
-#include "abc/URI.h"
-#include "dog/FRAG.h"
+#include "dog/CLI.h"
 
 static void BROUsage(void) {
     fprintf(stderr,
-        "Usage: bro [files...]\n"
+        "Usage: bro [URI...]\n"
         "\n"
         "  bro                   read TLV hunks from stdin (pager mode)\n"
         "  bro file.c [...]      syntax-highlighted cat\n"
+        "  bro file.c#42         open file at line 42\n"
+        "  bro dir/              list directory\n"
         "\n"
         "Keys: q quit, space/f page down, b page up, j/k line, g/G top/end,\n"
-        "      / or ' search, n/N next/prev, : goto line,\n"
-        "      # GURI search (text=grep, 'snap'=snippet, /re/=regex, .ext),\n"
+        "      / or ' search, n/N next/prev,\n"
+        "      : URI prompt (path#line, #grep.ext, #'snippet'.ext),\n"
         "      [ ] { } prev/next hunk, ( ) prev/next change,\n"
-        "      Enter/l open file, h/q back,\n"
+        "      Enter/l open file, h back, . list dir,\n"
         "      m toggle mouse (wheel scroll, click to open)\n");
 }
 
 ok64 brocli() {
     sane(1);
     call(FILEInit);
-    BRO_COLOR = isatty(STDOUT_FILENO) ? YES : NO;
+
+    cli c = {};
+    call(CLIParse, &c, NULL, NULL);  // no verbs, no val-flags
+
+    BRO_COLOR = c.tty_out;
     if (getenv("BRO_COLOR")) BRO_COLOR = YES;
     if (getenv("NO_COLOR"))  BRO_COLOR = NO;
 
-    int argn = (int)$arglen;
-
-    // Collect non-flag args
-    u8cs files[16] = {};
-    int nf = 0;
-    for (int i = 1; i < argn && nf < 16; i++) {
-        u8c *a[2] = {};
-        $mv(a, $arg(i));
-        if ($len(a) >= 1 && a[0][0] == '-') {
-            a_cstr(help_flag, "--help");
-            a_cstr(h_flag, "-h");
-            if ($eq(a, h_flag) || $eq(a, help_flag)) {
-                BROUsage();
-                done;
-            }
-            fprintf(stderr, "bro: unknown flag: %.*s\n",
-                    (int)$len(a), (char *)a[0]);
-            return FAILSANITY;
-        }
-        files[nf][0] = a[0];
-        files[nf][1] = a[1];
-        nf++;
+    if (CLIHas(&c, "-h") || CLIHas(&c, "--help")) {
+        BROUsage();
+        done;
     }
 
-    if (nf > 0) {
-        // Cat mode: parse args as URIs, map files, tokenize.
+    if (c.nuris > 0) {
         call(BROArenaInit);
-        for (int fi = 0; fi < nf; fi++) {
+        for (u32 i = 0; i < c.nuris; i++) {
             if (bro_nhunks >= BRO_MAX_HUNKS) break;
-            a_dup(u8c, fp, files[fi]);
-            if ($empty(fp)) continue;
+            uri *u = &c.uris[i];
 
-            // Parse as URI to split path from #fragment
-            uri gu = {};
-            $mv(gu.data, fp);
+            // Use path for file/dir, full URI for hunk
             u8cs file_path = {};
-            u32 target_line = 0;
-            if (URILexer(&gu) == OK && !$empty(gu.path)) {
-                $mv(file_path, gu.path);
-                if (!$empty(gu.fragment)) {
-                    frag fr = {};
-                    if (FRAGu8sDrain(gu.fragment, &fr) == OK)
-                        target_line = fr.line;
-                }
-            } else {
-                $mv(file_path, fp);  // fallback: treat whole arg as path
+            if (!$empty(u->path)) {
+                $mv(file_path, u->path);
+            } else if (!$empty(u->data)) {
+                $mv(file_path, u->data);
             }
+            if ($empty(file_path)) continue;
 
-            // Check if path is a directory
+            // Check if directory
             a_pad(u8, fpbuf, FILE_PATH_MAX_LEN);
             __ = u8bFeed(fpbuf, file_path);
             if (__ != OK) continue;
@@ -106,9 +79,9 @@ ok64 brocli() {
 
             hunk *hk = &bro_hunks[bro_nhunks];
             *hk = (hunk){};
-            size_t ul = (size_t)$len(fp);
-            u8p up = BROArenaWrite(fp[0], ul);
-            if (up) { hk->uri[0] = up; hk->uri[1] = up + ul; }
+            // Store full original arg as URI
+            u8p up = BROArenaWrite(u->data[0], (size_t)$len(u->data));
+            if (up) { hk->uri[0] = up; hk->uri[1] = up + $len(u->data); }
             hk->text[0] = u8bDataHead(mapped);
             hk->text[1] = u8bIdleHead(mapped);
 
@@ -116,7 +89,6 @@ ok64 brocli() {
             b8 tok = BROTokenize(toks, hk, file_path);
             BROHunkAdd();
             BRODefer(mapped, tok ? toks : (Bu32){});
-
         }
         if (bro_nhunks > 0)
             BRORun(bro_hunks, bro_nhunks);

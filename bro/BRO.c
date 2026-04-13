@@ -1765,7 +1765,14 @@ static int BROHandleKey(BROstate *st, u8 ch, char const *repo) {
     if (ch == 033) {
         u8 seq[2] = {};
         ssize_t n1 = read(st->tty_fd, &seq[0], 1);
-        if (n1 <= 0) return BRO_KEY_NONE;
+        if (n1 <= 0) {
+            // Bare Esc (no sequence followed): disable mouse if on
+            if (st->mouse_on) {
+                st->mouse_on = NO;
+                MAUSDisable(STDOUT_FILENO);
+            }
+            return BRO_KEY_NONE;
+        }
         if (seq[0] != '[') return BRO_KEY_NONE;
         ssize_t n2 = read(st->tty_fd, &seq[1], 1);
         if (n2 <= 0) return BRO_KEY_NONE;

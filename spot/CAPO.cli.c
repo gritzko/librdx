@@ -5,25 +5,24 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
-
-#include <sys/stat.h>
 
 #include "abc/FILE.h"
 #include "abc/PATH.h"
 #include "abc/PRO.h"
-#include "abc/URI.h"
+#include "dog/CLI.h"
+#include "dog/FRAG.h"
 #include "dog/HOME.h"
 #include "dog/HUNK.h"
 #include "spot/LESS.h"
 
 static void SPOTUsage(void) {
     fprintf(stderr,
-        "Usage: spot [options] [files...]\n"
+        "Usage: spot [--flags] [URI...]\n"
         "\n"
         "  spot                               incremental index update\n"
-        "  spot file.c                        syntax-highlighted cat\n"
         "  spot -i | --index                  full reindex\n"
         "  spot -f N | --fork N               parallel reindex on N cores\n"
         "  spot -u | --uncommitted            index staged + unstaged changes\n"
@@ -31,10 +30,9 @@ static void SPOTUsage(void) {
         "  spot --hook                        post-commit incremental update\n"
         "  spot -s \"pattern\" .ext             code snippet search\n"
         "  spot -s \"pat\" -r \"repl\" .ext       code snippet search + replace\n"
-        "  spot -g \"text\" [.ext]              grep (substring, incl. comments)\n"
-        "  spot -g \"text\" -C N [.ext]         grep with N lines of context\n"
-        "  spot -p \"regex\" [.ext]             regex grep (Thompson NFA)\n"
-        "  spot -p \"regex\" -C N [.ext]        regex grep with context\n"
+        "  spot -g \"text\" [.ext]              grep (substring)\n"
+        "  spot -p \"regex\" [.ext]             regex grep\n"
+        "  spot '#pattern.ext'                URI-style search\n"
         "\n"
         "Patterns: single-letter placeholders (a-z match one token/group,\n"
         "A-Z match multiple tokens). Two spaces = skip gap.\n"
@@ -43,33 +41,17 @@ static void SPOTUsage(void) {
     );
 }
 
-static b8 argeq(u8cs a, const char *b) {
-    size_t blen = strlen(b);
-    return $len(a) == blen && memcmp(a[0], b, blen) == 0;
-}
-
 // Check if a trailing arg is a bare .ext filter known to tok/
-static b8 argIsExt(u8cs a) {
+static b8 argIsExt(u8csc a) {
     if ($len(a) < 2 || a[0][0] != '.') return NO;
     return CAPOKnownExt(a);
 }
 
-// Match "-fVALUE" short flag with attached value, return value or NULL
-static char *argshortval(u8cs a, const char *flag) {
-    size_t flen = strlen(flag);
-    if ($len(a) > flen && memcmp(a[0], flag, flen) == 0)
-        return (char *)a[0] + flen;
-    return NULL;
-}
-
-// Match "--flag=value", return pointer to value after '=' or NULL
-static char *argeqval(u8cs a, const char *flag) {
-    size_t flen = strlen(flag);
-    if ($len(a) > flen + 1 && memcmp(a[0], flag, flen) == 0 &&
-        a[0][flen] == '=')
-        return (char *)a[0] + flen + 1;
-    return NULL;
-}
+// Spot's val-flags: -f -g -s -r -p -C --fork --proc --grep
+// --spot --replace --pcre --context
+static char const SPOT_VAL_FLAGS[] =
+    "-f\0-g\0-s\0-r\0-p\0-C\0"
+    "--fork\0--proc\0--grep\0--spot\0--replace\0--pcre\0--context\0";
 
 ok64 capocli() {
     sane(1);
@@ -81,193 +63,141 @@ ok64 capocli() {
     if (getenv("SPOT_COLOR")) { dog.color = YES; CAPO_COLOR = YES; }
     a_dup(u8c, reporoot, dog.home);
 
-    // Parse args
-    u32 nfork = 0, proc = UINT32_MAX;
-    b8 is_hook = NO;
-    b8 do_index = NO;
-    b8 do_update = NO;
-    b8 do_status = NO;
-    b8 do_uncommitted = NO;
-    b8 do_untracked = NO;
-    b8 tty_out = isatty(STDOUT_FILENO) ? YES : NO;
-    b8 force_tlv = NO;
-    u8c *spot_ndl[2] = {};
-    u8c *spot_rep[2] = {};
-    u8c *grep_ndl[2] = {};
-    u8c *pcre_ndl[2] = {};
-    u32 grep_ctx = 3;
-    u8c *trail[16][2] = {};
-    int ntrail = 0;
-    int argn = (int)$arglen;
+    // Parse CLI
+    cli c = {};
+    call(CLIParse, &c, NULL, SPOT_VAL_FLAGS);
 
-    for (int i = 1; i < argn; i++) {
-        u8c *a[2] = {};
-        $mv(a, $arg(i));
-        char *eqval = NULL;
-        if (argeq(a, "-v") || argeq(a, "--version")) {
-            fprintf(stderr, "spot %s %s\n", SPOT_GIT_TAG, SPOT_COMMIT_HASH);
-            done;
-        } else if (argeq(a, "-h") || argeq(a, "--help")) {
-            SPOTUsage();
-            done;
-        } else if ((argeq(a, "-f") || argeq(a, "--fork")) && i + 1 < argn) {
-            i++;
-            u8c *v[2] = {};
-            $mv(v, $arg(i));
-            nfork = (u32)atoi((char *)v[0]);
-        } else if ((eqval = argeqval(a, "--fork"))) {
-            nfork = (u32)atoi(eqval);
-        } else if ((eqval = argshortval(a, "-f"))) {
-            nfork = (u32)atoi(eqval);
-        } else if (argeq(a, "--proc") && i + 1 < argn) {
-            i++;
-            u8c *v[2] = {};
-            $mv(v, $arg(i));
-            proc = (u32)atoi((char *)v[0]);
-        } else if ((eqval = argeqval(a, "--proc"))) {
-            proc = (u32)atoi(eqval);
-        } else if (argeq(a, "-i") || argeq(a, "--index")) {
-            do_index = YES;
-        } else if (argeq(a, "--tlv")) {
-            force_tlv = YES;
-        } else if (argeq(a, "--hook")) {
-            is_hook = YES;
-        } else if (argeq(a, "--update")) {
-            do_update = YES;
-        } else if (argeq(a, "--status")) {
-            do_status = YES;
-        } else if (argeq(a, "-u") || argeq(a, "--uncommitted")) {
-            do_uncommitted = YES;
-        } else if (argeq(a, "-U") || argeq(a, "--untracked")) {
-            do_uncommitted = YES;
-            do_untracked = YES;
-        } else if ((argeq(a, "-s") || argeq(a, "--spot")) && i + 1 < argn) {
-            i++;
-            $mv(spot_ndl, $arg(i));
-        } else if ((eqval = argeqval(a, "--spot"))) {
-            spot_ndl[0] = (u8cp)eqval;
-            spot_ndl[1] = (u8cp)eqval + strlen(eqval);
-        } else if ((argeq(a, "-r") || argeq(a, "--replace")) && i + 1 < argn) {
-            i++;
-            $mv(spot_rep, $arg(i));
-        } else if ((eqval = argeqval(a, "--replace"))) {
-            spot_rep[0] = (u8cp)eqval;
-            spot_rep[1] = (u8cp)eqval + strlen(eqval);
-        } else if ((argeq(a, "-g") || argeq(a, "--grep")) && i + 1 < argn) {
-            i++;
-            $mv(grep_ndl, $arg(i));
-        } else if ((eqval = argeqval(a, "--grep"))) {
-            grep_ndl[0] = (u8cp)eqval;
-            grep_ndl[1] = (u8cp)eqval + strlen(eqval);
-        } else if ((argeq(a, "-p") || argeq(a, "--pcre")) && i + 1 < argn) {
-            i++;
-            $mv(pcre_ndl, $arg(i));
-        } else if ((eqval = argeqval(a, "--pcre"))) {
-            pcre_ndl[0] = (u8cp)eqval;
-            pcre_ndl[1] = (u8cp)eqval + strlen(eqval);
-        } else if (argeq(a, "-C") && i + 1 < argn) {
-            i++;
-            u8c *v[2] = {};
-            $mv(v, $arg(i));
-            grep_ctx = (u32)atoi((char *)v[0]);
-        } else if ((eqval = argeqval(a, "--context"))) {
-            grep_ctx = (u32)atoi(eqval);
-        } else if (argeq(a, "--context") && i + 1 < argn) {
-            i++;
-            u8c *v[2] = {};
-            $mv(v, $arg(i));
-            grep_ctx = (u32)atoi((char *)v[0]);
-        } else {
-            if (ntrail < 16) { $mv(trail[ntrail], a); ntrail++; }
-        }
+    // Extract flags
+    u8cs v = {};
+
+    if (CLIHas(&c, "-v") || CLIHas(&c, "--version")) {
+        fprintf(stderr, "spot %s %s\n", SPOT_GIT_TAG, SPOT_COMMIT_HASH);
+        SPOTClose(&dog);
+        done;
+    }
+    if (CLIHas(&c, "-h") || CLIHas(&c, "--help")) {
+        SPOTUsage();
+        SPOTClose(&dog);
+        done;
     }
 
-    // --- URI dispatch: if no -s/-g/-p flags, try parsing trailing arg as URI ---
-    // Spot understands: path = file, #fragment = search, trailing .ext = filter.
-    if (spot_ndl[0] == NULL && grep_ndl[0] == NULL && pcre_ndl[0] == NULL &&
-        ntrail > 0) {
-        uri gu = {};
-        $mv(gu.data, trail[0]);
-        if (URILexer(&gu) == OK && !$empty(gu.fragment)) {
-            u8cs search = {};
-            $mv(search, gu.fragment);
+    b8 do_index = CLIHas(&c, "-i") || CLIHas(&c, "--index");
+    b8 do_update = CLIHas(&c, "--update");
+    b8 do_status = CLIHas(&c, "--status");
+    b8 is_hook = CLIHas(&c, "--hook");
+    b8 force_tlv = CLIHas(&c, "-t") || CLIHas(&c, "--tlv");
+    b8 do_uncommitted = CLIHas(&c, "-u") || CLIHas(&c, "--uncommitted");
+    b8 do_untracked = CLIHas(&c, "-U") || CLIHas(&c, "--untracked");
+    if (do_untracked) do_uncommitted = YES;
 
-            u8 first = *search[0];
+    u32 nfork = 0;
+    CLIFlag(&v, &c, "-f");
+    if (!$empty(v)) nfork = (u32)atoi((char *)v[0]);
+    CLIFlag(&v, &c, "--fork");
+    if (!$empty(v)) nfork = (u32)atoi((char *)v[0]);
 
-            // Split trailing .ext from fragment: "#TODO.c" → search="TODO", ext=".c"
-            u8cs sext = {};
-            $rof(u8c, rp, search) {
-                if (*rp == '.') {
-                    sext[0] = rp;
-                    sext[1] = search[1];
-                    search[1] = rp;
-                    break;
+    u32 proc = UINT32_MAX;
+    CLIFlag(&v, &c, "--proc");
+    if (!$empty(v)) proc = (u32)atoi((char *)v[0]);
+
+    u32 grep_ctx = 3;
+    CLIFlag(&v, &c, "-C");
+    if (!$empty(v)) grep_ctx = (u32)atoi((char *)v[0]);
+    CLIFlag(&v, &c, "--context");
+    if (!$empty(v)) grep_ctx = (u32)atoi((char *)v[0]);
+
+    // Search patterns from flags
+    u8cs spot_ndl = {}, spot_rep = {}, grep_ndl = {}, pcre_ndl = {};
+    CLIFlag(&v, &c, "-s");
+    if (!$empty(v)) { $mv(spot_ndl, v); }
+    CLIFlag(&v, &c, "--spot");
+    if (!$empty(v)) { $mv(spot_ndl, v); }
+    CLIFlag(&v, &c, "-r");
+    if (!$empty(v)) { $mv(spot_rep, v); }
+    CLIFlag(&v, &c, "--replace");
+    if (!$empty(v)) { $mv(spot_rep, v); }
+    CLIFlag(&v, &c, "-g");
+    if (!$empty(v)) { $mv(grep_ndl, v); }
+    CLIFlag(&v, &c, "--grep");
+    if (!$empty(v)) { $mv(grep_ndl, v); }
+    CLIFlag(&v, &c, "-p");
+    if (!$empty(v)) { $mv(pcre_ndl, v); }
+    CLIFlag(&v, &c, "--pcre");
+    if (!$empty(v)) { $mv(pcre_ndl, v); }
+
+    // Collect trail args: extensions (.c) and file paths from URIs
+    u8cs trail[16] = {};
+    int ntrail = 0;
+    for (u32 ui = 0; ui < c.nuris && ntrail < 16; ui++) {
+        uri *u = &c.uris[ui];
+        // If URI has a fragment and no explicit -g/-s/-p, dispatch by type
+        if ($empty(spot_ndl) && $empty(grep_ndl) && $empty(pcre_ndl) &&
+            !$empty(u->fragment)) {
+            frag fr = {};
+            if (FRAGu8sDrain(u->fragment, &fr) == OK) {
+                if (fr.type == FRAG_SPOT && !$empty(fr.body)) {
+                    $mv(spot_ndl, fr.body);
+                } else if (fr.type == FRAG_PCRE && !$empty(fr.body)) {
+                    $mv(pcre_ndl, fr.body);
+                } else if (fr.type == FRAG_IDENT && !$empty(fr.body)) {
+                    $mv(grep_ndl, fr.body);
                 }
-                if (*rp == '\'' || *rp == '/' || *rp == ' ') break;
+                // Collect ext filters from fragment
+                for (u8 ei = 0; ei < fr.nexts && ntrail < 16; ei++) {
+                    // Reconstruct ".ext" slice
+                    // The ext in frag points past the dot; back up one
+                    if (!$empty(fr.exts[ei]) && fr.exts[ei][0] > u->data[0]) {
+                        trail[ntrail][0] = fr.exts[ei][0] - 1; // include dot
+                        trail[ntrail][1] = fr.exts[ei][1];
+                        ntrail++;
+                    }
+                }
             }
-
-            if (first == '\'') {
-                // 'quoted' → structural search; strip quotes
-                if ($len(search) >= 2) {
-                    u8csFed(search, 1);
-                    if (*(search[1] - 1) == '\'') search[1]--;
-                }
-                $mv(spot_ndl, search);
-            } else if (first == '/') {
-                // /slashed/ → regex; strip slashes
-                if ($len(search) >= 2) {
-                    u8csFed(search, 1);
-                    if (*(search[1] - 1) == '/') search[1]--;
-                }
-                $mv(pcre_ndl, search);
-            } else if (first >= '0' && first <= '9') {
-                // Line number — not a search, ignore for spot
-            } else {
-                // Bare text → grep
-                $mv(grep_ndl, search);
-            }
-
-            // Path from URI → explicit file
-            if (!$empty(gu.path)) {
+            // Path from URI → file filter
+            if (!$empty(u->path)) {
                 u8cs gpath = {};
-                $mv(gpath, gu.path);
-                if (*gpath[0] == '/') u8csFed(gpath, 1);
-                if (!$empty(gpath)) {
-                    ntrail = 1;
-                    $mv(trail[0], gpath);
-                } else {
-                    ntrail = 0;
+                $mv(gpath, u->path);
+                if (!$empty(gpath) && *gpath[0] == '/') {
+                    u8csFed(gpath, 1);
                 }
-            } else if (!$empty(sext)) {
-                ntrail = 1;
-                $mv(trail[0], sext);
-            } else {
-                ntrail = 0;
+                if (!$empty(gpath) && ntrail < 16) {
+                    $mv(trail[ntrail], gpath);
+                    ntrail++;
+                }
+            }
+        } else {
+            // Plain URI arg → trail (ext or file path)
+            u8cs dat = {};
+            if (!$empty(u->path)) {
+                $mv(dat, u->path);
+            } else if (!$empty(u->data)) {
+                $mv(dat, u->data);
+            }
+            if (!$empty(dat) && ntrail < 16) {
+                $mv(trail[ntrail], dat);
+                ntrail++;
             }
         }
     }
 
     // Validate: -r only valid with -s
-    if (spot_rep[0] != NULL && spot_ndl[0] == NULL) {
+    if (!$empty(spot_rep) && $empty(spot_ndl)) {
         fprintf(stderr, "spot: --replace requires --spot\n");
+        SPOTClose(&dog);
         return FAILSANITY;
     }
 
-    // Producers that emit hunks: select output fd + serializer.
-    // Skip pager when -r (replace), indexing, or hooks.
+    // Output setup
     pid_t bro_pid = -1;
     b8 produces_hunks =
-        (grep_ndl[0] != NULL || pcre_ndl[0] != NULL ||
-         spot_ndl[0] != NULL) &&
-        !do_index && !is_hook && spot_rep[0] == NULL;
+        (!$empty(grep_ndl) || !$empty(pcre_ndl) || !$empty(spot_ndl)) &&
+        !do_index && !is_hook && $empty(spot_rep);
     if (produces_hunks) {
         if (force_tlv) {
-            // TLV to stdout (invoked by bro, no pager fork)
             spot_out_fd = STDOUT_FILENO;
             spot_emit   = HUNKu8sFeed;
             signal(SIGPIPE, SIG_IGN);
-        } else if (tty_out) {
-            // Fork bro as the pager.  Parent stays the producer.
+        } else if (c.tty_out) {
             char bropath[FILE_PATH_MAX_LEN];
             a$rg(a0, 0);
             HOMEResolveSibling(bropath, sizeof(bropath),
@@ -277,7 +207,6 @@ ok64 capocli() {
             bro_pid = fork();
             test(bro_pid >= 0, FAILSANITY);
             if (bro_pid == 0) {
-                // Child = bro pager: stdin from pipe
                 close(pfd[1]);
                 dup2(pfd[0], STDIN_FILENO);
                 close(pfd[0]);
@@ -291,7 +220,6 @@ ok64 capocli() {
             spot_emit   = dog.emit;
             signal(SIGPIPE, SIG_IGN);
         } else {
-            // Plain text mode: write git-style ASCII to stdout.
             dog.out_fd = STDOUT_FILENO;
             dog.emit   = HUNKu8sFeedText;
             spot_out_fd = dog.out_fd;
@@ -299,12 +227,12 @@ ok64 capocli() {
         }
     }
 
+    // --- Dispatch ---
+
     if (do_status) {
-        // DOG convention: --status = short status report
         a_path(capodir);
         call(CAPOResolveDir, capodir, reporoot);
         a_dup(u8c, dirslice, u8bDataC(capodir));
-        // Count index files
         u64cs runs[CAPO_MAX_LEVELS] = {};
         u64css stack = {runs, runs};
         u8bp mmaps[CAPO_MAX_LEVELS] = {};
@@ -317,35 +245,8 @@ ok64 capocli() {
         fprintf(stderr, "spot: %u index files, %llu entries\n",
                 nidxfiles, (unsigned long long)total);
     } else if (do_update) {
-        // DOG convention: --update = incremental index update
         call(CAPOHook, reporoot);
-    } else if (grep_ndl[0] != NULL) {
-        // GREP mode: .ext optional, file paths restrict search
-        u8cs ext = {};
-        u8cs gfiles[16] = {};
-        int gnf = 0;
-        for (int i = 0; i < ntrail; i++) {
-            if (argIsExt(trail[i])) {
-                $mv(ext, trail[i]);
-            } else if (gnf < 16) {
-                $mv(gfiles[gnf], trail[i]);
-                gnf++;
-            }
-        }
-        // No bare .ext — extract extension from first file path
-        if ($empty(ext) && gnf > 0) {
-            u8cs pe = {};
-            PATHu8sExt(pe, gfiles[0]);
-            if (!$empty(pe)) {
-                ext[0] = pe[0] - 1;  // include the dot
-                ext[1] = pe[1];
-            }
-        }
-        a_dup(u8c,ndl,grep_ndl);
-        u8css gf = {gfiles, gfiles + gnf};
-        call(CAPOGrep, ndl, ext, reporoot, grep_ctx, gf);
-    } else if (pcre_ndl[0] != NULL) {
-        // PCRE (regex) mode: .ext optional, file paths restrict search
+    } else if (!$empty(grep_ndl)) {
         u8cs ext = {};
         u8cs gfiles[16] = {};
         int gnf = 0;
@@ -365,7 +266,30 @@ ok64 capocli() {
                 ext[1] = pe[1];
             }
         }
-        a_dup(u8c,ndl,pcre_ndl);
+        a_dup(u8c, ndl, grep_ndl);
+        u8css gf = {gfiles, gfiles + gnf};
+        call(CAPOGrep, ndl, ext, reporoot, grep_ctx, gf);
+    } else if (!$empty(pcre_ndl)) {
+        u8cs ext = {};
+        u8cs gfiles[16] = {};
+        int gnf = 0;
+        for (int i = 0; i < ntrail; i++) {
+            if (argIsExt(trail[i])) {
+                $mv(ext, trail[i]);
+            } else if (gnf < 16) {
+                $mv(gfiles[gnf], trail[i]);
+                gnf++;
+            }
+        }
+        if ($empty(ext) && gnf > 0) {
+            u8cs pe = {};
+            PATHu8sExt(pe, gfiles[0]);
+            if (!$empty(pe)) {
+                ext[0] = pe[0] - 1;
+                ext[1] = pe[1];
+            }
+        }
+        a_dup(u8c, ndl, pcre_ndl);
         u8css gf = {gfiles, gfiles + gnf};
         call(CAPOPcreGrep, ndl, ext, reporoot, grep_ctx, gf);
     } else if (do_uncommitted) {
@@ -373,16 +297,13 @@ ok64 capocli() {
     } else if (is_hook) {
         call(CAPOHook, reporoot);
     } else if (nfork > 0 && proc != UINT32_MAX) {
-        // Worker mode: I am proc K of N
         call(CAPOReindexProc, reporoot, nfork, proc);
     } else if (nfork > 0) {
-        // Orchestrator: fork N children, wait, compact
         a_path(capodir);
         call(CAPOResolveDir, capodir, reporoot);
         a_dup(u8c, dirslice, u8bDataC(capodir));
         call(FILEMakeDirP, PATHu8cgIn(capodir));
 
-        // Get our own executable path
         char self[FILE_PATH_MAX_LEN];
         ssize_t slen = readlink("/proc/self/exe", self, sizeof(self) - 1);
         test(slen > 0, FAILSANITY);
@@ -424,8 +345,7 @@ ok64 capocli() {
         call(CAPOCompactAll, dirslice);
         call(CAPOCommitWrite, reporoot, dirslice);
         fprintf(stderr, "spot: done\n");
-    } else if (spot_ndl[0] != NULL) {
-        // SPOT mode: .ext and/or file paths
+    } else if (!$empty(spot_ndl)) {
         u8cs ext = {};
         u8cs sfiles[16] = {};
         int snf = 0;
@@ -437,34 +357,34 @@ ok64 capocli() {
                 snf++;
             }
         }
-        // No bare .ext — extract extension from first file path
         if ($empty(ext) && snf > 0) {
             u8cs pe = {};
             PATHu8sExt(pe, sfiles[0]);
             if (!$empty(pe)) {
-                ext[0] = pe[0] - 1;  // include the dot
+                ext[0] = pe[0] - 1;
                 ext[1] = pe[1];
             }
         }
         if ($empty(ext)) {
             fprintf(stderr, "spot: --spot requires a .ext argument\n");
+            SPOTClose(&dog);
             return FAILSANITY;
         }
-        a_dup(u8c,ndl,spot_ndl);
-        a_dup(u8c,rep,spot_rep);
+        a_dup(u8c, ndl, spot_ndl);
+        a_dup(u8c, rep, spot_rep);
         u8css sf = {sfiles, sfiles + snf};
         call(CAPOSpot, ndl, rep, ext, reporoot, sf);
     } else if (do_index) {
         call(CAPOReindex, reporoot);
-    } else if (ntrail > 0) {
-        fprintf(stderr, "spot: file display moved to bro; run `bro %s`\n",
-                (char *)trail[0][0]);
+    } else if (c.nuris > 0) {
+        fprintf(stderr, "spot: file display moved to bro\n");
+        SPOTClose(&dog);
         return FAILSANITY;
     } else {
         call(CAPOHook, reporoot);
     }
 
-    // Close pipe to bro and reap.
+    // Cleanup
     if (spot_out_fd >= 0 && spot_out_fd != STDOUT_FILENO) {
         close(spot_out_fd);
         spot_out_fd = -1;
