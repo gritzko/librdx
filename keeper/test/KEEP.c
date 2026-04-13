@@ -103,9 +103,10 @@ ok64 KEEPput() {
     // Store two blobs
     a_cstr(blob1, "hello world\n");
     a_cstr(blob2, "goodbye world\n");
-    u8csc objs[2] = {};
-    u8csMv(objs[0], blob1);
-    u8csMv(objs[1], blob2);
+    u8csc objs[2] = {
+        {blob1[0], blob1[1]},
+        {blob2[0], blob2[1]},
+    };
     wh64 wh[2] = {
         wh64Pack(KEEP_OBJ_BLOB, 0, 0),
         wh64Pack(KEEP_OBJ_BLOB, 0, 0),

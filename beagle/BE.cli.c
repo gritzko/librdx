@@ -136,12 +136,8 @@ static char const *be_canon_verb(u8csc verb) {
         return "delete";
     if ($eq(verb, v_status))
         return "status";
-    // Already canonical
-    char tmp[16] = {};
-    size_t vl = (size_t)$len(verb);
-    if (vl >= sizeof(tmp)) vl = sizeof(tmp) - 1;
-    memcpy(tmp, verb[0], vl);
-    return tmp;  // this is fine — only used for comparison below
+    // Already canonical — return verb data directly (borrowed from argv)
+    return (char const *)verb[0];
 }
 
 // --- Main ---
