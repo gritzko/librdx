@@ -12,26 +12,28 @@ ok64 WH64hashlet() {
     u8 sha[20] = {0x81, 0x6f, 0xb4, 0x6b, 0xe6, 0x65, 0xc8, 0xb6,
                   0x36, 0x47, 0xf0, 0x09, 0x68, 0x45, 0xfe, 0xf3,
                   0x63, 0x73, 0x6b, 0x20};
-    u64 hashlet = wh64Hashlet(sha);
+    u64 hashlet = wh64Hashlet(({ a_rawc(_r, sha); _r; }));
 
     // Hex output should match SHA prefix
     char hex[12];
-    wh64HashletHex(hex, hashlet, 10);
+    wh64Hex40(hex, hashlet, 10);
     want(memcmp(hex, "816fb46be6", 10) == 0);
 
     // Shorter prefix
-    wh64HashletHex(hex, hashlet, 7);
+    wh64Hex40(hex, hashlet, 7);
     hex[7] = 0;
     want(memcmp(hex, "816fb46", 7) == 0);
 
     // FromHex round-trip
-    u64 h2 = wh64HashletFromHex("816fb46be6", 10);
+    a_cstr(h2hex, "816fb46be6");
+    u64 h2 = wh64FromHex40(h2hex);
     want(h2 == hashlet);
 
     // Short prefix match
-    u64 h7 = wh64HashletFromHex("816fb46", 7);
-    want(wh64HashletMatch(hashlet, "816fb46", 7) == YES);
-    want(wh64HashletMatch(hashlet, "816fb47", 7) == NO);
+    a_cstr(h7hex, "816fb46");
+    a_cstr(h7bad, "816fb47");
+    want(wh64HashletMatch(hashlet, h7hex, 40) == YES);
+    want(wh64HashletMatch(hashlet, h7bad, 40) == NO);
 
     done;
 }
@@ -74,7 +76,7 @@ ok64 KEEPempty() {
     want(k.npacks == 0);
     want(k.nruns == 0);
 
-    u64 hashlet = keepHashlet60FromHex("abcdef", 6);
+    u64 hashlet = keepHashlet60FromHex(({ a_cstr(_h, "abcdef"); _h; }));
     u64 val = 0;
     want(KEEPLookup(&k, hashlet, 6, &val) == KEEPNONE);
     want(KEEPHas(&k, hashlet, 6) == KEEPNONE);
@@ -124,12 +126,12 @@ ok64 KEEPput() {
     // "hello world\n" SHA = 3b18e512dba79e4c8300dd08aeb37f8e728b8dad
     u8 sha0[20] = {0x3b,0x18,0xe5,0x12,0xdb,0xa7,0x9e,0x4c,0x83,0x00,
                    0xdd,0x08,0xae,0xb3,0x7f,0x8e,0x72,0x8b,0x8d,0xad};
-    u64 h0 = keepHashlet60(sha0);
+    u64 h0 = ({ a_rawc(_r, sha0); keepHashlet60(_r); });
     // "goodbye world\n" — compute via git hash-object
-    u64 h1 = keepHashlet60FromHex("ce0136", 6);  // just need a prefix
+    u64 h1 = keepHashlet60FromHex(({ a_cstr(_h, "ce0136"); _h; }));  // just need a prefix
 
     // Should be retrievable by 7-char prefix (git default)
-    want(KEEPHas(&k, keepHashlet60FromHex("3b18e51", 7), 7) == OK);
+    want(KEEPHas(&k, keepHashlet60FromHex(({ a_cstr(_h, "3b18e51"); _h; })), 7) == OK);
 
     // Get content back
     Bu8 out = {};
@@ -170,50 +172,50 @@ ok64 KEEPpackIncremental() {
     // Feed blob: "hello world\n"
     // git SHA-1 = 3b18e512dba79e4c8300dd08aeb37f8e728b8dad
     a_cstr(blob_content, "hello world\n");
-    u8 blob_sha[20] = {};
-    call(KEEPPackFeed, &k, &p, KEEP_OBJ_BLOB, blob_content, blob_sha);
+    sha1 blob_sha = {};
+    call(KEEPPackFeed, &k, &p, KEEP_OBJ_BLOB, blob_content, &blob_sha);
 
     // Verify blob SHA matches git
     u8 expected_blob_sha[20] = {
         0x3b,0x18,0xe5,0x12,0xdb,0xa7,0x9e,0x4c,0x83,0x00,
         0xdd,0x08,0xae,0xb3,0x7f,0x8e,0x72,0x8b,0x8d,0xad};
-    want(memcmp(blob_sha, expected_blob_sha, 20) == 0);
+    want(memcmp(blob_sha.data, expected_blob_sha, 20) == 0);
 
     // Build tree content: "100644 hello.txt\0" + 20-byte blob SHA
     a_pad(u8, tree_buf, 256);
     a_cstr(tree_mode, "100644 hello.txt");
     u8bFeed(tree_buf, tree_mode);
     u8bFeed1(tree_buf, 0);  // NUL separator
-    u8cs sha_slice = {blob_sha, blob_sha + 20};
+    u8cs sha_slice = {blob_sha.data, blob_sha.data + 20};
     u8bFeed(tree_buf, sha_slice);
 
     a_dup(u8c, tree_content, u8bData(tree_buf));
-    u8 tree_sha[20] = {};
-    call(KEEPPackFeed, &k, &p, KEEP_OBJ_TREE, tree_content, tree_sha);
+    sha1 tree_sha = {};
+    call(KEEPPackFeed, &k, &p, KEEP_OBJ_TREE, tree_content, &tree_sha);
 
     // Verify tree SHA matches git: 68aba62e560c0ebc3396e8ae9335232cd93a3f60
     u8 expected_tree_sha[20] = {
         0x68,0xab,0xa6,0x2e,0x56,0x0c,0x0e,0xbc,0x33,0x96,
         0xe8,0xae,0x93,0x35,0x23,0x2c,0xd9,0x3a,0x3f,0x60};
-    want(memcmp(tree_sha, expected_tree_sha, 20) == 0);
+    want(memcmp(tree_sha.data, expected_tree_sha, 20) == 0);
 
     call(KEEPPackClose, &k, &p);
     want(k.npacks == 1);
     want(k.nruns == 1);
 
     // Retrieve blob by 7-char prefix (git default)
-    u64 blob_hashlet = keepHashlet60(blob_sha);
+    u64 blob_hashlet = keepHashlet60(({ a_rawc(_r, blob_sha); _r; }));
     Bu8 out = {};
     call(u8bMap, out, 1UL << 20);
     u8 obj_type = 0;
-    call(KEEPGet, &k, keepHashlet60FromHex("3b18e51", 7), 7, out, &obj_type);
+    call(KEEPGet, &k, keepHashlet60FromHex(({ a_cstr(_h, "3b18e51"); _h; })), 7, out, &obj_type);
     want(obj_type == KEEP_OBJ_BLOB);
     want(u8bDataLen(out) == u8csLen(blob_content));
     want(memcmp(u8bDataHead(out), blob_content[0], u8csLen(blob_content)) == 0);
 
     // Retrieve tree by full 15-char hashlet
     u8bReset(out);
-    u64 tree_hashlet = keepHashlet60(tree_sha);
+    u64 tree_hashlet = keepHashlet60(({ a_rawc(_r, tree_sha); _r; }));
     call(KEEPGet, &k, tree_hashlet, 15, out, &obj_type);
     want(obj_type == KEEP_OBJ_TREE);
     want(u8bDataLen(out) == u8csLen(tree_content));

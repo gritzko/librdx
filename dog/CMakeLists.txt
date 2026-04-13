@@ -211,7 +211,8 @@ list(APPEND TOK_SOURCES FRAG.rl.c)
 list(APPEND TOK_HEADERS CLI.h)
 list(APPEND TOK_SOURCES CLI.c)
 
-add_library(dog STATIC ${TOK_HEADERS} ${TOK_SOURCES})
+add_library(dog STATIC ${TOK_HEADERS} ${TOK_SOURCES}
+            sha1dc/sha1.c sha1dc/ubc_check.c)
 target_link_libraries(dog abc-core)
 
 add_executable(dogtok TOK.cli.c)

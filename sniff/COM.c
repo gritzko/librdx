@@ -39,7 +39,7 @@ static ok64 com_collect_tree(sha_ctx *ctx, keeper *k,
                              u8cp tree_sha, u8cs prefix) {
     sane(ctx && k && tree_sha);
 
-    u64 hashlet = keepHashlet60(tree_sha);
+    u64 hashlet = keepHashlet60(({ a_rawc(_r, tree_sha); _r; }));
     Bu8 buf = {};
     call(u8bAllocate, buf, 1UL << 24);
     u8 otype = 0;
@@ -321,8 +321,7 @@ ok64 COMCommit(sniff *s, keeper *k, u8cs reporoot,
 
     size_t hexlen = $len(parent_hex);
     if (hexlen > 15) hexlen = 15;
-    u64 parent_hashlet = keepHashlet60FromHex(
-        (char const *)parent_hex[0], hexlen);
+    u64 parent_hashlet = keepHashlet60FromHex(parent_hex);
 
     Bu8 cbuf = {};
     call(u8bAllocate, cbuf, 1UL << 24);
@@ -343,7 +342,7 @@ ok64 COMCommit(sniff *s, keeper *k, u8cs reporoot,
                 break;
             }
         }
-        u64 ch = keepHashlet60(u8bDataHead(shabin));
+        u64 ch = ({ a_rawcp(_r, u8bDataHead(shabin)); keepHashlet60(_r); });
         u8bReset(cbuf);
         call(KEEPGet, k, ch, 15, cbuf, &ctype);
     }
@@ -361,7 +360,7 @@ ok64 COMCommit(sniff *s, keeper *k, u8cs reporoot,
         u8bFeed(tmp, hs);
         u8bFeed1(tmp, 0);
         u8bFeed(tmp, u8bDataC(cbuf));
-        SHA1Sum(parent_sha, u8bDataHead(tmp), u8bDataLen(tmp));
+        { sha1 _h; a_dup(u8c, _d, u8bData(tmp)); SHA1Sum(&_h, _d); memcpy(parent_sha, _h.data, 20); }
         u8bFree(tmp);
     }
 

@@ -114,7 +114,7 @@ static ok64 sniff_bootstrap(sniff *s, u8cs reporoot) {
         a$str(path, pathstr);
         u32 idx = SNIFFIntern(s, path);
 
-        u64 hashlet = wh64Hashlet(u8bDataHead(shabin));
+        u64 hashlet = ({ a_rawcp(_r, u8bDataHead(shabin)); wh64Hashlet(_r); });
         SNIFFRecord(s, SNIFF_HASHLET, idx, hashlet);
 
         count++;

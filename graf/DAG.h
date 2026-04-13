@@ -70,7 +70,8 @@ fun belt128 DAGEntry(u8 atype, u32 agen, u64 ahash,
 // --- sha1 helpers ---
 
 fun u64 DAGsha1Hashlet(sha1 const *s) {
-    return wh64Hashlet(s->data);
+    a_rawc(_d, *s);
+    return wh64Hashlet(_d);
 }
 
 fun ok64 DAGsha1FromHex(sha1 *out, char const *hex40) {
@@ -89,7 +90,7 @@ fun void DAGsha1ToHex(char *hex41, sha1 const *s) {
 }
 
 fun void DAGHashletToHex(char *out, u64 hashlet) {
-    wh64HashletHex(out, hashlet, 10);
+    wh64Hex40(out, hashlet, 10);
 }
 
 // --- Comparator: sort by (a, b) ---
