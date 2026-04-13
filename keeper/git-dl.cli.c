@@ -125,7 +125,10 @@ static void git_sha1(u8 sha[20], u8 type, u8cp content, u64 sz, u8p tmp) {
     memcpy(tmp, hbuf, hlen);
     tmp[hlen] = 0;
     memcpy(tmp + hlen + 1, content, sz);
-    SHA1Sum(sha, tmp, hlen + 1 + sz);
+    sha1 _h;
+    u8csc _d = {tmp, tmp + hlen + 1 + sz};
+    SHA1Sum(&_h, _d);
+    memcpy(sha, _h.data, 20);
 }
 
 ok64 gitdl() {

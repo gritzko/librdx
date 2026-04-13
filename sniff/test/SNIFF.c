@@ -244,7 +244,7 @@ ok64 SNIFFCheckoutCommit() {
     call(COMCommit, &s, &k, root, hex, msg, author, NULL, new_sha);
 
     // Verify new commit exists
-    u64 new_hashlet = keepHashlet60(new_sha);
+    u64 new_hashlet = keepHashlet60(({ a_rawc(_r, new_sha); _r; }));
     want(KEEPHas(&k, new_hashlet, 15) == OK);
 
     // Verify via KEEPGet

@@ -15,6 +15,8 @@
 
 #include "abc/INT.h"
 #include "abc/KV.h"
+#include "abc/URI.h"
+#include "dog/SHA1.h"
 #include "dog/WHIFF.h"
 
 con ok64 KEEPFAIL    = 0x11c53ca495;
@@ -29,56 +31,26 @@ con ok64 KEEPNONE    = 0x11c55d85ce;
 //  obj_type: 1=commit 2=tree 3=blob 4=tag (git pack types).
 //  Sorts by hashlet first, type second.
 
-#define KEEP_HASHLET_BITS  60
-#define KEEP_HASHLET_MASK  ((1ULL << 60) - 1)
-#define KEEP_TYPE_BITS     4
-#define KEEP_TYPE_MASK     0xfULL
+// Index key uses wh64 with id=0 → 60-bit hashlet spans both fields.
+// key = wh64Pack(obj_type, 0, hashlet40) but hashlet's upper 20 bits
+// spill into the id field, giving 60 effective hashlet bits.
+//
+// Convenience aliases:
+#define keepHashlet60       wh64Hashlet60
+#define keepHashlet60FromHex wh64FromHex60
+#define KEEP_HASHLET_MASK WHIFF_HASHLET60_MASK
+#define keepHashlet60Hex(out, h, n)  wh64Hex60(out, h, n)
 
+// Key pack: type in LS 4 bits, 60-bit hashlet above.
+// Same as wh64Pack(type, id_hi, off) where hashlet60 = (off << 20) | id_hi.
 fun u64 keepKeyPack(u8 type, u64 hashlet60) {
-    return (hashlet60 << KEEP_TYPE_BITS) | ((u64)type & KEEP_TYPE_MASK);
+    return ((u64)type & WHIFF_TYPE_MASK) |
+           ((hashlet60 & WHIFF_ID_MASK) << WHIFF_ID_SHIFT) |
+           (((hashlet60 >> WHIFF_ID_BITS) & WHIFF_OFF_MASK) << WHIFF_OFF_SHIFT);
 }
-fun u8  keepKeyType(u64 key)    { return (u8)(key & KEEP_TYPE_MASK); }
-fun u64 keepKeyHashlet(u64 key) { return (key >> KEEP_TYPE_BITS) & KEEP_HASHLET_MASK; }
-
-// Extract 60-bit hashlet from 20-byte SHA (big-endian, first byte on top)
-fun u64 keepHashlet60(u8cp sha) {
-    u64 h = 0;
-    memcpy(&h, sha, 8);
-    return (flip64(h) >> 4) & KEEP_HASHLET_MASK;
-}
-
-// 60-bit hashlet → hex prefix (up to 15 chars)
-fun void keepHashlet60Hex(char *out, u64 hashlet60, size_t nchars) {
-    if (nchars > 15) nchars = 15;
-    for (size_t i = 0; i < nchars; i++) {
-        u8 nib = (u8)((hashlet60 >> (56 - i * 4)) & 0xf);
-        out[i] = "0123456789abcdef"[nib];
-    }
-    out[nchars] = 0;
-}
-
-// Hex prefix → 60-bit hashlet (zero-padded in low bits)
-fun u64 keepHashlet60FromHex(char const *hex, size_t nchars) {
-    if (nchars > 15) nchars = 15;
-    u64 h = 0;
-    for (size_t i = 0; i < nchars; i++) {
-        u8 c = (u8)hex[i];
-        u8 nib = 0;
-        if (c >= '0' && c <= '9') nib = c - '0';
-        else if (c >= 'a' && c <= 'f') nib = c - 'a' + 10;
-        else if (c >= 'A' && c <= 'F') nib = c - 'A' + 10;
-        h = (h << 4) | nib;
-    }
-    h <<= (15 - nchars) * 4;
-    return h;
-}
-
-// Compare hashlet against hex prefix of any length
-fun b8 keepHashlet60Match(u64 hashlet60, char const *hex, size_t nchars) {
-    char full[16];
-    keepHashlet60Hex(full, hashlet60, 15);
-    if (nchars > 15) nchars = 15;
-    return memcmp(full, hex, nchars) == 0;
+fun u8  keepKeyType(u64 key)    { return wh64Type(key); }
+fun u64 keepKeyHashlet(u64 key) {
+    return (wh64Off(key) << WHIFF_ID_BITS) | wh64Id(key);
 }
 
 // --- Val format: same wh64 layout ---
@@ -170,12 +142,34 @@ ok64 KEEPPackOpen(keeper *k, keep_pack *p);
 
 //  Feed one object.  sha_out receives the 20-byte git SHA-1.
 ok64 KEEPPackFeed(keeper *k, keep_pack *p,
-                  u8 type, u8csc content, u8 sha_out[20]);
+                  u8 type, u8csc content, sha1 *sha_out);
 
 ok64 KEEPPackClose(keeper *k, keep_pack *p);
 
 //  Walk objects in a pack file from a given val position.
 typedef ok64 (*keep_cb)(u8 type, u8cs content, u64 hashlet, void *ctx);
 ok64 KEEPScan(keeper *k, u64 from_val, keep_cb cb, void *ctx);
+
+// --- Tree walk ---
+
+typedef enum {
+    KEEP_WALK_DEEP    = 1,  // recurse into subtrees
+    KEEP_WALK_BLOBS   = 2,  // yield blob entries
+    KEEP_WALK_TREES   = 4,  // yield subtree entries
+    KEEP_WALK_CONTENT = 8,  // inflate content for blobs
+    KEEP_WALK_ALL     = 6,  // blobs + trees
+} KEEP_WALK;
+
+//  Callback for KEEPWalk.  entry URI has path filled with
+//  repo-relative filepath, query/authority from the input URI.
+//  content is non-empty only if KEEP_WALK_CONTENT is set.
+//  Return OK to continue, error to stop.
+typedef ok64 (*keep_walk_f)(voidp ctx, uricp entry, u8 obj_type, u8csc content);
+
+//  Walk a git tree.  Resolves target URI:
+//    ?ref or #sha → commit → tree, then recurse.
+//    //alias?ref  → resolve alias, same.
+ok64 KEEPWalk(keeper *k, uricp target, KEEP_WALK mode,
+              keep_walk_f cb, voidp ctx);
 
 #endif

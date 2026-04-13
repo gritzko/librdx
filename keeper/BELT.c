@@ -548,7 +548,7 @@ static ok64 belt_index_log(u8cs belt_dir, char const *idx_path) {
         memcpy(objbuf + hlen + 1, buf1, obj.size);
 
         u8 sha[20];
-        SHA1Sum(sha, objbuf, hlen + 1 + obj.size);
+        { sha1 _h; u8csc _d = {objbuf, objbuf + hlen + 1 + obj.size}; SHA1Sum(&_h, _d); memcpy(sha, _h.data, 20); }
 
         u32 gen = 0;
         if (obj.type == PACK_OBJ_COMMIT)
@@ -596,7 +596,7 @@ static ok64 belt_index_log(u8cs belt_dir, char const *idx_path) {
             memcpy(objbuf + hlen + 1, content, content_sz);
 
             u8 sha[20];
-            SHA1Sum(sha, objbuf, hlen + 1 + content_sz);
+            { sha1 _h; u8csc _d = {objbuf, objbuf + hlen + 1 + content_sz}; SHA1Sum(&_h, _d); memcpy(sha, _h.data, 20); }
 
             u32 gen = 0;
             if (obj_type == BELT_COMMIT)

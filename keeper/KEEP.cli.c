@@ -39,8 +39,8 @@ static void usage(void) {
         "Usage: keeper [flags] [URI]\n"
         "\n"
         "  URI:\n"
-        "    k:#hashprefix              cat object to stdout\n"
-        "    k:?refname                 resolve ref → SHA\n"
+        "    .#hashprefix               cat object to stdout\n"
+        "    .?refname                  resolve ref → SHA\n"
         "    //remote/path              sync all refs\n"
         "    //alias                    sync via alias\n"
         "    //remote?ref               sync specific ref\n"
@@ -289,8 +289,7 @@ ok64 keepercli() {
             fail(KEEPFAIL);
         }
         size_t hexlen = u8csLen(prefix);
-        u64 hashlet = keepHashlet60FromHex(
-            (char const *)prefix[0], hexlen);
+        u64 hashlet = keepHashlet60FromHex(prefix);
         Bu8 out = {};
         call(u8bMap, out, 64UL << 20);
         u8 obj_type = 0;

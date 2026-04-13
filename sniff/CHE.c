@@ -18,7 +18,7 @@ static ok64 che_tree(sniff *s, keeper *k, u8cs reporoot,
                      u8cp tree_sha, u8cs prefix, u8p seen) {
     sane(s && k && tree_sha);
 
-    u64 hashlet = keepHashlet60(tree_sha);
+    u64 hashlet = keepHashlet60(({ a_rawc(_r, tree_sha); _r; }));
     Bu8 buf = {};
     call(u8bAllocate, buf, 1UL << 24);
     u8 otype = 0;
@@ -67,7 +67,7 @@ static ok64 che_tree(sniff *s, keeper *k, u8cs reporoot,
         PATHu8gTerm(PATHu8gIn(rel));
         u8cs relpath = {u8bDataHead(rel), rel[2]};
 
-        u64 entry_hashlet = wh64Hashlet(esha[0]);
+        u64 entry_hashlet = wh64Hashlet(esha);
 
         if (is_dir) {
             a_path(dp);
@@ -101,7 +101,7 @@ static ok64 che_tree(sniff *s, keeper *k, u8cs reporoot,
             result = u8bAllocate(blob, 1UL << 24);
             if (result != OK) break;
             u8 bt = 0;
-            u64 keep_hashlet = keepHashlet60(esha[0]);
+            u64 keep_hashlet = keepHashlet60(esha);
             result = KEEPGet(k, keep_hashlet, 15, blob, &bt);
             if (result != OK) { u8bFree(blob); break; }
 
@@ -177,7 +177,7 @@ ok64 CHECheckout(sniff *s, keeper *k, u8cs reporoot, u8cs hex) {
 
     size_t hexlen = $len(hex);
     if (hexlen > 15) hexlen = 15;
-    u64 hashlet = keepHashlet60FromHex((char const *)hex[0], hexlen);
+    u64 hashlet = keepHashlet60FromHex(hex);
 
     Bu8 buf = {};
     call(u8bAllocate, buf, 1UL << 24);
@@ -211,7 +211,7 @@ ok64 CHECheckout(sniff *s, keeper *k, u8cs reporoot, u8cs hex) {
             fprintf(stderr, "sniff: bad tag (no object)\n");
             fail(SNIFFFAIL);
         }
-        u64 commit_hashlet = keepHashlet60(u8bDataHead(shabin));
+        u64 commit_hashlet = ({ a_rawcp(_r, u8bDataHead(shabin)); keepHashlet60(_r); });
         u8bReset(buf);
         o = KEEPGet(k, commit_hashlet, 15, buf, &otype);
         if (o != OK || otype != KEEP_OBJ_COMMIT) {
