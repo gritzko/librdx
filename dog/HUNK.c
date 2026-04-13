@@ -2,9 +2,7 @@
 
 #include <string.h>
 
-#include "abc/FILE.h"
 #include "abc/PRO.h"
-#include "abc/URI.h"
 #include "dog/FRAG.h"
 #include "dog/TOK.h"
 
@@ -74,34 +72,11 @@ static u8 hunk_hili_at(hunk const *hk, u32 pos) {
 ok64 HUNKu8sFeedText(u8s into, hunk const *hk) {
     sane(u8sOK(into) && hk != NULL);
     if (!$empty(hk->uri)) {
-        // Parse URI to extract path and fragment (symbol:line)
-        uri hu = {};
-        $mv(hu.data, hk->uri);
-        URILexer(&hu);
-        char pathz[FILE_PATH_MAX_LEN] = {};
-        char funcz[256] = {};
-        if (!$empty(hu.path)) {
-            u8cs p = {};
-            $mv(p, hu.path);
-            if (*p[0] == '/') u8csFed(p, 1);
-            size_t pl = (size_t)$len(p);
-            if (pl >= sizeof(pathz)) pl = sizeof(pathz) - 1;
-            memcpy(pathz, p[0], pl);
-        }
-        u32 lineno = 0;
-        if (!$empty(hu.fragment)) {
-            frag fr = {};
-            FRAGu8sDrain(hu.fragment, &fr);
-            if (fr.type == FRAG_IDENT && !$empty(fr.body)) {
-                size_t fl = (size_t)$len(fr.body);
-                if (fl >= sizeof(funcz)) fl = sizeof(funcz) - 1;
-                memcpy(funcz, fr.body[0], fl);
-            }
-            if (fr.line > 0) lineno = fr.line;
-        }
-        call(HUNKu8sFormatTitle, into,
-             pathz[0] ? pathz : NULL, funcz, lineno);
-        u8sFeed1(into, '\n');
+        a_cstr(pfx, "--- ");
+        u8sFeed(into, pfx);
+        u8sFeed(into, hk->uri);
+        a_cstr(sfx, " ---\n");
+        u8sFeed(into, sfx);
     }
     u32 tlen = (u32)$len(hk->text);
     b8 has_hili = !$empty(hk->hili);
@@ -271,6 +246,21 @@ ok64 HUNKu8sFormatTitle(u8s into, char const *filepath, char const *funcname,
     done;
 }
 
+// Is `s` a plain FRAG ident: [A-Za-z_][A-Za-z0-9_]* ?
+static b8 hunk_is_ident(char const *s) {
+    if (!s || !*s) return NO;
+    u8 c = (u8)*s++;
+    if (!((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '_'))
+        return NO;
+    while (*s) {
+        c = (u8)*s++;
+        if (!((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
+              (c >= '0' && c <= '9') || c == '_'))
+            return NO;
+    }
+    return YES;
+}
+
 ok64 HUNKu8sMakeURI(u8s into, u8csc path, char const *symbol, u32 lineno) {
     sane(u8sOK(into));
     if (!$empty(path)) u8sFeed(into, path);
@@ -279,9 +269,17 @@ ok64 HUNKu8sMakeURI(u8s into, u8csc path, char const *symbol, u32 lineno) {
         u8sFeed1(into, '#');
     if (has_sym) {
         u8cs sym = {(u8cp)symbol, (u8cp)symbol + strlen(symbol)};
-        u8sFeed(into, sym);
+        if (hunk_is_ident(symbol)) {
+            // Plain ident — emit verbatim
+            u8sFeed(into, sym);
+        } else {
+            // Quote and percent-escape URI-illegal chars
+            u8sFeed1(into, '\'');
+            call(FRAGu8sEsc, into, sym);
+            u8sFeed1(into, '\'');
+        }
         if (lineno > 0) {
-            u8sFeed1(into, ':');   // separator after symbol
+            u8sFeed1(into, ':');
             utf8sFeed10(into, (u64)lineno);
         }
     } else if (lineno > 0) {

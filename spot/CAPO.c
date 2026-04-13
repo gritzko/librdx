@@ -1543,7 +1543,7 @@ ok64 SPOTOpen(spotp s, b8 rw) {
     memset(s, 0, sizeof(spot));
     s->out_fd = -1;
     s->color = isatty(STDOUT_FILENO) ? YES : NO;
-    s->term = isatty(STDERR_FILENO) ? YES : NO;
+    s->term = (isatty(STDERR_FILENO) && isatty(STDOUT_FILENO)) ? YES : NO;
 
     a_path(root);
     ok64 ho = HOMEFind(root);
