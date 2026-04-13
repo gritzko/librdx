@@ -60,6 +60,9 @@ void BRODefer(u8bp mapped, Bu32 toks);
 // Bump bro_nhunks after the caller has filled bro_hunks[bro_nhunks].
 void BROHunkAdd(void);
 
+// List a directory into bro_hunks[]. Each entry tagged 'F'.
+ok64 BROListDir(u8csc dirpath);
+
 // Tokenize source in hk->text using the extension from pathslice.
 // Allocates toks buffer on success (caller must u32bUnMap).
 // Sets hk->toks. Returns YES if tokenized, NO otherwise.

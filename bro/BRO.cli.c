@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #include "abc/FILE.h"
@@ -80,11 +81,19 @@ ok64 brocli() {
                 $mv(file_path, fp);  // fallback: treat whole arg as path
             }
 
+            // Check if path is a directory
             a_pad(u8, fpbuf, FILE_PATH_MAX_LEN);
             __ = u8bFeed(fpbuf, file_path);
             if (__ != OK) continue;
             __ = PATHu8gTerm(PATHu8gIn(fpbuf));
             if (__ != OK) continue;
+
+            struct stat sb = {};
+            if (stat((char *)u8bDataHead(fpbuf), &sb) == 0 &&
+                S_ISDIR(sb.st_mode)) {
+                BROListDir(file_path);
+                continue;
+            }
 
             u8bp mapped = NULL;
             ok64 o = FILEMapRO(&mapped, PATHu8cgIn(fpbuf));
@@ -97,7 +106,6 @@ ok64 brocli() {
 
             hunk *hk = &bro_hunks[bro_nhunks];
             *hk = (hunk){};
-            // Store full URI (path#fragment) so title shows line number
             size_t ul = (size_t)$len(fp);
             u8p up = BROArenaWrite(fp[0], ul);
             if (up) { hk->uri[0] = up; hk->uri[1] = up + ul; }

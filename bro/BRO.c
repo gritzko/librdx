@@ -1,9 +1,11 @@
 #include "BRO.h"
 
 #include <ctype.h>
+#include <dirent.h>
 #include <fcntl.h>
 #include <poll.h>
 #include <signal.h>
+#include <sys/stat.h>
 #include <sys/wait.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -85,15 +87,20 @@ void BROHunkAdd(void) {
 
 // Tag-to-ANSI-color mapping.
 // Returns fg color; sets *bold = YES for definitions.
+#define FILE_COLOR 56  // 256-color violet for filenames (same as title)
+
 static int BROTagColor(u8 tag, b8 *bold) {
     *bold = NO;
     switch (tag) {
-        case 'D': return GRAY;
-        case 'G': return DARK_GREEN;
-        case 'L': return LIGHT_CYAN;
-        case 'H': return DARK_PINK;
-        case 'R': return LIGHT_BLUE;
-        case 'N': *bold = YES; return 0;
+        case 'D': return GRAY;         // comment
+        case 'G': return DARK_GREEN;   // string
+        case 'L': return LIGHT_CYAN;   // number
+        case 'H': return DARK_PINK;    // preproc/annotation
+        case 'R': return LIGHT_BLUE;   // keyword
+        case 'P': return GRAY;         // punctuation
+        case 'N': *bold = YES; return 0; // defined name
+        case 'C': *bold = YES; return 0; // function call
+        case 'F': return -FILE_COLOR;  // filename (256-color, negative = 256)
         default:  return 0;
     }
 }
@@ -237,6 +244,88 @@ static ok64 BROBuildIndex(BROstate *st) {
     done;
 }
 
+// --- Directory listing ---
+// Build a hunk for a directory listing. Each entry is a line tagged 'F'.
+// Directories get a trailing '/'. Sorted alphabetically.
+// Returns OK if hunk was added to bro_hunks[].
+ok64 BROListDir(u8csc dirpath) {
+    sane(!$empty(dirpath));
+    if (bro_nhunks >= BRO_MAX_HUNKS) fail(NOROOM);
+
+    // NUL-terminate for opendir
+    a_pad(u8, dbuf, FILE_PATH_MAX_LEN);
+    u8bFeed(dbuf, dirpath);
+    u8sFeed1(dbuf_idle, 0);
+
+    DIR *dp = opendir((char *)u8bDataHead(dbuf));
+    if (dp == NULL) fail(FAILSANITY);
+
+    // Collect entries into arena as "name\n" text
+    u8p text_start = u8bIdleHead(bro_arena);
+
+    // Also build tok array: each entry gets tag 'F' for the filename
+    // and 'P' for the trailing / or \n
+    Bu32 tokbuf = {};
+    ok64 to = u32bAlloc(tokbuf, 4096);
+    if (to != OK) { closedir(dp); fail(to); }
+
+    struct dirent *de;
+    while ((de = readdir(dp)) != NULL) {
+        if (de->d_name[0] == '.' && de->d_name[1] == 0) continue;
+        size_t nlen = strlen(de->d_name);
+        // Check if directory
+        a_pad(u8, epath, FILE_PATH_MAX_LEN);
+        u8bFeed(epath, dirpath);
+        u8cs slash = {(u8cp)"/", (u8cp)"/" + 1};
+        u8sFeed(epath_idle, slash);
+        u8cs nm = {(u8cp)de->d_name, (u8cp)de->d_name + nlen};
+        u8bFeed(epath, nm);
+        u8sFeed1(epath_idle, 0);
+        struct stat sb = {};
+        b8 is_dir = NO;
+        if (stat((char *)u8bDataHead(epath), &sb) == 0)
+            is_dir = S_ISDIR(sb.st_mode);
+
+        // Write "name/" or "name" + "\n" into arena
+        u8p wp = BROArenaWrite(de->d_name, nlen);
+        if (wp == NULL) break;
+        u32 name_end = (u32)(u8bIdleHead(bro_arena) - text_start);
+        u32bFeed1(tokbuf, tok32Pack('F', name_end));
+        if (is_dir) {
+            BROArenaWrite("/", 1);
+            u32 sl_end = (u32)(u8bIdleHead(bro_arena) - text_start);
+            u32bFeed1(tokbuf, tok32Pack('P', sl_end));
+        }
+        BROArenaWrite("\n", 1);
+        u32 nl_end = (u32)(u8bIdleHead(bro_arena) - text_start);
+        u32bFeed1(tokbuf, tok32Pack('S', nl_end));
+    }
+    closedir(dp);
+
+    u8p text_end = u8bIdleHead(bro_arena);
+    if (text_end == text_start) {
+        u32bFree(tokbuf);
+        done;  // empty dir
+    }
+
+    hunk *hk = &bro_hunks[bro_nhunks];
+    *hk = (hunk){};
+
+    // URI = dirpath
+    size_t dl = (size_t)$len(dirpath);
+    u8p up = BROArenaWrite(dirpath[0], dl);
+    if (up) { hk->uri[0] = up; hk->uri[1] = up + dl; }
+
+    hk->text[0] = text_start;
+    hk->text[1] = text_end;
+    hk->toks[0] = (u32cp)u32bDataHead(tokbuf);
+    hk->toks[1] = (u32cp)u32bIdleHead(tokbuf);
+
+    BROHunkAdd();
+    BRODefer(NULL, tokbuf);
+    done;
+}
+
 // --- Tokenize helper (shared by CAT.c and BROOpenFile) ---
 // Tokenize source into toks buffer; set hk->toks on success.
 // toks buffer is allocated here (caller must u32bUnMap on cleanup).
@@ -376,15 +465,75 @@ static b8 BROBack(BROstate *st) {
     return YES;
 }
 
-// Try to open the file referenced by the hunk at the given line index.
-// Returns YES if a file was opened, NO otherwise.
-// On failure, flashes the error briefly on the status bar.
+// Try to open the file/dir referenced by the hunk at the given line.
+// For directory listings, the line text IS the filename; the hunk URI
+// is the directory. Constructs dir/filename and opens.
 static b8 BROTryOpen(BROstate *st, u32 line, char const *repo) {
     if (line >= st->nlines) return NO;
-    u32 hunk_idx = st->lines[line].lo;
+    range32 *ln = &st->lines[line];
+    u32 hunk_idx = ln->lo;
     hunk const *hk = &st->hunks[hunk_idx];
     BROloc loc = {};
     BROHunkLoc(&loc, hk);
+
+    // If this is a content line (not title), check if the hunk is a
+    // dir listing. In that case the line text is the entry name.
+    if (ln->hi != BRO_TITLE_LINE && !$empty(loc.path)) {
+        u32 textlen = (u32)$len(hk->text);
+        u32 off = ln->hi;
+        u32 end = off;
+        while (end < textlen && hk->text[0][end] != '\n') end++;
+        if (end > off) {
+            u32 elen = end - off;
+            // Strip trailing '/' for dirs
+            b8 is_dir = (hk->text[0][end - 1] == '/');
+            if (is_dir) elen--;
+            // Build full path: dir/entry
+            char fullp[FILE_PATH_MAX_LEN] = {};
+            int fn = snprintf(fullp, sizeof(fullp), "%.*s/%.*s",
+                              (int)$len(loc.path), (char *)loc.path[0],
+                              (int)elen, (char *)(hk->text[0] + off));
+            if (fn > 0 && (size_t)fn < sizeof(fullp)) {
+                u8cs fp = {(u8cp)fullp, (u8cp)fullp + fn};
+                if (repo == NULL || repo[0] == 0) {
+                    snprintf(st->flash, sizeof(st->flash), "no repo root");
+                    return NO;
+                }
+                if (is_dir) {
+                    // Open directory listing
+                    if (st->nsaves >= BRO_MAX_VIEWS) return NO;
+                    int idx = st->nsaves;
+                    st->saves[idx] = (BROsave){
+                        .hunks = st->hunks, .nhunks = st->nhunks,
+                        .lines = st->lines, .nlines = st->nlines,
+                        .scroll = st->scroll};
+                    memcpy(st->saves[idx].linesbuf, st->linesbuf,
+                           sizeof(Brange32));
+                    st->files[idx] = (BROfileview){};
+                    u32 save_nh = bro_nhunks;
+                    if (BROListDir(fp) == OK && bro_nhunks > save_nh) {
+                        st->hunks = bro_hunks + save_nh;
+                        st->nhunks = bro_nhunks - save_nh;
+                        memset(st->linesbuf, 0, sizeof(Brange32));
+                        BROBuildIndex(st);
+                        st->scroll = (st->nlines > 1) ? 1 : 0;
+                        st->nsaves = idx + 1;
+                        return YES;
+                    }
+                    return NO;
+                }
+                ok64 o = BROOpenFile(st, fp, repo, 0);
+                if (o != OK) {
+                    snprintf(st->flash, sizeof(st->flash),
+                             "open: %s: %s", fullp, ok64str(o));
+                    return NO;
+                }
+                return YES;
+            }
+        }
+    }
+
+    // Normal hunk: open path from URI
     if ($empty(loc.path)) {
         snprintf(st->flash, sizeof(st->flash), "no path in hunk");
         return NO;
@@ -599,7 +748,16 @@ static void scr_emit_char(u8cp p, u32 n, u8 fg_tag, u8 bg_tag, b8 in_search) {
     u8sp out = u8bIdle(bro_scr);
     if (fg != 0 || bold || is_ins || is_del || in_search) {
         if (bold) escfeed(out, BOLD);
-        if (fg != 0) escfeed(out, (u8)fg);
+        if (fg < 0) {
+            // 256-color FG: \033[38;5;Nm
+            u8sFeed1(out, 033); u8sFeed1(out, '[');
+            u8sFeed1(out, '3'); u8sFeed1(out, '8');
+            u8sFeed1(out, ';'); u8sFeed1(out, '5'); u8sFeed1(out, ';');
+            utf8sFeed10(out, (u64)(-fg));
+            u8sFeed1(out, 'm');
+        } else if (fg > 0) {
+            escfeed(out, (u8)fg);
+        }
         if (is_ins) escfeedBG256(out, 157);
         else if (is_del) escfeedBG256(out, 217);
         else if (in_search) escfeed(out, 7);
@@ -1543,6 +1701,50 @@ static int BROHandleKey(BROstate *st, u8 ch, char const *repo) {
             ? BROHiliNextLine(st->hunks, st->nhunks, st->lines, st->nlines, mid)
             : BROHiliPrevLine(st->hunks, st->nhunks, st->lines, st->nlines, mid);
         if (hl != BRO_NONE) { BROScrollCenter(st, hl); return BRO_KEY_CHANGED; }
+        return BRO_KEY_NONE;
+    }
+    if (ch == '.') {
+        // List directory of current hunk's file
+        if (st->scroll < st->nlines) {
+            u32 hi = st->lines[st->scroll].lo;
+            BROloc loc = {};
+            BROHunkLoc(&loc, &st->hunks[hi]);
+            if (!$empty(loc.path)) {
+                // Find parent dir: strip after last '/'
+                u8cs dir = {loc.path[0], loc.path[1]};
+                u8cp sl = loc.path[1];
+                while (sl > loc.path[0] && *(sl - 1) != '/') sl--;
+                if (sl > loc.path[0]) {
+                    dir[1] = sl - 1;  // exclude trailing /
+                } else {
+                    dir[0] = (u8cp)"."; dir[1] = (u8cp)"." + 1;
+                }
+                // Push current view, list directory
+                if (st->nsaves < BRO_MAX_VIEWS) {
+                    int idx = st->nsaves;
+                    BROsave *sv = &st->saves[idx];
+                    sv->hunks = st->hunks;
+                    sv->nhunks = st->nhunks;
+                    sv->lines = st->lines;
+                    memcpy(sv->linesbuf, st->linesbuf, sizeof(Brange32));
+                    sv->nlines = st->nlines;
+                    sv->scroll = st->scroll;
+                    st->files[idx] = (BROfileview){};
+
+                    // Reset for dir listing
+                    u32 save_nh = bro_nhunks;
+                    if (BROListDir(dir) == OK && bro_nhunks > save_nh) {
+                        st->hunks = bro_hunks + save_nh;
+                        st->nhunks = bro_nhunks - save_nh;
+                        memset(st->linesbuf, 0, sizeof(Brange32));
+                        BROBuildIndex(st);
+                        st->scroll = (st->nlines > 1) ? 1 : 0;
+                        st->nsaves = idx + 1;
+                        return BRO_KEY_CHANGED;
+                    }
+                }
+            }
+        }
         return BRO_KEY_NONE;
     }
     if (ch == 'm') {
