@@ -814,8 +814,7 @@ ok64 KEEPPackClose(keeper *k, keep_pack *p) {
     int ifd = -1;
     FILECreate(&ifd, PATHu8cgIn(idxpath));
     if (ifd >= 0) {
-        a_dup(kv64c, idata, kv64bData(p->entries));
-        u8cs raw = {(u8cp)idata[0], (u8cp)idata[1]};
+        u8cs raw = {(u8cp)sorted[0], (u8cp)sorted[1]};
         FILEFeedAll(ifd, raw);
         close(ifd);
     }

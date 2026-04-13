@@ -39,11 +39,11 @@ static ok64 com_collect_tree(sha_ctx *ctx, keeper *k,
                              u8cp tree_sha, u8cs prefix) {
     sane(ctx && k && tree_sha);
 
-    u64 hashlet = wh64Hashlet(tree_sha);
+    u64 hashlet = keepHashlet60(tree_sha);
     Bu8 buf = {};
     call(u8bAllocate, buf, 1UL << 24);
     u8 otype = 0;
-    ok64 o = KEEPGet(k, hashlet, 10, buf, &otype);
+    ok64 o = KEEPGet(k, hashlet, 15, buf, &otype);
     if (o != OK) { u8bFree(buf); fail(o); }
     if (otype != KEEP_OBJ_TREE) { u8bFree(buf); fail(SNIFFFAIL); }
 
@@ -320,8 +320,8 @@ ok64 COMCommit(sniff *s, keeper *k, u8cs reporoot,
     sane(s && k && $ok(parent_hex) && $ok(message) && $ok(author));
 
     size_t hexlen = $len(parent_hex);
-    if (hexlen > 10) hexlen = 10;
-    u64 parent_hashlet = wh64HashletFromHex(
+    if (hexlen > 15) hexlen = 15;
+    u64 parent_hashlet = keepHashlet60FromHex(
         (char const *)parent_hex[0], hexlen);
 
     Bu8 cbuf = {};
@@ -343,9 +343,9 @@ ok64 COMCommit(sniff *s, keeper *k, u8cs reporoot,
                 break;
             }
         }
-        u64 ch = wh64Hashlet(u8bDataHead(shabin));
+        u64 ch = keepHashlet60(u8bDataHead(shabin));
         u8bReset(cbuf);
-        call(KEEPGet, k, ch, 10, cbuf, &ctype);
+        call(KEEPGet, k, ch, 15, cbuf, &ctype);
     }
     if (ctype != KEEP_OBJ_COMMIT) { u8bFree(cbuf); fail(SNIFFFAIL); }
 
