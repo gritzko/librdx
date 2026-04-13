@@ -7,6 +7,8 @@
 #include "abc/FILE.h"
 #include "abc/PATH.h"
 #include "abc/PRO.h"
+#include "abc/URI.h"
+#include "dog/FRAG.h"
 
 static void BROUsage(void) {
     fprintf(stderr,
@@ -55,15 +57,31 @@ ok64 brocli() {
     }
 
     if (nf > 0) {
-        // Cat mode: map files, tokenize, display via BRORun.
+        // Cat mode: parse args as URIs, map files, tokenize.
         call(BROArenaInit);
         for (int fi = 0; fi < nf; fi++) {
             if (bro_nhunks >= BRO_MAX_HUNKS) break;
             a_dup(u8c, fp, files[fi]);
             if ($empty(fp)) continue;
 
+            // Parse as URI to split path from #fragment
+            uri gu = {};
+            $mv(gu.data, fp);
+            u8cs file_path = {};
+            u32 target_line = 0;
+            if (URILexer(&gu) == OK && !$empty(gu.path)) {
+                $mv(file_path, gu.path);
+                if (!$empty(gu.fragment)) {
+                    frag fr = {};
+                    if (FRAGu8sDrain(gu.fragment, &fr) == OK)
+                        target_line = fr.line;
+                }
+            } else {
+                $mv(file_path, fp);  // fallback: treat whole arg as path
+            }
+
             a_pad(u8, fpbuf, FILE_PATH_MAX_LEN);
-            __ = u8bFeed(fpbuf, fp);
+            __ = u8bFeed(fpbuf, file_path);
             if (__ != OK) continue;
             __ = PATHu8gTerm(PATHu8gIn(fpbuf));
             if (__ != OK) continue;
@@ -72,22 +90,25 @@ ok64 brocli() {
             ok64 o = FILEMapRO(&mapped, PATHu8cgIn(fpbuf));
             if (o != OK) {
                 fprintf(stderr, "bro: cannot open %.*s: %s\n",
-                        (int)$len(fp), (char *)fp[0], ok64str(o));
+                        (int)$len(file_path), (char *)file_path[0],
+                        ok64str(o));
                 continue;
             }
 
             hunk *hk = &bro_hunks[bro_nhunks];
             *hk = (hunk){};
-            size_t pl = (size_t)$len(fp);
-            u8p pp = BROArenaWrite(fp[0], pl);
-            if (pp) { hk->uri[0] = pp; hk->uri[1] = pp + pl; }
+            // Store full URI (path#fragment) so title shows line number
+            size_t ul = (size_t)$len(fp);
+            u8p up = BROArenaWrite(fp[0], ul);
+            if (up) { hk->uri[0] = up; hk->uri[1] = up + ul; }
             hk->text[0] = u8bDataHead(mapped);
             hk->text[1] = u8bIdleHead(mapped);
 
             Bu32 toks = {};
-            b8 tok = BROTokenize(toks, hk, fp);
+            b8 tok = BROTokenize(toks, hk, file_path);
             BROHunkAdd();
             BRODefer(mapped, tok ? toks : (Bu32){});
+
         }
         if (bro_nhunks > 0)
             BRORun(bro_hunks, bro_nhunks);

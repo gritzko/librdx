@@ -1666,8 +1666,24 @@ ok64 BRORun(hunk const *hunks, u32 nhunks) {
     bro_puts("\033[?1049h");
     // Mouse tracking starts disabled (toggle with 'm').
 
-    // Start at line 1: skip the first hunk title (shown in status bar)
-    if (st.nlines > 1) st.scroll = 1;
+    // Initial scroll: if first hunk has a line number in its URI, center
+    // on that line. Otherwise skip the title.
+    {
+        BROloc loc0 = {};
+        if (nhunks > 0) BROHunkLoc(&loc0, &hunks[0]);
+        if (loc0.line > 0 && st.nlines > 1) {
+            u32 file_ln = 0, best = 1;
+            for (u32 i = 0; i < st.nlines; i++) {
+                if (st.lines[i].hi == BRO_TITLE_LINE) continue;
+                file_ln++;
+                if (file_ln == loc0.line) { best = i; break; }
+                best = i;
+            }
+            BROScrollCenter(&st, best);
+        } else if (st.nlines > 1) {
+            st.scroll = 1;
+        }
+    }
 
     BRORender(&st);
 
