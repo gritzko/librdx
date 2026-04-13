@@ -206,6 +206,9 @@ list(APPEND TOK_SOURCES HUNK.c)
 list(APPEND TOK_HEADERS HOME.h)
 list(APPEND TOK_SOURCES HOME.c)
 
+list(APPEND TOK_HEADERS FRAG.h)
+list(APPEND TOK_SOURCES FRAG.rl.c)
+
 add_library(dog STATIC ${TOK_HEADERS} ${TOK_SOURCES})
 target_link_libraries(dog abc-core)
 
