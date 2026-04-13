@@ -97,7 +97,7 @@ ok64 keepercli() {
         }
         call(KEEPOpen, &k, reporoot);
         size_t hexlen = $len(prefix);
-        u64 hashlet = wh64HashletFromHex((char const *)prefix[0], hexlen);
+        u64 hashlet = keepHashlet60FromHex((char const *)prefix[0], hexlen);
         ok64 o = KEEPHas(&k, hashlet, hexlen);
         KEEPClose(&k);
         if (o == OK) {
@@ -117,7 +117,7 @@ ok64 keepercli() {
         }
         call(KEEPOpen, &k, reporoot);
         size_t hexlen = $len(prefix);
-        u64 hashlet = wh64HashletFromHex((char const *)prefix[0], hexlen);
+        u64 hashlet = keepHashlet60FromHex((char const *)prefix[0], hexlen);
         Bu8 out = {};
         call(u8bMap, out, 64UL << 20);
         u8 obj_type = 0;
@@ -357,7 +357,7 @@ ok64 keepercli() {
                 fail(KEEPFAIL);
             }
             size_t hexlen = u8csLen(prefix);
-            u64 hashlet = wh64HashletFromHex(
+            u64 hashlet = keepHashlet60FromHex(
                 (char const *)prefix[0], hexlen);
             Bu8 out = {};
             call(u8bMap, out, 64UL << 20);
