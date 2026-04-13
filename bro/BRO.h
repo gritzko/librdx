@@ -9,40 +9,34 @@
 
 #define BRO_NONE UINT32_MAX
 
-// Extract path from a hunk's URI (strip leading /, stop at ? or #).
-// Returns a slice into the original URI data.
-fun void BROHunkPath(u8csp out, hunkc const *hk) {
-    out[0] = NULL; out[1] = NULL;
+// Parsed hunk URI: path, symbol, line — extracted once.
+typedef struct {
+    u8cs path;    // repo-relative path (no leading /)
+    u8cs symbol;  // function/identifier name, or empty
+    u32  line;    // 1-based line number, or 0
+} BROloc;
+
+// Parse a hunk's URI into path + symbol + line. Single URI+FRAG parse.
+fun void BROHunkLoc(BROloc *loc, hunkc const *hk) {
+    *loc = (BROloc){};
     if ($empty(hk->uri)) return;
     uri u = {};
     $mv(u.data, hk->uri);
-    if (URILexer(&u) != OK || $empty(u.path)) return;
-    $mv(out, u.path);
-    if (*out[0] == '/') u8csFed(out, 1);
+    if (URILexer(&u) != OK) return;
+    if (!$empty(u.path)) {
+        $mv(loc->path, u.path);
+        if (!$empty(loc->path) && *loc->path[0] == '/')
+            u8csFed(loc->path, 1);
+    }
+    if (!$empty(u.fragment)) {
+        frag fr = {};
+        if (FRAGu8sDrain(u.fragment, &fr) == OK) {
+            if (fr.type == FRAG_IDENT) $mv(loc->symbol, fr.body);
+            loc->line = fr.line;
+        }
+    }
 }
 
-// Extract title (symbol name) from a hunk's URI fragment.
-fun void BROHunkTitle(u8csp out, hunkc const *hk) {
-    out[0] = NULL; out[1] = NULL;
-    if ($empty(hk->uri)) return;
-    uri u = {};
-    $mv(u.data, hk->uri);
-    if (URILexer(&u) != OK || $empty(u.fragment)) return;
-    frag fr = {};
-    if (FRAGu8sDrain(u.fragment, &fr) != OK) return;
-    if (fr.type == FRAG_IDENT) $mv(out, fr.body);
-}
-
-// Extract line number from a hunk's URI fragment. Returns 0 if absent.
-fun u32 BROHunkLine(hunkc const *hk) {
-    if ($empty(hk->uri)) return 0;
-    uri u = {};
-    $mv(u.data, hk->uri);
-    if (URILexer(&u) != OK || $empty(u.fragment)) return 0;
-    frag fr = {};
-    if (FRAGu8sDrain(u.fragment, &fr) != OK) return 0;
-    return fr.line;
-}
 #define BRO_TITLE_LINE UINT32_MAX
 
 // --- BRO arena: scratch space for cat-mode hunk staging ---

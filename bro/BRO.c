@@ -332,17 +332,14 @@ static ok64 BROOpenFile(BROstate *st, u8csc relpath, char const *repo,
     memset(st->linesbuf, 0, sizeof(Brange32));
     call(BROBuildIndex, st);
     // Scroll to target line (1-based file line number).
-    // Line index entry i corresponds to file-line = lineno for offset 0,
-    // incremented per newline. Scan for the closest match.
-    if (target_line > 1 && st->nlines > 1) {
-        // The file hunk starts at lineno=1. Each line index entry after
-        // the title adds one file line. Find the entry for target_line.
-        u32 file_ln = 1;
-        u32 best = 1;  // skip title
-        for (u32 i = 1; i < st->nlines; i++) {
+    // Each non-title line index entry is one file line, starting at 1.
+    if (target_line > 0 && st->nlines > 1) {
+        u32 file_ln = 0;
+        u32 best = 1;
+        for (u32 i = 0; i < st->nlines; i++) {
             if (st->lines[i].hi == BRO_TITLE_LINE) continue;
-            if (file_ln >= target_line) { best = i; break; }
             file_ln++;
+            if (file_ln == target_line) { best = i; break; }
             best = i;
         }
         BROScrollCenter(st, best);
@@ -386,9 +383,9 @@ static b8 BROTryOpen(BROstate *st, u32 line, char const *repo) {
     if (line >= st->nlines) return NO;
     u32 hunk_idx = st->lines[line].lo;
     hunk const *hk = &st->hunks[hunk_idx];
-    u8cs _hp = {};
-    BROHunkPath(&_hp, hk);
-    if ($empty(_hp)) {
+    BROloc loc = {};
+    BROHunkLoc(&loc, hk);
+    if ($empty(loc.path)) {
         snprintf(st->flash, sizeof(st->flash), "no path in hunk");
         return NO;
     }
@@ -396,11 +393,11 @@ static b8 BROTryOpen(BROstate *st, u32 line, char const *repo) {
         snprintf(st->flash, sizeof(st->flash), "no repo root found");
         return NO;
     }
-    ok64 o = BROOpenFile(st, _hp, repo, BROHunkLine(hk));
+    ok64 o = BROOpenFile(st, loc.path, repo, loc.line);
     if (o != OK) {
         snprintf(st->flash, sizeof(st->flash),
                  "open: %.*s: %s",
-                 (int)$len(_hp), (char *)_hp[0],
+                 (int)$len(loc.path), (char *)loc.path[0],
                  ok64str(o));
         return NO;
     }
@@ -629,29 +626,27 @@ static void BROStatusBar(BROstate *st);
 // Format display title "--- path :: func ---" into buf.
 // Returns the number of bytes written (excl NUL).
 static int bro_format_title(char *buf, size_t bufsz, hunkc const *hk) {
+    BROloc loc = {};
+    BROHunkLoc(&loc, hk);
     char pathz[FILE_PATH_MAX_LEN] = {};
     char funcz[256] = {};
-    u8cs _p = {}, _t = {};
-    BROHunkPath(&_p, hk);
-    BROHunkTitle(&_t, hk);
-    u32 ln = BROHunkLine(hk);
-    if (!$empty(_p)) {
-        size_t pl = (size_t)$len(_p);
+    if (!$empty(loc.path)) {
+        size_t pl = (size_t)$len(loc.path);
         if (pl >= sizeof(pathz)) pl = sizeof(pathz) - 1;
-        memcpy(pathz, _p[0], pl);
+        memcpy(pathz, loc.path[0], pl);
     }
-    if (!$empty(_t)) {
-        size_t fl = (size_t)$len(_t);
+    if (!$empty(loc.symbol)) {
+        size_t fl = (size_t)$len(loc.symbol);
         if (fl >= sizeof(funcz)) fl = sizeof(funcz) - 1;
-        memcpy(funcz, _t[0], fl);
+        memcpy(funcz, loc.symbol[0], fl);
     }
     int n = 0;
-    if (pathz[0] && funcz[0] && ln > 0)
-        n = snprintf(buf, bufsz, "--- %s :: %s:%u ---", pathz, funcz, ln);
+    if (pathz[0] && funcz[0] && loc.line > 0)
+        n = snprintf(buf, bufsz, "--- %s :: %s:%u ---", pathz, funcz, loc.line);
     else if (pathz[0] && funcz[0])
         n = snprintf(buf, bufsz, "--- %s :: %s ---", pathz, funcz);
-    else if (pathz[0] && ln > 0)
-        n = snprintf(buf, bufsz, "--- %s:%u ---", pathz, ln);
+    else if (pathz[0] && loc.line > 0)
+        n = snprintf(buf, bufsz, "--- %s:%u ---", pathz, loc.line);
     else if (pathz[0])
         n = snprintf(buf, bufsz, "--- %s ---", pathz);
     else if (funcz[0])
@@ -986,11 +981,11 @@ static void BRODispatchFragment(BROstate *st, char *frag,
     } else if (st->scroll < st->nlines) {
         u32 hi = st->lines[st->scroll].lo;
         hunkc const *hk = &st->hunks[hi];
-        u8cs _hp2 = {};
-        BROHunkPath(&_hp2, hk);
-        if (!$empty(_hp2)) {
+        BROloc loc2 = {};
+        BROHunkLoc(&loc2, hk);
+        if (!$empty(loc2.path)) {
             u8cs ext = {};
-            HUNKu8sExt(ext, _hp2[0], (size_t)$len(_hp2));
+            HUNKu8sExt(ext, loc2.path[0], (size_t)$len(loc2.path));
             if (!$empty(ext)) {
                 size_t el = (size_t)$len(ext);
                 if (el < sizeof(argz)) {
@@ -1471,7 +1466,6 @@ static int BROHandleKey(BROstate *st, u8 ch, char const *repo) {
     u32 page = (st->rows > 1) ? (u32)(st->rows - 1) : 1;
 
     if (ch == 'q' || ch == 'Q') {
-        if (st->nsaves > 0) { BROBack(st); return BRO_KEY_CHANGED; }
         return BRO_KEY_QUIT;
     }
     if (ch == 'h') return BROBack(st) ? BRO_KEY_CHANGED : BRO_KEY_NONE;
