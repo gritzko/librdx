@@ -33,304 +33,135 @@ void CAPOGrepCtx(u8csc source, u32 match_pos, u32 nctx,
     }
 }
 
+// --- Grep per-file callback ---
+
+typedef struct {
+    u8cs  substring;
+    u32   ctx_lines;
+} capo_grep_ctx;
+
+static ok64 capo_grep_file_cb(void *ctx, u8csc relpath, u8csc source,
+                               u8csc file_ext, u8bp mapped, path8p fpbuf) {
+    sane(ctx != NULL);
+    (void)fpbuf;
+    capo_grep_ctx *gc = ctx;
+    size_t ndl_len = (size_t)$len(gc->substring);
+
+    b8 tokenized = NO;
+    Bu32 gtoks = {};
+    u32cs gts = {};
+
+    u32 prev_hi = 0;
+    b8 found_any = NO;
+    b8 first_hunk = YES;
+
+    u8cp sp = source[0];
+    u8cp se = source[1];
+    if ((size_t)$len(source) < ndl_len) goto done_file;
+
+    u8cp send = se - ndl_len;
+    while (sp <= send) {
+        if (memcmp(sp, gc->substring[0], ndl_len) != 0) { sp++; continue; }
+        u32 match_pos = (u32)(sp - source[0]);
+        u32 ctx_lo = 0, ctx_hi = 0;
+        CAPOGrepCtx(source, match_pos, gc->ctx_lines, &ctx_lo, &ctx_hi);
+
+        if (!found_any) {
+            CAPOProgress(NULL);
+            found_any = YES;
+            if (!$empty(file_ext) && CAPOKnownExt(file_ext)) {
+                size_t maxlen = $len(source) + 1;
+                ok64 to = u32bMap(gtoks, maxlen);
+                if (to == OK) {
+                    to = SPOTTokenize(gtoks, source, file_ext);
+                    if (to == OK) {
+                        u32 *dts[2] = {u32bDataHead(gtoks),
+                                       u32bIdleHead(gtoks)};
+                        a_dup(u8c,dext,file_ext);
+                        if (!$empty(dext) && dext[0][0] == '.')
+                            dext[0]++;
+                        DEFMark(dts, source, dext);
+                        tokenized = YES;
+                        gts[0] = (u32cp)u32bDataHead(gtoks);
+                        gts[1] = (u32cp)u32bIdleHead(gtoks);
+                    } else
+                        u32bUnMap(gtoks);
+                }
+            }
+        }
+
+        range32 hls[CAPO_MAX_HLS];
+        int nhl = 0;
+        hls[nhl++] = (range32){match_pos, match_pos + (u32)ndl_len};
+        u8cp sp2 = sp + 1;
+        while (sp2 <= send && nhl < CAPO_MAX_HLS) {
+            if (memcmp(sp2, gc->substring[0], ndl_len) == 0) {
+                u32 mp2 = (u32)(sp2 - source[0]);
+                if (mp2 >= ctx_hi) break;
+                hls[nhl++] = (range32){mp2, mp2 + (u32)ndl_len};
+                u32 lo2 = 0, hi2 = 0;
+                CAPOGrepCtx(source, mp2, gc->ctx_lines, &lo2, &hi2);
+                if (hi2 > ctx_hi) ctx_hi = hi2;
+            }
+            sp2++;
+        }
+
+        b8 contiguous = (ctx_lo <= prev_hi);
+        if (ctx_lo < prev_hi) ctx_lo = prev_hi;
+        if (ctx_lo < ctx_hi) {
+            // NUL-terminate relpath for CAPOBuildHunk
+            char rpz[FILE_PATH_MAX_LEN] = {};
+            size_t rlen = (size_t)$len(relpath);
+            if (rlen >= sizeof(rpz)) rlen = sizeof(rpz) - 1;
+            memcpy(rpz, relpath[0], rlen);
+
+            call(CAPOBuildHunk, source, gts, ctx_lo, ctx_hi,
+                 hls, nhl, file_ext, rpz,
+                 !contiguous, &first_hunk);
+        }
+        prev_hi = ctx_hi;
+        sp = sp2 - 1;
+        sp++;
+    }
+
+done_file:
+    if (found_any)
+        LESSDefer(mapped, tokenized ? gtoks : (Bu32){});
+    else {
+        if (tokenized) u32bUnMap(gtoks);
+        FILEUnMap(mapped);
+    }
+    return OK;
+}
+
 ok64 CAPOGrep(u8csc substring, u8csc ext, u8csc reporoot, u32 ctx_lines,
               u8css files) {
     sane($ok(substring) && !$empty(substring) && $ok(reporoot));
-    int nfiles = (int)$len(files);
 
-    // Language filter: match file extension literally
-    u8cs target_ext = {};
-    if (!$empty(ext)) { $mv(target_ext, ext); }
-
-    // --- Trigram filtering (skip when explicit files given) ---
-    size_t maxhashes = 1ULL << 28;  // 1G / sizeof(u32)
     Bu32 hashbuf1 = {};
     b8 has_trigrams = NO;
-
-    if (nfiles == 0) {
-        a_path(capodir);
-        call(CAPOResolveDir, capodir, reporoot);
-        a_dup(u8c, dirslice, u8bDataC(capodir));
-
-        call(u32bMap, hashbuf1, maxhashes);
-
-        u64cs runs[CAPO_MAX_LEVELS] = {};
-        u64css stack = {runs, runs};
-        u8bp mmaps[CAPO_MAX_LEVELS] = {};
-        u32 nidxfiles = 0;
-        call(CAPOStackOpen, stack, mmaps, &nidxfiles, dirslice);
-        stack[1] = stack[0] + nidxfiles;
-
-        if (nidxfiles == 0)
-            fprintf(stderr,
-                    "spot: warning: no index, run `spot` or `spot --fork N` first\n");
-
-        if (nidxfiles > 0) {
-            u8cp p = substring[0];
-            u8cp end = substring[1] - 2;
-            while (p <= end) {
-                if (CAPOTriChar(p[0]) && CAPOTriChar(p[1]) &&
-                    CAPOTriChar(p[2])) {
-                    u8cs tri = {p, p + 3};
-                    u64 tri_prefix = CAPOTriPack(tri);
-
-                    u64cs seek_runs[CAPO_MAX_LEVELS];
-                    for (u32 i = 0; i < nidxfiles; i++) {
-                        seek_runs[i][0] = runs[i][0];
-                        seek_runs[i][1] = runs[i][1];
-                    }
-                    u64css seek_iter = {seek_runs, seek_runs + nidxfiles};
-                    HITu64Start(seek_iter);
-
-                    if (!has_trigrams) {
-                        u32bReset(hashbuf1);
-                        CAPOCollectPaths(seek_iter, tri_prefix,
-                                         u32bDataIdle(hashbuf1));
-                        has_trigrams = YES;
-                    } else {
-                        u32sSort(u32bData(hashbuf1));
-                        CAPOFilterInPlace(hashbuf1, seek_iter, tri_prefix);
-                    }
-                }
-                p++;
-            }
-        }
-
-        CAPOStackClose(mmaps, nidxfiles);
-
-        if (has_trigrams && u32bDataLen(hashbuf1) > 0)
-            u32sSort(u32bData(hashbuf1));
-    }
+    if ($len(files) == 0)
+        CAPOTrigramFilter(hashbuf1, &has_trigrams, substring, reporoot);
 
     call(LESSArenaInit);
 
-    FILE *fp = NULL;
-    if (nfiles == 0) {
-        if ($empty(reporoot)) {
-            fprintf(stderr, "spot: no git repo found\n");
-            LESSArenaCleanup();
-            done;
-        }
-        char cmdbuf[FILE_PATH_MAX_LEN * 2 + 256];
-        int cn = snprintf(cmdbuf, sizeof(cmdbuf),
-            "git -C %.*s ls-files && git -C %.*s submodule foreach"
-            " --quiet --recursive"
-            " 'git ls-files | sed \"s|^|$displaypath/|\"'",
-            (int)$len(reporoot), (char *)reporoot[0],
-            (int)$len(reporoot), (char *)reporoot[0]);
-        test(cn > 0 && cn < (int)sizeof(cmdbuf), FAILSANITY);
-        fp = popen(cmdbuf, "r");
-        test(fp != NULL, FAILSANITY);
-    }
+    capo_grep_ctx gc = {.ctx_lines = ctx_lines};
+    $mv(gc.substring, substring);
 
-    size_t ndl_len = (size_t)$len(substring);
+    CAPOScanOpts opts = {
+        .has_trigrams = has_trigrams,
+        .file_fn = capo_grep_file_cb,
+        .file_ctx = &gc,
+    };
+    if (!$empty(ext)) $mv(opts.target_ext, ext);
+    if (has_trigrams) $mv(opts.tri_hashes, u32bDataC(hashbuf1));
 
-    char line[FILE_PATH_MAX_LEN];
-    int fi = 0;
-    while (nfiles > 0
-           ? fi < nfiles
-           : fgets(line, sizeof(line), fp) != NULL) {
-        size_t len;
-        if (nfiles > 0) {
-            u8cs *fp = u8cssAtP(files, fi);
-            len = (size_t)$len(*fp);
-            if (len >= sizeof(line)) { fi++; continue; }
-            u8s lns = {(u8p)line, (u8p)line + len};
-            u8sCopy(lns, *fp);
-            line[len] = 0;
-            fi++;
-        } else {
-            len = strlen(line);
-            if (len > 0 && line[len - 1] == '\n') line[--len] = 0;
-            if (len == 0) continue;
-        }
+    if ($len(files) > 0)
+        CAPOScanFiles(files, &opts);
+    else
+        CAPOScan(reporoot, &opts);
 
-        u8cs relpath = {(u8cp)line, (u8cp)line + len};
-
-        if (nfiles == 0) {
-            if (has_trigrams && u32bDataLen(hashbuf1) > 0) {
-                u32 phash = CAPOPathHash(relpath);
-                if (!u32sBsearch(&phash, u32bData(hashbuf1)))
-                    continue;
-            } else if (has_trigrams) {
-                continue;
-            }
-        }
-
-        u8cs file_ext = {};
-        CAPOFindExt(file_ext, line, len);
-        if ($empty(file_ext)) continue;
-        if (!CAPOKnownExt(file_ext)) continue;
-        if (nfiles == 0 && !$empty(target_ext)) {
-            if (!TOKSameLexer(file_ext, target_ext)) continue;
-        }
-
-        CAPOProgress(line);
-
-        char fpath[FILE_PATH_MAX_LEN * 2];
-        int pn;
-        if (nfiles > 0) {
-            pn = snprintf(fpath, sizeof(fpath), "%s", line);
-        } else {
-            pn = snprintf(fpath, sizeof(fpath), "%.*s/%s",
-                          (int)$len(reporoot), (char *)reporoot[0], line);
-        }
-        if (pn <= 0 || pn >= (int)sizeof(fpath)) continue;
-
-        a_path(fpbuf);
-        u8cs fps = {(u8cp)fpath, (u8cp)fpath + pn};
-        __ = PATHu8bFeed(fpbuf, fps);
-        if (__ != OK) continue;
-
-        u8bp mapped = NULL;
-        ok64 o = FILEMapRO(&mapped, PATHu8cgIn(fpbuf));
-        if (o != OK) continue;
-
-        a_dup(u8c, source, u8bDataC(mapped));
-
-        // Tokenization is deferred until first match (lazy)
-        b8 tokenized = NO;
-        Bu32 gtoks = {};
-        u32cs gts = {};
-
-        // Search source text directly for substring matches
-        u32 prev_hi = 0;
-        b8 found_any = NO;
-        b8 first_hunk = YES;
-
-        u8cp sp = source[0];
-        u8cp se = source[1];
-        if ((size_t)$len(source) >= ndl_len) {
-            u8cp send = se - ndl_len;
-            while (sp <= send) {
-                if (memcmp(sp, substring[0], ndl_len) == 0) {
-                    u32 match_pos = (u32)(sp - source[0]);
-                    u32 ctx_lo = 0, ctx_hi = 0;
-                    CAPOGrepCtx(source, match_pos, ctx_lines, &ctx_lo, &ctx_hi);
-
-                    if (!found_any) {
-                        CAPOProgress(NULL);
-                        found_any = YES;
-                        // Lazy tokenize for syntax highlighting
-                        if (!$empty(file_ext) && CAPOKnownExt(file_ext)) {
-                            size_t maxlen = $len(source) + 1;
-                            ok64 to = u32bMap(gtoks, maxlen);
-                            if (to == OK) {
-                                to = SPOTTokenize(gtoks, source, file_ext);
-                                if (to == OK) {
-                                    u32 *dts[2] = {u32bDataHead(gtoks),
-                                                   u32bIdleHead(gtoks)};
-                                    a_dup(u8c,dext,file_ext);
-                                    if (!$empty(dext) && dext[0][0] == '.')
-                                        dext[0]++;
-                                    DEFMark(dts, source, dext);
-                                    tokenized = YES;
-                                    gts[0] = (u32cp)u32bDataHead(gtoks);
-                                    gts[1] = (u32cp)u32bIdleHead(gtoks);
-                                } else
-                                    u32bUnMap(gtoks);
-                            }
-                        }
-                    }
-
-                    // Collect all matches within this context block
-                    range32 hls[CAPO_MAX_HLS];
-                    int nhl = 0;
-                    hls[nhl++] = (range32){match_pos, match_pos + (u32)ndl_len};
-                    u8cp sp2 = sp + 1;
-                    while (sp2 <= send && nhl < CAPO_MAX_HLS) {
-                        if (memcmp(sp2, substring[0], ndl_len) == 0) {
-                            u32 mp2 = (u32)(sp2 - source[0]);
-                            if (mp2 >= ctx_hi) break;
-                            hls[nhl++] = (range32){mp2, mp2 + (u32)ndl_len};
-                            u32 lo2 = 0, hi2 = 0;
-                            CAPOGrepCtx(source, mp2, ctx_lines, &lo2, &hi2);
-                            if (hi2 > ctx_hi) ctx_hi = hi2;
-                        }
-                        sp2++;
-                    }
-
-                    b8 contiguous = (ctx_lo <= prev_hi);
-                    if (ctx_lo < prev_hi) ctx_lo = prev_hi;
-                    if (ctx_lo < ctx_hi &&
-                        less_nhunks < LESS_MAX_HUNKS &&
-                        u8bIdleLen(less_arena) > (ctx_hi - ctx_lo + 512)) {
-                        LESShunk *hk = &less_hunks[less_nhunks];
-                        *hk = (LESShunk){};
-
-                        // Compose URI: path#symbol:lineno
-                        {
-                            char funcname[256] = {};
-                            if (!contiguous || first_hunk)
-                                CAPOFindFunc(source, ctx_lo, file_ext,
-                                             funcname, sizeof(funcname));
-                            u32 ln = 1;
-                            for (u32 li = 0; li < ctx_lo; li++)
-                                if (source[0][li] == '\n') ln++;
-                            u8cs fp = {(u8cp)line, (u8cp)line + strlen(line)};
-                            u8gp _ug = u8aOpen(less_arena);
-                            HUNKu8sMakeURI(u8gRest(_ug), fp, funcname, ln);
-                            u8cs _uri = {};
-                            u8aClose(less_arena, _uri);
-                            $mv(hk->uri, _uri);
-                        }
-
-                        hk->text[0] = source[0] + ctx_lo;
-                        hk->text[1] = source[0] + ctx_hi;
-
-                        // Clip file-level toks to context region
-                        HUNKu32sClip(less_arena, hk->toks, gts,
-                                     ctx_lo, ctx_hi);
-
-                        // Build sparse hili from match ranges
-                        if (CAPO_COLOR) {
-                            a_pad(u32, hbuf, 2 * CAPO_MAX_HLS + 1);
-                            u32 prev_end = 0;
-                            for (int hi2 = 0; hi2 < nhl; hi2++) {
-                                u32 mlo = hls[hi2].lo < ctx_lo
-                                              ? 0
-                                              : hls[hi2].lo - ctx_lo;
-                                u32 mhi = hls[hi2].hi > ctx_hi
-                                              ? ctx_hi - ctx_lo
-                                              : hls[hi2].hi - ctx_lo;
-                                if (mlo > prev_end)
-                                    u32bFeed1(hbuf, tok32Pack('A', mlo));
-                                u32bFeed1(hbuf, tok32Pack('I', mhi));
-                                prev_end = mhi;
-                            }
-                            u32 region_len = ctx_hi - ctx_lo;
-                            if (prev_end < region_len)
-                                u32bFeed1(hbuf, tok32Pack('A', region_len));
-                            a_dup(u32 const, hd, u32bDataC(hbuf));
-                            u8p hp = LESSArenaWrite(hd[0],
-                                         $len(hd) * sizeof(u32));
-                            if (hp) {
-                                hk->hili[0] = (u32cp)hp;
-                                hk->hili[1] = (u32cp)(hp +
-                                    $len(hd) * sizeof(u32));
-                            }
-                        }
-
-                        LESSHunkEmit();
-                        first_hunk = NO;
-                    }
-                    prev_hi = ctx_hi;
-                    sp = sp2 - 1;
-                }
-                sp++;
-            }
-        }
-
-        if (found_any)
-            LESSDefer(mapped, tokenized ? gtoks : (Bu32){});
-        else {
-            if (tokenized) u32bUnMap(gtoks);
-            FILEUnMap(mapped);
-        }
-    }
-    if (fp != NULL) pclose(fp);
     CAPOProgress(NULL);
-
     if (less_nhunks > 0)
         LESSRun(less_hunks, less_nhunks);
     LESSArenaCleanup();
@@ -429,10 +260,149 @@ static void CAPORegexLiterals(u8csc pattern,
 #undef FLUSH_LITS
 }
 
+// --- Pcre grep per-file callback ---
+
+typedef struct {
+    nfau8cs cprog;
+    u32s    nfa_ws;
+    u32     ctx_lines;
+} capo_pcre_ctx;
+
+static ok64 capo_pcre_file_cb(void *ctx, u8csc relpath, u8csc source,
+                                u8csc file_ext, u8bp mapped, path8p fpbuf) {
+    sane(ctx != NULL);
+    (void)fpbuf;
+    capo_pcre_ctx *pc = ctx;
+
+    b8 tokenized = NO;
+    Bu32 gtoks = {};
+    u32cs gts = {};
+
+    u32 prev_hi = 0;
+    b8 found_any = NO;
+    b8 first_hunk = YES;
+
+    char rpz[FILE_PATH_MAX_LEN] = {};
+    size_t rlen = (size_t)$len(relpath);
+    if (rlen >= sizeof(rpz)) rlen = sizeof(rpz) - 1;
+    memcpy(rpz, relpath[0], rlen);
+
+    u8cp lp = source[0];
+    u8cp se = source[1];
+    while (lp < se) {
+        u8cp le = lp;
+        while (le < se && *le != '\n') le++;
+        u8cs ln = {lp, le};
+
+        if (NFAu8Search(pc->cprog, ln, pc->nfa_ws)) {
+            u32 match_pos = (u32)(lp - source[0]);
+            u32 ctx_lo = 0, ctx_hi = 0;
+            CAPOGrepCtx(source, match_pos, pc->ctx_lines, &ctx_lo, &ctx_hi);
+
+            if (!found_any) {
+                CAPOProgress(NULL);
+                found_any = YES;
+                if (!$empty(file_ext) && CAPOKnownExt(file_ext)) {
+                    size_t maxlen = $len(source) + 1;
+                    ok64 to = u32bMap(gtoks, maxlen);
+                    if (to == OK) {
+                        to = SPOTTokenize(gtoks, source, file_ext);
+                        if (to == OK) {
+                            u32 *dts[2] = {u32bDataHead(gtoks),
+                                           u32bIdleHead(gtoks)};
+                            a_dup(u8c,dext,file_ext);
+                            if (!$empty(dext) && dext[0][0] == '.')
+                                dext[0]++;
+                            DEFMark(dts, source, dext);
+                            tokenized = YES;
+                            gts[0] = (u32cp)u32bDataHead(gtoks);
+                            gts[1] = (u32cp)u32bIdleHead(gtoks);
+                        } else
+                            u32bUnMap(gtoks);
+                    }
+                }
+            }
+
+            // Find match span
+            u32 hl_start = match_pos;
+            u32 hl_end = (u32)(le - source[0]);
+            for (u8cp sp = lp; sp < le; sp++) {
+                for (u8cp ep = sp + 1; ep <= le; ep++) {
+                    u8cs sub = {sp, ep};
+                    if (NFAu8Match(pc->cprog, sub, pc->nfa_ws)) {
+                        hl_start = (u32)(sp - source[0]);
+                        hl_end = (u32)(ep - source[0]);
+                        goto found_span;
+                    }
+                }
+            }
+            found_span:;
+
+            range32 hls[CAPO_MAX_HLS];
+            int nhl = 0;
+            hls[nhl++] = (range32){hl_start, hl_end};
+
+            u8cp lp2 = le;
+            if (lp2 < se && *lp2 == '\n') lp2++;
+            while (lp2 < se && nhl < CAPO_MAX_HLS) {
+                u8cp le2 = lp2;
+                while (le2 < se && *le2 != '\n') le2++;
+                u32 mp2 = (u32)(lp2 - source[0]);
+                if (mp2 >= ctx_hi) break;
+
+                u8cs ln2 = {lp2, le2};
+                if (NFAu8Search(pc->cprog, ln2, pc->nfa_ws)) {
+                    u32 hs2 = mp2, he2 = (u32)(le2 - source[0]);
+                    for (u8cp sp = lp2; sp < le2; sp++) {
+                        for (u8cp ep = sp + 1; ep <= le2; ep++) {
+                            u8cs sub = {sp, ep};
+                            if (NFAu8Match(pc->cprog, sub, pc->nfa_ws)) {
+                                hs2 = (u32)(sp - source[0]);
+                                he2 = (u32)(ep - source[0]);
+                                goto found_span2;
+                            }
+                        }
+                    }
+                    found_span2:;
+                    hls[nhl++] = (range32){hs2, he2};
+
+                    u32 lo2 = 0, hi2 = 0;
+                    CAPOGrepCtx(source, mp2, pc->ctx_lines, &lo2, &hi2);
+                    if (hi2 > ctx_hi) ctx_hi = hi2;
+                }
+                lp2 = le2;
+                if (lp2 < se && *lp2 == '\n') lp2++;
+            }
+
+            b8 contiguous = (ctx_lo <= prev_hi);
+            if (ctx_lo < prev_hi) ctx_lo = prev_hi;
+            if (ctx_lo < ctx_hi) {
+                call(CAPOBuildHunk, source, gts, ctx_lo, ctx_hi,
+                     hls, nhl, file_ext, rpz,
+                     !contiguous, &first_hunk);
+            }
+            prev_hi = ctx_hi;
+
+            lp = source[0] + prev_hi;
+            continue;
+        }
+
+        lp = le;
+        if (lp < se && *lp == '\n') lp++;
+    }
+
+    if (found_any)
+        LESSDefer(mapped, tokenized ? gtoks : (Bu32){});
+    else {
+        if (tokenized) u32bUnMap(gtoks);
+        FILEUnMap(mapped);
+    }
+    return OK;
+}
+
 ok64 CAPOPcreGrep(u8csc pattern, u8csc ext, u8csc reporoot, u32 ctx_lines,
                    u8css files) {
     sane($ok(pattern) && !$empty(pattern) && $ok(reporoot));
-    int nfiles = (int)$len(files);
 
     // Compile regex
     nfau8 prog_buf[512];
@@ -448,321 +418,57 @@ ok64 CAPOPcreGrep(u8csc pattern, u8csc ext, u8csc reporoot, u32 ctx_lines,
     nfau8cs cprog = {prog[2], prog[0]};
     u16 nstates = NFAu8States(cprog);
 
-    // NFA workspace
     u64 wsz = NFAu8WorkSize(nstates);
     Bu32 nfa_ws_bb = {};
     call(u32bAlloc, nfa_ws_bb, wsz);
     u32s nfa_ws = {};
     $mv(nfa_ws, u32bIdle(nfa_ws_bb));
 
-    // Language filter
-    u8cs target_ext = {};
-    if (!$empty(ext)) { $mv(target_ext, ext); }
-
-    // --- Trigram filtering (skip when explicit files given) ---
-    size_t maxhashes = 1ULL << 28;  // 1G / sizeof(u32)
+    // Trigram filtering for regex
     Bu32 hashbuf1 = {};
     b8 has_trigrams = NO;
-
-    if (nfiles == 0) {
+    if ($len(files) == 0) {
         a_path(capodir);
         call(CAPOResolveDir, capodir, reporoot);
         a_dup(u8c, dirslice, u8bDataC(capodir));
 
-        ok64 ao = u32bMap(hashbuf1, maxhashes);
-        if (ao != OK) {
-            u32bFree(nfa_ws_bb);
-            return FAILSANITY;
+        ok64 ao = u32bMap(hashbuf1, 1ULL << 28);
+        if (ao == OK) {
+            u64cs runs[CAPO_MAX_LEVELS] = {};
+            u64css stack = {runs, runs};
+            u8bp mmaps[CAPO_MAX_LEVELS] = {};
+            u32 nidxfiles = 0;
+            CAPOStackOpen(stack, mmaps, &nidxfiles, dirslice);
+            stack[1] = stack[0] + nidxfiles;
+            if (nidxfiles > 0)
+                CAPORegexLiterals(pattern, stack, nidxfiles, runs,
+                                   hashbuf1, &has_trigrams);
+            CAPOStackClose(mmaps, nidxfiles);
+            if (has_trigrams && u32bDataLen(hashbuf1) > 0)
+                u32sSort(u32bData(hashbuf1));
         }
-
-        u64cs runs[CAPO_MAX_LEVELS] = {};
-        u64css stack = {runs, runs};
-        u8bp mmaps[CAPO_MAX_LEVELS] = {};
-        u32 nidxfiles = 0;
-        call(CAPOStackOpen, stack, mmaps, &nidxfiles, dirslice);
-        stack[1] = stack[0] + nidxfiles;
-
-        if (nidxfiles == 0)
-            fprintf(stderr,
-                    "spot: warning: no index, run `spot` or `spot --fork N` first\n");
-
-        if (nidxfiles > 0) {
-            CAPORegexLiterals(pattern, stack, nidxfiles, runs,
-                               hashbuf1, &has_trigrams);
-        }
-
-        CAPOStackClose(mmaps, nidxfiles);
-
-        if (has_trigrams && u32bDataLen(hashbuf1) > 0)
-            u32sSort(u32bData(hashbuf1));
     }
 
     call(LESSArenaInit);
 
-    FILE *fp = NULL;
-    if (nfiles == 0) {
-        char cmdbuf[FILE_PATH_MAX_LEN * 2 + 256];
-        int cn = snprintf(cmdbuf, sizeof(cmdbuf),
-            "git -C %.*s ls-files && git -C %.*s submodule foreach"
-            " --quiet --recursive"
-            " 'git ls-files | sed \"s|^|$displaypath/|\"'",
-            (int)$len(reporoot), (char *)reporoot[0],
-            (int)$len(reporoot), (char *)reporoot[0]);
-        test(cn > 0 && cn < (int)sizeof(cmdbuf), FAILSANITY);
-        fp = popen(cmdbuf, "r");
-        test(fp != NULL, FAILSANITY);
-    }
+    capo_pcre_ctx pc = {.ctx_lines = ctx_lines};
+    $mv(pc.cprog, cprog);
+    $mv(pc.nfa_ws, nfa_ws);
 
-    char line[FILE_PATH_MAX_LEN];
-    int fi = 0;
-    while (nfiles > 0
-           ? fi < nfiles
-           : fgets(line, sizeof(line), fp) != NULL) {
-        size_t len;
-        if (nfiles > 0) {
-            u8cs *fpp = u8cssAtP(files, fi);
-            len = (size_t)$len(*fpp);
-            if (len >= sizeof(line)) { fi++; continue; }
-            u8s lns = {(u8p)line, (u8p)line + len};
-            u8sCopy(lns, *fpp);
-            line[len] = 0;
-            fi++;
-        } else {
-            len = strlen(line);
-            if (len > 0 && line[len - 1] == '\n') line[--len] = 0;
-            if (len == 0) continue;
-        }
+    CAPOScanOpts opts = {
+        .has_trigrams = has_trigrams,
+        .file_fn = capo_pcre_file_cb,
+        .file_ctx = &pc,
+    };
+    if (!$empty(ext)) $mv(opts.target_ext, ext);
+    if (has_trigrams) $mv(opts.tri_hashes, u32bDataC(hashbuf1));
 
-        u8cs relpath = {(u8cp)line, (u8cp)line + len};
+    if ($len(files) > 0)
+        CAPOScanFiles(files, &opts);
+    else
+        CAPOScan(reporoot, &opts);
 
-        if (nfiles == 0) {
-            if (has_trigrams && u32bDataLen(hashbuf1) > 0) {
-                u32 phash = CAPOPathHash(relpath);
-                if (!u32sBsearch(&phash, u32bData(hashbuf1)))
-                    continue;
-            } else if (has_trigrams) {
-                continue;
-            }
-        }
-
-        u8cs file_ext = {};
-        CAPOFindExt(file_ext, line, len);
-        if ($empty(file_ext)) continue;
-        if (!CAPOKnownExt(file_ext)) continue;
-        if (nfiles == 0 && !$empty(target_ext)) {
-            if (!TOKSameLexer(file_ext, target_ext)) continue;
-        }
-
-        CAPOProgress(line);
-
-        char fpath[FILE_PATH_MAX_LEN * 2];
-        int pn;
-        if (nfiles > 0) {
-            pn = snprintf(fpath, sizeof(fpath), "%s", line);
-        } else {
-            pn = snprintf(fpath, sizeof(fpath), "%.*s/%s",
-                          (int)$len(reporoot), (char *)reporoot[0], line);
-        }
-        if (pn <= 0 || pn >= (int)sizeof(fpath)) continue;
-
-        a_path(fpbuf);
-        u8cs fps = {(u8cp)fpath, (u8cp)fpath + pn};
-        __ = PATHu8bFeed(fpbuf, fps);
-        if (__ != OK) continue;
-
-        u8bp mapped = NULL;
-        ok64 o = FILEMapRO(&mapped, PATHu8cgIn(fpbuf));
-        if (o != OK) continue;
-
-        a_dup(u8c, source, u8bDataC(mapped));
-
-        // Tokenization is deferred until first match (lazy)
-        b8 tokenized = NO;
-        Bu32 gtoks = {};
-        u32cs gts = {};
-
-        // Search source line by line with NFA
-        u32 prev_hi = 0;
-        b8 found_any = NO;
-        b8 first_hunk = YES;
-
-        u8cp lp = source[0];
-        u8cp se = source[1];
-        while (lp < se) {
-            // Find end of line
-            u8cp le = lp;
-            while (le < se && *le != '\n') le++;
-            u8cs ln = {lp, le};
-
-            if (NFAu8Search(cprog, ln, nfa_ws)) {
-                u32 match_pos = (u32)(lp - source[0]);
-                u32 ctx_lo = 0, ctx_hi = 0;
-                CAPOGrepCtx(source, match_pos, ctx_lines, &ctx_lo, &ctx_hi);
-
-                if (!found_any) {
-                    CAPOProgress(NULL);
-                    found_any = YES;
-                    // Lazy tokenize for syntax highlighting
-                    if (!$empty(file_ext) && CAPOKnownExt(file_ext)) {
-                        size_t maxlen = $len(source) + 1;
-                        ok64 to = u32bMap(gtoks, maxlen);
-                        if (to == OK) {
-                            to = SPOTTokenize(gtoks, source, file_ext);
-                            if (to == OK) {
-                                u32 *dts[2] = {u32bDataHead(gtoks),
-                                               u32bIdleHead(gtoks)};
-                                a_dup(u8c,dext,file_ext);
-                                if (!$empty(dext) && dext[0][0] == '.')
-                                    dext[0]++;
-                                DEFMark(dts, source, dext);
-                                tokenized = YES;
-                                gts[0] = (u32cp)u32bDataHead(gtoks);
-                                gts[1] = (u32cp)u32bIdleHead(gtoks);
-                            } else
-                                u32bUnMap(gtoks);
-                        }
-                    }
-                }
-
-                // Find match span for highlighting:
-                // try each start position, expand with anchored match
-                u32 hl_start = match_pos;
-                u32 hl_end = (u32)(le - source[0]);
-                for (u8cp sp = lp; sp < le; sp++) {
-                    for (u8cp ep = sp + 1; ep <= le; ep++) {
-                        u8cs sub = {sp, ep};
-                        if (NFAu8Match(cprog, sub, nfa_ws)) {
-                            hl_start = (u32)(sp - source[0]);
-                            hl_end = (u32)(ep - source[0]);
-                            goto found_span;
-                        }
-                    }
-                }
-                found_span:;
-
-                // Collect nearby matches within context
-                range32 hls[CAPO_MAX_HLS];
-                int nhl = 0;
-                hls[nhl++] = (range32){hl_start, hl_end};
-
-                // Scan subsequent lines within context
-                u8cp lp2 = le;
-                if (lp2 < se && *lp2 == '\n') lp2++;
-                while (lp2 < se && nhl < CAPO_MAX_HLS) {
-                    u8cp le2 = lp2;
-                    while (le2 < se && *le2 != '\n') le2++;
-                    u32 mp2 = (u32)(lp2 - source[0]);
-                    if (mp2 >= ctx_hi) break;
-
-                    u8cs ln2 = {lp2, le2};
-                    if (NFAu8Search(cprog, ln2, nfa_ws)) {
-                        // Find highlight span
-                        u32 hs2 = mp2, he2 = (u32)(le2 - source[0]);
-                        for (u8cp sp = lp2; sp < le2; sp++) {
-                            for (u8cp ep = sp + 1; ep <= le2; ep++) {
-                                u8cs sub = {sp, ep};
-                                if (NFAu8Match(cprog, sub, nfa_ws)) {
-                                    hs2 = (u32)(sp - source[0]);
-                                    he2 = (u32)(ep - source[0]);
-                                    goto found_span2;
-                                }
-                            }
-                        }
-                        found_span2:;
-                        hls[nhl++] = (range32){hs2, he2};
-
-                        u32 lo2 = 0, hi2 = 0;
-                        CAPOGrepCtx(source, mp2, ctx_lines, &lo2, &hi2);
-                        if (hi2 > ctx_hi) ctx_hi = hi2;
-                    }
-                    lp2 = le2;
-                    if (lp2 < se && *lp2 == '\n') lp2++;
-                }
-
-                b8 contiguous = (ctx_lo <= prev_hi);
-                if (ctx_lo < prev_hi) ctx_lo = prev_hi;
-                if (ctx_lo < ctx_hi &&
-                    less_nhunks < LESS_MAX_HUNKS &&
-                    u8bIdleLen(less_arena) > (ctx_hi - ctx_lo + 512)) {
-                    LESShunk *hk = &less_hunks[less_nhunks];
-                    memset(hk, 0, sizeof(*hk));
-
-                    {
-                        char funcname[256] = {};
-                        if (!contiguous || first_hunk)
-                            CAPOFindFunc(source, ctx_lo, file_ext,
-                                         funcname, sizeof(funcname));
-                        u32 ln = 1;
-                        for (u32 li = 0; li < ctx_lo; li++)
-                            if (source[0][li] == '\n') ln++;
-                        u8cs fp = {(u8cp)line, (u8cp)line + strlen(line)};
-                        u8gp _ug = u8aOpen(less_arena);
-                        HUNKu8sMakeURI(u8gRest(_ug), fp, funcname, ln);
-                        u8cs _uri = {};
-                        u8aClose(less_arena, _uri);
-                        $mv(hk->uri, _uri);
-                    }
-
-                    hk->text[0] = source[0] + ctx_lo;
-                    hk->text[1] = source[0] + ctx_hi;
-
-                    // Clip file-level toks to context region
-                    HUNKu32sClip(less_arena, hk->toks, gts,
-                                 ctx_lo, ctx_hi);
-
-                    // Build sparse hili from match ranges
-                    if (CAPO_COLOR) {
-                        a_pad(u32, hbuf, 2 * CAPO_MAX_HLS + 1);
-                        u32 prev_end = 0;
-                        for (int hi2 = 0; hi2 < nhl; hi2++) {
-                            u32 mlo = hls[hi2].lo < ctx_lo
-                                          ? 0
-                                          : hls[hi2].lo - ctx_lo;
-                            u32 mhi = hls[hi2].hi > ctx_hi
-                                          ? ctx_hi - ctx_lo
-                                          : hls[hi2].hi - ctx_lo;
-                            if (mlo > prev_end)
-                                u32bFeed1(hbuf, tok32Pack('A', mlo));
-                            u32bFeed1(hbuf, tok32Pack('I', mhi));
-                            prev_end = mhi;
-                        }
-                        u32 region_len = ctx_hi - ctx_lo;
-                        if (prev_end < region_len)
-                            u32bFeed1(hbuf, tok32Pack('A', region_len));
-                        a_dup(u32 const, hd, u32bDataC(hbuf));
-                        u8p hp = LESSArenaWrite(hd[0],
-                                     $len(hd) * sizeof(u32));
-                        if (hp) {
-                            hk->hili[0] = (u32cp)hp;
-                            hk->hili[1] = (u32cp)(hp +
-                                $len(hd) * sizeof(u32));
-                        }
-                    }
-
-                    LESSHunkEmit();
-                    first_hunk = NO;
-                }
-                prev_hi = ctx_hi;
-
-                // Skip to end of context
-                lp = source[0] + prev_hi;
-                continue;
-            }
-
-            lp = le;
-            if (lp < se && *lp == '\n') lp++;
-        }
-
-        if (found_any)
-            LESSDefer(mapped, tokenized ? gtoks : (Bu32){});
-        else {
-            if (tokenized) u32bUnMap(gtoks);
-            FILEUnMap(mapped);
-        }
-    }
-    if (fp != NULL) pclose(fp);
     CAPOProgress(NULL);
-
     if (less_nhunks > 0)
         LESSRun(less_hunks, less_nhunks);
     LESSArenaCleanup();

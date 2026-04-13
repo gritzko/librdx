@@ -27,6 +27,7 @@ static void capo_abrt_handler(int sig) {
 #include "abc/SORT.h"
 #include "dog/DEF.h"
 #include "dog/HOME.h"
+#include "dog/IGNO.h"
 #include "spot/SPOT.h"
 
 // --- Language detection via tok/ ---
@@ -1337,188 +1338,95 @@ static ok64 CAPOSpotFile(u8csc source, u32cs htoks, u8csc needle,
 
 // --- SPOT search ---
 
+// --- Spot per-file callback ---
+
+typedef struct {
+    u8cs needle;
+    u8cs replace;
+    u8cs ext;
+    int  total_replacements;
+    int  total_files_replaced;
+} capo_spot_ctx;
+
+static ok64 capo_spot_file_cb(void *ctx, u8csc relpath, u8csc source,
+                               u8csc file_ext, u8bp mapped, path8p fpbuf) {
+    sane(ctx != NULL);
+    capo_spot_ctx *sc = ctx;
+
+    Bu32 toks = {};
+    ok64 o = u32bMap(toks, $len(source) + 1);
+    if (o != OK) { FILEUnMap(mapped); return OK; }
+    o = SPOTTokenize(toks, source, file_ext);
+    if (o != OK) { u32bUnMap(toks); FILEUnMap(mapped); return OK; }
+    {
+        u32 *dts[2] = {u32bDataHead(toks), u32bIdleHead(toks)};
+        a_dup(u8c,dext,file_ext);
+        if (!$empty(dext) && dext[0][0] == '.') dext[0]++;
+        DEFMark(dts, source, dext);
+    }
+    u32cs htoks = {(u32cp)u32bDataHead(toks),
+                   (u32cp)u32bIdleHead(toks)};
+
+    char rpz[FILE_PATH_MAX_LEN] = {};
+    size_t rlen = (size_t)$len(relpath);
+    if (rlen >= sizeof(rpz)) rlen = sizeof(rpz) - 1;
+    memcpy(rpz, relpath[0], rlen);
+
+    signal(SIGABRT, capo_abrt_handler);
+    capo_in_match = 1;
+    if (sigsetjmp(capo_jmpbuf, 1) == 0) {
+        if (!$empty(sc->replace))
+            CAPOSpotReplace(source, mapped, htoks, sc->needle,
+                            sc->replace, file_ext, fpbuf, rpz,
+                            &sc->total_replacements,
+                            &sc->total_files_replaced);
+        else
+            CAPOSpotFile(source, htoks, sc->needle, file_ext, rpz);
+    }
+    capo_in_match = 0;
+    signal(SIGABRT, SIG_DFL);
+
+    if ($empty(sc->replace)) {
+        LESSDefer(mapped, toks);
+    } else {
+        u32bUnMap(toks);
+        FILEUnMap(mapped);
+    }
+    return OK;
+}
+
 ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot,
               u8css files) {
     sane($ok(needle) && $ok(ext) && $ok(reporoot));
-    int nfiles = (int)$len(files);
 
     if (!CAPOKnownExt(ext)) return SPOTBAD;
 
-    // --- Trigram filtering (skip when explicit files given) ---
-    size_t maxhashes = 1ULL << 28;  // 1G / sizeof(u32)
     Bu32 hashbuf1 = {};
     b8 has_trigrams = NO;
+    if ($len(files) == 0)
+        CAPOTrigramFilter(hashbuf1, &has_trigrams, needle, reporoot);
 
-    if (nfiles == 0) {
-        a_path(capodir);
-        call(CAPOResolveDir, capodir, reporoot);
-        a_dup(u8c, dirslice, u8bDataC(capodir));
-
-        call(u32bMap, hashbuf1, maxhashes);
-
-        u64cs runs[CAPO_MAX_LEVELS] = {};
-        u64css stack = {runs, runs};
-        u8bp mmaps[CAPO_MAX_LEVELS] = {};
-        u32 nidxfiles = 0;
-        call(CAPOStackOpen, stack, mmaps, &nidxfiles, dirslice);
-        stack[1] = stack[0] + nidxfiles;
-
-        if (nidxfiles == 0)
-            fprintf(stderr, "spot: warning: no index, run `spot` or `spot --fork N` first\n");
-
-        if (nidxfiles > 0) {
-            u8cp p = needle[0];
-            u8cp end = needle[1] - 2;
-            while (p <= end) {
-                if (CAPOTriChar(p[0]) && CAPOTriChar(p[1]) &&
-                    CAPOTriChar(p[2])) {
-                    u8cs tri = {p, p + 3};
-                    u64 tri_prefix = CAPOTriPack(tri);
-
-                    u64cs seek_runs[CAPO_MAX_LEVELS];
-                    for (u32 i = 0; i < nidxfiles; i++) {
-                        seek_runs[i][0] = runs[i][0];
-                        seek_runs[i][1] = runs[i][1];
-                    }
-                    u64css seek_iter = {seek_runs, seek_runs + nidxfiles};
-                    HITu64Start(seek_iter);
-
-                    if (!has_trigrams) {
-                        u32bReset(hashbuf1);
-                        CAPOCollectPaths(seek_iter, tri_prefix,
-                                         u32bDataIdle(hashbuf1));
-                        has_trigrams = YES;
-                    } else {
-                        u32sSort(u32bData(hashbuf1));
-                        CAPOFilterInPlace(hashbuf1, seek_iter, tri_prefix);
-                    }
-                }
-                p++;
-            }
-        }
-
-
-        CAPOStackClose(mmaps, nidxfiles);
-
-        if (has_trigrams && u32bDataLen(hashbuf1) > 0)
-            u32sSort(u32bData(hashbuf1));
-    }
-
-    if ($empty(replace)) {
+    if ($empty(replace))
         call(LESSArenaInit);
-    }
 
-    FILE *fp = NULL;
-    if (nfiles == 0) {
-        char cmdbuf[FILE_PATH_MAX_LEN * 2 + 256];
-        int cn = snprintf(cmdbuf, sizeof(cmdbuf), "git -C %.*s ls-files && git -C %.*s submodule foreach --quiet --recursive 'git ls-files | sed \"s|^|$displaypath/|\"'",
-                          (int)$len(reporoot), (char *)reporoot[0], (int)$len(reporoot), (char *)reporoot[0]);
-        test(cn > 0 && cn < (int)sizeof(cmdbuf), FAILSANITY);
-        fp = popen(cmdbuf, "r");
-        test(fp != NULL, FAILSANITY);
-    }
+    capo_spot_ctx sc = {};
+    $mv(sc.needle, needle);
+    $mv(sc.replace, replace);
+    $mv(sc.ext, ext);
 
-    char line[FILE_PATH_MAX_LEN];
-    int fi = 0;
-    int total_replacements = 0;
-    int total_files_replaced = 0;
-    while (nfiles > 0
-           ? fi < nfiles
-           : fgets(line, sizeof(line), fp) != NULL) {
-        size_t len;
-        if (nfiles > 0) {
-            u8cs *fp = u8cssAtP(files, fi);
-            len = (size_t)$len(*fp);
-            if (len >= sizeof(line)) { fi++; continue; }
-            u8s lns = {(u8p)line, (u8p)line + len};
-            u8sCopy(lns, *fp);
-            line[len] = 0;
-            fi++;
-        } else {
-            len = strlen(line);
-            if (len > 0 && line[len - 1] == '\n') line[--len] = 0;
-            if (len == 0) continue;
-        }
+    CAPOScanOpts opts = {
+        .has_trigrams = has_trigrams,
+        .file_fn = capo_spot_file_cb,
+        .file_ctx = &sc,
+    };
+    if (!$empty(ext)) $mv(opts.target_ext, ext);
+    if (has_trigrams) $mv(opts.tri_hashes, u32bDataC(hashbuf1));
 
-        u8cs relpath = {(u8cp)line, (u8cp)line + len};
+    if ($len(files) > 0)
+        CAPOScanFiles(files, &opts);
+    else
+        CAPOScan(reporoot, &opts);
 
-        if (nfiles == 0) {
-            if (has_trigrams && u32bDataLen(hashbuf1) > 0) {
-                u32 phash = CAPOPathHash(relpath);
-                if (!u32sBsearch(&phash, u32bData(hashbuf1)))
-                    continue;
-            } else if (has_trigrams) {
-                continue;
-            }
-        }
-
-        // Filter by extension (same lexer family, e.g. .c matches .h)
-        u8cs file_ext = {};
-        CAPOFindExt(file_ext, line, len);
-        if ($empty(file_ext)) continue;
-        if (nfiles == 0) {
-            if (!TOKSameLexer(file_ext, ext)) continue;
-        }
-
-        CAPOProgress(line);
-
-        char fpath[FILE_PATH_MAX_LEN * 2];
-        int pn;
-        if (nfiles > 0) {
-            // CLI-supplied path: cwd-relative or absolute, use as-is.
-            pn = snprintf(fpath, sizeof(fpath), "%s", line);
-        } else {
-            // Path from git ls-files: relative to reporoot.
-            pn = snprintf(fpath, sizeof(fpath), "%.*s/%s",
-                          (int)$len(reporoot), (char *)reporoot[0], line);
-        }
-        if (pn <= 0 || pn >= (int)sizeof(fpath)) continue;
-
-        u8cs fps = {(u8cp)fpath, (u8cp)fpath + pn};
-        a_path(fpbuf, fps);
-
-        // Map file, tokenize, match — resources released below
-        u8bp mapped = NULL;
-        Bu32 toks = {};
-        ok64 o = FILEMapRO(&mapped, PATHu8cgIn(fpbuf));
-        if (o == OK) {
-            a_dup(u8c, source, u8bDataC(mapped));
-            o = u32bMap(toks, $len(source) + 1);
-            if (o == OK) o = SPOTTokenize(toks, source, file_ext);
-            if (o == OK) {
-                {
-                    u32 *dts[2] = {u32bDataHead(toks), u32bIdleHead(toks)};
-                    a_dup(u8c,dext,file_ext);
-                    if (!$empty(dext) && dext[0][0] == '.') dext[0]++;
-                    DEFMark(dts, source, dext);
-                }
-                u32cs htoks = {(u32cp)u32bDataHead(toks),
-                               (u32cp)u32bIdleHead(toks)};
-
-                signal(SIGABRT, capo_abrt_handler);
-                capo_in_match = 1;
-                if (sigsetjmp(capo_jmpbuf, 1) == 0) {
-                    if (!$empty(replace))
-                        CAPOSpotReplace(source, mapped, htoks, needle,
-                                        replace, file_ext, fpbuf, line,
-                                        &total_replacements,
-                                        &total_files_replaced);
-                    else
-                        CAPOSpotFile(source, htoks, needle, file_ext, line);
-                }
-                capo_in_match = 0;
-                signal(SIGABRT, SIG_DFL);
-            }
-        }
-        // Cleanup: always release, or defer for pager
-        if ($empty(replace) && mapped != NULL && !BNULL(toks)) {
-            LESSDefer(mapped, toks);
-        } else {
-            if (!BNULL(toks)) u32bUnMap(toks);
-            if (mapped != NULL) FILEUnMap(mapped);
-        }
-    }
-    if (fp != NULL) pclose(fp);
     CAPOProgress(NULL);
 
     if ($empty(replace) && less_nhunks > 0)
@@ -1526,13 +1434,233 @@ ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot,
     if ($empty(replace))
         LESSArenaCleanup();
 
-    if (!$empty(replace)) {
+    if (!$empty(replace))
         fprintf(stderr, "%d replacements in %d files\n",
-                total_replacements, total_files_replaced);
-    }
+                sc.total_replacements, sc.total_files_replaced);
 
     if (!BNULL(hashbuf1)) u32bUnMap(hashbuf1);
     done;
+}
+
+// --- File scan ---
+
+typedef struct {
+    CAPOScanOpts const *opts;
+    u8cs root;
+    size_t root_len;
+    igno ig;
+    b8   has_igno;
+} capo_scan_st;
+
+static ok64 capo_scan_cb(void *arg, path8p path) {
+    capo_scan_st *st = arg;
+    CAPOScanOpts const *opts = st->opts;
+    u8cs data = {};
+    $mv(data, u8bDataC(path));
+    if ($empty(data)) return OK;
+
+    // Directory: trailing '/' appended by FILEScan
+    if (data[1][-1] == '/') {
+        // Extract basename (between last two '/' or start)
+        u8cp p = data[1] - 2;  // before trailing /
+        while (p > data[0] && p[-1] != '/') p--;
+        // Skip hidden dirs (.git, .dogs, etc.)
+        if (*p == '.') return FILESKIP;
+        // Check .gitignore
+        if (st->has_igno) {
+            u8cs rel = {data[0] + st->root_len, data[1] - 1};
+            if (!$empty(rel) && rel[0][0] == '/')
+                u8csFed(rel, 1);
+            if (!$empty(rel) && IGNOMatch(&st->ig, rel, YES))
+                return FILESKIP;
+        }
+        return OK;
+    }
+
+    // File: apply filters
+    size_t pathlen = (size_t)$len(data);
+    u8cs file_ext = {};
+    HUNKu8sExt(file_ext, data[0], pathlen);
+    if ($empty(file_ext)) return OK;
+    if (!CAPOKnownExt(file_ext)) return OK;
+    if (!$empty(opts->target_ext)) {
+        if (!TOKSameLexer(file_ext, opts->target_ext)) return OK;
+    }
+
+    // Compute relpath
+    u8cs relpath = {data[0] + st->root_len, data[1]};
+    if (!$empty(relpath) && relpath[0][0] == '/')
+        u8csFed(relpath, 1);
+
+    // Check .gitignore
+    if (st->has_igno && IGNOMatch(&st->ig, relpath, NO))
+        return OK;
+
+    // Trigram filter
+    if (opts->has_trigrams && !$empty(opts->tri_hashes)) {
+        u32 phash = CAPOPathHash(relpath);
+        u32s th = {(u32p)opts->tri_hashes[0], (u32p)opts->tri_hashes[1]};
+        if (!u32sBsearch(&phash, th))
+            return OK;
+    }
+
+    // NUL-terminated relpath for progress
+    char relpathz[FILE_PATH_MAX_LEN] = {};
+    size_t rlen = (size_t)$len(relpath);
+    if (rlen >= sizeof(relpathz)) rlen = sizeof(relpathz) - 1;
+    memcpy(relpathz, relpath[0], rlen);
+    CAPOProgress(relpathz);
+
+    // Map file
+    u8bp mapped = NULL;
+    ok64 o = FILEMapRO(&mapped, PATHu8cgIn(path));
+    if (o != OK) return OK;  // skip unreadable files
+
+    u8cs source = {};
+    $mv(source, u8bDataC(mapped));
+
+    o = opts->file_fn(opts->file_ctx, relpath, source,
+                      file_ext, mapped, path);
+    if (o != OK) {
+        FILEUnMap(mapped);
+        return o;
+    }
+    return OK;
+}
+
+ok64 CAPOScan(u8csc reporoot, CAPOScanOpts const *opts) {
+    sane(!$empty(reporoot) && opts != NULL && opts->file_fn != NULL);
+
+    capo_scan_st st = {
+        .opts = opts,
+    };
+    $mv(st.root, reporoot);
+    st.root_len = (size_t)$len(reporoot);
+
+    // Load .gitignore
+    u8cs igroot = {(u8cp)reporoot[0], (u8cp)reporoot[1]};
+    if (IGNOLoad(&st.ig, igroot) == OK)
+        st.has_igno = YES;
+
+    a_path(wp);
+    call(PATHu8bFeed, wp, reporoot);
+
+    ok64 o = FILEScan(wp, (FILE_SCAN)(FILE_SCAN_ALL | FILE_SCAN_DEEP),
+                      capo_scan_cb, &st);
+
+    CAPOProgress(NULL);
+    if (st.has_igno) IGNOFree(&st.ig);
+
+    if (o == FILESKIP) o = OK;  // normal completion
+    return o;
+}
+
+ok64 CAPOScanFiles(u8css files, CAPOScanOpts const *opts) {
+    sane(opts != NULL && opts->file_fn != NULL);
+    int nf = (int)$len(files);
+    for (int i = 0; i < nf; i++) {
+        u8cs *fp = u8cssAtP(files, i);
+        size_t flen = (size_t)$len(*fp);
+        if (flen == 0) continue;
+
+        char line[FILE_PATH_MAX_LEN] = {};
+        if (flen >= sizeof(line)) continue;
+        memcpy(line, (*fp)[0], flen);
+
+        u8cs file_ext = {};
+        HUNKu8sExt(file_ext, (u8cp)line, flen);
+        if ($empty(file_ext)) continue;
+        if (!CAPOKnownExt(file_ext)) continue;
+        if (!$empty(opts->target_ext)) {
+            if (!TOKSameLexer(file_ext, opts->target_ext)) continue;
+        }
+
+        CAPOProgress(line);
+
+        a_path(fpbuf);
+        u8cs fps = {(u8cp)line, (u8cp)line + flen};
+        if (PATHu8bFeed(fpbuf, fps) != OK) continue;
+
+        u8bp mapped = NULL;
+        if (FILEMapRO(&mapped, PATHu8cgIn(fpbuf)) != OK) continue;
+
+        u8cs source = {};
+        $mv(source, u8bDataC(mapped));
+        u8cs relpath = {(u8cp)line, (u8cp)line + flen};
+
+        ok64 o = opts->file_fn(opts->file_ctx, relpath, source,
+                               file_ext, mapped, fpbuf);
+        if (o != OK) {
+            FILEUnMap(mapped);
+            if (o != OK) return o;
+        }
+    }
+    CAPOProgress(NULL);
+    return OK;
+}
+
+// --- Trigram filter ---
+
+ok64 CAPOTrigramFilter(Bu32 hashbuf, b8 *has_trigrams,
+                        u8csc text, u8csc reporoot) {
+    sane(hashbuf != NULL && has_trigrams != NULL);
+    *has_trigrams = NO;
+
+    a_path(capodir);
+    ok64 ro = CAPOResolveDir(capodir, reporoot);
+    if (ro != OK) return OK;  // no index, skip filtering
+    a_dup(u8c, dirslice, u8bDataC(capodir));
+
+    size_t maxhashes = 1ULL << 28;
+    call(u32bMap, hashbuf, maxhashes);
+
+    u64cs runs[CAPO_MAX_LEVELS] = {};
+    u64css stack = {runs, runs};
+    u8bp mmaps[CAPO_MAX_LEVELS] = {};
+    u32 nidxfiles = 0;
+    call(CAPOStackOpen, stack, mmaps, &nidxfiles, dirslice);
+    stack[1] = stack[0] + nidxfiles;
+
+    if (nidxfiles == 0) {
+        CAPOStackClose(mmaps, nidxfiles);
+        return OK;
+    }
+
+    u8cp p = text[0];
+    u8cp end = text[1] - 2;
+    while (p <= end) {
+        if (CAPOTriChar(p[0]) && CAPOTriChar(p[1]) &&
+            CAPOTriChar(p[2])) {
+            u8cs tri = {p, p + 3};
+            u64 tri_prefix = CAPOTriPack(tri);
+
+            u64cs seek_runs[CAPO_MAX_LEVELS];
+            for (u32 i = 0; i < nidxfiles; i++) {
+                seek_runs[i][0] = runs[i][0];
+                seek_runs[i][1] = runs[i][1];
+            }
+            u64css seek_iter = {seek_runs, seek_runs + nidxfiles};
+            HITu64Start(seek_iter);
+
+            if (!*has_trigrams) {
+                u32bReset(hashbuf);
+                CAPOCollectPaths(seek_iter, tri_prefix,
+                                 u32bDataIdle(hashbuf));
+                *has_trigrams = YES;
+            } else {
+                u32sSort(u32bData(hashbuf));
+                CAPOFilterInPlace(hashbuf, seek_iter, tri_prefix);
+            }
+        }
+        p++;
+    }
+
+    CAPOStackClose(mmaps, nidxfiles);
+
+    if (*has_trigrams && u32bDataLen(hashbuf) > 0)
+        u32sSort(u32bData(hashbuf));
+
+    return OK;
 }
 
 // --- DOG control struct ---
