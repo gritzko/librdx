@@ -373,13 +373,13 @@ ok64 CAPOtestHunkEmit() {
     ok64 o = HUNKu8sDrain(data, &h);
     testeq(o, OK);
     want(!$empty(h.text));
-    want(!$empty(h.path));
+    want(!$empty(h.uri));
     // text should contain the source
     want($len(h.text) == strlen(src));
     want(memcmp(h.text[0], src, strlen(src)) == 0);
-    // path should be "test.c"
-    want($len(h.path) == 6);
-    want(memcmp(h.path[0], "test.c", 6) == 0);
+    // URI should start with "test.c"
+    want($len(h.uri) >= 6);
+    want(memcmp(h.uri[0], "test.c", 6) == 0);
 
     FILEUnMap(mapped);
     u32bUnMap(toks);

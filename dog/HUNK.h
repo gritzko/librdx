@@ -6,22 +6,19 @@
 
 // TLV type letters for hunk records
 #define HUNK_TLV      'H'  // outer container
-#define HUNK_TLV_TTL  'T'  // title text
+#define HUNK_TLV_URI  'U'  // hunk URI: path#symbol:line
 #define HUNK_TLV_TXT  'X'  // source text bytes
 #define HUNK_TLV_TOK  'K'  // tok32 array (packed u32 LE)
 #define HUNK_TLV_HILI 'I'  // sparse tok32 bg highlights
-#define HUNK_TLV_PATH 'P'  // repo-relative file path (never trimmed)
-#define HUNK_TLV_LINE 'L'  // 1-based line number (4 bytes LE u32)
 
-// A serializable code hunk.  The display title ("--- path :: func ---")
-// is NOT stored; it is formatted at render time from path + title.
+// A serializable code hunk.
+// Location is a single URI: path#symbol:lineno (see dog/DOG.md).
+// Display title is formatted at render time by parsing the URI.
 typedef struct {
-    u8cs path;     // repo-relative file path (e.g. "src/foo.c")
-    u8cs title;    // function/context name, or empty
+    u8cs uri;      // e.g. "abc/MSET.h#MSETOpen:42"
     u8cs text;     // source text bytes
     tok32cs toks;  // packed tok32: syntax fg
     tok32cs hili;  // sparse tok32: bg highlights ('I'=INS, 'D'=DEL)
-    u32 lineno;    // 1-based line number of first text line in source file
 } hunk;
 
 typedef hunk const hunkc;
@@ -66,5 +63,9 @@ ok64 HUNKu8sFormatTitle(u8s into, char const *filepath, char const *funcname);
 
 // Maximum visible width of a formatted hunk title.
 #define HUNK_TITLE_MAX 64
+
+// Compose a hunk URI into `into`: path#symbol:lineno
+// Any component may be NULL/empty/0 to omit.
+ok64 HUNKu8sMakeURI(u8s into, u8csc path, char const *symbol, u32 lineno);
 
 #endif

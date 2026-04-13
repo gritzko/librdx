@@ -175,14 +175,14 @@ ok64 NAVtest_hili_layout() {
     static u8 const t1[] = "h1";
 
     hunk hunks[2] = {};
-    hunks[0].title[0] = (u8 const *)t0;
-    hunks[0].title[1] = (u8 const *)t0 + 2;
+    hunks[0].uri[0] = (u8 const *)t0;
+    hunks[0].uri[1] = (u8 const *)t0 + 2;
     hunks[0].text[0]  = (u8 const *)h0_text;
     hunks[0].text[1]  = (u8 const *)h0_text + sizeof(h0_text) - 1;
     hunks[0].hili[0]  = h0[0];
     hunks[0].hili[1]  = h0[1];
-    hunks[1].title[0] = (u8 const *)t1;
-    hunks[1].title[1] = (u8 const *)t1 + 2;
+    hunks[1].uri[0] = (u8 const *)t1;
+    hunks[1].uri[1] = (u8 const *)t1 + 2;
     hunks[1].text[0]  = (u8 const *)h1_text;
     hunks[1].text[1]  = (u8 const *)h1_text + sizeof(h1_text) - 1;
     hunks[1].hili[0]  = h1[0];

@@ -446,8 +446,8 @@ ok64 GRAFBlame(u8cs filepath, u8cs reporoot) {
         u8cs fdata = {u8bDataHead(outbuf),
                       u8bDataHead(outbuf) + u8bDataLen(outbuf)};
         hunk hk = {};
-        hk.title[0] = (u8cp)title;
-        hk.title[1] = (u8cp)title + strlen(title);
+        hk.uri[0] = (u8cp)title;
+        hk.uri[1] = (u8cp)title + strlen(title);
         $mv(hk.text, fdata);
         call(GRAFHunkEmit, &hk, NULL);
     }

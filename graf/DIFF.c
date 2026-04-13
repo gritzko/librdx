@@ -29,8 +29,7 @@ static ok64 emit_mode_change(u8cs name, u8cs old_mode, u8cs new_mode) {
                       (int)$len(new_mode), (char *)new_mode[0]);
     if (bl <= 0) return OK;
     hunk hk = {};
-    hk.path[0] = name[0];
-    hk.path[1] = name[1];
+    $mv(hk.uri, name);
     hk.text[0] = (u8cp)body;
     hk.text[1] = (u8cp)body + bl;
     return GRAFHunkEmit(&hk, NULL);

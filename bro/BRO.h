@@ -3,9 +3,46 @@
 
 #include "abc/B.h"
 #include "abc/INT.h"
+#include "abc/URI.h"
+#include "dog/FRAG.h"
 #include "dog/HUNK.h"
 
 #define BRO_NONE UINT32_MAX
+
+// Extract path from a hunk's URI (strip leading /, stop at ? or #).
+// Returns a slice into the original URI data.
+fun void BROHunkPath(u8csp out, hunkc const *hk) {
+    out[0] = NULL; out[1] = NULL;
+    if ($empty(hk->uri)) return;
+    uri u = {};
+    $mv(u.data, hk->uri);
+    if (URILexer(&u) != OK || $empty(u.path)) return;
+    $mv(out, u.path);
+    if (*out[0] == '/') u8csFed(out, 1);
+}
+
+// Extract title (symbol name) from a hunk's URI fragment.
+fun void BROHunkTitle(u8csp out, hunkc const *hk) {
+    out[0] = NULL; out[1] = NULL;
+    if ($empty(hk->uri)) return;
+    uri u = {};
+    $mv(u.data, hk->uri);
+    if (URILexer(&u) != OK || $empty(u.fragment)) return;
+    frag fr = {};
+    if (FRAGu8sDrain(u.fragment, &fr) != OK) return;
+    if (fr.type == FRAG_IDENT) $mv(out, fr.body);
+}
+
+// Extract line number from a hunk's URI fragment. Returns 0 if absent.
+fun u32 BROHunkLine(hunkc const *hk) {
+    if ($empty(hk->uri)) return 0;
+    uri u = {};
+    $mv(u.data, hk->uri);
+    if (URILexer(&u) != OK || $empty(u.fragment)) return 0;
+    frag fr = {};
+    if (FRAGu8sDrain(u.fragment, &fr) != OK) return 0;
+    return fr.line;
+}
 #define BRO_TITLE_LINE UINT32_MAX
 
 // --- BRO arena: scratch space for cat-mode hunk staging ---

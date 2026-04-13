@@ -103,8 +103,8 @@ static int BROTagColor(u8 tag, b8 *bold) {
 // A "line" is range32: lo=hunk index, hi=byte offset within hunk text.
 // A title separator is stored as hunk index with hi=UINT32_MAX.
 
-// A hunk has a displayable title if it has a path or a function name.
-#define hunk_has_title(hk) (!$empty((hk)->path) || !$empty((hk)->title))
+// A hunk has a displayable title if it has a URI.
+#define hunk_has_title(hk) (!$empty((hk)->uri))
 
 // --- View stack for file navigation ---
 #define BRO_MAX_VIEWS 32
@@ -308,11 +308,11 @@ static ok64 BROOpenFile(BROstate *st, u8csc relpath, char const *repo,
     fv->hunk.text[0] = src_head;
     fv->hunk.text[1] = src_idle;
 
-    // Copy path into arena (relpath may point into pipe buffer or old hunk)
+    // Copy URI (= path) into arena
     u8p pp = BROArenaWrite(relpath[0], (size_t)$len(relpath));
     if (pp) {
-        fv->hunk.path[0] = pp;
-        fv->hunk.path[1] = pp + $len(relpath);
+        fv->hunk.uri[0] = pp;
+        fv->hunk.uri[1] = pp + $len(relpath);
     }
 
     BROTokenize(fv->toks, &fv->hunk, relpath);
@@ -386,7 +386,9 @@ static b8 BROTryOpen(BROstate *st, u32 line, char const *repo) {
     if (line >= st->nlines) return NO;
     u32 hunk_idx = st->lines[line].lo;
     hunk const *hk = &st->hunks[hunk_idx];
-    if ($empty(hk->path)) {
+    u8cs _hp = {};
+    BROHunkPath(&_hp, hk);
+    if ($empty(_hp)) {
         snprintf(st->flash, sizeof(st->flash), "no path in hunk");
         return NO;
     }
@@ -394,11 +396,11 @@ static b8 BROTryOpen(BROstate *st, u32 line, char const *repo) {
         snprintf(st->flash, sizeof(st->flash), "no repo root found");
         return NO;
     }
-    ok64 o = BROOpenFile(st, hk->path, repo, hk->lineno);
+    ok64 o = BROOpenFile(st, _hp, repo, BROHunkLine(hk));
     if (o != OK) {
         snprintf(st->flash, sizeof(st->flash),
                  "open: %.*s: %s",
-                 (int)$len(hk->path), (char *)hk->path[0],
+                 (int)$len(_hp), (char *)_hp[0],
                  ok64str(o));
         return NO;
     }
@@ -629,15 +631,18 @@ static void BROStatusBar(BROstate *st);
 static int bro_format_title(char *buf, size_t bufsz, hunkc const *hk) {
     char pathz[FILE_PATH_MAX_LEN] = {};
     char funcz[256] = {};
-    if (!$empty(hk->path)) {
-        size_t pl = (size_t)$len(hk->path);
+    u8cs _p = {}, _t = {};
+    BROHunkPath(&_p, hk);
+    BROHunkTitle(&_t, hk);
+    if (!$empty(_p)) {
+        size_t pl = (size_t)$len(_p);
         if (pl >= sizeof(pathz)) pl = sizeof(pathz) - 1;
-        memcpy(pathz, hk->path[0], pl);
+        memcpy(pathz, _p[0], pl);
     }
-    if (!$empty(hk->title)) {
-        size_t fl = (size_t)$len(hk->title);
+    if (!$empty(_t)) {
+        size_t fl = (size_t)$len(_t);
         if (fl >= sizeof(funcz)) fl = sizeof(funcz) - 1;
-        memcpy(funcz, hk->title[0], fl);
+        memcpy(funcz, _t[0], fl);
     }
     // Use the same format as HUNKu8sFormatTitle but into a char buf.
     int n = 0;
@@ -977,9 +982,11 @@ static void BRODispatchFragment(BROstate *st, char *frag,
     } else if (st->scroll < st->nlines) {
         u32 hi = st->lines[st->scroll].lo;
         hunkc const *hk = &st->hunks[hi];
-        if (!$empty(hk->path)) {
+        u8cs _hp2 = {};
+        BROHunkPath(&_hp2, hk);
+        if (!$empty(_hp2)) {
             u8cs ext = {};
-            HUNKu8sExt(ext, hk->path[0], (size_t)$len(hk->path));
+            HUNKu8sExt(ext, _hp2[0], (size_t)$len(_hp2));
             if (!$empty(ext)) {
                 size_t el = (size_t)$len(ext);
                 if (el < sizeof(argz)) {
@@ -1387,9 +1394,9 @@ static ok64 BROForkSpot(BROstate *st, char const *flag,
             if (o != OK) { $mv(from, save); break; }
             hunk *hk = &bro_hunks[bro_nhunks];
             *hk = (hunk){};
-            if (!$empty(tlv_hk.title)) {
-                u8p tp = BROArenaWrite(tlv_hk.title[0], (size_t)$len(tlv_hk.title));
-                if (tp) { hk->title[0] = tp; hk->title[1] = u8bIdleHead(bro_arena); }
+            if (!$empty(tlv_hk.uri)) {
+                u8p up = BROArenaWrite(tlv_hk.uri[0], (size_t)$len(tlv_hk.uri));
+                if (up) { hk->uri[0] = up; hk->uri[1] = u8bIdleHead(bro_arena); }
             }
             if (!$empty(tlv_hk.text)) {
                 u8p xp = BROArenaWrite(tlv_hk.text[0], (size_t)$len(tlv_hk.text));
@@ -1405,11 +1412,6 @@ static ok64 BROForkSpot(BROstate *st, char const *flag,
                 u8p hp = BROArenaWrite(tlv_hk.hili[0], hn);
                 if (hp) { hk->hili[0] = (u32cp)hp; hk->hili[1] = (u32cp)u8bIdleHead(bro_arena); }
             }
-            if (!$empty(tlv_hk.path)) {
-                u8p pp = BROArenaWrite(tlv_hk.path[0], (size_t)$len(tlv_hk.path));
-                if (pp) { hk->path[0] = pp; hk->path[1] = u8bIdleHead(bro_arena); }
-            }
-            hk->lineno = tlv_hk.lineno;
             bro_nhunks++;
         }
         // Compact: shift consumed data out
@@ -1850,12 +1852,12 @@ ok64 BROPipeRun(int pipefd) {
                 // Copy fields into arena
                 hunk *hk = &bro_hunks[bro_nhunks];
                 *hk = (hunk){};
-                if (!$empty(tlv_hk.title)) {
-                    u8p tp = BROArenaWrite(tlv_hk.title[0],
-                                            (size_t)$len(tlv_hk.title));
-                    if (tp) {
-                        hk->title[0] = tp;
-                        hk->title[1] = u8bIdleHead(bro_arena);
+                if (!$empty(tlv_hk.uri)) {
+                    u8p up = BROArenaWrite(tlv_hk.uri[0],
+                                            (size_t)$len(tlv_hk.uri));
+                    if (up) {
+                        hk->uri[0] = up;
+                        hk->uri[1] = u8bIdleHead(bro_arena);
                     }
                 }
                 if (!$empty(tlv_hk.text)) {
@@ -1884,15 +1886,6 @@ ok64 BROPipeRun(int pipefd) {
                         hk->hili[1] = (u32cp)u8bIdleHead(bro_arena);
                     }
                 }
-                if (!$empty(tlv_hk.path)) {
-                    u8p pp = BROArenaWrite(tlv_hk.path[0],
-                                           (size_t)$len(tlv_hk.path));
-                    if (pp) {
-                        hk->path[0] = pp;
-                        hk->path[1] = u8bIdleHead(bro_arena);
-                    }
-                }
-                hk->lineno = tlv_hk.lineno;
                 bro_nhunks++;
             }
 

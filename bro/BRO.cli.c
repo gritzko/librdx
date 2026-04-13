@@ -80,7 +80,7 @@ ok64 brocli() {
             *hk = (hunk){};
             size_t pl = (size_t)$len(fp);
             u8p pp = BROArenaWrite(fp[0], pl);
-            if (pp) { hk->path[0] = pp; hk->path[1] = pp + pl; }
+            if (pp) { hk->uri[0] = pp; hk->uri[1] = pp + pl; }
             hk->text[0] = u8bDataHead(mapped);
             hk->text[1] = u8bIdleHead(mapped);
 

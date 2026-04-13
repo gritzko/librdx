@@ -117,9 +117,12 @@ static ok64 emit_whole_file(Bu8 arena, char const *dispname,
     u32 dlen = (u32)$len(data);
 
     if (dispname) {
-        size_t plen = strlen(dispname);
-        u8p pp = arena_write(arena, (u8cp)dispname, plen);
-        if (pp) { hk.path[0] = pp; hk.path[1] = pp + plen; }
+        u8cs dp = {(u8cp)dispname, (u8cp)dispname + strlen(dispname)};
+        u8gp ug = u8aOpen(arena);
+        HUNKu8sMakeURI(u8gRest(ug), dp, NULL, 0);
+        u8cs uri_s = {};
+        u8aClose(arena, uri_s);
+        $mv(hk.uri, uri_s);
     }
 
     u8p txp = arena_write(arena, data[0], dlen);
@@ -325,24 +328,20 @@ ok64 DIFFu8cs(Bu8 arena,
             }                                                   \
             cur_hunk = &cur_hunk_v;                             \
             *cur_hunk = (hunk){};                           \
-            char _funcname[256];                                \
-            DIFFFindFunc(new_data, (boff), ext_nodot,           \
-                         _funcname, sizeof(_funcname));         \
-            if (_funcname[0]) {                                 \
-                size_t _fl = strlen(_funcname);                 \
-                u8p _fp = arena_write(arena, (u8cp)_funcname, _fl); \
-                if (_fp) {                                      \
-                    cur_hunk->title[0] = _fp;                   \
-                    cur_hunk->title[1] = _fp + _fl;             \
+            {                                                   \
+                char _funcname[256] = {};                        \
+                DIFFFindFunc(new_data, (boff), ext_nodot,       \
+                             _funcname, sizeof(_funcname));     \
+                u8cs _dp = {};                                  \
+                if (dispname) {                                 \
+                    _dp[0] = (u8cp)dispname;                    \
+                    _dp[1] = (u8cp)dispname + strlen(dispname); \
                 }                                               \
-            }                                                   \
-            if (dispname) {                                     \
-                size_t _pl = strlen(dispname);                  \
-                u8p _pp = arena_write(arena, (u8cp)dispname, _pl); \
-                if (_pp) {                                      \
-                    cur_hunk->path[0] = _pp;                    \
-                    cur_hunk->path[1] = _pp + _pl;              \
-                }                                               \
+                u8gp _ug = u8aOpen(arena);                      \
+                HUNKu8sMakeURI(u8gRest(_ug), _dp, _funcname, 0); \
+                u8cs _uri = {};                                 \
+                u8aClose(arena, _uri);                          \
+                $mv(cur_hunk->uri, _uri);                       \
             }                                                   \
             cur_hunk->text[0] = dtxp;                           \
             cur_hunk->toks[0] = (u32cp)dtokp;                   \

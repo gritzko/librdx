@@ -1153,37 +1153,31 @@ ok64 CAPOBuildHunk(u8csc source, u32cs htoks, u32 ctx_lo, u32 ctx_hi,
     LESShunk *hk = &less_hunks[less_nhunks];
     *hk = (LESShunk){};
 
-    // Path + title (function name) — display title formatted at render time
-    if (needs_title || *first_hunk) {
-        char funcname[256];
-        CAPOFindFunc(source, ctx_lo, file_ext,
-                     funcname, sizeof(funcname));
-        if (funcname[0]) {
-            size_t flen = strlen(funcname);
-            u8p fp = LESSArenaWrite(funcname, flen);
-            if (fp) {
-                hk->title[0] = fp;
-                hk->title[1] = fp + flen;
-            }
+    // Compose URI: path#symbol:lineno
+    {
+        char funcname[256] = {};
+        if (needs_title || *first_hunk)
+            CAPOFindFunc(source, ctx_lo, file_ext,
+                         funcname, sizeof(funcname));
+        u32 ln = 1;
+        $for(u8c, ch, source) {
+            if (ch >= source[0] + ctx_lo) break;
+            if (*ch == '\n') ln++;
         }
-    }
-    if (filepath) {
-        size_t plen = strlen(filepath);
-        u8p pp = LESSArenaWrite(filepath, plen);
-        if (pp) {
-            hk->path[0] = pp;
-            hk->path[1] = pp + plen;
+        u8cs fp = {};
+        if (filepath) {
+            fp[0] = (u8cp)filepath;
+            fp[1] = (u8cp)filepath + strlen(filepath);
         }
+        u8gp ug = u8aOpen(less_arena);
+        HUNKu8sMakeURI(u8gRest(ug), fp, funcname, ln);
+        u8cs uri_s = {};
+        u8aClose(less_arena, uri_s);
+        $mv(hk->uri, uri_s);
     }
 
     hk->text[0] = source[0] + ctx_lo;
     hk->text[1] = source[0] + ctx_hi;
-
-    // Compute 1-based line number from byte offset
-    u32 ln = 1;
-    for (u32 i = 0; i < ctx_lo; i++)
-        if (source[0][i] == '\n') ln++;
-    hk->lineno = ln;
 
     // Clip file-level toks to context region
     HUNKu32sClip(less_arena, hk->toks, htoks, ctx_lo, ctx_hi);

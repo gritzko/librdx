@@ -4,14 +4,16 @@
 
 #include "abc/FILE.h"
 #include "abc/PRO.h"
+#include "abc/URI.h"
+#include "dog/FRAG.h"
 #include "dog/TOK.h"
 
 ok64 HUNKu8sFeed(u8s into, hunk const *hk) {
     sane(u8sOK(into) && hk != NULL);
     u8s inner = {};
     call(TLVu8sStart, into, inner, HUNK_TLV);
-    if (!$empty(hk->title))
-        call(TLVu8sFeed, inner, HUNK_TLV_TTL, hk->title);
+    if (!$empty(hk->uri))
+        call(TLVu8sFeed, inner, HUNK_TLV_URI, hk->uri);
     if (!$empty(hk->text))
         call(TLVu8sFeed, inner, HUNK_TLV_TXT, hk->text);
     if (!$empty(hk->toks)) {
@@ -21,13 +23,6 @@ ok64 HUNKu8sFeed(u8s into, hunk const *hk) {
     if (!$empty(hk->hili)) {
         u8cs hib = {(u8cp)hk->hili[0], (u8cp)hk->hili[1]};
         call(TLVu8sFeed, inner, HUNK_TLV_HILI, hib);
-    }
-    if (!$empty(hk->path))
-        call(TLVu8sFeed, inner, HUNK_TLV_PATH, hk->path);
-    if (hk->lineno > 0) {
-        u32 le = hk->lineno;
-        u8cs lb = {(u8cp)&le, (u8cp)&le + sizeof(le)};
-        call(TLVu8sFeed, inner, HUNK_TLV_LINE, lb);
     }
     call(TLVu8sEnd, into, inner, HUNK_TLV);
     done;
@@ -45,8 +40,8 @@ ok64 HUNKu8sDrain(u8cs from, hunk *hk) {
         u8cs val = {};
         call(TLVu8sDrain, body, &st, val);
         switch (st) {
-        case HUNK_TLV_TTL:
-            $mv(hk->title, val);
+        case HUNK_TLV_URI:
+            $mv(hk->uri, val);
             break;
         case HUNK_TLV_TXT:
             $mv(hk->text, val);
@@ -58,13 +53,6 @@ ok64 HUNKu8sDrain(u8cs from, hunk *hk) {
         case HUNK_TLV_HILI:
             hk->hili[0] = (tok32c *)val[0];
             hk->hili[1] = (tok32c *)val[1];
-            break;
-        case HUNK_TLV_PATH:
-            $mv(hk->path, val);
-            break;
-        case HUNK_TLV_LINE:
-            if ($len(val) >= sizeof(u32))
-                memcpy(&hk->lineno, val[0], sizeof(u32));
             break;
         default:
             break;
@@ -85,19 +73,30 @@ static u8 hunk_hili_at(hunk const *hk, u32 pos) {
 
 ok64 HUNKu8sFeedText(u8s into, hunk const *hk) {
     sane(u8sOK(into) && hk != NULL);
-    if (!$empty(hk->path) || !$empty(hk->title)) {
-        // Format display title from path + title (function name)
+    if (!$empty(hk->uri)) {
+        // Parse URI to extract path and fragment (symbol:line)
+        uri hu = {};
+        $mv(hu.data, hk->uri);
+        URILexer(&hu);
         char pathz[FILE_PATH_MAX_LEN] = {};
         char funcz[256] = {};
-        if (!$empty(hk->path)) {
-            size_t pl = (size_t)$len(hk->path);
+        if (!$empty(hu.path)) {
+            u8cs p = {};
+            $mv(p, hu.path);
+            if (*p[0] == '/') u8csFed(p, 1);
+            size_t pl = (size_t)$len(p);
             if (pl >= sizeof(pathz)) pl = sizeof(pathz) - 1;
-            memcpy(pathz, hk->path[0], pl);
+            memcpy(pathz, p[0], pl);
         }
-        if (!$empty(hk->title)) {
-            size_t fl = (size_t)$len(hk->title);
-            if (fl >= sizeof(funcz)) fl = sizeof(funcz) - 1;
-            memcpy(funcz, hk->title[0], fl);
+        if (!$empty(hu.fragment)) {
+            // Fragment body before ':' or '.' is the symbol name
+            frag fr = {};
+            FRAGu8sDrain(hu.fragment, &fr);
+            if (fr.type == FRAG_IDENT && !$empty(fr.body)) {
+                size_t fl = (size_t)$len(fr.body);
+                if (fl >= sizeof(funcz)) fl = sizeof(funcz) - 1;
+                memcpy(funcz, fr.body[0], fl);
+            }
         }
         call(HUNKu8sFormatTitle, into, pathz[0] ? pathz : NULL, funcz);
         u8sFeed1(into, '\n');
@@ -261,6 +260,22 @@ ok64 HUNKu8sFormatTitle(u8s into, char const *filepath, char const *funcname) {
         } else {
             call(u8sPrintf, into, "--- ...%s ---", p);
         }
+    }
+    done;
+}
+
+ok64 HUNKu8sMakeURI(u8s into, u8csc path, char const *symbol, u32 lineno) {
+    sane(u8sOK(into));
+    if (!$empty(path)) u8sFeed(into, path);
+    if ((symbol && symbol[0]) || lineno > 0)
+        u8sFeed1(into, '#');
+    if (symbol && symbol[0]) {
+        u8cs sym = {(u8cp)symbol, (u8cp)symbol + strlen(symbol)};
+        u8sFeed(into, sym);
+    }
+    if (lineno > 0) {
+        u8sFeed1(into, ':');
+        utf8sFeed10(into, (u64)lineno);
     }
     done;
 }
