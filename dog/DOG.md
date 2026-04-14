@@ -2,14 +2,6 @@
 
  1. Each dog provides a static library and an executable.
  2. CLI convention: `dog [verb] [--flags] URI*` (see dog/CLI.h).
-    Common flags (each dog picks which to support):
-      - `--index -i` rebuild the index
-      - `--update -u` _update_ the index
-      - `--status` report status (short)
-      - `--tlv -t` provide output in hunk TLV mode (see HUNK)
-      - `--install -n` install hook(s) in a git repo
-    dog/CLI parses flags, verbs, and URIs into a `cli` struct.
-    Flags are interleaved `[flag, val]` pairs in `cli.flags`.
  3. Each dog keeps its state in `$REPO_ROOT/.dogs/name`
  4. Dogs must understand the URI syntax (see below).
     Dog's CLI is callable as `name URI`.
@@ -28,7 +20,7 @@
 
 Dogs accept URIs of the form:
 
-    [//authority] [path] [?ref] [#fragment]
+    [scheme:] [//authority] [path] [?ref] [#fragment]
 
   - `//authority` — remote host or alias (`//origin`, `//github.com/user/repo.git`)
   - `path` — repo-relative file or directory (always a real path)
@@ -61,16 +53,17 @@ Trailing `.ext` filters by file type (one or more):
   - `#'ok64 o'.c` — structural search in .c
   - `#/u8sFeed/.c.h` — regex in .c and .h
 
-##  `be` verb vocabulary
+##  HTTP verb vocabulary
 
-    be path                  view file (bro)
-    be '#search.ext'         search working tree (spot)
-    be get URI               repo → worktree (keeper/sniff)
-    be post URI              worktree → repo (sniff/git)
-    be put URI               repo → repo (keeper/git push)
-    be diff URI              compare (graf)
-    be patch URI             transform in place (spot replace)
-    be merge URI             3-way merge (graf)
+The verb vocabulary shared by all dogs is more or less HTTP-like:
+
+    be get URI               repo → worktree retrieval
+    be post URI              worktree → repo filing
     be delete URI            remove branch/tag/file
+    be put URI               repo → repo, intra-repo ops
+    be patch URI             transform in place (spot replace)
 
 No verb = read-only view or search.  A verb = action with direction.
+
+    be /path                 view file
+    be '#search.ext'         search working tree (spot)
