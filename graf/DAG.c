@@ -1,8 +1,8 @@
-//  DAG: graf's git object-graph index.
+//  DAG: graf's object-graph index (keeper-based).
 //
-//  Drives `git rev-list` + `git diff-tree` to enumerate new commits
-//  and their file changes, writing belt128 records into LSM sorted
-//  runs under <reporoot>/.dogs/graf/.
+//  Walks keeper's kv64 index to enumerate commits, inflates them
+//  via KEEPGet, diffs trees to find file changes, writes belt128
+//  records into LSM sorted runs under <reporoot>/.dogs/graf/.
 //
 #include "DAG.h"
 
@@ -10,14 +10,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/wait.h>
 
 #include "abc/FILE.h"
+#include "abc/HEX.h"
 #include "abc/KV.h"
 #include "abc/PATH.h"
 #include "abc/PRO.h"
 #include "abc/RAP.h"
 #include "abc/RON.h"
+#include "keeper/GIT.h"
+#include "keeper/REFS.h"
 
 // --- Template instantiations for belt128 ---
 
@@ -457,27 +459,27 @@ static u64 dag_hex_to_hashlet(char const *hex40) {
     return DAGsha1Hashlet(&s);
 }
 
-// --- Read all branch tips via git for-each-ref ---
+// --- Read all ref tips from keeper REFS ---
 
-static u32 dag_read_tips(sha1 tips[], u32 maxtips, u8cs reporoot) {
-    char cmd[1024];
-    snprintf(cmd, sizeof(cmd),
-             "git -C %.*s for-each-ref --format='%%(objectname)'",
-             (int)$len(reporoot), (char *)reporoot[0]);
-    FILE *fp = popen(cmd, "r");
-    if (!fp) return 0;
+static u32 dag_read_tips(sha1 tips[], u32 maxtips, keeper *k) {
+    a_cstr(keepdir, k->dir);
+    u8bp rmap = NULL;
+    ref rarr[REFS_MAX_REFS];
+    u32 rn = 0;
+    if (REFSLoad(rarr, &rn, REFS_MAX_REFS, &rmap, keepdir) != OK)
+        return 0;
+
     u32 count = 0;
-    char buf[64];
-    while (fgets(buf, sizeof(buf), fp) && count < maxtips) {
-        size_t l = strlen(buf);
-        while (l > 0 && (buf[l - 1] == '\n' || buf[l - 1] == '\r'))
-            buf[--l] = 0;
-        if (dag_is_hex_sha(buf, l)) {
-            DAGsha1FromHex(&tips[count], buf);
-            count++;
-        }
+    for (u32 i = 0; i < rn && count < maxtips; i++) {
+        // Only SHA refs: val starts with '?'
+        if (u8csEmpty(rarr[i].val) || *rarr[i].val[0] != '?') continue;
+        u8cs val = {rarr[i].val[0] + 1, rarr[i].val[1]};
+        if (u8csLen(val) < 40) continue;
+        if (!dag_is_hex_sha((char const *)val[0], u8csLen(val))) continue;
+        DAGsha1FromHex(&tips[count], (char const *)val[0]);
+        count++;
     }
-    pclose(fp);
+    if (rmap) u8bUnMap(rmap);
     return count;
 }
 
@@ -506,25 +508,18 @@ static ok64 dag_write_tips(u8cs dagdir, sha1 const tips[], u32 ntips) {
     done;
 }
 
-// --- Load saved bookmarks, validate they exist in repo ---
+// --- Load saved bookmarks, validate they exist in keeper ---
 
 static u32 dag_load_bookmarks(sha1 out[], u32 maxout,
-                               u8cs dagdir, u8cs reporoot) {
+                               u8cs dagdir, keeper *k) {
     sha1 shas[DAG_MAX_SHAS] = {};
     u32 sha_count = 0;
     dag_commit_read(&sha_count, dagdir, shas, DAG_MAX_SHAS);
 
     u32 valid = 0;
     for (u32 i = 0; i < sha_count && valid < maxout; i++) {
-        char hex[41];
-        DAGsha1ToHex(hex, &shas[i]);
-        char cmd[1024];
-        int n = snprintf(cmd, sizeof(cmd),
-                         "git -C %.*s cat-file -t %s >/dev/null 2>&1",
-                         (int)$len(reporoot), (char *)reporoot[0], hex);
-        if (n <= 0 || n >= (int)sizeof(cmd)) continue;
-        int rc = system(cmd);
-        if (WIFEXITED(rc) && WEXITSTATUS(rc) == 0) {
+        u64 hashlet = wh64Sha1Hashlet60(&shas[i]);
+        if (KEEPHas(k, hashlet, 15) == OK) {
             out[valid] = shas[i];
             valid++;
         }
@@ -621,10 +616,167 @@ static b8 dag_parse_diff_rec(char const *rec, size_t rlen,
     return YES;
 }
 
-// --- Main entry ---
+// --- Recursive tree diff: yield (path, old_blob_hash, new_blob_hash) ---
+//
+// Walks two trees (old and new) from keeper, comparing entries.
+// For changed/added/deleted blobs, calls the callback.
 
-ok64 DAGHook(u8cs reporoot) {
-    sane($ok(reporoot));
+typedef ok64 (*tree_diff_cb)(char const *path, size_t pathlen,
+                              u64 old_blob_h, u64 new_blob_h, voidp ctx);
+
+static ok64 dag_tree_diff_r(keeper *k, u8cs old_tree, u8cs new_tree,
+                             char *pathbuf, size_t pathoff, size_t pathcap,
+                             tree_diff_cb cb, voidp ctx) {
+    // Collect entries from both trees into parallel arrays
+    // git tree entry: "<mode> <name>\0<20-byte-sha>"
+    #define TREE_MAX 4096
+    typedef struct { u8cs name; u8cs sha; u8cs mode; } tentry;
+    tentry *old_ents = malloc(TREE_MAX * sizeof(tentry));
+    tentry *new_ents = malloc(TREE_MAX * sizeof(tentry));
+    if (!old_ents || !new_ents) { free(old_ents); free(new_ents); return DAGFAIL; }
+    u32 on = 0, nn = 0;
+
+    {
+        a_dup(u8c, scan, old_tree);
+        u8cs file = {}, sha = {};
+        while (on < TREE_MAX && GITu8sDrainTree(scan, file, sha) == OK) {
+            u8csMv(old_ents[on].name, file);
+            u8csMv(old_ents[on].sha, sha);
+            u8csMv(old_ents[on].mode, file);
+            on++;
+        }
+    }
+    {
+        a_dup(u8c, scan, new_tree);
+        u8cs file = {}, sha = {};
+        while (nn < TREE_MAX && GITu8sDrainTree(scan, file, sha) == OK) {
+            u8csMv(new_ents[nn].name, file);
+            u8csMv(new_ents[nn].sha, sha);
+            u8csMv(new_ents[nn].mode, file);
+            nn++;
+        }
+    }
+
+    // Both are sorted by name (git guarantees this).
+    // Merge-join to find additions, deletions, modifications.
+    u32 oi = 0, ni = 0;
+    ok64 result = OK;
+
+    while ((oi < on || ni < nn) && result == OK) {
+        int cmp;
+        if (oi >= on) cmp = 1;
+        else if (ni >= nn) cmp = -1;
+        else {
+            size_t ol = u8csLen(old_ents[oi].name);
+            size_t nl = u8csLen(new_ents[ni].name);
+            size_t ml = ol < nl ? ol : nl;
+            cmp = memcmp(old_ents[oi].name[0], new_ents[ni].name[0], ml);
+            if (cmp == 0) cmp = ol < nl ? -1 : ol > nl ? 1 : 0;
+        }
+
+        if (cmp == 0) {
+            // Same name — check if SHA differs
+            if (u8csLen(old_ents[oi].sha) == 20 &&
+                u8csLen(new_ents[ni].sha) == 20 &&
+                memcmp(old_ents[oi].sha[0], new_ents[ni].sha[0], 20) != 0) {
+                b8 is_tree = *old_ents[oi].mode[0] == '4';
+                if (is_tree) {
+                    size_t nlen = u8csLen(old_ents[oi].name);
+                    if (pathoff + nlen + 1 < pathcap) {
+                        memcpy(pathbuf + pathoff, old_ents[oi].name[0], nlen);
+                        pathbuf[pathoff + nlen] = '/';
+
+                        u64 oh = keepHashlet60(old_ents[oi].sha);
+                        u64 nh = keepHashlet60(new_ents[ni].sha);
+                        Bu8 ob = {}, nb = {};
+                        u8bMap(ob, 4UL << 20);
+                        u8bMap(nb, 4UL << 20);
+                        u8 ot = 0, nt = 0;
+                        if (KEEPGet(k, oh, 15, ob, &ot) == OK &&
+                            KEEPGet(k, nh, 15, nb, &nt) == OK) {
+                            a_dup(u8c, od, u8bDataC(ob));
+                            a_dup(u8c, nd, u8bDataC(nb));
+                            result = dag_tree_diff_r(k, od, nd, pathbuf,
+                                                     pathoff + nlen + 1,
+                                                     pathcap, cb, ctx);
+                        }
+                        u8bUnMap(ob);
+                        u8bUnMap(nb);
+                    }
+                } else {
+                    u64 oh = keepHashlet60(old_ents[oi].sha);
+                    u64 nh = keepHashlet60(new_ents[ni].sha);
+                    size_t nlen = u8csLen(old_ents[oi].name);
+                    if (pathoff + nlen < pathcap) {
+                        memcpy(pathbuf + pathoff, old_ents[oi].name[0], nlen);
+                        result = cb(pathbuf, pathoff + nlen, oh, nh, ctx);
+                    }
+                }
+            }
+            oi++; ni++;
+        } else if (cmp < 0) {
+            oi++;
+        } else {
+            b8 is_tree = *new_ents[ni].mode[0] == '4';
+            if (!is_tree) {
+                u64 nh = keepHashlet60(new_ents[ni].sha);
+                size_t nlen = u8csLen(new_ents[ni].name);
+                if (pathoff + nlen < pathcap) {
+                    memcpy(pathbuf + pathoff, new_ents[ni].name[0], nlen);
+                    result = cb(pathbuf, pathoff + nlen, 0, nh, ctx);
+                }
+            }
+            ni++;
+        }
+    }
+
+    free(old_ents);
+    free(new_ents);
+    return result;
+    #undef TREE_MAX
+}
+
+// --- Tree diff context for DAGHook ---
+
+typedef struct {
+    belt128p entries;
+    size_t  *nentries;
+    size_t   bufcap;
+    dag_gens *gens;
+    dag_stack *stack;
+    dag_paths *paths;
+    u64 commit_hash;
+    u32 commit_gen;
+    u32 parent_gen;
+} dag_diff_ctx;
+
+static ok64 dag_diff_cb(char const *path, size_t pathlen,
+                         u64 old_blob_h, u64 new_blob_h, voidp arg) {
+    dag_diff_ctx *ctx = (dag_diff_ctx *)arg;
+    if (pathlen == 0 || new_blob_h == 0) return OK;
+
+    // PREV_BLOB (modified files only)
+    if (old_blob_h != 0) {
+        dag_emit(ctx->entries, ctx->nentries, ctx->bufcap,
+                 DAG_PREV_BLOB, ctx->commit_gen, new_blob_h,
+                 DAG_PREV_BLOB, ctx->parent_gen, old_blob_h);
+    }
+
+    // PATH_VER + BLOB_COMMIT
+    u32 pid = dag_paths_intern(ctx->paths, path, pathlen);
+    dag_emit(ctx->entries, ctx->nentries, ctx->bufcap,
+             DAG_PATH_VER, ctx->commit_gen, (u64)pid,
+             DAG_PATH_VER, ctx->commit_gen, new_blob_h);
+    dag_emit(ctx->entries, ctx->nentries, ctx->bufcap,
+             DAG_BLOB_COMMIT, ctx->commit_gen, new_blob_h,
+             DAG_BLOB_COMMIT, ctx->commit_gen, ctx->commit_hash);
+    return OK;
+}
+
+// --- Main entry: walk keeper's index for commits ---
+
+ok64 DAGHook(keeper *k, u8cs reporoot) {
+    sane(k && $ok(reporoot));
 
     // Resolve .dogs/graf/
     a_path(dagpath, reporoot);
@@ -634,15 +786,25 @@ ok64 DAGHook(u8cs reporoot) {
     a_dup(u8c, dagdir, u8bDataC(dagpath));
     call(FILEMakeDirP, PATHu8cgIn(dagpath));
 
-    // Read current branch tips
+    // Read current ref tips from keeper REFS
     sha1 tips[DAG_MAX_SHAS] = {};
-    u32 ntips = dag_read_tips(tips, DAG_MAX_SHAS, reporoot);
-    if (ntips == 0) fail(DAGFAIL);
+    u32 ntips = dag_read_tips(tips, DAG_MAX_SHAS, k);
+    if (ntips == 0) {
+        fprintf(stderr, "graf-dag: no refs in keeper\n");
+        fail(DAGFAIL);
+    }
 
-    // Load saved bookmarks (validated)
+    // Load saved bookmarks (validated against keeper)
     sha1 bookmarks[DAG_MAX_SHAS] = {};
     u32 nbookmarks = dag_load_bookmarks(bookmarks, DAG_MAX_SHAS,
-                                         dagdir, reporoot);
+                                         dagdir, k);
+
+    // Build a set of known commit hashlets to skip
+    u64 known_commits[DAG_MAX_SHAS];
+    for (u32 i = 0; i < nbookmarks; i++) {
+        known_commits[i] = wh64Sha1Hashlet60(&bookmarks[i]);
+    }
+
     if (nbookmarks > 0)
         fprintf(stderr, "graf-dag: incremental, %u bookmark(s)\n", nbookmarks);
     else
@@ -672,174 +834,159 @@ ok64 DAGHook(u8cs reporoot) {
     u64 seqno = 0;
     dag_next_seqno(&seqno, dagdir);
 
-    // Single git log stream: commit headers + raw diffs in one pipe.
-    char logcmd[4096];
-    int pos = snprintf(logcmd, sizeof(logcmd),
-                       "git -C %.*s log --all --topo-order --reverse --parents"
-                       " --raw -z --no-abbrev --diff-filter=ACMRT",
-                       (int)$len(reporoot), (char *)reporoot[0]);
-    if (nbookmarks > 0) {
-        pos += snprintf(logcmd + pos, sizeof(logcmd) - pos, " --not");
-        for (u32 i = 0; i < nbookmarks && pos < (int)sizeof(logcmd) - 50; i++) {
-            char hex[41];
-            DAGsha1ToHex(hex, &bookmarks[i]);
-            pos += snprintf(logcmd + pos, sizeof(logcmd) - pos, " %s", hex);
-        }
-    }
-
-    FILE *gl = popen(logcmd, "r");
-    if (!gl) {
-        free(entries);
-        dag_gens_free(&gens);
-        dag_paths_free(&paths);
-        dag_stack_close(&stack);
-        failc(DAGFAIL);
-    }
+    // Walk keeper's kv64 index runs for commit objects
+    Bu8 commit_buf = {};
+    call(u8bMap, commit_buf, 4UL << 20);  // 4 MB scratch for commit content
+    Bu8 tree_old_buf = {}, tree_new_buf = {};
+    call(u8bMap, tree_old_buf, 4UL << 20);
+    call(u8bMap, tree_new_buf, 4UL << 20);
+    char pathbuf[4096];
 
     u32 indexed = 0;
     ok64 result = OK;
 
-    // State for the current commit being processed
-    u64 commit_hash = 0;
-    u32 commit_gen = 0;
-    u64 parents[16] = {};
-    int npar = -1;  // -1 = no current commit
+    for (u32 ri = 0; ri < k->nruns && result == OK; ri++) {
+        kv64cp base = k->runs[ri][0];
+        size_t rlen = (size_t)(k->runs[ri][1] - base);
 
-    // Read stream line by line.  "commit " lines start a new commit;
-    // colon lines are raw diff entries; everything else is skipped.
-    // With -z, colon records end with NUL, paths are NUL-separated.
-    // We read in large chunks and parse in-buffer.
-    size_t bufsz = 1 << 18;  // 256KB read buffer
-    char *buf = (char *)malloc(bufsz);
-    if (!buf) { pclose(gl); free(entries); dag_gens_free(&gens);
-                dag_paths_free(&paths); dag_stack_close(&stack); failc(DAGFAIL); }
-    size_t buflen = 0;
-    b8 eof = NO;
+        for (size_t ei = 0; ei < rlen && result == OK; ei++) {
+            u8 type = keepKeyType(base[ei].key);
+            if (type != KEEP_OBJ_COMMIT) continue;
 
-    while (!eof || buflen > 0) {
-        // Fill buffer
-        if (!eof) {
-            size_t room = bufsz - buflen - 1;
-            if (room > 0) {
-                size_t got = fread(buf + buflen, 1, room, gl);
-                if (got == 0) eof = YES;
-                buflen += got;
+            u64 commit_h = keepKeyHashlet(base[ei].key);
+
+            // Skip if already known (bookmarked)
+            b8 skip = NO;
+            for (u32 bi = 0; bi < nbookmarks; bi++) {
+                if (known_commits[bi] == commit_h) { skip = YES; break; }
             }
-        }
-        buf[buflen] = 0;
+            if (skip) continue;
 
-        char *p = buf;
-        char *end = buf + buflen;
+            // Skip if already indexed (check dag_stack for COMMIT_GEN)
+            if (dag_stack_gen(&stack, commit_h) > 0) continue;
+            // Skip if indexed in current batch
+            if (dag_gens_get(&gens, commit_h) > 0) continue;
 
-        while (p < end) {
-            if (*p == ':') {
-                // Colon record: parse diff entry
-                // Format: ":old_mode new_mode old_sha new_sha status\0path\0"
-                char *rec_end = p;
-                while (rec_end < end && *rec_end != 0) rec_end++;
-                if (rec_end >= end && !eof) break;  // incomplete, need more data
-                size_t reclen = (size_t)(rec_end - p);
+            // Inflate commit
+            u8bReset(commit_buf);
+            u8 obj_type = 0;
+            if (KEEPGet(k, commit_h, 15, commit_buf, &obj_type) != OK) continue;
+            if (obj_type != KEEP_OBJ_COMMIT) continue;
 
-                dag_diff_entry de = {};
-                if (dag_parse_diff_rec(p, reclen, &de) && npar >= 0) {
-                    p = rec_end + 1;  // past NUL
+            // Parse commit: extract tree SHA and parent SHAs
+            a_dup(u8c, scan, u8bDataC(commit_buf));
+            u8cs field = {}, value = {};
+            sha1 tree_sha = {};
+            sha1 parent_shas[16] = {};
+            int npar = 0;
+            b8 got_tree = NO;
 
-                    // Read first path (NUL-terminated)
-                    char *p1 = p;
-                    while (p < end && *p != 0) p++;
-                    if (p >= end && !eof) { p = p1 - reclen - 1; break; }
-                    size_t p1len = (size_t)(p - p1);
-                    p++;  // past NUL
+            while (GITu8sDrainCommit(scan, field, value) == OK) {
+                if (u8csEmpty(field)) break;
+                a_cstr(f_tree, "tree");
+                a_cstr(f_parent, "parent");
+                if ($eq(field, f_tree) && u8csLen(value) >= 40) {
+                    DAGsha1FromHex(&tree_sha, (char const *)value[0]);
+                    got_tree = YES;
+                } else if ($eq(field, f_parent) && u8csLen(value) >= 40 && npar < 16) {
+                    DAGsha1FromHex(&parent_shas[npar], (char const *)value[0]);
+                    npar++;
+                }
+            }
+            if (!got_tree) continue;
 
-                    // Second path for renames/copies
-                    char *p2 = NULL;
-                    size_t p2len = 0;
-                    if ((de.status == 'R' || de.status == 'C') && p < end) {
-                        p2 = p;
-                        while (p < end && *p != 0) p++;
-                        if (p >= end && !eof) { p = p1 - reclen - 1; break; }
-                        p2len = (size_t)(p - p2);
-                        p++;
-                    }
+            // Compute gen from parent gens
+            u32 gen = 1;
+            u64 parent_hashlets[16] = {};
+            for (int pi = 0; pi < npar; pi++) {
+                parent_hashlets[pi] = wh64Sha1Hashlet60(&parent_shas[pi]);
+                u32 pg = dag_gens_get(&gens, parent_hashlets[pi]);
+                if (pg == 0) pg = dag_stack_gen(&stack, parent_hashlets[pi]);
+                if (pg >= gen) gen = pg + 1;
+            }
 
-                    char const *epath = p1;
-                    size_t eplen = p1len;
-                    if (p2 && p2len > 0) { epath = p2; eplen = p2len; }
-                    if (eplen == 0) continue;
+            dag_gens_put(&gens, commit_h, gen);
 
-                    // PREV_BLOB
-                    if (de.status != 'A' && de.status != 'D') {
-                        u64 old_bh = DAGsha1Hashlet(&de.old_sha);
-                        u64 new_bh = DAGsha1Hashlet(&de.new_sha);
-                        if (old_bh && new_bh) {
-                            u32 pgen = (npar > 0) ? dag_gens_get(&gens, parents[0]) : 0;
-                            if (pgen == 0 && npar > 0)
-                                pgen = dag_stack_gen(&stack, parents[0]);
-                            dag_emit(entries, &nentries, bufcap,
-                                     DAG_PREV_BLOB, commit_gen, new_bh,
-                                     DAG_PREV_BLOB, pgen, old_bh);
+            // Emit COMMIT_GEN
+            dag_emit(entries, &nentries, bufcap,
+                     DAG_COMMIT_GEN, gen, commit_h,
+                     DAG_COMMIT_GEN, gen, commit_h);
+
+            // Emit COMMIT_PARENT for each parent
+            for (int pi = 0; pi < npar; pi++) {
+                u32 pgen = dag_gens_get(&gens, parent_hashlets[pi]);
+                if (pgen == 0) pgen = dag_stack_gen(&stack, parent_hashlets[pi]);
+                dag_emit(entries, &nentries, bufcap,
+                         DAG_COMMIT_PARENT, gen, commit_h,
+                         DAG_COMMIT_PARENT, pgen, parent_hashlets[pi]);
+            }
+
+            // Emit COMMIT_TREE
+            u64 tree_h = wh64Sha1Hashlet60(&tree_sha);
+            dag_emit(entries, &nentries, bufcap,
+                     DAG_COMMIT_TREE, gen, commit_h,
+                     DAG_COMMIT_TREE, gen, tree_h);
+
+            // Diff tree vs first parent's tree (if parent exists)
+            u8bReset(tree_new_buf);
+            u8 tt = 0;
+            if (KEEPGet(k, tree_h, 15, tree_new_buf, &tt) != OK) goto next;
+
+            if (npar > 0) {
+                // Get parent commit → parent tree
+                Bu8 parent_commit = {};
+                u8bMap(parent_commit, 1UL << 20);
+                u8 pt = 0;
+                u32 parent_gen = dag_gens_get(&gens, parent_hashlets[0]);
+                if (parent_gen == 0)
+                    parent_gen = dag_stack_gen(&stack, parent_hashlets[0]);
+
+                if (KEEPGet(k, parent_hashlets[0], 15, parent_commit, &pt) == OK &&
+                    pt == KEEP_OBJ_COMMIT) {
+                    a_dup(u8c, pscan, u8bDataC(parent_commit));
+                    u8cs pf = {}, pv = {};
+                    sha1 ptree = {};
+                    while (GITu8sDrainCommit(pscan, pf, pv) == OK) {
+                        if (u8csEmpty(pf)) break;
+                        a_cstr(ft, "tree");
+                        if ($eq(pf, ft) && u8csLen(pv) >= 40) {
+                            DAGsha1FromHex(&ptree, (char const *)pv[0]);
+                            break;
                         }
                     }
+                    u64 ptree_h = wh64Sha1Hashlet60(&ptree);
 
-                    // PATH_VER + BLOB_COMMIT
-                    if (de.status != 'D') {
-                        u64 new_bh = DAGsha1Hashlet(&de.new_sha);
-                        u32 pid = dag_paths_intern(&paths, epath, eplen);
-                        dag_emit(entries, &nentries, bufcap,
-                                 DAG_PATH_VER, commit_gen, (u64)pid,
-                                 DAG_PATH_VER, commit_gen, new_bh);
-                        dag_emit(entries, &nentries, bufcap,
-                                 DAG_BLOB_COMMIT, commit_gen, new_bh,
-                                 DAG_BLOB_COMMIT, commit_gen, commit_hash);
-                    }
-                } else {
-                    p = rec_end + 1;
-                    // Skip path(s)
-                    while (p < end && *p != ':' && *p != '\n' && *p != 'c') {
-                        while (p < end && *p != 0 && *p != '\n') p++;
-                        if (p < end && *p == 0) p++;
+                    u8bReset(tree_old_buf);
+                    u8 ott = 0;
+                    if (KEEPGet(k, ptree_h, 15, tree_old_buf, &ott) == OK) {
+                        dag_diff_ctx dctx = {
+                            .entries = entries, .nentries = &nentries,
+                            .bufcap = bufcap, .gens = &gens, .stack = &stack,
+                            .paths = &paths, .commit_hash = commit_h,
+                            .commit_gen = gen, .parent_gen = parent_gen
+                        };
+                        a_dup(u8c, otree, u8bDataC(tree_old_buf));
+                        a_dup(u8c, ntree, u8bDataC(tree_new_buf));
+                        dag_tree_diff_r(k, otree, ntree, pathbuf, 0,
+                                        sizeof(pathbuf), dag_diff_cb, &dctx);
                     }
                 }
-            } else if (p + 7 <= end && memcmp(p, "commit ", 7) == 0 && p + 47 <= end) {
-                // Commit header: "commit <sha> [<parent>...]\n"
-                char *nl = p;
-                while (nl < end && *nl != '\n') nl++;
-                if (nl >= end && !eof) break;  // incomplete
-
-                p += 7;  // skip "commit "
-                size_t llen = (size_t)(nl - p);
-
-                // Parse as rev-list line: "<sha> <p1> <p2> ..."
-                npar = dag_parse_commit(p, llen, &gens, &stack,
-                                        &commit_hash, &commit_gen,
-                                        parents, 16);
-                if (npar >= 0) {
-                    dag_gens_put(&gens, commit_hash, commit_gen);
-
-                    dag_emit(entries, &nentries, bufcap,
-                             DAG_COMMIT_GEN, commit_gen, commit_hash,
-                             DAG_COMMIT_GEN, commit_gen, commit_hash);
-
-                    for (int pi = 0; pi < npar && pi < 16; pi++) {
-                        u32 pgen = dag_gens_get(&gens, parents[pi]);
-                        if (pgen == 0) pgen = dag_stack_gen(&stack, parents[pi]);
-                        dag_emit(entries, &nentries, bufcap,
-                                 DAG_COMMIT_PARENT, commit_gen, commit_hash,
-                                 DAG_COMMIT_PARENT, pgen, parents[pi]);
-                    }
-                    indexed++;
-                }
-                p = nl + 1;
-            } else if (*p == 0) {
-                // NUL separator between diff records / commits
-                p++;
+                u8bUnMap(parent_commit);
             } else {
-                // Skip non-commit, non-colon lines (Author, Date, message)
-                char *nl = p;
-                while (nl < end && *nl != '\n' && *nl != 0) nl++;
-                if (nl >= end && !eof) break;
-                p = nl + 1;
+                // Root commit: diff against empty tree
+                u8cs empty = {};
+                dag_diff_ctx dctx = {
+                    .entries = entries, .nentries = &nentries,
+                    .bufcap = bufcap, .gens = &gens, .stack = &stack,
+                    .paths = &paths, .commit_hash = commit_h,
+                    .commit_gen = gen, .parent_gen = 0
+                };
+                a_dup(u8c, ntree, u8bDataC(tree_new_buf));
+                dag_tree_diff_r(k, empty, ntree, pathbuf, 0,
+                                sizeof(pathbuf), dag_diff_cb, &dctx);
             }
+next:
+            indexed++;
 
             // Flush if buffer is getting full
             if (nentries + 64 >= bufcap) {
@@ -849,20 +996,11 @@ ok64 DAGHook(u8cs reporoot) {
                 nentries = (size_t)(d[1] - d[0]);
                 belt128cs run = {entries, entries + nentries};
                 result = dag_index_write(dagdir, run, seqno);
-                if (result != OK) break;
                 seqno++;
                 nentries = 0;
             }
         }
-
-        // Shift unconsumed data to front
-        size_t consumed = (size_t)(p - buf);
-        buflen -= consumed;
-        if (buflen > 0) memmove(buf, p, buflen);
-
-        if (result != OK) break;
     }
-    pclose(gl);
 
     // Flush remaining
     if (result == OK && nentries > 0) {
@@ -874,7 +1012,9 @@ ok64 DAGHook(u8cs reporoot) {
         result = dag_index_write(dagdir, run, seqno);
     }
 
-    free(buf);
+    u8bUnMap(commit_buf);
+    u8bUnMap(tree_old_buf);
+    u8bUnMap(tree_new_buf);
     free(entries);
     dag_gens_free(&gens);
     dag_paths_free(&paths);

@@ -29,6 +29,7 @@
 #include "abc/INT.h"
 #include "dog/SHA1.h"
 #include "dog/WHIFF.h"
+#include "keeper/KEEP.h"
 
 con ok64 DAGFAIL    = 0x14a83ca495;
 con ok64 DAGNOROOM  = 0x14a85d86d8616;
@@ -142,7 +143,7 @@ fun belt128cp DAGLookup(dag_stack const *st, u8 type, u64 hashlet) {
     return NULL;
 }
 
-//  Incremental object-graph reindex.
-ok64 DAGHook(u8cs reporoot);
+//  Incremental object-graph reindex from keeper's index.
+ok64 DAGHook(keeper *k, u8cs reporoot);
 
 #endif
