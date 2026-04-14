@@ -46,13 +46,11 @@ ok64 GRAFDiff(u8cs old_path, u8cs new_path, u8cs name,
 ok64 GRAFMerge(u8cs base_path, u8cs ours_path, u8cs theirs_path,
                u8cs outpath);
 
-// Install graf as git's diff/merge driver.
-ok64 GRAFInstall(u8cs reporoot);
+// Token-level blame (reads blobs from keeper).
+ok64 GRAFBlame(keeper *k, u8cs filepath, u8cs reporoot);
 
-// Token-level blame.
-ok64 GRAFBlame(u8cs filepath, u8cs reporoot);
-
-// Weave diff between two commits.
-ok64 GRAFWeaveDiff(u8cs filepath, u8cs reporoot, u8cs from, u8cs to);
+// Weave diff between two commits (reads blobs from keeper).
+ok64 GRAFWeaveDiff(keeper *k, u8cs filepath, u8cs reporoot,
+                   u8cs from, u8cs to);
 
 #endif

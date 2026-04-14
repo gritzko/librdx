@@ -7,7 +7,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS on)
 
 include_directories(.. .)
 
-add_library(snifflib STATIC SNIFF.h SNIFF.c CHE.h CHE.c COM.h COM.c)
+add_library(snifflib STATIC SNIFF.h SNIFF.c GET.h GET.c POST.h POST.c PUT.h PUT.c DEL.h DEL.c)
 target_link_libraries(snifflib keeplib gitcompat dog abc-core)
 
 add_executable(sniff-cli SNIFF.cli.c ../abc/FSW.c)

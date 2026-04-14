@@ -1,6 +1,6 @@
 #include "sniff/SNIFF.h"
-#include "sniff/CHE.h"
-#include "sniff/COM.h"
+#include "sniff/GET.h"
+#include "sniff/PUT.h"
 
 #include <string.h>
 #include <sys/stat.h>
@@ -206,7 +206,7 @@ ok64 SNIFFCheckoutCommit() {
     sniff s = {};
     call(SNIFFOpen, &s, root, YES);
     u8cs hex = {u8bDataHead(commit_hex), u8bIdleHead(commit_hex)};
-    call(CHECheckout, &s, &k, root, hex);
+    call(GETCheckout, &s, &k, root, hex);
 
     // Verify file exists
     a_path(fp, root);
@@ -241,7 +241,7 @@ ok64 SNIFFCheckoutCommit() {
     a_cstr(msg, "second commit");
     a_cstr(author, "Test <t@t>");
     sha1 new_sha = {};
-    call(COMCommit, &s, &k, root, hex, msg, author, NULL, &new_sha);
+    call(PUTCommit, &s, &k, root, hex, msg, author, NULL, &new_sha);
 
     // Verify new commit exists
     u64 new_hashlet = keepSha1Hashlet60(&new_sha);

@@ -1,6 +1,6 @@
-//  CHE: checkout a commit tree from keeper.
+//  GET: checkout a commit tree from keeper.
 //
-#include "CHE.h"
+#include "GET.h"
 
 #include <string.h>
 #include <sys/stat.h>
@@ -14,7 +14,7 @@
 #include "keeper/WALK.h"
 
 // Recursive tree checkout.  seen[idx]=1 for every path visited.
-static ok64 che_tree(sniff *s, keeper *k, u8cs reporoot,
+static ok64 GETTree(sniff *s, keeper *k, u8cs reporoot,
                      sha1 const *tree_sha, u8cs prefix, u8p seen) {
     sane(s && k && tree_sha);
 
@@ -74,11 +74,11 @@ static ok64 che_tree(sniff *s, keeper *k, u8cs reporoot,
             SNIFFFullpath(dp, reporoot, relpath);
             FILEMakeDirP(PATHu8cgIn(dp));
 
-            u32 idx = SNIFFIntern(s, relpath);
+            u32 idx = SNIFFInternDir(s, relpath);
             seen[idx] = 1;
             SNIFFRecord(s, SNIFF_HASHLET, idx, entry_hashlet);
 
-            result = che_tree(s, k, reporoot, (sha1cp)esha[0], relpath, seen);
+            result = GETTree(s, k, reporoot, (sha1cp)esha[0], relpath, seen);
             if (result != OK) break;
         } else {
             u32 idx = SNIFFIntern(s, relpath);
@@ -142,7 +142,7 @@ static ok64 che_tree(sniff *s, keeper *k, u8cs reporoot,
 }
 
 // Remove tracked files not in the new tree
-static ok64 che_prune(sniff *s, u8cs reporoot, u8cp seen) {
+static ok64 GETPrune(sniff *s, u8cs reporoot, u8cp seen) {
     sane(s);
     u32 n = SNIFFCount(s);
     u32 removed = 0;
@@ -172,7 +172,7 @@ static ok64 che_prune(sniff *s, u8cs reporoot, u8cp seen) {
 
 // --- Public API ---
 
-ok64 CHECheckout(sniff *s, keeper *k, u8cs reporoot, u8cs hex) {
+ok64 GETCheckout(sniff *s, keeper *k, u8cs reporoot, u8cs hex) {
     sane(s && k && $ok(hex));
 
     size_t hexlen = $len(hex);
@@ -230,7 +230,7 @@ ok64 CHECheckout(sniff *s, keeper *k, u8cs reporoot, u8cs hex) {
     // Extract tree SHA
     sha1 tree_sha = {};
     u8cs commit = {u8bDataHead(buf), u8bIdleHead(buf)};
-    o = WALKCommitTree(commit, tree_sha.data);  // keeper API boundary
+    o = WALKCommitTree(commit, tree_sha.data);
     u8bFree(buf);
     if (o != OK) {
         fprintf(stderr, "sniff: bad commit (no tree)\n");
@@ -245,10 +245,10 @@ ok64 CHECheckout(sniff *s, keeper *k, u8cs reporoot, u8cs hex) {
     memset(u8bDataHead(seen_buf), 0, seen_size);
 
     u8cs no_prefix = {};
-    o = che_tree(s, k, reporoot, &tree_sha, no_prefix, u8bDataHead(seen_buf));
+    o = GETTree(s, k, reporoot, &tree_sha, no_prefix, u8bDataHead(seen_buf));
 
     if (o == OK)
-        o = che_prune(s, reporoot, u8bDataHead(seen_buf));
+        o = GETPrune(s, reporoot, u8bDataHead(seen_buf));
 
     u8bFree(seen_buf);
     if (o == OK)

@@ -1,131 +1,156 @@
+//  graf CLI: token-level diff, merge, blame, weave, DAG index.
+//
+//  Verbs:
+//    graf diff old new                token-level colored diff
+//    graf merge base ours theirs      3-way merge
+//    graf blame file                  token-level blame
+//    graf weave file?from..to         weave diff between refs
+//    graf index                       index object graph from keeper
+//    graf status                      show index stats
+//    graf help                        this message
+//
+//  Flags:
+//    -o <file>                        merge output file
+//    -t | --tlv                       force TLV output
+//
 #include "GRAF.h"
 #include "DAG.h"
 
 #include <signal.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
 #include "abc/FILE.h"
-#include "abc/PATH.h"
 #include "abc/PRO.h"
 #include "dog/CLI.h"
 #include "dog/HUNK.h"
+#include "keeper/KEEP.h"
+
+// --- Verb table ---
+
+static char const *const graf_verbs[] = {
+    "diff", "merge", "blame", "weave", "index",
+    "status", "help", NULL
+};
+
+static char const graf_val_flags[] = "-o\0";
+
+// --- Usage ---
 
 static void GRAFUsage(void) {
     fprintf(stderr,
-        "Usage: graf [flags] [URI|files...]\n"
+        "Usage: graf <verb> [flags] [URI...]\n"
         "\n"
-        "  graf -d old new               token-level colored diff\n"
-        "  graf --gitdiff                git external diff driver\n"
-        "  graf --merge base ours theirs token-level 3-way merge\n"
-        "  graf --merge base ours theirs -o f  merge to file\n"
-        "  graf -n | --install           install as git diff/merge driver\n"
-        "  graf -i | --index             index git object graph\n"
-        "  graf -s | --status            show index stats\n"
-        "  graf --blame file             token-level blame\n"
-        "  graf --weave file [--from c] [--to c]  weave diff\n"
+        "  Verbs:\n"
+        "    diff old new                 token-level colored diff\n"
+        "    merge base ours theirs       3-way merge\n"
+        "    blame file                   token-level blame\n"
+        "    weave file?from..to          weave diff between refs\n"
+        "    index                        index object graph from keeper\n"
+        "    status                       show index stats\n"
+        "    help                         this message\n"
         "\n"
-        "Git integration (manual, or use graf -n):\n"
-        "  git config diff.graf.command \"graf --gitdiff\"\n"
-        "  git config merge.graf.driver \"graf --merge %%O %%A %%B -o %%A\"\n"
+        "  Flags:\n"
+        "    -o <file>                    merge output file\n"
+        "    -t | --tlv                   force TLV output\n"
     );
 }
 
-con char *graf_val_flags = "-o\0--from\0--to\0";
+// --- Bro pager setup ---
+
+static pid_t graf_start_pager(b8 tty_out) {
+    if (!tty_out) {
+        graf_out_fd = STDOUT_FILENO;
+        graf_emit   = HUNKu8sFeedText;
+        return -1;
+    }
+    char bropath[FILE_PATH_MAX_LEN];
+    a$rg(a0, 0);
+    HOMEResolveSibling(bropath, sizeof(bropath),
+                       "bro", (char const *)a0[0]);
+    int pfd[2];
+    if (pipe(pfd) != 0) {
+        graf_out_fd = STDOUT_FILENO;
+        graf_emit   = HUNKu8sFeedText;
+        return -1;
+    }
+    pid_t pid = fork();
+    if (pid < 0) {
+        close(pfd[0]); close(pfd[1]);
+        graf_out_fd = STDOUT_FILENO;
+        graf_emit   = HUNKu8sFeedText;
+        return -1;
+    }
+    if (pid == 0) {
+        close(pfd[1]);
+        dup2(pfd[0], STDIN_FILENO);
+        close(pfd[0]);
+        execlp(bropath, "bro", (char *)NULL);
+        _exit(127);
+    }
+    close(pfd[0]);
+    graf_out_fd = pfd[1];
+    graf_emit   = HUNKu8sFeed;
+    signal(SIGPIPE, SIG_IGN);
+    return pid;
+}
+
+static void graf_stop_pager(pid_t pid) {
+    if (graf_out_fd >= 0 && graf_out_fd != STDOUT_FILENO) {
+        close(graf_out_fd);
+        graf_out_fd = -1;
+    }
+    if (pid > 0) {
+        int st = 0;
+        waitpid(pid, &st, 0);
+        if (WIFEXITED(st) && WEXITSTATUS(st) == 127)
+            fprintf(stderr, "graf: bro pager not found\n");
+    }
+}
+
+// --- URI path helper ---
+
+static void graf_uri_path(u8cs out, uri *u) {
+    if (!u8csEmpty(u->path))
+        u8csMv(out, u->path);
+    else
+        u8csMv(out, u->data);
+}
+
+// --- Entry ---
 
 ok64 grafcli() {
     sane(1);
     call(FILEInit);
 
     cli c = {};
-    call(CLIParse, &c, NULL, graf_val_flags);
+    call(CLIParse, &c, graf_verbs, graf_val_flags);
+
+    a_cstr(v_diff,   "diff");
+    a_cstr(v_merge,  "merge");
+    a_cstr(v_blame,  "blame");
+    a_cstr(v_weave,  "weave");
+    a_cstr(v_index,  "index");
+    a_cstr(v_status, "status");
+    a_cstr(v_help,   "help");
+
+    if ($eq(c.verb, v_help) || CLIHas(&c, "-h") || CLIHas(&c, "--help")) {
+        GRAFUsage(); done;
+    }
+
+    if ($empty(c.verb)) {
+        GRAFUsage();
+        return FAILSANITY;
+    }
 
     u8cs reporoot = {};
     u8csMv(reporoot, c.repo);
 
-    // Producers that emit hunks: select output fd + serializer.
-    b8 do_diff    = CLIHas(&c, "-d") || CLIHas(&c, "--diff");
-    b8 do_gitdiff = CLIHas(&c, "--gitdiff");
-    b8 do_merge   = CLIHas(&c, "--merge");
-    b8 do_install = CLIHas(&c, "-n") || CLIHas(&c, "--install");
-    b8 do_index   = CLIHas(&c, "-i") || CLIHas(&c, "--index");
-    b8 do_status  = CLIHas(&c, "-s") || CLIHas(&c, "--status");
-    b8 do_blame   = CLIHas(&c, "--blame") || CLIHas(&c, "-b");
-    b8 do_weave   = CLIHas(&c, "--weave") || CLIHas(&c, "-w");
+    // --- status: no pager, no keeper needed ---
 
-    u8cs merge_out = {};
-    CLIFlag(merge_out, &c, "-o");
-    u8cs weave_from = {};
-    CLIFlag(weave_from, &c, "--from");
-    u8cs weave_to = {};
-    CLIFlag(weave_to, &c, "--to");
-
-    // URI args become trail (file paths etc)
-    pid_t bro_pid = -1;
-    b8 produces_hunks = (do_diff || do_gitdiff || do_blame || do_weave) &&
-                        !do_merge && !do_install;
-    if (produces_hunks) {
-        if (c.tty_out) {
-            char bropath[FILE_PATH_MAX_LEN];
-            a$rg(a0, 0);
-            HOMEResolveSibling(bropath, sizeof(bropath),
-                               "bro", (char const *)a0[0]);
-            int pfd[2];
-            test(pipe(pfd) == 0, FAILSANITY);
-            bro_pid = fork();
-            test(bro_pid >= 0, FAILSANITY);
-            if (bro_pid == 0) {
-                close(pfd[1]);
-                dup2(pfd[0], STDIN_FILENO);
-                close(pfd[0]);
-                execlp(bropath, "bro", (char *)NULL);
-                _exit(127);
-            }
-            close(pfd[0]);
-            graf_out_fd = pfd[1];
-            graf_emit   = HUNKu8sFeed;
-            signal(SIGPIPE, SIG_IGN);
-        } else {
-            graf_out_fd = STDOUT_FILENO;
-            graf_emit   = HUNKu8sFeedText;
-        }
-    }
-
-    // Extract file paths from URIs (path component or full data)
-    u8cs trail[16] = {};
-    u32 ntrail = 0;
-    for (u32 i = 0; i < c.nuris && ntrail < 16; i++) {
-        if (!u8csEmpty(c.uris[i].path))
-            u8csMv(trail[ntrail], c.uris[i].path);
-        else
-            u8csMv(trail[ntrail], c.uris[i].data);
-        ntrail++;
-    }
-
-    if (do_weave) {
-        if (reporoot[0] == NULL) {
-            fprintf(stderr, "graf: --weave requires a git repo\n");
-            return FAILSANITY;
-        }
-        if (ntrail < 1) {
-            fprintf(stderr, "graf: --weave requires a file path\n");
-            return FAILSANITY;
-        }
-        call(GRAFWeaveDiff, trail[0], reporoot, weave_from, weave_to);
-    } else if (do_blame) {
-        if (reporoot[0] == NULL) {
-            fprintf(stderr, "graf: --blame requires a git repo\n");
-            return FAILSANITY;
-        }
-        if (ntrail < 1) {
-            fprintf(stderr, "graf: --blame requires a file path\n");
-            return FAILSANITY;
-        }
-        call(GRAFBlame, trail[0], reporoot);
-    } else if (do_status) {
+    if ($eq(c.verb, v_status)) {
         graf g = {};
         call(GRAFOpen, &g, reporoot);
         u64 total_entries = 0;
@@ -134,54 +159,103 @@ ok64 grafcli() {
         fprintf(stdout, "graf: %u index run(s), %llu entries\n",
                 g.idx.n, (unsigned long long)total_entries);
         GRAFClose(&g);
-    } else if (do_index) {
-        if (reporoot[0] == NULL) {
-            fprintf(stderr, "graf: --index requires a git repo\n");
+        done;
+    }
+
+    // --- diff: file-based, no keeper needed ---
+
+    if ($eq(c.verb, v_diff)) {
+        if (c.nuris < 2) {
+            fprintf(stderr, "graf: diff requires 2 files: old new\n");
             return FAILSANITY;
         }
-        call(DAGHook, reporoot);
-    } else if (do_install) {
-        if (reporoot[0] == NULL) {
-            fprintf(stderr, "graf: --install requires a git repo\n");
-            return FAILSANITY;
-        }
-        call(GRAFInstall, reporoot);
-    } else if (do_gitdiff) {
-        if (ntrail < 7) {
-            fprintf(stderr, "graf: --gitdiff expects 7 args from git\n");
-            return FAILSANITY;
-        }
-        call(GRAFDiff, trail[1], trail[4], trail[0], trail[3], trail[6]);
-    } else if (do_diff) {
-        if (ntrail < 2) {
-            fprintf(stderr, "graf: --diff requires 2 files: old new\n");
-            return FAILSANITY;
-        }
+        pid_t pager = graf_start_pager(c.tty_out);
+        u8cs op = {}, np = {};
+        graf_uri_path(op, &c.uris[0]);
+        graf_uri_path(np, &c.uris[1]);
         u8cs nomode = {};
-        call(GRAFDiff, trail[0], trail[1], trail[1], nomode, nomode);
-    } else if (do_merge) {
-        if (ntrail < 3) {
-            fprintf(stderr, "graf: --merge requires 3 files: base ours theirs\n");
+        ok64 ret = GRAFDiff(op, np, np, nomode, nomode);
+        graf_stop_pager(pager);
+        return ret;
+    }
+
+    // --- merge: file-based, no keeper needed ---
+
+    if ($eq(c.verb, v_merge)) {
+        if (c.nuris < 3) {
+            fprintf(stderr, "graf: merge requires 3 files: base ours theirs\n");
             return FAILSANITY;
         }
-        call(GRAFMerge, trail[0], trail[1], trail[2], merge_out);
-    } else {
-        GRAFUsage();
+        u8cs bp = {}, op = {}, tp = {};
+        graf_uri_path(bp, &c.uris[0]);
+        graf_uri_path(op, &c.uris[1]);
+        graf_uri_path(tp, &c.uris[2]);
+        u8cs merge_out = {};
+        CLIFlag(merge_out, &c, "-o");
+        return GRAFMerge(bp, op, tp, merge_out);
+    }
+
+    // --- index, blame, weave: require keeper ---
+
+    if (!reporoot[0]) {
+        fprintf(stderr, "graf: %.*s requires .dogs/keeper\n",
+                (int)$len(c.verb), (char *)c.verb[0]);
         return FAILSANITY;
     }
 
-    // Close pipe to bro and reap.
-    if (graf_out_fd >= 0 && graf_out_fd != STDOUT_FILENO) {
-        close(graf_out_fd);
-        graf_out_fd = -1;
+    keeper k = {};
+    call(KEEPOpen, &k, reporoot);
+    ok64 ret = OK;
+
+    if ($eq(c.verb, v_index)) {
+        ret = DAGHook(&k, reporoot);
+
+    } else if ($eq(c.verb, v_blame)) {
+        if (c.nuris < 1) {
+            fprintf(stderr, "graf: blame requires a file URI\n");
+            KEEPClose(&k);
+            return FAILSANITY;
+        }
+        pid_t pager = graf_start_pager(c.tty_out);
+        u8cs path = {};
+        graf_uri_path(path, &c.uris[0]);
+        ret = GRAFBlame(&k, path, reporoot);
+        graf_stop_pager(pager);
+
+    } else if ($eq(c.verb, v_weave)) {
+        if (c.nuris < 1) {
+            fprintf(stderr, "graf: weave requires a file URI\n");
+            KEEPClose(&k);
+            return FAILSANITY;
+        }
+        pid_t pager = graf_start_pager(c.tty_out);
+        uri *u = &c.uris[0];
+        u8cs wf = {}, wt = {};
+        if (!u8csEmpty(u->query)) {
+            a_dup(u8c, q, u->query);
+            u8cs dots = {(u8cp)"..", (u8cp)".." + 2};
+            if (u8csFindS(q, dots) == OK) {
+                wf[0] = u->query[0];
+                wf[1] = q[0];
+                wt[0] = q[0] + 2;
+                wt[1] = u->query[1];
+            } else {
+                u8csMv(wt, u->query);
+            }
+        }
+        u8cs path = {};
+        graf_uri_path(path, u);
+        ret = GRAFWeaveDiff(&k, path, reporoot, wf, wt);
+        graf_stop_pager(pager);
+
+    } else {
+        fprintf(stderr, "graf: unknown verb '%.*s'\n",
+                (int)$len(c.verb), (char *)c.verb[0]);
+        ret = FAILSANITY;
     }
-    if (bro_pid > 0) {
-        int st = 0;
-        waitpid(bro_pid, &st, 0);
-        if (WIFEXITED(st) && WEXITSTATUS(st) == 127)
-            fprintf(stderr, "graf: bro pager not found\n");
-    }
-    done;
+
+    KEEPClose(&k);
+    return ret;
 }
 
 MAIN(grafcli);

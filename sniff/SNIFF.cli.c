@@ -8,8 +8,10 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#include "CHE.h"
-#include "COM.h"
+#include "DEL.h"
+#include "GET.h"
+#include "POST.h"
+#include "PUT.h"
 #include "dog/CLI.h"
 #include "dog/IGNO.h"
 
@@ -184,7 +186,7 @@ static ok64 sniff_checkout(sniff *s, u8cs reporoot, u8cs hex) {
     sane(s && $ok(hex));
     keeper k = {};
     call(KEEPOpen, &k, reporoot);
-    ok64 o = CHECheckout(s, &k, reporoot, hex);
+    ok64 o = GETCheckout(s, &k, reporoot, hex);
     KEEPClose(&k);
     return o;
 }
@@ -305,6 +307,12 @@ static void sniff_usage(void) {
             "  sniff list                 list all known paths\n"
             "  sniff help                 this message\n"
             "\n"
+            "  Shared verbs (dispatched by be):\n"
+            "  sniff get <hex>            checkout (repo -> worktree)\n"
+            "  sniff post --parent <hex>  build tree (worktree -> keeper)\n"
+            "  sniff put -m <msg> --parent <hex>  commit\n"
+            "  sniff delete --parent <hex> f1 f2  remove files from tree\n"
+            "\n"
             "  Flags:\n"
             "    -m <msg>       commit message\n"
             "    --parent <hex> parent commit SHA\n"
@@ -316,7 +324,8 @@ static void sniff_usage(void) {
 
 static char const *const sniff_verbs[] = {
     "index", "update", "status", "checkout",
-    "commit", "watch", "stop", "list", "help", NULL
+    "commit", "watch", "stop", "list", "help",
+    "get", "post", "put", "delete", NULL
 };
 
 // Value flags: -m, --parent, --author (NUL-separated, triple-NUL end)
@@ -352,6 +361,10 @@ ok64 sniffcli() {
     a_cstr(v_watch, "watch");
     a_cstr(v_stop, "stop");
     a_cstr(v_list, "list");
+    a_cstr(v_get, "get");
+    a_cstr(v_post, "post");
+    a_cstr(v_put, "put");
+    a_cstr(v_delete, "delete");
 
     if ($eq(c.verb, v_help) || CLIHas(&c, "-h") || CLIHas(&c, "--help")) {
         sniff_usage(); done;
@@ -361,15 +374,18 @@ ok64 sniffcli() {
         call(sniff_stop, reporoot); done;
     }
 
-    b8 is_checkout = $eq(c.verb, v_checkout);
-    b8 is_commit = $eq(c.verb, v_commit);
+    b8 is_checkout = $eq(c.verb, v_checkout) || $eq(c.verb, v_get);
+    b8 is_commit = $eq(c.verb, v_commit) || $eq(c.verb, v_put);
     b8 is_index = $eq(c.verb, v_index);
     b8 is_update = $eq(c.verb, v_update);
     b8 is_watch = $eq(c.verb, v_watch);
     b8 is_status = $eq(c.verb, v_status);
     b8 is_list = $eq(c.verb, v_list);
+    b8 is_post = $eq(c.verb, v_post);
+    b8 is_delete = $eq(c.verb, v_delete);
 
-    b8 rw = is_index || is_update || is_watch || is_checkout || is_commit;
+    b8 rw = is_index || is_update || is_watch || is_checkout || is_commit
+             || is_post || is_delete;
     sniff s = {};
     call(SNIFFOpen, &s, reporoot, rw);
 
@@ -400,7 +416,6 @@ ok64 sniffcli() {
 
             sniff_stat_all(&s, reporoot, SNIFF_CHANGED);
 
-            // URIs are explicit file paths to commit
             u8p cset = NULL;
             u32 npaths = SNIFFCount(&s);
 
@@ -419,8 +434,92 @@ ok64 sniffcli() {
             ret = KEEPOpen(&k, reporoot);
             if (ret == OK) {
                 sha1 sha = {};
-                ret = COMCommit(&s, &k, reporoot, commit_parent,
+                ret = PUTCommit(&s, &k, reporoot, commit_parent,
                                 commit_msg, commit_author, cset, &sha);
+                KEEPClose(&k);
+            }
+        }
+    } else if (is_post) {
+        u8cs commit_parent = {};
+        CLIFlag(commit_parent, &c, "--parent");
+        if (!$ok(commit_parent)) {
+            fprintf(stderr, "sniff: post requires --parent\n");
+            ret = SNIFFFAIL;
+        } else {
+            sniff_stat_all(&s, reporoot, SNIFF_CHANGED);
+
+            u8p cset = NULL;
+            u32 npaths = SNIFFCount(&s);
+            if (c.nuris > 0) {
+                Bu8 csbuf = {};
+                u8bAllocate(csbuf, npaths);
+                memset(u8bDataHead(csbuf), 0, npaths);
+                cset = u8bDataHead(csbuf);
+                for (u32 f = 0; f < c.nuris; f++) {
+                    u32 idx = SNIFFIntern(&s, c.uris[f].data);
+                    if (idx < npaths) cset[idx] = 1;
+                }
+            }
+
+            keeper k = {};
+            ret = KEEPOpen(&k, reporoot);
+            if (ret == OK) {
+                keep_pack p = {};
+                ret = KEEPPackOpen(&k, &p);
+                if (ret == OK) {
+                    sha1 tree = {};
+                    ret = POSTTree(&tree, &s, &k, &p, reporoot,
+                                    commit_parent, cset);
+                    KEEPPackClose(&k, &p);
+                    if (ret == OK) {
+                        a_pad(u8, hex, 40);
+                        a_rawc(ts, tree);
+                        HEXu8sFeedSome(hex_idle, ts);
+                        fprintf(stderr, "sniff: tree %.*s\n",
+                                (int)u8bDataLen(hex),
+                                (char *)u8bDataHead(hex));
+                    }
+                }
+                KEEPClose(&k);
+            }
+        }
+    } else if (is_delete) {
+        u8cs commit_parent = {};
+        CLIFlag(commit_parent, &c, "--parent");
+        if (!$ok(commit_parent) || c.nuris < 1) {
+            fprintf(stderr,
+                    "sniff: delete requires --parent and file(s)\n");
+            ret = SNIFFFAIL;
+        } else {
+            u32 npaths = SNIFFCount(&s);
+            Bu8 dsbuf = {};
+            u8bAllocate(dsbuf, npaths);
+            memset(u8bDataHead(dsbuf), 0, npaths);
+            u8p dset = u8bDataHead(dsbuf);
+            for (u32 f = 0; f < c.nuris; f++) {
+                u32 idx = SNIFFIntern(&s, c.uris[f].data);
+                if (idx < npaths) dset[idx] = 1;
+            }
+
+            keeper k = {};
+            ret = KEEPOpen(&k, reporoot);
+            if (ret == OK) {
+                keep_pack p = {};
+                ret = KEEPPackOpen(&k, &p);
+                if (ret == OK) {
+                    sha1 tree = {};
+                    ret = DELTree(&tree, &s, &k, &p, reporoot,
+                                   commit_parent, dset);
+                    KEEPPackClose(&k, &p);
+                    if (ret == OK) {
+                        a_pad(u8, hex, 40);
+                        a_rawc(ts, tree);
+                        HEXu8sFeedSome(hex_idle, ts);
+                        fprintf(stderr, "sniff: tree %.*s\n",
+                                (int)u8bDataLen(hex),
+                                (char *)u8bDataHead(hex));
+                    }
+                }
                 KEEPClose(&k);
             }
         }

@@ -23,7 +23,6 @@ list(APPEND GRAF_SOURCES
     DIFF.c
     JOIN.c
     MERGE.c
-    INST.c
     NEIL.c
     TDIFF.c
     WEAVE.c
@@ -31,11 +30,11 @@ list(APPEND GRAF_SOURCES
 
 add_library(graflib STATIC ${GRAF_HEADERS} ${GRAF_SOURCES})
 target_compile_definitions(graflib PRIVATE NDEBUG)
-target_link_libraries(graflib dog abc-core)
+target_link_libraries(graflib dog keeplib abc-core)
 
 add_executable(graf-cli GRAF.cli.c)
 target_compile_definitions(graf-cli PRIVATE NDEBUG)
-target_link_libraries(graf-cli graflib dog abc-core)
+target_link_libraries(graf-cli graflib dog keeplib abc-core)
 add_dependencies(graf-cli bro-cli)
 set_target_properties(graf-cli PROPERTIES OUTPUT_NAME graf RUNTIME_OUTPUT_DIRECTORY ${DOG_BIN_DIR})
 
