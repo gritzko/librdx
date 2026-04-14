@@ -233,6 +233,63 @@ u32 SNIFFIntern(sniff *s, u8cs path) {
     return idx;
 }
 
+// --- Intern directory (trailing /) ---
+
+u32 SNIFFInternDir(sniff *s, u8cs path) {
+    if ($empty(path)) return SNIFFIntern(s, path);
+    if (*$last(path) == '/') return SNIFFIntern(s, path);
+    // Append /
+    a_pad(u8, tmp, 2048);
+    u8bFeed(tmp, path);
+    u8bFeed1(tmp, '/');
+    u8cs dp = {u8bDataHead(tmp), tmp[2]};
+    return SNIFFIntern(s, dp);
+}
+
+// --- Sort path indices ---
+
+static sniff const *g_sort_sniff;
+
+static int sniff_cmp_idx(void const *a, void const *b) {
+    u32 ia = *(u32 const *)a;
+    u32 ib = *(u32 const *)b;
+    u8cs pa = {}, pb = {};
+    SNIFFPath(pa, g_sort_sniff, ia);
+    SNIFFPath(pb, g_sort_sniff, ib);
+    size_t la = $len(pa), lb = $len(pb);
+    size_t minl = la < lb ? la : lb;
+    int c = memcmp(pa[0], pb[0], minl);
+    if (c != 0) return c;
+    return (la > lb) - (la < lb);
+}
+
+ok64 SNIFFSort(sniff *s) {
+    sane(s);
+    u32 n = SNIFFCount(s);
+    if (u32bDataLen(s->sorted) > 0) u32bReset(s->sorted);
+    if (n == 0) done;
+
+    // Ensure capacity
+    if (u32bLen(s->sorted) < n) {
+        u32bFree(s->sorted);
+        call(u32bAllocate, s->sorted, n);
+    }
+
+    // Fill with 0..n-1
+    for (u32 i = 0; i < n; i++) {
+        u32 **idle = u32bIdle(s->sorted);
+        **idle = i;
+        ++*idle;
+    }
+
+    // Sort
+    g_sort_sniff = s;
+    qsort(u32bDataHead(s->sorted), n, sizeof(u32), sniff_cmp_idx);
+    g_sort_sniff = NULL;
+
+    done;
+}
+
 // --- Path lookup ---
 
 ok64 SNIFFPath(u8csp out, sniff const *s, u32 index) {
@@ -291,6 +348,7 @@ ok64 SNIFFClose(sniff *s) {
     u32bFree(s->offsets);
     kv64bFree(s->names);
     kv64bFree(s->state);
+    u32bFree(s->sorted);
     memset(s, 0, sizeof(*s));
     done;
 }

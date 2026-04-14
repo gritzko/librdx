@@ -51,6 +51,7 @@ typedef struct {
     Bu32  offsets;   // path_index → byte offset in paths
     Bkv64 names;     // RAPHash(path) → path_index
     Bkv64 state;     // (type|id) → off, aggregated from changes
+    Bu32  sorted;    // sorted path indices (by path, dirs/ first)
 } sniff;
 
 // --- Public API ---
@@ -75,6 +76,13 @@ fun u32 SNIFFCount(sniff const *s) {
     return u32bDataLen(s->offsets);
 }
 
+//  Is path a directory? (trailing /)
+fun b8 SNIFFIsDir(sniff const *s, u32 index) {
+    u8cs p = {};
+    if (SNIFFPath(p, s, index) != OK) return NO;
+    return (!$empty(p) && *$last(p) == '/');
+}
+
 //  Build absolute path: reporoot/rel.
 fun ok64 SNIFFFullpath(path8b out, u8cs reporoot, u8cs rel) {
     a_cstr(sep, "/");
@@ -83,6 +91,13 @@ fun ok64 SNIFFFullpath(path8b out, u8cs reporoot, u8cs rel) {
     u8bFeed(out, rel);
     return PATHu8gTerm(PATHu8gIn(out));
 }
+
+//  Intern a directory path (appends / if missing).
+u32  SNIFFInternDir(sniff *s, u8cs path);
+
+//  Build sorted index array (by path string, depth-first).
+//  Stores result in s->sorted.
+ok64 SNIFFSort(sniff *s);
 
 //  Record a change entry to the log.
 ok64 SNIFFRecord(sniff *s, u8 type, u32 index, u64 off);
