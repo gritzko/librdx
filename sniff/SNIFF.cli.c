@@ -366,11 +366,11 @@ ok64 sniffcli() {
     cli c = {};
     call(CLIParse, &c, sniff_verbs, sniff_val_flags);
 
+    char cwd[1024];
     u8cs reporoot = {};
     if ($ok(c.repo)) {
         $mv(reporoot, c.repo);
     } else {
-        char cwd[1024];
         if (!getcwd(cwd, sizeof(cwd))) fail(SNIFFFAIL);
         a_cstr(cwds, cwd);
         reporoot[0] = cwds[0];
@@ -552,10 +552,19 @@ ok64 sniffcli() {
         if (c.nuris < 1) {
             fprintf(stderr, "sniff: get/checkout requires a URI or hex\n");
             ret = SNIFFFAIL;
-        } else if ($eq(c.verb, v_get)) {
-            ret = SNIFFGetURI(&s, reporoot, &c.uris[0]);
         } else {
-            ret = sniff_checkout(&s, reporoot, c.uris[0].data);
+            uri *u = &c.uris[0];
+            if ($eq(c.verb, v_get)) {
+                ret = SNIFFGetURI(&s, reporoot, u);
+            } else {
+                // After URILexer, raw hex ends up in path (not data)
+                u8cs hex = {};
+                if (!$empty(u->path))
+                    u8csMv(hex, u->path);
+                else
+                    u8csMv(hex, u->data);
+                ret = sniff_checkout(&s, reporoot, hex);
+            }
         }
     } else if (is_watch) {
         ret = sniff_daemon(&s, reporoot);

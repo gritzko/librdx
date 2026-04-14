@@ -24,12 +24,16 @@ ok64 CLIParse(cli *c, char const *const *verb_names,
     *c = (cli){};
     c->tty_out = isatty(STDOUT_FILENO) ? YES : NO;
 
-    // Repo root
+    // Repo root — copy into owned storage
     a_path(root);
     if (HOMEFind(root) == OK) {
-        u8cs rr = {};
-        $mv(rr, u8bDataC(root));
-        $mv(c->repo, rr);
+        a_dup(u8c, rr, u8bDataC(root));
+        size_t rlen = u8csLen(rr);
+        if (rlen >= sizeof(c->_repo)) rlen = sizeof(c->_repo) - 1;
+        memcpy(c->_repo, rr[0], rlen);
+        c->_repo[rlen] = 0;
+        c->repo[0] = (u8cp)c->_repo;
+        c->repo[1] = (u8cp)c->_repo + rlen;
     }
 
     int argn = (int)$arglen;

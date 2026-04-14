@@ -39,6 +39,8 @@ if (WITH_IR)
     set(CMAKE_C_CREATE_STATIC_LIBRARY "echo 'skip ar: <TARGET>'")
 endif ()
 
+option(WITH_MILL "build treadmill integration tests" OFF)
+
 option(WITH_FUZZ "build with libFuzzer" OFF)
 if (WITH_FUZZ)
     set(FUZZ_FLAGS "-fsanitize=fuzzer")
