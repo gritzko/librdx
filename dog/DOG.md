@@ -28,7 +28,7 @@
 
 Dogs accept URIs of the form:
 
-    [//authority] [path] [?ref] [#fragment]
+    [scheme:] [//authority] [path] [?ref] [#fragment]
 
   - `//authority` — remote host or alias (`//origin`, `//github.com/user/repo.git`)
   - `path` — repo-relative file or directory (always a real path)
