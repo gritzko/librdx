@@ -31,7 +31,7 @@
 // --- Verb table ---
 
 static char const *const graf_verbs[] = {
-    "diff", "merge", "blame", "weave", "index",
+    "get", "diff", "merge", "blame", "weave", "index",
     "status", "help", NULL
 };
 
@@ -128,6 +128,7 @@ ok64 grafcli() {
     cli c = {};
     call(CLIParse, &c, graf_verbs, graf_val_flags);
 
+    a_cstr(v_get,    "get");
     a_cstr(v_diff,   "diff");
     a_cstr(v_merge,  "merge");
     a_cstr(v_blame,  "blame");
@@ -207,7 +208,7 @@ ok64 grafcli() {
     call(KEEPOpen, &k, reporoot);
     ok64 ret = OK;
 
-    if ($eq(c.verb, v_index)) {
+    if ($eq(c.verb, v_get) || $eq(c.verb, v_index)) {
         ret = DAGHook(&k, reporoot);
 
     } else if ($eq(c.verb, v_blame)) {

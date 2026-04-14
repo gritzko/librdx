@@ -47,6 +47,11 @@ static b8 argIsExt(u8csc a) {
     return CAPOKnownExt(a);
 }
 
+// Spot verb names (shared verbs dispatched by be)
+static char const *const SPOT_VERB_NAMES[] = {
+    "get", "status", "help", NULL
+};
+
 // Spot's val-flags: -f -g -s -r -p -C --fork --proc --grep
 // --spot --replace --pcre --context
 static char const SPOT_VAL_FLAGS[] =
@@ -65,7 +70,7 @@ ok64 capocli() {
 
     // Parse CLI
     cli c = {};
-    call(CLIParse, &c, NULL, SPOT_VAL_FLAGS);
+    call(CLIParse, &c, SPOT_VERB_NAMES, SPOT_VAL_FLAGS);
 
     // Extract flags
     u8cs v = {};
@@ -77,6 +82,36 @@ ok64 capocli() {
     }
     if (CLIHas(&c, "-h") || CLIHas(&c, "--help")) {
         SPOTUsage();
+        SPOTClose(&dog);
+        done;
+    }
+
+    // Verb dispatch
+    a_cstr(v_get, "get");
+    a_cstr(v_status_verb, "status");
+    a_cstr(v_help_verb, "help");
+
+    if ($eq(c.verb, v_help_verb)) { SPOTUsage(); SPOTClose(&dog); done; }
+    if ($eq(c.verb, v_status_verb)) {
+        a_path(capodir);
+        CAPOResolveDir(capodir, reporoot);
+        a_dup(u8c, dirslice, u8bDataC(capodir));
+        u64cs runs[CAPO_MAX_LEVELS] = {};
+        u64css stack = {runs, runs};
+        u8bp mmaps[CAPO_MAX_LEVELS] = {};
+        u32 nidxfiles = 0;
+        CAPOStackOpen(stack, mmaps, &nidxfiles, dirslice);
+        u64 total = 0;
+        for (u32 i = 0; i < nidxfiles; i++)
+            total += (u64)$len(runs[i]);
+        CAPOStackClose(mmaps, nidxfiles);
+        fprintf(stderr, "spot: %u index files, %llu entries\n",
+                nidxfiles, (unsigned long long)total);
+        SPOTClose(&dog);
+        done;
+    }
+    if ($eq(c.verb, v_get)) {
+        call(CAPOHook, reporoot);
         SPOTClose(&dog);
         done;
     }

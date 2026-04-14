@@ -12,14 +12,14 @@
 Each dog follows the [DOG API](dog/DOG.md): static lib + executable,
 `--update`/`--status`/`--tlv` flags, state in `.dogs/name/`.
 
-| Dir | Dog | Role | README |
-|-----|-----|------|--------|
-| `spot/` | **spot** | Structural code search, grep, regex, replace. Trigram index in `.dogs/spot/`. | [spot/README.md](spot/README.md) |
-| `bro/` | **bro** | Interactive syntax-highlighted pager. Also `bro file.c` for colorful cat. | [bro/INDEX.md](bro/INDEX.md) |
-| `graf/` | **graf** | Token-level diff, 3-way merge, git diff/merge driver. | [graf/INDEX.md](graf/INDEX.md) |
-| `keeper/` | **keeper** | Git object store: packs, fetch, refs. Replaces `.git/objects/`. State in `.dogs/keeper/`. | [keeper/INDEX.md](keeper/INDEX.md) |
-| `sniff/` | **sniff** | Worktree management: checkout, status, staging. | [sniff/INDEX.md](sniff/INDEX.md) |
-| `beagle/` | **be** | Dispatcher: ties the dogs together. URI-based CLI (`be verb URI`). | [beagle/README.md](beagle/README.md) |
+| Dog | Role | README |
+|-----|------|--------|
+| **spot** | Structural code search, grep, regex, replace. Trigram index in `.dogs/spot/`. | [spot/README.md](spot/README.md) |
+| **bro** | Interactive syntax-highlighted pager. Also `bro file.c` for colorful cat. | [bro/INDEX.md](bro/INDEX.md) |
+| **graf** | Token-level diff, 3-way merge, git diff/merge driver. | [graf/INDEX.md](graf/INDEX.md) |
+| **keeper** | Git object store: packs, fetch, refs. Replaces `.git/objects/`. State in `.dogs/keeper/`. | [keeper/INDEX.md](keeper/INDEX.md) |
+| **sniff** | Worktree management: checkout, status, staging. | [sniff/INDEX.md](sniff/INDEX.md) |
+| **beagle** | Dispatcher: ties the dogs together. URI-based CLI (`be verb URI`). | [beagle/README.md](beagle/README.md) |
 
 ## Other
 

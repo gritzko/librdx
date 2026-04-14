@@ -14,6 +14,7 @@
 #include "PUT.h"
 #include "dog/CLI.h"
 #include "dog/IGNO.h"
+#include "keeper/REFS.h"
 
 #include "abc/FILE.h"
 #include "abc/FSW.h"
@@ -189,6 +190,30 @@ static ok64 sniff_checkout(sniff *s, u8cs reporoot, u8cs hex) {
     ok64 o = GETCheckout(s, &k, reporoot, hex);
     KEEPClose(&k);
     return o;
+}
+
+// Checkout from a parsed URI: resolve ?ref via keeper REFS, then checkout.
+static ok64 SNIFFGetURI(sniff *s, u8cs reporoot, uri *u) {
+    sane(s && u);
+    if (!$empty(u->query)) {
+        keeper k = {};
+        call(KEEPOpen, &k, reporoot);
+        a_cstr(keepdir, k.dir);
+        a_pad(u8, arena, 512);
+        uri resolved = {};
+        ok64 o = REFSResolve(&resolved, arena, keepdir, u->data);
+        if (o == OK && !$empty(resolved.query)) {
+            o = GETCheckout(s, &k, reporoot, resolved.query);
+            KEEPClose(&k);
+            return o;
+        }
+        // Resolve failed — try the query as raw hex
+        o = GETCheckout(s, &k, reporoot, u->query);
+        KEEPClose(&k);
+        return o;
+    }
+    // No query — treat the whole URI data as hex (legacy)
+    return sniff_checkout(s, reporoot, u->data);
 }
 
 // --- Scan worktree for new files (commit-all) ---
@@ -525,8 +550,10 @@ ok64 sniffcli() {
         }
     } else if (is_checkout) {
         if (c.nuris < 1) {
-            fprintf(stderr, "sniff: checkout requires a commit hex\n");
+            fprintf(stderr, "sniff: get/checkout requires a URI or hex\n");
             ret = SNIFFFAIL;
+        } else if ($eq(c.verb, v_get)) {
+            ret = SNIFFGetURI(&s, reporoot, &c.uris[0]);
         } else {
             ret = sniff_checkout(&s, reporoot, c.uris[0].data);
         }
