@@ -19,7 +19,7 @@
 // --- Rebuild offsets + names hash from the paths region ---
 
 static ok64 sniff_index_paths(sniff *s) {
-    sane(s && s->paths);
+    sane(s && s->paths[0]);
 
     u32bReset(s->offsets);
     memset(kv64bHead(s->names), 0, kv64bLen(s->names) * sizeof(kv64));
@@ -126,6 +126,36 @@ static ok64 sniff_bootstrap(sniff *s, u8cs reporoot) {
     done;
 }
 
+// --- Read file into heap buffer (empty buf if file doesn't exist) ---
+
+static ok64 sniff_slurp(Bu8 buf, char const *path) {
+    sane(buf);
+    u8bp mapped = NULL;
+    a_cstr(ps, path);
+    a_path(pp, ps);
+    ok64 o = FILEMapRO(&mapped, PATHu8cgIn(pp));
+    if (o != OK) done;  // file doesn't exist → empty buf
+    a_dup(u8c, data, u8bDataC(mapped));
+    call(u8bFeed, buf, data);
+    FILEUnMap(mapped);
+    done;
+}
+
+// --- Write buffer to file (create/truncate) ---
+
+static ok64 sniff_flush(Bu8 buf, char const *path) {
+    sane(buf);
+    if (!u8bHasData(buf)) done;
+    a_cstr(ps, path);
+    a_path(pp, ps);
+    int fd = -1;
+    call(FILECreate, &fd, PATHu8cgIn(pp));
+    a_dup(u8c, data, u8bDataC(buf));
+    call(FILEFeedAll, fd, data);
+    close(fd);
+    done;
+}
+
 // --- Open ---
 
 ok64 SNIFFOpen(sniff *s, u8cs reporoot, b8 rw) {
@@ -139,41 +169,21 @@ ok64 SNIFFOpen(sniff *s, u8cs reporoot, b8 rw) {
     call(PATHu8gTerm, PATHu8gIn(dir));
     if (rw) call(FILEMakeDirP, PATHu8cgIn(dir));
 
-    // Book paths file
-    {
-        a_path(pp, reporoot);
-        a_cstr(pr, "/" SNIFF_DIR "/paths.log");
-        call(u8bFeed, pp, pr);
-        call(PATHu8gTerm, PATHu8gIn(pp));
+    // Build file paths for writeback
+    snprintf(s->paths_path, sizeof(s->paths_path),
+             "%.*s/" SNIFF_DIR "/paths.log",
+             (int)$len(reporoot), (char *)reporoot[0]);
+    snprintf(s->chg_path, sizeof(s->chg_path),
+             "%.*s/" SNIFF_DIR "/state.log",
+             (int)$len(reporoot), (char *)reporoot[0]);
 
-        ok64 o = FILEBook(&s->paths, PATHu8cgIn(pp), SNIFF_PATH_BOOK);
-        if (o == OK) {
-            ((u8 **)s->paths)[2] = s->paths[3];
-        } else if (rw) {
-            call(FILEBookCreate, &s->paths, PATHu8cgIn(pp),
-                 SNIFF_PATH_BOOK, 4096);
-        } else {
-            fail(o);
-        }
-    }
+    // Read paths file into heap buffer
+    call(u8bAllocate, s->paths, SNIFF_INIT_CAP);
+    call(sniff_slurp, s->paths, s->paths_path);
 
-    // Book changes file
-    {
-        a_path(cp, reporoot);
-        a_cstr(cr, "/" SNIFF_DIR "/state.log");
-        call(u8bFeed, cp, cr);
-        call(PATHu8gTerm, PATHu8gIn(cp));
-
-        ok64 o = FILEBook(&s->changes, PATHu8cgIn(cp), SNIFF_CHG_BOOK);
-        if (o == OK) {
-            ((u8 **)s->changes)[2] = s->changes[3];
-        } else if (rw) {
-            call(FILEBookCreate, &s->changes, PATHu8cgIn(cp),
-                 SNIFF_CHG_BOOK, 4096);
-        } else {
-            fail(o);
-        }
-    }
+    // Read changes file into heap buffer
+    call(u8bAllocate, s->changes, SNIFF_INIT_CAP);
+    call(sniff_slurp, s->changes, s->chg_path);
 
     // Allocate in-RAM tables
     call(u32bAllocate, s->offsets, SNIFF_HASH_SIZE);
@@ -197,7 +207,7 @@ ok64 SNIFFOpen(sniff *s, u8cs reporoot, b8 rw) {
 // --- Update (re-scan if paths log grew) ---
 
 ok64 SNIFFUpdate(sniff *s) {
-    sane(s && s->paths);
+    sane(s && s->paths[0]);
     call(sniff_index_paths, s);
     call(sniff_aggregate, s);
     done;
@@ -211,9 +221,10 @@ u32 SNIFFIntern(sniff *s, u8cs path) {
     kv64s tab = {kv64bHead(s->names), kv64bTerm(s->names)};
     if (HASHkv64Get(&probe, tab) == OK) return (u32)probe.val;
 
-    // New path: append "path\n" to booked paths file
+    // New path: append "path\n" to paths buffer
     size_t plen = $len(path);
-    FILEBookEnsure(s->paths, plen + 1);
+    if (u8bIdleLen(s->paths) < plen + 1)
+        u8bReserve(s->paths, u8bDataLen(s->paths) + plen + 1);
 
     u32 off = (u32)u8bDataLen(s->paths);
     u32 idx = u32bDataLen(s->offsets);
@@ -307,9 +318,10 @@ ok64 SNIFFPath(u8csp out, sniff const *s, u32 index) {
 // --- Record ---
 
 ok64 SNIFFRecord(sniff *s, u8 type, u32 index, u64 off) {
-    sane(s && s->changes);
+    sane(s && s->changes[0]);
     wh64 entry = wh64Pack(type, index, off);
-    call(FILEBookEnsure, s->changes, sizeof(wh64));
+    if (u8bIdleLen(s->changes) < sizeof(wh64))
+        u8bReserve(s->changes, u8bDataLen(s->changes) + sizeof(wh64));
     u8p *idle = (u8p *)&s->changes[2];
     memcpy(*idle, &entry, sizeof(wh64));
     *idle += sizeof(wh64);
@@ -337,13 +349,13 @@ u64 SNIFFGet(sniff const *s, u8 type, u32 index) {
 
 ok64 SNIFFClose(sniff *s) {
     sane(s);
-    if (s->paths) {
-        FILETrimBook(s->paths);
-        FILEUnBook(s->paths);
+    if (s->paths[0]) {
+        sniff_flush(s->paths, s->paths_path);
+        u8bFree(s->paths);
     }
-    if (s->changes) {
-        FILETrimBook(s->changes);
-        FILEUnBook(s->changes);
+    if (s->changes[0]) {
+        sniff_flush(s->changes, s->chg_path);
+        u8bFree(s->changes);
     }
     u32bFree(s->offsets);
     kv64bFree(s->names);

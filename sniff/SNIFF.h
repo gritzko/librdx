@@ -28,9 +28,8 @@ con ok64 SNIFFFAIL   = 0x7549f3ca495;
 con ok64 SNIFFNOROOM = 0x7549f5d86d8616;
 
 #define SNIFF_DIR       ".dogs/sniff"
-#define SNIFF_PATH_BOOK (256UL << 20)  // 256 MB VA for paths
-#define SNIFF_CHG_BOOK  (128UL << 20)  // 128 MB VA for changes
 #define SNIFF_HASH_SIZE (1 << 20)      // 1M slots
+#define SNIFF_INIT_CAP  (1UL << 16)    // 64K initial buffer
 
 // --- Entry types ---
 
@@ -46,8 +45,10 @@ con ok64 SNIFFNOROOM = 0x7549f5d86d8616;
 // --- State ---
 
 typedef struct {
-    u8bp  paths;     // Book-mmap'd paths file
-    u8bp  changes;   // Book-mmap'd changes file
+    Bu8   paths;     // heap buffer, paths file content
+    Bu8   changes;   // heap buffer, changes file content
+    char  paths_path[1024];   // file path for writeback
+    char  chg_path[1024];     // file path for writeback
     Bu32  offsets;   // path_index → byte offset in paths
     Bkv64 names;     // RAPHash(path) → path_index
     Bkv64 state;     // (type|id) → off, aggregated from changes
