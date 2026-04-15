@@ -39,6 +39,30 @@ fun u8  wh64Type(wh64 v) { return (u8)(v & WHIFF_TYPE_MASK); }
 fun u32 wh64Id(wh64 v)   { return (u32)((v >> WHIFF_ID_SHIFT) & WHIFF_ID_MASK); }
 fun u64 wh64Off(wh64 v)  { return (v >> WHIFF_OFF_SHIFT) & WHIFF_OFF_MASK; }
 
+// --- wh128: (key, val) pair, equality on both fields ---
+
+typedef struct {
+    wh64 key;
+    wh64 val;
+} wh128;
+
+fun u64  wh128hash(wh128 const *v) { return mix64(v->key ^ v->val); }
+
+fun int wh128cmp(wh128 const *a, wh128 const *b) {
+    if (a->key != b->key) return a->key < b->key ? -1 : 1;
+    if (a->val != b->val) return a->val < b->val ? -1 : 1;
+    return 0;
+}
+
+fun b8 wh128Z(wh128 const *a, wh128 const *b) {
+    if (a->key != b->key) return a->key < b->key;
+    return a->val < b->val;
+}
+
+#define X(M, name) M##wh128##name
+#include "abc/Bx.h"
+#undef X
+
 // --- SHA-1 hashlet helpers ---
 //
 // Two widths:
