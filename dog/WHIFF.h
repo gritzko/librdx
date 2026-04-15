@@ -90,6 +90,29 @@ fun ok64 WHIFFHexFeed60(u8s out, u64 hashlet) {
     return OK;
 }
 
+// --- SHA-1 hex representation (40 ASCII hex chars) ---
+
+typedef struct {
+    u8 data[40];
+} sha1hex;
+
+typedef sha1hex const *sha1hexcp;
+
+fun void sha1hexFromSha1(sha1hex *out, sha1 const *s) {
+    u8s hs = {out->data, out->data + 40};
+    u8cs bs = {s->data, s->data + 20};
+    HEXu8sFeedSome(hs, bs);
+}
+
+fun b8 sha1hexeq(sha1hexcp a, sha1hexcp b) {
+    return memcmp(a->data, b->data, 40) == 0;
+}
+
+fun void sha1hexSlice(u8csp out, sha1hexcp s) {
+    out[0] = s->data;
+    out[1] = s->data + 40;
+}
+
 // --- Hex to hashlet ---
 
 fun u64 WHIFFHexHashlet40(u8csc hex) {

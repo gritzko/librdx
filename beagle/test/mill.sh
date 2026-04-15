@@ -9,7 +9,7 @@ set -e
 BIN=${BIN:-$(dirname "$0")/../../build-debug/bin}
 export PATH="$BIN:$PATH"
 
-TMILL=${TMILL:-/tmp/mill-$$}
+TMILL=${TMILL:-$HOME/tmp/mill-$$}
 trap 'rm -rf "$TMILL"' EXIT
 
 mkdir -p "$TMILL"

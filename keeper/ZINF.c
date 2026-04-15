@@ -22,10 +22,16 @@ int ZINFInflate(
     int r = inflateInit(&zs);
     if (r != Z_OK) return -1;
 
-    r = inflate(&zs, Z_FINISH);
-    if (r != Z_STREAM_END && r != Z_OK) {
-        inflateEnd(&zs);
-        return -2;
+    // Inflate in a loop — output buffer may be smaller than decompressed data
+    for (;;) {
+        r = inflate(&zs, Z_NO_FLUSH);
+        if (r == Z_STREAM_END) break;
+        if (r != Z_OK) { inflateEnd(&zs); return -2; }
+        if (zs.avail_out == 0) {
+            // Output full, discard and keep going to find stream end
+            zs.next_out = (Bytef *)dst;
+            zs.avail_out = (uInt)dstlen;
+        }
     }
 
     *consumed = zs.total_in;

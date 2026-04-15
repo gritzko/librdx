@@ -1454,16 +1454,17 @@ ok64 KEEPSync(keeper *k, u8cs remote,
     if (po != OK || $len(line) < 40) goto sync_fail;
 
     // First line = HEAD sha
-    char head_hex[44];
-    memcpy(head_hex, line[0], 40);
-    head_hex[40] = 0;
+    sha1hex head_hex;
+    memcpy(head_hex.data, line[0], 40);
 
     // Drain remaining refs until flush
-    #define MAX_REFS 1024
-    char refs[MAX_REFS][44];       // SHA hex per ref
-    char refnames[MAX_REFS][256];  // ref name per ref
+    #define MAX_REFS 2048
+    sha1hex  refs[MAX_REFS];        // original SHA (for wants)
+    sha1hex  refrec[MAX_REFS];      // peeled SHA if available (for REFS)
+    char     refnames[MAX_REFS][256];
     u32 nrefs = 0;
-    memcpy(refs[nrefs], head_hex, 41);
+    refs[nrefs] = head_hex;
+    refrec[nrefs] = head_hex;
     snprintf(refnames[nrefs], 256, "HEAD");
     nrefs++;
 
@@ -1479,14 +1480,6 @@ ok64 KEEPSync(keeper *k, u8cs remote,
         }
         if (o != OK) break;
         if ($len(line) >= 42 && nrefs < MAX_REFS) {
-            // Skip peeled tag lines (contain ^{})
-            u8cp hat = line[0];
-            b8 peeled = NO;
-            while (hat < line[1] - 2)
-                if (*hat == '^' && *(hat+1) == '{') { peeled = YES; break; }
-                else hat++;
-            if (peeled) continue;
-
             // Extract ref name: after SHA + space, until NUL/space/newline
             u8cp namestart = line[0] + 41;
             u8cp nameend = namestart;
@@ -1496,32 +1489,53 @@ ok64 KEEPSync(keeper *k, u8cs remote,
             size_t namelen = (size_t)(nameend - namestart);
             if (namelen == 0 || namelen >= 256) continue;
 
-            memcpy(refs[nrefs], line[0], 40);
-            refs[nrefs][40] = 0;
+            // Peeled tag (^{}): update refrec with dereferenced SHA.
+            // refs[] keeps original (for wants), refrec[] gets peeled (for REFS).
+            if (namelen > 3 && nameend[-1] == '}' && nameend[-2] == '{' && nameend[-3] == '^') {
+                size_t base_namelen = namelen - 3;
+                for (u32 pi = 0; pi < nrefs; pi++) {
+                    if (strlen(refnames[pi]) == base_namelen &&
+                        memcmp(refnames[pi], namestart, base_namelen) == 0) {
+                        memcpy(refrec[pi].data, line[0], 40);
+                        break;
+                    }
+                }
+                continue;
+            }
+
+            memcpy(refs[nrefs].data, line[0], 40);
+            memcpy(refrec[nrefs].data, line[0], 40);
             memcpy(refnames[nrefs], namestart, namelen);
             refnames[nrefs][namelen] = 0;
             nrefs++;
         }
     }
 
-    fprintf(stderr, "keeper: %u ref(s), HEAD=%.12s\n", nrefs, head_hex);
+    fprintf(stderr, "keeper: %u ref(s), HEAD=%.12s\n", nrefs, head_hex.data);
 
     // Build want/have negotiation
     {
-        u8 wbuf[65536];
-        u8s ws = {wbuf, wbuf + sizeof(wbuf)};
+        #define NEGBUF (1 << 20)  // 1MB for want/have pkt-lines
+        u8 *wbuf = malloc(NEGBUF);
+        if (!wbuf) goto sync_fail;
+        u8s ws = {wbuf, wbuf + NEGBUF};
         b8 first_want = YES;
 
         if (wants) {
-            // Specific wants: match against advertised refs
+            // Specific wants: match by SHA or ref name against advertised
             for (int wi = 0; wants[wi]; wi++) {
-                // Verify this SHA was advertised
-                b8 advertised = NO;
-                for (u32 j = 0; j < nrefs; j++)
-                    if (memcmp(refs[j], wants[wi], 40) == 0)
-                        { advertised = YES; break; }
-                if (!advertised) {
-                    fprintf(stderr, "keeper: want %.12s not advertised, skipping\n",
+                sha1hex const *sha = NULL;
+                size_t wlen = strlen(wants[wi]);
+                for (u32 j = 0; j < nrefs; j++) {
+                    if (wlen == 40 && memcmp(refs[j].data, wants[wi], 40) == 0) {
+                        sha = &refs[j]; break;
+                    }
+                    if (strcmp(refnames[j], wants[wi]) == 0) {
+                        sha = &refs[j]; break;
+                    }
+                }
+                if (!sha) {
+                    fprintf(stderr, "keeper: want %s not advertised, skipping\n",
                             wants[wi]);
                     continue;
                 }
@@ -1529,11 +1543,11 @@ ok64 KEEPSync(keeper *k, u8cs remote,
                 int plen;
                 if (first_want) {
                     plen = snprintf(pay, sizeof(pay),
-                        "want %.40s no-progress\n", wants[wi]);
+                        "want %.40s no-progress\n", sha->data);
                     first_want = NO;
                 } else {
                     plen = snprintf(pay, sizeof(pay),
-                        "want %.40s\n", wants[wi]);
+                        "want %.40s\n", sha->data);
                 }
                 u8cs payload = {(u8cp)pay, (u8cp)pay + plen};
                 PKTu8sFeed(ws, payload);
@@ -1545,11 +1559,11 @@ ok64 KEEPSync(keeper *k, u8cs remote,
                 int plen;
                 if (first_want) {
                     plen = snprintf(pay, sizeof(pay),
-                        "want %.40s no-progress\n", refs[i]);
+                        "want %.40s no-progress\n", refs[i].data);
                     first_want = NO;
                 } else {
                     plen = snprintf(pay, sizeof(pay),
-                        "want %.40s\n", refs[i]);
+                        "want %.40s\n", refs[i].data);
                 }
                 u8cs payload = {(u8cp)pay, (u8cp)pay + plen};
                 PKTu8sFeed(ws, payload);
@@ -1564,6 +1578,7 @@ ok64 KEEPSync(keeper *k, u8cs remote,
         PKTu8sFeedFlush(ws);
 
         // Send have lines
+        int nhave_sent = 0;
         if (haves) {
             for (int hi = 0; haves[hi]; hi++) {
                 char pay[256];
@@ -1571,28 +1586,47 @@ ok64 KEEPSync(keeper *k, u8cs remote,
                     "have %.40s\n", haves[hi]);
                 u8cs payload = {(u8cp)pay, (u8cp)pay + plen};
                 PKTu8sFeed(ws, payload);
+                nhave_sent++;
             }
         }
+        if (nhave_sent > 0)
+            fprintf(stderr, "keeper: sent %d have(s)\n", nhave_sent);
 
         u8 donepay[] = "done\n";
         u8cs donecs = {donepay, donepay + 5};
         PKTu8sFeed(ws, donecs);
 
+        // Write negotiation in chunks (pipe buffer is ~64K)
         u64 wlen = ws[0] - wbuf;
-        if (write(wfd, wbuf, wlen) != (ssize_t)wlen) goto sync_fail;
+        u64 written = 0;
+        while (written < wlen) {
+            u64 chunk = wlen - written;
+            if (chunk > 32768) chunk = 32768;
+            ssize_t n = write(wfd, wbuf + written, chunk);
+            if (n <= 0) { free(wbuf); goto sync_fail; }
+            written += (u64)n;
+        }
+        free(wbuf);
     }
     close(wfd);
     wfd = -1;
 
-    // Read initial response into rbuf until we have NAK/ACK + PACK header
+    // Read response into rbuf (may need multiple reads for ACK sequences)
     rlen = 0;
     for (;;) {
         ssize_t n = read(rfd, rbuf + rlen, SYNC_BUFSZ - rlen);
         if (n <= 0) { if (rlen == 0) goto sync_fail; break; }
         rlen += (u64)n;
-        // Need at least: pkt-line (8+) + PACK header (12)
-        if (rlen >= 24) break;
+        // Stop once we see PACK magic in the buffer
+        if (rlen >= 16) {
+            for (u64 i = 0; i + 4 <= rlen; i++) {
+                if (memcmp(rbuf + i, "PACK", 4) == 0) goto got_pack;
+            }
+        }
+        // Safety: stop after 1MB of ACK chatter
+        if (rlen >= (1 << 20)) break;
     }
+got_pack:
 
     // Parse response: NAK (full clone) or ACK <sha> (incremental)
     u8cs resp = {rbuf, rbuf + rlen};
@@ -1601,8 +1635,11 @@ ok64 KEEPSync(keeper *k, u8cs remote,
     if ($len(line) >= 3 && memcmp(line[0], "NAK", 3) == 0) {
         // Full clone response
     } else if ($len(line) >= 3 && memcmp(line[0], "ACK", 3) == 0) {
-        // Incremental: may have multiple ACK lines before pack
+        // Incremental: drain ACK/NAK lines until we reach the pack data
         for (;;) {
+            // Check if resp[0] is at PACK magic
+            if (resp[1] - resp[0] >= 4 && memcmp(resp[0], "PACK", 4) == 0)
+                break;
             ok64 ao = PKTu8sDrain(resp, line);
             if (ao == PKTFLUSH) break;
             if (ao != OK) break;
@@ -1621,13 +1658,15 @@ ok64 KEEPSync(keeper *k, u8cs remote,
     if (po != OK || hdr.version != 2) goto sync_fail;
     u64 initial_pack = rlen - (u64)(pack_start - rbuf);  // pack bytes in rbuf
 
-    // Create pack log file and book it for streaming.
-    // Estimate size from object count (~256 bytes/obj compressed).
-    u32 file_id = k->npacks + 1;
+    // Open or create pack log file for appending.
+    // Estimate VA reservation from object count (~256 bytes/obj).
+    u32 file_id = k->npacks > 0 ? k->npacks : 1;
+    b8 appending = (k->npacks > 0);
     u64 pack_book = (u64)hdr.count * 256;
-    if (pack_book < (64ULL << 20)) pack_book = 64ULL << 20;    // min 64MB
-    if (pack_book > (16ULL << 30)) pack_book = 16ULL << 30;    // max 16GB
+    if (pack_book < (64ULL << 20)) pack_book = 64ULL << 20;
+    if (pack_book > (16ULL << 30)) pack_book = 16ULL << 30;
     u8bp packbuf = NULL;
+    u64 append_offset = 0;  // where new objects start in the log
     {
         a_pad(u8, dst, 1024);
         a_cstr(kdir, k->dir);
@@ -1640,45 +1679,78 @@ ok64 KEEPSync(keeper *k, u8cs remote,
         u8bFeed(dst, ext);
         PATHu8gTerm(PATHu8gIn(dst));
 
-        size_t init = initial_pack;
-        if (init < 4096) init = 4096;
-        ok64 o = FILEBookCreate(&packbuf, PATHu8cgIn(dst),
-                                pack_book, init);
-        if (o != OK) goto sync_fail;
+        if (appending) {
+            // Existing log — book it, seek to end
+            ok64 o = FILEBook(&packbuf, PATHu8cgIn(dst), pack_book);
+            if (o != OK) goto sync_fail;
+            // Mark all existing data as DATA (FILEBook leaves it as IDLE)
+            ((u8 **)packbuf)[2] = packbuf[3];
+            append_offset = u8bDataLen(packbuf);
+        } else {
+            // New log — create
+            size_t init = initial_pack;
+            if (init < 4096) init = 4096;
+            ok64 o = FILEBookCreate(&packbuf, PATHu8cgIn(dst),
+                                    pack_book, init);
+            if (o != OK) goto sync_fail;
+        }
     }
 
-    // Copy initial pack data from rbuf into booked file
+    // Copy initial pack data from rbuf into booked file.
+    // On append, skip the PACK header (12 bytes) — only append objects.
     {
-        u8cs init_data = {pack_start, rbuf + rlen};
+        u8cp copy_start = pack_start;
+        if (appending) {
+            // resp[0] already points past the PACK header (PACKDrainHdr consumed it)
+            copy_start = resp[0];
+        }
+        u8cs init_data = {copy_start, rbuf + rlen};
+        FILEBookEnsure(packbuf, u8csLen(init_data));
         u8bFeed(packbuf, init_data);
     }
 
     // Stream remaining pack data from rfd directly into booked file
     {
-        u8 chunk[1 << 16];  // 64K read chunks
         for (;;) {
-            ssize_t n = read(rfd, chunk, sizeof(chunk));
+            FILEBookEnsure(packbuf, 1 << 20);
+            ssize_t n = read(rfd, u8bIdleHead(packbuf), u8bIdleLen(packbuf));
             if (n <= 0) break;
-            FILEBookEnsure(packbuf, (size_t)n);
-            u8cs data = {(u8cp)chunk, (u8cp)chunk + n};
-            u8bFeed(packbuf, data);
+            u8bFed(packbuf, (size_t)n);
         }
     }
     close(rfd);
     rfd = -1;
 
-    u8cp packbase = u8bDataHead(packbuf);
-    u64 packlen = u8bDataLen(packbuf);
+    u64 new_bytes = u8bDataLen(packbuf) - append_offset;
 
     fprintf(stderr, "keeper: received %u objects, %llu bytes\n",
-            hdr.count, (unsigned long long)packlen);
+            hdr.count, (unsigned long long)new_bytes);
+
+    // Patch object count in PACK header (offset 8, 4 bytes big-endian).
+    // Read existing count, add new objects.
+    {
+        u8p phdr = u8bDataHead(packbuf);
+        u32 old_count = ((u32)phdr[8] << 24) | ((u32)phdr[9] << 16) |
+                        ((u32)phdr[10] << 8) | phdr[11];
+        u32 new_count = old_count + hdr.count;
+        phdr[8]  = (u8)(new_count >> 24);
+        phdr[9]  = (u8)(new_count >> 16);
+        phdr[10] = (u8)(new_count >> 8);
+        phdr[11] = (u8)(new_count);
+    }
 
     // Trim booked file to actual size, then re-mmap read-only for indexing
     FILETrimBook(packbuf);
     FILEUnBook(packbuf);
     packbuf = NULL;
 
-    // Mmap the pack read-only into keeper
+    // Re-mmap the pack read-only into keeper
+    // (on append, unmap the old RO mapping first)
+    if (appending && k->npacks > 0) {
+        FILEUnMap(k->packs[file_id - 1]);
+        k->packs[file_id - 1] = NULL;
+        k->npacks--;
+    }
     {
         a_pad(u8, pp, 1024);
         a_cstr(kdir, k->dir);
@@ -1697,8 +1769,8 @@ ok64 KEEPSync(keeper *k, u8cs remote,
         }
     }
 
-    packbase = u8bDataHead(k->packs[k->npacks - 1]);
-    packlen = (u64)(u8bIdleHead(k->packs[k->npacks - 1]) - packbase);
+    u8cp packbase = u8bDataHead(k->packs[k->npacks - 1]);
+    u64 packlen = (u64)(u8bIdleHead(k->packs[k->npacks - 1]) - packbase);
 
     // Scan pack: record offsets + types
     {
@@ -1706,8 +1778,10 @@ ok64 KEEPSync(keeper *k, u8cs remote,
         u8 *types_arr = calloc(hdr.count, 1);
         if (!offsets || !types_arr) { free(offsets); free(types_arr); goto sync_fail; }
 
-        // Skip PACK header (12 bytes)
-        u8cs scan = {packbase + 12, packbase + packlen};
+        // Start scanning where new objects begin
+        u64 scan_start = appending ? append_offset : 12;  // skip PACK hdr on first
+        u8cs scan = {packbase + scan_start, packbase + packlen};
+        u32 scanned = 0;
         for (u32 i = 0; i < hdr.count; i++) {
             offsets[i] = scan[0] - packbase;
             pack_obj obj = {};
@@ -1716,8 +1790,17 @@ ok64 KEEPSync(keeper *k, u8cs remote,
             u64 consumed = 0, produced = 0;
             u64 outsz = obj.size < KEEP_BUFSZ ? obj.size : KEEP_BUFSZ;
             ZINFInflate(scan[0], $len(scan), buf1, outsz, &consumed, &produced);
+            if (consumed == 0) {
+                fprintf(stderr, "keeper: scan stall at %u (type %u size %llu)\n",
+                        i, obj.type, (unsigned long long)obj.size);
+                break;
+            }
             scan[0] += consumed;
+            scanned++;
         }
+        if (scanned < hdr.count)
+            fprintf(stderr, "keeper: scan incomplete: %u/%u objects\n",
+                    scanned, hdr.count);
 
         // DFS indexing: build delta dependency tree, walk depth-first.
         // Each object inflated exactly once, max chain_depth in RAM.
@@ -1755,7 +1838,8 @@ ok64 KEEPSync(keeper *k, u8cs remote,
             }
         }
 
-        // Phase 2: resolve base objects, build SHA→index hash table
+        // Resolve base objects, build SHA→offset hash table,
+        // then single-pass DFS with REF_DELTA reverse index.
         u64 tblsz = ((u64)hdr.count * 4 + 15) & ~15ULL;
         if (tblsz < 256) tblsz = 256;
         kv64 *htmem = calloc(tblsz, sizeof(kv64));
@@ -1764,198 +1848,191 @@ ok64 KEEPSync(keeper *k, u8cs remote,
         u32 skipped = 0;
         b8 *resolved = calloc(hdr.count + 1, 1);
 
+        // REF_DELTA reverse index: base SHA prefix → waiter chain.
+        // rev_ht maps sha_prefix → head of chain (1-based index).
+        // wait_next[i] → next waiter with same base (0 = end).
+        kv64 *rev_mem = calloc(tblsz, sizeof(kv64));
+        kv64s rev_ht = {rev_mem, rev_mem + tblsz};
+        u32 *wait_next = calloc(hdr.count + 1, sizeof(u32));
+
+        for (u32 i = 0; i < hdr.count; i++) {
+            if (types_arr[i] != PACK_OBJ_REF_DELTA) continue;
+            pack_obj obj = {};
+            u8cs from = {packbase + offsets[i], packbase + packlen};
+            if (PACKDrainObjHdr(from, &obj) != OK) {
+                fprintf(stderr, "keeper: rev_ht: hdr fail at %u\n", i);
+                skipped++; continue;
+            }
+            u64 sha_key = 0;
+            memcpy(&sha_key, obj.ref_delta[0], 8);
+            kv64 lookup = {.key = sha_key, .val = 0};
+            if (HASHkv64Get(&lookup, rev_ht) == OK)
+                wait_next[i + 1] = (u32)lookup.val;
+            kv64 entry = {.key = sha_key, .val = i + 1};
+            HASHkv64Put(rev_ht, &entry);
+        }
+
+        // Resolve base objects (types 1-4), drain waiters into DFS tree
         u8bReset(k->buf1);
         for (u32 i = 0; i < hdr.count; i++) {
             if (types_arr[i] < 1 || types_arr[i] > 4) continue;
             pack_obj obj = {};
             u8cs from = {packbase + offsets[i], packbase + packlen};
-            if (PACKDrainObjHdr(from, &obj) != OK) continue;
-            if (obj.size > u8bIdleLen(k->buf1)) continue;
+            if (PACKDrainObjHdr(from, &obj) != OK) { skipped++; continue; }
+            if (obj.size > u8bIdleLen(k->buf1)) { skipped++; continue; }
             u8p cs = u8bIdleHead(k->buf1);
             u8s into = {cs, u8bTerm(k->buf1)};
-            if (PACKInflate(from, into, obj.size) != OK) continue;
+            if (PACKInflate(from, into, obj.size) != OK) { skipped++; continue; }
             sha1 sha = {};
             { u8csc _c = {cs, cs + obj.size}; keep_git_sha1(&sha, obj.type, _c); }
             u64 sha_key = 0;
             memcpy(&sha_key, sha.data, 8);
-            kv64 entry = {.key = sha_key, .val = offsets[i]};
-            HASHkv64Put(ht, &entry);
-            // Emit to sorted_entries
+            kv64 he = {.key = sha_key, .val = offsets[i]};
+            HASHkv64Put(ht, &he);
             sorted_entries[total_indexed].key =
                 keepKeyPack(types_arr[i], WHIFFHashlet60(&sha));
             sorted_entries[total_indexed].val =
                 wh64Pack(KEEP_VAL_FLAGS, file_id, offsets[i]);
             total_indexed++;
             resolved[i + 1] = YES;
+            // Drain REF_DELTA waiters for this SHA
+            kv64 wlook = {.key = sha_key, .val = 0};
+            if (HASHkv64Get(&wlook, rev_ht) == OK) {
+                for (u32 w = (u32)wlook.val; w; ) {
+                    u32 nw = wait_next[w];
+                    nodes[w].sibling = nodes[i + 1].child;
+                    nodes[i + 1].child = w;
+                    w = nw;
+                }
+                HASHkv64Del(rev_ht, &wlook);
+            }
             // Don't advance buf1 — reuse space for next base
         }
 
-        fprintf(stderr, "keeper: %u base objects resolved\n", total_indexed);
+        u32 base_count = total_indexed;
+        fprintf(stderr, "keeper: %u base objects resolved\n", base_count);
 
+        // Single-pass DFS: walk from each base with children.
+        // After resolving each child, drain its waiters from rev_ht
+        // so REF_DELTAs get processed with parent content on the stack.
         sha1 sha = {};
         #define MAX_CHAIN 64
         struct { u8p d_start; u8p d_end; u32 node; u8 base_type; } stk[MAX_CHAIN];
 
-        for (int round = 0; round < 64; round++) {
-            // Link REF_DELTAs to bases found in hash table
-            u32 nlinked = 0;
-            for (u32 i = 0; i < hdr.count; i++) {
-                if (types_arr[i] != PACK_OBJ_REF_DELTA) continue;
-                if (resolved[i + 1]) continue;
-                // Already linked from a previous round? check child
-                // (nodes consumed during DFS, so re-parse)
-                pack_obj obj = {};
-                u8cs from = {packbase + offsets[i], packbase + packlen};
-                if (PACKDrainObjHdr(from, &obj) != OK) continue;
+        for (u32 root_idx = 1; root_idx <= hdr.count; root_idx++) {
+            if (!nodes[root_idx].child) continue;
+            if (!resolved[root_idx]) continue;
+            if (types_arr[root_idx - 1] < 1 || types_arr[root_idx - 1] > 4) continue;
+
+            u8 root_type = types_arr[root_idx - 1];
+            u8bReset(k->buf1);
+            pack_obj obj = {};
+            u8cs from = {packbase + offsets[root_idx - 1], packbase + packlen};
+            if (PACKDrainObjHdr(from, &obj) != OK) { skipped++; continue; }
+            if (obj.size > u8bIdleLen(k->buf1)) { skipped++; continue; }
+            u8p cs = u8bIdleHead(k->buf1);
+            u8s rinto = {cs, u8bTerm(k->buf1)};
+            if (PACKInflate(from, rinto, obj.size) != OK) { skipped++; continue; }
+            u8bFed(k->buf1, obj.size);
+
+            int top = 0;
+            stk[0].d_start = cs;
+            stk[0].d_end = cs + obj.size;
+            stk[0].node = root_idx;
+            stk[0].base_type = root_type;
+
+            while (top >= 0) {
+                u32 cur = stk[top].node;
+                u32 child = nodes[cur].child;
+                if (!child) {
+                    if (top > 0)
+                        ((u8**)k->buf1)[2] = stk[top].d_start;
+                    top--;
+                    continue;
+                }
+
+                nodes[cur].child = nodes[child].sibling;
+
+                if (top + 1 >= MAX_CHAIN) {
+                    fprintf(stderr, "keeper: chain depth %d exceeded\n", MAX_CHAIN);
+                    skipped++; continue;
+                }
+
+                u8p base_s = stk[top].d_start;
+                u64 base_sz = (u64)(stk[top].d_end - stk[top].d_start);
+
+                pack_obj dobj = {};
+                u8cs dfrom = {packbase + offsets[child - 1], packbase + packlen};
+                ok64 _ho = PACKDrainObjHdr(dfrom, &dobj);
+                if (_ho != OK) {
+                    fprintf(stderr, "keeper: DFS hdr fail at offset %llu: %s\n",
+                            (unsigned long long)offsets[child - 1], ok64str(_ho));
+                    skipped++; continue;
+                }
+
+                if (dobj.size > KEEP_BUFSZ / 2) {
+                    fprintf(stderr, "keeper: object too large (%llu)\n",
+                            (unsigned long long)dobj.size);
+                    skipped++; continue;
+                }
+                u8s dinto = {objbuf, objbuf + KEEP_BUFSZ / 2};
+                ok64 _io = PACKInflate(dfrom, dinto, dobj.size);
+                if (_io != OK) {
+                    fprintf(stderr, "keeper: inflate fail: %s\n", ok64str(_io));
+                    skipped++; continue;
+                }
+
+                u8cs delta_sl = {objbuf, objbuf + dobj.size};
+                u8cs base_sl = {base_s, base_s + base_sz};
+                u8p rstart = u8bIdleHead(k->buf1);
+                u8g aout = {rstart, rstart, u8bTerm(k->buf1)};
+                ok64 _do = DELTApply(delta_sl, base_sl, aout);
+                if (_do != OK) {
+                    fprintf(stderr, "keeper: delta apply fail: %s\n", ok64str(_do));
+                    skipped++; continue;
+                }
+                u64 rsz = u8gLeftLen(aout);
+                u8bFed(k->buf1, rsz);
+
+                { u8csc _c = {rstart, rstart + rsz}; keep_git_sha1(&sha, stk[0].base_type, _c); }
+                sorted_entries[total_indexed].key =
+                    keepKeyPack(stk[0].base_type, WHIFFHashlet60(&sha));
+                sorted_entries[total_indexed].val =
+                    wh64Pack(KEEP_VAL_FLAGS, file_id, offsets[child - 1]);
+                total_indexed++;
+                resolved[child] = YES;
+
                 u64 sha_key = 0;
-                memcpy(&sha_key, obj.ref_delta[0], 8);
-                kv64 lookup = {.key = sha_key, .val = 0};
-                if (HASHkv64Get(&lookup, ht) == OK) {
-                    // val = pack offset; find index via bsearch
-                    u64 boff = lookup.val;
-                    u32 plo = 0, phi = hdr.count;
-                    while (plo < phi) {
-                        u32 pm = plo + (phi - plo) / 2;
-                        if (offsets[pm] < boff) plo = pm + 1;
-                        else phi = pm;
+                memcpy(&sha_key, sha.data, 8);
+                kv64 he = {.key = sha_key, .val = offsets[child - 1]};
+                HASHkv64Put(ht, &he);
+
+                // Drain REF_DELTA waiters: link as children of just-resolved node
+                kv64 wlook = {.key = sha_key, .val = 0};
+                if (HASHkv64Get(&wlook, rev_ht) == OK) {
+                    for (u32 w = (u32)wlook.val; w; ) {
+                        u32 nw = wait_next[w];
+                        nodes[w].sibling = nodes[child].child;
+                        nodes[child].child = w;
+                        w = nw;
                     }
-                    if (plo >= hdr.count || offsets[plo] != boff) continue;
-                    u32 parent = plo + 1;
-                    u32 me = i + 1;
-                    nodes[me].sibling = nodes[parent].child;
-                    nodes[parent].child = me;
-                    nlinked++;
-                }
-            }
-
-            if (round == 0) {
-                fprintf(stderr, "keeper: round 0: %u base objects + %u linked\n",
-                        total_indexed, nlinked);
-            }
-            if (nlinked == 0 && round > 0) break;
-
-            // DFS: walk all nodes that have children and are resolved
-            u32 round_indexed = 0;
-            for (u32 root_idx = 1; root_idx <= hdr.count; root_idx++) {
-                if (!nodes[root_idx].child) continue;
-                if (!resolved[root_idx]) continue;
-
-                // Root is already resolved — its content needs to be re-inflated
-                // for the DFS. Use keep_resolve to get it.
-                u8bReset(k->buf1);
-                u8p content = NULL;
-                u64 content_sz = 0;
-                u8 root_type = 0;
-
-                if (types_arr[root_idx - 1] >= 1 && types_arr[root_idx - 1] <= 4) {
-                    root_type = types_arr[root_idx - 1];
-                    pack_obj obj = {};
-                    u8cs from = {packbase + offsets[root_idx - 1], packbase + packlen};
-                    if (PACKDrainObjHdr(from, &obj) != OK) continue;
-                    if (obj.size > u8bIdleLen(k->buf1)) continue;
-                    u8p cs = u8bIdleHead(k->buf1);
-                    u8s into = {cs, u8bTerm(k->buf1)};
-                    if (PACKInflate(from, into, obj.size) != OK) continue;
-                    u8bFed(k->buf1, obj.size);
-                    content = cs;
-                    content_sz = obj.size;
-                } else {
-                    // Delta root: use keep_resolve
-                    if (keep_resolve(k, packbase, packlen,
-                                      offsets[root_idx - 1], &root_type,
-                                      &content, &content_sz, ht) != OK) continue;
-                    // Copy result into buf1 (keep_resolve uses buf3/buf4)
-                    u8p cs = u8bIdleHead(k->buf1);
-                    memcpy(cs, content, content_sz);
-                    u8bFed(k->buf1, content_sz);
-                    content = cs;
+                    HASHkv64Del(rev_ht, &wlook);
                 }
 
-                // Push root onto DFS stack
-                int top = 0;
-                stk[0].d_start = content;
-                stk[0].d_end = content + content_sz;
-                stk[0].node = root_idx;
-                stk[0].base_type = root_type;
-
-                while (top >= 0) {
-                    u32 cur = stk[top].node;
-                    u32 child = nodes[cur].child;
-                    if (!child) {
-                        // Backtrack: shed this level's data from buf1
-                        if (top > 0)
-                            ((u8**)k->buf1)[2] = stk[top].d_start;
-                        top--;
-                        continue;
-                    }
-
-                    nodes[cur].child = nodes[child].sibling;
-
-                    if (top + 1 >= MAX_CHAIN) { skipped++; continue; }
-
-                    u8p base_s = stk[top].d_start;
-                    u64 base_sz = (u64)(stk[top].d_end - stk[top].d_start);
-
-                    pack_obj dobj = {};
-                    u8cs dfrom = {packbase + offsets[child - 1], packbase + packlen};
-                    if (PACKDrainObjHdr(dfrom, &dobj) != OK) { skipped++; continue; }
-
-                    if (dobj.size > KEEP_BUFSZ / 2) { skipped++; continue; }
-                    u8s dinto = {objbuf, objbuf + KEEP_BUFSZ / 2};
-                    if (PACKInflate(dfrom, dinto, dobj.size) != OK) { skipped++; continue; }
-
-                    u8cs delta_sl = {objbuf, objbuf + dobj.size};
-                    u8cs base_sl = {base_s, base_s + base_sz};
-                    u8p rstart = u8bIdleHead(k->buf1);
-                    u8g aout = {rstart, rstart, u8bTerm(k->buf1)};
-                    if (DELTApply(delta_sl, base_sl, aout) != OK) { skipped++; continue; }
-                    u64 rsz = u8gLeftLen(aout);
-                    u8bFed(k->buf1, rsz);
-
-                    // Emit
-                    { u8csc _c = {rstart, rstart + rsz}; keep_git_sha1(&sha, stk[0].base_type, _c); }
-                    sorted_entries[total_indexed].key =
-                        keepKeyPack(stk[0].base_type, WHIFFHashlet60(&sha));
-                    sorted_entries[total_indexed].val =
-                        wh64Pack(KEEP_VAL_FLAGS, file_id, offsets[child - 1]);
-                    total_indexed++;
-                    round_indexed++;
-                    resolved[child] = YES;
-
-                    // Add to hash table for future rounds
-                    u64 sha_key = 0;
-                    memcpy(&sha_key, sha.data, 8);
-                    kv64 entry = {.key = sha_key, .val = offsets[child - 1]};
-                    HASHkv64Put(ht, &entry);
-
-                    // Push child
-                    top++;
-                    stk[top].d_start = rstart;
-                    stk[top].d_end = rstart + rsz;
-                    stk[top].node = child;
-                    stk[top].base_type = stk[0].base_type;
-                }
+                top++;
+                stk[top].d_start = rstart;
+                stk[top].d_end = rstart + rsz;
+                stk[top].node = child;
+                stk[top].base_type = stk[0].base_type;
             }
-
-            // Count how many unresolved REF_DELTAs could be linked now
-            u32 could_link = 0;
-            for (u32 i = 0; i < hdr.count; i++) {
-                if (types_arr[i] != PACK_OBJ_REF_DELTA) continue;
-                if (resolved[i + 1]) continue;
-                pack_obj tobj = {};
-                u8cs tfrom = {packbase + offsets[i], packbase + packlen};
-                if (PACKDrainObjHdr(tfrom, &tobj) != OK) continue;
-                u64 tkey = 0;
-                memcpy(&tkey, tobj.ref_delta[0], 8);
-                kv64 tl = {.key = tkey, .val = 0};
-                if (HASHkv64Get(&tl, ht) == OK) could_link++;
-            }
-            fprintf(stderr, "keeper: round %d: +%u (%u/%u) could_link=%u\n",
-                    round, round_indexed, total_indexed, hdr.count, could_link);
-            if (round_indexed == 0 && could_link == 0) break;
         }
 
+        fprintf(stderr, "keeper: DFS indexed %u deltas from %u bases\n",
+                total_indexed - base_count, base_count);
+
         free(htmem);
+        free(rev_mem);
+        free(wait_next);
 
         // Cross-pack REF_DELTA resolution: unresolved deltas whose base
         // is in a previously-fetched pack (thin pack support).
@@ -2006,6 +2083,21 @@ ok64 KEEPSync(keeper *k, u8cs remote,
             if (cross_resolved > 0)
                 fprintf(stderr, "keeper: cross-pack: resolved %u REF_DELTAs\n",
                         cross_resolved);
+        }
+
+        // Diagnostic: count unresolved by type
+        {
+            u32 unres_ofs = 0, unres_ref = 0, unres_base = 0, unres_noscan = 0;
+            for (u32 i = 0; i < hdr.count; i++) {
+                if (resolved[i + 1]) continue;
+                if (types_arr[i] == 0) unres_noscan++;
+                else if (types_arr[i] == PACK_OBJ_OFS_DELTA) unres_ofs++;
+                else if (types_arr[i] == PACK_OBJ_REF_DELTA) unres_ref++;
+                else unres_base++;
+            }
+            if (unres_ofs || unres_ref || unres_base || unres_noscan)
+                fprintf(stderr, "keeper: unresolved: %u ofs, %u ref, %u base, %u unscannable\n",
+                        unres_ofs, unres_ref, unres_base, unres_noscan);
         }
 
         free(resolved);
@@ -2089,7 +2181,7 @@ sync_done:
                 // val = "?sha"
                 refarr[i].val[0] = u8bIdleHead(strbuf);
                 u8bFeed1(strbuf, '?');
-                u8cs sha = {(u8cp)refs[i], (u8cp)refs[i] + 40};
+                u8cs sha = {refrec[i].data, refrec[i].data + 40};
                 u8bFeed(strbuf, sha);
                 refarr[i].val[1] = u8bIdleHead(strbuf);
             }

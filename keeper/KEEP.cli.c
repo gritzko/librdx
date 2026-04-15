@@ -176,54 +176,54 @@ static ok64 keeper_get_remote(keeper *k, cli *c, uri *g) {
     }
     a_dup(u8c, remote, u8bData(rbuf));
 
-    // Collect --want/--have from flags
-    char const *want_list[64] = {};
-    char const *have_list[64] = {};
+    // Build want/have lists
+    #define MAX_WANTHAVE 1024
+    static char want_shas[MAX_WANTHAVE][44];
+    static char have_shas[MAX_WANTHAVE][44];
+    char const *want_list[MAX_WANTHAVE + 1] = {};
+    char const *have_list[MAX_WANTHAVE + 1] = {};
     int nwants = 0, nhaves = 0;
 
+    // Wants: from ?query or --want flags
+    // Query can be a ref name or a SHA. Pass it directly to KEEPSync
+    // which matches both ref names and SHAs against the advertisement.
     if (!u8csEmpty(g->query)) {
-        a_pad(u8, qbuf, 256);
-        u8bFeed1(qbuf, '?');
-        u8bFeed(qbuf, g->query);
-        a_dup(u8c, qkey, u8bData(qbuf));
-
-        static char wantsha[44];
-        for (u32 i = 0; i < rn; i++) {
-            if (REFMatch(&rarr[i], qkey)) {
-                a_dup(u8c, val, rarr[i].val);
-                if (!u8csEmpty(val) && *val[0] == '?')
-                    u8csUsed(val, 1);
-                snprintf(wantsha, 44, "%.*s",
-                         (int)u8csLen(val), (char *)val[0]);
-                want_list[nwants++] = wantsha;
-                break;
-            }
-        }
-        if (nwants == 0 && u8csLen(g->query) >= 6) {
-            snprintf(wantsha, 44, "%.*s",
-                     (int)u8csLen(g->query), (char *)g->query[0]);
-            want_list[nwants++] = wantsha;
-        }
+        snprintf(want_shas[nwants], 44, "%.*s",
+                 (int)u8csLen(g->query), (char *)g->query[0]);
+        want_list[nwants] = want_shas[nwants];
+        nwants++;
     }
 
+    // Explicit --want/--have flags
     for (u32 fi = 0; fi + 1 < c->nflags; fi += 2) {
         a_cstr(wf, "--want");
         a_cstr(hf, "--have");
-        if ($eq(c->flags[fi], wf) && nwants < 63) {
-            static char wbufs[64][44];
-            snprintf(wbufs[nwants], 44, "%.*s",
+        if ($eq(c->flags[fi], wf) && nwants < MAX_WANTHAVE) {
+            snprintf(want_shas[nwants], 44, "%.*s",
                      (int)u8csLen(c->flags[fi + 1]),
                      (char *)c->flags[fi + 1][0]);
-            want_list[nwants] = wbufs[nwants];
+            want_list[nwants] = want_shas[nwants];
             nwants++;
-        } else if ($eq(c->flags[fi], hf) && nhaves < 63) {
-            static char hbufs[64][44];
-            snprintf(hbufs[nhaves], 44, "%.*s",
+        } else if ($eq(c->flags[fi], hf) && nhaves < MAX_WANTHAVE) {
+            snprintf(have_shas[nhaves], 44, "%.*s",
                      (int)u8csLen(c->flags[fi + 1]),
                      (char *)c->flags[fi + 1][0]);
-            have_list[nhaves] = hbufs[nhaves];
+            have_list[nhaves] = have_shas[nhaves];
             nhaves++;
         }
+    }
+
+    // Auto-populate haves from existing REFS (known SHA refs).
+    // Limit to 256 to avoid pipe deadlock with git-upload-pack.
+    #define MAX_AUTO_HAVES 256
+    for (u32 i = 0; i < rn && nhaves < MAX_AUTO_HAVES; i++) {
+        if (u8csEmpty(rarr[i].val) || *rarr[i].val[0] != '?') continue;
+        u8cs val = {rarr[i].val[0] + 1, rarr[i].val[1]};
+        if (u8csLen(val) < 40) continue;
+        snprintf(have_shas[nhaves], 44, "%.*s",
+                 (int)u8csLen(val), (char *)val[0]);
+        have_list[nhaves] = have_shas[nhaves];
+        nhaves++;
     }
 
     if (rmap) u8bUnMap(rmap);
