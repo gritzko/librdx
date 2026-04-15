@@ -54,3 +54,9 @@ target_compile_options(QURYtest PRIVATE ${TEST_CXX_FLAGS})
 target_link_libraries(QURYtest dog abc-core)
 add_test(NAME QURYtest COMMAND QURYtest)
 
+add_executable(DPATHtest DPATH.c)
+target_link_options(DPATHtest PRIVATE ${TEST_LDD_FLAGS})
+target_compile_options(DPATHtest PRIVATE ${TEST_CXX_FLAGS})
+target_link_libraries(DPATHtest dog abc-core)
+add_test(NAME DPATHtest COMMAND DPATHtest)
+
