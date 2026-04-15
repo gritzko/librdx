@@ -19,8 +19,8 @@
 //    Bkv64 names     RAPHash(path) → path_index
 //    Bkv64 state     aggregated (type|id) → off from changes log
 
+#include "abc/BUF.h"
 #include "abc/INT.h"
-#include "abc/KV.h"
 #include "abc/PATH.h"
 #include "dog/WHIFF.h"
 
@@ -46,14 +46,13 @@ con ok64 SNIFFNOROOM = 0x7549f5d86d8616;
 // --- State ---
 
 typedef struct {
-    u8bp  paths;     // FILEBook'd paths file (stable address)
-    u8bp  changes;   // FILEBook'd changes file (stable address)
-    char  head_path[1024];    // .dogs/sniff/HEAD file path
-    char  head[256];          // HEAD content: ref or hex SHA
-    Bu32  offsets;   // path_index → byte offset in paths
-    Bkv64 names;     // RAPHash(path) → path_index
-    Bkv64 state;     // (type|id) → off, aggregated from changes
-    Bu32  sorted;    // sorted path indices (by path, dirs/ first)
+    u8bp  paths;          // FILEBook'd paths.log (stable mmap address)
+    u8bp  changes;        // FILEBook'd state.log (stable mmap address)
+    char  head_path[1024];
+    char  head[256];
+    Bu8cs past;           // sorted u8cs slices into paths (checkout portion)
+    Bu8cs data;           // unsorted u8cs slices (post-checkout new paths)
+    Bu32  sorted;         // merged sorted index (for POST/DEL)
 } sniff;
 
 // --- Public API ---
@@ -75,7 +74,7 @@ ok64 SNIFFPath(u8csp out, sniff const *s, u32 index);
 
 //  Number of known paths.
 fun u32 SNIFFCount(sniff const *s) {
-    return u32bDataLen(s->offsets);
+    return (u32)(u8csbDataLen(s->past) + u8csbDataLen(s->data));
 }
 
 //  Is path a directory? (trailing /)
@@ -107,6 +106,10 @@ ok64 SNIFFRecord(sniff *s, u8 type, u32 index, u64 off);
 //  Look up aggregated state for (type, index).
 //  Returns the off value, or 0 if not found.
 u64 SNIFFGet(sniff const *s, u8 type, u32 index);
+
+//  Compact: rewrite paths.log sorted, state.log with paired entries.
+//  Rebuilds past/data arrays.  Called after checkout.
+ok64 SNIFFCompact(sniff *s);
 
 //  Read HEAD into out (ref name or hex SHA).  Points into s->head.
 //  Empty slice if no HEAD.

@@ -160,7 +160,7 @@ static ok64 GETPrune(sniff *s, u8cs reporoot, u8cp seen) {
         if ($empty(rel)) continue;
 
         a_path(fp);
-        SNIFFFullpath(fp, reporoot, rel);
+        call(SNIFFFullpath, fp, reporoot, rel);
 
         ok64 o = FILEUnLink(PATHu8cgIn(fp));
         if (o == OK || o == FILENOENT) {
@@ -186,7 +186,7 @@ static ok64 GETPrune(sniff *s, u8cs reporoot, u8cp seen) {
         call(SNIFFPath, rel, s, i);
 
         a_path(fp);
-        SNIFFFullpath(fp, reporoot, rel);
+        call(SNIFFFullpath, fp, reporoot, rel);
 
         ok64 o = FILERmDir(PATHu8cgIn(fp), NO);
         if (o == OK || o == FILENOENT || o == FILENOTEMP) {
@@ -270,7 +270,7 @@ ok64 GETCheckout(sniff *s, keeper *k, u8cs reporoot, u8cs hex) {
 
     // Allocate seen bitmap
     u32 npath = SNIFFCount(s);
-    u32 seen_size = npath + SNIFF_HASH_SIZE;
+    u32 seen_size = npath + 65536;  // padding for new paths during walk
     Bu8 seen_buf = {};
     call(u8bAllocate, seen_buf, seen_size);
     memset(u8bDataHead(seen_buf), 0, seen_size);
@@ -282,6 +282,9 @@ ok64 GETCheckout(sniff *s, keeper *k, u8cs reporoot, u8cs hex) {
         o = GETPrune(s, reporoot, u8bDataHead(seen_buf));
 
     u8bFree(seen_buf);
+    if (o == OK) {
+        o = SNIFFCompact(s);
+    }
     if (o == OK) {
         SNIFFSetHead(s, hex);
         fprintf(stderr, "sniff: checkout done\n");
