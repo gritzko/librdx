@@ -1660,9 +1660,7 @@ got_pack:
     // Estimate VA reservation from object count (~256 bytes/obj).
     u32 file_id = k->npacks > 0 ? k->npacks : 1;
     b8 appending = (k->npacks > 0);
-    u64 pack_book = (u64)hdr.count * 256;
-    if (pack_book < (64ULL << 20)) pack_book = 64ULL << 20;
-    if (pack_book > (16ULL << 30)) pack_book = 16ULL << 30;
+    u64 pack_book = 16ULL << 30;  // 16GB VA reservation
     u8bp packbuf = NULL;
     u64 append_offset = 0;  // where new objects start in the log
     {
@@ -1678,7 +1676,6 @@ got_pack:
         PATHu8gTerm(PATHu8gIn(dst));
 
         if (appending) {
-            // Existing log — book it, seek to end
             ok64 o = FILEBook(&packbuf, PATHu8cgIn(dst), pack_book);
             if (o != OK) goto sync_fail;
             // Mark all existing data as DATA (FILEBook leaves it as IDLE)
@@ -1710,7 +1707,7 @@ got_pack:
     // Stream remaining pack data from rfd directly into booked file
     {
         for (;;) {
-            FILEBookEnsure(packbuf, 1 << 20);
+            call(FILEBookEnsure, packbuf, 1 << 20);
             ssize_t n = read(rfd, u8bIdleHead(packbuf), u8bIdleLen(packbuf));
             if (n <= 0) break;
             u8bFed(packbuf, (size_t)n);
@@ -1725,8 +1722,8 @@ got_pack:
             hdr.count, (unsigned long long)new_bytes);
 
     // Patch object count in PACK header (offset 8, 4 bytes big-endian).
-    // Read existing count, add new objects.
-    {
+    // On append, add new objects to existing count. On fresh clone, already correct.
+    if (appending) {
         u8p phdr = u8bDataHead(packbuf);
         u32 old_count = ((u32)phdr[8] << 24) | ((u32)phdr[9] << 16) |
                         ((u32)phdr[10] << 8) | phdr[11];
@@ -1776,9 +1773,12 @@ got_pack:
         u8 *types_arr = calloc(hdr.count, 1);
         if (!offsets || !types_arr) { free(offsets); free(types_arr); goto sync_fail; }
 
-        // Start scanning where new objects begin
-        u64 scan_start = appending ? append_offset : 12;  // skip PACK hdr on first
-        u8cs scan = {packbase + scan_start, packbase + packlen};
+        // Start scanning where new objects begin.
+        // Fresh pack has 12-byte header + objects + 20-byte SHA1 trailer.
+        // Appended data is raw objects, no header or trailer.
+        u64 scan_start = appending ? append_offset : 12;
+        u64 data_end = appending ? packlen : (packlen >= 20 ? packlen - 20 : packlen);
+        u8cs scan = {packbase + scan_start, packbase + data_end};
         u32 scanned = 0;
         for (u32 i = 0; i < hdr.count; i++) {
             offsets[i] = scan[0] - packbase;
