@@ -406,7 +406,7 @@ static ok64 dag_compact(u8cs dagdir) {
     u32 fcount = 0;
     {
         a_path(dpat);
-        PATHu8bFeed(dpat, dagdir);
+        call(PATHu8bFeed, dpat, dagdir);
         DIR *d2 = opendir((char *)u8bDataHead(dpat));
         if (d2) {
             struct dirent *e2;
@@ -708,8 +708,12 @@ static ok64 dag_tree_diff_r(keeper *k, u8cs old_tree, u8cs new_tree,
                         u64 oh = WHIFFHashlet60((sha1cp)old_ents[oi].sha[0]);
                         u64 nh = WHIFFHashlet60((sha1cp)new_ents[ni].sha[0]);
                         Bu8 ob = {}, nb = {};
-                        u8bMap(ob, 4UL << 20);
-                        u8bMap(nb, 4UL << 20);
+                        if (u8bMap(ob, 4UL << 20) != OK ||
+                            u8bMap(nb, 4UL << 20) != OK) {
+                            u8bUnMap(ob);
+                            u8bUnMap(nb);
+                            continue;
+                        }
                         u8 ot = 0, nt = 0;
                         if (KEEPGet(k, oh, 15, ob, &ot) == OK &&
                             KEEPGet(k, nh, 15, nb, &nt) == OK) {
@@ -954,7 +958,7 @@ ok64 DAGHook(keeper *k, u8cs reporoot) {
             if (npar > 0) {
                 // Get parent commit → parent tree
                 Bu8 parent_commit = {};
-                u8bMap(parent_commit, 1UL << 20);
+                if (u8bMap(parent_commit, 1UL << 20) != OK) goto next;
                 u8 pt = 0;
                 u32 parent_gen = dag_gens_get(&gens, parent_hashlets[0]);
                 if (parent_gen == 0)

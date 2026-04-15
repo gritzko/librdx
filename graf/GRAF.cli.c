@@ -214,7 +214,7 @@ ok64 grafcli() {
         // Serialize: wait for any previous graf instance to finish
         a_path(lockpath, reporoot);
         a_cstr(lockrel, "/.dogs/graf/lock");
-        u8bFeed(lockpath, lockrel);
+        call(u8bFeed, lockpath, lockrel);
         PATHu8gTerm(PATHu8gIn(lockpath));
         int lockfd = open((char *)u8bDataHead(lockpath),
                           O_CREAT | O_RDWR, 0644);

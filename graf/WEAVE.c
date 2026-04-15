@@ -93,14 +93,14 @@ ok64 WEAVEAdd(weave *w, u8cs old_data, u8cs new_data,
     if (u64bDataLen(new_ctx.hashes) == 0 && !$empty(new_data)) {
         u64 h = RAPHash(new_data);
         u32 end = (u32)$len(new_data);
-        u32bFeed1(new_ctx.toks, tok32Pack('S', end));
-        u64bFeed1(new_ctx.hashes, h);
+        __ = u32bFeed1(new_ctx.toks, tok32Pack('S', end)); if (__ != OK) goto cleanup;
+        __ = u64bFeed1(new_ctx.hashes, h); if (__ != OK) goto cleanup;
     }
     if (u64bDataLen(old_ctx.hashes) == 0 && !$empty(old_data)) {
         u64 h = RAPHash(old_data);
         u32 end = (u32)$len(old_data);
-        u32bFeed1(old_ctx.toks, tok32Pack('S', end));
-        u64bFeed1(old_ctx.hashes, h);
+        __ = u32bFeed1(old_ctx.toks, tok32Pack('S', end)); if (__ != OK) goto cleanup;
+        __ = u64bFeed1(old_ctx.hashes, h); if (__ != OK) goto cleanup;
     }
 
     u64 olen = u64bDataLen(old_ctx.hashes);

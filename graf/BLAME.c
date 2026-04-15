@@ -174,7 +174,7 @@ static u32 blame_walk_history(blame_ver *vers, u32 maxvers,
     // Read PATHS file to find path_id for filepath
     a_path(pp, dagdir);
     a_cstr(pname, "/PATHS");
-    u8bFeed(pp, pname);
+    if (u8bFeed(pp, pname) != OK) return 0;
     PATHu8gTerm(PATHu8gIn(pp));
 
     u8bp pmap = NULL;
@@ -481,8 +481,8 @@ static ok64 weave_fetch_blob(u8bp buf, keeper *k, u8cs ref, u8cs filepath) {
     uri target = {};
     a_pad(u8, ubuf, 512);
     a_cstr(qmark, "?");
-    u8bFeed(ubuf, qmark);
-    u8bFeed(ubuf, ref);
+    call(u8bFeed, ubuf, qmark);
+    call(u8bFeed, ubuf, ref);
     a_dup(u8c, udata, u8bData(ubuf));
     target.data[0] = udata[0];
     target.data[1] = udata[1];

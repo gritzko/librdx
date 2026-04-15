@@ -444,7 +444,7 @@ static ok64 belt_index_log(u8cs belt_dir, char const *idx_path) {
         call(PACKDrainObjHdr, sc, &obj);
         otypes[i] = obj.type;
         a_pad(u8, scratch, 4096);
-        ZINFInflate(u8bIdle(scratch), sc);
+        call(ZINFInflate, u8bIdle(scratch), sc);
     }
 
     fprintf(stderr, "scan done\n");

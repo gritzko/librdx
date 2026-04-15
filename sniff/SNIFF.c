@@ -107,7 +107,7 @@ static ok64 SNIFFBootstrap(sniff *s, u8cs reporoot) {
         HEXu8sDrainSome(shabin_idle, hex16);
 
         a$str(path, tab + 1);
-        FILEBookEnsure(s->paths, $len(path) + 1);
+        call(FILEBookEnsure, s->paths, $len(path) + 1);
         u8bFeed(s->paths, path);
         u8bFeed1(s->paths, '\n');
 
@@ -118,7 +118,7 @@ static ok64 SNIFFBootstrap(sniff *s, u8cs reporoot) {
     pclose(fp);
 
     if (count > 0) {
-        FILEBookEnsure(s->paths, 1);
+        call(FILEBookEnsure, s->paths, 1);
         u8bFeed1(s->paths, '\n');  // \n\n separator
         u8csbFree(s->past);
         u8cs region = {u8bDataHead(s->paths), u8bIdleHead(s->paths)};
@@ -401,13 +401,13 @@ ok64 SNIFFCompact(sniff *s) {
     for (u32 i = 0; i < live; i++) {
         u8cs p = {str_base + entries[i].off,
                   str_base + entries[i].off + entries[i].len};
-        FILEBookEnsure(s->paths, entries[i].len + 1);
+        call(FILEBookEnsure, s->paths, entries[i].len + 1);
         u8bFeed(s->paths, p);
         u8bFeed1(s->paths, '\n');
         call(SNIFFWritePair, s, i, entries[i].hashlet, entries[i].checkout);
     }
 
-    FILEBookEnsure(s->paths, 1);
+    call(FILEBookEnsure, s->paths, 1);
     u8bFeed1(s->paths, '\n');  // \n\n separator
 
     u8csbFree(s->past);

@@ -361,7 +361,7 @@ ok64 COMCommit(sniff *s, keeper *k, u8cs reporoot,
         char hdr[64];
         int hlen = snprintf(hdr, sizeof(hdr), "commit %zu", csz);
         Bu8 tmp = {};
-        u8bAllocate(tmp, (u64)hlen + 1 + csz);
+        call(u8bAllocate, tmp, (u64)hlen + 1 + csz);
         u8cs hs = {(u8cp)hdr, (u8cp)hdr + hlen};
         u8bFeed(tmp, hs);
         u8bFeed1(tmp, 0);

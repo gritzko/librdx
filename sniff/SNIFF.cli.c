@@ -286,7 +286,7 @@ static ok64 sniff_scan_cb(void0p arg, path8p path) {
 
     // Check if file exists and is UTF-8
     a_path(fp);
-    SNIFFFullpath(fp, ctx->reporoot, rel);
+    if (SNIFFFullpath(fp, ctx->reporoot, rel) != OK) return OK;
 
     struct stat lsb = {};
     if (lstat((char *)u8bDataHead(fp), &lsb) != 0) return OK;
@@ -487,7 +487,7 @@ ok64 sniffcli() {
 
             if (c.nuris > 0) {
                 Bu8 csbuf = {};
-                u8bAllocate(csbuf, npaths);
+                call(u8bAllocate, csbuf, npaths);
                 memset(u8bDataHead(csbuf), 0, npaths);
                 cset = u8bDataHead(csbuf);
                 for (u32 f = 0; f < c.nuris; f++) {
@@ -523,7 +523,7 @@ ok64 sniffcli() {
             u32 npaths = SNIFFCount(&s);
             if (c.nuris > 0) {
                 Bu8 csbuf = {};
-                u8bAllocate(csbuf, npaths);
+                call(u8bAllocate, csbuf, npaths);
                 memset(u8bDataHead(csbuf), 0, npaths);
                 cset = u8bDataHead(csbuf);
                 for (u32 f = 0; f < c.nuris; f++) {
@@ -569,7 +569,7 @@ ok64 sniffcli() {
         } else {
             u32 npaths = SNIFFCount(&s);
             Bu8 dsbuf = {};
-            u8bAllocate(dsbuf, npaths);
+            call(u8bAllocate, dsbuf, npaths);
             memset(u8bDataHead(dsbuf), 0, npaths);
             u8p dset = u8bDataHead(dsbuf);
             for (u32 f = 0; f < c.nuris; f++) {

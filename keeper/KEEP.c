@@ -541,7 +541,8 @@ static ok64 keep_verify_sha(keeper *k, sha1 expected_sha,
                 sha1 tree_sha = {};
                 u8s sb = {tree_sha.data, tree_sha.data + 20};
                 u8cs hx = {value[0], value[0] + 40};
-                HEXu8sDrainSome(sb, hx);
+                ok64 ho = HEXu8sDrainSome(sb, hx);
+                if (ho != OK) break;
                 ok64 o = keep_verify_sha(k, tree_sha, checked, failed);
                 if (o != OK) {
                     a_pad(u8, hex, 16);
@@ -597,7 +598,8 @@ static ok64 keep_verify_sha(keeper *k, sha1 expected_sha,
                 sha1 target_sha = {};
                 u8s sb = {target_sha.data, target_sha.data + 20};
                 u8cs hx = {value[0], value[0] + 40};
-                HEXu8sDrainSome(sb, hx);
+                ok64 ho = HEXu8sDrainSome(sb, hx);
+                if (ho != OK) break;
                 keep_verify_sha(k, target_sha, checked, failed);
                 break;
             }
@@ -620,7 +622,7 @@ ok64 KEEPVerify(keeper *k, u8cs hex_sha) {
     sha1 sha = {};
     u8s sb = {sha.data, sha.data + 20};
     u8cs hx = {hex_sha[0], hex_sha[0] + 40};
-    HEXu8sDrainSome(sb, hx);
+    call(HEXu8sDrainSome, sb, hx);
 
     u32 checked = 0, failed = 0;
     ok64 rc = keep_verify_sha(k, sha, &checked, &failed);
@@ -867,7 +869,7 @@ ok64 KEEPPackClose(keeper *k, keep_pack *p) {
     PATHu8gTerm(PATHu8gIn(idxpath));
 
     int ifd = -1;
-    FILECreate(&ifd, PATHu8cgIn(idxpath));
+    call(FILECreate, &ifd, PATHu8cgIn(idxpath));
     if (ifd >= 0) {
         u8cs raw = {(u8cp)sorted[0], (u8cp)sorted[1]};
         FILEFeedAll(ifd, raw);
@@ -947,7 +949,7 @@ static ok64 keep_resolve_tree(keeper *k, uricp target, sha1 *tree_sha) {
                 u8csLen(value) >= 40) {
                 u8s sb = {tree_sha->data, tree_sha->data + 20};
                 u8cs hx = {value[0], value[0] + 40};
-                HEXu8sDrainSome(sb, hx);
+                call(HEXu8sDrainSome, sb, hx);
                 done;
             }
         }
@@ -977,8 +979,8 @@ static ok64 keep_resolve_tree(keeper *k, uricp target, sha1 *tree_sha) {
                 if (u8csLen(val) >= 40) {
                     u8s sb = {commit_sha.data, commit_sha.data + 20};
                     u8cs hx = {val[0], val[0] + 40};
-                    HEXu8sDrainSome(sb, hx);
-                    found = YES;
+                    ok64 ho = HEXu8sDrainSome(sb, hx);
+                    if (ho == OK) found = YES;
                 }
                 break;
             }
@@ -1003,7 +1005,7 @@ static ok64 keep_resolve_tree(keeper *k, uricp target, sha1 *tree_sha) {
                     u8csLen(tv) >= 40) {
                     u8s sb2 = {commit_sha.data, commit_sha.data + 20};
                     u8cs hx2 = {tv[0], tv[0] + 40};
-                    HEXu8sDrainSome(sb2, hx2);
+                    call(HEXu8sDrainSome, sb2, hx2);
                     break;
                 }
             }
@@ -1020,7 +1022,7 @@ static ok64 keep_resolve_tree(keeper *k, uricp target, sha1 *tree_sha) {
                 u8csLen(value) >= 40) {
                 u8s sb = {tree_sha->data, tree_sha->data + 20};
                 u8cs hx = {value[0], value[0] + 40};
-                HEXu8sDrainSome(sb, hx);
+                call(HEXu8sDrainSome, sb, hx);
                 done;
             }
         }
@@ -1092,7 +1094,8 @@ static ok64 keep_walk_tree(keeper *k, u8csc tree_sha,
                 // Save buf3 state — recursive call will overwrite it
                 size_t b3_save = u8bDataLen(k->buf3);
                 Bu8 saved_tree = {};
-                u8bMap(saved_tree, b3_save);
+                ok64 me = u8bMap(saved_tree, b3_save);
+                if (me != OK) return me;
                 a_dup(u8c, b3data, u8bData(k->buf3));
                 u8bFeed(saved_tree, b3data);
 
@@ -1686,7 +1689,7 @@ got_pack:
             copy_start = resp[0];
         }
         u8cs init_data = {copy_start, rbuf + rlen};
-        FILEBookEnsure(packbuf, u8csLen(init_data));
+        call(FILEBookEnsure, packbuf, u8csLen(init_data));
         u8bFeed(packbuf, init_data);
     }
 
@@ -2084,8 +2087,10 @@ got_pack:
             PATHu8gTerm(PATHu8gIn(idxpath));
 
             int fd = -1;
-            FILECreate(&fd, PATHu8cgIn(idxpath));
-            if (fd >= 0) {
+            ok64 fce = FILECreate(&fd, PATHu8cgIn(idxpath));
+            if (fce != OK) {
+                fprintf(stderr, "keeper: idx create failed\n");
+            } else if (fd >= 0) {
                 u8cs data = {(u8cp)sorted_entries, (u8cp)(sorted_entries + nfinal)};
                 FILEFeedAll(fd, data);
                 close(fd);
@@ -2129,7 +2134,11 @@ sync_done:
             // Build ?refname and ?sha strings into a shared pad
             // Each ref needs max ~260 bytes for key + ~44 for val
             Bu8 strbuf = {};
-            u8bMap(strbuf, (u64)nrefs * 310);
+            ok64 me = u8bMap(strbuf, (u64)nrefs * 310);
+            if (me != OK) {
+                free(refarr);
+                goto sync_end;
+            }
             for (u32 i = 0; i < nrefs; i++) {
                 refarr[i].time = now;
                 refarr[i].type = REF_SHA;
@@ -2156,6 +2165,7 @@ sync_done:
         }
     }
 
+sync_end:
     fprintf(stderr, "keeper: sync complete\n");
     done;
 
