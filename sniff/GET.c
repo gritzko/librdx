@@ -141,16 +141,19 @@ static ok64 GETTree(sniff *s, keeper *k, u8cs reporoot,
     return result;
 }
 
-// Remove tracked files not in the new tree
+// Remove tracked files not in the new tree.
+// Files first, then dirs (rmdir only works on empty dirs).
 static ok64 GETPrune(sniff *s, u8cs reporoot, u8cp seen) {
     sane(s);
     u32 n = SNIFFCount(s);
     u32 removed = 0;
 
+    // Pass 1: unlink files
     for (u32 i = 0; i < n; i++) {
         if (seen[i]) continue;
         u64 h = SNIFFGet(s, SNIFF_HASHLET, i);
         if (h == 0) continue;
+        if (SNIFFIsDir(s, i)) continue;
 
         u8cs rel = {};
         if (SNIFFPath(rel, s, i) != OK) continue;
@@ -163,6 +166,26 @@ static ok64 GETPrune(sniff *s, u8cs reporoot, u8cp seen) {
         SNIFFRecord(s, SNIFF_HASHLET, i, 0);
         SNIFFRecord(s, SNIFF_CHECKOUT, i, 0);
         removed++;
+    }
+
+    // Pass 2: rmdir stale dirs (reverse order for bottom-up)
+    for (u32 i = n; i > 0; ) {
+        i--;
+        if (seen[i]) continue;
+        u64 h = SNIFFGet(s, SNIFF_HASHLET, i);
+        if (h == 0) continue;
+        if (!SNIFFIsDir(s, i)) continue;
+
+        u8cs rel = {};
+        if (SNIFFPath(rel, s, i) != OK) continue;
+
+        a_path(fp);
+        if (SNIFFFullpath(fp, reporoot, rel) != OK) continue;
+
+        rmdir((char *)u8bDataHead(fp));
+
+        SNIFFRecord(s, SNIFF_HASHLET, i, 0);
+        SNIFFRecord(s, SNIFF_CHECKOUT, i, 0);
     }
 
     if (removed > 0)
