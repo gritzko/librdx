@@ -10,6 +10,7 @@
 #include "abc/HEX.h"
 #include "abc/PATH.h"
 #include "abc/PRO.h"
+#include "dog/DPATH.h"
 #include "keeper/GIT.h"
 #include "keeper/SHA1.h"
 #include "keeper/WALK.h"
@@ -61,6 +62,12 @@ static ok64 com_collect_tree(sha_ctx *ctx, keeper *k,
         u8cs name_s = {scan[0], file[1]};
         ++name_s[0];
         u8cs mode_s = {file[0], scan[0]};
+
+        if (DPATHVerify(name_s) != OK) {
+            fprintf(stderr, "sniff: bad path '%.*s', skip\n",
+                    (int)$len(name_s), (char *)name_s[0]);
+            continue;
+        }
 
         b8 is_submodule = ($len(mode_s) >= 2 &&
                            $at(mode_s, 0) == '1' && $at(mode_s, 1) == '6');

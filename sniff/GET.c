@@ -10,7 +10,9 @@
 #include "abc/HEX.h"
 #include "abc/PATH.h"
 #include "abc/PRO.h"
+#include "dog/DPATH.h"
 #include "keeper/GIT.h"
+#include "keeper/REFS.h"
 #include "keeper/WALK.h"
 
 // Recursive tree checkout.  seen[idx]=1 for every path visited.
@@ -49,6 +51,12 @@ static ok64 GETTree(sniff *s, keeper *k, u8cs reporoot,
         u8cs name_s = {rest[0], file[1]};
         // skip the space
         ++name_s[0];
+
+        if (DPATHVerify(name_s) != OK) {
+            fprintf(stderr, "sniff: bad path '%.*s', skip\n",
+                    (int)$len(name_s), (char *)name_s[0]);
+            continue;
+        }
 
         b8 is_dir = ($at(mode_s, 0) == '4');
         b8 is_submodule = ($len(mode_s) >= 2 &&
@@ -203,7 +211,8 @@ static ok64 GETPrune(sniff *s, u8cs reporoot, u8cp seen) {
 
 // --- Public API ---
 
-ok64 GETCheckout(sniff *s, keeper *k, u8cs reporoot, u8cs hex) {
+ok64 GETCheckout(sniff *s, keeper *k, u8cs reporoot, u8cs hex,
+                 u8cs source) {
     sane(s && k && $ok(hex));
 
     size_t hexlen = $len(hex);
@@ -287,6 +296,15 @@ ok64 GETCheckout(sniff *s, keeper *k, u8cs reporoot, u8cs hex) {
     }
     if (o == OK) {
         SNIFFSetHead(s, hex);
+        if (!$empty(source)) {
+            a_cstr(keepdir, k->dir);
+            a_pad(u8, file_uri, 1280);
+            a_cstr(scheme, "file://");
+            u8bFeed(file_uri, scheme);
+            u8bFeed(file_uri, reporoot);
+            a_dup(u8c, from, u8bData(file_uri));
+            REFSAppend(keepdir, from, source);
+        }
         fprintf(stderr, "sniff: checkout done\n");
     }
     return o;

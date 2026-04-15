@@ -13,6 +13,9 @@
 
 //  Checkout a commit from keeper into the worktree.
 //  hex: commit SHA hex prefix (6-15 chars).
-ok64 GETCheckout(sniff *s, keeper *k, u8cs reporoot, u8cs hex);
+//  source: URI we checked out (recorded in keeper REFS as
+//          file:///reporoot → source).  Empty to skip recording.
+ok64 GETCheckout(sniff *s, keeper *k, u8cs reporoot, u8cs hex,
+                 u8cs source);
 
 #endif

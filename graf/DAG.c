@@ -18,6 +18,7 @@
 #include "abc/PRO.h"
 #include "abc/RAP.h"
 #include "abc/RON.h"
+#include "dog/DPATH.h"
 #include "keeper/GIT.h"
 #include "keeper/REFS.h"
 
@@ -640,6 +641,15 @@ static ok64 dag_tree_diff_r(keeper *k, u8cs old_tree, u8cs new_tree,
         a_dup(u8c, scan, old_tree);
         u8cs file = {}, sha = {};
         while (on < TREE_MAX && GITu8sDrainTree(scan, file, sha) == OK) {
+            u8cs dn = {file[0], file[1]};
+            if (u8csFind(dn, ' ') == OK) {
+                u8cs dname = {dn[0] + 1, file[1]};
+                if (DPATHVerify(dname) != OK) {
+                    fprintf(stderr, "dag: bad path '%.*s', skip\n",
+                            (int)$len(dname), (char *)dname[0]);
+                    continue;
+                }
+            }
             u8csMv(old_ents[on].name, file);
             u8csMv(old_ents[on].sha, sha);
             u8csMv(old_ents[on].mode, file);
@@ -650,6 +660,15 @@ static ok64 dag_tree_diff_r(keeper *k, u8cs old_tree, u8cs new_tree,
         a_dup(u8c, scan, new_tree);
         u8cs file = {}, sha = {};
         while (nn < TREE_MAX && GITu8sDrainTree(scan, file, sha) == OK) {
+            u8cs dn = {file[0], file[1]};
+            if (u8csFind(dn, ' ') == OK) {
+                u8cs dname = {dn[0] + 1, file[1]};
+                if (DPATHVerify(dname) != OK) {
+                    fprintf(stderr, "dag: bad path '%.*s', skip\n",
+                            (int)$len(dname), (char *)dname[0]);
+                    continue;
+                }
+            }
             u8csMv(new_ents[nn].name, file);
             u8csMv(new_ents[nn].sha, sha);
             u8csMv(new_ents[nn].mode, file);

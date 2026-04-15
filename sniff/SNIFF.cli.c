@@ -187,7 +187,12 @@ static ok64 sniff_checkout(sniff *s, u8cs reporoot, u8cs hex) {
     sane(s && $ok(hex));
     keeper k = {};
     call(KEEPOpen, &k, reporoot);
-    ok64 o = GETCheckout(s, &k, reporoot, hex);
+    // bare hex SHA, build ?hex as source
+    a_pad(u8, src, 256);
+    u8bFeed1(src, '?');
+    u8bFeed(src, hex);
+    a_dup(u8c, source, u8bData(src));
+    ok64 o = GETCheckout(s, &k, reporoot, hex, source);
     KEEPClose(&k);
     return o;
 }
@@ -212,8 +217,13 @@ static ok64 SNIFFGetURI(sniff *s, u8cs reporoot, uri *u) {
         ref_to_resolve[1] = head_uri[1];
     } else if (!$empty(u->path)) {
         // Bare hex SHA — checkout directly
+        a_pad(u8, src, 256);
+        u8bFeed1(src, '?');
+        u8bFeed(src, u->path);
+        a_dup(u8c, source, u8bData(src));
+        ok64 o = GETCheckout(s, &k, reporoot, u->path, source);
         KEEPClose(&k);
-        return sniff_checkout(s, reporoot, u->path);
+        return o;
     } else {
         KEEPClose(&k);
         fail(SNIFFFAIL);
@@ -224,14 +234,16 @@ static ok64 SNIFFGetURI(sniff *s, u8cs reporoot, uri *u) {
     uri resolved = {};
     ok64 o = REFSResolve(&resolved, arena, keepdir, ref_to_resolve);
     if (o == OK && !$empty(resolved.query)) {
-        o = GETCheckout(s, &k, reporoot, resolved.query);
+        o = GETCheckout(s, &k, reporoot, resolved.query,
+                        ref_to_resolve);
         KEEPClose(&k);
         return o;
     }
 
     // Resolve failed — try query as raw hex
     if (!$empty(u->query)) {
-        o = GETCheckout(s, &k, reporoot, u->query);
+        o = GETCheckout(s, &k, reporoot, u->query,
+                        ref_to_resolve);
         KEEPClose(&k);
         return o;
     }

@@ -21,6 +21,7 @@
 #include "abc/PATH.h"
 #include "abc/PRO.h"
 #include "abc/RON.h"
+#include "dog/DPATH.h"
 #include "dog/HOME.h"
 
 // kv64 templates for LSM
@@ -523,6 +524,17 @@ static ok64 keep_verify_sha(keeper *k, sha1 expected_sha,
             // Skip gitlinks (submodule refs) — mode 160000, commit in another repo
             if ($len(entry_field) > 6 && memcmp(entry_field[0], "160000", 6) == 0)
                 continue;
+            {
+                u8cs vscan = {entry_field[0], entry_field[1]};
+                if (u8csFind(vscan, ' ') == OK) {
+                    u8cs vname = {vscan[0] + 1, entry_field[1]};
+                    if (DPATHVerify(vname) != OK) {
+                        fprintf(stderr, "  bad path '%.*s', skip\n",
+                                (int)$len(vname), (char *)vname[0]);
+                        continue;
+                    }
+                }
+            }
             sha1 child_sha = {};
             memcpy(child_sha.data, entry_sha[0], 20);
             o = keep_verify_sha(k, child_sha, checked, failed);
@@ -1010,6 +1022,12 @@ static ok64 keep_walk_tree(keeper *k, u8csc tree_sha,
             u8csMv(name, ef);
         } else {
             u8csMv(name, entry_field);
+        }
+
+        if (DPATHVerify(name) != OK) {
+            fprintf(stderr, "  bad path '%.*s', skip\n",
+                    (int)$len(name), (char *)name[0]);
+            continue;
         }
 
         // Is this a subtree? mode starts with "40" (40000)

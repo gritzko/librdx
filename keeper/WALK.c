@@ -3,6 +3,7 @@
 #include "WALK.h"
 
 #include "DELT.h"
+#include "dog/DPATH.h"
 #include "GIT.h"
 #include "PACK.h"
 #include "SHA1.h"
@@ -376,6 +377,15 @@ static ok64 walk_tree_rec(walk *w, u8cp sha, walk_fn visit, void0p ctx,
     u8cs tree = {tcopy, tcopy + outsz};
     u8cs file = {}, esha = {};
     while (GITu8sDrainTree(tree, file, esha) == OK) {
+        u8cs wscan = {file[0], file[1]};
+        if (u8csFind(wscan, ' ') == OK) {
+            u8cs wname = {wscan[0] + 1, file[1]};
+            if (DPATHVerify(wname) != OK) {
+                fprintf(stderr, "walk: bad path '%.*s', skip\n",
+                        (int)$len(wname), (char *)wname[0]);
+                continue;
+            }
+        }
         walk_tree_rec(w, esha[0], visit, ctx, seen);
     }
     free(tcopy);
@@ -725,6 +735,12 @@ ok64 WALKCheckout(walk *w, u8cp tree_sha, u8cs dest) {
         if (p >= e) continue;
         u8cs mode_s = {file[0], p};
         u8cs name_s = {p + 1, e};
+
+        if (DPATHVerify(name_s) != OK) {
+            fprintf(stderr, "walk: bad path '%.*s', skip\n",
+                    (int)$len(name_s), (char *)name_s[0]);
+            continue;
+        }
 
         // check if directory (mode starts with '4')
         b8 is_dir = (*mode_s[0] == '4');

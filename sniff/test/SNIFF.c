@@ -208,7 +208,7 @@ ok64 SNIFFCheckoutCommit() {
     sniff s = {};
     call(SNIFFOpen, &s, root, YES);
     u8cs hex = {u8bDataHead(commit_hex), u8bIdleHead(commit_hex)};
-    call(GETCheckout, &s, &k, root, hex);
+    u8cs no_src_ = {}; call(GETCheckout, &s, &k, root, hex, no_src_);
 
     // Verify file exists
     a_path(fp, root);
@@ -449,7 +449,7 @@ ok64 SNIFFRoundTrip() {
     // 2. GET: checkout initial commit
     sniff s = {};
     call(SNIFFOpen, &s, root, YES);
-    call(GETCheckout, &s, &k, root, c1h);
+    u8cs no_src1 = {}; call(GETCheckout, &s, &k, root, c1h, no_src1);
 
     call(check_file, root, "a.txt", "alpha\n");
     call(check_file, root, "b.txt", "bravo\n");
@@ -526,7 +526,7 @@ ok64 SNIFFRoundTrip() {
     }
 
     call(SNIFFOpen, &s, root, YES);
-    call(GETCheckout, &s, &k, root, c2h);
+    u8cs no_src2 = {}; call(GETCheckout, &s, &k, root, c2h, no_src2);
 
     call(check_file, root, "a.txt", "ALPHA MODIFIED\n");
     call(check_file, root, "b.txt", "bravo\n");
@@ -579,7 +579,7 @@ ok64 SNIFFRoundTrip() {
         u8cs c3h = {u8bDataHead(c3_hex), u8bIdleHead(c3_hex)};
 
         // 7. GET the delete commit
-        call(GETCheckout, &s, &k, root, c3h);
+        u8cs no_src3 = {}; call(GETCheckout, &s, &k, root, c3h, no_src3);
 
         call(check_file, root, "a.txt", "ALPHA MODIFIED\n");
         want(file_gone(root, "b.txt"));
