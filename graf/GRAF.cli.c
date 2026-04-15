@@ -19,10 +19,12 @@
 #include <signal.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/file.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
 #include "abc/FILE.h"
+#include "abc/PATH.h"
 #include "abc/PRO.h"
 #include "dog/CLI.h"
 #include "dog/HUNK.h"
@@ -209,7 +211,16 @@ ok64 grafcli() {
     ok64 ret = OK;
 
     if ($eq(c.verb, v_get) || $eq(c.verb, v_index)) {
+        // Serialize: wait for any previous graf instance to finish
+        a_path(lockpath, reporoot);
+        a_cstr(lockrel, "/.dogs/graf/lock");
+        u8bFeed(lockpath, lockrel);
+        PATHu8gTerm(PATHu8gIn(lockpath));
+        int lockfd = open((char *)u8bDataHead(lockpath),
+                          O_CREAT | O_RDWR, 0644);
+        if (lockfd >= 0) flock(lockfd, LOCK_EX);
         ret = DAGHook(&k, reporoot);
+        if (lockfd >= 0) close(lockfd);
 
     } else if ($eq(c.verb, v_blame)) {
         if (c.nuris < 1) {

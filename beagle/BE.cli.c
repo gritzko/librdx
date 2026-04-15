@@ -41,9 +41,9 @@ static void BEUsage(void) {
     );
 }
 
-// --- Run a sibling tool, wait for completion ---
+// --- Run a sibling tool ---
 
-static ok64 BERun(const char *tool, char *const argv[]) {
+static ok64 BERun(const char *tool, char *const argv[], b8 bg) {
     sane(tool != NULL && argv != NULL);
     char path[FILE_PATH_MAX_LEN];
     a$rg(a0, 0);
@@ -54,6 +54,7 @@ static ok64 BERun(const char *tool, char *const argv[]) {
         execv(path, argv);
         _exit(127);
     }
+    if (bg) done;
     int st = 0;
     waitpid(pid, &st, 0);
     if (WIFEXITED(st) && WEXITSTATUS(st) != 0)
@@ -104,9 +105,11 @@ static u32 BEReadDogs(char out[][64], u32 maxn) {
 typedef struct {
     char const *dog;
     char const *verb;
+    b8 bg;             // run in background (don't wait)
 } dog_step;
 
-static ok64 BEDispatch(cli *c, dog_step const *steps, u32 nsteps) {
+static ok64 BEDispatch(cli *c, dog_step const *steps, u32 nsteps,
+                        b8 seq) {
     sane(c && steps);
     for (u32 i = 0; i < nsteps; i++) {
         // argv: dog verb [flags...] [URIs...]
@@ -120,55 +123,55 @@ static ok64 BEDispatch(cli *c, dog_step const *steps, u32 nsteps) {
         for (u32 j = 0; j < c->nuris; j++)
             argv[ac++] = (char *)c->uris[j].data[0];
         argv[ac] = NULL;
-        call(BERun, steps[i].dog, argv);
+        call(BERun, steps[i].dog, argv, seq ? NO : steps[i].bg);
     }
     done;
 }
 
-static ok64 BEGet(cli *c) {
+static ok64 BEGet(cli *c, b8 seq) {
     sane(c);
     static dog_step const steps[] = {
-        {"keeper", "get"},
-        {"sniff",  "get"},
-        {"spot",   "get"},
-        {"graf",   "get"},
+        {"keeper", "get",  NO},
+        {"sniff",  "get",  NO},
+        {"spot",   "get",  NO},
+        {"graf",   "get",  YES},
     };
     // Skip keeper fetch if no remote (no authority)
     uri *u = (c->nuris > 0) ? &c->uris[0] : NULL;
     u32 start = (u != NULL && !$empty(u->authority)) ? 0 : 1;
-    return BEDispatch(c, steps + start, 4 - start);
+    return BEDispatch(c, steps + start, 4 - start, seq);
 }
 
-static ok64 BEPost(cli *c) {
+static ok64 BEPost(cli *c, b8 seq) {
     sane(c);
     static dog_step const steps[] = {
-        {"sniff",  "post"},
-        {"keeper", "put"},
-        {"spot",   "get"},
-        {"graf",   "get"},
+        {"sniff",  "post", NO},
+        {"keeper", "put",  NO},
+        {"spot",   "get",  NO},
+        {"graf",   "get",  YES},
     };
-    return BEDispatch(c, steps, 4);
+    return BEDispatch(c, steps, 4, seq);
 }
 
-static ok64 BEPut(cli *c) {
+static ok64 BEPut(cli *c, b8 seq) {
     sane(c);
     static dog_step const steps[] = {
-        {"sniff",  "put"},
-        {"keeper", "put"},
-        {"spot",   "get"},
-        {"graf",   "get"},
+        {"sniff",  "put",  NO},
+        {"keeper", "put",  NO},
+        {"spot",   "get",  NO},
+        {"graf",   "get",  YES},
     };
-    return BEDispatch(c, steps, 4);
+    return BEDispatch(c, steps, 4, seq);
 }
 
-static ok64 BEDelete(cli *c) {
+static ok64 BEDelete(cli *c, b8 seq) {
     sane(c);
     static dog_step const steps[] = {
-        {"sniff",  "delete"},
-        {"spot",   "get"},
-        {"graf",   "get"},
+        {"sniff",  "delete", NO},
+        {"spot",   "get",    NO},
+        {"graf",   "get",    YES},
     };
-    return BEDispatch(c, steps, 3);
+    return BEDispatch(c, steps, 3, seq);
 }
 
 // --- Bare `be`: --update all dogs, then --status each ---
@@ -185,11 +188,11 @@ static ok64 BEDefault(void) {
     }
     for (u32 i = 0; i < ndogs; i++) {
         char *argv[] = {dogs[i], "--update", NULL};
-        BERun(dogs[i], argv);
+        BERun(dogs[i], argv, NO);
     }
     for (u32 i = 0; i < ndogs; i++) {
         char *argv[] = {dogs[i], "--status", NULL};
-        BERun(dogs[i], argv);
+        BERun(dogs[i], argv, NO);
     }
     done;
 }
@@ -230,6 +233,8 @@ ok64 becli() {
     if (u != NULL && !$empty(u->fragment))
         FRAGu8sDrain(u->fragment, &fr);
 
+    b8 seq = CLIHas(&c, "--seq");
+
     // No verb → view/search mode
     if ($empty(verb)) {
         if (u != NULL && (fr.type == FRAG_SPOT || fr.type == FRAG_PCRE ||
@@ -239,25 +244,25 @@ ok64 becli() {
             snprintf(uri_z, sizeof(uri_z), "%.*s",
                      (int)$len(u->data), (char *)u->data[0]);
             char *argv[] = {"spot", uri_z, NULL};
-            call(BERun, "spot", argv);
+            call(BERun, "spot", argv, NO);
         } else if (u != NULL && !$empty(u->path)) {
             // View → bro
             char uri_z[FILE_PATH_MAX_LEN] = {};
             snprintf(uri_z, sizeof(uri_z), "%.*s",
                      (int)$len(u->data), (char *)u->data[0]);
             char *argv[] = {"bro", uri_z, NULL};
-            call(BERun, "bro", argv);
+            call(BERun, "bro", argv, NO);
         } else {
             call(BEDefault);
         }
     } else if ($eq(verb, v_get)) {
-        call(BEGet, &c);
+        call(BEGet, &c, seq);
     } else if ($eq(verb, v_post)) {
-        call(BEPost, &c);
+        call(BEPost, &c, seq);
     } else if ($eq(verb, v_put)) {
-        call(BEPut, &c);
+        call(BEPut, &c, seq);
     } else if ($eq(verb, v_delete)) {
-        call(BEDelete, &c);
+        call(BEDelete, &c, seq);
     } else if ($eq(verb, v_status)) {
         call(BEDefault);
     } else if ($eq(verb, v_diff)) {
