@@ -244,11 +244,11 @@ ok64 KEEPLookup(keeper *k, u64 hashlet60, size_t hexlen, u64p val) {
     if (hexlen > 15) hexlen = 15;
     u64 nbits = hexlen * 4;
     u64 shift = 60 - nbits;
-    u64 hmask = shift < 60 ? (KEEP_HASHLET_MASK >> shift) << shift : KEEP_HASHLET_MASK;
+    u64 hmask = shift < 60 ? (WHIFF_HASHLET60_MASK >> shift) << shift : WHIFF_HASHLET60_MASK;
     u64 hpre = hashlet60 & hmask;
 
     u64 key_lo = keepKeyPack(0, hpre);
-    u64 key_hi = keepKeyPack(0xf, hpre | (~hmask & KEEP_HASHLET_MASK));
+    u64 key_hi = keepKeyPack(0xf, hpre | (~hmask & WHIFF_HASHLET60_MASK));
 
     for (u32 r = 0; r < k->nruns; r++) {
         kv64cp base = k->runs[r][0];
@@ -335,7 +335,7 @@ ok64 KEEPGet(keeper *k, u64 hashlet, size_t hexlen, u8bp out, u8p out_type) {
             cur = cur - obj.ofs_delta;
         } else if (obj.type == PACK_OBJ_REF_DELTA) {
             // Look up base by SHA-1 prefix
-            u64 base_hashlet = keepHashlet60(obj.ref_delta);
+            u64 base_hashlet = WHIFFHashlet60((sha1cp)obj.ref_delta[0]);
             u64 base_val = 0;
             rc = KEEPLookup(k, base_hashlet, 10, &base_val);
             if (rc != OK) goto cleanup;
@@ -423,7 +423,7 @@ static void verify_mark(u64 hashlet) {
 
 static ok64 keep_verify_sha(keeper *k, sha1 expected_sha,
                              u32 *checked, u32 *failed) {
-    u64 hashlet = ({ a_rawc(_s, expected_sha); keepHashlet60(_s); });
+    u64 hashlet = WHIFFHashlet60(&expected_sha);
     if (verify_seen(hashlet)) return OK;  // already verified
     verify_mark(hashlet);
 
@@ -437,9 +437,10 @@ static ok64 keep_verify_sha(keeper *k, sha1 expected_sha,
 
     ok64 rc = KEEPGet(k, hashlet, 15, obj, &obj_type);
     if (rc != OK) {
-        char hex[12];
-        keepHashlet60Hex(hex, hashlet, 10);
-        fprintf(stderr, "  MISS: %s\n", hex);
+        a_pad(u8, hex, 16);
+        WHIFFHexFeed60(hex_idle, hashlet);
+        u8bFeed1(hex, 0);
+        fprintf(stderr, "  MISS: %s\n", (char *)u8bDataHead(hex));
         (*failed)++;
         free(objmem);
         return rc;
@@ -472,10 +473,14 @@ static ok64 keep_verify_sha(keeper *k, sha1 expected_sha,
     free(tmp);
 
     if (sha1cmp(&actual_sha, &expected_sha) != 0) {
-        char hex_exp[12], hex_got[12];
-        keepHashlet60Hex(hex_exp, ({ a_rawc(_s, expected_sha); keepHashlet60(_s); }), 10);
-        keepHashlet60Hex(hex_got, ({ a_rawc(_s, actual_sha); keepHashlet60(_s); }), 10);
-        fprintf(stderr, "  HASH MISMATCH: expected %s got %s\n", hex_exp, hex_got);
+        a_pad(u8, hex_exp, 16);
+        WHIFFHexFeed60(hex_exp_idle, WHIFFHashlet60(&expected_sha));
+        u8bFeed1(hex_exp, 0);
+        a_pad(u8, hex_got, 16);
+        WHIFFHexFeed60(hex_got_idle, WHIFFHashlet60(&actual_sha));
+        u8bFeed1(hex_got, 0);
+        fprintf(stderr, "  HASH MISMATCH: expected %s got %s\n",
+                (char *)u8bDataHead(hex_exp), (char *)u8bDataHead(hex_got));
         (*failed)++;
         u8bUnMap(obj);
         return KEEPFAIL;
@@ -498,9 +503,11 @@ static ok64 keep_verify_sha(keeper *k, sha1 expected_sha,
                 HEXu8sDrainSome(sb, hx);
                 ok64 o = keep_verify_sha(k, tree_sha, checked, failed);
                 if (o != OK) {
-                    char hex[12];
-                    keepHashlet60Hex(hex, ({ a_rawc(_s, tree_sha); keepHashlet60(_s); }), 10);
-                    fprintf(stderr, "  tree %s verify failed\n", hex);
+                    a_pad(u8, hex, 16);
+                    WHIFFHexFeed60(hex_idle, WHIFFHashlet60(&tree_sha));
+                    u8bFeed1(hex, 0);
+                    fprintf(stderr, "  tree %s verify failed\n",
+                            (char *)u8bDataHead(hex));
                 }
                 break;
             }
@@ -520,9 +527,11 @@ static ok64 keep_verify_sha(keeper *k, sha1 expected_sha,
             memcpy(child_sha.data, entry_sha[0], 20);
             o = keep_verify_sha(k, child_sha, checked, failed);
             if (o != OK) {
-                char hex[12];
-                keepHashlet60Hex(hex, ({ a_rawc(_s, child_sha); keepHashlet60(_s); }), 10);
-                fprintf(stderr, "  child %s verify failed\n", hex);
+                a_pad(u8, hex, 16);
+                WHIFFHexFeed60(hex_idle, WHIFFHashlet60(&child_sha));
+                u8bFeed1(hex, 0);
+                fprintf(stderr, "  child %s verify failed\n",
+                        (char *)u8bDataHead(hex));
             }
         }
     } else if (obj_type == KEEP_OBJ_TAG) {
@@ -610,7 +619,7 @@ ok64 KEEPScan(keeper *k, u64 from_val, keep_cb cb, void *ctx) {
                 // FIXME: proper SHA requires inflate+hash
                 // FIXME: compute proper git object SHA-1 (header + content)
 
-                u64 hashlet = ({ a_rawc(_s, sha); keepHashlet60(_s); });
+                u64 hashlet = WHIFFHashlet60(&sha);
                 u8cs content = {buf, buf + obj.size};
                 o = cb(obj.type, content, hashlet, ctx);
                 if (o != OK) break;
@@ -744,7 +753,7 @@ ok64 KEEPPackFeed(keeper *k, keep_pack *p,
     u8bFed(p->log, (size_t)produced);
 
     // Build index entry
-    u64 hashlet = ({ a_rawc(_s, *sha_out); keepHashlet60(_s); });
+    u64 hashlet = WHIFFHashlet60(sha_out);
     kv64 entry = {
         .key = keepKeyPack(type, hashlet),
         .val = wh64Pack(KEEP_VAL_FLAGS, p->file_id, obj_offset),
@@ -848,7 +857,7 @@ ok64 KEEPPut(keeper *k, u8csc *objects, wh64 *whiffs, u32 nobjs) {
             kv64bFree(p.entries);
             return o;
         }
-        u64 hashlet = ({ a_rawc(_s, sha); keepHashlet60(_s); });
+        u64 hashlet = WHIFFHashlet60(&sha);
         whiffs[i] = wh64Pack(type, p.file_id, hashlet);
     }
 
@@ -868,7 +877,7 @@ static ok64 keep_resolve_tree(keeper *k, uricp target, sha1 *tree_sha) {
     // Try fragment (#hash) or query (?ref)
     if (!u8csEmpty(target->fragment)) {
         // Fragment = hex SHA prefix
-        u64 hashlet = keepHashlet60FromHex(target->fragment);
+        u64 hashlet = WHIFFHexHashlet60(target->fragment);
         u8 type = 0;
         u8bReset(k->buf1);
         call(KEEPGet, k, hashlet, u8csLen(target->fragment), k->buf1, &type);
@@ -928,7 +937,7 @@ static ok64 keep_resolve_tree(keeper *k, uricp target, sha1 *tree_sha) {
         if (!found) fail(KEEPNONE);
 
         // Get commit, extract tree SHA
-        u64 hashlet = ({ a_rawc(_s, commit_sha); keepHashlet60(_s); });
+        u64 hashlet = WHIFFHashlet60(&commit_sha);
         u8 type = 0;
         u8bReset(k->buf1);
         call(KEEPGet, k, hashlet, 15, k->buf1, &type);
@@ -948,7 +957,7 @@ static ok64 keep_resolve_tree(keeper *k, uricp target, sha1 *tree_sha) {
                     break;
                 }
             }
-            hashlet = ({ a_rawc(_s, commit_sha); keepHashlet60(_s); });
+            hashlet = WHIFFHashlet60(&commit_sha);
             u8bReset(k->buf1);
             call(KEEPGet, k, hashlet, 15, k->buf1, &type);
         }
@@ -975,7 +984,7 @@ static ok64 keep_resolve_tree(keeper *k, uricp target, sha1 *tree_sha) {
 static ok64 keep_walk_tree(keeper *k, u8csc tree_sha,
                            u8bp pathbuf, uricp base_uri,
                            KEEP_WALK mode, keep_walk_f cb, voidp ctx) {
-    u64 hashlet = keepHashlet60(tree_sha);
+    u64 hashlet = WHIFFHashlet60((sha1cp)tree_sha[0]);
     u8 type = 0;
     u8bReset(k->buf3);
     ok64 o = KEEPGet(k, hashlet, 15, k->buf3, &type);
@@ -1055,7 +1064,7 @@ static ok64 keep_walk_tree(keeper *k, u8csc tree_sha,
             if (mode & KEEP_WALK_CONTENT) {
                 u8bReset(k->buf4);
                 u8 btype = 0;
-                u64 bhash = keepHashlet60(entry_sha);
+                u64 bhash = WHIFFHashlet60((sha1cp)entry_sha[0]);
                 ok64 go = KEEPGet(k, bhash, 15, k->buf4, &btype);
                 if (go == OK) {
                     content[0] = u8bDataHead(k->buf4);
@@ -1174,8 +1183,8 @@ ok64 KEEPImport(keeper *k, u8cs pack_path) {
     if (!entries) { FILEUnMap(pack_map); FILEUnMap(idx_map); failc(KEEPNOROOM); }
 
     for (u32 i = 0; i < nobjects; i++) {
-        u8cp sha = sha_table + (u64)i * 20;
-        u64 hashlet = ({ a_rawc(_s, sha); keepHashlet60(_s); });
+        sha1cp sha = (sha1cp)(sha_table + (u64)i * 20);
+        u64 hashlet = WHIFFHashlet60(sha);
 
         // 4-byte offset (BE), high bit = large offset flag
         u8cp offp = off_table + (u64)i * 4;
@@ -1314,7 +1323,7 @@ static ok64 keep_resolve(keeper *k, u8cp pack_init, u64 packlen_init,
                 found = YES;
             }
             if (!found) {
-                u64 hashlet = keepHashlet60(obj.ref_delta);
+                u64 hashlet = WHIFFHashlet60((sha1cp)obj.ref_delta[0]);
                 u64 lsm_val = 0;
                 ok64 o = KEEPLookup(k, hashlet, 10, &lsm_val);
                 if (o != OK) return o;
@@ -1742,7 +1751,7 @@ ok64 KEEPSync(keeper *k, u8cs remote,
             HASHkv64Put(ht, &entry);
             // Emit to sorted_entries
             sorted_entries[total_indexed].key =
-                keepKeyPack(types_arr[i], ({ a_rawc(_s, sha); keepHashlet60(_s); }));
+                keepKeyPack(types_arr[i], WHIFFHashlet60(&sha));
             sorted_entries[total_indexed].val =
                 wh64Pack(KEEP_VAL_FLAGS, file_id, offsets[i]);
             total_indexed++;
@@ -1875,7 +1884,7 @@ ok64 KEEPSync(keeper *k, u8cs remote,
                     // Emit
                     { u8csc _c = {rstart, rstart + rsz}; keep_git_sha1(&sha, stk[0].base_type, _c); }
                     sorted_entries[total_indexed].key =
-                        keepKeyPack(stk[0].base_type, ({ a_rawc(_s, sha); keepHashlet60(_s); }));
+                        keepKeyPack(stk[0].base_type, WHIFFHashlet60(&sha));
                     sorted_entries[total_indexed].val =
                         wh64Pack(KEEP_VAL_FLAGS, file_id, offsets[child - 1]);
                     total_indexed++;
@@ -1930,7 +1939,7 @@ ok64 KEEPSync(keeper *k, u8cs remote,
                 if (PACKDrainObjHdr(from, &obj) != OK) continue;
 
                 // Look up base in full keeper index (previous packs)
-                u64 base_hashlet = keepHashlet60(obj.ref_delta);
+                u64 base_hashlet = WHIFFHashlet60((sha1cp)obj.ref_delta[0]);
                 u8 base_type = 0;
                 u8bReset(k->buf3);
                 ok64 go = KEEPGet(k, base_hashlet, 15, k->buf3, &base_type);
@@ -1956,7 +1965,7 @@ ok64 KEEPSync(keeper *k, u8cs remote,
                 sha1 sha = {};
                 { u8csc _c = {rstart, rstart + rsz}; keep_git_sha1(&sha, base_type, _c); }
                 sorted_entries[total_indexed].key =
-                    keepKeyPack(base_type, ({ a_rawc(_s, sha); keepHashlet60(_s); }));
+                    keepKeyPack(base_type, WHIFFHashlet60(&sha));
                 sorted_entries[total_indexed].val =
                     wh64Pack(KEEP_VAL_FLAGS, file_id, offsets[i]);
                 total_indexed++;

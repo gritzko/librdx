@@ -241,7 +241,7 @@ static ok64 keeper_get_object(keeper *k, u8cs prefix) {
         return KEEPFAIL;
     }
     size_t hexlen = u8csLen(prefix);
-    u64 hashlet = keepHashlet60FromHex(prefix);
+    u64 hashlet = WHIFFHexHashlet60(prefix);
     Bu8 out = {};
     call(u8bMap, out, 64UL << 20);
     u8 obj_type = 0;

@@ -61,20 +61,6 @@ fun void sha1slice(u8csp out, sha1 const *s) {
     out[1] = s->data + 20;
 }
 
-// --- WHIFF hashlet convenience ---
-
-#include "dog/WHIFF.h"
-
-fun u64 wh64Sha1Hashlet(sha1 const *s) {
-    a_rawc(_r, *s);
-    return wh64Hashlet(_r);
-}
-
-fun u64 wh64Sha1Hashlet60(sha1 const *s) {
-    a_rawc(_r, *s);
-    return wh64Hashlet60(_r);
-}
-
 // --- ABC type system ---
 
 #define X(M, n) M##sha1##n
