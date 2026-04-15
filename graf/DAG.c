@@ -622,11 +622,11 @@ static b8 dag_parse_diff_rec(char const *rec, size_t rlen,
 // For changed/added/deleted blobs, calls the callback.
 
 typedef ok64 (*tree_diff_cb)(char const *path, size_t pathlen,
-                              u64 old_blob_h, u64 new_blob_h, voidp ctx);
+                              u64 old_blob_h, u64 new_blob_h, void0p ctx);
 
 static ok64 dag_tree_diff_r(keeper *k, u8cs old_tree, u8cs new_tree,
                              char *pathbuf, size_t pathoff, size_t pathcap,
-                             tree_diff_cb cb, voidp ctx) {
+                             tree_diff_cb cb, void0p ctx) {
     // Collect entries from both trees into parallel arrays
     // git tree entry: "<mode> <name>\0<20-byte-sha>"
     #define TREE_MAX 4096
@@ -751,7 +751,7 @@ typedef struct {
 } dag_diff_ctx;
 
 static ok64 dag_diff_cb(char const *path, size_t pathlen,
-                         u64 old_blob_h, u64 new_blob_h, voidp arg) {
+                         u64 old_blob_h, u64 new_blob_h, void0p arg) {
     dag_diff_ctx *ctx = (dag_diff_ctx *)arg;
     if (pathlen == 0 || new_blob_h == 0) return OK;
 

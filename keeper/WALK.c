@@ -273,7 +273,7 @@ static ok64 push_parents(walk *w, walk_heap *q, walk_seen *seen,
 // --- WALKCommits ---
 
 ok64 WALKCommits(walk *w, u8cp head_sha, u8cp stop_sha,
-                 walk_fn visit, voidp ctx) {
+                 walk_fn visit, void0p ctx) {
     sane(w && head_sha && visit);
 
     walk_seen seen = {};
@@ -341,7 +341,7 @@ ok64 WALKCommits(walk *w, u8cp head_sha, u8cp stop_sha,
 
 // --- WALKTree ---
 
-static ok64 walk_tree_rec(walk *w, u8cp sha, walk_fn visit, voidp ctx,
+static ok64 walk_tree_rec(walk *w, u8cp sha, walk_fn visit, void0p ctx,
                            walk_seen *seen) {
     sane(w && sha && visit);
 
@@ -382,7 +382,7 @@ static ok64 walk_tree_rec(walk *w, u8cp sha, walk_fn visit, voidp ctx,
     done;
 }
 
-ok64 WALKTree(walk *w, u8cp tree_sha, walk_fn visit, voidp ctx) {
+ok64 WALKTree(walk *w, u8cp tree_sha, walk_fn visit, void0p ctx) {
     sane(w && tree_sha && visit);
     walk_seen seen = {};
     call(seen_init, &seen);
@@ -555,7 +555,7 @@ found:
 // --- WALKMissing ---
 
 ok64 WALKMissing(walk *w, u8cp head_sha, u8cp base_sha,
-                 walk_fn visit, voidp ctx) {
+                 walk_fn visit, void0p ctx) {
     sane(w && head_sha && visit);
 
     // First: find all commit hashlets reachable from base

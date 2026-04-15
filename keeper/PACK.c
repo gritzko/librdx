@@ -85,17 +85,13 @@ ok64 PACKDrainObjHdr(u8cs from, pack_obj *obj) {
 
 ok64 PACKInflate(u8cs from, u8s into, u64 size) {
     sane(u8csOK(from) && u8sOK(into));
-    if ((u64)$size(into) < size) return NOROOM;
+    if ((u64)u8sLen(into) < size) return NOROOM;
 
-    u64 consumed = 0, produced = 0;
-    int r = ZINFInflate(from[0], $size(from),
-                        into[0], size,
-                        &consumed, &produced);
-    if (r == -1) return PACKFAIL;
-    if (r == -2) return PACKBADOBJ;
-
-    from[0] += consumed;
-    into[0] += produced;
+    a_dup(u8, trimmed, into);
+    u8sShed(trimmed, u8sLen(trimmed) - size);
+    ok64 o = ZINFInflate(trimmed, from);
+    if (o != OK) return PACKBADOBJ;
+    u8sJoin(into, trimmed);
 
     done;
 }

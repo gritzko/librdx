@@ -31,7 +31,7 @@ typedef struct {
 
 //  Visitor callback: called with (hashlet, type, content, ctx).
 //  Return OK to continue walking, anything else to stop.
-typedef ok64 (*walk_fn)(u64 hashlet, u8 type, u8cs content, voidp ctx);
+typedef ok64 (*walk_fn)(u64 hashlet, u8 type, u8cs content, void0p ctx);
 
 //  Open a walker on a belt directory. Mmaps log + all index runs.
 ok64 WALKOpen(walk *w, u8cs belt_dir);
@@ -54,11 +54,11 @@ ok64 WALKCommitTree(u8cs commit, u8 tree_sha[20]);
 //  Stops at stop_sha (exclusive); pass NULL for full history.
 //  Uses gen numbers for early BFS termination.
 ok64 WALKCommits(walk *w, u8cp head_sha, u8cp stop_sha,
-                 walk_fn visit, voidp ctx);
+                 walk_fn visit, void0p ctx);
 
 //  Walk tree at tree_sha (20-byte) recursively, depth-first.
 //  Visits every blob and subtree.
-ok64 WALKTree(walk *w, u8cp tree_sha, walk_fn visit, voidp ctx);
+ok64 WALKTree(walk *w, u8cp tree_sha, walk_fn visit, void0p ctx);
 
 //  Find common ancestor of two commits (20-byte SHA-1s).
 //  Uses gen-based pruning for simultaneous BFS.
@@ -68,7 +68,7 @@ ok64 WALKAncestor(walk *w, u8cp sha_a, u8cp sha_b, u8 out[20]);
 //  Enumerate objects reachable from head but not from base.
 //  Visits commits, trees, and blobs in the difference set.
 ok64 WALKMissing(walk *w, u8cp head_sha, u8cp base_sha,
-                 walk_fn visit, voidp ctx);
+                 walk_fn visit, void0p ctx);
 
 //  Materialize a tree into a directory on the filesystem.
 ok64 WALKCheckout(walk *w, u8cp tree_sha, u8cs dest);

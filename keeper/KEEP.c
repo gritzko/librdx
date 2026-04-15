@@ -745,12 +745,10 @@ ok64 KEEPPackFeed(keeper *k, keep_pack *p,
     u64 clen = u8csLen(content);
     u64 need = clen + 256;
     call(FILEBookEnsure, p->log, need);
-    u64 produced = 0;
-    int zr = ZINFDeflate(content[0], clen,
-                         u8bIdleHead(p->log), u8bIdleLen(p->log),
-                         &produced);
-    if (zr != 0) fail(KEEPFAIL);
-    u8bFed(p->log, (size_t)produced);
+    u64 idle_before = u8bIdleLen(p->log);
+    a_dup(u8c, zsrc, content);
+    call(ZINFDeflate, u8bIdle(p->log), zsrc);
+    u8bFed(p->log, idle_before - u8bIdleLen(p->log));
 
     // Build index entry
     u64 hashlet = WHIFFHashlet60(sha_out);
@@ -983,7 +981,7 @@ static ok64 keep_resolve_tree(keeper *k, uricp target, sha1 *tree_sha) {
 // Recursive tree walk
 static ok64 keep_walk_tree(keeper *k, u8csc tree_sha,
                            u8bp pathbuf, uricp base_uri,
-                           KEEP_WALK mode, keep_walk_f cb, voidp ctx) {
+                           KEEP_WALK mode, keep_walk_f cb, void0p ctx) {
     u64 hashlet = WHIFFHashlet60((sha1cp)tree_sha[0]);
     u8 type = 0;
     u8bReset(k->buf3);
@@ -1084,7 +1082,7 @@ static ok64 keep_walk_tree(keeper *k, u8csc tree_sha,
 }
 
 ok64 KEEPWalk(keeper *k, uricp target, KEEP_WALK mode,
-              keep_walk_f cb, voidp ctx) {
+              keep_walk_f cb, void0p ctx) {
     sane(k && target && cb);
 
     sha1 tree_sha = {};
@@ -1785,17 +1783,21 @@ got_pack:
         for (u32 i = 0; i < hdr.count; i++) {
             offsets[i] = scan[0] - packbase;
             pack_obj obj = {};
-            if (PACKDrainObjHdr(scan, &obj) != OK) break;
-            types_arr[i] = obj.type;
-            u64 consumed = 0, produced = 0;
-            u64 outsz = obj.size < KEEP_BUFSZ ? obj.size : KEEP_BUFSZ;
-            ZINFInflate(scan[0], $len(scan), buf1, outsz, &consumed, &produced);
-            if (consumed == 0) {
-                fprintf(stderr, "keeper: scan stall at %u (type %u size %llu)\n",
-                        i, obj.type, (unsigned long long)obj.size);
+            if (PACKDrainObjHdr(scan, &obj) != OK) {
+                fprintf(stderr, "keeper: scan hdr fail at %u off %llu remaining %llu\n",
+                        i, (unsigned long long)(scan[0] - packbase),
+                        (unsigned long long)$len(scan));
                 break;
             }
-            scan[0] += consumed;
+            types_arr[i] = obj.type;
+            ok64 zr = ZINFInflate(u8bIdle(k->buf1), scan);
+            if (zr != OK) {
+                fprintf(stderr, "keeper: scan inflate fail at %u: %s type=%u "
+                        "size=%llu remaining=%llu\n",
+                        i, ok64str(zr), obj.type, (unsigned long long)obj.size,
+                        (unsigned long long)u8csLen(scan));
+                break;
+            }
             scanned++;
         }
         if (scanned < hdr.count)
@@ -2055,14 +2057,15 @@ got_pack:
 
                 // Inflate this delta
                 u8bReset(k->buf4);
-                u64 consumed = 0, produced = 0;
                 if (obj.size > KEEP_BUFSZ / 2) continue;
-                ZINFInflate(from[0], u8csLen(from), u8bIdleHead(k->buf4),
-                            KEEP_BUFSZ / 2, &consumed, &produced);
+                u64 idle_before = u8bIdleLen(k->buf4);
+                if (ZINFInflate(u8bIdle(k->buf4), from) != OK) continue;
+                u64 produced = idle_before - u8bIdleLen(k->buf4);
                 if (produced == 0) continue;
+                u8bFed(k->buf4, produced);
 
                 // Apply delta
-                u8cs delta_sl = {u8bIdleHead(k->buf4), u8bIdleHead(k->buf4) + produced};
+                a_dup(u8c, delta_sl, u8bDataC(k->buf4));
                 a_dup(u8c, base_sl, u8bData(k->buf3));
                 u8p rstart = u8bIdleHead(k->buf1);
                 u8g aout = {rstart, rstart, u8bTerm(k->buf1)};

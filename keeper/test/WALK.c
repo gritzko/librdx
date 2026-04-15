@@ -121,7 +121,7 @@ ok64 WALKtest4() {
 static u32 commit_count;
 static u32 max_gen_seen;
 
-static ok64 count_commits(u64 hashlet, u8 type, u8cs content, voidp ctx) {
+static ok64 count_commits(u64 hashlet, u8 type, u8cs content, void0p ctx) {
     (void)hashlet; (void)content; (void)ctx;
     if (type == BELT_COMMIT) {
         commit_count++;

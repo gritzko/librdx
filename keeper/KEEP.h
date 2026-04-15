@@ -158,12 +158,12 @@ typedef enum {
 //  repo-relative filepath, query/authority from the input URI.
 //  content is non-empty only if KEEP_WALK_CONTENT is set.
 //  Return OK to continue, error to stop.
-typedef ok64 (*keep_walk_f)(voidp ctx, uricp entry, u8 obj_type, u8csc content);
+typedef ok64 (*keep_walk_f)(void0p ctx, uricp entry, u8 obj_type, u8csc content);
 
 //  Walk a git tree.  Resolves target URI:
 //    ?ref or #sha → commit → tree, then recurse.
 //    //alias?ref  → resolve alias, same.
 ok64 KEEPWalk(keeper *k, uricp target, KEEP_WALK mode,
-              keep_walk_f cb, voidp ctx);
+              keep_walk_f cb, void0p ctx);
 
 #endif

@@ -76,7 +76,7 @@ static ok64 sniff_rm_pid(u8cs reporoot) {
 
 typedef struct { int wfd; u32 count; } watchdir_ctx;
 
-static ok64 sniff_watchdir_cb(voidp arg, path8p path) {
+static ok64 sniff_watchdir_cb(void0p arg, path8p path) {
     watchdir_ctx *ctx = (watchdir_ctx *)arg;
     u8csc p = {u8bDataHead(path), u8bIdleHead(path)};
     ok64 o = FSWDir(ctx->wfd, p);
@@ -250,7 +250,7 @@ typedef struct {
     u32 total;
 } scan_ctx;
 
-static ok64 sniff_scan_cb(voidp arg, path8p path) {
+static ok64 sniff_scan_cb(void0p arg, path8p path) {
     scan_ctx *ctx = (scan_ctx *)arg;
 
     // Build relative path from full path in buffer data region

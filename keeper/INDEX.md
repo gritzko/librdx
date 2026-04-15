@@ -43,11 +43,8 @@ Types: `igno_pat` (pattern + flags), `igno` (up to 256 patterns).
 
 ### ZINF.h — zlib inflate/deflate wrapper
 
-  - `ZINFInflate`  decompress zlib data
-  - `ZINFDeflate`  compress data
-
-Note: SHA1.h and ZINF.h are isolated from ABC headers to avoid
-typedef clashes (zlib `voidpc` vs ABC `voidpc`).
+  - `ZINFInflate(u8s into, u8cs zipped)`  decompress zlib data
+  - `ZINFDeflate(u8s into, u8cs plain)`  compress data
 
 ### BELT.h — ersatz git-compatible repository format
 
