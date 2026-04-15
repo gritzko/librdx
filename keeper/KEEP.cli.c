@@ -76,10 +76,10 @@ static ok64 keeper_status(keeper *k) {
         total_pack += (u64)u8bDataLen(k->packs[i]);
     u64 total_idx = 0;
     for (u32 i = 0; i < k->nruns; i++)
-        total_idx += (u64)kv64csLen(k->runs[i]) * sizeof(kv64);
+        total_idx += (u64)wh128csLen(k->runs[i]) * sizeof(wh128);
     fprintf(stdout, "  packs: %llu bytes\n", (unsigned long long)total_pack);
     fprintf(stdout, "  index: %llu entries\n",
-            (unsigned long long)(total_idx / sizeof(kv64)));
+            (unsigned long long)(total_idx / sizeof(wh128)));
     done;
 }
 

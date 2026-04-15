@@ -20,11 +20,10 @@ static ok64 GETTree(sniff *s, keeper *k, u8cs reporoot,
                      sha1 const *tree_sha, u8cs prefix, u8p seen) {
     sane(s && k && tree_sha);
 
-    u64 hashlet = WHIFFHashlet60(tree_sha);
     Bu8 buf = {};
     call(u8bAllocate, buf, 1UL << 24);
     u8 otype = 0;
-    ok64 o = KEEPGet(k, hashlet, 15, buf, &otype);
+    ok64 o = KEEPGetExact(k, tree_sha, buf, &otype);
     if (o != OK) { u8bFree(buf); fail(o); }
     if (otype != KEEP_OBJ_TREE) { u8bFree(buf); fail(SNIFFFAIL); }
 
@@ -109,8 +108,7 @@ static ok64 GETTree(sniff *s, keeper *k, u8cs reporoot,
             result = u8bAllocate(blob, 1UL << 24);
             if (result != OK) break;
             u8 bt = 0;
-            u64 keep_hashlet = WHIFFHashlet60((sha1cp)esha[0]);
-            result = KEEPGet(k, keep_hashlet, 15, blob, &bt);
+            result = KEEPGetExact(k, (sha1 const *)esha[0], blob, &bt);
             if (result != OK) { u8bFree(blob); break; }
 
             a_path(fp);
@@ -251,9 +249,8 @@ ok64 GETCheckout(sniff *s, keeper *k, u8cs reporoot, u8cs hex,
             fprintf(stderr, "sniff: bad tag (no object)\n");
             fail(SNIFFFAIL);
         }
-        u64 commit_hashlet = WHIFFHashlet60(&tag_sha);
         u8bReset(buf);
-        o = KEEPGet(k, commit_hashlet, 15, buf, &otype);
+        o = KEEPGetExact(k, &tag_sha, buf, &otype);
         if (o != OK || otype != KEEP_OBJ_COMMIT) {
             u8bFree(buf);
             fprintf(stderr, "sniff: tag target not a commit\n");

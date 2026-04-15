@@ -865,7 +865,7 @@ ok64 DAGHook(keeper *k, u8cs reporoot) {
     ok64 result = OK;
 
     for (u32 ri = 0; ri < k->nruns && result == OK; ri++) {
-        kv64cp base = k->runs[ri][0];
+        wh128cp base = k->runs[ri][0];
         size_t rlen = (size_t)(k->runs[ri][1] - base);
 
         for (size_t ei = 0; ei < rlen && result == OK; ei++) {
