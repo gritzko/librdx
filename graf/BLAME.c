@@ -458,7 +458,7 @@ typedef struct {
     b8   found;
 } weave_walk_ctx;
 
-static ok64 weave_walk_cb(voidp ctx, uricp entry, u8 obj_type, u8csc content) {
+static ok64 weave_walk_cb(void0p ctx, uricp entry, u8 obj_type, u8csc content) {
     weave_walk_ctx *wc = (weave_walk_ctx *)ctx;
     (void)obj_type;
 

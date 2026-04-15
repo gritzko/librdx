@@ -90,7 +90,7 @@ typedef struct {
     u32 path_hash;
 } CAPOTriCtx;
 
-static ok64 CAPOTriCB(voidp arg, u8cs tri) {
+static ok64 CAPOTriCB(void0p arg, u8cs tri) {
     CAPOTriCtx *ctx = (CAPOTriCtx *)arg;
     if (*ctx->idle >= ctx->end) return CAPONOROOM;
     u64 entry = CAPOTriPack(tri) | (u64)ctx->path_hash;
@@ -101,7 +101,7 @@ static ok64 CAPOTriCB(voidp arg, u8cs tri) {
 
 // Walk packed tokens, extract RON64 trigrams from source text
 static ok64 CAPOTriExtractToks(u32cs toks, u8cp base,
-                                ok64 (*cb)(voidp, u8cs), voidp arg) {
+                                ok64 (*cb)(void0p, u8cs), void0p arg) {
     sane(cb != NULL);
     int len = (int)$len(toks);
     for (int i = 0; i < len; i++) {
@@ -210,7 +210,7 @@ typedef struct {
     u32 count;
 } CAPOListIdxCtx;
 
-static ok64 CAPOListIdxCB(voidp arg, path8p path) {
+static ok64 CAPOListIdxCB(void0p arg, path8p path) {
     CAPOListIdxCtx *ctx = (CAPOListIdxCtx *)arg;
     if (ctx->count >= ctx->maxn) return OK;
     u8cs base = {};

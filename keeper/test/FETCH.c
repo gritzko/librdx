@@ -39,14 +39,17 @@ static ok64 write_loose(u8cp outdir, u64 outdirlen,
     snprintf(path, sizeof(path), "%.*s/objects/%c%c/%.38s",
              (int)outdirlen, outdir, hex[0], hex[1], hex + 2);
 
-    u8 zbuf[1 << 18];
-    u64 zlen = 0;
-    int r = ZINFDeflate(objdata, objlen, zbuf, sizeof(zbuf), &zlen);
-    if (r != 0) return PACKFAIL;
+    a_pad(u8, zbuf, 1 << 18);
+    u8csc zsrc = {objdata, objdata + objlen};
+    u64 idle_before = u8bIdleLen(zbuf);
+    ok64 zr = ZINFDeflate(u8bIdle(zbuf), zsrc);
+    if (zr != OK) return PACKFAIL;
+    u64 zlen = idle_before - u8bIdleLen(zbuf);
+    u8bFed(zbuf, zlen);
 
     FILE *f = fopen(path, "wb");
     if (!f) return GITFAIL;
-    fwrite(zbuf, 1, zlen, f);
+    fwrite(u8bDataHead(zbuf), 1, zlen, f);
     fclose(f);
 
     done;

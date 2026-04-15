@@ -16,6 +16,7 @@
 //    sniff:  off=mtime,          id=path_index,  type=flags
 
 #include "abc/INT.h"
+#include "abc/HEX.h"
 
 typedef u64 wh64;
 
@@ -38,6 +39,30 @@ fun u8  wh64Type(wh64 v) { return (u8)(v & WHIFF_TYPE_MASK); }
 fun u32 wh64Id(wh64 v)   { return (u32)((v >> WHIFF_ID_SHIFT) & WHIFF_ID_MASK); }
 fun u64 wh64Off(wh64 v)  { return (v >> WHIFF_OFF_SHIFT) & WHIFF_OFF_MASK; }
 
+// --- wh128: (key, val) pair, equality on both fields ---
+
+typedef struct {
+    wh64 key;
+    wh64 val;
+} wh128;
+
+fun u64  wh128hash(wh128 const *v) { return mix64(v->key ^ v->val); }
+
+fun int wh128cmp(wh128 const *a, wh128 const *b) {
+    if (a->key != b->key) return a->key < b->key ? -1 : 1;
+    if (a->val != b->val) return a->val < b->val ? -1 : 1;
+    return 0;
+}
+
+fun b8 wh128Z(wh128 const *a, wh128 const *b) {
+    if (a->key != b->key) return a->key < b->key;
+    return a->val < b->val;
+}
+
+#define X(M, name) M##wh128##name
+#include "abc/Bx.h"
+#undef X
+
 // --- SHA-1 hashlet helpers ---
 //
 // Two widths:
@@ -45,95 +70,101 @@ fun u64 wh64Off(wh64 v)  { return (v >> WHIFF_OFF_SHIFT) & WHIFF_OFF_MASK; }
 //   60-bit (15 hex chars): for keys where id=0 (hashlet spans both fields)
 //
 // Both are big-endian: first SHA byte in the most significant bits.
+// Input: sha1 const * (typed, 20 bytes).
+
+#include "dog/SHA1.h"
 
 // 40-bit hashlet: first 5 bytes of SHA (10 hex chars)
-fun u64 wh64Hashlet(u8csc sha) {
+#define WHIFF_HASHLET40_BITS  40
+#define WHIFF_HASHLET40_MASK  WHIFF_OFF_MASK
+
+fun u64 WHIFFHashlet40(sha1 const *s) {
     u64 h = 0;
-    memcpy(&h, sha[0], 8);
-    return (flip64(h) >> 24) & WHIFF_OFF_MASK;
+    memcpy(&h, s->data, 8);
+    return (flip64(h) >> 24) & WHIFF_HASHLET40_MASK;
 }
 
 // 60-bit hashlet: first 7.5 bytes of SHA (15 hex chars)
 #define WHIFF_HASHLET60_BITS  60
 #define WHIFF_HASHLET60_MASK  ((1ULL << 60) - 1)
 
-fun u64 wh64Hashlet60(u8csc sha) {
+fun u64 WHIFFHashlet60(sha1 const *s) {
     u64 h = 0;
-    memcpy(&h, sha[0], 8);
+    memcpy(&h, s->data, 8);
     return (flip64(h) >> 4) & WHIFF_HASHLET60_MASK;
 }
 
+// --- Hashlet to hex ---
 
-// --- Hex conversion (works for both 40 and 60 bit) ---
-
-// Hashlet → hex string. nchars: up to 10 for 40-bit, 15 for 60-bit.
-// Top nibble is at bit (width-4), extracted via >> (width-4 - i*4).
-fun void wh64HashletHex(char *out, u64 hashlet, size_t nchars, size_t width) {
-    if (nchars > width / 4) nchars = width / 4;
-    for (size_t i = 0; i < nchars; i++) {
-        u8 nib = (u8)((hashlet >> (width - 4 - i * 4)) & 0xf);
-        out[i] = "0123456789abcdef"[nib];
+fun ok64 WHIFFHexFeed40(u8s out, u64 hashlet) {
+    for (int i = 0; i < 10 && !$empty(out); i++) {
+        u8 nib = (u8)((hashlet >> (36 - i * 4)) & 0xf);
+        **out = "0123456789abcdef"[nib];
+        ++*out;
     }
-    out[nchars] = 0;
+    return OK;
 }
 
-// Convenience: 40-bit hex (10 chars max)
-fun void wh64Hex40(char *out, u64 hashlet, size_t nchars) {
-    wh64HashletHex(out, hashlet, nchars, 40);
+fun ok64 WHIFFHexFeed60(u8s out, u64 hashlet) {
+    for (int i = 0; i < 15 && !$empty(out); i++) {
+        u8 nib = (u8)((hashlet >> (56 - i * 4)) & 0xf);
+        **out = "0123456789abcdef"[nib];
+        ++*out;
+    }
+    return OK;
 }
 
-// Convenience: 60-bit hex (15 chars max)
-fun void wh64Hex60(char *out, u64 hashlet, size_t nchars) {
-    wh64HashletHex(out, hashlet, nchars, 60);
+// --- SHA-1 hex representation (40 ASCII hex chars) ---
+
+typedef struct {
+    u8 data[40];
+} sha1hex;
+
+typedef sha1hex const *sha1hexcp;
+
+fun void sha1hexFromSha1(sha1hex *out, sha1 const *s) {
+    u8s hs = {out->data, out->data + 40};
+    u8cs bs = {s->data, s->data + 20};
+    HEXu8sFeedSome(hs, bs);
 }
 
-// Hex prefix → hashlet (zero-padded in low bits).
-// width: 40 or 60.
-fun u64 wh64HashletFromHex(u8csc hex, size_t width) {
-    size_t max = width / 4;
+fun b8 sha1hexeq(sha1hexcp a, sha1hexcp b) {
+    return memcmp(a->data, b->data, 40) == 0;
+}
+
+fun void sha1hexSlice(u8csp out, sha1hexcp s) {
+    out[0] = s->data;
+    out[1] = s->data + 40;
+}
+
+// --- Hex to hashlet ---
+
+fun u64 WHIFFHexHashlet40(u8csc hex) {
     size_t nchars = u8csLen(hex);
-    if (nchars > max) nchars = max;
+    if (nchars > 10) nchars = 10;
     u64 h = 0;
     $for(u8c, p, hex) {
         if ((size_t)(p - hex[0]) >= nchars) break;
-        u8 c = *p;
-        u8 nib = 0;
-        if (c >= '0' && c <= '9') nib = c - '0';
-        else if (c >= 'a' && c <= 'f') nib = c - 'a' + 10;
-        else if (c >= 'A' && c <= 'F') nib = c - 'A' + 10;
+        u8 nib = BASE16rev[*p];
+        if (nib == 0xff) break;
         h = (h << 4) | nib;
     }
-    h <<= (max - nchars) * 4;
+    h <<= (10 - nchars) * 4;
     return h;
 }
 
-// Convenience: 40-bit from hex
-fun u64 wh64FromHex40(u8csc hex) {
-    return wh64HashletFromHex(hex, 40);
-}
-
-// Convenience: 60-bit from hex
-fun u64 wh64FromHex60(u8csc hex) {
-    return wh64HashletFromHex(hex, 60);
-}
-
-// Hex prefix → 40-bit hashlet (convenience for sniff state)
-fun u64 wh64HexHashlet(u8csc hex) {
-    return wh64HashletFromHex(hex, 40);
-}
-
-// Hex prefix → 60-bit hashlet (convenience for keeper index)
-fun u64 wh64HexHashlet60(u8csc hex) {
-    return wh64HashletFromHex(hex, 60);
-}
-
-// Compare hashlet against hex prefix of any length.
-fun b8 wh64HashletMatch(u64 hashlet, u8csc hex, size_t width) {
-    char full[16];
-    wh64HashletHex(full, hashlet, width / 4, width);
+fun u64 WHIFFHexHashlet60(u8csc hex) {
     size_t nchars = u8csLen(hex);
-    if (nchars > width / 4) nchars = width / 4;
-    return memcmp(full, hex[0], nchars) == 0;
+    if (nchars > 15) nchars = 15;
+    u64 h = 0;
+    $for(u8c, p, hex) {
+        if ((size_t)(p - hex[0]) >= nchars) break;
+        u8 nib = BASE16rev[*p];
+        if (nib == 0xff) break;
+        h = (h << 4) | nib;
+    }
+    h <<= (15 - nchars) * 4;
+    return h;
 }
 
 #endif

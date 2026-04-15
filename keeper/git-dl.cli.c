@@ -266,10 +266,8 @@ ok64 gitdl() {
         call(PACKDrainObjHdr, scan, &obj);
         types[i] = obj.type;
 
-        u64 consumed = 0, produced = 0;
-        u64 outsz = obj.size < DL_BUFSZ ? obj.size : DL_BUFSZ;
-        ZINFInflate(scan[0], $size(scan), buf1, outsz, &consumed, &produced);
-        scan[0] += consumed;
+        a_pad(u8, scratch, 4096);
+        ZINFInflate(u8bIdle(scratch), scan);
     }
 
     // --- save packfile ---

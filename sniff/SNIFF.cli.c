@@ -76,7 +76,7 @@ static ok64 sniff_rm_pid(u8cs reporoot) {
 
 typedef struct { int wfd; u32 count; } watchdir_ctx;
 
-static ok64 sniff_watchdir_cb(voidp arg, path8p path) {
+static ok64 sniff_watchdir_cb(void0p arg, path8p path) {
     watchdir_ctx *ctx = (watchdir_ctx *)arg;
     u8csc p = {u8bDataHead(path), u8bIdleHead(path)};
     ok64 o = FSWDir(ctx->wfd, p);
@@ -187,7 +187,12 @@ static ok64 sniff_checkout(sniff *s, u8cs reporoot, u8cs hex) {
     sane(s && $ok(hex));
     keeper k = {};
     call(KEEPOpen, &k, reporoot);
-    ok64 o = GETCheckout(s, &k, reporoot, hex);
+    // bare hex SHA, build ?hex as source
+    a_pad(u8, src, 256);
+    u8bFeed1(src, '?');
+    u8bFeed(src, hex);
+    a_dup(u8c, source, u8bData(src));
+    ok64 o = GETCheckout(s, &k, reporoot, hex, source);
     KEEPClose(&k);
     return o;
 }
@@ -195,25 +200,56 @@ static ok64 sniff_checkout(sniff *s, u8cs reporoot, u8cs hex) {
 // Checkout from a parsed URI: resolve ?ref via keeper REFS, then checkout.
 static ok64 SNIFFGetURI(sniff *s, u8cs reporoot, uri *u) {
     sane(s && u);
+
+    keeper k = {};
+    call(KEEPOpen, &k, reporoot);
+    a_cstr(keepdir, k.dir);
+
+    // Determine which ref to resolve
+    u8cs ref_to_resolve = {};
     if (!$empty(u->query)) {
-        keeper k = {};
-        call(KEEPOpen, &k, reporoot);
-        a_cstr(keepdir, k.dir);
-        a_pad(u8, arena, 512);
-        uri resolved = {};
-        ok64 o = REFSResolve(&resolved, arena, keepdir, u->data);
-        if (o == OK && !$empty(resolved.query)) {
-            o = GETCheckout(s, &k, reporoot, resolved.query);
-            KEEPClose(&k);
-            return o;
-        }
-        // Resolve failed — try the query as raw hex
-        o = GETCheckout(s, &k, reporoot, u->query);
+        // Explicit ?ref in URI
+        u8csMv(ref_to_resolve, u->data);
+    } else if (!$empty(u->authority)) {
+        // Remote URI (//host/path) — resolve HEAD
+        a_cstr(head_uri, "?HEAD");
+        ref_to_resolve[0] = head_uri[0];
+        ref_to_resolve[1] = head_uri[1];
+    } else if (!$empty(u->path)) {
+        // Bare hex SHA — checkout directly
+        a_pad(u8, src, 256);
+        u8bFeed1(src, '?');
+        u8bFeed(src, u->path);
+        a_dup(u8c, source, u8bData(src));
+        ok64 o = GETCheckout(s, &k, reporoot, u->path, source);
+        KEEPClose(&k);
+        return o;
+    } else {
+        KEEPClose(&k);
+        fail(SNIFFFAIL);
+    }
+
+    // Resolve ref via REFS
+    a_pad(u8, arena, 512);
+    uri resolved = {};
+    ok64 o = REFSResolve(&resolved, arena, keepdir, ref_to_resolve);
+    if (o == OK && !$empty(resolved.query)) {
+        o = GETCheckout(s, &k, reporoot, resolved.query,
+                        ref_to_resolve);
         KEEPClose(&k);
         return o;
     }
-    // No query — treat the whole URI data as hex (legacy)
-    return sniff_checkout(s, reporoot, u->data);
+
+    // Resolve failed — try query as raw hex
+    if (!$empty(u->query)) {
+        o = GETCheckout(s, &k, reporoot, u->query,
+                        ref_to_resolve);
+        KEEPClose(&k);
+        return o;
+    }
+
+    KEEPClose(&k);
+    fail(SNIFFFAIL);
 }
 
 // --- Scan worktree for new files (commit-all) ---
@@ -226,7 +262,7 @@ typedef struct {
     u32 total;
 } scan_ctx;
 
-static ok64 sniff_scan_cb(voidp arg, path8p path) {
+static ok64 sniff_scan_cb(void0p arg, path8p path) {
     scan_ctx *ctx = (scan_ctx *)arg;
 
     // Build relative path from full path in buffer data region
@@ -366,11 +402,11 @@ ok64 sniffcli() {
     cli c = {};
     call(CLIParse, &c, sniff_verbs, sniff_val_flags);
 
+    char cwd[1024];
     u8cs reporoot = {};
     if ($ok(c.repo)) {
         $mv(reporoot, c.repo);
     } else {
-        char cwd[1024];
         if (!getcwd(cwd, sizeof(cwd))) fail(SNIFFFAIL);
         a_cstr(cwds, cwd);
         reporoot[0] = cwds[0];
@@ -424,8 +460,13 @@ ok64 sniffcli() {
         u8cs commit_author = {};
         CLIFlag(commit_author, &c, "--author");
 
+        if (!$ok(commit_parent)) {
+            u8cs head = {};
+            SNIFFHead(head, &s);
+            if ($ok(head)) $mv(commit_parent, head);
+        }
         if (!$ok(commit_msg) || !$ok(commit_parent)) {
-            fprintf(stderr, "sniff: commit requires -m and --parent\n");
+            fprintf(stderr, "sniff: commit requires -m and parent (--parent or HEAD)\n");
             ret = SNIFFFAIL;
         } else {
             if (!$ok(commit_author)) {
@@ -468,7 +509,12 @@ ok64 sniffcli() {
         u8cs commit_parent = {};
         CLIFlag(commit_parent, &c, "--parent");
         if (!$ok(commit_parent)) {
-            fprintf(stderr, "sniff: post requires --parent\n");
+            u8cs head = {};
+            SNIFFHead(head, &s);
+            if ($ok(head)) $mv(commit_parent, head);
+        }
+        if (!$ok(commit_parent)) {
+            fprintf(stderr, "sniff: post requires parent (--parent or HEAD)\n");
             ret = SNIFFFAIL;
         } else {
             sniff_stat_all(&s, reporoot, SNIFF_CHANGED);
@@ -511,9 +557,14 @@ ok64 sniffcli() {
     } else if (is_delete) {
         u8cs commit_parent = {};
         CLIFlag(commit_parent, &c, "--parent");
+        if (!$ok(commit_parent)) {
+            u8cs head = {};
+            SNIFFHead(head, &s);
+            if ($ok(head)) $mv(commit_parent, head);
+        }
         if (!$ok(commit_parent) || c.nuris < 1) {
             fprintf(stderr,
-                    "sniff: delete requires --parent and file(s)\n");
+                    "sniff: delete requires parent (--parent or HEAD) and file(s)\n");
             ret = SNIFFFAIL;
         } else {
             u32 npaths = SNIFFCount(&s);
@@ -552,10 +603,19 @@ ok64 sniffcli() {
         if (c.nuris < 1) {
             fprintf(stderr, "sniff: get/checkout requires a URI or hex\n");
             ret = SNIFFFAIL;
-        } else if ($eq(c.verb, v_get)) {
-            ret = SNIFFGetURI(&s, reporoot, &c.uris[0]);
         } else {
-            ret = sniff_checkout(&s, reporoot, c.uris[0].data);
+            uri *u = &c.uris[0];
+            if ($eq(c.verb, v_get)) {
+                ret = SNIFFGetURI(&s, reporoot, u);
+            } else {
+                // After URILexer, raw hex ends up in path (not data)
+                u8cs hex = {};
+                if (!$empty(u->path))
+                    u8csMv(hex, u->path);
+                else
+                    u8csMv(hex, u->data);
+                ret = sniff_checkout(&s, reporoot, hex);
+            }
         }
     } else if (is_watch) {
         ret = sniff_daemon(&s, reporoot);

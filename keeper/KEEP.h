@@ -4,13 +4,13 @@
 //  KEEP: local git object store.
 //
 //  Stores git pack objects in append-only log files under .dogs/keeper/.
-//  Objects are looked up via an LSM index of kv64 entries:
+//  Objects are looked up via an LSM index of wh128 entries:
 //    key = keepKeyPack(obj_type, hashlet60)  hashlet60[60] | type[4]
 //    val = wh64Pack(flags, file_id, offset)  offset[40] | file_id[20] | flags[4]
 //
 //  On disk (.dogs/keeper/):
 //    log/0000000001.pack — append-only pack log (FILEBook'd)
-//    idx/0000000001.idx  — sorted kv64 run (LSM)
+//    idx/0000000001.idx  — sorted wh128 run (LSM)
 //    REFS                — URI→URI reflog
 
 #include "abc/INT.h"
@@ -34,13 +34,6 @@ con ok64 KEEPNONE    = 0x11c55d85ce;
 // Index key uses wh64 with id=0 → 60-bit hashlet spans both fields.
 // key = wh64Pack(obj_type, 0, hashlet40) but hashlet's upper 20 bits
 // spill into the id field, giving 60 effective hashlet bits.
-//
-// Convenience aliases:
-#define keepHashlet60         wh64Hashlet60
-#define keepHashlet60FromHex  wh64HexHashlet60
-#define keepSha1Hashlet60     wh64Sha1Hashlet60
-#define KEEP_HASHLET_MASK     WHIFF_HASHLET60_MASK
-#define keepHashlet60Hex(out, h, n)  wh64Hex60(out, h, n)
 
 // Key pack: type in LS 4 bits, 60-bit hashlet above.
 // Same as wh64Pack(type, id_hi, off) where hashlet60 = (off << 20) | id_hi.
@@ -78,7 +71,7 @@ fun u64 keepKeyHashlet(u64 key) {
 typedef struct {
     u8bp   packs[KEEP_MAX_FILES];   // mmap'd log files
     u32    npacks;
-    kv64cs runs[KEEP_MAX_LEVELS];   // LSM index runs
+    wh128cs runs[KEEP_MAX_LEVELS];  // LSM index runs
     u8bp   run_maps[KEEP_MAX_LEVELS];
     u32    nruns;
     char   dir[1024];               // resolved .dogs/keeper/ path
@@ -105,6 +98,11 @@ ok64 KEEPClose(keeper *k);
 //  Retrieve object by hashlet.  Inflates from pack, chases deltas.
 //  Returns object body in `out`, type in `*out_type`.
 ok64 KEEPGet(keeper *k, u64 hashlet60, size_t hexlen, u8bp out, u8p out_type);
+
+//  Retrieve object by full 20-byte SHA-1.  Scans all hashlet matches,
+//  inflates each, verifies SHA-1.  Use when the full hash is known
+//  (e.g. tree entries) to avoid hashlet collisions.
+ok64 KEEPGetExact(keeper *k, sha1 const *sha, u8bp out, u8p out_type);
 
 //  Check if object exists in the store (hexlen = prefix length).
 ok64 KEEPHas(keeper *k, u64 hashlet60, size_t hexlen);
@@ -136,7 +134,7 @@ typedef struct {
     u8bp     log;                   // FILEBook'd log file
     u32      file_id;               // sequence number
     u32      nobjs;                 // objects written so far
-    Bkv64    entries;               // index entries buffer
+    Bwh128   entries;               // index entries buffer
 } keep_pack;
 
 ok64 KEEPPackOpen(keeper *k, keep_pack *p);
@@ -165,12 +163,12 @@ typedef enum {
 //  repo-relative filepath, query/authority from the input URI.
 //  content is non-empty only if KEEP_WALK_CONTENT is set.
 //  Return OK to continue, error to stop.
-typedef ok64 (*keep_walk_f)(voidp ctx, uricp entry, u8 obj_type, u8csc content);
+typedef ok64 (*keep_walk_f)(void0p ctx, uricp entry, u8 obj_type, u8csc content);
 
 //  Walk a git tree.  Resolves target URI:
 //    ?ref or #sha → commit → tree, then recurse.
 //    //alias?ref  → resolve alias, same.
 ok64 KEEPWalk(keeper *k, uricp target, KEEP_WALK mode,
-              keep_walk_f cb, voidp ctx);
+              keep_walk_f cb, void0p ctx);
 
 #endif

@@ -18,6 +18,7 @@
 #include "abc/PRO.h"
 #include "abc/RAP.h"
 #include "abc/RON.h"
+#include "dog/DPATH.h"
 #include "keeper/GIT.h"
 #include "keeper/REFS.h"
 
@@ -518,7 +519,7 @@ static u32 dag_load_bookmarks(sha1 out[], u32 maxout,
 
     u32 valid = 0;
     for (u32 i = 0; i < sha_count && valid < maxout; i++) {
-        u64 hashlet = wh64Sha1Hashlet60(&shas[i]);
+        u64 hashlet = WHIFFHashlet60(&shas[i]);
         if (KEEPHas(k, hashlet, 15) == OK) {
             out[valid] = shas[i];
             valid++;
@@ -622,11 +623,11 @@ static b8 dag_parse_diff_rec(char const *rec, size_t rlen,
 // For changed/added/deleted blobs, calls the callback.
 
 typedef ok64 (*tree_diff_cb)(char const *path, size_t pathlen,
-                              u64 old_blob_h, u64 new_blob_h, voidp ctx);
+                              u64 old_blob_h, u64 new_blob_h, void0p ctx);
 
 static ok64 dag_tree_diff_r(keeper *k, u8cs old_tree, u8cs new_tree,
                              char *pathbuf, size_t pathoff, size_t pathcap,
-                             tree_diff_cb cb, voidp ctx) {
+                             tree_diff_cb cb, void0p ctx) {
     // Collect entries from both trees into parallel arrays
     // git tree entry: "<mode> <name>\0<20-byte-sha>"
     #define TREE_MAX 4096
@@ -640,6 +641,15 @@ static ok64 dag_tree_diff_r(keeper *k, u8cs old_tree, u8cs new_tree,
         a_dup(u8c, scan, old_tree);
         u8cs file = {}, sha = {};
         while (on < TREE_MAX && GITu8sDrainTree(scan, file, sha) == OK) {
+            u8cs dn = {file[0], file[1]};
+            if (u8csFind(dn, ' ') == OK) {
+                u8cs dname = {dn[0] + 1, file[1]};
+                if (DPATHVerify(dname) != OK) {
+                    fprintf(stderr, "dag: bad path '%.*s', skip\n",
+                            (int)$len(dname), (char *)dname[0]);
+                    continue;
+                }
+            }
             u8csMv(old_ents[on].name, file);
             u8csMv(old_ents[on].sha, sha);
             u8csMv(old_ents[on].mode, file);
@@ -650,6 +660,15 @@ static ok64 dag_tree_diff_r(keeper *k, u8cs old_tree, u8cs new_tree,
         a_dup(u8c, scan, new_tree);
         u8cs file = {}, sha = {};
         while (nn < TREE_MAX && GITu8sDrainTree(scan, file, sha) == OK) {
+            u8cs dn = {file[0], file[1]};
+            if (u8csFind(dn, ' ') == OK) {
+                u8cs dname = {dn[0] + 1, file[1]};
+                if (DPATHVerify(dname) != OK) {
+                    fprintf(stderr, "dag: bad path '%.*s', skip\n",
+                            (int)$len(dname), (char *)dname[0]);
+                    continue;
+                }
+            }
             u8csMv(new_ents[nn].name, file);
             u8csMv(new_ents[nn].sha, sha);
             u8csMv(new_ents[nn].mode, file);
@@ -686,8 +705,8 @@ static ok64 dag_tree_diff_r(keeper *k, u8cs old_tree, u8cs new_tree,
                         memcpy(pathbuf + pathoff, old_ents[oi].name[0], nlen);
                         pathbuf[pathoff + nlen] = '/';
 
-                        u64 oh = keepHashlet60(old_ents[oi].sha);
-                        u64 nh = keepHashlet60(new_ents[ni].sha);
+                        u64 oh = WHIFFHashlet60((sha1cp)old_ents[oi].sha[0]);
+                        u64 nh = WHIFFHashlet60((sha1cp)new_ents[ni].sha[0]);
                         Bu8 ob = {}, nb = {};
                         u8bMap(ob, 4UL << 20);
                         u8bMap(nb, 4UL << 20);
@@ -704,8 +723,8 @@ static ok64 dag_tree_diff_r(keeper *k, u8cs old_tree, u8cs new_tree,
                         u8bUnMap(nb);
                     }
                 } else {
-                    u64 oh = keepHashlet60(old_ents[oi].sha);
-                    u64 nh = keepHashlet60(new_ents[ni].sha);
+                    u64 oh = WHIFFHashlet60((sha1cp)old_ents[oi].sha[0]);
+                    u64 nh = WHIFFHashlet60((sha1cp)new_ents[ni].sha[0]);
                     size_t nlen = u8csLen(old_ents[oi].name);
                     if (pathoff + nlen < pathcap) {
                         memcpy(pathbuf + pathoff, old_ents[oi].name[0], nlen);
@@ -719,7 +738,7 @@ static ok64 dag_tree_diff_r(keeper *k, u8cs old_tree, u8cs new_tree,
         } else {
             b8 is_tree = *new_ents[ni].mode[0] == '4';
             if (!is_tree) {
-                u64 nh = keepHashlet60(new_ents[ni].sha);
+                u64 nh = WHIFFHashlet60((sha1cp)new_ents[ni].sha[0]);
                 size_t nlen = u8csLen(new_ents[ni].name);
                 if (pathoff + nlen < pathcap) {
                     memcpy(pathbuf + pathoff, new_ents[ni].name[0], nlen);
@@ -751,7 +770,7 @@ typedef struct {
 } dag_diff_ctx;
 
 static ok64 dag_diff_cb(char const *path, size_t pathlen,
-                         u64 old_blob_h, u64 new_blob_h, voidp arg) {
+                         u64 old_blob_h, u64 new_blob_h, void0p arg) {
     dag_diff_ctx *ctx = (dag_diff_ctx *)arg;
     if (pathlen == 0 || new_blob_h == 0) return OK;
 
@@ -802,7 +821,7 @@ ok64 DAGHook(keeper *k, u8cs reporoot) {
     // Build a set of known commit hashlets to skip
     u64 known_commits[DAG_MAX_SHAS];
     for (u32 i = 0; i < nbookmarks; i++) {
-        known_commits[i] = wh64Sha1Hashlet60(&bookmarks[i]);
+        known_commits[i] = WHIFFHashlet60(&bookmarks[i]);
     }
 
     if (nbookmarks > 0)
@@ -846,7 +865,7 @@ ok64 DAGHook(keeper *k, u8cs reporoot) {
     ok64 result = OK;
 
     for (u32 ri = 0; ri < k->nruns && result == OK; ri++) {
-        kv64cp base = k->runs[ri][0];
+        wh128cp base = k->runs[ri][0];
         size_t rlen = (size_t)(k->runs[ri][1] - base);
 
         for (size_t ei = 0; ei < rlen && result == OK; ei++) {
@@ -899,7 +918,7 @@ ok64 DAGHook(keeper *k, u8cs reporoot) {
             u32 gen = 1;
             u64 parent_hashlets[16] = {};
             for (int pi = 0; pi < npar; pi++) {
-                parent_hashlets[pi] = wh64Sha1Hashlet60(&parent_shas[pi]);
+                parent_hashlets[pi] = WHIFFHashlet60(&parent_shas[pi]);
                 u32 pg = dag_gens_get(&gens, parent_hashlets[pi]);
                 if (pg == 0) pg = dag_stack_gen(&stack, parent_hashlets[pi]);
                 if (pg >= gen) gen = pg + 1;
@@ -922,7 +941,7 @@ ok64 DAGHook(keeper *k, u8cs reporoot) {
             }
 
             // Emit COMMIT_TREE
-            u64 tree_h = wh64Sha1Hashlet60(&tree_sha);
+            u64 tree_h = WHIFFHashlet60(&tree_sha);
             dag_emit(entries, &nentries, bufcap,
                      DAG_COMMIT_TREE, gen, commit_h,
                      DAG_COMMIT_TREE, gen, tree_h);
@@ -954,7 +973,7 @@ ok64 DAGHook(keeper *k, u8cs reporoot) {
                             break;
                         }
                     }
-                    u64 ptree_h = wh64Sha1Hashlet60(&ptree);
+                    u64 ptree_h = WHIFFHashlet60(&ptree);
 
                     u8bReset(tree_old_buf);
                     u8 ott = 0;

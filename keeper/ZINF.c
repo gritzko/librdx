@@ -1,63 +1,68 @@
-//  ZINF: zlib inflate/deflate wrapper, isolated from ABC type system
+//  ZINF: zlib inflate/deflate wrapper
+//  zlib.h before abc to avoid voidp/voidpc typedef clash.
 //
 #include <limits.h>
-#include <stdint.h>
 #include <zlib.h>
 
 #include "ZINF.h"
 
-int ZINFInflate(
-    uint8_t const *src, uint64_t srclen,
-    uint8_t *dst, uint64_t dstlen,
-    uint64_t *consumed, uint64_t *produced)
-{
-    if (srclen > UINT_MAX || dstlen > UINT_MAX) return -1;
+ok64 ZINFInflate(u8p *into, u8cp *zipped) {
+    u64 srclen = zipped[1] - zipped[0];
+    u64 dstlen = into[1] - into[0];
+    if (srclen > UINT_MAX || dstlen > UINT_MAX)
+        return ZINFTOOBIG;
 
     z_stream zs = {0};
-    zs.next_in = (Bytef *)src;
+    zs.next_in = (Bytef *)zipped[0];
     zs.avail_in = (uInt)srclen;
-    zs.next_out = (Bytef *)dst;
+    zs.next_out = (Bytef *)into[0];
     zs.avail_out = (uInt)dstlen;
 
     int r = inflateInit(&zs);
-    if (r != Z_OK) return -1;
+    if (r != Z_OK) return ZINFINIT;
 
-    r = inflate(&zs, Z_FINISH);
-    if (r != Z_STREAM_END && r != Z_OK) {
-        inflateEnd(&zs);
-        return -2;
+    uInt cap = zs.avail_out;
+    for (;;) {
+        r = inflate(&zs, Z_NO_FLUSH);
+        if (r == Z_STREAM_END) break;
+        if (r != Z_OK) { inflateEnd(&zs); return ZINFFAIL; }
+        if (zs.avail_out == 0) {
+            zs.next_out = (Bytef *)into[0];
+            zs.avail_out = cap;
+        }
     }
 
-    *consumed = zs.total_in;
-    *produced = zs.total_out;
+    zipped[0] += zs.total_in;
+    into[0] += zs.total_out;
 
     inflateEnd(&zs);
-    return 0;
+    return OK;
 }
 
-int ZINFDeflate(
-    uint8_t const *src, uint64_t srclen,
-    uint8_t *dst, uint64_t dstcap,
-    uint64_t *produced)
-{
-    if (srclen > UINT_MAX || dstcap > UINT_MAX) return -1;
+ok64 ZINFDeflate(u8p *into, u8cp *plain) {
+    u64 srclen = plain[1] - plain[0];
+    u64 dstlen = into[1] - into[0];
+    if (srclen > UINT_MAX || dstlen > UINT_MAX)
+        return ZINFTOOBIG;
 
     z_stream zs = {0};
-    zs.next_in = (Bytef *)src;
+    zs.next_in = (Bytef *)plain[0];
     zs.avail_in = (uInt)srclen;
-    zs.next_out = (Bytef *)dst;
-    zs.avail_out = (uInt)dstcap;
+    zs.next_out = (Bytef *)into[0];
+    zs.avail_out = (uInt)dstlen;
 
     int r = deflateInit(&zs, Z_DEFAULT_COMPRESSION);
-    if (r != Z_OK) return -1;
+    if (r != Z_OK) return ZINFINIT;
 
     r = deflate(&zs, Z_FINISH);
     if (r != Z_STREAM_END) {
         deflateEnd(&zs);
-        return -1;
+        return ZINFFAIL;
     }
 
-    *produced = zs.total_out;
+    plain[0] += zs.total_in;
+    into[0] += zs.total_out;
+
     deflateEnd(&zs);
-    return 0;
+    return OK;
 }

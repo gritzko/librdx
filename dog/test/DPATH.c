@@ -122,6 +122,16 @@ ok64 DPATHTestTable() {
             fail(TESTFAIL);
         }
 
+        // DPATHVerify must agree
+        u8csc vname = {(u8cp)tc->input, (u8cp)tc->input + ilen};
+        ok64 v = DPATHVerify(vname);
+        if (v != tc->expect) {
+            fprintf(stderr, "FAIL Verify [%zu] '%.*s': got %s want %s\n",
+                    i, (int)ilen, tc->input,
+                    ok64str(v), ok64str(tc->expect));
+            fail(TESTFAIL);
+        }
+
         if (o == OK && !dpath_eq(out, tc->body)) {
             fprintf(stderr, "FAIL [%zu] '%.*s': body got '%.*s' want '%s'\n",
                     i, (int)ilen, tc->input,

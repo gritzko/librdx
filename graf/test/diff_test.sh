@@ -15,7 +15,7 @@ if [ ! -x "$GRAF" ]; then
     exit 1
 fi
 
-OUT=$("$GRAF" --diff "$OLD" "$NEW" 2>&1 | perl -pe 's/\e\[[0-9;]*m//g')
+OUT=$("$GRAF" diff "$OLD" "$NEW" 2>&1 | perl -pe 's/\e\[[0-9;]*m//g')
 FAILS=0
 
 # Lines present in both old and new must appear at most once in diff output.
@@ -63,7 +63,7 @@ echo "PASSED"
 HILI_OLD="$DATADIR/hili_old.c"
 HILI_NEW="$DATADIR/hili_new.c"
 
-HOUT=$("$GRAF" --diff "$HILI_OLD" "$HILI_NEW" 2>&1 | perl -pe 's/\e\[[0-9;]*m//g')
+HOUT=$("$GRAF" diff "$HILI_OLD" "$HILI_NEW" 2>&1 | perl -pe 's/\e\[[0-9;]*m//g')
 HFAILS=0
 
 echo "=== inline highlight test ==="
@@ -107,7 +107,7 @@ echo "PASSED"
 NEIL_OLD="$DATADIR/neil_old.c"
 NEIL_NEW="$DATADIR/neil_new.c"
 
-NOUT=$("$GRAF" --diff "$NEIL_OLD" "$NEIL_NEW" 2>&1 | perl -pe 's/\e\[[0-9;]*m//g')
+NOUT=$("$GRAF" diff "$NEIL_OLD" "$NEIL_NEW" 2>&1 | perl -pe 's/\e\[[0-9;]*m//g')
 NFAILS=0
 
 echo "=== NEIL cascade test ==="
@@ -150,7 +150,7 @@ echo "PASSED"
 TOKBND_OLD="$DATADIR/tokbnd_old.c"
 TOKBND_NEW="$DATADIR/tokbnd_new.c"
 
-TOUT=$("$GRAF" --diff "$TOKBND_OLD" "$TOKBND_NEW" 2>&1 | perl -pe 's/\e\[[0-9;]*m//g')
+TOUT=$("$GRAF" diff "$TOKBND_OLD" "$TOKBND_NEW" 2>&1 | perl -pe 's/\e\[[0-9;]*m//g')
 TFAILS=0
 
 echo "=== token boundary test ==="

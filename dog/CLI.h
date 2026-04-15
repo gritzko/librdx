@@ -22,7 +22,8 @@ typedef struct {
     u32    nflags;                   // count of entries (= 2 * npairs)
     uri    uris[CLI_MAX_URIS];       // parsed URI targets
     u32    nuris;
-    u8cs   repo;                     // repo root from HOMEFind
+    char   _repo[1024];               // owned storage for repo root
+    u8cs   repo;                     // repo root (points into _repo)
     b8     tty_out;                  // isatty(STDOUT)
 } cli;
 

@@ -443,10 +443,8 @@ static ok64 belt_index_log(u8cs belt_dir, char const *idx_path) {
         pack_obj obj = {};
         call(PACKDrainObjHdr, sc, &obj);
         otypes[i] = obj.type;
-        u64 consumed = 0, produced = 0;
-        u64 cap = obj.size < BELT_BUFSZ ? obj.size : BELT_BUFSZ;
-        ZINFInflate(sc[0], $size(sc), scr, cap, &consumed, &produced);
-        sc[0] += consumed;
+        a_pad(u8, scratch, 4096);
+        ZINFInflate(u8bIdle(scratch), sc);
     }
 
     fprintf(stderr, "scan done\n");

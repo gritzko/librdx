@@ -3,6 +3,7 @@
 #include "WALK.h"
 
 #include "DELT.h"
+#include "dog/DPATH.h"
 #include "GIT.h"
 #include "PACK.h"
 #include "SHA1.h"
@@ -273,7 +274,7 @@ static ok64 push_parents(walk *w, walk_heap *q, walk_seen *seen,
 // --- WALKCommits ---
 
 ok64 WALKCommits(walk *w, u8cp head_sha, u8cp stop_sha,
-                 walk_fn visit, voidp ctx) {
+                 walk_fn visit, void0p ctx) {
     sane(w && head_sha && visit);
 
     walk_seen seen = {};
@@ -341,7 +342,7 @@ ok64 WALKCommits(walk *w, u8cp head_sha, u8cp stop_sha,
 
 // --- WALKTree ---
 
-static ok64 walk_tree_rec(walk *w, u8cp sha, walk_fn visit, voidp ctx,
+static ok64 walk_tree_rec(walk *w, u8cp sha, walk_fn visit, void0p ctx,
                            walk_seen *seen) {
     sane(w && sha && visit);
 
@@ -376,13 +377,22 @@ static ok64 walk_tree_rec(walk *w, u8cp sha, walk_fn visit, voidp ctx,
     u8cs tree = {tcopy, tcopy + outsz};
     u8cs file = {}, esha = {};
     while (GITu8sDrainTree(tree, file, esha) == OK) {
+        u8cs wscan = {file[0], file[1]};
+        if (u8csFind(wscan, ' ') == OK) {
+            u8cs wname = {wscan[0] + 1, file[1]};
+            if (DPATHVerify(wname) != OK) {
+                fprintf(stderr, "walk: bad path '%.*s', skip\n",
+                        (int)$len(wname), (char *)wname[0]);
+                continue;
+            }
+        }
         walk_tree_rec(w, esha[0], visit, ctx, seen);
     }
     free(tcopy);
     done;
 }
 
-ok64 WALKTree(walk *w, u8cp tree_sha, walk_fn visit, voidp ctx) {
+ok64 WALKTree(walk *w, u8cp tree_sha, walk_fn visit, void0p ctx) {
     sane(w && tree_sha && visit);
     walk_seen seen = {};
     call(seen_init, &seen);
@@ -555,7 +565,7 @@ found:
 // --- WALKMissing ---
 
 ok64 WALKMissing(walk *w, u8cp head_sha, u8cp base_sha,
-                 walk_fn visit, voidp ctx) {
+                 walk_fn visit, void0p ctx) {
     sane(w && head_sha && visit);
 
     // First: find all commit hashlets reachable from base
@@ -725,6 +735,12 @@ ok64 WALKCheckout(walk *w, u8cp tree_sha, u8cs dest) {
         if (p >= e) continue;
         u8cs mode_s = {file[0], p};
         u8cs name_s = {p + 1, e};
+
+        if (DPATHVerify(name_s) != OK) {
+            fprintf(stderr, "walk: bad path '%.*s', skip\n",
+                    (int)$len(name_s), (char *)name_s[0]);
+            continue;
+        }
 
         // check if directory (mode starts with '4')
         b8 is_dir = (*mode_s[0] == '4');

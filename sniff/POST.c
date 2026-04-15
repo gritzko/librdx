@@ -10,6 +10,7 @@
 #include "abc/HEX.h"
 #include "abc/PATH.h"
 #include "abc/PRO.h"
+#include "dog/DPATH.h"
 #include "keeper/GIT.h"
 #include "keeper/SHA1.h"
 #include "keeper/WALK.h"
@@ -36,7 +37,7 @@ static ok64 POSTCollectTree(sha_ctx *ctx, keeper *k,
                               sha1 const *tree_sha, u8cs prefix) {
     sane(ctx && k && tree_sha);
 
-    u64 hashlet = keepSha1Hashlet60(tree_sha);
+    u64 hashlet = WHIFFHashlet60(tree_sha);
     Bu8 buf = {};
     call(u8bAllocate, buf, 1UL << 24);
     u8 otype = 0;
@@ -60,6 +61,12 @@ static ok64 POSTCollectTree(sha_ctx *ctx, keeper *k,
         u8cs name_s = {scan[0], file[1]};
         ++name_s[0];
         u8cs mode_s = {file[0], scan[0]};
+
+        if (DPATHVerify(name_s) != OK) {
+            fprintf(stderr, "sniff: bad path '%.*s', skip\n",
+                    (int)$len(name_s), (char *)name_s[0]);
+            continue;
+        }
 
         b8 is_submodule = ($len(mode_s) >= 2 &&
                            $at(mode_s, 0) == '1' && $at(mode_s, 1) == '6');
@@ -96,7 +103,7 @@ static ok64 POSTResolveParent(sha_ctx *ctx, keeper *k, u8cs parent_hex) {
 
     size_t hexlen = $len(parent_hex);
     if (hexlen > 15) hexlen = 15;
-    u64 hashlet = keepHashlet60FromHex(parent_hex);
+    u64 hashlet = WHIFFHexHashlet60(parent_hex);
 
     Bu8 cbuf = {};
     call(u8bAllocate, cbuf, 1UL << 24);
@@ -118,7 +125,7 @@ static ok64 POSTResolveParent(sha_ctx *ctx, keeper *k, u8cs parent_hex) {
                 break;
             }
         }
-        u64 ch = keepSha1Hashlet60(&tag_sha);
+        u64 ch = WHIFFHashlet60(&tag_sha);
         u8bReset(cbuf);
         call(KEEPGet, k, ch, 15, cbuf, &ctype);
     }

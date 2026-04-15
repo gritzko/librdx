@@ -10,7 +10,9 @@
 #include "abc/HEX.h"
 #include "abc/PATH.h"
 #include "abc/PRO.h"
+#include "dog/DPATH.h"
 #include "keeper/GIT.h"
+#include "keeper/REFS.h"
 #include "keeper/WALK.h"
 
 // Recursive tree checkout.  seen[idx]=1 for every path visited.
@@ -18,11 +20,10 @@ static ok64 GETTree(sniff *s, keeper *k, u8cs reporoot,
                      sha1 const *tree_sha, u8cs prefix, u8p seen) {
     sane(s && k && tree_sha);
 
-    u64 hashlet = keepSha1Hashlet60(tree_sha);
     Bu8 buf = {};
     call(u8bAllocate, buf, 1UL << 24);
     u8 otype = 0;
-    ok64 o = KEEPGet(k, hashlet, 15, buf, &otype);
+    ok64 o = KEEPGetExact(k, tree_sha, buf, &otype);
     if (o != OK) { u8bFree(buf); fail(o); }
     if (otype != KEEP_OBJ_TREE) { u8bFree(buf); fail(SNIFFFAIL); }
 
@@ -50,6 +51,12 @@ static ok64 GETTree(sniff *s, keeper *k, u8cs reporoot,
         // skip the space
         ++name_s[0];
 
+        if (DPATHVerify(name_s) != OK) {
+            fprintf(stderr, "sniff: bad path '%.*s', skip\n",
+                    (int)$len(name_s), (char *)name_s[0]);
+            continue;
+        }
+
         b8 is_dir = ($at(mode_s, 0) == '4');
         b8 is_submodule = ($len(mode_s) >= 2 &&
                            $at(mode_s, 0) == '1' && $at(mode_s, 1) == '6');
@@ -67,7 +74,7 @@ static ok64 GETTree(sniff *s, keeper *k, u8cs reporoot,
         PATHu8gTerm(PATHu8gIn(rel));
         u8cs relpath = {u8bDataHead(rel), rel[2]};
 
-        u64 entry_hashlet = wh64Hashlet(esha);
+        u64 entry_hashlet = WHIFFHashlet40((sha1cp)esha[0]);
 
         if (is_dir) {
             a_path(dp);
@@ -101,8 +108,7 @@ static ok64 GETTree(sniff *s, keeper *k, u8cs reporoot,
             result = u8bAllocate(blob, 1UL << 24);
             if (result != OK) break;
             u8 bt = 0;
-            u64 keep_hashlet = keepHashlet60(esha);
-            result = KEEPGet(k, keep_hashlet, 15, blob, &bt);
+            result = KEEPGetExact(k, (sha1 const *)esha[0], blob, &bt);
             if (result != OK) { u8bFree(blob); break; }
 
             a_path(fp);
@@ -141,43 +147,75 @@ static ok64 GETTree(sniff *s, keeper *k, u8cs reporoot,
     return result;
 }
 
-// Remove tracked files not in the new tree
+// Remove tracked files not in the new tree.
+// Files first, then dirs (FILERmDir only works on empty dirs).
 static ok64 GETPrune(sniff *s, u8cs reporoot, u8cp seen) {
     sane(s);
     u32 n = SNIFFCount(s);
-    u32 removed = 0;
+    u32 removed = 0, errors = 0;
 
+    // Pass 1: unlink files
     for (u32 i = 0; i < n; i++) {
         if (seen[i]) continue;
         u64 h = SNIFFGet(s, SNIFF_HASHLET, i);
         if (h == 0) continue;
+        if (SNIFFIsDir(s, i)) continue;
 
         u8cs rel = {};
-        if (SNIFFPath(rel, s, i) != OK) continue;
+        call(SNIFFPath, rel, s, i);
+        if ($empty(rel)) continue;
 
         a_path(fp);
-        if (SNIFFFullpath(fp, reporoot, rel) != OK) continue;
+        call(SNIFFFullpath, fp, reporoot, rel);
 
-        unlink((char *)u8bDataHead(fp));
-
-        SNIFFRecord(s, SNIFF_HASHLET, i, 0);
-        SNIFFRecord(s, SNIFF_CHECKOUT, i, 0);
-        removed++;
+        ok64 o = FILEUnLink(PATHu8cgIn(fp));
+        if (o == OK || o == FILENOENT) {
+            SNIFFRecord(s, SNIFF_HASHLET, i, 0);
+            SNIFFRecord(s, SNIFF_CHECKOUT, i, 0);
+            removed++;
+        } else {
+            fprintf(stderr, "sniff: unlink fail %.*s: %s\n",
+                    (int)u8csLen(rel), (char *)rel[0], ok64str(o));
+            errors++;
+        }
     }
 
-    if (removed > 0)
-        fprintf(stderr, "sniff: removed %u stale file(s)\n", removed);
+    // Pass 2: rmdir stale dirs (reverse order for bottom-up)
+    for (u32 i = n; i > 0; ) {
+        i--;
+        if (seen[i]) continue;
+        u64 h = SNIFFGet(s, SNIFF_HASHLET, i);
+        if (h == 0) continue;
+        if (!SNIFFIsDir(s, i)) continue;
+
+        u8cs rel = {};
+        call(SNIFFPath, rel, s, i);
+
+        a_path(fp);
+        call(SNIFFFullpath, fp, reporoot, rel);
+
+        ok64 o = FILERmDir(PATHu8cgIn(fp), NO);
+        if (o == OK || o == FILENOENT || o == FILENOTEMP) {
+            SNIFFRecord(s, SNIFF_HASHLET, i, 0);
+            SNIFFRecord(s, SNIFF_CHECKOUT, i, 0);
+        }
+    }
+
+    if (removed > 0 || errors > 0)
+        fprintf(stderr, "sniff: removed %u file(s), %u error(s)\n",
+                removed, errors);
     done;
 }
 
 // --- Public API ---
 
-ok64 GETCheckout(sniff *s, keeper *k, u8cs reporoot, u8cs hex) {
+ok64 GETCheckout(sniff *s, keeper *k, u8cs reporoot, u8cs hex,
+                 u8cs source) {
     sane(s && k && $ok(hex));
 
     size_t hexlen = $len(hex);
     if (hexlen > 15) hexlen = 15;
-    u64 hashlet = keepHashlet60FromHex(hex);
+    u64 hashlet = WHIFFHexHashlet60(hex);
 
     Bu8 buf = {};
     call(u8bAllocate, buf, 1UL << 24);
@@ -211,9 +249,8 @@ ok64 GETCheckout(sniff *s, keeper *k, u8cs reporoot, u8cs hex) {
             fprintf(stderr, "sniff: bad tag (no object)\n");
             fail(SNIFFFAIL);
         }
-        u64 commit_hashlet = keepSha1Hashlet60(&tag_sha);
         u8bReset(buf);
-        o = KEEPGet(k, commit_hashlet, 15, buf, &otype);
+        o = KEEPGetExact(k, &tag_sha, buf, &otype);
         if (o != OK || otype != KEEP_OBJ_COMMIT) {
             u8bFree(buf);
             fprintf(stderr, "sniff: tag target not a commit\n");
@@ -239,7 +276,7 @@ ok64 GETCheckout(sniff *s, keeper *k, u8cs reporoot, u8cs hex) {
 
     // Allocate seen bitmap
     u32 npath = SNIFFCount(s);
-    u32 seen_size = npath + SNIFF_HASH_SIZE;
+    u32 seen_size = npath + 65536;  // padding for new paths during walk
     Bu8 seen_buf = {};
     call(u8bAllocate, seen_buf, seen_size);
     memset(u8bDataHead(seen_buf), 0, seen_size);
@@ -251,7 +288,21 @@ ok64 GETCheckout(sniff *s, keeper *k, u8cs reporoot, u8cs hex) {
         o = GETPrune(s, reporoot, u8bDataHead(seen_buf));
 
     u8bFree(seen_buf);
-    if (o == OK)
+    if (o == OK) {
+        o = SNIFFCompact(s);
+    }
+    if (o == OK) {
+        SNIFFSetHead(s, hex);
+        if (!$empty(source)) {
+            a_cstr(keepdir, k->dir);
+            a_pad(u8, file_uri, 1280);
+            a_cstr(scheme, "file://");
+            u8bFeed(file_uri, scheme);
+            u8bFeed(file_uri, reporoot);
+            a_dup(u8c, from, u8bData(file_uri));
+            REFSAppend(keepdir, from, source);
+        }
         fprintf(stderr, "sniff: checkout done\n");
+    }
     return o;
 }

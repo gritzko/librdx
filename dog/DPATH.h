@@ -23,4 +23,16 @@ con ok64 DPATHBAD  = 0x35929d44b28d;
 // Returns DPATHFAIL on empty input.
 ok64 DPATHu8sDrainSeg(u8cs input, u8cs out);
 
+// Verify a tree entry name (single segment, no slashes).
+// Returns OK if valid, DPATHBAD/DPATHFAIL otherwise.
+fun ok64 DPATHVerify(u8csc name) {
+    if ($empty(name)) return DPATHFAIL;
+    a_dup(u8c, tmp, name);
+    u8cs seg = {};
+    ok64 o = DPATHu8sDrainSeg(tmp, seg);
+    if (o != OK) return o;
+    if (!$empty(tmp)) return DPATHBAD;
+    return OK;
+}
+
 #endif

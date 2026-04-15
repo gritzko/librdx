@@ -19,32 +19,35 @@ ref, `#hashprefix` to cat an object.
 
 ```sh
 # clone a repo (fetch all refs)
-keeper //localhost/home/user/src/linux
+keeper get //localhost/home/user/src/linux
 
 # clone via alias
-keeper --alias linux //localhost/home/user/src/linux
-keeper //linux
+keeper alias //linux https://localhost/home/user/src/linux
+keeper get //linux
 
 # fetch a specific ref
-keeper //linux?refs/tags/v6.0
+keeper get //linux?refs/tags/v6.0
 
 # resolve a ref to SHA
-keeper '?refs/heads/master'
+keeper get .?refs/heads/master
 
-# cat an object by hash prefix (7 chars = git default)
-keeper '#abc1234'
+# cat an object by hash prefix
+keeper get .#abc1234
+
+# move a local ref
+keeper put .?refs/heads/test .#abc123...
 
 # list known refs
-keeper --refs
+keeper refs
 
 # import an existing git packfile
-keeper -i path/to/pack.pack
+keeper import path/to/pack.pack
 
 # show store stats
-keeper -s
+keeper status
 
 # verify a commit and all reachable objects
-keeper --verify abc123def456789...
+keeper verify .#abc123def456789...
 
 # incremental pack writer (C API)
 keep_pack p = {};
@@ -70,19 +73,31 @@ KEEPPackClose(&k, &p);
 
 ##  Pack log files
 
-Each log file is a valid git packfile: PACK header, objects, trailing
-SHA-1.  On clone/fetch the received pack is saved verbatim.  On local
-writes (`KEEPPackFeed`), objects are deflated and appended.  Normally
-we append to the highest-numbered log; a new file starts on explicit
-request.  Objects are never moved or rewritten; offsets are stable.
+Log files are append-only git-encoded object logs.  They are close
+to the git packfile format but NOT valid git packfiles:
+
+  - The first batch (initial clone/fetch) starts with a standard
+    PACK header (magic + version + count), received verbatim from
+    `git-upload-pack`.
+  - Subsequent fetches and local writes (`KEEPPackFeed`) **append**
+    new objects to the same log file and update the count.  There 
+    is no trailing SHA-1 checksum.
+  - Delta objects (OFS_DELTA, REF_DELTA) may reference bases
+    anywhere in the same log or in a previous log file.
+
+Objects are never moved or rewritten; offsets are stable.  The log
+is written via `FILEBook` (mmap'd, growable) and read via
+`FILEMapRO`.
 
 ```
-PACK v2 N       12 bytes: magic, version, object count
+PACK v2 N       12 bytes: magic, version, count (first batch only)
 obj 0           varint(type+size) + zlib(content|delta)
 obj 1
 ...
-obj N-1
-SHA-1           20 bytes: checksum of entire pack
+obj N-1         end of first batch
+obj N           appended by next fetch or KEEPPackFeed
+obj N+1
+...             (no trailing checksum)
 ```
 
 ##  Index entries (kv64)
