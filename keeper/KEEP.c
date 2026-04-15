@@ -1575,16 +1575,15 @@ ok64 KEEPSync(keeper *k, u8cs remote,
     close(wfd);
     wfd = -1;
 
-    // Read packfile response
+    // Read initial response into rbuf until we have NAK/ACK + PACK header
     rlen = 0;
     for (;;) {
         ssize_t n = read(rfd, rbuf + rlen, SYNC_BUFSZ - rlen);
-        if (n <= 0) break;
+        if (n <= 0) { if (rlen == 0) goto sync_fail; break; }
         rlen += (u64)n;
-        if (rlen >= SYNC_BUFSZ) break;
+        // Need at least: pkt-line (8+) + PACK header (12)
+        if (rlen >= 24) break;
     }
-    close(rfd);
-    rfd = -1;
 
     // Parse response: NAK (full clone) or ACK <sha> (incremental)
     u8cs resp = {rbuf, rbuf + rlen};
@@ -1599,7 +1598,6 @@ ok64 KEEPSync(keeper *k, u8cs remote,
             if (ao == PKTFLUSH) break;
             if (ao != OK) break;
             if ($len(line) >= 3 && memcmp(line[0], "NAK", 3) == 0) break;
-            // More ACK lines — skip
         }
     } else {
         fprintf(stderr, "keeper: unexpected response: %.*s\n",
@@ -1607,17 +1605,20 @@ ok64 KEEPSync(keeper *k, u8cs remote,
         goto sync_fail;
     }
 
-    u8cp packbase = resp[0];
+    // Parse PACK header from the initial read
+    u8cp pack_start = resp[0];  // where PACK data begins in rbuf
     pack_hdr hdr = {};
     po = PACKDrainHdr(resp, &hdr);
     if (po != OK || hdr.version != 2) goto sync_fail;
-    u64 packlen = rlen - (packbase - rbuf);
+    u64 initial_pack = rlen - (u64)(pack_start - rbuf);  // pack bytes in rbuf
 
-    fprintf(stderr, "keeper: received %u objects, %llu bytes\n",
-            hdr.count, (unsigned long long)packlen);
-
-    // Save packfile to log/
+    // Create pack log file and book it for streaming.
+    // Estimate size from object count (~256 bytes/obj compressed).
     u32 file_id = k->npacks + 1;
+    u64 pack_book = (u64)hdr.count * 256;
+    if (pack_book < (64ULL << 20)) pack_book = 64ULL << 20;    // min 64MB
+    if (pack_book > (16ULL << 30)) pack_book = 16ULL << 30;    // max 16GB
+    u8bp packbuf = NULL;
     {
         a_pad(u8, dst, 1024);
         a_cstr(kdir, k->dir);
@@ -1630,13 +1631,65 @@ ok64 KEEPSync(keeper *k, u8cs remote,
         u8bFeed(dst, ext);
         PATHu8gTerm(PATHu8gIn(dst));
 
-        int fd = -1;
-        ok64 o = FILECreate(&fd, PATHu8cgIn(dst));
+        size_t init = initial_pack;
+        if (init < 4096) init = 4096;
+        ok64 o = FILEBookCreate(&packbuf, PATHu8cgIn(dst),
+                                pack_book, init);
         if (o != OK) goto sync_fail;
-        u8cs data = {packbase, packbase + packlen};
-        FILEFeedAll(fd, data);
-        close(fd);
     }
+
+    // Copy initial pack data from rbuf into booked file
+    {
+        u8cs init_data = {pack_start, rbuf + rlen};
+        u8bFeed(packbuf, init_data);
+    }
+
+    // Stream remaining pack data from rfd directly into booked file
+    {
+        u8 chunk[1 << 16];  // 64K read chunks
+        for (;;) {
+            ssize_t n = read(rfd, chunk, sizeof(chunk));
+            if (n <= 0) break;
+            FILEBookEnsure(packbuf, (size_t)n);
+            u8cs data = {(u8cp)chunk, (u8cp)chunk + n};
+            u8bFeed(packbuf, data);
+        }
+    }
+    close(rfd);
+    rfd = -1;
+
+    u8cp packbase = u8bDataHead(packbuf);
+    u64 packlen = u8bDataLen(packbuf);
+
+    fprintf(stderr, "keeper: received %u objects, %llu bytes\n",
+            hdr.count, (unsigned long long)packlen);
+
+    // Trim booked file to actual size, then re-mmap read-only for indexing
+    FILETrimBook(packbuf);
+    FILEUnBook(packbuf);
+    packbuf = NULL;
+
+    // Mmap the pack read-only into keeper
+    {
+        a_pad(u8, pp, 1024);
+        a_cstr(kdir, k->dir);
+        u8bFeed(pp, kdir);
+        a_cstr(logsep, "/" KEEP_LOG_DIR "/");
+        u8bFeed(pp, logsep);
+        RONu8sFeedPad(u8bIdle(pp), (u64)file_id, KEEP_SEQNO_W);
+        ((u8 **)pp)[2] += KEEP_SEQNO_W;
+        a_cstr(pext, KEEP_PACK_EXT);
+        u8bFeed(pp, pext);
+        PATHu8gTerm(PATHu8gIn(pp));
+        u8bp mapped = NULL;
+        if (FILEMapRO(&mapped, PATHu8cgIn(pp)) == OK) {
+            k->packs[k->npacks] = mapped;
+            k->npacks++;
+        }
+    }
+
+    packbase = u8bDataHead(k->packs[k->npacks - 1]);
+    packlen = (u64)(u8bIdleHead(k->packs[k->npacks - 1]) - packbase);
 
     // Scan pack: record offsets + types
     {
@@ -1644,40 +1697,18 @@ ok64 KEEPSync(keeper *k, u8cs remote,
         u8 *types_arr = calloc(hdr.count, 1);
         if (!offsets || !types_arr) { free(offsets); free(types_arr); goto sync_fail; }
 
-        u8cs scan = {resp[0], rbuf + rlen};
+        // Skip PACK header (12 bytes)
+        u8cs scan = {packbase + 12, packbase + packlen};
         for (u32 i = 0; i < hdr.count; i++) {
             offsets[i] = scan[0] - packbase;
             pack_obj obj = {};
             if (PACKDrainObjHdr(scan, &obj) != OK) break;
             types_arr[i] = obj.type;
             u64 consumed = 0, produced = 0;
-            u64 outsz = obj.size < SYNC_BUFSZ ? obj.size : SYNC_BUFSZ;
+            u64 outsz = obj.size < KEEP_BUFSZ ? obj.size : KEEP_BUFSZ;
             ZINFInflate(scan[0], $len(scan), buf1, outsz, &consumed, &produced);
             scan[0] += consumed;
         }
-
-        // Mmap the new pack into keeper so KEEPLookup/keep_resolve can use it
-        {
-            a_pad(u8, pp, 1024);
-            a_cstr(kdir, k->dir);
-            u8bFeed(pp, kdir);
-            a_cstr(logsep, "/" KEEP_LOG_DIR "/");
-            u8bFeed(pp, logsep);
-            RONu8sFeedPad(u8bIdle(pp), (u64)file_id, KEEP_SEQNO_W);
-            ((u8 **)pp)[2] += KEEP_SEQNO_W;
-            a_cstr(pext, KEEP_PACK_EXT);
-            u8bFeed(pp, pext);
-            PATHu8gTerm(PATHu8gIn(pp));
-            u8bp mapped = NULL;
-            if (FILEMapRO(&mapped, PATHu8cgIn(pp)) == OK) {
-                k->packs[k->npacks] = mapped;
-                k->npacks++;
-            }
-        }
-
-        // Switch packbase to the mmap'd copy
-        packbase = u8bDataHead(k->packs[k->npacks - 1]);
-        packlen = (u64)(u8bIdleHead(k->packs[k->npacks - 1]) - packbase);
 
         // DFS indexing: build delta dependency tree, walk depth-first.
         // Each object inflated exactly once, max chain_depth in RAM.
@@ -2020,6 +2051,7 @@ ok64 KEEPSync(keeper *k, u8cs remote,
     }
 
 sync_done:
+    if (packbuf) { FILETrimBook(packbuf); FILEUnBook(packbuf); }
     u8bUnMap(rbuf_b); u8bUnMap(objbuf_b);
     { int status; waitpid(pid, &status, 0); }
 

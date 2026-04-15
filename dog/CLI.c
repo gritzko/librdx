@@ -122,7 +122,8 @@ ok64 CLIParse(cli *c, char const *const *verb_names,
             uri *u = &c->uris[c->nuris];
             *u = (uri){};
             $mv(u->data, a);
-            URILexer(u);  // best-effort parse
+            URILexer(u);  // best-effort parse (consumes data)
+            $mv(u->data, a);  // restore original data slice
             c->nuris++;
         }
     }

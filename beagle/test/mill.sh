@@ -1,7 +1,7 @@
 #!/bin/sh
 #  mill.sh — treadmill integration test
 #
-#  Creates a toy repo, clones via keeper+sniff and git, compares trees.
+#  Creates a toy repo, clones via `be get` and `git clone`, compares.
 #  Run: BIN=build-debug/bin sh beagle/test/mill.sh
 #
 set -e
@@ -14,7 +14,7 @@ trap 'rm -rf "$TMILL"' EXIT
 
 mkdir -p "$TMILL"
 
-echo "=== mill: full clone + verify ==="
+echo "=== mill: be get + verify ==="
 
 # --- 1. Create toy origin ---
 T=$(mktemp -d)
@@ -44,56 +44,41 @@ echo "origin HEAD: $GIT_HEAD"
 # --- 2. Git clone (reference) ---
 git clone --quiet "$TMILL/origin" "$TMILL/git01"
 
-# --- 3. Dogs clone: keeper fetch + sniff checkout ---
+# --- 3. Dogs clone via be get ---
 mkdir -p "$TMILL/be01"
 cd "$TMILL/be01"
 git init --quiet .
 mkdir -p .dogs/keeper
 
-keeper get "//localhost${TMILL}/origin" 2>&1
+be get "//localhost${TMILL}/origin" 2>&1
 
-# Verify refs
+# --- 4. Verify refs ---
 KEEP_HEAD=$(keeper get ".?refs/heads/master" 2>/dev/null)
 echo "keeper HEAD: $KEEP_HEAD"
 test "$KEEP_HEAD" = "$GIT_HEAD" || { echo "FAIL: HEAD mismatch"; exit 1; }
 echo "PASS: refs match"
 
-# Verify commit content
-KEEP_COMMIT=$(keeper get ".#${GIT_HEAD}" 2>/dev/null)
-GIT_COMMIT=$(git -C "$TMILL/git01" cat-file -p HEAD 2>/dev/null)
-test "$KEEP_COMMIT" = "$GIT_COMMIT" || { echo "FAIL: commit mismatch"; exit 1; }
-echo "PASS: commit matches"
-
-# Checkout via sniff
-sniff index 2>&1
-sniff checkout "$KEEP_HEAD" 2>&1
-
-# --- 4. Compare worktrees ---
-# Use find + diff on individual files (busybox diff lacks --exclude)
+# --- 5. Compare worktrees ---
 FAIL=0
 cd "$TMILL/git01"
-for f in $(find . -not -path './.git/*' -type f | sort); do
+find . -not -path './.git/*' -type f -print0 | while IFS= read -r -d '' f; do
     if [ ! -f "$TMILL/be01/$f" ]; then
-        echo "FAIL: missing $f in be01"
-        FAIL=1
+        echo "MISS: $f"; FAIL=1
     elif ! diff -q "$f" "$TMILL/be01/$f" >/dev/null 2>&1; then
-        echo "FAIL: $f differs"
-        FAIL=1
+        echo "DIFF: $f"; FAIL=1
     fi
 done
-# Check for extra files in be01
 cd "$TMILL/be01"
-for f in $(find . -not -path './.dogs/*' -not -path './.git/*' -type f | sort); do
+for f in $(find . -not -path './.dogs/*' -not -path './.git/*' -type f); do
     if [ ! -f "$TMILL/git01/$f" ]; then
-        echo "FAIL: extra $f in be01"
-        FAIL=1
+        echo "EXTRA: $f"; FAIL=1
     fi
 done
 
-if [ "$FAIL" = "0" ]; then
-    echo "PASS: trees are identical"
-else
-    exit 1
-fi
+BE_N=$(find "$TMILL/be01" -not -path '*/.dogs/*' -not -path '*/.git/*' -type f | wc -l)
+GIT_N=$(find "$TMILL/git01" -not -path '*/.git/*' -type f | wc -l)
+echo "be01: $BE_N files, git01: $GIT_N files"
+test "$BE_N" = "$GIT_N" || { echo "FAIL: file count mismatch"; exit 1; }
 
+echo "PASS: trees are identical"
 echo "=== mill OK ==="

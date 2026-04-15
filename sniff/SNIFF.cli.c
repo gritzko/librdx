@@ -195,25 +195,49 @@ static ok64 sniff_checkout(sniff *s, u8cs reporoot, u8cs hex) {
 // Checkout from a parsed URI: resolve ?ref via keeper REFS, then checkout.
 static ok64 SNIFFGetURI(sniff *s, u8cs reporoot, uri *u) {
     sane(s && u);
+
+    keeper k = {};
+    call(KEEPOpen, &k, reporoot);
+    a_cstr(keepdir, k.dir);
+
+    // Determine which ref to resolve
+    u8cs ref_to_resolve = {};
     if (!$empty(u->query)) {
-        keeper k = {};
-        call(KEEPOpen, &k, reporoot);
-        a_cstr(keepdir, k.dir);
-        a_pad(u8, arena, 512);
-        uri resolved = {};
-        ok64 o = REFSResolve(&resolved, arena, keepdir, u->data);
-        if (o == OK && !$empty(resolved.query)) {
-            o = GETCheckout(s, &k, reporoot, resolved.query);
-            KEEPClose(&k);
-            return o;
-        }
-        // Resolve failed — try the query as raw hex
+        // Explicit ?ref in URI
+        u8csMv(ref_to_resolve, u->data);
+    } else if (!$empty(u->authority)) {
+        // Remote URI (//host/path) — resolve HEAD
+        a_cstr(head_uri, "?HEAD");
+        ref_to_resolve[0] = head_uri[0];
+        ref_to_resolve[1] = head_uri[1];
+    } else if (!$empty(u->path)) {
+        // Bare hex SHA — checkout directly
+        KEEPClose(&k);
+        return sniff_checkout(s, reporoot, u->path);
+    } else {
+        KEEPClose(&k);
+        fail(SNIFFFAIL);
+    }
+
+    // Resolve ref via REFS
+    a_pad(u8, arena, 512);
+    uri resolved = {};
+    ok64 o = REFSResolve(&resolved, arena, keepdir, ref_to_resolve);
+    if (o == OK && !$empty(resolved.query)) {
+        o = GETCheckout(s, &k, reporoot, resolved.query);
+        KEEPClose(&k);
+        return o;
+    }
+
+    // Resolve failed — try query as raw hex
+    if (!$empty(u->query)) {
         o = GETCheckout(s, &k, reporoot, u->query);
         KEEPClose(&k);
         return o;
     }
-    // No query — treat the whole URI data as hex (legacy)
-    return sniff_checkout(s, reporoot, u->data);
+
+    KEEPClose(&k);
+    fail(SNIFFFAIL);
 }
 
 // --- Scan worktree for new files (commit-all) ---
