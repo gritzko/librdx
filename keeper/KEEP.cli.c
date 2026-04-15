@@ -213,13 +213,17 @@ static ok64 keeper_get_remote(keeper *k, cli *c, uri *g) {
         }
     }
 
-    // Auto-populate haves from existing REFS (known SHA refs).
+    // Auto-populate haves from REFS, but only for objects we actually have.
     // Limit to 256 to avoid pipe deadlock with git-upload-pack.
     #define MAX_AUTO_HAVES 256
     for (u32 i = 0; i < rn && nhaves < MAX_AUTO_HAVES; i++) {
         if (u8csEmpty(rarr[i].val) || *rarr[i].val[0] != '?') continue;
         u8cs val = {rarr[i].val[0] + 1, rarr[i].val[1]};
         if (u8csLen(val) < 40) continue;
+        // Verify object exists in our index before claiming we have it
+        u64 hashlet = WHIFFHexHashlet60(val);
+        u64 dummy = 0;
+        if (KEEPLookup(k, hashlet, 15, &dummy) != OK) continue;
         snprintf(have_shas[nhaves], 44, "%.*s",
                  (int)u8csLen(val), (char *)val[0]);
         have_list[nhaves] = have_shas[nhaves];

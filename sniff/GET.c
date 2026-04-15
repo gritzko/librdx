@@ -157,8 +157,10 @@ static ok64 GETPrune(sniff *s, u8cs reporoot, u8cp seen) {
 
         u8cs rel = {};
         call(SNIFFPath, rel, s, i);
+        if ($empty(rel)) continue;
 
-        a_path(fp, reporoot, rel);
+        a_path(fp);
+        SNIFFFullpath(fp, reporoot, rel);
 
         ok64 o = FILEUnLink(PATHu8cgIn(fp));
         if (o == OK || o == FILENOENT) {
@@ -166,6 +168,8 @@ static ok64 GETPrune(sniff *s, u8cs reporoot, u8cp seen) {
             SNIFFRecord(s, SNIFF_CHECKOUT, i, 0);
             removed++;
         } else {
+            fprintf(stderr, "sniff: unlink fail %.*s: %s\n",
+                    (int)u8csLen(rel), (char *)rel[0], ok64str(o));
             errors++;
         }
     }
@@ -181,7 +185,8 @@ static ok64 GETPrune(sniff *s, u8cs reporoot, u8cp seen) {
         u8cs rel = {};
         call(SNIFFPath, rel, s, i);
 
-        a_path(fp, reporoot, rel);
+        a_path(fp);
+        SNIFFFullpath(fp, reporoot, rel);
 
         ok64 o = FILERmDir(PATHu8cgIn(fp), NO);
         if (o == OK || o == FILENOENT || o == FILENOTEMP) {

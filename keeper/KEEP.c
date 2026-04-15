@@ -1658,8 +1658,8 @@ got_pack:
 
     // Open or create pack log file for appending.
     // Estimate VA reservation from object count (~256 bytes/obj).
-    u32 file_id = k->npacks > 0 ? k->npacks : 1;
     b8 appending = (k->npacks > 0);
+    u32 file_id = appending ? k->npacks : 1;
     u64 pack_book = 16ULL << 30;  // 16GB VA reservation
     u8bp packbuf = NULL;
     u64 append_offset = 0;  // where new objects start in the log
@@ -2119,7 +2119,8 @@ got_pack:
             u8bFeed(idxpath, kdir);
             a_cstr(idxsep, "/" KEEP_IDX_DIR "/");
             u8bFeed(idxpath, idxsep);
-            RONu8sFeedPad(u8bIdle(idxpath), (u64)file_id, KEEP_SEQNO_W);
+            u32 idx_id = k->nruns + 1;
+            RONu8sFeedPad(u8bIdle(idxpath), (u64)idx_id, KEEP_SEQNO_W);
             ((u8 **)idxpath)[2] += KEEP_SEQNO_W;
             a_cstr(ext, KEEP_IDX_EXT);
             u8bFeed(idxpath, ext);
