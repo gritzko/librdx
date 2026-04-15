@@ -34,13 +34,6 @@ con ok64 KEEPNONE    = 0x11c55d85ce;
 // Index key uses wh64 with id=0 → 60-bit hashlet spans both fields.
 // key = wh64Pack(obj_type, 0, hashlet40) but hashlet's upper 20 bits
 // spill into the id field, giving 60 effective hashlet bits.
-//
-// Convenience aliases:
-#define keepHashlet60         wh64Hashlet60
-#define keepHashlet60FromHex  wh64HexHashlet60
-#define keepSha1Hashlet60     wh64Sha1Hashlet60
-#define KEEP_HASHLET_MASK     WHIFF_HASHLET60_MASK
-#define keepHashlet60Hex(out, h, n)  wh64Hex60(out, h, n)
 
 // Key pack: type in LS 4 bits, 60-bit hashlet above.
 // Same as wh64Pack(type, id_hi, off) where hashlet60 = (off << 20) | id_hi.

@@ -18,7 +18,7 @@ static ok64 GETTree(sniff *s, keeper *k, u8cs reporoot,
                      sha1 const *tree_sha, u8cs prefix, u8p seen) {
     sane(s && k && tree_sha);
 
-    u64 hashlet = keepSha1Hashlet60(tree_sha);
+    u64 hashlet = WHIFFHashlet60(tree_sha);
     Bu8 buf = {};
     call(u8bAllocate, buf, 1UL << 24);
     u8 otype = 0;
@@ -67,7 +67,7 @@ static ok64 GETTree(sniff *s, keeper *k, u8cs reporoot,
         PATHu8gTerm(PATHu8gIn(rel));
         u8cs relpath = {u8bDataHead(rel), rel[2]};
 
-        u64 entry_hashlet = wh64Hashlet(esha);
+        u64 entry_hashlet = WHIFFHashlet40((sha1cp)esha[0]);
 
         if (is_dir) {
             a_path(dp);
@@ -101,7 +101,7 @@ static ok64 GETTree(sniff *s, keeper *k, u8cs reporoot,
             result = u8bAllocate(blob, 1UL << 24);
             if (result != OK) break;
             u8 bt = 0;
-            u64 keep_hashlet = keepHashlet60(esha);
+            u64 keep_hashlet = WHIFFHashlet60((sha1cp)esha[0]);
             result = KEEPGet(k, keep_hashlet, 15, blob, &bt);
             if (result != OK) { u8bFree(blob); break; }
 
@@ -177,7 +177,7 @@ ok64 GETCheckout(sniff *s, keeper *k, u8cs reporoot, u8cs hex) {
 
     size_t hexlen = $len(hex);
     if (hexlen > 15) hexlen = 15;
-    u64 hashlet = keepHashlet60FromHex(hex);
+    u64 hashlet = WHIFFHexHashlet60(hex);
 
     Bu8 buf = {};
     call(u8bAllocate, buf, 1UL << 24);
@@ -211,7 +211,7 @@ ok64 GETCheckout(sniff *s, keeper *k, u8cs reporoot, u8cs hex) {
             fprintf(stderr, "sniff: bad tag (no object)\n");
             fail(SNIFFFAIL);
         }
-        u64 commit_hashlet = keepSha1Hashlet60(&tag_sha);
+        u64 commit_hashlet = WHIFFHashlet60(&tag_sha);
         u8bReset(buf);
         o = KEEPGet(k, commit_hashlet, 15, buf, &otype);
         if (o != OK || otype != KEEP_OBJ_COMMIT) {
@@ -251,7 +251,9 @@ ok64 GETCheckout(sniff *s, keeper *k, u8cs reporoot, u8cs hex) {
         o = GETPrune(s, reporoot, u8bDataHead(seen_buf));
 
     u8bFree(seen_buf);
-    if (o == OK)
+    if (o == OK) {
+        SNIFFSetHead(s, hex);
         fprintf(stderr, "sniff: checkout done\n");
+    }
     return o;
 }

@@ -12,28 +12,29 @@ ok64 WH64hashlet() {
     u8 sha[20] = {0x81, 0x6f, 0xb4, 0x6b, 0xe6, 0x65, 0xc8, 0xb6,
                   0x36, 0x47, 0xf0, 0x09, 0x68, 0x45, 0xfe, 0xf3,
                   0x63, 0x73, 0x6b, 0x20};
-    u64 hashlet = wh64Hashlet(({ a_rawc(_r, sha); _r; }));
+    sha1 s = {};
+    memcpy(s.data, sha, 20);
+    u64 hashlet = WHIFFHashlet40(&s);
 
     // Hex output should match SHA prefix
-    char hex[12];
-    wh64Hex40(hex, hashlet, 10);
-    want(memcmp(hex, "816fb46be6", 10) == 0);
-
-    // Shorter prefix
-    wh64Hex40(hex, hashlet, 7);
-    hex[7] = 0;
-    want(memcmp(hex, "816fb46", 7) == 0);
+    a_pad(u8, hex, 12);
+    WHIFFHexFeed40(hex_idle, hashlet);
+    want(memcmp(u8bDataHead(hex), "816fb46be6", 10) == 0);
 
     // FromHex round-trip
     a_cstr(h2hex, "816fb46be6");
-    u64 h2 = wh64FromHex40(h2hex);
+    u64 h2 = WHIFFHexHashlet40(h2hex);
     want(h2 == hashlet);
 
-    // Short prefix match
+    // Short prefix: WHIFFHexHashlet40 with 7 chars, mask compare
     a_cstr(h7hex, "816fb46");
+    u64 h7 = WHIFFHexHashlet40(h7hex);
+    u64 mask7 = ~((1ULL << (40 - 28)) - 1) & WHIFF_HASHLET40_MASK;
+    want((hashlet & mask7) == (h7 & mask7));
+
     a_cstr(h7bad, "816fb47");
-    want(wh64HashletMatch(hashlet, h7hex, 40) == YES);
-    want(wh64HashletMatch(hashlet, h7bad, 40) == NO);
+    u64 hbad = WHIFFHexHashlet40(h7bad);
+    want((hashlet & mask7) != (hbad & mask7));
 
     done;
 }
@@ -76,7 +77,8 @@ ok64 KEEPempty() {
     want(k.npacks == 0);
     want(k.nruns == 0);
 
-    u64 hashlet = keepHashlet60FromHex(({ a_cstr(_h, "abcdef"); _h; }));
+    a_cstr(_h, "abcdef");
+    u64 hashlet = WHIFFHexHashlet60(_h);
     u64 val = 0;
     want(KEEPLookup(&k, hashlet, 6, &val) == KEEPNONE);
     want(KEEPHas(&k, hashlet, 6) == KEEPNONE);
@@ -126,12 +128,14 @@ ok64 KEEPput() {
     // "hello world\n" SHA = 3b18e512dba79e4c8300dd08aeb37f8e728b8dad
     u8 sha0[20] = {0x3b,0x18,0xe5,0x12,0xdb,0xa7,0x9e,0x4c,0x83,0x00,
                    0xdd,0x08,0xae,0xb3,0x7f,0x8e,0x72,0x8b,0x8d,0xad};
-    u64 h0 = ({ a_rawc(_r, sha0); keepHashlet60(_r); });
+    u64 h0 = WHIFFHashlet60((sha1cp)sha0);
     // "goodbye world\n" — compute via git hash-object
-    u64 h1 = keepHashlet60FromHex(({ a_cstr(_h, "ce0136"); _h; }));  // just need a prefix
+    a_cstr(_ce, "ce0136");
+    u64 h1 = WHIFFHexHashlet60(_ce);  // just need a prefix
 
     // Should be retrievable by 7-char prefix (git default)
-    want(KEEPHas(&k, keepHashlet60FromHex(({ a_cstr(_h, "3b18e51"); _h; })), 7) == OK);
+    a_cstr(_3b, "3b18e51");
+    want(KEEPHas(&k, WHIFFHexHashlet60(_3b), 7) == OK);
 
     // Get content back
     Bu8 out = {};
@@ -204,18 +208,19 @@ ok64 KEEPpackIncremental() {
     want(k.nruns == 1);
 
     // Retrieve blob by 7-char prefix (git default)
-    u64 blob_hashlet = keepHashlet60(({ a_rawc(_r, blob_sha); _r; }));
+    u64 blob_hashlet = WHIFFHashlet60(&blob_sha);
     Bu8 out = {};
     call(u8bMap, out, 1UL << 20);
     u8 obj_type = 0;
-    call(KEEPGet, &k, keepHashlet60FromHex(({ a_cstr(_h, "3b18e51"); _h; })), 7, out, &obj_type);
+    a_cstr(_bh, "3b18e51");
+    call(KEEPGet, &k, WHIFFHexHashlet60(_bh), 7, out, &obj_type);
     want(obj_type == KEEP_OBJ_BLOB);
     want(u8bDataLen(out) == u8csLen(blob_content));
     want(memcmp(u8bDataHead(out), blob_content[0], u8csLen(blob_content)) == 0);
 
     // Retrieve tree by full 15-char hashlet
     u8bReset(out);
-    u64 tree_hashlet = keepHashlet60(({ a_rawc(_r, tree_sha); _r; }));
+    u64 tree_hashlet = WHIFFHashlet60(&tree_sha);
     call(KEEPGet, &k, tree_hashlet, 15, out, &obj_type);
     want(obj_type == KEEP_OBJ_TREE);
     want(u8bDataLen(out) == u8csLen(tree_content));

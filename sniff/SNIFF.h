@@ -49,6 +49,8 @@ typedef struct {
     Bu8   changes;   // heap buffer, changes file content
     char  paths_path[1024];   // file path for writeback
     char  chg_path[1024];     // file path for writeback
+    char  head_path[1024];    // .dogs/sniff/HEAD file path
+    char  head[256];          // HEAD content: ref or hex SHA
     Bu32  offsets;   // path_index → byte offset in paths
     Bkv64 names;     // RAPHash(path) → path_index
     Bkv64 state;     // (type|id) → off, aggregated from changes
@@ -106,5 +108,16 @@ ok64 SNIFFRecord(sniff *s, u8 type, u32 index, u64 off);
 //  Look up aggregated state for (type, index).
 //  Returns the off value, or 0 if not found.
 u64 SNIFFGet(sniff const *s, u8 type, u32 index);
+
+//  Read HEAD into out (ref name or hex SHA).  Points into s->head.
+//  Empty slice if no HEAD.
+fun void SNIFFHead(u8csp out, sniff const *s) {
+    size_t len = strlen(s->head);
+    out[0] = (u8cp)s->head;
+    out[1] = (u8cp)s->head + len;
+}
+
+//  Write HEAD.  val is either "refs/heads/main" or 40-char hex.
+ok64 SNIFFSetHead(sniff *s, u8cs val);
 
 #endif

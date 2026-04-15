@@ -241,7 +241,7 @@ static ok64 keeper_get_object(keeper *k, u8cs prefix) {
         return KEEPFAIL;
     }
     size_t hexlen = u8csLen(prefix);
-    u64 hashlet = keepHashlet60FromHex(prefix);
+    u64 hashlet = WHIFFHexHashlet60(prefix);
     Bu8 out = {};
     call(u8bMap, out, 64UL << 20);
     u8 obj_type = 0;
@@ -409,7 +409,7 @@ ok64 keepercli() {
             fprintf(stderr, "keeper: import requires a packfile path\n");
             ret = KEEPFAIL;
         } else {
-            ret = keeper_import(&k, c.uris[0].data);
+            ret = keeper_import(&k, c.uris[0].path);
         }
     } else if ($eq(c.verb, v_verify)) {
         if (c.nuris < 1 || u8csEmpty(c.uris[0].fragment)) {

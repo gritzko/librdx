@@ -37,7 +37,7 @@ static ok64 DELCollectTree(del_sha_ctx *ctx, keeper *k,
                              sha1 const *tree_sha, u8cs prefix) {
     sane(ctx && k && tree_sha);
 
-    u64 hashlet = keepSha1Hashlet60(tree_sha);
+    u64 hashlet = WHIFFHashlet60(tree_sha);
     Bu8 buf = {};
     call(u8bAllocate, buf, 1UL << 24);
     u8 otype = 0;
@@ -95,7 +95,7 @@ static ok64 DELResolveParent(del_sha_ctx *ctx, keeper *k,
 
     size_t hexlen = $len(parent_hex);
     if (hexlen > 15) hexlen = 15;
-    u64 hashlet = keepHashlet60FromHex(parent_hex);
+    u64 hashlet = WHIFFHexHashlet60(parent_hex);
 
     Bu8 cbuf = {};
     call(u8bAllocate, cbuf, 1UL << 24);
@@ -116,7 +116,7 @@ static ok64 DELResolveParent(del_sha_ctx *ctx, keeper *k,
                 break;
             }
         }
-        u64 ch = keepSha1Hashlet60(&tag_sha);
+        u64 ch = WHIFFHashlet60(&tag_sha);
         u8bReset(cbuf);
         call(KEEPGet, k, ch, 15, cbuf, &ctype);
     }

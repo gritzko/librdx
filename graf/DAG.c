@@ -518,7 +518,7 @@ static u32 dag_load_bookmarks(sha1 out[], u32 maxout,
 
     u32 valid = 0;
     for (u32 i = 0; i < sha_count && valid < maxout; i++) {
-        u64 hashlet = wh64Sha1Hashlet60(&shas[i]);
+        u64 hashlet = WHIFFHashlet60(&shas[i]);
         if (KEEPHas(k, hashlet, 15) == OK) {
             out[valid] = shas[i];
             valid++;
@@ -686,8 +686,8 @@ static ok64 dag_tree_diff_r(keeper *k, u8cs old_tree, u8cs new_tree,
                         memcpy(pathbuf + pathoff, old_ents[oi].name[0], nlen);
                         pathbuf[pathoff + nlen] = '/';
 
-                        u64 oh = keepHashlet60(old_ents[oi].sha);
-                        u64 nh = keepHashlet60(new_ents[ni].sha);
+                        u64 oh = WHIFFHashlet60((sha1cp)old_ents[oi].sha[0]);
+                        u64 nh = WHIFFHashlet60((sha1cp)new_ents[ni].sha[0]);
                         Bu8 ob = {}, nb = {};
                         u8bMap(ob, 4UL << 20);
                         u8bMap(nb, 4UL << 20);
@@ -704,8 +704,8 @@ static ok64 dag_tree_diff_r(keeper *k, u8cs old_tree, u8cs new_tree,
                         u8bUnMap(nb);
                     }
                 } else {
-                    u64 oh = keepHashlet60(old_ents[oi].sha);
-                    u64 nh = keepHashlet60(new_ents[ni].sha);
+                    u64 oh = WHIFFHashlet60((sha1cp)old_ents[oi].sha[0]);
+                    u64 nh = WHIFFHashlet60((sha1cp)new_ents[ni].sha[0]);
                     size_t nlen = u8csLen(old_ents[oi].name);
                     if (pathoff + nlen < pathcap) {
                         memcpy(pathbuf + pathoff, old_ents[oi].name[0], nlen);
@@ -719,7 +719,7 @@ static ok64 dag_tree_diff_r(keeper *k, u8cs old_tree, u8cs new_tree,
         } else {
             b8 is_tree = *new_ents[ni].mode[0] == '4';
             if (!is_tree) {
-                u64 nh = keepHashlet60(new_ents[ni].sha);
+                u64 nh = WHIFFHashlet60((sha1cp)new_ents[ni].sha[0]);
                 size_t nlen = u8csLen(new_ents[ni].name);
                 if (pathoff + nlen < pathcap) {
                     memcpy(pathbuf + pathoff, new_ents[ni].name[0], nlen);
@@ -802,7 +802,7 @@ ok64 DAGHook(keeper *k, u8cs reporoot) {
     // Build a set of known commit hashlets to skip
     u64 known_commits[DAG_MAX_SHAS];
     for (u32 i = 0; i < nbookmarks; i++) {
-        known_commits[i] = wh64Sha1Hashlet60(&bookmarks[i]);
+        known_commits[i] = WHIFFHashlet60(&bookmarks[i]);
     }
 
     if (nbookmarks > 0)
@@ -899,7 +899,7 @@ ok64 DAGHook(keeper *k, u8cs reporoot) {
             u32 gen = 1;
             u64 parent_hashlets[16] = {};
             for (int pi = 0; pi < npar; pi++) {
-                parent_hashlets[pi] = wh64Sha1Hashlet60(&parent_shas[pi]);
+                parent_hashlets[pi] = WHIFFHashlet60(&parent_shas[pi]);
                 u32 pg = dag_gens_get(&gens, parent_hashlets[pi]);
                 if (pg == 0) pg = dag_stack_gen(&stack, parent_hashlets[pi]);
                 if (pg >= gen) gen = pg + 1;
@@ -922,7 +922,7 @@ ok64 DAGHook(keeper *k, u8cs reporoot) {
             }
 
             // Emit COMMIT_TREE
-            u64 tree_h = wh64Sha1Hashlet60(&tree_sha);
+            u64 tree_h = WHIFFHashlet60(&tree_sha);
             dag_emit(entries, &nentries, bufcap,
                      DAG_COMMIT_TREE, gen, commit_h,
                      DAG_COMMIT_TREE, gen, tree_h);
@@ -954,7 +954,7 @@ ok64 DAGHook(keeper *k, u8cs reporoot) {
                             break;
                         }
                     }
-                    u64 ptree_h = wh64Sha1Hashlet60(&ptree);
+                    u64 ptree_h = WHIFFHashlet60(&ptree);
 
                     u8bReset(tree_old_buf);
                     u8 ott = 0;

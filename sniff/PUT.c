@@ -18,7 +18,7 @@ static ok64 PUTParentSha(sha1 *out, keeper *k, u8cs parent_hex) {
 
     size_t hexlen = $len(parent_hex);
     if (hexlen > 15) hexlen = 15;
-    u64 hashlet = keepHashlet60FromHex(parent_hex);
+    u64 hashlet = WHIFFHexHashlet60(parent_hex);
 
     Bu8 cbuf = {};
     call(u8bAllocate, cbuf, 1UL << 24);
@@ -40,7 +40,7 @@ static ok64 PUTParentSha(sha1 *out, keeper *k, u8cs parent_hex) {
                 break;
             }
         }
-        u64 ch = keepSha1Hashlet60(&tag_sha);
+        u64 ch = WHIFFHashlet60(&tag_sha);
         u8bReset(cbuf);
         call(KEEPGet, k, ch, 15, cbuf, &ctype);
     }
@@ -133,6 +133,11 @@ ok64 PUTCommit(sniff *s, keeper *k, u8cs reporoot,
     a_pad(u8, out_hex, 40);
     u8cs osha = {sha_out->data, sha_out->data + GIT_SHA1_LEN};
     HEXu8sFeedSome(out_hex_idle, osha);
+
+    // Update HEAD to new commit
+    u8cs new_hex = {u8bDataHead(out_hex), out_hex[2]};
+    SNIFFSetHead(s, new_hex);
+
     fprintf(stderr, "sniff: commit %.*s\n",
             (int)u8bDataLen(out_hex), (char *)u8bDataHead(out_hex));
     done;
