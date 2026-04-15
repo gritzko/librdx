@@ -36,10 +36,10 @@ for TAG in $TAGS; do
 
     # --- be get: fetch + checkout ---
     cd "$TMILL/be01"
-    be get "//localhost${REPO}?refs/tags/${TAG}" 2>&1 | grep -v "^keeper: round"
+    time be get "//localhost${REPO}?refs/tags/${TAG}" 2>&1 | grep -v "^keeper: round"
 
     # --- git checkout reference ---
-    git -C "$TMILL/git01" checkout --quiet "refs/tags/${TAG}"
+    time git -C "$TMILL/git01" checkout --quiet "refs/tags/${TAG}"
 
     # --- compare file counts ---
     BE_N=$(find "$TMILL/be01" -not -path '*/.dogs/*' -not -path '*/.git/*' -type f | wc -l)

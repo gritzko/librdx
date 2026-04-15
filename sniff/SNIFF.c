@@ -205,28 +205,37 @@ ok64 SNIFFUpdate(sniff *s) {
 
 // --- Intern ---
 
-u32 SNIFFIntern(sniff *s, u8cs path) {
+ok64 SNIFFInternIdx(sniff *s, u8cs path, u32 *idx) {
+    sane(s && idx);
     u32 past_count = (u32)u8csbDataLen(s->past);
     if (past_count > 0) {
         u8csc key = {path[0], path[1]};
         u8cscp base = u8csbDataHead(s->past);
         u8cscs pslice = {base, base + past_count};
         u8cs *found = (u8cs *)$bsearch(&key, pslice, u8cscmp);
-        if (found) return (u32)(found - base);
+        if (found) { *idx = (u32)(found - base); done; }
     }
 
     u32 data_count = (u32)u8csbDataLen(s->data);
     u8cscp dp = u8csbDataHead(s->data);
     for (u32 i = 0; i < data_count; i++)
-        if ($eq(dp[i], path)) return past_count + i;
+        if ($eq(dp[i], path)) { *idx = past_count + i; done; }
 
-    FILEBookEnsure(s->paths, $len(path) + 1);
+    call(FILEBookEnsure, s->paths, $len(path) + 1);
     u8cp start = u8bIdleHead(s->paths);
-    u8bFeed(s->paths, path);
-    u8bFeed1(s->paths, '\n');
+    call(u8bFeed, s->paths, path);
+    call(u8bFeed1, s->paths, '\n');
     u8cs newpath = {start, start + $len(path)};
-    u8cssFeed1(u8csbIdle(s->data), newpath);
-    return past_count + data_count;
+    call(u8csbReserve, s->data, 1);
+    call(u8cssFeed1, u8csbIdle(s->data), newpath);
+    *idx = past_count + data_count;
+    done;
+}
+
+u32 SNIFFIntern(sniff *s, u8cs path) {
+    u32 idx = 0;
+    SNIFFInternIdx(s, path, &idx);
+    return idx;
 }
 
 u32 SNIFFInternDir(sniff *s, u8cs path) {
