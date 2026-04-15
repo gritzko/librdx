@@ -176,6 +176,23 @@ ok64 SNIFFOpen(sniff *s, u8cs reporoot, b8 rw) {
     snprintf(s->chg_path, sizeof(s->chg_path),
              "%.*s/" SNIFF_DIR "/state.log",
              (int)$len(reporoot), (char *)reporoot[0]);
+    snprintf(s->head_path, sizeof(s->head_path),
+             "%.*s/" SNIFF_DIR "/HEAD",
+             (int)$len(reporoot), (char *)reporoot[0]);
+
+    // Read HEAD
+    {
+        FILE *hf = fopen(s->head_path, "r");
+        if (hf) {
+            if (fgets(s->head, sizeof(s->head), hf)) {
+                size_t len = strlen(s->head);
+                while (len > 0 && (s->head[len - 1] == '\n' ||
+                                   s->head[len - 1] == '\r'))
+                    s->head[--len] = 0;
+            }
+            fclose(hf);
+        }
+    }
 
     // Read paths file into heap buffer
     call(u8bAllocate, s->paths, SNIFF_INIT_CAP);
@@ -343,6 +360,21 @@ u64 SNIFFGet(sniff const *s, u8 type, u32 index) {
     kv64s tab = {kv64bHead(s->state), kv64bTerm(s->state)};
     if (HASHkv64Get(&probe, tab) == OK) return probe.val;
     return 0;
+}
+
+// --- SetHead ---
+
+ok64 SNIFFSetHead(sniff *s, u8cs val) {
+    sane(s);
+    size_t len = $len(val);
+    if (len >= sizeof(s->head)) len = sizeof(s->head) - 1;
+    memcpy(s->head, val[0], len);
+    s->head[len] = 0;
+    FILE *hf = fopen(s->head_path, "w");
+    if (!hf) fail(SNIFFFAIL);
+    fprintf(hf, "%s\n", s->head);
+    fclose(hf);
+    done;
 }
 
 // --- Close ---

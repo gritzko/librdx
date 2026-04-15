@@ -409,7 +409,7 @@ ok64 keepercli() {
             fprintf(stderr, "keeper: import requires a packfile path\n");
             ret = KEEPFAIL;
         } else {
-            ret = keeper_import(&k, c.uris[0].data);
+            ret = keeper_import(&k, c.uris[0].path);
         }
     } else if ($eq(c.verb, v_verify)) {
         if (c.nuris < 1 || u8csEmpty(c.uris[0].fragment)) {

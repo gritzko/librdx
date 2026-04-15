@@ -133,6 +133,11 @@ ok64 PUTCommit(sniff *s, keeper *k, u8cs reporoot,
     a_pad(u8, out_hex, 40);
     u8cs osha = {sha_out->data, sha_out->data + GIT_SHA1_LEN};
     HEXu8sFeedSome(out_hex_idle, osha);
+
+    // Update HEAD to new commit
+    u8cs new_hex = {u8bDataHead(out_hex), out_hex[2]};
+    SNIFFSetHead(s, new_hex);
+
     fprintf(stderr, "sniff: commit %.*s\n",
             (int)u8bDataLen(out_hex), (char *)u8bDataHead(out_hex));
     done;

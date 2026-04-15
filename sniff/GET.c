@@ -251,7 +251,9 @@ ok64 GETCheckout(sniff *s, keeper *k, u8cs reporoot, u8cs hex) {
         o = GETPrune(s, reporoot, u8bDataHead(seen_buf));
 
     u8bFree(seen_buf);
-    if (o == OK)
+    if (o == OK) {
+        SNIFFSetHead(s, hex);
         fprintf(stderr, "sniff: checkout done\n");
+    }
     return o;
 }

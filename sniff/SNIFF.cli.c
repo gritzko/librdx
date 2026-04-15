@@ -424,8 +424,13 @@ ok64 sniffcli() {
         u8cs commit_author = {};
         CLIFlag(commit_author, &c, "--author");
 
+        if (!$ok(commit_parent)) {
+            u8cs head = {};
+            SNIFFHead(head, &s);
+            if ($ok(head)) $mv(commit_parent, head);
+        }
         if (!$ok(commit_msg) || !$ok(commit_parent)) {
-            fprintf(stderr, "sniff: commit requires -m and --parent\n");
+            fprintf(stderr, "sniff: commit requires -m and parent (--parent or HEAD)\n");
             ret = SNIFFFAIL;
         } else {
             if (!$ok(commit_author)) {
@@ -468,7 +473,12 @@ ok64 sniffcli() {
         u8cs commit_parent = {};
         CLIFlag(commit_parent, &c, "--parent");
         if (!$ok(commit_parent)) {
-            fprintf(stderr, "sniff: post requires --parent\n");
+            u8cs head = {};
+            SNIFFHead(head, &s);
+            if ($ok(head)) $mv(commit_parent, head);
+        }
+        if (!$ok(commit_parent)) {
+            fprintf(stderr, "sniff: post requires parent (--parent or HEAD)\n");
             ret = SNIFFFAIL;
         } else {
             sniff_stat_all(&s, reporoot, SNIFF_CHANGED);
@@ -511,9 +521,14 @@ ok64 sniffcli() {
     } else if (is_delete) {
         u8cs commit_parent = {};
         CLIFlag(commit_parent, &c, "--parent");
+        if (!$ok(commit_parent)) {
+            u8cs head = {};
+            SNIFFHead(head, &s);
+            if ($ok(head)) $mv(commit_parent, head);
+        }
         if (!$ok(commit_parent) || c.nuris < 1) {
             fprintf(stderr,
-                    "sniff: delete requires --parent and file(s)\n");
+                    "sniff: delete requires parent (--parent or HEAD) and file(s)\n");
             ret = SNIFFFAIL;
         } else {
             u32 npaths = SNIFFCount(&s);
