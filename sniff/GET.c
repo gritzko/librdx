@@ -142,11 +142,11 @@ static ok64 GETTree(sniff *s, keeper *k, u8cs reporoot,
 }
 
 // Remove tracked files not in the new tree.
-// Files first, then dirs (rmdir only works on empty dirs).
+// Files first, then dirs (FILERmDir only works on empty dirs).
 static ok64 GETPrune(sniff *s, u8cs reporoot, u8cp seen) {
     sane(s);
     u32 n = SNIFFCount(s);
-    u32 removed = 0;
+    u32 removed = 0, errors = 0;
 
     // Pass 1: unlink files
     for (u32 i = 0; i < n; i++) {
@@ -156,16 +156,18 @@ static ok64 GETPrune(sniff *s, u8cs reporoot, u8cp seen) {
         if (SNIFFIsDir(s, i)) continue;
 
         u8cs rel = {};
-        if (SNIFFPath(rel, s, i) != OK) continue;
+        call(SNIFFPath, rel, s, i);
 
-        a_path(fp);
-        if (SNIFFFullpath(fp, reporoot, rel) != OK) continue;
+        a_path(fp, reporoot, rel);
 
-        unlink((char *)u8bDataHead(fp));
-
-        SNIFFRecord(s, SNIFF_HASHLET, i, 0);
-        SNIFFRecord(s, SNIFF_CHECKOUT, i, 0);
-        removed++;
+        ok64 o = FILEUnLink(PATHu8cgIn(fp));
+        if (o == OK || o == FILENOENT) {
+            SNIFFRecord(s, SNIFF_HASHLET, i, 0);
+            SNIFFRecord(s, SNIFF_CHECKOUT, i, 0);
+            removed++;
+        } else {
+            errors++;
+        }
     }
 
     // Pass 2: rmdir stale dirs (reverse order for bottom-up)
@@ -177,19 +179,20 @@ static ok64 GETPrune(sniff *s, u8cs reporoot, u8cp seen) {
         if (!SNIFFIsDir(s, i)) continue;
 
         u8cs rel = {};
-        if (SNIFFPath(rel, s, i) != OK) continue;
+        call(SNIFFPath, rel, s, i);
 
-        a_path(fp);
-        if (SNIFFFullpath(fp, reporoot, rel) != OK) continue;
+        a_path(fp, reporoot, rel);
 
-        rmdir((char *)u8bDataHead(fp));
-
-        SNIFFRecord(s, SNIFF_HASHLET, i, 0);
-        SNIFFRecord(s, SNIFF_CHECKOUT, i, 0);
+        ok64 o = FILERmDir(PATHu8cgIn(fp), NO);
+        if (o == OK || o == FILENOENT || o == FILENOTEMP) {
+            SNIFFRecord(s, SNIFF_HASHLET, i, 0);
+            SNIFFRecord(s, SNIFF_CHECKOUT, i, 0);
+        }
     }
 
-    if (removed > 0)
-        fprintf(stderr, "sniff: removed %u stale file(s)\n", removed);
+    if (removed > 0 || errors > 0)
+        fprintf(stderr, "sniff: removed %u file(s), %u error(s)\n",
+                removed, errors);
     done;
 }
 
