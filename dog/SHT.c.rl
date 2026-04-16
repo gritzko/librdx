@@ -71,8 +71,8 @@ main := |*
     # ---- comments ----
     [#] [^\n]*                                                    => on_comment;
 
-    # ---- single-quoted strings (no escapes) ----
-    ['] ( any8 - ['] )* [']                                       => on_string;
+    # ---- single-quoted strings (no escapes; absorb '\'' shell quote-toggle) ----
+    ['] ( "'\\''" | any8 - ['] )* [']                             => on_string;
 
     # ---- double-quoted strings ----
     ["] ( [\\] any8 | any8 - ["\\] )* ["]                        => on_string;

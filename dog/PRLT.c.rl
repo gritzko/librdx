@@ -118,7 +118,7 @@ main := |*
     ".." | "..."                                                   => on_punct;
 
     # ---- single-char punctuation ----
-    (any8 - idalpha - dgt - ws - ["'#$@%] - [.])                 => on_punct;
+    (any8 - idalpha - dgt - ws - [#] - [.])                      => on_punct;
     [.]                                                            => on_punct;
 
     # ---- whitespace ----

@@ -436,6 +436,7 @@ ok64 SHTBasicTest() {
         {"$(expr 'a)b')", "PSSGP"},
         {"foo'\nbar", "SPSS"},
         {"x \" y", "SSPSS"},
+        {"'foo'\\''bar'", "G"},
     };
     int ncases = sizeof(cases) / sizeof(cases[0]);
     RUN_CASES(SHTLexer, SHT, cases, ncases);
@@ -622,6 +623,10 @@ ok64 PRLTBasicTest() {
         {"42", "L"},
         {"my sub", "RSR"},
         {"if else", "RSR"},
+        {"$x =~ /\\@(.*)>$/", "SSPSPPPPPPPPS"},
+        {"$", "P"},
+        {"@", "P"},
+        {"%", "P"},
     };
     int ncases = sizeof(cases) / sizeof(cases[0]);
     RUN_CASES(PRLTLexer, PRLT, cases, ncases);
