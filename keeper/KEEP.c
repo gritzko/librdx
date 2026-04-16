@@ -1444,15 +1444,19 @@ ok64 KEEPSync(keeper *k, u8cs remote,
     sha1hex head_hex;
     memcpy(head_hex.data, line[0], 40);
 
-    // Drain remaining refs until flush
-    #define MAX_REFS 2048
-    sha1hex  refs[MAX_REFS];        // original SHA (for wants)
-    sha1hex  refrec[MAX_REFS];      // peeled SHA if available (for REFS)
-    char     refnames[MAX_REFS][256];
+    // Drain remaining refs until flush.
+    // Each ref: original SHA (wants), peeled SHA (REFS), name.
+    typedef struct { sha1hex sha; sha1hex peeled; char name[256]; } sync_ref;
+    u32 ref_cap = 4096;
+    sync_ref *refs = malloc(ref_cap * sizeof(sync_ref));
+    if (!refs) { u8bUnMap(rbuf_b); u8bUnMap(objbuf_b);
+                 close(wfd); close(rfd);
+                 kill(pid, SIGTERM); waitpid(pid, NULL, 0);
+                 return KEEPNOROOM; }
     u32 nrefs = 0;
-    refs[nrefs] = head_hex;
-    refrec[nrefs] = head_hex;
-    snprintf(refnames[nrefs], 256, "HEAD");
+    refs[0].sha = head_hex;
+    refs[0].peeled = head_hex;
+    snprintf(refs[0].name, 256, "HEAD");
     nrefs++;
 
     for (;;) {
@@ -1466,7 +1470,7 @@ ok64 KEEPSync(keeper *k, u8cs remote,
             continue;
         }
         if (o != OK) break;
-        if ($len(line) >= 42 && nrefs < MAX_REFS) {
+        if ($len(line) >= 42) {
             // Extract ref name: after SHA + space, until NUL/space/newline
             u8cp namestart = line[0] + 41;
             u8cp nameend = namestart;
@@ -1476,24 +1480,31 @@ ok64 KEEPSync(keeper *k, u8cs remote,
             size_t namelen = (size_t)(nameend - namestart);
             if (namelen == 0 || namelen >= 256) continue;
 
-            // Peeled tag (^{}): update refrec with dereferenced SHA.
-            // refs[] keeps original (for wants), refrec[] gets peeled (for REFS).
+            // Peeled tag (^{}): update peeled SHA for matching ref.
             if (namelen > 3 && nameend[-1] == '}' && nameend[-2] == '{' && nameend[-3] == '^') {
                 size_t base_namelen = namelen - 3;
                 for (u32 pi = 0; pi < nrefs; pi++) {
-                    if (strlen(refnames[pi]) == base_namelen &&
-                        memcmp(refnames[pi], namestart, base_namelen) == 0) {
-                        memcpy(refrec[pi].data, line[0], 40);
+                    if (strlen(refs[pi].name) == base_namelen &&
+                        memcmp(refs[pi].name, namestart, base_namelen) == 0) {
+                        memcpy(refs[pi].peeled.data, line[0], 40);
                         break;
                     }
                 }
                 continue;
             }
 
-            memcpy(refs[nrefs].data, line[0], 40);
-            memcpy(refrec[nrefs].data, line[0], 40);
-            memcpy(refnames[nrefs], namestart, namelen);
-            refnames[nrefs][namelen] = 0;
+            // Grow if needed
+            if (nrefs >= ref_cap) {
+                ref_cap *= 2;
+                sync_ref *grown = realloc(refs, ref_cap * sizeof(sync_ref));
+                if (!grown) break;
+                refs = grown;
+            }
+
+            memcpy(refs[nrefs].sha.data, line[0], 40);
+            memcpy(refs[nrefs].peeled.data, line[0], 40);
+            memcpy(refs[nrefs].name, namestart, namelen);
+            refs[nrefs].name[namelen] = 0;
             nrefs++;
         }
     }
@@ -1514,11 +1525,11 @@ ok64 KEEPSync(keeper *k, u8cs remote,
                 sha1hex const *sha = NULL;
                 size_t wlen = strlen(wants[wi]);
                 for (u32 j = 0; j < nrefs; j++) {
-                    if (wlen == 40 && memcmp(refs[j].data, wants[wi], 40) == 0) {
-                        sha = &refs[j]; break;
+                    if (wlen == 40 && memcmp(refs[j].sha.data, wants[wi], 40) == 0) {
+                        sha = &refs[j].sha; break;
                     }
-                    if (strcmp(refnames[j], wants[wi]) == 0) {
-                        sha = &refs[j]; break;
+                    if (strcmp(refs[j].name, wants[wi]) == 0) {
+                        sha = &refs[j].sha; break;
                     }
                 }
                 if (!sha) {
@@ -1546,11 +1557,11 @@ ok64 KEEPSync(keeper *k, u8cs remote,
                 int plen;
                 if (first_want) {
                     plen = snprintf(pay, sizeof(pay),
-                        "want %.40s no-progress\n", refs[i].data);
+                        "want %.40s no-progress\n", refs[i].sha.data);
                     first_want = NO;
                 } else {
                     plen = snprintf(pay, sizeof(pay),
-                        "want %.40s\n", refs[i].data);
+                        "want %.40s\n", refs[i].sha.data);
                 }
                 u8cs payload = {(u8cp)pay, (u8cp)pay + plen};
                 PKTu8sFeed(ws, payload);
@@ -1779,6 +1790,7 @@ got_pack:
                 break;
             }
             types_arr[i] = obj.type;
+            u8bReset(k->buf1);
             ok64 zr = ZINFInflate(u8bIdle(k->buf1), scan);
             if (zr != OK) {
                 fprintf(stderr, "keeper: scan inflate fail at %u: %s type=%u "
@@ -2145,14 +2157,14 @@ sync_done:
                 // key = "?refname"
                 refarr[i].key[0] = u8bIdleHead(strbuf);
                 u8bFeed1(strbuf, '?');
-                a_cstr(rn, refnames[i]);
+                a_cstr(rn, refs[i].name);
                 u8bFeed(strbuf, rn);
                 refarr[i].key[1] = u8bIdleHead(strbuf);
                 // val = "?sha"
                 refarr[i].val[0] = u8bIdleHead(strbuf);
                 u8bFeed1(strbuf, '?');
-                u8cs sha = {refrec[i].data, refrec[i].data + 40};
-                u8bFeed(strbuf, sha);
+                u8cs psha = {refs[i].peeled.data, refs[i].peeled.data + 40};
+                u8bFeed(strbuf, psha);
                 refarr[i].val[1] = u8bIdleHead(strbuf);
             }
             ok64 ro = REFSSyncRecord(kdir, refarr, nrefs);
@@ -2166,10 +2178,12 @@ sync_done:
     }
 
 sync_end:
+    free(refs);
     fprintf(stderr, "keeper: sync complete\n");
     done;
 
 sync_fail:
+    free(refs);
     if (rbuf_b[0]) u8bUnMap(rbuf_b);
     if (objbuf_b[0]) u8bUnMap(objbuf_b);
     if (wfd >= 0) close(wfd);

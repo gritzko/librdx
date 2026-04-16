@@ -15,7 +15,7 @@ TMILL=${TMILL:-$HOME/tmp/mill-tags-$$}
 REPO=${REPO:-$HOME/src/git}
 trap 'rm -rf "$TMILL"' EXIT
 
-TAGS="v2.8.4 v2.8.5 v2.8.6 v2.9.0 v2.9.0-rc0 v2.9.0-rc1 v2.9.0-rc2 v2.9.1 v2.9.2 v2.9.3 v2.9.4 v2.9.5"
+TAGS=${TAGS:-"v2.8.4 v2.8.5 v2.8.6 v2.9.0 v2.9.0-rc0 v2.9.0-rc1 v2.9.0-rc2 v2.9.1 v2.9.2 v2.9.3 v2.9.4 v2.9.5"}
 
 mkdir -p "$TMILL/be01" "$TMILL/git01"
 
@@ -34,40 +34,27 @@ for TAG in $TAGS; do
     echo ""
     echo "=== $TAG ==="
 
-    # --- be get: fetch + checkout ---
+    # --- git checkout in background, be get in foreground ---
+    git -C "$TMILL/git01" checkout --quiet "refs/tags/${TAG}" &
+    GIT_PID=$!
+
     cd "$TMILL/be01"
-    time be get "//localhost${REPO}?refs/tags/${TAG}" 2>&1 | grep -v "^keeper: round"
+    be get "//localhost${REPO}?refs/tags/${TAG}" 2>&1 | grep -v "^keeper: round"
 
-    # --- git checkout reference ---
-    time git -C "$TMILL/git01" checkout --quiet "refs/tags/${TAG}"
+    wait $GIT_PID
 
-    # --- compare file counts ---
+    # --- rsync dry-run: full content comparison ---
+    RDIFF=$(rsync -rlcn --delete \
+        --exclude='/.git/' --exclude='/.dogs/' \
+        "$TMILL/git01/" "$TMILL/be01/" 2>&1)
+
     BE_N=$(find "$TMILL/be01" -not -path '*/.dogs/*' -not -path '*/.git/*' -type f | wc -l)
-    GIT_N=$(find "$TMILL/git01" -not -path '*/.git/*' -type f | wc -l)
 
-    if [ "$BE_N" != "$GIT_N" ]; then
-        echo "FAIL $TAG: file count be=$BE_N git=$GIT_N"
-        FAIL=$((FAIL + 1))
-        continue
-    fi
-
-    # --- spot check 20 files ---
-    cd "$TMILL/git01"
-    TAG_FAIL=0
-    for f in $(find . -not -path './.git/*' -type f | sort | head -20); do
-        if [ ! -f "$TMILL/be01/$f" ]; then
-            echo "  MISS: $f"
-            TAG_FAIL=1
-        elif ! diff -q "$f" "$TMILL/be01/$f" >/dev/null 2>&1; then
-            echo "  DIFF: $f"
-            TAG_FAIL=1
-        fi
-    done
-
-    if [ "$TAG_FAIL" = "0" ]; then
+    if [ -z "$RDIFF" ]; then
         echo "PASS: $TAG ($BE_N files)"
     else
         echo "FAIL: $TAG"
+        echo "$RDIFF" | head -10
         FAIL=$((FAIL + 1))
     fi
 done
