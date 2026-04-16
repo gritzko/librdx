@@ -234,8 +234,34 @@ static ok64 SNIFFGetURI(sniff *s, u8cs reporoot, uri *u) {
     uri resolved = {};
     ok64 o = REFSResolve(&resolved, arena, keepdir, ref_to_resolve);
     if (o == OK && !$empty(resolved.query)) {
+        // For HEAD-derived checkouts, replace `?HEAD` with the branch
+        // alias it points at (e.g. `?master`) so the worktree's
+        // `file://reporoot` reflog entry records the actual branch
+        // name. Single-hop lookup of ?HEAD's val in keeper's refs.
+        a_pad(u8, src_alias, 256);
+        a_cstr(head_lit, "?HEAD");
+        if ($eq(ref_to_resolve, head_lit)) {
+            ref rarr2[REFS_MAX_REFS];
+            u32 rn2 = 0;
+            u8bp rmap2 = NULL;
+            REFSLoad(rarr2, &rn2, REFS_MAX_REFS, &rmap2, keepdir);
+            for (u32 i = 0; i < rn2; i++) {
+                if (REFMatch(&rarr2[i], head_lit)) {
+                    a_dup(u8c, alias_v, rarr2[i].val);
+                    u8bFeed(src_alias, alias_v);
+                    break;
+                }
+            }
+            if (rmap2) u8bUnMap(rmap2);
+        }
+        u8cs source_to_record = {};
+        u8csMv(source_to_record, ref_to_resolve);
+        if (u8bDataLen(src_alias) > 0) {
+            a_dup(u8c, sa, u8bData(src_alias));
+            u8csMv(source_to_record, sa);
+        }
         o = GETCheckout(s, &k, reporoot, resolved.query,
-                        ref_to_resolve);
+                        source_to_record);
         KEEPClose(&k);
         return o;
     }

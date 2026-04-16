@@ -52,10 +52,13 @@ mkdir -p .dogs/keeper
 
 be get "//localhost${TMILL}/origin" 2>&1
 
-# --- 4. Verify refs ---
-KEEP_HEAD=$(keeper get ".?refs/heads/master" 2>/dev/null)
+# --- 4. Verify refs (new naming: stripped refs/ prefix, local ?master) ---
+KEEP_HEAD=$(keeper get ".?master" 2>/dev/null)
 echo "keeper HEAD: $KEEP_HEAD"
 test "$KEEP_HEAD" = "$GIT_HEAD" || { echo "FAIL: HEAD mismatch"; exit 1; }
+# `?HEAD` should chain through the alias to the same SHA
+KEEP_HEAD2=$(keeper get ".?HEAD" 2>/dev/null)
+test "$KEEP_HEAD2" = "$GIT_HEAD" || { echo "FAIL: HEAD alias mismatch"; exit 1; }
 echo "PASS: refs match"
 
 # --- 5. Compare worktrees ---

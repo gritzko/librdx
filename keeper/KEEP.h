@@ -120,7 +120,13 @@ ok64 KEEPVerify(keeper *k, u8cs hex_sha);
 ok64 KEEPImport(keeper *k, u8cs pack_path);
 
 //  Fetch objects from remote via git-upload-pack.
-ok64 KEEPSync(keeper *k, u8cs remote,
+//  `remote` is the parsed "host /path" form used for the ssh command.
+//  `origin_uri` is the original URI the user typed (e.g.
+//  "localhost:src/git" or "//localhost/path") and is used as the
+//  prefix for remote-tracking entries in the refs reflog. Empty/NULL
+//  is allowed — entries will then be recorded only under their local
+//  bare names.
+ok64 KEEPSync(keeper *k, u8cs remote, u8cs origin_uri,
               char const *const *wants, char const *const *haves);
 
 //  Store a batch of objects (convenience wrapper over Open/Feed/Close).

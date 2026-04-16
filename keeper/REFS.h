@@ -2,21 +2,7 @@
 #define KEEPER_REFS_H
 
 //  REFS: URI→URI append-only reflog for keeper.
-//
-//  Stored in .dogs/keeper/REFS as plain text, one mapping per line:
-//    <ron60-timestamp>\t<from-uri>\t<to-uri>\n
-//
-//  Examples:
-//    Cb2q1~00	//github	https://github.com/torvalds/linux.git
-//    Cb2q1~00	?refs/heads/master	?6d707f8f9e42072b84c6a00ac959af59356affea
-//    Cb2q2A00	?refs/heads/master	?abc123def456789...
-//
-//  Aliases map authority→full URL:
-//    //github → https://github.com/torvalds/linux.git
-//
-//  Ref→SHA maps use query syntax:
-//    ?refs/heads/master → ?<hex-sha>
-//
+//  See REF.md (next to this header) for the format spec.
 //  Resolution: chase from→to iteratively (max REFS_MAX_CHAIN).
 //  Compaction: collapse entries with same from-key, keep latest.
 
@@ -29,7 +15,7 @@ con ok64 REFSFAIL  = 0x6ce3dc3ca495;
 con ok64 REFSNONE  = 0x6ce3dc5d85ce;
 con ok64 REFSBAD   = 0x1b38f70b28d;
 
-#define REFS_FILE     "REFS"
+#define REFS_FILE     "refs"
 #define REFS_MAX_CHAIN 8
 #define REFS_MAX_REFS  1024
 
@@ -42,8 +28,8 @@ con ok64 REFSBAD   = 0x1b38f70b28d;
 
 typedef struct {
     ron60 time;
-    u8cs  key;   // from-URI (e.g. "//github" or "?refs/heads/master")
-    u8cs  val;   // to-URI   (e.g. full URL or "?sha")
+    u8cs  key;   // from-URI (see REF.md)
+    u8cs  val;   // to-URI   (see REF.md)
     u8    type;
 } ref;
 

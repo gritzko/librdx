@@ -8,7 +8,7 @@ static ron60 refs_now(void) {
     time_t t = time(NULL);
     struct tm *tm = localtime(&t);
     ron60 r = 0;
-    RONOfTime(&r, tm);
+    RONOfTime(&r, tm, 0);
     return r;
 }
 
@@ -239,24 +239,56 @@ ok64 REFSResolve(urip resolved, u8bp arena, u8csc dir, u8csc input) {
         }
     }
 
-    // resolve query (ref): ?refname → ?sha
+    // resolve query (ref): ?refname → ?sha. Chain through aliases —
+    // e.g. `?HEAD → ?master`, `?master → ?<sha>` should resolve to
+    // the SHA, not stop at the alias. Stop when we hit a value that
+    // looks like a 40-char hex SHA (the terminal node) or a key with
+    // no further binding.
     if (!u8csEmpty(u.query)) {
-        a_pad(u8, qbuf, 256);
+        a_pad(u8, qbuf, 1024);
         u8bFeed1(qbuf, '?');
         u8bFeed(qbuf, u.query);
-        a_dup(u8c, qkey, u8bData(qbuf));
 
-        for (u32 i = 0; i < n; i++) {
-            if (REFMatch(&arr[i], qkey)) {
-                a_dup(u8c, val, arr[i].val);
-                if (!u8csEmpty(val) && *val[0] == '?')
-                    u8csUsed(val, 1);
-                u8bFeed(arena, val);
-                size_t vlen = u8csLen(val);
-                resolved->query[0] = u8bIdleHead(arena) - vlen;
-                resolved->query[1] = u8bIdleHead(arena);
-                break;
+        u8cs final_val = {};
+        for (int chain = 0; chain < REFS_MAX_CHAIN; chain++) {
+            a_dup(u8c, qkey, u8bData(qbuf));
+            refp found = NULL;
+            for (u32 i = 0; i < n; i++) {
+                if (REFMatch(&arr[i], qkey)) { found = &arr[i]; break; }
             }
+            if (!found) break;
+            // Check if val[1..] is a 40-hex SHA — if so, we're done.
+            u8cs vfull = {found->val[0], found->val[1]};
+            if ($len(vfull) == 41 && vfull[0][0] == '?') {
+                b8 is_sha = YES;
+                for (int j = 1; j < 41; j++) {
+                    u8 c = vfull[0][j];
+                    if (!((c >= '0' && c <= '9') ||
+                          (c >= 'a' && c <= 'f') ||
+                          (c >= 'A' && c <= 'F'))) {
+                        is_sha = NO;
+                        break;
+                    }
+                }
+                if (is_sha) {
+                    u8csMv(final_val, vfull);
+                    break;
+                }
+            }
+            // Not a SHA — treat val as the next key and chain.
+            u8bReset(qbuf);
+            u8bFeed(qbuf, vfull);
+        }
+
+        if (!u8csEmpty(final_val)) {
+            // Strip leading '?' for the resolved->query slot.
+            u8cs out = {};
+            u8csMv(out, final_val);
+            if (out[0][0] == '?') u8csUsed(out, 1);
+            u8bFeed(arena, out);
+            size_t vlen = u8csLen(out);
+            resolved->query[0] = u8bIdleHead(arena) - vlen;
+            resolved->query[1] = u8bIdleHead(arena);
         }
     }
 
@@ -284,7 +316,7 @@ ok64 REFSCompact(u8csc dir) {
         done;
     }
 
-    a_cstr(tmpname, "REFS.tmp");
+    a_cstr(tmpname, "refs.tmp");
     a_cstr(fname, REFS_FILE);
     a_path(tmppath, dir, tmpname);
     int fd = -1;

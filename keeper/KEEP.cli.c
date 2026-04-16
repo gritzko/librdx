@@ -233,7 +233,21 @@ static ok64 keeper_get_remote(keeper *k, cli *c, uri *g) {
 
     if (rmap) u8bUnMap(rmap);
 
-    return KEEPSync(k, remote,
+    // Build the canonical origin URI for the refs reflog. With a
+    // host, use what the user typed (e.g. localhost:src/git or
+    // //localhost/path). Without a host, prepend file:// so a bare
+    // local path /home/x/repo becomes file:///home/x/repo — matches
+    // the reflog convention "the full URI of where we cloned from".
+    a_pad(u8, oubuf, FILE_PATH_MAX_LEN);
+    if (u8csEmpty(g->host)) {
+        a_cstr(file_pfx, "file://");
+        u8bFeed(oubuf, file_pfx);
+        if (!u8csEmpty(g->path)) u8bFeed(oubuf, g->path);
+    } else {
+        u8bFeed(oubuf, g->data);
+    }
+    a_dup(u8c, origin_uri, u8bData(oubuf));
+    return KEEPSync(k, remote, origin_uri,
                     nwants > 0 ? want_list : NULL,
                     nhaves > 0 ? have_list : NULL);
 }
@@ -265,34 +279,24 @@ static ok64 keeper_get_ref(keeper *k, u8cs query) {
     sane(k && $ok(query));
     a_cstr(keepdir, k->dir);
 
+    // Use REFSResolve so alias chains (e.g. `?HEAD → ?master → ?<sha>`)
+    // collapse to the SHA. Direct array scan stops at the first hop.
     a_pad(u8, qbuf, 256);
     u8bFeed1(qbuf, '?');
     u8bFeed(qbuf, query);
     a_dup(u8c, qkey, u8bData(qbuf));
 
-    u8bp rmap = NULL;
-    ref rarr[REFS_MAX_REFS];
-    u32 rn = 0;
-    REFSLoad(rarr, &rn, REFS_MAX_REFS, &rmap, keepdir);
-
-    b8 found = NO;
-    for (u32 i = 0; i < rn; i++) {
-        if (REFMatch(&rarr[i], qkey)) {
-            a_dup(u8c, val, rarr[i].val);
-            if (!u8csEmpty(val) && *val[0] == '?')
-                u8csUsed(val, 1);
-            fprintf(stdout, "%.*s\n",
-                    (int)u8csLen(val), (char *)val[0]);
-            found = YES;
-            break;
-        }
+    a_pad(u8, arena, 1024);
+    uri resolved = {};
+    ok64 ro = REFSResolve(&resolved, arena, keepdir, qkey);
+    if (ro == OK && !u8csEmpty(resolved.query)) {
+        fprintf(stdout, "%.*s\n",
+                (int)u8csLen(resolved.query),
+                (char *)resolved.query[0]);
+        done;
     }
-    if (rmap) u8bUnMap(rmap);
-    if (!found) {
-        fprintf(stderr, "keeper: ref not found\n");
-        return REFSNONE;
-    }
-    done;
+    fprintf(stderr, "keeper: ref not found\n");
+    return REFSNONE;
 }
 
 static ok64 keeper_get(keeper *k, cli *c) {

@@ -1391,7 +1391,7 @@ static void keep_drain_waiters(wh128cs waiters,
     }
 }
 
-ok64 KEEPSync(keeper *k, u8cs remote,
+ok64 KEEPSync(keeper *k, u8cs remote, u8cs origin_uri,
               char const *const *wants, char const *const *haves) {
     sane(k);
 
@@ -1451,6 +1451,14 @@ ok64 KEEPSync(keeper *k, u8cs remote,
     int wfd = to_child[1];
     int rfd = from_child[0];
 
+    // Declare refs early so sync_fail's free() is safe even if we jump
+    // there before the allocation below — e.g. when ssh-auth fails and
+    // the advertisement EOFs at 0 bytes. (Pre-existing bug: refs was
+    // declared after the goto site; sync_fail's free(refs) read
+    // indeterminate memory and SEGV'd on every early-fail path.)
+    typedef struct { sha1hex sha; sha1hex peeled; char name[256]; } sync_ref;
+    sync_ref *refs = NULL;
+
     // Read ref advertisement
     #define SYNC_BUFSZ KEEP_BUFSZ  // same as KEEPGet buffers (1 GB mmap)
     // mmap large buffers (virtual space only, pages on demand)
@@ -1487,10 +1495,8 @@ ok64 KEEPSync(keeper *k, u8cs remote,
     memcpy(head_hex.data, line[0], 40);
 
     // Drain remaining refs until flush.
-    // Each ref: original SHA (wants), peeled SHA (REFS), name.
-    typedef struct { sha1hex sha; sha1hex peeled; char name[256]; } sync_ref;
     u32 ref_cap = 4096;
-    sync_ref *refs = malloc(ref_cap * sizeof(sync_ref));
+    refs = malloc(ref_cap * sizeof(sync_ref));
     if (!refs) { u8bUnMap(rbuf_b); u8bUnMap(objbuf_b);
                  close(wfd); close(rfd);
                  kill(pid, SIGTERM); waitpid(pid, NULL, 0);
@@ -2178,45 +2184,116 @@ sync_done:
     if (rfd >= 0) { close(rfd); rfd = -1; }
     { int status; waitpid(pid, &status, 0); }
 
-    // Record refs in the reflog
+    // Record refs in the reflog. See REF.md for the format spec.
     if (nrefs > 0) {
         a_cstr(kdir, k->dir);
-        ref *refarr = calloc(nrefs, sizeof(ref));
+        // First, find which advertised heads/* matches HEAD's SHA — that
+        // is the upstream's current branch. refs[0] is HEAD.
+        u8cs head_branch = {};  // e.g. "master" or "main"
+        for (u32 i = 1; i < nrefs; i++) {
+            char const *nm = refs[i].name;
+            // Match "refs/heads/<name>" with same SHA as HEAD
+            if (strncmp(nm, "refs/heads/", 11) != 0) continue;
+            if (memcmp(refs[i].sha.data, refs[0].sha.data, 40) != 0)
+                continue;
+            char const *bn = nm + 11;
+            head_branch[0] = (u8cp)bn;
+            head_branch[1] = (u8cp)bn + strlen(bn);
+            break;
+        }
+
+        // Worst case per ref: 2 entries, each with origin_uri prefix +
+        // "?heads/<name>" (~280) + "\t?<sha>" (~42). Cap at 700/ref.
+        u32 cap = nrefs * 2 + 4;
+        ref *refarr = calloc(cap, sizeof(ref));
         if (refarr) {
             time_t _t = time(NULL);
             struct tm *_tm = localtime(&_t);
             ron60 now = 0;
-            RONOfTime(&now, _tm);
-            // Build ?refname and ?sha strings into a shared pad
-            // Each ref needs max ~260 bytes for key + ~44 for val
+            RONOfTime(&now, _tm, 0);
             Bu8 strbuf = {};
-            ok64 me = u8bMap(strbuf, (u64)nrefs * 310);
+            ok64 me = u8bMap(strbuf, (u64)nrefs * 700);
             if (me != OK) {
                 free(refarr);
                 goto sync_end;
             }
-            for (u32 i = 0; i < nrefs; i++) {
-                refarr[i].time = now;
-                refarr[i].type = REF_SHA;
-                // key = "?refname"
-                refarr[i].key[0] = u8bIdleHead(strbuf);
-                u8bFeed1(strbuf, '?');
-                a_cstr(rn, refs[i].name);
-                u8bFeed(strbuf, rn);
-                refarr[i].key[1] = u8bIdleHead(strbuf);
-                // val = "?sha"
-                refarr[i].val[0] = u8bIdleHead(strbuf);
-                u8bFeed1(strbuf, '?');
-                u8cs psha = {refs[i].peeled.data, refs[i].peeled.data + 40};
-                u8bFeed(strbuf, psha);
-                refarr[i].val[1] = u8bIdleHead(strbuf);
+
+            u32 written = 0;
+
+            // Helper: append one entry (key, val) into refarr+strbuf
+            #define APPEND_REF(KEY_FN_BODY, SHA_PTR)                       \
+                do {                                                       \
+                    if (written >= cap) break;                             \
+                    refarr[written].time = now;                            \
+                    refarr[written].type = REF_SHA;                        \
+                    refarr[written].key[0] = u8bIdleHead(strbuf);          \
+                    KEY_FN_BODY;                                           \
+                    refarr[written].key[1] = u8bIdleHead(strbuf);          \
+                    refarr[written].val[0] = u8bIdleHead(strbuf);          \
+                    u8bFeed1(strbuf, '?');                                 \
+                    u8cs _sha = {(SHA_PTR), (SHA_PTR) + 40};               \
+                    u8bFeed(strbuf, _sha);                                 \
+                    refarr[written].val[1] = u8bIdleHead(strbuf);          \
+                    written++;                                             \
+                } while (0)
+
+            // Local entry for HEAD's branch + ?HEAD alias (alias is
+            // a stop-gap for sniff lookup, see REF.md "Open questions").
+            if (!u8csEmpty(head_branch)) {
+                APPEND_REF({
+                    u8bFeed1(strbuf, '?');
+                    u8bFeed(strbuf, head_branch);
+                }, refs[0].peeled.data);
+                if (written < cap) {
+                    refarr[written].time = now;
+                    refarr[written].type = REF_SHA;
+                    refarr[written].key[0] = u8bIdleHead(strbuf);
+                    a_cstr(head_key, "?HEAD");
+                    u8bFeed(strbuf, head_key);
+                    refarr[written].key[1] = u8bIdleHead(strbuf);
+                    refarr[written].val[0] = u8bIdleHead(strbuf);
+                    u8bFeed1(strbuf, '?');
+                    u8bFeed(strbuf, head_branch);
+                    refarr[written].val[1] = u8bIdleHead(strbuf);
+                    written++;
+                }
             }
-            ok64 ro = REFSSyncRecord(kdir, refarr, nrefs);
+
+            // Remote-attributed entries for each refs/heads/* and
+            // refs/tags/* (skip everything else, including upstream's
+            // own refs/remotes/*). See REF.md.
+            for (u32 i = 1; i < nrefs; i++) {
+                char const *nm = refs[i].name;
+                size_t nmlen = strlen(nm);
+                char const *stripped = NULL;
+                size_t stripped_len = 0;
+                if (nmlen > 11 && strncmp(nm, "refs/heads/", 11) == 0) {
+                    stripped = nm + 5;
+                    stripped_len = nmlen - 5;
+                } else if (nmlen > 10 && strncmp(nm, "refs/tags/", 10) == 0) {
+                    stripped = nm + 5;
+                    stripped_len = nmlen - 5;
+                } else {
+                    continue;
+                }
+                u8cs strip_s = {(u8cp)stripped, (u8cp)stripped + stripped_len};
+                if (!u8csEmpty(origin_uri)) {
+                    APPEND_REF({
+                        u8bFeed(strbuf, origin_uri);
+                        u8bFeed1(strbuf, '?');
+                        u8bFeed(strbuf, strip_s);
+                    }, refs[i].peeled.data);
+                }
+            }
+
+            #undef APPEND_REF
+
+            ok64 ro = REFSSyncRecord(kdir, refarr, written);
             u8bUnMap(strbuf);
             if (ro != OK)
                 fprintf(stderr, "keeper: warning: failed to record refs\n");
             else
-                fprintf(stderr, "keeper: recorded %u ref(s)\n", nrefs);
+                fprintf(stderr, "keeper: recorded %u ref(s)\n", written);
             free(refarr);
         }
     }

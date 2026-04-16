@@ -12,6 +12,15 @@
 #include "abc/PRO.h"
 #include "dog/HOME.h"
 
+// Distinct codes so the MAIN-wrapper's `Error: <code>` line tells you
+// what kind of failure stopped the pipeline — a dog exited non-zero
+// (BEDOGEXIT) or died from a signal (BEDOGSIG). Generic BEFAIL is
+// reserved for be's own internal slips. RON60 caps names at ~10 chars
+// (60-bit base64 encoding) — verify with `abc/ok64 NAME`.
+con ok64 BEFAIL    = 0x2ce3ca495;
+con ok64 BEDOGEXIT = 0xb38d6103a149d;
+con ok64 BEDOGSIG  = 0x2ce35841c490;
+
 // --- Verb table ---
 
 static char const *const BE_VERB_NAMES[] = {
@@ -59,6 +68,7 @@ static ok64 BERun(const char *tool, char *const argv[], b8 bg) {
     waitpid(pid, &st, 0);
     if (WIFEXITED(st) && WEXITSTATUS(st) != 0) {
         fprintf(stderr, "be: %s exited %d\n", tool, WEXITSTATUS(st));
+        return BEDOGEXIT;  // child told us it failed cleanly
     } else if (WIFSIGNALED(st)) {
         // Surface signal-based deaths (SIGBUS, SIGSEGV, SIGABRT…)
         // so a crashing dog isn't mistaken for a clean run.
@@ -66,6 +76,7 @@ static ok64 BERun(const char *tool, char *const argv[], b8 bg) {
         char const *sname = strsignal(sig);
         fprintf(stderr, "be: %s killed by signal %d (%s)\n",
                 tool, sig, sname ? sname : "?");
+        return BEDOGSIG;
     }
     done;
 }
