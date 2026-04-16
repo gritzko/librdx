@@ -796,6 +796,24 @@ ok64 SCSSTBasicTest() {
     done;
 }
 
+ok64 CSSTBasicTest() {
+    sane(1);
+    TOK01Case cases[] = {
+        {"/* block */", "DDDDDDD"},
+        {"\"hello\"", "G"},
+        {"42", "L"},
+        {"#fff", "L"},
+        {"#abcdef", "L"},
+        {"div#id", "SPS"},
+        {".cls", "PS"},
+        {"@media", "H"},
+        {"{}", "PP"},
+    };
+    int ncases = sizeof(cases) / sizeof(cases[0]);
+    RUN_CASES(CSSTLexer, CSST, cases, ncases);
+    done;
+}
+
 ok64 LAXTBasicTest() {
     sane(1);
     TOK01Case cases[] = {

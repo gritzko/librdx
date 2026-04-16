@@ -93,7 +93,7 @@ main := |*
     [\-] idalnum+                                                 => on_word;
 
     # ---- punctuation ----
-    (any8 - [a-zA-Z_\-] - dgt - ws - ["'@#] - [.])              => on_punct;
+    (any8 - [a-zA-Z_\-] - dgt - ws - ["'@] - [.])               => on_punct;
     [.]                                                           => on_punct;
 
     # ---- whitespace ----
