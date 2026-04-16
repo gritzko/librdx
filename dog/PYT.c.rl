@@ -24,12 +24,7 @@ dgt = [0-9];
 xdgt = [0-9a-fA-F];
 odgt = [0-7];
 
-esc = [\\] ( [abefnrtv\\'\"0\\]
-           | [x] xdgt{2}
-           | [u] xdgt{4}
-           | [U] xdgt{8}
-           | [N] "{" [a-zA-Z ]+ "}"
-           | [\n] );
+esc = [\\] any8;
 
 # string prefixes
 strpfx = [rRbBuUfF]{0,2};
@@ -120,7 +115,7 @@ main := |*
     "&&" | "||" | "->" | "..."                                    => on_punct;
 
     # ---- single-char punctuation ----
-    (any8 - idalpha - dgt - ws - ["'#@] - [.])                   => on_punct;
+    (any8 - idalpha - dgt - ws - [#] - [.])                      => on_punct;
     [.]                                                           => on_punct;
 
     # ---- whitespace ----

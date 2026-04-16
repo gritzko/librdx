@@ -284,6 +284,9 @@ ok64 PYTBasicTest() {
         {"@decorator", "H"},
         {"**=", "P"},
         {"//", "P"},
+        {"r'[a-z\\-]+$'", "G"},
+        {"r'\\(\\)'", "G"},
+        {"x'unterminated\nfoo", "SPSSS"},
     };
     int ncases = sizeof(cases) / sizeof(cases[0]);
     RUN_CASES(PYTLexer, PYT, cases, ncases);
@@ -369,6 +372,9 @@ ok64 RSTBasicTest() {
         {"pub fn", "RSR"},
         {"::=", "PP"},
         {"x = 5", "SSPSL"},
+        {"#[derive(Debug)]", "HPSPP"},
+        {"#![allow(unused)]", "HPSPP"},
+        {"#", "P"},
     };
     int ncases = sizeof(cases) / sizeof(cases[0]);
     RUN_CASES(RSTLexer, RST, cases, ncases);
@@ -428,6 +434,8 @@ ok64 SHTBasicTest() {
         {"$(foo)", "PSP"},
         {"${VAR}", "PSP"},
         {"$(expr 'a)b')", "PSSGP"},
+        {"foo'\nbar", "SPSS"},
+        {"x \" y", "SSPSS"},
     };
     int ncases = sizeof(cases) / sizeof(cases[0]);
     RUN_CASES(SHTLexer, SHT, cases, ncases);
@@ -702,6 +710,9 @@ ok64 YMLTBasicTest() {
         {"null", "R"},
         {":", "P"},
         {"-", "P"},
+        {"a != b", "SSPPSS"},
+        {"*windows*)", "PPP"},
+        {"!", "P"},
     };
     int ncases = sizeof(cases) / sizeof(cases[0]);
     RUN_CASES(YMLTLexer, YMLT, cases, ncases);
@@ -1138,6 +1149,7 @@ ok64 TOK01test() {
     call(PRTTBasicTest);
     call(HCLTBasicTest);
     call(SCSSTBasicTest);
+    call(CSSTBasicTest);
     call(LAXTBasicTest);
     call(CLJTBasicTest);
     call(FORTBasicTest);

@@ -94,7 +94,7 @@ main := |*
     [|>]                                                          => on_punct;
 
     # ---- punctuation ----
-    (any8 - idalpha - dgt - ws - [#] - 0x22 - 0x27 - [&*!|>.])  => on_punct;
+    (any8 - idalpha - dgt - ws - [#] - [.])                     => on_punct;
     [.]                                                           => on_punct;
 
     # ---- whitespace ----

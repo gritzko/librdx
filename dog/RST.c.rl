@@ -120,7 +120,7 @@ main := |*
     ddig typsuf                                                    => on_number;
 
     # ---- attributes ----
-    "#!" ? "[" idalpha idalnum*                                   => on_attr;
+    "#" "!"? "[" idalpha idalnum*                                 => on_attr;
 
     # ---- identifiers ----
     idalpha idalnum*                                              => on_word;
@@ -134,7 +134,7 @@ main := |*
     "&&" | "||" | "<=" | ">=" | "==" | "!="                      => on_punct;
 
     # ---- single-char punctuation ----
-    (any8 - idalpha - dgt - ws - ["'#] - [.])                    => on_punct;
+    (any8 - idalpha - dgt - ws - [.])                            => on_punct;
     [.]                                                           => on_punct;
 
     # ---- whitespace ----
