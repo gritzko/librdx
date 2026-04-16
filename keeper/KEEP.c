@@ -1328,11 +1328,13 @@ static void keep_git_sha1(sha1 *out, u8 type, u8csc content) {
 // DFS tree node for pack indexing (used by KEEPSync)
 typedef struct { u64 offset; u32 child; u32 sibling; } pack_node;
 
-// Drain REF_DELTA waiters: binary search + scan in sorted wh128 array.
+// Drain REF_DELTA waiters: binary search + scan in sorted wh128 slice.
 // Links matching waiters as children of parent_idx in the DFS tree.
-static void keep_drain_waiters(wh128cp wbuf, size_t wlen,
+static void keep_drain_waiters(wh128cs waiters,
                                pack_node *nodes, b8 *resolved,
                                u64 sha_key, u32 parent_idx) {
+    wh128cp wbuf = waiters[0];
+    size_t wlen = (size_t)(waiters[1] - waiters[0]);
     // Binary search for first entry with matching key
     size_t lo = 0, hi = wlen;
     while (lo < hi) {
@@ -1361,7 +1363,7 @@ ok64 KEEPSync(keeper *k, u8cs remote,
     // Parse remote: "host /path" or just "/path" for local
     // Build command: ssh host git-upload-pack 'path'
     // or local: git-upload-pack 'path'
-    a_pad(u8, cmdbuf, 2048);
+    a_pad(u8, cmdbuf, 2 * FILE_PATH_MAX_LEN);
     a_dup(u8c, rscan, remote);
     if (u8csFind(rscan, ' ') == OK) {
         u8cs host = {remote[0], rscan[0]};
@@ -1369,19 +1371,19 @@ ok64 KEEPSync(keeper *k, u8cs remote,
         a_cstr(ssh_pre, "ssh ");
         a_cstr(gup, " git-upload-pack '");
         a_cstr(sq, "'");
-        u8bFeed(cmdbuf, ssh_pre);
-        u8bFeed(cmdbuf, host);
-        u8bFeed(cmdbuf, gup);
-        u8bFeed(cmdbuf, rpath);
-        u8bFeed(cmdbuf, sq);
+        call(u8bFeed, cmdbuf, ssh_pre);
+        call(u8bFeed, cmdbuf, host);
+        call(u8bFeed, cmdbuf, gup);
+        call(u8bFeed, cmdbuf, rpath);
+        call(u8bFeed, cmdbuf, sq);
     } else {
         a_cstr(gup, "git-upload-pack '");
         a_cstr(sq, "'");
-        u8bFeed(cmdbuf, gup);
-        u8bFeed(cmdbuf, remote);
-        u8bFeed(cmdbuf, sq);
+        call(u8bFeed, cmdbuf, gup);
+        call(u8bFeed, cmdbuf, remote);
+        call(u8bFeed, cmdbuf, sq);
     }
-    u8bFeed1(cmdbuf, 0);  // NUL terminate for popen
+    call(u8bFeed1, cmdbuf, 0);  // NUL terminate for popen
     char *cmd = (char *)u8bDataHead(cmdbuf);
 
     fprintf(stderr, "keeper: connecting: %s\n", cmd);
@@ -1868,8 +1870,7 @@ got_pack:
         // Sort waiters for binary search
         a_dup(wh128, wsorted, wh128bData(waiters_buf));
         wh128sSort(wsorted);
-        wh128cp wbuf = wsorted[0];
-        size_t wlen = (size_t)(wsorted[1] - wsorted[0]);
+        wh128cs waiters = {wsorted[0], wsorted[1]};
 
         // Resolve base objects (types 1-4), drain waiters into DFS tree
         u8bReset(k->buf1);
@@ -1892,8 +1893,7 @@ got_pack:
                 wh64Pack(KEEP_VAL_FLAGS, file_id, offsets[i]);
             total_indexed++;
             resolved[i + 1] = YES;
-            keep_drain_waiters(wbuf, wlen, nodes, resolved,
-                               sha_key, i + 1);
+            keep_drain_waiters(waiters, nodes, resolved, sha_key, i + 1);
             // Don't advance buf1 — reuse space for next base
         }
 
@@ -1992,8 +1992,7 @@ got_pack:
 
                 u64 sha_key = 0;
                 memcpy(&sha_key, sha.data, 8);
-                keep_drain_waiters(wbuf, wlen, nodes, resolved,
-                                   sha_key, child);
+                keep_drain_waiters(waiters, nodes, resolved, sha_key, child);
 
                 top++;
                 stk[top].d_start = rstart;

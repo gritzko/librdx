@@ -375,7 +375,7 @@ ok64 GRAFBlame(keeper *k, u8cs filepath, u8cs reporoot) {
             if (!ba) ba = &blame_unknown;
             b8 diff_auth = !prev_author || strcmp(prev_author, ba->author) != 0;
 
-            char pre[128];
+            char pre[256];
             if (diff_auth) {
                 char hexlet[12] = "       ";
                 if (ba->commit_hashlet) {

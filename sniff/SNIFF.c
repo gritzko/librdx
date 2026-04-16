@@ -77,11 +77,14 @@ static ok64 SNIFFWritePair(sniff *s, u32 idx, u64 hashlet, u64 checkout) {
 
 static ok64 SNIFFBootstrap(sniff *s, u8cs reporoot) {
     sane(s && $ok(reporoot));
-    char cmd[1024];
-    snprintf(cmd, sizeof(cmd),
-             "git -C %.*s ls-files -s 2>/dev/null",
-             (int)$len(reporoot), (char *)reporoot[0]);
-    FILE *fp = popen(cmd, "r");
+    a_pad(u8, cmd, 2 * FILE_PATH_MAX_LEN);
+    a_cstr(pre, "git -C ");
+    a_cstr(suf, " ls-files -s 2>/dev/null");
+    call(u8bFeed, cmd, pre);
+    call(u8bFeed, cmd, reporoot);
+    call(u8bFeed, cmd, suf);
+    call(u8bFeed1, cmd, 0);
+    FILE *fp = popen((char *)u8bDataHead(cmd), "r");
     if (!fp) done;
 
     char line[1024];
