@@ -307,8 +307,8 @@ ok64 becli() {
     } else if ($eq(verb, v_patch)) {
         fprintf(stderr, "be: patch dispatch not yet implemented\n");
     } else {
-        fprintf(stderr, "be: verb '" $FMT_S "' not yet implemented\n",
-                $ARG(verb));
+        fprintf(stderr, "be: verb '" U8SFMT "' not yet implemented\n",
+                u8sFmt(verb));
     }
 
     done;

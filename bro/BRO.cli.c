@@ -71,8 +71,8 @@ ok64 brocli() {
             u8bp mapped = NULL;
             ok64 o = FILEMapRO(&mapped, PATHu8cgIn(fpbuf));
             if (o != OK) {
-                fprintf(stderr, "bro: cannot open " $FMT_S ": %s\n",
-                        $ARG(file_path), ok64str(o));
+                fprintf(stderr, "bro: cannot open " U8SFMT ": %s\n",
+                        u8sFmt(file_path), ok64str(o));
                 continue;
             }
 

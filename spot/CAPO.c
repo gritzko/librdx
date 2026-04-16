@@ -472,10 +472,10 @@ static ok64 CAPOReindexWork(u8csc reporoot, u8csc dirslice, u64bp entries) {
         u8c *codec[2] = {};
         CAPOCodecName(codec, ext);
         if (CAPO_TERM)
-            fprintf(stderr, "\033[%dmOK\t" $FMT_S "\t%s\033[0m\n",
-                    GRAY, $ARG(codec), line);
+            fprintf(stderr, "\033[%dmOK\t" U8SFMT "\t%s\033[0m\n",
+                    GRAY, u8sFmt(codec), line);
         else
-            fprintf(stderr, "OK\t" $FMT_S "\t%s\n", $ARG(codec), line);
+            fprintf(stderr, "OK\t" U8SFMT "\t%s\n", u8sFmt(codec), line);
         indexed++;
 
         size_t pending = u64bDataLen(entries);
@@ -716,8 +716,8 @@ ok64 CAPOCompactAll(u8csc dir) {
 
         u64 seqno = 0;
         call(CAPONextSeqno, &seqno, dir);
-        fprintf(stderr, "spot: next seqno = %" PRIu64 " (dir = '" $FMT_S "')\n",
-                seqno, $ARG(dir));
+        fprintf(stderr, "spot: next seqno = %" PRIu64 " (dir = '" U8SFMT "')\n",
+                seqno, u8sFmt(dir));
         u64cs merged = {(u64cp)mbuf[0], (u64cp)into[0]};
         fprintf(stderr, "spot: writing %zu deduplicated entries (seqno %" PRIu64 ")\n",
                 $len(merged), seqno);
@@ -955,7 +955,7 @@ static ok64 CAPOIndexFromCmd(u8csc reporoot, u64bp entries,
 
         u8c *codec[2] = {};
         CAPOCodecName(codec, ext);
-        fprintf(stderr, "OK\t" $FMT_S "\t%s\n", $ARG(codec), line);
+        fprintf(stderr, "OK\t" U8SFMT "\t%s\n", u8sFmt(codec), line);
         if (indexed) (*indexed)++;
     }
     pclose(fp);

@@ -516,8 +516,8 @@ static b8 BROTryOpen(BROstate *st, u32 line, char const *repo) {
                 ok64 o = BROOpenFile(st, u8bDataC(fpbufA), repo, 0);
                 if (o != OK) {
                     snprintf(st->flash, sizeof(st->flash),
-                             "open: " $FMT_S ": %s",
-                             $ARG(u8bDataC(fpbufA)), ok64str(o));
+                             "open: " U8SFMT ": %s",
+                             u8sFmt(u8bDataC(fpbufA)), ok64str(o));
                     return NO;
                 }
                 return YES;
@@ -537,8 +537,8 @@ static b8 BROTryOpen(BROstate *st, u32 line, char const *repo) {
     ok64 o = BROOpenFile(st, loc.path, repo, loc.line);
     if (o != OK) {
         snprintf(st->flash, sizeof(st->flash),
-                 "open: " $FMT_S ": %s",
-                 $ARG(loc.path), ok64str(o));
+                 "open: " U8SFMT ": %s",
+                 u8sFmt(loc.path), ok64str(o));
         return NO;
     }
     return YES;
