@@ -374,9 +374,36 @@ ok64 CAPOCompact(u8csc dir) {
 static ok64 CAPOReindexWork(u8csc reporoot, u8csc dirslice, u64bp entries) {
     sane($ok(reporoot) && $ok(dirslice) && entries != NULL);
 
+    // Pick a file-enumerator. In a real git working tree we ask git
+    // (cheap, respects .gitignore, follows submodules). In a
+    // keeper-cloned dir with no .git we fall back to `find`, which
+    // walks the actual filesystem and skips the .dogs/ store itself.
+    char gitprobe[FILE_PATH_MAX_LEN];
+    int pn = snprintf(gitprobe, sizeof(gitprobe), "%.*s/.git",
+                      (int)$len(reporoot), (char *)reporoot[0]);
+    test(pn > 0 && pn < (int)sizeof(gitprobe), FAILSANITY);
+    struct stat gitsb = {};
+    b8 has_git = (stat(gitprobe, &gitsb) == 0);
+
     char cmdbuf[FILE_PATH_MAX_LEN * 2 + 256];
-    int n = snprintf(cmdbuf, sizeof(cmdbuf), "git -C %.*s ls-files && git -C %.*s submodule foreach --quiet --recursive 'git ls-files | sed \"s|^|$displaypath/|\"'",
-                     (int)$len(reporoot), (char *)reporoot[0], (int)$len(reporoot), (char *)reporoot[0]);
+    int n;
+    if (has_git) {
+        n = snprintf(cmdbuf, sizeof(cmdbuf),
+            "git -C %.*s ls-files && "
+            "git -C %.*s submodule foreach --quiet --recursive "
+            "'git ls-files | sed \"s|^|$displaypath/|\"'",
+            (int)$len(reporoot), (char *)reporoot[0],
+            (int)$len(reporoot), (char *)reporoot[0]);
+    } else {
+        // Portable form (busybox find has no -printf): print full
+        // ./relative/paths, then strip the leading "./" via sed so
+        // output matches git ls-files. Prune .dogs/ so we don't index
+        // keeper's pack files etc.
+        n = snprintf(cmdbuf, sizeof(cmdbuf),
+            "cd %.*s && find . -type d -name .dogs -prune -o "
+            "-type f -print | sed 's|^\\./||'",
+            (int)$len(reporoot), (char *)reporoot[0]);
+    }
     test(n > 0 && n < (int)sizeof(cmdbuf), FAILSANITY);
 
     FILE *fp = popen(cmdbuf, "r");
@@ -698,20 +725,35 @@ ok64 CAPOCompactAll(u8csc dir) {
 ok64 CAPOCommitWrite(u8csc reporoot, u8csc capodir) {
     sane($ok(reporoot) && $ok(capodir));
 
-    // get current HEAD
-    char cmdbuf[FILE_PATH_MAX_LEN + 64];
-    int n = snprintf(cmdbuf, sizeof(cmdbuf),
-                     "git -C %.*s rev-parse HEAD",
-                     (int)$len(reporoot), (char *)reporoot[0]);
-    test(n > 0 && n < (int)sizeof(cmdbuf), FAILSANITY);
-
-    FILE *fp = popen(cmdbuf, "r");
-    test(fp != NULL, FAILSANITY);
-
-    char newsha[64];
-    char *got = fgets(newsha, sizeof(newsha), fp);
-    pclose(fp);
-    test(got != NULL, FAILSANITY);
+    // Resolve current HEAD. Prefer .dogs/sniff/HEAD (canonical for
+    // keeper-cloned dirs and always present after sniff checkout); fall
+    // back to `git rev-parse HEAD` for traditional git working trees.
+    char newsha[64] = {};
+    {
+        char snipath[FILE_PATH_MAX_LEN + 64];
+        int sn = snprintf(snipath, sizeof(snipath),
+                          "%.*s/.dogs/sniff/HEAD",
+                          (int)$len(reporoot), (char *)reporoot[0]);
+        test(sn > 0 && sn < (int)sizeof(snipath), FAILSANITY);
+        FILE *sf = fopen(snipath, "r");
+        if (sf != NULL) {
+            char *got = fgets(newsha, sizeof(newsha), sf);
+            fclose(sf);
+            if (got == NULL) newsha[0] = 0;
+        }
+    }
+    if (newsha[0] == 0) {
+        char cmdbuf[FILE_PATH_MAX_LEN + 64];
+        int n = snprintf(cmdbuf, sizeof(cmdbuf),
+                         "git -C %.*s rev-parse HEAD 2>/dev/null",
+                         (int)$len(reporoot), (char *)reporoot[0]);
+        test(n > 0 && n < (int)sizeof(cmdbuf), FAILSANITY);
+        FILE *fp = popen(cmdbuf, "r");
+        test(fp != NULL, FAILSANITY);
+        char *got = fgets(newsha, sizeof(newsha), fp);
+        pclose(fp);
+        test(got != NULL, FAILSANITY);
+    }
 
     size_t slen = strlen(newsha);
     if (slen > 0 && newsha[slen - 1] == '\n') newsha[--slen] = 0;

@@ -55,9 +55,12 @@ out:
     return o;
 }
 
-// Walk up from cwd to first dir containing .git.
-// Returns NOHOME if no .git found.
-// Sets *is_worktree to YES if .git is a file (worktree marker).
+// Walk up from cwd to the first dir containing .git OR .dogs.
+// Either marks a repo root: .git is the classic git layout, .dogs/ is
+// what keeper-cloned dirs have (no .git at all).
+// Returns NOHOME if neither found before reaching /.
+// Sets *is_worktree to YES iff a .git *file* (worktree marker) is what
+// stopped the walk; .git-as-dir or .dogs-only both leave it NO.
 static ok64 HOMEWalkUp(path8b out, b8 *is_worktree) {
     sane(out != NULL);
     char cwdbuf[FILE_PATH_MAX_LEN];
@@ -66,17 +69,33 @@ static ok64 HOMEWalkUp(path8b out, b8 *is_worktree) {
     call(PATHu8bFeed, out, cwds);
     if (is_worktree) *is_worktree = NO;
 
-    a_cstr(dotgit, ".git");
+    a_cstr(dotgit,  ".git");
+    a_cstr(dotdogs, ".dogs");
     for (;;) {
-        a_path(probe);
-        a_dup(u8c, cur, u8bDataC(out));
-        call(PATHu8bFeed, probe, cur);
-        call(PATHu8bPush, probe, dotgit);
         struct stat sb = {};
-        if (stat((char const *)*PATHu8cgIn(probe), &sb) == 0) {
-            if (is_worktree)
-                *is_worktree = (sb.st_mode & S_IFDIR) ? NO : YES;
-            done;
+        // Prefer .git when present (preserves worktree-marker semantics
+        // for callers that follow the gitdir pointer).
+        {
+            a_path(probe);
+            a_dup(u8c, cur, u8bDataC(out));
+            call(PATHu8bFeed, probe, cur);
+            call(PATHu8bPush, probe, dotgit);
+            if (stat((char const *)*PATHu8cgIn(probe), &sb) == 0) {
+                if (is_worktree)
+                    *is_worktree = (sb.st_mode & S_IFDIR) ? NO : YES;
+                done;
+            }
+        }
+        // No .git here — accept .dogs/ as a fresh-clone repo root.
+        {
+            a_path(probe);
+            a_dup(u8c, cur, u8bDataC(out));
+            call(PATHu8bFeed, probe, cur);
+            call(PATHu8bPush, probe, dotdogs);
+            if (stat((char const *)*PATHu8cgIn(probe), &sb) == 0 &&
+                (sb.st_mode & S_IFDIR)) {
+                done;
+            }
         }
 
         size_t before = $len(u8bDataC(out));

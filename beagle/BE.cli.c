@@ -57,8 +57,16 @@ static ok64 BERun(const char *tool, char *const argv[], b8 bg) {
     if (bg) done;
     int st = 0;
     waitpid(pid, &st, 0);
-    if (WIFEXITED(st) && WEXITSTATUS(st) != 0)
+    if (WIFEXITED(st) && WEXITSTATUS(st) != 0) {
         fprintf(stderr, "be: %s exited %d\n", tool, WEXITSTATUS(st));
+    } else if (WIFSIGNALED(st)) {
+        // Surface signal-based deaths (SIGBUS, SIGSEGV, SIGABRT…)
+        // so a crashing dog isn't mistaken for a clean run.
+        int sig = WTERMSIG(st);
+        char const *sname = strsignal(sig);
+        fprintf(stderr, "be: %s killed by signal %d (%s)\n",
+                tool, sig, sname ? sname : "?");
+    }
     done;
 }
 
@@ -134,7 +142,8 @@ static ok64 BEGet(cli *c, b8 seq) {
         {"keeper", "get",  NO},
         {"sniff",  "get",  NO},
         {"spot",   "get",  NO},
-        {"graf",   "get",  YES},
+        {"graf",   "get",  NO},  // foreground: surface graf's stderr
+                                 // before the next prompt
     };
     // Skip keeper fetch if no remote (no authority)
     uri *u = (c->nuris > 0) ? &c->uris[0] : NULL;
