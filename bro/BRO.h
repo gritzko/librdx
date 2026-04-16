@@ -76,6 +76,21 @@ ok64 BRORun(hunkc const *hunks, u32 nhunks);
 // Pager event loop: reads TLV hunks from pipefd, displays incrementally.
 ok64 BROPipeRun(int pipefd);
 
+// --- Line index builder (exposed for testing) ---
+//
+// Build the display-line index for hunks[from..nhunks).  One `range32`
+// entry per display row: `lo` = hunk index, `hi` = byte offset into
+// that hunk's text, or BRO_TITLE_LINE for a title separator.  Long
+// source lines get multiple entries — one per `cols` codepoints —
+// so soft-wrap is baked into the index.  Callers must pre-allocate
+// `lines[0..maxlines)`; returns the new total line count (<=maxlines).
+u32 BROAppendLines(range32 *lines, u32 nlines, u32 maxlines,
+                   hunkc const *hunks, u32 from, u32 nhunks, u32 cols);
+
+// Total display-line count that BROAppendLines would produce for
+// hunks[0..nhunks) at the given `cols`.  Used to size allocations.
+u32 BROCountLines(hunkc const *hunks, u32 nhunks, u32 cols);
+
 // --- Navigation primitives (exposed for testing) ---
 
 // Next hunk start strictly after line `from`.
