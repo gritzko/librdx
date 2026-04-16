@@ -1328,6 +1328,41 @@ static void keep_git_sha1(sha1 *out, u8 type, u8csc content) {
 // DFS tree node for pack indexing (used by KEEPSync)
 typedef struct { u64 offset; u32 child; u32 sibling; } pack_node;
 
+// Drain one pkt-line from the ref advertisement, refilling buf via
+// FILEDrain on NODATA. adv is a const view tracking the parser cursor:
+// PKTu8sDrain advances adv[0]; this helper extends adv[1] to match the
+// new DATA term after each refill. Used for both the HEAD line and
+// every subsequent ref so the same retry policy applies uniformly.
+//
+// Returns OK with `line` populated, PKTFLUSH/PKTDELIM, or KEEPFAIL on
+// EOF/read error/buffer exhaustion.
+static ok64 keep_sync_drain_pkt(int rfd, u8b buf, u8cs adv, u8csp line) {
+    for (;;) {
+        ok64 o = PKTu8sDrain(adv, line);
+        if (o != NODATA) return o;
+        if (!u8bHasRoom(buf)) {
+            fprintf(stderr, "keeper: adv buffer full at %zu bytes\n",
+                    u8bDataLen(buf));
+            return KEEPNOROOM;
+        }
+        $u8 fill;
+        u8sFork(u8bIdle(buf), fill);
+        ok64 fr = FILEDrain(rfd, fill);
+        if (fr == FILEEND) {
+            fprintf(stderr, "keeper: adv read EOF after %zu bytes "
+                            "(no flush packet)\n",
+                    u8bDataLen(buf));
+            return KEEPFAIL;
+        }
+        if (fr != OK) {
+            fprintf(stderr, "keeper: adv read: %s\n", ok64str(fr));
+            return KEEPFAIL;
+        }
+        u8sJoin(u8bIdle(buf), fill);
+        adv[1] = u8csTerm(u8bDataC(buf));
+    }
+}
+
 // Drain REF_DELTA waiters: binary search + scan in sorted wh128 slice.
 // Links matching waiters as children of parent_idx in the DFS tree.
 static void keep_drain_waiters(wh128cs waiters,
@@ -1429,17 +1464,17 @@ ok64 KEEPSync(keeper *k, u8cs remote,
         return KEEPNOROOM;
     }
 
-    u64 rlen = 0;
-    {
-        ssize_t n = read(rfd, rbuf, SYNC_BUFSZ);
-        if (n <= 0) goto sync_fail;
-        rlen = (u64)n;
-    }
-
-    // Parse ref advertisement — collect all refs
-    u8cs adv = {rbuf, rbuf + rlen};
+    // Parse ref advertisement — collect all refs.
+    // Use a single drain helper for HEAD and all subsequent lines so the
+    // NODATA-retry/refill policy is identical (was: bug — first read had
+    // no retry path, fragile if HEAD pkt-line spanned a pipe boundary).
+    // adv tracks the parser cursor; head/term both start at the buffer's
+    // empty DATA region and grow as keep_sync_drain_pkt refills.
+    u8cp adv_start = u8bDataHead(rbuf_b);
+    u8cs adv = {adv_start, adv_start};
     u8cs line = {};
-    ok64 po = PKTu8sDrain(adv, line);
+
+    ok64 po = keep_sync_drain_pkt(rfd, rbuf_b, adv, line);
     if (po != OK || $len(line) < 40) goto sync_fail;
 
     // First line = HEAD sha
@@ -1462,15 +1497,8 @@ ok64 KEEPSync(keeper *k, u8cs remote,
     nrefs++;
 
     for (;;) {
-        ok64 o = PKTu8sDrain(adv, line);
+        ok64 o = keep_sync_drain_pkt(rfd, rbuf_b, adv, line);
         if (o == PKTFLUSH) break;
-        if (o == NODATA) {
-            ssize_t n = read(rfd, rbuf + rlen, SYNC_BUFSZ - rlen);
-            if (n <= 0) break;
-            rlen += (u64)n;
-            adv[1] = rbuf + rlen;
-            continue;
-        }
         if (o != OK) break;
         if ($len(line) >= 42) {
             // Extract ref name: after SHA + space, until NUL/space/newline
@@ -1572,6 +1600,7 @@ ok64 KEEPSync(keeper *k, u8cs remote,
 
         if (first_want) {
             fprintf(stderr, "keeper: nothing to want\n");
+            free(wbuf);
             goto sync_done;
         }
 
@@ -1611,8 +1640,11 @@ ok64 KEEPSync(keeper *k, u8cs remote,
     close(wfd);
     wfd = -1;
 
-    // Read response into rbuf (may need multiple reads for ACK sequences)
-    rlen = 0;
+    // Read response into rbuf (may need multiple reads for ACK sequences).
+    // Reuse rbuf_b's allocation; reset its DATA tracking and the scratch
+    // rlen offset that the response/pack code below uses with rbuf.
+    u8bReset(rbuf_b);
+    u64 rlen = 0;
     for (;;) {
         ssize_t n = read(rfd, rbuf + rlen, SYNC_BUFSZ - rlen);
         if (n <= 0) { if (rlen == 0) goto sync_fail; break; }
@@ -2131,6 +2163,14 @@ got_pack:
 sync_done:
     if (packbuf) { FILETrimBook(packbuf); FILEUnBook(packbuf); }
     u8bUnMap(rbuf_b); u8bUnMap(objbuf_b);
+    // Close both pipe ends before waitpid so the child sees EOF on stdin
+    // and stops. Without this, the "nothing to want" path (and any other
+    // early goto sync_done) would hang forever in waitpid because ssh /
+    // git-upload-pack stays alive waiting on its open stdin. Each fd is
+    // -1 on the success path (already closed inline), so this is a no-op
+    // there.
+    if (wfd >= 0) { close(wfd); wfd = -1; }
+    if (rfd >= 0) { close(rfd); rfd = -1; }
     { int status; waitpid(pid, &status, 0); }
 
     // Record refs in the reflog

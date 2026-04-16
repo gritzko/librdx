@@ -18,6 +18,8 @@
       - no pointer arithmetics, use slices where possible,
         u8 pad[64] is not OK, a_pad(u8, pad, 64) is OK (has end pointer).
         see abc/S.md abc/B.md on slices and buffers.
+        Note that slices/gauges/buffers track data consumption naturally, so
+        ptr+len pairs are highly discouraged, as well as consumed-len pointers.
       - prefer typed slice functions over generic macros (e.g. `u8bReset()` over 
         `Breset()` or `u8sMv()` over `$mv()` over direct access s1[0] = s2[0]),
       - use slice iteration where possible, `$for`, `$rof`, `$eat`
