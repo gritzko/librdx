@@ -23,6 +23,7 @@
 #include "abc/FILE.h"
 #include "abc/PRO.h"
 #include "dog/CLI.h"
+#include "dog/DOG.h"
 
 // --- Verb table ---
 
@@ -158,9 +159,9 @@ static ok64 keeper_get_remote(keeper *k, cli *c, uri *g) {
     for (u32 i = 0; i < rn; i++) {
         if (REFMatch(&rarr[i], akey)) {
             uri resolved = {};
-            resolved.data[0] = rarr[i].val[0];
-            resolved.data[1] = rarr[i].val[1];
-            if (URILexer(&resolved) == OK && !u8csEmpty(resolved.host)) {
+            u8csc val = {rarr[i].val[0], rarr[i].val[1]};
+            if (DOGParseURI(&resolved, val) == OK &&
+                !u8csEmpty(resolved.host)) {
                 u8csMv(rhost, resolved.host);
                 u8csMv(rpath, resolved.path);
             }
