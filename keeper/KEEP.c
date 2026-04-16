@@ -20,6 +20,7 @@
 #include "abc/HEX.h"
 #include "abc/PATH.h"
 #include "abc/PRO.h"
+#include "abc/POL.h"
 #include "abc/RON.h"
 #include "dog/DPATH.h"
 #include "dog/HOME.h"
@@ -2207,10 +2208,7 @@ sync_done:
         u32 cap = nrefs * 2 + 4;
         ref *refarr = calloc(cap, sizeof(ref));
         if (refarr) {
-            time_t _t = time(NULL);
-            struct tm *_tm = localtime(&_t);
-            ron60 now = 0;
-            RONOfTime(&now, _tm, 0);
+            ron60 now = RONNow();
             Bu8 strbuf = {};
             ok64 me = u8bMap(strbuf, (u64)nrefs * 700);
             if (me != OK) {
