@@ -4,6 +4,7 @@
 #include "abc/B.h"
 #include "abc/INT.h"
 #include "abc/URI.h"
+#include "dog/DOG.h"
 #include "dog/FRAG.h"
 #include "dog/HUNK.h"
 
@@ -21,8 +22,8 @@ fun void BROHunkLoc(BROloc *loc, hunkc const *hk) {
     *loc = (BROloc){};
     if ($empty(hk->uri)) return;
     uri u = {};
-    $mv(u.data, hk->uri);
-    if (URILexer(&u) != OK) return;
+    u8csc text = {hk->uri[0], hk->uri[1]};
+    if (DOGParseURI(&u, text) != OK) return;
     if (!$empty(u.path)) {
         $mv(loc->path, u.path);
         if (!$empty(loc->path) && *loc->path[0] == '/')

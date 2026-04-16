@@ -1,5 +1,6 @@
 #include "LESS.h"
 
+#include <errno.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -25,7 +26,7 @@ ok64 LESSArenaInit(void) {
     memset(less_maps,  0, sizeof(less_maps));
     memset(less_toks,  0, sizeof(less_toks));
     if (less_arena[0] != NULL) {
-        ((u8 **)less_arena)[2] = less_arena[1];  // reset idle to start
+        u8bShedAll(less_arena);  // empty DATA, IDLE spans full buffer
         return OK;
     }
     return u8bMap(less_arena, LESS_ARENA_SIZE);
@@ -72,21 +73,22 @@ void LESSHunkEmit(void) {
     u8cp start = u8bIdleHead(less_arena);
     if (spot_emit(u8bIdle(less_arena), hk) != OK) {
         // Reset arena: drop this hunk's title/toks/hili + failed TLV.
-        ((u8 **)less_arena)[2] = less_arena[1];
+        u8bShedAll(less_arena);
         return;
     }
 
     u8cs ser = {start, u8bIdleHead(less_arena)};
     while (!$empty(ser)) {
         ssize_t w = write(spot_out_fd, ser[0], $len(ser));
-        if (w <= 0) break;
-        u8csFed(ser, (size_t)w);
+        if (w > 0) { u8csFed(ser, (size_t)w); continue; }
+        if (w < 0 && errno == EINTR) continue;
+        break;  // EAGAIN with non-blocking, EPIPE, etc — drop the rest
     }
 
     // Full arena rewind: title, toks, hili, and serialized bytes are
     // all consumed.  The hunk struct in less_hunks[0] will be reused
     // next time CAPOBuildHunk runs.
-    ((u8 **)less_arena)[2] = less_arena[1];
+    u8bShedAll(less_arena);
 }
 
 ok64 LESSRun(LESShunk const *hunks, u32 nhunks) {

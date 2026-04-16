@@ -62,7 +62,7 @@ ok64 brocli() {
             if (__ != OK) continue;
 
             struct stat sb = {};
-            if (stat((char *)u8bDataHead(fpbuf), &sb) == 0 &&
+            if (FILEStat(&sb, PATHu8cgIn(fpbuf)) == OK &&
                 S_ISDIR(sb.st_mode)) {
                 BROListDir(file_path);
                 continue;
@@ -71,9 +71,8 @@ ok64 brocli() {
             u8bp mapped = NULL;
             ok64 o = FILEMapRO(&mapped, PATHu8cgIn(fpbuf));
             if (o != OK) {
-                fprintf(stderr, "bro: cannot open %.*s: %s\n",
-                        (int)$len(file_path), (char *)file_path[0],
-                        ok64str(o));
+                fprintf(stderr, "bro: cannot open " $FMT_S ": %s\n",
+                        $ARG(file_path), ok64str(o));
                 continue;
             }
 

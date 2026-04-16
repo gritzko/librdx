@@ -44,8 +44,7 @@ ok64 BROArenaInit(void) {
     memset(bro_maps, 0, sizeof(bro_maps));
     memset(bro_toks, 0, sizeof(bro_toks));
     if (bro_arena[0] != NULL) {
-        // Reset idle pointer to start
-        ((u8 **)bro_arena)[2] = bro_arena[1];
+        u8bShedAll(bro_arena);  // empty DATA, IDLE spans full buffer
         return OK;
     }
     return u8bMap(bro_arena, BRO_ARENA_SIZE);
@@ -283,7 +282,7 @@ ok64 BROListDir(u8csc dirpath) {
         u8sFeed1(epath_idle, 0);
         struct stat sb = {};
         b8 is_dir = NO;
-        if (stat((char *)u8bDataHead(epath), &sb) == 0)
+        if (FILEStat(&sb, PATHu8cgIn(epath)) == OK)
             is_dir = S_ISDIR(sb.st_mode);
 
         // Write "name/" or "name" + "\n" into arena
@@ -365,19 +364,11 @@ static ok64 BROOpenFile(BROstate *st, u8csc relpath, char const *repo,
     if (st->nsaves >= BRO_MAX_VIEWS) fail(NOROOM);
 
     // Build absolute path: repo/relpath
-    char abspath[FILE_PATH_MAX_LEN];
-    int apn = snprintf(abspath, sizeof(abspath), "%s/%.*s",
-                       repo, (int)$len(relpath), (char *)relpath[0]);
-    if (apn <= 0 || (size_t)apn >= sizeof(abspath)) fail(FAILSANITY);
-
-    // Feed into path buffer for FILEMapRO
-    a_pad(u8, fpbuf, FILE_PATH_MAX_LEN);
+    a_path(fpbuf);
     {
-        u8cs abs = {(u8cp)abspath, (u8cp)abspath + apn};
-        ok64 fo = u8bFeed(fpbuf, abs);
-        if (fo != OK) fail(fo);
-        fo = PATHu8gTerm(PATHu8gIn(fpbuf));
-        if (fo != OK) fail(fo);
+        a_cstr(repo_s, repo);
+        call(PATHu8bFeed, fpbuf, repo_s);
+        call(PATHu8bPush, fpbuf, relpath);
     }
 
     // Map file
@@ -489,12 +480,12 @@ static b8 BROTryOpen(BROstate *st, u32 line, char const *repo) {
             b8 is_dir = (hk->text[0][end - 1] == '/');
             if (is_dir) elen--;
             // Build full path: dir/entry
-            char fullp[FILE_PATH_MAX_LEN] = {};
-            int fn = snprintf(fullp, sizeof(fullp), "%.*s/%.*s",
-                              (int)$len(loc.path), (char *)loc.path[0],
-                              (int)elen, (char *)(hk->text[0] + off));
-            if (fn > 0 && (size_t)fn < sizeof(fullp)) {
-                u8cs fp = {(u8cp)fullp, (u8cp)fullp + fn};
+            a_path(fpbufA);
+            a_rest(u8c, after, hk->text, off);
+            a_head(u8c, entry, after, elen);
+            if (PATHu8bFeed(fpbufA, loc.path) != OK) return NO;
+            if (PATHu8bPush(fpbufA, entry) != OK) return NO;
+            {
                 if (repo == NULL || repo[0] == 0) {
                     snprintf(st->flash, sizeof(st->flash), "no repo root");
                     return NO;
@@ -511,7 +502,7 @@ static b8 BROTryOpen(BROstate *st, u32 line, char const *repo) {
                            sizeof(Brange32));
                     st->files[idx] = (BROfileview){};
                     u32 save_nh = bro_nhunks;
-                    if (BROListDir(fp) == OK && bro_nhunks > save_nh) {
+                    if (BROListDir(u8bDataC(fpbufA)) == OK && bro_nhunks > save_nh) {
                         st->hunks = bro_hunks + save_nh;
                         st->nhunks = bro_nhunks - save_nh;
                         memset(st->linesbuf, 0, sizeof(Brange32));
@@ -522,10 +513,11 @@ static b8 BROTryOpen(BROstate *st, u32 line, char const *repo) {
                     }
                     return NO;
                 }
-                ok64 o = BROOpenFile(st, fp, repo, 0);
+                ok64 o = BROOpenFile(st, u8bDataC(fpbufA), repo, 0);
                 if (o != OK) {
                     snprintf(st->flash, sizeof(st->flash),
-                             "open: %s: %s", fullp, ok64str(o));
+                             "open: " $FMT_S ": %s",
+                             $ARG(u8bDataC(fpbufA)), ok64str(o));
                     return NO;
                 }
                 return YES;
@@ -545,9 +537,8 @@ static b8 BROTryOpen(BROstate *st, u32 line, char const *repo) {
     ok64 o = BROOpenFile(st, loc.path, repo, loc.line);
     if (o != OK) {
         snprintf(st->flash, sizeof(st->flash),
-                 "open: %.*s: %s",
-                 (int)$len(loc.path), (char *)loc.path[0],
-                 ok64str(o));
+                 "open: " $FMT_S ": %s",
+                 $ARG(loc.path), ok64str(o));
         return NO;
     }
     return YES;
@@ -1588,8 +1579,9 @@ static ok64 BROForkSpot(BROstate *st, char const *flag,
     if (new_nhunks == 0) {
         // No results — restore arena, flash message
         bro_nhunks = hunks_save;
-        // Reset arena idle pointer
-        ((u8 **)bro_arena)[2] = arena_save;
+        // Roll IDLE back to the snapshot taken before this fork
+        size_t added = (size_t)(u8bIdleHead(bro_arena) - arena_save);
+        if (added > 0) u8bShed(bro_arena, added);
         snprintf(st->flash, sizeof(st->flash), "spot: no results");
         fail(FAILSANITY);
     }

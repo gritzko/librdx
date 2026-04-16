@@ -12,6 +12,7 @@ list(APPEND SPOT_HEADERS
     CAPO.h
     CAPOi.h
     LESS.h
+    RXLITS.h
     SPOT.h
 )
 
@@ -19,6 +20,7 @@ list(APPEND SPOT_SOURCES
     CAPO.c
     GREP.c
     LESS.c
+    RXLITS.rl.c
     SPOT.c
 )
 

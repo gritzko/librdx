@@ -634,28 +634,28 @@ ok64 SPOTNext(SPOTstate *st) {
 
 // --- SPOTInstTemplate ---
 
+// Identifier char: [A-Za-z0-9_].
+static b8 spot_id_char(u8 c) {
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+           (c >= '0' && c <= '9') || c == '_';
+}
+
+// Walk template tmpl, expanding standalone single-letter placeholders
+// (a-z, A-Z that aren't adjacent to other identifier chars) into the
+// corresponding bound capture; pass everything else through verbatim.
 static ok64 SPOTInstTemplate(u8s out, u8csc tmpl,
                               u64 bound,
                               match32 *bind_matches,
                               u8csc source) {
     sane(out[0] != NULL);
-    u8cp p = tmpl[0];
-    u8cp end = tmpl[1];
-    while (p < end) {
-        u8 c = *p;
+    a_dup(u8c, p, tmpl);
+    u8 prev = 0;  // 0 acts as "not an ident char" sentinel
+    while (!u8csEmpty(p)) {
+        u8 c = *u8csHead(p);
         b8 is_alpha = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
         if (is_alpha) {
-            b8 prev_id = (p > tmpl[0]) && (
-                (*(p - 1) >= 'a' && *(p - 1) <= 'z') ||
-                (*(p - 1) >= 'A' && *(p - 1) <= 'Z') ||
-                (*(p - 1) >= '0' && *(p - 1) <= '9') ||
-                *(p - 1) == '_');
-            b8 next_id = (p + 1 < end) && (
-                (*(p + 1) >= 'a' && *(p + 1) <= 'z') ||
-                (*(p + 1) >= 'A' && *(p + 1) <= 'Z') ||
-                (*(p + 1) >= '0' && *(p + 1) <= '9') ||
-                *(p + 1) == '_');
-            if (!prev_id && !next_id) {
+            u8 next = ($len(p) > 1) ? *u8csAtP(p, 1) : 0;
+            if (!spot_id_char(prev) && !spot_id_char(next)) {
                 int idx = SPOTBindIndex(c);
                 u64 bit = 1ULL << idx;
                 if (idx >= 0 && (bound & bit)) {
@@ -666,13 +666,15 @@ static ok64 SPOTInstTemplate(u8s out, u8csc tmpl,
                             source[0] + bind_matches[idx].hay.hi};
                         call(u8sFeed, out, bval);
                     }
-                    p++;
+                    prev = c;
+                    u8csUsed1(p);
                     continue;
                 }
             }
         }
         call(u8sFeed1, out, c);
-        p++;
+        prev = c;
+        u8csUsed1(p);
     }
     done;
 }

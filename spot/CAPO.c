@@ -30,6 +30,23 @@ static void capo_abrt_handler(int sig) {
 #include "dog/IGNO.h"
 #include "spot/SPOT.h"
 
+// Shell-quote a path slice into buf: 'path' with internal ' → '\''.
+// Safe for use inside a `sh -c` command line.
+static ok64 capo_sh_quote(u8bp buf, u8csc path) {
+    sane(buf != NULL && $ok(path));
+    call(u8bFeed1, buf, '\'');
+    $for(u8c, p, path) {
+        if (*p == '\'') {
+            a_cstr(esc, "'\\''");
+            call(u8bFeed, buf, esc);
+        } else {
+            call(u8bFeed1, buf, *p);
+        }
+    }
+    call(u8bFeed1, buf, '\'');
+    done;
+}
+
 // --- Language detection via tok/ ---
 
 b8 CAPOKnownExt(u8csc ext) {
@@ -189,7 +206,7 @@ ok64 CAPOIndexWrite(u8csc dir, u64cs run, u64 seqno) {
     call(u8bFeed, path, dir);
     call(u8bFeed1, path, '/');
     call(RONu8sFeedPad, u8bIdle(path), seqno, CAPO_SEQNO_WIDTH);
-    ((u8 **)path)[2] += CAPO_SEQNO_WIDTH;
+    call(u8bFed, path, CAPO_SEQNO_WIDTH);  // RONu8sFeedPad wrote into IDLE
     a_cstr(idxext, CAPO_IDX_EXT);
     call(u8bFeed, path, idxext);
     call(PATHu8gTerm, PATHu8gIn(path));
@@ -378,35 +395,39 @@ static ok64 CAPOReindexWork(u8csc reporoot, u8csc dirslice, u64bp entries) {
     // (cheap, respects .gitignore, follows submodules). In a
     // keeper-cloned dir with no .git we fall back to `find`, which
     // walks the actual filesystem and skips the .dogs/ store itself.
-    char gitprobe[FILE_PATH_MAX_LEN];
-    int pn = snprintf(gitprobe, sizeof(gitprobe), "%.*s/.git",
-                      (int)$len(reporoot), (char *)reporoot[0]);
-    test(pn > 0 && pn < (int)sizeof(gitprobe), FAILSANITY);
+    a_path(gitp);
+    call(PATHu8bFeed, gitp, reporoot);
+    a_cstr(dotgit, ".git");
+    call(PATHu8bPush, gitp, dotgit);
     struct stat gitsb = {};
-    b8 has_git = (stat(gitprobe, &gitsb) == 0);
+    b8 has_git = (FILEStat(&gitsb, PATHu8cgIn(gitp)) == OK);
 
-    char cmdbuf[FILE_PATH_MAX_LEN * 2 + 256];
-    int n;
+    a_pad(u8, cmdbuf, FILE_PATH_MAX_LEN * 2 + 512);
     if (has_git) {
-        n = snprintf(cmdbuf, sizeof(cmdbuf),
-            "git -C %.*s ls-files && "
-            "git -C %.*s submodule foreach --quiet --recursive "
-            "'git ls-files | sed \"s|^|$displaypath/|\"'",
-            (int)$len(reporoot), (char *)reporoot[0],
-            (int)$len(reporoot), (char *)reporoot[0]);
+        a_cstr(p1, "git -C ");
+        a_cstr(p2, " ls-files && git -C ");
+        a_cstr(p3, " submodule foreach --quiet --recursive "
+                   "'git ls-files | sed \"s|^|$displaypath/|\"'");
+        call(u8bFeed, cmdbuf, p1);
+        call(capo_sh_quote, cmdbuf, reporoot);
+        call(u8bFeed, cmdbuf, p2);
+        call(capo_sh_quote, cmdbuf, reporoot);
+        call(u8bFeed, cmdbuf, p3);
     } else {
         // Portable form (busybox find has no -printf): print full
         // ./relative/paths, then strip the leading "./" via sed so
         // output matches git ls-files. Prune .dogs/ so we don't index
         // keeper's pack files etc.
-        n = snprintf(cmdbuf, sizeof(cmdbuf),
-            "cd %.*s && find . -type d -name .dogs -prune -o "
-            "-type f -print | sed 's|^\\./||'",
-            (int)$len(reporoot), (char *)reporoot[0]);
+        a_cstr(p1, "cd ");
+        a_cstr(p2, " && find . -type d -name .dogs -prune -o "
+                   "-type f -print | sed 's|^\\./||'");
+        call(u8bFeed, cmdbuf, p1);
+        call(capo_sh_quote, cmdbuf, reporoot);
+        call(u8bFeed, cmdbuf, p2);
     }
-    test(n > 0 && n < (int)sizeof(cmdbuf), FAILSANITY);
+    call(u8bFeed1, cmdbuf, 0);
 
-    FILE *fp = popen(cmdbuf, "r");
+    FILE *fp = popen((char *)u8bDataHead(cmdbuf), "r");
     test(fp != NULL, FAILSANITY);
 
     u32 indexed = 0, skipped = 0, failed = 0;
@@ -424,19 +445,16 @@ static ok64 CAPOReindexWork(u8csc reporoot, u8csc dirslice, u64bp entries) {
         if ($empty(ext)) { skipped++; continue; }
         if (!CAPOKnownExt(ext)) { skipped++; continue; }
 
-        char fpath[FILE_PATH_MAX_LEN * 2];
-        int pn = snprintf(fpath, sizeof(fpath), "%.*s/%s",
-                          (int)$len(reporoot), (char *)reporoot[0], line);
-        if (pn <= 0 || pn >= (int)sizeof(fpath)) { skipped++; continue; }
-
-        u8cs fps = {(u8cp)fpath, (u8cp)fpath + pn};
-        a_path(fpbuf, fps);
+        a_path(fpbuf);
+        u8cs lns = {(u8cp)line, (u8cp)line + len};
+        if (PATHu8bFeed(fpbuf, reporoot) != OK ||
+            PATHu8bPush(fpbuf, lns) != OK) { skipped++; continue; }
 
         u8bp mapped = NULL;
         ok64 o = FILEMapRO(&mapped, PATHu8cgIn(fpbuf));
         if (o != OK) {
             fprintf(stderr, "FAIL\t%s\t%s\t(open %s)\n",
-                    ok64str(o), line, fpath);
+                    ok64str(o), line, (char *)u8bDataHead(fpbuf));
             failed++;
             continue;
         }
@@ -454,11 +472,10 @@ static ok64 CAPOReindexWork(u8csc reporoot, u8csc dirslice, u64bp entries) {
         u8c *codec[2] = {};
         CAPOCodecName(codec, ext);
         if (CAPO_TERM)
-            fprintf(stderr, "\033[%dmOK\t%.*s\t%s\033[0m\n",
-                    GRAY, (int)$len(codec), (char *)codec[0], line);
+            fprintf(stderr, "\033[%dmOK\t" $FMT_S "\t%s\033[0m\n",
+                    GRAY, $ARG(codec), line);
         else
-            fprintf(stderr, "OK\t%.*s\t%s\n",
-                    (int)$len(codec), (char *)codec[0], line);
+            fprintf(stderr, "OK\t" $FMT_S "\t%s\n", $ARG(codec), line);
         indexed++;
 
         size_t pending = u64bDataLen(entries);
@@ -535,12 +552,21 @@ static ok64 CAPOReindexProcWork(u8csc reporoot, u8csc dirslice,
                                 u64bp entries, u32 nprocs, u32 proc) {
     sane($ok(reporoot) && $ok(dirslice) && entries != NULL);
 
-    char cmdbuf[FILE_PATH_MAX_LEN * 2 + 256];
-    int n = snprintf(cmdbuf, sizeof(cmdbuf), "git -C %.*s ls-files && git -C %.*s submodule foreach --quiet --recursive 'git ls-files | sed \"s|^|$displaypath/|\"'",
-                     (int)$len(reporoot), (char *)reporoot[0], (int)$len(reporoot), (char *)reporoot[0]);
-    test(n > 0 && n < (int)sizeof(cmdbuf), FAILSANITY);
+    a_pad(u8, cmdbuf, FILE_PATH_MAX_LEN * 2 + 512);
+    {
+        a_cstr(p1, "git -C ");
+        a_cstr(p2, " ls-files && git -C ");
+        a_cstr(p3, " submodule foreach --quiet --recursive "
+                   "'git ls-files | sed \"s|^|$displaypath/|\"'");
+        call(u8bFeed, cmdbuf, p1);
+        call(capo_sh_quote, cmdbuf, reporoot);
+        call(u8bFeed, cmdbuf, p2);
+        call(capo_sh_quote, cmdbuf, reporoot);
+        call(u8bFeed, cmdbuf, p3);
+        call(u8bFeed1, cmdbuf, 0);
+    }
 
-    FILE *fp = popen(cmdbuf, "r");
+    FILE *fp = popen((char *)u8bDataHead(cmdbuf), "r");
     test(fp != NULL, FAILSANITY);
 
     u32 indexed = 0, skipped = 0, failed = 0;
@@ -561,19 +587,16 @@ static ok64 CAPOReindexProcWork(u8csc reporoot, u8csc dirslice,
         if ($empty(ext)) { skipped++; continue; }
         if (!CAPOKnownExt(ext)) { skipped++; continue; }
 
-        char fpath[FILE_PATH_MAX_LEN * 2];
-        int pn = snprintf(fpath, sizeof(fpath), "%.*s/%s",
-                          (int)$len(reporoot), (char *)reporoot[0], line);
-        if (pn <= 0 || pn >= (int)sizeof(fpath)) { skipped++; continue; }
-
-        u8cs fps = {(u8cp)fpath, (u8cp)fpath + pn};
-        a_path(fpbuf, fps);
+        a_path(fpbuf);
+        u8cs lns = {(u8cp)line, (u8cp)line + len};
+        if (PATHu8bFeed(fpbuf, reporoot) != OK ||
+            PATHu8bPush(fpbuf, lns) != OK) { skipped++; continue; }
 
         u8bp mapped = NULL;
         ok64 o = FILEMapRO(&mapped, PATHu8cgIn(fpbuf));
         if (o != OK) {
             fprintf(stderr, "FAIL\t%s\t%s\t(open %s)\n",
-                    ok64str(o), line, fpath);
+                    ok64str(o), line, (char *)u8bDataHead(fpbuf));
             failed++;
             continue;
         }
@@ -622,7 +645,7 @@ static ok64 CAPOReindexProcWork(u8csc reporoot, u8csc dirslice,
     int rc = pclose(fp);
     if (rc != 0)
         fprintf(stderr, "spot[%u/%u]: `%s` failed (status %d)\n",
-                proc, nprocs, cmdbuf, rc);
+                proc, nprocs, (char *)u8bDataHead(cmdbuf), rc);
 
     size_t pending = u64bDataLen(entries);
     if (pending > 0) {
@@ -693,9 +716,8 @@ ok64 CAPOCompactAll(u8csc dir) {
 
         u64 seqno = 0;
         call(CAPONextSeqno, &seqno, dir);
-        fprintf(stderr, "spot: next seqno = %" PRIu64 " (dir = '%.*s')\n",
-                seqno,
-                (int)$len(dir), (char *)dir[0]);
+        fprintf(stderr, "spot: next seqno = %" PRIu64 " (dir = '" $FMT_S "')\n",
+                seqno, $ARG(dir));
         u64cs merged = {(u64cp)mbuf[0], (u64cp)into[0]};
         fprintf(stderr, "spot: writing %zu deduplicated entries (seqno %" PRIu64 ")\n",
                 $len(merged), seqno);
@@ -730,12 +752,11 @@ ok64 CAPOCommitWrite(u8csc reporoot, u8csc capodir) {
     // back to `git rev-parse HEAD` for traditional git working trees.
     char newsha[64] = {};
     {
-        char snipath[FILE_PATH_MAX_LEN + 64];
-        int sn = snprintf(snipath, sizeof(snipath),
-                          "%.*s/.dogs/sniff/HEAD",
-                          (int)$len(reporoot), (char *)reporoot[0]);
-        test(sn > 0 && sn < (int)sizeof(snipath), FAILSANITY);
-        FILE *sf = fopen(snipath, "r");
+        a_path(snipath);
+        a_cstr(snirel, ".dogs/sniff/HEAD");
+        call(PATHu8bFeed, snipath, reporoot);
+        call(PATHu8bPush, snipath, snirel);
+        FILE *sf = fopen((char *)u8bDataHead(snipath), "r");
         if (sf != NULL) {
             char *got = fgets(newsha, sizeof(newsha), sf);
             fclose(sf);
@@ -743,12 +764,14 @@ ok64 CAPOCommitWrite(u8csc reporoot, u8csc capodir) {
         }
     }
     if (newsha[0] == 0) {
-        char cmdbuf[FILE_PATH_MAX_LEN + 64];
-        int n = snprintf(cmdbuf, sizeof(cmdbuf),
-                         "git -C %.*s rev-parse HEAD 2>/dev/null",
-                         (int)$len(reporoot), (char *)reporoot[0]);
-        test(n > 0 && n < (int)sizeof(cmdbuf), FAILSANITY);
-        FILE *fp = popen(cmdbuf, "r");
+        a_pad(u8, cmdbuf, FILE_PATH_MAX_LEN + 64);
+        a_cstr(p1, "git -C ");
+        a_cstr(p2, " rev-parse HEAD 2>/dev/null");
+        call(u8bFeed, cmdbuf, p1);
+        call(capo_sh_quote, cmdbuf, reporoot);
+        call(u8bFeed, cmdbuf, p2);
+        call(u8bFeed1, cmdbuf, 0);
+        FILE *fp = popen((char *)u8bDataHead(cmdbuf), "r");
         test(fp != NULL, FAILSANITY);
         char *got = fgets(newsha, sizeof(newsha), fp);
         pclose(fp);
@@ -843,8 +866,9 @@ ok64 CAPOCommitRead(u32p count, u8csc capodir,
 
 // --- Hook (incremental) ---
 
-static b8 CAPOHookDiffCmd(char *cmdbuf, size_t cmdsz,
-                           u8csc reporoot, u8csc dirslice) {
+// Build "git -C <repo> diff --name-only <sha>" into out.  Returns YES if
+// a usable diff command was emitted; NO if no saved commit is reachable.
+static b8 CAPOHookDiffCmd(u8bp out, u8csc reporoot, u8csc dirslice) {
     char shas[CAPO_MAX_SHAS][44];
     u32 sha_count = 0;
     CAPOCommitRead(&sha_count, dirslice, shas, CAPO_MAX_SHAS);
@@ -855,25 +879,33 @@ static b8 CAPOHookDiffCmd(char *cmdbuf, size_t cmdsz,
     }
 
     // try newest first (last in file)
-    char chkbuf[FILE_PATH_MAX_LEN + 128];
+    a_pad(u8, chkbuf, FILE_PATH_MAX_LEN + 128);
     for (u32 i = sha_count; i > 0; i--) {
-        int n = snprintf(chkbuf, sizeof(chkbuf),
-                         "git -C %.*s merge-base --is-ancestor %.40s HEAD",
-                         (int)$len(reporoot), (char *)reporoot[0],
-                         shas[i - 1]);
-        if (n <= 0 || n >= (int)sizeof(chkbuf)) continue;
-        int rc = system(chkbuf);
+        u8bShedAll(chkbuf);
+        a_cstr(chk_pre, "git -C ");
+        a_cstr(chk_post, " merge-base --is-ancestor ");
+        a_cstr(chk_tail, " HEAD");
+        u8cs sha_s = {(u8cp)shas[i - 1], (u8cp)shas[i - 1] + 40};
+        if (u8bFeed(chkbuf, chk_pre) != OK) continue;
+        if (capo_sh_quote(chkbuf, reporoot) != OK) continue;
+        if (u8bFeed(chkbuf, chk_post) != OK) continue;
+        if (u8bFeed(chkbuf, sha_s) != OK) continue;
+        if (u8bFeed(chkbuf, chk_tail) != OK) continue;
+        if (u8bFeed1(chkbuf, 0) != OK) continue;
+        int rc = system((char *)u8bDataHead(chkbuf));
         if (WIFEXITED(rc) && WEXITSTATUS(rc) == 0) {
             if (CAPO_COLOR)
                 fprintf(stderr, "\033[%dmChanges since %.40s\033[0m\n",
                         GRAY, shas[i - 1]);
             else
                 fprintf(stderr, "Changes since %.40s\n", shas[i - 1]);
-            n = snprintf(cmdbuf, cmdsz,
-                         "git -C %.*s diff --name-only %.40s",
-                         (int)$len(reporoot), (char *)reporoot[0],
-                         shas[i - 1]);
-            if (n <= 0 || n >= (int)cmdsz) return NO;
+            a_cstr(diff_pre, "git -C ");
+            a_cstr(diff_mid, " diff --name-only ");
+            if (u8bFeed(out, diff_pre) != OK) return NO;
+            if (capo_sh_quote(out, reporoot) != OK) return NO;
+            if (u8bFeed(out, diff_mid) != OK) return NO;
+            if (u8bFeed(out, sha_s) != OK) return NO;
+            if (u8bFeed1(out, 0) != OK) return NO;
             return YES;
         }
     }
@@ -901,13 +933,10 @@ static ok64 CAPOIndexFromCmd(u8csc reporoot, u64bp entries,
         if ($empty(ext)) continue;
         if (!CAPOKnownExt(ext)) continue;
 
-        char fpath[FILE_PATH_MAX_LEN * 2];
-        int pn = snprintf(fpath, sizeof(fpath), "%.*s/%s",
-                          (int)$len(reporoot), (char *)reporoot[0], line);
-        if (pn <= 0 || pn >= (int)sizeof(fpath)) continue;
-
-        u8cs fps = {(u8cp)fpath, (u8cp)fpath + pn};
-        a_path(fpbuf, fps);
+        a_path(fpbuf);
+        u8cs lns = {(u8cp)line, (u8cp)line + len};
+        if (PATHu8bFeed(fpbuf, reporoot) != OK ||
+            PATHu8bPush(fpbuf, lns) != OK) continue;
 
         u8bp mapped = NULL;
         ok64 o = FILEMapRO(&mapped, PATHu8cgIn(fpbuf));
@@ -921,8 +950,7 @@ static ok64 CAPOIndexFromCmd(u8csc reporoot, u64bp entries,
 
         u8c *codec[2] = {};
         CAPOCodecName(codec, ext);
-        fprintf(stderr, "OK\t%.*s\t%s\n",
-                (int)$len(codec), (char *)codec[0], line);
+        fprintf(stderr, "OK\t" $FMT_S "\t%s\n", $ARG(codec), line);
         if (indexed) (*indexed)++;
     }
     pclose(fp);
@@ -966,14 +994,15 @@ ok64 CAPOHook(u8csc reporoot) {
     a_dup(u8c, dirslice, u8bDataC(capodir));
     call(FILEMakeDirP, PATHu8cgIn(capodir));
 
-    char cmdbuf[FILE_PATH_MAX_LEN + 128];
+    a_pad(u8, cmdbuf, FILE_PATH_MAX_LEN + 256);
     ok64 o = OK;
 
     Bu64 entries = {};
     call(u64bMap, entries, CAPO_SCRATCH_LEN);
 
-    if (CAPOHookDiffCmd(cmdbuf, sizeof(cmdbuf), reporoot, dirslice)) {
-        o = CAPOHookDiff(reporoot, dirslice, entries, cmdbuf);
+    if (CAPOHookDiffCmd(cmdbuf, reporoot, dirslice)) {
+        o = CAPOHookDiff(reporoot, dirslice, entries,
+                         (char *)u8bDataHead(cmdbuf));
     } else {
         o = CAPOReindexWork(reporoot, dirslice, entries);
     }
@@ -1004,9 +1033,9 @@ ok64 CAPOUncommitted(u8csc reporoot, b8 untracked) {
     a_cstr(diff_pfx, "git -C ");
     a_cstr(diff_sfx, " diff --name-only HEAD 2>/dev/null");
     call(u8bFeed, cmd1, diff_pfx);
-    call(u8bFeed, cmd1, reporoot);
+    call(capo_sh_quote, cmd1, reporoot);
     call(u8bFeed, cmd1, diff_sfx);
-    call(PATHu8gTerm, PATHu8gIn(cmd1));
+    call(u8bFeed1, cmd1, 0);
     call(CAPOIndexFromCmd, reporoot, entries,
          (char *)u8bDataHead(cmd1), &indexed);
 
@@ -1016,9 +1045,9 @@ ok64 CAPOUncommitted(u8csc reporoot, b8 untracked) {
         a_cstr(ls_pfx, "git -C ");
         a_cstr(ls_sfx, " ls-files --others --exclude-standard");
         call(u8bFeed, cmd2, ls_pfx);
-        call(u8bFeed, cmd2, reporoot);
+        call(capo_sh_quote, cmd2, reporoot);
         call(u8bFeed, cmd2, ls_sfx);
-        call(PATHu8gTerm, PATHu8gIn(cmd2));
+        call(u8bFeed1, cmd2, 0);
         call(CAPOIndexFromCmd, reporoot, entries,
              (char *)u8bDataHead(cmd2), &indexed);
     }

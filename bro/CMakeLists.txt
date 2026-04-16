@@ -14,7 +14,7 @@ list(APPEND BRO_HEADERS
 
 list(APPEND BRO_SOURCES
     BRO.c
-    MAUS.c
+    MAUS.rl.c
 )
 
 add_library(brolib STATIC ${BRO_HEADERS} ${BRO_SOURCES})

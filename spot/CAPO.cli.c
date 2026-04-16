@@ -339,10 +339,10 @@ ok64 capocli() {
         a_dup(u8c, dirslice, u8bDataC(capodir));
         call(FILEMakeDirP, PATHu8cgIn(capodir));
 
+        // Resolve own path portably: argv[0] (with PATH search if bare).
         char self[FILE_PATH_MAX_LEN];
-        ssize_t slen = readlink("/proc/self/exe", self, sizeof(self) - 1);
-        test(slen > 0, FAILSANITY);
-        self[slen] = 0;
+        a$rg(a0, 0);
+        HOMEResolveSibling(self, sizeof(self), "spot", (char const *)a0[0]);
 
         pid_t pids[256];
         u32 n = nfork;

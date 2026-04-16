@@ -169,11 +169,8 @@ static ok64 BEGet(cli *c, b8 seq) {
         ok64 ho = HOMEFindDogs(probe);
         if (ho != OK) {
             a_path(here);
-            char cwdbuf[FILE_PATH_MAX_LEN];
-            if (getcwd(cwdbuf, sizeof(cwdbuf)) != NULL) {
-                a_cstr(cwds, cwdbuf);
+            if (FILEGetCwd(here) == OK) {
                 a_cstr(dotdogs, ".dogs");
-                call(PATHu8bFeed, here, cwds);
                 call(PATHu8bPush, here, dotdogs);
                 call(FILEMakeDirP, PATHu8cgIn(here));
             }
@@ -226,14 +223,20 @@ static ok64 BEDefault(void) {
             memcpy(dogs[i], pack[i], strlen(pack[i]) + 1);
         ndogs = 3;
     }
+    // Run --update on every dog; remember the worst error so a crashing
+    // or non-zero-exiting dog is surfaced after status output completes.
+    ok64 worst = OK;
     for (u32 i = 0; i < ndogs; i++) {
         char *argv[] = {dogs[i], "--update", NULL};
-        BERun(dogs[i], argv, NO);
+        ok64 r = BERun(dogs[i], argv, NO);
+        if (r != OK && worst == OK) worst = r;
     }
     for (u32 i = 0; i < ndogs; i++) {
         char *argv[] = {dogs[i], "--status", NULL};
-        BERun(dogs[i], argv, NO);
+        ok64 r = BERun(dogs[i], argv, NO);
+        if (r != OK && worst == OK) worst = r;
     }
+    if (worst != OK) fail(worst);
     done;
 }
 
@@ -279,18 +282,12 @@ ok64 becli() {
     if ($empty(verb)) {
         if (u != NULL && (fr.type == FRAG_SPOT || fr.type == FRAG_PCRE ||
                           fr.type == FRAG_IDENT)) {
-            // Search → spot
-            char uri_z[FILE_PATH_MAX_LEN] = {};
-            snprintf(uri_z, sizeof(uri_z), "%.*s",
-                     (int)$len(u->data), (char *)u->data[0]);
-            char *argv[] = {"spot", uri_z, NULL};
+            // Search → spot.  u->data borrows from argv (NUL-terminated).
+            char *argv[] = {"spot", (char *)u->data[0], NULL};
             call(BERun, "spot", argv, NO);
         } else if (u != NULL && !$empty(u->path)) {
             // View → bro
-            char uri_z[FILE_PATH_MAX_LEN] = {};
-            snprintf(uri_z, sizeof(uri_z), "%.*s",
-                     (int)$len(u->data), (char *)u->data[0]);
-            char *argv[] = {"bro", uri_z, NULL};
+            char *argv[] = {"bro", (char *)u->data[0], NULL};
             call(BERun, "bro", argv, NO);
         } else {
             call(BEDefault);
@@ -310,8 +307,8 @@ ok64 becli() {
     } else if ($eq(verb, v_patch)) {
         fprintf(stderr, "be: patch dispatch not yet implemented\n");
     } else {
-        fprintf(stderr, "be: verb '%.*s' not yet implemented\n",
-                (int)$len(verb), (char *)verb[0]);
+        fprintf(stderr, "be: verb '" $FMT_S "' not yet implemented\n",
+                $ARG(verb));
     }
 
     done;

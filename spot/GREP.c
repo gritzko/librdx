@@ -7,6 +7,7 @@
 #include "abc/NFA.h"
 #include "abc/PRO.h"
 #include "abc/SORT.h"
+#include "spot/RXLITS.h"
 #include "spot/SPOT.h"
 #include "dog/DEF.h"
 
@@ -172,6 +173,55 @@ ok64 CAPOGrep(u8csc substring, u8csc ext, u8csc reporoot, u32 ctx_lines,
 
 // --- Regex grep: extract literal runs from regex for trigram filtering ---
 
+// Trigram-extraction context shared with the rxlits ragel scanner.
+typedef struct {
+    u8 buf[1024];
+    u32 len;
+    u32 nidxfiles;
+    u64cs *runs;
+    u32 *const *hashbuf1;   // u32b decays to u32 *const *
+    b8 *has_trigrams;
+} regexlits_ctx;
+
+// For each 3-byte trigram in the literal run, intersect/seed the index.
+static void regexlits_flush(regexlits_ctx *c) {
+    if (c->len >= 3) {
+        for (u32 li = 0; li + 2 < c->len; li++) {
+            if (!CAPOTriChar(c->buf[li]) ||
+                !CAPOTriChar(c->buf[li + 1]) ||
+                !CAPOTriChar(c->buf[li + 2])) continue;
+            u8 _tb[3] = {c->buf[li], c->buf[li + 1], c->buf[li + 2]};
+            u8cs tri = {_tb, _tb + 3};
+            u64 tri_prefix = CAPOTriPack(tri);
+            u64cs seek_runs[CAPO_MAX_LEVELS];
+            for (u32 si = 0; si < c->nidxfiles; si++) {
+                seek_runs[si][0] = c->runs[si][0];
+                seek_runs[si][1] = c->runs[si][1];
+            }
+            u64css seek_iter = {seek_runs, seek_runs + c->nidxfiles};
+            HITu64Start(seek_iter);
+            if (!*c->has_trigrams) {
+                u32bReset(c->hashbuf1);
+                CAPOCollectPaths(seek_iter, tri_prefix,
+                                 u32bDataIdle(c->hashbuf1));
+                *c->has_trigrams = YES;
+            } else {
+                u32sSort(u32bData(c->hashbuf1));
+                HITu64Seek(seek_iter, &tri_prefix);
+                CAPOFilterInPlace(c->hashbuf1, seek_iter, tri_prefix);
+            }
+        }
+    }
+    c->len = 0;
+}
+
+static ok64 regexlits_cb(void *ctx, u8 ch, b8 flush) {
+    regexlits_ctx *c = (regexlits_ctx *)ctx;
+    if (flush) { regexlits_flush(c); return OK; }
+    if (c->len < sizeof(c->buf)) c->buf[c->len++] = ch;
+    return OK;
+}
+
 // Walk a regex pattern, collect runs of literal characters.
 // Meta chars and class escapes break a run; backslash-escaped literals stay.
 // For each run >= 3 chars, extract trigrams and intersect with the index.
@@ -180,84 +230,12 @@ static void CAPORegexLiterals(u8csc pattern,
                                u64cs *runs,
                                u32b hashbuf1,
                                b8 *has_trigrams) {
-    u8cp p = pattern[0];
-    u8cp end = pattern[1];
-
-    // Temp buffer for collecting a literal run
-    u8 litbuf[1024];
-    u32 litlen = 0;
-
-#define FLUSH_LITS()                                                      \
-    do {                                                                   \
-        if (litlen >= 3) {                                                 \
-            for (u32 li = 0; li + 2 < litlen; li++) {                     \
-                if (CAPOTriChar(litbuf[li]) && CAPOTriChar(litbuf[li+1]) && \
-                    CAPOTriChar(litbuf[li+2])) {                           \
-                    u8 _tb[3] = {litbuf[li], litbuf[li+1], litbuf[li+2]}; \
-                    u8cs tri = {_tb, _tb + 3};                            \
-                    u64 tri_prefix = CAPOTriPack(tri);                    \
-                    u64cs seek_runs[CAPO_MAX_LEVELS];                     \
-                    for (u32 si = 0; si < nidxfiles; si++) {              \
-                        seek_runs[si][0] = runs[si][0];                   \
-                        seek_runs[si][1] = runs[si][1];                   \
-                    }                                                      \
-                    u64css seek_iter = {seek_runs, seek_runs + nidxfiles}; \
-                    HITu64Start(seek_iter);                               \
-                    if (!*has_trigrams) {                                   \
-                        u32bReset(hashbuf1);                               \
-                        CAPOCollectPaths(seek_iter, tri_prefix,            \
-                                         u32bDataIdle(hashbuf1));          \
-                        *has_trigrams = YES;                                \
-                    } else {                                                \
-                        u32sSort(u32bData(hashbuf1));                      \
-                        HITu64Seek(seek_iter, &tri_prefix);               \
-                        CAPOFilterInPlace(hashbuf1, seek_iter,             \
-                                          tri_prefix);                     \
-                    }                                                      \
-                }                                                          \
-            }                                                              \
-        }                                                                  \
-        litlen = 0;                                                        \
-    } while (0)
-
-    while (p < end) {
-        u8 ch = *p;
-        if (ch == '\\' && p + 1 < end) {
-            u8 esc = p[1];
-            // Class escapes break the run
-            if (esc == 'd' || esc == 'D' || esc == 'w' || esc == 'W' ||
-                esc == 's' || esc == 'S') {
-                FLUSH_LITS();
-                p += 2;
-            } else {
-                // Escaped literal: the escaped char itself
-                if (litlen < sizeof(litbuf)) litbuf[litlen++] = esc;
-                p += 2;
-            }
-        } else if (ch == '[') {
-            // Character class — skip to closing ']'
-            FLUSH_LITS();
-            p++;
-            if (p < end && *p == '^') p++;
-            if (p < end && *p == ']') p++;
-            while (p < end && *p != ']') {
-                if (*p == '\\' && p + 1 < end) p++;
-                p++;
-            }
-            if (p < end) p++;  // skip ']'
-        } else if (ch == '*' || ch == '+' || ch == '?' || ch == '|' ||
-                   ch == '.' || ch == '(' || ch == ')' || ch == '{' ||
-                   ch == '}' || ch == '^' || ch == '$') {
-            FLUSH_LITS();
-            p++;
-        } else {
-            // Plain literal
-            if (litlen < sizeof(litbuf)) litbuf[litlen++] = ch;
-            p++;
-        }
-    }
-    FLUSH_LITS();
-#undef FLUSH_LITS
+    (void)stack;  // resolved per-trigram via runs+nidxfiles
+    regexlits_ctx ctx = {
+        .nidxfiles = nidxfiles, .runs = runs,
+        .hashbuf1 = hashbuf1, .has_trigrams = has_trigrams,
+    };
+    RXLITSu8sDrain(pattern, regexlits_cb, &ctx);
 }
 
 // --- Pcre grep per-file callback ---
