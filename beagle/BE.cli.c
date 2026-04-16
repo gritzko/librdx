@@ -148,6 +148,26 @@ static ok64 BEGet(cli *c, b8 seq) {
     // Skip keeper fetch if no remote (no authority)
     uri *u = (c->nuris > 0) ? &c->uris[0] : NULL;
     u32 start = (u != NULL && !$empty(u->authority)) ? 0 : 1;
+
+    // Bootstrap: when cloning into a fresh dir (remote URI, no existing
+    // .dogs/ anywhere up to /), create .dogs/ in cwd so each dog can
+    // place its own subdir. Without this, every dog fails with
+    // KEEPFAIL/SNIFFFAIL/etc. before printing anything useful.
+    if (start == 0) {
+        a_path(probe);
+        ok64 ho = HOMEFindDogs(probe);
+        if (ho != OK) {
+            a_path(here);
+            char cwdbuf[FILE_PATH_MAX_LEN];
+            if (getcwd(cwdbuf, sizeof(cwdbuf)) != NULL) {
+                a_cstr(cwds, cwdbuf);
+                a_cstr(dotdogs, ".dogs");
+                call(PATHu8bFeed, here, cwds);
+                call(PATHu8bPush, here, dotdogs);
+                call(FILEMakeDirP, PATHu8cgIn(here));
+            }
+        }
+    }
     return BEDispatch(c, steps + start, 4 - start, seq);
 }
 
