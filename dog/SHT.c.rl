@@ -85,8 +85,6 @@ main := |*
     "0" [xX] xdgt+                                                => on_number;
 
     # ---- variable expansions ----
-    "$" "{" ( any8 - [}] )* "}"                                   => on_var;
-    "$" "(" ( any8 - [)] )* ")"                                   => on_var;
     "$" idalpha idalnum*                                          => on_var;
     "$" [?!#$@*\-0-9]                                             => on_var;
 
@@ -94,6 +92,7 @@ main := |*
     idalpha idalnum*                                              => on_word;
 
     # ---- multi-char operators ----
+    "$(" | "${" |
     "||" | "&&" | ";;" | ";&" | ";;&" |
     "|&" | ">>" | ">&" | "<&" | "<<" | "<>" |
     "<<<" | "((" | "))" | "[[" | "]]" |
@@ -103,7 +102,7 @@ main := |*
     "-z" | "-n" | "-s"                                            => on_punct;
 
     # ---- single-char punctuation ----
-    (any8 - idalpha - dgt - ws - ["'#$] - [.])                   => on_punct;
+    (any8 - idalpha - dgt - ws - ["'#] - [.])                    => on_punct;
     [.]                                                           => on_punct;
 
     # ---- whitespace ----

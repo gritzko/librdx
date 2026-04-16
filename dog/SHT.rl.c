@@ -13,7 +13,7 @@ ok64 SHTonPunct (u8cs tok, SHTstate* state);
 ok64 SHTonSpace (u8cs tok, SHTstate* state);
 
 
-/* #line 114 "SHT.c.rl" */
+/* #line 113 "SHT.c.rl" */
 
 
 
@@ -24,132 +24,122 @@ static const char _SHT_actions[] = {
 	9, 1, 10, 1, 11, 1, 12, 1, 
 	13, 1, 14, 1, 15, 1, 16, 1, 
 	17, 1, 18, 1, 19, 1, 20, 1, 
-	21, 1, 22, 1, 23, 1, 24, 2, 
-	2, 3, 2, 2, 4
+	21, 1, 22, 2, 2, 3, 2, 2, 
+	4
 };
 
 static const char _SHT_key_offsets[] = {
-	0, 0, 2, 2, 19, 21, 21, 22, 
-	23, 24, 26, 32, 61, 64, 65, 66, 
-	73, 74, 75, 76, 88, 89, 90, 94, 
-	96, 102, 104, 107, 108, 110, 117, 118, 
-	119
+	0, 2, 2, 4, 4, 5, 7, 13, 
+	42, 45, 46, 47, 64, 71, 72, 73, 
+	74, 86, 87, 88, 92, 94, 100, 102, 
+	105, 106, 108, 115, 116, 117
 };
 
 static const unsigned char _SHT_trans_keys[] = {
-	34u, 92u, 33u, 39u, 40u, 42u, 45u, 95u, 
-	123u, 35u, 36u, 48u, 57u, 63u, 64u, 65u, 
-	90u, 97u, 122u, 39u, 92u, 41u, 125u, 39u, 
-	101u, 116u, 48u, 57u, 65u, 70u, 97u, 102u, 
-	32u, 33u, 34u, 35u, 36u, 38u, 39u, 40u, 
-	41u, 43u, 45u, 46u, 48u, 59u, 60u, 61u, 
-	62u, 91u, 93u, 95u, 124u, 9u, 13u, 49u, 
-	57u, 65u, 90u, 97u, 122u, 32u, 9u, 13u, 
-	61u, 10u, 95u, 48u, 57u, 65u, 90u, 97u, 
-	122u, 38u, 40u, 41u, 61u, 101u, 103u, 108u, 
-	110u, 122u, 100u, 102u, 114u, 115u, 119u, 120u, 
-	113u, 101u, 88u, 120u, 48u, 57u, 48u, 57u, 
-	48u, 57u, 65u, 70u, 97u, 102u, 38u, 59u, 
-	38u, 60u, 62u, 60u, 38u, 62u, 95u, 48u, 
-	57u, 65u, 90u, 97u, 122u, 91u, 93u, 38u, 
-	124u, 0
+	34u, 92u, 39u, 92u, 39u, 101u, 116u, 48u, 
+	57u, 65u, 70u, 97u, 102u, 32u, 33u, 34u, 
+	35u, 36u, 38u, 39u, 40u, 41u, 43u, 45u, 
+	46u, 48u, 59u, 60u, 61u, 62u, 91u, 93u, 
+	95u, 124u, 9u, 13u, 49u, 57u, 65u, 90u, 
+	97u, 122u, 32u, 9u, 13u, 61u, 10u, 33u, 
+	39u, 40u, 42u, 45u, 95u, 123u, 35u, 36u, 
+	48u, 57u, 63u, 64u, 65u, 90u, 97u, 122u, 
+	95u, 48u, 57u, 65u, 90u, 97u, 122u, 38u, 
+	40u, 41u, 61u, 101u, 103u, 108u, 110u, 122u, 
+	100u, 102u, 114u, 115u, 119u, 120u, 113u, 101u, 
+	88u, 120u, 48u, 57u, 48u, 57u, 48u, 57u, 
+	65u, 70u, 97u, 102u, 38u, 59u, 38u, 60u, 
+	62u, 60u, 38u, 62u, 95u, 48u, 57u, 65u, 
+	90u, 97u, 122u, 91u, 93u, 38u, 124u, 0
 };
 
 static const char _SHT_single_lengths[] = {
-	0, 2, 0, 7, 2, 0, 1, 1, 
-	1, 2, 0, 21, 1, 1, 1, 1, 
-	1, 1, 1, 6, 1, 1, 2, 0, 
-	0, 2, 3, 1, 2, 1, 1, 1, 
-	2
+	2, 0, 2, 0, 1, 2, 0, 21, 
+	1, 1, 1, 7, 1, 1, 1, 1, 
+	6, 1, 1, 2, 0, 0, 2, 3, 
+	1, 2, 1, 1, 1, 2
 };
 
 static const char _SHT_range_lengths[] = {
-	0, 0, 0, 5, 0, 0, 0, 0, 
-	0, 0, 3, 4, 1, 0, 0, 3, 
-	0, 0, 0, 3, 0, 0, 1, 1, 
-	3, 0, 0, 0, 0, 3, 0, 0, 
-	0
+	0, 0, 0, 0, 0, 0, 3, 4, 
+	1, 0, 0, 5, 3, 0, 0, 0, 
+	3, 0, 0, 1, 1, 3, 0, 0, 
+	0, 0, 3, 0, 0, 0
 };
 
 static const unsigned char _SHT_index_offsets[] = {
-	0, 0, 3, 4, 17, 20, 21, 23, 
-	25, 27, 30, 34, 60, 63, 65, 67, 
-	72, 74, 76, 78, 88, 90, 92, 96, 
-	98, 102, 105, 109, 111, 114, 119, 121, 
-	123
+	0, 3, 4, 7, 8, 10, 13, 17, 
+	43, 46, 48, 50, 63, 68, 70, 72, 
+	74, 84, 86, 88, 92, 94, 98, 101, 
+	105, 107, 110, 115, 117, 119
 };
 
 static const char _SHT_indicies[] = {
-	1, 2, 0, 0, 3, 5, 6, 3, 
-	3, 7, 8, 3, 3, 3, 7, 7, 
-	4, 9, 10, 5, 5, 11, 6, 12, 
-	8, 14, 13, 16, 16, 15, 18, 18, 
-	18, 17, 20, 21, 0, 22, 23, 24, 
-	13, 25, 26, 21, 27, 28, 29, 31, 
-	32, 21, 33, 35, 36, 34, 37, 20, 
-	30, 34, 34, 19, 20, 20, 38, 16, 
-	39, 40, 22, 7, 7, 7, 7, 41, 
-	16, 42, 16, 39, 16, 39, 16, 43, 
-	44, 44, 45, 16, 16, 16, 16, 39, 
-	16, 46, 16, 46, 48, 48, 30, 47, 
-	30, 47, 18, 18, 18, 49, 16, 50, 
-	39, 16, 51, 16, 39, 16, 46, 16, 
-	16, 39, 34, 34, 34, 34, 52, 16, 
-	39, 16, 39, 16, 16, 39, 0
+	1, 2, 0, 0, 5, 6, 4, 4, 
+	8, 7, 9, 9, 3, 11, 11, 11, 
+	10, 13, 14, 0, 15, 16, 17, 7, 
+	18, 19, 14, 20, 21, 22, 24, 25, 
+	14, 26, 28, 29, 27, 30, 13, 23, 
+	27, 27, 12, 13, 13, 31, 9, 32, 
+	33, 15, 34, 4, 9, 34, 34, 35, 
+	9, 34, 34, 34, 35, 35, 32, 35, 
+	35, 35, 35, 36, 9, 37, 9, 32, 
+	9, 32, 9, 38, 39, 39, 40, 9, 
+	9, 9, 9, 32, 9, 41, 9, 41, 
+	43, 43, 23, 42, 23, 42, 11, 11, 
+	11, 44, 9, 45, 32, 9, 46, 9, 
+	32, 9, 41, 9, 9, 32, 27, 27, 
+	27, 27, 47, 9, 32, 9, 32, 9, 
+	9, 32, 0
 };
 
 static const char _SHT_trans_targs[] = {
-	1, 11, 2, 11, 0, 4, 6, 15, 
-	7, 11, 5, 11, 11, 8, 11, 11, 
-	11, 11, 24, 11, 12, 13, 14, 3, 
-	16, 17, 18, 19, 11, 22, 23, 25, 
-	26, 28, 29, 30, 31, 32, 11, 11, 
-	11, 11, 11, 20, 9, 21, 11, 11, 
-	10, 11, 16, 27, 11
+	0, 7, 1, 7, 2, 7, 3, 4, 
+	7, 7, 7, 21, 7, 8, 9, 10, 
+	11, 13, 14, 15, 16, 7, 19, 20, 
+	22, 23, 25, 26, 27, 28, 29, 7, 
+	7, 7, 7, 12, 7, 7, 17, 5, 
+	18, 7, 7, 6, 7, 13, 24, 7
 };
 
 static const char _SHT_trans_actions[] = {
-	0, 9, 0, 17, 0, 0, 0, 0, 
-	0, 11, 0, 15, 13, 0, 7, 43, 
-	19, 41, 0, 21, 0, 0, 0, 0, 
-	50, 0, 0, 5, 23, 5, 0, 0, 
-	0, 0, 0, 0, 0, 0, 39, 37, 
-	25, 31, 45, 0, 0, 0, 35, 27, 
-	0, 29, 47, 0, 33
+	0, 9, 0, 39, 0, 11, 0, 0, 
+	7, 15, 37, 0, 17, 0, 0, 0, 
+	5, 46, 0, 0, 5, 19, 5, 0, 
+	0, 0, 0, 0, 0, 0, 0, 35, 
+	33, 21, 13, 0, 27, 41, 0, 0, 
+	0, 31, 23, 0, 25, 43, 0, 29
 };
 
 static const char _SHT_to_state_actions[] = {
+	0, 0, 0, 0, 0, 0, 0, 1, 
 	0, 0, 0, 0, 0, 0, 0, 0, 
-	0, 0, 0, 1, 0, 0, 0, 0, 
 	0, 0, 0, 0, 0, 0, 0, 0, 
-	0, 0, 0, 0, 0, 0, 0, 0, 
-	0
+	0, 0, 0, 0, 0, 0
 };
 
 static const char _SHT_from_state_actions[] = {
+	0, 0, 0, 0, 0, 0, 0, 3, 
 	0, 0, 0, 0, 0, 0, 0, 0, 
-	0, 0, 0, 3, 0, 0, 0, 0, 
 	0, 0, 0, 0, 0, 0, 0, 0, 
-	0, 0, 0, 0, 0, 0, 0, 0, 
-	0
+	0, 0, 0, 0, 0, 0
 };
 
 static const unsigned char _SHT_eof_trans[] = {
-	0, 0, 0, 0, 0, 0, 0, 0, 
-	0, 16, 18, 0, 39, 40, 41, 42, 
-	43, 40, 40, 40, 47, 47, 48, 48, 
-	50, 40, 40, 47, 40, 53, 40, 40, 
-	40
+	0, 0, 4, 4, 0, 4, 11, 0, 
+	32, 33, 34, 33, 37, 38, 33, 33, 
+	33, 42, 42, 43, 43, 45, 33, 33, 
+	42, 33, 48, 33, 33, 33
 };
 
-static const int SHT_start = 11;
-static const int SHT_first_final = 11;
-static const int SHT_error = 0;
+static const int SHT_start = 7;
+static const int SHT_first_final = 7;
+static const int SHT_error = -1;
 
-static const int SHT_en_main = 11;
+static const int SHT_en_main = 7;
 
 
-/* #line 117 "SHT.c.rl" */
+/* #line 116 "SHT.c.rl" */
 
 ok64 SHTLexer(SHTstate* state) {
 
@@ -168,7 +158,7 @@ ok64 SHTLexer(SHTstate* state) {
     u8cs tok = {p, p};
 
     
-/* #line 163 "SHT.rl.c" */
+/* #line 153 "SHT.rl.c" */
 	{
 	cs = SHT_start;
 	ts = 0;
@@ -176,9 +166,9 @@ ok64 SHTLexer(SHTstate* state) {
 	act = 0;
 	}
 
-/* #line 135 "SHT.c.rl" */
+/* #line 134 "SHT.c.rl" */
     
-/* #line 169 "SHT.rl.c" */
+/* #line 159 "SHT.rl.c" */
 	{
 	int _klen;
 	unsigned int _trans;
@@ -188,8 +178,6 @@ ok64 SHTLexer(SHTstate* state) {
 
 	if ( p == pe )
 		goto _test_eof;
-	if ( cs == 0 )
-		goto _out;
 _resume:
 	_acts = _SHT_actions + _SHT_from_state_actions[cs];
 	_nacts = (unsigned int) *_acts++;
@@ -199,7 +187,7 @@ _resume:
 /* #line 1 "NONE" */
 	{ts = p;}
 	break;
-/* #line 188 "SHT.rl.c" */
+/* #line 176 "SHT.rl.c" */
 		}
 	}
 
@@ -271,11 +259,11 @@ _eof_trans:
 	break;
 	case 3:
 /* #line 56 "SHT.c.rl" */
-	{act = 12;}
+	{act = 10;}
 	break;
 	case 4:
 /* #line 56 "SHT.c.rl" */
-	{act = 13;}
+	{act = 11;}
 	break;
 	case 5:
 /* #line 32 "SHT.c.rl" */
@@ -314,20 +302,20 @@ _eof_trans:
 }}
 	break;
 	case 9:
-/* #line 50 "SHT.c.rl" */
+/* #line 56 "SHT.c.rl" */
 	{te = p+1;{
     tok[0] = (u8c*)ts;
     tok[1] = (u8c*)te;
-    o = SHTonVar(tok, state);
+    o = SHTonPunct(tok, state);
     if (o!=OK) {p++; goto _out; }
 }}
 	break;
 	case 10:
-/* #line 50 "SHT.c.rl" */
+/* #line 56 "SHT.c.rl" */
 	{te = p+1;{
     tok[0] = (u8c*)ts;
     tok[1] = (u8c*)te;
-    o = SHTonVar(tok, state);
+    o = SHTonPunct(tok, state);
     if (o!=OK) {p++; goto _out; }
 }}
 	break;
@@ -341,24 +329,6 @@ _eof_trans:
 }}
 	break;
 	case 12:
-/* #line 56 "SHT.c.rl" */
-	{te = p+1;{
-    tok[0] = (u8c*)ts;
-    tok[1] = (u8c*)te;
-    o = SHTonPunct(tok, state);
-    if (o!=OK) {p++; goto _out; }
-}}
-	break;
-	case 13:
-/* #line 56 "SHT.c.rl" */
-	{te = p+1;{
-    tok[0] = (u8c*)ts;
-    tok[1] = (u8c*)te;
-    o = SHTonPunct(tok, state);
-    if (o!=OK) {p++; goto _out; }
-}}
-	break;
-	case 14:
 /* #line 26 "SHT.c.rl" */
 	{te = p;p--;{
     tok[0] = (u8c*)ts;
@@ -367,25 +337,25 @@ _eof_trans:
     if (o!=OK) {p++; goto _out; }
 }}
 	break;
+	case 13:
+/* #line 38 "SHT.c.rl" */
+	{te = p;p--;{
+    tok[0] = (u8c*)ts;
+    tok[1] = (u8c*)te;
+    o = SHTonNumber(tok, state);
+    if (o!=OK) {p++; goto _out; }
+}}
+	break;
+	case 14:
+/* #line 38 "SHT.c.rl" */
+	{te = p;p--;{
+    tok[0] = (u8c*)ts;
+    tok[1] = (u8c*)te;
+    o = SHTonNumber(tok, state);
+    if (o!=OK) {p++; goto _out; }
+}}
+	break;
 	case 15:
-/* #line 38 "SHT.c.rl" */
-	{te = p;p--;{
-    tok[0] = (u8c*)ts;
-    tok[1] = (u8c*)te;
-    o = SHTonNumber(tok, state);
-    if (o!=OK) {p++; goto _out; }
-}}
-	break;
-	case 16:
-/* #line 38 "SHT.c.rl" */
-	{te = p;p--;{
-    tok[0] = (u8c*)ts;
-    tok[1] = (u8c*)te;
-    o = SHTonNumber(tok, state);
-    if (o!=OK) {p++; goto _out; }
-}}
-	break;
-	case 17:
 /* #line 50 "SHT.c.rl" */
 	{te = p;p--;{
     tok[0] = (u8c*)ts;
@@ -394,7 +364,7 @@ _eof_trans:
     if (o!=OK) {p++; goto _out; }
 }}
 	break;
-	case 18:
+	case 16:
 /* #line 44 "SHT.c.rl" */
 	{te = p;p--;{
     tok[0] = (u8c*)ts;
@@ -403,25 +373,25 @@ _eof_trans:
     if (o!=OK) {p++; goto _out; }
 }}
 	break;
+	case 17:
+/* #line 56 "SHT.c.rl" */
+	{te = p;p--;{
+    tok[0] = (u8c*)ts;
+    tok[1] = (u8c*)te;
+    o = SHTonPunct(tok, state);
+    if (o!=OK) {p++; goto _out; }
+}}
+	break;
+	case 18:
+/* #line 56 "SHT.c.rl" */
+	{te = p;p--;{
+    tok[0] = (u8c*)ts;
+    tok[1] = (u8c*)te;
+    o = SHTonPunct(tok, state);
+    if (o!=OK) {p++; goto _out; }
+}}
+	break;
 	case 19:
-/* #line 56 "SHT.c.rl" */
-	{te = p;p--;{
-    tok[0] = (u8c*)ts;
-    tok[1] = (u8c*)te;
-    o = SHTonPunct(tok, state);
-    if (o!=OK) {p++; goto _out; }
-}}
-	break;
-	case 20:
-/* #line 56 "SHT.c.rl" */
-	{te = p;p--;{
-    tok[0] = (u8c*)ts;
-    tok[1] = (u8c*)te;
-    o = SHTonPunct(tok, state);
-    if (o!=OK) {p++; goto _out; }
-}}
-	break;
-	case 21:
 /* #line 62 "SHT.c.rl" */
 	{te = p;p--;{
     tok[0] = (u8c*)ts;
@@ -430,7 +400,7 @@ _eof_trans:
     if (o!=OK) {p++; goto _out; }
 }}
 	break;
-	case 22:
+	case 20:
 /* #line 38 "SHT.c.rl" */
 	{{p = ((te))-1;}{
     tok[0] = (u8c*)ts;
@@ -439,7 +409,7 @@ _eof_trans:
     if (o!=OK) {p++; goto _out; }
 }}
 	break;
-	case 23:
+	case 21:
 /* #line 56 "SHT.c.rl" */
 	{{p = ((te))-1;}{
     tok[0] = (u8c*)ts;
@@ -448,10 +418,10 @@ _eof_trans:
     if (o!=OK) {p++; goto _out; }
 }}
 	break;
-	case 24:
+	case 22:
 /* #line 1 "NONE" */
 	{	switch( act ) {
-	case 12:
+	case 10:
 	{{p = ((te))-1;}
     tok[0] = (u8c*)ts;
     tok[1] = (u8c*)te;
@@ -459,7 +429,7 @@ _eof_trans:
     if (o!=OK) {p++; goto _out; }
 }
 	break;
-	case 13:
+	case 11:
 	{{p = ((te))-1;}
     tok[0] = (u8c*)ts;
     tok[1] = (u8c*)te;
@@ -470,7 +440,7 @@ _eof_trans:
 	}
 	}
 	break;
-/* #line 435 "SHT.rl.c" */
+/* #line 407 "SHT.rl.c" */
 		}
 	}
 
@@ -483,12 +453,10 @@ _again:
 /* #line 1 "NONE" */
 	{ts = 0;}
 	break;
-/* #line 446 "SHT.rl.c" */
+/* #line 418 "SHT.rl.c" */
 		}
 	}
 
-	if ( cs == 0 )
-		goto _out;
 	if ( ++p != pe )
 		goto _resume;
 	_test_eof: {}
@@ -503,7 +471,7 @@ _again:
 	_out: {}
 	}
 
-/* #line 136 "SHT.c.rl" */
+/* #line 135 "SHT.c.rl" */
 
     state->data[0] = p;
     if (o==OK && cs < SHT_first_final)

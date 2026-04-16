@@ -425,6 +425,9 @@ ok64 SHTBasicTest() {
         {"$HOME", "S"},
         {"||", "P"},
         {"&&", "P"},
+        {"$(foo)", "PSP"},
+        {"${VAR}", "PSP"},
+        {"$(expr 'a)b')", "PSSGP"},
     };
     int ncases = sizeof(cases) / sizeof(cases[0]);
     RUN_CASES(SHTLexer, SHT, cases, ncases);
