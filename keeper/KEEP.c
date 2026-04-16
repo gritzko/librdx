@@ -1349,9 +1349,14 @@ static ok64 keep_sync_drain_pkt(int rfd, u8b buf, u8cs adv, u8csp line) {
         u8sFork(u8bIdle(buf), fill);
         ok64 fr = FILEDrain(rfd, fill);
         if (fr == FILEEND) {
-            fprintf(stderr, "keeper: adv read EOF after %zu bytes "
-                            "(no flush packet)\n",
-                    u8bDataLen(buf));
+            // Silent on 0-byte EOF — git-upload-pack's own fatal: ...
+            // line on stderr already told the user what went wrong
+            // (bad path, permission denied, etc). Only flag mid-stream
+            // EOF where the lost flush packet is the actual surprise.
+            if (u8bDataLen(buf) > 0)
+                fprintf(stderr, "keeper: adv read EOF after %zu bytes "
+                                "(no flush packet)\n",
+                        u8bDataLen(buf));
             return KEEPFAIL;
         }
         if (fr != OK) {

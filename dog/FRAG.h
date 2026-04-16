@@ -3,8 +3,8 @@
 
 #include "abc/INT.h"
 
-con ok64 FRAGFAIL = 0x1e1d23ca495;
-con ok64 FRAGBAD  = 0x79148b28d;
+con ok64 FRAGFAIL = 0x3db2903ca495;
+con ok64 FRAGBAD  = 0xf6ca40b28d;
 
 // Fragment type after parsing.
 #define FRAG_NONE  0

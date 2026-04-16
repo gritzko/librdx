@@ -3,7 +3,7 @@
 
 #include "dog/HUNK.h"
 
-con ok64 TDIFFFAIL = 0x14fb6543b28d;
+con ok64 TDIFFFAIL = 0x1d3523cf3ca495;
 
 // Token-level diff between two source files.  Computes the LCS edit
 // list (via abc/DIFFx.h instantiated for u64 hashes), runs NEIL

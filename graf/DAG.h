@@ -31,8 +31,8 @@
 #include "dog/WHIFF.h"
 #include "keeper/KEEP.h"
 
-con ok64 DAGFAIL    = 0x14a83ca495;
-con ok64 DAGNOROOM  = 0x14a85d86d8616;
+con ok64 DAGFAIL    = 0xd2903ca495;
+con ok64 DAGNOROOM  = 0xd2905d86d8616;
 
 // --- belt128: 16-byte index record (two wh64 words) ---
 

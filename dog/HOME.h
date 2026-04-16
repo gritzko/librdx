@@ -3,7 +3,7 @@
 
 #include "abc/PATH.h"
 
-con ok64 NOHOME = 0x4836c65a56;
+con ok64 NOHOME = 0x5d845858e;
 
 // Walk up from cwd to the workspace dir (first ancestor with .git).
 // This is the worktree checkout dir — use it for `git ls-files` and

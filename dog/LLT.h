@@ -3,8 +3,8 @@
 
 #include "TOK.h"
 
-con ok64 LLTBAD = 0x30ca3d4d;
-con ok64 LLTFAIL = 0xc32972895;
+con ok64 LLTBAD = 0x55574b28d;
+con ok64 LLTFAIL = 0x1555d3ca495;
 
 typedef struct {
     u8cs data;

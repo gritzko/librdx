@@ -20,7 +20,7 @@
 #define DEF_TAG 'N'
 #define CALL_TAG 'C'
 
-con ok64 DEFFAIL = 0x35a6d3ca495;
+con ok64 DEFFAIL = 0xd38f3ca495;
 
 // Mark definition symbols in a token array.
 // toks: mutable packed token array (tags may be rewritten S→N).

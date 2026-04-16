@@ -24,8 +24,8 @@
 #include "abc/PATH.h"
 #include "dog/WHIFF.h"
 
-con ok64 SNIFFFAIL   = 0x7549f3ca495;
-con ok64 SNIFFNOROOM = 0x7549f5d86d8616;
+con ok64 SNIFFFAIL   = 0x1c5d23cf3ca495;
+con ok64 SNIFFNOROOM = 0xc5d23cf5d86d8616;
 
 #define SNIFF_DIR       ".dogs/sniff"
 #define SNIFF_PATH_BOOK (256UL << 20)  // 256 MB VA for paths

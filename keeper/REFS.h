@@ -25,9 +25,9 @@
 #include "abc/RON.h"
 #include "abc/FILE.h"
 
-con ok64 REFSFAIL  = 0x11c53ca495;
-con ok64 REFSNONE  = 0x11c55d85ce;
-con ok64 REFSBAD   = 0x11c538b28d;
+con ok64 REFSFAIL  = 0x6ce3dc3ca495;
+con ok64 REFSNONE  = 0x6ce3dc5d85ce;
+con ok64 REFSBAD   = 0x1b38f70b28d;
 
 #define REFS_FILE     "REFS"
 #define REFS_MAX_CHAIN 8

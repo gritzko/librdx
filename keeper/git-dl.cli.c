@@ -29,7 +29,7 @@
 #include "abc/HASHx.h"
 #undef X
 
-con ok64 DLFAIL = 0xe454c3ca495;
+con ok64 DLFAIL = 0x3553ca495;
 
 static char const *type_str[] = {
     [PACK_OBJ_COMMIT] = "commit",

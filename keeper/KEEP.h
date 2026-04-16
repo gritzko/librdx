@@ -19,9 +19,9 @@
 #include "dog/SHA1.h"
 #include "dog/WHIFF.h"
 
-con ok64 KEEPFAIL    = 0x11c53ca495;
-con ok64 KEEPNOROOM  = 0x11c55d86d8616;
-con ok64 KEEPNONE    = 0x11c55d85ce;
+con ok64 KEEPFAIL    = 0x50e3993ca495;
+con ok64 KEEPNOROOM  = 0x50e3995d86d8616;
+con ok64 KEEPNONE    = 0x50e3995d85ce;
 
 // --- 60-bit hashlet: index key format ---
 //

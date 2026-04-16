@@ -24,8 +24,8 @@
 #define JOIN_MARK (3ULL << 62)
 #define JOIN_HASH(h) ((h) & ~JOIN_MARK)
 
-con ok64 JOINFAIL = 0x4d85cf3ca495;
-con ok64 JOINBAD = 0x4d85cfb28d;
+con ok64 JOINFAIL = 0x4d84973ca495;
+con ok64 JOINBAD = 0x136125cb28d;
 
 // Tokenized file ready for merge
 typedef struct {

@@ -15,9 +15,9 @@
 
 #include "abc/INT.h"
 
-con ok64 BELTFAIL   = 0x2c54538ca495;
-con ok64 BELTBADFMT = 0x2c54538ca34f59d;
-con ok64 BELTNONE   = 0x2c54538d85ce;
+con ok64 BELTFAIL   = 0x2ce55d3ca495;
+con ok64 BELTBADFMT = 0x2ce55d2ca34f59d;
+con ok64 BELTNONE   = 0x2ce55d5d85ce;
 
 // --- belt128: the index record ---
 

@@ -19,8 +19,8 @@
 #include "abc/RAP.h"
 #include "dog/TOK.h"
 
-con ok64 WEAVEFAIL   = 0xa13af3ca495;
-con ok64 WEAVENOROOM = 0xa13af5d86d8616;
+con ok64 WEAVEFAIL   = 0x2038a7ce3ca495;
+con ok64 WEAVENOROOM = 0x38a7ce5d86d8616;
 
 // --- wtok: one token in the weave ---
 

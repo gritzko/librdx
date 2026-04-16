@@ -17,8 +17,8 @@
 
 #define GIT_SHA1_LEN 20
 
-con ok64 GITFAIL = 0x48c54543;
-con ok64 GITBADFMT = 0x48c5454c0a1439;
+con ok64 GITFAIL = 0x1049d3ca495;
+con ok64 GITBADFMT = 0x1049d2ca34f59d;
 
 //  Drain one tree entry: file mode+name into `file`, raw SHA1 into `sha1`.
 //  Advances `obj`; returns NODATA when exhausted.

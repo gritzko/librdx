@@ -13,8 +13,8 @@
 
 #include "abc/INT.h"
 
-con ok64 DELTFAIL = 0xe45503ca495;
-con ok64 DELTBADFMT = 0xe45502ca34f59d;
+con ok64 DELTFAIL = 0x34e55d3ca495;
+con ok64 DELTBADFMT = 0x34e55d2ca34f59d;
 
 //  Apply delta instructions to a base object.
 //  `delta`  — decompressed delta instruction stream
