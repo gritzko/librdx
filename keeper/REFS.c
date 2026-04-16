@@ -1,16 +1,8 @@
 #include "REFS.h"
 
+#include "abc/POL.h"
 #include "abc/PRO.h"
 #include <stdlib.h>
-#include <time.h>
-
-static ron60 refs_now(void) {
-    time_t t = time(NULL);
-    struct tm *tm = localtime(&t);
-    ron60 r = 0;
-    RONOfTime(&r, tm);
-    return r;
-}
 
 // --- Format one line: timestamp\tfrom\tto\n ---
 
@@ -41,7 +33,7 @@ ok64 REFSAppend(u8csc dir, u8csc from_uri, u8csc to_uri) {
     int fd = refs_open_append(dir);
     if (fd < 0) fail(REFSFAIL);
 
-    ref r = {.time = refs_now()};
+    ref r = {.time = RONNow()};
     r.key[0] = from_uri[0]; r.key[1] = from_uri[1];
     r.val[0] = to_uri[0];  r.val[1] = to_uri[1];
 

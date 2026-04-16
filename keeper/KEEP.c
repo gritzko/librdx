@@ -2183,10 +2183,7 @@ sync_done:
         a_cstr(kdir, k->dir);
         ref *refarr = calloc(nrefs, sizeof(ref));
         if (refarr) {
-            time_t _t = time(NULL);
-            struct tm *_tm = localtime(&_t);
-            ron60 now = 0;
-            RONOfTime(&now, _tm);
+            ron60 now = RONNow();
             // Build ?refname and ?sha strings into a shared pad
             // Each ref needs max ~260 bytes for key + ~44 for val
             Bu8 strbuf = {};
