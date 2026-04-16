@@ -237,19 +237,12 @@ ok64 capocli() {
             a$rg(a0, 0);
             HOMEResolveSibling(bropath, sizeof(bropath),
                                "bro", (char const *)a0[0]);
-            int pfd[2];
-            test(pipe(pfd) == 0, FAILSANITY);
-            bro_pid = fork();
-            test(bro_pid >= 0, FAILSANITY);
-            if (bro_pid == 0) {
-                close(pfd[1]);
-                dup2(pfd[0], STDIN_FILENO);
-                close(pfd[0]);
-                execlp(bropath, "bro", (char *)NULL);
-                _exit(127);
-            }
-            close(pfd[0]);
-            dog.out_fd = pfd[1];
+            a_cstr(bpath, bropath);
+            u8cs bargs[] = {u8slit("bro")};
+            u8css bargv = {bargs, bargs + 1};
+            int wfd = -1;
+            call(FILESpawn, bpath, bargv, &wfd, NULL, &bro_pid);
+            dog.out_fd = wfd;
             dog.emit   = HUNKu8sFeed;
             spot_out_fd = dog.out_fd;
             spot_emit   = dog.emit;
@@ -349,26 +342,30 @@ ok64 capocli() {
         if (n > 256) n = 256;
 
         fprintf(stderr, "spot: forking %u workers\n", n);
+        a_cstr(selfS, self);
+        char nstr[256][16] = {};
+        char kstr[256][16] = {};
         for (u32 k = 0; k < n; k++) {
-            pid_t pid = fork();
-            if (pid == 0) {
-                char nstr[16], kstr[16];
-                snprintf(nstr, sizeof(nstr), "%u", n);
-                snprintf(kstr, sizeof(kstr), "%u", k);
-                execl(self, "spot", "--fork", nstr, "--proc", kstr, NULL);
-                _exit(127);
-            }
-            test(pid > 0, FAILSANITY);
-            pids[k] = pid;
+            snprintf(nstr[k], sizeof(nstr[k]), "%u", n);
+            snprintf(kstr[k], sizeof(kstr[k]), "%u", k);
+            u8cs wargs[] = {
+                u8slit("spot"),
+                u8slit("--fork"),
+                u8scstr(nstr[k]),
+                u8slit("--proc"),
+                u8scstr(kstr[k]),
+            };
+            u8css wargv = {wargs, wargs + 5};
+            call(FILESpawn, selfS, wargv, NULL, NULL, &pids[k]);
         }
 
         int failures = 0;
         for (u32 k = 0; k < n; k++) {
-            int status = 0;
-            waitpid(pids[k], &status, 0);
-            if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+            int rc = 0;
+            ok64 r = FILEReap(pids[k], &rc);
+            if (r != OK || rc != 0) {
                 fprintf(stderr, "spot: worker %u failed (status %d)\n",
-                        k, status);
+                        k, rc);
                 failures++;
             }
         }
@@ -425,9 +422,9 @@ ok64 capocli() {
         spot_out_fd = -1;
     }
     if (bro_pid > 0) {
-        int st = 0;
-        waitpid(bro_pid, &st, 0);
-        if (WIFEXITED(st) && WEXITSTATUS(st) == 127)
+        int rc = 0;
+        FILEReap(bro_pid, &rc);
+        if (rc == 127)
             fprintf(stderr, "spot: bro pager not found\n");
     }
     SPOTClose(&dog);

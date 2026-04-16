@@ -95,8 +95,7 @@ ok64 test_def01() {
             continue;
         }
         u8csc src = {g_srcbuf, g_srcbuf + srclen};
-        u8csc ext = {(u8c *)tc->ext,
-                     (u8c *)tc->ext + strlen(tc->ext)};
+        u8csc ext = u8scstr(tc->ext);
 
         // tokenize
         DEF01ctx ctx = {.base = src[0], .ntoks = 0};

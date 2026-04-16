@@ -228,7 +228,7 @@ ok64 TOKDispatchTest() {
     const char *input = "int x;";
     TOK01ctx ctx = {};
     TOKstate state = {
-        .data = {(u8c *)input, (u8c *)input + strlen(input)},
+        .data = u8scstr(input),
         .cb = TOK01cb,
         .ctx = &ctx,
     };
@@ -345,7 +345,7 @@ ok64 JSTFileTest() {
         "console.log(code);\n";
     TOK01ctx ctx = {};
     JSTstate st = {
-        .data = {(u8c *)input, (u8c *)input + strlen(input)},
+        .data = u8scstr(input),
         .cb = TOK01cb,
         .ctx = &ctx,
     };
@@ -1008,7 +1008,7 @@ ok64 MDTEmphTest() {
     const char *input = "some **bold** and *italic* text";
     TOK01ctx ctx = {};
     MDTstate st = {
-        .data = {(u8c *)input, (u8c *)input + strlen(input)},
+        .data = u8scstr(input),
         .cb = TOK01cb,
         .ctx = &ctx,
     };
@@ -1032,7 +1032,7 @@ ok64 MDTCodeFenceTest() {
     const char *input = "```c\nint x;\n```";
     TOK01ctx ctx = {};
     MDTstate st = {
-        .data = {(u8c *)input, (u8c *)input + strlen(input)},
+        .data = u8scstr(input),
         .cb = TOK01cb,
         .ctx = &ctx,
     };
@@ -1056,7 +1056,7 @@ ok64 MDTFenceIsolationTest() {
         "```\n";
     TOK01ctx ctx = {};
     MDTstate st = {
-        .data = {(u8c *)input, (u8c *)input + strlen(input)},
+        .data = u8scstr(input),
         .cb = TOK01cb,
         .ctx = &ctx,
     };
@@ -1091,7 +1091,7 @@ ok64 MDTFileTest() {
         "A number: 42\n";
     TOK01ctx ctx = {};
     MDTstate st = {
-        .data = {(u8c *)input, (u8c *)input + strlen(input)},
+        .data = u8scstr(input),
         .cb = TOK01cb,
         .ctx = &ctx,
     };

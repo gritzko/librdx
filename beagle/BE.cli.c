@@ -4,8 +4,6 @@
 
 #include <stdio.h>
 #include <string.h>
-#include <sys/wait.h>
-#include <unistd.h>
 
 #include "abc/FILE.h"
 #include "abc/PATH.h"
@@ -52,31 +50,35 @@ static void BEUsage(void) {
 
 // --- Run a sibling tool ---
 
-static ok64 BERun(const char *tool, char *const argv[], b8 bg) {
-    sane(tool != NULL && argv != NULL);
+// Run a sibling tool.  `tool` is the dog name (also argv[0] in argv);
+// resolved against this process's own argv[0] via HOMEResolveSibling.
+static ok64 BERun(u8csc tool, u8css argv, b8 bg) {
+    sane($ok(tool) && !$empty(tool));
+    // HOMEResolveSibling needs a NUL-term char* for the tool name.
+    a_pad(u8, toolz, 64);
+    call(u8bFeed, toolz, tool);
+    call(u8bFeed1, toolz, 0);
     char path[FILE_PATH_MAX_LEN];
     a$rg(a0, 0);
-    HOMEResolveSibling(path, sizeof(path), tool, (char const *)a0[0]);
-    pid_t pid = fork();
-    test(pid >= 0, FAILSANITY);
-    if (pid == 0) {
-        execv(path, argv);
-        _exit(127);
-    }
+    HOMEResolveSibling(path, sizeof(path),
+                       (char const *)u8bDataHead(toolz),
+                       (char const *)a0[0]);
+    a_cstr(pathS, path);
+    pid_t pid = 0;
+    call(FILESpawn, pathS, argv, NULL, NULL, &pid);
     if (bg) done;
-    int st = 0;
-    waitpid(pid, &st, 0);
-    if (WIFEXITED(st) && WEXITSTATUS(st) != 0) {
-        fprintf(stderr, "be: %s exited %d\n", tool, WEXITSTATUS(st));
-        return BEDOGEXIT;  // child told us it failed cleanly
-    } else if (WIFSIGNALED(st)) {
-        // Surface signal-based deaths (SIGBUS, SIGSEGV, SIGABRT…)
-        // so a crashing dog isn't mistaken for a clean run.
-        int sig = WTERMSIG(st);
-        char const *sname = strsignal(sig);
-        fprintf(stderr, "be: %s killed by signal %d (%s)\n",
-                tool, sig, sname ? sname : "?");
+    int rc = 0;
+    ok64 r = FILEReap(pid, &rc);
+    if (r == FILESIGNAL) {
+        char const *sname = strsignal(rc);
+        fprintf(stderr, "be: " U8SFMT " killed by signal %d (%s)\n",
+                u8sFmt(tool), rc, sname ? sname : "?");
         return BEDOGSIG;
+    }
+    if (r != OK) return r;
+    if (rc != 0) {
+        fprintf(stderr, "be: " U8SFMT " exited %d\n", u8sFmt(tool), rc);
+        return BEDOGEXIT;
     }
     done;
 }
@@ -122,8 +124,8 @@ static u32 BEReadDogs(char out[][64], u32 maxn) {
 //   delete: sniff (remove) → spot → graf
 
 typedef struct {
-    char const *dog;
-    char const *verb;
+    u8cs dog;
+    u8cs verb;
     b8 bg;             // run in background (don't wait)
 } dog_step;
 
@@ -132,16 +134,15 @@ static ok64 BEDispatch(cli *c, dog_step const *steps, u32 nsteps,
     sane(c && steps);
     for (u32 i = 0; i < nsteps; i++) {
         // argv: dog verb [flags...] [URIs...]
-        // All slices borrow from process argv — already NUL-terminated.
-        char *argv[2 + CLI_MAX_FLAGS * 2 + CLI_MAX_URIS + 1];
-        u32 ac = 0;
-        argv[ac++] = (char *)steps[i].dog;
-        argv[ac++] = (char *)steps[i].verb;
+        // cli.flags and cli.uris[].data already are u8cs slices.
+        a_pad(u8cs, args, 2 + CLI_MAX_FLAGS * 2 + CLI_MAX_URIS);
+        u8csbFeed1(args, steps[i].dog);
+        u8csbFeed1(args, steps[i].verb);
         for (u32 j = 0; j < c->nflags; j++)
-            argv[ac++] = (char *)c->flags[j][0];
+            u8csbFeed1(args, c->flags[j]);
         for (u32 j = 0; j < c->nuris; j++)
-            argv[ac++] = (char *)c->uris[j].data[0];
-        argv[ac] = NULL;
+            u8csbFeed1(args, c->uris[j].data);
+        a_dup(u8cs, argv, u8csbData(args));
         call(BERun, steps[i].dog, argv, seq ? NO : steps[i].bg);
     }
     done;
@@ -150,11 +151,11 @@ static ok64 BEDispatch(cli *c, dog_step const *steps, u32 nsteps,
 static ok64 BEGet(cli *c, b8 seq) {
     sane(c);
     static dog_step const steps[] = {
-        {"keeper", "get",  NO},
-        {"sniff",  "get",  NO},
-        {"spot",   "get",  NO},
-        {"graf",   "get",  NO},  // foreground: surface graf's stderr
-                                 // before the next prompt
+        {u8slit("keeper"), u8slit("get"), NO},
+        {u8slit("sniff"),  u8slit("get"), NO},
+        {u8slit("spot"),   u8slit("get"), NO},
+        {u8slit("graf"),   u8slit("get"), NO},  // foreground: surface
+                                 // graf's stderr before the next prompt
     };
     // Skip keeper fetch if no remote (no authority)
     uri *u = (c->nuris > 0) ? &c->uris[0] : NULL;
@@ -182,10 +183,10 @@ static ok64 BEGet(cli *c, b8 seq) {
 static ok64 BEPost(cli *c, b8 seq) {
     sane(c);
     static dog_step const steps[] = {
-        {"sniff",  "post", NO},
-        {"keeper", "put",  NO},
-        {"spot",   "get",  NO},
-        {"graf",   "get",  YES},
+        {u8slit("sniff"),  u8slit("post"), NO},
+        {u8slit("keeper"), u8slit("put"),  NO},
+        {u8slit("spot"),   u8slit("get"),  NO},
+        {u8slit("graf"),   u8slit("get"),  YES},
     };
     return BEDispatch(c, steps, 4, seq);
 }
@@ -193,10 +194,10 @@ static ok64 BEPost(cli *c, b8 seq) {
 static ok64 BEPut(cli *c, b8 seq) {
     sane(c);
     static dog_step const steps[] = {
-        {"sniff",  "put",  NO},
-        {"keeper", "put",  NO},
-        {"spot",   "get",  NO},
-        {"graf",   "get",  YES},
+        {u8slit("sniff"),  u8slit("put"),  NO},
+        {u8slit("keeper"), u8slit("put"),  NO},
+        {u8slit("spot"),   u8slit("get"),  NO},
+        {u8slit("graf"),   u8slit("get"),  YES},
     };
     return BEDispatch(c, steps, 4, seq);
 }
@@ -204,9 +205,9 @@ static ok64 BEPut(cli *c, b8 seq) {
 static ok64 BEDelete(cli *c, b8 seq) {
     sane(c);
     static dog_step const steps[] = {
-        {"sniff",  "delete", NO},
-        {"spot",   "get",    NO},
-        {"graf",   "get",    YES},
+        {u8slit("sniff"),  u8slit("delete"), NO},
+        {u8slit("spot"),   u8slit("get"),    NO},
+        {u8slit("graf"),   u8slit("get"),    YES},
     };
     return BEDispatch(c, steps, 3, seq);
 }
@@ -226,14 +227,24 @@ static ok64 BEDefault(void) {
     // Run --update on every dog; remember the worst error so a crashing
     // or non-zero-exiting dog is surfaced after status output completes.
     ok64 worst = OK;
+    u8cs upd = u8slit("--update");
+    u8cs sta = u8slit("--status");
     for (u32 i = 0; i < ndogs; i++) {
-        char *argv[] = {dogs[i], "--update", NULL};
-        ok64 r = BERun(dogs[i], argv, NO);
+        a_cstr(dog_s, dogs[i]);
+        a_pad(u8cs, args, 2);
+        u8csbFeed1(args, dog_s);
+        u8csbFeed1(args, upd);
+        a_dup(u8cs, argv, u8csbData(args));
+        ok64 r = BERun(dog_s, argv, NO);
         if (r != OK && worst == OK) worst = r;
     }
     for (u32 i = 0; i < ndogs; i++) {
-        char *argv[] = {dogs[i], "--status", NULL};
-        ok64 r = BERun(dogs[i], argv, NO);
+        a_cstr(dog_s, dogs[i]);
+        a_pad(u8cs, args, 2);
+        u8csbFeed1(args, dog_s);
+        u8csbFeed1(args, sta);
+        a_dup(u8cs, argv, u8csbData(args));
+        ok64 r = BERun(dog_s, argv, NO);
         if (r != OK && worst == OK) worst = r;
     }
     if (worst != OK) fail(worst);
@@ -280,15 +291,23 @@ ok64 becli() {
 
     // No verb → view/search mode
     if ($empty(verb)) {
+        u8cs spot = u8slit("spot");
+        u8cs bro  = u8slit("bro");
         if (u != NULL && (fr.type == FRAG_SPOT || fr.type == FRAG_PCRE ||
                           fr.type == FRAG_IDENT)) {
             // Search → spot.  u->data borrows from argv (NUL-terminated).
-            char *argv[] = {"spot", (char *)u->data[0], NULL};
-            call(BERun, "spot", argv, NO);
+            a_pad(u8cs, args, 2);
+            u8csbFeed1(args, spot);
+            u8csbFeed1(args, u->data);
+            a_dup(u8cs, argv, u8csbData(args));
+            call(BERun, spot, argv, NO);
         } else if (u != NULL && !$empty(u->path)) {
             // View → bro
-            char *argv[] = {"bro", (char *)u->data[0], NULL};
-            call(BERun, "bro", argv, NO);
+            a_pad(u8cs, args, 2);
+            u8csbFeed1(args, bro);
+            u8csbFeed1(args, u->data);
+            a_dup(u8cs, argv, u8csbData(args));
+            call(BERun, bro, argv, NO);
         } else {
             call(BEDefault);
         }

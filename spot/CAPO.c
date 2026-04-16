@@ -764,18 +764,29 @@ ok64 CAPOCommitWrite(u8csc reporoot, u8csc capodir) {
         }
     }
     if (newsha[0] == 0) {
-        a_pad(u8, cmdbuf, FILE_PATH_MAX_LEN + 64);
-        a_cstr(p1, "git -C ");
-        a_cstr(p2, " rev-parse HEAD 2>/dev/null");
-        call(u8bFeed, cmdbuf, p1);
-        call(capo_sh_quote, cmdbuf, reporoot);
-        call(u8bFeed, cmdbuf, p2);
-        call(u8bFeed1, cmdbuf, 0);
-        FILE *fp = popen((char *)u8bDataHead(cmdbuf), "r");
-        test(fp != NULL, FAILSANITY);
-        char *got = fgets(newsha, sizeof(newsha), fp);
-        pclose(fp);
-        test(got != NULL, FAILSANITY);
+        a_cstr(gitp, "/usr/bin/git");
+        u8cs gargs[] = {
+            u8slit("git"),
+            u8slit("-C"),
+            {reporoot[0], reporoot[1]},
+            u8slit("rev-parse"),
+            u8slit("HEAD"),
+        };
+        u8css gargv = {gargs, gargs + 5};
+        pid_t pid = 0;
+        int rfd = -1;
+        call(FILESpawn, gitp, gargv, NULL, &rfd, &pid);
+        ssize_t n = 0;
+        while (n < (ssize_t)sizeof(newsha) - 1) {
+            ssize_t r = read(rfd, newsha + n, sizeof(newsha) - 1 - (size_t)n);
+            if (r <= 0) break;
+            n += r;
+        }
+        close(rfd);
+        newsha[n > 0 ? n : 0] = 0;
+        int rc = -1;
+        FILEReap(pid, &rc);
+        test(rc == 0 && n > 0, FAILSANITY);
     }
 
     size_t slen = strlen(newsha);
@@ -882,30 +893,38 @@ static ok64 CAPOHookDiffCmd(u8bp out, u8csc reporoot, u8csc dirslice) {
         return CAPONODIFF;
     }
 
+    a_cstr(gitp, "/usr/bin/git");
+
     // try newest first (last in file)
-    a_pad(u8, chkbuf, FILE_PATH_MAX_LEN + 128);
     for (u32 i = sha_count; i > 0; i--) {
-        u8bShedAll(chkbuf);
-        a_cstr(chk_pre, "git -C ");
-        a_cstr(chk_post, " merge-base --is-ancestor ");
-        a_cstr(chk_tail, " HEAD");
-        u8cs sha_s = {(u8cp)shas[i - 1], (u8cp)shas[i - 1] + 40};
-        // Buffer overrun on a check command is a real error; bail.
-        call(u8bFeed, chkbuf, chk_pre);
-        call(capo_sh_quote, chkbuf, reporoot);
-        call(u8bFeed, chkbuf, chk_post);
-        call(u8bFeed, chkbuf, sha_s);
-        call(u8bFeed, chkbuf, chk_tail);
-        call(u8bFeed1, chkbuf, 0);
-        int rc = system((char *)u8bDataHead(chkbuf));
-        if (WIFEXITED(rc) && WEXITSTATUS(rc) == 0) {
+        u8cs cargs[] = {
+            u8slit("git"),
+            u8slit("-C"),
+            {reporoot[0], reporoot[1]},
+            u8slit("merge-base"),
+            u8slit("--is-ancestor"),
+            u8scstr(shas[i - 1]),
+            u8slit("HEAD"),
+        };
+        u8css cargv = {cargs, cargs + 7};
+        pid_t pid = 0;
+        ok64 so = FILESpawn(gitp, cargv, NULL, NULL, &pid);
+        if (so != OK) continue;
+        int rc = -1;
+        FILEReap(pid, &rc);
+        if (rc == 0) {
             if (CAPO_COLOR)
                 fprintf(stderr, "\033[%dmChanges since %.40s\033[0m\n",
                         GRAY, shas[i - 1]);
             else
                 fprintf(stderr, "Changes since %.40s\n", shas[i - 1]);
+            // Build the diff command for the caller to run.
+            // (Pipeline-free, but we still go through CAPOIndexFromCmd
+            // which expects a shell string; sh -c with positional args
+            // keeps the path quoted-by-construction.)
             a_cstr(diff_pre, "git -C ");
             a_cstr(diff_mid, " diff --name-only ");
+            u8cs sha_s = {(u8cp)shas[i - 1], (u8cp)shas[i - 1] + 40};
             call(u8bFeed, out, diff_pre);
             call(capo_sh_quote, out, reporoot);
             call(u8bFeed, out, diff_mid);

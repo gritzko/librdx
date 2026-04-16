@@ -72,28 +72,17 @@ static pid_t graf_start_pager(b8 tty_out) {
     a$rg(a0, 0);
     HOMEResolveSibling(bropath, sizeof(bropath),
                        "bro", (char const *)a0[0]);
-    int pfd[2];
-    if (pipe(pfd) != 0) {
+    a_cstr(bpath, bropath);
+    u8cs args[] = {u8slit("bro")};
+    u8css argv = {args, args + 1};
+    pid_t pid = 0;
+    int wfd = -1;
+    if (FILESpawn(bpath, argv, &wfd, NULL, &pid) != OK) {
         graf_out_fd = STDOUT_FILENO;
         graf_emit   = HUNKu8sFeedText;
         return -1;
     }
-    pid_t pid = fork();
-    if (pid < 0) {
-        close(pfd[0]); close(pfd[1]);
-        graf_out_fd = STDOUT_FILENO;
-        graf_emit   = HUNKu8sFeedText;
-        return -1;
-    }
-    if (pid == 0) {
-        close(pfd[1]);
-        dup2(pfd[0], STDIN_FILENO);
-        close(pfd[0]);
-        execlp(bropath, "bro", (char *)NULL);
-        _exit(127);
-    }
-    close(pfd[0]);
-    graf_out_fd = pfd[1];
+    graf_out_fd = wfd;
     graf_emit   = HUNKu8sFeed;
     signal(SIGPIPE, SIG_IGN);
     return pid;
@@ -105,9 +94,9 @@ static void graf_stop_pager(pid_t pid) {
         graf_out_fd = -1;
     }
     if (pid > 0) {
-        int st = 0;
-        waitpid(pid, &st, 0);
-        if (WIFEXITED(st) && WEXITSTATUS(st) == 127)
+        int rc = 0;
+        FILEReap(pid, &rc);
+        if (rc == 127)
             fprintf(stderr, "graf: bro pager not found\n");
     }
 }

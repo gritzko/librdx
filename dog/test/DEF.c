@@ -102,10 +102,8 @@ ok64 test_c_func() {
     for (int i = 0; i < n; i++) {
         u8 tagbuf[256];
         u8s out = {tagbuf, tagbuf + 256};
-        u8csc src = {(u8c *)cases[i].src,
-                     (u8c *)cases[i].src + strlen(cases[i].src)};
-        u8csc ext = {(u8c *)cases[i].ext,
-                     (u8c *)cases[i].ext + strlen(cases[i].ext)};
+        u8csc src = u8scstr(cases[i].src);
+        u8csc ext = u8scstr(cases[i].ext);
         ok64 o = def_test(src, ext, out);
         if (o != OK) {
             fprintf(stderr, "FAIL C case %d: '%s' error %s\n", i,
@@ -138,10 +136,8 @@ ok64 test_go() {
     for (int i = 0; i < n; i++) {
         u8 tagbuf[256];
         u8s out = {tagbuf, tagbuf + 256};
-        u8csc src = {(u8c *)cases[i].src,
-                     (u8c *)cases[i].src + strlen(cases[i].src)};
-        u8csc ext = {(u8c *)cases[i].ext,
-                     (u8c *)cases[i].ext + strlen(cases[i].ext)};
+        u8csc src = u8scstr(cases[i].src);
+        u8csc ext = u8scstr(cases[i].ext);
         ok64 o = def_test(src, ext, out);
         if (o != OK) {
             fprintf(stderr, "FAIL Go case %d: '%s' error %s\n", i,
@@ -171,10 +167,8 @@ ok64 test_python() {
     for (int i = 0; i < n; i++) {
         u8 tagbuf[256];
         u8s out = {tagbuf, tagbuf + 256};
-        u8csc src = {(u8c *)cases[i].src,
-                     (u8c *)cases[i].src + strlen(cases[i].src)};
-        u8csc ext = {(u8c *)cases[i].ext,
-                     (u8c *)cases[i].ext + strlen(cases[i].ext)};
+        u8csc src = u8scstr(cases[i].src);
+        u8csc ext = u8scstr(cases[i].ext);
         ok64 o = def_test(src, ext, out);
         if (o != OK) {
             fprintf(stderr, "FAIL Py case %d: '%s' error %s\n", i,
@@ -206,10 +200,8 @@ ok64 test_kotlin() {
     for (int i = 0; i < n; i++) {
         u8 tagbuf[256];
         u8s out = {tagbuf, tagbuf + 256};
-        u8csc src = {(u8c *)cases[i].src,
-                     (u8c *)cases[i].src + strlen(cases[i].src)};
-        u8csc ext = {(u8c *)cases[i].ext,
-                     (u8c *)cases[i].ext + strlen(cases[i].ext)};
+        u8csc src = u8scstr(cases[i].src);
+        u8csc ext = u8scstr(cases[i].ext);
         ok64 o = def_test(src, ext, out);
         if (o != OK) {
             fprintf(stderr, "FAIL Kt case %d: '%s' error %s\n", i,
@@ -241,10 +233,8 @@ ok64 test_swift() {
     for (int i = 0; i < n; i++) {
         u8 tagbuf[256];
         u8s out = {tagbuf, tagbuf + 256};
-        u8csc src = {(u8c *)cases[i].src,
-                     (u8c *)cases[i].src + strlen(cases[i].src)};
-        u8csc ext = {(u8c *)cases[i].ext,
-                     (u8c *)cases[i].ext + strlen(cases[i].ext)};
+        u8csc src = u8scstr(cases[i].src);
+        u8csc ext = u8scstr(cases[i].ext);
         ok64 o = def_test(src, ext, out);
         if (o != OK) {
             fprintf(stderr, "FAIL Swift case %d: '%s' error %s\n", i,
@@ -275,10 +265,8 @@ ok64 test_dart() {
     for (int i = 0; i < n; i++) {
         u8 tagbuf[256];
         u8s out = {tagbuf, tagbuf + 256};
-        u8csc src = {(u8c *)cases[i].src,
-                     (u8c *)cases[i].src + strlen(cases[i].src)};
-        u8csc ext = {(u8c *)cases[i].ext,
-                     (u8c *)cases[i].ext + strlen(cases[i].ext)};
+        u8csc src = u8scstr(cases[i].src);
+        u8csc ext = u8scstr(cases[i].ext);
         ok64 o = def_test(src, ext, out);
         if (o != OK) {
             fprintf(stderr, "FAIL Dart case %d: '%s' error %s\n", i,
@@ -316,10 +304,8 @@ ok64 test_ll() {
     u8s out = {tagbuf, tagbuf + sizeof(tagbuf)};
     for (int i = 0; i < (int)(sizeof(cases) / sizeof(cases[0])); i++) {
         out[0] = tagbuf;
-        u8cs src = {(u8c *)cases[i].src,
-                     (u8c *)cases[i].src + strlen(cases[i].src)};
-        u8cs ext = {(u8c *)cases[i].ext,
-                     (u8c *)cases[i].ext + strlen(cases[i].ext)};
+        u8cs src = u8scstr(cases[i].src);
+        u8cs ext = u8scstr(cases[i].ext);
         ok64 o = def_test(src, ext, out);
         if (o != OK) {
             fprintf(stderr, "FAIL LL case %d: '%s' error %s\n", i,
