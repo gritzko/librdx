@@ -3,6 +3,7 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "DOG.h"
 #include "abc/PRO.h"
 
 // Check if flag appears in the val_flags string (NUL-separated list).
@@ -120,10 +121,8 @@ ok64 CLIParse(cli *c, char const *const *verb_names,
             // URI
             if (c->nuris >= CLI_MAX_URIS) continue;
             uri *u = &c->uris[c->nuris];
-            *u = (uri){};
-            $mv(u->data, a);
-            URILexer(u);  // best-effort parse (consumes data)
-            $mv(u->data, a);  // restore original data slice
+            DOGParseURI(u, a);  // best-effort parse with dog normalization
+            $mv(u->data, a);    // restore original data slice
             c->nuris++;
         }
     }

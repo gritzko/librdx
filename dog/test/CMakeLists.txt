@@ -60,3 +60,9 @@ target_compile_options(DPATHtest PRIVATE ${TEST_CXX_FLAGS})
 target_link_libraries(DPATHtest dog abc-core)
 add_test(NAME DPATHtest COMMAND DPATHtest)
 
+add_executable(DOGtest DOG.c)
+target_link_options(DOGtest PRIVATE ${TEST_LDD_FLAGS})
+target_compile_options(DOGtest PRIVATE ${TEST_CXX_FLAGS})
+target_link_libraries(DOGtest dog abc-core)
+add_test(NAME DOGtest COMMAND DOGtest)
+
