@@ -8,6 +8,7 @@
 #include "abc/RAP.h"
 
 con ok64 CAPONOROOM = 0x30a6585d86d8616;
+con ok64 CAPONODIFF = 0x30a6585d83523cf;  // no usable saved commit → full reindex
 
 extern b8 CAPO_COLOR;  // stdout is a terminal with color
 extern b8 CAPO_TERM;   // stderr is a terminal

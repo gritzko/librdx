@@ -866,16 +866,20 @@ ok64 CAPOCommitRead(u32p count, u8csc capodir,
 
 // --- Hook (incremental) ---
 
-// Build "git -C <repo> diff --name-only <sha>" into out.  Returns YES if
-// a usable diff command was emitted; NO if no saved commit is reachable.
-static b8 CAPOHookDiffCmd(u8bp out, u8csc reporoot, u8csc dirslice) {
+// Build "git -C <repo> diff --name-only <sha>" into out.
+// Returns OK with out filled when a usable diff command was emitted;
+// CAPONODIFF when no saved commit is reachable (caller falls back to
+// full reindex); a real error code on internal buffer failure.
+static ok64 CAPOHookDiffCmd(u8bp out, u8csc reporoot, u8csc dirslice) {
+    sane(out != NULL && $ok(reporoot) && $ok(dirslice));
+
     char shas[CAPO_MAX_SHAS][44];
     u32 sha_count = 0;
     CAPOCommitRead(&sha_count, dirslice, shas, CAPO_MAX_SHAS);
 
     if (sha_count == 0) {
         fprintf(stderr, "spot: no saved commit, full reindex\n");
-        return NO;
+        return CAPONODIFF;
     }
 
     // try newest first (last in file)
@@ -886,12 +890,13 @@ static b8 CAPOHookDiffCmd(u8bp out, u8csc reporoot, u8csc dirslice) {
         a_cstr(chk_post, " merge-base --is-ancestor ");
         a_cstr(chk_tail, " HEAD");
         u8cs sha_s = {(u8cp)shas[i - 1], (u8cp)shas[i - 1] + 40};
-        if (u8bFeed(chkbuf, chk_pre) != OK) continue;
-        if (capo_sh_quote(chkbuf, reporoot) != OK) continue;
-        if (u8bFeed(chkbuf, chk_post) != OK) continue;
-        if (u8bFeed(chkbuf, sha_s) != OK) continue;
-        if (u8bFeed(chkbuf, chk_tail) != OK) continue;
-        if (u8bFeed1(chkbuf, 0) != OK) continue;
+        // Buffer overrun on a check command is a real error; bail.
+        call(u8bFeed, chkbuf, chk_pre);
+        call(capo_sh_quote, chkbuf, reporoot);
+        call(u8bFeed, chkbuf, chk_post);
+        call(u8bFeed, chkbuf, sha_s);
+        call(u8bFeed, chkbuf, chk_tail);
+        call(u8bFeed1, chkbuf, 0);
         int rc = system((char *)u8bDataHead(chkbuf));
         if (WIFEXITED(rc) && WEXITSTATUS(rc) == 0) {
             if (CAPO_COLOR)
@@ -901,17 +906,17 @@ static b8 CAPOHookDiffCmd(u8bp out, u8csc reporoot, u8csc dirslice) {
                 fprintf(stderr, "Changes since %.40s\n", shas[i - 1]);
             a_cstr(diff_pre, "git -C ");
             a_cstr(diff_mid, " diff --name-only ");
-            if (u8bFeed(out, diff_pre) != OK) return NO;
-            if (capo_sh_quote(out, reporoot) != OK) return NO;
-            if (u8bFeed(out, diff_mid) != OK) return NO;
-            if (u8bFeed(out, sha_s) != OK) return NO;
-            if (u8bFeed1(out, 0) != OK) return NO;
-            return YES;
+            call(u8bFeed, out, diff_pre);
+            call(capo_sh_quote, out, reporoot);
+            call(u8bFeed, out, diff_mid);
+            call(u8bFeed, out, sha_s);
+            call(u8bFeed1, out, 0);
+            done;
         }
     }
 
     fprintf(stderr, "spot: saved commits unreachable, full reindex\n");
-    return NO;
+    return CAPONODIFF;
 }
 
 // Index files listed by a shell command. Returns count of indexed files.
@@ -1000,11 +1005,14 @@ ok64 CAPOHook(u8csc reporoot) {
     Bu64 entries = {};
     call(u64bMap, entries, CAPO_SCRATCH_LEN);
 
-    if (CAPOHookDiffCmd(cmdbuf, reporoot, dirslice)) {
+    ok64 dco = CAPOHookDiffCmd(cmdbuf, reporoot, dirslice);
+    if (dco == OK) {
         o = CAPOHookDiff(reporoot, dirslice, entries,
                          (char *)u8bDataHead(cmdbuf));
-    } else {
+    } else if (dco == CAPONODIFF) {
         o = CAPOReindexWork(reporoot, dirslice, entries);
+    } else {
+        o = dco;  // real error — surface it
     }
 
     u64bUnMap(entries);
