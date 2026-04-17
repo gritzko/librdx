@@ -101,7 +101,7 @@ fun ok64 SNIFFFullpath(path8b out, u8cs reporoot, u8cs rel) {
     u8bFeed(out, reporoot);
     u8bFeed(out, sep);
     u8bFeed(out, rel);
-    return PATHu8gTerm(PATHu8gIn(out));
+    return PATHu8bTerm(out);
 }
 
 //  Intern a directory path (appends / if missing).

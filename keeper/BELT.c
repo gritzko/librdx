@@ -114,10 +114,10 @@ ok64 BELTIndexWrite(u8cs idx_dir, belt128cs run, u64 seqno) {
     ((u8 **)path)[2] += BELT_SEQNO_WIDTH;
     a_cstr(ext, BELT_IDX_EXT);
     call(u8bFeed, path, ext);
-    call(PATHu8gTerm, PATHu8gIn(path));
+    call(PATHu8bTerm, path);
 
     int fd = -1;
-    call(FILECreate, &fd, PATHu8cgIn(path));
+    call(FILECreate, &fd, $path(path));
     size_t bytes = $len(run) * sizeof(belt128);
     u8cs data = {(u8cp)run[0], (u8cp)run[0] + bytes};
     call(FILEFeedAll, fd, data);
@@ -133,7 +133,7 @@ ok64 BELTNextSeqno(u64p seqno, u8cs idx_dir) {
     call(PATHu8bFeed, pat, idx_dir);
 
     int dfd = -1;
-    ok64 o = FILEOpenDir(&dfd, PATHu8cgIn(pat));
+    ok64 o = FILEOpenDir(&dfd, $path(pat));
     if (o != OK) done;
 
     u64 maxseq = 0;
@@ -242,8 +242,8 @@ ok64 BELTClone(u8cs repo_path, u8cs belt_dir) {
     {
         a_pad(u8, p, 1024);
         call(u8bFeed, p, belt_dir);
-        call(PATHu8gTerm, PATHu8gIn(p));
-        call(FILEMakeDirP, PATHu8cgIn(p));
+        call(PATHu8bTerm, p);
+        call(FILEMakeDirP, $path(p));
     }
     char idx_path[1024];
     {
@@ -251,8 +251,8 @@ ok64 BELTClone(u8cs repo_path, u8cs belt_dir) {
         call(u8bFeed, p, belt_dir);
         a_cstr(sub, "/objects.idx");
         call(u8bFeed, p, sub);
-        call(PATHu8gTerm, PATHu8gIn(p));
-        call(FILEMakeDirP, PATHu8cgIn(p));
+        call(PATHu8bTerm, p);
+        call(FILEMakeDirP, $path(p));
         snprintf(idx_path, sizeof(idx_path), "%.*s",
                  (int)u8bDataLen(p), (char *)u8bDataHead(p));
     }
@@ -347,8 +347,8 @@ ok64 BELTClone(u8cs repo_path, u8cs belt_dir) {
         call(u8bFeed, lp, belt_dir);
         a_cstr(sub, "/objects.log");
         call(u8bFeed, lp, sub);
-        call(PATHu8gTerm, PATHu8gIn(lp));
-        call(FILECreate, &logfd, PATHu8cgIn(lp));
+        call(PATHu8bTerm, lp);
+        call(FILECreate, &logfd, $path(lp));
     }
 
     // NAK
@@ -416,8 +416,8 @@ static ok64 belt_index_log(u8cs belt_dir, char const *idx_path) {
         call(u8bFeed, lp, belt_dir);
         a_cstr(sub, "/objects.log");
         call(u8bFeed, lp, sub);
-        call(PATHu8gTerm, PATHu8gIn(lp));
-        call(FILEMapRO, &logmap, PATHu8cgIn(lp));
+        call(PATHu8bTerm, lp);
+        call(FILEMapRO, &logmap, $path(lp));
     }
 
     u8cp pack = u8bDataHead(logmap);
@@ -495,8 +495,8 @@ static ok64 belt_index_log(u8cs belt_dir, char const *idx_path) {
             ((u8 **)fp)[2] += BELT_SEQNO_WIDTH;                            \
             a_cstr(ext, BELT_IDX_EXT);                                      \
             u8bFeed(fp, ext);                                               \
-            PATHu8gTerm(PATHu8gIn(fp));                                     \
-            FILEMapRO(&maps[nmaps], PATHu8cgIn(fp));                        \
+            PATHu8bTerm(fp);                                     \
+            FILEMapRO(&maps[nmaps], $path(fp));                        \
             belt128cp base = (belt128cp)u8bDataHead(maps[nmaps]);           \
             u64 len = u8bDataLen(maps[nmaps]) / sizeof(belt128);            \
             stack[1][-1][0] = base;                                         \
@@ -647,8 +647,8 @@ ok64 BELTImport(u8cs pack_path, u8cs belt_dir) {
     {
         a_pad(u8, p, 1024);
         call(u8bFeed, p, belt_dir);
-        call(PATHu8gTerm, PATHu8gIn(p));
-        call(FILEMakeDirP, PATHu8cgIn(p));
+        call(PATHu8bTerm, p);
+        call(FILEMakeDirP, $path(p));
     }
     char idx_path[1024];
     {
@@ -656,8 +656,8 @@ ok64 BELTImport(u8cs pack_path, u8cs belt_dir) {
         call(u8bFeed, p, belt_dir);
         a_cstr(sub, "/objects.idx");
         call(u8bFeed, p, sub);
-        call(PATHu8gTerm, PATHu8gIn(p));
-        call(FILEMakeDirP, PATHu8cgIn(p));
+        call(PATHu8bTerm, p);
+        call(FILEMakeDirP, $path(p));
         snprintf(idx_path, sizeof(idx_path), "%.*s",
                  (int)u8bDataLen(p), (char *)u8bDataHead(p));
     }
@@ -667,8 +667,8 @@ ok64 BELTImport(u8cs pack_path, u8cs belt_dir) {
     {
         a_pad(u8, sp, 1024);
         call(u8bFeed, sp, pack_path);
-        call(PATHu8gTerm, PATHu8gIn(sp));
-        call(FILEOpen, &srcfd, PATHu8cgIn(sp), O_RDONLY);
+        call(PATHu8bTerm, sp);
+        call(FILEOpen, &srcfd, $path(sp), O_RDONLY);
     }
 
     // stream into objects.log
@@ -678,8 +678,8 @@ ok64 BELTImport(u8cs pack_path, u8cs belt_dir) {
         call(u8bFeed, lp, belt_dir);
         a_cstr(sub, "/objects.log");
         call(u8bFeed, lp, sub);
-        call(PATHu8gTerm, PATHu8gIn(lp));
-        call(FILECreate, &logfd, PATHu8cgIn(lp));
+        call(PATHu8bTerm, lp);
+        call(FILECreate, &logfd, $path(lp));
     }
 
     u64 loglen = 0;
@@ -759,9 +759,9 @@ ok64 BELTGet(u8cs belt_dir, u8cs hex_hash, u8g out, u8p out_type) {
                 u8bFeed1(fp, '/');
                 a_cstr(nm, names[i]);
                 u8bFeed(fp, nm);
-                PATHu8gTerm(PATHu8gIn(fp));
+                PATHu8bTerm(fp);
             }
-            if (FILEMapRO(&maps[nfiles], PATHu8cgIn(fp)) != OK) continue;
+            if (FILEMapRO(&maps[nfiles], $path(fp)) != OK) continue;
             belt128cp base = (belt128cp)u8bDataHead(maps[nfiles]);
             u64 len = u8bDataLen(maps[nfiles]) / sizeof(belt128);
             runs[nfiles][0] = base;
@@ -786,8 +786,8 @@ ok64 BELTGet(u8cs belt_dir, u8cs hex_hash, u8g out, u8p out_type) {
         call(u8bFeed, lp, belt_dir);
         a_cstr(sub, "/objects.log");
         call(u8bFeed, lp, sub);
-        call(PATHu8gTerm, PATHu8gIn(lp));
-        call(FILEMapRO, &logmap, PATHu8cgIn(lp));
+        call(PATHu8bTerm, lp);
+        call(FILEMapRO, &logmap, $path(lp));
     }
 
     u8cp pk = u8bDataHead(logmap);

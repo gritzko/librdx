@@ -307,7 +307,7 @@ ok64 SPOTExec(spotp dog, cli *c) {
         a_path(capodir);
         vcall("resolve_dir", CAPOResolveDir, capodir, reporoot);
         a_dup(u8c, dirslice, u8bDataC(capodir));
-        vcall("mkdir_p", FILEMakeDirP, PATHu8cgIn(capodir));
+        vcall("mkdir_p", FILEMakeDirP, $path(capodir));
 
         char self[FILE_PATH_MAX_LEN];
         a$rg(a0, 0);

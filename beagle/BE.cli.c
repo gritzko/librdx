@@ -94,7 +94,7 @@ static u32 BEReadDogs(char out[][64], u32 maxn) {
     if (PATHu8bPush(home, dogs_file) != OK) return 0;
 
     u8bp mapped = NULL;
-    if (FILEMapRO(&mapped, PATHu8cgIn(home)) != OK) return 0;
+    if (FILEMapRO(&mapped, $path(home)) != OK) return 0;
     a_dup(u8c, data, u8bDataC(mapped));
 
     u32 count = 0;
@@ -173,7 +173,7 @@ static ok64 BEGet(cli *c, b8 seq) {
             if (FILEGetCwd(here) == OK) {
                 a_cstr(dotdogs, ".dogs");
                 call(PATHu8bPush, here, dotdogs);
-                call(FILEMakeDirP, PATHu8cgIn(here));
+                call(FILEMakeDirP, $path(here));
             }
         }
     }

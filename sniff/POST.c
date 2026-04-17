@@ -81,7 +81,7 @@ static ok64 POSTCollectTree(sha_ctx *ctx, keeper *k,
         }
         u8bFeed(rel, name_s);
         if (is_dir) u8bFeed1(rel, '/');
-        PATHu8gTerm(PATHu8gIn(rel));
+        PATHu8bTerm(rel);
         u8cs relpath = {u8bDataHead(rel), rel[2]};
 
         u32 idx = is_dir ? SNIFFInternDir(ctx->s, relpath)
@@ -273,7 +273,7 @@ static ok64 POSTBuild(sha1 *tree_out, sniff *s, keeper *k,
                     }
                 } else {
                     int fd = -1;
-                    o = FILEOpen(&fd, PATHu8cgIn(fp), O_RDONLY);
+                    o = FILEOpen(&fd, $path(fp), O_RDONLY);
                     if (o != OK) { u8bFree(content); i++; continue; }
                     FILEdrainall(u8bIdle(content), fd);
                     FILEClose(&fd);

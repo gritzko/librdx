@@ -79,7 +79,7 @@ static ok64 com_collect_tree(sha_ctx *ctx, keeper *k,
             u8bFeed1(rel, '/');
         }
         u8bFeed(rel, name_s);
-        PATHu8gTerm(PATHu8gIn(rel));
+        PATHu8bTerm(rel);
         u8cs relpath = {u8bDataHead(rel), rel[2]};
 
         u32 idx = SNIFFIntern(ctx->s, relpath);
@@ -161,7 +161,7 @@ static ok64 com_build_tree(sniff *s, keeper *k, keep_pack *p,
                 u8bFeed1(subdir, '/');
             }
             u8bFeed(subdir, dirname);
-            PATHu8gTerm(PATHu8gIn(subdir));
+            PATHu8bTerm(subdir);
             u8cs sub = {u8bDataHead(subdir), subdir[2]};
 
             tree_entry *e = &entries[nentries];
@@ -236,7 +236,7 @@ static ok64 com_build_tree(sniff *s, keeper *k, keep_pack *p,
                     }
                 } else {
                     int fd = -1;
-                    o = FILEOpen(&fd, PATHu8cgIn(fp), O_RDONLY);
+                    o = FILEOpen(&fd, $path(fp), O_RDONLY);
                     if (o != OK) { u8bFree(content); continue; }
                     FILEdrainall(u8bIdle(content), fd);
                     FILEClose(&fd);

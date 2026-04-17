@@ -12,7 +12,7 @@
 static ok64 graf_merge_read(u8cs *data, u8bp *mapped, u8cs path_arg) {
     sane(data != NULL && mapped != NULL);
     a_path(path, path_arg);
-    call(FILEMapRO, mapped, PATHu8cgIn(path));
+    call(FILEMapRO, mapped, $path(path));
     (*data)[0] = u8bDataHead(*mapped);
     (*data)[1] = u8bIdleHead(*mapped);
     done;
@@ -62,7 +62,7 @@ ok64 GRAFMerge(u8cs base_path, u8cs ours_path, u8cs theirs_path,
         if (!$empty(outpath)) {
             a_path(opath, outpath);
             int fd = -1;
-            o = FILECreate(&fd, PATHu8cgIn(opath));
+            o = FILECreate(&fd, $path(opath));
             if (o != OK) { u8bFree(out); goto cleanup; }
             o = FILEFeedAll(fd, result);
             close(fd);

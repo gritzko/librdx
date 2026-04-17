@@ -81,7 +81,7 @@ static ok64 DELCollectTree(del_sha_ctx *ctx, keeper *k,
         }
         u8bFeed(rel, name_s);
         if (is_dir) u8bFeed1(rel, '/');
-        PATHu8gTerm(PATHu8gIn(rel));
+        PATHu8bTerm(rel);
         u8cs relpath = {u8bDataHead(rel), rel[2]};
 
         u32 idx = is_dir ? SNIFFInternDir(ctx->s, relpath)

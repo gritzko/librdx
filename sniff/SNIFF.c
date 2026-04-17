@@ -141,7 +141,7 @@ ok64 SNIFFOpen(sniff *s, u8cs reporoot, b8 rw) {
     a_cstr(sniffdir, "sniff");
 
     a_path(dir, reporoot, dogs, sniffdir);
-    if (rw) call(FILEMakeDirP, PATHu8cgIn(dir));
+    if (rw) call(FILEMakeDirP, $path(dir));
 
     {
         a_cstr(hf, "HEAD");
@@ -155,11 +155,11 @@ ok64 SNIFFOpen(sniff *s, u8cs reporoot, b8 rw) {
     {
         a_cstr(pf, "paths.log");
         a_path(pp, reporoot, dogs, sniffdir, pf);
-        ok64 o = FILEBook(&s->paths, PATHu8cgIn(pp), SNIFF_PATH_BOOK);
+        ok64 o = FILEBook(&s->paths, $path(pp), SNIFF_PATH_BOOK);
         if (o == OK) {
             ((u8 **)s->paths)[2] = s->paths[3];
         } else if (rw) {
-            call(FILEBookCreate, &s->paths, PATHu8cgIn(pp),
+            call(FILEBookCreate, &s->paths, $path(pp),
                  SNIFF_PATH_BOOK, 4096);
         } else {
             fail(o);
@@ -169,11 +169,11 @@ ok64 SNIFFOpen(sniff *s, u8cs reporoot, b8 rw) {
     {
         a_cstr(sf, "state.log");
         a_path(cp, reporoot, dogs, sniffdir, sf);
-        ok64 o = FILEBook(&s->changes, PATHu8cgIn(cp), SNIFF_CHG_BOOK);
+        ok64 o = FILEBook(&s->changes, $path(cp), SNIFF_CHG_BOOK);
         if (o == OK) {
             ((u8 **)s->changes)[2] = s->changes[3];
         } else if (rw) {
-            call(FILEBookCreate, &s->changes, PATHu8cgIn(cp),
+            call(FILEBookCreate, &s->changes, $path(cp),
                  SNIFF_CHG_BOOK, 4096);
         } else {
             fail(o);

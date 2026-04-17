@@ -184,7 +184,7 @@ ok64 GRAFExec(graf *g, cli *c) {
         a_path(lockpath, reporoot);
         a_cstr(lockrel, "/.dogs/graf/lock");
         call(u8bFeed, lockpath, lockrel);
-        PATHu8gTerm(PATHu8gIn(lockpath));
+        PATHu8bTerm(lockpath);
         int lockfd = open((char *)u8bDataHead(lockpath),
                           O_CREAT | O_RDWR, 0644);
         if (lockfd >= 0) flock(lockfd, LOCK_EX);

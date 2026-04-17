@@ -363,8 +363,8 @@ ok64 CAPOtestHunkEmit() {
     a_pad(u8, pathbuf, 256);
     u8cs ps = {(u8cp)tmppath, (u8cp)tmppath + strlen(tmppath)};
     call(u8bFeed, pathbuf, ps);
-    call(PATHu8gTerm, PATHu8gIn(pathbuf));
-    call(FILEMapRO, &mapped, PATHu8cgIn(pathbuf));
+    call(PATHu8bTerm, pathbuf);
+    call(FILEMapRO, &mapped, $path(pathbuf));
 
     a_dup(u8c, data, u8bDataC(mapped));
     want($len(data) > 20);  // non-trivial TLV

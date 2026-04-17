@@ -32,8 +32,8 @@ ok64 WALKOpen(walk *w, u8cs belt_dir) {
         call(u8bFeed, lp, belt_dir);
         a_cstr(sub, "/objects.log");
         call(u8bFeed, lp, sub);
-        call(PATHu8gTerm, PATHu8gIn(lp));
-        call(FILEMapRO, &w->logmap, PATHu8cgIn(lp));
+        call(PATHu8bTerm, lp);
+        call(FILEMapRO, &w->logmap, $path(lp));
     }
     w->pack = u8bDataHead(w->logmap);
     w->packlen = u8bDataLen(w->logmap);
@@ -65,9 +65,9 @@ ok64 WALKOpen(walk *w, u8cs belt_dir) {
                 u8bFeed1(fp, '/');
                 a_cstr(nm, names[i]);
                 u8bFeed(fp, nm);
-                PATHu8gTerm(PATHu8gIn(fp));
+                PATHu8bTerm(fp);
             }
-            if (FILEMapRO(&w->maps[w->nmaps], PATHu8cgIn(fp)) != OK)
+            if (FILEMapRO(&w->maps[w->nmaps], $path(fp)) != OK)
                 continue;
             belt128cp base =
                 (belt128cp)u8bDataHead(w->maps[w->nmaps]);
@@ -750,10 +750,10 @@ ok64 WALKCheckout(walk *w, u8cp tree_sha, u8cs dest) {
         u8bFeed(path, dest);
         u8bFeed1(path, '/');
         u8bFeed(path, name_s);
-        PATHu8gTerm(PATHu8gIn(path));
+        PATHu8bTerm(path);
 
         if (is_dir) {
-            FILEMakeDir(PATHu8cgIn(path));
+            FILEMakeDir($path(path));
             u8cs subdir = {u8bDataHead(path), path[2]};
             result = WALKCheckout(w, esha[0], subdir);
             if (result != OK) break;
@@ -775,7 +775,7 @@ ok64 WALKCheckout(walk *w, u8cp tree_sha, u8cs dest) {
             if (result != OK) break;
 
             int fd = -1;
-            result = FILECreate(&fd, PATHu8cgIn(path));
+            result = FILECreate(&fd, $path(path));
             if (result != OK) break;
             u8cs data = {bcontent, bcontent + bsz};
             result = FILEFeedAll(fd, data);

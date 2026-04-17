@@ -50,7 +50,7 @@ ok64 toktok() {
 
     u8 *idle[2] = {_srcbuf, _srcbuf + sizeof(_srcbuf)};
     int fd;
-    call(FILEOpen, &fd, PATHu8cgIn(path), O_RDONLY);
+    call(FILEOpen, &fd, $path(path), O_RDONLY);
     u8 *start = idle[0];
     call(FILEdrainall, idle, fd);
     call(FILEClose, &fd);

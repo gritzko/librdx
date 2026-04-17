@@ -71,7 +71,7 @@ static ok64 GETTree(sniff *s, keeper *k, u8cs reporoot,
             u8bFeed1(rel, '/');
         }
         u8bFeed(rel, name_s);
-        PATHu8gTerm(PATHu8gIn(rel));
+        PATHu8bTerm(rel);
         u8cs relpath = {u8bDataHead(rel), rel[2]};
 
         u64 entry_hashlet = WHIFFHashlet40((sha1cp)esha[0]);
@@ -79,7 +79,7 @@ static ok64 GETTree(sniff *s, keeper *k, u8cs reporoot,
         if (is_dir) {
             a_path(dp);
             SNIFFFullpath(dp, reporoot, relpath);
-            FILEMakeDirP(PATHu8cgIn(dp));
+            FILEMakeDirP($path(dp));
 
             u32 idx = SNIFFInternDir(s, relpath);
             seen[idx] = 1;
@@ -122,7 +122,7 @@ static ok64 GETTree(sniff *s, keeper *k, u8cs reporoot,
                         (char *)u8bDataHead(fp));
             } else {
                 int fd = -1;
-                result = FILECreate(&fd, PATHu8cgIn(fp));
+                result = FILECreate(&fd, $path(fp));
                 if (result != OK) { u8bFree(blob); break; }
                 u8cs data = {u8bDataHead(blob), u8bIdleHead(blob)};
                 result = FILEFeedAll(fd, data);
@@ -137,7 +137,7 @@ static ok64 GETTree(sniff *s, keeper *k, u8cs reporoot,
             SNIFFRecord(s, SNIFF_HASHLET, idx, entry_hashlet);
 
             struct stat sb = {};
-            if (FILEStat(&sb, PATHu8cgIn(fp)) == OK)
+            if (FILEStat(&sb, $path(fp)) == OK)
                 SNIFFRecord(s, SNIFF_CHECKOUT, idx,
                             (u64)sb.st_mtim.tv_sec);
         }
@@ -168,7 +168,7 @@ static ok64 GETPrune(sniff *s, u8cs reporoot, u8cp seen) {
         a_path(fp);
         call(SNIFFFullpath, fp, reporoot, rel);
 
-        ok64 o = FILEUnLink(PATHu8cgIn(fp));
+        ok64 o = FILEUnLink($path(fp));
         if (o == OK || o == FILENOENT) {
             SNIFFRecord(s, SNIFF_HASHLET, i, 0);
             SNIFFRecord(s, SNIFF_CHECKOUT, i, 0);
@@ -194,7 +194,7 @@ static ok64 GETPrune(sniff *s, u8cs reporoot, u8cp seen) {
         a_path(fp);
         call(SNIFFFullpath, fp, reporoot, rel);
 
-        ok64 o = FILERmDir(PATHu8cgIn(fp), NO);
+        ok64 o = FILERmDir($path(fp), NO);
         if (o == OK || o == FILENOENT || o == FILENOTEMP) {
             SNIFFRecord(s, SNIFF_HASHLET, i, 0);
             SNIFFRecord(s, SNIFF_CHECKOUT, i, 0);

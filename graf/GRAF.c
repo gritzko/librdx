@@ -30,7 +30,7 @@ ok64 GRAFOpen(graf *g, u8cs home, b8 rw) {
     }
     a_cstr(rel, "/graf");
     call(u8bFeed, dir, rel);
-    call(PATHu8gTerm, PATHu8gIn(dir));
+    call(PATHu8bTerm, dir);
 
     size_t dlen = u8bDataLen(dir);
     if (dlen >= sizeof(g->dir)) dlen = sizeof(g->dir) - 1;
@@ -38,7 +38,7 @@ ok64 GRAFOpen(graf *g, u8cs home, b8 rw) {
     g->dir[dlen] = 0;
 
     // Create directory only in rw mode.
-    if (rw) call(FILEMakeDirP, PATHu8cgIn(dir));
+    if (rw) call(FILEMakeDirP, $path(dir));
 
     // Open DAG index
     u8cs dagdir = {(u8cp)g->dir, (u8cp)g->dir + dlen};

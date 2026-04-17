@@ -23,7 +23,7 @@ ok64 HOMEFindDogs(path8b out);
 // directory) into `out`.  Any failure (unreadable file, malformed
 // content, dangling gitdir, unexpected layout) returns an error and
 // leaves `out` unmodified.
-ok64 HOMEFollowWorktree(path8b out, path8cg gitfile);
+ok64 HOMEFollowWorktree(path8b out, path8s gitfile);
 
 // Resolve a peer binary: looks for `name` next to the caller's own
 // binary by deriving the directory from `argv0` (preserving symlinks).
