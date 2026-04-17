@@ -32,10 +32,11 @@ con ok64 WALKSTOP	= 0x80a55471d619;
 //  mode is unrecognized.
 u8 WALKu8sModeKind(u8cs mode);
 
-//  Tree-walk visitor.  Called in depth-first order for each entry
-//  of a tree (and, recursively, its subtrees).
-//    path  — full relpath from the walk root.  No leading '/',
-//            no trailing '/'.
+//  Tree-walk visitor.  Called in depth-first order starting with the
+//  root tree itself (empty path, kind=WALK_KIND_DIR), then for each
+//  entry of that tree (and, recursively, its subtrees).
+//    path  — full relpath from the walk root.  Empty for the root
+//            tree visit.  Otherwise no leading '/', no trailing '/'.
 //    kind  — WALK_KIND_* (compressed mode).
 //    esha  — raw 20-byte SHA-1 of the tree entry (pre-resolve).
 //    blob  — for WALK_KIND_REG/EXE/LNK in eager mode: content slice.

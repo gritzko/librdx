@@ -128,7 +128,7 @@ static ok64 com_build_tree(sniff *s, keeper *k, keep_pack *p,
             if (!exists) continue;  // deleted file — exclude
 
             // Determine if this file is "changed" for commit purposes
-            b8 is_new = (SNIFFGet(s, SNIFF_HASHLET, i) == 0);
+            b8 is_new = (SNIFFGet(s, SNIFF_BLOB, i) == 0);
             u64 co = SNIFFGet(s, SNIFF_CHECKOUT, i);
             u64 ch = SNIFFGet(s, SNIFF_CHANGED, i);
             b8 mtime_changed = (ch != 0 && ch != co);

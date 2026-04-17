@@ -32,9 +32,11 @@ static ok64 DELBuild(sha1 *tree_out, sniff *s, keeper *k,
     Bu8 tree = {};
     call(u8bAllocate, tree, (u64)(hi - lo) * 80);
 
+    u32 root_idx = SNIFFRootIdx(s);
     u32 i = lo;
     while (i < hi) {
         u32 idx = *u32bDataAtP(s->sorted, i);
+        if (idx == root_idx) { i++; continue; }  // skip root self-entry
 
         // Skip deleted entries
         if (del_set[idx]) {
@@ -105,6 +107,8 @@ static ok64 DELBuild(sha1 *tree_out, sniff *s, keeper *k,
             }
 
             if (!sha1empty(&sub_sha)) {
+                SNIFFRecord(s, SNIFF_TREE, idx,
+                            WHIFFHashlet40(&sub_sha));
                 u8cs name = {rest[0], $last(rest)};
                 a_cstr(mode, "40000");
                 u8bFeed(tree, mode);
@@ -165,27 +169,72 @@ static ok64 DELBuild(sha1 *tree_out, sniff *s, keeper *k,
     done;
 }
 
+// Auto-scan: mark tracked files missing from disk.  Caller owns buf.
+static void del_auto_scan(u8p del_set, sniff *s, u8cs reporoot) {
+    u32 n = SNIFFCount(s);
+    for (u32 i = 0; i < n; i++) {
+        if (SNIFFIsDir(s, i)) continue;
+        u8cs rel = {};
+        if (SNIFFPath(rel, s, i) != OK) continue;
+        if ($empty(rel)) continue;
+        if (SNIFFGet(s, SNIFF_BLOB, i) == 0) continue;  // not tracked
+
+        a_path(fp);
+        if (SNIFFFullpath(fp, reporoot, rel) != OK) continue;
+        struct stat lsb = {};
+        if (lstat((char *)u8bDataHead(fp), &lsb) != 0) del_set[i] = 1;
+    }
+}
+
 // --- Public API ---
 
-ok64 DELTree(sha1 *tree_out, sniff *s, keeper *k, keep_pack *p,
-             u8cs reporoot, u8cs parent_hex, u8cp del_set) {
-    sane(s && k && p && tree_out && del_set);
+ok64 DELStage(sha1 *tree_out, sniff *s, keeper *k, keep_pack *p,
+              u8cs reporoot, u8cp del_set) {
+    sane(s && k && p && tree_out);
 
     call(SNIFFSort, s);
 
     u32 npath = SNIFFCount(s);
     u32 cap = npath + SNIFF_HASH_SIZE;
+
+    // If caller didn't pass a set, auto-build one covering every
+    // tracked file missing from disk.
+    Bu8 dset_mem = {};
+    u8cp effective_set = del_set;
+    if (!effective_set) {
+        call(u8bAllocate, dset_mem, npath);
+        memset(u8bDataHead(dset_mem), 0, npath);
+        del_auto_scan(u8bDataHead(dset_mem), s, reporoot);
+        effective_set = u8bDataHead(dset_mem);
+    }
+
     Bsha1 sha_mem = {};
-    call(sha1bAllocate, sha_mem, cap);
+    ok64 o = sha1bAllocate(sha_mem, cap);
+    if (o != OK) { if (u8bData(dset_mem)[0]) u8bFree(dset_mem); return o; }
     memset(sha1bHead(sha_mem), 0, (u64)cap * sizeof(sha1));
     sha1p sha_tab = sha1bHead(sha_mem);
 
-    call(SNIFFCollectParentTree, s, k, parent_hex, sha_tab, cap);
+    o = SNIFFCollectBaseTree(s, k, sha_tab, cap);
+    if (o != OK) {
+        sha1bFree(sha_mem);
+        if (u8bData(dset_mem)[0]) u8bFree(dset_mem);
+        return o;
+    }
 
     u8cs no_prefix = {};
-    ok64 o = DELBuild(tree_out, s, k, p, sha_tab, cap, reporoot,
-                        del_set, 0, u32bDataLen(s->sorted), no_prefix);
+    o = DELBuild(tree_out, s, k, p, sha_tab, cap, reporoot,
+                  effective_set, 0, u32bDataLen(s->sorted), no_prefix);
+
+    if (o == OK && !sha1empty(tree_out)) {
+        SNIFFRecord(s, SNIFF_TREE, SNIFFRootIdx(s),
+                    WHIFFHashlet40(tree_out));
+    }
+    //  Note: we intentionally leave SNIFF_BLOB / SNIFF_CHECKOUT intact
+    //  for deleted paths.  A subsequent GETCheckout of the delete
+    //  commit needs those fields non-zero so GETPrune can unlink the
+    //  stale worktree file.  The file is still physically on disk.
 
     sha1bFree(sha_mem);
+    if (u8bData(dset_mem)[0]) u8bFree(dset_mem);
     return o;
 }

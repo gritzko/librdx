@@ -419,8 +419,7 @@ ok64 KEEPGet(keeper *k, u64 hashlet, size_t hexlen, u8bp out, u8p out_type) {
 
 // --- GetSha: inflate object, verify full SHA-1 ---
 
-// Forward declaration (defined below with KEEPPackFeed)
-static void keep_obj_sha(sha1 *out, u8 type, u8csc content);
+// KEEPObjSha defined below with KEEPPackFeed; declared in KEEP.h.
 
 ok64 KEEPGetExact(keeper *k, sha1 const *sha, u8bp out, u8p out_type) {
     sane(k && sha && out);
@@ -452,7 +451,7 @@ ok64 KEEPGetExact(keeper *k, sha1 const *sha, u8bp out, u8p out_type) {
             // Verify full SHA-1
             sha1 actual = {};
             u8cs content = {u8bDataHead(out), u8bIdleHead(out)};
-            keep_obj_sha(&actual, otype, content);
+            KEEPObjSha(&actual, otype, content);
             if (sha1eq(&actual, sha)) {
                 if (out_type) *out_type = otype;
                 done;
@@ -728,7 +727,7 @@ con char *keep_type_names[] = {
 };
 
 // Compute git object SHA-1: SHA1("type size\0" + content)
-static void keep_obj_sha(sha1 *out, u8 type, u8csc content) {
+void KEEPObjSha(sha1 *out, u8 type, u8csc content) {
     a_pad(u8, hdr, 64);
     a_cstr(tname, keep_type_names[type]);
     u8bFeed(hdr, tname);
@@ -804,7 +803,7 @@ ok64 KEEPPackFeed(keeper *k, keep_pack *p,
                   u8 type, u8csc content, sha1 *sha_out) {
     sane(k && p && p->log && type >= 1 && type <= 4);
 
-    keep_obj_sha(sha_out, type, content);
+    KEEPObjSha(sha_out, type, content);
 
     u64 obj_offset = u8bDataLen(p->log);
 
@@ -956,7 +955,7 @@ ok64 KEEPResolveTree(keeper *k, uricp target, sha1 *tree_sha) {
         if (type == DOG_OBJ_TREE) {
             // Already a tree — compute its SHA
             a_dup(u8c, content, u8bData(k->buf1));
-            keep_obj_sha(tree_sha, DOG_OBJ_TREE, content);
+            KEEPObjSha(tree_sha, DOG_OBJ_TREE, content);
             done;
         }
         if (type != DOG_OBJ_COMMIT) fail(KEEPFAIL);

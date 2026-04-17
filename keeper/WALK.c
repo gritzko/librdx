@@ -115,6 +115,13 @@ static ok64 walk_tree_entry(keeper *k, u8cp tree_sha, b8 eager,
     a_pad(u8, pathbuf, 2048);
     sha1 root = {};
     memcpy(root.data, tree_sha, 20);
+
+    u8cs empty_path = {}, empty_blob = {};
+    ok64 vo = visit(empty_path, WALK_KIND_DIR, tree_sha, empty_blob, ctx);
+    if (vo == WALKSTOP) return OK;
+    if (vo == WALKSKIP) return OK;
+    if (vo != OK) return vo;
+
     ok64 o = walk_tree_dive(k, &root, pathbuf, eager, visit, ctx);
     if (o == WALKSTOP) return OK;
     return o;

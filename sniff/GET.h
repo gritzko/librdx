@@ -5,8 +5,8 @@
 //
 //  Skips unchanged files (hashlet match), protects dirty files
 //  (worktree modified), creates symlinks for mode 120000,
-//  skips submodules (mode 160000).  Records SNIFF_HASHLET +
-//  SNIFF_CHECKOUT for every written file.
+//  skips submodules (mode 160000).  Records SNIFF_BLOB +
+//  SNIFF_CHECKOUT for every written file, SNIFF_TREE for every dir.
 
 #include "SNIFF.h"
 #include "keeper/KEEP.h"

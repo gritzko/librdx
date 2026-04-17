@@ -123,6 +123,10 @@ ok64 KEEPGetExact(keeper *k, sha1 const *sha, u8bp out, u8p out_type);
 //  Check if object exists in the store (hexlen = prefix length).
 ok64 KEEPHas(keeper *k, u64 hashlet60, size_t hexlen);
 
+//  Compute the canonical git object SHA-1 of a body: SHA1("<type>
+//  <size>\0" + body).  `type` must be one of DOG_OBJ_*.
+void KEEPObjSha(sha1 *out, u8 type, u8csc content);
+
 //  Raw index lookup: hashlet → val wh64 (flags|file|offset).
 //  hexlen: prefix length for partial matching (15 = full 60-bit).
 ok64 KEEPLookup(keeper *k, u64 hashlet60, size_t hexlen, u64p val);

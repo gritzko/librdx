@@ -61,10 +61,11 @@ static ok64 SNIFFScanAlloc(Bu8cs *buf, u8cs region) {
     done;
 }
 
-// Append a wh64 pair (HASHLET + CHECKOUT) to changes.
+// Append a wh64 pair (BLOB + CHECKOUT) to changes.  Bootstrap path:
+// ls-files lists only regular files, so the base type is always BLOB.
 static ok64 SNIFFWritePair(sniff *s, u32 idx, u64 hashlet, u64 checkout) {
     sane(s && s->changes);
-    wh64 h = wh64Pack(SNIFF_HASHLET, idx, hashlet);
+    wh64 h = wh64Pack(SNIFF_BLOB, idx, hashlet);
     wh64 c = wh64Pack(SNIFF_CHECKOUT, idx, checkout);
     call(FILEBookEnsure, s->changes, 2 * sizeof(wh64));
     u8p *idle = (u8p *)&s->changes[2];
@@ -195,6 +196,11 @@ ok64 SNIFFOpen(sniff *s, u8cs reporoot, b8 rw) {
     if (rw && SNIFFCount(s) == 0)
         call(SNIFFBootstrap, s, reporoot);
 
+    //  Ensure the root-dir path "/" is interned.  Its SNIFF_TREE
+    //  hashlet is the base tree (staged by PUT/DELETE, committed by
+    //  POST).  Harmless no-op on reopen of an existing state.
+    if (rw) (void)SNIFFRootIdx(s);
+
     done;
 }
 
@@ -248,13 +254,22 @@ u32 SNIFFIntern(sniff *s, u8cs path) {
 }
 
 u32 SNIFFInternDir(sniff *s, u8cs path) {
-    if ($empty(path)) return SNIFFIntern(s, path);
+    if ($empty(path)) return SNIFFRootIdx(s);
     if (*$last(path) == '/') return SNIFFIntern(s, path);
     a_pad(u8, tmp, 2048);
     u8bFeed(tmp, path);
     u8bFeed1(tmp, '/');
     u8cs dp = {u8bDataHead(tmp), tmp[2]};
     return SNIFFIntern(s, dp);
+}
+
+u32 SNIFFRootIdx(sniff *s) {
+    a_cstr(root, "/");
+    return SNIFFIntern(s, root);
+}
+
+u64 SNIFFBaseTree(sniff *s) {
+    return SNIFFGet(s, SNIFF_TREE, SNIFFRootIdx(s));
 }
 
 // --- Sort ---
@@ -315,7 +330,8 @@ ok64 SNIFFRecord(sniff *s, u8 type, u32 index, u64 off) {
     u32 past_count = (u32)u8csbDataLen(s->past);
     u32 cpast = SNIFFChangesPast(s);
 
-    if (index < past_count && (type == SNIFF_HASHLET || type == SNIFF_CHECKOUT)) {
+    if (index < past_count &&
+        (type == SNIFF_BLOB || type == SNIFF_TREE || type == SNIFF_CHECKOUT)) {
         u32 slot = 2 * index + (type == SNIFF_CHECKOUT ? 1 : 0);
         size_t pos = (size_t)slot * sizeof(wh64);
         if (pos + sizeof(wh64) <= cpast) {
@@ -337,13 +353,17 @@ u64 SNIFFGet(sniff const *s, u8 type, u32 index) {
     u32 past_count = (u32)u8csbDataLen(s->past);
     u32 cpast = SNIFFChangesPast(s);
 
-    if (index < past_count && (type == SNIFF_HASHLET || type == SNIFF_CHECKOUT)) {
+    if (index < past_count &&
+        (type == SNIFF_BLOB || type == SNIFF_TREE || type == SNIFF_CHECKOUT)) {
         u32 slot = 2 * index + (type == SNIFF_CHECKOUT ? 1 : 0);
         size_t pos = (size_t)slot * sizeof(wh64);
         if (pos + sizeof(wh64) <= cpast) {
             wh64 entry = 0;
             memcpy(&entry, u8bDataHead(s->changes) + pos, sizeof(wh64));
-            return wh64Off(entry);
+            // Slot 0 holds either BLOB or TREE; require exact match.
+            if (type == SNIFF_CHECKOUT || wh64Type(entry) == type)
+                return wh64Off(entry);
+            return 0;
         }
     }
 
@@ -365,7 +385,9 @@ ok64 SNIFFCompact(sniff *s) {
     u32 n = SNIFFCount(s);
     if (n == 0) done;
 
-    typedef struct { u64 hashlet; u64 checkout; u32 off; u32 len; } live_entry;
+    typedef struct {
+        u64 hashlet; u64 checkout; u32 off; u32 len; u8 type;
+    } live_entry;
     Bu8 ent_mem = {};
     call(u8bAllocate, ent_mem, (u64)n * sizeof(live_entry));
     live_entry *entries = (live_entry *)u8bHead(ent_mem);
@@ -377,13 +399,15 @@ ok64 SNIFFCompact(sniff *s) {
     for (u32 i = 0; i < n; i++) {
         u8cs p = {};
         if (SNIFFPath(p, s, i) != OK) continue;
-        u64 h = SNIFFGet(s, SNIFF_HASHLET, i);
+        u8 t = SNIFFIsDir(s, i) ? SNIFF_TREE : SNIFF_BLOB;
+        u64 h = SNIFFGet(s, t, i);
         u64 c = SNIFFGet(s, SNIFF_CHECKOUT, i);
         if (h == 0 && c == 0) continue;
         entries[live].hashlet = h;
         entries[live].checkout = c;
         entries[live].off = (u32)u8bDataLen(str_mem);
         entries[live].len = (u32)$len(p);
+        entries[live].type = t;
         u8bFeed(str_mem, p);
         live++;
     }
@@ -413,7 +437,12 @@ ok64 SNIFFCompact(sniff *s) {
         call(FILEBookEnsure, s->paths, entries[i].len + 1);
         u8bFeed(s->paths, p);
         u8bFeed1(s->paths, '\n');
-        call(SNIFFWritePair, s, i, entries[i].hashlet, entries[i].checkout);
+        wh64 h = wh64Pack(entries[i].type, i, entries[i].hashlet);
+        wh64 c = wh64Pack(SNIFF_CHECKOUT, i, entries[i].checkout);
+        call(FILEBookEnsure, s->changes, 2 * sizeof(wh64));
+        u8p *idle = (u8p *)&s->changes[2];
+        memcpy(*idle, &h, sizeof(wh64)); *idle += sizeof(wh64);
+        memcpy(*idle, &c, sizeof(wh64)); *idle += sizeof(wh64);
     }
 
     call(FILEBookEnsure, s->paths, 1);
@@ -514,9 +543,14 @@ static ok64 collect_visit(u8cs path, u8 kind, u8cp esha, u8cs blob,
     collect_ctx *c = (collect_ctx *)vctx;
     if (kind == WALK_KIND_SUB) return WALKSKIP;
 
-    u32 idx = (kind == WALK_KIND_DIR)
-            ? SNIFFInternDir(c->s, path)
-            : SNIFFIntern(c->s, path);
+    u32 idx;
+    if (kind == WALK_KIND_DIR && $empty(path))
+        idx = SNIFFRootIdx(c->s);
+    else if (kind == WALK_KIND_DIR)
+        idx = SNIFFInternDir(c->s, path);
+    else
+        idx = SNIFFIntern(c->s, path);
+
     if (idx < c->capacity)
         memcpy(c->shas[idx].data, esha, 20);
     return OK;
@@ -529,6 +563,29 @@ ok64 SNIFFCollectParentTree(sniff *s, keeper *k, u8cs parent_hex,
 
     sha1 tree_sha = {};
     call(SNIFFParentTreeSha, &tree_sha, k, parent_hex);
+
+    collect_ctx ctx = {.s = s, .shas = sha_tab, .capacity = capacity};
+    return WALKTreeLazy(k, tree_sha.data, collect_visit, &ctx);
+}
+
+ok64 SNIFFCollectBaseTree(sniff *s, keeper *k,
+                           sha1 *sha_tab, u32 capacity) {
+    sane(s && k && sha_tab);
+    u64 base = SNIFFBaseTree(s);
+    if (base == 0) done;  // no base yet — empty sha_tab.
+
+    // 40-bit hashlet → align as top 40 bits of keeper's 60-bit slot.
+    Bu8 tbuf = {};
+    call(u8bAllocate, tbuf, 1UL << 24);
+    u8 otype = 0;
+    ok64 o = KEEPGet(k, base << 20, 10, tbuf, &otype);
+    if (o != OK || otype != DOG_OBJ_TREE) {
+        u8bFree(tbuf);
+        return o == OK ? SNIFFFAIL : o;
+    }
+    sha1 tree_sha = {};
+    KEEPObjSha(&tree_sha, DOG_OBJ_TREE, u8bDataC(tbuf));
+    u8bFree(tbuf);
 
     collect_ctx ctx = {.s = s, .shas = sha_tab, .capacity = capacity};
     return WALKTreeLazy(k, tree_sha.data, collect_visit, &ctx);

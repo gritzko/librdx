@@ -364,29 +364,26 @@ static void sniff_usage(void) {
     fprintf(stderr,
             "Usage: sniff <command> [options] [files...]\n"
             "\n"
-            "  sniff index                rebuild index\n"
-            "  sniff update               update mtimes\n"
-            "  sniff status               show dirty/deleted files\n"
-            "  sniff checkout <hex>       checkout commit from keeper\n"
-            "  sniff commit -m <msg> --parent <hex>   commit changes\n"
-            "  sniff commit -a -m <msg> --parent <hex>  commit all\n"
-            "  sniff commit -m <msg> --parent <hex> f1 f2  commit files\n"
-            "  sniff watch                start watch daemon\n"
-            "  sniff stop                 stop watch daemon\n"
-            "  sniff list                 list all known paths\n"
-            "  sniff help                 this message\n"
+            "  sniff index                 rebuild index\n"
+            "  sniff update                update mtimes\n"
+            "  sniff status                show dirty/deleted files\n"
+            "  sniff get <hex>             checkout commit (alias: checkout)\n"
+            "  sniff put [files]           stage files into a new base tree\n"
+            "  sniff delete [files]        stage deletions into base tree\n"
+            "  sniff post -m <msg>         commit base tree (alias: commit)\n"
+            "  sniff watch                 start watch daemon\n"
+            "  sniff stop                  stop watch daemon\n"
+            "  sniff list                  list all known paths\n"
+            "  sniff help                  this message\n"
             "\n"
-            "  Shared verbs (dispatched by be):\n"
-            "  sniff get <hex>            checkout (repo -> worktree)\n"
-            "  sniff post --parent <hex>  build tree (worktree -> keeper)\n"
-            "  sniff put -m <msg> --parent <hex>  commit\n"
-            "  sniff delete --parent <hex> f1 f2  remove files from tree\n"
+            "  Empty-set shortcuts:\n"
+            "    sniff put                 stage every file with changed mtime\n"
+            "    sniff delete              stage every tracked file missing from disk\n"
+            "    sniff post                auto-stages dirty when nothing was put/deleted\n"
             "\n"
             "  Flags:\n"
             "    -m <msg>       commit message\n"
-            "    --parent <hex> parent commit SHA\n"
-            "    --author <who> author string\n"
-            "    -a             commit all (scan for new files)\n");
+            "    --author <who> author string\n");
 }
 
 // --- Verb/flag tables exported for the CLI wrapper ---
@@ -432,33 +429,25 @@ ok64 SNIFFExec(sniff *s, cli *c) {
     }
 
     b8 is_checkout = $eq(c->verb, v_checkout) || $eq(c->verb, v_get);
-    b8 is_commit = $eq(c->verb, v_commit) || $eq(c->verb, v_put);
+    b8 is_post = $eq(c->verb, v_post) || $eq(c->verb, v_commit);
+    b8 is_put = $eq(c->verb, v_put);
     b8 is_index = $eq(c->verb, v_index);
     b8 is_update = $eq(c->verb, v_update);
     b8 is_watch = $eq(c->verb, v_watch);
     b8 is_status = $eq(c->verb, v_status);
     b8 is_list = $eq(c->verb, v_list);
-    b8 is_post = $eq(c->verb, v_post);
     b8 is_delete = $eq(c->verb, v_delete);
     (void)is_index;
 
     ok64 ret = OK;
 
-    if (is_commit) {
+    if (is_post) {
         u8cs commit_msg = {};
         CLIFlag(commit_msg, c, "-m");
-        u8cs commit_parent = {};
-        CLIFlag(commit_parent, c, "--parent");
         u8cs commit_author = {};
         CLIFlag(commit_author, c, "--author");
-
-        if (!$ok(commit_parent)) {
-            u8cs head = {};
-            SNIFFHead(head, s);
-            if ($ok(head)) $mv(commit_parent, head);
-        }
-        if (!$ok(commit_msg) || !$ok(commit_parent)) {
-            fprintf(stderr, "sniff: commit requires -m and parent (--parent or HEAD)\n");
+        if (!$ok(commit_msg)) {
+            fprintf(stderr, "sniff: post/commit requires -m <message>\n");
             ret = SNIFFFAIL;
         } else {
             if (!$ok(commit_author)) {
@@ -467,130 +456,93 @@ ok64 SNIFFExec(sniff *s, cli *c) {
                 commit_author[1] = def[1];
             }
 
-            b8 do_all = CLIHas(c, "-a");
-
-            if (do_all)
-                sniff_scan_new(s, reporoot);
-
+            // Ensure mtimes are fresh so POSTCommit's auto-stage picks
+            // up dirty files when BASE == HEAD.tree.
+            sniff_scan_new(s, reporoot);
             sniff_stat_all(s, reporoot, SNIFF_CHANGED);
-
-            u8p cset = NULL;
-            u32 npaths = SNIFFCount(s);
-
-            if (c->nuris > 0) {
-                Bu8 csbuf = {};
-                call(u8bAllocate, csbuf, npaths);
-                memset(u8bDataHead(csbuf), 0, npaths);
-                cset = u8bDataHead(csbuf);
-                for (u32 f = 0; f < c->nuris; f++) {
-                    u32 idx = SNIFFIntern(s, c->uris[f].data);
-                    if (idx < npaths) cset[idx] = 1;
-                }
-            }
 
             keeper k = {};
             ret = KEEPOpen(&k, reporoot, YES);
             if (ret == OK) {
                 sha1 sha = {};
-                ret = PUTCommit(s, &k, reporoot, commit_parent,
-                                commit_msg, commit_author, cset, &sha);
+                ret = POSTCommit(s, &k, reporoot,
+                                 commit_msg, commit_author, &sha);
                 KEEPClose(&k);
             }
         }
-    } else if (is_post) {
-        u8cs commit_parent = {};
-        CLIFlag(commit_parent, c, "--parent");
-        if (!$ok(commit_parent)) {
-            u8cs head = {};
-            SNIFFHead(head, s);
-            if ($ok(head)) $mv(commit_parent, head);
-        }
-        if (!$ok(commit_parent)) {
-            fprintf(stderr, "sniff: post requires parent (--parent or HEAD)\n");
-            ret = SNIFFFAIL;
-        } else {
-            sniff_stat_all(s, reporoot, SNIFF_CHANGED);
+    } else if (is_put) {
+        sniff_scan_new(s, reporoot);
+        sniff_stat_all(s, reporoot, SNIFF_CHANGED);
 
-            u8p cset = NULL;
-            u32 npaths = SNIFFCount(s);
-            if (c->nuris > 0) {
-                Bu8 csbuf = {};
-                call(u8bAllocate, csbuf, npaths);
-                memset(u8bDataHead(csbuf), 0, npaths);
-                cset = u8bDataHead(csbuf);
-                for (u32 f = 0; f < c->nuris; f++) {
-                    u32 idx = SNIFFIntern(s, c->uris[f].data);
-                    if (idx < npaths) cset[idx] = 1;
-                }
+        u8p cset = NULL;
+        u32 npaths = SNIFFCount(s);
+        Bu8 csbuf = {};
+        if (c->nuris > 0) {
+            call(u8bAllocate, csbuf, npaths);
+            memset(u8bDataHead(csbuf), 0, npaths);
+            cset = u8bDataHead(csbuf);
+            for (u32 f = 0; f < c->nuris; f++) {
+                u32 idx = SNIFFIntern(s, c->uris[f].data);
+                if (idx < npaths) cset[idx] = 1;
             }
+        }
 
-            keeper k = {};
-            ret = KEEPOpen(&k, reporoot, YES);
+        keeper k = {};
+        ret = KEEPOpen(&k, reporoot, YES);
+        if (ret == OK) {
+            keep_pack p = {};
+            ret = KEEPPackOpen(&k, &p);
             if (ret == OK) {
-                keep_pack p = {};
-                ret = KEEPPackOpen(&k, &p);
+                sha1 tree = {};
+                ret = PUTStage(&tree, s, &k, &p, reporoot, cset);
+                KEEPPackClose(&k, &p);
                 if (ret == OK) {
-                    sha1 tree = {};
-                    ret = POSTTree(&tree, s, &k, &p, reporoot,
-                                    commit_parent, cset);
-                    KEEPPackClose(&k, &p);
-                    if (ret == OK) {
-                        a_pad(u8, hex, 40);
-                        a_rawc(ts, tree);
-                        HEXu8sFeedSome(hex_idle, ts);
-                        fprintf(stderr, "sniff: tree %.*s\n",
-                                (int)u8bDataLen(hex),
-                                (char *)u8bDataHead(hex));
-                    }
+                    a_pad(u8, hex, 40);
+                    a_rawc(ts, tree);
+                    HEXu8sFeedSome(hex_idle, ts);
+                    fprintf(stderr, "sniff: staged tree %.*s\n",
+                            (int)u8bDataLen(hex),
+                            (char *)u8bDataHead(hex));
                 }
-                KEEPClose(&k);
             }
+            KEEPClose(&k);
         }
+        if (cset) u8bFree(csbuf);
     } else if (is_delete) {
-        u8cs commit_parent = {};
-        CLIFlag(commit_parent, c, "--parent");
-        if (!$ok(commit_parent)) {
-            u8cs head = {};
-            SNIFFHead(head, s);
-            if ($ok(head)) $mv(commit_parent, head);
-        }
-        if (!$ok(commit_parent) || c->nuris < 1) {
-            fprintf(stderr,
-                    "sniff: delete requires parent (--parent or HEAD) and file(s)\n");
-            ret = SNIFFFAIL;
-        } else {
-            u32 npaths = SNIFFCount(s);
-            Bu8 dsbuf = {};
+        u32 npaths = SNIFFCount(s);
+        u8p dset = NULL;
+        Bu8 dsbuf = {};
+        if (c->nuris > 0) {
             call(u8bAllocate, dsbuf, npaths);
             memset(u8bDataHead(dsbuf), 0, npaths);
-            u8p dset = u8bDataHead(dsbuf);
+            dset = u8bDataHead(dsbuf);
             for (u32 f = 0; f < c->nuris; f++) {
                 u32 idx = SNIFFIntern(s, c->uris[f].data);
                 if (idx < npaths) dset[idx] = 1;
             }
-
-            keeper k = {};
-            ret = KEEPOpen(&k, reporoot, YES);
-            if (ret == OK) {
-                keep_pack p = {};
-                ret = KEEPPackOpen(&k, &p);
-                if (ret == OK) {
-                    sha1 tree = {};
-                    ret = DELTree(&tree, s, &k, &p, reporoot,
-                                   commit_parent, dset);
-                    KEEPPackClose(&k, &p);
-                    if (ret == OK) {
-                        a_pad(u8, hex, 40);
-                        a_rawc(ts, tree);
-                        HEXu8sFeedSome(hex_idle, ts);
-                        fprintf(stderr, "sniff: tree %.*s\n",
-                                (int)u8bDataLen(hex),
-                                (char *)u8bDataHead(hex));
-                    }
-                }
-                KEEPClose(&k);
-            }
         }
+
+        keeper k = {};
+        ret = KEEPOpen(&k, reporoot, YES);
+        if (ret == OK) {
+            keep_pack p = {};
+            ret = KEEPPackOpen(&k, &p);
+            if (ret == OK) {
+                sha1 tree = {};
+                ret = DELStage(&tree, s, &k, &p, reporoot, dset);
+                KEEPPackClose(&k, &p);
+                if (ret == OK) {
+                    a_pad(u8, hex, 40);
+                    a_rawc(ts, tree);
+                    HEXu8sFeedSome(hex_idle, ts);
+                    fprintf(stderr, "sniff: staged tree %.*s\n",
+                            (int)u8bDataLen(hex),
+                            (char *)u8bDataHead(hex));
+                }
+            }
+            KEEPClose(&k);
+        }
+        if (dset) u8bFree(dsbuf);
     } else if (is_checkout) {
         if (c->nuris < 1) {
             fprintf(stderr, "sniff: get/checkout requires a URI or hex\n");

@@ -36,13 +36,21 @@ static ok64 get_visit(u8cs path, u8 kind, u8cp esha, u8cs blob,
     u64 entry_hashlet = WHIFFHashlet40((sha1cp)esha);
 
     if (kind == WALK_KIND_DIR) {
+        if ($empty(path)) {
+            // Root tree: record base hashlet at the reserved root idx.
+            u32 ridx = SNIFFRootIdx(s);
+            g->seen[ridx] = 1;
+            SNIFFRecord(s, SNIFF_TREE, ridx, entry_hashlet);
+            return OK;  // walker recurses into children
+        }
+
         a_path(dp);
         SNIFFFullpath(dp, g->reporoot, path);
         FILEMakeDirP($path(dp));
 
         u32 idx = SNIFFInternDir(s, path);
         g->seen[idx] = 1;
-        SNIFFRecord(s, SNIFF_HASHLET, idx, entry_hashlet);
+        SNIFFRecord(s, SNIFF_TREE, idx, entry_hashlet);
         return OK;  // walker recurses
     }
 
@@ -50,8 +58,18 @@ static ok64 get_visit(u8cs path, u8 kind, u8cp esha, u8cs blob,
     u32 idx = SNIFFIntern(s, path);
     g->seen[idx] = 1;
 
-    u64 old_hashlet = SNIFFGet(s, SNIFF_HASHLET, idx);
-    if (old_hashlet == entry_hashlet && old_hashlet != 0) return WALKSKIP;
+    // Fast path: if the hashlet already matches AND the file still
+    // exists on disk, skip the rewrite.  Missing-on-disk falls through
+    // so checkout can re-materialise a rm'd file.
+    u64 old_hashlet = SNIFFGet(s, SNIFF_BLOB, idx);
+    if (old_hashlet == entry_hashlet && old_hashlet != 0) {
+        a_path(existing);
+        if (SNIFFFullpath(existing, g->reporoot, path) == OK) {
+            struct stat xb = {};
+            if (lstat((char *)u8bDataHead(existing), &xb) == 0)
+                return WALKSKIP;
+        }
+    }
 
     u64 co = SNIFFGet(s, SNIFF_CHECKOUT, idx);
     u64 ch = SNIFFGet(s, SNIFF_CHANGED, idx);
@@ -92,7 +110,7 @@ static ok64 get_visit(u8cs path, u8 kind, u8cp esha, u8cs blob,
     }
     u8bFree(bbuf);
 
-    SNIFFRecord(s, SNIFF_HASHLET, idx, entry_hashlet);
+    SNIFFRecord(s, SNIFF_BLOB, idx, entry_hashlet);
 
     struct stat sb = {};
     if (FILEStat(&sb, $path(fp)) == OK)
@@ -111,7 +129,7 @@ static ok64 GETPrune(sniff *s, u8cs reporoot, u8cp seen) {
     // Pass 1: unlink files
     for (u32 i = 0; i < n; i++) {
         if (seen[i]) continue;
-        u64 h = SNIFFGet(s, SNIFF_HASHLET, i);
+        u64 h = SNIFFGet(s, SNIFF_BLOB, i);
         if (h == 0) continue;
         if (SNIFFIsDir(s, i)) continue;
 
@@ -124,7 +142,7 @@ static ok64 GETPrune(sniff *s, u8cs reporoot, u8cp seen) {
 
         ok64 o = FILEUnLink($path(fp));
         if (o == OK || o == FILENOENT) {
-            SNIFFRecord(s, SNIFF_HASHLET, i, 0);
+            SNIFFRecord(s, SNIFF_BLOB, i, 0);
             SNIFFRecord(s, SNIFF_CHECKOUT, i, 0);
             removed++;
         } else {
@@ -138,7 +156,7 @@ static ok64 GETPrune(sniff *s, u8cs reporoot, u8cp seen) {
     for (u32 i = n; i > 0; ) {
         i--;
         if (seen[i]) continue;
-        u64 h = SNIFFGet(s, SNIFF_HASHLET, i);
+        u64 h = SNIFFGet(s, SNIFF_TREE, i);
         if (h == 0) continue;
         if (!SNIFFIsDir(s, i)) continue;
 
@@ -150,7 +168,7 @@ static ok64 GETPrune(sniff *s, u8cs reporoot, u8cp seen) {
 
         ok64 o = FILERmDir($path(fp), NO);
         if (o == OK || o == FILENOENT || o == FILENOTEMP) {
-            SNIFFRecord(s, SNIFF_HASHLET, i, 0);
+            SNIFFRecord(s, SNIFF_TREE, i, 0);
             SNIFFRecord(s, SNIFF_CHECKOUT, i, 0);
         }
     }

@@ -172,13 +172,13 @@ ok64 WALKtest2() {
 
     call(KEEPPackClose, &k, &p);
 
-    // Eager walk.
+    // Eager walk.  One root DIR visit, three files, one sub DIR.
     {
         w2_ctx c = {};
         call(WALKTree, &k, root_sha.data, w2_visit, &c);
-        want(c.n_entries == 4);
+        want(c.n_entries == 5);
         want(c.n_files == 3);
-        want(c.n_dirs == 1);
+        want(c.n_dirs == 2);
         want(c.n_files_with_blob == 3);  // eager: all files carry blob
     }
 
@@ -186,9 +186,9 @@ ok64 WALKtest2() {
     {
         w2_ctx c = {};
         call(WALKTreeLazy, &k, root_sha.data, w2_visit, &c);
-        want(c.n_entries == 4);
+        want(c.n_entries == 5);
         want(c.n_files == 3);
-        want(c.n_dirs == 1);
+        want(c.n_dirs == 2);
         want(c.n_files_with_blob == 0);
     }
 
@@ -197,9 +197,9 @@ ok64 WALKtest2() {
         w2_ctx c = {};
         strcpy(c.dir_to_skip, "sub");
         call(WALKTreeLazy, &k, root_sha.data, w2_visit, &c);
-        want(c.n_entries == 3);   // hello.txt, run.sh, sub (skipped after visit)
+        want(c.n_entries == 4);   // root, hello.txt, run.sh, sub (skipped)
         want(c.n_files == 2);
-        want(c.n_dirs == 1);
+        want(c.n_dirs == 2);
     }
 
     call(KEEPClose, &k);

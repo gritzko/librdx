@@ -8,11 +8,14 @@
 //    state.log   flat append-only log of wh64 entries
 //
 //  Change entry types (wh64: type[4] | id[20] | off[40]):
-//    SNIFF_HASHLET  (1)  id=path_index, off=sha hashlet (base version)
+//    SNIFF_BLOB     (1)  id=path_index, off=blob hashlet (file base)
 //    SNIFF_CHECKOUT (2)  id=path_index, off=mtime at checkout
 //    SNIFF_CHANGED  (3)  id=path_index, off=mtime observed
+//    SNIFF_TREE     (4)  id=path_index, off=tree hashlet (dir base)
 //
-//  Dirs also get path indices; type=0 carries tree object hashlets.
+//  BLOB and TREE occupy the same paired-slot (0) as the "base hashlet"
+//  for files and dirs respectively.  Dirs end with '/' in the path
+//  string; the empty-path index (0) is reserved for the root tree.
 //
 //  In RAM:
 //    Bu32  offsets   offsets[i] = byte pos of path i in booked paths
@@ -36,9 +39,10 @@ con ok64 SNIFFNOROOM = 0xc5d23cf5d86d8616;
 
 // --- Entry types ---
 
-#define SNIFF_HASHLET   1   // base object hashlet
+#define SNIFF_BLOB      1   // base blob hashlet (files)
 #define SNIFF_CHECKOUT  2   // mtime at checkout (clean state)
 #define SNIFF_CHANGED   3   // mtime observed (dirty)
+#define SNIFF_TREE      4   // base tree hashlet (dirs)
 
 // Key for state hash: low 24 bits of wh64 (type | id<<4)
 #define SNIFF_KEY(type, id) \
@@ -108,6 +112,14 @@ fun ok64 SNIFFFullpath(path8b out, u8cs reporoot, u8cs rel) {
 //  Intern a directory path (appends / if missing).
 u32  SNIFFInternDir(sniff *s, u8cs path);
 
+//  Intern the repo root dir ("/") and return its index.  The root's
+//  SNIFF_TREE hashlet is the base tree — the "staged" tree that
+//  PUT/DELETE update and POST commits.
+u32  SNIFFRootIdx(sniff *s);
+
+//  Convenience: current base tree hashlet (0 if unset).
+u64  SNIFFBaseTree(sniff *s);
+
 //  Build sorted index array (by path string, depth-first).
 //  Stores result in s->sorted.
 ok64 SNIFFSort(sniff *s);
@@ -147,5 +159,11 @@ ok64 SNIFFParentTreeSha(sha1 *tree_out, keeper *k, u8cs parent_hex);
 //  sha1 values and zero-initialized.  Submodules skipped.
 ok64 SNIFFCollectParentTree(sniff *s, keeper *k, u8cs parent_hex,
                              sha1 *sha_tab, u32 capacity);
+
+//  Same, but walks the current base tree (root SNIFF_TREE hashlet)
+//  instead of a named parent commit.  No-op if base is unset.  Used
+//  by PUT/DELETE to seed per-entry SHAs for tree reuse.
+ok64 SNIFFCollectBaseTree(sniff *s, keeper *k,
+                           sha1 *sha_tab, u32 capacity);
 
 #endif

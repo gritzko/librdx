@@ -1,23 +1,20 @@
 #ifndef SNIFF_POST_H
 #define SNIFF_POST_H
 
-//  POST: build tree from worktree state, write blobs + tree objects.
+//  POST: commit the current base tree.
 //
-//  Walks sniff sorted path index depth-first.  Unchanged subtrees
-//  are reused by hashlet.  Dirty files get new blobs; old hashlet
-//  is passed to keeper for delta compression.
+//  Wraps the root-dir SNIFF_TREE hashlet into a commit object with
+//  parent = current HEAD and updates HEAD to the new commit.
 //
-//  commit_set: if non-NULL, only files with commit_set[idx]=1 are
-//  considered changed.  If NULL, all files with changed mtime.
-//  Files missing from disk are excluded (deletions).
+//  If the base tree is unset or equals the HEAD commit's tree (i.e.
+//  no prior PUT/DELETE has staged anything), POSTCommit first calls
+//  PUTStage(s, k, reporoot, NULL) to auto-stage everything dirty on
+//  disk.  This matches `git commit -a` ergonomics.
 
 #include "SNIFF.h"
 #include "keeper/KEEP.h"
 
-//  Build tree from worktree, write blobs + trees into pack.
-//  Collects old SHAs from parent_hex (commit hex prefix).
-//  Returns root tree SHA via tree_out.
-ok64 POSTTree(sha1 *tree_out, sniff *s, keeper *k, keep_pack *p,
-              u8cs reporoot, u8cs parent_hex, u8cp commit_set);
+ok64 POSTCommit(sniff *s, keeper *k, u8cs reporoot,
+                u8cs message, u8cs author, sha1 *sha_out);
 
 #endif

@@ -1,20 +1,24 @@
 #ifndef SNIFF_DEL_H
 #define SNIFF_DEL_H
 
-//  DEL: build a tree with specified files/dirs removed.
+//  DELETE: stage a tree with the specified paths removed.
 //
-//  Walks sniff sorted path index, excludes entries in the delete
-//  set, rebuilds only affected subtrees.  Unchanged subtrees are
-//  reused by hashlet.
+//  Walks the sniff sorted path index, excluding every entry marked
+//  in `del_set`, and rebuilds only the subtrees that were affected.
+//  Unchanged subtrees are reused by hashlet.
+//
+//  Side-effects mirror PUT:
+//    * writes tree objects into `p`;
+//    * updates SNIFF_TREE for every rebuilt subtree (including root);
+//    * clears SNIFF_BLOB / SNIFF_CHECKOUT for deleted files.
+//
+//  del_set: if NULL, auto-stage every tracked file that is missing
+//  from disk (the "DELETE no-args" CLI shape).
 
 #include "SNIFF.h"
 #include "keeper/KEEP.h"
 
-//  Build tree excluding deleted paths.
-//  del_set[idx]=1 for paths to remove.
-//  parent_hex: commit to diff against.
-//  Returns new root tree SHA via tree_out.
-ok64 DELTree(sha1 *tree_out, sniff *s, keeper *k, keep_pack *p,
-             u8cs reporoot, u8cs parent_hex, u8cp del_set);
+ok64 DELStage(sha1 *tree_out, sniff *s, keeper *k, keep_pack *p,
+              u8cs reporoot, u8cp del_set);
 
 #endif
