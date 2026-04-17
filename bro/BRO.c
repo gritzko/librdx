@@ -2,6 +2,7 @@
 
 #include <ctype.h>
 #include <dirent.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <poll.h>
 #include <signal.h>
@@ -2064,6 +2065,18 @@ u32 BROAppendLines(range32 *lines, u32 nlines, u32 maxlines,
 ok64 BROPipeRun(int pipefd) {
     sane(pipefd >= 0);
 
+    // If pipefd is a TTY (bro invoked with no data source), ignore
+    // it — otherwise the pipe-drain would swallow keystrokes that
+    // should reach the keyboard handler (e.g. 'q' to quit).
+    b8 pipe_eof = isatty(pipefd) ? YES : NO;
+
+    // Non-blocking so the read loop can drain what's ready and exit
+    // on EAGAIN without a separate poll probe.
+    if (!pipe_eof) {
+        int fl = fcntl(pipefd, F_GETFL, 0);
+        if (fl >= 0) (void)fcntl(pipefd, F_SETFL, fl | O_NONBLOCK);
+    }
+
     call(BROArenaInit);
 
     // Allocate growable read buffer
@@ -2117,7 +2130,6 @@ ok64 BROPipeRun(int pipefd) {
     scr_puts(TTY_INVERSE TTY_ERASE_LINE " nothing..." TTY_RESET);
     BROScreenFlush();
 
-    b8 pipe_eof = NO;
     b8 quit = NO;
     u32 indexed_nhunks = 0;
     u32 rendered_nhunks = 0;
@@ -2162,16 +2174,20 @@ ok64 BROPipeRun(int pipefd) {
         b8 changed = NO;
         b8 key_pressed = NO;
 
-        // Read from pipe
+        // Drain everything ready before rendering so a fast producer
+        // doesn't trigger a burst of partial-frame repaints (visible
+        // as screen blinking during load).
         if (!pipe_eof && (fds[1].revents & (POLLIN | POLLHUP))) {
-            size_t space = u8bIdleLen(rdbuf);
-            if (space > 0) {
+            for (;;) {
+                size_t space = u8bIdleLen(rdbuf);
+                if (space == 0) break;
                 ssize_t nr = read(pipefd, u8bIdleHead(rdbuf), space);
                 if (nr > 0) {
                     u8bFed(rdbuf, (size_t)nr);
-                } else if (nr == 0) {
-                    pipe_eof = YES;
+                    continue;
                 }
+                if (nr == 0) pipe_eof = YES;
+                break;  // EAGAIN or EOF
             }
 
             // Drain complete TLV records
