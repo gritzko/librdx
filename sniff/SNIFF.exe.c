@@ -35,7 +35,7 @@ static ok64 sniff_stat_all(sniff *s, u8cs reporoot, u8 type) {
         a_path(fp);
         if (SNIFFFullpath(fp, reporoot, rel) != OK) continue;
         struct stat sb = {};
-        if (FILEStat(&sb, PATHu8cgIn(fp)) != OK) continue;
+        if (FILEStat(&sb, $path(fp)) != OK) continue;
         SNIFFRecord(s, type, i, (u64)sb.st_mtim.tv_sec);
         count++;
     }
@@ -57,7 +57,7 @@ static ok64 sniff_write_pid(u8cs reporoot) {
     a_path(pp, reporoot);
     a_cstr(rel, "/" SNIFF_DIR "/pid");
     call(u8bFeed, pp, rel);
-    call(PATHu8gTerm, PATHu8gIn(pp));
+    call(PATHu8bTerm, pp);
     FILE *fp = fopen((char *)u8bDataHead(pp), "w");
     if (!fp) fail(SNIFFFAIL);
     fprintf(fp, "%d\n", (int)getpid());
@@ -70,7 +70,7 @@ static ok64 sniff_rm_pid(u8cs reporoot) {
     a_path(pp, reporoot);
     a_cstr(rel, "/" SNIFF_DIR "/pid");
     call(u8bFeed, pp, rel);
-    call(PATHu8gTerm, PATHu8gIn(pp));
+    call(PATHu8bTerm, pp);
     unlink((char *)u8bDataHead(pp));
     done;
 }
@@ -137,7 +137,7 @@ static ok64 sniff_stop(u8cs reporoot) {
     a_path(pp, reporoot);
     a_cstr(rel, "/" SNIFF_DIR "/pid");
     call(u8bFeed, pp, rel);
-    call(PATHu8gTerm, PATHu8gIn(pp));
+    call(PATHu8bTerm, pp);
     FILE *fp = fopen((char *)u8bDataHead(pp), "r");
     if (!fp) { fprintf(stderr, "sniff: no daemon running\n"); done; }
     int dpid = 0;
@@ -167,7 +167,7 @@ static ok64 sniff_status(sniff *s, u8cs reporoot) {
         a_path(fp);
         if (SNIFFFullpath(fp, reporoot, rel) != OK) continue;
         struct stat sb = {};
-        if (FILEStat(&sb, PATHu8cgIn(fp)) != OK) {
+        if (FILEStat(&sb, $path(fp)) != OK) {
             printf("D %.*s\n", (int)$len(rel), (char *)rel[0]);
             dirty++;
             continue;
@@ -307,7 +307,7 @@ static ok64 sniff_scan_cb(void0p arg, path8p path) {
         Bu8 content = {};
         if (u8bAllocate(content, 1UL << 20) != OK) return OK;
         int fd = -1;
-        if (FILEOpen(&fd, PATHu8cgIn(fp), O_RDONLY) != OK) {
+        if (FILEOpen(&fd, $path(fp), O_RDONLY) != OK) {
             u8bFree(content); return OK;
         }
         FILEdrainall(u8bIdle(content), fd);

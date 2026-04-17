@@ -130,7 +130,7 @@ ok64 REFSLoad(refp arr, u32p out_n, u32 max, u8bp *map, u8csc dir) {
 
     a_cstr(fname, REFS_FILE);
     a_path(path, dir, fname);
-    ok64 o = FILEMapRO(map, PATHu8cgIn(path));
+    ok64 o = FILEMapRO(map, $path(path));
     if (o != OK) { *out_n = 0; return OK; }
 
     u32 n = 0;
@@ -359,7 +359,7 @@ ok64 REFSCompact(u8csc dir) {
     a_cstr(fname, REFS_FILE);
     a_path(tmppath, dir, tmpname);
     int fd = -1;
-    o = FILECreate(&fd, PATHu8cgIn(tmppath));
+    o = FILECreate(&fd, $path(tmppath));
     if (o != OK) { free(arr); if (map) u8bUnMap(map); fail(REFSFAIL); }
 
     a_pad(u8, line, 2048);
@@ -375,7 +375,7 @@ ok64 REFSCompact(u8csc dir) {
     if (map) u8bUnMap(map);
 
     a_path(fpath, dir, fname);
-    o = FILERename(PATHu8cgIn(tmppath), PATHu8cgIn(fpath));
+    o = FILERename($path(tmppath), $path(fpath));
     if (o != OK) fail(REFSFAIL);
 
     done;

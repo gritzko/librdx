@@ -67,10 +67,10 @@ static ok64 dag_commit_read(u32 *count, u8cs dagdir,
     a_path(path, dagdir);
     a_cstr(name, "/COMMIT");
     call(u8bFeed, path, name);
-    call(PATHu8gTerm, PATHu8gIn(path));
+    call(PATHu8bTerm, path);
 
     u8bp mapped = NULL;
-    ok64 o = FILEMapRO(&mapped, PATHu8cgIn(path));
+    ok64 o = FILEMapRO(&mapped, $path(path));
     if (o != OK) done;
 
     u8cp p = u8bDataHead(mapped);
@@ -157,10 +157,10 @@ static ok64 dag_paths_init(dag_paths *p, u8cs dagdir) {
     a_path(path, dagdir);
     a_cstr(name, "/PATHS");
     call(u8bFeed, path, name);
-    call(PATHu8gTerm, PATHu8gIn(path));
+    call(PATHu8bTerm, path);
 
     u8bp mapped = NULL;
-    ok64 o = FILEMapRO(&mapped, PATHu8cgIn(path));
+    ok64 o = FILEMapRO(&mapped, $path(path));
     if (o == OK) {
         u8cp base = u8bDataHead(mapped);
         u8cp end = u8bIdleHead(mapped);
@@ -230,10 +230,10 @@ static ok64 dag_index_write(u8cs dagdir, belt128cs run, u64 seqno) {
     ((u8 **)path)[2] += DAG_SEQNO_W;
     a_cstr(idxext, DAG_IDX_EXT);
     call(u8bFeed, path, idxext);
-    call(PATHu8gTerm, PATHu8gIn(path));
+    call(PATHu8bTerm, path);
 
     int fd = -1;
-    call(FILECreate, &fd, PATHu8cgIn(path));
+    call(FILECreate, &fd, $path(path));
     size_t bytes = $len(run) * sizeof(belt128);
     u8cs data = {(u8cp)run[0], (u8cp)run[0] + bytes};
     call(FILEFeedAll, fd, data);
@@ -308,7 +308,7 @@ ok64 dag_stack_open(dag_stack *st, u8cs dagdir) {
         a_path(fpath, dagdir, fn);
 
         u8bp mapped = NULL;
-        if (FILEMapRO(&mapped, PATHu8cgIn(fpath)) != OK) continue;
+        if (FILEMapRO(&mapped, $path(fpath)) != OK) continue;
         belt128cp base = (belt128cp)u8bDataHead(mapped);
         size_t nentries = (u8bIdleHead(mapped) - u8bDataHead(mapped)) / sizeof(belt128);
         st->runs[st->n][0] = base;
@@ -493,10 +493,10 @@ static ok64 dag_write_tips(u8cs dagdir, sha1 const tips[], u32 ntips) {
     a_path(path, dagdir);
     a_cstr(name, "/COMMIT");
     call(u8bFeed, path, name);
-    call(PATHu8gTerm, PATHu8gIn(path));
+    call(PATHu8bTerm, path);
 
     int fd = -1;
-    call(FILECreate, &fd, PATHu8cgIn(path));
+    call(FILECreate, &fd, $path(path));
     u8cs nl = {(u8cp)"\n", (u8cp)"\n" + 1};
     for (u32 i = 0; i < ntips; i++) {
         char hex[41];
@@ -805,9 +805,9 @@ ok64 DAGHook(keeper *k, u8cs reporoot) {
     a_path(dagpath, reporoot);
     a_cstr(dagrel, "/" DAG_DIR);
     call(u8bFeed, dagpath, dagrel);
-    call(PATHu8gTerm, PATHu8gIn(dagpath));
+    call(PATHu8bTerm, dagpath);
     a_dup(u8c, dagdir, u8bDataC(dagpath));
-    call(FILEMakeDirP, PATHu8cgIn(dagpath));
+    call(FILEMakeDirP, $path(dagpath));
 
     // Read current ref tips from keeper REFS
     sha1 tips[DAG_MAX_SHAS] = {};

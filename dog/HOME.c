@@ -8,8 +8,8 @@
 #include "abc/FILE.h"
 #include "abc/PRO.h"
 
-ok64 HOMEFollowWorktree(path8b out, path8cg gitfile) {
-    sane(out != NULL && PATHu8cgOK(gitfile));
+ok64 HOMEFollowWorktree(path8b out, path8s gitfile) {
+    sane(out != NULL && ($ok(gitfile) && !$empty(gitfile)));
     u8bp mapped = NULL;
     call(FILEMapRO, &mapped, gitfile);
     a_dup(u8c, content, u8bDataC(mapped));
@@ -31,18 +31,18 @@ ok64 HOMEFollowWorktree(path8b out, path8cg gitfile) {
         if (gds[0][0] == '/') {
             o = PATHu8bFeed(gitdir, gds);
         } else {
-            a_dupcg(u8, gf, gitfile);
+            a_dup(u8, gf, gitfile);
             o = PATHu8bFeed(gitdir, gf);
             if (o == OK) o = PATHu8bPop(gitdir);
             if (o == OK) o = PATHu8bPush(gitdir, gds);
         }
         if (o != OK) goto out;
     }
-    o = FILEisdir(PATHu8cgIn(gitdir));
+    o = FILEisdir($path(gitdir));
     if (o != OK) goto out;
     o = PATHu8bPop(gitdir);
     if (o == OK) o = PATHu8bPop(gitdir);
-    if (o == OK) o = FILEisdir(PATHu8cgIn(gitdir));
+    if (o == OK) o = FILEisdir($path(gitdir));
     if (o != OK) goto out;
     o = PATHu8bPop(gitdir);
     if (o != OK) goto out;
@@ -80,7 +80,7 @@ static ok64 HOMEWalkUp(path8b out, b8 *is_worktree) {
             a_dup(u8c, cur, u8bDataC(out));
             call(PATHu8bFeed, probe, cur);
             call(PATHu8bPush, probe, dotgit);
-            if (stat((char const *)*PATHu8cgIn(probe), &sb) == 0) {
+            if (stat((char const *)*$path(probe), &sb) == 0) {
                 if (is_worktree)
                     *is_worktree = (sb.st_mode & S_IFDIR) ? NO : YES;
                 done;
@@ -92,7 +92,7 @@ static ok64 HOMEWalkUp(path8b out, b8 *is_worktree) {
             a_dup(u8c, cur, u8bDataC(out));
             call(PATHu8bFeed, probe, cur);
             call(PATHu8bPush, probe, dotdogs);
-            if (stat((char const *)*PATHu8cgIn(probe), &sb) == 0 &&
+            if (stat((char const *)*$path(probe), &sb) == 0 &&
                 (sb.st_mode & S_IFDIR)) {
                 done;
             }
@@ -128,7 +128,7 @@ ok64 HOMEFindDogs(path8b out) {
     call(PATHu8bPush, probe, dotgit);
 
     a_path(parent);
-    ok64 fo = HOMEFollowWorktree(parent, PATHu8cgIn(probe));
+    ok64 fo = HOMEFollowWorktree(parent, $path(probe));
     if (fo == OK) {
         // Parent repo found — use it for .dogs/
         u8bReset(out);

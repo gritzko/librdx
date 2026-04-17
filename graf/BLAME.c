@@ -175,10 +175,10 @@ static u32 blame_walk_history(blame_ver *vers, u32 maxvers,
     a_path(pp, dagdir);
     a_cstr(pname, "/PATHS");
     if (u8bFeed(pp, pname) != OK) return 0;
-    PATHu8gTerm(PATHu8gIn(pp));
+    PATHu8bTerm(pp);
 
     u8bp pmap = NULL;
-    if (FILEMapRO(&pmap, PATHu8cgIn(pp)) != OK) return 0;
+    if (FILEMapRO(&pmap, $path(pp)) != OK) return 0;
     a_dup(u8c, pdata, u8bDataC(pmap));
 
     // PATHS is NUL-separated: find the index of filepath

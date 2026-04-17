@@ -38,7 +38,7 @@ static ok64 get_visit(u8cs path, u8 kind, u8cp esha, u8cs blob,
     if (kind == WALK_KIND_DIR) {
         a_path(dp);
         SNIFFFullpath(dp, g->reporoot, path);
-        FILEMakeDirP(PATHu8cgIn(dp));
+        FILEMakeDirP($path(dp));
 
         u32 idx = SNIFFInternDir(s, path);
         g->seen[idx] = 1;
@@ -81,7 +81,7 @@ static ok64 get_visit(u8cs path, u8 kind, u8cp esha, u8cs blob,
         symlink((char *)u8bDataHead(bbuf), (char *)u8bDataHead(fp));
     } else {
         int fd = -1;
-        o = FILECreate(&fd, PATHu8cgIn(fp));
+        o = FILECreate(&fd, $path(fp));
         if (o != OK) { u8bFree(bbuf); g->error = o; return o; }
         u8cs data = {u8bDataHead(bbuf), u8bIdleHead(bbuf)};
         o = FILEFeedAll(fd, data);
@@ -95,7 +95,7 @@ static ok64 get_visit(u8cs path, u8 kind, u8cp esha, u8cs blob,
     SNIFFRecord(s, SNIFF_HASHLET, idx, entry_hashlet);
 
     struct stat sb = {};
-    if (FILEStat(&sb, PATHu8cgIn(fp)) == OK)
+    if (FILEStat(&sb, $path(fp)) == OK)
         SNIFFRecord(s, SNIFF_CHECKOUT, idx, (u64)sb.st_mtim.tv_sec);
 
     return OK;
@@ -122,7 +122,7 @@ static ok64 GETPrune(sniff *s, u8cs reporoot, u8cp seen) {
         a_path(fp);
         call(SNIFFFullpath, fp, reporoot, rel);
 
-        ok64 o = FILEUnLink(PATHu8cgIn(fp));
+        ok64 o = FILEUnLink($path(fp));
         if (o == OK || o == FILENOENT) {
             SNIFFRecord(s, SNIFF_HASHLET, i, 0);
             SNIFFRecord(s, SNIFF_CHECKOUT, i, 0);
@@ -148,7 +148,7 @@ static ok64 GETPrune(sniff *s, u8cs reporoot, u8cp seen) {
         a_path(fp);
         call(SNIFFFullpath, fp, reporoot, rel);
 
-        ok64 o = FILERmDir(PATHu8cgIn(fp), NO);
+        ok64 o = FILERmDir($path(fp), NO);
         if (o == OK || o == FILENOENT || o == FILENOTEMP) {
             SNIFFRecord(s, SNIFF_HASHLET, i, 0);
             SNIFFRecord(s, SNIFF_CHECKOUT, i, 0);

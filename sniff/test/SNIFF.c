@@ -214,9 +214,9 @@ ok64 SNIFFCheckoutCommit() {
     a_path(fp, root);
     a_cstr(fn, "/test.txt");
     call(u8bFeed, fp, fn);
-    call(PATHu8gTerm, PATHu8gIn(fp));
+    call(PATHu8bTerm, fp);
     struct stat sb = {};
-    want(FILEStat(&sb, PATHu8cgIn(fp)) == OK);
+    want(FILEStat(&sb, $path(fp)) == OK);
 
     // Verify sniff state
     want(SNIFFCount(&s) == 1);
@@ -226,7 +226,7 @@ ok64 SNIFFCheckoutCommit() {
     // Modify file, update, commit
     {
         int fd = -1;
-        call(FILECreate, &fd, PATHu8cgIn(fp));
+        call(FILECreate, &fd, $path(fp));
         a_cstr(newdata, "modified\n");
         FILEFeedAll(fd, newdata);
         FILEClose(&fd);
@@ -236,7 +236,7 @@ ok64 SNIFFCheckoutCommit() {
 
     // Record changed mtime
     struct stat sb2 = {};
-    call(FILEStat, &sb2, PATHu8cgIn(fp));
+    call(FILEStat, &sb2, $path(fp));
     SNIFFRecord(&s, SNIFF_CHANGED, 0, (u64)sb2.st_mtim.tv_sec);
 
     // Commit
@@ -287,13 +287,13 @@ static ok64 write_file(u8cs root, char const *rel, char const *content) {
     call(u8bFeed, fp, sep);
     a_cstr(r, rel);
     call(u8bFeed, fp, r);
-    call(PATHu8gTerm, PATHu8gIn(fp));
+    call(PATHu8bTerm, fp);
 
     // Ensure parent dir exists
     a_path(dp, root);
     u8bFeed(dp, sep);
     u8bFeed(dp, r);
-    PATHu8gTerm(PATHu8gIn(dp));
+    PATHu8bTerm(dp);
     // Walk back to last /
     u8cs dpath = {u8bDataHead(dp), u8bIdleHead(dp)};
     u8cs dscan = {dpath[0], dpath[1]};
@@ -308,12 +308,12 @@ static ok64 write_file(u8cs root, char const *rel, char const *content) {
         *(u8p)last_slash = 0;
         a_cstr(dp2, (char *)dpath[0]);
         a_path(dirp, dp2);
-        FILEMakeDirP(PATHu8cgIn(dirp));
+        FILEMakeDirP($path(dirp));
         *(u8p)last_slash = save;
     }
 
     int fd = -1;
-    call(FILECreate, &fd, PATHu8cgIn(fp));
+    call(FILECreate, &fd, $path(fp));
     a_cstr(data, content);
     call(FILEFeedAll, fd, data);
     close(fd);
@@ -329,15 +329,15 @@ static ok64 check_file(u8cs root, char const *rel, char const *expected) {
     call(u8bFeed, fp, sep);
     a_cstr(r, rel);
     call(u8bFeed, fp, r);
-    call(PATHu8gTerm, PATHu8gIn(fp));
+    call(PATHu8bTerm, fp);
 
     struct stat sb = {};
-    want(FILEStat(&sb, PATHu8cgIn(fp)) == OK);
+    want(FILEStat(&sb, $path(fp)) == OK);
 
     Bu8 content = {};
     call(u8bAllocate, content, 1UL << 20);
     int fd = -1;
-    call(FILEOpen, &fd, PATHu8cgIn(fp), O_RDONLY);
+    call(FILEOpen, &fd, $path(fp), O_RDONLY);
     FILEdrainall(u8bIdle(content), fd);
     close(fd);
 
@@ -356,9 +356,9 @@ static b8 file_gone(u8cs root, char const *rel) {
     u8bFeed(fp, sep);
     a_cstr(r, rel);
     u8bFeed(fp, r);
-    PATHu8gTerm(PATHu8gIn(fp));
+    PATHu8bTerm(fp);
     struct stat sb = {};
-    return (FILEStat(&sb, PATHu8cgIn(fp)) != OK);
+    return (FILEStat(&sb, $path(fp)) != OK);
 }
 
 // --- Helper: create initial commit with N files in keeper ---
@@ -477,9 +477,9 @@ ok64 SNIFFRoundTrip() {
         a_path(afp, root);
         a_cstr(asep, "/a.txt");
         u8bFeed(afp, asep);
-        PATHu8gTerm(PATHu8gIn(afp));
+        PATHu8bTerm(afp);
         struct stat asb = {};
-        call(FILEStat, &asb, PATHu8cgIn(afp));
+        call(FILEStat, &asb, $path(afp));
         // a.txt is idx 0 after checkout
         a_cstr(apath, "a.txt");
         u32 aidx = SNIFFIntern(&s, apath);
@@ -489,9 +489,9 @@ ok64 SNIFFRoundTrip() {
         a_path(dfp, root);
         a_cstr(dsep, "/d.txt");
         u8bFeed(dfp, dsep);
-        PATHu8gTerm(PATHu8gIn(dfp));
+        PATHu8bTerm(dfp);
         struct stat dsb = {};
-        call(FILEStat, &dsb, PATHu8cgIn(dfp));
+        call(FILEStat, &dsb, $path(dfp));
         SNIFFRecord(&s, SNIFF_CHANGED, didx, (u64)dsb.st_mtim.tv_sec);
     }
 

@@ -56,8 +56,8 @@ static ok64 INSTWriteAttributes(const char *gitcommondir) {
     a_pad(u8, idbuf, FILE_PATH_MAX_LEN);
     u8cs ids = {(u8cp)infodir, (u8cp)infodir + strlen(infodir)};
     call(u8bFeed, idbuf, ids);
-    call(PATHu8gTerm, PATHu8gIn(idbuf));
-    FILEMakeDirP(PATHu8cgIn(idbuf));
+    call(PATHu8bTerm, idbuf);
+    FILEMakeDirP($path(idbuf));
 
     char attrpath[FILE_PATH_MAX_LEN];
     snprintf(attrpath, sizeof(attrpath), "%s/info/attributes", gitcommondir);
@@ -94,9 +94,9 @@ static ok64 INSTWriteAttributes(const char *gitcommondir) {
     a_pad(u8, apbuf, FILE_PATH_MAX_LEN);
     u8cs aps = {(u8cp)attrpath, (u8cp)attrpath + strlen(attrpath)};
     call(u8bFeed, apbuf, aps);
-    call(PATHu8gTerm, PATHu8gIn(apbuf));
+    call(PATHu8bTerm, apbuf);
     int fd = -1;
-    call(FILECreate, &fd, PATHu8cgIn(apbuf));
+    call(FILECreate, &fd, $path(apbuf));
     ok64 o = FILEFeedAll(fd, u8bDataC(content));
     u8bFree(content);
     close(fd);

@@ -13,7 +13,7 @@
 static ok64 graf_read(u8cs *data, u8bp *mapped, u8cs path_arg) {
     sane(data != NULL && mapped != NULL);
     a_path(path, path_arg);
-    call(FILEMapRO, mapped, PATHu8cgIn(path));
+    call(FILEMapRO, mapped, $path(path));
     (*data)[0] = u8bDataHead(*mapped);
     (*data)[1] = u8bIdleHead(*mapped);
     done;

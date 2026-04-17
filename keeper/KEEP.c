@@ -56,7 +56,7 @@ static ok64 keep_resolve_dir(path8b out, u8cs reporoot) {
                 a_dup(u8c, curslice, u8bData(cur));
                 call(PATHu8bFeed, probe, curslice);
                 call(PATHu8bPush, probe, dotdogs);
-                if (FILEisdir(PATHu8cgIn(probe)) == OK) {
+                if (FILEisdir($path(probe)) == OK) {
                     a_dup(u8c, found, u8bData(cur));
                     call(PATHu8bFeed, out, found);
                     goto found_root;
@@ -72,7 +72,7 @@ static ok64 keep_resolve_dir(path8b out, u8cs reporoot) {
 found_root:;
     a_cstr(rel, "/" KEEP_DIR);
     call(u8bFeed, out, rel);
-    call(PATHu8gTerm, PATHu8gIn(out));
+    call(PATHu8bTerm, out);
     done;
 }
 
@@ -112,7 +112,7 @@ static ok64 keep_scan_dir(u8csc dir, char const *ext,
         u8cs fn = {(u8cp)names[i], (u8cp)names[i] + strlen(names[i])};
         a_path(fpath, dir, fn);
         u8bp mapped = NULL;
-        if (FILEMapRO(&mapped, PATHu8cgIn(fpath)) == OK) {
+        if (FILEMapRO(&mapped, $path(fpath)) == OK) {
             maps[*count] = mapped;
             (*count)++;
         }
@@ -126,7 +126,7 @@ static ok64 keep_scan_packs(keeper *k, u8csc keepdir) {
     u8bFeed(logdir, keepdir);
     a_cstr(logsep, "/" KEEP_LOG_DIR);
     u8bFeed(logdir, logsep);
-    PATHu8gTerm(PATHu8gIn(logdir));
+    PATHu8bTerm(logdir);
     a_dup(u8c, ld, u8bData(logdir));
     keep_scan_dir(ld, KEEP_PACK_EXT, k->packs, &k->npacks, KEEP_MAX_FILES);
 
@@ -138,7 +138,7 @@ static ok64 keep_scan_packs(keeper *k, u8csc keepdir) {
     u8bFeed(idxdir, keepdir);
     a_cstr(idxsep, "/" KEEP_IDX_DIR);
     u8bFeed(idxdir, idxsep);
-    PATHu8gTerm(PATHu8gIn(idxdir));
+    PATHu8bTerm(idxdir);
     a_dup(u8c, id, u8bData(idxdir));
 
     u8bp idx_maps[KEEP_MAX_LEVELS] = {};
@@ -175,22 +175,22 @@ ok64 KEEPOpen(keeper *k, u8cs home, b8 rw) {
 
     // Create directories only in rw mode.
     if (rw) {
-        call(FILEMakeDirP, PATHu8cgIn(dir));
+        call(FILEMakeDirP, $path(dir));
         {
             a_pad(u8, logdir, 1024);
             u8bFeed(logdir, keepdir);
             a_cstr(logrel, "/" KEEP_LOG_DIR);
             u8bFeed(logdir, logrel);
-            PATHu8gTerm(PATHu8gIn(logdir));
-            FILEMakeDirP(PATHu8cgIn(logdir));
+            PATHu8bTerm(logdir);
+            FILEMakeDirP($path(logdir));
         }
         {
             a_pad(u8, idxdir, 1024);
             u8bFeed(idxdir, keepdir);
             a_cstr(idxrel, "/" KEEP_IDX_DIR);
             u8bFeed(idxdir, idxrel);
-            PATHu8gTerm(PATHu8gIn(idxdir));
-            FILEMakeDirP(PATHu8cgIn(idxdir));
+            PATHu8bTerm(idxdir);
+            FILEMakeDirP($path(idxdir));
         }
     }
 
@@ -775,8 +775,8 @@ ok64 KEEPPackOpen(keeper *k, keep_pack *p) {
     a_pad(u8, logpath, 1024);
     u8bFeed(logpath, kdir);
     u8bFeed(logpath, logdir);
-    PATHu8gTerm(PATHu8gIn(logpath));
-    FILEMakeDirP(PATHu8cgIn(logpath));
+    PATHu8bTerm(logpath);
+    FILEMakeDirP($path(logpath));
 
     a_pad(u8, packpath, 1024);
     u8bFeed(packpath, kdir);
@@ -786,10 +786,10 @@ ok64 KEEPPackOpen(keeper *k, keep_pack *p) {
     ((u8 **)packpath)[2] += KEEP_SEQNO_W;
     a_cstr(pext, KEEP_PACK_EXT);
     u8bFeed(packpath, pext);
-    PATHu8gTerm(PATHu8gIn(packpath));
+    PATHu8bTerm(packpath);
 
     // FILEBook: reserve 1GB VA, create with 4KB initial
-    call(FILEBookCreate, &p->log, PATHu8cgIn(packpath),
+    call(FILEBookCreate, &p->log, $path(packpath),
          1ULL << 30, 4096);
 
     // Write PACK header directly into mmap
@@ -875,8 +875,8 @@ ok64 KEEPPackClose(keeper *k, keep_pack *p) {
     a_pad(u8, idxdirpath, 1024);
     u8bFeed(idxdirpath, kdir);
     u8bFeed(idxdirpath, idxdir);
-    PATHu8gTerm(PATHu8gIn(idxdirpath));
-    FILEMakeDirP(PATHu8cgIn(idxdirpath));
+    PATHu8bTerm(idxdirpath);
+    FILEMakeDirP($path(idxdirpath));
 
     a_pad(u8, idxpath, 1024);
     u8bFeed(idxpath, kdir);
@@ -886,10 +886,10 @@ ok64 KEEPPackClose(keeper *k, keep_pack *p) {
     ((u8 **)idxpath)[2] += KEEP_SEQNO_W;
     a_cstr(iext, KEEP_IDX_EXT);
     u8bFeed(idxpath, iext);
-    PATHu8gTerm(PATHu8gIn(idxpath));
+    PATHu8bTerm(idxpath);
 
     int ifd = -1;
-    call(FILECreate, &ifd, PATHu8cgIn(idxpath));
+    call(FILECreate, &ifd, $path(idxpath));
     if (ifd >= 0) {
         u8cs raw = {(u8cp)sorted[0], (u8cp)sorted[1]};
         FILEFeedAll(ifd, raw);
@@ -898,7 +898,7 @@ ok64 KEEPPackClose(keeper *k, keep_pack *p) {
 
     // Mmap index
     u8bp imapped = NULL;
-    if (FILEMapRO(&imapped, PATHu8cgIn(idxpath)) == OK &&
+    if (FILEMapRO(&imapped, $path(idxpath)) == OK &&
         k->nruns < KEEP_MAX_LEVELS) {
         wh128cp base = (wh128cp)u8bDataHead(imapped);
         u32 n = (u32)(u8bDataLen(imapped) / sizeof(wh128));
@@ -1098,7 +1098,7 @@ static ok64 keep_walk_tree(keeper *k, u8csc tree_sha,
         // Build path: append /name to pathbuf
         if (path_save > 0) u8bFeed1(pathbuf, '/');
         u8bFeed(pathbuf, name);
-        PATHu8gTerm(PATHu8gIn(pathbuf));
+        PATHu8bTerm(pathbuf);
 
         if (is_tree) {
             if (mode & KEEP_WALK_TREES) {
@@ -1156,7 +1156,7 @@ static ok64 keep_walk_tree(keeper *k, u8csc tree_sha,
 
         // Restore pathbuf to saved length
         ((u8 **)pathbuf)[2] = u8bDataHead(pathbuf) + path_save;
-        PATHu8gTerm(PATHu8gIn(pathbuf));
+        PATHu8bTerm(pathbuf);
     }
 
     return OK;
@@ -1199,12 +1199,12 @@ ok64 KEEPImport(keeper *k, u8cs pack_path) {
     }
     a_cstr(idx_ext, ".idx");
     call(u8bFeed, idx_path_buf, idx_ext);
-    call(PATHu8gTerm, PATHu8gIn(idx_path_buf));
+    call(PATHu8bTerm, idx_path_buf);
 
     // Map both files
     u8bp pack_map = NULL, idx_map = NULL;
-    call(FILEMapRO, &pack_map, PATHu8cgIn(pack_pp));
-    ok64 io = FILEMapRO(&idx_map, PATHu8cgIn(idx_path_buf));
+    call(FILEMapRO, &pack_map, $path(pack_pp));
+    ok64 io = FILEMapRO(&idx_map, $path(idx_path_buf));
     if (io != OK) { FILEUnMap(pack_map); return io; }
 
     u8cp idx = u8bDataHead(idx_map);
@@ -1248,10 +1248,10 @@ ok64 KEEPImport(keeper *k, u8cs pack_path) {
         ((u8 **)dst)[2] += KEEP_SEQNO_W;
         a_cstr(ext, KEEP_PACK_EXT);
         call(u8bFeed, dst, ext);
-        call(PATHu8gTerm, PATHu8gIn(dst));
+        call(PATHu8bTerm, dst);
 
         int fd = -1;
-        call(FILECreate, &fd, PATHu8cgIn(dst));
+        call(FILECreate, &fd, $path(dst));
         a_dup(u8c, data, u8bData(pack_map));
         call(FILEFeedAll, fd, data);
         close(fd);
@@ -1298,10 +1298,10 @@ ok64 KEEPImport(keeper *k, u8cs pack_path) {
         ((u8 **)idxpath)[2] += KEEP_SEQNO_W;
         a_cstr(ext2, KEEP_IDX_EXT);
         call(u8bFeed, idxpath, ext2);
-        call(PATHu8gTerm, PATHu8gIn(idxpath));
+        call(PATHu8bTerm, idxpath);
 
         int fd = -1;
-        call(FILECreate, &fd, PATHu8cgIn(idxpath));
+        call(FILECreate, &fd, $path(idxpath));
         u8cs data = {(u8cp)entries, (u8cp)(entries + nentries)};
         call(FILEFeedAll, fd, data);
         close(fd);
@@ -1738,10 +1738,10 @@ got_pack:
         ((u8 **)dst)[2] += KEEP_SEQNO_W;
         a_cstr(ext, KEEP_PACK_EXT);
         u8bFeed(dst, ext);
-        PATHu8gTerm(PATHu8gIn(dst));
+        PATHu8bTerm(dst);
 
         if (appending) {
-            ok64 o = FILEBook(&packbuf, PATHu8cgIn(dst), pack_book);
+            ok64 o = FILEBook(&packbuf, $path(dst), pack_book);
             if (o != OK) goto sync_fail;
             // Mark all existing data as DATA (FILEBook leaves it as IDLE)
             ((u8 **)packbuf)[2] = packbuf[3];
@@ -1750,7 +1750,7 @@ got_pack:
             // New log — create
             size_t init = initial_pack;
             if (init < 4096) init = 4096;
-            ok64 o = FILEBookCreate(&packbuf, PATHu8cgIn(dst),
+            ok64 o = FILEBookCreate(&packbuf, $path(dst),
                                     pack_book, init);
             if (o != OK) goto sync_fail;
         }
@@ -1821,9 +1821,9 @@ got_pack:
         ((u8 **)pp)[2] += KEEP_SEQNO_W;
         a_cstr(pext, KEEP_PACK_EXT);
         u8bFeed(pp, pext);
-        PATHu8gTerm(PATHu8gIn(pp));
+        PATHu8bTerm(pp);
         u8bp mapped = NULL;
-        if (FILEMapRO(&mapped, PATHu8cgIn(pp)) == OK) {
+        if (FILEMapRO(&mapped, $path(pp)) == OK) {
             k->packs[k->npacks] = mapped;
             k->npacks++;
         }
@@ -2158,10 +2158,10 @@ got_pack:
             ((u8 **)idxpath)[2] += KEEP_SEQNO_W;
             a_cstr(ext, KEEP_IDX_EXT);
             u8bFeed(idxpath, ext);
-            PATHu8gTerm(PATHu8gIn(idxpath));
+            PATHu8bTerm(idxpath);
 
             int fd = -1;
-            ok64 fce = FILECreate(&fd, PATHu8cgIn(idxpath));
+            ok64 fce = FILECreate(&fd, $path(idxpath));
             if (fce != OK) {
                 fprintf(stderr, "keeper: idx create failed\n");
             } else if (fd >= 0) {
@@ -2172,7 +2172,7 @@ got_pack:
 
             // Mmap into keeper's runs
             u8bp mapped = NULL;
-            if (FILEMapRO(&mapped, PATHu8cgIn(idxpath)) == OK &&
+            if (FILEMapRO(&mapped, $path(idxpath)) == OK &&
                 k->nruns < KEEP_MAX_LEVELS) {
                 wh128cp base = (wh128cp)u8bDataHead(mapped);
                 size_t n = (u8bIdleHead(mapped) - u8bDataHead(mapped)) / sizeof(wh128);

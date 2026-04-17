@@ -440,7 +440,7 @@ static ok64 BROOpenFile(BROstate *st, u8csc relpath, char const *repo,
 
     // Map file
     u8bp mapped = NULL;
-    ok64 mo = FILEMapRO(&mapped, PATHu8cgIn(fpbuf));
+    ok64 mo = FILEMapRO(&mapped, $path(fpbuf));
     if (mo != OK) fail(mo);
 
     int idx = st->nsaves;

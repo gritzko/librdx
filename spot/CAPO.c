@@ -209,10 +209,10 @@ ok64 CAPOIndexWrite(u8csc dir, u64cs run, u64 seqno) {
     call(u8bFed, path, CAPO_SEQNO_WIDTH);  // RONu8sFeedPad wrote into IDLE
     a_cstr(idxext, CAPO_IDX_EXT);
     call(u8bFeed, path, idxext);
-    call(PATHu8gTerm, PATHu8gIn(path));
+    call(PATHu8bTerm, path);
 
     int fd = -1;
-    call(FILECreate, &fd, PATHu8cgIn(path));
+    call(FILECreate, &fd, $path(path));
     size_t bytes = $len(run) * sizeof(u64);
     u8cs data = {(u8cp)run[0], (u8cp)run[0] + bytes};
     call(FILEFeedAll, fd, data);
@@ -290,7 +290,7 @@ ok64 CAPOStackOpen(u64css stack, u8bp *maps, u32p nfiles, u8csc dir) {
         a_path(fpath, dir, fn);
 
         u8bp mapped = NULL;
-        call(FILEMapRO, &mapped, PATHu8cgIn(fpath));
+        call(FILEMapRO, &mapped, $path(fpath));
 
         size_t nbytes = u8bIdleHead(mapped) - u8bDataHead(mapped);
         size_t nentries = nbytes / sizeof(u64);
@@ -400,7 +400,7 @@ static ok64 CAPOReindexWork(u8csc reporoot, u8csc dirslice, u64bp entries) {
     a_cstr(dotgit, ".git");
     call(PATHu8bPush, gitp, dotgit);
     struct stat gitsb = {};
-    b8 has_git = (FILEStat(&gitsb, PATHu8cgIn(gitp)) == OK);
+    b8 has_git = (FILEStat(&gitsb, $path(gitp)) == OK);
 
     a_pad(u8, cmdbuf, FILE_PATH_MAX_LEN * 2 + 512);
     if (has_git) {
@@ -451,7 +451,7 @@ static ok64 CAPOReindexWork(u8csc reporoot, u8csc dirslice, u64bp entries) {
             PATHu8bPush(fpbuf, lns) != OK) { skipped++; continue; }
 
         u8bp mapped = NULL;
-        ok64 o = FILEMapRO(&mapped, PATHu8cgIn(fpbuf));
+        ok64 o = FILEMapRO(&mapped, $path(fpbuf));
         if (o != OK) {
             fprintf(stderr, "FAIL\t%s\t%s\t(open %s)\n",
                     ok64str(o), line, (char *)u8bDataHead(fpbuf));
@@ -530,7 +530,7 @@ ok64 CAPOReindex(u8csc reporoot) {
     a_path(capodir);
     call(CAPOResolveDir, capodir, reporoot);
     a_dup(u8c, dirslice, u8bDataC(capodir));
-    vcall("mkdir", FILEMakeDirP, PATHu8cgIn(capodir));
+    vcall("mkdir", FILEMakeDirP, $path(capodir));
     fprintf(stderr, "spot: index dir %s\n", (char *)u8bDataHead(capodir));
 
     Bu64 entries = {};
@@ -593,7 +593,7 @@ static ok64 CAPOReindexProcWork(u8csc reporoot, u8csc dirslice,
             PATHu8bPush(fpbuf, lns) != OK) { skipped++; continue; }
 
         u8bp mapped = NULL;
-        ok64 o = FILEMapRO(&mapped, PATHu8cgIn(fpbuf));
+        ok64 o = FILEMapRO(&mapped, $path(fpbuf));
         if (o != OK) {
             fprintf(stderr, "FAIL\t%s\t%s\t(open %s)\n",
                     ok64str(o), line, (char *)u8bDataHead(fpbuf));
@@ -671,7 +671,7 @@ ok64 CAPOReindexProc(u8csc reporoot, u32 nprocs, u32 proc) {
     a_path(capodir);
     call(CAPOResolveDir, capodir, reporoot);
     a_dup(u8c, dirslice, u8bDataC(capodir));
-    vcall("mkdir", FILEMakeDirP, PATHu8cgIn(capodir));
+    vcall("mkdir", FILEMakeDirP, $path(capodir));
 
     Bu64 entries = {};
     vcall("mmap scratch", u64bMap, entries, CAPO_SCRATCH_LEN);
@@ -810,10 +810,10 @@ ok64 CAPOCommitWrite(u8csc reporoot, u8csc capodir) {
     call(u8bFeed, path, capodir);
     a_cstr(commit_name, "/COMMIT");
     call(u8bFeed, path, commit_name);
-    call(PATHu8gTerm, PATHu8gIn(path));
+    call(PATHu8bTerm, path);
 
     int fd = -1;
-    call(FILECreate, &fd, PATHu8cgIn(path));
+    call(FILECreate, &fd, $path(path));
     u8cs nl = {(u8cp)"\n", (u8cp)"\n" + 1};
     for (u32 i = keep_start; i < sha_count; i++) {
         u8cs data = {(u8cp)shas[i], (u8cp)shas[i] + 40};
@@ -845,10 +845,10 @@ ok64 CAPOCommitRead(u32p count, u8csc capodir,
     call(u8bFeed, path, capodir);
     a_cstr(commit_name, "/COMMIT");
     call(u8bFeed, path, commit_name);
-    call(PATHu8gTerm, PATHu8gIn(path));
+    call(PATHu8bTerm, path);
 
     u8bp mapped = NULL;
-    ok64 o = FILEMapRO(&mapped, PATHu8cgIn(path));
+    ok64 o = FILEMapRO(&mapped, $path(path));
     if (o != OK) done;
 
     a_dup(u8c, content, u8bDataC(mapped));
@@ -963,7 +963,7 @@ static ok64 CAPOIndexFromCmd(u8csc reporoot, u64bp entries,
             PATHu8bPush(fpbuf, lns) != OK) continue;
 
         u8bp mapped = NULL;
-        ok64 o = FILEMapRO(&mapped, PATHu8cgIn(fpbuf));
+        ok64 o = FILEMapRO(&mapped, $path(fpbuf));
         if (o != OK) continue;
 
         a_dup(u8c, source, u8bDataC(mapped));
@@ -1016,7 +1016,7 @@ ok64 CAPOHook(u8csc reporoot) {
     a_path(capodir);
     call(CAPOResolveDir, capodir, reporoot);
     a_dup(u8c, dirslice, u8bDataC(capodir));
-    call(FILEMakeDirP, PATHu8cgIn(capodir));
+    call(FILEMakeDirP, $path(capodir));
 
     a_pad(u8, cmdbuf, FILE_PATH_MAX_LEN + 256);
     ok64 o = OK;
@@ -1048,7 +1048,7 @@ ok64 CAPOUncommitted(u8csc reporoot, b8 untracked) {
     a_path(capodir);
     call(CAPOResolveDir, capodir, reporoot);
     a_dup(u8c, dirslice, u8bDataC(capodir));
-    call(FILEMakeDirP, PATHu8cgIn(capodir));
+    call(FILEMakeDirP, $path(capodir));
 
     Bu64 entries = {};
     call(u64bMap, entries, CAPO_SCRATCH_LEN);
@@ -1334,7 +1334,7 @@ static ok64 CAPOSpotReplace(u8csc source, u8bp mapped, u32cs htoks,
             FILEUnMap(mapped);
             mapped = NULL;
             int fd = -1;
-            ok64 wo = FILECreate(&fd, PATHu8cgIn(fpbuf));
+            ok64 wo = FILECreate(&fd, $path(fpbuf));
             if (wo == OK) {
                 FILEFeedAll(fd, result);
                 close(fd);
@@ -1611,7 +1611,7 @@ static ok64 capo_scan_cb(void *arg, path8p path) {
 
     // Map file
     u8bp mapped = NULL;
-    ok64 o = FILEMapRO(&mapped, PATHu8cgIn(path));
+    ok64 o = FILEMapRO(&mapped, $path(path));
     if (o != OK) return OK;  // skip unreadable files
 
     u8cs source = {};
@@ -1680,7 +1680,7 @@ ok64 CAPOScanFiles(u8css files, CAPOScanOpts const *opts) {
         if (PATHu8bFeed(fpbuf, fps) != OK) continue;
 
         u8bp mapped = NULL;
-        if (FILEMapRO(&mapped, PATHu8cgIn(fpbuf)) != OK) continue;
+        if (FILEMapRO(&mapped, $path(fpbuf)) != OK) continue;
 
         u8cs source = {};
         $mv(source, u8bDataC(mapped));

@@ -67,14 +67,14 @@ ok64 BROExec(bro *b, cli *c) {
             if (__ != OK) continue;
 
             struct stat sb = {};
-            if (FILEStat(&sb, PATHu8cgIn(fpbuf)) == OK &&
+            if (FILEStat(&sb, $path(fpbuf)) == OK &&
                 S_ISDIR(sb.st_mode)) {
                 BROListDir(file_path);
                 continue;
             }
 
             u8bp mapped = NULL;
-            ok64 o = FILEMapRO(&mapped, PATHu8cgIn(fpbuf));
+            ok64 o = FILEMapRO(&mapped, $path(fpbuf));
             if (o != OK) {
                 fprintf(stderr, "bro: cannot open " U8SFMT ": %s\n",
                         u8sFmt(file_path), ok64str(o));
