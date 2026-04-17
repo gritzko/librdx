@@ -44,7 +44,7 @@ static ok64 com_collect_tree(sha_ctx *ctx, keeper *k,
     u8 otype = 0;
     ok64 o = KEEPGet(k, hashlet, 15, buf, &otype);
     if (o != OK) { u8bFree(buf); fail(o); }
-    if (otype != KEEP_OBJ_TREE) { u8bFree(buf); fail(SNIFFFAIL); }
+    if (otype != DOG_OBJ_TREE) { u8bFree(buf); fail(SNIFFFAIL); }
 
     size_t tsz = u8bDataLen(buf);
     Bu8 tcopy = {};
@@ -242,7 +242,7 @@ static ok64 com_build_tree(sniff *s, keeper *k, keep_pack *p,
                     FILEClose(&fd);
                 }
                 u8cs blob = {u8bDataHead(content), u8bIdleHead(content)};
-                o = KEEPPackFeed(k, p, KEEP_OBJ_BLOB, blob, &e->sha);
+                o = KEEPPackFeed(k, p, DOG_OBJ_BLOB, blob, &e->sha);
                 u8bFree(content);
                 if (o != OK) return o;
             } else {
@@ -312,7 +312,7 @@ static ok64 com_build_tree(sniff *s, keeper *k, keep_pack *p,
     }
 
     u8cs tree_data = {u8bDataHead(tree), u8bIdleHead(tree)};
-    call(KEEPPackFeed, k, p, KEEP_OBJ_TREE, tree_data, sha_out);
+    call(KEEPPackFeed, k, p, DOG_OBJ_TREE, tree_data, sha_out);
     u8bFree(tree);
     done;
 }
@@ -334,7 +334,7 @@ ok64 COMCommit(sniff *s, keeper *k, u8cs reporoot,
     call(KEEPGet, k, parent_hashlet, hexlen, cbuf, &ctype);
 
     // Dereference tag
-    if (ctype == KEEP_OBJ_TAG) {
+    if (ctype == DOG_OBJ_TAG) {
         u8cs body = {u8bDataHead(cbuf), u8bIdleHead(cbuf)};
         u8cs field = {}, value = {};
         sha1 tag_sha = {};
@@ -352,7 +352,7 @@ ok64 COMCommit(sniff *s, keeper *k, u8cs reporoot,
         u8bReset(cbuf);
         call(KEEPGet, k, ch, 15, cbuf, &ctype);
     }
-    if (ctype != KEEP_OBJ_COMMIT) { u8bFree(cbuf); fail(SNIFFFAIL); }
+    if (ctype != DOG_OBJ_COMMIT) { u8bFree(cbuf); fail(SNIFFFAIL); }
 
     // Parent SHA from content
     sha1 parent_sha = {};
@@ -441,7 +441,7 @@ ok64 COMCommit(sniff *s, keeper *k, u8cs reporoot,
     u8bFeed1(com, '\n');
 
     u8cs com_data = {u8bDataHead(com), u8bIdleHead(com)};
-    call(KEEPPackFeed, k, &p, KEEP_OBJ_COMMIT, com_data, sha_out);
+    call(KEEPPackFeed, k, &p, DOG_OBJ_COMMIT, com_data, sha_out);
     u8bFree(com);
 
     call(KEEPPackClose, k, &p);

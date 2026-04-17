@@ -160,12 +160,12 @@ static ok64 keep_scan_packs(keeper *k, u8csc keepdir) {
 
 // --- Open: mmap pack files + load index runs ---
 
-ok64 KEEPOpen(keeper *k, u8cs reporoot) {
+ok64 KEEPOpen(keeper *k, u8cs home, b8 rw) {
     sane(k);
     memset(k, 0, sizeof(*k));
 
     a_path(dir);
-    call(keep_resolve_dir, dir, reporoot);
+    call(keep_resolve_dir, dir, home);
     a_dup(u8c, dirdata, u8bData(dir));
     size_t dlen = u8csLen(dirdata);
     if (dlen >= sizeof(k->dir)) dlen = sizeof(k->dir) - 1;
@@ -173,23 +173,25 @@ ok64 KEEPOpen(keeper *k, u8cs reporoot) {
     k->dir[dlen] = 0;
     a_cstr(keepdir, k->dir);
 
-    // Ensure directories exist
-    call(FILEMakeDirP, PATHu8cgIn(dir));
-    {
-        a_pad(u8, logdir, 1024);
-        u8bFeed(logdir, keepdir);
-        a_cstr(logrel, "/" KEEP_LOG_DIR);
-        u8bFeed(logdir, logrel);
-        PATHu8gTerm(PATHu8gIn(logdir));
-        FILEMakeDirP(PATHu8cgIn(logdir));
-    }
-    {
-        a_pad(u8, idxdir, 1024);
-        u8bFeed(idxdir, keepdir);
-        a_cstr(idxrel, "/" KEEP_IDX_DIR);
-        u8bFeed(idxdir, idxrel);
-        PATHu8gTerm(PATHu8gIn(idxdir));
-        FILEMakeDirP(PATHu8cgIn(idxdir));
+    // Create directories only in rw mode.
+    if (rw) {
+        call(FILEMakeDirP, PATHu8cgIn(dir));
+        {
+            a_pad(u8, logdir, 1024);
+            u8bFeed(logdir, keepdir);
+            a_cstr(logrel, "/" KEEP_LOG_DIR);
+            u8bFeed(logdir, logrel);
+            PATHu8gTerm(PATHu8gIn(logdir));
+            FILEMakeDirP(PATHu8cgIn(logdir));
+        }
+        {
+            a_pad(u8, idxdir, 1024);
+            u8bFeed(idxdir, keepdir);
+            a_cstr(idxrel, "/" KEEP_IDX_DIR);
+            u8bFeed(idxdir, idxrel);
+            PATHu8gTerm(PATHu8gIn(idxdir));
+            FILEMakeDirP(PATHu8cgIn(idxdir));
+        }
     }
 
     // Scan pack files: log/*.pack (new) + keeper/*.packs (old compat)
@@ -203,6 +205,23 @@ ok64 KEEPOpen(keeper *k, u8cs reporoot) {
     call(u8bMap, k->buf4, KEEP_BUFSZ);
 
     done;
+}
+
+// --- Update: feed a single git object into the store ---
+//
+// Convenience single-object path over KEEPPackOpen/Feed/Close.
+// Opens a fresh pack log, writes one object, closes. For bulk
+// ingestion prefer KEEPPackOpen/KEEPPackFeed/KEEPPackClose.
+ok64 KEEPUpdate(keeper *k, u8 obj_type, u8cs blob, u8csc path) {
+    sane(k && $ok(blob));
+    (void)path;
+    keep_pack p = {};
+    call(KEEPPackOpen, k, &p);
+    u8csc content = {blob[0], blob[1]};
+    sha1 sha = {};
+    ok64 o = KEEPPackFeed(k, &p, obj_type, content, &sha);
+    KEEPPackClose(k, &p);
+    return o;
 }
 
 // --- Close ---
@@ -531,7 +550,7 @@ static ok64 keep_verify_sha(keeper *k, sha1 expected_sha,
     (*checked)++;
 
     // Recurse based on type
-    if (obj_type == KEEP_OBJ_COMMIT) {
+    if (obj_type == DOG_OBJ_COMMIT) {
         // Parse tree SHA from commit
         u8cs body = {content, content + content_sz};
         u8cs field = {}, value = {};
@@ -555,7 +574,7 @@ static ok64 keep_verify_sha(keeper *k, sha1 expected_sha,
                 break;
             }
         }
-    } else if (obj_type == KEEP_OBJ_TREE) {
+    } else if (obj_type == DOG_OBJ_TREE) {
         // Parse tree entries: each is "mode name\0<20-byte sha>"
         u8cs body = {content, content + content_sz};
         while (!$empty(body)) {
@@ -588,7 +607,7 @@ static ok64 keep_verify_sha(keeper *k, sha1 expected_sha,
                         (char *)u8bDataHead(hex));
             }
         }
-    } else if (obj_type == KEEP_OBJ_TAG) {
+    } else if (obj_type == DOG_OBJ_TAG) {
         // Parse "object <sha>" from tag body, recurse
         u8cs body = {content, content + content_sz};
         u8cs field = {}, value = {};
@@ -702,10 +721,10 @@ static ok64 keep_build_pack_path(u8bp path, u8csc dir, u32 file_id) {
 }
 
 con char *keep_type_names[] = {
-    [KEEP_OBJ_COMMIT] = "commit",
-    [KEEP_OBJ_TREE] = "tree",
-    [KEEP_OBJ_BLOB] = "blob",
-    [KEEP_OBJ_TAG] = "tag",
+    [DOG_OBJ_COMMIT] = "commit",
+    [DOG_OBJ_TREE] = "tree",
+    [DOG_OBJ_BLOB] = "blob",
+    [DOG_OBJ_TAG] = "tag",
 };
 
 // Compute git object SHA-1: SHA1("type size\0" + content)
@@ -934,13 +953,13 @@ static ok64 keep_resolve_tree(keeper *k, uricp target, sha1 *tree_sha) {
         u8 type = 0;
         u8bReset(k->buf1);
         call(KEEPGet, k, hashlet, u8csLen(target->fragment), k->buf1, &type);
-        if (type == KEEP_OBJ_TREE) {
+        if (type == DOG_OBJ_TREE) {
             // Already a tree — compute its SHA
             a_dup(u8c, content, u8bData(k->buf1));
-            keep_obj_sha(tree_sha, KEEP_OBJ_TREE, content);
+            keep_obj_sha(tree_sha, DOG_OBJ_TREE, content);
             done;
         }
-        if (type != KEEP_OBJ_COMMIT) fail(KEEPFAIL);
+        if (type != DOG_OBJ_COMMIT) fail(KEEPFAIL);
         // Parse tree SHA from commit
         a_dup(u8c, body, u8bData(k->buf1));
         u8cs field = {}, value = {};
@@ -994,10 +1013,10 @@ static ok64 keep_resolve_tree(keeper *k, uricp target, sha1 *tree_sha) {
         u8 type = 0;
         u8bReset(k->buf1);
         call(KEEPGet, k, hashlet, 15, k->buf1, &type);
-        if (type != KEEP_OBJ_COMMIT && type != KEEP_OBJ_TAG) fail(KEEPFAIL);
+        if (type != DOG_OBJ_COMMIT && type != DOG_OBJ_TAG) fail(KEEPFAIL);
 
         // If tag, get the commit it points to
-        if (type == KEEP_OBJ_TAG) {
+        if (type == DOG_OBJ_TAG) {
             a_dup(u8c, tbody, u8bData(k->buf1));
             u8cs tf = {}, tv = {};
             while (GITu8sDrainCommit(tbody, tf, tv) == OK) {
@@ -1042,7 +1061,7 @@ static ok64 keep_walk_tree(keeper *k, u8csc tree_sha,
     u8bReset(k->buf3);
     ok64 o = KEEPGet(k, hashlet, 15, k->buf3, &type);
     if (o != OK) return o;
-    if (type != KEEP_OBJ_TREE) return KEEPFAIL;
+    if (type != DOG_OBJ_TREE) return KEEPFAIL;
 
     a_dup(u8c, body, u8bData(k->buf3));
     size_t path_save = u8bDataLen(pathbuf);
@@ -1088,7 +1107,7 @@ static ok64 keep_walk_tree(keeper *k, u8csc tree_sha,
                 entry.path[0] = pslice[0];
                 entry.path[1] = pslice[1];
                 u8cs empty = {};
-                o = cb(ctx, &entry, KEEP_OBJ_TREE, empty);
+                o = cb(ctx, &entry, DOG_OBJ_TREE, empty);
                 if (o != OK) return o;
             }
             if (mode & KEEP_WALK_DEEP) {
@@ -1131,7 +1150,7 @@ static ok64 keep_walk_tree(keeper *k, u8csc tree_sha,
                     content[1] = u8bDataHead(k->buf4) + u8bDataLen(k->buf4);
                 }
             }
-            o = cb(ctx, &entry, KEEP_OBJ_BLOB, content);
+            o = cb(ctx, &entry, DOG_OBJ_BLOB, content);
             if (o != OK) return o;
         }
 

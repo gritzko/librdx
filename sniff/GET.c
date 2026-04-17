@@ -25,7 +25,7 @@ static ok64 GETTree(sniff *s, keeper *k, u8cs reporoot,
     u8 otype = 0;
     ok64 o = KEEPGetExact(k, tree_sha, buf, &otype);
     if (o != OK) { u8bFree(buf); fail(o); }
-    if (otype != KEEP_OBJ_TREE) { u8bFree(buf); fail(SNIFFFAIL); }
+    if (otype != DOG_OBJ_TREE) { u8bFree(buf); fail(SNIFFFAIL); }
 
     // Snapshot tree content (KEEPGet may reuse buffer)
     size_t tsz = u8bDataLen(buf);
@@ -228,7 +228,7 @@ ok64 GETCheckout(sniff *s, keeper *k, u8cs reporoot, u8cs hex,
     }
 
     // Dereference annotated tag
-    if (otype == KEEP_OBJ_TAG) {
+    if (otype == DOG_OBJ_TAG) {
         u8cs body = {u8bDataHead(buf), u8bIdleHead(buf)};
         u8cs field = {}, value = {};
         sha1 tag_sha = {};
@@ -251,14 +251,14 @@ ok64 GETCheckout(sniff *s, keeper *k, u8cs reporoot, u8cs hex,
         }
         u8bReset(buf);
         o = KEEPGetExact(k, &tag_sha, buf, &otype);
-        if (o != OK || otype != KEEP_OBJ_COMMIT) {
+        if (o != OK || otype != DOG_OBJ_COMMIT) {
             u8bFree(buf);
             fprintf(stderr, "sniff: tag target not a commit\n");
             fail(SNIFFFAIL);
         }
     }
 
-    if (otype != KEEP_OBJ_COMMIT) {
+    if (otype != DOG_OBJ_COMMIT) {
         u8bFree(buf);
         fprintf(stderr, "sniff: not a commit\n");
         fail(SNIFFFAIL);

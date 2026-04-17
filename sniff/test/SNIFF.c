@@ -160,7 +160,7 @@ ok64 SNIFFCheckoutCommit() {
 
     // Open keeper, create a blob + tree + commit manually
     keeper k = {};
-    call(KEEPOpen, &k, root);
+    call(KEEPOpen, &k, root, YES);
 
     keep_pack p = {};
     call(KEEPPackOpen, &k, &p);
@@ -168,7 +168,7 @@ ok64 SNIFFCheckoutCommit() {
     // Blob: "hello\n"
     a_cstr(blob_data, "hello\n");
     sha1 blob_sha = {};
-    call(KEEPPackFeed, &k, &p, KEEP_OBJ_BLOB, blob_data, &blob_sha);
+    call(KEEPPackFeed, &k, &p, DOG_OBJ_BLOB, blob_data, &blob_sha);
 
     // Tree: one entry "100644 test.txt\0<sha>"
     a_pad(u8, tree_buf, 256);
@@ -180,7 +180,7 @@ ok64 SNIFFCheckoutCommit() {
     a_dup(u8c, tree_content, u8bData(tree_buf));
 
     sha1 tree_sha = {};
-    call(KEEPPackFeed, &k, &p, KEEP_OBJ_TREE, tree_content, &tree_sha);
+    call(KEEPPackFeed, &k, &p, DOG_OBJ_TREE, tree_content, &tree_sha);
 
     // Commit
     a_pad(u8, cbuf, 512);
@@ -196,7 +196,7 @@ ok64 SNIFFCheckoutCommit() {
     a_dup(u8c, commit_content, u8bData(cbuf));
 
     sha1 commit_sha = {};
-    call(KEEPPackFeed, &k, &p, KEEP_OBJ_COMMIT, commit_content, &commit_sha);
+    call(KEEPPackFeed, &k, &p, DOG_OBJ_COMMIT, commit_content, &commit_sha);
     call(KEEPPackClose, &k, &p);
 
     // Hex of commit SHA for CLI
@@ -254,7 +254,7 @@ ok64 SNIFFCheckoutCommit() {
     call(u8bAllocate, out, 1UL << 20);
     u8 otype = 0;
     call(KEEPGet, &k, new_hashlet, 10, out, &otype);
-    want(otype == KEEP_OBJ_COMMIT);
+    want(otype == DOG_OBJ_COMMIT);
 
     // Verify commit content mentions parent
     u8cs body = {u8bDataHead(out), u8bIdleHead(out)};
@@ -377,7 +377,7 @@ static ok64 make_commit(sha1 *commit_out, keeper *k,
     for (u32 i = 0; i < nfiles; i++) {
         a_cstr(blob, files[i].data);
         sha1 bsha = {};
-        call(KEEPPackFeed, k, &p, KEEP_OBJ_BLOB, blob, &bsha);
+        call(KEEPPackFeed, k, &p, DOG_OBJ_BLOB, blob, &bsha);
         a_cstr(mode, "100644 ");
         u8bFeed(tree_buf, mode);
         a_cstr(name, files[i].name);
@@ -389,7 +389,7 @@ static ok64 make_commit(sha1 *commit_out, keeper *k,
 
     sha1 tree_sha = {};
     a_dup(u8c, tc, u8bData(tree_buf));
-    call(KEEPPackFeed, k, &p, KEEP_OBJ_TREE, tc, &tree_sha);
+    call(KEEPPackFeed, k, &p, DOG_OBJ_TREE, tc, &tree_sha);
 
     // Commit object
     a_pad(u8, cbuf, 1024);
@@ -416,7 +416,7 @@ static ok64 make_commit(sha1 *commit_out, keeper *k,
     u8bFeed(cbuf, hdr);
 
     a_dup(u8c, cc, u8bData(cbuf));
-    call(KEEPPackFeed, k, &p, KEEP_OBJ_COMMIT, cc, commit_out);
+    call(KEEPPackFeed, k, &p, DOG_OBJ_COMMIT, cc, commit_out);
     call(KEEPPackClose, k, &p);
     done;
 }
@@ -432,7 +432,7 @@ ok64 SNIFFRoundTrip() {
 
     // 1. Create initial commit: a.txt, b.txt, c.txt
     keeper k = {};
-    call(KEEPOpen, &k, root);
+    call(KEEPOpen, &k, root, YES);
 
     testfile init_files[] = {
         {"a.txt", "alpha\n"},
@@ -571,7 +571,7 @@ ok64 SNIFFRoundTrip() {
 
         sha1 c3_sha = {};
         a_dup(u8c, cdata, u8bData(com));
-        call(KEEPPackFeed, &k, &dp, KEEP_OBJ_COMMIT, cdata, &c3_sha);
+        call(KEEPPackFeed, &k, &dp, DOG_OBJ_COMMIT, cdata, &c3_sha);
         call(KEEPPackClose, &k, &dp);
 
         a_pad(u8, c3_hex, 40);

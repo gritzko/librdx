@@ -14,6 +14,7 @@ list(APPEND BRO_HEADERS
 
 list(APPEND BRO_SOURCES
     BRO.c
+    BRO.exe.c
     MAUS.c
 )
 

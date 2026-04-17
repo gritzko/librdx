@@ -16,8 +16,10 @@
 #include "abc/INT.h"
 #include "abc/KV.h"
 #include "abc/URI.h"
+#include "dog/CLI.h"
 #include "dog/SHA1.h"
 #include "dog/WHIFF.h"
+#include "dog/DOG.h"
 
 con ok64 KEEPFAIL    = 0x50e3993ca495;
 con ok64 KEEPNOROOM  = 0x50e3995d86d8616;
@@ -81,13 +83,27 @@ typedef struct {
     Bu8    buf4;                    // working buffer for keep_resolve delta
 } keeper;
 
-// --- Public API ---
+// --- Public API (DOG 4-fn) ---
 
-//  Open keeper store.  reporoot empty → HOMEFindDogs from cwd.
-ok64 KEEPOpen(keeper *k, u8cs reporoot);
+//  Open keeper store.  home empty → HOMEFindDogs from cwd.
+//  rw=YES creates `.dogs/keeper/` and its subdirs if missing.
+ok64 KEEPOpen(keeper *k, u8cs home, b8 rw);
+
+//  Run one CLI invocation — same effect as `keeper ...`.
+ok64 KEEPExec(keeper *k, cli *c);
+
+//  Feed a single git object (type + raw uncompressed content) into
+//  the store.  Appends to the current pack log + records an index
+//  entry.  obj_type uses KEEP_OBJ_* below.  `path` is informational
+//  (repo-relative path for blobs, empty for trees/commits/tags).
+ok64 KEEPUpdate(keeper *k, u8 obj_type, u8cs blob, u8csc path);
 
 //  Close and unmap everything.
 ok64 KEEPClose(keeper *k);
+
+//  Verb + value-flag tables for CLIParse.
+extern char const *const KEEP_CLI_VERBS[];
+extern char const KEEP_CLI_VAL_FLAGS[];
 
 // Git object types (from packfile format)
 #define KEEP_OBJ_COMMIT 1

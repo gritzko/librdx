@@ -3,6 +3,12 @@
 
 #include "abc/URI.h"
 
+// Git object types (from packfile format)
+#define DOG_OBJ_COMMIT 1
+#define DOG_OBJ_TREE   2
+#define DOG_OBJ_BLOB   3
+#define DOG_OBJ_TAG    4
+
 // Parse a URI string with dog-specific normalization:
 //   1. Invoke abc/URILexer for strict RFC 3986 parsing.
 //   2. If the parsed URI has a scheme but no authority and its

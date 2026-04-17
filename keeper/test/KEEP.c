@@ -73,7 +73,7 @@ ok64 KEEPempty() {
 
     u8cs root = {(u8cp)tmpdir, (u8cp)tmpdir + strlen(tmpdir)};
     keeper k = {};
-    call(KEEPOpen, &k, root);
+    call(KEEPOpen, &k, root, YES);
     want(k.npacks == 0);
     want(k.nruns == 0);
 
@@ -101,7 +101,7 @@ ok64 KEEPput() {
 
     a_cstr(root, tmpdir);
     keeper k = {};
-    call(KEEPOpen, &k, root);
+    call(KEEPOpen, &k, root, YES);
     want(k.npacks == 0);
 
     // Store two blobs
@@ -112,8 +112,8 @@ ok64 KEEPput() {
         {blob2[0], blob2[1]},
     };
     wh64 wh[2] = {
-        wh64Pack(KEEP_OBJ_BLOB, 0, 0),
-        wh64Pack(KEEP_OBJ_BLOB, 0, 0),
+        wh64Pack(DOG_OBJ_BLOB, 0, 0),
+        wh64Pack(DOG_OBJ_BLOB, 0, 0),
     };
 
     call(KEEPPut, &k, objs, wh, 2);
@@ -121,8 +121,8 @@ ok64 KEEPput() {
     want(k.nruns == 1);
 
     // Both whiffs should have valid types
-    want(wh64Type(wh[0]) == KEEP_OBJ_BLOB);
-    want(wh64Type(wh[1]) == KEEP_OBJ_BLOB);
+    want(wh64Type(wh[0]) == DOG_OBJ_BLOB);
+    want(wh64Type(wh[1]) == DOG_OBJ_BLOB);
 
     // Compute 60-bit hashlets from known blob content
     // "hello world\n" SHA = 3b18e512dba79e4c8300dd08aeb37f8e728b8dad
@@ -142,7 +142,7 @@ ok64 KEEPput() {
     call(u8bMap, out, 1UL << 20);
     u8 obj_type = 0;
     call(KEEPGet, &k, h0, 15, out, &obj_type);
-    want(obj_type == KEEP_OBJ_BLOB);
+    want(obj_type == DOG_OBJ_BLOB);
     want(u8bDataLen(out) == u8csLen(blob1));
     want(memcmp(u8bDataHead(out), blob1[0], u8csLen(blob1)) == 0);
 
@@ -168,7 +168,7 @@ ok64 KEEPpackIncremental() {
 
     a_cstr(root, tmpdir);
     keeper k = {};
-    call(KEEPOpen, &k, root);
+    call(KEEPOpen, &k, root, YES);
 
     keep_pack p = {};
     call(KEEPPackOpen, &k, &p);
@@ -177,7 +177,7 @@ ok64 KEEPpackIncremental() {
     // git SHA-1 = 3b18e512dba79e4c8300dd08aeb37f8e728b8dad
     a_cstr(blob_content, "hello world\n");
     sha1 blob_sha = {};
-    call(KEEPPackFeed, &k, &p, KEEP_OBJ_BLOB, blob_content, &blob_sha);
+    call(KEEPPackFeed, &k, &p, DOG_OBJ_BLOB, blob_content, &blob_sha);
 
     // Verify blob SHA matches git
     u8 expected_blob_sha[20] = {
@@ -195,7 +195,7 @@ ok64 KEEPpackIncremental() {
 
     a_dup(u8c, tree_content, u8bData(tree_buf));
     sha1 tree_sha = {};
-    call(KEEPPackFeed, &k, &p, KEEP_OBJ_TREE, tree_content, &tree_sha);
+    call(KEEPPackFeed, &k, &p, DOG_OBJ_TREE, tree_content, &tree_sha);
 
     // Verify tree SHA matches git: 68aba62e560c0ebc3396e8ae9335232cd93a3f60
     u8 expected_tree_sha[20] = {
@@ -214,7 +214,7 @@ ok64 KEEPpackIncremental() {
     u8 obj_type = 0;
     a_cstr(_bh, "3b18e51");
     call(KEEPGet, &k, WHIFFHexHashlet60(_bh), 7, out, &obj_type);
-    want(obj_type == KEEP_OBJ_BLOB);
+    want(obj_type == DOG_OBJ_BLOB);
     want(u8bDataLen(out) == u8csLen(blob_content));
     want(memcmp(u8bDataHead(out), blob_content[0], u8csLen(blob_content)) == 0);
 
@@ -222,7 +222,7 @@ ok64 KEEPpackIncremental() {
     u8bReset(out);
     u64 tree_hashlet = WHIFFHashlet60(&tree_sha);
     call(KEEPGet, &k, tree_hashlet, 15, out, &obj_type);
-    want(obj_type == KEEP_OBJ_TREE);
+    want(obj_type == DOG_OBJ_TREE);
     want(u8bDataLen(out) == u8csLen(tree_content));
     want(memcmp(u8bDataHead(out), tree_content[0], u8csLen(tree_content)) == 0);
 

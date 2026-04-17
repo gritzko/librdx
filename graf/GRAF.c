@@ -16,17 +16,17 @@ graf_emit_fn graf_emit    = NULL;
 
 // --- GRAFOpen / GRAFClose ---
 
-ok64 GRAFOpen(graf *g, u8cs dogsroot) {
+ok64 GRAFOpen(graf *g, u8cs home, b8 rw) {
     sane(g);
     memset(g, 0, sizeof(*g));
     g->out_fd = -1;
 
     // Resolve .dogs/graf/ path
     a_path(dir);
-    if ($empty(dogsroot)) {
+    if ($empty(home)) {
         call(HOMEFindDogs, dir);
     } else {
-        call(PATHu8bFeed, dir, dogsroot);
+        call(PATHu8bFeed, dir, home);
     }
     a_cstr(rel, "/graf");
     call(u8bFeed, dir, rel);
@@ -37,8 +37,8 @@ ok64 GRAFOpen(graf *g, u8cs dogsroot) {
     memcpy(g->dir, u8bDataHead(dir), dlen);
     g->dir[dlen] = 0;
 
-    // Ensure directory exists
-    call(FILEMakeDirP, PATHu8cgIn(dir));
+    // Create directory only in rw mode.
+    if (rw) call(FILEMakeDirP, PATHu8cgIn(dir));
 
     // Open DAG index
     u8cs dagdir = {(u8cp)g->dir, (u8cp)g->dir + dlen};
@@ -47,6 +47,17 @@ ok64 GRAFOpen(graf *g, u8cs dogsroot) {
     // Map arena
     call(u8bMap, g->arena, GRAF_ARENA_SIZE);
 
+    done;
+}
+
+// --- Update: feed a single git object into graf's DAG index ---
+//
+// TODO: when obj_type == KEEP_OBJ_COMMIT, thread the commit into the
+// DAG; for trees, record blob→path mapping.  For now this is a stub
+// so the DOG 4-fn surface is consistent across all dogs.
+ok64 GRAFUpdate(graf *g, u8 obj_type, u8cs blob, u8csc path) {
+    sane(g);
+    (void)obj_type; (void)blob; (void)path;
     done;
 }
 

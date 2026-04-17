@@ -22,6 +22,7 @@
 #include "abc/BUF.h"
 #include "abc/INT.h"
 #include "abc/PATH.h"
+#include "dog/CLI.h"
 #include "dog/WHIFF.h"
 
 con ok64 SNIFFFAIL   = 0x1c5d23cf3ca495;
@@ -55,16 +56,26 @@ typedef struct {
     Bu32  sorted;         // merged sorted index (for POST/DEL)
 } sniff;
 
-// --- Public API ---
+// --- Public API (DOG 4-fn) ---
 
-//  Open .dogs/sniff/ state.  reporoot from HOMEFind.
-ok64 SNIFFOpen(sniff *s, u8cs reporoot, b8 rw);
+//  Open .dogs/sniff/ state rooted at `home` (repo root).
+ok64 SNIFFOpen(sniff *s, u8cs home, b8 rw);
+
+//  Run one CLI invocation — same effect as `sniff ...`.
+ok64 SNIFFExec(sniff *s, cli *c);
+
+//  Feed a single git object (blob/tree/commit/tag) into sniff's
+//  index.  obj_type uses KEEP_OBJ_* constants from keeper/KEEP.h.
+//  `path` is the repo-relative path this object lives at (empty
+//  for commits/tags/top-level trees).
+ok64 SNIFFUpdate(sniff *s, u8 obj_type, u8cs blob, u8csc path);
 
 //  Close and unmap everything.
 ok64 SNIFFClose(sniff *s);
 
-//  Re-read paths log if it grew (another dog appended).
-ok64 SNIFFUpdate(sniff *s);
+//  Verb + value-flag tables for CLIParse.
+extern char const *const SNIFF_VERBS[];
+extern char const SNIFF_VAL_FLAGS[];
 
 //  path→index.  Appends to paths log if new.
 u32  SNIFFIntern(sniff *s, u8cs path);

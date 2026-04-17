@@ -196,13 +196,17 @@ ok64 SNIFFOpen(sniff *s, u8cs reporoot, b8 rw) {
     done;
 }
 
-ok64 SNIFFUpdate(sniff *s) {
-    sane(s && s->paths);
-    u32 sep = SNIFFFindSep(s->paths);
-    u8cp mid = sep ? u8bDataHead(s->paths) + sep : u8bDataHead(s->paths);
-    u8csbReset(s->data);
-    u8cs data_r = {mid, u8bIdleHead(s->paths)};
-    call(SNIFFScanPaths, s->data, data_r);
+//  Feed a git object into sniff's index.  Tree objects contribute
+//  their entries' path names so `sniff` learns repo paths without
+//  having to walk the worktree.  Other types are currently ignored
+//  (commits/tags don't carry paths; blobs are content).
+//
+//  TODO: parse tree object (u8 mode SP name NUL sha[20]) and intern
+//  each name.  For now this is a stub that accepts and drops the
+//  blob — keeper can call it during fetch without error.
+ok64 SNIFFUpdate(sniff *s, u8 obj_type, u8cs blob, u8csc path) {
+    sane(s);
+    (void)obj_type; (void)blob; (void)path;
     done;
 }
 

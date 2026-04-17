@@ -874,7 +874,7 @@ ok64 DAGHook(keeper *k, u8cs reporoot) {
 
         for (size_t ei = 0; ei < rlen && result == OK; ei++) {
             u8 type = keepKeyType(base[ei].key);
-            if (type != KEEP_OBJ_COMMIT) continue;
+            if (type != DOG_OBJ_COMMIT) continue;
 
             u64 commit_h = keepKeyHashlet(base[ei].key);
 
@@ -894,7 +894,7 @@ ok64 DAGHook(keeper *k, u8cs reporoot) {
             u8bReset(commit_buf);
             u8 obj_type = 0;
             if (KEEPGet(k, commit_h, 15, commit_buf, &obj_type) != OK) continue;
-            if (obj_type != KEEP_OBJ_COMMIT) continue;
+            if (obj_type != DOG_OBJ_COMMIT) continue;
 
             // Parse commit: extract tree SHA and parent SHAs
             a_dup(u8c, scan, u8bDataC(commit_buf));
@@ -965,7 +965,7 @@ ok64 DAGHook(keeper *k, u8cs reporoot) {
                     parent_gen = dag_stack_gen(&stack, parent_hashlets[0]);
 
                 if (KEEPGet(k, parent_hashlets[0], 15, parent_commit, &pt) == OK &&
-                    pt == KEEP_OBJ_COMMIT) {
+                    pt == DOG_OBJ_COMMIT) {
                     a_dup(u8c, pscan, u8bDataC(parent_commit));
                     u8cs pf = {}, pv = {};
                     sha1 ptree = {};

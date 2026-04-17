@@ -2,6 +2,7 @@
 #define GRAF_GRAF_H
 
 #include "abc/INT.h"
+#include "dog/CLI.h"
 #include "dog/HUNK.h"
 #include "graf/DAG.h"
 
@@ -20,11 +21,26 @@ typedef struct {
     char         dir[1024];  // resolved .dogs/graf/ path
 } graf;
 
-//  Open graf state.  dogsroot empty → HOMEFindDogs from cwd.
-ok64 GRAFOpen(graf *g, u8cs dogsroot);
+// --- Public API (DOG 4-fn) ---
+
+//  Open graf state rooted at `home` (repo root).  Empty home →
+//  HOMEFindDogs from cwd.  rw=YES creates `.dogs/graf/` if missing.
+ok64 GRAFOpen(graf *g, u8cs home, b8 rw);
+
+//  Run one CLI invocation — same effect as `graf ...`.
+ok64 GRAFExec(graf *g, cli *c);
+
+//  Feed a single git object into graf's DAG index.
+//  obj_type uses KEEP_OBJ_* constants from keeper/KEEP.h.
+//  `path` is the repo-relative path (for blobs) or empty.
+ok64 GRAFUpdate(graf *g, u8 obj_type, u8cs blob, u8csc path);
 
 //  Close and free resources.
 ok64 GRAFClose(graf *g);
+
+//  Verb + value-flag tables for CLIParse.
+extern char const *const GRAF_CLI_VERBS[];
+extern char const GRAF_CLI_VAL_FLAGS[];
 
 // --- Legacy globals (used by existing diff/merge code) ---
 

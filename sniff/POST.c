@@ -43,7 +43,7 @@ static ok64 POSTCollectTree(sha_ctx *ctx, keeper *k,
     u8 otype = 0;
     ok64 o = KEEPGet(k, hashlet, 15, buf, &otype);
     if (o != OK) { u8bFree(buf); fail(o); }
-    if (otype != KEEP_OBJ_TREE) { u8bFree(buf); fail(SNIFFFAIL); }
+    if (otype != DOG_OBJ_TREE) { u8bFree(buf); fail(SNIFFFAIL); }
 
     size_t tsz = u8bDataLen(buf);
     Bu8 tcopy = {};
@@ -111,7 +111,7 @@ static ok64 POSTResolveParent(sha_ctx *ctx, keeper *k, u8cs parent_hex) {
     call(KEEPGet, k, hashlet, hexlen, cbuf, &ctype);
 
     // Dereference tag
-    if (ctype == KEEP_OBJ_TAG) {
+    if (ctype == DOG_OBJ_TAG) {
         u8cs body = {u8bDataHead(cbuf), u8bIdleHead(cbuf)};
         u8cs field = {}, value = {};
         sha1 tag_sha = {};
@@ -129,7 +129,7 @@ static ok64 POSTResolveParent(sha_ctx *ctx, keeper *k, u8cs parent_hex) {
         u8bReset(cbuf);
         call(KEEPGet, k, ch, 15, cbuf, &ctype);
     }
-    if (ctype != KEEP_OBJ_COMMIT) { u8bFree(cbuf); fail(SNIFFFAIL); }
+    if (ctype != DOG_OBJ_COMMIT) { u8bFree(cbuf); fail(SNIFFFAIL); }
 
     sha1 tree_sha = {};
     u8cs commit_body = {u8bDataHead(cbuf), u8bIdleHead(cbuf)};
@@ -279,7 +279,7 @@ static ok64 POSTBuild(sha1 *tree_out, sniff *s, keeper *k,
                     FILEClose(&fd);
                 }
                 u8cs blob = {u8bDataHead(content), u8bIdleHead(content)};
-                o = KEEPPackFeed(k, p, KEEP_OBJ_BLOB, blob, &file_sha);
+                o = KEEPPackFeed(k, p, DOG_OBJ_BLOB, blob, &file_sha);
                 u8bFree(content);
                 if (o != OK) { u8bFree(tree); return o; }
             } else {
@@ -320,7 +320,7 @@ static ok64 POSTBuild(sha1 *tree_out, sniff *s, keeper *k,
     }
 
     u8cs tree_data = {u8bDataHead(tree), u8bIdleHead(tree)};
-    call(KEEPPackFeed, k, p, KEEP_OBJ_TREE, tree_data, tree_out);
+    call(KEEPPackFeed, k, p, DOG_OBJ_TREE, tree_data, tree_out);
     u8bFree(tree);
     done;
 }

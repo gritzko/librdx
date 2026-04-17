@@ -7,10 +7,13 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS on)
 
 include_directories(.. .)
 
-add_library(snifflib STATIC SNIFF.h SNIFF.c GET.h GET.c POST.h POST.c PUT.h PUT.c DEL.h DEL.c)
+add_library(snifflib STATIC
+    SNIFF.h SNIFF.c SNIFF.exe.c
+    GET.h GET.c POST.h POST.c PUT.h PUT.c DEL.h DEL.c
+    ../abc/FSW.c)
 target_link_libraries(snifflib keeplib gitcompat dog abc-core)
 
-add_executable(sniff-cli SNIFF.cli.c ../abc/FSW.c)
+add_executable(sniff-cli SNIFF.cli.c)
 target_link_libraries(sniff-cli snifflib)
 set_target_properties(sniff-cli PROPERTIES OUTPUT_NAME sniff RUNTIME_OUTPUT_DIRECTORY ${DOG_BIN_DIR})
 

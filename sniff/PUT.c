@@ -26,7 +26,7 @@ static ok64 PUTParentSha(sha1 *out, keeper *k, u8cs parent_hex) {
     call(KEEPGet, k, hashlet, hexlen, cbuf, &ctype);
 
     // Dereference tag
-    if (ctype == KEEP_OBJ_TAG) {
+    if (ctype == DOG_OBJ_TAG) {
         u8cs body = {u8bDataHead(cbuf), u8bIdleHead(cbuf)};
         u8cs field = {}, value = {};
         sha1 tag_sha = {};
@@ -44,7 +44,7 @@ static ok64 PUTParentSha(sha1 *out, keeper *k, u8cs parent_hex) {
         u8bReset(cbuf);
         call(KEEPGet, k, ch, 15, cbuf, &ctype);
     }
-    if (ctype != KEEP_OBJ_COMMIT) { u8bFree(cbuf); fail(SNIFFFAIL); }
+    if (ctype != DOG_OBJ_COMMIT) { u8bFree(cbuf); fail(SNIFFFAIL); }
 
     // SHA1("commit <len>\0" + content)
     size_t csz = u8bDataLen(cbuf);
@@ -124,7 +124,7 @@ ok64 PUTCommit(sniff *s, keeper *k, u8cs reporoot,
     u8bFeed1(com, '\n');
 
     u8cs com_data = {u8bDataHead(com), u8bIdleHead(com)};
-    o = KEEPPackFeed(k, &p, KEEP_OBJ_COMMIT, com_data, sha_out);
+    o = KEEPPackFeed(k, &p, DOG_OBJ_COMMIT, com_data, sha_out);
     u8bFree(com);
     if (o != OK) { KEEPPackClose(k, &p); return o; }
 

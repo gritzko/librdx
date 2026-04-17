@@ -9,11 +9,23 @@
  6. If `.dogs/keeper` is present, keeper has the data; if
     not, `git` has the data
  7. Last-seen-commit tracking is in `.dogs/name/COMMIT`.
- 8. The static lib must have `name` control struct and
-      - `ok64 DOGOpen(name* state, path8s home, b8 rw)`
+ 8. The static lib has a `name` control struct and four uniform
+    entry points:
+      - `ok64 DOGOpen(name* state, u8cs home, b8 rw)`
+           open state rooted at `home` (repo root), ro or rw
+      - `ok64 DOGExec(name* state, cli* c)`
+           execute a parsed CLI (verb + flags + URIs) against
+           the open state; equivalent to invoking `name ...` as
+           a process
+      - `ok64 DOGUpdate(name* state, u8 obj_type, u8cs blob, u8csc path)`
+           feed a single git object (type + raw blob) into the
+           dog's index; payload-ingestion path used by fetch and
+           checkout
       - `ok64 DOGClose(name* state)`
- 9. `.dogs/DOGS` lists the dogs `beagle` invokes by default
-10. `be` dispatches HTTP-like command vocabulary to
+ 9. `be` links every dog's static lib directly — no subprocess
+    fork/exec. It parses one CLI, opens the dogs it needs, calls
+    `NAMEExec` on each in order, and closes them.
+10. `be` dispatches the HTTP-like verb vocabulary below to the
     appropriate dogs.
 
 ##  URI convention

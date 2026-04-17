@@ -94,8 +94,7 @@ static ok64 blame_fetch_blob(u8bp buf, keeper *k, u64 blob_hashlet) {
     u8 obj_type = 0;
     ok64 o = KEEPGet(k, blob_hashlet, 15, buf, &obj_type);
     if (o != OK) return o;
-    if (obj_type != KEEP_OBJ_BLOB) return KEEPNONE;
-    done;
+    if (obj_type != DOG_OBJ_BLOB) return KEEPNONE;
 }
 
 // --- Fetch author + date from commit via keeper ---
@@ -109,13 +108,14 @@ static void blame_fetch_author(blame_author *ba, keeper *k,
     if (u8bMap(cbuf, 1UL << 20) != OK) return;
     u8 obj_type = 0;
     if (KEEPGet(k, commit_hashlet, 15, cbuf, &obj_type) != OK ||
-        obj_type != KEEP_OBJ_COMMIT) {
+        obj_type != DOG_OBJ_COMMIT) {
         u8bUnMap(cbuf);
         return;
     }
 
     // Parse commit headers looking for "author"
-    a_dup(u8c, scan, u8bDataC(cbuf));
+    
+a_dup(u8c, scan, u8bDataC(cbuf));
     u8cs field = {}, value = {};
     while (GITu8sDrainCommit(scan, field, value) == OK) {
         if (u8csEmpty(field)) break;  // blank line = body
@@ -258,7 +258,7 @@ ok64 GRAFBlame(keeper *k, u8cs filepath, u8cs reporoot) {
 
     // Open DAG index
     graf g = {};
-    call(GRAFOpen, &g, reporoot);
+    call(GRAFOpen, &g, reporoot, NO);
 
     // Walk file history via DAG index
     a_cstr(dagdir, g.dir);

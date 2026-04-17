@@ -8,7 +8,7 @@ find_package(ZLIB REQUIRED)
 add_library(gitcompat STATIC GIT.c PKT.c PACK.c DELT.c ZINF.c SHA1.c BELT.c WALK.c)
 target_link_libraries(gitcompat dog abc-core ZLIB::ZLIB)
 
-add_library(keeplib STATIC KEEP.c REFS.c)
+add_library(keeplib STATIC KEEP.c KEEP.exe.c REFS.c)
 target_link_libraries(keeplib gitcompat dog abc-core)
 
 add_executable(keeper-cli KEEP.cli.c)

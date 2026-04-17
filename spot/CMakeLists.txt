@@ -18,6 +18,7 @@ list(APPEND SPOT_HEADERS
 
 list(APPEND SPOT_SOURCES
     CAPO.c
+    CAPO.exe.c
     GREP.c
     LESS.c
     RXLITS.rl.c

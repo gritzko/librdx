@@ -145,6 +145,7 @@ fun idx64 CAPOSymEntry(u64 type, u8cs name, u8cs path) {
 // --- DOG control struct (DOG.md rule 8) ---
 
 #include "abc/FILE.h"
+#include "dog/CLI.h"
 #include "dog/HUNK.h"
 #include "spot/LESS.h"
 
@@ -171,7 +172,26 @@ typedef struct {
 typedef spot *spotp;
 typedef spot const *spotcp;
 
-ok64 SPOTOpen(spotp s, b8 rw);
+// --- Public API (DOG 4-fn) ---
+
+//  Open spot state rooted at `home` (repo root).  Empty home →
+//  fall back to HOMEFind from cwd.
+ok64 SPOTOpen(spotp s, u8cs home, b8 rw);
+
+//  Run one CLI invocation — same effect as `spot ...`.
+ok64 SPOTExec(spotp s, cli *c);
+
+//  Feed a single git object into spot's trigram/symbol index.
+//  Currently: blob objects get indexed by CAPOIndexFile; other
+//  types are ignored.  obj_type uses KEEP_OBJ_* constants.
+//  `path` is the repo-relative path whose extension picks the
+//  tokenizer (empty for non-blob objects).
+ok64 SPOTUpdate(spotp s, u8 obj_type, u8cs blob, u8csc path);
+
 void SPOTClose(spotp s);
+
+//  Verb + value-flag tables for CLIParse.
+extern char const *const SPOT_CLI_VERBS[];
+extern char const SPOT_CLI_VAL_FLAGS[];
 
 #endif

@@ -1763,7 +1763,7 @@ ok64 CAPOTrigramFilter(Bu32 hashbuf, b8 *has_trigrams,
 
 // --- DOG control struct ---
 
-ok64 SPOTOpen(spotp s, b8 rw) {
+ok64 SPOTOpen(spotp s, u8cs home, b8 rw) {
     sane(s != NULL);
     (void)rw;
     memset(s, 0, sizeof(spot));
@@ -1771,13 +1771,20 @@ ok64 SPOTOpen(spotp s, b8 rw) {
     s->color = isatty(STDOUT_FILENO) ? YES : NO;
     s->term = (isatty(STDERR_FILENO) && isatty(STDOUT_FILENO)) ? YES : NO;
 
+    // Resolve home: caller-supplied slice wins, otherwise HOMEFind.
     a_path(root);
-    ok64 ho = HOMEFind(root);
-    if (ho == OK) {
+    u8cs home_s = {};
+    if ($ok(home) && !$empty(home)) {
+        u8csMv(home_s, home);
+    } else if (HOMEFind(root) == OK) {
         a_dup(u8c, rs, u8bDataC(root));
-        size_t rlen = (size_t)$len(rs);
+        u8csMv(home_s, rs);
+    }
+
+    if (!$empty(home_s)) {
+        size_t rlen = (size_t)$len(home_s);
         if (rlen >= sizeof(s->home_str)) rlen = sizeof(s->home_str) - 1;
-        memcpy(s->home_str, rs[0], rlen);
+        memcpy(s->home_str, home_s[0], rlen);
         s->home_str[rlen] = 0;
         s->home[0] = (u8cp)s->home_str;
         s->home[1] = (u8cp)s->home_str + rlen;

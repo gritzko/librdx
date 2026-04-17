@@ -18,6 +18,7 @@ list(APPEND GRAF_HEADERS
 
 list(APPEND GRAF_SOURCES
     GRAF.c
+    GRAF.exe.c
     BLAME.c
     DAG.c
     DIFF.c

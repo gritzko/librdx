@@ -4,9 +4,23 @@
 #include "abc/B.h"
 #include "abc/INT.h"
 #include "abc/URI.h"
+#include "dog/CLI.h"
 #include "dog/DOG.h"
 #include "dog/FRAG.h"
 #include "dog/HUNK.h"
+
+// --- bro control struct (per DOG.md rule 8) ---
+//
+// bro is stateless across invocations — it does not persist anything
+// to `.dogs/bro/`. The control struct holds only the transient arena
+// and hunk lists (which continue to live in module globals to keep
+// the pager code untouched). DOGOpen/Close are no-ops; DOGExec runs
+// the CLI; DOGUpdate is a stub — bro doesn't index anything.
+
+typedef struct {
+    u8cs home;   // repo root (slice; not owned)
+    b8   rw;
+} bro;
 
 #define BRO_NONE UINT32_MAX
 
@@ -105,5 +119,12 @@ u32 BROHiliNextLine(hunkc const *hunks, u32 nhunks,
 // Last line containing a hili range whose first line < `mid`.
 u32 BROHiliPrevLine(hunkc const *hunks, u32 nhunks,
                     range32 const *lines, u32 nlines, u32 mid);
+
+// --- Public API (DOG 4-fn) ---
+
+ok64 BROOpen(bro *b, u8cs home, b8 rw);
+ok64 BROExec(bro *b, cli *c);
+ok64 BROUpdate(bro *b, u8 obj_type, u8cs blob, u8csc path);
+ok64 BROClose(bro *b);
 
 #endif
