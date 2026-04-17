@@ -27,37 +27,82 @@
 #include "dog/HUNK.h"
 #include "dog/TOK.h"
 
-b8 BRO_COLOR = YES;
+// --- Active bro instance ---
+//
+// The pager + cat-mode code uses the bro state's arena, hunks, toks
+// and deferred-maps buffers heavily. Rather than thread `bro *b`
+// through every static helper we keep storage in the caller-owned
+// struct (per the DOG 4-fn API) and install a file-static pointer to
+// it at BROOpen time. Macros below forward the long-established
+// names to the active instance's typed buffers.
 
-// --- BRO arena state ---
-Bu8 bro_arena = {};
-hunk bro_hunks[BRO_MAX_HUNKS];
-u8bp bro_maps[BRO_MAX_MAPS];
-Bu32 bro_toks[BRO_MAX_MAPS];
-u32 bro_nhunks = 0;
-u32 bro_nmaps = 0;
+static bro *bro_state = NULL;
 
+#define bro_arena  (bro_state->arena)
+#define bro_hunks  hunkbDataHead(bro_state->hunks)   // hunk* into DATA
+#define bro_toks   (bro_state->toks)                 // shared u32b arena
+#define BRO_COLOR  (bro_state->color)
+#define bro_nhunks ((u32)hunkbDataLen(bro_state->hunks))
+
+// Tokens arena size — big enough for every hunk's tokens combined.
+#define BRO_TOKS_SIZE (1UL << 22)   // 16M u32 entries = 64MB
+
+// --- DOG 4-fn: Open / Close / Update ---
+
+ok64 BROOpen(bro *b, u8cs home, b8 rw) {
+    sane(b);
+    memset(b, 0, sizeof(*b));
+    u8csMv(b->home, home);
+    b->rw = rw;
+    b->color = YES;
+    b->pipe_fd = -1;
+    b->worker_pid = -1;
+    bro_state = b;
+    call(u8bMap, b->arena, BRO_ARENA_SIZE);
+    call(hunkbMap, b->hunks, BRO_MAX_HUNKS);
+    call(u32bMap,  b->toks,  BRO_TOKS_SIZE);
+    call(u8bbMap,  b->maps,  BRO_MAX_MAPS);
+    done;
+}
+
+ok64 BROClose(bro *b) {
+    sane(b);
+    if (bro_state == b) {
+        size_t n = u8bbDataLen(b->maps);
+        u8b *head = u8bbDataHead(b->maps);
+        for (size_t i = 0; i < n; i++) {
+            u8bp mp = (u8bp)head[i];
+            if (mp && mp[0]) FILEUnMap(mp);
+        }
+        if (b->maps[0])  u8bbUnMap(b->maps);
+        if (b->toks[0])  u32bUnMap(b->toks);
+        if (b->hunks[0]) hunkbUnMap(b->hunks);
+        if (b->arena[0]) u8bUnMap(b->arena);
+        bro_state = NULL;
+    }
+    memset(b, 0, sizeof(*b));
+    done;
+}
+
+// Bro does not index — stub to satisfy the DOG 4-fn contract.
+ok64 BROUpdate(bro *b, u8 obj_type, u8cs blob, u8csc path) {
+    sane(b);
+    (void)obj_type; (void)blob; (void)path;
+    done;
+}
+
+// Reset staging between subcommands — keeps the mappings alive.
 ok64 BROArenaInit(void) {
-    bro_nhunks = 0;
-    bro_nmaps = 0;
-    memset(bro_hunks, 0, sizeof(bro_hunks));
-    memset(bro_maps, 0, sizeof(bro_maps));
-    memset(bro_toks, 0, sizeof(bro_toks));
-    if (bro_arena[0] != NULL) {
-        u8bShedAll(bro_arena);  // empty DATA, IDLE spans full buffer
-        return OK;
-    }
-    return u8bMap(bro_arena, BRO_ARENA_SIZE);
+    sane(bro_state);
+    u8bShedAll(bro_state->arena);
+    hunkbShedAll(bro_state->hunks);
+    u32bShedAll(bro_state->toks);
+    // Deferred maps stay recorded across a reset so the owning
+    // files remain valid for hunks already handed to BRORun.
+    return OK;
 }
 
-void BROArenaCleanup(void) {
-    for (u32 i = 0; i < bro_nmaps; i++) {
-        if (bro_toks[i][0] != NULL) u32bUnMap(bro_toks[i]);
-        if (bro_maps[i] != NULL) FILEUnMap(bro_maps[i]);
-    }
-    bro_nhunks = 0;
-    bro_nmaps = 0;
-}
+void BROArenaCleanup(void) { /* cleanup lives in BROClose */ }
 
 // Write bytes into the arena, return pointer to start
 u8p BROArenaWrite(void const *data, size_t len) {
@@ -68,18 +113,15 @@ u8p BROArenaWrite(void const *data, size_t len) {
     return p;
 }
 
-// Defer file+toks cleanup until after BRORun
-void BRODefer(u8bp mapped, Bu32 toks) {
-    if (bro_nmaps >= BRO_MAX_MAPS) return;
-    bro_maps[bro_nmaps] = mapped;
-    memcpy(bro_toks[bro_nmaps], toks, sizeof(Bu32));
-    bro_nmaps++;
+// Record a mmap'd file so BROClose can FILEUnMap it after the view
+// that references it has been drained.
+void BRODefer(u8bp mapped) {
+    if (!mapped || u8bbIdleLen(bro_state->maps) == 0) return;
+    u8bbFeed1(bro_state->maps, mapped);
 }
 
-// Bump bro_nhunks after caller filled bro_hunks[bro_nhunks].
-void BROHunkAdd(void) {
-    bro_nhunks++;
-}
+// Finalize the hunk just staged at hunkbIdleHead.
+void BROHunkAdd(void) { hunkbFed(bro_state->hunks, 1); }
 
 // 256-color ink violet for hunk titles
 #define BRO_TITLE_COLOR TTY_FG256(56)
@@ -126,9 +168,9 @@ typedef struct {
 } BROsave;
 
 // Resources owned by a file view (one opened file).
+// Tokens live in the shared bro_state->toks arena; hunk.toks slices it.
 typedef struct {
-    u8bp mapped;       // mmap'd file
-    Bu32 toks;         // tok buffer
+    u8bp mapped;    // mmap'd file
     hunk hunk;      // inline hunk (title + text + toks, no hili)
 } BROfileview;
 
@@ -245,69 +287,64 @@ static ok64 BROBuildIndex(BROstate *st) {
 
 // --- Directory listing ---
 // Build a hunk for a directory listing. Each entry is a line tagged 'F'.
-// Directories get a trailing '/'. Sorted alphabetically.
-// Returns OK if hunk was added to bro_hunks[].
+// Directories get a trailing '/' (FILEScan already yields dir paths with
+// a trailing slash).
+
+// Reference point passed to the FILEScan callback: where the text+toks
+// blocks began for *this* listing pass, so each entry can write its
+// offsets into bro_arena / bro_state->toks.
+typedef struct {
+    u8p  text_start;
+} listdir_ctx;
+
+static ok64 listdir_emit(void0p arg, path8p path) {
+    listdir_ctx *ctx = (listdir_ctx *)arg;
+    // FILEScan appends '/' to directory paths. Peel it before taking
+    // the basename — PATHu8sBase of "bro/test/" would be empty.
+    a_dup(u8c, full, u8bDataC(path));
+    b8 is_dir = NO;
+    if (!$empty(full) && *$last(full) == '/') {
+        is_dir = YES;
+        u8csShed1(full);
+    }
+    u8cs name = {};
+    PATHu8sBase(name, full);
+    if ($empty(name)) return OK;
+
+    u8p wp = BROArenaWrite(name[0], (size_t)$len(name));
+    if (wp == NULL) return OK;
+    u32 name_end = (u32)(u8bIdleHead(bro_arena) - ctx->text_start);
+    u32bFeed1(bro_state->toks, tok32Pack('F', name_end));
+    if (is_dir) {
+        BROArenaWrite("/", 1);
+        u32 sl_end = (u32)(u8bIdleHead(bro_arena) - ctx->text_start);
+        u32bFeed1(bro_state->toks, tok32Pack('P', sl_end));
+    }
+    BROArenaWrite("\n", 1);
+    u32 nl_end = (u32)(u8bIdleHead(bro_arena) - ctx->text_start);
+    u32bFeed1(bro_state->toks, tok32Pack('S', nl_end));
+    return OK;
+}
+
 ok64 BROListDir(u8csc dirpath) {
     sane(!$empty(dirpath));
-    if (bro_nhunks >= BRO_MAX_HUNKS) fail(NOROOM);
+    if (hunkbIdleLen(bro_state->hunks) == 0) fail(NOROOM);
 
-    // NUL-terminate for opendir
-    a_pad(u8, dbuf, FILE_PATH_MAX_LEN);
-    u8bFeed(dbuf, dirpath);
-    u8sFeed1(dbuf_idle, 0);
+    a_path(dir);
+    call(PATHu8bFeed, dir, dirpath);
 
-    DIR *dp = opendir((char *)u8bDataHead(dbuf));
-    if (dp == NULL) fail(FAILSANITY);
+    // Snapshot arena/toks heads so the callback's entries can be
+    // sliced into this hunk's text/toks ranges.
+    listdir_ctx ctx = {.text_start = u8bIdleHead(bro_arena)};
+    u32 *tok_start = u32bIdleHead(bro_state->toks);
 
-    // Collect entries into arena as "name\n" text
-    u8p text_start = u8bIdleHead(bro_arena);
-
-    // Also build tok array: each entry gets tag 'F' for the filename
-    // and 'P' for the trailing / or \n
-    Bu32 tokbuf = {};
-    ok64 to = u32bAlloc(tokbuf, 4096);
-    if (to != OK) { closedir(dp); fail(to); }
-
-    struct dirent *de;
-    while ((de = readdir(dp)) != NULL) {
-        if (de->d_name[0] == '.' && de->d_name[1] == 0) continue;
-        size_t nlen = strlen(de->d_name);
-        // Check if directory
-        a_pad(u8, epath, FILE_PATH_MAX_LEN);
-        u8bFeed(epath, dirpath);
-        u8cs slash = {(u8cp)"/", (u8cp)"/" + 1};
-        u8sFeed(epath_idle, slash);
-        u8cs nm = {(u8cp)de->d_name, (u8cp)de->d_name + nlen};
-        u8bFeed(epath, nm);
-        u8sFeed1(epath_idle, 0);
-        struct stat sb = {};
-        b8 is_dir = NO;
-        if (FILEStat(&sb, PATHu8cgIn(epath)) == OK)
-            is_dir = S_ISDIR(sb.st_mode);
-
-        // Write "name/" or "name" + "\n" into arena
-        u8p wp = BROArenaWrite(de->d_name, nlen);
-        if (wp == NULL) break;
-        u32 name_end = (u32)(u8bIdleHead(bro_arena) - text_start);
-        u32bFeed1(tokbuf, tok32Pack('F', name_end));
-        if (is_dir) {
-            BROArenaWrite("/", 1);
-            u32 sl_end = (u32)(u8bIdleHead(bro_arena) - text_start);
-            u32bFeed1(tokbuf, tok32Pack('P', sl_end));
-        }
-        BROArenaWrite("\n", 1);
-        u32 nl_end = (u32)(u8bIdleHead(bro_arena) - text_start);
-        u32bFeed1(tokbuf, tok32Pack('S', nl_end));
-    }
-    closedir(dp);
+    call(FILEScan, dir, FILE_SCAN_ALL, listdir_emit, &ctx);
 
     u8p text_end = u8bIdleHead(bro_arena);
-    if (text_end == text_start) {
-        u32bFree(tokbuf);
-        done;  // empty dir
-    }
+    if (text_end == ctx.text_start) done;  // empty dir
 
-    hunk *hk = &bro_hunks[bro_nhunks];
+    u32 *tok_end = u32bIdleHead(bro_state->toks);
+    hunk *hk = hunkbIdleHead(bro_state->hunks);
     *hk = (hunk){};
 
     // URI = dirpath
@@ -315,21 +352,21 @@ ok64 BROListDir(u8csc dirpath) {
     u8p up = BROArenaWrite(dirpath[0], dl);
     if (up) { hk->uri[0] = up; hk->uri[1] = up + dl; }
 
-    hk->text[0] = text_start;
+    hk->text[0] = ctx.text_start;
     hk->text[1] = text_end;
-    hk->toks[0] = (u32cp)u32bDataHead(tokbuf);
-    hk->toks[1] = (u32cp)u32bIdleHead(tokbuf);
+    hk->toks[0] = (u32cp)tok_start;
+    hk->toks[1] = (u32cp)tok_end;
 
     BROHunkAdd();
-    BRODefer(NULL, tokbuf);
     done;
 }
 
-// --- Tokenize helper (shared by CAT.c and BROOpenFile) ---
-// Tokenize source into toks buffer; set hk->toks on success.
-// toks buffer is allocated here (caller must u32bUnMap on cleanup).
-// Returns YES if tokenized, NO otherwise (unknown ext, alloc fail, etc).
-b8 BROTokenize(Bu32 toks, hunk *hk, u8csc pathslice) {
+// --- Tokenize helper ---
+// Tokenize source into the active bro state's shared `toks` arena
+// and set hk->toks to point at the freshly-written slice. Returns
+// YES on success, NO otherwise (unknown ext, arena exhausted, …).
+b8 BROTokenize(hunk *hk, u8csc pathslice) {
+    if (bro_state == NULL) return NO;
     u8cs ext = {};
     HUNKu8sExt(ext, pathslice[0], (size_t)$len(pathslice));
     u8cs ext_nodot = {};
@@ -338,18 +375,19 @@ b8 BROTokenize(Bu32 toks, hunk *hk, u8csc pathslice) {
         ext_nodot[1] = ext[1];
     }
     if ($empty(ext_nodot) || !TOKKnownExt(ext_nodot)) return NO;
+
     u32 srclen = (u32)$len(hk->text);
-    if (u32bMap(toks, srclen + 1) != OK) return NO;
+    if (u32bIdleLen(bro_state->toks) < (size_t)srclen + 1) return NO;
+
+    u32 *begin = u32bIdleHead(bro_state->toks);
     u8cs source = {hk->text[0], hk->text[1]};
-    if (HUNKu32bTokenize(toks, source, ext) != OK) {
-        u32bUnMap(toks);
-        memset(toks, 0, sizeof(Bu32));
-        return NO;
-    }
-    u32 *dts[2] = {u32bDataHead(toks), u32bIdleHead(toks)};
+    if (HUNKu32bTokenize(bro_state->toks, source, ext) != OK) return NO;
+    u32 *end = u32bIdleHead(bro_state->toks);
+
+    u32 *dts[2] = {begin, end};
     DEFMark(dts, source, ext_nodot);
-    hk->toks[0] = (u32cp)u32bDataHead(toks);
-    hk->toks[1] = (u32cp)u32bIdleHead(toks);
+    hk->toks[0] = (u32cp)begin;
+    hk->toks[1] = (u32cp)end;
     return YES;
 }
 
@@ -363,12 +401,15 @@ static ok64 BROOpenFile(BROstate *st, u8csc relpath, char const *repo,
     sane(st != NULL && !$empty(relpath) && repo != NULL);
     if (st->nsaves >= BRO_MAX_VIEWS) fail(NOROOM);
 
-    // Build absolute path: repo/relpath
+    // Build absolute path: repo/relpath.  PATHu8bPush rejects
+    // multi-segment names, so PATHu8bAdd drains relpath by segments
+    // and pushes each separately (handles `dir/sub/file.c`).
     a_path(fpbuf);
     {
         a_cstr(repo_s, repo);
         call(PATHu8bFeed, fpbuf, repo_s);
-        call(PATHu8bPush, fpbuf, relpath);
+        u8cg rel_g = {relpath[0], relpath[0], relpath[1]};
+        call(PATHu8bAdd, fpbuf, rel_g);
     }
 
     // Map file
@@ -395,7 +436,7 @@ static ok64 BROOpenFile(BROstate *st, u8csc relpath, char const *repo,
         fv->hunk.uri[1] = pp + $len(relpath);
     }
 
-    BROTokenize(fv->toks, &fv->hunk, relpath);
+    BROTokenize(&fv->hunk, relpath);
 
     // Save current view
     BROsave *sv = &st->saves[idx];
@@ -436,9 +477,8 @@ static b8 BROBack(BROstate *st) {
     st->nsaves--;
     int idx = st->nsaves;
 
-    // Free file view resources
+    // Free file view resources (tokens live in shared arena).
     BROfileview *fv = &st->files[idx];
-    if (fv->toks[0] != NULL) u32bUnMap(fv->toks);
     if (fv->mapped != NULL) FILEUnMap(fv->mapped);
     *fv = (BROfileview){};
 
@@ -1560,7 +1600,7 @@ static ok64 BROForkSpot(BROstate *st, char const *flag,
                 u8p hp = BROArenaWrite(tlv_hk.hili[0], hn);
                 if (hp) { hk->hili[0] = (u32cp)hp; hk->hili[1] = (u32cp)u8bIdleHead(bro_arena); }
             }
-            bro_nhunks++;
+            hunkbFed(bro_state->hunks, 1);
         }
         // Compact: shift consumed data out
         size_t consumed = u8bDataLen(pdbuf) - $len(from);
@@ -1577,8 +1617,9 @@ static ok64 BROForkSpot(BROstate *st, char const *flag,
 
     u32 new_nhunks = bro_nhunks - hunks_save;
     if (new_nhunks == 0) {
-        // No results — restore arena, flash message
-        bro_nhunks = hunks_save;
+        // No results — restore hunks buffer + arena, flash message
+        hunkbShed(bro_state->hunks,
+                  (size_t)hunkbDataLen(bro_state->hunks) - hunks_save);
         // Roll IDLE back to the snapshot taken before this fork
         size_t added = (size_t)(u8bIdleHead(bro_arena) - arena_save);
         if (added > 0) u8bShed(bro_arena, added);
@@ -1696,48 +1737,63 @@ static int BROHandleKey(BROstate *st, u8 ch, char const *repo) {
         return BRO_KEY_NONE;
     }
     if (ch == '.') {
-        // List directory of current hunk's file
+        // List the containing directory of the current hunk's file.
+        // Falls back to cwd when the current hunk has no URI or its
+        // path is already a bare name (no '/').
+        u8cs dir = {};
+        u8cs loc_path = {};
         if (st->scroll < st->nlines) {
             u32 hi = st->lines[st->scroll].lo;
             BROloc loc = {};
             BROHunkLoc(&loc, &st->hunks[hi]);
-            if (!$empty(loc.path)) {
-                // Find parent dir: strip after last '/'
-                u8cs dir = {loc.path[0], loc.path[1]};
-                u8cp sl = loc.path[1];
-                while (sl > loc.path[0] && *(sl - 1) != '/') sl--;
-                if (sl > loc.path[0]) {
-                    dir[1] = sl - 1;  // exclude trailing /
-                } else {
-                    dir[0] = (u8cp)"."; dir[1] = (u8cp)"." + 1;
-                }
-                // Push current view, list directory
-                if (st->nsaves < BRO_MAX_VIEWS) {
-                    int idx = st->nsaves;
-                    BROsave *sv = &st->saves[idx];
-                    sv->hunks = st->hunks;
-                    sv->nhunks = st->nhunks;
-                    sv->lines = st->lines;
-                    memcpy(sv->linesbuf, st->linesbuf, sizeof(Brange32));
-                    sv->nlines = st->nlines;
-                    sv->scroll = st->scroll;
-                    st->files[idx] = (BROfileview){};
-
-                    // Reset for dir listing
-                    u32 save_nh = bro_nhunks;
-                    if (BROListDir(dir) == OK && bro_nhunks > save_nh) {
-                        st->hunks = bro_hunks + save_nh;
-                        st->nhunks = bro_nhunks - save_nh;
-                        memset(st->linesbuf, 0, sizeof(Brange32));
-                        BROBuildIndex(st);
-                        st->scroll = (st->nlines > 1) ? 1 : 0;
-                        st->nsaves = idx + 1;
-                        return BRO_KEY_CHANGED;
-                    }
-                }
+            if (!$empty(loc.path)) $mv(loc_path, loc.path);
+        }
+        if (!$empty(loc_path)) {
+            // Peel a trailing '/' (dir URI like "bro/") so we look at
+            // the parent of the dir, not the dir itself.
+            if (*$last(loc_path) == '/') u8csShed1(loc_path);
+            u8cp sl = loc_path[1];
+            while (sl > loc_path[0] && *(sl - 1) != '/') sl--;
+            if (sl > loc_path[0]) {
+                dir[0] = loc_path[0];
+                dir[1] = sl - 1;       // exclude the '/'
             }
         }
-        return BRO_KEY_NONE;
+        if ($empty(dir)) { dir[0] = (u8cp)"."; dir[1] = (u8cp)"." + 1; }
+        if (st->nsaves >= BRO_MAX_VIEWS) {
+            snprintf(st->flash, sizeof(st->flash), "view stack full");
+            return BRO_KEY_NONE;
+        }
+        int idx = st->nsaves;
+        BROsave *sv = &st->saves[idx];
+        sv->hunks = st->hunks;
+        sv->nhunks = st->nhunks;
+        sv->lines = st->lines;
+        memcpy(sv->linesbuf, st->linesbuf, sizeof(Brange32));
+        sv->nlines = st->nlines;
+        sv->scroll = st->scroll;
+        st->files[idx] = (BROfileview){};
+
+        u32 save_nh = bro_nhunks;
+        ok64 lo = BROListDir(dir);
+        if (lo != OK) {
+            snprintf(st->flash, sizeof(st->flash),
+                     "list dir " U8SFMT ": %s",
+                     u8sFmt(dir), ok64str(lo));
+            return BRO_KEY_NONE;
+        }
+        if (bro_nhunks <= save_nh) {
+            snprintf(st->flash, sizeof(st->flash),
+                     "empty: " U8SFMT, u8sFmt(dir));
+            return BRO_KEY_NONE;
+        }
+        st->hunks = bro_hunks + save_nh;
+        st->nhunks = bro_nhunks - save_nh;
+        memset(st->linesbuf, 0, sizeof(Brange32));
+        BROBuildIndex(st);
+        st->scroll = (st->nlines > 1) ? 1 : 0;
+        st->nsaves = idx + 1;
+        return BRO_KEY_CHANGED;
     }
     if (ch == 'm') {
         st->mouse_on = !st->mouse_on;
@@ -2101,7 +2157,7 @@ ok64 BROPipeRun(int pipefd) {
                         hk->hili[1] = (u32cp)u8bIdleHead(bro_arena);
                     }
                 }
-                bro_nhunks++;
+                hunkbFed(bro_state->hunks, 1);
             }
 
             // Compact: shift remaining to buffer start

@@ -22,9 +22,15 @@ typedef struct {
 } hunk;
 
 typedef hunk const hunkc;
-typedef hunk *hunks[2];
-typedef hunk const *hunkcs[2];
-typedef hunk *hunkb[4];
+
+// Required by the Bx.h template. Order hunks by URI (path + location).
+fun int hunkcmp(hunk const *a, hunk const *b) { return $cmp(a->uri, b->uri); }
+
+// Generate hunks / hunkcs / hunkb / hunkcb / hunkbp etc.
+// plus the usual bFeed/bFeed1/bDataLen/bDataHead... family.
+#define X(M, name) M##hunk##name
+#include "abc/Bx.h"
+#undef X
 
 // Producer callback: yields one hunk at a time.  Slices in `hk` are
 // borrowed for the duration of the call (zero-copy into source buffers).

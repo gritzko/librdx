@@ -32,37 +32,14 @@ static void bro_usage(void) {
         "      m toggle mouse (wheel scroll, click to open)\n");
 }
 
-// --- bro has no persistent state: Open/Close are no-ops ---
-
-ok64 BROOpen(bro *b, u8cs home, b8 rw) {
-    sane(b);
-    *b = (bro){};
-    u8csMv(b->home, home);
-    b->rw = rw;
-    done;
-}
-
-ok64 BROClose(bro *b) {
-    sane(b);
-    (void)b;
-    done;
-}
-
-// Bro does not index anything — stub to satisfy the DOG 4-fn contract.
-ok64 BROUpdate(bro *b, u8 obj_type, u8cs blob, u8csc path) {
-    sane(b);
-    (void)obj_type; (void)blob; (void)path;
-    done;
-}
-
 // --- Entry ---
 
 ok64 BROExec(bro *b, cli *c) {
     sane(b && c);
 
-    BRO_COLOR = c->tty_out;
-    if (getenv("BRO_COLOR")) BRO_COLOR = YES;
-    if (getenv("NO_COLOR"))  BRO_COLOR = NO;
+    b->color = c->tty_out;
+    if (getenv("BRO_COLOR")) b->color = YES;
+    if (getenv("NO_COLOR"))  b->color = NO;
 
     if (CLIHas(c, "-h") || CLIHas(c, "--help")) {
         bro_usage();
@@ -72,7 +49,7 @@ ok64 BROExec(bro *b, cli *c) {
     if (c->nuris > 0) {
         call(BROArenaInit);
         for (u32 i = 0; i < c->nuris; i++) {
-            if (bro_nhunks >= BRO_MAX_HUNKS) break;
+            if (hunkbIdleLen(b->hunks) == 0) break;
             uri *u = &c->uris[i];
 
             u8cs file_path = {};
@@ -83,10 +60,10 @@ ok64 BROExec(bro *b, cli *c) {
             }
             if ($empty(file_path)) continue;
 
-            a_pad(u8, fpbuf, FILE_PATH_MAX_LEN);
-            __ = u8bFeed(fpbuf, file_path);
+            a_path(fpbuf);
+            __ = PATHu8bFeed(fpbuf, file_path);
             if (__ != OK) continue;
-            __ = PATHu8gTerm(PATHu8gIn(fpbuf));
+            __ = PATHu8bTerm(fpbuf);
             if (__ != OK) continue;
 
             struct stat sb = {};
@@ -104,20 +81,20 @@ ok64 BROExec(bro *b, cli *c) {
                 continue;
             }
 
-            hunk *hk = &bro_hunks[bro_nhunks];
+            hunk *hk = hunkbIdleHead(b->hunks);
             *hk = (hunk){};
             u8p up = BROArenaWrite(u->data[0], (size_t)$len(u->data));
             if (up) { hk->uri[0] = up; hk->uri[1] = up + $len(u->data); }
             hk->text[0] = u8bDataHead(mapped);
             hk->text[1] = u8bIdleHead(mapped);
 
-            Bu32 toks = {};
-            b8 tok = BROTokenize(toks, hk, file_path);
+            BROTokenize(hk, file_path);
             BROHunkAdd();
-            BRODefer(mapped, tok ? toks : (Bu32){});
+            BRODefer(mapped);
         }
-        if (bro_nhunks > 0)
-            BRORun(bro_hunks, bro_nhunks);
+        if (hunkbDataLen(b->hunks) > 0)
+            BRORun(hunkbDataHead(b->hunks),
+                   (u32)hunkbDataLen(b->hunks));
         BROArenaCleanup();
     } else {
         call(BROPipeRun, STDIN_FILENO);

@@ -2,6 +2,7 @@
 #define BRO_BRO_H
 
 #include "abc/B.h"
+#include "abc/BUF.h"
 #include "abc/INT.h"
 #include "abc/URI.h"
 #include "dog/CLI.h"
@@ -9,17 +10,29 @@
 #include "dog/FRAG.h"
 #include "dog/HUNK.h"
 
+// `u32b` (from abc/INT.h) and `u8bb` (from abc/BUF.h) are used below.
+
 // --- bro control struct (per DOG.md rule 8) ---
 //
-// bro is stateless across invocations — it does not persist anything
-// to `.dogs/bro/`. The control struct holds only the transient arena
-// and hunk lists (which continue to live in module globals to keep
-// the pager code untouched). DOGOpen/Close are no-ops; DOGExec runs
-// the CLI; DOGUpdate is a stub — bro doesn't index anything.
+// bro persists nothing on disk — state exists only for one
+// invocation. BROOpen allocates the arena + typed buffers; BROClose
+// unmaps everything including any deferred mmap'd files.
+
+#define BRO_ARENA_SIZE (1UL << 27)   // 128MB
+#define BRO_MAX_HUNKS  4096
+#define BRO_MAX_MAPS   1024
 
 typedef struct {
-    u8cs home;   // repo root (slice; not owned)
-    b8   rw;
+    u8cs  home;         // repo root (slice; not owned)
+    b8    rw;
+    b8    color;        // stdout is a color tty
+    int   pipe_fd;      // TLV hunk input pipe; -1 when not piped
+    int   worker_pid;   // child PID feeding the pipe; -1 when none
+
+    Bu8   arena;        // hunk staging arena (URI/text/hili bytes)
+    hunkb hunks;        // typed buffer of hunks (DATA length = count)
+    u32b  toks;         // flat tokens arena for all hunks
+    u8bb  maps;         // buffer of mmap'd files awaiting cleanup
 } bro;
 
 #define BRO_NONE UINT32_MAX
@@ -54,34 +67,27 @@ fun void BROHunkLoc(BROloc *loc, hunkc const *hk) {
 
 #define BRO_TITLE_LINE UINT32_MAX
 
-// --- BRO arena: scratch space for cat-mode hunk staging ---
-#define BRO_ARENA_SIZE (1UL << 27)   // 128MB
-#define BRO_MAX_HUNKS  4096
-#define BRO_MAX_MAPS   1024
-
-extern b8      BRO_COLOR;
-extern Bu8     bro_arena;
-extern hunk    bro_hunks[BRO_MAX_HUNKS];
-extern u8bp    bro_maps[BRO_MAX_MAPS];
-extern Bu32    bro_toks[BRO_MAX_MAPS];
-extern u32     bro_nhunks;
-extern u32     bro_nmaps;
-
+// Reset the arena + hunk/map/toks buffers between passes (kept for
+// subcommands that restart collection mid-session). BROOpen/Close
+// own the actual mmap lifecycle.
 ok64 BROArenaInit(void);
 void BROArenaCleanup(void);
 u8p  BROArenaWrite(void const *data, size_t len);
-void BRODefer(u8bp mapped, Bu32 toks);
 
-// Bump bro_nhunks after the caller has filled bro_hunks[bro_nhunks].
+// Record a mmap'd file for cleanup at BROClose time.
+void BRODefer(u8bp mapped);
+
+// Finalize the hunk that was filled at hunkbIdleHead.
 void BROHunkAdd(void);
 
-// List a directory into bro_hunks[]. Each entry tagged 'F'.
+// List a directory; one hunk per entry tagged 'F'.
 ok64 BROListDir(u8csc dirpath);
 
 // Tokenize source in hk->text using the extension from pathslice.
-// Allocates toks buffer on success (caller must u32bUnMap).
-// Sets hk->toks. Returns YES if tokenized, NO otherwise.
-b8 BROTokenize(Bu32 toks, hunk *hk, u8csc pathslice);
+// Appends tok32 words into the active bro state's `toks` arena and
+// sets hk->toks to the freshly-written slice. Returns YES if
+// tokenized, NO otherwise (unknown ext, no room, etc).
+b8 BROTokenize(hunk *hk, u8csc pathslice);
 
 // Interactive pager: displays hunks with syntax colors, diff highlighting,
 // status bar, and search. Falls back to plain output when !isatty.
