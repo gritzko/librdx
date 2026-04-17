@@ -153,14 +153,50 @@ ok64 SNIFFOpen(sniff *s, u8cs reporoot, b8 rw) {
         if (len >= sizeof(s->head_path)) len = sizeof(s->head_path) - 1;
         memcpy(s->head_path, u8bDataHead(hp), len);
         s->head_path[len] = 0;
+
+        //  Load HEAD contents if the file exists.  Without this,
+        //  every new session starts with an empty s->head and
+        //  POSTCommit can't find its parent commit.
+        FILE *hfp = fopen(s->head_path, "r");
+        if (hfp) {
+            size_t n = fread(s->head, 1, sizeof(s->head) - 1, hfp);
+            fclose(hfp);
+            // Strip trailing newline(s).
+            while (n > 0 && (s->head[n - 1] == '\n' ||
+                              s->head[n - 1] == '\r' ||
+                              s->head[n - 1] == ' '))
+                n--;
+            s->head[n] = 0;
+        }
     }
+
+    //  Locate actual data end in a mmap-booked file.  FILEBook maps
+    //  up to the next page boundary and zero-fills the tail past EOF;
+    //  we must skip that padding so the next session's writes don't
+    //  leave a gap.  paths.log is text ending in '\n'; state.log is
+    //  a stream of 8-byte-aligned wh64 entries — scan by quad to
+    //  survive legal entries whose high byte happens to be zero.
+    #define SCAN_BYTE_END(buf) do {                                \
+        u8p e = (u8p)(buf)[3];                                     \
+        u8p b = (u8p)(buf)[0];                                     \
+        while (e > b && e[-1] == 0) e--;                           \
+        ((u8 **)(buf))[2] = e;                                     \
+    } while (0)
+    #define SCAN_WH64_END(buf) do {                                \
+        u8p e = (u8p)(buf)[3];                                     \
+        u8p b = (u8p)(buf)[0];                                     \
+        size_t n = (size_t)(e - b) / sizeof(wh64);                 \
+        u64 *arr = (u64 *)b;                                       \
+        while (n > 0 && arr[n - 1] == 0) n--;                      \
+        ((u8 **)(buf))[2] = b + n * sizeof(wh64);                  \
+    } while (0)
 
     {
         a_cstr(pf, "paths.log");
         a_path(pp, reporoot, dogs, sniffdir, pf);
         ok64 o = FILEBook(&s->paths, $path(pp), SNIFF_PATH_BOOK);
         if (o == OK) {
-            ((u8 **)s->paths)[2] = s->paths[3];
+            SCAN_BYTE_END(s->paths);
         } else if (rw) {
             call(FILEBookCreate, &s->paths, $path(pp),
                  SNIFF_PATH_BOOK, 4096);
@@ -174,7 +210,7 @@ ok64 SNIFFOpen(sniff *s, u8cs reporoot, b8 rw) {
         a_path(cp, reporoot, dogs, sniffdir, sf);
         ok64 o = FILEBook(&s->changes, $path(cp), SNIFF_CHG_BOOK);
         if (o == OK) {
-            ((u8 **)s->changes)[2] = s->changes[3];
+            SCAN_WH64_END(s->changes);
         } else if (rw) {
             call(FILEBookCreate, &s->changes, $path(cp),
                  SNIFF_CHG_BOOK, 4096);
@@ -182,6 +218,8 @@ ok64 SNIFFOpen(sniff *s, u8cs reporoot, b8 rw) {
             fail(o);
         }
     }
+    #undef SCAN_BYTE_END
+    #undef SCAN_WH64_END
 
     u32 sep = SNIFFFindSep(s->paths);
     u8cp base = u8bDataHead(s->paths);

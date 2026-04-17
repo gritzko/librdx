@@ -9,6 +9,7 @@
 #include "abc/HEX.h"
 #include "abc/PRO.h"
 #include "keeper/GIT.h"
+#include "keeper/REFS.h"
 #include "keeper/SHA1.h"
 
 // Compute full SHA1 of parent commit for the "parent" line.
@@ -196,6 +197,26 @@ ok64 POSTCommit(sniff *s, keeper *k, u8cs reporoot,
     // Update HEAD to new commit
     u8cs new_hex = {u8bDataHead(out_hex), out_hex[2]};
     SNIFFSetHead(s, new_hex);
+
+    //  Publish a ref in keeper so downstream tools (graf-dag) have a
+    //  tip to walk from.  Key is the worktree's file:/// URI — same
+    //  convention used by GETCheckout — value is "?<sha>" so graf's
+    //  ref-parser picks it up as a SHA tip.
+    {
+        a_cstr(keepdir, k->dir);
+        a_pad(u8, from_uri, 1280);
+        a_cstr(scheme, "file://");
+        u8bFeed(from_uri, scheme);
+        u8bFeed(from_uri, reporoot);
+        a_dup(u8c, from, u8bData(from_uri));
+
+        a_pad(u8, to_uri, 64);
+        u8bFeed1(to_uri, '?');
+        u8bFeed(to_uri, u8bDataC(out_hex));
+        a_dup(u8c, to, u8bData(to_uri));
+
+        REFSAppend(keepdir, from, to);
+    }
 
     fprintf(stderr, "sniff: commit %.*s\n",
             (int)u8bDataLen(out_hex), (char *)u8bDataHead(out_hex));

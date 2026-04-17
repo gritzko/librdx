@@ -33,12 +33,13 @@ static void BEUsage(void) {
         "Usage: be [verb] [--flags] [URI...]\n"
         "\n"
         "Verbs:\n"
-        "  get [uri]            view file, search, show log\n"
-        "  put [uri]            stage, commit, push\n"
+        "  get [uri]            checkout / fetch / view / search\n"
+        "  put [files]          stage files into a new base tree\n"
+        "  delete [files]       stage removals into a new base tree\n"
+        "  post -m <msg>        commit base tree; push if remote\n"
         "  patch [uri]          search & replace, reindex\n"
         "  diff [uri]           token-level diff\n"
         "  merge [uri]          3-way merge\n"
-        "  delete [uri]         remove file, branch\n"
         "  sync [uri]           fetch + merge (or push)\n"
         "  status               show repo status\n"
         "\n"
@@ -119,9 +120,11 @@ static u32 BEReadDogs(char out[][64], u32 maxn) {
 //
 // Each dog parses the URI and handles its part:
 //   get:    keeper (fetch) → sniff (checkout) → spot (index) → graf (index)
-//   post:   sniff (build tree) → keeper (push) → spot → graf
-//   put:    sniff (commit) → keeper (move ref) → spot → graf
-//   delete: sniff (remove) → spot → graf
+//   put:    sniff (stage tree) → spot (index) → graf (index)
+//             [local only — no HEAD move, no ref push]
+//   delete: sniff (stage removal) → spot (index) → graf (index)
+//             [local only — same as put]
+//   post:   sniff (commit, HEAD move) → keeper (push ref) → spot → graf
 
 typedef struct {
     u8cs dog;
@@ -180,28 +183,19 @@ static ok64 BEGet(cli *c, b8 seq) {
     return BEDispatch(c, steps + start, 4 - start, seq);
 }
 
-static ok64 BEPost(cli *c, b8 seq) {
-    sane(c);
-    static dog_step const steps[] = {
-        {u8slit("sniff"),  u8slit("post"), NO},
-        {u8slit("keeper"), u8slit("put"),  NO},
-        {u8slit("spot"),   u8slit("get"),  NO},
-        {u8slit("graf"),   u8slit("get"),  YES},
-    };
-    return BEDispatch(c, steps, 4, seq);
-}
-
+//  `be put` stages a new base tree locally — no commit object and no
+//  ref push.  Spot/graf re-index the worktree so search stays current.
 static ok64 BEPut(cli *c, b8 seq) {
     sane(c);
     static dog_step const steps[] = {
-        {u8slit("sniff"),  u8slit("put"),  NO},
-        {u8slit("keeper"), u8slit("put"),  NO},
-        {u8slit("spot"),   u8slit("get"),  NO},
-        {u8slit("graf"),   u8slit("get"),  YES},
+        {u8slit("sniff"),  u8slit("put"), NO},
+        {u8slit("spot"),   u8slit("get"), NO},
+        {u8slit("graf"),   u8slit("get"), YES},
     };
-    return BEDispatch(c, steps, 4, seq);
+    return BEDispatch(c, steps, 3, seq);
 }
 
+//  `be delete` is the mirror of `be put`: stage tree without a file.
 static ok64 BEDelete(cli *c, b8 seq) {
     sane(c);
     static dog_step const steps[] = {
@@ -210,6 +204,30 @@ static ok64 BEDelete(cli *c, b8 seq) {
         {u8slit("graf"),   u8slit("get"),    YES},
     };
     return BEDispatch(c, steps, 3, seq);
+}
+
+//  `be post` commits the current base tree (updating HEAD) and asks
+//  keeper to push the new ref if the URI carries a remote authority.
+static ok64 BEPost(cli *c, b8 seq) {
+    sane(c);
+    static dog_step const steps[] = {
+        {u8slit("sniff"),  u8slit("post"), NO},
+        {u8slit("keeper"), u8slit("put"),  NO},
+        {u8slit("spot"),   u8slit("get"),  NO},
+        {u8slit("graf"),   u8slit("get"),  YES},
+    };
+    //  No remote authority → just commit locally; skip the keeper push.
+    uri *u = (c->nuris > 0) ? &c->uris[0] : NULL;
+    b8 local = (u == NULL || $empty(u->authority));
+    if (local) {
+        static dog_step const local_steps[] = {
+            {u8slit("sniff"),  u8slit("post"), NO},
+            {u8slit("spot"),   u8slit("get"),  NO},
+            {u8slit("graf"),   u8slit("get"),  YES},
+        };
+        return BEDispatch(c, local_steps, 3, seq);
+    }
+    return BEDispatch(c, steps, 4, seq);
 }
 
 // --- Bare `be`: --update all dogs, then --status each ---

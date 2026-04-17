@@ -34,55 +34,60 @@ Build (requires libsodium, lz4, zlib and cmake, also ninja is recommended):
     CC=clang CXX=clang++ cmake -GNinja -DCMAKE_BUILD_TYPE=Release ..
     ninja
 
-Index a repo (parallel on 8 cores):
+## Using `be`
 
-    spot --fork 8
+`be` is the dispatcher that ties the dogs together. Every verb is a
+pipeline — `be get` fans out to keeper, sniff, spot and graf in turn;
+`be post` walks the worktree into a commit and advances refs. See
+[beagle/GURI.md](beagle/GURI.md) for the URI grammar.
 
-Search for a code pattern:
+### Get — checkout / fetch / view / search
 
-    spot -s 'ok64 o = OK;' .c
+    be get ssh://host/repo.git       # clone (fetch + checkout + index)
+    be get ?v1.2                     # checkout the "v1.2" ref locally
+    be get path/to/file.c            # open the file in the pager (bro)
+    be get path/to/file.c#TODO       # grep (spot) inside one file
+    be get .#FuncName                # structural search across repo
 
-Rename a function call across all C files:
+### Put / delete — stage into a new base tree (no commit)
 
-    spot -s 'OldFunc(x)' -r 'NewFunc(x)' .c
+    be put src/foo.c src/bar.c       # stage two files
+    be put                           # stage everything dirty
+    be delete src/obsolete.c         # stage removal of one path
+    be delete                        # stage every tracked file rm'd on disk
 
-Grep with trigram-accelerated index:
+Each `put` / `delete` grows or shrinks the staged base tree in
+keeper's object store. HEAD does not move.
 
-    spot -g "TODO" .c
+### Post — commit the base tree
 
-Regex grep:
+    be post -m "fix the parser"      # commit; auto-stage dirty if needed
+    be post -m "release" //origin    # commit and push to the remote
 
-    spot -p 'u\d+sFeed' .c
+`be post` wraps the current base tree into a commit with parent =
+HEAD, advances HEAD, and updates refs. With a remote authority in the
+URI the keeper push step is included; without, it's purely local.
 
-View a file with syntax highlighting:
+### A full workflow
 
-    bro file.c
+    mkdir my-repo && cd my-repo
+    echo 'int main(){return 0;}' > hello.c
+    be post -m "initial"             # first commit, auto-stages hello.c
 
-Token-level diff:
+    echo 'printf("hi\n");' >> hello.c
+    be put hello.c                   # stage the edit
+    be post -m "greet"               # commit
 
-    graf --diff old.c new.c
+    be get ?$(cat .dogs/sniff/HEAD)  # round-trip: recheck out HEAD
 
-Install as git diff/merge driver:
+## Other dogs (direct invocation)
 
-    graf --install
+    bro file.c                       # syntax-highlighted pager
+    graf --diff old.c new.c          # token-level diff
+    graf --install                   # register as git diff/merge driver
 
-## Search patterns
-
-**spot** matches structurally, not textually.  Whitespace and
-formatting differences are ignored.
-
-| Syntax | Meaning |
-|--------|---------|
-| `a`..`z` | Lowercase: match one token |
-| `A`..`Z` | Uppercase: match any block of tokens (incl. nested brackets) |
-| `(two spaces)` | Skip any token sequence (gap) |
-| literals | Must match exactly |
-
-Examples:
-
-    spot -s 'T n = {a[0],a[1]};' .c        # find slice init patterns
-    spot -s 'malloc(sizeof(a)*B);' .c       # find malloc calls
-    spot -s 'TOK_VAL(A,B)' -r 'tok32Val(A,B)' .h  # rename macro
+See each dog's `INDEX.md` (e.g. [sniff/INDEX.md](sniff/INDEX.md),
+[keeper/INDEX.md](keeper/INDEX.md)) for the full API surface.
 
 ##  Is this VC funded?
 
