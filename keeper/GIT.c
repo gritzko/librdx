@@ -2,6 +2,9 @@
 //
 #include "GIT.h"
 
+#include <string.h>
+
+#include "abc/HEX.h"
 #include "abc/PRO.h"
 
 ok64 GITu8sDrainTree(u8cs obj, u8csp file, u8csp sha1) {
@@ -72,4 +75,20 @@ ok64 GITu8sDrainCommit(u8cs obj, u8csp field, u8csp value) {
     obj[0] = p;
 
     done;
+}
+
+ok64 GITu8sCommitTree(u8cs commit, u8 tree_sha[20]) {
+    sane($ok(commit) && tree_sha);
+    u8cs body = {commit[0], commit[1]};
+    u8cs field = {}, value = {};
+    while (GITu8sDrainCommit(body, field, value) == OK) {
+        if ($empty(field)) break;
+        if ($len(field) == 4 && memcmp(field[0], "tree", 4) == 0) {
+            if ($len(value) < 40) return GITBADFMT;
+            u8s bin = {tree_sha, tree_sha + 20};
+            u8cs hex = {value[0], value[0] + 40};
+            return HEXu8sDrainSome(bin, hex);
+        }
+    }
+    return GITBADFMT;
 }

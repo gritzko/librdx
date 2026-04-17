@@ -184,6 +184,45 @@ ok64 GITtest6() {
     done;
 }
 
+// ---- Test 7: GITu8sCommitTree extracts tree SHA from commit body ----
+
+ok64 GITtest7() {
+    sane(1);
+    con char commit[] =
+        "tree 4b825dc642cb6eb9a060e54bf899d69f7af0d5f3\n"
+        "parent aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"
+        "author A <a@b> 1 +0000\n"
+        "\n"
+        "msg\n";
+
+    u8cs obj = {(u8cp)commit, (u8cp)commit + sizeof(commit) - 1};
+    u8 tree_sha[20];
+    ok64 o = GITu8sCommitTree(obj, tree_sha);
+    want(o == OK);
+    want(tree_sha[0] == 0x4b);
+    want(tree_sha[1] == 0x82);
+    want(tree_sha[2] == 0x5d);
+    want(tree_sha[19] == 0xf3);
+
+    done;
+}
+
+// ---- Test 8: GITu8sCommitTree on a commit without a tree line ----
+
+ok64 GITtest8() {
+    sane(1);
+    con char commit[] =
+        "author A <a@b> 1 +0000\n"
+        "\n"
+        "msg\n";
+    u8cs obj = {(u8cp)commit, (u8cp)commit + sizeof(commit) - 1};
+    u8 tree_sha[20] = {};
+    ok64 o = GITu8sCommitTree(obj, tree_sha);
+    want(o == GITBADFMT);
+
+    done;
+}
+
 ok64 maintest() {
     sane(1);
     call(GITtest1);
@@ -192,6 +231,8 @@ ok64 maintest() {
     call(GITtest4);
     call(GITtest5);
     call(GITtest6);
+    call(GITtest7);
+    call(GITtest8);
     done;
 }
 

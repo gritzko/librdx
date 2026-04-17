@@ -13,6 +13,8 @@
 #include "abc/HEX.h"
 #include "abc/PATH.h"
 #include "abc/PRO.h"
+#include "keeper/GIT.h"
+#include "keeper/WALK.h"
 
 fun u32 SNIFFChangesPast(sniff const *s) {
     return (u32)(u8csbDataLen(s->past) * 2 * sizeof(wh64));
@@ -455,4 +457,79 @@ ok64 SNIFFClose(sniff *s) {
     u32bFree(s->sorted);
     memset(s, 0, sizeof(*s));
     done;
+}
+
+// --- Parent-commit helpers ---
+
+ok64 SNIFFParentTreeSha(sha1 *tree_out, keeper *k, u8cs parent_hex) {
+    sane(tree_out && k && $ok(parent_hex));
+
+    size_t hexlen = $len(parent_hex);
+    if (hexlen > 15) hexlen = 15;
+    u64 hashlet = WHIFFHexHashlet60(parent_hex);
+
+    Bu8 cbuf = {};
+    call(u8bAllocate, cbuf, 1UL << 24);
+    u8 ctype = 0;
+    ok64 o = KEEPGet(k, hashlet, hexlen, cbuf, &ctype);
+    if (o != OK) { u8bFree(cbuf); return o; }
+
+    // Dereference annotated tag.
+    if (ctype == DOG_OBJ_TAG) {
+        u8cs body = {u8bDataHead(cbuf), u8bIdleHead(cbuf)};
+        u8cs field = {}, value = {};
+        sha1 tag_sha = {};
+        a_raw(tag_bin, tag_sha);
+        while (GITu8sDrainCommit(body, field, value) == OK) {
+            if ($empty(field)) break;
+            if ($len(field) == 6 && memcmp(field[0], "object", 6) == 0 &&
+                $len(value) >= 40) {
+                u8cs hex40 = {value[0], $atp(value, 40)};
+                HEXu8sDrainSome(tag_bin, hex40);
+                break;
+            }
+        }
+        u64 ch = WHIFFHashlet60(&tag_sha);
+        u8bReset(cbuf);
+        o = KEEPGet(k, ch, 15, cbuf, &ctype);
+        if (o != OK) { u8bFree(cbuf); return o; }
+    }
+    if (ctype != DOG_OBJ_COMMIT) { u8bFree(cbuf); fail(SNIFFFAIL); }
+
+    u8cs commit_body = {u8bDataHead(cbuf), u8bIdleHead(cbuf)};
+    o = GITu8sCommitTree(commit_body, tree_out->data);
+    u8bFree(cbuf);
+    return o;
+}
+
+typedef struct {
+    sniff *s;
+    sha1  *shas;
+    u32    capacity;
+} collect_ctx;
+
+static ok64 collect_visit(u8cs path, u8 kind, u8cp esha, u8cs blob,
+                           void0p vctx) {
+    (void)blob;
+    collect_ctx *c = (collect_ctx *)vctx;
+    if (kind == WALK_KIND_SUB) return WALKSKIP;
+
+    u32 idx = (kind == WALK_KIND_DIR)
+            ? SNIFFInternDir(c->s, path)
+            : SNIFFIntern(c->s, path);
+    if (idx < c->capacity)
+        memcpy(c->shas[idx].data, esha, 20);
+    return OK;
+}
+
+ok64 SNIFFCollectParentTree(sniff *s, keeper *k, u8cs parent_hex,
+                             sha1 *sha_tab, u32 capacity) {
+    sane(s && k && sha_tab);
+    if (!$ok(parent_hex) || $empty(parent_hex)) done;
+
+    sha1 tree_sha = {};
+    call(SNIFFParentTreeSha, &tree_sha, k, parent_hex);
+
+    collect_ctx ctx = {.s = s, .shas = sha_tab, .capacity = capacity};
+    return WALKTreeLazy(k, tree_sha.data, collect_visit, &ctx);
 }

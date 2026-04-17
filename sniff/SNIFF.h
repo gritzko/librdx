@@ -24,6 +24,7 @@
 #include "abc/PATH.h"
 #include "dog/CLI.h"
 #include "dog/WHIFF.h"
+#include "keeper/KEEP.h"
 
 con ok64 SNIFFFAIL   = 0x1c5d23cf3ca495;
 con ok64 SNIFFNOROOM = 0xc5d23cf5d86d8616;
@@ -132,5 +133,19 @@ fun void SNIFFHead(u8csp out, sniff const *s) {
 
 //  Write HEAD.  val is either "refs/heads/main" or 40-char hex.
 ok64 SNIFFSetHead(sniff *s, u8cs val);
+
+// --- Parent-commit helpers (shared by POST/DEL/COM) ---
+
+//  Resolve a commit hex prefix (≤15 hex chars) to the root tree SHA.
+//  Handles annotated-tag dereference.  Fails if the object isn't a
+//  commit (after tag deref).
+ok64 SNIFFParentTreeSha(sha1 *tree_out, keeper *k, u8cs parent_hex);
+
+//  Walk the parent tree and populate sha_tab[idx] = entry SHA-1,
+//  where idx is obtained via SNIFFInternDir (dirs) or SNIFFIntern
+//  (files).  `sha_tab` must be pre-sized to hold at least `capacity`
+//  sha1 values and zero-initialized.  Submodules skipped.
+ok64 SNIFFCollectParentTree(sniff *s, keeper *k, u8cs parent_hex,
+                             sha1 *sha_tab, u32 capacity);
 
 #endif

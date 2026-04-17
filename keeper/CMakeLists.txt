@@ -5,10 +5,10 @@ include_directories(.. .)
 
 find_package(ZLIB REQUIRED)
 
-add_library(gitcompat STATIC GIT.c PKT.c PACK.c DELT.c ZINF.c SHA1.c BELT.c WALK.c)
+add_library(gitcompat STATIC GIT.c PKT.c PACK.c DELT.c ZINF.c SHA1.c)
 target_link_libraries(gitcompat dog abc-core ZLIB::ZLIB)
 
-add_library(keeplib STATIC KEEP.c KEEP.exe.c REFS.c)
+add_library(keeplib STATIC KEEP.c KEEP.exe.c REFS.c WALK.c)
 target_link_libraries(keeplib gitcompat dog abc-core)
 
 add_executable(keeper-cli KEEP.cli.c)
@@ -17,8 +17,5 @@ set_target_properties(keeper-cli PROPERTIES OUTPUT_NAME keeper RUNTIME_OUTPUT_DI
 
 add_executable(git-dl git-dl.cli.c)
 target_link_libraries(git-dl gitcompat dog abc-core)
-
-add_executable(belt belt.cli.c)
-target_link_libraries(belt gitcompat dog abc-core)
 
 add_subdirectory(test)

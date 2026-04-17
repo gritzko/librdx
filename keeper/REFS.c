@@ -198,6 +198,52 @@ ok64 REFSResolve(urip resolved, u8bp arena, u8csc dir, u8csc input) {
     ok64 o = REFSLoad(arr, &n, REFS_MAX_REFS, &map, dir);
     if (o != OK) { free(arr); return o; }
 
+    // Full-URL lookup: "//host/path?<query>" → "?<sha>".  Remote refs
+    // are recorded by KEEPSync with a "refs/" prefix stripped from the
+    // query portion ("?tags/v2.54" rather than "?refs/tags/v2.54"), so
+    // normalize the input the same way before matching.
+    if (!u8csEmpty(u.authority) && !u8csEmpty(u.query)) {
+        u8cs q = {u.query[0], u.query[1]};
+        a_cstr(refs_pfx, "refs/");
+        if ($len(q) > 5 && memcmp(q[0], refs_pfx[0], 5) == 0)
+            u8csUsed(q, 5);
+
+        a_pad(u8, fkey, 1024);
+        // u.authority may or may not include the leading "//" — check.
+        if ($len(u.authority) >= 2 &&
+            u.authority[0][0] == '/' && u.authority[0][1] == '/') {
+            u8bFeed(fkey, u.authority);
+        } else {
+            a_cstr(slashes, "//");
+            u8bFeed(fkey, slashes);
+            u8bFeed(fkey, u.authority);
+        }
+        if (!u8csEmpty(u.path)) u8bFeed(fkey, u.path);
+        u8bFeed1(fkey, '?');
+        u8bFeed(fkey, q);
+        a_dup(u8c, full_key, u8bData(fkey));
+
+        for (u32 i = 0; i < n; i++) {
+            if (!REFMatch(&arr[i], full_key)) continue;
+            u8cs vfull = {arr[i].val[0], arr[i].val[1]};
+            if (!$empty(vfull) && vfull[0][0] == '?') {
+                u8cs out = {};
+                u8csMv(out, vfull);
+                u8csUsed(out, 1);
+                u8bFeed(arena, out);
+                size_t vlen = u8csLen(out);
+                resolved->query[0] = u8bIdleHead(arena) - vlen;
+                resolved->query[1] = u8bIdleHead(arena);
+            }
+            break;
+        }
+        if (!u8csEmpty(resolved->query)) {
+            free(arr);
+            if (map) u8bUnMap(map);
+            done;
+        }
+    }
+
     // resolve authority (alias): //name → full URL
     if (!u8csEmpty(u.authority)) {
         a_pad(u8, keybuf, 256);

@@ -1,6 +1,8 @@
-//  WALK tests: belt128 gen encoding + graph walk integration
+//  WALK tests: tree walker on KEEP (eager / lazy / skip / stop).
 //
-#include "keeper/BELT.h"
+#include "keeper/GIT.h"
+#include "keeper/KEEP.h"
+#include "keeper/SHA1.h"
 #include "keeper/WALK.h"
 
 #include <stdio.h>
@@ -10,200 +12,201 @@
 
 #include "abc/FILE.h"
 #include "abc/HEX.h"
+#include "abc/PATH.h"
 #include "abc/PRO.h"
 #include "abc/TEST.h"
+#include "dog/DOG.h"
 
-// ---- Test 1: belt128 gen round-trip ----
+// ---- Test 1: WALKu8sModeKind table-driven ----
 
 ok64 WALKtest1() {
     sane(1);
 
-    // basic encoding
-    belt128 e = BELTEntry(0xdeadbeef0, BELT_COMMIT, 12345, 42);
-    want(BELTType(e) == BELT_COMMIT);
-    want(BELTOffset(e) == 12345);
-    want(BELTGen(e) == 42);
-    want((BELTHashlet(e) & ~BELT_TYPE_MASK) == (0xdeadbeef0 & ~BELT_TYPE_MASK));
+    typedef struct {
+        char const *mode;
+        u8          want_kind;
+    } row;
 
-    // gen=0 for non-commit types
-    belt128 b = BELTEntry(0x1234567890, BELT_BLOB, 999, 0);
-    want(BELTType(b) == BELT_BLOB);
-    want(BELTOffset(b) == 999);
-    want(BELTGen(b) == 0);
+    row cases[] = {
+        {"40000",  WALK_KIND_DIR},
+        {"100644", WALK_KIND_REG},
+        {"100755", WALK_KIND_EXE},
+        {"120000", WALK_KIND_LNK},
+        {"160000", WALK_KIND_SUB},
+        {"",       0},
+        {"1",      0},               // too short after '1'
+        {"2",      0},               // unknown first digit
+        {"999999", 0},               // unknown first digit
+        {"100000", WALK_KIND_REG},   // '0' at pos 3 → REG
+        {"100700", WALK_KIND_EXE},   // '7' at pos 3 → EXE
+    };
 
-    // max values
-    u64 max_off = ((u64)1 << 40) - 1;
-    u32 max_gen = ((u32)1 << 20) - 1;
-    belt128 m = BELTEntry(~(u64)0, BELT_TAG, max_off, max_gen);
-    want(BELTType(m) == BELT_TAG);
-    want(BELTOffset(m) == max_off);
-    want(BELTGen(m) == max_gen);
-
-    // gen doesn't corrupt offset and vice versa
-    belt128 x = BELTEntry(0, BELT_COMMIT, 0, 1);
-    want(BELTOffset(x) == 0);
-    want(BELTGen(x) == 1);
-
-    belt128 y = BELTEntry(0, BELT_COMMIT, 1, 0);
-    want(BELTOffset(y) == 1);
-    want(BELTGen(y) == 0);
-
-    done;
-}
-
-// ---- Test 2: WALKCommitTree ----
-
-ok64 WALKtest2() {
-    sane(1);
-    con char commit[] =
-        "tree 4b825dc642cb6eb9a060e54bf899d69f7af0d5f3\n"
-        "parent aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"
-        "author A <a@b> 1 +0000\n"
-        "\n"
-        "msg\n";
-
-    u8cs obj = {(u8cp)commit, (u8cp)commit + sizeof(commit) - 1};
-    u8 tree_sha[20];
-    ok64 o = WALKCommitTree(obj, tree_sha);
-    want(o == OK);
-
-    // verify first byte: 0x4b
-    want(tree_sha[0] == 0x4b);
-    want(tree_sha[1] == 0x82);
-    want(tree_sha[2] == 0x5d);
+    for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+        u8cs m = {(u8cp)cases[i].mode,
+                  (u8cp)cases[i].mode + strlen(cases[i].mode)};
+        u8 got = WALKu8sModeKind(m);
+        if (got != cases[i].want_kind) {
+            fprintf(stderr, "mode='%s': want %u got %u\n",
+                    cases[i].mode, cases[i].want_kind, got);
+        }
+        want(got == cases[i].want_kind);
+    }
 
     done;
 }
 
-// ---- Test 3: BELTCommitGen with no parents ----
+// ---- Test 2: WALKTree / WALKTreeLazy on a synthetic KEEP store ----
+//
+// Tree layout:
+//   hello.txt       "hi\n"            (100644)
+//   run.sh          "#!/bin/sh\n"     (100755)
+//   sub/nested.txt  "deep\n"          (100644)
+//
+// Verifies: visit count, kind dispatch, eager-vs-lazy blob filling,
+// WALKSKIP pruning a subtree.
 
-ok64 WALKtest3() {
-    sane(1);
-    con char commit[] =
-        "tree 4b825dc642cb6eb9a060e54bf899d69f7af0d5f3\n"
-        "author A <a@b> 1 +0000\n"
-        "\n"
-        "root\n";
+typedef struct {
+    u32 n_entries;
+    u32 n_files;              // REG+EXE+LNK
+    u32 n_dirs;
+    u32 n_files_with_blob;
+    char last_path[256];
+    char dir_to_skip[64];     // if non-empty, skip the DIR entry matching
+} w2_ctx;
 
-    // empty stack — no parents to look up
-    belt128cs runs[1];
-    memset(runs, 0, sizeof(runs));
-    belt128css stack = {runs, runs};
+static ok64 w2_visit(u8cs path, u8 kind, u8cp esha, u8cs blob,
+                      void0p vctx) {
+    (void)esha;
+    w2_ctx *c = (w2_ctx *)vctx;
+    c->n_entries++;
 
-    u32 gen = BELTCommitGen((u8cp)commit, sizeof(commit) - 1, stack);
-    want(gen == 1);  // root commit
+    size_t plen = $len(path);
+    if (plen >= sizeof(c->last_path)) plen = sizeof(c->last_path) - 1;
+    memcpy(c->last_path, path[0], plen);
+    c->last_path[plen] = 0;
 
-    done;
-}
-
-// ---- Test 4: belt128 sort order — gen in .b high bits ----
-
-ok64 WALKtest4() {
-    sane(1);
-
-    // Two entries with same hashlet, different gen
-    belt128 a = BELTEntry(0x100, BELT_COMMIT, 100, 5);
-    belt128 b = BELTEntry(0x100, BELT_COMMIT, 200, 10);
-
-    // higher gen sorts later (b.b > a.b because gen is in high bits)
-    want(belt128cmp(&a, &b) < 0);
-
-    // same hashlet + gen, different offset
-    belt128 c = BELTEntry(0x100, BELT_COMMIT, 100, 5);
-    belt128 d = BELTEntry(0x100, BELT_COMMIT, 200, 5);
-    want(belt128cmp(&c, &d) < 0);
-
-    done;
-}
-
-// ---- Test 5: integration — clone + walk (requires WITH_SSH) ----
-
-static u32 commit_count;
-static u32 max_gen_seen;
-
-static ok64 count_commits(u64 hashlet, u8 type, u8cs content, void0p ctx) {
-    (void)hashlet; (void)content; (void)ctx;
-    if (type == BELT_COMMIT) {
-        commit_count++;
+    if (kind == WALK_KIND_DIR) {
+        c->n_dirs++;
+        if (c->dir_to_skip[0]) {
+            size_t dlen = strlen(c->dir_to_skip);
+            if (plen == dlen &&
+                memcmp(c->last_path, c->dir_to_skip, dlen) == 0)
+                return WALKSKIP;
+        }
+    } else if (kind == WALK_KIND_REG || kind == WALK_KIND_EXE ||
+               kind == WALK_KIND_LNK) {
+        c->n_files++;
+        if (!$empty(blob)) c->n_files_with_blob++;
     }
     return OK;
 }
 
-ok64 WALKtest5() {
+// Build one "leaf tree" — a single-entry tree containing a blob.
+static ok64 build_leaf_tree(keeper *k, keep_pack *p,
+                             u8cs mode_name, u8cs content,
+                             sha1 *tree_out) {
+    sane(k && p && tree_out);
+    sha1 bsha = {};
+    call(KEEPPackFeed, k, p, DOG_OBJ_BLOB, content, &bsha);
+    a_pad(u8, tb, 256);
+    call(u8bFeed, tb, mode_name);
+    u8bFeed1(tb, 0);
+    a_rawc(ss, bsha);
+    call(u8bFeed, tb, ss);
+    a_dup(u8c, tc, u8bData(tb));
+    call(KEEPPackFeed, k, p, DOG_OBJ_TREE, tc, tree_out);
+    done;
+}
+
+ok64 WALKtest2() {
     sane(1);
+    call(FILEInit);
 
-    char const *repo = getenv("WALK_REPO");
-    if (!repo) repo = "/home/gritzko/src/treadmill/gits/repo";
+    char tmp[] = "/tmp/walktest-XXXXXX";
+    want(mkdtemp(tmp) != NULL);
+    u8cs home = {(u8cp)tmp, (u8cp)tmp + strlen(tmp)};
 
-    // create temp belt dir
-    char belt_dir[] = "/tmp/walk-test-XXXXXX";
-    want(mkdtemp(belt_dir) != NULL);
+    keeper k = {};
+    call(KEEPOpen, &k, home, YES);
+    keep_pack p = {};
+    call(KEEPPackOpen, &k, &p);
 
-    u8cs repo_s = {(u8cp)repo, (u8cp)repo + strlen(repo)};
-    u8cs belt_s = {(u8cp)belt_dir, (u8cp)belt_dir + strlen(belt_dir)};
-    call(BELTClone, repo_s, belt_s);
+    // Leaf blobs.
+    a_cstr(hi_content, "hi\n");
+    sha1 hi_sha = {};
+    call(KEEPPackFeed, &k, &p, DOG_OBJ_BLOB, hi_content, &hi_sha);
 
-    // read HEAD
-    char head_path[256];
-    snprintf(head_path, sizeof(head_path), "%s/HEAD", belt_dir);
-    FILE *f = fopen(head_path, "r");
-    want(f != NULL);
-    char head_hex[41] = {};
-    want(fgets(head_hex, sizeof(head_hex), f) != NULL);
-    fclose(f);
+    a_cstr(run_content, "#!/bin/sh\n");
+    sha1 run_sha = {};
+    call(KEEPPackFeed, &k, &p, DOG_OBJ_BLOB, run_content, &run_sha);
 
-    u8 head_sha[20];
-    u8s hbin = {head_sha, head_sha + 20};
-    u8cs hhex = {(u8cp)head_hex, (u8cp)head_hex + 40};
-    call(HEXu8sDrainSome, hbin, hhex);
+    // Inner "sub" tree.
+    a_cstr(nested_mn, "100644 nested.txt");
+    a_cstr(nested_content, "deep\n");
+    sha1 sub_sha = {};
+    call(build_leaf_tree, &k, &p, nested_mn, nested_content, &sub_sha);
 
-    // open walker
-    walk w = {};
-    call(WALKOpen, &w, belt_s);
+    // Root tree — git sort order: hello.txt < run.sh < sub.
+    a_pad(u8, rtb, 512);
+    a_cstr(e1, "100644 hello.txt");
+    call(u8bFeed, rtb, e1);
+    u8bFeed1(rtb, 0);
+    a_rawc(hi_ss, hi_sha);
+    call(u8bFeed, rtb, hi_ss);
 
-    // test WALKGetSha
+    a_cstr(e2, "100755 run.sh");
+    call(u8bFeed, rtb, e2);
+    u8bFeed1(rtb, 0);
+    a_rawc(run_ss, run_sha);
+    call(u8bFeed, rtb, run_ss);
+
+    a_cstr(e3, "40000 sub");
+    call(u8bFeed, rtb, e3);
+    u8bFeed1(rtb, 0);
+    a_rawc(sub_ss, sub_sha);
+    call(u8bFeed, rtb, sub_ss);
+
+    a_dup(u8c, rtc, u8bData(rtb));
+    sha1 root_sha = {};
+    call(KEEPPackFeed, &k, &p, DOG_OBJ_TREE, rtc, &root_sha);
+
+    call(KEEPPackClose, &k, &p);
+
+    // Eager walk.
     {
-        u8 objbuf[1 << 20];
-        u8g out = {objbuf, objbuf, objbuf + sizeof(objbuf)};
-        u8 otype = 0;
-        call(WALKGetSha, &w, head_sha, out, &otype);
-        want(otype == BELT_COMMIT);
-        want(u8gLeftLen(out) > 0);
-        fprintf(stderr, "  HEAD commit: %lu bytes\n",
-                (unsigned long)u8gLeftLen(out));
+        w2_ctx c = {};
+        call(WALKTree, &k, root_sha.data, w2_visit, &c);
+        want(c.n_entries == 4);
+        want(c.n_files == 3);
+        want(c.n_dirs == 1);
+        want(c.n_files_with_blob == 3);  // eager: all files carry blob
     }
 
-    // test WALKCommits — count all commits
-    commit_count = 0;
-    call(WALKCommits, &w, head_sha, NULL, count_commits, NULL);
-    want(commit_count > 0);
-    fprintf(stderr, "  commits walked: %u\n", commit_count);
-
-    // test WALKCheckout
+    // Lazy walk — blobs empty.
     {
-        u8 objbuf[1 << 20];
-        u8g out = {objbuf, objbuf, objbuf + sizeof(objbuf)};
-        u8 otype = 0;
-        call(WALKGetSha, &w, head_sha, out, &otype);
-
-        u8 tree_sha[20];
-        u8cs commit_s = {objbuf, out[1]};
-        call(WALKCommitTree, commit_s, tree_sha);
-
-        char co_dir[256];
-        snprintf(co_dir, sizeof(co_dir), "%s/checkout", belt_dir);
-        mkdir(co_dir, 0755);
-        u8cs co_s = {(u8cp)co_dir, (u8cp)co_dir + strlen(co_dir)};
-        call(WALKCheckout, &w, tree_sha, co_s);
-        fprintf(stderr, "  checkout to %s\n", co_dir);
+        w2_ctx c = {};
+        call(WALKTreeLazy, &k, root_sha.data, w2_visit, &c);
+        want(c.n_entries == 4);
+        want(c.n_files == 3);
+        want(c.n_dirs == 1);
+        want(c.n_files_with_blob == 0);
     }
 
-    call(WALKClose, &w);
+    // Skip "sub" subtree — nested.txt must not be visited.
+    {
+        w2_ctx c = {};
+        strcpy(c.dir_to_skip, "sub");
+        call(WALKTreeLazy, &k, root_sha.data, w2_visit, &c);
+        want(c.n_entries == 3);   // hello.txt, run.sh, sub (skipped after visit)
+        want(c.n_files == 2);
+        want(c.n_dirs == 1);
+    }
 
-    // cleanup
+    call(KEEPClose, &k);
+
     {
         char cmd[512];
-        snprintf(cmd, sizeof(cmd), "rm -rf %s", belt_dir);
+        snprintf(cmd, sizeof(cmd), "rm -rf %s", tmp);
         system(cmd);
     }
 
@@ -214,8 +217,6 @@ ok64 maintest() {
     sane(1);
     call(WALKtest1);
     call(WALKtest2);
-    call(WALKtest3);
-    call(WALKtest4);
     done;
 }
 

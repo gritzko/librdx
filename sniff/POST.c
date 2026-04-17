@@ -13,132 +13,13 @@
 #include "dog/DPATH.h"
 #include "keeper/GIT.h"
 #include "keeper/SHA1.h"
-#include "keeper/WALK.h"
 
-// --- Collect old tree SHAs: path_index -> sha1 ---
+// --- idx → sha1 lookup helpers ---
 
-typedef struct {
-    sniff *s;
-    sha1p  shas;
-    u32    capacity;
-} sha_ctx;
-
-static void POSTSetSha(sha_ctx *ctx, u32 idx, sha1 const *sha) {
-    if (idx < ctx->capacity) ctx->shas[idx] = *sha;
-}
-
-static sha1cp POSTGetSha(sha_ctx const *ctx, u32 idx) {
-    if (idx >= ctx->capacity) return NULL;
-    if (sha1empty(&ctx->shas[idx])) return NULL;
-    return &ctx->shas[idx];
-}
-
-static ok64 POSTCollectTree(sha_ctx *ctx, keeper *k,
-                              sha1 const *tree_sha, u8cs prefix) {
-    sane(ctx && k && tree_sha);
-
-    u64 hashlet = WHIFFHashlet60(tree_sha);
-    Bu8 buf = {};
-    call(u8bAllocate, buf, 1UL << 24);
-    u8 otype = 0;
-    ok64 o = KEEPGet(k, hashlet, 15, buf, &otype);
-    if (o != OK) { u8bFree(buf); fail(o); }
-    if (otype != DOG_OBJ_TREE) { u8bFree(buf); fail(SNIFFFAIL); }
-
-    size_t tsz = u8bDataLen(buf);
-    Bu8 tcopy = {};
-    o = u8bAllocate(tcopy, tsz);
-    if (o != OK) { u8bFree(buf); fail(o); }
-    u8bFeed(tcopy, u8bDataC(buf));
-    u8bFree(buf);
-
-    u8cs tree = {u8bDataHead(tcopy), u8bIdleHead(tcopy)};
-    u8cs file = {}, esha = {};
-
-    while (GITu8sDrainTree(tree, file, esha) == OK) {
-        u8cs scan = {file[0], file[1]};
-        if (u8csFind(scan, ' ') != OK) continue;
-        u8cs name_s = {scan[0], file[1]};
-        ++name_s[0];
-        u8cs mode_s = {file[0], scan[0]};
-
-        if (DPATHVerify(name_s) != OK) {
-            fprintf(stderr, "sniff: bad path '%.*s', skip\n",
-                    (int)$len(name_s), (char *)name_s[0]);
-            continue;
-        }
-
-        b8 is_submodule = ($len(mode_s) >= 2 &&
-                           $at(mode_s, 0) == '1' && $at(mode_s, 1) == '6');
-        if (is_submodule) continue;
-
-        b8 is_dir = ($at(mode_s, 0) == '4');
-
-        a_pad(u8, rel, 2048);
-        if (!$empty(prefix)) {
-            u8bFeed(rel, prefix);
-            u8bFeed1(rel, '/');
-        }
-        u8bFeed(rel, name_s);
-        if (is_dir) u8bFeed1(rel, '/');
-        PATHu8gTerm(PATHu8gIn(rel));
-        u8cs relpath = {u8bDataHead(rel), rel[2]};
-
-        u32 idx = is_dir ? SNIFFInternDir(ctx->s, relpath)
-                         : SNIFFIntern(ctx->s, relpath);
-        POSTSetSha(ctx, idx, (sha1cp)esha[0]);
-
-        if (is_dir)
-            POSTCollectTree(ctx, k, (sha1cp)esha[0], relpath);
-    }
-
-    u8bFree(tcopy);
-    done;
-}
-
-// --- Resolve parent hex -> tree SHA, collect old SHAs ---
-
-static ok64 POSTResolveParent(sha_ctx *ctx, keeper *k, u8cs parent_hex) {
-    sane(ctx && k && $ok(parent_hex));
-
-    size_t hexlen = $len(parent_hex);
-    if (hexlen > 15) hexlen = 15;
-    u64 hashlet = WHIFFHexHashlet60(parent_hex);
-
-    Bu8 cbuf = {};
-    call(u8bAllocate, cbuf, 1UL << 24);
-    u8 ctype = 0;
-    call(KEEPGet, k, hashlet, hexlen, cbuf, &ctype);
-
-    // Dereference tag
-    if (ctype == DOG_OBJ_TAG) {
-        u8cs body = {u8bDataHead(cbuf), u8bIdleHead(cbuf)};
-        u8cs field = {}, value = {};
-        sha1 tag_sha = {};
-        a_raw(tag_bin, tag_sha);
-        while (GITu8sDrainCommit(body, field, value) == OK) {
-            if ($empty(field)) break;
-            if ($len(field) == 6 && memcmp(field[0], "object", 6) == 0 &&
-                $len(value) >= 40) {
-                u8cs hex40 = {value[0], $atp(value, 40)};
-                HEXu8sDrainSome(tag_bin, hex40);
-                break;
-            }
-        }
-        u64 ch = WHIFFHashlet60(&tag_sha);
-        u8bReset(cbuf);
-        call(KEEPGet, k, ch, 15, cbuf, &ctype);
-    }
-    if (ctype != DOG_OBJ_COMMIT) { u8bFree(cbuf); fail(SNIFFFAIL); }
-
-    sha1 tree_sha = {};
-    u8cs commit_body = {u8bDataHead(cbuf), u8bIdleHead(cbuf)};
-    call(WALKCommitTree, commit_body, tree_sha.data);
-    u8bFree(cbuf);
-
-    u8cs no_prefix = {};
-    call(POSTCollectTree, ctx, k, &tree_sha, no_prefix);
-    done;
+static sha1cp POSTGetSha(sha1p shas, u32 capacity, u32 idx) {
+    if (idx >= capacity) return NULL;
+    if (sha1empty(&shas[idx])) return NULL;
+    return &shas[idx];
 }
 
 // --- Depth-first tree build over sorted index ---
@@ -146,7 +27,7 @@ static ok64 POSTResolveParent(sha_ctx *ctx, keeper *k, u8cs parent_hex) {
 // Build tree for interval [lo, hi) of sorted indices where all paths
 // share `prefix`.  Returns tree SHA via tree_out.
 static ok64 POSTBuild(sha1 *tree_out, sniff *s, keeper *k,
-                        keep_pack *p, sha_ctx *sha_tab,
+                        keep_pack *p, sha1p sha_tab, u32 sha_cap,
                         u8cs reporoot, u8cp commit_set,
                         u32 lo, u32 hi, u8cs prefix) {
     sane(s && k && p && sha_tab && tree_out);
@@ -203,18 +84,18 @@ static ok64 POSTBuild(sha1 *tree_out, sniff *s, keeper *k,
             sha1 sub_sha = {};
             if (!touched) {
                 // Reuse old tree hashlet
-                sha1cp old = POSTGetSha(sha_tab, idx);
+                sha1cp old = POSTGetSha(sha_tab, sha_cap, idx);
                 if (old) {
                     sub_sha = *old;
                 } else {
                     // No old SHA, must rebuild
-                    ok64 o = POSTBuild(&sub_sha, s, k, p, sha_tab,
+                    ok64 o = POSTBuild(&sub_sha, s, k, p, sha_tab, sha_cap,
                                          reporoot, commit_set,
                                          sub_lo, sub_hi, rel);
                     if (o != OK) { u8bFree(tree); return o; }
                 }
             } else {
-                ok64 o = POSTBuild(&sub_sha, s, k, p, sha_tab,
+                ok64 o = POSTBuild(&sub_sha, s, k, p, sha_tab, sha_cap,
                                      reporoot, commit_set,
                                      sub_lo, sub_hi, rel);
                 if (o != OK) { u8bFree(tree); return o; }
@@ -283,7 +164,7 @@ static ok64 POSTBuild(sha1 *tree_out, sniff *s, keeper *k,
                 u8bFree(content);
                 if (o != OK) { u8bFree(tree); return o; }
             } else {
-                sha1cp old = POSTGetSha(sha_tab, idx);
+                sha1cp old = POSTGetSha(sha_tab, sha_cap, idx);
                 if (!old) { i++; continue; }
                 file_sha = *old;
             }
@@ -340,17 +221,16 @@ ok64 POSTTree(sha1 *tree_out, sniff *s, keeper *k, keep_pack *p,
     Bsha1 sha_mem = {};
     call(sha1bAllocate, sha_mem, cap);
     memset(sha1bHead(sha_mem), 0, (u64)cap * sizeof(sha1));
-    sha_ctx sha_tab = {.s = s, .shas = sha1bHead(sha_mem),
-                       .capacity = cap};
+    sha1p sha_tab = sha1bHead(sha_mem);
 
-    if ($ok(parent_hex)) {
-        ok64 o = POSTResolveParent(&sha_tab, k, parent_hex);
+    if ($ok(parent_hex) && !$empty(parent_hex)) {
+        ok64 o = SNIFFCollectParentTree(s, k, parent_hex, sha_tab, cap);
         if (o != OK) { sha1bFree(sha_mem); return o; }
     }
 
     // Build tree depth-first over sorted index
     u8cs no_prefix = {};
-    ok64 o = POSTBuild(tree_out, s, k, p, &sha_tab, reporoot,
+    ok64 o = POSTBuild(tree_out, s, k, p, sha_tab, cap, reporoot,
                          commit_set, 0, u32bDataLen(s->sorted),
                          no_prefix);
 

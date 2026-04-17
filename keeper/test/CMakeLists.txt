@@ -41,7 +41,7 @@ endif()
 add_executable(WALKtest WALK.c)
 target_link_options(WALKtest PRIVATE ${TEST_LDD_FLAGS})
 target_compile_options(WALKtest PRIVATE ${TEST_CXX_FLAGS})
-target_link_libraries(WALKtest gitcompat abc-core)
+target_link_libraries(WALKtest keeplib gitcompat dog abc-core)
 add_test(NAME WALKtest COMMAND WALKtest)
 
 add_executable(ZINFtest ZINF.c)

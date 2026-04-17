@@ -7,3 +7,6 @@ if (WITH_MILL)
     set_tests_properties(mill PROPERTIES
         ENVIRONMENT "BIN=${DOG_BIN_DIR}")
 endif()
+
+# clone-git.sh and mill-tags.sh are manual heavyweight integration
+# scripts (require $HOME/src/git + ssh localhost); run directly.

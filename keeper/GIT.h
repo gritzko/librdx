@@ -29,4 +29,9 @@ ok64 GITu8sDrainTree(u8cs obj, u8csp file, u8csp sha1);
 //  as `value`.  Returns NODATA when exhausted.
 ok64 GITu8sDrainCommit(u8cs obj, u8csp field, u8csp value);
 
+//  Parse the "tree <hex>" header from a commit body and write the
+//  20-byte binary SHA-1 into tree_sha.  Returns GITBADFMT if the
+//  tree line is missing or malformed.
+ok64 GITu8sCommitTree(u8cs commit, u8 tree_sha[20]);
+
 #endif

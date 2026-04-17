@@ -15,136 +15,90 @@
 #include "keeper/REFS.h"
 #include "keeper/WALK.h"
 
-// Recursive tree checkout.  seen[idx]=1 for every path visited.
-static ok64 GETTree(sniff *s, keeper *k, u8cs reporoot,
-                     sha1 const *tree_sha, u8cs prefix, u8p seen) {
-    sane(s && k && tree_sha);
+// Per-entry visitor context for WALKTreeLazy.
+typedef struct {
+    sniff  *s;
+    keeper *k;
+    u8cs    reporoot;
+    u8p     seen;
+    ok64    error;       // first fatal error encountered, if any
+} get_ctx;
 
-    Bu8 buf = {};
-    call(u8bAllocate, buf, 1UL << 24);
-    u8 otype = 0;
-    ok64 o = KEEPGetExact(k, tree_sha, buf, &otype);
-    if (o != OK) { u8bFree(buf); fail(o); }
-    if (otype != DOG_OBJ_TREE) { u8bFree(buf); fail(SNIFFFAIL); }
+static ok64 get_visit(u8cs path, u8 kind, u8cp esha, u8cs blob,
+                       void0p vctx) {
+    (void)blob;  // lazy mode: blob is always empty, we pull if needed
+    get_ctx *g = (get_ctx *)vctx;
+    sniff  *s = g->s;
+    keeper *k = g->k;
 
-    // Snapshot tree content (KEEPGet may reuse buffer)
-    size_t tsz = u8bDataLen(buf);
-    Bu8 tcopy = {};
-    o = u8bAllocate(tcopy, tsz);
-    if (o != OK) { u8bFree(buf); fail(o); }
-    u8bFeed(tcopy, u8bDataC(buf));
-    u8bFree(buf);
+    if (kind == WALK_KIND_SUB) return WALKSKIP;
 
-    u8cs tree = {u8bDataHead(tcopy), u8bIdleHead(tcopy)};
-    u8cs file = {}, esha = {};
-    ok64 result = OK;
+    u64 entry_hashlet = WHIFFHashlet40((sha1cp)esha);
 
-    while (GITu8sDrainTree(tree, file, esha) == OK) {
-        // file = "mode name"; find the space
-        u8cs scan = {file[0], file[1]};
-        if (u8csFind(scan, ' ') != OK) continue;
-        u8cs mode_s = {file[0], scan[0]};
-        // scan[0] is at ' '; name starts after it
-        u8cs rest = {scan[0], file[1]};
-        if ($len(rest) < 2) continue;
-        u8cs name_s = {rest[0], file[1]};
-        // skip the space
-        ++name_s[0];
+    if (kind == WALK_KIND_DIR) {
+        a_path(dp);
+        SNIFFFullpath(dp, g->reporoot, path);
+        FILEMakeDirP(PATHu8cgIn(dp));
 
-        if (DPATHVerify(name_s) != OK) {
-            fprintf(stderr, "sniff: bad path '%.*s', skip\n",
-                    (int)$len(name_s), (char *)name_s[0]);
-            continue;
-        }
-
-        b8 is_dir = ($at(mode_s, 0) == '4');
-        b8 is_submodule = ($len(mode_s) >= 2 &&
-                           $at(mode_s, 0) == '1' && $at(mode_s, 1) == '6');
-        b8 is_symlink = ($len(mode_s) >= 2 &&
-                         $at(mode_s, 0) == '1' && $at(mode_s, 1) == '2');
-        if (is_submodule) continue;
-
-        // Build relative path: prefix/name
-        a_pad(u8, rel, 2048);
-        if (!$empty(prefix)) {
-            u8bFeed(rel, prefix);
-            u8bFeed1(rel, '/');
-        }
-        u8bFeed(rel, name_s);
-        PATHu8gTerm(PATHu8gIn(rel));
-        u8cs relpath = {u8bDataHead(rel), rel[2]};
-
-        u64 entry_hashlet = WHIFFHashlet40((sha1cp)esha[0]);
-
-        if (is_dir) {
-            a_path(dp);
-            SNIFFFullpath(dp, reporoot, relpath);
-            FILEMakeDirP(PATHu8cgIn(dp));
-
-            u32 idx = SNIFFInternDir(s, relpath);
-            seen[idx] = 1;
-            SNIFFRecord(s, SNIFF_HASHLET, idx, entry_hashlet);
-
-            result = GETTree(s, k, reporoot, (sha1cp)esha[0], relpath, seen);
-            if (result != OK) break;
-        } else {
-            u32 idx = SNIFFIntern(s, relpath);
-            seen[idx] = 1;
-
-            u64 old_hashlet = SNIFFGet(s, SNIFF_HASHLET, idx);
-            if (old_hashlet == entry_hashlet && old_hashlet != 0) continue;
-
-            u64 co = SNIFFGet(s, SNIFF_CHECKOUT, idx);
-            u64 ch = SNIFFGet(s, SNIFF_CHANGED, idx);
-            if (ch != 0 && ch != co) {
-                u8cs p = {};
-                SNIFFPath(p, s, idx);
-                fprintf(stderr, "sniff: skip dirty %.*s\n",
-                        (int)$len(p), (char *)p[0]);
-                continue;
-            }
-
-            Bu8 blob = {};
-            result = u8bAllocate(blob, 1UL << 24);
-            if (result != OK) break;
-            u8 bt = 0;
-            result = KEEPGetExact(k, (sha1 const *)esha[0], blob, &bt);
-            if (result != OK) { u8bFree(blob); break; }
-
-            a_path(fp);
-            result = SNIFFFullpath(fp, reporoot, relpath);
-            if (result != OK) { u8bFree(blob); break; }
-
-            if (is_symlink) {
-                unlink((char *)u8bDataHead(fp));
-                u8bFeed1(blob, 0);
-                symlink((char *)u8bDataHead(blob),
-                        (char *)u8bDataHead(fp));
-            } else {
-                int fd = -1;
-                result = FILECreate(&fd, PATHu8cgIn(fp));
-                if (result != OK) { u8bFree(blob); break; }
-                u8cs data = {u8bDataHead(blob), u8bIdleHead(blob)};
-                result = FILEFeedAll(fd, data);
-                FILEClose(&fd);
-                if (result != OK) { u8bFree(blob); break; }
-
-                if ($len(mode_s) >= 6 && $at(mode_s, 3) == '7')
-                    chmod((char *)u8bDataHead(fp), 0755);
-            }
-            u8bFree(blob);
-
-            SNIFFRecord(s, SNIFF_HASHLET, idx, entry_hashlet);
-
-            struct stat sb = {};
-            if (FILEStat(&sb, PATHu8cgIn(fp)) == OK)
-                SNIFFRecord(s, SNIFF_CHECKOUT, idx,
-                            (u64)sb.st_mtim.tv_sec);
-        }
+        u32 idx = SNIFFInternDir(s, path);
+        g->seen[idx] = 1;
+        SNIFFRecord(s, SNIFF_HASHLET, idx, entry_hashlet);
+        return OK;  // walker recurses
     }
 
-    u8bFree(tcopy);
-    return result;
+    // File entry (REG/EXE/LNK).
+    u32 idx = SNIFFIntern(s, path);
+    g->seen[idx] = 1;
+
+    u64 old_hashlet = SNIFFGet(s, SNIFF_HASHLET, idx);
+    if (old_hashlet == entry_hashlet && old_hashlet != 0) return WALKSKIP;
+
+    u64 co = SNIFFGet(s, SNIFF_CHECKOUT, idx);
+    u64 ch = SNIFFGet(s, SNIFF_CHANGED, idx);
+    if (ch != 0 && ch != co) {
+        fprintf(stderr, "sniff: skip dirty %.*s\n",
+                (int)$len(path), (char *)path[0]);
+        return WALKSKIP;
+    }
+
+    // Pull blob content now (lazy mode).
+    Bu8 bbuf = {};
+    ok64 o = u8bAllocate(bbuf, 1UL << 24);
+    if (o != OK) { g->error = o; return o; }
+    u8 bt = 0;
+    sha1 entry_sha = {};
+    memcpy(entry_sha.data, esha, 20);
+    o = KEEPGetExact(k, &entry_sha, bbuf, &bt);
+    if (o != OK) { u8bFree(bbuf); g->error = o; return o; }
+
+    a_path(fp);
+    o = SNIFFFullpath(fp, g->reporoot, path);
+    if (o != OK) { u8bFree(bbuf); g->error = o; return o; }
+
+    if (kind == WALK_KIND_LNK) {
+        unlink((char *)u8bDataHead(fp));
+        u8bFeed1(bbuf, 0);
+        symlink((char *)u8bDataHead(bbuf), (char *)u8bDataHead(fp));
+    } else {
+        int fd = -1;
+        o = FILECreate(&fd, PATHu8cgIn(fp));
+        if (o != OK) { u8bFree(bbuf); g->error = o; return o; }
+        u8cs data = {u8bDataHead(bbuf), u8bIdleHead(bbuf)};
+        o = FILEFeedAll(fd, data);
+        FILEClose(&fd);
+        if (o != OK) { u8bFree(bbuf); g->error = o; return o; }
+        if (kind == WALK_KIND_EXE)
+            chmod((char *)u8bDataHead(fp), 0755);
+    }
+    u8bFree(bbuf);
+
+    SNIFFRecord(s, SNIFF_HASHLET, idx, entry_hashlet);
+
+    struct stat sb = {};
+    if (FILEStat(&sb, PATHu8cgIn(fp)) == OK)
+        SNIFFRecord(s, SNIFF_CHECKOUT, idx, (u64)sb.st_mtim.tv_sec);
+
+    return OK;
 }
 
 // Remove tracked files not in the new tree.
@@ -267,7 +221,7 @@ ok64 GETCheckout(sniff *s, keeper *k, u8cs reporoot, u8cs hex,
     // Extract tree SHA
     sha1 tree_sha = {};
     u8cs commit = {u8bDataHead(buf), u8bIdleHead(buf)};
-    o = WALKCommitTree(commit, tree_sha.data);
+    o = GITu8sCommitTree(commit, tree_sha.data);
     u8bFree(buf);
     if (o != OK) {
         fprintf(stderr, "sniff: bad commit (no tree)\n");
@@ -281,8 +235,14 @@ ok64 GETCheckout(sniff *s, keeper *k, u8cs reporoot, u8cs hex,
     call(u8bAllocate, seen_buf, seen_size);
     memset(u8bDataHead(seen_buf), 0, seen_size);
 
-    u8cs no_prefix = {};
-    o = GETTree(s, k, reporoot, &tree_sha, no_prefix, u8bDataHead(seen_buf));
+    get_ctx ctx = {
+        .s = s, .k = k,
+        .seen = u8bDataHead(seen_buf), .error = OK,
+    };
+    ctx.reporoot[0] = reporoot[0];
+    ctx.reporoot[1] = reporoot[1];
+    o = WALKTreeLazy(k, tree_sha.data, get_visit, &ctx);
+    if (o == OK && ctx.error != OK) o = ctx.error;
 
     if (o == OK)
         o = GETPrune(s, reporoot, u8bDataHead(seen_buf));

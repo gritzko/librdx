@@ -10,7 +10,6 @@
 #include "abc/PRO.h"
 #include "keeper/GIT.h"
 #include "keeper/SHA1.h"
-#include "keeper/WALK.h"
 
 // Compute full SHA1 of parent commit for the "parent" line.
 static ok64 PUTParentSha(sha1 *out, keeper *k, u8cs parent_hex) {

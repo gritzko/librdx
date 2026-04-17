@@ -215,7 +215,12 @@ static ok64 keeper_get_remote(keeper *k, cli *c, uri *g) {
         u8bFeed(oubuf, file_pfx);
         if (!u8csEmpty(g->path)) u8bFeed(oubuf, g->path);
     } else {
-        u8bFeed(oubuf, g->data);
+        // Strip any ?query or #fragment — origin_uri must be just
+        // scheme+authority+path so recorded refs get a clean key.
+        u8cs trim = {g->data[0], g->data[1]};
+        if (!u8csEmpty(g->query))    trim[1] = g->query[0] - 1;
+        if (!u8csEmpty(g->fragment)) trim[1] = g->fragment[0] - 1;
+        u8bFeed(oubuf, trim);
     }
     a_dup(u8c, origin_uri, u8bData(oubuf));
     return KEEPSync(k, remote, origin_uri,

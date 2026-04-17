@@ -1,76 +1,62 @@
 #ifndef XX_WALK_H
 #define XX_WALK_H
 
-//  WALK: git object graph traversal
+//  WALK: tree walker on a KEEP object store.
 //
-//  Provides a persistent walker over a BELT repository that
-//  caches mmapped log + index for efficient repeated lookups.
-//  Graph walks (commit history, tree enumeration, common ancestor)
-//  use generation numbers stored in belt128 for pruning.
+//  Scope: a single tree rooted at a given SHA-1.  No commit-graph
+//  traversal lives here — that is graf/'s purview.
+//
+//  Two flavors: `WALKTree` (eager — file blobs resolved before the
+//  visitor sees them) and `WALKTreeLazy` (no blob resolve; visitor
+//  pulls content on demand via `KEEPGetExact`).
 
-#include "BELT.h"
+#include "abc/INT.h"
+#include "KEEP.h"
 
 con ok64 WALKFAIL	= 0x80a5543ca495;
 con ok64 WALKNONE	= 0x80a5545d85ce;
 con ok64 WALKNOROOM	= 0x80a5545d86d8616;
 con ok64 WALKBADFMT	= 0x80a5542ca34f59d;
+con ok64 WALKSKIP	= 0x80a554714499;
+con ok64 WALKSTOP	= 0x80a55471d619;
 
-#define WALK_BUFSZ (1 << 26)  // 64 MB resolve scratch
+//  Tree-entry kind (compressed git mode).  See walk_tree_fn visitor.
+#define WALK_KIND_REG 1  // 100644 regular file
+#define WALK_KIND_EXE 2  // 100755 executable
+#define WALK_KIND_LNK 3  // 120000 symlink
+#define WALK_KIND_SUB 4  // 160000 submodule (gitlink)
+#define WALK_KIND_DIR 5  // 40000 subtree
 
-//  Walk state — opened on a belt dir, reused across lookups.
-typedef struct {
-    u8bp      logmap;
-    u8cp      pack;
-    u64       packlen;
-    belt128cs runs[BELT_MAX_LEVELS];
-    u8bp      maps[BELT_MAX_LEVELS];
-    u32       nmaps;
-    belt128css stack;
-    u8p       buf1, buf2;
-} walk;
+//  Classify a git tree-entry mode prefix (the "mode" part of
+//  "<mode> <name>\0<sha>") into WALK_KIND_*.  Returns 0 if the
+//  mode is unrecognized.
+u8 WALKu8sModeKind(u8cs mode);
 
-//  Visitor callback: called with (hashlet, type, content, ctx).
-//  Return OK to continue walking, anything else to stop.
-typedef ok64 (*walk_fn)(u64 hashlet, u8 type, u8cs content, void0p ctx);
+//  Tree-walk visitor.  Called in depth-first order for each entry
+//  of a tree (and, recursively, its subtrees).
+//    path  — full relpath from the walk root.  No leading '/',
+//            no trailing '/'.
+//    kind  — WALK_KIND_* (compressed mode).
+//    esha  — raw 20-byte SHA-1 of the tree entry (pre-resolve).
+//    blob  — for WALK_KIND_REG/EXE/LNK in eager mode: content slice.
+//            Empty ($empty()) in lazy mode or for DIR/SUB entries.
+//    ctx   — opaque caller context.
+//  Return OK to continue, WALKSKIP to skip this entry (don't recurse
+//  into a DIR, don't resolve a blob), WALKSTOP to terminate the walk
+//  cleanly.  Any other non-OK is a fatal error.
+typedef ok64 (*walk_tree_fn)(u8cs path, u8 kind, u8cp esha,
+                             u8cs blob, void0p ctx);
 
-//  Open a walker on a belt directory. Mmaps log + all index runs.
-ok64 WALKOpen(walk *w, u8cs belt_dir);
+//  Walk the tree at `tree_sha` (20-byte) depth-first, eager mode:
+//  resolves every REG/EXE/LNK blob through `k` before invoking the
+//  visitor, so `blob` is always filled for file entries.
+ok64 WALKTree(keeper *k, u8cp tree_sha, walk_tree_fn visit, void0p ctx);
 
-//  Close walker, unmap everything, free buffers.
-ok64 WALKClose(walk *w);
-
-//  Get object by hashlet. Writes content into `out` gauge,
-//  sets `out_type` to BELT_COMMIT/TREE/BLOB/TAG.
-ok64 WALKGet(walk *w, u64 hashlet, u8g out, u8p out_type);
-
-//  Get object by raw 20-byte SHA-1.
-ok64 WALKGetSha(walk *w, u8cp sha, u8g out, u8p out_type);
-
-//  Parse tree SHA-1 from decompressed commit content.
-//  Writes 20-byte binary SHA-1 into tree_sha.
-ok64 WALKCommitTree(u8cs commit, u8 tree_sha[20]);
-
-//  Walk commits reachable from head_sha (20-byte), newest first.
-//  Stops at stop_sha (exclusive); pass NULL for full history.
-//  Uses gen numbers for early BFS termination.
-ok64 WALKCommits(walk *w, u8cp head_sha, u8cp stop_sha,
-                 walk_fn visit, void0p ctx);
-
-//  Walk tree at tree_sha (20-byte) recursively, depth-first.
-//  Visits every blob and subtree.
-ok64 WALKTree(walk *w, u8cp tree_sha, walk_fn visit, void0p ctx);
-
-//  Find common ancestor of two commits (20-byte SHA-1s).
-//  Uses gen-based pruning for simultaneous BFS.
-//  Writes result into out (20 bytes). Returns WALKNONE if unrelated.
-ok64 WALKAncestor(walk *w, u8cp sha_a, u8cp sha_b, u8 out[20]);
-
-//  Enumerate objects reachable from head but not from base.
-//  Visits commits, trees, and blobs in the difference set.
-ok64 WALKMissing(walk *w, u8cp head_sha, u8cp base_sha,
-                 walk_fn visit, void0p ctx);
-
-//  Materialize a tree into a directory on the filesystem.
-ok64 WALKCheckout(walk *w, u8cp tree_sha, u8cs dest);
+//  Lazy variant of WALKTree.  Never resolves blob objects; `blob` is
+//  always empty ($empty()) in the visitor.  Trees are still resolved
+//  (required for iteration).  Callers that need a blob can pull it
+//  on demand with `KEEPGetExact`.
+ok64 WALKTreeLazy(keeper *k, u8cp tree_sha, walk_tree_fn visit,
+                  void0p ctx);
 
 #endif

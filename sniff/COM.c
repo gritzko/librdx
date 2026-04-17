@@ -13,86 +13,13 @@
 #include "dog/DPATH.h"
 #include "keeper/GIT.h"
 #include "keeper/SHA1.h"
-#include "keeper/WALK.h"
 
-// --- Collect old tree SHAs: path_index → sha1 ---
+// --- idx → sha1 lookup ---
 
-typedef struct {
-    sniff *s;
-    sha1s  shas;
-    u32    capacity;
-} sha_ctx;
-
-static void com_set_sha(sha_ctx *ctx, u32 idx, sha1 const *sha) {
-    if (idx >= ctx->capacity) return;
-    ctx->shas[0][idx] = *sha;
-}
-
-static sha1cp com_get_sha(sha_ctx const *ctx, u32 idx) {
-    if (idx >= ctx->capacity) return NULL;
-    if (sha1empty(&ctx->shas[0][idx])) return NULL;
-    return &ctx->shas[0][idx];
-}
-
-static ok64 com_collect_tree(sha_ctx *ctx, keeper *k,
-                             sha1 const *tree_sha, u8cs prefix) {
-    sane(ctx && k && tree_sha);
-
-    u64 hashlet = WHIFFHashlet60(tree_sha);
-    Bu8 buf = {};
-    call(u8bAllocate, buf, 1UL << 24);
-    u8 otype = 0;
-    ok64 o = KEEPGet(k, hashlet, 15, buf, &otype);
-    if (o != OK) { u8bFree(buf); fail(o); }
-    if (otype != DOG_OBJ_TREE) { u8bFree(buf); fail(SNIFFFAIL); }
-
-    size_t tsz = u8bDataLen(buf);
-    Bu8 tcopy = {};
-    o = u8bAllocate(tcopy, tsz);
-    if (o != OK) { u8bFree(buf); fail(o); }
-    u8bFeed(tcopy, u8bDataC(buf));
-    u8bFree(buf);
-
-    u8cs tree = {u8bDataHead(tcopy), u8bIdleHead(tcopy)};
-    u8cs file = {}, esha = {};
-
-    while (GITu8sDrainTree(tree, file, esha) == OK) {
-        u8cs scan = {file[0], file[1]};
-        if (u8csFind(scan, ' ') != OK) continue;
-        u8cs name_s = {scan[0], file[1]};
-        ++name_s[0];
-        u8cs mode_s = {file[0], scan[0]};
-
-        if (DPATHVerify(name_s) != OK) {
-            fprintf(stderr, "sniff: bad path '%.*s', skip\n",
-                    (int)$len(name_s), (char *)name_s[0]);
-            continue;
-        }
-
-        b8 is_submodule = ($len(mode_s) >= 2 &&
-                           $at(mode_s, 0) == '1' && $at(mode_s, 1) == '6');
-        if (is_submodule) continue;
-
-        a_pad(u8, rel, 2048);
-        if (!$empty(prefix)) {
-            u8bFeed(rel, prefix);
-            u8bFeed1(rel, '/');
-        }
-        u8bFeed(rel, name_s);
-        PATHu8gTerm(PATHu8gIn(rel));
-        u8cs relpath = {u8bDataHead(rel), rel[2]};
-
-        u32 idx = SNIFFIntern(ctx->s, relpath);
-        sha1cp esha1 = (sha1cp)esha[0];
-        com_set_sha(ctx, idx, esha1);
-
-        b8 is_dir = ($at(mode_s, 0) == '4');
-        if (is_dir)
-            com_collect_tree(ctx, k, esha1, relpath);
-    }
-
-    u8bFree(tcopy);
-    done;
+static sha1cp com_get_sha(sha1p shas, u32 capacity, u32 idx) {
+    if (idx >= capacity) return NULL;
+    if (sha1empty(&shas[idx])) return NULL;
+    return &shas[idx];
 }
 
 // --- Tree entry ---
@@ -109,7 +36,7 @@ typedef struct {
 // commit_set: NULL=all changed, else only commit_set[idx]==1 files.
 // Files missing from disk are excluded (deletions).
 static ok64 com_build_tree(sniff *s, keeper *k, keep_pack *p,
-                           sha_ctx *sha_tab, u8cs reporoot,
+                           sha1p sha_tab, u32 sha_cap, u8cs reporoot,
                            u8cs dir_prefix, u8cp commit_set,
                            sha1 *sha_out) {
     sane(s && k && p && sha_tab && sha_out);
@@ -172,7 +99,7 @@ static ok64 com_build_tree(sniff *s, keeper *k, keep_pack *p,
             names[nentries][0] = dirname[0];
             names[nentries][1] = dirname[1];
 
-            ok64 o = com_build_tree(s, k, p, sha_tab, reporoot,
+            ok64 o = com_build_tree(s, k, p, sha_tab, sha_cap, reporoot,
                                     sub, commit_set, &e->sha);
             if (o != OK) return o;
             // Skip empty subtrees (deleted dirs)
@@ -246,7 +173,7 @@ static ok64 com_build_tree(sniff *s, keeper *k, keep_pack *p,
                 u8bFree(content);
                 if (o != OK) return o;
             } else {
-                sha1cp old_sha = com_get_sha(sha_tab, i);
+                sha1cp old_sha = com_get_sha(sha_tab, sha_cap, i);
                 if (!old_sha) continue;
                 e->sha = *old_sha;
             }
@@ -371,10 +298,6 @@ ok64 COMCommit(sniff *s, keeper *k, u8cs reporoot,
         u8bFree(tmp);
     }
 
-    // Parent's tree SHA
-    sha1 parent_tree_sha = {};
-    u8cs commit_body = {u8bDataHead(cbuf), u8bIdleHead(cbuf)};
-    call(WALKCommitTree, commit_body, parent_tree_sha.data);  // keeper API boundary
     u8bFree(cbuf);
 
     // Collect old tree SHAs
@@ -383,12 +306,10 @@ ok64 COMCommit(sniff *s, keeper *k, u8cs reporoot,
     Bsha1 sha_mem = {};
     call(sha1bAllocate, sha_mem, cap);
     memset(sha1bHead(sha_mem), 0, (u64)cap * sizeof(sha1));
-    sha1s sha_slice = {sha1bHead(sha_mem), sha1bHead(sha_mem) + cap};
-    sha_ctx sha_tab = {.s = s, .shas = {sha_slice[0], sha_slice[1]},
-                       .capacity = cap};
+    sha1p sha_tab = sha1bHead(sha_mem);
 
     u8cs no_prefix = {};
-    call(com_collect_tree, &sha_tab, k, &parent_tree_sha, no_prefix);
+    call(SNIFFCollectParentTree, s, k, parent_hex, sha_tab, cap);
 
     // Start pack
     keep_pack p = {};
@@ -396,7 +317,7 @@ ok64 COMCommit(sniff *s, keeper *k, u8cs reporoot,
 
     // Build tree
     sha1 root_tree_sha = {};
-    ok64 o = com_build_tree(s, k, &p, &sha_tab, reporoot,
+    ok64 o = com_build_tree(s, k, &p, sha_tab, cap, reporoot,
                             no_prefix, commit_set, &root_tree_sha);
     sha1bFree(sha_mem);
     if (o != OK) { KEEPPackClose(k, &p); return o; }

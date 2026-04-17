@@ -12,6 +12,7 @@ Types: none (output via slices).
 
   - `GITu8sDrainTree`    drain one tree entry (mode+name, 20-byte SHA1)
   - `GITu8sDrainCommit`  drain one commit header; empty field = body
+  - `GITu8sCommitTree`   extract the tree SHA-1 from a commit body
 
 ### PKT.h — pkt-line framing
 
@@ -46,24 +47,6 @@ Types: `igno_pat` (pattern + flags), `igno` (up to 256 patterns).
   - `ZINFInflate(u8s into, u8cs zipped)`  decompress zlib data
   - `ZINFDeflate(u8s into, u8cs plain)`  compress data
 
-### BELT.h — ersatz git-compatible repository format
-
-Types: `belt128` (index entry: hashlet+type+offset+gen), `walk` via WALK.h.
-
-belt128.b layout: `(gen:20 << 44) | (offset:40 << 4) | flags:4`.
-Generation = 1 + max(parent gens), computed during indexing.
-
-  - `BELTEntry`      construct belt128 entry (hashlet, type, offset, gen)
-  - `BELTHashlet`    extract hashlet from entry
-  - `BELTType`       extract object type
-  - `BELTOffset`     extract log offset (40-bit)
-  - `BELTGen`        extract generation number (20-bit)
-  - `BELTClone`      clone repo via git-upload-pack into belt
-  - `BELTImport`     import packfile into belt
-  - `BELTGet`        get object by hex hash
-  - `BELTLookup`     lookup by hashlet in sorted run stack
-  - `BELTResolve`    resolve object at pack offset (chasing deltas)
-  - `BELTCommitGen`  compute generation number from commit content
 
 ##  Implementation files
 
@@ -73,8 +56,7 @@ Generation = 1 + max(parent gens), computed during indexing.
   - `IGNO.c`    gitignore glob matching (~233 lines)
   - `SHA1.c`    SHA-1 via OpenSSL EVP (~24 lines)
   - `ZINF.c`    zlib inflate/deflate (~63 lines)
-  - `BELT.c`    belt repository: clone, import, index, get (~775 lines)
-  - `WALK.c`    graph traversal: commits, trees, ancestor, missing (~400 lines)
+  - `WALK.c`    KEEP-backed tree walker (eager + lazy)
 
 ### WALK.h — git object graph traversal
 
@@ -84,12 +66,10 @@ Types: `walk` (walker state), `walk_fn` (visitor callback).
   - `WALKClose`        close walker, unmap everything
   - `WALKGet`          get object by hashlet
   - `WALKGetSha`       get object by raw 20-byte SHA-1
-  - `WALKCommitTree`   parse tree SHA-1 from commit content
-  - `WALKCommits`      BFS walk of commit history (gen-pruned)
-  - `WALKTree`         DFS walk of tree (recursive)
-  - `WALKAncestor`     find common ancestor (gen-pruned simultaneous BFS)
-  - `WALKMissing`      enumerate objects reachable from head but not base
-  - `WALKCheckout`     materialize tree to filesystem
+  - `WALKTree`         DFS tree walk over KEEP — eager (blobs resolved), path-aware visitor
+  - `WALKTreeLazy`     DFS tree walk over KEEP — lazy (blobs empty, pulled on demand)
+  - `WALKu8sModeKind`  classify git tree-entry mode → `WALK_KIND_*`
+  - Commit-graph traversal lives in `graf/`, not here.
 
 ### DELT.h — git delta instruction applier
 
@@ -103,7 +83,8 @@ Types: `walk` (walker state), `walk_fn` (visitor callback).
 
 ##  Build
 
-Library `gitcompat` (static): GIT.c PKT.c PACK.c DELT.c ZINF.c SHA1.c IGNO.c BELT.c WALK.c.
+Library `gitcompat` (static): GIT.c PKT.c PACK.c DELT.c ZINF.c SHA1.c IGNO.c.
+Library `keeplib` (static): KEEP.c KEEP.exe.c REFS.c WALK.c.
 Links: abc, ZLIB, OpenSSL::Crypto.
 
 ##  Tests
@@ -115,6 +96,6 @@ Links: abc, ZLIB, OpenSSL::Crypto.
   - `test/ZINF.c`   deflate/inflate round-trip chain (20 versions)
   - `test/FETCH.c`  treadmill: clone repo via ssh git-upload-pack,
                      unpack packfile, write loose objects, verify with git
-  - `test/WALK.c`   belt128 gen encoding, WALKCommitTree, BELTCommitGen (4 cases)
+  - `test/WALK.c`   WALKu8sModeKind table + WALKTree/WALKTreeLazy on synthetic KEEP
   - `test/ROUND.c`  full round-trip: create bare repo, clone via ssh,
                      edit+commit, push back, verify files match
