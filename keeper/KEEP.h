@@ -171,26 +171,12 @@ ok64 KEEPPackClose(keeper *k, keep_pack *p);
 typedef ok64 (*keep_cb)(u8 type, u8cs content, u64 hashlet, void *ctx);
 ok64 KEEPScan(keeper *k, u64 from_val, keep_cb cb, void *ctx);
 
-// --- Tree walk ---
-
-typedef enum {
-    KEEP_WALK_DEEP    = 1,  // recurse into subtrees
-    KEEP_WALK_BLOBS   = 2,  // yield blob entries
-    KEEP_WALK_TREES   = 4,  // yield subtree entries
-    KEEP_WALK_CONTENT = 8,  // inflate content for blobs
-    KEEP_WALK_ALL     = 6,  // blobs + trees
-} KEEP_WALK;
-
-//  Callback for KEEPWalk.  entry URI has path filled with
-//  repo-relative filepath, query/authority from the input URI.
-//  content is non-empty only if KEEP_WALK_CONTENT is set.
-//  Return OK to continue, error to stop.
-typedef ok64 (*keep_walk_f)(void0p ctx, uricp entry, u8 obj_type, u8csc content);
-
-//  Walk a git tree.  Resolves target URI:
-//    ?ref or #sha → commit → tree, then recurse.
-//    //alias?ref  → resolve alias, same.
-ok64 KEEPWalk(keeper *k, uricp target, KEEP_WALK mode,
-              keep_walk_f cb, void0p ctx);
+//  Resolve a target URI to a root tree SHA-1 (20 bytes).
+//  Accepted forms:
+//    target.fragment = hex SHA prefix of a tree or commit object.
+//    target.query    = ref name ("HEAD", "refs/tags/X", …) — looked up
+//                      via REFS, tag-dereferenced if needed.
+//  Returns KEEPNONE when the ref is unknown, KEEPFAIL on bad input.
+ok64 KEEPResolveTree(keeper *k, uricp target, sha1 *tree_out);
 
 #endif

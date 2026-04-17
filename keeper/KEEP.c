@@ -937,11 +937,11 @@ ok64 KEEPPut(keeper *k, u8csc *objects, wh64 *whiffs, u32 nobjs) {
     done;
 }
 
-// --- Walk: recursive tree traversal with URI callbacks ---
+// --- Tree-SHA resolution ---
 
-// Resolve ref string to a 20-byte tree SHA.
-// Handles: 40-char hex SHA (commit or tree), ?refname via REFS.
-static ok64 keep_resolve_tree(keeper *k, uricp target, sha1 *tree_sha) {
+// Resolve a URI (target.fragment = hex, target.query = refname) to a
+// root tree SHA-1.  Handles annotated-tag dereference.
+ok64 KEEPResolveTree(keeper *k, uricp target, sha1 *tree_sha) {
     sane(k);
 
     sha1 commit_sha = {};
@@ -1050,128 +1050,6 @@ static ok64 keep_resolve_tree(keeper *k, uricp target, sha1 *tree_sha) {
     }
 
     fail(KEEPFAIL);  // no ref or hash in URI
-}
-
-// Recursive tree walk
-static ok64 keep_walk_tree(keeper *k, u8csc tree_sha,
-                           u8bp pathbuf, uricp base_uri,
-                           KEEP_WALK mode, keep_walk_f cb, void0p ctx) {
-    u64 hashlet = WHIFFHashlet60((sha1cp)tree_sha[0]);
-    u8 type = 0;
-    u8bReset(k->buf3);
-    ok64 o = KEEPGet(k, hashlet, 15, k->buf3, &type);
-    if (o != OK) return o;
-    if (type != DOG_OBJ_TREE) return KEEPFAIL;
-
-    a_dup(u8c, body, u8bData(k->buf3));
-    size_t path_save = u8bDataLen(pathbuf);
-
-    while (!u8csEmpty(body)) {
-        u8cs entry_field = {}, entry_sha = {};
-        o = GITu8sDrainTree(body, entry_field, entry_sha);
-        if (o != OK) break;
-        if (u8csLen(entry_sha) != 20) continue;
-
-        // Skip gitlinks (submodule refs, mode 160000)
-        if (u8csLen(entry_field) > 6 && memcmp(entry_field[0], "160000", 6) == 0)
-            continue;
-
-        // Extract name: after mode + space
-        u8cs name = {};
-        a_dup(u8c, ef, entry_field);
-        if (u8csFind(ef, ' ') == OK) {
-            u8csUsed(ef, 1);
-            u8csMv(name, ef);
-        } else {
-            u8csMv(name, entry_field);
-        }
-
-        if (DPATHVerify(name) != OK) {
-            fprintf(stderr, "  bad path '%.*s', skip\n",
-                    (int)$len(name), (char *)name[0]);
-            continue;
-        }
-
-        // Is this a subtree? mode starts with "40" (40000)
-        b8 is_tree = (entry_field[0][0] == '4');
-
-        // Build path: append /name to pathbuf
-        if (path_save > 0) u8bFeed1(pathbuf, '/');
-        u8bFeed(pathbuf, name);
-        PATHu8bTerm(pathbuf);
-
-        if (is_tree) {
-            if (mode & KEEP_WALK_TREES) {
-                uri entry = *base_uri;
-                a_dup(u8c, pslice, u8bData(pathbuf));
-                entry.path[0] = pslice[0];
-                entry.path[1] = pslice[1];
-                u8cs empty = {};
-                o = cb(ctx, &entry, DOG_OBJ_TREE, empty);
-                if (o != OK) return o;
-            }
-            if (mode & KEEP_WALK_DEEP) {
-                // Save buf3 state — recursive call will overwrite it
-                size_t b3_save = u8bDataLen(k->buf3);
-                Bu8 saved_tree = {};
-                ok64 me = u8bMap(saved_tree, b3_save);
-                if (me != OK) return me;
-                a_dup(u8c, b3data, u8bData(k->buf3));
-                u8bFeed(saved_tree, b3data);
-
-                o = keep_walk_tree(k, entry_sha, pathbuf,
-                                   base_uri, mode, cb, ctx);
-
-                // Restore buf3
-                u8bReset(k->buf3);
-                a_dup(u8c, sdata, u8bData(saved_tree));
-                u8bFeed(k->buf3, sdata);
-                u8bUnMap(saved_tree);
-                // Restore body scan position
-                body[0] = u8bDataHead(k->buf3) + (body[0] - b3data[0]);
-                body[1] = u8bDataHead(k->buf3) + u8bDataLen(k->buf3);
-
-                if (o != OK) return o;
-            }
-        } else if (mode & KEEP_WALK_BLOBS) {
-            uri entry = *base_uri;
-            a_dup(u8c, pslice, u8bData(pathbuf));
-            entry.path[0] = pslice[0];
-            entry.path[1] = pslice[1];
-
-            u8cs content = {};
-            if (mode & KEEP_WALK_CONTENT) {
-                u8bReset(k->buf4);
-                u8 btype = 0;
-                u64 bhash = WHIFFHashlet60((sha1cp)entry_sha[0]);
-                ok64 go = KEEPGet(k, bhash, 15, k->buf4, &btype);
-                if (go == OK) {
-                    content[0] = u8bDataHead(k->buf4);
-                    content[1] = u8bDataHead(k->buf4) + u8bDataLen(k->buf4);
-                }
-            }
-            o = cb(ctx, &entry, DOG_OBJ_BLOB, content);
-            if (o != OK) return o;
-        }
-
-        // Restore pathbuf to saved length
-        ((u8 **)pathbuf)[2] = u8bDataHead(pathbuf) + path_save;
-        PATHu8bTerm(pathbuf);
-    }
-
-    return OK;
-}
-
-ok64 KEEPWalk(keeper *k, uricp target, KEEP_WALK mode,
-              keep_walk_f cb, void0p ctx) {
-    sane(k && target && cb);
-
-    sha1 tree_sha = {};
-    call(keep_resolve_tree, k, target, &tree_sha);
-
-    a_pad(u8, pathbuf, 4096);
-    a_rawc(ts, tree_sha);
-    return keep_walk_tree(k, ts, pathbuf, target, mode, cb, ctx);
 }
 
 // --- Import: read git .idx v2 file alongside .pack, build wh128 index ---

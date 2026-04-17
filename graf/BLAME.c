@@ -87,16 +87,6 @@ static void blame_compact_date(char *out, size_t outsz,
     }
 }
 
-// --- Fetch blob bytes from keeper ---
-
-static ok64 blame_fetch_blob(u8bp buf, keeper *k, u64 blob_hashlet) {
-    sane(buf && k);
-    u8 obj_type = 0;
-    ok64 o = KEEPGet(k, blob_hashlet, 15, buf, &obj_type);
-    if (o != OK) return o;
-    if (obj_type != DOG_OBJ_BLOB) return KEEPNONE;
-}
-
 // --- Fetch author + date from commit via keeper ---
 
 static void blame_fetch_author(blame_author *ba, keeper *k,
@@ -303,8 +293,9 @@ ok64 GRAFBlame(keeper *k, u8cs filepath, u8cs reporoot) {
 
     for (u32 i = 0; i < nvers; i++) {
         u8bReset(*cur_blob);
-        ok64 fo = blame_fetch_blob(*cur_blob, k, vers[i].blob_hashlet);
-        if (fo != OK) continue;
+        u8 bt = 0;
+        ok64 fo = KEEPGet(k, vers[i].blob_hashlet, 15, *cur_blob, &bt);
+        if (fo != OK || bt != DOG_OBJ_BLOB) continue;
 
         if (vers[i].commit_hashlet && nauthors < BLAME_MAX_AUTHORS) {
             authors[nauthors].gen = vers[i].gen;
@@ -450,38 +441,46 @@ ok64 GRAFBlame(keeper *k, u8cs filepath, u8cs reporoot) {
     done;
 }
 
-// --- Weave diff: fetch blobs via keeper tree walk ---
+// --- Weave diff: resolve (ref, filepath) → blob via path descent ---
 
-typedef struct {
-    u8cs filepath;    // target filename to match
-    u8bp buf;         // output buffer for blob content
-    b8   found;
-} weave_walk_ctx;
+// Given the current tree SHA in `cur`, find the entry named `name` and
+// set `cur` to its raw SHA.  Returns KEEPNONE if not found, KEEPFAIL on
+// malformed tree.
+static ok64 blame_tree_step(keeper *k, sha1 *cur, u8cs name) {
+    sane(k && cur);
+    Bu8 tbuf = {};
+    call(u8bAllocate, tbuf, 1UL << 20);
+    u8 otype = 0;
+    ok64 o = KEEPGetExact(k, cur, tbuf, &otype);
+    if (o != OK) { u8bFree(tbuf); return o; }
+    if (otype != DOG_OBJ_TREE) { u8bFree(tbuf); fail(KEEPFAIL); }
 
-static ok64 weave_walk_cb(void0p ctx, uricp entry, u8 obj_type, u8csc content) {
-    weave_walk_ctx *wc = (weave_walk_ctx *)ctx;
-    (void)obj_type;
-
-    // Match path component of entry URI against filepath
-    if (u8csEmpty(entry->path)) return OK;
-    if (u8csLen(entry->path) != u8csLen(wc->filepath)) return OK;
-    if (memcmp(entry->path[0], wc->filepath[0], u8csLen(wc->filepath)) != 0)
-        return OK;
-
-    // Found it — copy content
-    u8bFeed(wc->buf, content);
-    wc->found = YES;
-    return KEEPNONE;  // stop walking
+    u8cs body = {u8bDataHead(tbuf), u8bIdleHead(tbuf)};
+    u8cs field = {}, esha = {};
+    ok64 result = KEEPNONE;
+    while (GITu8sDrainTree(body, field, esha) == OK) {
+        u8cs scan = {field[0], field[1]};
+        if (u8csFind(scan, ' ') != OK) continue;
+        u8cs entry_name = {scan[0] + 1, field[1]};
+        if ($len(entry_name) != $len(name)) continue;
+        if (memcmp(entry_name[0], name[0], $len(name)) != 0) continue;
+        memcpy(cur->data, esha[0], 20);
+        result = OK;
+        break;
+    }
+    u8bFree(tbuf);
+    return result;
 }
 
-static ok64 weave_fetch_blob(u8bp buf, keeper *k, u8cs ref, u8cs filepath) {
+// Resolve `ref` + `filepath` to the blob content at that path.
+// Descends path segments one at a time (O(depth) tree loads) rather
+// than walking the full tree.
+static ok64 blame_read_blob(u8bp buf, keeper *k, u8cs ref, u8cs filepath) {
     sane(buf && k);
 
-    // Build a URI with ?ref and let KEEPWalk resolve it
     uri target = {};
     a_pad(u8, ubuf, 512);
-    a_cstr(qmark, "?");
-    call(u8bFeed, ubuf, qmark);
+    u8bFeed1(ubuf, '?');
     call(u8bFeed, ubuf, ref);
     a_dup(u8c, udata, u8bData(ubuf));
     target.data[0] = udata[0];
@@ -489,14 +488,22 @@ static ok64 weave_fetch_blob(u8bp buf, keeper *k, u8cs ref, u8cs filepath) {
     target.query[0] = udata[0] + 1;
     target.query[1] = udata[1];
 
-    weave_walk_ctx ctx = {.filepath = {filepath[0], filepath[1]},
-                          .buf = buf, .found = NO};
-    ok64 o = KEEPWalk(k, &target,
-                      KEEP_WALK_DEEP | KEEP_WALK_BLOBS | KEEP_WALK_CONTENT,
-                      weave_walk_cb, &ctx);
-    if (o == KEEPNONE && ctx.found) return OK;  // stopped by our callback
-    if (o == OK && !ctx.found) return KEEPNONE;
-    return o;
+    sha1 cur = {};
+    call(KEEPResolveTree, k, &target, &cur);
+
+    u8cs rest = {filepath[0], filepath[1]};
+    while (!$empty(rest)) {
+        u8cp slash = rest[0];
+        while (slash < rest[1] && *slash != '/') slash++;
+        u8cs name = {rest[0], slash};
+        call(blame_tree_step, k, &cur, name);
+        rest[0] = (slash < rest[1]) ? slash + 1 : slash;
+    }
+
+    u8 btype = 0;
+    call(KEEPGetExact, k, &cur, buf, &btype);
+    if (btype != DOG_OBJ_BLOB) fail(KEEPNONE);
+    done;
 }
 
 ok64 GRAFWeaveDiff(keeper *k, u8cs filepath, u8cs reporoot,
@@ -523,12 +530,12 @@ ok64 GRAFWeaveDiff(keeper *k, u8cs filepath, u8cs reporoot,
             to_ref[0] = head[0];
             to_ref[1] = head[1];
         }
-        weave_fetch_blob(to_buf, k, to_ref, filepath);
+        blame_read_blob(to_buf, k, to_ref, filepath);
     }
 
     // Fetch from-blob (if specified)
     if (!$empty(from))
-        weave_fetch_blob(from_buf, k, from, filepath);
+        blame_read_blob(from_buf, k, from, filepath);
 
     // Run the standard token-level diff
     {
