@@ -123,10 +123,11 @@ ok64 CLIParse(cli *c, char const *const *verb_names,
                 c->nflags++;
             }
         } else {
-            // URI
+            // URI (or a CLI-arg classified as query/fragment per
+            // DOGNormalizeArg's rules).
             if (c->nuris >= CLI_MAX_URIS) continue;
             uri *u = &c->uris[c->nuris];
-            DOGParseURI(u, a);  // best-effort parse with dog normalization
+            DOGNormalizeArg(u, a);
             $mv(u->data, a);    // restore original data slice
             c->nuris++;
         }

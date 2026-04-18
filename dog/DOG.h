@@ -46,4 +46,18 @@ ok64 DOGParseURI(urip uri, u8csc text);
 // host/authority pass through via `path` only (no leading `//`).
 ok64 DOGCanonURIKey(u8bp out, urip u, b8 with_query);
 
+// Classify a CLI arg: parse it as a URI, and when the parse is
+// degenerate (bare token, no structure), back-fill the URI's `query`
+// or `fragment` slot from the raw text per this table:
+//
+//   contains whitespace  → fragment  (commit msg, search phrase)
+//   40 hex chars         → query     (SHA)
+//   ref-safe (alnum _-.) → query     (branch/tag shorthand)
+//   starts with /,./,../ → leave as path
+//   anything else        → fragment
+//
+// DOGParseURI is attempted first; args that already have scheme,
+// authority, rooted path, `?`, or `#` pass through unchanged.
+ok64 DOGNormalizeArg(urip u, u8csc arg);
+
 #endif

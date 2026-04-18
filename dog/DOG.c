@@ -85,6 +85,73 @@ ok64 DOGParseURI(urip uri, u8csc text) {
     done;
 }
 
+ok64 DOGNormalizeArg(urip u, u8csc arg) {
+    sane(u != NULL);
+    zerop(u);
+    if (u8csEmpty(arg)) done;
+
+    // If the arg contains `?` or `#` or `/` it's already URI-shaped;
+    // if it contains whitespace it can't be a URI at all.  Classify
+    // up front so we don't feed whitespace to URILexer.
+    b8 has_ws     = NO;
+    b8 has_mark   = NO;   // ? or #
+    b8 has_slash  = NO;
+    b8 has_colon  = NO;
+    $for(u8c, p, arg) {
+        u8 c = *p;
+        if (c <= 0x20 || c == 0x7f) { has_ws = YES; continue; }
+        if (c == '?' || c == '#')   { has_mark = YES; }
+        if (c == '/')               { has_slash = YES; }
+        if (c == ':')               { has_colon = YES; }
+    }
+
+    // Whitespace wins immediately: not a URI, synthesize #<arg>.
+    if (has_ws) {
+        u->data[0]      = arg[0];
+        u->data[1]      = arg[1];
+        u->fragment[0]  = arg[0];
+        u->fragment[1]  = arg[1];
+        done;
+    }
+
+    // Structural char → try the URI parser.
+    if (has_mark || has_slash || has_colon) {
+        return DOGParseURI(u, arg);
+    }
+
+    // Bare single token — classify.
+    b8 is_hex40 = ($len(arg) == 40);
+    if (is_hex40) {
+        $for(u8c, p, arg) {
+            u8 c = *p;
+            if (!((c >= '0' && c <= '9') ||
+                  (c >= 'a' && c <= 'f') ||
+                  (c >= 'A' && c <= 'F'))) { is_hex40 = NO; break; }
+        }
+    }
+    b8 ref_safe = !$empty(arg);
+    $for(u8c, p, arg) {
+        u8 c = *p;
+        if (!((c >= 'A' && c <= 'Z') ||
+              (c >= 'a' && c <= 'z') ||
+              (c >= '0' && c <= '9') ||
+              c == '_' || c == '-' || c == '.')) {
+            ref_safe = NO; break;
+        }
+    }
+
+    u->data[0] = arg[0];
+    u->data[1] = arg[1];
+    if (is_hex40 || ref_safe) {
+        u->query[0] = arg[0];
+        u->query[1] = arg[1];
+    } else {
+        u->fragment[0] = arg[0];
+        u->fragment[1] = arg[1];
+    }
+    done;
+}
+
 ok64 DOGCanonURIKey(u8bp out, urip u, b8 with_query) {
     sane(out != NULL && u != NULL);
     // Preserve `file:` — absolute local paths are ambiguous without

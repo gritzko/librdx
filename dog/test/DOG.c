@@ -105,9 +105,98 @@ ok64 DOGTestDOGParseURI() {
     done;
 }
 
+// --- Canonical-key round-trip: input → DOGNormalizeArg → DOGCanonURIKey ---
+//
+// `expect` is what the canonical byte stream should be.  Covers the full
+// pipeline: classification (query/fragment/path), dog normalisations
+// (scheme→authority, port-fixup, @host split), and canonicalisation
+// (scheme-stripping for transports, `file:` preservation, `//`+path).
+typedef struct {
+    const char *input;
+    const char *expect;   // DOGCanonURIKey(norm_arg, with_query=YES)
+} CanonCase;
+
+static const CanonCase CANON_CASES[] = {
+    // Pass-through URIs — scheme stripped (transports fungible).
+    {"ssh://localhost/src/repo?master",    "//localhost/src/repo?master"},
+    {"https://localhost/src/repo?master",  "//localhost/src/repo?master"},
+    {"git://localhost/src/repo?master",    "//localhost/src/repo?master"},
+    // `file:` preserved — local absolute paths need the prefix.
+    {"file:///etc/passwd",                 "file:///etc/passwd"},
+    // Scp-like form: `host:path`, non-numeric port glued back.
+    {"ssh://localhost:src/repo?master",    "//localhost/src/repo?master"},
+    {"localhost:src/repo?master",          "//localhost/src/repo?master"},
+    // User@host form — no `//`, promoted via the @-split rule.
+    {"gritzko@pm.me/proj?main",            "//gritzko@pm.me/proj?main"},
+    {"gritzko@pm.me?main",                 "//gritzko@pm.me?main"},
+    // Already canonical.
+    {"//localhost/src/repo?master",        "//localhost/src/repo?master"},
+    // Path-only.
+    {"/absolute/path",                     "/absolute/path"},
+    // Bare ref name — classified as query.
+    {"master",                             "?master"},
+    // 40-hex SHA — classified as query.
+    {"0123456789abcdef0123456789abcdef01234567",
+        "?0123456789abcdef0123456789abcdef01234567"},
+    // Whitespace — classified as fragment (commit msg).  DOGCanonURIKey
+    // itself strips fragments; the test helper re-appends them so the
+    // full representation is observable.
+    {"fix the typo",                       "#fix the typo"},
+    // Bare fragment.
+    {"#symbol",                            "#symbol"},
+    // Bare query.
+    {"?v2.8.6",                            "?v2.8.6"},
+    // Numeric port preserved (real port, not a glued path).
+    {"ssh://host:22/repo",                 "//host:22/repo"},
+};
+
+#define NCANON (sizeof(CANON_CASES) / sizeof(CANON_CASES[0]))
+
+// Canonical form for the test table: include query AND fragment so
+// a fragment-only input still produces something observable.
+static ok64 canon_for_test(u8bp out, urip u) {
+    sane(out && u);
+    call(DOGCanonURIKey, out, u, YES);
+    if (!u8csEmpty(u->fragment)) {
+        u8bFeed1(out, '#');
+        u8bFeed(out, u->fragment);
+    }
+    done;
+}
+
+ok64 DOGTestCanonical() {
+    sane(1);
+    for (size_t i = 0; i < NCANON; i++) {
+        const CanonCase *tc = &CANON_CASES[i];
+        u8csc text = {(u8cp)tc->input, (u8cp)tc->input + strlen(tc->input)};
+
+        uri u = {};
+        ok64 o = DOGNormalizeArg(&u, text);
+        if (o != OK) {
+            fprintf(stderr, "FAIL [%zu] '%s': normalize error %s\n",
+                    i, tc->input, ok64str(o));
+            fail(TESTFAIL);
+        }
+
+        a_pad(u8, canbuf, 1024);
+        call(canon_for_test, canbuf, &u);
+
+        a_dup(u8c, got, u8bData(canbuf));
+        a_cstr(want, tc->expect);
+        if (!$eq(got, want)) {
+            fprintf(stderr, "FAIL [%zu] '%s':\n  got    '%.*s'\n  expect '%s'\n",
+                    i, tc->input,
+                    (int)$len(got), (char *)got[0], tc->expect);
+            fail(TESTFAIL);
+        }
+    }
+    done;
+}
+
 ok64 DOGtest() {
     sane(1);
     call(DOGTestDOGParseURI);
+    call(DOGTestCanonical);
     done;
 }
 
