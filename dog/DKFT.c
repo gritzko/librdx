@@ -63,6 +63,6 @@ ok64 DKFTonPunct(u8cs tok, DKFTstate *state) {
 
 ok64 DKFTonSpace(u8cs tok, DKFTstate *state) {
     sane($ok(tok) && state != NULL);
-    if (state->cb) return state->cb('S', tok, state->ctx);
+    if (state->cb) return state->cb('W', tok, state->ctx);
     done;
 }

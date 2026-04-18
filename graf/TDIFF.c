@@ -565,7 +565,7 @@ ok64 DIFFu8cs(Bu8 arena,
                             ls--;
                         u32 _nloff = (u32)(dtxp - (u8p)cur_hunk->text[0]) + 1;
                         *dtxp++ = '\n';
-                        if (dtokp) *dtokp++ = tok32Pack('S', _nloff);
+                        if (dtokp) *dtokp++ = tok32Pack('W', _nloff);
                         if (dhilp) *dhilp++ = tok32Pack('D', _nloff);
                         if (ls < ins_boff) {
                             u32 pn = ins_boff - ls;

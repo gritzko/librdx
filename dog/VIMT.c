@@ -60,6 +60,6 @@ ok64 VIMTonPunct(u8cs tok, VIMTstate *state) {
 
 ok64 VIMTonSpace(u8cs tok, VIMTstate *state) {
     sane($ok(tok) && state != NULL);
-    if (state->cb) return state->cb('S', tok, state->ctx);
+    if (state->cb) return state->cb('W', tok, state->ctx);
     done;
 }

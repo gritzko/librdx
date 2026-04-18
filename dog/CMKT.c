@@ -69,6 +69,6 @@ ok64 CMKTonPunct(u8cs tok, CMKTstate *state) {
 
 ok64 CMKTonSpace(u8cs tok, CMKTstate *state) {
     sane($ok(tok) && state != NULL);
-    if (state->cb) return state->cb('S', tok, state->ctx);
+    if (state->cb) return state->cb('W', tok, state->ctx);
     done;
 }

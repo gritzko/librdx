@@ -71,6 +71,6 @@ ok64 SOLTonPunct(u8cs tok, SOLTstate *state) {
 
 ok64 SOLTonSpace(u8cs tok, SOLTstate *state) {
     sane($ok(tok) && state != NULL);
-    if (state->cb) return state->cb('S', tok, state->ctx);
+    if (state->cb) return state->cb('W', tok, state->ctx);
     done;
 }

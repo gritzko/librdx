@@ -65,6 +65,6 @@ ok64 LAXTonPunct(u8cs tok, LAXTstate *state) {
 
 ok64 LAXTonSpace(u8cs tok, LAXTstate *state) {
     sane($ok(tok) && state != NULL);
-    if (state->cb) return state->cb('S', tok, state->ctx);
+    if (state->cb) return state->cb('W', tok, state->ctx);
     done;
 }

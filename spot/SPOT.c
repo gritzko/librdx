@@ -99,16 +99,13 @@ static int SPOTBracketDir(u8cs val) {
 }
 
 // --- Advance to next meaningful token position ---
-// Skips comments (D) and pure-whitespace S tokens.
+// Skips comments (D) and whitespace (W) tokens.
 // Returns the position of the next meaningful token, or len if exhausted.
 static int SPOTSkipWS(u32cs toks, u8cp base, int pos, int len) {
+    (void)base;
     while (pos < len) {
         u8 tag = tok32Tag(toks[0][pos]);
-        if (tag == 'D') { pos++; continue; }
-        if (tag == 'S') {
-            u8cs val = {}; tok32Val(val,toks,base,pos);
-            if (SPOTIsWhitespace(val)) { pos++; continue; }
-        }
+        if (tag == 'D' || tag == 'W') { pos++; continue; }
         break;
     }
     return pos;
@@ -128,7 +125,7 @@ static ok64 SPOTFlattenNeedle(SPOTntok *flat, int *nflat,
         u8cs val = {}; tok32Val(val,toks,base,i);
 
         if (tag == 'D') continue;  // skip comments
-        if (tag == 'S' && SPOTIsWhitespace(val)) {
+        if (tag == 'W') {
             int sp = SPOTCountSpaces(val);
             if (sp >= 2) pending_skip = YES;
             continue;

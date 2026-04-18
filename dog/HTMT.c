@@ -34,6 +34,6 @@ ok64 HTMTonText(u8cs tok, HTMTstate *state) {
 
 ok64 HTMTonSpace(u8cs tok, HTMTstate *state) {
     sane($ok(tok) && state != NULL);
-    if (state->cb) return state->cb('S', tok, state->ctx);
+    if (state->cb) return state->cb('W', tok, state->ctx);
     done;
 }

@@ -250,84 +250,101 @@ ok64 HOMEResolveSibling(home *h, path8b out, u8csc name, u8csc argv0) {
 
 // --- Config: .dogs/config (TOML) ---
 
+// The TOML header `[a.b.c]` and dotted keys `a.b = "v"` both express the
+// same dotted hierarchy.  We track the full active path in `current`
+// (a path8b, segments joined by '/') and match it against `needle`
+// supplied by the caller as a path8s.  On a match the cb feeds `out`
+// and returns NODATA so TOMLTLexer `fbreak`s immediately.
 typedef struct {
-    u8csc want_section;
-    u8csc want_key;
-    u8s   out;
-    u8cs  cur_key;
-    u8    in_hdr;
-    u8    in_match;
-    u8    await_val;
-    u8    got;
+    path8s  needle;    // caller-supplied, e.g. $path(a_path(..,"a","b","c"))
+    path8bp current;   // active dotted path, borrowed from caller (a_path)
+    size_t  hdr_end;   // current's DATA length at end of last header
+    u8s     out;
+    u8      in_hdr;    // 1 between '[' and ']'
+    u8      await_val; // 1 after '=' — next string is the value
 } home_cfg_ctx;
-
-static b8 home_tok_ws(u8csc tok) {
-    for (u8cp p = tok[0]; p < tok[1]; p++)
-        if (*p != ' ' && *p != '\t' && *p != '\n' && *p != '\r' &&
-            *p != '\f' && *p != '\v') return NO;
-    return YES;
-}
 
 static ok64 home_cfg_cb(u8 tag, u8cs tok, void *ctx) {
     sane(ctx != NULL);
     home_cfg_ctx *c = (home_cfg_ctx *)ctx;
-    if (c->got) return OK;
-    if (tag == 'D') return OK;
-    if (home_tok_ws(tok)) return OK;
+    if (tag == 'D') return OK;   // comment
 
-    // TOMLT splits "[user]" into '[', "user", ']' sub-tokens.
+    // Whitespace with a newline closes a kv line; rewind `current`
+    // back to the header root so the next line starts fresh.
+    if (tag == 'W') {
+        b8 nl = NO;
+        for (u8cp p = tok[0]; p < tok[1]; p++)
+            if (*p == '\n') { nl = YES; break; }
+        if (nl && !c->in_hdr) {
+            size_t dl = u8bDataLen(c->current);
+            if (dl > c->hdr_end) u8bShed(c->current, dl - c->hdr_end);
+            c->await_val = 0;
+        }
+        return OK;
+    }
+
+    // Header framing
     if ($len(tok) == 1 && tok[0][0] == '[') {
-        c->in_hdr = 1; c->in_match = 0; return OK;
+        c->in_hdr = 1;
+        u8bReset(c->current);
+        return OK;
     }
     if ($len(tok) == 1 && tok[0][0] == ']') {
-        c->in_hdr = 0; return OK;
-    }
-    if (c->in_hdr) {
-        if ($eq(tok, c->want_section)) c->in_match = 1;
+        c->in_hdr = 0;
+        c->hdr_end = u8bDataLen(c->current);
         return OK;
     }
 
-    if (!c->in_match) return OK;
+    // Dotted separator between segments (inside or outside a header).
+    // TOMLT tags it 'P' outside headers and 'R' inside (TOKSplitText).
+    if ($len(tok) == 1 && tok[0][0] == '.')
+        return OK;
 
+    // '='
     if (tag == 'P' && $len(tok) == 1 && tok[0][0] == '=') {
-        c->await_val = 1; return OK;
+        c->await_val = 1;
+        return OK;
     }
 
+    // Identifier: extends the active path (in header or building a key).
+    if ((tag == 'S' || tag == 'R') && !c->await_val) {
+        PATHu8bPush(c->current, tok);
+        return OK;
+    }
+
+    // Quoted string value — match → feed, then NODATA to stop the lexer.
     if (c->await_val && tag == 'G' && $len(tok) >= 2) {
-        if ($eq(c->cur_key, c->want_key)) {
+        a_dup(u8c, cu, u8bDataC(c->current));
+        if ($eq(c->needle, cu)) {
             u8cs val = {tok[0] + 1, tok[1] - 1};
             call(u8sFeed, c->out, val);
-            c->got = 1;
+            return NODATA;
         }
-        c->await_val = 0;
-        c->cur_key[0] = NULL; c->cur_key[1] = NULL;
         return OK;
     }
 
-    if (!c->await_val && (tag == 'S' || tag == 'R')) {
-        c->cur_key[0] = tok[0];
-        c->cur_key[1] = tok[1];
-    }
     return OK;
 }
 
-ok64 HOMEGetConfig(home *h, u8s value, u8csc section, u8csc key) {
-    sane(h != NULL && $ok(value) && $ok(section) && $ok(key));
+ok64 HOMEGetConfig(home *h, u8s value, path8s needle) {
+    sane(h != NULL && $ok(value) && $ok(needle));
 
     if (h->config[0] == NULL) return NOCONF;
 
+    a_path(current);
     home_cfg_ctx ctx = {
-        .want_section = {section[0], section[1]},
-        .want_key     = {key[0], key[1]},
-        .out          = {value[0], value[1]},
+        .needle  = {needle[0], needle[1]},
+        .current = current,
+        .out     = {value[0], value[1]},
     };
     TOMLTstate st = {
         .data = {u8bDataHead(h->config), u8bIdleHead(h->config)},
         .cb   = home_cfg_cb,
         .ctx  = &ctx,
     };
-    call(TOMLTLexer, &st);
-    if (!ctx.got) return NOCONF;
+    ok64 lo = TOMLTLexer(&st);
+    if (lo != OK && lo != NODATA) return lo;
+    if (ctx.out[0] == value[0]) return NOCONF;   // nothing fed
     value[0] = ctx.out[0];
     done;
 }

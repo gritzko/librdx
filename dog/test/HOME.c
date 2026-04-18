@@ -1,4 +1,4 @@
-//  HOME: TOML config getter.
+//  HOME: TOML config getter keyed by dotted path.
 //
 #include "dog/HOME.h"
 
@@ -35,7 +35,9 @@ ok64 HOMETestGet() {
         "name  = \"Ada Lovelace\"\n"
         "email = \"ada@example.com\"\n"
         "[remote]\n"
-        "origin = \"ssh://host/repo\"\n");
+        "origin = \"ssh://host/repo\"\n"
+        "[a.b]\n"
+        "c = \"nested\"\n");
 
     a_cstr(root, tmp);
     home h = {};
@@ -47,52 +49,58 @@ ok64 HOMETestGet() {
     {
         u8s val = {vbuf, vbuf + sizeof(vbuf)};
         u8 *val_start = val[0];
-        a_cstr(sect, "user");
-        a_cstr(key,  "name");
-        call(HOMEGetConfig, &h, val, sect, key);
+        a_cstr(u, "user");
+        a_cstr(n, "name");
+        a_path(needle, u, n);
+        call(HOMEGetConfig, &h, val, $path(needle));
         u8cs got = {val_start, val[0]};
         a_cstr(wantn, "Ada Lovelace");
         want($eq(got, wantn));
-    }
-
-    // --- hit: [user] email ---
-    {
-        u8s val = {vbuf, vbuf + sizeof(vbuf)};
-        u8 *val_start = val[0];
-        a_cstr(sect, "user");
-        a_cstr(key,  "email");
-        call(HOMEGetConfig, &h, val, sect, key);
-        u8cs got = {val_start, val[0]};
-        a_cstr(wante, "ada@example.com");
-        want($eq(got, wante));
     }
 
     // --- hit: [remote] origin ---
     {
         u8s val = {vbuf, vbuf + sizeof(vbuf)};
         u8 *val_start = val[0];
-        a_cstr(sect, "remote");
-        a_cstr(key,  "origin");
-        call(HOMEGetConfig, &h, val, sect, key);
+        a_cstr(r, "remote");
+        a_cstr(o, "origin");
+        a_path(needle, r, o);
+        call(HOMEGetConfig, &h, val, $path(needle));
         u8cs got = {val_start, val[0]};
         a_cstr(wanto, "ssh://host/repo");
         want($eq(got, wanto));
     }
 
+    // --- hit: nested [a.b] c ---
+    {
+        u8s val = {vbuf, vbuf + sizeof(vbuf)};
+        u8 *val_start = val[0];
+        a_cstr(a, "a");
+        a_cstr(b, "b");
+        a_cstr(k, "c");
+        a_path(needle, a, b, k);
+        call(HOMEGetConfig, &h, val, $path(needle));
+        u8cs got = {val_start, val[0]};
+        a_cstr(wantn, "nested");
+        want($eq(got, wantn));
+    }
+
     // --- miss: wrong key ---
     {
         u8s val = {vbuf, vbuf + sizeof(vbuf)};
-        a_cstr(sect, "user");
-        a_cstr(key,  "nope");
-        want(HOMEGetConfig(&h, val, sect, key) == NOCONF);
+        a_cstr(u, "user");
+        a_cstr(n, "nope");
+        a_path(needle, u, n);
+        want(HOMEGetConfig(&h, val, $path(needle)) == NOCONF);
     }
 
     // --- miss: wrong section ---
     {
         u8s val = {vbuf, vbuf + sizeof(vbuf)};
-        a_cstr(sect, "nope");
-        a_cstr(key,  "name");
-        want(HOMEGetConfig(&h, val, sect, key) == NOCONF);
+        a_cstr(s, "nope");
+        a_cstr(n, "name");
+        a_path(needle, s, n);
+        want(HOMEGetConfig(&h, val, $path(needle)) == NOCONF);
     }
 
     HOMEClose(&h);
@@ -115,9 +123,10 @@ ok64 HOMETestMissingFile() {
 
     u8 vbuf[64];
     u8s val = {vbuf, vbuf + sizeof(vbuf)};
-    a_cstr(sect, "user");
-    a_cstr(key,  "name");
-    want(HOMEGetConfig(&h, val, sect, key) == NOCONF);
+    a_cstr(u, "user");
+    a_cstr(n, "name");
+    a_path(needle, u, n);
+    want(HOMEGetConfig(&h, val, $path(needle)) == NOCONF);
 
     HOMEClose(&h);
     char rm[512];

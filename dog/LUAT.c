@@ -58,6 +58,6 @@ ok64 LUATonPunct(u8cs tok, LUATstate *state) {
 
 ok64 LUATonSpace(u8cs tok, LUATstate *state) {
     sane($ok(tok) && state != NULL);
-    if (state->cb) return state->cb('S', tok, state->ctx);
+    if (state->cb) return state->cb('W', tok, state->ctx);
     done;
 }

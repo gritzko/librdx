@@ -78,6 +78,6 @@ ok64 DTonPunct(u8cs tok, DTstate *state) {
 
 ok64 DTonSpace(u8cs tok, DTstate *state) {
     sane($ok(tok) && state != NULL);
-    if (state->cb) return state->cb('S', tok, state->ctx);
+    if (state->cb) return state->cb('W', tok, state->ctx);
     done;
 }

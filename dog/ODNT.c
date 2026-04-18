@@ -60,6 +60,6 @@ ok64 ODNTonPunct(u8cs tok, ODNTstate *state) {
 
 ok64 ODNTonSpace(u8cs tok, ODNTstate *state) {
     sane($ok(tok) && state != NULL);
-    if (state->cb) return state->cb('S', tok, state->ctx);
+    if (state->cb) return state->cb('W', tok, state->ctx);
     done;
 }

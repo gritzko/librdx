@@ -66,6 +66,6 @@ ok64 ZIGTonPunct(u8cs tok, ZIGTstate *state) {
 
 ok64 ZIGTonSpace(u8cs tok, ZIGTstate *state) {
     sane($ok(tok) && state != NULL);
-    if (state->cb) return state->cb('S', tok, state->ctx);
+    if (state->cb) return state->cb('W', tok, state->ctx);
     done;
 }

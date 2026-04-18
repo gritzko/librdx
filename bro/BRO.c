@@ -348,7 +348,7 @@ static ok64 listdir_emit(void0p arg, path8p path) {
     }
     BROArenaWrite("\n", 1);
     u32 nl_end = (u32)(u8bIdleHead(bro_arena) - ctx->text_start);
-    u32bFeed1(bro_state->toks, tok32Pack('S', nl_end));
+    u32bFeed1(bro_state->toks, tok32Pack('W', nl_end));
     return OK;
 }
 

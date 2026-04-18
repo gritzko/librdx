@@ -66,6 +66,6 @@ ok64 MAKTonPunct(u8cs tok, MAKTstate *state) {
 
 ok64 MAKTonSpace(u8cs tok, MAKTstate *state) {
     sane($ok(tok) && state != NULL);
-    if (state->cb) return state->cb('S', tok, state->ctx);
+    if (state->cb) return state->cb('W', tok, state->ctx);
     done;
 }

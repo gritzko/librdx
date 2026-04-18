@@ -61,6 +61,6 @@ ok64 HCLTonPunct(u8cs tok, HCLTstate *state) {
 
 ok64 HCLTonSpace(u8cs tok, HCLTstate *state) {
     sane($ok(tok) && state != NULL);
-    if (state->cb) return state->cb('S', tok, state->ctx);
+    if (state->cb) return state->cb('W', tok, state->ctx);
     done;
 }

@@ -40,6 +40,6 @@ ok64 CSSTonPunct(u8cs tok, CSSTstate *state) {
 
 ok64 CSSTonSpace(u8cs tok, CSSTstate *state) {
     sane($ok(tok) && state != NULL);
-    if (state->cb) return state->cb('S', tok, state->ctx);
+    if (state->cb) return state->cb('W', tok, state->ctx);
     done;
 }

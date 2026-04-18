@@ -116,6 +116,6 @@ ok64 VERTonPunct(u8cs tok, VERTstate *state) {
 
 ok64 VERTonSpace(u8cs tok, VERTstate *state) {
     sane($ok(tok) && state != NULL);
-    if (state->cb) return state->cb('S', tok, state->ctx);
+    if (state->cb) return state->cb('W', tok, state->ctx);
     done;
 }

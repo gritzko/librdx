@@ -63,6 +63,6 @@ ok64 MLTonPunct(u8cs tok, MLTstate *state) {
 
 ok64 MLTonSpace(u8cs tok, MLTstate *state) {
     sane($ok(tok) && state != NULL);
-    if (state->cb) return state->cb('S', tok, state->ctx);
+    if (state->cb) return state->cb('W', tok, state->ctx);
     done;
 }

@@ -60,6 +60,6 @@ ok64 TOMLTonPunct(u8cs tok, TOMLTstate *state) {
 
 ok64 TOMLTonSpace(u8cs tok, TOMLTstate *state) {
     sane($ok(tok) && state != NULL);
-    if (state->cb) return state->cb('S', tok, state->ctx);
+    if (state->cb) return state->cb('W', tok, state->ctx);
     done;
 }

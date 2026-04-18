@@ -75,6 +75,6 @@ ok64 SQLTonPunct(u8cs tok, SQLTstate *state) {
 
 ok64 SQLTonSpace(u8cs tok, SQLTstate *state) {
     sane($ok(tok) && state != NULL);
-    if (state->cb) return state->cb('S', tok, state->ctx);
+    if (state->cb) return state->cb('W', tok, state->ctx);
     done;
 }

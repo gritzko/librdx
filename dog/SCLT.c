@@ -71,6 +71,6 @@ ok64 SCLTonPunct(u8cs tok, SCLTstate *state) {
 
 ok64 SCLTonSpace(u8cs tok, SCLTstate *state) {
     sane($ok(tok) && state != NULL);
-    if (state->cb) return state->cb('S', tok, state->ctx);
+    if (state->cb) return state->cb('W', tok, state->ctx);
     done;
 }

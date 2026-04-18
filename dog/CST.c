@@ -78,6 +78,6 @@ ok64 CSTonPunct(u8cs tok, CSTstate *state) {
 
 ok64 CSTonSpace(u8cs tok, CSTstate *state) {
     sane($ok(tok) && state != NULL);
-    if (state->cb) return state->cb('S', tok, state->ctx);
+    if (state->cb) return state->cb('W', tok, state->ctx);
     done;
 }

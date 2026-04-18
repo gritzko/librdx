@@ -68,6 +68,6 @@ ok64 AGDTonPunct(u8cs tok, AGDTstate *state) {
 
 ok64 AGDTonSpace(u8cs tok, AGDTstate *state) {
     sane($ok(tok) && state != NULL);
-    if (state->cb) return state->cb('S', tok, state->ctx);
+    if (state->cb) return state->cb('W', tok, state->ctx);
     done;
 }

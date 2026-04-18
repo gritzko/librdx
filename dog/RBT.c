@@ -63,6 +63,6 @@ ok64 RBTonPunct(u8cs tok, RBTstate *state) {
 
 ok64 RBTonSpace(u8cs tok, RBTstate *state) {
     sane($ok(tok) && state != NULL);
-    if (state->cb) return state->cb('S', tok, state->ctx);
+    if (state->cb) return state->cb('W', tok, state->ctx);
     done;
 }

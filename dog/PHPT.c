@@ -75,6 +75,6 @@ ok64 PHPTonPunct(u8cs tok, PHPTstate *state) {
 
 ok64 PHPTonSpace(u8cs tok, PHPTstate *state) {
     sane($ok(tok) && state != NULL);
-    if (state->cb) return state->cb('S', tok, state->ctx);
+    if (state->cb) return state->cb('W', tok, state->ctx);
     done;
 }

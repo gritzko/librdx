@@ -63,6 +63,6 @@ ok64 PRTTonPunct(u8cs tok, PRTTstate *state) {
 
 ok64 PRTTonSpace(u8cs tok, PRTTstate *state) {
     sane($ok(tok) && state != NULL);
-    if (state->cb) return state->cb('S', tok, state->ctx);
+    if (state->cb) return state->cb('W', tok, state->ctx);
     done;
 }

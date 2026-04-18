@@ -55,10 +55,12 @@ ok64 HOMEFollowWorktree(home *h, path8s gitfile);
 // that holds it.  Falls back to feeding just `name`.
 ok64 HOMEResolveSibling(home *h, path8b out, u8csc name, u8csc argv0);
 
-// Read one value from <root>/.dogs/config (TOML: [section] key = "…").
-// Feeds the value bytes into `value`, advancing value[0] past them.
-// Returns NOCONF if the file is absent or the section/key pair is
-// missing.  Lexer errors propagate.
-ok64 HOMEGetConfig(home *h, u8s value, u8csc section, u8csc key);
+// Read one value from <root>/.dogs/config (TOML) addressed by a dotted
+// path-style `needle` — e.g. for `[a.b] c = "v"` caller builds
+// `a_path(n, "a", "b", "c")` and passes `$path(n)`.  Feeds the value
+// bytes into `value`, advancing value[0] past them.  Returns NOCONF if
+// the file is absent or the needle doesn't resolve.  Lexer errors
+// propagate.
+ok64 HOMEGetConfig(home *h, u8s value, path8s needle);
 
 #endif

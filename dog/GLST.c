@@ -70,6 +70,6 @@ ok64 GLSTonPunct(u8cs tok, GLSTstate *state) {
 
 ok64 GLSTonSpace(u8cs tok, GLSTstate *state) {
     sane($ok(tok) && state != NULL);
-    if (state->cb) return state->cb('S', tok, state->ctx);
+    if (state->cb) return state->cb('W', tok, state->ctx);
     done;
 }

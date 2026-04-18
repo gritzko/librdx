@@ -7,7 +7,8 @@ con ok64 TOKBAD = 0x75850b28d;
 con ok64 TOKFAIL = 0x1d6143ca495;
 
 // --- Packed u32 token: top 5 bits = tag-'A', bottom 27 bits = end offset ---
-// Tags: D=comment, G=string, L=number, H=preproc, R=keyword, P=punct, S=default
+// Tags: D=comment, G=string, L=number, H=preproc, R=keyword, P=punct,
+//       S=word/default, W=whitespace
 typedef u32 tok32;
 typedef tok32 const tok32c;
 typedef tok32 *tok32s[2];

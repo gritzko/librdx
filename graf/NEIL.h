@@ -11,9 +11,12 @@ con ok64 NEILBAD = 0x1739254b28d;
 #define NEIL_MAX_KILL 64
 #endif
 
-// Check if a token is actual whitespace by inspecting its first byte.
-// Tag 'S' covers both whitespace AND non-keyword identifiers in C.
+// Check if a token is actual whitespace by its tag.  With the 'W'
+// tag dedicated to whitespace, the byte-peeking fallback is only
+// there for synthesized tokens that never went through a lexer.
 fun b8 NEILIsWS(u32cs toks, u8cp base, u32 idx) {
+    u8 tag = tok32Tag(toks[0][idx]);
+    if (tag == 'W') return YES;
     u32 lo = (idx > 0) ? tok32Offset(toks[0][idx - 1]) : 0;
     u32 hi = tok32Offset(toks[0][idx]);
     if (lo >= hi) return YES;

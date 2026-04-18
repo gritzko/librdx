@@ -57,6 +57,6 @@ ok64 GQLTonPunct(u8cs tok, GQLTstate *state) {
 
 ok64 GQLTonSpace(u8cs tok, GQLTstate *state) {
     sane($ok(tok) && state != NULL);
-    if (state->cb) return state->cb('S', tok, state->ctx);
+    if (state->cb) return state->cb('W', tok, state->ctx);
     done;
 }

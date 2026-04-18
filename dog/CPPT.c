@@ -81,6 +81,6 @@ ok64 CPPTonPunct(u8cs tok, CPPTstate *state) {
 
 ok64 CPPTonSpace(u8cs tok, CPPTstate *state) {
     sane($ok(tok) && state != NULL);
-    if (state->cb) return state->cb('S', tok, state->ctx);
+    if (state->cb) return state->cb('W', tok, state->ctx);
     done;
 }

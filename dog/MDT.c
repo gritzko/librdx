@@ -51,7 +51,7 @@ ok64 MDTonPunct(u8cs tok, MDTstate *state) {
 
 ok64 MDTonSpace(u8cs tok, MDTstate *state) {
     sane($ok(tok) && state != NULL);
-    if (state->cb) return state->cb('S', tok, state->ctx);
+    if (state->cb) return state->cb('W', tok, state->ctx);
     done;
 }
 

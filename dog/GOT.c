@@ -62,6 +62,6 @@ ok64 GOTonPunct(u8cs tok, GOTstate *state) {
 
 ok64 GOTonSpace(u8cs tok, GOTstate *state) {
     sane($ok(tok) && state != NULL);
-    if (state->cb) return state->cb('S', tok, state->ctx);
+    if (state->cb) return state->cb('W', tok, state->ctx);
     done;
 }

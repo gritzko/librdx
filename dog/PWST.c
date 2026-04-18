@@ -67,6 +67,6 @@ ok64 PWSTonPunct(u8cs tok, PWSTstate *state) {
 
 ok64 PWSTonSpace(u8cs tok, PWSTstate *state) {
     sane($ok(tok) && state != NULL);
-    if (state->cb) return state->cb('S', tok, state->ctx);
+    if (state->cb) return state->cb('W', tok, state->ctx);
     done;
 }

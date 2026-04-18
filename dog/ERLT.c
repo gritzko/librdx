@@ -65,6 +65,6 @@ ok64 ERLTonPunct(u8cs tok, ERLTstate *state) {
 
 ok64 ERLTonSpace(u8cs tok, ERLTstate *state) {
     sane($ok(tok) && state != NULL);
-    if (state->cb) return state->cb('S', tok, state->ctx);
+    if (state->cb) return state->cb('W', tok, state->ctx);
     done;
 }

@@ -65,6 +65,6 @@ ok64 HSTonPunct(u8cs tok, HSTstate *state) {
 
 ok64 HSTonSpace(u8cs tok, HSTstate *state) {
     sane($ok(tok) && state != NULL);
-    if (state->cb) return state->cb('S', tok, state->ctx);
+    if (state->cb) return state->cb('W', tok, state->ctx);
     done;
 }
