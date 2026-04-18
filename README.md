@@ -11,6 +11,7 @@ The project dogfoods from day 1.
 
 ## The dogs
 
+<img src="dog/dogs.png" width="50%" align=right/>
 The repo is structured into *dogs*. Each dog has its purview, the
 data and functions it is responsible for. Dogs coordinate to carry
 out complex tasks.
