@@ -8,6 +8,7 @@
 #include "dog/CLI.h"
 #include "dog/DOG.h"
 #include "dog/FRAG.h"
+#include "dog/HOME.h"
 #include "dog/HUNK.h"
 
 // `u32b` (from abc/INT.h) and `u8bb` (from abc/BUF.h) are used below.
@@ -23,7 +24,7 @@
 #define BRO_MAX_MAPS   1024
 
 typedef struct {
-    u8cs  home;         // repo root (slice; not owned)
+    home *h;            // borrowed
     b8    rw;
     b8    color;        // stdout is a color tty
     int   pipe_fd;      // TLV hunk input pipe; -1 when not piped
@@ -143,7 +144,7 @@ u32 BROHiliPrevLine(hunkc const *hunks, u32 nhunks,
 
 // --- Public API (DOG 4-fn) ---
 
-ok64 BROOpen(bro *b, u8cs home, b8 rw);
+ok64 BROOpen(bro *b, home *h, b8 rw);
 ok64 BROExec(bro *b, cli *c);
 ok64 BROUpdate(bro *b, u8 obj_type, u8cs blob, u8csc path);
 ok64 BROClose(bro *b);

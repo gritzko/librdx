@@ -272,13 +272,13 @@ ok64 GETCheckout(sniff *s, keeper *k, u8cs reporoot, u8cs hex,
     if (o == OK) {
         SNIFFSetHead(s, hex);
         if (!$empty(source)) {
-            a_cstr(keepdir, k->dir);
+            a_path(keepdir, u8bDataC(k->h->root), KEEP_DIR_S);
             a_pad(u8, file_uri, 1280);
             a_cstr(scheme, "file://");
             u8bFeed(file_uri, scheme);
             u8bFeed(file_uri, reporoot);
             a_dup(u8c, from, u8bData(file_uri));
-            REFSAppend(keepdir, from, source);
+            REFSAppend($path(keepdir), from, source);
         }
         fprintf(stderr, "sniff: checkout done\n");
     }

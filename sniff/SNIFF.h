@@ -26,6 +26,7 @@
 #include "abc/INT.h"
 #include "abc/PATH.h"
 #include "dog/CLI.h"
+#include "dog/HOME.h"
 #include "dog/WHIFF.h"
 #include "keeper/KEEP.h"
 
@@ -52,6 +53,7 @@ con ok64 SNIFFNOROOM = 0xc5d23cf5d86d8616;
 // --- State ---
 
 typedef struct {
+    home *h;              // borrowed
     u8bp  paths;          // FILEBook'd paths.log (stable mmap address)
     u8bp  changes;        // FILEBook'd state.log (stable mmap address)
     char  head_path[1024];
@@ -63,8 +65,8 @@ typedef struct {
 
 // --- Public API (DOG 4-fn) ---
 
-//  Open .dogs/sniff/ state rooted at `home` (repo root).
-ok64 SNIFFOpen(sniff *s, u8cs home, b8 rw);
+//  Open .dogs/sniff/ state rooted at h->root.  `h` is borrowed.
+ok64 SNIFFOpen(sniff *s, home *h, b8 rw);
 
 //  Run one CLI invocation — same effect as `sniff ...`.
 ok64 SNIFFExec(sniff *s, cli *c);

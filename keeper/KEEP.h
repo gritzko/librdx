@@ -17,6 +17,7 @@
 #include "abc/KV.h"
 #include "abc/URI.h"
 #include "dog/CLI.h"
+#include "dog/HOME.h"
 #include "dog/SHA1.h"
 #include "dog/WHIFF.h"
 #include "dog/DOG.h"
@@ -71,23 +72,29 @@ fun u64 keepKeyHashlet(u64 key) {
 #define KEEP_SEQNO_W    10
 
 typedef struct {
+    home  *h;                       // borrowed; owns root/arena/config/rw
     u8bp   packs[KEEP_MAX_FILES];   // mmap'd log files
     u32    npacks;
     wh128cs runs[KEEP_MAX_LEVELS];  // LSM index runs
     u8bp   run_maps[KEEP_MAX_LEVELS];
     u32    nruns;
-    char   dir[1024];               // resolved .dogs/keeper/ path
     Bu8    buf1;                    // working buffer for KEEPGet base inflate
     Bu8    buf2;                    // working buffer for KEEPGet delta apply
     Bu8    buf3;                    // working buffer for keep_resolve base
     Bu8    buf4;                    // working buffer for keep_resolve delta
 } keeper;
 
+// Relative ".dogs/keeper" slice.  Call sites compose the full dir via
+//   a_path(dir, u8bDataC(k->h->root), KEEP_DIR_S);
+// and use $path(dir) wherever a u8csc is needed.
+extern u8c *const KEEP_DIR_S[2];
+
 // --- Public API (DOG 4-fn) ---
 
-//  Open keeper store.  home empty → HOMEFindDogs from cwd.
-//  rw=YES creates `.dogs/keeper/` and its subdirs if missing.
-ok64 KEEPOpen(keeper *k, u8cs home, b8 rw);
+//  Open keeper store.  `h` provides the worktree root, scratch arena,
+//  and config; it is borrowed and must outlive `k`.  rw=YES creates
+//  `.dogs/keeper/` and its subdirs if missing.
+ok64 KEEPOpen(keeper *k, home *h, b8 rw);
 
 //  Run one CLI invocation — same effect as `keeper ...`.
 ok64 KEEPExec(keeper *k, cli *c);

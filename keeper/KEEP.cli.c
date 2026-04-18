@@ -20,10 +20,14 @@ ok64 keepercli() {
          || $eq(c.verb, v_verify);
     b8 rw = !ro;
 
+    home h = {};
+    call(HOMEOpen, &h, c.repo, rw);
+
     keeper k = {};
-    call(KEEPOpen, &k, c.repo, rw);
+    call(KEEPOpen, &k, &h, rw);
     ok64 ret = KEEPExec(&k, &c);
     KEEPClose(&k);
+    HOMEClose(&h);
     return ret;
 }
 

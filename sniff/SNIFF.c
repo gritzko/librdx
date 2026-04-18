@@ -136,9 +136,11 @@ static ok64 SNIFFBootstrap(sniff *s, u8cs reporoot) {
 
 // --- Open ---
 
-ok64 SNIFFOpen(sniff *s, u8cs reporoot, b8 rw) {
-    sane(s && $ok(reporoot));
+ok64 SNIFFOpen(sniff *s, home *h, b8 rw) {
+    sane(s && h);
     memset(s, 0, sizeof(*s));
+    s->h = h;
+    a_dup(u8c, reporoot, u8bDataC(h->root));
 
     a_cstr(dogs, ".dogs");
     a_cstr(sniffdir, "sniff");

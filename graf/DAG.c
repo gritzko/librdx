@@ -463,11 +463,11 @@ static u64 dag_hex_to_hashlet(char const *hex40) {
 // --- Read all ref tips from keeper REFS ---
 
 static u32 dag_read_tips(sha1 tips[], u32 maxtips, keeper *k) {
-    a_cstr(keepdir, k->dir);
+    a_path(keepdir, u8bDataC(k->h->root), KEEP_DIR_S);
     u8bp rmap = NULL;
     ref rarr[REFS_MAX_REFS];
     u32 rn = 0;
-    if (REFSLoad(rarr, &rn, REFS_MAX_REFS, &rmap, keepdir) != OK)
+    if (REFSLoad(rarr, &rn, REFS_MAX_REFS, &rmap, $path(keepdir)) != OK)
         return 0;
 
     u32 count = 0;

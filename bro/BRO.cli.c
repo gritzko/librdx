@@ -13,10 +13,14 @@ ok64 brocli() {
     cli c = {};
     call(CLIParse, &c, NULL, NULL);  // no verbs, no val-flags
 
+    home h = {};
+    call(HOMEOpen, &h, c.repo, NO);
+
     bro b = {};
-    call(BROOpen, &b, c.repo, NO);
+    call(BROOpen, &b, &h, NO);
     ok64 ret = BROExec(&b, &c);
     BROClose(&b);
+    HOMEClose(&h);
     return ret;
 }
 

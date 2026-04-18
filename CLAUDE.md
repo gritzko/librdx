@@ -77,3 +77,5 @@
     a relevant header, the thing may already exist. Always ask if unsure.
 14. After large code changes (esp. new files added) update respective INDEX.md.
 15. Read abc/S.md abc/B.md for the idiomatic slice manipulation functions
+16. Propagate errors. Check error codes where correcting action is possible.
+    Use sane()/call()/try()/done cycle from PRO.h in .c files.

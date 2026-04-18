@@ -15,10 +15,14 @@ ok64 grafcli() {
 
     // Most graf verbs read .dogs/graf/; index writes. Use rw=YES to
     // keep parity with the previous behavior (always mkdir -p).
+    home h = {};
+    call(HOMEOpen, &h, c.repo, YES);
+
     graf g = {};
-    call(GRAFOpen, &g, c.repo, YES);
+    call(GRAFOpen, &g, &h, YES);
     ok64 ret = GRAFExec(&g, &c);
     GRAFClose(&g);
+    HOMEClose(&h);
     return ret;
 }
 

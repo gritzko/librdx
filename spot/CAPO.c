@@ -84,14 +84,19 @@ static void CAPOCodecName(u8csp codec, u8csc ext) {
 
 ok64 CAPOResolveDir(path8b out, u8csc reporoot) {
     sane($ok(reporoot) && out != NULL);
-    (void)reporoot;
-    // Use HOMEFindDogs: for worktrees, tries the parent repo first
-    // (shared .dogs/), falls back to worktree-local .dogs/ if the
-    // parent is unreachable.
-    a_path(dogs_root);
-    call(HOMEFindDogs, dogs_root);
-    a_dup(u8c, dr, u8bDataC(dogs_root));
-    call(PATHu8bFeed, out, dr);
+    // If caller supplied a reporoot, feed it; otherwise walk up via HOME.
+    if (!u8csEmpty(reporoot)) {
+        a_dup(u8c, r, reporoot);
+        call(PATHu8bFeed, out, r);
+    } else {
+        home rh = {};
+        u8cs none = {};
+        call(HOMEOpen, &rh, none, NO);
+        a_dup(u8c, r, u8bDataC(rh.root));
+        ok64 fo = PATHu8bFeed(out, r);
+        HOMEClose(&rh);
+        if (fo != OK) return fo;
+    }
     a_cstr(dotdogs, ".dogs");
     call(PATHu8bPush, out, dotdogs);
     a_cstr(spotname, "spot");
@@ -1763,43 +1768,14 @@ ok64 CAPOTrigramFilter(Bu32 hashbuf, b8 *has_trigrams,
 
 // --- DOG control struct ---
 
-ok64 SPOTOpen(spotp s, u8cs home, b8 rw) {
-    sane(s != NULL);
+ok64 SPOTOpen(spotp s, home *h, b8 rw) {
+    sane(s != NULL && h != NULL);
     (void)rw;
     memset(s, 0, sizeof(spot));
+    s->h = h;
     s->out_fd = -1;
     s->color = isatty(STDOUT_FILENO) ? YES : NO;
     s->term = (isatty(STDERR_FILENO) && isatty(STDOUT_FILENO)) ? YES : NO;
-
-    // Resolve home: caller-supplied slice wins, otherwise HOMEFind.
-    a_path(root);
-    u8cs home_s = {};
-    if ($ok(home) && !$empty(home)) {
-        u8csMv(home_s, home);
-    } else if (HOMEFind(root) == OK) {
-        a_dup(u8c, rs, u8bDataC(root));
-        u8csMv(home_s, rs);
-    }
-
-    if (!$empty(home_s)) {
-        size_t rlen = (size_t)$len(home_s);
-        if (rlen >= sizeof(s->home_str)) rlen = sizeof(s->home_str) - 1;
-        memcpy(s->home_str, home_s[0], rlen);
-        s->home_str[rlen] = 0;
-        s->home[0] = (u8cp)s->home_str;
-        s->home[1] = (u8cp)s->home_str + rlen;
-
-        a_path(dogsdir);
-        if (CAPOResolveDir(dogsdir, s->home) == OK) {
-            a_dup(u8c, ds, u8bDataC(dogsdir));
-            size_t dlen = (size_t)$len(ds);
-            if (dlen >= sizeof(s->dogs_str)) dlen = sizeof(s->dogs_str) - 1;
-            memcpy(s->dogs_str, ds[0], dlen);
-            s->dogs_str[dlen] = 0;
-            s->dogs[0] = (u8cp)s->dogs_str;
-            s->dogs[1] = (u8cp)s->dogs_str + dlen;
-        }
-    }
 
     call(u8bMap, s->arena, LESS_ARENA_SIZE);
 
@@ -1819,6 +1795,7 @@ void SPOTClose(spotp s) {
         if (s->toks[i][0] != NULL) u32bUnMap(s->toks[i]);
         if (s->maps[i] != NULL)    FILEUnMap(s->maps[i]);
     }
+    if (s->arena[0]) u8bUnMap(s->arena);
     s->nhunks = 0;
     s->nmaps  = 0;
     less_nhunks = 0;

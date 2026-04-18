@@ -146,14 +146,12 @@ fun idx64 CAPOSymEntry(u64 type, u8cs name, u8cs path) {
 
 #include "abc/FILE.h"
 #include "dog/CLI.h"
+#include "dog/HOME.h"
 #include "dog/HUNK.h"
 #include "spot/LESS.h"
 
 typedef struct {
-    char home_str[FILE_PATH_MAX_LEN];
-    char dogs_str[FILE_PATH_MAX_LEN];
-    u8cs home;       // worktree root (slice into home_str)
-    u8cs dogs;       // .dogs/spot/ dir (slice into dogs_str)
+    home    *h;                     // borrowed
 
     Bu8      arena;
     hunk     hunks[LESS_MAX_HUNKS];
@@ -176,7 +174,7 @@ typedef spot const *spotcp;
 
 //  Open spot state rooted at `home` (repo root).  Empty home →
 //  fall back to HOMEFind from cwd.
-ok64 SPOTOpen(spotp s, u8cs home, b8 rw);
+ok64 SPOTOpen(spotp s, home *h, b8 rw);
 
 //  Run one CLI invocation — same effect as `spot ...`.
 ok64 SPOTExec(spotp s, cli *c);

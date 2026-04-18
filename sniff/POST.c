@@ -203,7 +203,7 @@ ok64 POSTCommit(sniff *s, keeper *k, u8cs reporoot,
     //  convention used by GETCheckout — value is "?<sha>" so graf's
     //  ref-parser picks it up as a SHA tip.
     {
-        a_cstr(keepdir, k->dir);
+        a_path(keepdir, u8bDataC(k->h->root), KEEP_DIR_S);
         a_pad(u8, from_uri, 1280);
         a_cstr(scheme, "file://");
         u8bFeed(from_uri, scheme);
@@ -215,7 +215,7 @@ ok64 POSTCommit(sniff *s, keeper *k, u8cs reporoot,
         u8bFeed(to_uri, u8bDataC(out_hex));
         a_dup(u8c, to, u8bData(to_uri));
 
-        REFSAppend(keepdir, from, to);
+        REFSAppend($path(keepdir), from, to);
     }
 
     fprintf(stderr, "sniff: commit %.*s\n",

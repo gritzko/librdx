@@ -16,35 +16,21 @@ graf_emit_fn graf_emit    = NULL;
 
 // --- GRAFOpen / GRAFClose ---
 
-ok64 GRAFOpen(graf *g, u8cs home, b8 rw) {
-    sane(g);
+ok64 GRAFOpen(graf *g, home *h, b8 rw) {
+    sane(g && h);
     memset(g, 0, sizeof(*g));
+    g->h = h;
     g->out_fd = -1;
 
-    // Resolve .dogs/graf/ path
-    a_path(dir);
-    if ($empty(home)) {
-        call(HOMEFindDogs, dir);
-    } else {
-        call(PATHu8bFeed, dir, home);
-    }
-    a_cstr(rel, "/graf");
-    call(u8bFeed, dir, rel);
-    call(PATHu8bTerm, dir);
+    // Compose <root>/.dogs/graf on demand.
+    a_dup(u8c, root_s, u8bDataC(h->root));
+    a_cstr(rel, ".dogs/graf");
+    a_path(dir, root_s, rel);
 
-    size_t dlen = u8bDataLen(dir);
-    if (dlen >= sizeof(g->dir)) dlen = sizeof(g->dir) - 1;
-    memcpy(g->dir, u8bDataHead(dir), dlen);
-    g->dir[dlen] = 0;
-
-    // Create directory only in rw mode.
     if (rw) call(FILEMakeDirP, $path(dir));
 
-    // Open DAG index
-    u8cs dagdir = {(u8cp)g->dir, (u8cp)g->dir + dlen};
-    call(dag_stack_open, &g->idx, dagdir);
+    call(dag_stack_open, &g->idx, $path(dir));
 
-    // Map arena
     call(u8bMap, g->arena, GRAF_ARENA_SIZE);
 
     done;

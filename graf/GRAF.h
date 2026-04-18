@@ -3,6 +3,7 @@
 
 #include "abc/INT.h"
 #include "dog/CLI.h"
+#include "dog/HOME.h"
 #include "dog/HUNK.h"
 #include "graf/DAG.h"
 
@@ -14,18 +15,18 @@ typedef ok64 (*graf_emit_fn)(u8s into, hunk const *hk);
 // --- graf control struct (per DOG.md rule 8) ---
 
 typedef struct {
+    home        *h;          // borrowed
     Bu8          arena;      // hunk staging buffer
     int          out_fd;     // output fd (-1 = uninitialized)
     graf_emit_fn emit;       // serializer (TLV or plain text)
     dag_stack    idx;        // DAG index (LSM sorted runs)
-    char         dir[1024];  // resolved .dogs/graf/ path
 } graf;
 
 // --- Public API (DOG 4-fn) ---
 
-//  Open graf state rooted at `home` (repo root).  Empty home →
-//  HOMEFindDogs from cwd.  rw=YES creates `.dogs/graf/` if missing.
-ok64 GRAFOpen(graf *g, u8cs home, b8 rw);
+//  Open graf state.  `h` is borrowed; provides root/arena/config/rw.
+//  rw=YES creates `.dogs/graf/` if missing.
+ok64 GRAFOpen(graf *g, home *h, b8 rw);
 
 //  Run one CLI invocation — same effect as `graf ...`.
 ok64 GRAFExec(graf *g, cli *c);

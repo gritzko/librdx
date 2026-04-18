@@ -124,10 +124,12 @@ ok64 WALKtest2() {
 
     char tmp[] = "/tmp/walktest-XXXXXX";
     want(mkdtemp(tmp) != NULL);
-    u8cs home = {(u8cp)tmp, (u8cp)tmp + strlen(tmp)};
+    a_cstr(root, tmp);
+    home h = {};
+    call(HOMEOpen, &h, root, YES);
 
     keeper k = {};
-    call(KEEPOpen, &k, home, YES);
+    call(KEEPOpen, &k, &h, YES);
     keep_pack p = {};
     call(KEEPPackOpen, &k, &p);
 
@@ -203,6 +205,7 @@ ok64 WALKtest2() {
     }
 
     call(KEEPClose, &k);
+    HOMEClose(&h);
 
     {
         char cmd[512];

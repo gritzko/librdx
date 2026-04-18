@@ -11,7 +11,7 @@
  7. Last-seen-commit tracking is in `.dogs/name/COMMIT`.
  8. The static lib has a `name` control struct and four uniform
     entry points:
-      - `ok64 DOGOpen(name* state, u8cs home, b8 rw)`
+      - `ok64 DOGOpen(name* state, home* myhome, b8 rw)`
            open state rooted at `home` (repo root), ro or rw
       - `ok64 DOGExec(name* state, cli* c)`
            execute a parsed CLI (verb + flags + URIs) against

@@ -32,44 +32,19 @@
 
 #define KEEP_BUFSZ (1ULL << 30)  // 1 GB working buffer (mmap'd, pages on demand)
 
+u8c *const KEEP_DIR_S[2] = {
+    (u8c *)KEEP_DIR,
+    (u8c *)KEEP_DIR + sizeof(KEEP_DIR) - 1,
+};
+
 // --- Helpers ---
 
-static ok64 keep_resolve_dir(path8b out, u8cs reporoot) {
-    sane(out);
-    if ($empty(reporoot)) {
-        // Try HOMEFindDogs (.git-based); if that fails, walk up
-        // looking for .dogs/ directory directly.
-        ok64 o = HOMEFindDogs(out);
-        if (o != OK) {
-            // Walk up from cwd looking for .dogs/
-            a_pad(u8, cwdbuf, FILE_PATH_MAX_LEN);
-            test(getcwd((char *)u8bIdleHead(cwdbuf),
-                        u8bIdleLen(cwdbuf)) != NULL, KEEPFAIL);
-            u8bFed(cwdbuf, strlen((char *)u8bIdleHead(cwdbuf)));
-            a_path(cur);
-            a_dup(u8c, cwds, u8bData(cwdbuf));
-            call(PATHu8bFeed, cur, cwds);
-
-            a_cstr(dotdogs, ".dogs");
-            for (;;) {
-                a_path(probe);
-                a_dup(u8c, curslice, u8bData(cur));
-                call(PATHu8bFeed, probe, curslice);
-                call(PATHu8bPush, probe, dotdogs);
-                if (FILEisdir($path(probe)) == OK) {
-                    a_dup(u8c, found, u8bData(cur));
-                    call(PATHu8bFeed, out, found);
-                    goto found_root;
-                }
-                size_t before = u8bDataLen(cur);
-                call(PATHu8bPop, cur);
-                if (u8bDataLen(cur) >= before) fail(KEEPFAIL);
-            }
-        }
-    } else {
-        call(PATHu8bFeed, out, reporoot);
-    }
-found_root:;
+// Build <h->root>/.dogs/keeper/ into `out`.  The worktree root has
+// already been resolved by HOMEOpen.
+static ok64 keep_resolve_dir(path8b out, home *h) {
+    sane(out && h);
+    a_dup(u8c, root_s, u8bDataC(h->root));
+    call(PATHu8bFeed, out, root_s);
     a_cstr(rel, "/" KEEP_DIR);
     call(u8bFeed, out, rel);
     call(PATHu8bTerm, out);
@@ -160,25 +135,21 @@ static ok64 keep_scan_packs(keeper *k, u8csc keepdir) {
 
 // --- Open: mmap pack files + load index runs ---
 
-ok64 KEEPOpen(keeper *k, u8cs home, b8 rw) {
-    sane(k);
+ok64 KEEPOpen(keeper *k, home *h, b8 rw) {
+    sane(k && h);
     memset(k, 0, sizeof(*k));
+    k->h = h;
 
     a_path(dir);
-    call(keep_resolve_dir, dir, home);
-    a_dup(u8c, dirdata, u8bData(dir));
-    size_t dlen = u8csLen(dirdata);
-    if (dlen >= sizeof(k->dir)) dlen = sizeof(k->dir) - 1;
-    memcpy(k->dir, dirdata[0], dlen);
-    k->dir[dlen] = 0;
-    a_cstr(keepdir, k->dir);
+    call(keep_resolve_dir, dir, h);
+    a_path(keepdir, u8bDataC(k->h->root), KEEP_DIR_S);
 
     // Create directories only in rw mode.
     if (rw) {
         call(FILEMakeDirP, $path(dir));
         {
             a_pad(u8, logdir, 1024);
-            u8bFeed(logdir, keepdir);
+            u8bFeed(logdir, $path(keepdir));
             a_cstr(logrel, "/" KEEP_LOG_DIR);
             u8bFeed(logdir, logrel);
             PATHu8bTerm(logdir);
@@ -186,7 +157,7 @@ ok64 KEEPOpen(keeper *k, u8cs home, b8 rw) {
         }
         {
             a_pad(u8, idxdir, 1024);
-            u8bFeed(idxdir, keepdir);
+            u8bFeed(idxdir, $path(keepdir));
             a_cstr(idxrel, "/" KEEP_IDX_DIR);
             u8bFeed(idxdir, idxrel);
             PATHu8bTerm(idxdir);
@@ -196,7 +167,7 @@ ok64 KEEPOpen(keeper *k, u8cs home, b8 rw) {
 
     // Scan pack files: log/*.pack (new) + keeper/*.packs (old compat)
     // Scan idx files: idx/*.idx (new) + keeper/*.idx (old compat)
-    call(keep_scan_packs, k, keepdir);
+    call(keep_scan_packs, k, $path(keepdir));
 
     // Pre-allocate working buffers for KEEPGet (mmap, reset per call)
     call(u8bMap, k->buf1, KEEP_BUFSZ);
@@ -769,16 +740,16 @@ ok64 KEEPPackOpen(keeper *k, keep_pack *p) {
     call(wh128bAllocate, p->entries, KEEP_PACK_MAX_OBJS);
 
     // Build path: dir/log/NNNNNNNNNN.pack
-    a_cstr(kdir, k->dir);
+    a_path(kdir, u8bDataC(k->h->root), KEEP_DIR_S);
     a_cstr(logdir, "/" KEEP_LOG_DIR);
     a_pad(u8, logpath, 1024);
-    u8bFeed(logpath, kdir);
+    u8bFeed(logpath, $path(kdir));
     u8bFeed(logpath, logdir);
     PATHu8bTerm(logpath);
     FILEMakeDirP($path(logpath));
 
     a_pad(u8, packpath, 1024);
-    u8bFeed(packpath, kdir);
+    u8bFeed(packpath, $path(kdir));
     u8bFeed(packpath, logdir);
     u8bFeed1(packpath, '/');
     RONu8sFeedPad(u8bIdle(packpath), (u64)p->file_id, KEEP_SEQNO_W);
@@ -869,16 +840,16 @@ ok64 KEEPPackClose(keeper *k, keep_pack *p) {
     a_dup(wh128, sorted, wh128bData(p->entries));
     wh128sSort(sorted);
 
-    a_cstr(kdir, k->dir);
+    a_path(kdir, u8bDataC(k->h->root), KEEP_DIR_S);
     a_cstr(idxdir, "/" KEEP_IDX_DIR);
     a_pad(u8, idxdirpath, 1024);
-    u8bFeed(idxdirpath, kdir);
+    u8bFeed(idxdirpath, $path(kdir));
     u8bFeed(idxdirpath, idxdir);
     PATHu8bTerm(idxdirpath);
     FILEMakeDirP($path(idxdirpath));
 
     a_pad(u8, idxpath, 1024);
-    u8bFeed(idxpath, kdir);
+    u8bFeed(idxpath, $path(kdir));
     u8bFeed(idxpath, idxdir);
     u8bFeed1(idxpath, '/');
     RONu8sFeedPad(u8bIdle(idxpath), (u64)p->file_id, KEEP_SEQNO_W);
@@ -977,7 +948,7 @@ ok64 KEEPResolveTree(keeper *k, uricp target, sha1 *tree_sha) {
 
     if (!u8csEmpty(target->query)) {
         // Resolve ?ref via REFS
-        a_cstr(keepdir, k->dir);
+        a_path(keepdir, u8bDataC(k->h->root), KEEP_DIR_S);
         a_pad(u8, qbuf, 256);
         u8bFeed1(qbuf, '?');
         u8bFeed(qbuf, target->query);
@@ -986,7 +957,7 @@ ok64 KEEPResolveTree(keeper *k, uricp target, sha1 *tree_sha) {
         u8bp rmap = NULL;
         ref rarr[REFS_MAX_REFS];
         u32 rn = 0;
-        REFSLoad(rarr, &rn, REFS_MAX_REFS, &rmap, keepdir);
+        REFSLoad(rarr, &rn, REFS_MAX_REFS, &rmap, $path(keepdir));
 
         b8 found = NO;
         for (u32 i = 0; i < rn; i++) {
@@ -1115,10 +1086,10 @@ ok64 KEEPImport(keeper *k, u8cs pack_path) {
 
     // Determine file_id (1-based, matching filename NNNN.packs)
     u32 file_id = k->npacks + 1;
-    a_cstr(kdir, k->dir);
+    a_path(kdir, u8bDataC(k->h->root), KEEP_DIR_S);
     {
         a_pad(u8, dst, 1024);
-        call(u8bFeed, dst, kdir);
+        call(u8bFeed, dst, $path(kdir));
         a_cstr(logsep, "/" KEEP_LOG_DIR "/");
         call(u8bFeed, dst, logsep);
         call(RONu8sFeedPad, u8bIdle(dst), (u64)file_id, KEEP_SEQNO_W);
@@ -1168,7 +1139,7 @@ ok64 KEEPImport(keeper *k, u8cs pack_path) {
     {
         u64 seqno = (u64)file_id;
         a_pad(u8, idxpath, 1024);
-        call(u8bFeed, idxpath, kdir);
+        call(u8bFeed, idxpath, $path(kdir));
         a_cstr(idxsep, "/" KEEP_IDX_DIR "/");
         call(u8bFeed, idxpath, idxsep);
         call(RONu8sFeedPad, u8bIdle(idxpath), seqno, KEEP_SEQNO_W);
@@ -1607,8 +1578,8 @@ got_pack:
     u64 append_offset = 0;  // where new objects start in the log
     {
         a_pad(u8, dst, 1024);
-        a_cstr(kdir, k->dir);
-        u8bFeed(dst, kdir);
+        a_path(kdir, u8bDataC(k->h->root), KEEP_DIR_S);
+        u8bFeed(dst, $path(kdir));
         a_cstr(logsep, "/" KEEP_LOG_DIR "/");
         u8bFeed(dst, logsep);
         RONu8sFeedPad(u8bIdle(dst), (u64)file_id, KEEP_SEQNO_W);
@@ -1690,8 +1661,8 @@ got_pack:
     }
     {
         a_pad(u8, pp, 1024);
-        a_cstr(kdir, k->dir);
-        u8bFeed(pp, kdir);
+        a_path(kdir, u8bDataC(k->h->root), KEEP_DIR_S);
+        u8bFeed(pp, $path(kdir));
         a_cstr(logsep, "/" KEEP_LOG_DIR "/");
         u8bFeed(pp, logsep);
         RONu8sFeedPad(u8bIdle(pp), (u64)file_id, KEEP_SEQNO_W);
@@ -2025,9 +1996,9 @@ got_pack:
             wh128sDedup(sorted);
             u32 nfinal = (u32)(sorted[1] - sorted[0]);
 
-            a_cstr(kdir, k->dir);
+            a_path(kdir, u8bDataC(k->h->root), KEEP_DIR_S);
             a_pad(u8, idxpath, 1024);
-            u8bFeed(idxpath, kdir);
+            u8bFeed(idxpath, $path(kdir));
             a_cstr(idxsep, "/" KEEP_IDX_DIR "/");
             u8bFeed(idxpath, idxsep);
             u32 idx_id = k->nruns + 1;
@@ -2083,7 +2054,7 @@ sync_done:
 
     // Record refs in the reflog. See REF.md for the format spec.
     if (nrefs > 0) {
-        a_cstr(kdir, k->dir);
+        a_path(kdir, u8bDataC(k->h->root), KEEP_DIR_S);
         // First, find which advertised heads/* matches HEAD's SHA — that
         // is the upstream's current branch. refs[0] is HEAD.
         u8cs head_branch = {};  // e.g. "master" or "main"
@@ -2182,7 +2153,7 @@ sync_done:
 
             #undef APPEND_REF
 
-            ok64 ro = REFSSyncRecord(kdir, refarr, written);
+            ok64 ro = REFSSyncRecord($path(kdir), refarr, written);
             u8bUnMap(strbuf);
             if (ro != OK)
                 fprintf(stderr, "keeper: warning: failed to record refs\n");

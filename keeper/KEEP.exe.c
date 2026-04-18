@@ -95,9 +95,9 @@ static ok64 keeper_verify(keeper *k, u8cs hex) {
 
 static ok64 keeper_refs(keeper *k) {
     sane(k);
-    a_cstr(keepdir, k->dir);
+    a_path(keepdir, u8bDataC(k->h->root), KEEP_DIR_S);
     int rcount = 0;
-    ok64 o = REFSEach(keepdir, refs_print_cb, &rcount);
+    ok64 o = REFSEach($path(keepdir), refs_print_cb, &rcount);
     if (o != OK && o != REFSNONE)
         fprintf(stderr, "keeper: refs: %s\n", ok64str(o));
     fprintf(stdout, "keeper: %d ref(s)\n", rcount);
@@ -108,7 +108,7 @@ static ok64 keeper_refs(keeper *k) {
 
 static ok64 keeper_alias(keeper *k, uri *name_uri, uri *target_uri) {
     sane(k && name_uri && target_uri);
-    a_cstr(keepdir, k->dir);
+    a_path(keepdir, u8bDataC(k->h->root), KEEP_DIR_S);
 
     a_pad(u8, fbuf, 256);
     a_cstr(slashes, "//");
@@ -118,7 +118,7 @@ static ok64 keeper_alias(keeper *k, uri *name_uri, uri *target_uri) {
 
     a_dup(u8c, target, target_uri->data);
 
-    ok64 o = REFSAppend(keepdir, from, target);
+    ok64 o = REFSAppend($path(keepdir), from, target);
     if (o != OK) return o;
     fprintf(stdout, "keeper: alias %.*s → %.*s\n",
             (int)u8csLen(from), (char *)from[0],
@@ -130,12 +130,12 @@ static ok64 keeper_alias(keeper *k, uri *name_uri, uri *target_uri) {
 
 static ok64 keeper_get_remote(keeper *k, cli *c, uri *g) {
     sane(k && g);
-    a_cstr(keepdir, k->dir);
+    a_path(keepdir, u8bDataC(k->h->root), KEEP_DIR_S);
 
     u8bp rmap = NULL;
     ref rarr[REFS_MAX_REFS];
     u32 rn = 0;
-    REFSLoad(rarr, &rn, REFS_MAX_REFS, &rmap, keepdir);
+    REFSLoad(rarr, &rn, REFS_MAX_REFS, &rmap, $path(keepdir));
 
     a_pad(u8, apad, 256);
     u8bFeed(apad, g->authority);
@@ -258,7 +258,7 @@ static ok64 keeper_get_object(keeper *k, u8cs prefix) {
 
 static ok64 keeper_get_ref(keeper *k, u8cs query) {
     sane(k && $ok(query));
-    a_cstr(keepdir, k->dir);
+    a_path(keepdir, u8bDataC(k->h->root), KEEP_DIR_S);
 
     a_pad(u8, qbuf, 256);
     u8bFeed1(qbuf, '?');
@@ -267,7 +267,7 @@ static ok64 keeper_get_ref(keeper *k, u8cs query) {
 
     a_pad(u8, arena, 1024);
     uri resolved = {};
-    ok64 ro = REFSResolve(&resolved, arena, keepdir, qkey);
+    ok64 ro = REFSResolve(&resolved, arena, $path(keepdir), qkey);
     if (ro == OK && !u8csEmpty(resolved.query)) {
         fprintf(stdout, "%.*s\n",
                 (int)u8csLen(resolved.query),
@@ -327,7 +327,7 @@ static ok64 keeper_put(keeper *k, cli *c) {
         return KEEPFAIL;
     }
 
-    a_cstr(keepdir, k->dir);
+    a_path(keepdir, u8bDataC(k->h->root), KEEP_DIR_S);
 
     a_pad(u8, fbuf, 256);
     u8bFeed1(fbuf, '?');
@@ -339,7 +339,7 @@ static ok64 keeper_put(keeper *k, cli *c) {
     u8bFeed(tbuf, sha_frag);
     a_dup(u8c, to, u8bData(tbuf));
 
-    ok64 o = REFSAppend(keepdir, from, to);
+    ok64 o = REFSAppend($path(keepdir), from, to);
     if (o != OK) return o;
 
     fprintf(stdout, "keeper: %.*s → %.*s\n",
@@ -357,11 +357,11 @@ static ok64 keeper_put(keeper *k, cli *c) {
 static void post_resolve_remote(keeper *k, uri *g,
                                 u8cs host_out, u8cs path_out,
                                 u8bp *rmap_out) {
-    a_cstr(keepdir, k->dir);
+    a_path(keepdir, u8bDataC(k->h->root), KEEP_DIR_S);
 
     ref rarr[REFS_MAX_REFS];
     u32 rn = 0;
-    REFSLoad(rarr, &rn, REFS_MAX_REFS, rmap_out, keepdir);
+    REFSLoad(rarr, &rn, REFS_MAX_REFS, rmap_out, $path(keepdir));
 
     a_pad(u8, apad, 256);
     a_cstr(slashes, "//");
@@ -398,13 +398,13 @@ static ok64 keeper_post(keeper *k, cli *c) {
     sane(k && c);
     uri *g = (c->nuris > 0) ? &c->uris[0] : NULL;
     b8 has_remote = g && !u8csEmpty(g->host);
-    a_cstr(keepdir, k->dir);
+    a_path(keepdir, u8bDataC(k->h->root), KEEP_DIR_S);
 
     // 1. Resolve local HEAD → parent commit SHA (40 hex).
     a_cstr(q_head, "?HEAD");
     a_pad(u8, arena, 256);
     uri resolved = {};
-    ok64 ro = REFSResolve(&resolved, arena, keepdir, q_head);
+    ok64 ro = REFSResolve(&resolved, arena, $path(keepdir), q_head);
     if (ro != OK || $len(resolved.query) != 40) {
         fprintf(stderr, "keeper: post: HEAD not set (do `keeper get` first)\n");
         return KEEPFAIL;
@@ -504,7 +504,7 @@ static ok64 keeper_post(keeper *k, cli *c) {
     u8cs new_s = {new_hex.data, new_hex.data + 40};
     u8bFeed(vbuf, new_s);
     a_dup(u8c, v, u8bData(vbuf));
-    REFSAppend(keepdir, k_master, v);
+    REFSAppend($path(keepdir), k_master, v);
 
     fprintf(stdout, "keeper: post %.12s → %.12s\n",
             (char *)old_hex, new_hex.data);

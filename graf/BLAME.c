@@ -246,12 +246,15 @@ ok64 GRAFBlame(keeper *k, u8cs filepath, u8cs reporoot) {
 
     call(GRAFArenaInit);
 
-    // Open DAG index
+    // Open DAG index.  keeper already holds a `home` — reuse it.
     graf g = {};
-    call(GRAFOpen, &g, reporoot, NO);
+    call(GRAFOpen, &g, k->h, NO);
 
-    // Walk file history via DAG index
-    a_cstr(dagdir, g.dir);
+    // Compose <root>/.dogs/graf for helpers that need the dir path.
+    a_dup(u8c, root_s, u8bDataC(k->h->root));
+    a_cstr(grel, ".dogs/graf");
+    a_path(gdir, root_s, grel);
+    a_dup(u8c, dagdir, u8bDataC(gdir));
     blame_ver vers[BLAME_MAX_VERS];
     u32 nvers = blame_walk_history(vers, BLAME_MAX_VERS, &g.idx,
                                     filepath, dagdir);

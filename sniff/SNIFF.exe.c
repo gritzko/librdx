@@ -186,7 +186,7 @@ static ok64 sniff_status(sniff *s, u8cs reporoot) {
 static ok64 sniff_checkout(sniff *s, u8cs reporoot, u8cs hex) {
     sane(s && $ok(hex));
     keeper k = {};
-    call(KEEPOpen, &k, reporoot, YES);
+    call(KEEPOpen, &k, s->h, YES);
     a_pad(u8, src, 256);
     u8bFeed1(src, '?');
     u8bFeed(src, hex);
@@ -201,8 +201,8 @@ static ok64 SNIFFGetURI(sniff *s, u8cs reporoot, uri *u) {
     sane(s && u);
 
     keeper k = {};
-    call(KEEPOpen, &k, reporoot, YES);
-    a_cstr(keepdir, k.dir);
+    call(KEEPOpen, &k, s->h, YES);
+    a_path(keepdir, u8bDataC(k.h->root), KEEP_DIR_S);
 
     u8cs ref_to_resolve = {};
     if (!$empty(u->query)) {
@@ -226,7 +226,7 @@ static ok64 SNIFFGetURI(sniff *s, u8cs reporoot, uri *u) {
 
     a_pad(u8, arena, 512);
     uri resolved = {};
-    ok64 o = REFSResolve(&resolved, arena, keepdir, ref_to_resolve);
+    ok64 o = REFSResolve(&resolved, arena, $path(keepdir), ref_to_resolve);
     if (o == OK && !$empty(resolved.query)) {
         a_pad(u8, src_alias, 256);
         a_cstr(head_lit, "?HEAD");
@@ -234,7 +234,7 @@ static ok64 SNIFFGetURI(sniff *s, u8cs reporoot, uri *u) {
             ref rarr2[REFS_MAX_REFS];
             u32 rn2 = 0;
             u8bp rmap2 = NULL;
-            REFSLoad(rarr2, &rn2, REFS_MAX_REFS, &rmap2, keepdir);
+            REFSLoad(rarr2, &rn2, REFS_MAX_REFS, &rmap2, $path(keepdir));
             for (u32 i = 0; i < rn2; i++) {
                 if (REFMatch(&rarr2[i], head_lit)) {
                     a_dup(u8c, alias_v, rarr2[i].val);
@@ -462,7 +462,7 @@ ok64 SNIFFExec(sniff *s, cli *c) {
             sniff_stat_all(s, reporoot, SNIFF_CHANGED);
 
             keeper k = {};
-            ret = KEEPOpen(&k, reporoot, YES);
+            ret = KEEPOpen(&k, s->h, YES);
             if (ret == OK) {
                 sha1 sha = {};
                 ret = POSTCommit(s, &k, reporoot,
@@ -488,7 +488,7 @@ ok64 SNIFFExec(sniff *s, cli *c) {
         }
 
         keeper k = {};
-        ret = KEEPOpen(&k, reporoot, YES);
+        ret = KEEPOpen(&k, s->h, YES);
         if (ret == OK) {
             keep_pack p = {};
             ret = KEEPPackOpen(&k, &p);
@@ -523,7 +523,7 @@ ok64 SNIFFExec(sniff *s, cli *c) {
         }
 
         keeper k = {};
-        ret = KEEPOpen(&k, reporoot, YES);
+        ret = KEEPOpen(&k, s->h, YES);
         if (ret == OK) {
             keep_pack p = {};
             ret = KEEPPackOpen(&k, &p);

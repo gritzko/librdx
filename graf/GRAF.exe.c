@@ -55,16 +55,15 @@ static pid_t graf_start_pager(b8 tty_out) {
         graf_emit   = HUNKu8sFeedText;
         return -1;
     }
-    char bropath[FILE_PATH_MAX_LEN];
+    a_path(bropath);
     a$rg(a0, 0);
-    HOMEResolveSibling(bropath, sizeof(bropath),
-                       "bro", (char const *)a0[0]);
-    a_cstr(bpath, bropath);
+    a_cstr(bro_name, "bro");
+    HOMEResolveSibling(NULL, bropath, bro_name, a0);
     u8cs args[] = {u8slit("bro")};
     u8css argv = {args, args + 1};
     pid_t pid = 0;
     int wfd = -1;
-    if (FILESpawn(bpath, argv, &wfd, NULL, &pid) != OK) {
+    if (FILESpawn($path(bropath), argv, &wfd, NULL, &pid) != OK) {
         graf_out_fd = STDOUT_FILENO;
         graf_emit   = HUNKu8sFeedText;
         return -1;
@@ -122,6 +121,11 @@ ok64 GRAFExec(graf *g, cli *c) {
 
     u8cs reporoot = {};
     u8csMv(reporoot, c->repo);
+    // If CLI parsing didn't supply a repo, fall back to h->root.
+    if ($empty(reporoot) && g->h && g->h->root[0]) {
+        a_dup(u8c, hs, u8bDataC(g->h->root));
+        u8csMv(reporoot, hs);
+    }
 
     // --- status: uses graf state only ---
 
@@ -176,7 +180,7 @@ ok64 GRAFExec(graf *g, cli *c) {
     }
 
     keeper k = {};
-    call(KEEPOpen, &k, reporoot, YES);
+    call(KEEPOpen, &k, g->h, YES);
     ok64 ret = OK;
 
     if ($eq(c->verb, v_get) || $eq(c->verb, v_index)) {

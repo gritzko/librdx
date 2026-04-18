@@ -40,8 +40,10 @@ ok64 SNIFFInternPath() {
     call(make_tmpdir);
 
     a_cstr(root, g_tmpdir);
+    home h = {};
+    call(HOMEOpen, &h, root, YES);
     sniff s = {};
-    call(SNIFFOpen, &s, root, YES);
+    call(SNIFFOpen, &s, &h, YES);
 
     a_cstr(p1, "src/foo.c");
     a_cstr(p2, "src/bar.c");
@@ -74,6 +76,7 @@ ok64 SNIFFInternPath() {
     want(SNIFFCount(&s) == 4);
 
     call(SNIFFClose, &s);
+    HOMEClose(&h);
     rm_tmpdir();
     done;
 }
@@ -86,8 +89,10 @@ ok64 SNIFFRecordGet() {
     call(make_tmpdir);
 
     a_cstr(root, g_tmpdir);
+    home h = {};
+    call(HOMEOpen, &h, root, YES);
     sniff s = {};
-    call(SNIFFOpen, &s, root, YES);
+    call(SNIFFOpen, &s, &h, YES);
 
     a_cstr(p, "test.c");
     u32 idx = SNIFFIntern(&s, p);
@@ -105,6 +110,7 @@ ok64 SNIFFRecordGet() {
     want(SNIFFGet(&s, SNIFF_CHANGED, idx) == 1700000020ULL);
 
     call(SNIFFClose, &s);
+    HOMEClose(&h);
     rm_tmpdir();
     done;
 }
@@ -117,11 +123,13 @@ ok64 SNIFFPersist() {
     call(make_tmpdir);
 
     a_cstr(root, g_tmpdir);
+    home h = {};
+    call(HOMEOpen, &h, root, YES);
 
     // Write
     {
         sniff s = {};
-        call(SNIFFOpen, &s, root, YES);
+        call(SNIFFOpen, &s, &h, YES);
         a_cstr(p, "persist.c");
         u32 idx = SNIFFIntern(&s, p);
         SNIFFRecord(&s, SNIFF_BLOB, idx, 0xABCDEF0123ULL);
@@ -132,7 +140,7 @@ ok64 SNIFFPersist() {
     // Reopen and verify.  Index 0 is the reserved root-dir "/".
     {
         sniff s = {};
-        call(SNIFFOpen, &s, root, NO);
+        call(SNIFFOpen, &s, &h, NO);
         want(SNIFFCount(&s) == 2);
 
         u8cs root_p = {};
@@ -151,6 +159,7 @@ ok64 SNIFFPersist() {
         call(SNIFFClose, &s);
     }
 
+    HOMEClose(&h);
     rm_tmpdir();
     done;
 }
@@ -163,10 +172,12 @@ ok64 SNIFFCheckoutCommit() {
     call(make_tmpdir);
 
     a_cstr(root, g_tmpdir);
+    home h = {};
+    call(HOMEOpen, &h, root, YES);
 
     // Open keeper, create a blob + tree + commit manually
     keeper k = {};
-    call(KEEPOpen, &k, root, YES);
+    call(KEEPOpen, &k, &h, YES);
 
     keep_pack p = {};
     call(KEEPPackOpen, &k, &p);
@@ -212,7 +223,7 @@ ok64 SNIFFCheckoutCommit() {
 
     // Now checkout via sniff
     sniff s = {};
-    call(SNIFFOpen, &s, root, YES);
+    call(SNIFFOpen, &s, &h, YES);
     u8cs hex = {u8bDataHead(commit_hex), u8bIdleHead(commit_hex)};
     u8cs no_src_ = {}; call(GETCheckout, &s, &k, root, hex, no_src_);
 
@@ -271,6 +282,7 @@ ok64 SNIFFCheckoutCommit() {
     u8bFree(out);
     call(SNIFFClose, &s);
     call(KEEPClose, &k);
+    HOMEClose(&h);
     rm_tmpdir();
     done;
 }
@@ -436,10 +448,12 @@ ok64 SNIFFRoundTrip() {
     call(make_tmpdir);
 
     a_cstr(root, g_tmpdir);
+    home h = {};
+    call(HOMEOpen, &h, root, YES);
 
     // 1. Create initial commit: a.txt, b.txt, c.txt
     keeper k = {};
-    call(KEEPOpen, &k, root, YES);
+    call(KEEPOpen, &k, &h, YES);
 
     testfile init_files[] = {
         {"a.txt", "alpha\n"},
@@ -455,7 +469,7 @@ ok64 SNIFFRoundTrip() {
 
     // 2. GET: checkout initial commit
     sniff s = {};
-    call(SNIFFOpen, &s, root, YES);
+    call(SNIFFOpen, &s, &h, YES);
     u8cs no_src1 = {}; call(GETCheckout, &s, &k, root, c1h, no_src1);
 
     call(check_file, root, "a.txt", "alpha\n");
@@ -533,7 +547,7 @@ ok64 SNIFFRoundTrip() {
         system(cmd);
     }
 
-    call(SNIFFOpen, &s, root, YES);
+    call(SNIFFOpen, &s, &h, YES);
     u8cs no_src2 = {}; call(GETCheckout, &s, &k, root, c2h, no_src2);
 
     call(check_file, root, "a.txt", "ALPHA MODIFIED\n");
@@ -603,6 +617,7 @@ ok64 SNIFFRoundTrip() {
 
     call(SNIFFClose, &s);
     call(KEEPClose, &k);
+    HOMEClose(&h);
     rm_tmpdir();
     done;
 }

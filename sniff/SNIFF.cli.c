@@ -45,10 +45,14 @@ ok64 sniffcli() {
     b8 ro = $eq(c.verb, v_status) || $eq(c.verb, v_list);
     b8 rw = !ro;
 
+    home h = {};
+    call(HOMEOpen, &h, reporoot, rw);
+
     sniff s = {};
-    call(SNIFFOpen, &s, reporoot, rw);
+    call(SNIFFOpen, &s, &h, rw);
     ok64 ret = SNIFFExec(&s, &c);
     SNIFFClose(&s);
+    HOMEClose(&h);
     return ret;
 }
 

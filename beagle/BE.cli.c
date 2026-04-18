@@ -55,18 +55,11 @@ static void BEUsage(void) {
 // resolved against this process's own argv[0] via HOMEResolveSibling.
 static ok64 BERun(u8csc tool, u8css argv, b8 bg) {
     sane($ok(tool) && !$empty(tool));
-    // HOMEResolveSibling needs a NUL-term char* for the tool name.
-    a_pad(u8, toolz, 64);
-    call(u8bFeed, toolz, tool);
-    call(u8bFeed1, toolz, 0);
-    char path[FILE_PATH_MAX_LEN];
+    a_path(path);
     a$rg(a0, 0);
-    HOMEResolveSibling(path, sizeof(path),
-                       (char const *)u8bDataHead(toolz),
-                       (char const *)a0[0]);
-    a_cstr(pathS, path);
+    HOMEResolveSibling(NULL, path, tool, a0);
     pid_t pid = 0;
-    call(FILESpawn, pathS, argv, NULL, NULL, &pid);
+    call(FILESpawn, $path(path), argv, NULL, NULL, &pid);
     if (bg) done;
     int rc = 0;
     ok64 r = FILEReap(pid, &rc);
@@ -87,15 +80,17 @@ static ok64 BERun(u8csc tool, u8css argv, b8 bg) {
 // --- Read .dogs/DOGS list ---
 
 static u32 BEReadDogs(char out[][64], u32 maxn) {
-    a_path(home);
-    if (HOMEFindDogs(home) != OK) return 0;
-    a_cstr(dogs_dir, ".dogs");
-    a_cstr(dogs_file, "DOGS");
-    if (PATHu8bPush(home, dogs_dir) != OK) return 0;
-    if (PATHu8bPush(home, dogs_file) != OK) return 0;
+    home h = {};
+    u8cs at = {};
+    if (HOMEOpen(&h, at, NO) != OK) return 0;
+    a_path(p);
+    a_dup(u8c, root_s, u8bDataC(h.root));
+    if (PATHu8bFeed(p, root_s) != OK) { HOMEClose(&h); return 0; }
+    a_cstr(rel, ".dogs/DOGS");
+    if (PATHu8bAdd(p, rel) != OK) { HOMEClose(&h); return 0; }
 
     u8bp mapped = NULL;
-    if (FILEMapRO(&mapped, $path(home)) != OK) return 0;
+    if (FILEMapRO(&mapped, $path(p)) != OK) { HOMEClose(&h); return 0; }
     a_dup(u8c, data, u8bDataC(mapped));
 
     u32 count = 0;
@@ -113,6 +108,7 @@ static u32 BEReadDogs(char out[][64], u32 maxn) {
     }
 
     FILEUnMap(mapped);
+    HOMEClose(&h);
     return count;
 }
 
@@ -169,8 +165,10 @@ static ok64 BEGet(cli *c, b8 seq) {
     // place its own subdir. Without this, every dog fails with
     // KEEPFAIL/SNIFFFAIL/etc. before printing anything useful.
     if (start == 0) {
-        a_path(probe);
-        ok64 ho = HOMEFindDogs(probe);
+        home probe_h = {};
+        u8cs at = {};
+        ok64 ho = HOMEOpen(&probe_h, at, NO);
+        HOMEClose(&probe_h);
         if (ho != OK) {
             a_path(here);
             if (FILEGetCwd(here) == OK) {

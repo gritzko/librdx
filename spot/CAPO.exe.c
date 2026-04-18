@@ -69,7 +69,7 @@ ok64 SPOTExec(spotp dog, cli *c) {
 
     if (getenv("SPOT_COLOR")) { dog->color = YES; CAPO_COLOR = YES; }
 
-    a_dup(u8c, reporoot, dog->home);
+    a_dup(u8c, reporoot, u8bDataC(dog->h->root));
 
     u8cs v = {};
 
@@ -210,15 +210,14 @@ ok64 SPOTExec(spotp dog, cli *c) {
             spot_emit   = HUNKu8sFeed;
             signal(SIGPIPE, SIG_IGN);
         } else if (c->tty_out) {
-            char bropath[FILE_PATH_MAX_LEN];
+            a_path(bropath);
             a$rg(a0, 0);
-            HOMEResolveSibling(bropath, sizeof(bropath),
-                               "bro", (char const *)a0[0]);
-            a_cstr(bpath, bropath);
+            a_cstr(bro_name, "bro");
+            HOMEResolveSibling(NULL, bropath, bro_name, a0);
             u8cs bargs[] = {u8slit("bro")};
             u8css bargv = {bargs, bargs + 1};
             int wfd = -1;
-            call(FILESpawn, bpath, bargv, &wfd, NULL, &bro_pid);
+            call(FILESpawn, $path(bropath), bargv, &wfd, NULL, &bro_pid);
             dog->out_fd = wfd;
             dog->emit   = HUNKu8sFeed;
             spot_out_fd = dog->out_fd;
@@ -309,16 +308,17 @@ ok64 SPOTExec(spotp dog, cli *c) {
         a_dup(u8c, dirslice, u8bDataC(capodir));
         vcall("mkdir_p", FILEMakeDirP, $path(capodir));
 
-        char self[FILE_PATH_MAX_LEN];
+        a_path(self);
         a$rg(a0, 0);
-        HOMEResolveSibling(self, sizeof(self), "spot", (char const *)a0[0]);
+        a_cstr(spot_name, "spot");
+        HOMEResolveSibling(NULL, self, spot_name, a0);
 
         pid_t pids[256];
         u32 n = nfork;
         if (n > 256) n = 256;
 
         fprintf(stderr, "spot: forking %u workers\n", n);
-        a_cstr(selfS, self);
+        a_dup(u8c, selfS, u8bDataC(self));
         char nstr[256][16] = {};
         char kstr[256][16] = {};
         for (u32 k = 0; k < n; k++) {

@@ -72,8 +72,10 @@ ok64 KEEPempty() {
     want(mkdtemp(tmpdir) != NULL);
 
     u8cs root = {(u8cp)tmpdir, (u8cp)tmpdir + strlen(tmpdir)};
+    home h = {};
+    call(HOMEOpen, &h, root, YES);
     keeper k = {};
-    call(KEEPOpen, &k, root, YES);
+    call(KEEPOpen, &k, &h, YES);
     want(k.npacks == 0);
     want(k.nruns == 0);
 
@@ -84,6 +86,7 @@ ok64 KEEPempty() {
     want(KEEPHas(&k, hashlet, 6) == KEEPNONE);
 
     call(KEEPClose, &k);
+    HOMEClose(&h);
 
     char cmd[256];
     snprintf(cmd, sizeof(cmd), "rm -rf %s", tmpdir);
@@ -100,8 +103,10 @@ ok64 KEEPput() {
     want(mkdtemp(tmpdir) != NULL);
 
     a_cstr(root, tmpdir);
+    home h = {};
+    call(HOMEOpen, &h, root, YES);
     keeper k = {};
-    call(KEEPOpen, &k, root, YES);
+    call(KEEPOpen, &k, &h, YES);
     want(k.npacks == 0);
 
     // Store two blobs
@@ -148,6 +153,7 @@ ok64 KEEPput() {
 
     u8bUnMap(out);
     call(KEEPClose, &k);
+    HOMEClose(&h);
 
     a_pad(u8, rmbuf, 256);
     a_cstr(rmcmd, "rm -rf ");
@@ -167,8 +173,10 @@ ok64 KEEPpackIncremental() {
     want(mkdtemp(tmpdir) != NULL);
 
     a_cstr(root, tmpdir);
+    home h = {};
+    call(HOMEOpen, &h, root, YES);
     keeper k = {};
-    call(KEEPOpen, &k, root, YES);
+    call(KEEPOpen, &k, &h, YES);
 
     keep_pack p = {};
     call(KEEPPackOpen, &k, &p);
@@ -228,6 +236,7 @@ ok64 KEEPpackIncremental() {
 
     u8bUnMap(out);
     call(KEEPClose, &k);
+    HOMEClose(&h);
 
     a_pad(u8, rmbuf, 256);
     a_cstr(rmcmd, "rm -rf ");

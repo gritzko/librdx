@@ -50,10 +50,10 @@ static bro *bro_state = NULL;
 
 // --- DOG 4-fn: Open / Close / Update ---
 
-ok64 BROOpen(bro *b, u8cs home, b8 rw) {
-    sane(b);
+ok64 BROOpen(bro *b, home *h, b8 rw) {
+    sane(b && h);
     memset(b, 0, sizeof(*b));
-    u8csMv(b->home, home);
+    b->h = h;
     b->rw = rw;
     b->color = YES;
     b->pipe_fd = -1;
@@ -1461,9 +1461,14 @@ static ok64 BROPlain(hunk const *hunks, u32 nhunks) {
 static char bro_spot_path[FILE_PATH_MAX_LEN] = {};
 static void bro_resolve_spot(void) {
     if (bro_spot_path[0]) return;
+    a_path(p);
     a$rg(a0, 0);
-    HOMEResolveSibling(bro_spot_path, sizeof(bro_spot_path),
-                       "spot", (char const *)a0[0]);
+    a_cstr(spot_name, "spot");
+    if (HOMEResolveSibling(NULL, p, spot_name, a0) != OK) return;
+    size_t plen = u8bDataLen(p);
+    if (plen >= sizeof(bro_spot_path)) plen = sizeof(bro_spot_path) - 1;
+    memcpy(bro_spot_path, u8bDataHead(p), plen);
+    bro_spot_path[plen] = 0;
 }
 
 // Collect unique words from hunk text matching a prefix.
@@ -1990,14 +1995,21 @@ ok64 BRORun(hunk const *hunks, u32 nhunks) {
     st.hunks = hunks;
     st.nhunks = nhunks;
 
-    // Resolve repo root for file navigation
-    a_path(repo_path);
+    // Resolve repo root for file navigation — reuse bro's home if set,
+    // otherwise walk up from cwd.
     char repo[FILE_PATH_MAX_LEN] = {};
-    if (HOMEFind(repo_path) == OK) {
-        u8cs rr = {};
-        $mv(rr, u8bDataC(repo_path));
-        size_t rl = (size_t)$len(rr);
-        if (rl < sizeof(repo)) { memcpy(repo, rr[0], rl); repo[rl] = 0; }
+    home scratch_h = {};
+    home *rh = bro_state && bro_state->h ? bro_state->h : &scratch_h;
+    if (rh == &scratch_h) {
+        u8cs none = {};
+        if (HOMEOpen(rh, none, NO) != OK) rh = NULL;
+    }
+    if (rh != NULL) {
+        size_t rl = u8bDataLen(rh->root);
+        if (rl < sizeof(repo)) {
+            memcpy(repo, u8bDataHead(rh->root), rl);
+            repo[rl] = 0;
+        }
     }
 
     BROGetSize(&st);
@@ -2140,13 +2152,18 @@ ok64 BROPipeRun(int pipefd) {
     call(u8bMap, rdbuf, PIPE_RDBUF_INIT);
 
     // Resolve repo root
-    a_path(repo_path2);
     char repo[FILE_PATH_MAX_LEN] = {};
-    if (HOMEFind(repo_path2) == OK) {
-        u8cs rr = {};
-        $mv(rr, u8bDataC(repo_path2));
-        size_t rl = (size_t)$len(rr);
-        if (rl < sizeof(repo)) { memcpy(repo, rr[0], rl); repo[rl] = 0; }
+    {
+        home rh = {};
+        u8cs none = {};
+        if (HOMEOpen(&rh, none, NO) == OK) {
+            size_t rl = u8bDataLen(rh.root);
+            if (rl < sizeof(repo)) {
+                memcpy(repo, u8bDataHead(rh.root), rl);
+                repo[rl] = 0;
+            }
+            HOMEClose(&rh);
+        }
     }
 
     // Allocate line index

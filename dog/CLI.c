@@ -25,16 +25,21 @@ ok64 CLIParse(cli *c, char const *const *verb_names,
     *c = (cli){};
     c->tty_out = isatty(STDOUT_FILENO) ? YES : NO;
 
-    // Repo root — copy into owned storage
-    a_path(root);
-    if (HOMEFind(root) == OK) {
-        a_dup(u8c, rr, u8bDataC(root));
-        size_t rlen = u8csLen(rr);
-        if (rlen >= sizeof(c->_repo)) rlen = sizeof(c->_repo) - 1;
-        memcpy(c->_repo, rr[0], rlen);
-        c->_repo[rlen] = 0;
-        c->repo[0] = (u8cp)c->_repo;
-        c->repo[1] = (u8cp)c->_repo + rlen;
+    // Repo root — copy into owned storage.  Borrow a temporary `home`
+    // just to walk up to the workspace; caller may open its own home
+    // later from c->repo.
+    {
+        home rh = {};
+        u8cs none = {};
+        if (HOMEOpen(&rh, none, NO) == OK) {
+            size_t rlen = u8bDataLen(rh.root);
+            if (rlen >= sizeof(c->_repo)) rlen = sizeof(c->_repo) - 1;
+            memcpy(c->_repo, u8bDataHead(rh.root), rlen);
+            c->_repo[rlen] = 0;
+            c->repo[0] = (u8cp)c->_repo;
+            c->repo[1] = (u8cp)c->_repo + rlen;
+        }
+        HOMEClose(&rh);
     }
 
     int argn = (int)$arglen;
