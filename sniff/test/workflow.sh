@@ -32,7 +32,12 @@ want_missing() {
     [ ! -e "$1" ] || fail "$1 should be gone"
 }
 
-head_hex() { cat .dogs/sniff/HEAD; }
+# Current worktree commit = last SHA recorded in keeper refs keyed
+# by `file://<abs-cwd>`.  See REF.md for the convention.
+head_hex() {
+    awk -v p="file://$PWD" -F'\t' '$2==p {sha=$3} END {gsub(/^\?/,"",sha); print sha}' \
+        .dogs/keeper/refs
+}
 
 # Single pack file under .dogs/keeper/log.  Count objects as a proxy
 # for "did we write anything new?" — each KEEPPackFeed grows the pack.

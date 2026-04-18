@@ -2093,24 +2093,10 @@ sync_done:
     // Record refs in the reflog. See REF.md for the format spec.
     if (nrefs > 0) {
         a_path(kdir, u8bDataC(k->h->root), KEEP_DIR_S);
-        // First, find which advertised heads/* matches HEAD's SHA — that
-        // is the upstream's current branch. refs[0] is HEAD.
-        u8cs head_branch = {};  // e.g. "master" or "main"
-        for (u32 i = 1; i < nrefs; i++) {
-            char const *nm = refs[i].name;
-            // Match "refs/heads/<name>" with same SHA as HEAD
-            if (strncmp(nm, "refs/heads/", 11) != 0) continue;
-            if (memcmp(refs[i].sha.data, refs[0].sha.data, 40) != 0)
-                continue;
-            char const *bn = nm + 11;
-            head_branch[0] = (u8cp)bn;
-            head_branch[1] = (u8cp)bn + strlen(bn);
-            break;
-        }
 
-        // Worst case per ref: 2 entries, each with origin_uri prefix +
+        // Worst case per ref: one entry with origin_uri prefix +
         // "?heads/<name>" (~280) + "\t?<sha>" (~42). Cap at 700/ref.
-        u32 cap = nrefs * 2 + 4;
+        u32 cap = nrefs + 4;
         ref *refarr = calloc(cap, sizeof(ref));
         if (refarr) {
             ron60 now = RONNow();
@@ -2140,52 +2126,17 @@ sync_done:
                     written++;                                             \
                 } while (0)
 
-            // Local entries: `//<auth>?<branch>` and `//<auth>?HEAD`
-            // in canonical form (matches DOGCanonURIKey output).  The
-            // authority (user.email from .dogs/config, or user.authority
-            // override) disambiguates *this user's* local refs from
-            // remote refs keyed by host:path.  Without a config we fall
-            // back to bare `?<branch>` / `?HEAD`.
-            u8cs auth = {};
-            a_pad(u8, authbuf, 256);
-            if (k->h != NULL) {
-                u8s authsink = {authbuf[0], authbuf[3]};
-                if (HOMEAuthority(k->h, authsink) == OK) {
-                    auth[0] = authbuf[0];
-                    auth[1] = authsink[0];
-                }
-            }
-            a_cstr(slashes, "//");
-            if (!u8csEmpty(head_branch)) {
+            // Worktree's current commit pointer: `file:///<root>` →
+            // `?<HEAD-sha>`.  Lets `keeper post` (and anything else
+            // that wants "the current commit here") find a parent
+            // without relying on a synthetic ?HEAD.  sniff overwrites
+            // this on its own GETCheckout, so it stays current.
+            if (k->h != NULL && k->h->root[0] != NULL) {
                 APPEND_REF({
-                    if (!u8csEmpty(auth)) {
-                        u8bFeed(strbuf, slashes);
-                        u8bFeed(strbuf, auth);
-                    }
-                    u8bFeed1(strbuf, '?');
-                    u8bFeed(strbuf, head_branch);
+                    a_cstr(scheme, "file://");
+                    u8bFeed(strbuf, scheme);
+                    u8bFeed(strbuf, u8bDataC(k->h->root));
                 }, refs[0].peeled.data);
-                if (written < cap) {
-                    refarr[written].time = now;
-                    refarr[written].type = REF_SHA;
-                    refarr[written].key[0] = u8bIdleHead(strbuf);
-                    if (!u8csEmpty(auth)) {
-                        u8bFeed(strbuf, slashes);
-                        u8bFeed(strbuf, auth);
-                    }
-                    a_cstr(head_key, "?HEAD");
-                    u8bFeed(strbuf, head_key);
-                    refarr[written].key[1] = u8bIdleHead(strbuf);
-                    refarr[written].val[0] = u8bIdleHead(strbuf);
-                    if (!u8csEmpty(auth)) {
-                        u8bFeed(strbuf, slashes);
-                        u8bFeed(strbuf, auth);
-                    }
-                    u8bFeed1(strbuf, '?');
-                    u8bFeed(strbuf, head_branch);
-                    refarr[written].val[1] = u8bIdleHead(strbuf);
-                    written++;
-                }
             }
 
             // Remote-attributed entries for each refs/heads/* and

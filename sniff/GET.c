@@ -270,16 +270,21 @@ ok64 GETCheckout(sniff *s, keeper *k, u8cs reporoot, u8cs hex,
         o = SNIFFCompact(s);
     }
     if (o == OK) {
-        SNIFFSetHead(s, hex);
-        if (!$empty(source)) {
-            a_path(keepdir, u8bDataC(k->h->root), KEEP_DIR_S);
-            a_pad(u8, file_uri, 1280);
-            a_cstr(scheme, "file://");
-            u8bFeed(file_uri, scheme);
-            u8bFeed(file_uri, reporoot);
-            a_dup(u8c, from, u8bData(file_uri));
+        // Record worktree → commit SHA mapping (and, if the caller
+        // named a branch/ref, a secondary entry pointing at that ref).
+        a_path(keepdir, u8bDataC(k->h->root), KEEP_DIR_S);
+        a_pad(u8, file_uri, 1280);
+        a_cstr(scheme, "file://");
+        u8bFeed(file_uri, scheme);
+        u8bFeed(file_uri, reporoot);
+        a_dup(u8c, from, u8bData(file_uri));
+        a_pad(u8, sha_val, 64);
+        u8bFeed1(sha_val, '?');
+        u8bFeed(sha_val, hex);
+        a_dup(u8c, sha_to, u8bData(sha_val));
+        REFSAppend($path(keepdir), from, sha_to);
+        if (!$empty(source))
             REFSAppend($path(keepdir), from, source);
-        }
         fprintf(stderr, "sniff: checkout done\n");
     }
     return o;

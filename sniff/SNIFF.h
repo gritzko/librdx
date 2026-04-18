@@ -56,8 +56,6 @@ typedef struct {
     home *h;              // borrowed
     u8bp  paths;          // FILEBook'd paths.log (stable mmap address)
     u8bp  changes;        // FILEBook'd state.log (stable mmap address)
-    char  head_path[1024];
-    char  head[256];
     Bu8cs past;           // sorted u8cs slices into paths (checkout portion)
     Bu8cs data;           // unsorted u8cs slices (post-checkout new paths)
     Bu32  sorted;         // merged sorted index (for POST/DEL)
@@ -136,17 +134,6 @@ u64 SNIFFGet(sniff const *s, u8 type, u32 index);
 //  Compact: rewrite paths.log sorted, state.log with paired entries.
 //  Rebuilds past/data arrays.  Called after checkout.
 ok64 SNIFFCompact(sniff *s);
-
-//  Read HEAD into out (ref name or hex SHA).  Points into s->head.
-//  Empty slice if no HEAD.
-fun void SNIFFHead(u8csp out, sniff const *s) {
-    size_t len = strlen(s->head);
-    out[0] = (u8cp)s->head;
-    out[1] = (u8cp)s->head + len;
-}
-
-//  Write HEAD.  val is either "refs/heads/main" or 40-char hex.
-ok64 SNIFFSetHead(sniff *s, u8cs val);
 
 // --- Parent-commit helpers (shared by POST/DEL/COM) ---
 

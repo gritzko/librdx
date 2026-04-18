@@ -424,12 +424,12 @@ static ok64 home_cfg_cb(u8 tag, u8cs tok, void *ctx) {
     return OK;
 }
 
-ok64 HOMEAuthority(home *h, u8s out) {
+ok64 HOMEHost(home *h, u8s out) {
     sane(h != NULL && $ok(out));
     a_cstr(user_s, "user");
-    a_cstr(auth_s, "authority");
+    a_cstr(host_s, "host");
     a_cstr(mail_s, "email");
-    a_path(needle, user_s, auth_s);
+    a_path(needle, user_s, host_s);
     ok64 o = HOMEGetConfig(h, out, $path(needle));
     if (o == OK) done;
     if (o != NOCONF) return o;

@@ -148,30 +148,6 @@ ok64 SNIFFOpen(sniff *s, home *h, b8 rw) {
     a_path(dir, reporoot, dogs, sniffdir);
     if (rw) call(FILEMakeDirP, $path(dir));
 
-    {
-        a_cstr(hf, "HEAD");
-        a_path(hp, reporoot, dogs, sniffdir, hf);
-        size_t len = u8bDataLen(hp);
-        if (len >= sizeof(s->head_path)) len = sizeof(s->head_path) - 1;
-        memcpy(s->head_path, u8bDataHead(hp), len);
-        s->head_path[len] = 0;
-
-        //  Load HEAD contents if the file exists.  Without this,
-        //  every new session starts with an empty s->head and
-        //  POSTCommit can't find its parent commit.
-        FILE *hfp = fopen(s->head_path, "r");
-        if (hfp) {
-            size_t n = fread(s->head, 1, sizeof(s->head) - 1, hfp);
-            fclose(hfp);
-            // Strip trailing newline(s).
-            while (n > 0 && (s->head[n - 1] == '\n' ||
-                              s->head[n - 1] == '\r' ||
-                              s->head[n - 1] == ' '))
-                n--;
-            s->head[n] = 0;
-        }
-    }
-
     //  Locate actual data end in a mmap-booked file.  FILEBook maps
     //  up to the next page boundary and zero-fills the tail past EOF;
     //  we must skip that padding so the next session's writes don't
@@ -497,21 +473,6 @@ ok64 SNIFFCompact(sniff *s) {
 
     u8bFree(ent_mem);
     u8bFree(str_mem);
-    done;
-}
-
-// --- SetHead ---
-
-ok64 SNIFFSetHead(sniff *s, u8cs val) {
-    sane(s);
-    size_t len = $len(val);
-    if (len >= sizeof(s->head)) len = sizeof(s->head) - 1;
-    memcpy(s->head, val[0], len);
-    s->head[len] = 0;
-    FILE *hf = fopen(s->head_path, "w");
-    if (!hf) fail(SNIFFFAIL);
-    fprintf(hf, "%s\n", s->head);
-    fclose(hf);
     done;
 }
 

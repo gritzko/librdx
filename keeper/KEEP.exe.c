@@ -389,28 +389,22 @@ static ok64 keeper_post(keeper *k, cli *c) {
     b8 has_remote = g && !u8csEmpty(g->host);
     a_path(keepdir, u8bDataC(k->h->root), KEEP_DIR_S);
 
-    // 1. Resolve local HEAD → parent commit SHA (40 hex).  Build the
-    // canonical key `//<auth>?HEAD` (matches DOGCanonURIKey output);
-    // falls back to bare `?HEAD` if no config identity.
-    a_pad(u8, hkbuf, 256);
+    // 1. Resolve parent commit via the worktree's file:/// key.  That
+    //    ref is appended by `sniff post` and by `keeper get` (fresh
+    //    checkout) — see REF.md.  Value is `?<40-hex>`.
+    a_pad(u8, wtkey, 1280);
     {
-        a_pad(u8, ab, 256);
-        u8s asink = {ab[0], ab[3]};
-        if (HOMEAuthority(k->h, asink) == OK) {
-            a_cstr(slashes, "//");
-            u8cs a = {ab[0], asink[0]};
-            u8bFeed(hkbuf, slashes);
-            u8bFeed(hkbuf, a);
-        }
-        a_cstr(qh, "?HEAD");
-        u8bFeed(hkbuf, qh);
+        a_cstr(scheme, "file://");
+        u8bFeed(wtkey, scheme);
+        u8bFeed(wtkey, u8bDataC(k->h->root));
     }
-    a_dup(u8c, q_head, u8bData(hkbuf));
+    a_dup(u8c, wt_key, u8bData(wtkey));
     a_pad(u8, arena, 256);
     uri resolved = {};
-    ok64 ro = REFSResolve(&resolved, arena, $path(keepdir), q_head);
+    ok64 ro = REFSResolve(&resolved, arena, $path(keepdir), wt_key);
     if (ro != OK || $len(resolved.query) != 40) {
-        fprintf(stderr, "keeper: post: HEAD not set (do `keeper get` first)\n");
+        fprintf(stderr,
+            "keeper: post: worktree commit not set (do `keeper get` first)\n");
         return KEEPFAIL;
     }
     u8 old_hex[40];
@@ -501,14 +495,13 @@ static ok64 keeper_post(keeper *k, cli *c) {
         u8bFree(com);
     }
 
-    // 6. Record the new HEAD locally: ?master → ?<new>.
-    a_cstr(k_master, "?master");
+    // 6. Advance the worktree's file:/// ref to the new commit.
     a_pad(u8, vbuf, 64);
     u8bFeed1(vbuf, '?');
     u8cs new_s = {new_hex.data, new_hex.data + 40};
     u8bFeed(vbuf, new_s);
     a_dup(u8c, v, u8bData(vbuf));
-    REFSAppend($path(keepdir), k_master, v);
+    REFSAppend($path(keepdir), wt_key, v);
 
     fprintf(stdout, "keeper: post %.12s → %.12s\n",
             (char *)old_hex, new_hex.data);

@@ -22,12 +22,19 @@ trap 'rm -rf "$TMP"' EXIT INT TERM
 fail() { echo "FAIL: $*" >&2; exit 1; }
 note() { echo "  - $*"; }
 
+# Current commit of the worktree at $1 = last SHA in keeper refs
+# keyed by `file:///<abs-path>`.
+head_hex_of() {
+    awk -v p="file://$1" -F'\t' '$2==p {sha=$3} END {gsub(/^\?/,"",sha); print sha}' \
+        "$1/.dogs/keeper/refs"
+}
+
 # --- 1. primary ------------------------------------------------------
 echo "=== 1. primary: seed commit ==="
 PRIM="$TMP/prim"; mkdir -p "$PRIM"; cd "$PRIM"
 echo hello > README
 "$BE" post --seq -m "seed" >/dev/null
-SEED_HEAD=$(cat "$PRIM/.dogs/sniff/HEAD")
+SEED_HEAD=$(head_hex_of "$PRIM")
 [ -n "$SEED_HEAD" ] || fail "primary HEAD empty after post"
 note "primary HEAD=$SEED_HEAD"
 for d in keeper graf spot sniff; do
@@ -69,7 +76,7 @@ echo goodbye > CHANGES
 "$BE" delete --seq README >/dev/null
 "$BE" post --seq -m "worktree edit" >/dev/null
 
-WT_HEAD=$(cat "$WT/.dogs/sniff/HEAD")
+WT_HEAD=$(head_hex_of "$WT")
 [ -n "$WT_HEAD" ] || fail "worktree HEAD empty after post"
 [ "$WT_HEAD" != "$SEED_HEAD" ] || fail "worktree HEAD did not advance"
 note "worktree HEAD=$WT_HEAD"
@@ -80,10 +87,11 @@ cd "$PRIM" && "$KEEPER" verify ".#$WT_HEAD" 2>&1 | grep -q '0 failed' \
 cd "$WT"
 note "new commit in shared keeper"
 
-# Primary's sniff HEAD is unchanged (per-worktree).
-PRIM_HEAD=$(cat "$PRIM/.dogs/sniff/HEAD")
+# Primary's worktree entry is unchanged (each worktree's file:// key
+# is distinct so they don't collide).
+PRIM_HEAD=$(head_hex_of "$PRIM")
 [ "$PRIM_HEAD" = "$SEED_HEAD" ] \
-    || fail "primary sniff HEAD moved ($PRIM_HEAD, was $SEED_HEAD)"
-note "primary sniff HEAD still at seed (per-worktree HEAD respected)"
+    || fail "primary HEAD moved ($PRIM_HEAD, was $SEED_HEAD)"
+note "primary HEAD still at seed (per-worktree ref respected)"
 
 echo "=== worktree OK ==="

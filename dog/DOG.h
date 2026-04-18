@@ -15,6 +15,10 @@
 //      path has no leading slash (i.e. the text is `word:path...`
 //      rather than `proto://host/path`), treat the scheme as a
 //      remote alias: move scheme → authority.
+//   3. Non-numeric "ports" (`ssh://host:src/...` — `src` isn't a
+//      port) get glued back onto the front of the path.
+//   4. If the path's head-segment contains `@` (`user@host/rest`),
+//      promote that prefix to authority/host/user.
 //
 // Rationale: users routinely type `localhost:src/git/protocol.h`
 // or `origin:docs/README.md`.  Per RFC 3986 this parses as
@@ -24,6 +28,12 @@
 //
 // True URIs with protocol schemes (`https://`, `file:///`) are
 // unaffected — they have leading-`/` paths or populated authority.
+//
+// Path convention for remote transports (ssh/https/etc.): the
+// path is always treated as **relative to the user's home on the
+// remote**.  `ssh://host:src/repo` means `~/src/repo` on `host`.
+// No `~` expansion in the grammar; no `/absolute/path` escape.
+// Absolute local paths must use `file:///abs/path`.
 ok64 DOGParseURI(urip uri, u8csc text);
 
 // Canonicalise a parsed URI for ref-key comparison: feed

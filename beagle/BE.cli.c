@@ -9,6 +9,7 @@
 #include "abc/PATH.h"
 #include "abc/PRO.h"
 #include "dog/HOME.h"
+#include "keeper/REFS.h"
 
 // Distinct codes so the MAIN-wrapper's `Error: <code>` line tells you
 // what kind of failure stopped the pipeline — a dog exited non-zero
@@ -200,27 +201,25 @@ static ok64 BEGetWorktree(uri *u) {
     fprintf(stderr, "be: worktree from %.*s\n",
             (int)$len(u->path), (char *)u->path[0]);
 
-    // Read primary's current HEAD (sniff/HEAD is a 40-hex commit SHA
-    // of the default branch — keeper REFS doesn't yet track it under
-    // a symbolic name for local commits, so address the commit
-    // directly).  Rewrite this URI to "?<sha>" so downstream sniff
-    // checks out that commit in the worktree.
-    a_cstr(sniff_head, "sniff/HEAD");
-    a_path(head_path, $path(prim_dogs), sniff_head);
-    u8bp head_map = NULL;
-    if (FILEMapRO(&head_map, $path(head_path)) != OK) done;
-    u8cs head_data = {u8bDataHead(head_map), u8bIdleHead(head_map)};
-    // Trim whitespace
-    while (!u8csEmpty(head_data)) {
-        u8 c = *(head_data[1] - 1);
-        if (c != '\n' && c != '\r' && c != ' ' && c != '\t') break;
-        head_data[1]--;
-    }
-    if (u8csLen(head_data) < 40) { FILEUnMap(head_map); done; }
+    // Resolve the primary's current commit via keeper refs keyed by
+    // `file://<primary-abs-path>` (set by `sniff post` / `keeper get`).
+    // Rewrite this URI to "?<sha>" so downstream sniff checks out
+    // that commit in the worktree.
+    a_cstr(keeper_name, "keeper");
+    a_path(keepdir, $path(prim_dogs), keeper_name);
+    a_pad(u8, key_buf, 1280);
+    a_cstr(scheme, "file://");
+    u8bFeed(key_buf, scheme);
+    u8bFeed(key_buf, prim_s);
+    a_dup(u8c, key_slice, u8bData(key_buf));
+    a_pad(u8, arena_buf, 256);
+    uri resolved = {};
+    if (REFSResolve(&resolved, arena_buf, $path(keepdir), key_slice) != OK)
+        done;
+    if ($len(resolved.query) < 40) done;
     wt_uri_text[0] = '?';
-    for (int i = 0; i < 40; i++) wt_uri_text[1 + i] = head_data[0][i];
+    for (int i = 0; i < 40; i++) wt_uri_text[1 + i] = resolved.query[0][i];
     wt_uri_text[41] = 0;
-    FILEUnMap(head_map);
 
     u->data[0]      = wt_uri_text;
     u->data[1]      = wt_uri_text + 41;

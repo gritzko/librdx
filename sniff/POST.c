@@ -63,12 +63,32 @@ static ok64 POSTParentSha(sha1 *out, keeper *k, u8cs parent_hex) {
     done;
 }
 
-// Resolve current HEAD to a commit's tree hashlet.  Returns 0 if
-// HEAD is unset or does not resolve to a commit.
-static u64 post_head_tree_hashlet(sniff *s, keeper *k) {
-    u8cs head = {};
-    SNIFFHead(head, s);
-    if ($empty(head)) return 0;
+// Resolve the worktree's current commit (parent for a new commit) via
+// keeper refs keyed by file:///<reporoot>.  Writes up to 40 hex bytes
+// into out_hex[0..40].  Returns NO if no such ref or the value isn't
+// a 40-char SHA.
+static b8 post_parent_hex(u8 *out_hex, keeper *k, u8cs reporoot) {
+    a_path(keepdir, u8bDataC(k->h->root), KEEP_DIR_S);
+    a_pad(u8, wtbuf, 1280);
+    a_cstr(scheme, "file://");
+    u8bFeed(wtbuf, scheme);
+    u8bFeed(wtbuf, reporoot);
+    a_dup(u8c, wt_key, u8bData(wtbuf));
+    a_pad(u8, arena, 256);
+    uri resolved = {};
+    if (REFSResolve(&resolved, arena, $path(keepdir), wt_key) != OK)
+        return NO;
+    if ($len(resolved.query) != 40) return NO;
+    memcpy(out_hex, resolved.query[0], 40);
+    return YES;
+}
+
+// Resolve parent commit's tree hashlet for staging.  Returns 0 if
+// there's no parent (root commit) or resolution fails.
+static u64 post_parent_tree_hashlet(keeper *k, u8cs reporoot) {
+    u8 hex[40] = {};
+    if (!post_parent_hex(hex, k, reporoot)) return 0;
+    u8cs head = {hex, hex + 40};
     sha1 tree_sha = {};
     if (SNIFFParentTreeSha(&tree_sha, k, head) != OK) return 0;
     return WHIFFHashlet40(&tree_sha);
@@ -84,7 +104,7 @@ ok64 POSTCommit(sniff *s, keeper *k, u8cs reporoot,
     call(KEEPPackOpen, k, &p);
 
     u64 base = SNIFFBaseTree(s);
-    u64 head_tree = post_head_tree_hashlet(s, k);
+    u64 head_tree = post_parent_tree_hashlet(k, reporoot);
 
     // The tree SHA for the commit body.  Obtained either from the
     // auto-stage return (fresh tree we just packed, not yet indexed
@@ -130,13 +150,14 @@ ok64 POSTCommit(sniff *s, keeper *k, u8cs reporoot,
         call(KEEPPackOpen, k, &p);
     }
 
-    // Resolve parent (current HEAD).  Missing HEAD = root commit.
+    // Resolve parent commit via the worktree's file:/// ref.  Missing
+    // means a root commit.
     sha1 parent_sha = {};
     b8 has_parent = NO;
     {
-        u8cs head = {};
-        SNIFFHead(head, s);
-        if (!$empty(head)) {
+        u8 hex[40] = {};
+        if (post_parent_hex(hex, k, reporoot)) {
+            u8cs head = {hex, hex + 40};
             ok64 po = POSTParentSha(&parent_sha, k, head);
             if (po == OK) has_parent = YES;
         }
@@ -194,14 +215,10 @@ ok64 POSTCommit(sniff *s, keeper *k, u8cs reporoot,
     u8cs osha = {sha_out->data, sha_out->data + GIT_SHA1_LEN};
     HEXu8sFeedSome(out_hex_idle, osha);
 
-    // Update HEAD to new commit
-    u8cs new_hex = {u8bDataHead(out_hex), out_hex[2]};
-    SNIFFSetHead(s, new_hex);
-
-    //  Publish a ref in keeper so downstream tools (graf-dag) have a
-    //  tip to walk from.  Key is the worktree's file:/// URI — same
-    //  convention used by GETCheckout — value is "?<sha>" so graf's
-    //  ref-parser picks it up as a SHA tip.
+    //  Record the worktree's new commit in keeper refs.  Key is the
+    //  worktree's file:/// URI; value is `?<sha>`.  Downstream tools
+    //  (graf-dag) and subsequent `sniff post`/`keeper post` pick up
+    //  the parent from here.
     {
         a_path(keepdir, u8bDataC(k->h->root), KEEP_DIR_S);
         a_pad(u8, from_uri, 1280);

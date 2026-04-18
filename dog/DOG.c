@@ -87,7 +87,21 @@ ok64 DOGParseURI(urip uri, u8csc text) {
 
 ok64 DOGCanonURIKey(u8bp out, urip u, b8 with_query) {
     sane(out != NULL && u != NULL);
-    if (!u8csEmpty(u->authority) || !u8csEmpty(u->host)) {
+    // Preserve `file:` — absolute local paths are ambiguous without
+    // it (`/etc/x` could be a filesystem path or a key-prefix).
+    // Transport schemes (ssh, https, git) are fungible and dropped.
+    b8 is_file = NO;
+    if (!u8csEmpty(u->scheme) && $len(u->scheme) == 4 &&
+        memcmp(u->scheme[0], "file", 4) == 0)
+        is_file = YES;
+    if (is_file) {
+        a_cstr(filepfx, "file://");
+        u8bFeed(out, filepfx);
+        if (!u8csEmpty(u->path)) {
+            if ($at(u->path, 0) != '/') u8bFeed1(out, '/');
+            u8bFeed(out, u->path);
+        }
+    } else if (!u8csEmpty(u->authority) || !u8csEmpty(u->host)) {
         a_cstr(slashes, "//");
         u8bFeed(out, slashes);
         u8cs auth = {u->authority[0], u->authority[1]};

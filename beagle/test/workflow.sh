@@ -28,7 +28,10 @@ want_file() {
 }
 want_missing() { [ ! -e "$1" ] || fail "$1 should be gone"; }
 
-head_hex() { cat .dogs/sniff/HEAD; }
+head_hex() {
+    awk -v p="file://$PWD" -F'\t' '$2==p {sha=$3} END {gsub(/^\?/,"",sha); print sha}' \
+        .dogs/keeper/refs
+}
 
 # ------------------------------------------------------------------
 # Scenario 1: be post on a fresh dir auto-stages the single file

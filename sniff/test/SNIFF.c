@@ -13,6 +13,7 @@
 #include "abc/PATH.h"
 #include "abc/PRO.h"
 #include "abc/TEST.h"
+#include "keeper/REFS.h"
 #include "keeper/SHA1.h"
 
 // --- Helpers ---
@@ -477,13 +478,19 @@ ok64 SNIFFRoundTrip() {
     call(check_file, root, "c.txt", "charlie\n");
     fprintf(stderr, "  get: initial checkout OK\n");
 
-    // Verify HEAD is set to commit 1 hex
+    // Worktree's commit recorded in keeper refs.
     {
-        u8cs head = {};
-        SNIFFHead(head, &s);
-        want(!$empty(head));
-        want($len(head) == $len(c1h));
-        want(memcmp(head[0], c1h[0], $len(c1h)) == 0);
+        a_path(keepdir, u8bDataC(h.root), KEEP_DIR_S);
+        a_pad(u8, wtbuf, 1280);
+        a_cstr(scheme, "file://");
+        u8bFeed(wtbuf, scheme);
+        u8bFeed(wtbuf, root);
+        a_dup(u8c, wt_key, u8bData(wtbuf));
+        a_pad(u8, arena, 256);
+        uri resolved = {};
+        call(REFSResolve, &resolved, arena, $path(keepdir), wt_key);
+        want($len(resolved.query) == 40);
+        want(memcmp(resolved.query[0], c1h[0], 40) == 0);
     }
 
     // 3. Modify a.txt, add d.txt
@@ -528,13 +535,19 @@ ok64 SNIFFRoundTrip() {
     u8cs c2h = {u8bDataHead(c2_hex), u8bIdleHead(c2_hex)};
     fprintf(stderr, "  put: commit 2 OK\n");
 
-    // Verify HEAD updated to commit 2
+    // Worktree's commit advanced to commit 2.
     {
-        u8cs head = {};
-        SNIFFHead(head, &s);
-        want(!$empty(head));
-        want($len(head) == $len(c2h));
-        want(memcmp(head[0], c2h[0], $len(c2h)) == 0);
+        a_path(keepdir, u8bDataC(h.root), KEEP_DIR_S);
+        a_pad(u8, wtbuf, 1280);
+        a_cstr(scheme, "file://");
+        u8bFeed(wtbuf, scheme);
+        u8bFeed(wtbuf, root);
+        a_dup(u8c, wt_key, u8bData(wtbuf));
+        a_pad(u8, arena, 256);
+        uri resolved = {};
+        call(REFSResolve, &resolved, arena, $path(keepdir), wt_key);
+        want($len(resolved.query) == 40);
+        want(memcmp(resolved.query[0], c2h[0], 40) == 0);
     }
 
     // 5. Wipe sniff state + worktree, re-checkout commit 2 cleanly
