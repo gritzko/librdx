@@ -383,128 +383,121 @@ static ok64 post_extract_tree_hex(u8 *out40, u8csc body) {
     return OK;
 }
 
+//  Push the current worktree commit to a remote.  Nothing is staged
+//  locally (sniff already committed if anything was).  Flow:
+//    1. Resolve `file:///<root>` → `?<new-sha>` (current commit).
+//    2. Determine target branch from URI query (`?main`), falling
+//       back to whatever the fetch originally recorded for this
+//       worktree.
+//    3. Resolve `//host/path?heads/<branch>` → `?<old-sha>` (remote's
+//       current SHA as we last saw it).  Defaults to 40 zeros (create).
+//    4. Load the commit object bytes from keeper's store.
+//    5. git-receive-pack: push old → new over ssh.
+//    6. On success, advance `//host/path?heads/<branch>` locally.
+//  No URI → this verb is a no-op (sniff already wrote the commit).
 static ok64 keeper_post(keeper *k, cli *c) {
     sane(k && c);
     uri *g = (c->nuris > 0) ? &c->uris[0] : NULL;
-    b8 has_remote = g && !u8csEmpty(g->host);
+    if (!g || u8csEmpty(g->host)) {
+        fprintf(stderr, "keeper: post needs a remote URI "
+                        "(ssh://host/path[?branch])\n");
+        return KEEPFAIL;
+    }
     a_path(keepdir, u8bDataC(k->h->root), KEEP_DIR_S);
 
-    // 1. Resolve parent commit via the worktree's file:/// key.  That
-    //    ref is appended by `sniff post` and by `keeper get` (fresh
-    //    checkout) — see REF.md.  Value is `?<40-hex>`.
+    // 1. Current worktree commit.
     a_pad(u8, wtkey, 1280);
-    {
-        a_cstr(scheme, "file://");
-        u8bFeed(wtkey, scheme);
-        u8bFeed(wtkey, u8bDataC(k->h->root));
-    }
+    a_cstr(file_scheme, "file://");
+    u8bFeed(wtkey, file_scheme);
+    u8bFeed(wtkey, u8bDataC(k->h->root));
     a_dup(u8c, wt_key, u8bData(wtkey));
-    a_pad(u8, arena, 256);
-    uri resolved = {};
-    ok64 ro = REFSResolve(&resolved, arena, $path(keepdir), wt_key);
-    if (ro != OK || $len(resolved.query) != 40) {
-        fprintf(stderr,
-            "keeper: post: worktree commit not set (do `keeper get` first)\n");
+    a_pad(u8, arena_wt, 256);
+    uri wt_res = {};
+    if (REFSResolve(&wt_res, arena_wt, $path(keepdir), wt_key) != OK ||
+        $len(wt_res.query) != 40) {
+        fprintf(stderr, "keeper: post: worktree commit not set\n");
         return KEEPFAIL;
     }
-    u8 old_hex[40];
-    memcpy(old_hex, resolved.query[0], 40);
+    u8 new_hex[40];
+    memcpy(new_hex, wt_res.query[0], 40);
 
-    // 2. Read parent commit from local store; pull tree SHA out of it.
-    u8cs old_cs = {old_hex, old_hex + 40};
-    u64 hashlet = WHIFFHexHashlet60(old_cs);
-    Bu8 pbuf = {};
-    call(u8bMap, pbuf, 1UL << 20);
-    u8 ptype = 0;
-    ok64 go = KEEPGet(k, hashlet, 15, pbuf, &ptype);
-    if (go != OK || ptype != KEEP_OBJ_COMMIT) {
-        u8bUnMap(pbuf);
-        fprintf(stderr, "keeper: post: parent commit not in store\n");
+    // 2. Target branch must come from the URI (`?branch` or `?heads/X`).
+    //    No default — explicit branches avoid accidental pushes.
+    if (u8csEmpty(g->query)) {
+        fprintf(stderr, "keeper: post needs ?branch in the URI "
+                        "(e.g. ssh://host/path?main)\n");
         return KEEPFAIL;
     }
-    u8 tree_hex[40];
+    a_pad(u8, branch_buf, 256);
     {
-        a_dup(u8c, body, u8bData(pbuf));
-        ok64 eo = post_extract_tree_hex(tree_hex, body);
-        u8bUnMap(pbuf);
-        if (eo != OK) {
-            fprintf(stderr, "keeper: post: can't find tree in parent\n");
-            return eo;
-        }
+        u8cs q = {g->query[0], g->query[1]};
+        a_cstr(heads_pfx, "heads/");
+        if ($len(q) > 6 && memcmp(q[0], heads_pfx[0], 6) == 0)
+            u8csUsed(q, 6);
+        u8bFeed(branch_buf, q);
+    }
+    a_dup(u8c, branch, u8bData(branch_buf));
+
+    // 3. Remote's current SHA for that branch (40 zeros = new branch).
+    a_pad(u8, rkey, 1280);
+    call(DOGCanonURIKey, rkey, g, NO);
+    u8bFeed1(rkey, '?');
+    a_cstr(heads_pfx2, "heads/");
+    u8bFeed(rkey, heads_pfx2);
+    u8bFeed(rkey, branch);
+    a_dup(u8c, remote_key, u8bData(rkey));
+    u8 old_hex[40];
+    memset(old_hex, '0', 40);
+    a_pad(u8, arena_r, 256);
+    uri r_res = {};
+    if (REFSResolve(&r_res, arena_r, $path(keepdir), remote_key) == OK &&
+        $len(r_res.query) == 40) {
+        memcpy(old_hex, r_res.query[0], 40);
     }
 
-    // 3. Build the new commit body.  Same tree as parent → an empty-diff
-    //    commit; enough to demonstrate the push handshake end-to-end.
-    Bu8 com = {};
-    call(u8bAllocate, com, 4096);
-    a_cstr(tree_label, "tree ");
-    u8bFeed(com, tree_label);
-    u8csc tree_s = {tree_hex, tree_hex + 40};
-    u8bFeed(com, tree_s);
-    u8bFeed1(com, '\n');
-    a_cstr(par_label, "parent ");
-    u8bFeed(com, par_label);
-    u8csc old_s = {old_hex, old_hex + 40};
-    u8bFeed(com, old_s);
-    u8bFeed1(com, '\n');
-
-    char who[256];
-    int wlen = snprintf(who, sizeof(who),
-        "keeper <keeper@localhost> %lld +0000\n", (long long)time(NULL));
-    u8csc who_cs = {(u8cp)who, (u8cp)who + wlen};
-    a_cstr(auth_label, "author ");
-    u8bFeed(com, auth_label);
-    u8bFeed(com, who_cs);
-    a_cstr(comm_label, "committer ");
-    u8bFeed(com, comm_label);
-    u8bFeed(com, who_cs);
-    u8bFeed1(com, '\n');
-    a_cstr(msg, "keeper post\n");
-    u8bFeed(com, msg);
-
-    u8csc com_data = {u8bDataHead(com), u8bIdleHead(com)};
-
-    // 4. Store the new commit locally.
-    keep_pack pk = {};
-    ok64 po = KEEPPackOpen(k, &pk);
-    if (po != OK) { u8bFree(com); return po; }
-    sha1 new_sha = {};
-    ok64 fo = KEEPPackFeed(k, &pk, KEEP_OBJ_COMMIT, com_data, &new_sha);
-    if (fo != OK) { KEEPPackClose(k, &pk); u8bFree(com); return fo; }
-    po = KEEPPackClose(k, &pk);
-    if (po != OK) { u8bFree(com); return po; }
-
-    sha1hex new_hex = {};
-    sha1hexFromSha1(&new_hex, &new_sha);
-
-    // 5. Push via git-receive-pack to refs/heads/master — only when
-    //    the URI has a host.  Bare `keeper post` (no URI, or a URI
-    //    without an authority) just commits locally.
-    if (has_remote) {
-        u8cs rhost = {}, rpath = {};
-        u8bp rmap = NULL;
-        post_resolve_remote(k, g, rhost, rpath, &rmap);
-        u8csc old_hex_cs = {old_hex, old_hex + 40};
-        u8csc new_hex_cs = {new_hex.data, new_hex.data + 40};
-        ok64 pu = KEEPPush(k, rhost, rpath, "refs/heads/master",
-                           old_hex_cs, new_hex_cs, com_data);
-        if (rmap) u8bUnMap(rmap);
-        u8bFree(com);
-        if (pu != OK) return pu;
-    } else {
-        u8bFree(com);
+    // 4. Load the new commit's raw bytes from local store.
+    u8cs new_cs = {new_hex, new_hex + 40};
+    u64 new_hashlet = WHIFFHexHashlet60(new_cs);
+    Bu8 cbuf = {};
+    call(u8bMap, cbuf, 1UL << 20);
+    u8 ctype = 0;
+    if (KEEPGet(k, new_hashlet, 15, cbuf, &ctype) != OK ||
+        ctype != KEEP_OBJ_COMMIT) {
+        u8bUnMap(cbuf);
+        fprintf(stderr, "keeper: post: commit %.12s not in store\n",
+                (char *)new_hex);
+        return KEEPFAIL;
     }
+    u8csc com_data = {u8bDataHead(cbuf), u8bIdleHead(cbuf)};
 
-    // 6. Advance the worktree's file:/// ref to the new commit.
+    // 5. git-receive-pack push.
+    u8cs rhost = {}, rpath = {};
+    u8bp rmap = NULL;
+    post_resolve_remote(k, g, rhost, rpath, &rmap);
+    a_pad(u8, refname_buf, 280);
+    a_cstr(refs_heads, "refs/heads/");
+    u8bFeed(refname_buf, refs_heads);
+    u8bFeed(refname_buf, branch);
+    u8bFeed1(refname_buf, 0);
+    u8csc old_hex_cs = {old_hex, old_hex + 40};
+    u8csc new_hex_cs = {new_hex, new_hex + 40};
+    ok64 pu = KEEPPush(k, rhost, rpath,
+                       (char const *)u8bDataHead(refname_buf),
+                       old_hex_cs, new_hex_cs, com_data);
+    u8bUnMap(cbuf);
+    if (rmap) u8bUnMap(rmap);
+    if (pu != OK) return pu;
+
+    // 6. Advance local //host/path?heads/<branch> → ?<new-sha>.
     a_pad(u8, vbuf, 64);
     u8bFeed1(vbuf, '?');
-    u8cs new_s = {new_hex.data, new_hex.data + 40};
-    u8bFeed(vbuf, new_s);
+    u8bFeed(vbuf, new_cs);
     a_dup(u8c, v, u8bData(vbuf));
-    REFSAppend($path(keepdir), wt_key, v);
+    REFSAppend($path(keepdir), remote_key, v);
 
-    fprintf(stdout, "keeper: post %.12s → %.12s\n",
-            (char *)old_hex, new_hex.data);
+    fprintf(stdout, "keeper: pushed %.12s → %.12s on %.*s\n",
+            (char *)old_hex, (char *)new_hex,
+            (int)$len(branch), (char *)branch[0]);
     done;
 }
 

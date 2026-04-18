@@ -43,7 +43,12 @@ static ok64 write_loose(char const *gitdir,
     sane(gitdir && objdata);
 
     u8 sha[20];
-    SHA1Sum(sha, objdata, objlen);
+    {
+        sha1 s = {};
+        u8csc src = {objdata, objdata + objlen};
+        SHA1Sum(&s, src);
+        memcpy(sha, s.data, 20);
+    }
 
     u8 hex[40];
     u8s hexs = {hex, hex + 40};

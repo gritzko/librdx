@@ -2208,10 +2208,92 @@ static ok64 keep_push_write_all(int fd, u8csc data) {
     return OK;
 }
 
+// Recursively collect tree + blob SHAs reachable from `tree_sha`
+// into `out` (capacity `cap`).  Inflates each tree via KEEPGet and
+// walks its entries.  Returns count appended to *n.  Silent on fetch
+// failures — they manifest later when the pack is assembled.
+static ok64 keep_walk_tree(keeper *k, sha1 const *tree_sha,
+                           sha1 *out, u32 *n, u32 cap) {
+    sane(k && tree_sha && out && n);
+    if (*n >= cap) return KEEPFAIL;
+    out[(*n)++] = *tree_sha;
+
+    Bu8 tbuf = {};
+    call(u8bMap, tbuf, 1UL << 20);
+    u8 ttype = 0;
+    if (KEEPGetExact(k, tree_sha, tbuf, &ttype) != OK ||
+        ttype != KEEP_OBJ_TREE) {
+        u8bUnMap(tbuf);
+        done;
+    }
+    u8cs tree_body = {u8bDataHead(tbuf), u8bIdleHead(tbuf)};
+    u8cs walk = {tree_body[0], tree_body[1]};
+    u8cs file = {}, sha = {};
+    while (GITu8sDrainTree(walk, file, sha) == OK) {
+        if ($len(sha) != 20) continue;
+        u8 mode_buf[8] = {};
+        size_t mlen = 0;
+        while (mlen < 7 && mlen < $len(file) && file[0][mlen] != ' ') {
+            mode_buf[mlen] = file[0][mlen];
+            mlen++;
+        }
+        b8 is_tree = (mlen >= 5 && mode_buf[0] == '4' &&
+                      mode_buf[1] == '0');
+        b8 is_submodule = (mlen >= 6 && mode_buf[0] == '1' &&
+                           mode_buf[1] == '6' && mode_buf[2] == '0');
+        if (is_submodule) continue;
+        sha1 entry_sha = {};
+        memcpy(entry_sha.data, sha[0], 20);
+        if (is_tree) {
+            keep_walk_tree(k, &entry_sha, out, n, cap);
+        } else {
+            if (*n >= cap) break;
+            out[(*n)++] = entry_sha;
+        }
+    }
+    u8bUnMap(tbuf);
+    done;
+}
+
+// Collect commit + tree + blob SHAs reachable from `new_hex`.  Does not
+// follow parents (remote already has those).  Writes SHAs to `out[0..*n]`.
+static ok64 keep_walk_commit(keeper *k, u8csc new_hex,
+                             sha1 *out, u32 *n, u32 cap) {
+    sane(k && out && n && $len(new_hex) == 40);
+    *n = 0;
+    sha1 commit_sha = {};
+    {
+        a_raw(bin, commit_sha);
+        u8cs hex40 = {new_hex[0], new_hex[0] + 40};
+        if (HEXu8sDrainSome(bin, hex40) != OK) return KEEPFAIL;
+    }
+    if (*n >= cap) return KEEPFAIL;
+    out[(*n)++] = commit_sha;
+
+    Bu8 cbuf = {};
+    call(u8bMap, cbuf, 1UL << 20);
+    u8 ctype = 0;
+    if (KEEPGetExact(k, &commit_sha, cbuf, &ctype) != OK ||
+        ctype != KEEP_OBJ_COMMIT) {
+        u8bUnMap(cbuf);
+        return KEEPFAIL;
+    }
+    u8cs commit_body = {u8bDataHead(cbuf), u8bIdleHead(cbuf)};
+    sha1 tree_sha = {};
+    if (GITu8sCommitTree(commit_body, tree_sha.data) != OK) {
+        u8bUnMap(cbuf);
+        return KEEPFAIL;
+    }
+    u8bUnMap(cbuf);
+
+    return keep_walk_tree(k, &tree_sha, out, n, cap);
+}
+
 ok64 KEEPPush(keeper *k, u8csc host, u8csc path, char const *ref,
               u8csc old_hex, u8csc new_hex, u8csc commit_body) {
     sane(k && ref && $len(host) > 0 && $len(path) > 0 &&
          $len(old_hex) == 40 && $len(new_hex) == 40);
+    (void)commit_body;  // walker re-fetches from store; body arg kept for ABI
 
     fprintf(stderr, "keeper: connecting: ssh %.*s git-receive-pack %.*s\n",
             (int)$len(host), (char *)host[0],
@@ -2269,30 +2351,81 @@ ok64 KEEPPush(keeper *k, u8csc host, u8csc path, char const *ref,
         if (keep_push_write_all(wfd, written) != OK) goto push_fail;
     }
 
-    // Build a 1-object packfile and send it.
-    {
-        u64 clen = u8csLen(commit_body);
-        if (u8bAllocate(pack_b, 64 + clen + clen / 2 + 256) != OK)
-            goto push_fail;
+    // Walk the reachable set from new_hex (commit + all trees + blobs).
+    // Ignores parents (remote already has those) and submodule gitlinks.
+    #define PUSH_MAX_OBJS 65536
+    sha1 *walk_shas = calloc(PUSH_MAX_OBJS, sizeof(sha1));
+    if (!walk_shas) goto push_fail;
+    u32 nobjs = 0;
+    if (keep_walk_commit(k, new_hex, walk_shas, &nobjs, PUSH_MAX_OBJS)
+            != OK || nobjs == 0) {
+        free(walk_shas);
+        goto push_fail;
+    }
 
-        // PACK header: magic + version 2 + count 1
-        u8 hdr_bytes[12] = {'P','A','C','K', 0,0,0,2, 0,0,0,1};
+    // Build an N-object packfile (all fetched inline, one at a time).
+    {
+        // Generous upper bound: 64B header + 256B trailer + per-object
+        // ~32 bytes header + deflated size (<= raw size + small slack).
+        u64 est = 256;
+        // Probe sizes quickly via KEEPGetExact on the first few objects
+        // to avoid mapping 1 GB for a tiny push; fall back to 8 MB/obj.
+        Bu8 tmp = {};
+        call(u8bMap, tmp, 1UL << 20);
+        for (u32 i = 0; i < nobjs; i++) {
+            u8bReset(tmp);
+            u8 ot = 0;
+            if (KEEPGetExact(k, &walk_shas[i], tmp, &ot) == OK)
+                est += u8bDataLen(tmp) + 64;
+            else
+                est += 8UL << 20;
+        }
+        u8bUnMap(tmp);
+
+        if (u8bAllocate(pack_b, est + 4096) != OK) {
+            free(walk_shas);
+            goto push_fail;
+        }
+
+        // PACK header: magic + version 2 + nobjs
+        u8 hdr_bytes[12] = {'P','A','C','K', 0,0,0,2, 0,0,0,0};
+        hdr_bytes[8]  = (u8)((nobjs >> 24) & 0xff);
+        hdr_bytes[9]  = (u8)((nobjs >> 16) & 0xff);
+        hdr_bytes[10] = (u8)((nobjs >> 8)  & 0xff);
+        hdr_bytes[11] = (u8)(nobjs & 0xff);
         u8csc hdr_s = {hdr_bytes, hdr_bytes + 12};
         u8bFeed(pack_b, hdr_s);
 
-        // Varint object header: type=COMMIT, size=clen
-        {
+        // Each object: varint header (type+size) + deflated body.
+        for (u32 i = 0; i < nobjs; i++) {
+            Bu8 obuf = {};
+            if (u8bMap(obuf, 1UL << 24) != OK) {
+                free(walk_shas);
+                goto push_fail;
+            }
+            u8 otype = 0;
+            if (KEEPGetExact(k, &walk_shas[i], obuf, &otype) != OK) {
+                u8bUnMap(obuf);
+                free(walk_shas);
+                goto push_fail;
+            }
+            u64 olen = u8bDataLen(obuf);
+
             a_pad(u8, ohdr, 16);
-            keep_feed_obj_hdr(ohdr, KEEP_OBJ_COMMIT, clen);
+            keep_feed_obj_hdr(ohdr, otype, olen);
             a_dup(u8c, oh, u8bData(ohdr));
             u8bFeed(pack_b, oh);
+
+            a_dup(u8c, osrc, u8bData(obuf));
+            ok64 zo = ZINFDeflate(u8bIdle(pack_b), osrc);
+            u8bUnMap(obuf);
+            if (zo != OK) {
+                free(walk_shas);
+                goto push_fail;
+            }
         }
 
-        // Deflated commit body.  ZINFDeflate advances buf[2] (the
-        // data-tail border) in place, so DATA already grew by total_out
-        // — no extra u8bFed needed.
-        a_dup(u8c, csrc, commit_body);
-        if (ZINFDeflate(u8bIdle(pack_b), csrc) != OK) goto push_fail;
+        free(walk_shas);
 
         // 20-byte SHA-1 trailer over everything so far
         sha1 psha = {};

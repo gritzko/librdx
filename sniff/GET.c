@@ -270,8 +270,9 @@ ok64 GETCheckout(sniff *s, keeper *k, u8cs reporoot, u8cs hex,
         o = SNIFFCompact(s);
     }
     if (o == OK) {
-        // Record worktree → commit SHA mapping (and, if the caller
-        // named a branch/ref, a secondary entry pointing at that ref).
+        // Record worktree → ?<sha>.  Single terminal entry; the
+        // tracked branch, if any, is stored separately by keeper get
+        // under //<host>/<path>?heads/<branch>.
         a_path(keepdir, u8bDataC(k->h->root), KEEP_DIR_S);
         a_pad(u8, file_uri, 1280);
         a_cstr(scheme, "file://");
@@ -283,8 +284,7 @@ ok64 GETCheckout(sniff *s, keeper *k, u8cs reporoot, u8cs hex,
         u8bFeed(sha_val, hex);
         a_dup(u8c, sha_to, u8bData(sha_val));
         REFSAppend($path(keepdir), from, sha_to);
-        if (!$empty(source))
-            REFSAppend($path(keepdir), from, source);
+        (void)source;  // tracked-branch record comes from keeper get, not here
         fprintf(stderr, "sniff: checkout done\n");
     }
     return o;

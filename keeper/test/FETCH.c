@@ -24,7 +24,12 @@ static ok64 write_loose(u8cp outdir, u64 outdirlen,
     sane(outdir && objdata);
 
     u8 sha[20];
-    SHA1Sum(sha, objdata, objlen);
+    {
+        sha1 s = {};
+        u8csc src = {objdata, objdata + objlen};
+        SHA1Sum(&s, src);
+        memcpy(sha, s.data, 20);
+    }
 
     u8 hex[40];
     u8s hexs = {hex, hex + 40};
@@ -215,7 +220,12 @@ ok64 maintest() {
         want(o == OK);
 
         u8 sha[20];
-        SHA1Sum(sha, objbuf, total);
+        {
+            sha1 s = {};
+            u8csc src = {objbuf, objbuf + total};
+            SHA1Sum(&s, src);
+            memcpy(sha, s.data, 20);
+        }
         u8 shex[40];
         u8s ss = {shex, shex + 40};
         u8cs sb = {sha, sha + 20};

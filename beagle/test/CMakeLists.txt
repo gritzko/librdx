@@ -24,5 +24,15 @@ add_test(NAME BEworktree
 set_tests_properties(BEworktree PROPERTIES
     ENVIRONMENT "BIN=${DOG_BIN_DIR}")
 
+# roundtrip.sh — full git <-> be flow: seed origin, clone over ssh,
+# make a worktree, edit, commit, push, diff.  Requires ssh localhost.
+if (WITH_SSH)
+    add_test(NAME BEroundtrip
+        COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/roundtrip.sh
+        WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+    set_tests_properties(BEroundtrip PROPERTIES
+        ENVIRONMENT "BIN=${DOG_BIN_DIR}")
+endif()
+
 # clone-git.sh and mill-tags.sh are manual heavyweight integration
 # scripts (require $HOME/src/git + ssh localhost); run directly.

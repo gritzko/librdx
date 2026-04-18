@@ -252,12 +252,40 @@ ok64 REFSResolve(urip resolved, u8bp arena, u8csc dir, u8csc input) {
         cur[1] = u8bIdleHead(arena);
     }
 
-    // Second try: strip `refs/` from query — keeper stores entries
-    // under `?heads/foo` not `?refs/heads/foo`, but users may type
-    // either form.
+    // Second try: normalise the query to the form keeper stores
+    // (`?heads/<name>` or `?tags/<name>`).  Users may type `?refs/heads/x`
+    // (strip `refs/`), `?x` (try adding `heads/` and `tags/`), or
+    // already-normalised `?heads/x`.
     if (!u8csEmpty(u.authority) && !u8csEmpty(u.query)) {
-        a_cstr(refs_pfx, "refs/");
+        u8cs variants[3] = {};
+        u32 nv = 0;
+        a_cstr(refs_pfx,  "refs/");
+        a_cstr(heads_pfx, "heads/");
+        a_cstr(tags_pfx,  "tags/");
+        a_pad(u8, hbuf, 512);
+        a_pad(u8, tbuf, 512);
         if ($len(u.query) > 5 && memcmp(u.query[0], refs_pfx[0], 5) == 0) {
+            // `refs/x/y` → try `x/y` as-is
+            variants[nv][0] = u.query[0] + 5;
+            variants[nv][1] = u.query[1];
+            nv++;
+        } else if (($len(u.query) > 6 && memcmp(u.query[0], heads_pfx[0], 6) == 0) ||
+                   ($len(u.query) > 5 && memcmp(u.query[0], tags_pfx[0], 5) == 0)) {
+            // Already normalised — handled by direct-match above.
+        } else {
+            // Bare name — try `heads/<name>` and `tags/<name>`.
+            u8bFeed(hbuf, heads_pfx);
+            u8bFeed(hbuf, u.query);
+            variants[nv][0] = u8bDataHead(hbuf);
+            variants[nv][1] = u8bIdleHead(hbuf);
+            nv++;
+            u8bFeed(tbuf, tags_pfx);
+            u8bFeed(tbuf, u.query);
+            variants[nv][0] = u8bDataHead(tbuf);
+            variants[nv][1] = u8bIdleHead(tbuf);
+            nv++;
+        }
+        for (u32 vi = 0; vi < nv && u8csEmpty(resolved->query); vi++) {
             a_pad(u8, fkey, 1024);
             a_cstr(slashes, "//");
             u8bFeed(fkey, slashes);
@@ -267,8 +295,7 @@ ok64 REFSResolve(urip resolved, u8bp arena, u8csc dir, u8csc input) {
             u8bFeed(fkey, auth);
             if (!u8csEmpty(u.path)) u8bFeed(fkey, u.path);
             u8bFeed1(fkey, '?');
-            u8cs q = {u.query[0] + 5, u.query[1]};
-            u8bFeed(fkey, q);
+            u8bFeed(fkey, variants[vi]);
             a_dup(u8c, full_key, u8bData(fkey));
 
             for (u32 i = 0; i < n; i++) {
@@ -285,11 +312,11 @@ ok64 REFSResolve(urip resolved, u8bp arena, u8csc dir, u8csc input) {
                 }
                 break;
             }
-            if (!u8csEmpty(resolved->query)) {
-                free(arr);
-                if (map) u8bUnMap(map);
-                done;
-            }
+        }
+        if (!u8csEmpty(resolved->query)) {
+            free(arr);
+            if (map) u8bUnMap(map);
+            done;
         }
     }
 

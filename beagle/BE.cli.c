@@ -295,28 +295,31 @@ static ok64 BEDelete(cli *c, b8 seq) {
     return BEDispatch(c, steps, 3, seq);
 }
 
-//  `be post` commits the current base tree (updating HEAD) and asks
-//  keeper to push the new ref if the URI carries a remote authority.
+//  `be post`:
+//    -m <msg>  → sniff makes a local commit (always).
+//    <uri>     → keeper pushes the current commit to that remote.
+//  Bare `be post` with neither is a no-op shell; flags decide what runs.
 static ok64 BEPost(cli *c, b8 seq) {
     sane(c);
-    static dog_step const steps[] = {
-        {u8slit("sniff"),  u8slit("post"), NO},
-        {u8slit("keeper"), u8slit("put"),  NO},
-        {u8slit("spot"),   u8slit("get"),  NO},
-        {u8slit("graf"),   u8slit("get"),  YES},
-    };
-    //  No remote authority → just commit locally; skip the keeper push.
     uri *u = (c->nuris > 0) ? &c->uris[0] : NULL;
-    b8 local = (u == NULL || $empty(u->authority));
-    if (local) {
-        static dog_step const local_steps[] = {
-            {u8slit("sniff"),  u8slit("post"), NO},
-            {u8slit("spot"),   u8slit("get"),  NO},
-            {u8slit("graf"),   u8slit("get"),  YES},
-        };
-        return BEDispatch(c, local_steps, 3, seq);
+    b8 has_remote = (u != NULL && !u8csEmpty(u->authority));
+    a_cstr(mf, "-m");
+    b8 has_msg = NO;
+    for (u32 fi = 0; fi + 1 < c->nflags; fi += 2) {
+        if ($eq(c->flags[fi], mf)) { has_msg = YES; break; }
     }
-    return BEDispatch(c, steps, 4, seq);
+    dog_step steps[4];
+    u32 nsteps = 0;
+    if (has_msg) {
+        steps[nsteps++] = (dog_step){u8slit("sniff"),  u8slit("post"), NO};
+    }
+    if (has_remote) {
+        steps[nsteps++] = (dog_step){u8slit("keeper"), u8slit("post"), NO};
+    }
+    // Re-index: spot and graf always.
+    steps[nsteps++] = (dog_step){u8slit("spot"),  u8slit("get"),  NO};
+    steps[nsteps++] = (dog_step){u8slit("graf"),  u8slit("get"),  YES};
+    return BEDispatch(c, steps, nsteps, seq);
 }
 
 // --- Bare `be`: --update all dogs, then --status each ---
