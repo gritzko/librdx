@@ -124,10 +124,10 @@ ok64 CTBasicTest() {
     sane(1);
 
     TOK01Case cases[] = {
-        {"int x;", "RSSP"},
-        {"if (x)", "RSPSP"},
-        {"return 0;", "RSLP"},
-        {"// comment\n", "DDDDS"},
+        {"int x;", "RWSP"},
+        {"if (x)", "RWPSP"},
+        {"return 0;", "RWLP"},
+        {"// comment\n", "DDDDW"},
         {"/* block */", "DDDDDDD"},
         {"\"hello\"", "G"},
         {"'c'", "G"},
@@ -135,16 +135,15 @@ ok64 CTBasicTest() {
         {"3.14", "L"},
         {"0xff", "L"},
         {"0b101", "L"},
-        {"#include <stdio.h>", "HSPSPSP"},
-        {"int main(void) { return 0; }",
-         "RSSPRPSPSRSLPSP"},
-        {"a + b", "SSPSS"},
-        {"  \t\n", "S"},
+        {"#include <stdio.h>", "HWPSPSP"},
+        {"int main(void) { return 0; }", "RWSPRPWPWRWLPWP"},
+        {"a + b", "SWPWS"},
+        {"  \t\n", "W"},
         {"{}", "PP"},
         {"x=1;", "SPLP"},
-        {"while (i < n) {", "RSPSSPSSPSP"},
-        {"struct foo {", "RSSSP"},
-        {"#define X 1\n", "HSSSLS"},
+        {"while (i < n) {", "RWPSWPWSPWP"},
+        {"struct foo {", "RWSWP"},
+        {"#define X 1\n", "HWSWLW"},
         {"1e10", "L"},
         {"1.0f", "L"},
         {"100UL", "L"},
@@ -160,13 +159,13 @@ ok64 CTBasicTest() {
         {"'\\n'", "G"},
         {"'\\xff'", "G"},
         {"\"esc\\t\\n\"", "G"},
-        {"#define FOO \\\nbar", "HSSSPSS"},
+        {"#define FOO \\\nbar", "HWSWPWS"},
         {"// end", "DDDD"},
         {"a->b", "SPS"},
         {"a++", "SP"},
-        {"x <<= 1", "SSPSL"},
+        {"x <<= 1", "SWPWL"},
         {"...", "P"},
-        {"a != b", "SSPSS"},
+        {"a != b", "SWPWS"},
     };
     int ncases = sizeof(cases) / sizeof(cases[0]);
     RUN_CASES(CTLexer, CT, cases, ncases);
@@ -236,7 +235,7 @@ ok64 TOKDispatchTest() {
     call(TOKLexer, &state, ext);
     want(ctx.count == 4);
     want(ctx.tags[0] == 'R');  // int
-    want(ctx.tags[1] == 'S');  // space
+    want(ctx.tags[1] == 'W');  // space
     want(ctx.tags[2] == 'S');  // x
     want(ctx.tags[3] == 'P');  // ;
     done;
@@ -245,9 +244,9 @@ ok64 TOKDispatchTest() {
 ok64 GOTBasicTest() {
     sane(1);
     TOK01Case cases[] = {
-        {"func main() {", "RSSPPSP"},
-        {"var x int", "RSSSS"},
-        {"// comment\n", "DDDDS"},
+        {"func main() {", "RWSPPWP"},
+        {"var x int", "RWSWS"},
+        {"// comment\n", "DDDDW"},
         {"/* block */", "DDDDDDD"},
         {"\"hello\"", "G"},
         {"42", "L"},
@@ -258,9 +257,9 @@ ok64 GOTBasicTest() {
         {"1e10", "L"},
         {":=", "P"},
         {"<-", "P"},
-        {"if else", "RSR"},
-        {"package main", "RSS"},
-        {"x := 5", "SSPSL"},
+        {"if else", "RWR"},
+        {"package main", "RWS"},
+        {"x := 5", "SWPWL"},
     };
     int ncases = sizeof(cases) / sizeof(cases[0]);
     RUN_CASES(GOTLexer, GOT, cases, ncases);
@@ -270,23 +269,23 @@ ok64 GOTBasicTest() {
 ok64 PYTBasicTest() {
     sane(1);
     TOK01Case cases[] = {
-        {"def foo():", "RSSPPP"},
-        {"# comment\n", "DDDS"},
+        {"def foo():", "RWSPPP"},
+        {"# comment\n", "DDDW"},
         {"\"hello\"", "G"},
         {"'hello'", "G"},
         {"42", "L"},
         {"0xFF", "L"},
         {"3.14", "L"},
-        {"if else", "RSR"},
-        {"import os", "RSS"},
-        {"True False None", "RSRSR"},
-        {"x = 5", "SSPSL"},
+        {"if else", "RWR"},
+        {"import os", "RWS"},
+        {"True False None", "RWRWR"},
+        {"x = 5", "SWPWL"},
         {"@decorator", "H"},
         {"**=", "P"},
         {"//", "P"},
         {"r'[a-z\\-]+$'", "G"},
         {"r'\\(\\)'", "G"},
-        {"x'unterminated\nfoo", "SPSSS"},
+        {"x'unterminated\nfoo", "SPSWS"},
     };
     int ncases = sizeof(cases) / sizeof(cases[0]);
     RUN_CASES(PYTLexer, PYT, cases, ncases);
@@ -296,25 +295,25 @@ ok64 PYTBasicTest() {
 ok64 JSTBasicTest() {
     sane(1);
     TOK01Case cases[] = {
-        {"function foo() {", "RSSPPSP"},
-        {"// comment\n", "DDDDS"},
+        {"function foo() {", "RWSPPWP"},
+        {"// comment\n", "DDDDW"},
         {"/* block */", "DDDDDDD"},
         {"\"hello\"", "G"},
         {"'hello'", "G"},
         {"42", "L"},
         {"0xFF", "L"},
         {"3.14", "L"},
-        {"const let var", "RSRSR"},
+        {"const let var", "RWRWR"},
         {"===", "P"},
         {"!==", "P"},
         {"=>", "P"},
-        {"x = 5", "SSPSL"},
+        {"x = 5", "SWPWL"},
         // regex literals
         {"/pattern/g", "G"},
         {"/\\n/g", "G"},
         {"/.*\\//g", "G"},
         {"/foo/gimsuy", "G"},
-        {"x.replace(/\"/g, '\"')", "SPSPGPSGP"},
+        {"x.replace(/\"/g, '\"')", "SPSPGPWGP"},
     };
     int ncases = sizeof(cases) / sizeof(cases[0]);
     RUN_CASES(JSTLexer, JST, cases, ncases);
@@ -361,17 +360,17 @@ ok64 JSTFileTest() {
 ok64 RSTBasicTest() {
     sane(1);
     TOK01Case cases[] = {
-        {"fn main() {", "RSSPPSP"},
-        {"// comment\n", "DDDDS"},
+        {"fn main() {", "RWSPPWP"},
+        {"// comment\n", "DDDDW"},
         {"/* block */", "DDDDDDD"},
         {"\"hello\"", "G"},
         {"42", "L"},
         {"0xFF", "L"},
         {"3.14", "L"},
-        {"let mut", "RSR"},
-        {"pub fn", "RSR"},
+        {"let mut", "RWR"},
+        {"pub fn", "RWR"},
         {"::=", "PP"},
-        {"x = 5", "SSPSL"},
+        {"x = 5", "SWPWL"},
         {"#[derive(Debug)]", "HPSPP"},
         {"#![allow(unused)]", "HPSPP"},
         {"#", "P"},
@@ -384,16 +383,16 @@ ok64 RSTBasicTest() {
 ok64 JATBasicTest() {
     sane(1);
     TOK01Case cases[] = {
-        {"public class Foo {", "RSRSSSP"},
-        {"// comment\n", "DDDDS"},
+        {"public class Foo {", "RWRWSWP"},
+        {"// comment\n", "DDDDW"},
         {"/* block */", "DDDDDDD"},
         {"\"hello\"", "G"},
         {"'c'", "G"},
         {"42", "L"},
         {"3.14", "L"},
-        {"int long", "RSR"},
+        {"int long", "RWR"},
         {"@Override", "H"},
-        {"x = 5;", "SSPSLP"},
+        {"x = 5;", "SWPWLP"},
     };
     int ncases = sizeof(cases) / sizeof(cases[0]);
     RUN_CASES(JATLexer, JAT, cases, ncases);
@@ -423,19 +422,19 @@ ok64 JSONTBasicTest() {
 ok64 SHTBasicTest() {
     sane(1);
     TOK01Case cases[] = {
-        {"# comment\n", "DDDS"},
+        {"# comment\n", "DDDW"},
         {"\"hello\"", "G"},
         {"'hello'", "G"},
         {"42", "L"},
-        {"if then fi", "RSRSR"},
+        {"if then fi", "RWRWR"},
         {"$HOME", "S"},
         {"||", "P"},
         {"&&", "P"},
         {"$(foo)", "PSP"},
         {"${VAR}", "PSP"},
-        {"$(expr 'a)b')", "PSSGP"},
-        {"foo'\nbar", "SPSS"},
-        {"x \" y", "SSPSS"},
+        {"$(expr 'a)b')", "PSWGP"},
+        {"foo'\nbar", "SPWS"},
+        {"x \" y", "SWPWS"},
         {"'foo'\\''bar'", "G"},
     };
     int ncases = sizeof(cases) / sizeof(cases[0]);
@@ -446,12 +445,12 @@ ok64 SHTBasicTest() {
 ok64 HSTBasicTest() {
     sane(1);
     TOK01Case cases[] = {
-        {"-- comment\n", "DDDDS"},
+        {"-- comment\n", "DDDDW"},
         {"\"hello\"", "G"},
         {"42", "L"},
         {"3.14", "L"},
-        {"module where", "RSR"},
-        {"let in", "RSR"},
+        {"module where", "RWR"},
+        {"let in", "RWR"},
         {"::", "P"},
         {"->", "P"},
     };
@@ -467,8 +466,8 @@ ok64 MLTBasicTest() {
         {"\"hello\"", "G"},
         {"42", "L"},
         {"3.14", "L"},
-        {"let in", "RSR"},
-        {"match with", "RSR"},
+        {"let in", "RWR"},
+        {"match with", "RWR"},
     };
     int ncases = sizeof(cases) / sizeof(cases[0]);
     RUN_CASES(MLTLexer, MLT, cases, ncases);
@@ -478,12 +477,12 @@ ok64 MLTBasicTest() {
 ok64 JLTBasicTest() {
     sane(1);
     TOK01Case cases[] = {
-        {"# comment\n", "DDDS"},
+        {"# comment\n", "DDDW"},
         {"\"hello\"", "G"},
         {"42", "L"},
         {"3.14", "L"},
-        {"function end", "RSR"},
-        {"if else", "RSR"},
+        {"function end", "RWR"},
+        {"if else", "RWR"},
     };
     int ncases = sizeof(cases) / sizeof(cases[0]);
     RUN_CASES(JLTLexer, JLT, cases, ncases);
@@ -493,15 +492,15 @@ ok64 JLTBasicTest() {
 ok64 TSTBasicTest() {
     sane(1);
     TOK01Case cases[] = {
-        {"// comment\n", "DDDDS"},
+        {"// comment\n", "DDDDW"},
         {"/* block */", "DDDDDDD"},
         {"\"hello\"", "G"},
         {"'hello'", "G"},
         {"42", "L"},
         {"0xFF", "L"},
-        {"const let", "RSR"},
+        {"const let", "RWR"},
         {"=>", "P"},
-        {"x = 5", "SSPSL"},
+        {"x = 5", "SWPWL"},
     };
     int ncases = sizeof(cases) / sizeof(cases[0]);
     RUN_CASES(TSTLexer, TST, cases, ncases);
@@ -511,12 +510,12 @@ ok64 TSTBasicTest() {
 ok64 KTTBasicTest() {
     sane(1);
     TOK01Case cases[] = {
-        {"// comment\n", "DDDDS"},
+        {"// comment\n", "DDDDW"},
         {"/* block */", "DDDDDDD"},
         {"\"hello\"", "G"},
         {"42", "L"},
-        {"fun val var", "RSRSR"},
-        {"class when", "RSR"},
+        {"fun val var", "RWRWR"},
+        {"class when", "RWR"},
     };
     int ncases = sizeof(cases) / sizeof(cases[0]);
     RUN_CASES(KTTLexer, KTT, cases, ncases);
@@ -526,12 +525,12 @@ ok64 KTTBasicTest() {
 ok64 SCLTBasicTest() {
     sane(1);
     TOK01Case cases[] = {
-        {"// comment\n", "DDDDS"},
+        {"// comment\n", "DDDDW"},
         {"/* block */", "DDDDDDD"},
         {"\"hello\"", "G"},
         {"42", "L"},
-        {"def val var", "RSRSR"},
-        {"class object", "RSR"},
+        {"def val var", "RWRWR"},
+        {"class object", "RWR"},
     };
     int ncases = sizeof(cases) / sizeof(cases[0]);
     RUN_CASES(SCLTLexer, SCLT, cases, ncases);
@@ -541,12 +540,12 @@ ok64 SCLTBasicTest() {
 ok64 SWFTBasicTest() {
     sane(1);
     TOK01Case cases[] = {
-        {"// comment\n", "DDDDS"},
+        {"// comment\n", "DDDDW"},
         {"/* block */", "DDDDDDD"},
         {"\"hello\"", "G"},
         {"42", "L"},
-        {"func let var", "RSRSR"},
-        {"class struct", "RSR"},
+        {"func let var", "RWRWR"},
+        {"class struct", "RWR"},
     };
     int ncases = sizeof(cases) / sizeof(cases[0]);
     RUN_CASES(SWFTLexer, SWFT, cases, ncases);
@@ -556,13 +555,13 @@ ok64 SWFTBasicTest() {
 ok64 DARTTBasicTest() {
     sane(1);
     TOK01Case cases[] = {
-        {"// comment\n", "DDDDS"},
+        {"// comment\n", "DDDDW"},
         {"/* block */", "DDDDDDD"},
         {"\"hello\"", "G"},
         {"'hello'", "G"},
         {"42", "L"},
-        {"class var", "RSR"},
-        {"if else", "RSR"},
+        {"class var", "RWR"},
+        {"if else", "RWR"},
     };
     int ncases = sizeof(cases) / sizeof(cases[0]);
     RUN_CASES(DARTTLexer, DARTT, cases, ncases);
@@ -572,11 +571,11 @@ ok64 DARTTBasicTest() {
 ok64 ZIGTBasicTest() {
     sane(1);
     TOK01Case cases[] = {
-        {"// comment\n", "DDDDS"},
+        {"// comment\n", "DDDDW"},
         {"\"hello\"", "G"},
         {"42", "L"},
-        {"const fn pub", "RSRSR"},
-        {"if else", "RSR"},
+        {"const fn pub", "RWRWR"},
+        {"if else", "RWR"},
     };
     int ncases = sizeof(cases) / sizeof(cases[0]);
     RUN_CASES(ZIGTLexer, ZIGT, cases, ncases);
@@ -586,12 +585,12 @@ ok64 ZIGTBasicTest() {
 ok64 DTBasicTest() {
     sane(1);
     TOK01Case cases[] = {
-        {"// comment\n", "DDDDS"},
+        {"// comment\n", "DDDDW"},
         {"/* block */", "DDDDDDD"},
         {"\"hello\"", "G"},
         {"42", "L"},
-        {"class void", "RSR"},
-        {"if else", "RSR"},
+        {"class void", "RWR"},
+        {"if else", "RWR"},
     };
     int ncases = sizeof(cases) / sizeof(cases[0]);
     RUN_CASES(DTLexer, DT, cases, ncases);
@@ -601,13 +600,13 @@ ok64 DTBasicTest() {
 ok64 LUATBasicTest() {
     sane(1);
     TOK01Case cases[] = {
-        {"-- comment\n", "DDDDS"},
+        {"-- comment\n", "DDDDW"},
         {"\"hello\"", "G"},
         {"'hello'", "G"},
         {"42", "L"},
         {"3.14", "L"},
-        {"function end", "RSR"},
-        {"local if then", "RSRSR"},
+        {"function end", "RWR"},
+        {"local if then", "RWRWR"},
     };
     int ncases = sizeof(cases) / sizeof(cases[0]);
     RUN_CASES(LUATLexer, LUAT, cases, ncases);
@@ -617,13 +616,13 @@ ok64 LUATBasicTest() {
 ok64 PRLTBasicTest() {
     sane(1);
     TOK01Case cases[] = {
-        {"# comment\n", "DDDS"},
+        {"# comment\n", "DDDW"},
         {"\"hello\"", "G"},
         {"'hello'", "G"},
         {"42", "L"},
-        {"my sub", "RSR"},
-        {"if else", "RSR"},
-        {"$x =~ /\\@(.*)>$/", "SSPSPPPPPPPPS"},
+        {"my sub", "RWR"},
+        {"if else", "RWR"},
+        {"$x =~ /\\@(.*)>$/", "SWPWPPPPPPPPS"},
         {"$", "P"},
         {"@", "P"},
         {"%", "P"},
@@ -636,12 +635,12 @@ ok64 PRLTBasicTest() {
 ok64 RTBasicTest() {
     sane(1);
     TOK01Case cases[] = {
-        {"# comment\n", "DDDS"},
+        {"# comment\n", "DDDW"},
         {"\"hello\"", "G"},
         {"'hello'", "G"},
         {"42", "L"},
         {"3.14", "L"},
-        {"function if else", "RSRSR"},
+        {"function if else", "RWRWR"},
     };
     int ncases = sizeof(cases) / sizeof(cases[0]);
     RUN_CASES(RTLexer, RT, cases, ncases);
@@ -651,11 +650,11 @@ ok64 RTBasicTest() {
 ok64 ELXTBasicTest() {
     sane(1);
     TOK01Case cases[] = {
-        {"# comment\n", "DDDS"},
+        {"# comment\n", "DDDW"},
         {"\"hello\"", "G"},
         {"'hello'", "G"},
         {"42", "L"},
-        {"def do end", "RSRSR"},
+        {"def do end", "RWRWR"},
     };
     int ncases = sizeof(cases) / sizeof(cases[0]);
     RUN_CASES(ELXTLexer, ELXT, cases, ncases);
@@ -665,7 +664,7 @@ ok64 ELXTBasicTest() {
 ok64 ERLTBasicTest() {
     sane(1);
     TOK01Case cases[] = {
-        {"% comment\n", "DDDS"},
+        {"% comment\n", "DDDW"},
         {"\"hello\"", "G"},
         {"42", "L"},
         {"3.14", "L"},
@@ -678,11 +677,11 @@ ok64 ERLTBasicTest() {
 ok64 NIMTBasicTest() {
     sane(1);
     TOK01Case cases[] = {
-        {"# comment\n", "DDDS"},
+        {"# comment\n", "DDDW"},
         {"\"hello\"", "G"},
         {"42", "L"},
-        {"proc var let", "RSRSR"},
-        {"if else", "RSR"},
+        {"proc var let", "RWRWR"},
+        {"if else", "RWR"},
     };
     int ncases = sizeof(cases) / sizeof(cases[0]);
     RUN_CASES(NIMTLexer, NIMT, cases, ncases);
@@ -692,11 +691,11 @@ ok64 NIMTBasicTest() {
 ok64 NIXTBasicTest() {
     sane(1);
     TOK01Case cases[] = {
-        {"# comment\n", "DDDS"},
+        {"# comment\n", "DDDW"},
         {"\"hello\"", "G"},
         {"42", "L"},
-        {"let in", "RSR"},
-        {"if then else", "RSRSR"},
+        {"let in", "RWR"},
+        {"if then else", "RWRWR"},
     };
     int ncases = sizeof(cases) / sizeof(cases[0]);
     RUN_CASES(NIXTLexer, NIXT, cases, ncases);
@@ -706,7 +705,7 @@ ok64 NIXTBasicTest() {
 ok64 YMLTBasicTest() {
     sane(1);
     TOK01Case cases[] = {
-        {"# comment\n", "DDDS"},
+        {"# comment\n", "DDDW"},
         {"\"hello\"", "G"},
         {"'hello'", "G"},
         {"42", "L"},
@@ -715,7 +714,7 @@ ok64 YMLTBasicTest() {
         {"null", "R"},
         {":", "P"},
         {"-", "P"},
-        {"a != b", "SSPPSS"},
+        {"a != b", "SWPPWS"},
         {"*windows*)", "PPP"},
         {"!", "P"},
     };
@@ -727,7 +726,7 @@ ok64 YMLTBasicTest() {
 ok64 TOMLTBasicTest() {
     sane(1);
     TOK01Case cases[] = {
-        {"# comment\n", "DDDS"},
+        {"# comment\n", "DDDW"},
         {"\"hello\"", "G"},
         {"'hello'", "G"},
         {"42", "L"},
@@ -744,10 +743,10 @@ ok64 TOMLTBasicTest() {
 ok64 SQLTBasicTest() {
     sane(1);
     TOK01Case cases[] = {
-        {"-- comment\n", "DDDDS"},
+        {"-- comment\n", "DDDDW"},
         {"'hello'", "G"},
         {"42", "L"},
-        {"SELECT FROM WHERE", "RSRSR"},
+        {"SELECT FROM WHERE", "RWRWR"},
     };
     int ncases = sizeof(cases) / sizeof(cases[0]);
     RUN_CASES(SQLTLexer, SQLT, cases, ncases);
@@ -757,7 +756,7 @@ ok64 SQLTBasicTest() {
 ok64 GQLTBasicTest() {
     sane(1);
     TOK01Case cases[] = {
-        {"# comment\n", "DDDS"},
+        {"# comment\n", "DDDW"},
         {"\"hello\"", "G"},
         {"42", "L"},
         {"{}", "PP"},
@@ -770,11 +769,11 @@ ok64 GQLTBasicTest() {
 ok64 PRTTBasicTest() {
     sane(1);
     TOK01Case cases[] = {
-        {"// comment\n", "DDDDS"},
+        {"// comment\n", "DDDDW"},
         {"/* block */", "DDDDDDD"},
         {"\"hello\"", "G"},
         {"42", "L"},
-        {"message enum", "RSR"},
+        {"message enum", "RWR"},
     };
     int ncases = sizeof(cases) / sizeof(cases[0]);
     RUN_CASES(PRTTLexer, PRTT, cases, ncases);
@@ -784,8 +783,8 @@ ok64 PRTTBasicTest() {
 ok64 HCLTBasicTest() {
     sane(1);
     TOK01Case cases[] = {
-        {"# comment\n", "DDDS"},
-        {"// comment\n", "DDDDS"},
+        {"# comment\n", "DDDW"},
+        {"// comment\n", "DDDDW"},
         {"/* block */", "DDDDDDD"},
         {"\"hello\"", "G"},
         {"42", "L"},
@@ -800,7 +799,7 @@ ok64 HCLTBasicTest() {
 ok64 SCSSTBasicTest() {
     sane(1);
     TOK01Case cases[] = {
-        {"// comment\n", "DDDDS"},
+        {"// comment\n", "DDDDW"},
         {"/* block */", "DDDDDDD"},
         {"\"hello\"", "G"},
         {"'hello'", "G"},
@@ -833,7 +832,7 @@ ok64 CSSTBasicTest() {
 ok64 LAXTBasicTest() {
     sane(1);
     TOK01Case cases[] = {
-        {"% comment\n", "DDDS"},
+        {"% comment\n", "DDDW"},
         {"{}", "PP"},
     };
     int ncases = sizeof(cases) / sizeof(cases[0]);
@@ -844,7 +843,7 @@ ok64 LAXTBasicTest() {
 ok64 CLJTBasicTest() {
     sane(1);
     TOK01Case cases[] = {
-        {"; comment\n", "DDDS"},
+        {"; comment\n", "DDDW"},
         {"\"hello\"", "G"},
         {"42", "L"},
         {"3.14", "L"},
@@ -859,7 +858,7 @@ ok64 CLJTBasicTest() {
 ok64 FORTBasicTest() {
     sane(1);
     TOK01Case cases[] = {
-        {"! comment\n", "DDDS"},
+        {"! comment\n", "DDDW"},
         {"\"hello\"", "G"},
         {"'hello'", "G"},
         {"42", "L"},
@@ -873,7 +872,7 @@ ok64 FORTBasicTest() {
 ok64 GLSTBasicTest() {
     sane(1);
     TOK01Case cases[] = {
-        {"// comment\n", "DDDDS"},
+        {"// comment\n", "DDDDW"},
         {"/* block */", "DDDDDDD"},
         {"42", "L"},
         {"3.14", "L"},
@@ -887,11 +886,11 @@ ok64 GLSTBasicTest() {
 ok64 SOLTBasicTest() {
     sane(1);
     TOK01Case cases[] = {
-        {"// comment\n", "DDDDS"},
+        {"// comment\n", "DDDDW"},
         {"/* block */", "DDDDDDD"},
         {"\"hello\"", "G"},
         {"42", "L"},
-        {"contract function", "RSR"},
+        {"contract function", "RWR"},
     };
     int ncases = sizeof(cases) / sizeof(cases[0]);
     RUN_CASES(SOLTLexer, SOLT, cases, ncases);
@@ -927,7 +926,7 @@ ok64 LLTBasicTest() {
         {"%", "P"},
         {"!", "P"},
         {"#", "P"},
-        {"  ", "S"},
+        {"  ", "W"},
         // comment: TOKSplitText splits sub-tokens
         {"; x", "DDD"},
         // sigil + name/number
@@ -940,9 +939,9 @@ ok64 LLTBasicTest() {
         // label
         {"entry:", "SP"},
         // define: define void @f()
-        {"define void @f()", "RSRSPSPP"},
+        {"define void @f()", "RWRWPSPP"},
         // call: call void @f()
-        {"call void @f()", "RSRSPSPP"},
+        {"call void @f()", "RWRWPSPP"},
     };
     int ncases = sizeof(cases) / sizeof(cases[0]);
     RUN_CASES(LLTLexer, LLT, cases, ncases);
@@ -954,7 +953,7 @@ ok64 MDTBasicTest() {
     TOK01Case cases[] = {
         // headings: prefix R, content S→N, trailing \n stays S
         {"# Hello\n", "RRNS"},       // # + space (R,R), Hello (N), \n (S)
-        {"## Sub heading\n", "RRRNNNS"}, // ## + space (R,R,R), Sub (N), sp (N), heading (N), \n (S)
+        {"## Sub heading\n", "RRRNWNS"}, // ## + space (R,R,R), Sub (N), sp (N), heading (N), \n (S)
         // inline code
         {"`code`", "H"},
         // bold with stars
@@ -980,7 +979,7 @@ ok64 MDTBasicTest() {
         {"0xFF", "L"},
         // plain words
         {"hello", "S"},
-        {"hello world", "SSS"},
+        {"hello world", "SWS"},
         // punctuation
         {"[", "P"},
         {"]", "P"},
@@ -995,7 +994,7 @@ ok64 MDTBasicTest() {
         {"---\n", "RRRR"},
         {"***\n", "RRRR"},
         // whitespace
-        {"  \t", "S"},
+        {"  \t", "W"},
     };
     int ncases = sizeof(cases) / sizeof(cases[0]);
     RUN_CASES(MDTLexer, MDT, cases, ncases);

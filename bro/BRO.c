@@ -52,7 +52,7 @@ static bro *bro_state = NULL;
 
 ok64 BROOpen(bro *b, home *h, b8 rw) {
     sane(b && h);
-    memset(b, 0, sizeof(*b));
+    zerop(b);
     b->h = h;
     b->rw = rw;
     b->color = YES;
@@ -81,7 +81,7 @@ ok64 BROClose(bro *b) {
         if (b->arena[0]) u8bUnMap(b->arena);
         bro_state = NULL;
     }
-    memset(b, 0, sizeof(*b));
+    zerop(b);
     done;
 }
 

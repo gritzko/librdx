@@ -16,6 +16,7 @@ typedef ok64 (*graf_emit_fn)(u8s into, hunk const *hk);
 
 typedef struct {
     home        *h;          // borrowed
+    int          lock_fd;    // flock on .dogs/graf/.lock; -1 = none
     Bu8          arena;      // hunk staging buffer
     int          out_fd;     // output fd (-1 = uninitialized)
     graf_emit_fn emit;       // serializer (TLV or plain text)

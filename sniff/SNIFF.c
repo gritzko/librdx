@@ -138,7 +138,7 @@ static ok64 SNIFFBootstrap(sniff *s, u8cs reporoot) {
 
 ok64 SNIFFOpen(sniff *s, home *h, b8 rw) {
     sane(s && h);
-    memset(s, 0, sizeof(*s));
+    zerop(s);
     s->h = h;
     a_dup(u8c, reporoot, u8bDataC(h->root));
 
@@ -524,7 +524,7 @@ ok64 SNIFFClose(sniff *s) {
     u8csbFree(s->past);
     u8csbFree(s->data);
     u32bFree(s->sorted);
-    memset(s, 0, sizeof(*s));
+    zerop(s);
     done;
 }
 

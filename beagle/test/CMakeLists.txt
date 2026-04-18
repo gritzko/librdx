@@ -16,5 +16,13 @@ add_test(NAME BEworkflow
 set_tests_properties(BEworkflow PROPERTIES
     ENVIRONMENT "BIN=${DOG_BIN_DIR}")
 
+# worktree.sh — `be get <localdir>` clones a local primary via
+# symlinks (keeper/graf/spot) + real .dogs/sniff/.
+add_test(NAME BEworktree
+    COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/worktree.sh
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_tests_properties(BEworktree PROPERTIES
+    ENVIRONMENT "BIN=${DOG_BIN_DIR}")
+
 # clone-git.sh and mill-tags.sh are manual heavyweight integration
 # scripts (require $HOME/src/git + ssh localhost); run directly.

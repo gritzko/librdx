@@ -137,8 +137,9 @@ static ok64 keep_scan_packs(keeper *k, u8csc keepdir) {
 
 ok64 KEEPOpen(keeper *k, home *h, b8 rw) {
     sane(k && h);
-    memset(k, 0, sizeof(*k));
+    zerop(k);
     k->h = h;
+    k->lock_fd = -1;
 
     a_path(dir);
     call(keep_resolve_dir, dir, h);
@@ -163,6 +164,20 @@ ok64 KEEPOpen(keeper *k, home *h, b8 rw) {
             PATHu8bTerm(idxdir);
             FILEMakeDirP($path(idxdir));
         }
+    }
+
+    // Worktree sharing: `.dogs/keeper` may be a symlink into another
+    // repo, so two dogs in different worktrees can race on the pack
+    // store.  flock on `.dogs/keeper/.lock` serializes writers and
+    // shields readers from a half-appended pack.
+    {
+        a_pad(u8, lockpath, 1024);
+        u8bFeed(lockpath, $path(keepdir));
+        a_cstr(lockrel, "/.lock");
+        u8bFeed(lockpath, lockrel);
+        PATHu8bTerm(lockpath);
+        call(FILECreate, &k->lock_fd, $path(lockpath));
+        call(FILELock, &k->lock_fd, rw);
     }
 
     // Scan pack files: log/*.pack (new) + keeper/*.packs (old compat)
@@ -207,7 +222,8 @@ ok64 KEEPClose(keeper *k) {
     if (k->buf2[0]) u8bUnMap(k->buf2);
     if (k->buf3[0]) u8bUnMap(k->buf3);
     if (k->buf4[0]) u8bUnMap(k->buf4);
-    memset(k, 0, sizeof(*k));
+    if (k->lock_fd >= 0) FILEClose(&k->lock_fd);
+    zerop(k);
     done;
 }
 
@@ -734,7 +750,7 @@ static void keep_feed_obj_hdr(u8bp buf, u8 type, u64 size) {
 
 ok64 KEEPPackOpen(keeper *k, keep_pack *p) {
     sane(k && p);
-    memset(p, 0, sizeof(*p));
+    zerop(p);
     p->file_id = k->npacks + 1;
 
     call(wh128bAllocate, p->entries, KEEP_PACK_MAX_OBJS);

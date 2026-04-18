@@ -1770,12 +1770,25 @@ ok64 CAPOTrigramFilter(Bu32 hashbuf, b8 *has_trigrams,
 
 ok64 SPOTOpen(spotp s, home *h, b8 rw) {
     sane(s != NULL && h != NULL);
-    (void)rw;
-    memset(s, 0, sizeof(spot));
+    zerop(s);
     s->h = h;
+    s->lock_fd = -1;
     s->out_fd = -1;
     s->color = isatty(STDOUT_FILENO) ? YES : NO;
     s->term = (isatty(STDERR_FILENO) && isatty(STDOUT_FILENO)) ? YES : NO;
+
+    // Worktree sharing: `.dogs/spot` may be a symlink.  flock on
+    // `.dogs/spot/.lock` serializes writers; readers share.
+    {
+        a_dup(u8c, root_s, u8bDataC(h->root));
+        a_cstr(rel, ".dogs/spot");
+        a_path(dir, root_s, rel);
+        if (rw) call(FILEMakeDirP, $path(dir));
+        a_cstr(lockrel, ".lock");
+        a_path(lockpath, $path(dir), lockrel);
+        call(FILECreate, &s->lock_fd, $path(lockpath));
+        call(FILELock, &s->lock_fd, rw);
+    }
 
     call(u8bMap, s->arena, LESS_ARENA_SIZE);
 
@@ -1796,6 +1809,7 @@ void SPOTClose(spotp s) {
         if (s->maps[i] != NULL)    FILEUnMap(s->maps[i]);
     }
     if (s->arena[0]) u8bUnMap(s->arena);
+    if (s->lock_fd >= 0) FILEClose(&s->lock_fd);
     s->nhunks = 0;
     s->nmaps  = 0;
     less_nhunks = 0;

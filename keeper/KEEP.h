@@ -73,6 +73,7 @@ fun u64 keepKeyHashlet(u64 key) {
 
 typedef struct {
     home  *h;                       // borrowed; owns root/arena/config/rw
+    int    lock_fd;                 // flock on .dogs/keeper/.lock; -1 = none
     u8bp   packs[KEEP_MAX_FILES];   // mmap'd log files
     u32    npacks;
     wh128cs runs[KEEP_MAX_LEVELS];  // LSM index runs

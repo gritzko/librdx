@@ -152,6 +152,7 @@ fun idx64 CAPOSymEntry(u64 type, u8cs name, u8cs path) {
 
 typedef struct {
     home    *h;                     // borrowed
+    int      lock_fd;               // flock on .dogs/spot/.lock; -1 = none
 
     Bu8      arena;
     hunk     hunks[LESS_MAX_HUNKS];

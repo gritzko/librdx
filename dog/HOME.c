@@ -14,7 +14,7 @@
 
 ok64 HOMEOpen(home *h, u8cs at, b8 rw) {
     sane(h != NULL);
-    memset(h, 0, sizeof(*h));
+    zerop(h);
     h->rw = rw;
 
     // 1. Path buffer for root, 1 KB.
@@ -53,7 +53,7 @@ ok64 HOMEClose(home *h) {
     if (h->config[0] != NULL) FILEUnMap(h->config);
     if (h->arena[0]  != NULL) u8bUnMap(h->arena);
     if (h->root[0]   != NULL) u8bFree(h->root);
-    memset(h, 0, sizeof(*h));
+    zerop(h);
     done;
 }
 

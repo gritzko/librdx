@@ -184,17 +184,8 @@ ok64 GRAFExec(graf *g, cli *c) {
     ok64 ret = OK;
 
     if ($eq(c->verb, v_get) || $eq(c->verb, v_index)) {
-        // Serialize: wait for any previous graf instance to finish
-        a_path(lockpath, reporoot);
-        a_cstr(lockrel, "/.dogs/graf/lock");
-        call(u8bFeed, lockpath, lockrel);
-        PATHu8bTerm(lockpath);
-        int lockfd = open((char *)u8bDataHead(lockpath),
-                          O_CREAT | O_RDWR, 0644);
-        if (lockfd >= 0) flock(lockfd, LOCK_EX);
+        // Open-time flock on .dogs/graf/.lock already serializes writers.
         ret = DAGHook(&k, reporoot);
-        if (lockfd >= 0) close(lockfd);
-
     } else if ($eq(c->verb, v_blame)) {
         if (c->nuris < 1) {
             fprintf(stderr, "graf: blame requires a file URI\n");

@@ -18,8 +18,9 @@ graf_emit_fn graf_emit    = NULL;
 
 ok64 GRAFOpen(graf *g, home *h, b8 rw) {
     sane(g && h);
-    memset(g, 0, sizeof(*g));
+    zerop(g);
     g->h = h;
+    g->lock_fd = -1;
     g->out_fd = -1;
 
     // Compose <root>/.dogs/graf on demand.
@@ -28,6 +29,15 @@ ok64 GRAFOpen(graf *g, home *h, b8 rw) {
     a_path(dir, root_s, rel);
 
     if (rw) call(FILEMakeDirP, $path(dir));
+
+    // Worktree sharing: `.dogs/graf` may be a symlink into a shared
+    // repo.  flock serializes writers, readers share.
+    {
+        a_cstr(lockrel, ".lock");
+        a_path(lockpath, $path(dir), lockrel);
+        call(FILECreate, &g->lock_fd, $path(lockpath));
+        call(FILELock, &g->lock_fd, rw);
+    }
 
     call(dag_stack_open, &g->idx, $path(dir));
 
@@ -51,6 +61,7 @@ ok64 GRAFClose(graf *g) {
     sane(g);
     dag_stack_close(&g->idx);
     if (g->arena[0]) u8bUnMap(g->arena);
+    if (g->lock_fd >= 0) FILEClose(&g->lock_fd);
     g->out_fd = -1;
     g->emit = NULL;
     done;

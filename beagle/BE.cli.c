@@ -147,6 +147,69 @@ static ok64 BEDispatch(cli *c, dog_step const *steps, u32 nsteps,
     done;
 }
 
+//  `be get <local-dir>` creates a worktree in cwd that shares
+//  keeper/graf/spot with the primary repo via symlinks; sniff is
+//  real (per-worktree).  Returns OK after setup whether or not any
+//  action was taken; only dies on a real error (mkdir/symlink fail).
+// Static rewrite target: after a worktree is wired up, every dog
+// should just "check out HEAD" of the newly-shared keeper.
+static u8c head_uri_text[] = "?HEAD";
+
+static ok64 BEGetWorktree(uri *u) {
+    sane(1);
+    if (u == NULL || !u8csEmpty(u->authority)) done;
+    if (u8csEmpty(u->path)) done;
+
+    // Primary candidate has to be an existing dir containing .dogs/.
+    a_cstr(dotdogs, ".dogs");
+    a_dup(u8c, prim_s, u->path);
+    a_path(prim_dogs, prim_s, dotdogs);
+    if (FILEisdir($path(prim_dogs)) != OK) done;
+
+    // Skip if cwd is already a repo (its own .dogs/ exists).
+    a_path(cwd);
+    call(FILEGetCwd, cwd);
+    a_path(cwd_dogs);
+    a_dup(u8c, cwd_s, u8bDataC(cwd));
+    call(PATHu8bFeed, cwd_dogs, cwd_s);
+    call(PATHu8bPush, cwd_dogs, dotdogs);
+    if (FILEisdir($path(cwd_dogs)) == OK) done;
+
+    call(FILEMakeDirP, $path(cwd_dogs));
+
+    // Real per-worktree dir.
+    a_cstr(sniff_name, "sniff");
+    a_path(sniff_path, $path(cwd_dogs), sniff_name);
+    call(FILEMakeDirP, $path(sniff_path));
+
+    // Shared subdirs → symlinks into primary.
+    u8cs shared[] = {u8slit("keeper"), u8slit("graf"), u8slit("spot")};
+    for (u32 i = 0; i < 3; i++) {
+        a_path(tgt, $path(prim_dogs), shared[i]);
+        a_path(lnk, $path(cwd_dogs),  shared[i]);
+        ok64 so = FILESymLink($path(tgt), $path(lnk));
+        if (so != OK && so != FILEEXIST) return so;
+    }
+    fprintf(stderr, "be: worktree from %.*s\n",
+            (int)$len(u->path), (char *)u->path[0]);
+
+    // Rewrite this URI to `?HEAD` so each dispatched dog treats the
+    // invocation as "check out the primary's HEAD" instead of
+    // retrying the local path as a ref name.
+    u->data[0]      = head_uri_text;
+    u->data[1]      = head_uri_text + 5;
+    u->scheme[0]    = u->scheme[1]    = NULL;
+    u->authority[0] = u->authority[1] = NULL;
+    u->host[0]      = u->host[1]      = NULL;
+    u->port[0]      = u->port[1]      = NULL;
+    u->user[0]      = u->user[1]      = NULL;
+    u->path[0]      = u->path[1]      = NULL;
+    u->query[0]     = head_uri_text + 1;
+    u->query[1]     = head_uri_text + 5;
+    u->fragment[0]  = u->fragment[1]  = NULL;
+    done;
+}
+
 static ok64 BEGet(cli *c, b8 seq) {
     sane(c);
     static dog_step const steps[] = {
@@ -159,6 +222,9 @@ static ok64 BEGet(cli *c, b8 seq) {
     // Skip keeper fetch if no remote (no authority)
     uri *u = (c->nuris > 0) ? &c->uris[0] : NULL;
     u32 start = (u != NULL && !$empty(u->authority)) ? 0 : 1;
+
+    // Local-path URI → worktree from a sibling repo.
+    call(BEGetWorktree, u);
 
     // Bootstrap: when cloning into a fresh dir (remote URI, no existing
     // .dogs/ anywhere up to /), create .dogs/ in cwd so each dog can
