@@ -188,8 +188,7 @@ static ok64 DEFEnrich(DEFenr *e, u32 const *const *toks, u8csc data,
         u8cs val;
         tok32Val(val,toks,base,i);
 
-        if (tag == 'D') continue;
-        if (tag == 'S' && DEFIsWs(val)) continue;
+        if (tag == 'D' || tag == 'W') continue;
 
         u8 byte;
         switch (tag) {

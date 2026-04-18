@@ -26,4 +26,14 @@
 // unaffected — they have leading-`/` paths or populated authority.
 ok64 DOGParseURI(urip uri, u8csc text);
 
+// Canonicalise a parsed URI for ref-key comparison: feed
+// `//<authority><path>[?<query>]` into `out`.  Transport scheme
+// (ssh:, https:, git:) is dropped — `ssh://host/x` and
+// `https://host/x` produce the same key.  Bare `host:x` (DOGParseURI
+// already moved scheme→authority) gets the leading `//` added.
+// When `with_query` is YES the `?<query>` tail is included; NO
+// strips it (useful to build an origin-only key).  Inputs without
+// host/authority pass through via `path` only (no leading `//`).
+ok64 DOGCanonURIKey(u8bp out, urip u, b8 with_query);
+
 #endif

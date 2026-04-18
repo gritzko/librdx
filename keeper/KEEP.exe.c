@@ -215,18 +215,7 @@ static ok64 keeper_get_remote(keeper *k, cli *c, uri *g) {
     if (rmap) u8bUnMap(rmap);
 
     a_pad(u8, oubuf, FILE_PATH_MAX_LEN);
-    if (u8csEmpty(g->host)) {
-        a_cstr(file_pfx, "file://");
-        u8bFeed(oubuf, file_pfx);
-        if (!u8csEmpty(g->path)) u8bFeed(oubuf, g->path);
-    } else {
-        // Strip any ?query or #fragment — origin_uri must be just
-        // scheme+authority+path so recorded refs get a clean key.
-        u8cs trim = {g->data[0], g->data[1]};
-        if (!u8csEmpty(g->query))    trim[1] = g->query[0] - 1;
-        if (!u8csEmpty(g->fragment)) trim[1] = g->fragment[0] - 1;
-        u8bFeed(oubuf, trim);
-    }
+    call(DOGCanonURIKey, oubuf, g, NO);
     a_dup(u8c, origin_uri, u8bData(oubuf));
     return KEEPSync(k, remote, origin_uri,
                     nwants > 0 ? want_list : NULL,
@@ -400,8 +389,23 @@ static ok64 keeper_post(keeper *k, cli *c) {
     b8 has_remote = g && !u8csEmpty(g->host);
     a_path(keepdir, u8bDataC(k->h->root), KEEP_DIR_S);
 
-    // 1. Resolve local HEAD → parent commit SHA (40 hex).
-    a_cstr(q_head, "?HEAD");
+    // 1. Resolve local HEAD → parent commit SHA (40 hex).  Build the
+    // canonical key `//<auth>?HEAD` (matches DOGCanonURIKey output);
+    // falls back to bare `?HEAD` if no config identity.
+    a_pad(u8, hkbuf, 256);
+    {
+        a_pad(u8, ab, 256);
+        u8s asink = {ab[0], ab[3]};
+        if (HOMEAuthority(k->h, asink) == OK) {
+            a_cstr(slashes, "//");
+            u8cs a = {ab[0], asink[0]};
+            u8bFeed(hkbuf, slashes);
+            u8bFeed(hkbuf, a);
+        }
+        a_cstr(qh, "?HEAD");
+        u8bFeed(hkbuf, qh);
+    }
+    a_dup(u8c, q_head, u8bData(hkbuf));
     a_pad(u8, arena, 256);
     uri resolved = {};
     ok64 ro = REFSResolve(&resolved, arena, $path(keepdir), q_head);

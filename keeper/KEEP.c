@@ -145,9 +145,10 @@ ok64 KEEPOpen(keeper *k, home *h, b8 rw) {
     call(keep_resolve_dir, dir, h);
     a_path(keepdir, u8bDataC(k->h->root), KEEP_DIR_S);
 
-    // Create directories only in rw mode.
+    // Lock file's parent must exist regardless of rw; log/idx only
+    // need creation in rw mode.
+    call(FILEMakeDirP, $path(dir));
     if (rw) {
-        call(FILEMakeDirP, $path(dir));
         {
             a_pad(u8, logdir, 1024);
             u8bFeed(logdir, $path(keepdir));
@@ -1445,10 +1446,16 @@ ok64 KEEPSync(keeper *k, u8cs remote, u8cs origin_uri,
         b8 first_want = YES;
 
         if (wants) {
-            // Specific wants: match by SHA or ref name against advertised
+            // Specific wants: match by SHA or ref name against advertised.
+            // The `refs/` prefix is redundant on the CLI — a short name
+            // like `dogs-sniff` matches `refs/heads/dogs-sniff` via
+            // trailing-segment (`/<wi>` suffix) compare.  Preference
+            // order: exact > heads/tag under refs/heads or refs/tags >
+            // any other trailing match.
             for (int wi = 0; wants[wi]; wi++) {
                 sha1hex const *sha = NULL;
                 size_t wlen = strlen(wants[wi]);
+                sha1hex const *tail = NULL;  // first generic /tail match
                 for (u32 j = 0; j < nrefs; j++) {
                     if (wlen == 40 && memcmp(refs[j].sha.data, wants[wi], 40) == 0) {
                         sha = &refs[j].sha; break;
@@ -1456,7 +1463,22 @@ ok64 KEEPSync(keeper *k, u8cs remote, u8cs origin_uri,
                     if (strcmp(refs[j].name, wants[wi]) == 0) {
                         sha = &refs[j].sha; break;
                     }
+                    // Short-name trailing match: refs[j].name ends with
+                    // `/<wi>`.  Only consider refs/heads/* and
+                    // refs/tags/* to avoid picking up refs/remotes/…
+                    size_t nlen = strlen(refs[j].name);
+                    if (nlen <= wlen + 1) continue;
+                    if (refs[j].name[nlen - wlen - 1] != '/') continue;
+                    if (memcmp(refs[j].name + nlen - wlen, wants[wi], wlen) != 0)
+                        continue;
+                    b8 is_head = (nlen > 11 &&
+                                  memcmp(refs[j].name, "refs/heads/", 11) == 0);
+                    b8 is_tag  = (nlen > 10 &&
+                                  memcmp(refs[j].name, "refs/tags/", 10) == 0);
+                    if (is_head || is_tag) { sha = &refs[j].sha; break; }
+                    if (!tail) tail = &refs[j].sha;
                 }
+                if (!sha && tail) sha = tail;
                 if (!sha) {
                     fprintf(stderr, "keeper: want %s not advertised, skipping\n",
                             wants[wi]);
@@ -2118,10 +2140,28 @@ sync_done:
                     written++;                                             \
                 } while (0)
 
-            // Local entry for HEAD's branch + ?HEAD alias (alias is
-            // a stop-gap for sniff lookup, see REF.md "Open questions").
+            // Local entries: `//<auth>?<branch>` and `//<auth>?HEAD`
+            // in canonical form (matches DOGCanonURIKey output).  The
+            // authority (user.email from .dogs/config, or user.authority
+            // override) disambiguates *this user's* local refs from
+            // remote refs keyed by host:path.  Without a config we fall
+            // back to bare `?<branch>` / `?HEAD`.
+            u8cs auth = {};
+            a_pad(u8, authbuf, 256);
+            if (k->h != NULL) {
+                u8s authsink = {authbuf[0], authbuf[3]};
+                if (HOMEAuthority(k->h, authsink) == OK) {
+                    auth[0] = authbuf[0];
+                    auth[1] = authsink[0];
+                }
+            }
+            a_cstr(slashes, "//");
             if (!u8csEmpty(head_branch)) {
                 APPEND_REF({
+                    if (!u8csEmpty(auth)) {
+                        u8bFeed(strbuf, slashes);
+                        u8bFeed(strbuf, auth);
+                    }
                     u8bFeed1(strbuf, '?');
                     u8bFeed(strbuf, head_branch);
                 }, refs[0].peeled.data);
@@ -2129,10 +2169,18 @@ sync_done:
                     refarr[written].time = now;
                     refarr[written].type = REF_SHA;
                     refarr[written].key[0] = u8bIdleHead(strbuf);
+                    if (!u8csEmpty(auth)) {
+                        u8bFeed(strbuf, slashes);
+                        u8bFeed(strbuf, auth);
+                    }
                     a_cstr(head_key, "?HEAD");
                     u8bFeed(strbuf, head_key);
                     refarr[written].key[1] = u8bIdleHead(strbuf);
                     refarr[written].val[0] = u8bIdleHead(strbuf);
+                    if (!u8csEmpty(auth)) {
+                        u8bFeed(strbuf, slashes);
+                        u8bFeed(strbuf, auth);
+                    }
                     u8bFeed1(strbuf, '?');
                     u8bFeed(strbuf, head_branch);
                     refarr[written].val[1] = u8bIdleHead(strbuf);

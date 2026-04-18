@@ -69,7 +69,7 @@ static b8 TryMatch(igno_pat const *pat, u8cs path, b8 is_dir) {
     // (gitignore rule: patterns without / match anywhere in the tree)
     if (!pat->has_slash && !pat->anchored) {
         u8cs basename = {};
-        PATHu8sBase(basename, (path8s){path[0], path[1], path[1]});
+        PATHu8sBase(basename, (path8s){path[0], path[1]});
         return IGNOGlob(match_pattern, basename);
     }
 

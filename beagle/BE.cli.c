@@ -137,8 +137,15 @@ static ok64 BEDispatch(cli *c, dog_step const *steps, u32 nsteps,
         a_pad(u8cs, args, 2 + CLI_MAX_FLAGS * 2 + CLI_MAX_URIS);
         u8csbFeed1(args, steps[i].dog);
         u8csbFeed1(args, steps[i].verb);
-        for (u32 j = 0; j < c->nflags; j++)
+        // Flags come as {flag, val} pairs; val is the empty-string
+        // sentinel for booleans.  Forward the flag name always; only
+        // forward its value if it's genuinely non-empty, otherwise the
+        // callee's CLIParse would pick it up as a spurious URI.
+        for (u32 j = 0; j + 1 < c->nflags; j += 2) {
             u8csbFeed1(args, c->flags[j]);
+            if (!u8csEmpty(c->flags[j + 1]))
+                u8csbFeed1(args, c->flags[j + 1]);
+        }
         for (u32 j = 0; j < c->nuris; j++)
             u8csbFeed1(args, c->uris[j].data);
         a_dup(u8cs, argv, u8csbData(args));
@@ -151,9 +158,9 @@ static ok64 BEDispatch(cli *c, dog_step const *steps, u32 nsteps,
 //  keeper/graf/spot with the primary repo via symlinks; sniff is
 //  real (per-worktree).  Returns OK after setup whether or not any
 //  action was taken; only dies on a real error (mkdir/symlink fail).
-// Static rewrite target: after a worktree is wired up, every dog
-// should just "check out HEAD" of the newly-shared keeper.
-static u8c head_uri_text[] = "?HEAD";
+// Static storage for the rewritten URI after a worktree is wired up:
+// "?<40-hex-sha>" points every downstream dog at the primary's HEAD.
+static u8 wt_uri_text[42];  // '?' + 40 hex + NUL
 
 static ok64 BEGetWorktree(uri *u) {
     sane(1);
@@ -193,19 +200,38 @@ static ok64 BEGetWorktree(uri *u) {
     fprintf(stderr, "be: worktree from %.*s\n",
             (int)$len(u->path), (char *)u->path[0]);
 
-    // Rewrite this URI to `?HEAD` so each dispatched dog treats the
-    // invocation as "check out the primary's HEAD" instead of
-    // retrying the local path as a ref name.
-    u->data[0]      = head_uri_text;
-    u->data[1]      = head_uri_text + 5;
+    // Read primary's current HEAD (sniff/HEAD is a 40-hex commit SHA
+    // of the default branch — keeper REFS doesn't yet track it under
+    // a symbolic name for local commits, so address the commit
+    // directly).  Rewrite this URI to "?<sha>" so downstream sniff
+    // checks out that commit in the worktree.
+    a_cstr(sniff_head, "sniff/HEAD");
+    a_path(head_path, $path(prim_dogs), sniff_head);
+    u8bp head_map = NULL;
+    if (FILEMapRO(&head_map, $path(head_path)) != OK) done;
+    u8cs head_data = {u8bDataHead(head_map), u8bIdleHead(head_map)};
+    // Trim whitespace
+    while (!u8csEmpty(head_data)) {
+        u8 c = *(head_data[1] - 1);
+        if (c != '\n' && c != '\r' && c != ' ' && c != '\t') break;
+        head_data[1]--;
+    }
+    if (u8csLen(head_data) < 40) { FILEUnMap(head_map); done; }
+    wt_uri_text[0] = '?';
+    for (int i = 0; i < 40; i++) wt_uri_text[1 + i] = head_data[0][i];
+    wt_uri_text[41] = 0;
+    FILEUnMap(head_map);
+
+    u->data[0]      = wt_uri_text;
+    u->data[1]      = wt_uri_text + 41;
     u->scheme[0]    = u->scheme[1]    = NULL;
     u->authority[0] = u->authority[1] = NULL;
     u->host[0]      = u->host[1]      = NULL;
     u->port[0]      = u->port[1]      = NULL;
     u->user[0]      = u->user[1]      = NULL;
     u->path[0]      = u->path[1]      = NULL;
-    u->query[0]     = head_uri_text + 1;
-    u->query[1]     = head_uri_text + 5;
+    u->query[0]     = wt_uri_text + 1;
+    u->query[1]     = wt_uri_text + 41;
     u->fragment[0]  = u->fragment[1]  = NULL;
     done;
 }

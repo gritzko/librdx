@@ -252,7 +252,8 @@ static b8 TOKSliceMatch(u8csc s, const char *pat) {
 // Try the name table against the basename of `path`.
 static TOKfn TOKFindByName(u8csc path) {
     u8cs base = {};
-    PATHu8sBase(base, path);
+    a_dup(u8c, p, path);
+    PATHu8sBase(base, p);
     if ($empty(base)) return NULL;
     for (const TOKentry *e = TOK_NAME_TABLE; e->ext != NULL; ++e)
         if (TOKSliceMatch(base, e->ext)) return e->lexer;
@@ -262,7 +263,8 @@ static TOKfn TOKFindByName(u8csc path) {
 // Try the ext table against the extension of `path`.
 static TOKfn TOKFindByExt(u8csc path) {
     u8cs ext = {};
-    PATHu8sExt(ext, path);
+    a_dup(u8c, p, path);
+    PATHu8sExt(ext, p);
     if ($empty(ext)) return NULL;
     for (const TOKentry *e = TOK_TABLE; e->ext != NULL; ++e)
         if (TOKSliceMatch(ext, e->ext)) return e->lexer;

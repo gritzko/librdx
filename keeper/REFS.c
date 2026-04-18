@@ -2,6 +2,7 @@
 
 #include "abc/POL.h"
 #include "abc/PRO.h"
+#include "dog/DOG.h"
 #include <stdlib.h>
 #include <time.h>
 
@@ -187,8 +188,18 @@ ok64 REFSResolve(urip resolved, u8bp arena, u8csc dir, u8csc input) {
     sane($ok(dir) && $ok(input) && resolved != NULL && arena != NULL);
 
     uri u = {};
-    u.data[0] = input[0]; u.data[1] = input[1];
-    call(URILexer, &u);
+    call(DOGParseURI, &u, input);
+
+    // Canonical form for lookup: `//<authority><path>?<query>` with no
+    // scheme.  Both `ssh://host:x?ref` and `https://host:x?ref` reduce
+    // to `//host:x?ref`.  Keeper stores origin URIs in this same form.
+    a_pad(u8, canbuf, 1024);
+    if (!u8csEmpty(u.authority) || !u8csEmpty(u.host)) {
+        call(DOGCanonURIKey, canbuf, &u, YES);
+    } else {
+        u8bFeed(canbuf, input);
+    }
+    u8csc dropped = {u8bDataHead(canbuf), u8bIdleHead(canbuf)};
 
     u8bp map = NULL;
     ref *arr = calloc(REFS_MAX_REFS, sizeof(ref));
@@ -198,49 +209,87 @@ ok64 REFSResolve(urip resolved, u8bp arena, u8csc dir, u8csc input) {
     ok64 o = REFSLoad(arr, &n, REFS_MAX_REFS, &map, dir);
     if (o != OK) { free(arr); return o; }
 
-    // Full-URL lookup: "//host/path?<query>" → "?<sha>".  Remote refs
-    // are recorded by KEEPSync with a "refs/" prefix stripped from the
-    // query portion ("?tags/v2.54" rather than "?refs/tags/v2.54"), so
-    // normalize the input the same way before matching.
-    if (!u8csEmpty(u.authority) && !u8csEmpty(u.query)) {
-        u8cs q = {u.query[0], u.query[1]};
-        a_cstr(refs_pfx, "refs/");
-        if ($len(q) > 5 && memcmp(q[0], refs_pfx[0], 5) == 0)
-            u8csUsed(q, 5);
+    // Direct-match chain: input canonicalised equals a stored ref key,
+    // whose value may be another URI-shaped key (`//auth?ref`) or a
+    // terminal `?<40-hex>` SHA.  Chase the alias chain up to
+    // REFS_MAX_CHAIN hops.  Keeper records remote refs under
+    // `//<host><path>?<branch>` and local refs under `//<auth>?<branch>`.
+    u8cs cur = {};
+    cur[0] = dropped[0];
+    cur[1] = dropped[1];
+    for (int hop = 0; hop < REFS_MAX_CHAIN && !u8csEmpty(cur); hop++) {
+        refp found = NULL;
+        for (u32 i = 0; i < n; i++) {
+            if (REFMatch(&arr[i], cur)) { found = &arr[i]; break; }
+        }
+        if (!found) break;
+        u8cs vfull = {found->val[0], found->val[1]};
+        if ($empty(vfull)) break;
+        // Terminal SHA: `?<40-hex>`.
+        if (vfull[0][0] == '?' && u8csLen(vfull) == 41) {
+            b8 is_sha = YES;
+            for (u8cp p = vfull[0] + 1; p < vfull[1]; p++) {
+                u8 ch = *p;
+                b8 hex = (ch >= '0' && ch <= '9') ||
+                         (ch >= 'a' && ch <= 'f') ||
+                         (ch >= 'A' && ch <= 'F');
+                if (!hex) { is_sha = NO; break; }
+            }
+            if (is_sha) {
+                u8bFeed(arena, vfull);
+                size_t vl = u8csLen(vfull);
+                resolved->query[0] = u8bIdleHead(arena) - vl + 1;
+                resolved->query[1] = u8bIdleHead(arena);
+                free(arr);
+                if (map) u8bUnMap(map);
+                done;
+            }
+        }
+        // Follow alias: next iteration matches the val as a new key.
+        u8bFeed(arena, vfull);
+        size_t vl = u8csLen(vfull);
+        cur[0] = u8bIdleHead(arena) - vl;
+        cur[1] = u8bIdleHead(arena);
+    }
 
-        a_pad(u8, fkey, 1024);
-        // u.authority may or may not include the leading "//" — check.
-        if ($len(u.authority) >= 2 &&
-            u.authority[0][0] == '/' && u.authority[0][1] == '/') {
-            u8bFeed(fkey, u.authority);
-        } else {
+    // Second try: strip `refs/` from query — keeper stores entries
+    // under `?heads/foo` not `?refs/heads/foo`, but users may type
+    // either form.
+    if (!u8csEmpty(u.authority) && !u8csEmpty(u.query)) {
+        a_cstr(refs_pfx, "refs/");
+        if ($len(u.query) > 5 && memcmp(u.query[0], refs_pfx[0], 5) == 0) {
+            a_pad(u8, fkey, 1024);
             a_cstr(slashes, "//");
             u8bFeed(fkey, slashes);
-            u8bFeed(fkey, u.authority);
-        }
-        if (!u8csEmpty(u.path)) u8bFeed(fkey, u.path);
-        u8bFeed1(fkey, '?');
-        u8bFeed(fkey, q);
-        a_dup(u8c, full_key, u8bData(fkey));
+            u8cs auth = {u.authority[0], u.authority[1]};
+            if ($len(auth) >= 2 && auth[0][0] == '/' && auth[0][1] == '/')
+                u8csUsed(auth, 2);
+            u8bFeed(fkey, auth);
+            if (!u8csEmpty(u.path)) u8bFeed(fkey, u.path);
+            u8bFeed1(fkey, '?');
+            u8cs q = {u.query[0] + 5, u.query[1]};
+            u8bFeed(fkey, q);
+            a_dup(u8c, full_key, u8bData(fkey));
 
-        for (u32 i = 0; i < n; i++) {
-            if (!REFMatch(&arr[i], full_key)) continue;
-            u8cs vfull = {arr[i].val[0], arr[i].val[1]};
-            if (!$empty(vfull) && vfull[0][0] == '?') {
-                u8cs out = {};
-                u8csMv(out, vfull);
-                u8csUsed(out, 1);
-                u8bFeed(arena, out);
-                size_t vlen = u8csLen(out);
-                resolved->query[0] = u8bIdleHead(arena) - vlen;
-                resolved->query[1] = u8bIdleHead(arena);
+            for (u32 i = 0; i < n; i++) {
+                if (!REFMatch(&arr[i], full_key)) continue;
+                u8cs vfull = {arr[i].val[0], arr[i].val[1]};
+                if (!$empty(vfull) && vfull[0][0] == '?') {
+                    u8cs out = {};
+                    u8csMv(out, vfull);
+                    u8csUsed(out, 1);
+                    u8bFeed(arena, out);
+                    size_t vlen = u8csLen(out);
+                    resolved->query[0] = u8bIdleHead(arena) - vlen;
+                    resolved->query[1] = u8bIdleHead(arena);
+                }
+                break;
             }
-            break;
-        }
-        if (!u8csEmpty(resolved->query)) {
-            free(arr);
-            if (map) u8bUnMap(map);
-            done;
+            if (!u8csEmpty(resolved->query)) {
+                free(arr);
+                if (map) u8bUnMap(map);
+                done;
+            }
         }
     }
 

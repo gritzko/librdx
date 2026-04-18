@@ -1778,12 +1778,14 @@ ok64 SPOTOpen(spotp s, home *h, b8 rw) {
     s->term = (isatty(STDERR_FILENO) && isatty(STDOUT_FILENO)) ? YES : NO;
 
     // Worktree sharing: `.dogs/spot` may be a symlink.  flock on
-    // `.dogs/spot/.lock` serializes writers; readers share.
+    // `.dogs/spot/.lock` serializes writers; readers share.  The
+    // lock file's parent must exist, so mkdir regardless of rw — a
+    // read-only spot on a fresh repo otherwise fails on FILECreate.
     {
         a_dup(u8c, root_s, u8bDataC(h->root));
         a_cstr(rel, ".dogs/spot");
         a_path(dir, root_s, rel);
-        if (rw) call(FILEMakeDirP, $path(dir));
+        call(FILEMakeDirP, $path(dir));
         a_cstr(lockrel, ".lock");
         a_path(lockpath, $path(dir), lockrel);
         call(FILECreate, &s->lock_fd, $path(lockpath));

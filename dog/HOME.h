@@ -63,4 +63,12 @@ ok64 HOMEResolveSibling(home *h, path8b out, u8csc name, u8csc argv0);
 // propagate.
 ok64 HOMEGetConfig(home *h, u8s value, path8s needle);
 
+// Local authority used as prefix for local-origin ref keys (e.g.
+// `<auth>?master`, `<auth>?HEAD`).  Resolution order:
+//   1. config `user.authority`  (explicit override)
+//   2. config `user.email`      (default identity)
+//   3. NOCONF (caller decides what to do)
+// Feeds the raw bytes into `out` and advances `out[0]` past them.
+ok64 HOMEAuthority(home *h, u8s out);
+
 #endif

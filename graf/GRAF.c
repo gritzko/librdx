@@ -28,10 +28,10 @@ ok64 GRAFOpen(graf *g, home *h, b8 rw) {
     a_cstr(rel, ".dogs/graf");
     a_path(dir, root_s, rel);
 
-    if (rw) call(FILEMakeDirP, $path(dir));
-
     // Worktree sharing: `.dogs/graf` may be a symlink into a shared
-    // repo.  flock serializes writers, readers share.
+    // repo.  flock serializes writers, readers share.  The lock
+    // file's parent must exist regardless of rw.
+    call(FILEMakeDirP, $path(dir));
     {
         a_cstr(lockrel, ".lock");
         a_path(lockpath, $path(dir), lockrel);

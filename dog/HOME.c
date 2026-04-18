@@ -12,6 +12,97 @@
 
 // --- HOMEOpen / HOMEClose ---
 
+// Capture stdout of `git config --global --get <key>` into out.
+// Returns NODATA if git exits non-zero (key unset) or the subprocess
+// cannot be spawned.  Trailing '\n' is trimmed.
+static ok64 home_git_config_get(char const *key, u8s out) {
+    sane($ok(out));
+    a_cstr(gitp, "/usr/bin/git");
+    u8cs av[] = {
+        u8slit("git"),
+        u8slit("config"),
+        u8slit("--global"),
+        u8slit("--get"),
+        u8scstr(key),
+    };
+    u8css argv = {av, av + 5};
+
+    pid_t pid = 0;
+    int rfd = -1;
+    if (FILESpawn(gitp, argv, NULL, &rfd, &pid) != OK) return NODATA;
+
+    a_pad(u8, buf, 256);
+    FILEEnsureSoft(rfd, buf, u8bIdleLen(buf));
+    FILEClose(&rfd);
+
+    int rc = -1;
+    FILEReap(pid, &rc);
+    if (rc != 0) return NODATA;
+
+    u8cs raw = {u8bDataHead(buf), u8bIdleHead(buf)};
+    while (!$empty(raw) && (raw[1][-1] == '\n' || raw[1][-1] == '\r'))
+        raw[1]--;
+    if ($empty(raw)) return NODATA;
+    return u8sFeed(out, raw);
+}
+
+// Fresh clones: seed .dogs/config from git's global config so commits
+// and ref authorities get a sensible default identity without manual
+// setup.  Called from HOMEOpen when rw=YES and config is absent.
+// Best-effort — silent on any failure.
+static void home_bootstrap_config(home *h) {
+    if (!h->rw) return;
+
+    a_pad(u8, emailbuf, 256);
+    a_pad(u8, namebuf,  256);
+    u8s email = {emailbuf[0], emailbuf[3]};
+    u8s name  = {namebuf[0],  namebuf[3]};
+    u8cp email_start = email[0];
+    u8cp name_start  = name[0];
+    b8 got_email = (home_git_config_get("user.email", email) == OK);
+    b8 got_name  = (home_git_config_get("user.name",  name)  == OK);
+    if (!got_email && !got_name) return;
+
+    a_path(dotdogs);
+    a_dup(u8c, root_s, u8bDataC(h->root));
+    if (PATHu8bFeed(dotdogs, root_s) != OK) return;
+    a_cstr(dd, ".dogs");
+    if (PATHu8bPush(dotdogs, dd) != OK) return;
+    if (FILEMakeDirP($path(dotdogs)) != OK) return;
+
+    a_path(cfgp);
+    a_dup(u8c, dd_s, u8bDataC(dotdogs));
+    if (PATHu8bFeed(cfgp, dd_s) != OK) return;
+    a_cstr(cfg_name, "config");
+    if (PATHu8bPush(cfgp, cfg_name) != OK) return;
+
+    a_pad(u8, body, 1024);
+    a_cstr(hdr, "[user]\n");
+    u8bFeed(body, hdr);
+    if (got_name) {
+        a_cstr(key, "name = \"");
+        a_cstr(eol, "\"\n");
+        u8cs v = {name_start, name[0]};
+        u8bFeed(body, key);
+        u8bFeed(body, v);
+        u8bFeed(body, eol);
+    }
+    if (got_email) {
+        a_cstr(key, "email = \"");
+        a_cstr(eol, "\"\n");
+        u8cs v = {email_start, email[0]};
+        u8bFeed(body, key);
+        u8bFeed(body, v);
+        u8bFeed(body, eol);
+    }
+
+    int fd = -1;
+    if (FILECreate(&fd, $path(cfgp)) != OK) return;
+    u8cs data = {u8bDataHead(body), u8bIdleHead(body)};
+    FILEFeedAll(fd, data);
+    FILEClose(&fd);
+}
+
 ok64 HOMEOpen(home *h, u8cs at, b8 rw) {
     sane(h != NULL);
     zerop(h);
@@ -38,9 +129,12 @@ ok64 HOMEOpen(home *h, u8cs at, b8 rw) {
     ok64 po = PATHu8bAdd(cfg, rel);
     if (po == OK) {
         u8bp mapped = NULL;
-        if (FILEMapRO(&mapped, $path(cfg)) == OK) {
-            // Copy the 4 pointers into h->config (u8b is an array
-            // of 4 u8*; FILEMapRO fills a separate u8bp slot).
+        if (FILEMapRO(&mapped, $path(cfg)) != OK && rw) {
+            // Fresh clone: seed from git's global config, then retry.
+            home_bootstrap_config(h);
+            FILEMapRO(&mapped, $path(cfg));
+        }
+        if (mapped != NULL) {
             for (int i = 0; i < 4; i++)
                 ((u8 **)h->config)[i] = mapped[i];
         }
@@ -205,11 +299,15 @@ ok64 HOMEResolveSibling(home *h, path8b out, u8csc name, u8csc argv0) {
     (void)h;   // unused — sibling lookup is ambient (argv0 + PATH)
 
     if ($ok(argv0) && !u8csEmpty(argv0)) {
-        a_dup(u8c, a0, argv0);
-        u8cs dir = {};
-        PATHu8sDir(dir, a0);
-        if (!u8csEmpty(dir)) {
-            // argv0 has a directory component → sibling in same dir.
+        // "Has a directory" means argv0 literally contains '/'.
+        // PATHu8sDir synthesizes "." for bare names; that's the PATH
+        // case, not the dirname case.
+        a_dup(u8c, a0_scan, argv0);
+        b8 has_slash = u8csFind(a0_scan, '/') == OK;
+        if (has_slash) {
+            a_dup(u8c, a0, argv0);
+            u8cs dir = {};
+            PATHu8sDir(dir, a0);
             u8csc dir_c = {dir[0], dir[1]};
             if (home_try_sibling(out, dir_c, name) == OK) done;
         } else {
@@ -324,6 +422,19 @@ static ok64 home_cfg_cb(u8 tag, u8cs tok, void *ctx) {
     }
 
     return OK;
+}
+
+ok64 HOMEAuthority(home *h, u8s out) {
+    sane(h != NULL && $ok(out));
+    a_cstr(user_s, "user");
+    a_cstr(auth_s, "authority");
+    a_cstr(mail_s, "email");
+    a_path(needle, user_s, auth_s);
+    ok64 o = HOMEGetConfig(h, out, $path(needle));
+    if (o == OK) done;
+    if (o != NOCONF) return o;
+    a_path(email, user_s, mail_s);
+    return HOMEGetConfig(h, out, $path(email));
 }
 
 ok64 HOMEGetConfig(home *h, u8s value, path8s needle) {

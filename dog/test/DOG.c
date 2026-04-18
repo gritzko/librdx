@@ -50,6 +50,16 @@ static const ParseCase CASES[] = {
         NULL, NULL, NULL, "v2.8.6", NULL},
     {"#symbol",
         NULL, NULL, NULL, NULL, "symbol"},
+
+    // --- Non-numeric "port" glued back into path ---
+    // RFC 3986 eats `src` as the port; we fix it up.
+    {"ssh://localhost:src/dogs-sniff",
+        "ssh", "//localhost", "src/dogs-sniff", NULL, NULL},
+    {"ssh://host:repo",
+        "ssh", "//host", "repo", NULL, NULL},
+    // Numeric port left alone.
+    {"ssh://host:22/repo",
+        "ssh", "//host:22", "/repo", NULL, NULL},
 };
 
 #define NCASES (sizeof(CASES) / sizeof(CASES[0]))
