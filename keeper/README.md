@@ -34,9 +34,6 @@ keeper get .?refs/heads/master
 # cat an object by hash prefix
 keeper get .#abc1234
 
-# move a local ref
-keeper put .?refs/heads/test .#abc123...
-
 # list known refs
 keeper refs
 

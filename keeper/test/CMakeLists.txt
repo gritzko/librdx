@@ -36,6 +36,14 @@ if (WITH_SSH)
     target_compile_options(ROUNDtest PRIVATE ${TEST_CXX_FLAGS})
     target_link_libraries(ROUNDtest gitcompat abc-core)
     add_test(NAME ROUNDtest COMMAND ROUNDtest)
+
+    add_executable(POSTtest POST.c)
+    target_link_options(POSTtest PRIVATE ${TEST_LDD_FLAGS})
+    target_compile_options(POSTtest PRIVATE ${TEST_CXX_FLAGS})
+    target_link_libraries(POSTtest abc-core)
+    add_test(NAME POSTtest COMMAND POSTtest)
+    set_tests_properties(POSTtest PROPERTIES
+        ENVIRONMENT "BIN=${DOG_BIN_DIR}")
 endif()
 
 add_executable(WALKtest WALK.c)

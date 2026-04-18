@@ -2207,3 +2207,159 @@ sync_fail:
     { int status; waitpid(pid, &status, 0); }
     return KEEPFAIL;
 }
+
+// --- KEEPPush: send one new commit via git-receive-pack ---
+
+static ok64 keep_push_write_all(int fd, u8csc data) {
+    u8cp p = data[0];
+    size_t n = (size_t)(data[1] - data[0]);
+    while (n > 0) {
+        ssize_t w = write(fd, p, n);
+        if (w <= 0) return KEEPFAIL;
+        p += w;
+        n -= (size_t)w;
+    }
+    return OK;
+}
+
+ok64 KEEPPush(keeper *k, u8csc host, u8csc path, char const *ref,
+              u8csc old_hex, u8csc new_hex, u8csc commit_body) {
+    sane(k && ref && $len(host) > 0 && $len(path) > 0 &&
+         $len(old_hex) == 40 && $len(new_hex) == 40);
+
+    fprintf(stderr, "keeper: connecting: ssh %.*s git-receive-pack %.*s\n",
+            (int)$len(host), (char *)host[0],
+            (int)$len(path), (char *)path[0]);
+
+    a_cstr(ssh_path, "/usr/bin/ssh");
+    u8cs argv_arr[4] = {
+        u8slit("ssh"),
+        {host[0], host[1]},
+        u8slit("git-receive-pack"),
+        {path[0], path[1]},
+    };
+    u8css argv = {argv_arr, argv_arr + 4};
+
+    pid_t pid = 0;
+    int wfd = -1, rfd = -1;
+    if (FILESpawn(ssh_path, argv, &wfd, &rfd, &pid) != OK) return KEEPFAIL;
+
+    Bu8 rbuf_b = {};
+    Bu8 pack_b = {};
+    ok64 rv = KEEPFAIL;
+    if (u8bMap(rbuf_b, 1UL << 20) != OK) goto push_fail;
+
+    // Drain the ref advertisement until flush.  We do not need to parse
+    // it; the caller provided old_hex authoritatively.
+    {
+        u8cp start = u8bDataHead(rbuf_b);
+        u8cs adv = {start, start};
+        u8cs line = {};
+        for (;;) {
+            ok64 o = keep_sync_drain_pkt(rfd, rbuf_b, adv, line);
+            if (o == PKTFLUSH) break;
+            if (o != OK) goto push_fail;
+        }
+    }
+
+    // Send update command: "<old> <new> <ref>\0report-status\n" then flush.
+    {
+        u8 payload[1024];
+        int plen = snprintf((char *)payload, sizeof(payload),
+            "%.40s %.40s %s", old_hex[0], new_hex[0], ref);
+        if (plen < 0 || plen >= (int)sizeof(payload) - 32) goto push_fail;
+        payload[plen++] = 0;
+        a_cstr(caps, "report-status");
+        memcpy(payload + plen, caps[0], (size_t)$len(caps));
+        plen += (int)$len(caps);
+        payload[plen++] = '\n';
+
+        u8 pktbuf[1200];
+        u8s ps = {pktbuf, pktbuf + sizeof(pktbuf)};
+        u8csc pay_cs = {payload, payload + plen};
+        if (PKTu8sFeed(ps, pay_cs) != OK) goto push_fail;
+        if (PKTu8sFeedFlush(ps) != OK) goto push_fail;
+        u8csc written = {pktbuf, ps[0]};
+        if (keep_push_write_all(wfd, written) != OK) goto push_fail;
+    }
+
+    // Build a 1-object packfile and send it.
+    {
+        u64 clen = u8csLen(commit_body);
+        if (u8bAllocate(pack_b, 64 + clen + clen / 2 + 256) != OK)
+            goto push_fail;
+
+        // PACK header: magic + version 2 + count 1
+        u8 hdr_bytes[12] = {'P','A','C','K', 0,0,0,2, 0,0,0,1};
+        u8csc hdr_s = {hdr_bytes, hdr_bytes + 12};
+        u8bFeed(pack_b, hdr_s);
+
+        // Varint object header: type=COMMIT, size=clen
+        {
+            a_pad(u8, ohdr, 16);
+            keep_feed_obj_hdr(ohdr, KEEP_OBJ_COMMIT, clen);
+            a_dup(u8c, oh, u8bData(ohdr));
+            u8bFeed(pack_b, oh);
+        }
+
+        // Deflated commit body.  ZINFDeflate advances buf[2] (the
+        // data-tail border) in place, so DATA already grew by total_out
+        // — no extra u8bFed needed.
+        a_dup(u8c, csrc, commit_body);
+        if (ZINFDeflate(u8bIdle(pack_b), csrc) != OK) goto push_fail;
+
+        // 20-byte SHA-1 trailer over everything so far
+        sha1 psha = {};
+        a_dup(u8c, pack_data, u8bData(pack_b));
+        SHA1Sum(&psha, pack_data);
+        u8csc psha_s = {psha.data, psha.data + 20};
+        u8bFeed(pack_b, psha_s);
+
+        a_dup(u8c, send, u8bData(pack_b));
+        if (keep_push_write_all(wfd, send) != OK) goto push_fail;
+    }
+
+    close(wfd); wfd = -1;
+
+    // Read status response until flush; look for "unpack ok" + "ok <ref>".
+    b8 unpack_ok = NO, ref_ok = NO;
+    u8bReset(rbuf_b);
+    {
+        u8cp start = u8bDataHead(rbuf_b);
+        u8cs adv = {start, start};
+        u8cs line = {};
+        for (;;) {
+            ok64 o = keep_sync_drain_pkt(rfd, rbuf_b, adv, line);
+            if (o == PKTFLUSH) break;
+            if (o != OK) break;
+            if ($len(line) >= 9 && memcmp(line[0], "unpack ok", 9) == 0)
+                unpack_ok = YES;
+            else if ($len(line) >= 3 && memcmp(line[0], "ok ", 3) == 0)
+                ref_ok = YES;
+            else if ($len(line) >= 3 && memcmp(line[0], "ng ", 3) == 0)
+                fprintf(stderr, "keeper: push rejected: %.*s",
+                        (int)$len(line), (char *)line[0]);
+        }
+    }
+
+    close(rfd); rfd = -1;
+    { int rc = 0; FILEReap(pid, &rc); }
+
+    if (unpack_ok && ref_ok) {
+        rv = OK;
+    } else {
+        fprintf(stderr, "keeper: push failed (unpack_ok=%d ref_ok=%d)\n",
+                unpack_ok, ref_ok);
+    }
+    if (pack_b[0]) u8bFree(pack_b);
+    u8bUnMap(rbuf_b);
+    return rv;
+
+push_fail:
+    if (pack_b[0]) u8bFree(pack_b);
+    if (rbuf_b[0]) u8bUnMap(rbuf_b);
+    if (wfd >= 0) close(wfd);
+    if (rfd >= 0) close(rfd);
+    { int rc = 0; FILEReap(pid, &rc); }
+    return KEEPFAIL;
+}

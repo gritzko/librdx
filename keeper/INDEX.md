@@ -99,3 +99,5 @@ Links: abc, ZLIB, OpenSSL::Crypto.
   - `test/WALK.c`   WALKu8sModeKind table + WALKTree/WALKTreeLazy on synthetic KEEP
   - `test/ROUND.c`  full round-trip: create bare repo, clone via ssh,
                      edit+commit, push back, verify files match
+  - `test/POST.c`   `keeper post ssh://…` — synthesize a commit and
+                     push it via git-receive-pack; verify remote HEAD

@@ -5,17 +5,21 @@
 #include "REFS.h"
 
 #include <stdio.h>
+#include <string.h>
+#include <time.h>
 #include <unistd.h>
 
 #include "abc/FILE.h"
+#include "abc/HEX.h"
 #include "abc/PRO.h"
 #include "dog/CLI.h"
 #include "dog/DOG.h"
+#include "dog/WHIFF.h"
 
 // --- Verb / flag tables ---
 
 char const *const KEEP_CLI_VERBS[] = {
-    "get", "put", "status", "import", "verify",
+    "get", "put", "post", "status", "import", "verify",
     "refs", "alias", "help", NULL
 };
 
@@ -33,6 +37,7 @@ static void keep_usage(void) {
         "    get .?refname              resolve ref to SHA\n"
         "    put .?ref .#sha            move local ref pointer\n"
         "    put //remote?ref           push to remote (stub)\n"
+        "    post //remote              create+push a commit on HEAD\n"
         "    status                     show store stats\n"
         "    import <packfile>          import a git packfile\n"
         "    verify .#sha               verify object + recurse\n"
@@ -343,6 +348,169 @@ static ok64 keeper_put(keeper *k, cli *c) {
     done;
 }
 
+// --- Verb: post ---
+
+//  Resolve the URI's authority through `keeper alias` and return the
+//  effective host/path slices.  The returned slices either point into
+//  `g` (no alias) or into the mmap'd REFS file, which must outlive
+//  their use — hence *rmap_out is returned to the caller for unmap.
+static void post_resolve_remote(keeper *k, uri *g,
+                                u8cs host_out, u8cs path_out,
+                                u8bp *rmap_out) {
+    a_cstr(keepdir, k->dir);
+
+    ref rarr[REFS_MAX_REFS];
+    u32 rn = 0;
+    REFSLoad(rarr, &rn, REFS_MAX_REFS, rmap_out, keepdir);
+
+    a_pad(u8, apad, 256);
+    a_cstr(slashes, "//");
+    u8bFeed(apad, slashes);
+    u8bFeed(apad, g->authority);
+    a_dup(u8c, akey, u8bData(apad));
+
+    u8csMv(host_out, g->host);
+    u8csMv(path_out, g->path);
+    for (u32 i = 0; i < rn; i++) {
+        if (REFMatch(&rarr[i], akey)) {
+            uri resolved = {};
+            u8csc val = {rarr[i].val[0], rarr[i].val[1]};
+            if (DOGParseURI(&resolved, val) == OK &&
+                !u8csEmpty(resolved.host)) {
+                u8csMv(host_out, resolved.host);
+                u8csMv(path_out, resolved.path);
+            }
+            break;
+        }
+    }
+}
+
+//  Extract the tree SHA-1 (as 40 hex chars) from a commit object body.
+//  A git commit always starts with "tree <40hex>\n" per object format.
+static ok64 post_extract_tree_hex(u8 *out40, u8csc body) {
+    if ($len(body) < 46) return KEEPFAIL;
+    if (memcmp(body[0], "tree ", 5) != 0) return KEEPFAIL;
+    memcpy(out40, body[0] + 5, 40);
+    return OK;
+}
+
+static ok64 keeper_post(keeper *k, cli *c) {
+    sane(k && c);
+    uri *g = (c->nuris > 0) ? &c->uris[0] : NULL;
+    b8 has_remote = g && !u8csEmpty(g->host);
+    a_cstr(keepdir, k->dir);
+
+    // 1. Resolve local HEAD → parent commit SHA (40 hex).
+    a_cstr(q_head, "?HEAD");
+    a_pad(u8, arena, 256);
+    uri resolved = {};
+    ok64 ro = REFSResolve(&resolved, arena, keepdir, q_head);
+    if (ro != OK || $len(resolved.query) != 40) {
+        fprintf(stderr, "keeper: post: HEAD not set (do `keeper get` first)\n");
+        return KEEPFAIL;
+    }
+    u8 old_hex[40];
+    memcpy(old_hex, resolved.query[0], 40);
+
+    // 2. Read parent commit from local store; pull tree SHA out of it.
+    u8cs old_cs = {old_hex, old_hex + 40};
+    u64 hashlet = WHIFFHexHashlet60(old_cs);
+    Bu8 pbuf = {};
+    call(u8bMap, pbuf, 1UL << 20);
+    u8 ptype = 0;
+    ok64 go = KEEPGet(k, hashlet, 15, pbuf, &ptype);
+    if (go != OK || ptype != KEEP_OBJ_COMMIT) {
+        u8bUnMap(pbuf);
+        fprintf(stderr, "keeper: post: parent commit not in store\n");
+        return KEEPFAIL;
+    }
+    u8 tree_hex[40];
+    {
+        a_dup(u8c, body, u8bData(pbuf));
+        ok64 eo = post_extract_tree_hex(tree_hex, body);
+        u8bUnMap(pbuf);
+        if (eo != OK) {
+            fprintf(stderr, "keeper: post: can't find tree in parent\n");
+            return eo;
+        }
+    }
+
+    // 3. Build the new commit body.  Same tree as parent → an empty-diff
+    //    commit; enough to demonstrate the push handshake end-to-end.
+    Bu8 com = {};
+    call(u8bAllocate, com, 4096);
+    a_cstr(tree_label, "tree ");
+    u8bFeed(com, tree_label);
+    u8csc tree_s = {tree_hex, tree_hex + 40};
+    u8bFeed(com, tree_s);
+    u8bFeed1(com, '\n');
+    a_cstr(par_label, "parent ");
+    u8bFeed(com, par_label);
+    u8csc old_s = {old_hex, old_hex + 40};
+    u8bFeed(com, old_s);
+    u8bFeed1(com, '\n');
+
+    char who[256];
+    int wlen = snprintf(who, sizeof(who),
+        "keeper <keeper@localhost> %lld +0000\n", (long long)time(NULL));
+    u8csc who_cs = {(u8cp)who, (u8cp)who + wlen};
+    a_cstr(auth_label, "author ");
+    u8bFeed(com, auth_label);
+    u8bFeed(com, who_cs);
+    a_cstr(comm_label, "committer ");
+    u8bFeed(com, comm_label);
+    u8bFeed(com, who_cs);
+    u8bFeed1(com, '\n');
+    a_cstr(msg, "keeper post\n");
+    u8bFeed(com, msg);
+
+    u8csc com_data = {u8bDataHead(com), u8bIdleHead(com)};
+
+    // 4. Store the new commit locally.
+    keep_pack pk = {};
+    ok64 po = KEEPPackOpen(k, &pk);
+    if (po != OK) { u8bFree(com); return po; }
+    sha1 new_sha = {};
+    ok64 fo = KEEPPackFeed(k, &pk, KEEP_OBJ_COMMIT, com_data, &new_sha);
+    if (fo != OK) { KEEPPackClose(k, &pk); u8bFree(com); return fo; }
+    po = KEEPPackClose(k, &pk);
+    if (po != OK) { u8bFree(com); return po; }
+
+    sha1hex new_hex = {};
+    sha1hexFromSha1(&new_hex, &new_sha);
+
+    // 5. Push via git-receive-pack to refs/heads/master — only when
+    //    the URI has a host.  Bare `keeper post` (no URI, or a URI
+    //    without an authority) just commits locally.
+    if (has_remote) {
+        u8cs rhost = {}, rpath = {};
+        u8bp rmap = NULL;
+        post_resolve_remote(k, g, rhost, rpath, &rmap);
+        u8csc old_hex_cs = {old_hex, old_hex + 40};
+        u8csc new_hex_cs = {new_hex.data, new_hex.data + 40};
+        ok64 pu = KEEPPush(k, rhost, rpath, "refs/heads/master",
+                           old_hex_cs, new_hex_cs, com_data);
+        if (rmap) u8bUnMap(rmap);
+        u8bFree(com);
+        if (pu != OK) return pu;
+    } else {
+        u8bFree(com);
+    }
+
+    // 6. Record the new HEAD locally: ?master → ?<new>.
+    a_cstr(k_master, "?master");
+    a_pad(u8, vbuf, 64);
+    u8bFeed1(vbuf, '?');
+    u8cs new_s = {new_hex.data, new_hex.data + 40};
+    u8bFeed(vbuf, new_s);
+    a_dup(u8c, v, u8bData(vbuf));
+    REFSAppend(keepdir, k_master, v);
+
+    fprintf(stdout, "keeper: post %.12s → %.12s\n",
+            (char *)old_hex, new_hex.data);
+    done;
+}
+
 // --- Entry ---
 
 ok64 KEEPExec(keeper *k, cli *c) {
@@ -351,6 +519,7 @@ ok64 KEEPExec(keeper *k, cli *c) {
     a_cstr(v_help,   "help");
     a_cstr(v_get,    "get");
     a_cstr(v_put,    "put");
+    a_cstr(v_post,   "post");
     a_cstr(v_status, "status");
     a_cstr(v_import, "import");
     a_cstr(v_verify, "verify");
@@ -370,6 +539,7 @@ ok64 KEEPExec(keeper *k, cli *c) {
     if ($eq(c->verb, v_refs))    return keeper_refs(k);
     if ($eq(c->verb, v_get))     return keeper_get(k, c);
     if ($eq(c->verb, v_put))     return keeper_put(k, c);
+    if ($eq(c->verb, v_post))    return keeper_post(k, c);
 
     if ($eq(c->verb, v_import)) {
         if (c->nuris < 1) {

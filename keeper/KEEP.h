@@ -139,6 +139,16 @@ ok64 KEEPVerify(keeper *k, u8cs hex_sha);
 //  Import a git packfile into the store.
 ok64 KEEPImport(keeper *k, u8cs pack_path);
 
+//  Push one new commit object to `host:path` via git-receive-pack.
+//  Spawns `ssh <host> git-receive-pack <path>` (no shell).
+//  `ref` is the full remote ref name, e.g. "refs/heads/master".
+//  `old_hex`/`new_hex` are 40-char SHA-1 hex slices.  old_hex may be
+//  "000...0" (40 zeros) to create a new ref.
+//  `commit_body` is the raw commit object bytes that correspond to
+//  new_hex; KEEPPush packs and sends exactly this one object.
+ok64 KEEPPush(keeper *k, u8csc host, u8csc path, char const *ref,
+              u8csc old_hex, u8csc new_hex, u8csc commit_body);
+
 //  Fetch objects from remote via git-upload-pack.
 //  `remote` is the parsed "host /path" form used for the ssh command.
 //  `origin_uri` is the original URI the user typed (e.g.

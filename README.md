@@ -89,13 +89,16 @@ URI the keeper push step is included; without, it's purely local.
 See each dog's `INDEX.md` (e.g. [sniff/INDEX.md](sniff/INDEX.md),
 [keeper/INDEX.md](keeper/INDEX.md)) for the full API surface.
 
-##  Is this VC funded?
+##  FAQ
 
-Nope. The project is ran from a 10 yrs old ThinkCentre discarded by
-a university using a very wide LG screen, also discarded. Heavy
-things, including massive fuzzing, all run on a 32 core discounted
-Hetzner server whose IP is banned by half the Internet. Coding is
-mostly done by Claude Max 5x, in 2..5 parallel sessions.
+*Is this git based?*
+This is git-compatible.
+
+*Is this VC funded?*
+Nope. The project is ran on old hardware discarded by a university. 
+Heavy things (eg massive fuzzing), all run on a 32 core discounted
+Hetzner server. Coding is mostly done by Claude Max, in 2..5 parallel
+sessions.
 
 ##  Credits
 
