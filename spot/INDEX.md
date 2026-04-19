@@ -33,12 +33,14 @@ the pipe. Otherwise it writes plain ASCII directly to stdout via
 | `CAPOSpot` | Structural search (and replace) across repo |
 | `CAPOGrep` | Substring grep with syntax-highlighted context (GREP.c) |
 | `CAPOPcreGrep` | Regex grep via Thompson NFA + trigram filtering (GREP.c) |
-| `CAPOReindex` | Full reindex of all tracked files |
-| `CAPOReindexProc` | Parallel reindex (worker K of N) |
-| `CAPOHook` | Incremental index update (post-commit hook) |
-| `CAPOCompact` | Compact LSM index runs |
+| `CAPOCompact` / `CAPOCompactAll` | Compact LSM index runs |
 | `CAPOResolveDir` | Resolve `<workspace>/.dogs/spot` dir |
-| `CAPOIndexFile` | Index one file: extract trigrams into u64 entries |
+| `CAPOIndexFile` | Tokenize one blob, emit trigram+symbol u64 postings |
+| `CAPOCommitAppend` | Append a commit SHA to `.dogs/spot/COMMIT` |
+
+Ingestion is driven by `SPOTUpdate` (DOG 4-fn), which keeper calls
+via the `unpk_emit_fn` hook once per resolved pack object.  There is
+no CLI-driven reindex, post-commit hook, or uncommitted-diff path.
 
 ## Key functions (SPOT.h)
 
