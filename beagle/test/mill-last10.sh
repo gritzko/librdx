@@ -44,8 +44,10 @@ cd "$TMILL/be01"
 git init -q .
 mkdir -p .dogs/keeper
 
-#  git side: reference clone, no checkout yet.
-git clone -q --no-checkout "$REPO" "$TMILL/git01"
+#  git side: ssh-backed empty repo, no pre-fetch.  Each tag's fetch
+#  goes over ssh for an apples-to-apples comparison with `be`.
+git init -q "$TMILL/git01"
+git -C "$TMILL/git01" remote add origin "$HOST:$REPO_REL"
 
 FAIL=0
 TOTAL=0

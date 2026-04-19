@@ -247,6 +247,8 @@ ok64 KEEPLsFiles(keeper *k, uricp target,
 
     u8cs sub = {};
     u8csMv(sub, target->path);
+    //  "." means repo root, same as empty path.
+    if (u8csLen(sub) == 1 && *sub[0] == '.') { sub[0] = sub[1]; }
     call(lsf_descend, k, &root_tree, sub,
          prefix_buf, &target_sha, &target_kind);
 
