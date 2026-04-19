@@ -201,4 +201,6 @@ ok64 KEEPScan(keeper *k, u64 from_val, keep_cb cb, void *ctx);
 //  Returns KEEPNONE when the ref is unknown, KEEPFAIL on bad input.
 ok64 KEEPResolveTree(keeper *k, uricp target, sha1 *tree_out);
 
+//  KEEPLsFiles is declared in keeper/WALK.h (takes a walk_tree_fn).
+
 #endif

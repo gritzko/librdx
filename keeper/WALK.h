@@ -60,4 +60,12 @@ ok64 WALKTree(keeper *k, u8cp tree_sha, walk_tree_fn visit, void0p ctx);
 ok64 WALKTreeLazy(keeper *k, u8cp tree_sha, walk_tree_fn visit,
                   void0p ctx);
 
+//  ls-files: resolve `target` (URI with ?ref or #sha plus optional
+//  /subpath) and invoke `visit` once per descendant entry, lazy mode.
+//  Paths delivered to the visitor are absolute from the repo root
+//  (matching git ls-tree -r output).  If the subpath resolves to a
+//  single blob, the visitor is called exactly once for that blob.
+ok64 KEEPLsFiles(keeper *k, uricp target,
+                 walk_tree_fn visit, void0p ctx);
+
 #endif

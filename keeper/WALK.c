@@ -134,3 +134,135 @@ ok64 WALKTree(keeper *k, u8cp tree_sha, walk_tree_fn visit, void0p ctx) {
 ok64 WALKTreeLazy(keeper *k, u8cp tree_sha, walk_tree_fn visit, void0p ctx) {
     return walk_tree_entry(k, tree_sha, NO, visit, ctx);
 }
+
+//  ls-files: descend an optional /subpath relative to a URI-resolved
+//  tree, then walk.  See WALK.h.
+
+//  Wrapper visitor: prepends a fixed prefix (+ '/') to every emitted
+//  path so the outward-facing paths remain absolute when the walk
+//  itself started at a subtree.
+typedef struct {
+    walk_tree_fn inner;
+    void0p       inner_ctx;
+    u8cs         prefix;   // e.g. "drivers/net"  (no trailing '/')
+} lsf_prefix_ctx;
+
+static ok64 lsf_prefix_visit(u8cs path, u8 kind, u8cp esha,
+                              u8cs blob, void0p ctx) {
+    lsf_prefix_ctx *pc = (lsf_prefix_ctx *)ctx;
+    if ($empty(pc->prefix)) {
+        return pc->inner(path, kind, esha, blob, pc->inner_ctx);
+    }
+    //  Concatenate "<prefix>" + (empty ? "" : "/" + path).
+    a_pad(u8, pbuf, 4096);
+    u8bFeed(pbuf, pc->prefix);
+    if (!$empty(path)) {
+        u8bFeed1(pbuf, '/');
+        u8bFeed(pbuf, path);
+    }
+    a_dup(u8c, full, u8bData(pbuf));
+    return pc->inner(full, kind, esha, blob, pc->inner_ctx);
+}
+
+//  Descend a '/'-separated subpath from `root_tree`.  On success,
+//  *out_sha/*out_kind describe the last resolved entry; *out_prefix
+//  gets a slice into `pathbuf` holding the descended prefix (stable
+//  until pathbuf is reused).
+static ok64 lsf_descend(keeper *k, sha1 const *root_tree, u8cs subpath,
+                         u8bp pathbuf, sha1 *out_sha, u8 *out_kind) {
+    sane(k && root_tree && out_sha && out_kind);
+
+    sha1 cur_sha = *root_tree;
+    u8 cur_kind = WALK_KIND_DIR;
+
+    u8cs scan = {};
+    u8csMv(scan, subpath);
+
+    //  Iterate '/'-separated segments.
+    while (!$empty(scan)) {
+        //  Skip leading '/'.
+        while (!$empty(scan) && *scan[0] == '/') scan[0]++;
+        if ($empty(scan)) break;
+
+        //  Slice one segment.
+        u8cs seg = {scan[0], scan[0]};
+        while (seg[1] < scan[1] && *seg[1] != '/') seg[1]++;
+        if (seg[0] == seg[1]) break;
+        scan[0] = seg[1];  // cursor past segment
+
+        if (cur_kind != WALK_KIND_DIR) return KEEPNONE;
+
+        //  Fetch current tree, scan entries for `seg`.
+        Bu8 tbuf = {};
+        call(u8bAllocate, tbuf, 1UL << 20);
+        u8 otype = 0;
+        ok64 o = KEEPGetExact(k, &cur_sha, tbuf, &otype);
+        if (o != OK || otype != DOG_OBJ_TREE) { u8bFree(tbuf); return o ? o : KEEPNONE; }
+
+        u8cs tree_s = {u8bDataHead(tbuf), u8bIdleHead(tbuf)};
+        b8 found = NO;
+        u8 next_kind = 0;
+        sha1 next_sha = {};
+        u8cs file = {}, esha = {};
+        while (GITu8sDrainTree(tree_s, file, esha) == OK) {
+            u8cs fscan = {file[0], file[1]};
+            if (u8csFind(fscan, ' ') != OK) continue;
+            u8cs mode_s = {file[0], fscan[0]};
+            u8cs name_s = {fscan[0] + 1, file[1]};
+            if (u8csLen(name_s) != u8csLen(seg)) continue;
+            if (memcmp(name_s[0], seg[0], u8csLen(name_s)) != 0) continue;
+            next_kind = WALKu8sModeKind(mode_s);
+            memcpy(next_sha.data, esha[0], 20);
+            found = YES;
+            break;
+        }
+        u8bFree(tbuf);
+        if (!found || next_kind == 0) return KEEPNONE;
+
+        //  Append to prefix pathbuf.
+        if (u8bDataLen(pathbuf) > 0) u8bFeed1(pathbuf, '/');
+        u8bFeed(pathbuf, seg);
+
+        cur_sha = next_sha;
+        cur_kind = next_kind;
+    }
+
+    *out_sha = cur_sha;
+    *out_kind = cur_kind;
+    done;
+}
+
+ok64 KEEPLsFiles(keeper *k, uricp target,
+                 walk_tree_fn visit, void0p ctx) {
+    sane(k && target && visit);
+
+    //  1. Resolve URI to root tree SHA (commit→tree or tree→tree).
+    sha1 root_tree = {};
+    call(KEEPResolveTree, k, target, &root_tree);
+
+    //  2. Descend /subpath (URI path, strip leading '/').
+    a_pad(u8, prefix_buf, 4096);
+    sha1 target_sha = root_tree;
+    u8   target_kind = WALK_KIND_DIR;
+
+    u8cs sub = {};
+    u8csMv(sub, target->path);
+    call(lsf_descend, k, &root_tree, sub,
+         prefix_buf, &target_sha, &target_kind);
+
+    //  3. Dispatch: blob → one event; tree → full walk with prefix.
+    a_dup(u8c, prefix_s, u8bData(prefix_buf));
+
+    if (target_kind != WALK_KIND_DIR) {
+        //  Leaf: emit a single visitor call with the accumulated path.
+        u8cs blob = {};
+        return visit(prefix_s, target_kind, target_sha.data, blob, ctx);
+    }
+
+    //  Tree: walk via WALKTreeLazy, wrapping the visitor to prepend
+    //  `prefix_s` + '/' so paths remain absolute from the repo root.
+    lsf_prefix_ctx pc = { .inner = visit, .inner_ctx = ctx, .prefix = {}};
+    u8csMv(pc.prefix, prefix_s);
+    return walk_tree_entry(k, target_sha.data, NO,
+                            lsf_prefix_visit, &pc);
+}

@@ -20,7 +20,7 @@
 
 char const *const KEEP_CLI_VERBS[] = {
     "get", "put", "post", "status", "import", "verify",
-    "refs", "alias", "help", NULL
+    "refs", "alias", "ls-files", "help", NULL
 };
 
 char const KEEP_CLI_VAL_FLAGS[] = "--want\0--have\0";
@@ -43,6 +43,7 @@ static void keep_usage(void) {
         "    verify .#sha               verify object + recurse\n"
         "    refs                       list known refs\n"
         "    alias //name <uri>         add remote alias\n"
+        "    ls-files [URI]             list files reachable from ref/sha\n"
         "    help                       this message\n"
     );
 }
@@ -89,6 +90,45 @@ static ok64 keeper_import(keeper *k, u8cs path) {
 static ok64 keeper_verify(keeper *k, u8cs hex) {
     sane(k && $ok(hex));
     return KEEPVerify(k, hex);
+}
+
+// --- Verb: ls-files ---
+
+#include "WALK.h"
+
+//  Visitor for `keeper ls-files`.  Prints one line per leaf entry in
+//  `git ls-tree -r` format:  "<mode> <type> <sha40>\t<path>\n".
+//  Skips intermediate tree events (we only want leaves).
+static ok64 keeper_lsfiles_visit(u8cs path, u8 kind, u8cp esha,
+                                  u8cs blob, void0p ctx) {
+    (void)blob; (void)ctx;
+    char const *mode = NULL;
+    char const *type = NULL;
+    switch (kind) {
+        case WALK_KIND_REG: mode = "100644"; type = "blob";   break;
+        case WALK_KIND_EXE: mode = "100755"; type = "blob";   break;
+        case WALK_KIND_LNK: mode = "120000"; type = "blob";   break;
+        case WALK_KIND_SUB: mode = "160000"; type = "commit"; break;
+        case WALK_KIND_DIR:
+            //  Skip directory events: git ls-tree -r omits them.
+            //  The root visit also arrives with empty path; either way
+            //  we only surface leaves.
+            return OK;
+        default:
+            return OK;
+    }
+    char hex[41];
+    for (int i = 0; i < 20; i++)
+        snprintf(hex + 2 * i, 3, "%02x", esha[i]);
+    fprintf(stdout, "%s %s %s\t%.*s\n",
+            mode, type, hex,
+            (int)$len(path), (char *)path[0]);
+    return OK;
+}
+
+static ok64 keeper_lsfiles(keeper *k, uricp target) {
+    sane(k && target);
+    return KEEPLsFiles(k, target, keeper_lsfiles_visit, NULL);
 }
 
 // --- Verb: refs ---
@@ -557,6 +597,19 @@ ok64 KEEPExec(keeper *k, cli *c) {
             return KEEPFAIL;
         }
         return keeper_alias(k, &c->uris[0], &c->uris[1]);
+    }
+
+    a_cstr(v_lsfiles, "ls-files");
+    if ($eq(c->verb, v_lsfiles)) {
+        uri default_uri = {};
+        uri *u = (c->nuris > 0) ? &c->uris[0] : &default_uri;
+        if (c->nuris == 0) {
+            //  Default: local HEAD.  Construct a minimal URI with query = "HEAD".
+            a_cstr(head_q, "HEAD");
+            default_uri.query[0] = head_q[0];
+            default_uri.query[1] = head_q[1];
+        }
+        return keeper_lsfiles(k, u);
     }
 
     fprintf(stderr, "keeper: unknown verb '%.*s'\n",
