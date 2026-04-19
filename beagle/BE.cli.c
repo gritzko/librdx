@@ -241,9 +241,11 @@ static ok64 BEGet(cli *c, b8 seq) {
         {u8slit("keeper"), u8slit("get"), NO},
         {u8slit("sniff"),  u8slit("get"), NO},
         {u8slit("spot"),   u8slit("get"), NO},
-        {u8slit("graf"),   u8slit("get"), NO},  // foreground: surface
-                                 // graf's stderr before the next prompt
+        // TEMP: graf-dag step commented out for head-to-head timing vs git
+        // {u8slit("graf"),   u8slit("get"), NO},  // foreground: surface
+        //                          // graf's stderr before the next prompt
     };
+    u32 nsteps = sizeof(steps) / sizeof(steps[0]);
     // Skip keeper fetch if no remote (no authority)
     uri *u = (c->nuris > 0) ? &c->uris[0] : NULL;
     u32 start = (u != NULL && !$empty(u->authority)) ? 0 : 1;
@@ -269,7 +271,7 @@ static ok64 BEGet(cli *c, b8 seq) {
             }
         }
     }
-    return BEDispatch(c, steps + start, 4 - start, seq);
+    return BEDispatch(c, steps + start, nsteps - start, seq);
 }
 
 //  `be put` stages a new base tree locally — no commit object and no

@@ -29,6 +29,12 @@ target_compile_options(DEFtest PRIVATE ${TEST_CXX_FLAGS})
 target_link_libraries(DEFtest dog abc-core)
 add_test(NAME DEFtest COMMAND DEFtest)
 
+add_executable(LStest LS.c)
+target_link_options(LStest PRIVATE ${TEST_LDD_FLAGS})
+target_compile_options(LStest PRIVATE ${TEST_CXX_FLAGS})
+target_link_libraries(LStest dog abc-core)
+add_test(NAME LStest COMMAND LStest)
+
 add_executable(DEF01test DEF01.c)
 target_link_options(DEF01test PRIVATE ${TEST_LDD_FLAGS})
 target_compile_options(DEF01test PRIVATE ${TEST_CXX_FLAGS})

@@ -17,41 +17,44 @@ export PATH="$BIN:$PATH"
 REPO=${REPO:-$HOME/src/git}
 CLONE=${CLONE:-$HOME/tmp/clone}
 REF=${REF:-HEAD}
+NAME=${NAME:-$(basename "$REPO" .git)}
 
-rm -rf "$CLONE/git01" "$CLONE/git02"
-mkdir -p "$CLONE/git01"
+DOGS_DIR="$CLONE/$NAME"
+GIT_DIR="$CLONE/$NAME.git-ref"
+
+rm -rf "$DOGS_DIR" "$GIT_DIR"
+mkdir -p "$DOGS_DIR"
 
 # --- git reference clone ---
 echo "=== git clone reference ==="
-git clone --quiet --no-checkout "$REPO" "$CLONE/git02"
+git clone --quiet --no-checkout "$REPO" "$GIT_DIR"
 if [ "$REF" = "HEAD" ]; then
-    git -C "$CLONE/git02" checkout --quiet
+    git -C "$GIT_DIR" checkout --quiet
 else
-    git -C "$CLONE/git02" checkout --quiet "$REF"
+    git -C "$GIT_DIR" checkout --quiet "$REF"
 fi
 
 # --- dogs clone via be get ---
 echo "=== be get ==="
-cd "$CLONE/git01"
-git init --quiet .
+cd "$DOGS_DIR"
 mkdir -p .dogs/keeper
 
 if [ "$REF" = "HEAD" ]; then
-    be get "//localhost${REPO}" 2>&1 | grep -v "^keeper: round" || true
+    be get "ssh://localhost${REPO}" 2>&1 | grep -v "^keeper: round" || true
 else
-    be get "//localhost${REPO}?${REF}" 2>&1 | grep -v "^keeper: round" || true
+    be get "ssh://localhost${REPO}?${REF}" 2>&1 | grep -v "^keeper: round" || true
 fi
 
 # --- compare worktrees (rsync dry-run) ---
 echo "=== diff ==="
 RDIFF=$(rsync -rlcn --delete \
     --exclude='/.git/' --exclude='/.dogs/' \
-    "$CLONE/git02/" "$CLONE/git01/" 2>&1)
+    "$GIT_DIR/" "$DOGS_DIR/" 2>&1)
 
-G1=$(find "$CLONE/git01" -not -path '*/.dogs/*' -not -path '*/.git/*' -type f | wc -l)
-G2=$(find "$CLONE/git02" -not -path '*/.git/*' -type f | wc -l)
-echo "git01 (be get): $G1 files"
-echo "git02 (git):    $G2 files"
+G1=$(find "$DOGS_DIR" -not -path '*/.dogs/*' -not -path '*/.git/*' -type f | wc -l)
+G2=$(find "$GIT_DIR" -not -path '*/.git/*' -type f | wc -l)
+echo "$DOGS_DIR (be get): $G1 files"
+echo "$GIT_DIR (git):    $G2 files"
 
 if [ -z "$RDIFF" ]; then
     echo "PASS: worktrees identical at $REF"

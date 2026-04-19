@@ -162,6 +162,10 @@ static ok64 keeper_get_remote(keeper *k, cli *c, uri *g) {
     u8bFeed(rbuf, rhost);
     if (!u8csEmpty(rpath)) {
         u8bFeed1(rbuf, ' ');
+        //  URI path is HOME-relative for //host/path — strip the leading
+        //  '/' the parser leaves in so ssh sees a path relative to the
+        //  remote login's home.  Absolute paths need file:///…
+        if (*rpath[0] == '/') rpath[0]++;
         u8bFeed(rbuf, rpath);
     }
     a_dup(u8c, remote, u8bData(rbuf));
