@@ -571,14 +571,20 @@ ok64 KEEPExec(keeper *k, cli *c) {
     if ($eq(c->verb, v_refs))    return keeper_refs(k);
 
     //  Plain dog sync dispatch — scheme-based, before the legacy
-    //  `get //host` path so `be://` and `file://` route to SYNCGet.
-    if ($eq(c->verb, v_get) && c->nuris >= 1) {
+    //  `get //host` / `post ssh://...` paths so `be://` and `file://`
+    //  route to SYNCGet / SYNCPost.
+    if (c->nuris >= 1) {
         uri *u = &c->uris[0];
         a_cstr(be_sch, "be");
         a_cstr(file_sch, "file");
-        if ($eq(u->scheme, be_sch) || $eq(u->scheme, file_sch)) {
+        b8 plain = $eq(u->scheme, be_sch) || $eq(u->scheme, file_sch);
+        if (plain && $eq(c->verb, v_get)) {
             a_dup(u8c, uri_full, u->data);
             return SYNCGet(k, uri_full);
+        }
+        if (plain && $eq(c->verb, v_post)) {
+            a_dup(u8c, uri_full, u->data);
+            return SYNCPost(k, uri_full);
         }
     }
 

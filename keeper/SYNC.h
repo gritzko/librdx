@@ -77,10 +77,16 @@ ok64 SYNCDrain(u8cs from, u8p tag, u8csp value);
 //  `peer_uri` is informational (for logs) and may be empty.
 ok64 SYNCServe(keeper *k, int in_fd, int out_fd);
 
-//  Client: spawn `keeper --sync <path>` at the other end of `uri`
-//  and execute a Get (pull) session.  URI accepts `be://host/path`
-//  (ssh transport) and `file:///absolute/path` (local spawn).
+//  Client: spawn `keeper sync` at the other end of `uri` and execute
+//  a Get (pull) session.  URI accepts `be://host/path` (ssh transport)
+//  and `file:///path` (local spawn).  Remote paths are relative to the
+//  ssh-login `$HOME`.
 ok64 SYNCGet(keeper *k, u8csc uri);
+
+//  Client: spawn `keeper sync` at the other end of `uri` and execute
+//  a Post (push) session — ship every local pack file and reflog tail,
+//  then wait for the server's final `E` ack.
+ok64 SYNCPost(keeper *k, u8csc uri);
 
 //  Body parsers (cheap — the record body is already in memory).
 ok64 SYNCParseHello(u8cs body, u8 *version, u8 *verb);

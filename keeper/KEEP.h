@@ -178,6 +178,14 @@ ok64 KEEPVerify(keeper *k, u8cs hex_sha);
 //  Import a git packfile into the store.
 ok64 KEEPImport(keeper *k, u8cs pack_path);
 
+//  Ingest a keeper-native stripped pack file (one SYNC.md Q body):
+//  whole log file bytes = PACK header (12 B) + concatenated object
+//  records, no git trailer.  Writes a new log/NNN.pack, UNPK-indexes
+//  it, emits one pack bookmark at offset 12 (covering the whole
+//  file), writes idx/NNN.idx, maps both, and extends k->packs /
+//  k->runs.  Caller holds no resources beyond the `bytes` slice.
+ok64 KEEPIngestFile(keeper *k, u8csc bytes);
+
 //  Push one new commit object to `host:path` via git-receive-pack.
 //  Spawns `ssh <host> git-receive-pack <path>` (no shell).
 //  `ref` is the full remote ref name, e.g. "refs/heads/master".

@@ -41,6 +41,8 @@ endif ()
 
 option(WITH_MILL "build treadmill integration tests" OFF)
 
+option(WITH_SSH "build tests that require passwordless ssh localhost" OFF)
+
 option(WITH_FUZZ "build with libFuzzer" OFF)
 if (WITH_FUZZ)
     set(FUZZ_FLAGS "-fsanitize=fuzzer")

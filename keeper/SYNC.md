@@ -27,8 +27,13 @@ and spawns `keeper --sync path` directly.
 
 Watermarks are **client-side only**.  The server keeps no memory
 of which client synced when; reflog gossip makes per-client state
-unnecessary.  On a successful session end, the client appends one
-composite watermark entry to its REFS:
+unnecessary.
+
+**MVP status:** watermarks are sent as zero (`W()` empty body) and
+the server always full-syncs.  Composite watermark persistence to
+REFS, delta-style incremental sync, and pack-level filtering are
+deferred — see "Out of scope" below.  The format below describes
+the eventual target:
 
     <time>  be://host/path  #(SSS,LLLL;SSS,LLLL;RRRR,RRRR)
 
@@ -58,61 +63,43 @@ All multi-byte integers are little-endian.
 |-----|----------|--------------------|----------------------------------------------|
 | `H` | Hello    | initiator → peer   | u8 version, u8 verb (`G`=get, `P`=post)      |
 | `W` | Watermark| receiver → sender  | u32 pack_seq, u64 pack_len, u64 reflog_len; empty = unknown |
-| `L` | List     | sender → receiver  | wh128 pack bookmark, OR 8-byte tail sentinel |
-| `E` | End      | either             | empty; terminates a list or the session      |
-| `Q` | pack     | sender → receiver  | raw pack bytes (`PACK`…trailer, 20 B SHA1)   |
+| `Q` | pack file| sender → receiver  | **whole log file bytes** (PACK header + stripped objects, no git trailer) |
 | `R` | reflog   | sender → receiver  | raw reflog tail bytes (append-only stream)   |
+| `E` | End      | either             | empty; terminates a list or the session      |
 | `X` | Error    | either             | ron60 ok64 code + optional utf8 message      |
 
-### `L` body
-
-Two forms, distinguished by body size:
-
-  * **bookmark (16 B)** — wh128 entry copied verbatim from the
-    sender's index:
-
-        key = file_id20 | offset40 | type4(PACK)
-        val = hashlet60 | flags4
-
-  * **tail sentinel (8 B)** — the last `L` for a given file_id
-    carries only a u64 `final_length`.  Receiver uses it to close
-    the previous bookmark's byte range (length = final_length −
-    previous.offset).
+One Q carries one keeper log file (`.dogs/keeper/log/NNNNNNNNNN.pack`)
+verbatim — so the receiver can mmap it as a fresh log file and
+UNPK-index it with `scan_start=12, scan_end=file_len` (object count
+comes from the embedded PACK header).  Per-pack `L` bookmarks
+remain reserved for future delta-style incremental sync and are
+not emitted in MVP full-sync mode.
 
 ## Session flow
 
 ### Get (`verb = 'G'`, client receives packs)
 
     C → S : H(1, 'G')
-    C → S : W(pack_seq, pack_len, reflog_len)   ; or W() if unknown
-    S → C : L, L, …, E                          ; bookmarks past W
-    [receiver sanity check: first L's hashlet must be known
-     locally, else C → S : X(UNRELATED), abort]
-    S → C : Q, Q, …, E                          ; one Q per bookmark L
-    S → C : R, R, …, E                          ; reflog tail past W.reflog_len
-    C     : append packs, index per-pack, verify objects
-    C     : dedup & filter reflog entries, append to own REFS
-    C     : on final E, write composite watermark to REFS
+    C → S : W()                                 ; MVP: always empty → full sync
+    S → C : Q, Q, …, E                          ; one Q per log file
+    S → C : R, R, …, E                          ; whole reflog (dedup on ingest)
+    C     : for each Q, write new log/NNN.pack,
+            UNPK-index into a new idx/NNN.idx run
+    C     : dedup & append reflog entries to own REFS
 
 ### Post (`verb = 'P'`, client sends packs)
 
     C → S : H(1, 'P')
-    C → S : W(pack_seq, pack_len, reflog_len)   ; client's view of
-                                                  server, from its REFS
-    C → S : L, L, …, E                          ; C's bookmarks past W
-    [S sanity check: first L known locally or W() accepted]
+    C → S : W()                                 ; MVP: always empty → full sync
     C → S : Q, Q, …, E
-    C → S : R, R, …, E                          ; C's reflog tail past
-                                                  W.reflog_len
-    S     : append packs, index, verify
-    S     : dedup & filter reflog entries, append to own REFS
-    S     : send final E
-    C     : on final E, write composite watermark to REFS
+    C → S : R, R, …, E
+    S     : ingest each Q as a new log/NNN.pack + idx run
+    S     : dedup & append reflog entries to own REFS
+    S → C : E                                   ; ack: post completed
 
 In both directions the **client** sends the watermark (always its
-own remembered view of the server) and always updates its own
-REFS watermark at session end.  The server is stateless across
-sessions.
+own remembered view of the server).  The server is stateless
+across sessions.
 
 ## Reflog gossip
 

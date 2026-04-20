@@ -90,12 +90,27 @@ ok64 STAGEOpen(keep_pack *p, u8cs branch) {
     if (ro == OK) {
         u8bUnMap(probe);
         call(FILEBook, &p->log, $path(ppath), 1ULL << 30);
-        ((u8 **)p->log)[2] = p->log[3];
+        //  Park b[2] at the real file end (not the page-aligned map
+        //  end) AND extend the file to match the mapped size so
+        //  subsequent writes past EOF actually hit disk.  Matches
+        //  the same fix in KEEPPackOpen appending.
+        size_t actual_sz = 0;
+        int book_fd = FILEBookedFD(p->log);
+        test(book_fd >= 0, FILENOBOOK);
+        call(FILESize, &actual_sz, &book_fd);
+        size_t mapped_sz = (size_t)(p->log[3] - p->log[0]);
+        if (mapped_sz > actual_sz) {
+            call(FILEResize, &book_fd, mapped_sz);
+        }
+        ((u8 **)p->log)[2] = p->log[0] + actual_sz;
         p->pack_offset = u8bDataLen(p->log);
     } else {
+        //  PACKu8sFeedHdr already advances the DATA/IDLE boundary
+        //  by 12 via its u8sFeed calls — no further u8bFed is
+        //  needed (an earlier double-advance left a 12-byte zero
+        //  gap before the first object).
         call(FILEBookCreate, &p->log, $path(ppath), 1ULL << 30, 4096);
         call(PACKu8sFeedHdr, u8bIdle(p->log), 0);
-        u8bFed(p->log, 12);
         p->pack_offset = 12;
     }
 

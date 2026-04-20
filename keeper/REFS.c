@@ -73,6 +73,68 @@ ok64 REFSSyncRecord(u8csc dir, refcp arr, u32 nrefs) {
     done;
 }
 
+// --- Append received reflog tail with dedup ---
+
+ok64 REFSAppendTail(u8csc dir, u8csc bytes) {
+    sane($ok(dir));
+    if (u8csEmpty(bytes)) done;
+
+    // Load existing REFS into memory for dedup (compare whole line
+    // bytes — time+key+val+'\n' — since two different refs can share
+    // a key if recorded at different times).
+    a_cstr(fname, REFS_FILE);
+    a_path(path, dir, fname);
+    u8bp have_map = NULL;
+    u8cp have_head = NULL;
+    u8cp have_term = NULL;
+    ok64 mo = FILEMapRO(&have_map, $path(path));
+    if (mo == OK) {
+        have_head = u8bDataHead(have_map);
+        have_term = u8bIdleHead(have_map);
+    }
+
+    int fd = refs_open_append(dir);
+    if (fd < 0) { if (have_map) FILEUnMap(have_map); fail(REFSFAIL); }
+
+    a_dup(u8c, scan, bytes);
+    while (!u8csEmpty(scan)) {
+        a_dup(u8c, probe, scan);
+        u8cs line = {};
+        if (u8csFind(probe, '\n') == OK) {
+            line[0] = scan[0];
+            line[1] = probe[0] + 1;  // include '\n'
+            scan[0] = probe[0] + 1;
+        } else {
+            line[0] = scan[0];
+            line[1] = scan[1];
+            scan[0] = scan[1];
+        }
+        if (u8csLen(line) < 2) continue;
+
+        // Dedup: is this exact line already present anywhere?
+        b8 dup = NO;
+        if (have_head && have_term > have_head) {
+            u64 llen = u8csLen(line);
+            u8cp p = have_head;
+            while (p + llen <= have_term) {
+                if (memcmp(p, line[0], llen) == 0) { dup = YES; break; }
+                // advance to next line boundary
+                while (p < have_term && *p != '\n') p++;
+                if (p < have_term) p++;
+            }
+        }
+        if (dup) continue;
+
+        u8cs out = {line[0], line[1]};
+        ok64 fo = FILEFeed(fd, out);
+        if (fo != OK) { close(fd); if (have_map) FILEUnMap(have_map); fail(REFSFAIL); }
+    }
+
+    close(fd);
+    if (have_map) FILEUnMap(have_map);
+    done;
+}
+
 // --- Parse one line into ref record ---
 // Line: timestamp\tkey\tval (no trailing \n)
 

@@ -82,3 +82,13 @@ add_test(NAME SYNCloopback
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
 set_tests_properties(SYNCloopback PROPERTIES
     ENVIRONMENT "BIN=${DOG_BIN_DIR}")
+
+#  Full clone + push + pull round-trip via `be://localhost/...`
+#  (plain protocol over ssh).  Requires passwordless ssh + $HOME/tmp.
+if (WITH_SSH)
+    add_test(NAME SYNCssh
+        COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/sync-ssh.sh
+        WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+    set_tests_properties(SYNCssh PROPERTIES
+        ENVIRONMENT "BIN=${DOG_BIN_DIR}")
+endif()

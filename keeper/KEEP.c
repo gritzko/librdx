@@ -832,10 +832,22 @@ ok64 KEEPPackOpen(keeper *k, keep_pack *p) {
             k->packs[p->file_id - 1] = NULL;
         }
         call(FILEBook, &p->log, $path(packpath), 16ULL << 30);
-        //  FILEBook marks mapped content as IDLE; flip it to DATA
-        //  so subsequent u8bFeed appends past the end and readers
-        //  see the full existing content via u8bData*.
-        ((u8 **)p->log)[2] = p->log[3];
+        //  FILEBook sets b[3] to the page-aligned end of the map.  We
+        //  need b[2] at the **actual** file length (not the page-
+        //  aligned tail) so the next append lands right after the last
+        //  object.  And we must materialise real file bytes between
+        //  actual_sz and b[3] (the mmap's page-tail is anonymous until
+        //  ftruncate makes the file long enough) — otherwise writes
+        //  to that tail sit in anonymous pages and never hit disk.
+        size_t actual_sz = 0;
+        int book_fd = FILEBookedFD(p->log);
+        test(book_fd >= 0, FILENOBOOK);
+        call(FILESize, &actual_sz, &book_fd);
+        size_t mapped_sz = (size_t)(p->log[3] - p->log[0]);
+        if (mapped_sz > actual_sz) {
+            call(FILEResize, &book_fd, mapped_sz);
+        }
+        ((u8 **)p->log)[2] = p->log[0] + actual_sz;
         p->pack_offset = u8bDataLen(p->log);
         //  Expose the RW view to readers for the duration of the
         //  pack build — any lookups into this file_id resolve via
@@ -844,11 +856,15 @@ ok64 KEEPPackOpen(keeper *k, keep_pack *p) {
     } else {
         //  Fresh log file: reserve 1GB VA, start at 4KB.  Write the
         //  one-and-only file-level PACK header (count=0, patched on
-        //  each KEEPPackClose).
+        //  each KEEPPackClose).  PACKu8sFeedHdr already advances the
+        //  DATA/IDLE boundary by 12 via its three u8sFeed calls, so
+        //  no further u8bFed is needed — an earlier `u8bFed(12)`
+        //  here double-advanced and left a 12-byte zero gap between
+        //  the header and the first object, which later broke
+        //  UNPKIndex on sync ingest.
         call(FILEBookCreate, &p->log, $path(packpath),
              1ULL << 30, 4096);
         call(PACKu8sFeedHdr, u8bIdle(p->log), 0);
-        u8bFed(p->log, 12);
         p->pack_offset = 12;
     }
 
@@ -877,14 +893,18 @@ ok64 KEEPPackFeed(keeper *k, keep_pack *p,
     a_dup(u8c, oh, u8bData(ohdr));
     u8bFeed(p->log, oh);
 
-    // Deflate content directly into log
+    // Deflate content directly into log.  ZINFDeflate writes into IDLE
+    // head (*u8bIdle advances by zs.total_out), which is the DATA/IDLE
+    // boundary b[2] — so it already advances the boundary.  Do NOT
+    // u8bFed again: an earlier second advance here left a gap of
+    // `total_out` zero bytes after every object on disk, which later
+    // broke UNPKIndex on sync-ingested packs (objects findable via the
+    // index but unparseable by forward scan).
     u64 clen = u8csLen(content);
     u64 need = clen + 256;
     call(FILEBookEnsure, p->log, need);
-    u64 idle_before = u8bIdleLen(p->log);
     a_dup(u8c, zsrc, content);
     call(ZINFDeflate, u8bIdle(p->log), zsrc);
-    u8bFed(p->log, idle_before - u8bIdleLen(p->log));
 
     // Build index entry
     u64 hashlet = WHIFFHashlet60(sha_out);
@@ -1292,6 +1312,148 @@ ok64 KEEPImport(keeper *k, u8cs pack_path) {
     FILEUnMap(idx_map);
 
     fprintf(stderr, "keeper: indexed %u objects\n", nentries);
+    done;
+}
+
+// --- Ingest: write received pack-file bytes into keeper's log + index ---
+//
+// One SYNC.md Q record carries a whole keeper log file (PACK header +
+// stripped object records, no git trailer).  We write it as a fresh
+// log/NNN.pack on disk, UNPK-index it, and emit one pack bookmark
+// at offset 12 — identical to what KEEPPackOpen/Close would have
+// produced had the pack been built locally.  k->packs / k->runs are
+// updated so later KEEPGet / KEEPHas see the new objects.
+
+#include "UNPK.h"
+
+ok64 KEEPIngestFile(keeper *k, u8csc bytes) {
+    sane(k && $ok(bytes));
+    u64 file_len = u8csLen(bytes);
+    if (file_len < 12) fail(KEEPFAIL);
+
+    // Parse PACK header → object count
+    pack_hdr ph = {};
+    a_dup(u8c, hscan, bytes);
+    call(PACKDrainHdr, hscan, &ph);
+    if (ph.count == 0) {
+        // An empty pack is legal but has nothing to index; still
+        // persist it so file_id accounting stays monotonic.
+    }
+
+    test(k->npacks < KEEP_MAX_FILES, KEEPNOROOM);
+    u32 file_id = k->npacks + 1;
+
+    // Build paths: log/NNN.pack and idx/NNN.idx
+    a_path(kdir, u8bDataC(k->h->root), KEEP_DIR_S);
+
+    a_pad(u8, logdir, 1024);
+    call(u8bFeed, logdir, $path(kdir));
+    a_cstr(logsep, "/" KEEP_LOG_DIR);
+    call(u8bFeed, logdir, logsep);
+    call(PATHu8bTerm, logdir);
+    call(FILEMakeDirP, $path(logdir));
+
+    a_pad(u8, idxdir, 1024);
+    call(u8bFeed, idxdir, $path(kdir));
+    a_cstr(idxsep, "/" KEEP_IDX_DIR);
+    call(u8bFeed, idxdir, idxsep);
+    call(PATHu8bTerm, idxdir);
+    call(FILEMakeDirP, $path(idxdir));
+
+    a_pad(u8, packpath, 1024);
+    call(u8bFeed, packpath, $path(kdir));
+    call(u8bFeed, packpath, logsep);
+    call(u8bFeed1, packpath, '/');
+    call(RONu8sFeedPad, u8bIdle(packpath), (u64)file_id, KEEP_SEQNO_W);
+    ((u8 **)packpath)[2] += KEEP_SEQNO_W;
+    a_cstr(pext, KEEP_PACK_EXT);
+    call(u8bFeed, packpath, pext);
+    call(PATHu8bTerm, packpath);
+
+    // Write received bytes to disk
+    {
+        int fd = -1;
+        call(FILECreate, &fd, $path(packpath));
+        call(FILEFeedAll, fd, bytes);
+        close(fd);
+    }
+
+    // mmap RO for UNPK + future reads
+    u8bp pack_map = NULL;
+    call(FILEMapRO, &pack_map, $path(packpath));
+
+    // Index the file.  scan_start=12 (after PACK header), scan_end=file_len
+    // (no trailer in stripped format).  file_id = our fresh slot.
+    Bwh128 entries = {};
+    call(wh128bAllocate, entries, (u64)ph.count + 16);
+    u8cs pack_view = {u8bDataHead(pack_map),
+                      u8bDataHead(pack_map) + file_len};
+    unpk_in uin = {
+        .pack = {pack_view[0], pack_view[1]},
+        .scan_start = 12,
+        .scan_end = file_len,
+        .count = ph.count,
+        .file_id = file_id,
+        .emit = NULL,
+        .emit_ctx = NULL,
+    };
+    unpk_stats ust = {};
+    call(UNPKIndex, k, &uin, entries, &ust);
+
+    // Pack bookmark: whole-file, first object starts at offset 12.
+    // hashlet = SHA-1 over the file bytes (PACK header + object bytes).
+    // This matches KEEPPackClose's convention.
+    sha1 pack_sha = {};
+    SHA1Sum(&pack_sha, bytes);
+    {
+        u64 pack_hashlet = WHIFFHashlet60(&pack_sha);
+        wh128 bm = {
+            .key = wh64Pack(KEEP_TYPE_PACK, file_id, 12),
+            .val = keepKeyPack(0, pack_hashlet),
+        };
+        call(wh128bPush, entries, &bm);
+    }
+
+    // Sort + dedup in place, write .idx run
+    a_dup(wh128, sorted, wh128bData(entries));
+    wh128sSort(sorted);
+    wh128sDedup(sorted);
+    u64 nent = wh128sLen(sorted);
+
+    a_pad(u8, idxpath, 1024);
+    call(u8bFeed, idxpath, $path(kdir));
+    call(u8bFeed, idxpath, idxsep);
+    call(u8bFeed1, idxpath, '/');
+    u32 idx_seq = k->nruns + 1;
+    call(RONu8sFeedPad, u8bIdle(idxpath), (u64)idx_seq, KEEP_SEQNO_W);
+    ((u8 **)idxpath)[2] += KEEP_SEQNO_W;
+    a_cstr(iext, KEEP_IDX_EXT);
+    call(u8bFeed, idxpath, iext);
+    call(PATHu8bTerm, idxpath);
+
+    {
+        int ifd = -1;
+        call(FILECreate, &ifd, $path(idxpath));
+        u8cs raw = {(u8cp)sorted[0], (u8cp)(sorted[0] + nent)};
+        call(FILEFeedAll, ifd, raw);
+        close(ifd);
+    }
+    wh128bFree(entries);
+
+    // Register pack mmap + idx mmap with keeper state
+    k->packs[k->npacks] = pack_map;
+    k->npacks++;
+
+    u8bp idx_map = NULL;
+    call(FILEMapRO, &idx_map, $path(idxpath));
+    test(k->nruns < KEEP_MAX_LEVELS, KEEPNOROOM);
+    wh128cp base = (wh128cp)u8bDataHead(idx_map);
+    u32 n = (u32)(u8bDataLen(idx_map) / sizeof(wh128));
+    k->runs[k->nruns][0] = base;
+    k->runs[k->nruns][1] = base + n;
+    k->run_maps[k->nruns] = idx_map;
+    k->nruns++;
+
     done;
 }
 
