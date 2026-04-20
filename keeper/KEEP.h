@@ -212,6 +212,14 @@ ok64 KEEPPackClose(keeper *k, keep_pack *p);
 typedef ok64 (*keep_cb)(u8 type, u8cs content, u64 hashlet, void *ctx);
 ok64 KEEPScan(keeper *k, u64 from_val, keep_cb cb, void *ctx);
 
+//  Retrieve a single blob by URI.  Dispatch:
+//    URI has host     → materialize from remote (TODO: not yet wired),
+//    URI has query    → historical lookup via ref + path descent,
+//    URI has fragment → hex SHA prefix (object lookup) + path descent,
+//    otherwise        → KEEPFAIL (caller should use the filesystem).
+//  `out` must be an allocated u8bp; the blob body is written into it.
+ok64 KEEPGetByURI(keeper *k, uricp target, u8bp out);
+
 //  Resolve a target URI to a root tree SHA-1 (20 bytes).
 //  Accepted forms:
 //    target.fragment = hex SHA prefix of a tree or commit object.

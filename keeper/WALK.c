@@ -268,3 +268,39 @@ ok64 KEEPLsFiles(keeper *k, uricp target,
     return walk_tree_entry(k, target_sha.data, NO,
                             lsf_prefix_visit, &pc);
 }
+
+//  URI → single blob.  Shares the resolve + descend machinery with
+//  KEEPLsFiles; differs in that it requires a file leaf and writes its
+//  body into the caller's buffer.
+ok64 KEEPGetByURI(keeper *k, uricp target, u8bp out) {
+    sane(k && target && out);
+
+    //  Host-bearing URI: remote materialization.  Not wired yet —
+    //  keeper has KEEPSync/KEEPPush but no policy for deciding what
+    //  to pull on demand.  Fail loudly until that's resolved.
+    if (!$empty(target->host)) fail(KEEPFAIL);
+
+    //  Neither ?ref nor #sha: nothing to resolve against.  Caller is
+    //  expected to fall back to the filesystem.
+    if ($empty(target->query) && $empty(target->fragment)) fail(KEEPFAIL);
+
+    sha1 root_tree = {};
+    call(KEEPResolveTree, k, target, &root_tree);
+
+    a_pad(u8, prefix_buf, 4096);
+    sha1 leaf_sha  = root_tree;
+    u8   leaf_kind = WALK_KIND_DIR;
+
+    u8cs sub = {};
+    u8csMv(sub, target->path);
+    if (u8csLen(sub) == 1 && *sub[0] == '.') { sub[0] = sub[1]; }
+    call(lsf_descend, k, &root_tree, sub,
+         prefix_buf, &leaf_sha, &leaf_kind);
+
+    if (leaf_kind == WALK_KIND_DIR) fail(KEEPFAIL);
+
+    u8 btype = 0;
+    call(KEEPGetExact, k, &leaf_sha, out, &btype);
+    if (btype != DOG_OBJ_BLOB) fail(KEEPNONE);
+    done;
+}
