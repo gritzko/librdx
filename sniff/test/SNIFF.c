@@ -6,7 +6,20 @@
 
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/time.h>
 #include <unistd.h>
+
+//  Bump a file's atime/mtime forward by `bump_sec` seconds.  Lets
+//  tests observe a distinct mtime without a real sleep.
+static void bump_mtime(char const *abs_path, int bump_sec) {
+    struct stat sb = {};
+    if (stat(abs_path, &sb) != 0) return;
+    struct timeval tv[2] = {
+        { .tv_sec = sb.st_atim.tv_sec + bump_sec, .tv_usec = 0 },
+        { .tv_sec = sb.st_mtim.tv_sec + bump_sec, .tv_usec = 0 },
+    };
+    utimes(abs_path, tv);
+}
 
 #include "abc/FILE.h"
 #include "abc/HEX.h"
@@ -262,8 +275,9 @@ ok64 SNIFFCheckoutCommit() {
         FILEFeedAll(fd, newdata);
         FILEClose(&fd);
     }
-    // Need mtime to differ
-    sleep(1);
+    // Need mtime to differ.  Real sleep(1) would work but is slow;
+    // explicitly bump the mtime forward instead.
+    bump_mtime((char *)u8bDataHead(fp), 2);
 
     // Record changed mtime (test.txt is idx 1; idx 0 is root "/").
     struct stat sb2 = {};
@@ -505,10 +519,23 @@ ok64 SNIFFRoundTrip() {
         want(memcmp(resolved.query[0], c1h[0], 40) == 0);
     }
 
-    // 3. Modify a.txt, add d.txt
-    sleep(1);  // ensure mtime differs
+    // 3. Modify a.txt, add d.txt.  Force new mtimes without a real
+    // sleep: write the files first, then bump.
     call(write_file, root, "a.txt", "ALPHA MODIFIED\n");
     call(write_file, root, "d.txt", "delta new\n");
+    {
+        a_path(afp, root);
+        a_cstr(afn, "/a.txt");
+        u8bFeed(afp, afn);
+        PATHu8bTerm(afp);
+        bump_mtime((char *)u8bDataHead(afp), 2);
+
+        a_path(dfp, root);
+        a_cstr(dfn, "/d.txt");
+        u8bFeed(dfp, dfn);
+        PATHu8bTerm(dfp);
+        bump_mtime((char *)u8bDataHead(dfp), 2);
+    }
 
     // Intern d.txt and record changes
     a_cstr(dpath, "d.txt");
