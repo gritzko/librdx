@@ -30,6 +30,8 @@ con ok64 KEEPNONE    = 0x50e3995d85ce;
 con ok64 KEEPOPEN    = 0x50e399619397;
 //  Returned by KEEPOpen when caller requests rw on a ro-opened keeper.
 con ok64 KEEPOPENRO  = 0x50e3996193976d8;
+//  Intra-pack object order violation: commit→tree→blob→tag required.
+con ok64 ORDERBAD = 0x61b34e6cb28d;
 
 // --- 60-bit hashlet: index key format ---
 //
@@ -138,6 +140,16 @@ extern char const KEEP_CLI_VAL_FLAGS[];
 #define KEEP_OBJ_BLOB   3
 #define KEEP_OBJ_TAG    4
 
+//  Pack bookmark index type.  Index entries whose key carries this
+//  type are bookmarks for whole packs, not objects:
+//    key = keepKeyPack(KEEP_TYPE_PACK, pack_hashlet60)
+//    val = wh64Pack(flags, file_id, offset_of_first_object)
+//  pack_hashlet60 is derived from the pack's trailing SHA-1 (git
+//  convention — hash covers PACK header + object bytes).  Sits
+//  outside the 1..4 object-type range so range queries for
+//  objects never see it.  See keeper/LOG.md.
+#define KEEP_TYPE_PACK  0xF
+
 //  Retrieve object by hashlet.  Inflates from pack, chases deltas.
 //  Returns object body in `out`, type in `*out_type`.
 ok64 KEEPGet(keeper *k, u64 hashlet60, size_t hexlen, u8bp out, u8p out_type);
@@ -194,9 +206,12 @@ ok64 KEEPPut(keeper *k, u8csc *objects, wh64 *whiffs, u32 nobjs);
 #define KEEP_PACK_MAX_OBJS (1u << 20)
 
 typedef struct {
-    u8bp     log;                   // FILEBook'd log file
+    u8bp     log;                   // FILEBook'd log file (may already hold earlier packs)
     u32      file_id;               // sequence number
-    u32      nobjs;                 // objects written so far
+    u32      nobjs;                 // objects written so far by THIS pack
+    u64      pack_offset;           // byte offset in log where THIS pack's first object starts
+    u8       last_type;             // for commit->tree->blob->tag ordering check
+    b8       strict_order;          // enforce commit->tree->blob->tag (ORDERBAD)
     Bwh128   entries;               // index entries buffer
 } keep_pack;
 

@@ -17,4 +17,10 @@
 ok64 POSTCommit(u8cs reporoot,
                 u8cs message, u8cs author, sha1 *sha_out);
 
+//  Record `ref_uri → ?<sha_hex>` in keeper/refs via REFSAppend.
+//  `ref_uri` is the URI the user typed on the CLI — e.g. `?heads/main`
+//  or `?tags/v0.0.1` — passed straight through (`c->uris[i].data`).
+//  `sha_hex` must be exactly 40 hex chars.
+ok64 POSTSetLabel(u8cs ref_uri, u8cs sha_hex);
+
 #endif

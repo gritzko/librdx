@@ -16,9 +16,9 @@
 //  from disk (the "DELETE no-args" CLI shape).
 
 #include "SNIFF.h"
-#include "keeper/KEEP.h"
 
-ok64 DELStage(sha1 *tree_out, keep_pack *p,
-              u8cs reporoot, u8cp del_set);
+//  Writes tree objects to the current branch's staging pack (opened
+//  internally via STAGE).  No commit.
+ok64 DELStage(sha1 *tree_out, u8cs reporoot, u8cp del_set);
 
 #endif

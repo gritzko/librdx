@@ -9,6 +9,8 @@ include_directories(.. .)
 
 add_library(snifflib STATIC
     SNIFF.h SNIFF.c SNIFF.exe.c
+    AT.h AT.c
+    STAGE.h STAGE.c
     GET.h GET.c POST.h POST.c PUT.h PUT.c DEL.h DEL.c
     ../abc/FSW.c)
 target_link_libraries(snifflib keeplib gitcompat dog abc-core)

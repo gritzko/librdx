@@ -62,3 +62,23 @@ target_link_options(UNPKtest PRIVATE ${TEST_LDD_FLAGS})
 target_compile_options(UNPKtest PRIVATE ${TEST_CXX_FLAGS})
 target_link_libraries(UNPKtest keeplib gitcompat dog abc-core)
 add_test(NAME UNPKtest COMMAND UNPKtest)
+
+add_executable(BOOKMARKtest BOOKMARK.c)
+target_link_options(BOOKMARKtest PRIVATE ${TEST_LDD_FLAGS})
+target_compile_options(BOOKMARKtest PRIVATE ${TEST_CXX_FLAGS})
+target_link_libraries(BOOKMARKtest keeplib gitcompat dog abc-core)
+add_test(NAME BOOKMARKtest COMMAND BOOKMARKtest)
+
+add_executable(SYNCFRAMEtest SYNCFRAME.c)
+target_link_options(SYNCFRAMEtest PRIVATE ${TEST_LDD_FLAGS})
+target_compile_options(SYNCFRAMEtest PRIVATE ${TEST_CXX_FLAGS})
+target_link_libraries(SYNCFRAMEtest keeplib gitcompat dog abc-core)
+add_test(NAME SYNCFRAMEtest COMMAND SYNCFRAMEtest)
+
+#  End-to-end get/post loopback: keeper sync (server) vs.
+#  keeper get file:// (client).  Exercises the full TLV wire.
+add_test(NAME SYNCloopback
+    COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/sync-loopback.sh
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_tests_properties(SYNCloopback PROPERTIES
+    ENVIRONMENT "BIN=${DOG_BIN_DIR}")

@@ -19,6 +19,7 @@ For SSH and explicit-host transports, the URI is what the user
 typed (`localhost:src/git`, `//localhost/path`, etc.). For local
 path access, canonicalise to `file:///<absolute-path>`.
 
-**Worktree marker.** When sniff materialises a checkout into a
-directory, it appends `file://<reporoot>\t?<branch>` — pointing
-at the branch being checked out.
+**Worktree state is NOT in keeper/refs.** The per-worktree branch +
+commit pointer lives in `sniff/at.log` (see `sniff/AT.md`).
+keeper/refs carries only replicated refs (heads/tags of this repo
+and remote-attributed equivalents).

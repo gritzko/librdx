@@ -3,6 +3,7 @@
 //
 #include "KEEP.h"
 #include "REFS.h"
+#include "SYNC.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -15,12 +16,13 @@
 #include "dog/CLI.h"
 #include "dog/DOG.h"
 #include "dog/WHIFF.h"
+#include "dog/AT.h"
 
 // --- Verb / flag tables ---
 
 char const *const KEEP_CLI_VERBS[] = {
     "get", "put", "post", "status", "import", "verify",
-    "refs", "alias", "ls-files", "help", NULL
+    "refs", "alias", "ls-files", "sync", "help", NULL
 };
 
 char const KEEP_CLI_VAL_FLAGS[] = "--want\0--have\0";
@@ -449,21 +451,17 @@ static ok64 keeper_post(keeper *k, cli *c) {
     }
     a_path(keepdir, u8bDataC(k->h->root), KEEP_DIR_S);
 
-    // 1. Current worktree commit.
-    a_pad(u8, wtkey, 1280);
-    a_cstr(file_scheme, "file://");
-    u8bFeed(wtkey, file_scheme);
-    u8bFeed(wtkey, u8bDataC(k->h->root));
-    a_dup(u8c, wt_key, u8bData(wtkey));
-    a_pad(u8, arena_wt, 256);
-    uri wt_res = {};
-    if (REFSResolve(&wt_res, arena_wt, $path(keepdir), wt_key) != OK ||
-        $len(wt_res.query) != 40) {
+    // 1. Current worktree commit via sniff/at.log.
+    a_pad(u8, at_branch, 256);
+    a_pad(u8, at_sha, 64);
+    a_dup(u8c, at_root, u8bDataC(k->h->root));
+    if (DOGAtTail(at_branch, at_sha, at_root) != OK ||
+        u8bDataLen(at_sha) != 40) {
         fprintf(stderr, "keeper: post: worktree commit not set\n");
         return KEEPFAIL;
     }
     u8 new_hex[40];
-    memcpy(new_hex, wt_res.query[0], 40);
+    memcpy(new_hex, u8bDataHead(at_sha), 40);
 
     // 2. Target branch must come from the URI (`?branch` or `?heads/X`).
     //    No default — explicit branches avoid accidental pushes.
@@ -571,6 +569,19 @@ ok64 KEEPExec(keeper *k, cli *c) {
 
     if ($eq(c->verb, v_status))  return keeper_status(k);
     if ($eq(c->verb, v_refs))    return keeper_refs(k);
+
+    //  Plain dog sync dispatch — scheme-based, before the legacy
+    //  `get //host` path so `be://` and `file://` route to SYNCGet.
+    if ($eq(c->verb, v_get) && c->nuris >= 1) {
+        uri *u = &c->uris[0];
+        a_cstr(be_sch, "be");
+        a_cstr(file_sch, "file");
+        if ($eq(u->scheme, be_sch) || $eq(u->scheme, file_sch)) {
+            a_dup(u8c, uri_full, u->data);
+            return SYNCGet(k, uri_full);
+        }
+    }
+
     if ($eq(c->verb, v_get))     return keeper_get(k, c);
     if ($eq(c->verb, v_put))     return keeper_put(k, c);
     if ($eq(c->verb, v_post))    return keeper_post(k, c);
@@ -597,6 +608,13 @@ ok64 KEEPExec(keeper *k, cli *c) {
             return KEEPFAIL;
         }
         return keeper_alias(k, &c->uris[0], &c->uris[1]);
+    }
+
+    a_cstr(v_sync, "sync");
+    if ($eq(c->verb, v_sync)) {
+        //  Server side of plain dog sync — read TLV from stdin,
+        //  emit TLV to stdout.  Stateless; one session per invocation.
+        return SYNCServe(k, 0, 1);
     }
 
     a_cstr(v_lsfiles, "ls-files");

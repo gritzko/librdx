@@ -132,6 +132,10 @@ ok64 WALKtest2() {
     call(KEEPOpen, &h, YES);
     keep_pack p = {};
     call(KEEPPackOpen, &KEEP, &p);
+    //  This test feeds blobs before trees to exercise WALK against a
+    //  hand-rolled tree hierarchy; that's non-canonical but the walker
+    //  doesn't care.  Drop the intra-pack ordering check for the pack.
+    p.strict_order = NO;
 
     // Leaf blobs.
     a_cstr(hi_content, "hi\n");

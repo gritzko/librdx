@@ -19,9 +19,9 @@
 //  missing from disk are silently excluded (use DELStage for those).
 
 #include "SNIFF.h"
-#include "keeper/KEEP.h"
 
-ok64 PUTStage(sha1 *tree_out, keep_pack *p,
-              u8cs reporoot, u8cp file_set);
+//  Writes trees + blobs to the current branch's staging pack (opened
+//  internally via STAGE).  The commit itself is built later by POST.
+ok64 PUTStage(sha1 *tree_out, u8cs reporoot, u8cp file_set);
 
 #endif

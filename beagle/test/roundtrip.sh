@@ -74,9 +74,9 @@ echo "=== 5. be post -m (local commit) ==="
 cd "$WT"
 "$BE" post --seq -m "worktree commit" >/dev/null 2>&1 \
     || fail "be post -m failed"
-# Read the committed SHA from keeper refs keyed by file://<WT>.
-WT_SHA=$(awk -v p="file://$WT" -F'\t' '$2==p {sha=$3} END {gsub(/^\?/,"",sha); print sha}' \
-    "$WT/.dogs/keeper/refs")
+# Read the committed SHA from sniff/at.log tail.
+WT_SHA=$(awk -F'\t' 'END {gsub(/^\?/,"",$3); print $3}' \
+    "$WT/.dogs/sniff/at.log")
 [ ${#WT_SHA} -eq 40 ] || fail "no 40-hex worktree commit recorded"
 [ "$WT_SHA" != "$SEED_SHA" ] || fail "worktree commit didn't advance"
 note "worktree commit=$WT_SHA"

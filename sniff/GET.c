@@ -15,6 +15,8 @@
 #include "keeper/REFS.h"
 #include "keeper/WALK.h"
 
+#include "AT.h"
+
 // Per-entry visitor context for WALKTreeLazy.
 typedef struct {
     sniff  *s;
@@ -271,21 +273,17 @@ ok64 GETCheckout(u8cs reporoot, u8cs hex,
         o = SNIFFCompact();
     }
     if (o == OK) {
-        // Record worktree → ?<sha>.  Single terminal entry; the
-        // tracked branch, if any, is stored separately by keeper get
-        // under //<host>/<path>?heads/<branch>.
-        a_path(keepdir, u8bDataC(k->h->root), KEEP_DIR_S);
-        a_pad(u8, file_uri, 1280);
-        a_cstr(scheme, "file://");
-        u8bFeed(file_uri, scheme);
-        u8bFeed(file_uri, reporoot);
-        a_dup(u8c, from, u8bData(file_uri));
-        a_pad(u8, sha_val, 64);
-        u8bFeed1(sha_val, '?');
-        u8bFeed(sha_val, hex);
-        a_dup(u8c, sha_to, u8bData(sha_val));
-        REFSAppend($path(keepdir), from, sha_to);
-        (void)source;  // tracked-branch record comes from keeper get, not here
+        //  at.log: record this worktree's new (branch, sha).  If
+        //  `source` is `?heads/<name>`, extract the branch; otherwise
+        //  this is a detached checkout and the branch field is empty.
+        u8cs branch = {};
+        if ($ok(source) && $len(source) > 7 &&
+            memcmp(source[0], "?heads/", 7) == 0) {
+            branch[0] = source[0] + 7;
+            branch[1] = source[1];
+        }
+        a_dup(u8c, hex_in, hex);
+        (void)SNIFFAtAppend(branch, hex_in);
         fprintf(stderr, "sniff: checkout done\n");
     }
     return o;

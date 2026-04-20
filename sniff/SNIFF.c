@@ -20,6 +20,8 @@
 #include "keeper/PATHS.h"
 #include "keeper/WALK.h"
 
+#include "STAGE.h"
+
 // --- Singleton ---
 
 sniff SNIFF = {};
@@ -403,23 +405,99 @@ ok64 SNIFFCollectParentTree(u8cs parent_hex, sha1 *sha_tab, u32 capacity) {
     return WALKTreeLazy(&KEEP, tree_sha.data, collect_visit, &ctx);
 }
 
+//  Staging-aware tree walker.  Fetches a tree body from STAGE first
+//  (the branch's current base tree lives there between `be put` calls),
+//  falls back to the main keeper.  Recurses into subtrees with the
+//  same lookup order.  Only trees are traversed; blobs are recorded
+//  via the visitor and never dereferenced.
+static ok64 sniff_walk_tree(u8cs branch, sha1 const *tree_sha,
+                            u8cs path_rel, collect_ctx *ctx) {
+    sane(tree_sha && ctx);
+
+    Bu8 tbuf = {};
+    call(u8bAllocate, tbuf, 1UL << 20);
+    u8 otype = 0;
+    u64 hl60 = WHIFFHashlet60(tree_sha);
+    ok64 go = STAGEGet(branch, hl60, 15, tbuf, &otype);
+    if (go != OK || otype != DOG_OBJ_TREE) {
+        u8bReset(tbuf);
+        go = KEEPGetExact(&KEEP, tree_sha, tbuf, &otype);
+    }
+    if (go != OK || otype != DOG_OBJ_TREE) { u8bFree(tbuf); done; }
+
+    //  Visit the tree itself (mirror WALK's "visit root first" protocol).
+    u8cs empty_blob = {};
+    ok64 vo = collect_visit(path_rel, WALK_KIND_DIR,
+                             (u8cp)tree_sha->data, empty_blob, ctx);
+    if (vo != OK && vo != WALKSKIP) { u8bFree(tbuf); return vo; }
+
+    a_dup(u8c, obj, u8bData(tbuf));
+    u8cs file = {}, esha = {};
+    a_pad(u8, pbuf, 1024);
+    while (GITu8sDrainTree(obj, file, esha) == OK) {
+        u8cs scan = {file[0], file[1]};
+        if (u8csFind(scan, ' ') != OK) continue;
+        u8cs mode_s = {file[0], scan[0]};
+        u8cs name_s = {scan[0] + 1, file[1]};
+        u8 kind = WALKu8sModeKind(mode_s);
+        if (kind == 0) continue;
+
+        //  Compose <path_rel>/<name_s>.
+        u8bReset(pbuf);
+        if (!$empty(path_rel)) u8bFeed(pbuf, path_rel);
+        if (u8bDataLen(pbuf) > 0) u8bFeed1(pbuf, '/');
+        u8bFeed(pbuf, name_s);
+        a_dup(u8c, entry_path, u8bData(pbuf));
+
+        sha1 esha_b = {};
+        memcpy(esha_b.data, esha[0], 20);
+
+        if (kind == WALK_KIND_DIR) {
+            //  Trailing '/' so SNIFFInternDir hits the registered dir.
+            u8bFeed1(pbuf, '/');
+            a_dup(u8c, dir_path, u8bData(pbuf));
+            ok64 sr = sniff_walk_tree(branch, &esha_b, dir_path, ctx);
+            if (sr != OK && sr != WALKSKIP) { u8bFree(tbuf); return sr; }
+        } else {
+            vo = collect_visit(entry_path, kind, esha_b.data,
+                                empty_blob, ctx);
+            if (vo != OK && vo != WALKSKIP) { u8bFree(tbuf); return vo; }
+        }
+    }
+
+    u8bFree(tbuf);
+    done;
+}
+
 ok64 SNIFFCollectBaseTree(sha1 *sha_tab, u32 capacity) {
     sane(sha_tab);
     u64 base = SNIFFBaseTree();
     if (base == 0) done;
 
+    //  Fetch root-tree body (staging first, then main).  Compute its
+    //  full sha so the recursive walker can visit it.
     Bu8 tbuf = {};
     call(u8bAllocate, tbuf, 1UL << 24);
     u8 otype = 0;
-    ok64 o = KEEPGet(&KEEP, base << 20, 10, tbuf, &otype);
+    a_pad(u8, brbuf, 256);
+    call(STAGEBranch, brbuf);
+    a_dup(u8c, branch, u8bData(brbuf));
+    ok64 o = STAGEGet(branch, base << 20, 10, tbuf, &otype);
+    if (o != OK || otype != DOG_OBJ_TREE) {
+        u8bReset(tbuf);
+        o = KEEPGet(&KEEP, base << 20, 10, tbuf, &otype);
+    }
     if (o != OK || otype != DOG_OBJ_TREE) {
         u8bFree(tbuf);
-        return o == OK ? SNIFFFAIL : o;
+        //  Base tree unreachable; callers treat this as advisory and
+        //  proceed with an empty sha_tab (subtrees rebuild from scratch).
+        done;
     }
     sha1 tree_sha = {};
     KEEPObjSha(&tree_sha, DOG_OBJ_TREE, u8bDataC(tbuf));
     u8bFree(tbuf);
 
     collect_ctx ctx = {.shas = sha_tab, .capacity = capacity};
-    return WALKTreeLazy(&KEEP, tree_sha.data, collect_visit, &ctx);
+    u8cs empty_path = {};
+    return sniff_walk_tree(branch, &tree_sha, empty_path, &ctx);
 }

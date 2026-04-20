@@ -9,6 +9,7 @@
 #include "abc/PATH.h"
 #include "abc/PRO.h"
 #include "dog/HOME.h"
+#include "dog/AT.h"
 #include "keeper/REFS.h"
 
 // Distinct codes so the MAIN-wrapper's `Error: <code>` line tells you
@@ -201,24 +202,16 @@ static ok64 BEGetWorktree(uri *u) {
     fprintf(stderr, "be: worktree from %.*s\n",
             (int)$len(u->path), (char *)u->path[0]);
 
-    // Resolve the primary's current commit via keeper refs keyed by
-    // `file://<primary-abs-path>` (set by `sniff post` / `keeper get`).
+    // Resolve the primary's current commit via its sniff/at.log.
     // Rewrite this URI to "?<sha>" so downstream sniff checks out
     // that commit in the worktree.
-    a_cstr(keeper_name, "keeper");
-    a_path(keepdir, $path(prim_dogs), keeper_name);
-    a_pad(u8, key_buf, 1280);
-    a_cstr(scheme, "file://");
-    u8bFeed(key_buf, scheme);
-    u8bFeed(key_buf, prim_s);
-    a_dup(u8c, key_slice, u8bData(key_buf));
-    a_pad(u8, arena_buf, 256);
-    uri resolved = {};
-    if (REFSResolve(&resolved, arena_buf, $path(keepdir), key_slice) != OK)
-        done;
-    if ($len(resolved.query) < 40) done;
+    a_pad(u8, prim_branch, 256);
+    a_pad(u8, prim_sha, 64);
+    a_dup(u8c, prim_root, prim_s);
+    if (DOGAtTail(prim_branch, prim_sha, prim_root) != OK) done;
+    if (u8bDataLen(prim_sha) != 40) done;
     wt_uri_text[0] = '?';
-    for (int i = 0; i < 40; i++) wt_uri_text[1 + i] = resolved.query[0][i];
+    memcpy(wt_uri_text + 1, u8bDataHead(prim_sha), 40);
     wt_uri_text[41] = 0;
 
     u->data[0]      = wt_uri_text;

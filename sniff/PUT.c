@@ -12,7 +12,10 @@
 #include "abc/PRO.h"
 #include "dog/DPATH.h"
 #include "keeper/GIT.h"
+#include "keeper/KEEP.h"
 #include "keeper/SHA1.h"
+
+#include "STAGE.h"
 
 // --- idx → sha1 lookup helpers ---
 
@@ -222,13 +225,22 @@ static ok64 POSTBuild(sha1 *tree_out, sniff *s, keeper *k,
 
 // --- Public API ---
 
-ok64 PUTStage(sha1 *tree_out, keep_pack *p,
-              u8cs reporoot, u8cp file_set) {
-    sane(p && tree_out);
+ok64 PUTStage(sha1 *tree_out, u8cs reporoot, u8cp file_set) {
+    sane(tree_out);
     sniff *s = &SNIFF; keeper *k = &KEEP; (void)s; (void)k;
 
+    //  Open the current branch's staging pack.  Default "heads/master"
+    //  when at.log is missing (fresh-repo first-commit flow).
+    a_pad(u8, brbuf, 256);
+    call(STAGEBranch, brbuf);
+    a_dup(u8c, branch, u8bData(brbuf));
+    keep_pack pk = {};
+    keep_pack *p = &pk;
+    call(STAGEOpen, p, branch);
+
     // Build sorted index
-    call(SNIFFSort);
+    ok64 rv = SNIFFSort();
+    if (rv != OK) { STAGEClose(p, branch); return rv; }
 
     // Seed per-entry SHAs from the current base tree (root SNIFF_TREE
     // hashlet).  On a fresh repo with no base, sha_tab stays zeroed.
@@ -239,8 +251,12 @@ ok64 PUTStage(sha1 *tree_out, keep_pack *p,
     memset(sha1bHead(sha_mem), 0, (u64)cap * sizeof(sha1));
     sha1p sha_tab = sha1bHead(sha_mem);
 
+    //  Base-tree seeding is advisory — it avoids redundant subtree
+    //  rebuilds when content is unchanged.  If the base tree lives in
+    //  staging (not main keeper), the walk may be incomplete; that
+    //  degrades to rebuilding subtrees, not incorrect output.
     ok64 o = SNIFFCollectBaseTree(sha_tab, cap);
-    if (o != OK) { sha1bFree(sha_mem); return o; }
+    (void)o;
 
     // Build tree depth-first over sorted index
     u8cs no_prefix = {};
@@ -255,5 +271,7 @@ ok64 PUTStage(sha1 *tree_out, keep_pack *p,
     }
 
     sha1bFree(sha_mem);
+    if (o == OK) o = STAGEClose(p, branch);
+    else STAGEClose(p, branch);
     return o;
 }

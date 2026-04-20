@@ -1,4 +1,5 @@
 #include "sniff/SNIFF.h"
+#include "sniff/AT.h"
 #include "sniff/DEL.h"
 #include "sniff/GET.h"
 #include "sniff/POST.h"
@@ -207,6 +208,9 @@ ok64 SNIFFCheckoutCommit() {
 
     keep_pack p = {};
     call(KEEPPackOpen, &KEEP, &p);
+    //  Hand-rolled objects for test — fed in non-canonical order
+    //  (blob before tree).  Sniff's real POST path repacks canonically.
+    p.strict_order = NO;
 
     // Blob: "hello\n"
     a_cstr(blob_data, "hello\n");
@@ -417,6 +421,8 @@ static ok64 make_commit(sha1 *commit_out, keeper *k,
     sane(k && commit_out);
     keep_pack p = {};
     call(KEEPPackOpen, k, &p);
+    //  Hand-rolled blob→tree→commit sequence for tests — not canonical.
+    p.strict_order = NO;
 
     // Create blobs + tree entries
     a_pad(u8, tree_buf, 4096);
@@ -504,19 +510,14 @@ ok64 SNIFFRoundTrip() {
     call(check_file, root, "c.txt", "charlie\n");
     fprintf(stderr, "  get: initial checkout OK\n");
 
-    // Worktree's commit recorded in keeper refs.
+    // Worktree's commit recorded in sniff/at.log.
     {
-        a_path(keepdir, u8bDataC(h.root), KEEP_DIR_S);
-        a_pad(u8, wtbuf, 1280);
-        a_cstr(scheme, "file://");
-        u8bFeed(wtbuf, scheme);
-        u8bFeed(wtbuf, root);
-        a_dup(u8c, wt_key, u8bData(wtbuf));
-        a_pad(u8, arena, 256);
-        uri resolved = {};
-        call(REFSResolve, &resolved, arena, $path(keepdir), wt_key);
-        want($len(resolved.query) == 40);
-        want(memcmp(resolved.query[0], c1h[0], 40) == 0);
+        a_pad(u8, at_b, 256);
+        a_pad(u8, at_s, 64);
+        sniff_at tail1 = {.branch = at_b, .sha = at_s};
+        call(SNIFFAtRead, &tail1);
+        want(u8bDataLen(tail1.sha) == 40);
+        want(memcmp(u8bDataHead(tail1.sha), c1h[0], 40) == 0);
     }
 
     // 3. Modify a.txt, add d.txt.  Force new mtimes without a real
@@ -574,19 +575,14 @@ ok64 SNIFFRoundTrip() {
     u8cs c2h = {u8bDataHead(c2_hex), u8bIdleHead(c2_hex)};
     fprintf(stderr, "  put: commit 2 OK\n");
 
-    // Worktree's commit advanced to commit 2.
+    // Worktree's commit advanced to commit 2 (via at.log).
     {
-        a_path(keepdir, u8bDataC(h.root), KEEP_DIR_S);
-        a_pad(u8, wtbuf, 1280);
-        a_cstr(scheme, "file://");
-        u8bFeed(wtbuf, scheme);
-        u8bFeed(wtbuf, root);
-        a_dup(u8c, wt_key, u8bData(wtbuf));
-        a_pad(u8, arena, 256);
-        uri resolved = {};
-        call(REFSResolve, &resolved, arena, $path(keepdir), wt_key);
-        want($len(resolved.query) == 40);
-        want(memcmp(resolved.query[0], c2h[0], 40) == 0);
+        a_pad(u8, at_b2, 256);
+        a_pad(u8, at_s2, 64);
+        sniff_at tail2 = {.branch = at_b2, .sha = at_s2};
+        call(SNIFFAtRead, &tail2);
+        want(u8bDataLen(tail2.sha) == 40);
+        want(memcmp(u8bDataHead(tail2.sha), c2h[0], 40) == 0);
     }
 
     // 5. Wipe sniff state + worktree, re-checkout commit 2 cleanly
@@ -610,9 +606,6 @@ ok64 SNIFFRoundTrip() {
 
     // 6. DEL + POST: remove b.txt, create new commit
     {
-        keep_pack dp = {};
-        call(KEEPPackOpen, &KEEP, &dp);
-
         u32 npaths = SNIFFCount();
         Bu8 dsbuf = {};
         call(u8bAllocate, dsbuf, npaths);
@@ -624,34 +617,16 @@ ok64 SNIFFRoundTrip() {
         dset[bidx] = 1;
 
         sha1 del_tree = {};
-        call(DELStage, &del_tree, &dp, root, dset);
+        call(DELStage, &del_tree, root, dset);
         u8bFree(dsbuf);
-        KEEPPackClose(&KEEP, &dp);
+        (void)del_tree;
 
-        // DELStage updated the base tree.  Now commit it via POST.
-        // (We manually wrap here instead of POSTCommit to verify the
-        // DELStage's staged tree SHA propagates.)
-        keep_pack dp2 = {};
-        call(KEEPPackOpen, &KEEP, &dp2);
-        a_pad(u8, com, 1024);
-        a_cstr(tl, "tree ");
-        u8bFeed(com, tl);
-        a_pad(u8, dthex, 40);
-        sha2hex(dthex, &del_tree);
-        u8bFeed(com, u8bDataC(dthex));
-        u8bFeed1(com, '\n');
-        a_cstr(par, "parent ");
-        u8bFeed(com, par);
-        u8bFeed(com, u8bDataC(c2_hex));
-        u8bFeed1(com, '\n');
-        a_cstr(rest, "author Test <t@t> 1700000000 +0000\n"
-                     "committer Test <t@t> 1700000000 +0000\n\ndelete b\n");
-        u8bFeed(com, rest);
-
+        //  Commit the delete via POSTCommit — it owns the canonical
+        //  repack of staged objects plus the commit onto main keeper.
+        a_cstr(msg, "delete b");
+        a_cstr(auth, "Test <t@t>");
         sha1 c3_sha = {};
-        a_dup(u8c, cdata, u8bData(com));
-        call(KEEPPackFeed, &KEEP, &dp2, DOG_OBJ_COMMIT, cdata, &c3_sha);
-        call(KEEPPackClose, &KEEP, &dp2);
+        call(POSTCommit, root, msg, auth, &c3_sha);
 
         a_pad(u8, c3_hex, 40);
         sha2hex(c3_hex, &c3_sha);
