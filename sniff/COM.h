@@ -14,7 +14,7 @@
 #include "SNIFF.h"
 #include "keeper/KEEP.h"
 
-ok64 COMCommit(sniff *s, keeper *k, u8cs reporoot,
+ok64 COMCommit(u8cs reporoot,
                u8cs parent_hex, u8cs message, u8cs author,
                u8cp commit_set, sha1 *sha_out);
 

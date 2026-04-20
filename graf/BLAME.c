@@ -247,8 +247,8 @@ ok64 GRAFBlame(keeper *k, u8cs filepath, u8cs reporoot) {
     call(GRAFArenaInit);
 
     // Open DAG index.  keeper already holds a `home` — reuse it.
-    graf g = {};
-    call(GRAFOpen, &g, k->h, NO);
+    
+    call(GRAFOpen, k->h, NO);
 
     // Compose <root>/.dogs/graf for helpers that need the dir path.
     a_dup(u8c, root_s, u8bDataC(k->h->root));
@@ -256,7 +256,7 @@ ok64 GRAFBlame(keeper *k, u8cs filepath, u8cs reporoot) {
     a_path(gdir, root_s, grel);
     a_dup(u8c, dagdir, u8bDataC(gdir));
     blame_ver vers[BLAME_MAX_VERS];
-    u32 nvers = blame_walk_history(vers, BLAME_MAX_VERS, &g.idx,
+    u32 nvers = blame_walk_history(vers, BLAME_MAX_VERS, &GRAF.idx,
                                     filepath, dagdir);
 
     // Reverse to oldest first, then deduplicate (keep first = oldest)
@@ -439,7 +439,7 @@ ok64 GRAFBlame(keeper *k, u8cs filepath, u8cs reporoot) {
 
     u8bUnMap(outbuf);
     WEAVEFree(&wv);
-    GRAFClose(&g);
+    GRAFClose();
     GRAFArenaCleanup();
     done;
 }

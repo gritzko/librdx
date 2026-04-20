@@ -9,6 +9,9 @@
 
 con ok64 CAPONOROOM = 0x30a6585d86d8616;
 con ok64 CAPONODIFF = 0x30a6585d83523cf;  // no usable saved commit → full reindex
+//  Singleton-open return codes, matching keeper/sniff/graf convention.
+con ok64 SPOTOPEN   = 0x71961d619397;
+con ok64 SPOTOPENRO = 0x71961d6193976d8;
 
 extern b8 CAPO_COLOR;  // stdout is a terminal with color
 extern b8 CAPO_TERM;   // stderr is a terminal
@@ -171,23 +174,29 @@ typedef struct {
 typedef spot *spotp;
 typedef spot const *spotcp;
 
-// --- Public API (DOG 4-fn) ---
+//  Singleton.  Zero-initialised; populated by SPOTOpen.
+extern spot SPOT;
 
-//  Open spot state rooted at `home` (repo root).  Empty home →
-//  fall back to HOMEFind from cwd.
-ok64 SPOTOpen(spotp s, home *h, b8 rw);
+// --- Public API (singleton, same contract as KEEP/SNIFF/GRAF) ---
 
-//  Run one CLI invocation — same effect as `spot ...`.
-ok64 SPOTExec(spotp s, cli *c);
+//  Open spot state rooted at `home` (repo root).  Returns:
+//    OK         I opened; pair with SPOTClose.
+//    SPOTOPEN   already open compatible; use &SPOT, don't close.
+//    SPOTOPENRO already ro and caller asked for rw.
+//    (other)    real error — propagate.
+ok64 SPOTOpen(home *h, b8 rw);
+
+//  Run one CLI invocation.
+ok64 SPOTExec(cli *c);
 
 //  Feed a single git object into spot's trigram/symbol index.
 //  Currently: blob objects get indexed by CAPOIndexFile; other
 //  types are ignored.  obj_type uses KEEP_OBJ_* constants.
 //  `path` is the repo-relative path whose extension picks the
 //  tokenizer (empty for non-blob objects).
-ok64 SPOTUpdate(spotp s, u8 obj_type, u8cs blob, u8csc path);
+ok64 SPOTUpdate(u8 obj_type, u8cs blob, u8csc path);
 
-void SPOTClose(spotp s);
+void SPOTClose(void);
 
 //  Verb + value-flag tables for CLIParse.
 extern char const *const SPOT_CLI_VERBS[];

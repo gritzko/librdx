@@ -4,6 +4,7 @@
 //  in LSM sorted runs of wh128 entries.
 //
 #include "KEEP.h"
+#include "PATHS.h"
 #include "REFS.h"
 
 #include "DELT.h"
@@ -133,13 +134,38 @@ static ok64 keep_scan_packs(keeper *k, u8csc keepdir) {
     return OK;
 }
 
+// --- Singleton ---
+
+keeper KEEP = {};
+
+//  `KEEP.h` being non-NULL indicates that KEEPOpen has populated the
+//  singleton and KEEPClose hasn't yet released it.
+static b8 keep_is_open(void) { return KEEP.h != NULL; }
+
+//  Detect the ro/rw state of the currently-held flock.  If we Open'd
+//  with rw=YES we took LOCK_EX; rw=NO took LOCK_SH.  We save the bit
+//  so subsequent Open calls can detect mode mismatches.
+static b8 keep_is_rw = NO;
+
 // --- Open: mmap pack files + load index runs ---
 
-ok64 KEEPOpen(keeper *k, home *h, b8 rw) {
-    sane(k && h);
+ok64 KEEPOpen(home *h, b8 rw) {
+    sane(h);
+
+    //  Already open?  Compatible if the existing mode is at least as
+    //  strong as the request.  The only true conflict is an rw request
+    //  against a ro-open keeper — invalidates live pointers if we
+    //  reopened, so caller must reshuffle their scope.
+    if (keep_is_open()) {
+        if (rw && !keep_is_rw) return KEEPOPENRO;
+        return KEEPOPEN;
+    }
+
+    keeper *k = &KEEP;
     zerop(k);
     k->h = h;
     k->lock_fd = -1;
+    keep_is_rw = rw;
 
     a_path(dir);
     call(keep_resolve_dir, dir, h);
@@ -191,6 +217,11 @@ ok64 KEEPOpen(keeper *k, home *h, b8 rw) {
     call(u8bMap, k->buf3, KEEP_BUFSZ);
     call(u8bMap, k->buf4, KEEP_BUFSZ);
 
+    // Path registry (.dogs/keeper/paths.log); tolerant on open failure
+    // so existing stores without the file keep working read-only.
+    ok64 po = KEEPPathsOpen(k, rw);
+    if (po != OK && rw) return po;
+
     done;
 }
 
@@ -213,8 +244,10 @@ ok64 KEEPUpdate(keeper *k, u8 obj_type, u8cs blob, u8csc path) {
 
 // --- Close ---
 
-ok64 KEEPClose(keeper *k) {
-    sane(k);
+ok64 KEEPClose(void) {
+    sane(1);
+    if (!keep_is_open()) return OK;
+    keeper *k = &KEEP;
     for (u32 i = 0; i < k->npacks; i++)
         if (k->packs[i]) FILEUnMap(k->packs[i]);
     for (u32 i = 0; i < k->nruns; i++)
@@ -223,8 +256,10 @@ ok64 KEEPClose(keeper *k) {
     if (k->buf2[0]) u8bUnMap(k->buf2);
     if (k->buf3[0]) u8bUnMap(k->buf3);
     if (k->buf4[0]) u8bUnMap(k->buf4);
+    KEEPPathsClose(k);
     if (k->lock_fd >= 0) FILEClose(&k->lock_fd);
     zerop(k);
+    keep_is_rw = NO;
     done;
 }
 

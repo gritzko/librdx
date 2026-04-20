@@ -32,6 +32,10 @@
 
 con ok64 SNIFFFAIL   = 0x1c5d23cf3ca495;
 con ok64 SNIFFNOROOM = 0xc5d23cf5d86d8616;
+//  Returned by SNIFFOpen when SNIFF is already open, compatible mode.
+con ok64 SNIFFOPEN   = 0x1c5d23cf619397;
+//  Returned by SNIFFOpen when open ro and caller asked for rw.
+con ok64 SNIFFOPENRO = 0xc5d23cf6193976d8;
 
 #define SNIFF_DIR       ".dogs/sniff"
 #define SNIFF_PATH_BOOK (256UL << 20)  // 256 MB VA for paths
@@ -53,50 +57,54 @@ con ok64 SNIFFNOROOM = 0xc5d23cf5d86d8616;
 // --- State ---
 
 typedef struct {
-    home *h;              // borrowed
-    u8bp  paths;          // FILEBook'd paths.log (stable mmap address)
-    u8bp  changes;        // FILEBook'd state.log (stable mmap address)
-    Bu8cs past;           // sorted u8cs slices into paths (checkout portion)
-    Bu8cs data;           // unsorted u8cs slices (post-checkout new paths)
-    Bu32  sorted;         // merged sorted index (for POST/DEL)
+    home   *h;              // borrowed
+    u8bp    changes;        // FILEBook'd state.log (stable mmap address)
+    Bu32    sorted;         // indices sorted by KEEPPath (for POST/DEL)
 } sniff;
+
+//  Singleton.  Zero-initialised; populated by SNIFFOpen.
+extern sniff SNIFF;
 
 // --- Public API (DOG 4-fn) ---
 
-//  Open .dogs/sniff/ state rooted at h->root.  `h` is borrowed.
-ok64 SNIFFOpen(sniff *s, home *h, b8 rw);
+//  Open .dogs/sniff/ state rooted at h->root.  Internally opens keeper
+//  too (singleton: nests naturally; pair with KEEPClose only if the
+//  keeper open returns OK, same contract as KEEPOpen).  Returns:
+//    OK          I opened &SNIFF; pair with SNIFFClose.
+//    SNIFFOPEN   already open compatible mode; use &SNIFF, don't close.
+//    SNIFFOPENRO already ro but caller asked for rw.
+//    (other)     real error, propagate.
+ok64 SNIFFOpen(home *h, b8 rw);
 
 //  Run one CLI invocation — same effect as `sniff ...`.
-ok64 SNIFFExec(sniff *s, cli *c);
+ok64 SNIFFExec(cli *c);
 
 //  Feed a single git object (blob/tree/commit/tag) into sniff's
 //  index.  obj_type uses KEEP_OBJ_* constants from keeper/KEEP.h.
 //  `path` is the repo-relative path this object lives at (empty
 //  for commits/tags/top-level trees).
-ok64 SNIFFUpdate(sniff *s, u8 obj_type, u8cs blob, u8csc path);
+ok64 SNIFFUpdate(u8 obj_type, u8cs blob, u8csc path);
 
-//  Close and unmap everything.
-ok64 SNIFFClose(sniff *s);
+//  Close singleton.  Idempotent; no-op if not open.
+ok64 SNIFFClose(void);
 
 //  Verb + value-flag tables for CLIParse.
 extern char const *const SNIFF_VERBS[];
 extern char const SNIFF_VAL_FLAGS[];
 
-//  path→index.  Appends to paths log if new.
-u32  SNIFFIntern(sniff *s, u8cs path);
+//  path→index.  Forwards to keeper's registry; appends if new.
+u32  SNIFFIntern(u8cs path);
 
-//  index→path string (pointer into booked mmap, stable until close).
-ok64 SNIFFPath(u8csp out, sniff const *s, u32 index);
+//  index→path string (slice into keeper's paths.log, stable until close).
+ok64 SNIFFPath(u8csp out, u32 index);
 
-//  Number of known paths.
-fun u32 SNIFFCount(sniff const *s) {
-    return (u32)(u8csbDataLen(s->past) + u8csbDataLen(s->data));
-}
+//  Number of known paths (delegates to keeper).
+u32  SNIFFCount(void);
 
 //  Is path a directory? (trailing /)
-fun b8 SNIFFIsDir(sniff const *s, u32 index) {
+fun b8 SNIFFIsDir(u32 index) {
     u8cs p = {};
-    if (SNIFFPath(p, s, index) != OK) return NO;
+    if (SNIFFPath(p, index) != OK) return NO;
     return (!$empty(p) && *$last(p) == '/');
 }
 
@@ -110,49 +118,46 @@ fun ok64 SNIFFFullpath(path8b out, u8cs reporoot, u8cs rel) {
 }
 
 //  Intern a directory path (appends / if missing).
-u32  SNIFFInternDir(sniff *s, u8cs path);
+u32  SNIFFInternDir(u8cs path);
 
 //  Intern the repo root dir ("/") and return its index.  The root's
 //  SNIFF_TREE hashlet is the base tree — the "staged" tree that
 //  PUT/DELETE update and POST commits.
-u32  SNIFFRootIdx(sniff *s);
+u32  SNIFFRootIdx(void);
 
 //  Convenience: current base tree hashlet (0 if unset).
-u64  SNIFFBaseTree(sniff *s);
+u64  SNIFFBaseTree(void);
 
 //  Build sorted index array (by path string, depth-first).
-//  Stores result in s->sorted.
-ok64 SNIFFSort(sniff *s);
+//  Stores result in SNIFF.sorted.
+ok64 SNIFFSort(void);
 
 //  Record a change entry to the log.
-ok64 SNIFFRecord(sniff *s, u8 type, u32 index, u64 off);
+ok64 SNIFFRecord(u8 type, u32 index, u64 off);
 
 //  Look up aggregated state for (type, index).
 //  Returns the off value, or 0 if not found.
-u64 SNIFFGet(sniff const *s, u8 type, u32 index);
+u64 SNIFFGet(u8 type, u32 index);
 
-//  Compact: rewrite paths.log sorted, state.log with paired entries.
-//  Rebuilds past/data arrays.  Called after checkout.
-ok64 SNIFFCompact(sniff *s);
+//  Compact: rewrite state.log, keeping only live entries.
+ok64 SNIFFCompact(void);
 
 // --- Parent-commit helpers (shared by POST/DEL/COM) ---
 
 //  Resolve a commit hex prefix (≤15 hex chars) to the root tree SHA.
 //  Handles annotated-tag dereference.  Fails if the object isn't a
 //  commit (after tag deref).
-ok64 SNIFFParentTreeSha(sha1 *tree_out, keeper *k, u8cs parent_hex);
+ok64 SNIFFParentTreeSha(sha1 *tree_out, u8cs parent_hex);
 
 //  Walk the parent tree and populate sha_tab[idx] = entry SHA-1,
 //  where idx is obtained via SNIFFInternDir (dirs) or SNIFFIntern
 //  (files).  `sha_tab` must be pre-sized to hold at least `capacity`
 //  sha1 values and zero-initialized.  Submodules skipped.
-ok64 SNIFFCollectParentTree(sniff *s, keeper *k, u8cs parent_hex,
-                             sha1 *sha_tab, u32 capacity);
+ok64 SNIFFCollectParentTree(u8cs parent_hex, sha1 *sha_tab, u32 capacity);
 
 //  Same, but walks the current base tree (root SNIFF_TREE hashlet)
 //  instead of a named parent commit.  No-op if base is unset.  Used
 //  by PUT/DELETE to seed per-entry SHAs for tree reuse.
-ok64 SNIFFCollectBaseTree(sniff *s, keeper *k,
-                           sha1 *sha_tab, u32 capacity);
+ok64 SNIFFCollectBaseTree(sha1 *sha_tab, u32 capacity);
 
 #endif

@@ -23,10 +23,10 @@ ok64 keepercli() {
     home h = {};
     call(HOMEOpen, &h, c.repo, rw);
 
-    keeper k = {};
-    call(KEEPOpen, &k, &h, rw);
-    ok64 ret = KEEPExec(&k, &c);
-    KEEPClose(&k);
+    
+    call(KEEPOpen, &h, rw);
+    ok64 ret = KEEPExec(&KEEP, &c);
+    KEEPClose();
     HOMEClose(&h);
     return ret;
 }

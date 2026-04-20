@@ -25,6 +25,11 @@
 con ok64 KEEPFAIL    = 0x50e3993ca495;
 con ok64 KEEPNOROOM  = 0x50e3995d86d8616;
 con ok64 KEEPNONE    = 0x50e3995d85ce;
+//  Returned by KEEPOpen when KEEP is already open with a compatible
+//  mode.  The caller gets a usable &KEEP but must NOT call KEEPClose.
+con ok64 KEEPOPEN    = 0x50e399619397;
+//  Returned by KEEPOpen when caller requests rw on a ro-opened keeper.
+con ok64 KEEPOPENRO  = 0x50e3996193976d8;
 
 // --- 60-bit hashlet: index key format ---
 //
@@ -83,6 +88,12 @@ typedef struct {
     Bu8    buf2;                    // working buffer for KEEPGet delta apply
     Bu8    buf3;                    // working buffer for keep_resolve base
     Bu8    buf4;                    // working buffer for keep_resolve delta
+    //  Path registry: .dogs/keeper/paths.log (newline-separated),
+    //  offsets[i] → start-byte of path i, hash(path) → i for dedup.
+    //  Dir paths end with '/'.  Index 0 is reserved for the empty path.
+    u8bp   paths_log;
+    Bu32   paths_offs;
+    Bkv64  paths_hash;
 } keeper;
 
 // Relative ".dogs/keeper" slice.  Call sites compose the full dir via
@@ -92,10 +103,18 @@ extern u8c *const KEEP_DIR_S[2];
 
 // --- Public API (DOG 4-fn) ---
 
-//  Open keeper store.  `h` provides the worktree root, scratch arena,
-//  and config; it is borrowed and must outlive `k`.  rw=YES creates
-//  `.dogs/keeper/` and its subdirs if missing.
-ok64 KEEPOpen(keeper *k, home *h, b8 rw);
+//  Singleton keeper state.  Zero-initialised; population happens in
+//  KEEPOpen.  All helpers that need keeper reach this symbol directly
+//  rather than threading a pointer through every call chain.
+extern keeper KEEP;
+
+//  Open keeper store at `h`.  Returns:
+//    OK         I opened it; caller must pair with KEEPClose.
+//    KEEPOPEN   already open, compatible mode; use &KEEP, do NOT close.
+//    KEEPOPENRO already open ro but caller asked for rw — real conflict;
+//               propagate.  Caller's outer scope must re-architect.
+//    (other)    real error — propagate, no KEEPClose.
+ok64 KEEPOpen(home *h, b8 rw);
 
 //  Run one CLI invocation — same effect as `keeper ...`.
 ok64 KEEPExec(keeper *k, cli *c);
@@ -107,7 +126,7 @@ ok64 KEEPExec(keeper *k, cli *c);
 ok64 KEEPUpdate(keeper *k, u8 obj_type, u8cs blob, u8csc path);
 
 //  Close and unmap everything.
-ok64 KEEPClose(keeper *k);
+ok64 KEEPClose(void);
 
 //  Verb + value-flag tables for CLIParse.
 extern char const *const KEEP_CLI_VERBS[];
@@ -202,5 +221,8 @@ ok64 KEEPScan(keeper *k, u64 from_val, keep_cb cb, void *ctx);
 ok64 KEEPResolveTree(keeper *k, uricp target, sha1 *tree_out);
 
 //  KEEPLsFiles is declared in keeper/WALK.h (takes a walk_tree_fn).
+//  Path registry (KEEPIntern / KEEPPath / KEEPPathCount) is declared
+//  in keeper/PATHS.h.  Its backing fields (paths_log, paths_offs,
+//  paths_hash) live on the `keeper` struct above.
 
 #endif

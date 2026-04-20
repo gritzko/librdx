@@ -1768,12 +1768,25 @@ ok64 CAPOTrigramFilter(Bu32 hashbuf, b8 *has_trigrams,
 
 // --- DOG control struct ---
 
-ok64 SPOTOpen(spotp s, home *h, b8 rw) {
-    sane(s != NULL && h != NULL);
+spot SPOT = {};
+
+static b8 spot_is_open(void) { return SPOT.h != NULL; }
+static b8 spot_is_rw = NO;
+
+ok64 SPOTOpen(home *h, b8 rw) {
+    sane(h != NULL);
+
+    if (spot_is_open()) {
+        if (rw && !spot_is_rw) return SPOTOPENRO;
+        return SPOTOPEN;
+    }
+
+    spot *s = &SPOT;
     zerop(s);
     s->h = h;
     s->lock_fd = -1;
     s->out_fd = -1;
+    spot_is_rw = rw;
     s->color = isatty(STDOUT_FILENO) ? YES : NO;
     s->term = (isatty(STDERR_FILENO) && isatty(STDOUT_FILENO)) ? YES : NO;
 
@@ -1804,8 +1817,9 @@ ok64 SPOTOpen(spotp s, home *h, b8 rw) {
     done;
 }
 
-void SPOTClose(spotp s) {
-    if (s == NULL) return;
+void SPOTClose(void) {
+    if (!spot_is_open()) return;
+    spot *s = &SPOT;
     for (u32 i = 0; i < s->nmaps; i++) {
         if (s->toks[i][0] != NULL) u32bUnMap(s->toks[i]);
         if (s->maps[i] != NULL)    FILEUnMap(s->maps[i]);
@@ -1816,4 +1830,6 @@ void SPOTClose(spotp s) {
     s->nmaps  = 0;
     less_nhunks = 0;
     less_nmaps  = 0;
+    s->h = NULL;
+    spot_is_rw = NO;
 }

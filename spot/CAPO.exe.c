@@ -64,8 +64,9 @@ static b8 argIsExt(u8csc a) {
 
 // --- Entry ---
 
-ok64 SPOTExec(spotp dog, cli *c) {
-    sane(dog && c);
+ok64 SPOTExec(cli *c) {
+    sane(c);
+    spotp dog = &SPOT;
 
     if (getenv("SPOT_COLOR")) { dog->color = YES; CAPO_COLOR = YES; }
 
@@ -413,8 +414,8 @@ ok64 SPOTExec(spotp dog, cli *c) {
 // index. Tree/commit/tag objects are no-ops here (sniff and graf
 // handle those). `path` gives the repo-relative location the blob
 // lives at — the extension is used to pick the tokenizer.
-ok64 SPOTUpdate(spotp s, u8 obj_type, u8cs blob, u8csc path) {
-    sane(s);
+ok64 SPOTUpdate(u8 obj_type, u8cs blob, u8csc path) {
+    sane(1);
     (void)obj_type; (void)blob; (void)path;
     // TODO: when obj_type == KEEP_OBJ_BLOB, extract ext from path
     // and call CAPOIndexFile on the blob content.

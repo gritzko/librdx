@@ -28,7 +28,6 @@
 //  off-by-log-base correspond to wh128 offsets directly.
 
 #include "KEEP.h"
-#include "dog/LS.h"
 #include "dog/SHA1.h"
 #include "dog/WHIFF.h"
 

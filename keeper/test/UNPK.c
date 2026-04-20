@@ -230,8 +230,8 @@ static ok64 run_toy(char const *recipe) {
     u8cs root = {(u8cp)kdir, (u8cp)kdir + strlen(kdir)};
     home h = {};
     call(HOMEOpen, &h, root, YES);
-    keeper k = {};
-    call(KEEPOpen, &k, &h, YES);
+    
+    call(KEEPOpen, &h, YES);
 
     //  Emit callback: collect "sha40 path" lines for every blob.
     emit_collect ec = {};
@@ -251,7 +251,7 @@ static ok64 run_toy(char const *recipe) {
     Bwh128 entries = {};
     call(wh128bAllocate, entries, hdr.count ? hdr.count * 2 : 16);
     unpk_stats st = {};
-    call(UNPKIndex, &k, &in, entries, &st);
+    call(UNPKIndex, &KEEP, &in, entries, &st);
 
     //  Per-event sanity: emit counts match object types in the pack.
     //  Paths: verify that when a path WAS derived for a blob, it
@@ -320,7 +320,7 @@ static ok64 run_toy(char const *recipe) {
     free(shas);
     wh128bFree(entries);
     u8bUnMap(ec.buf);
-    KEEPClose(&k);
+    KEEPClose();
     HOMEClose(&h);
     FILEUnMap(pack_map);
 

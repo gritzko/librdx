@@ -5,6 +5,7 @@
 #include "DELT.h"
 #include "GIT.h"
 #include "PACK.h"
+#include "PATHS.h"
 #include "ZINF.h"
 
 #include <stdio.h>
@@ -63,24 +64,26 @@ static ok64 unpk_emit(Bwh128 out, u32 file_id,
 //  Side-map bookkeeping for sha -> path derivation.
 //
 //  Commits: parse `tree <hex>` header, register that tree sha with
-//  path "" (offset 0 in the LS).  Trees: enumerate entries, build
-//  "self/name" for each, LS-feed it, record entry sha -> offset.
-//  Caller must have seeded LS with an empty string at offset 0.
+//  path "" (keeper path index 0).  Trees: enumerate entries, build
+//  "self/name" for each, KEEPIntern it, record entry sha -> idx.
 
-static void unpk_note_commit(u8cs content, ls *paths, kv64s sha2path) {
+static void unpk_note_commit(keeper *k, u8cs content, kv64s sha2idx) {
     u8 tree_sha[20] = {};
     a_dup(u8c, body, content);
     if (GITu8sCommitTree(body, tree_sha) != OK) return;
     u64 key = 0;
     memcpy(&key, tree_sha, 8);
-    kv64 e = { .key = key, .val = 0 };  // offset 0 = ""
-    HASHkv64Put(sha2path, &e);
+    //  Root tree's path = "" (interned via keeper; whatever index it lands at).
+    a_cstr(empty, "");
+    u32 root_idx = KEEPIntern(k, empty);
+    kv64 e = { .key = key, .val = (u64)root_idx };
+    HASHkv64Put(sha2idx, &e);
 }
 
-static void unpk_note_tree(u8cs content, u64 self_off,
-                            ls *paths, kv64s sha2path) {
+static void unpk_note_tree(keeper *k, u8cs content, u32 self_idx,
+                            kv64s sha2idx) {
     u8cs self_path = {};
-    LSGet(paths, self_off, self_path);
+    (void)KEEPPath(k, self_idx, self_path);
 
     u8cs scan = {};
     a_dup(u8c, body, content);
@@ -88,34 +91,40 @@ static void unpk_note_tree(u8cs content, u64 self_off,
     for (;;) {
         u8cs file = {}, sha = {};
         if (GITu8sDrainTree(scan, file, sha) != OK) break;
-        //  `file` = "<mode> <name>"; name after the first space
+        //  `file` = "<mode> <name>"; name after the first space.
+        //  Mode determines whether this child is a directory.
+        u8cs mode = {};
+        u8csMv(mode, file);
         u8cs name = {};
         u8csMv(name, file);
         if (u8csFind(name, ' ') != OK) continue;
+        //  Mode slice ends at the space; name starts after.
+        mode[1] = name[0];
         name[0]++;  // skip the space
         if ($empty(name)) continue;
+        b8 is_dir = (!$empty(mode) && *mode[0] == '4');  // 40000
 
-        //  Build "<self>/<name>" (or "<name>" at root)
+        //  Build "<self>/<name>" (or "<name>" at root), "/"-appended for dirs.
         a_pad(u8, pbuf, 4096);
         if (u8csLen(self_path) > 0) {
             u8bFeed(pbuf, self_path);
             u8bFeed1(pbuf, '/');
         }
         u8bFeed(pbuf, name);
+        if (is_dir) u8bFeed1(pbuf, '/');
         a_dup(u8c, pdata, u8bData(pbuf));
 
-        u64 child_off = 0;
-        if (LSFeed(paths, pdata, &child_off) != OK) continue;
+        u32 child_idx = KEEPIntern(k, pdata);
 
         u64 key = 0;
         memcpy(&key, sha[0], 8);
-        kv64 e = { .key = key, .val = child_off };
-        HASHkv64Put(sha2path, &e);
+        kv64 e = { .key = key, .val = (u64)child_idx };
+        HASHkv64Put(sha2idx, &e);
     }
 }
 
 //  Invoke the user callback with the derived path (or empty on miss).
-static void unpk_dispatch(unpk_in const *in, ls *paths, kv64s sha2path,
+static void unpk_dispatch(keeper *k, unpk_in const *in, kv64s sha2idx,
                            u8 type, sha1 const *sha, u8cs content,
                            unpk_stats *st) {
     if (!in->emit) return;
@@ -123,11 +132,11 @@ static void unpk_dispatch(unpk_in const *in, ls *paths, kv64s sha2path,
     u64 key = 0;
     memcpy(&key, sha->data, 8);
     kv64 probe = { .key = key, .val = 0 };
-    b8 have = (HASHkv64Get(&probe, sha2path) == OK);
+    b8 have = (HASHkv64Get(&probe, sha2idx) == OK);
 
     u8cs path = {};
     if (have) {
-        LSGet(paths, probe.val, path);
+        (void)KEEPPath(k, (u32)probe.val, path);
         st->paths_known++;
     } else {
         st->paths_empty++;
@@ -151,34 +160,19 @@ ok64 UNPKIndex(keeper *k, unpk_in const *in,
 
     unpk_stats st = {};
 
-    //  Path-tracking: builds a sha -> path map transiently while
-    //  scanning trees/commits.  Only live if the caller asked for
-    //  object events (in->emit non-NULL).
-    ls  paths   = {};
+    //  Path-tracking: map a resolved object's sha-prefix to its
+    //  keeper-persistent path index.  Built while scanning trees +
+    //  commits; used at dispatch time to look up an event's path.
+    //  Paths themselves live in keeper's paths.log (persistent).
     kv64 *s2p   = NULL;
-    kv64s sha2path = {NULL, NULL};
+    kv64s sha2idx = {NULL, NULL};
     b8  with_paths = (in->emit != NULL);
     if (with_paths) {
-        //  LS reserve: paths are small but count grows with blob count
-        //  (bounded by tree-entry count).  1 << 25 = 32 MiB fits most.
-        if (LSOpen(&paths, 1ULL << 25) != OK) with_paths = NO;
-        else {
-            //  Seed offset 0 with empty string (for root-tree lookups).
-            u64 seed = 0;
-            a_cstr(empty, "");
-            if (LSFeed(&paths, empty, &seed) != OK) with_paths = NO;
-            //  kv64 hashtable sized ~2x expected entries; count is a
-            //  conservative upper bound (tree entries <= object count).
-            u64 tblsz = (u64)count * 2;
-            if (tblsz < 256) tblsz = 256;
-            s2p = calloc(tblsz, sizeof(kv64));
-            if (!s2p) with_paths = NO;
-            else { sha2path[0] = s2p; sha2path[1] = s2p + tblsz; }
-        }
-        if (!with_paths) {
-            LSClose(&paths);
-            free(s2p); s2p = NULL;
-        }
+        u64 tblsz = (u64)count * 2;
+        if (tblsz < 256) tblsz = 256;
+        s2p = calloc(tblsz, sizeof(kv64));
+        if (!s2p) with_paths = NO;
+        else { sha2idx[0] = s2p; sha2idx[1] = s2p + tblsz; }
     }
 
     //  Pre-scan: record (offset, type) per object.  Inflates each
@@ -276,16 +270,17 @@ ok64 UNPKIndex(keeper *k, unpk_in const *in,
         if (with_paths) {
             u8cs ct = {cs, cs + obj.size};
             if (types[i] == PACK_OBJ_COMMIT)
-                unpk_note_commit(ct, &paths, sha2path);
+                unpk_note_commit(k, ct, sha2idx);
             else if (types[i] == PACK_OBJ_TREE) {
-                u64 self_off = 0;
+                u32 self_idx = 0;
                 u64 k_ = 0; memcpy(&k_, sha.data, 8);
                 kv64 probe = { .key = k_, .val = 0 };
-                if (HASHkv64Get(&probe, sha2path) == OK) self_off = probe.val;
-                unpk_note_tree(ct, self_off, &paths, sha2path);
+                if (HASHkv64Get(&probe, sha2idx) == OK)
+                    self_idx = (u32)probe.val;
+                unpk_note_tree(k, ct, self_idx, sha2idx);
             }
             u8cs dct = {cs, cs + obj.size};
-            unpk_dispatch(in, &paths, sha2path, types[i], &sha, dct, &st);
+            unpk_dispatch(k, in, sha2idx, types[i], &sha, dct, &st);
         }
 
         u64 sha_key = 0;
@@ -366,16 +361,17 @@ ok64 UNPKIndex(keeper *k, unpk_in const *in,
             if (with_paths) {
                 u8cs ct = {rstart, rstart + rsz};
                 if (stk[0].base_type == PACK_OBJ_COMMIT)
-                    unpk_note_commit(ct, &paths, sha2path);
+                    unpk_note_commit(k, ct, sha2idx);
                 else if (stk[0].base_type == PACK_OBJ_TREE) {
-                    u64 self_off = 0;
+                    u32 self_idx = 0;
                     u64 k_ = 0; memcpy(&k_, sha.data, 8);
                     kv64 probe = { .key = k_, .val = 0 };
-                    if (HASHkv64Get(&probe, sha2path) == OK) self_off = probe.val;
-                    unpk_note_tree(ct, self_off, &paths, sha2path);
+                    if (HASHkv64Get(&probe, sha2idx) == OK)
+                        self_idx = (u32)probe.val;
+                    unpk_note_tree(k, ct, self_idx, sha2idx);
                 }
                 u8cs dct = {rstart, rstart + rsz};
-                unpk_dispatch(in, &paths, sha2path,
+                unpk_dispatch(k, in, sha2idx,
                               stk[0].base_type, &sha, dct, &st);
             }
 
@@ -437,16 +433,17 @@ ok64 UNPKIndex(keeper *k, unpk_in const *in,
         if (with_paths) {
             u8cs ct = {rstart, rstart + rsz};
             if (base_type == PACK_OBJ_COMMIT)
-                unpk_note_commit(ct, &paths, sha2path);
+                unpk_note_commit(k, ct, sha2idx);
             else if (base_type == PACK_OBJ_TREE) {
-                u64 self_off = 0;
+                u32 self_idx = 0;
                 u64 k_ = 0; memcpy(&k_, sha.data, 8);
                 kv64 probe = { .key = k_, .val = 0 };
-                if (HASHkv64Get(&probe, sha2path) == OK) self_off = probe.val;
-                unpk_note_tree(ct, self_off, &paths, sha2path);
+                if (HASHkv64Get(&probe, sha2idx) == OK)
+                    self_idx = (u32)probe.val;
+                unpk_note_tree(k, ct, self_idx, sha2idx);
             }
             u8cs dct = {rstart, rstart + rsz};
-            unpk_dispatch(in, &paths, sha2path, base_type, &sha, dct, &st);
+            unpk_dispatch(k, in, sha2idx, base_type, &sha, dct, &st);
         }
     }
 
@@ -455,7 +452,7 @@ ok64 UNPKIndex(keeper *k, unpk_in const *in,
     free(nodes);
     free(offsets);
     free(types);
-    if (with_paths) { LSClose(&paths); free(s2p); }
+    if (with_paths) free(s2p);
 
     if (stats) *stats = st;
     done;

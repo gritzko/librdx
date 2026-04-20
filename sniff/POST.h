@@ -14,7 +14,7 @@
 #include "SNIFF.h"
 #include "keeper/KEEP.h"
 
-ok64 POSTCommit(sniff *s, keeper *k, u8cs reporoot,
+ok64 POSTCommit(u8cs reporoot,
                 u8cs message, u8cs author, sha1 *sha_out);
 
 #endif

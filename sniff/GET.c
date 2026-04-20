@@ -38,9 +38,9 @@ static ok64 get_visit(u8cs path, u8 kind, u8cp esha, u8cs blob,
     if (kind == WALK_KIND_DIR) {
         if ($empty(path)) {
             // Root tree: record base hashlet at the reserved root idx.
-            u32 ridx = SNIFFRootIdx(s);
+            u32 ridx = SNIFFRootIdx();
             g->seen[ridx] = 1;
-            SNIFFRecord(s, SNIFF_TREE, ridx, entry_hashlet);
+            SNIFFRecord(SNIFF_TREE, ridx, entry_hashlet);
             return OK;  // walker recurses into children
         }
 
@@ -48,20 +48,20 @@ static ok64 get_visit(u8cs path, u8 kind, u8cp esha, u8cs blob,
         SNIFFFullpath(dp, g->reporoot, path);
         FILEMakeDirP($path(dp));
 
-        u32 idx = SNIFFInternDir(s, path);
+        u32 idx = SNIFFInternDir(path);
         g->seen[idx] = 1;
-        SNIFFRecord(s, SNIFF_TREE, idx, entry_hashlet);
+        SNIFFRecord(SNIFF_TREE, idx, entry_hashlet);
         return OK;  // walker recurses
     }
 
     // File entry (REG/EXE/LNK).
-    u32 idx = SNIFFIntern(s, path);
+    u32 idx = SNIFFIntern(path);
     g->seen[idx] = 1;
 
     // Fast path: if the hashlet already matches AND the file still
     // exists on disk, skip the rewrite.  Missing-on-disk falls through
     // so checkout can re-materialise a rm'd file.
-    u64 old_hashlet = SNIFFGet(s, SNIFF_BLOB, idx);
+    u64 old_hashlet = SNIFFGet(SNIFF_BLOB, idx);
     if (old_hashlet == entry_hashlet && old_hashlet != 0) {
         a_path(existing);
         if (SNIFFFullpath(existing, g->reporoot, path) == OK) {
@@ -71,8 +71,8 @@ static ok64 get_visit(u8cs path, u8 kind, u8cp esha, u8cs blob,
         }
     }
 
-    u64 co = SNIFFGet(s, SNIFF_CHECKOUT, idx);
-    u64 ch = SNIFFGet(s, SNIFF_CHANGED, idx);
+    u64 co = SNIFFGet(SNIFF_CHECKOUT, idx);
+    u64 ch = SNIFFGet(SNIFF_CHANGED, idx);
     if (ch != 0 && ch != co) {
         fprintf(stderr, "sniff: skip dirty %.*s\n",
                 (int)$len(path), (char *)path[0]);
@@ -110,11 +110,11 @@ static ok64 get_visit(u8cs path, u8 kind, u8cp esha, u8cs blob,
     }
     u8bFree(bbuf);
 
-    SNIFFRecord(s, SNIFF_BLOB, idx, entry_hashlet);
+    SNIFFRecord(SNIFF_BLOB, idx, entry_hashlet);
 
     struct stat sb = {};
     if (FILEStat(&sb, $path(fp)) == OK)
-        SNIFFRecord(s, SNIFF_CHECKOUT, idx, (u64)sb.st_mtim.tv_sec);
+        SNIFFRecord(SNIFF_CHECKOUT, idx, (u64)sb.st_mtim.tv_sec);
 
     return OK;
 }
@@ -123,18 +123,18 @@ static ok64 get_visit(u8cs path, u8 kind, u8cp esha, u8cs blob,
 // Files first, then dirs (FILERmDir only works on empty dirs).
 static ok64 GETPrune(sniff *s, u8cs reporoot, u8cp seen) {
     sane(s);
-    u32 n = SNIFFCount(s);
+    u32 n = SNIFFCount();
     u32 removed = 0, errors = 0;
 
     // Pass 1: unlink files
     for (u32 i = 0; i < n; i++) {
         if (seen[i]) continue;
-        u64 h = SNIFFGet(s, SNIFF_BLOB, i);
+        u64 h = SNIFFGet(SNIFF_BLOB, i);
         if (h == 0) continue;
-        if (SNIFFIsDir(s, i)) continue;
+        if (SNIFFIsDir(i)) continue;
 
         u8cs rel = {};
-        call(SNIFFPath, rel, s, i);
+        call(SNIFFPath, rel, i);
         if ($empty(rel)) continue;
 
         a_path(fp);
@@ -142,8 +142,8 @@ static ok64 GETPrune(sniff *s, u8cs reporoot, u8cp seen) {
 
         ok64 o = FILEUnLink($path(fp));
         if (o == OK || o == FILENOENT) {
-            SNIFFRecord(s, SNIFF_BLOB, i, 0);
-            SNIFFRecord(s, SNIFF_CHECKOUT, i, 0);
+            SNIFFRecord(SNIFF_BLOB, i, 0);
+            SNIFFRecord(SNIFF_CHECKOUT, i, 0);
             removed++;
         } else {
             fprintf(stderr, "sniff: unlink fail %.*s: %s\n",
@@ -156,20 +156,20 @@ static ok64 GETPrune(sniff *s, u8cs reporoot, u8cp seen) {
     for (u32 i = n; i > 0; ) {
         i--;
         if (seen[i]) continue;
-        u64 h = SNIFFGet(s, SNIFF_TREE, i);
+        u64 h = SNIFFGet(SNIFF_TREE, i);
         if (h == 0) continue;
-        if (!SNIFFIsDir(s, i)) continue;
+        if (!SNIFFIsDir(i)) continue;
 
         u8cs rel = {};
-        call(SNIFFPath, rel, s, i);
+        call(SNIFFPath, rel, i);
 
         a_path(fp);
         call(SNIFFFullpath, fp, reporoot, rel);
 
         ok64 o = FILERmDir($path(fp), NO);
         if (o == OK || o == FILENOENT || o == FILENOTEMP) {
-            SNIFFRecord(s, SNIFF_TREE, i, 0);
-            SNIFFRecord(s, SNIFF_CHECKOUT, i, 0);
+            SNIFFRecord(SNIFF_TREE, i, 0);
+            SNIFFRecord(SNIFF_CHECKOUT, i, 0);
         }
     }
 
@@ -181,9 +181,10 @@ static ok64 GETPrune(sniff *s, u8cs reporoot, u8cp seen) {
 
 // --- Public API ---
 
-ok64 GETCheckout(sniff *s, keeper *k, u8cs reporoot, u8cs hex,
+ok64 GETCheckout(u8cs reporoot, u8cs hex,
                  u8cs source) {
-    sane(s && k && $ok(hex));
+    sane($ok(hex));
+    sniff *s = &SNIFF; keeper *k = &KEEP; (void)s; (void)k;
 
     size_t hexlen = $len(hex);
     if (hexlen > 15) hexlen = 15;
@@ -247,7 +248,7 @@ ok64 GETCheckout(sniff *s, keeper *k, u8cs reporoot, u8cs hex,
     }
 
     // Allocate seen bitmap
-    u32 npath = SNIFFCount(s);
+    u32 npath = SNIFFCount();
     u32 seen_size = npath + 65536;  // padding for new paths during walk
     Bu8 seen_buf = {};
     call(u8bAllocate, seen_buf, seen_size);
@@ -267,7 +268,7 @@ ok64 GETCheckout(sniff *s, keeper *k, u8cs reporoot, u8cs hex,
 
     u8bFree(seen_buf);
     if (o == OK) {
-        o = SNIFFCompact(s);
+        o = SNIFFCompact();
     }
     if (o == OK) {
         // Record worktree → ?<sha>.  Single terminal entry; the

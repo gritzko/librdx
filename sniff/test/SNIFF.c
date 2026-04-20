@@ -43,16 +43,18 @@ ok64 SNIFFInternPath() {
     a_cstr(root, g_tmpdir);
     home h = {};
     call(HOMEOpen, &h, root, YES);
+    
+    call(KEEPOpen, &h, YES);
     sniff s = {};
-    call(SNIFFOpen, &s, &h, YES);
+    call(SNIFFOpen, &h, YES);
 
     a_cstr(p1, "src/foo.c");
     a_cstr(p2, "src/bar.c");
     a_cstr(p3, "README.md");
 
-    u32 i1 = SNIFFIntern(&s, p1);
-    u32 i2 = SNIFFIntern(&s, p2);
-    u32 i3 = SNIFFIntern(&s, p3);
+    u32 i1 = SNIFFIntern(p1);
+    u32 i2 = SNIFFIntern(p2);
+    u32 i3 = SNIFFIntern(p3);
 
     // Distinct indices
     want(i1 != i2);
@@ -60,23 +62,24 @@ ok64 SNIFFInternPath() {
     want(i2 != i3);
 
     // Re-intern returns same index
-    want(SNIFFIntern(&s, p1) == i1);
-    want(SNIFFIntern(&s, p2) == i2);
+    want(SNIFFIntern(p1) == i1);
+    want(SNIFFIntern(p2) == i2);
 
     // Path round-trip
     u8cs out = {};
-    call(SNIFFPath, out, &s, i1);
+    call(SNIFFPath, out, i1);
     want($len(out) == $len(p1));
     want(memcmp(out[0], p1[0], $len(p1)) == 0);
 
-    call(SNIFFPath, out, &s, i3);
+    call(SNIFFPath, out, i3);
     want($len(out) == $len(p3));
     want(memcmp(out[0], p3[0], $len(p3)) == 0);
 
     // Count includes reserved root-dir index "/".
-    want(SNIFFCount(&s) == 4);
+    want(SNIFFCount() == 4);
 
-    call(SNIFFClose, &s);
+    call(SNIFFClose);
+    KEEPClose();
     HOMEClose(&h);
     rm_tmpdir();
     done;
@@ -92,25 +95,28 @@ ok64 SNIFFRecordGet() {
     a_cstr(root, g_tmpdir);
     home h = {};
     call(HOMEOpen, &h, root, YES);
+    
+    call(KEEPOpen, &h, YES);
     sniff s = {};
-    call(SNIFFOpen, &s, &h, YES);
+    call(SNIFFOpen, &h, YES);
 
     a_cstr(p, "test.c");
-    u32 idx = SNIFFIntern(&s, p);
+    u32 idx = SNIFFIntern(p);
 
-    SNIFFRecord(&s, SNIFF_BLOB, idx, 0x123456789AULL);
-    SNIFFRecord(&s, SNIFF_CHECKOUT, idx, 1700000000ULL);
-    SNIFFRecord(&s, SNIFF_CHANGED, idx, 1700000010ULL);
+    SNIFFRecord(SNIFF_BLOB, idx, 0x123456789AULL);
+    SNIFFRecord(SNIFF_CHECKOUT, idx, 1700000000ULL);
+    SNIFFRecord(SNIFF_CHANGED, idx, 1700000010ULL);
 
-    want(SNIFFGet(&s, SNIFF_BLOB, idx) == 0x123456789AULL);
-    want(SNIFFGet(&s, SNIFF_CHECKOUT, idx) == 1700000000ULL);
-    want(SNIFFGet(&s, SNIFF_CHANGED, idx) == 1700000010ULL);
+    want(SNIFFGet(SNIFF_BLOB, idx) == 0x123456789AULL);
+    want(SNIFFGet(SNIFF_CHECKOUT, idx) == 1700000000ULL);
+    want(SNIFFGet(SNIFF_CHANGED, idx) == 1700000010ULL);
 
     // Later record overwrites
-    SNIFFRecord(&s, SNIFF_CHANGED, idx, 1700000020ULL);
-    want(SNIFFGet(&s, SNIFF_CHANGED, idx) == 1700000020ULL);
+    SNIFFRecord(SNIFF_CHANGED, idx, 1700000020ULL);
+    want(SNIFFGet(SNIFF_CHANGED, idx) == 1700000020ULL);
 
-    call(SNIFFClose, &s);
+    call(SNIFFClose);
+    KEEPClose();
     HOMEClose(&h);
     rm_tmpdir();
     done;
@@ -129,35 +135,41 @@ ok64 SNIFFPersist() {
 
     // Write
     {
+        
+        call(KEEPOpen, &h, YES);
         sniff s = {};
-        call(SNIFFOpen, &s, &h, YES);
+        call(SNIFFOpen, &h, YES);
         a_cstr(p, "persist.c");
-        u32 idx = SNIFFIntern(&s, p);
-        SNIFFRecord(&s, SNIFF_BLOB, idx, 0xABCDEF0123ULL);
-        SNIFFRecord(&s, SNIFF_CHECKOUT, idx, 1700000000ULL);
-        call(SNIFFClose, &s);
+        u32 idx = SNIFFIntern(p);
+        SNIFFRecord(SNIFF_BLOB, idx, 0xABCDEF0123ULL);
+        SNIFFRecord(SNIFF_CHECKOUT, idx, 1700000000ULL);
+        call(SNIFFClose);
+        KEEPClose();
     }
 
     // Reopen and verify.  Index 0 is the reserved root-dir "/".
     {
+        
+        call(KEEPOpen, &h, NO);
         sniff s = {};
-        call(SNIFFOpen, &s, &h, NO);
-        want(SNIFFCount(&s) == 2);
+        call(SNIFFOpen, &h, NO);
+        want(SNIFFCount() == 2);
 
         u8cs root_p = {};
-        call(SNIFFPath, root_p, &s, 0);
+        call(SNIFFPath, root_p, 0);
         want($len(root_p) == 1);
         want(root_p[0][0] == '/');
 
         u8cs out = {};
-        call(SNIFFPath, out, &s, 1);
+        call(SNIFFPath, out, 1);
         want($len(out) == 9);
         want(memcmp(out[0], "persist.c", 9) == 0);
 
-        want(SNIFFGet(&s, SNIFF_BLOB, 1) == 0xABCDEF0123ULL);
-        want(SNIFFGet(&s, SNIFF_CHECKOUT, 1) == 1700000000ULL);
+        want(SNIFFGet(SNIFF_BLOB, 1) == 0xABCDEF0123ULL);
+        want(SNIFFGet(SNIFF_CHECKOUT, 1) == 1700000000ULL);
 
-        call(SNIFFClose, &s);
+        call(SNIFFClose);
+        KEEPClose();
     }
 
     HOMEClose(&h);
@@ -177,16 +189,16 @@ ok64 SNIFFCheckoutCommit() {
     call(HOMEOpen, &h, root, YES);
 
     // Open keeper, create a blob + tree + commit manually
-    keeper k = {};
-    call(KEEPOpen, &k, &h, YES);
+    
+    call(KEEPOpen, &h, YES);
 
     keep_pack p = {};
-    call(KEEPPackOpen, &k, &p);
+    call(KEEPPackOpen, &KEEP, &p);
 
     // Blob: "hello\n"
     a_cstr(blob_data, "hello\n");
     sha1 blob_sha = {};
-    call(KEEPPackFeed, &k, &p, DOG_OBJ_BLOB, blob_data, &blob_sha);
+    call(KEEPPackFeed, &KEEP, &p, DOG_OBJ_BLOB, blob_data, &blob_sha);
 
     // Tree: one entry "100644 test.txt\0<sha>"
     a_pad(u8, tree_buf, 256);
@@ -198,7 +210,7 @@ ok64 SNIFFCheckoutCommit() {
     a_dup(u8c, tree_content, u8bData(tree_buf));
 
     sha1 tree_sha = {};
-    call(KEEPPackFeed, &k, &p, DOG_OBJ_TREE, tree_content, &tree_sha);
+    call(KEEPPackFeed, &KEEP, &p, DOG_OBJ_TREE, tree_content, &tree_sha);
 
     // Commit
     a_pad(u8, cbuf, 512);
@@ -214,8 +226,8 @@ ok64 SNIFFCheckoutCommit() {
     a_dup(u8c, commit_content, u8bData(cbuf));
 
     sha1 commit_sha = {};
-    call(KEEPPackFeed, &k, &p, DOG_OBJ_COMMIT, commit_content, &commit_sha);
-    call(KEEPPackClose, &k, &p);
+    call(KEEPPackFeed, &KEEP, &p, DOG_OBJ_COMMIT, commit_content, &commit_sha);
+    call(KEEPPackClose, &KEEP, &p);
 
     // Hex of commit SHA for CLI
     a_pad(u8, commit_hex, 40);
@@ -224,9 +236,9 @@ ok64 SNIFFCheckoutCommit() {
 
     // Now checkout via sniff
     sniff s = {};
-    call(SNIFFOpen, &s, &h, YES);
+    call(SNIFFOpen, &h, YES);
     u8cs hex = {u8bDataHead(commit_hex), u8bIdleHead(commit_hex)};
-    u8cs no_src_ = {}; call(GETCheckout, &s, &k, root, hex, no_src_);
+    u8cs no_src_ = {}; call(GETCheckout, root, hex, no_src_);
 
     // Verify file exists
     a_path(fp, root);
@@ -237,10 +249,10 @@ ok64 SNIFFCheckoutCommit() {
     want(FILEStat(&sb, $path(fp)) == OK);
 
     // Verify sniff state.  Root "/" is idx 0, test.txt is idx 1.
-    want(SNIFFCount(&s) == 2);
-    want(SNIFFGet(&s, SNIFF_TREE, 0) != 0);   // root tree base
-    want(SNIFFGet(&s, SNIFF_BLOB, 1) != 0);   // test.txt blob
-    want(SNIFFGet(&s, SNIFF_CHECKOUT, 1) != 0);
+    want(SNIFFCount() == 2);
+    want(SNIFFGet(SNIFF_TREE, 0) != 0);   // root tree base
+    want(SNIFFGet(SNIFF_BLOB, 1) != 0);   // test.txt blob
+    want(SNIFFGet(SNIFF_CHECKOUT, 1) != 0);
 
     // Modify file, update, commit
     {
@@ -256,23 +268,23 @@ ok64 SNIFFCheckoutCommit() {
     // Record changed mtime (test.txt is idx 1; idx 0 is root "/").
     struct stat sb2 = {};
     call(FILEStat, &sb2, $path(fp));
-    SNIFFRecord(&s, SNIFF_CHANGED, 1, (u64)sb2.st_mtim.tv_sec);
+    SNIFFRecord(SNIFF_CHANGED, 1, (u64)sb2.st_mtim.tv_sec);
 
     // Commit (HEAD is already set to the initial commit from GETCheckout).
     a_cstr(msg, "second commit");
     a_cstr(author, "Test <t@t>");
     sha1 new_sha = {};
-    call(POSTCommit, &s, &k, root, msg, author, &new_sha);
+    call(POSTCommit, root, msg, author, &new_sha);
 
     // Verify new commit exists
     u64 new_hashlet = WHIFFHashlet60(&new_sha);
-    want(KEEPHas(&k, new_hashlet, 15) == OK);
+    want(KEEPHas(&KEEP, new_hashlet, 15) == OK);
 
     // Verify via KEEPGet
     Bu8 out = {};
     call(u8bAllocate, out, 1UL << 20);
     u8 otype = 0;
-    call(KEEPGet, &k, new_hashlet, 10, out, &otype);
+    call(KEEPGet, &KEEP, new_hashlet, 10, out, &otype);
     want(otype == DOG_OBJ_COMMIT);
 
     // Verify commit content mentions parent
@@ -281,8 +293,8 @@ ok64 SNIFFCheckoutCommit() {
     want(u8csFind(scan, 'p') == OK);  // "parent ..."
 
     u8bFree(out);
-    call(SNIFFClose, &s);
-    call(KEEPClose, &k);
+    call(SNIFFClose);
+    call(KEEPClose);
     HOMEClose(&h);
     rm_tmpdir();
     done;
@@ -453,8 +465,8 @@ ok64 SNIFFRoundTrip() {
     call(HOMEOpen, &h, root, YES);
 
     // 1. Create initial commit: a.txt, b.txt, c.txt
-    keeper k = {};
-    call(KEEPOpen, &k, &h, YES);
+    
+    call(KEEPOpen, &h, YES);
 
     testfile init_files[] = {
         {"a.txt", "alpha\n"},
@@ -462,7 +474,7 @@ ok64 SNIFFRoundTrip() {
         {"c.txt", "charlie\n"},
     };
     sha1 c1_sha = {};
-    call(make_commit, &c1_sha, &k, init_files, 3, NULL);
+    call(make_commit, &c1_sha, &KEEP, init_files, 3, NULL);
 
     a_pad(u8, c1_hex, 40);
     sha2hex(c1_hex, &c1_sha);
@@ -470,8 +482,8 @@ ok64 SNIFFRoundTrip() {
 
     // 2. GET: checkout initial commit
     sniff s = {};
-    call(SNIFFOpen, &s, &h, YES);
-    u8cs no_src1 = {}; call(GETCheckout, &s, &k, root, c1h, no_src1);
+    call(SNIFFOpen, &h, YES);
+    u8cs no_src1 = {}; call(GETCheckout, root, c1h, no_src1);
 
     call(check_file, root, "a.txt", "alpha\n");
     call(check_file, root, "b.txt", "bravo\n");
@@ -500,7 +512,7 @@ ok64 SNIFFRoundTrip() {
 
     // Intern d.txt and record changes
     a_cstr(dpath, "d.txt");
-    u32 didx = SNIFFIntern(&s, dpath);
+    u32 didx = SNIFFIntern(dpath);
     {
         a_path(afp, root);
         a_cstr(asep, "/a.txt");
@@ -510,8 +522,8 @@ ok64 SNIFFRoundTrip() {
         call(FILEStat, &asb, $path(afp));
         // a.txt is idx 0 after checkout
         a_cstr(apath, "a.txt");
-        u32 aidx = SNIFFIntern(&s, apath);
-        SNIFFRecord(&s, SNIFF_CHANGED, aidx, (u64)asb.st_mtim.tv_sec);
+        u32 aidx = SNIFFIntern(apath);
+        SNIFFRecord(SNIFF_CHANGED, aidx, (u64)asb.st_mtim.tv_sec);
     }
     {
         a_path(dfp, root);
@@ -520,7 +532,7 @@ ok64 SNIFFRoundTrip() {
         PATHu8bTerm(dfp);
         struct stat dsb = {};
         call(FILEStat, &dsb, $path(dfp));
-        SNIFFRecord(&s, SNIFF_CHANGED, didx, (u64)dsb.st_mtim.tv_sec);
+        SNIFFRecord(SNIFF_CHANGED, didx, (u64)dsb.st_mtim.tv_sec);
     }
 
     // 4. POST: commit changes.  HEAD is set to c1 from GETCheckout;
@@ -528,7 +540,7 @@ ok64 SNIFFRoundTrip() {
     sha1 c2_sha = {};
     a_cstr(msg2, "modify a, add d");
     a_cstr(author, "Test <t@t>");
-    call(POSTCommit, &s, &k, root, msg2, author, &c2_sha);
+    call(POSTCommit, root, msg2, author, &c2_sha);
 
     a_pad(u8, c2_hex, 40);
     sha2hex(c2_hex, &c2_sha);
@@ -551,7 +563,7 @@ ok64 SNIFFRoundTrip() {
     }
 
     // 5. Wipe sniff state + worktree, re-checkout commit 2 cleanly
-    call(SNIFFClose, &s);
+    call(SNIFFClose);
     {
         char cmd[300];
         snprintf(cmd, sizeof(cmd),
@@ -560,8 +572,8 @@ ok64 SNIFFRoundTrip() {
         system(cmd);
     }
 
-    call(SNIFFOpen, &s, &h, YES);
-    u8cs no_src2 = {}; call(GETCheckout, &s, &k, root, c2h, no_src2);
+    call(SNIFFOpen, &h, YES);
+    u8cs no_src2 = {}; call(GETCheckout, root, c2h, no_src2);
 
     call(check_file, root, "a.txt", "ALPHA MODIFIED\n");
     call(check_file, root, "b.txt", "bravo\n");
@@ -572,28 +584,28 @@ ok64 SNIFFRoundTrip() {
     // 6. DEL + POST: remove b.txt, create new commit
     {
         keep_pack dp = {};
-        call(KEEPPackOpen, &k, &dp);
+        call(KEEPPackOpen, &KEEP, &dp);
 
-        u32 npaths = SNIFFCount(&s);
+        u32 npaths = SNIFFCount();
         Bu8 dsbuf = {};
         call(u8bAllocate, dsbuf, npaths);
         memset(u8bDataHead(dsbuf), 0, npaths);
         u8p dset = u8bDataHead(dsbuf);
 
         a_cstr(bpath, "b.txt");
-        u32 bidx = SNIFFIntern(&s, bpath);
+        u32 bidx = SNIFFIntern(bpath);
         dset[bidx] = 1;
 
         sha1 del_tree = {};
-        call(DELStage, &del_tree, &s, &k, &dp, root, dset);
+        call(DELStage, &del_tree, &dp, root, dset);
         u8bFree(dsbuf);
-        KEEPPackClose(&k, &dp);
+        KEEPPackClose(&KEEP, &dp);
 
         // DELStage updated the base tree.  Now commit it via POST.
         // (We manually wrap here instead of POSTCommit to verify the
         // DELStage's staged tree SHA propagates.)
         keep_pack dp2 = {};
-        call(KEEPPackOpen, &k, &dp2);
+        call(KEEPPackOpen, &KEEP, &dp2);
         a_pad(u8, com, 1024);
         a_cstr(tl, "tree ");
         u8bFeed(com, tl);
@@ -611,15 +623,15 @@ ok64 SNIFFRoundTrip() {
 
         sha1 c3_sha = {};
         a_dup(u8c, cdata, u8bData(com));
-        call(KEEPPackFeed, &k, &dp2, DOG_OBJ_COMMIT, cdata, &c3_sha);
-        call(KEEPPackClose, &k, &dp2);
+        call(KEEPPackFeed, &KEEP, &dp2, DOG_OBJ_COMMIT, cdata, &c3_sha);
+        call(KEEPPackClose, &KEEP, &dp2);
 
         a_pad(u8, c3_hex, 40);
         sha2hex(c3_hex, &c3_sha);
         u8cs c3h = {u8bDataHead(c3_hex), u8bIdleHead(c3_hex)};
 
         // 7. GET the delete commit
-        u8cs no_src3 = {}; call(GETCheckout, &s, &k, root, c3h, no_src3);
+        u8cs no_src3 = {}; call(GETCheckout, root, c3h, no_src3);
 
         call(check_file, root, "a.txt", "ALPHA MODIFIED\n");
         want(file_gone(root, "b.txt"));
@@ -628,8 +640,8 @@ ok64 SNIFFRoundTrip() {
         fprintf(stderr, "  get: commit 3 (delete b) OK\n");
     }
 
-    call(SNIFFClose, &s);
-    call(KEEPClose, &k);
+    call(SNIFFClose);
+    call(KEEPClose);
     HOMEClose(&h);
     rm_tmpdir();
     done;

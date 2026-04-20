@@ -90,20 +90,21 @@ static u64 post_parent_tree_hashlet(keeper *k, u8cs reporoot) {
     if (!post_parent_hex(hex, k, reporoot)) return 0;
     u8cs head = {hex, hex + 40};
     sha1 tree_sha = {};
-    if (SNIFFParentTreeSha(&tree_sha, k, head) != OK) return 0;
+    if (SNIFFParentTreeSha(&tree_sha, head) != OK) return 0;
     return WHIFFHashlet40(&tree_sha);
 }
 
 // --- Public API ---
 
-ok64 POSTCommit(sniff *s, keeper *k, u8cs reporoot,
+ok64 POSTCommit(u8cs reporoot,
                 u8cs message, u8cs author, sha1 *sha_out) {
-    sane(s && k && $ok(message) && $ok(author));
+    sane($ok(message) && $ok(author));
+    sniff *s = &SNIFF; keeper *k = &KEEP; (void)s; (void)k;
 
     keep_pack p = {};
     call(KEEPPackOpen, k, &p);
 
-    u64 base = SNIFFBaseTree(s);
+    u64 base = SNIFFBaseTree();
     u64 head_tree = post_parent_tree_hashlet(k, reporoot);
 
     // The tree SHA for the commit body.  Obtained either from the
@@ -115,15 +116,15 @@ ok64 POSTCommit(sniff *s, keeper *k, u8cs reporoot,
     // Auto-stage when nothing has been explicitly PUT / DELETEd yet:
     // "git commit -a" ergonomics.
     if (base == 0 || base == head_tree) {
-        ok64 so = PUTStage(&root_tree, s, k, &p, reporoot, NULL);
+        ok64 so = PUTStage(&root_tree, &p, reporoot, NULL);
         if (so != OK) { KEEPPackClose(k, &p); return so; }
-        base = SNIFFBaseTree(s);
+        base = SNIFFBaseTree();
         if (base == 0) {
             // Empty worktree: commit an empty tree object.
             u8cs empty = {};
             call(KEEPPackFeed, k, &p, DOG_OBJ_TREE, empty, &root_tree);
             base = WHIFFHashlet40(&root_tree);
-            SNIFFRecord(s, SNIFF_TREE, SNIFFRootIdx(s), base);
+            SNIFFRecord(SNIFF_TREE, SNIFFRootIdx(), base);
         }
         have_root_sha = !sha1empty(&root_tree);
     }

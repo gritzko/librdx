@@ -27,12 +27,12 @@ static ok64 DELBuild(sha1 *tree_out, sniff *s, keeper *k,
                        keep_pack *p, sha1p sha_tab, u32 sha_cap,
                        u8cs reporoot, u8cp del_set,
                        u32 lo, u32 hi, u8cs prefix) {
-    sane(s && k && p && sha_tab && tree_out && del_set);
+    sane(p && sha_tab && tree_out && del_set);
 
     Bu8 tree = {};
     call(u8bAllocate, tree, (u64)(hi - lo) * 80);
 
-    u32 root_idx = SNIFFRootIdx(s);
+    u32 root_idx = SNIFFRootIdx();
     u32 i = lo;
     while (i < hi) {
         u32 idx = *u32bDataAtP(s->sorted, i);
@@ -40,15 +40,15 @@ static ok64 DELBuild(sha1 *tree_out, sniff *s, keeper *k,
 
         // Skip deleted entries
         if (del_set[idx]) {
-            if (SNIFFIsDir(s, idx)) {
+            if (SNIFFIsDir(idx)) {
                 // Skip entire subtree
                 u8cs rel = {};
-                SNIFFPath(rel, s, idx);
+                SNIFFPath(rel, idx);
                 u32 sub_hi = i + 1;
                 while (sub_hi < hi) {
                     u32 sidx = *u32bDataAtP(s->sorted, sub_hi);
                     u8cs sp = {};
-                    SNIFFPath(sp, s, sidx);
+                    SNIFFPath(sp, sidx);
                     if ($len(sp) <= $len(rel)) break;
                     if (memcmp(sp[0], rel[0], $len(rel)) != 0) break;
                     sub_hi++;
@@ -61,7 +61,7 @@ static ok64 DELBuild(sha1 *tree_out, sniff *s, keeper *k,
         }
 
         u8cs rel = {};
-        if (SNIFFPath(rel, s, idx) != OK) { i++; continue; }
+        if (SNIFFPath(rel, idx) != OK) { i++; continue; }
 
         size_t plen = $len(prefix);
         u8cs rest = {$atp(rel, plen), rel[1]};
@@ -75,7 +75,7 @@ static ok64 DELBuild(sha1 *tree_out, sniff *s, keeper *k,
             while (sub_hi < hi) {
                 u32 sidx = *u32bDataAtP(s->sorted, sub_hi);
                 u8cs sp = {};
-                SNIFFPath(sp, s, sidx);
+                SNIFFPath(sp, sidx);
                 if ($len(sp) <= $len(rel)) break;
                 if (memcmp(sp[0], rel[0], $len(rel)) != 0) break;
                 sub_hi++;
@@ -107,7 +107,7 @@ static ok64 DELBuild(sha1 *tree_out, sniff *s, keeper *k,
             }
 
             if (!sha1empty(&sub_sha)) {
-                SNIFFRecord(s, SNIFF_TREE, idx,
+                SNIFFRecord(SNIFF_TREE, idx,
                             WHIFFHashlet40(&sub_sha));
                 u8cs name = {rest[0], $last(rest)};
                 a_cstr(mode, "40000");
@@ -129,7 +129,7 @@ static ok64 DELBuild(sha1 *tree_out, sniff *s, keeper *k,
 
             // Recover mode from stat
             u8cs full_rel = {};
-            SNIFFPath(full_rel, s, idx);
+            SNIFFPath(full_rel, idx);
             a_path(fp);
             SNIFFFullpath(fp, reporoot, full_rel);
             struct stat lsb = {};
@@ -171,13 +171,13 @@ static ok64 DELBuild(sha1 *tree_out, sniff *s, keeper *k,
 
 // Auto-scan: mark tracked files missing from disk.  Caller owns buf.
 static void del_auto_scan(u8p del_set, sniff *s, u8cs reporoot) {
-    u32 n = SNIFFCount(s);
+    u32 n = SNIFFCount();
     for (u32 i = 0; i < n; i++) {
-        if (SNIFFIsDir(s, i)) continue;
+        if (SNIFFIsDir(i)) continue;
         u8cs rel = {};
-        if (SNIFFPath(rel, s, i) != OK) continue;
+        if (SNIFFPath(rel, i) != OK) continue;
         if ($empty(rel)) continue;
-        if (SNIFFGet(s, SNIFF_BLOB, i) == 0) continue;  // not tracked
+        if (SNIFFGet(SNIFF_BLOB, i) == 0) continue;  // not tracked
 
         a_path(fp);
         if (SNIFFFullpath(fp, reporoot, rel) != OK) continue;
@@ -188,13 +188,14 @@ static void del_auto_scan(u8p del_set, sniff *s, u8cs reporoot) {
 
 // --- Public API ---
 
-ok64 DELStage(sha1 *tree_out, sniff *s, keeper *k, keep_pack *p,
+ok64 DELStage(sha1 *tree_out, keep_pack *p,
               u8cs reporoot, u8cp del_set) {
-    sane(s && k && p && tree_out);
+    sane(p && tree_out);
+    sniff *s = &SNIFF; keeper *k = &KEEP; (void)s; (void)k;
 
-    call(SNIFFSort, s);
+    call(SNIFFSort);
 
-    u32 npath = SNIFFCount(s);
+    u32 npath = SNIFFCount();
     u32 cap = npath + SNIFF_HASH_SIZE;
 
     // If caller didn't pass a set, auto-build one covering every
@@ -214,7 +215,7 @@ ok64 DELStage(sha1 *tree_out, sniff *s, keeper *k, keep_pack *p,
     memset(sha1bHead(sha_mem), 0, (u64)cap * sizeof(sha1));
     sha1p sha_tab = sha1bHead(sha_mem);
 
-    o = SNIFFCollectBaseTree(s, k, sha_tab, cap);
+    o = SNIFFCollectBaseTree(sha_tab, cap);
     if (o != OK) {
         sha1bFree(sha_mem);
         if (u8bData(dset_mem)[0]) u8bFree(dset_mem);
@@ -226,7 +227,7 @@ ok64 DELStage(sha1 *tree_out, sniff *s, keeper *k, keep_pack *p,
                   effective_set, 0, u32bDataLen(s->sorted), no_prefix);
 
     if (o == OK && !sha1empty(tree_out)) {
-        SNIFFRecord(s, SNIFF_TREE, SNIFFRootIdx(s),
+        SNIFFRecord(SNIFF_TREE, SNIFFRootIdx(),
                     WHIFFHashlet40(tree_out));
     }
     //  Note: we intentionally leave SNIFF_BLOB / SNIFF_CHECKOUT intact

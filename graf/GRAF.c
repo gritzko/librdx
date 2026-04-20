@@ -14,14 +14,29 @@ Bu8          graf_arena   = {};
 int          graf_out_fd  = -1;
 graf_emit_fn graf_emit    = NULL;
 
+// --- Singleton ---
+
+graf GRAF = {};
+
+static b8 graf_is_open(void) { return GRAF.h != NULL; }
+static b8 graf_is_rw = NO;
+
 // --- GRAFOpen / GRAFClose ---
 
-ok64 GRAFOpen(graf *g, home *h, b8 rw) {
-    sane(g && h);
+ok64 GRAFOpen(home *h, b8 rw) {
+    sane(h);
+
+    if (graf_is_open()) {
+        if (rw && !graf_is_rw) return GRAFOPENRO;
+        return GRAFOPEN;
+    }
+
+    graf *g = &GRAF;
     zerop(g);
     g->h = h;
     g->lock_fd = -1;
     g->out_fd = -1;
+    graf_is_rw = rw;
 
     // Compose <root>/.dogs/graf on demand.
     a_dup(u8c, root_s, u8bDataC(h->root));
@@ -51,19 +66,23 @@ ok64 GRAFOpen(graf *g, home *h, b8 rw) {
 // TODO: when obj_type == KEEP_OBJ_COMMIT, thread the commit into the
 // DAG; for trees, record blob→path mapping.  For now this is a stub
 // so the DOG 4-fn surface is consistent across all dogs.
-ok64 GRAFUpdate(graf *g, u8 obj_type, u8cs blob, u8csc path) {
-    sane(g);
+ok64 GRAFUpdate(u8 obj_type, u8cs blob, u8csc path) {
+    sane(1);
     (void)obj_type; (void)blob; (void)path;
     done;
 }
 
-ok64 GRAFClose(graf *g) {
-    sane(g);
+ok64 GRAFClose(void) {
+    sane(1);
+    if (!graf_is_open()) return OK;
+    graf *g = &GRAF;
     dag_stack_close(&g->idx);
     if (g->arena[0]) u8bUnMap(g->arena);
     if (g->lock_fd >= 0) FILEClose(&g->lock_fd);
     g->out_fd = -1;
     g->emit = NULL;
+    g->h = NULL;
+    graf_is_rw = NO;
     done;
 }
 

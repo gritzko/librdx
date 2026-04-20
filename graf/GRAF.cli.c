@@ -18,10 +18,9 @@ ok64 grafcli() {
     home h = {};
     call(HOMEOpen, &h, c.repo, YES);
 
-    graf g = {};
-    call(GRAFOpen, &g, &h, YES);
-    ok64 ret = GRAFExec(&g, &c);
-    GRAFClose(&g);
+    call(GRAFOpen, &h, YES);
+    ok64 ret = GRAFExec(&c);
+    GRAFClose();
     HOMEClose(&h);
     return ret;
 }

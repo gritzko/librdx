@@ -23,22 +23,30 @@ typedef struct {
     dag_stack    idx;        // DAG index (LSM sorted runs)
 } graf;
 
-// --- Public API (DOG 4-fn) ---
+//  Singleton.  Zero-initialised; populated by GRAFOpen.
+extern graf GRAF;
 
-//  Open graf state.  `h` is borrowed; provides root/arena/config/rw.
-//  rw=YES creates `.dogs/graf/` if missing.
-ok64 GRAFOpen(graf *g, home *h, b8 rw);
+// --- Error / sentinel codes ---
 
-//  Run one CLI invocation — same effect as `graf ...`.
-ok64 GRAFExec(graf *g, cli *c);
+con ok64 GRAFFAIL    = 0x1c4a993ca495;
+con ok64 GRAFOPEN    = 0x41b28f619397;
+con ok64 GRAFOPENRO  = 0x41b28f6193976d8;
+
+// --- Public API (DOG 4-fn, singleton) ---
+
+//  Open graf state.  Returns OK (I opened), GRAFOPEN (already open
+//  compatible), GRAFOPENRO (ro/rw conflict), or a real error.
+ok64 GRAFOpen(home *h, b8 rw);
+
+//  Run one CLI invocation.
+ok64 GRAFExec(cli *c);
 
 //  Feed a single git object into graf's DAG index.
-//  obj_type uses KEEP_OBJ_* constants from keeper/KEEP.h.
-//  `path` is the repo-relative path (for blobs) or empty.
-ok64 GRAFUpdate(graf *g, u8 obj_type, u8cs blob, u8csc path);
+//  obj_type uses KEEP_OBJ_* constants; `path` is repo-relative.
+ok64 GRAFUpdate(u8 obj_type, u8cs blob, u8csc path);
 
-//  Close and free resources.
-ok64 GRAFClose(graf *g);
+//  Close singleton; idempotent.
+ok64 GRAFClose(void);
 
 //  Verb + value-flag tables for CLIParse.
 extern char const *const GRAF_CLI_VERBS[];

@@ -39,16 +39,16 @@ static ok64 com_build_tree(sniff *s, keeper *k, keep_pack *p,
                            sha1p sha_tab, u32 sha_cap, u8cs reporoot,
                            u8cs dir_prefix, u8cp commit_set,
                            sha1 *sha_out) {
-    sane(s && k && p && sha_tab && sha_out);
+    sane(p && sha_tab && sha_out);
 
     tree_entry entries[4096];
     u8cs       names[4096];
     u32 nentries = 0;
-    u32 n = SNIFFCount(s);
+    u32 n = SNIFFCount();
 
     for (u32 i = 0; i < n; i++) {
         u8cs rel = {};
-        if (SNIFFPath(rel, s, i) != OK) continue;
+        if (SNIFFPath(rel, i) != OK) continue;
 
         // Check if rel is under dir_prefix
         size_t plen = $len(dir_prefix);
@@ -120,7 +120,7 @@ static ok64 com_build_tree(sniff *s, keeper *k, keep_pack *p,
 
             // Check if file exists on disk
             u8cs full_rel = {};
-            SNIFFPath(full_rel, s, i);
+            SNIFFPath(full_rel, i);
             a_path(fp);
             SNIFFFullpath(fp, reporoot, full_rel);
             struct stat lsb = {};
@@ -128,9 +128,9 @@ static ok64 com_build_tree(sniff *s, keeper *k, keep_pack *p,
             if (!exists) continue;  // deleted file — exclude
 
             // Determine if this file is "changed" for commit purposes
-            b8 is_new = (SNIFFGet(s, SNIFF_BLOB, i) == 0);
-            u64 co = SNIFFGet(s, SNIFF_CHECKOUT, i);
-            u64 ch = SNIFFGet(s, SNIFF_CHANGED, i);
+            b8 is_new = (SNIFFGet(SNIFF_BLOB, i) == 0);
+            u64 co = SNIFFGet(SNIFF_CHECKOUT, i);
+            u64 ch = SNIFFGet(SNIFF_CHANGED, i);
             b8 mtime_changed = (ch != 0 && ch != co);
             b8 changed = is_new || mtime_changed;
 
@@ -246,10 +246,11 @@ static ok64 com_build_tree(sniff *s, keeper *k, keep_pack *p,
 
 // --- Public API ---
 
-ok64 COMCommit(sniff *s, keeper *k, u8cs reporoot,
+ok64 COMCommit(u8cs reporoot,
                u8cs parent_hex, u8cs message, u8cs author,
                u8cp commit_set, sha1 *sha_out) {
-    sane(s && k && $ok(parent_hex) && $ok(message) && $ok(author));
+    sane($ok(parent_hex) && $ok(message) && $ok(author));
+    sniff *s = &SNIFF; keeper *k = &KEEP; (void)s; (void)k;
 
     size_t hexlen = $len(parent_hex);
     if (hexlen > 15) hexlen = 15;
@@ -301,7 +302,7 @@ ok64 COMCommit(sniff *s, keeper *k, u8cs reporoot,
     u8bFree(cbuf);
 
     // Collect old tree SHAs
-    u32 npath = SNIFFCount(s);
+    u32 npath = SNIFFCount();
     u32 cap = npath + SNIFF_HASH_SIZE;
     Bsha1 sha_mem = {};
     call(sha1bAllocate, sha_mem, cap);

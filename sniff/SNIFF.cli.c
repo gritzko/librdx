@@ -7,6 +7,7 @@
 #include "abc/FILE.h"
 #include "abc/PRO.h"
 #include "dog/CLI.h"
+#include "keeper/KEEP.h"
 
 ok64 sniffcli() {
     sane(1);
@@ -34,10 +35,7 @@ ok64 sniffcli() {
     b8 need_state = !$eq(c.verb, v_help) && !$eq(c.verb, v_stop)
                  && !CLIHas(&c, "-h") && !CLIHas(&c, "--help");
 
-    if (!need_state) {
-        sniff s_empty = {};
-        return SNIFFExec(&s_empty, &c);
-    }
+    if (!need_state) return SNIFFExec(&c);
 
     // rw for anything that mutates .dogs/sniff state.
     a_cstr(v_status, "status");
@@ -47,11 +45,10 @@ ok64 sniffcli() {
 
     home h = {};
     call(HOMEOpen, &h, reporoot, rw);
+    call(SNIFFOpen, &h, rw);   // opens keeper singleton too
 
-    sniff s = {};
-    call(SNIFFOpen, &s, &h, rw);
-    ok64 ret = SNIFFExec(&s, &c);
-    SNIFFClose(&s);
+    ok64 ret = SNIFFExec(&c);
+    SNIFFClose();
     HOMEClose(&h);
     return ret;
 }

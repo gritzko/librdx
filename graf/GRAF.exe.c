@@ -98,8 +98,9 @@ static void graf_uri_path(u8cs out, uri *u) {
 
 // --- Entry ---
 
-ok64 GRAFExec(graf *g, cli *c) {
-    sane(g && c);
+ok64 GRAFExec(cli *c) {
+    sane(c);
+    graf *g = &GRAF;
 
     a_cstr(v_get,    "get");
     a_cstr(v_diff,   "diff");
@@ -179,29 +180,29 @@ ok64 GRAFExec(graf *g, cli *c) {
         return FAILSANITY;
     }
 
-    keeper k = {};
-    call(KEEPOpen, &k, g->h, YES);
+    
+    call(KEEPOpen, g->h, YES);
     ok64 ret = OK;
 
     if ($eq(c->verb, v_get) || $eq(c->verb, v_index)) {
         // Open-time flock on .dogs/graf/.lock already serializes writers.
-        ret = DAGHook(&k, reporoot);
+        ret = DAGHook(&KEEP, reporoot);
     } else if ($eq(c->verb, v_blame)) {
         if (c->nuris < 1) {
             fprintf(stderr, "graf: blame requires a file URI\n");
-            KEEPClose(&k);
+            KEEPClose();
             return FAILSANITY;
         }
         pid_t pager = graf_start_pager(c->tty_out);
         u8cs path = {};
         graf_uri_path(path, &c->uris[0]);
-        ret = GRAFBlame(&k, path, reporoot);
+        ret = GRAFBlame(&KEEP, path, reporoot);
         graf_stop_pager(pager);
 
     } else if ($eq(c->verb, v_weave)) {
         if (c->nuris < 1) {
             fprintf(stderr, "graf: weave requires a file URI\n");
-            KEEPClose(&k);
+            KEEPClose();
             return FAILSANITY;
         }
         pid_t pager = graf_start_pager(c->tty_out);
@@ -221,7 +222,7 @@ ok64 GRAFExec(graf *g, cli *c) {
         }
         u8cs path = {};
         graf_uri_path(path, u);
-        ret = GRAFWeaveDiff(&k, path, reporoot, wf, wt);
+        ret = GRAFWeaveDiff(&KEEP, path, reporoot, wf, wt);
         graf_stop_pager(pager);
 
     } else {
@@ -230,6 +231,6 @@ ok64 GRAFExec(graf *g, cli *c) {
         ret = FAILSANITY;
     }
 
-    KEEPClose(&k);
+    KEEPClose();
     return ret;
 }

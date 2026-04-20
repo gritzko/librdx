@@ -24,10 +24,9 @@ ok64 capocli() {
     home h = {};
     call(HOMEOpen, &h, c.repo, NO);
 
-    spot s = {};
-    call(SPOTOpen, &s, &h, NO);
-    ok64 ret = SPOTExec(&s, &c);
-    SPOTClose(&s);
+    call(SPOTOpen, &h, NO);
+    ok64 ret = SPOTExec(&c);
+    SPOTClose();
     HOMEClose(&h);
     return ret;
 }

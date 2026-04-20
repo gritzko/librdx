@@ -18,7 +18,7 @@
 #include "SNIFF.h"
 #include "keeper/KEEP.h"
 
-ok64 DELStage(sha1 *tree_out, sniff *s, keeper *k, keep_pack *p,
+ok64 DELStage(sha1 *tree_out, keep_pack *p,
               u8cs reporoot, u8cp del_set);
 
 #endif

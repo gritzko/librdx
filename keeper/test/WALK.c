@@ -128,25 +128,25 @@ ok64 WALKtest2() {
     home h = {};
     call(HOMEOpen, &h, root, YES);
 
-    keeper k = {};
-    call(KEEPOpen, &k, &h, YES);
+    
+    call(KEEPOpen, &h, YES);
     keep_pack p = {};
-    call(KEEPPackOpen, &k, &p);
+    call(KEEPPackOpen, &KEEP, &p);
 
     // Leaf blobs.
     a_cstr(hi_content, "hi\n");
     sha1 hi_sha = {};
-    call(KEEPPackFeed, &k, &p, DOG_OBJ_BLOB, hi_content, &hi_sha);
+    call(KEEPPackFeed, &KEEP, &p, DOG_OBJ_BLOB, hi_content, &hi_sha);
 
     a_cstr(run_content, "#!/bin/sh\n");
     sha1 run_sha = {};
-    call(KEEPPackFeed, &k, &p, DOG_OBJ_BLOB, run_content, &run_sha);
+    call(KEEPPackFeed, &KEEP, &p, DOG_OBJ_BLOB, run_content, &run_sha);
 
     // Inner "sub" tree.
     a_cstr(nested_mn, "100644 nested.txt");
     a_cstr(nested_content, "deep\n");
     sha1 sub_sha = {};
-    call(build_leaf_tree, &k, &p, nested_mn, nested_content, &sub_sha);
+    call(build_leaf_tree, &KEEP, &p, nested_mn, nested_content, &sub_sha);
 
     // Root tree — git sort order: hello.txt < run.sh < sub.
     a_pad(u8, rtb, 512);
@@ -170,14 +170,14 @@ ok64 WALKtest2() {
 
     a_dup(u8c, rtc, u8bData(rtb));
     sha1 root_sha = {};
-    call(KEEPPackFeed, &k, &p, DOG_OBJ_TREE, rtc, &root_sha);
+    call(KEEPPackFeed, &KEEP, &p, DOG_OBJ_TREE, rtc, &root_sha);
 
-    call(KEEPPackClose, &k, &p);
+    call(KEEPPackClose, &KEEP, &p);
 
     // Eager walk.  One root DIR visit, three files, one sub DIR.
     {
         w2_ctx c = {};
-        call(WALKTree, &k, root_sha.data, w2_visit, &c);
+        call(WALKTree, &KEEP, root_sha.data, w2_visit, &c);
         want(c.n_entries == 5);
         want(c.n_files == 3);
         want(c.n_dirs == 2);
@@ -187,7 +187,7 @@ ok64 WALKtest2() {
     // Lazy walk — blobs empty.
     {
         w2_ctx c = {};
-        call(WALKTreeLazy, &k, root_sha.data, w2_visit, &c);
+        call(WALKTreeLazy, &KEEP, root_sha.data, w2_visit, &c);
         want(c.n_entries == 5);
         want(c.n_files == 3);
         want(c.n_dirs == 2);
@@ -198,13 +198,13 @@ ok64 WALKtest2() {
     {
         w2_ctx c = {};
         strcpy(c.dir_to_skip, "sub");
-        call(WALKTreeLazy, &k, root_sha.data, w2_visit, &c);
+        call(WALKTreeLazy, &KEEP, root_sha.data, w2_visit, &c);
         want(c.n_entries == 4);   // root, hello.txt, run.sh, sub (skipped)
         want(c.n_files == 2);
         want(c.n_dirs == 2);
     }
 
-    call(KEEPClose, &k);
+    call(KEEPClose);
     HOMEClose(&h);
 
     {
