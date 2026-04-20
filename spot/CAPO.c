@@ -30,23 +30,6 @@ static void capo_abrt_handler(int sig) {
 #include "dog/IGNO.h"
 #include "spot/SPOT.h"
 
-// Shell-quote a path slice into buf: 'path' with internal ' → '\''.
-// Safe for use inside a `sh -c` command line.
-static ok64 capo_sh_quote(u8bp buf, u8csc path) {
-    sane(buf != NULL && $ok(path));
-    call(u8bFeed1, buf, '\'');
-    $for(u8c, p, path) {
-        if (*p == '\'') {
-            a_cstr(esc, "'\\''");
-            call(u8bFeed, buf, esc);
-        } else {
-            call(u8bFeed1, buf, *p);
-        }
-    }
-    call(u8bFeed1, buf, '\'');
-    done;
-}
-
 // --- Language detection via tok/ ---
 
 b8 CAPOKnownExt(u8csc ext) {
@@ -391,301 +374,6 @@ ok64 CAPOCompact(u8csc dir) {
     done;
 }
 
-// --- Reindex ---
-
-static ok64 CAPOReindexWork(u8csc reporoot, u8csc dirslice, u64bp entries) {
-    sane($ok(reporoot) && $ok(dirslice) && entries != NULL);
-
-    // Pick a file-enumerator. In a real git working tree we ask git
-    // (cheap, respects .gitignore, follows submodules). In a
-    // keeper-cloned dir with no .git we fall back to `find`, which
-    // walks the actual filesystem and skips the .dogs/ store itself.
-    a_path(gitp);
-    call(PATHu8bFeed, gitp, reporoot);
-    a_cstr(dotgit, ".git");
-    call(PATHu8bPush, gitp, dotgit);
-    struct stat gitsb = {};
-    b8 has_git = (FILEStat(&gitsb, $path(gitp)) == OK);
-
-    a_pad(u8, cmdbuf, FILE_PATH_MAX_LEN * 2 + 512);
-    if (has_git) {
-        a_cstr(p1, "git -C ");
-        a_cstr(p2, " ls-files && git -C ");
-        a_cstr(p3, " submodule foreach --quiet --recursive "
-                   "'git ls-files | sed \"s|^|$displaypath/|\"'");
-        call(u8bFeed, cmdbuf, p1);
-        call(capo_sh_quote, cmdbuf, reporoot);
-        call(u8bFeed, cmdbuf, p2);
-        call(capo_sh_quote, cmdbuf, reporoot);
-        call(u8bFeed, cmdbuf, p3);
-    } else {
-        // Portable form (busybox find has no -printf): print full
-        // ./relative/paths, then strip the leading "./" via sed so
-        // output matches git ls-files. Prune .dogs/ so we don't index
-        // keeper's pack files etc.
-        a_cstr(p1, "cd ");
-        a_cstr(p2, " && find . -type d -name .dogs -prune -o "
-                   "-type f -print | sed 's|^\\./||'");
-        call(u8bFeed, cmdbuf, p1);
-        call(capo_sh_quote, cmdbuf, reporoot);
-        call(u8bFeed, cmdbuf, p2);
-    }
-    call(u8bFeed1, cmdbuf, 0);
-
-    FILE *fp = popen((char *)u8bDataHead(cmdbuf), "r");
-    test(fp != NULL, FAILSANITY);
-
-    u32 indexed = 0, skipped = 0, failed = 0;
-    u64 seqno = 1;
-    size_t total_entries = 0;
-
-    char line[FILE_PATH_MAX_LEN];
-    while (fgets(line, sizeof(line), fp)) {
-        size_t len = strlen(line);
-        if (len > 0 && line[len - 1] == '\n') line[--len] = 0;
-        if (len == 0) continue;
-
-        u8cs ext = {};
-        CAPOFindExt(ext, line, len);
-        if ($empty(ext)) { skipped++; continue; }
-        if (!CAPOKnownExt(ext)) { skipped++; continue; }
-
-        a_path(fpbuf);
-        u8cs lns = {(u8cp)line, (u8cp)line + len};
-        if (PATHu8bFeed(fpbuf, reporoot) != OK ||
-            PATHu8bPush(fpbuf, lns) != OK) { skipped++; continue; }
-
-        u8bp mapped = NULL;
-        ok64 o = FILEMapRO(&mapped, $path(fpbuf));
-        if (o != OK) {
-            fprintf(stderr, "FAIL\t%s\t%s\t(open %s)\n",
-                    ok64str(o), line, (char *)u8bDataHead(fpbuf));
-            failed++;
-            continue;
-        }
-
-        a_dup(u8c, source, u8bDataC(mapped));
-        u8cs relpath = {(u8cp)line, (u8cp)line + len};
-        o = CAPOIndexFile(entries, source, ext, relpath);
-        FILEUnMap(mapped);
-        if (o != OK) {
-            fprintf(stderr, "FAIL\t%s\t%s\t(src=%zu)\n",
-                    ok64str(o), line, $len(source));
-            failed++;
-            continue;
-        }
-        u8c *codec[2] = {};
-        CAPOCodecName(codec, ext);
-        if (CAPO_TERM)
-            fprintf(stderr, "\033[%dmOK\t" U8SFMT "\t%s\033[0m\n",
-                    GRAY, u8sFmt(codec), line);
-        else
-            fprintf(stderr, "OK\t" U8SFMT "\t%s\n", u8sFmt(codec), line);
-        indexed++;
-
-        size_t pending = u64bDataLen(entries);
-        if (pending >= CAPO_FLUSH_AT) {
-            u64sp data = u64bData(entries);
-            u64sSort(data);
-            u64sDedup(data);
-            size_t unique = $len(data);
-            if (unique * 2 <= pending) {
-                fprintf(stderr, "spot: dedup %zu -> %zu, delaying flush\n",
-                        pending, unique);
-            } else {
-                u64cs run = {(u64cp)data[0], (u64cp)data[1]};
-                call(CAPOIndexWrite, dirslice, run, seqno++);
-                total_entries += $len(run);
-                fprintf(stderr, "spot: flushed %zu entries (%zu deduped)\n",
-                        $len(run), pending - $len(run));
-                u64bReset(entries);
-            }
-        }
-    }
-    pclose(fp);
-
-    size_t pending = u64bDataLen(entries);
-    if (pending > 0) {
-        u64sp data = u64bData(entries);
-        u64sSort(data);
-        u64sDedup(data);
-        u64cs run = {(u64cp)data[0], (u64cp)data[1]};
-        call(CAPOIndexWrite, dirslice, run, seqno++);
-        total_entries += $len(run);
-    }
-
-    fprintf(stderr, "spot: indexed %u files, %zu entries, skipped %u, failed %u\n",
-            indexed, total_entries, skipped, failed);
-
-    if (seqno > 2) {
-        fprintf(stderr, "spot: compacting %" PRIu64 " runs\n",
-                (u64)(seqno - 1));
-        call(CAPOCompact, dirslice);
-    }
-
-    done;
-}
-
-ok64 CAPOReindex(u8csc reporoot) {
-    sane($ok(reporoot));
-
-    fprintf(stderr, "spot: repo root %.*s\n",
-            (int)$len(reporoot), (char *)reporoot[0]);
-
-    a_path(capodir);
-    call(CAPOResolveDir, capodir, reporoot);
-    a_dup(u8c, dirslice, u8bDataC(capodir));
-    vcall("mkdir", FILEMakeDirP, $path(capodir));
-    fprintf(stderr, "spot: index dir %s\n", (char *)u8bDataHead(capodir));
-
-    Bu64 entries = {};
-    vcall("mmap scratch", u64bMap, entries, CAPO_SCRATCH_LEN);
-
-    ok64 o = CAPOReindexWork(reporoot, dirslice, entries);
-
-    u64bUnMap(entries);
-    if (o == OK) {
-        CAPOCompactAll(dirslice);
-        CAPOCommitWrite(reporoot, dirslice);
-    }
-    return o;
-}
-
-// --- Parallel reindex: single proc ---
-
-static ok64 CAPOReindexProcWork(u8csc reporoot, u8csc dirslice,
-                                u64bp entries, u32 nprocs, u32 proc) {
-    sane($ok(reporoot) && $ok(dirslice) && entries != NULL);
-
-    a_pad(u8, cmdbuf, FILE_PATH_MAX_LEN * 2 + 512);
-    {
-        a_cstr(p1, "git -C ");
-        a_cstr(p2, " ls-files && git -C ");
-        a_cstr(p3, " submodule foreach --quiet --recursive "
-                   "'git ls-files | sed \"s|^|$displaypath/|\"'");
-        call(u8bFeed, cmdbuf, p1);
-        call(capo_sh_quote, cmdbuf, reporoot);
-        call(u8bFeed, cmdbuf, p2);
-        call(capo_sh_quote, cmdbuf, reporoot);
-        call(u8bFeed, cmdbuf, p3);
-        call(u8bFeed1, cmdbuf, 0);
-    }
-
-    FILE *fp = popen((char *)u8bDataHead(cmdbuf), "r");
-    test(fp != NULL, FAILSANITY);
-
-    u32 indexed = 0, skipped = 0, failed = 0;
-    u32 batch = 0;
-    size_t total_entries = 0;
-    u32 fileno = 0;
-
-    char line[FILE_PATH_MAX_LEN];
-    while (fgets(line, sizeof(line), fp)) {
-        size_t len = strlen(line);
-        if (len > 0 && line[len - 1] == '\n') line[--len] = 0;
-        if (len == 0) continue;
-
-        if (fileno++ % nprocs != proc) continue;
-
-        u8cs ext = {};
-        CAPOFindExt(ext, line, len);
-        if ($empty(ext)) { skipped++; continue; }
-        if (!CAPOKnownExt(ext)) { skipped++; continue; }
-
-        a_path(fpbuf);
-        u8cs lns = {(u8cp)line, (u8cp)line + len};
-        if (PATHu8bFeed(fpbuf, reporoot) != OK ||
-            PATHu8bPush(fpbuf, lns) != OK) { skipped++; continue; }
-
-        u8bp mapped = NULL;
-        ok64 o = FILEMapRO(&mapped, $path(fpbuf));
-        if (o != OK) {
-            fprintf(stderr, "FAIL\t%s\t%s\t(open %s)\n",
-                    ok64str(o), line, (char *)u8bDataHead(fpbuf));
-            failed++;
-            continue;
-        }
-
-        a_dup(u8c, source, u8bDataC(mapped));
-        u8cs relpath = {(u8cp)line, (u8cp)line + len};
-        o = CAPOIndexFile(entries, source, ext, relpath);
-        FILEUnMap(mapped);
-        if (o != OK) {
-            fprintf(stderr, "FAIL\t%s\t%s\t(src=%zu)\n",
-                    ok64str(o), line, $len(source));
-            failed++;
-            continue;
-        }
-        u8c *codec[2] = {};
-        CAPOCodecName(codec, ext);
-        if (CAPO_TERM)
-            fprintf(stderr, "\033[%dmOK\t%.*s\t%s\t(%zu entries)\033[0m\n",
-                    GRAY, (int)$len(codec), (char*)codec[0], line, u64bDataLen(entries));
-        else
-            fprintf(stderr, "OK\t%.*s\t%s\t(%zu entries)\n",
-                    (int)$len(codec), (char*)codec[0], line, u64bDataLen(entries));
-        indexed++;
-
-        size_t pending = u64bDataLen(entries);
-        if (pending >= CAPO_FLUSH_AT) {
-            u64sp data = u64bData(entries);
-            u64sSort(data);
-            u64sDedup(data);
-            size_t unique = $len(data);
-            if (unique * 2 <= pending) {
-                fprintf(stderr, "spot[%u/%u]: dedup %zu -> %zu, delaying flush\n",
-                        proc, nprocs, pending, unique);
-            } else {
-                u64 seqno = (u64)nprocs * batch + proc + 1;
-                u64cs run = {(u64cp)data[0], (u64cp)data[1]};
-                fprintf(stderr, "spot[%u/%u]: flushed %zu entries (%zu deduped)\n",
-                        proc, nprocs, $len(run), pending - $len(run));
-                call(CAPOIndexWrite, dirslice, run, seqno);
-                total_entries += $len(run);
-                batch++;
-                u64bReset(entries);
-            }
-        }
-    }
-    int rc = pclose(fp);
-    if (rc != 0)
-        fprintf(stderr, "spot[%u/%u]: `%s` failed (status %d)\n",
-                proc, nprocs, (char *)u8bDataHead(cmdbuf), rc);
-
-    size_t pending = u64bDataLen(entries);
-    if (pending > 0) {
-        u64sp data = u64bData(entries);
-        u64sSort(data);
-        u64sDedup(data);
-        u64 seqno = (u64)nprocs * batch + proc + 1;
-        u64cs run = {(u64cp)data[0], (u64cp)data[1]};
-        call(CAPOIndexWrite, dirslice, run, seqno);
-        total_entries += $len(run);
-    }
-
-    fprintf(stderr, "spot[%u/%u]: indexed %u files, %zu entries, skipped %u, failed %u\n",
-            proc, nprocs, indexed, total_entries, skipped, failed);
-    done;
-}
-
-ok64 CAPOReindexProc(u8csc reporoot, u32 nprocs, u32 proc) {
-    sane($ok(reporoot) && proc < nprocs && nprocs > 0);
-
-    fprintf(stderr, "spot[%u/%u]: starting\n", proc, nprocs);
-
-    a_path(capodir);
-    call(CAPOResolveDir, capodir, reporoot);
-    a_dup(u8c, dirslice, u8bDataC(capodir));
-    vcall("mkdir", FILEMakeDirP, $path(capodir));
-
-    Bu64 entries = {};
-    vcall("mmap scratch", u64bMap, entries, CAPO_SCRATCH_LEN);
-
-    ok64 o = CAPOReindexProcWork(reporoot, dirslice, entries, nprocs, proc);
-
-    u64bUnMap(entries);
-    return o;
-}
 
 // --- Compact all into one ---
 
@@ -749,65 +437,23 @@ ok64 CAPOCompactAll(u8csc dir) {
 
 // --- Commit tracking ---
 
-ok64 CAPOCommitWrite(u8csc reporoot, u8csc capodir) {
-    sane($ok(reporoot) && $ok(capodir));
+//  Append a 40-char hex commit SHA to `<capodir>/COMMIT`.
+//  No-op if the tail entry already matches.  Keeps the last
+//  CAPO_MAX_SHAS entries, oldest first.  Used by SPOTUpdate on
+//  incoming COMMIT objects.
+ok64 CAPOCommitAppend(u8csc capodir, u8csc sha40) {
+    sane($ok(capodir) && $ok(sha40));
+    test($len(sha40) == 40, FAILSANITY);
 
-    // Resolve current HEAD. Prefer .dogs/sniff/HEAD (canonical for
-    // keeper-cloned dirs and always present after sniff checkout); fall
-    // back to `git rev-parse HEAD` for traditional git working trees.
-    char newsha[64] = {};
-    {
-        a_path(snipath);
-        a_cstr(snirel, ".dogs/sniff/HEAD");
-        call(PATHu8bFeed, snipath, reporoot);
-        call(PATHu8bPush, snipath, snirel);
-        FILE *sf = fopen((char *)u8bDataHead(snipath), "r");
-        if (sf != NULL) {
-            char *got = fgets(newsha, sizeof(newsha), sf);
-            fclose(sf);
-            if (got == NULL) newsha[0] = 0;
-        }
-    }
-    if (newsha[0] == 0) {
-        a_cstr(gitp, "/usr/bin/git");
-        u8cs gargs[] = {
-            u8slit("git"),
-            u8slit("-C"),
-            {reporoot[0], reporoot[1]},
-            u8slit("rev-parse"),
-            u8slit("HEAD"),
-        };
-        u8css gargv = {gargs, gargs + 5};
-        pid_t pid = 0;
-        int rfd = -1;
-        call(FILESpawn, gitp, gargv, NULL, &rfd, &pid);
-        ssize_t n = 0;
-        while (n < (ssize_t)sizeof(newsha) - 1) {
-            ssize_t r = read(rfd, newsha + n, sizeof(newsha) - 1 - (size_t)n);
-            if (r <= 0) break;
-            n += r;
-        }
-        close(rfd);
-        newsha[n > 0 ? n : 0] = 0;
-        int rc = -1;
-        FILEReap(pid, &rc);
-        test(rc == 0 && n > 0, FAILSANITY);
-    }
+    char newsha[41] = {};
+    memcpy(newsha, sha40[0], 40);
 
-    size_t slen = strlen(newsha);
-    if (slen > 0 && newsha[slen - 1] == '\n') newsha[--slen] = 0;
-    test(slen >= 40, FAILSANITY);
-    newsha[40] = 0;
-
-    // read existing SHAs
     char shas[CAPO_MAX_SHAS][44];
     u32 sha_count = 0;
     CAPOCommitRead(&sha_count, capodir, shas, CAPO_MAX_SHAS);
 
-    // skip if newest already matches
     if (sha_count > 0 && memcmp(shas[sha_count - 1], newsha, 40) == 0) done;
 
-    // keep at most CAPO_MAX_SHAS - 1 most recent old entries
     u32 keep_start = 0;
     if (sha_count >= CAPO_MAX_SHAS) keep_start = sha_count - CAPO_MAX_SHAS + 1;
 
@@ -831,6 +477,7 @@ ok64 CAPOCommitWrite(u8csc reporoot, u8csc capodir) {
     close(fd);
     done;
 }
+
 
 static b8 CAPOIsHexSha(const char *s, size_t len) {
     if (len < 40) return NO;
@@ -877,217 +524,6 @@ ok64 CAPOCommitRead(u32p count, u8csc capodir,
     }
 
     FILEUnMap(mapped);
-    done;
-}
-
-// --- Hook (incremental) ---
-
-// Build "git -C <repo> diff --name-only <sha>" into out.
-// Returns OK with out filled when a usable diff command was emitted;
-// CAPONODIFF when no saved commit is reachable (caller falls back to
-// full reindex); a real error code on internal buffer failure.
-static ok64 CAPOHookDiffCmd(u8bp out, u8csc reporoot, u8csc dirslice) {
-    sane(out != NULL && $ok(reporoot) && $ok(dirslice));
-
-    char shas[CAPO_MAX_SHAS][44];
-    u32 sha_count = 0;
-    CAPOCommitRead(&sha_count, dirslice, shas, CAPO_MAX_SHAS);
-
-    if (sha_count == 0) {
-        fprintf(stderr, "spot: no saved commit, full reindex\n");
-        return CAPONODIFF;
-    }
-
-    a_cstr(gitp, "/usr/bin/git");
-
-    // try newest first (last in file)
-    for (u32 i = sha_count; i > 0; i--) {
-        u8cs cargs[] = {
-            u8slit("git"),
-            u8slit("-C"),
-            {reporoot[0], reporoot[1]},
-            u8slit("merge-base"),
-            u8slit("--is-ancestor"),
-            u8scstr(shas[i - 1]),
-            u8slit("HEAD"),
-        };
-        u8css cargv = {cargs, cargs + 7};
-        pid_t pid = 0;
-        ok64 so = FILESpawn(gitp, cargv, NULL, NULL, &pid);
-        if (so != OK) continue;
-        int rc = -1;
-        FILEReap(pid, &rc);
-        if (rc == 0) {
-            if (CAPO_COLOR)
-                fprintf(stderr, "\033[%dmChanges since %.40s\033[0m\n",
-                        GRAY, shas[i - 1]);
-            else
-                fprintf(stderr, "Changes since %.40s\n", shas[i - 1]);
-            // Build the diff command for the caller to run.
-            // (Pipeline-free, but we still go through CAPOIndexFromCmd
-            // which expects a shell string; sh -c with positional args
-            // keeps the path quoted-by-construction.)
-            a_cstr(diff_pre, "git -C ");
-            a_cstr(diff_mid, " diff --name-only ");
-            u8cs sha_s = {(u8cp)shas[i - 1], (u8cp)shas[i - 1] + 40};
-            call(u8bFeed, out, diff_pre);
-            call(capo_sh_quote, out, reporoot);
-            call(u8bFeed, out, diff_mid);
-            call(u8bFeed, out, sha_s);
-            call(u8bFeed1, out, 0);
-            done;
-        }
-    }
-
-    fprintf(stderr, "spot: saved commits unreachable, full reindex\n");
-    return CAPONODIFF;
-}
-
-// Index files listed by a shell command. Returns count of indexed files.
-static ok64 CAPOIndexFromCmd(u8csc reporoot, u64bp entries,
-                              const char *cmdbuf, int *indexed) {
-    sane($ok(reporoot) && entries != NULL && cmdbuf != NULL);
-
-    FILE *fp = popen(cmdbuf, "r");
-    test(fp != NULL, FAILSANITY);
-
-    char line[FILE_PATH_MAX_LEN];
-    while (fgets(line, sizeof(line), fp)) {
-        size_t len = strlen(line);
-        if (len > 0 && line[len - 1] == '\n') line[--len] = 0;
-        if (len == 0) continue;
-
-        u8cs ext = {};
-        CAPOFindExt(ext, line, len);
-        if ($empty(ext)) continue;
-        if (!CAPOKnownExt(ext)) continue;
-
-        a_path(fpbuf);
-        u8cs lns = {(u8cp)line, (u8cp)line + len};
-        if (PATHu8bFeed(fpbuf, reporoot) != OK ||
-            PATHu8bPush(fpbuf, lns) != OK) continue;
-
-        u8bp mapped = NULL;
-        ok64 o = FILEMapRO(&mapped, $path(fpbuf));
-        if (o != OK) continue;
-
-        a_dup(u8c, source, u8bDataC(mapped));
-        u8cs relpath = {(u8cp)line, (u8cp)line + len};
-        o = CAPOIndexFile(entries, source, ext, relpath);
-        FILEUnMap(mapped);
-        if (o != OK) continue;
-
-        u8c *codec[2] = {};
-        CAPOCodecName(codec, ext);
-        fprintf(stderr, "OK\t" U8SFMT "\t%s\n", u8sFmt(codec), line);
-        if (indexed) (*indexed)++;
-    }
-    pclose(fp);
-    done;
-}
-
-// Flush pending entries to an index run and compact.
-static ok64 CAPOFlushEntries(u8csc dirslice, u64bp entries) {
-    sane($ok(dirslice) && entries != NULL);
-    size_t pending = u64bDataLen(entries);
-    if (pending > 0) {
-        u64sp data = u64bData(entries);
-        u64sSort(data);
-        u64sDedup(data);
-        u64 seqno = 0;
-        call(CAPONextSeqno, &seqno, dirslice);
-        u64cs run = {(u64cp)data[0], (u64cp)data[1]};
-        call(CAPOIndexWrite, dirslice, run, seqno);
-    }
-    call(CAPOCompact, dirslice);
-    done;
-}
-
-static ok64 CAPOHookDiff(u8csc reporoot, u8csc dirslice,
-                          u64bp entries, const char *cmdbuf) {
-    sane($ok(reporoot) && $ok(dirslice) && entries != NULL);
-
-    int indexed = 0;
-    call(CAPOIndexFromCmd, reporoot, entries, cmdbuf, &indexed);
-    fprintf(stderr, "%d file(s) re-indexed\n", indexed);
-
-    call(CAPOFlushEntries, dirslice, entries);
-    done;
-}
-
-ok64 CAPOHook(u8csc reporoot) {
-    sane($ok(reporoot));
-
-    a_path(capodir);
-    call(CAPOResolveDir, capodir, reporoot);
-    a_dup(u8c, dirslice, u8bDataC(capodir));
-    call(FILEMakeDirP, $path(capodir));
-
-    a_pad(u8, cmdbuf, FILE_PATH_MAX_LEN + 256);
-    ok64 o = OK;
-
-    Bu64 entries = {};
-    call(u64bMap, entries, CAPO_SCRATCH_LEN);
-
-    ok64 dco = CAPOHookDiffCmd(cmdbuf, reporoot, dirslice);
-    if (dco == OK) {
-        o = CAPOHookDiff(reporoot, dirslice, entries,
-                         (char *)u8bDataHead(cmdbuf));
-    } else if (dco == CAPONODIFF) {
-        o = CAPOReindexWork(reporoot, dirslice, entries);
-    } else {
-        o = dco;  // real error — surface it
-    }
-
-    u64bUnMap(entries);
-
-    if (o == OK) CAPOCommitWrite(reporoot, dirslice);
-    return o;
-}
-
-// --- Uncommitted: index staged + unstaged + untracked ---
-
-ok64 CAPOUncommitted(u8csc reporoot, b8 untracked) {
-    sane($ok(reporoot));
-
-    a_path(capodir);
-    call(CAPOResolveDir, capodir, reporoot);
-    a_dup(u8c, dirslice, u8bDataC(capodir));
-    call(FILEMakeDirP, $path(capodir));
-
-    Bu64 entries = {};
-    call(u64bMap, entries, CAPO_SCRATCH_LEN);
-
-    int indexed = 0;
-
-    // staged + unstaged changes vs HEAD
-    a_pad(u8, cmd1, FILE_PATH_MAX_LEN + 128);
-    a_cstr(diff_pfx, "git -C ");
-    a_cstr(diff_sfx, " diff --name-only HEAD 2>/dev/null");
-    call(u8bFeed, cmd1, diff_pfx);
-    call(capo_sh_quote, cmd1, reporoot);
-    call(u8bFeed, cmd1, diff_sfx);
-    call(u8bFeed1, cmd1, 0);
-    call(CAPOIndexFromCmd, reporoot, entries,
-         (char *)u8bDataHead(cmd1), &indexed);
-
-    // untracked files (only with -U)
-    if (untracked) {
-        a_pad(u8, cmd2, FILE_PATH_MAX_LEN + 128);
-        a_cstr(ls_pfx, "git -C ");
-        a_cstr(ls_sfx, " ls-files --others --exclude-standard");
-        call(u8bFeed, cmd2, ls_pfx);
-        call(capo_sh_quote, cmd2, reporoot);
-        call(u8bFeed, cmd2, ls_sfx);
-        call(u8bFeed1, cmd2, 0);
-        call(CAPOIndexFromCmd, reporoot, entries,
-             (char *)u8bDataHead(cmd2), &indexed);
-    }
-
-    fprintf(stderr, "%d uncommitted file(s) indexed\n", indexed);
-    call(CAPOFlushEntries, dirslice, entries);
-
-    u64bUnMap(entries);
     done;
 }
 
@@ -1786,6 +1222,7 @@ ok64 SPOTOpen(home *h, b8 rw) {
     s->h = h;
     s->lock_fd = -1;
     s->out_fd = -1;
+    s->rw = rw;
     spot_is_rw = rw;
     s->color = isatty(STDOUT_FILENO) ? YES : NO;
     s->term = (isatty(STDERR_FILENO) && isatty(STDOUT_FILENO)) ? YES : NO;
@@ -1814,12 +1251,48 @@ ok64 SPOTOpen(home *h, b8 rw) {
     CAPO_COLOR = s->color;
     CAPO_TERM  = s->term;
 
+    //  Allocate ingestion scratch and load next run seqno.  Only when
+    //  opened rw — read-only spot never writes to the index stack.
+    if (rw) {
+        call(u64bMap, s->entries, CAPO_SCRATCH_LEN);
+        a_path(capodir);
+        a_dup(u8c, root_s, u8bDataC(h->root));
+        call(CAPOResolveDir, capodir, root_s);
+        a_dup(u8c, dirslice, u8bDataC(capodir));
+        call(CAPONextSeqno, &s->seqno, dirslice);
+    }
+
+    done;
+}
+
+//  Sort + dedup pending postings and write them out as a new
+//  `.idx` run.  Caller chooses the dir slice and bumps seqno.
+//  Leaves `entries` reset.
+static ok64 CAPOFlushRun(u64bp entries, u8csc dirslice, u64p seqno) {
+    sane(entries != NULL && $ok(dirslice) && seqno != NULL);
+    if (u64bDataLen(entries) == 0) done;
+    u64sp data = u64bData(entries);
+    u64sSort(data);
+    u64sDedup(data);
+    u64cs run = {(u64cp)data[0], (u64cp)data[1]};
+    call(CAPOIndexWrite, dirslice, run, *seqno);
+    (*seqno)++;
+    u64bReset(entries);
     done;
 }
 
 void SPOTClose(void) {
     if (!spot_is_open()) return;
     spot *s = &SPOT;
+    if (s->rw && s->entries[0]) {
+        a_dup(u8c, root_s, u8bDataC(s->h->root));
+        a_path(capodir);
+        if (CAPOResolveDir(capodir, root_s) == OK) {
+            a_dup(u8c, dirslice, u8bDataC(capodir));
+            CAPOFlushRun(s->entries, dirslice, &s->seqno);
+        }
+        u64bUnMap(s->entries);
+    }
     for (u32 i = 0; i < s->nmaps; i++) {
         if (s->toks[i][0] != NULL) u32bUnMap(s->toks[i]);
         if (s->maps[i] != NULL)    FILEUnMap(s->maps[i]);

@@ -20,15 +20,16 @@
 #include "abc/HEX.h"
 #include "abc/PATH.h"
 #include "abc/PRO.h"
+#include "abc/RAP.h"
 #include "abc/UTF8.h"
 #include "dog/HUNK.h"
+#include "dog/WHIFF.h"
 #include "keeper/GIT.h"
 #include "keeper/REFS.h"
 
 // --- Blob version in the chain ---
 
 typedef struct {
-    u64 blob_hashlet;
     u64 commit_hashlet;
     u32 gen;
 } blame_ver;
@@ -151,68 +152,97 @@ a_dup(u8c, scan, u8bDataC(cbuf));
     u8bUnMap(cbuf);
 }
 
-// --- Walk file history via DAG index (PATH_VER + BLOB_COMMIT chain) ---
-//
-// For a given filepath, look up its path_id in .dogs/graf/PATHS,
-// then scan PATH_VER entries to collect (gen, blob_hashlet) pairs.
-// For each blob, look up BLOB_COMMIT to get the commit hashlet.
-// Returns versions newest-first.
+// Forward decls for helpers defined after GRAFBlame.
+static ok64 blame_tree_step(keeper *k, sha1 *cur, u8cs name);
+static ok64 blame_read_blob(u8bp buf, keeper *k, u8cs ref, u8cs filepath);
 
+#define BLAME_ANC_SIZE  (1u << 18)   // 256K slots ≈ 4MB, power of 2
+
+// --- Resolve (commit_hashlet, filepath) → blob content ---
+//
+// Fetches the commit object by hashlet, parses its tree SHA from
+// the header, then descends the tree one path segment at a time
+// (same mechanism as blame_read_blob, but keyed by commit_h instead
+// of a ref string).  Returns KEEPNONE if the path is absent in this
+// commit's tree (e.g. hashlet collision or rename) — caller should
+// treat as "skip this version".
+
+static ok64 blame_blob_at_commit(u8bp buf, keeper *k,
+                                  u64 commit_hashlet, u8cs filepath) {
+    sane(buf && k);
+
+    Bu8 cbuf = {};
+    call(u8bAllocate, cbuf, 1UL << 20);
+    u8 ct = 0;
+    ok64 o = KEEPGet(k, commit_hashlet, 15, cbuf, &ct);
+    if (o != OK || ct != DOG_OBJ_COMMIT) { u8bFree(cbuf); return KEEPNONE; }
+
+    // Parse "tree <40-hex>" from header.
+    sha1 tree_sha = {};
+    b8 got_tree = NO;
+    {
+        a_dup(u8c, scan, u8bDataC(cbuf));
+        u8cs field = {}, value = {};
+        while (GITu8sDrainCommit(scan, field, value) == OK) {
+            if (u8csEmpty(field)) break;
+            a_cstr(ft, "tree");
+            if ($eq(field, ft) && u8csLen(value) >= 40) {
+                DAGsha1FromHex(&tree_sha, (char const *)value[0]);
+                got_tree = YES;
+                break;
+            }
+        }
+    }
+    u8bFree(cbuf);
+    if (!got_tree) return KEEPNONE;
+
+    sha1 cur = tree_sha;
+    u8cs rest = {filepath[0], filepath[1]};
+    while (!$empty(rest)) {
+        u8cp slash = rest[0];
+        while (slash < rest[1] && *slash != '/') slash++;
+        u8cs name = {rest[0], slash};
+        ok64 s = blame_tree_step(k, &cur, name);
+        if (s != OK) return s;
+        rest[0] = (slash < rest[1]) ? slash + 1 : slash;
+    }
+
+    u8 btype = 0;
+    call(KEEPGetExact, k, &cur, buf, &btype);
+    if (btype != DOG_OBJ_BLOB) return KEEPNONE;
+    done;
+}
+
+// --- Walk file history via DAG index (PATH_VER scan on path hashlet) ---
+//
+// PATH_VER: a = pack(PATH_VER, gen, path_hashlet40),
+//           b = pack(PATH_VER, gen, commit_hashlet40)
+// Scans all runs for matching path_hashlet, returns newest-first.
+// path_hashlet = RAPHash(filepath) & WHIFF_OFF_MASK — 40 bits;
+// collisions possible but verified by the caller (actual path must
+// exist in the commit's tree, else the candidate is dropped).
+
+// `ancestors` may be an empty-sized Bwh128 (no filter) or a populated
+// set; when populated, candidates whose commit is not in the set are
+// dropped.
+// `ancestors` empty → no filter; populated → drop non-ancestor hits.
 static u32 blame_walk_history(blame_ver *vers, u32 maxvers,
                                dag_stack const *idx,
-                               u8cs filepath, u8cs dagdir) {
-    // Read PATHS file to find path_id for filepath
-    a_path(pp, dagdir);
-    a_cstr(pname, "/PATHS");
-    if (u8bFeed(pp, pname) != OK) return 0;
-    PATHu8bTerm(pp);
-
-    u8bp pmap = NULL;
-    if (FILEMapRO(&pmap, $path(pp)) != OK) return 0;
-    a_dup(u8c, pdata, u8bDataC(pmap));
-
-    // PATHS is NUL-separated: find the index of filepath
-    u32 pid = 0;
-    b8 found = NO;
-    a_dup(u8c, pscan, pdata);
-    while (!u8csEmpty(pscan)) {
-        // Find next NUL
-        u8cp nul = pscan[0];
-        while (nul < pscan[1] && *nul != 0) nul++;
-        u8cs entry = {pscan[0], nul};
-        if (u8csLen(entry) == u8csLen(filepath) &&
-            memcmp(entry[0], filepath[0], u8csLen(filepath)) == 0) {
-            found = YES;
-            break;
-        }
-        pid++;
-        pscan[0] = (nul < pscan[1]) ? nul + 1 : pscan[1];
-    }
-    FILEUnMap(pmap);
-    if (!found) return 0;
-
-    // Scan all PATH_VER entries in the index for this path_id.
-    // PATH_VER: a = Pack(DAG_PATH_VER, gen, path_id), b = Pack(_, gen, blob_hashlet)
+                               u8cs filepath,
+                               Bwh128 ancestors) {
+    u64 path_h = RAPHash(filepath) & WHIFF_OFF_MASK;
+    b8 has_filter = wh128bHead(ancestors) != wh128bTerm(ancestors);
     u32 count = 0;
     for (u32 r = 0; r < idx->n && count < maxvers; r++) {
-        belt128cp base = idx->runs[r][0];
+        wh128cp base = idx->runs[r][0];
         size_t len = (size_t)(idx->runs[r][1] - base);
         for (size_t i = 0; i < len && count < maxvers; i++) {
-            if (DAGType(base[i].a) != DAG_PATH_VER) continue;
-            u64 entry_pid = DAGHashlet(base[i].a);
-            if (entry_pid != (u64)pid) continue;
-
-            u32 gen = DAGGen(base[i].b);
-            u64 blob_h = DAGHashlet(base[i].b);
-
-            // Look up BLOB_COMMIT to get commit hashlet
-            u64 commit_h = 0;
-            belt128cp bc = DAGLookup(idx, DAG_BLOB_COMMIT, blob_h);
-            if (bc) commit_h = DAGHashlet(bc->b);
-
-            vers[count].blob_hashlet = blob_h;
-            vers[count].commit_hashlet = commit_h;
-            vers[count].gen = gen;
+            if (DAGType(base[i].key) != DAG_PATH_VER) continue;
+            if (DAGHashlet(base[i].key) != path_h) continue;
+            u64 c_h = DAGHashlet(base[i].val);
+            if (has_filter && !DAGAncestorsHas(ancestors, c_h)) continue;
+            vers[count].gen = DAGGen(base[i].key);
+            vers[count].commit_hashlet = c_h;
             count++;
         }
     }
@@ -241,7 +271,7 @@ static blame_author const blame_unknown = {.gen = 0, .commit_hashlet = 0, .autho
 
 // --- Public entry ---
 
-ok64 GRAFBlame(keeper *k, u8cs filepath, u8cs reporoot) {
+ok64 GRAFBlame(keeper *k, u8cs filepath, u64 tip_h, u8cs reporoot) {
     sane(k && $ok(filepath) && $ok(reporoot));
 
     call(GRAFArenaInit);
@@ -250,30 +280,26 @@ ok64 GRAFBlame(keeper *k, u8cs filepath, u8cs reporoot) {
     
     call(GRAFOpen, k->h, NO);
 
-    // Compose <root>/.dogs/graf for helpers that need the dir path.
-    a_dup(u8c, root_s, u8bDataC(k->h->root));
-    a_cstr(grel, ".dogs/graf");
-    a_path(gdir, root_s, grel);
-    a_dup(u8c, dagdir, u8bDataC(gdir));
+    // Ancestry filter — thin wrapper over DAGAncestors.  tip_h == 0
+    // leaves the set empty; blame_walk_history treats empty as "no
+    // filter".
+    Bwh128 ancestors = {};
+    if (tip_h != 0) {
+        call(wh128bAllocate, ancestors, BLAME_ANC_SIZE);
+        DAGAncestors(ancestors, &GRAF.idx, tip_h, 0);
+    }
+
     blame_ver vers[BLAME_MAX_VERS];
     u32 nvers = blame_walk_history(vers, BLAME_MAX_VERS, &GRAF.idx,
-                                    filepath, dagdir);
+                                    filepath, ancestors);
 
-    // Reverse to oldest first, then deduplicate (keep first = oldest)
+    // Reverse to oldest first.  Byte-level dedup happens in the
+    // fetch loop below (collision or unchanged-path commits produce
+    // identical bytes and are skipped there).
     for (u32 i = 0; i < nvers / 2; i++) {
         blame_ver tmp = vers[i];
         vers[i] = vers[nvers - 1 - i];
         vers[nvers - 1 - i] = tmp;
-    }
-    {
-        u32 w = 0;
-        for (u32 i = 0; i < nvers; i++) {
-            b8 dup = NO;
-            for (u32 j = 0; j < w; j++)
-                if (vers[j].blob_hashlet == vers[i].blob_hashlet) { dup = YES; break; }
-            if (!dup) vers[w++] = vers[i];
-        }
-        nvers = w;
     }
 
     // Build author table + fetch blob bytes + build weave
@@ -294,11 +320,29 @@ ok64 GRAFBlame(keeper *k, u8cs filepath, u8cs reporoot) {
     HUNKu8sExt(ext, filepath[0], $len(filepath));
     if (!$empty(ext) && *ext[0] == '.') ext[0]++;
 
+    b8 have_prev = NO;
     for (u32 i = 0; i < nvers; i++) {
         u8bReset(*cur_blob);
-        u8 bt = 0;
-        ok64 fo = KEEPGet(k, vers[i].blob_hashlet, 15, *cur_blob, &bt);
-        if (fo != OK || bt != DOG_OBJ_BLOB) continue;
+        // Resolve (commit, filepath) → blob via keeper.  Drops
+        // false-positive PATH_VER hits (collisions, or commits
+        // where the path doesn't actually exist).
+        ok64 fo = blame_blob_at_commit(*cur_blob, k,
+                                        vers[i].commit_hashlet, filepath);
+        if (fo != OK) continue;
+
+        // Byte-level dedup: if this blob is identical to the
+        // immediately-preceding kept version, skip — same content,
+        // no new weave event.  This catches rollbacks where the
+        // path's blob hash reverts to a prior value.
+        if (have_prev) {
+            size_t cl = u8bDataLen(*cur_blob);
+            size_t pl = u8bDataLen(*prev_blobp);
+            if (cl == pl && (cl == 0 ||
+                memcmp(u8bDataHead(*cur_blob),
+                       u8bDataHead(*prev_blobp), cl) == 0)) {
+                continue;
+            }
+        }
 
         if (vers[i].commit_hashlet && nauthors < BLAME_MAX_AUTHORS) {
             authors[nauthors].gen = vers[i].gen;
@@ -309,7 +353,7 @@ ok64 GRAFBlame(keeper *k, u8cs filepath, u8cs reporoot) {
         }
 
         u8cs old_data = {};
-        if (i > 0) {
+        if (have_prev) {
             old_data[0] = u8bDataHead(*prev_blobp);
             old_data[1] = u8bDataHead(*prev_blobp) + u8bDataLen(*prev_blobp);
         }
@@ -320,6 +364,7 @@ ok64 GRAFBlame(keeper *k, u8cs filepath, u8cs reporoot) {
 
         // Swap
         Bu8 *tmp = cur_blob; cur_blob = prev_blobp; prev_blobp = tmp;
+        have_prev = YES;
     }
     u8bUnMap(blob_a);
     u8bUnMap(blob_b);
@@ -373,9 +418,8 @@ ok64 GRAFBlame(keeper *k, u8cs filepath, u8cs reporoot) {
             if (diff_auth) {
                 char hexlet[12] = "       ";
                 if (ba->commit_hashlet) {
-                    char full[12];
-                    DAGHashletToHex(full, ba->commit_hashlet);
-                    memcpy(hexlet, full, BLAME_HW);
+                    snprintf(hexlet, sizeof(hexlet), "%010llx",
+                             (unsigned long long)ba->commit_hashlet);
                     hexlet[BLAME_HW] = 0;
                 }
                 char cd[16];
@@ -439,6 +483,7 @@ ok64 GRAFBlame(keeper *k, u8cs filepath, u8cs reporoot) {
 
     u8bUnMap(outbuf);
     WEAVEFree(&wv);
+    if (wh128bHead(ancestors) != wh128bTerm(ancestors)) wh128bFree(ancestors);
     GRAFClose();
     GRAFArenaCleanup();
     done;

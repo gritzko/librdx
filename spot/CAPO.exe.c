@@ -12,12 +12,16 @@
 #include <unistd.h>
 
 #include "abc/FILE.h"
+#include "abc/HEX.h"
 #include "abc/PATH.h"
 #include "abc/PRO.h"
 #include "dog/CLI.h"
+#include "dog/DOG.h"
 #include "dog/FRAG.h"
 #include "dog/HOME.h"
 #include "dog/HUNK.h"
+#include "dog/SHA1.h"
+#include "spot/CAPOi.h"
 #include "spot/LESS.h"
 
 // --- Verb / flag tables ---
@@ -26,11 +30,12 @@ char const *const SPOT_CLI_VERBS[] = {
     "get", "status", "help", NULL
 };
 
-//  Spot val-flags: -f -g -s -r -p -C --fork --proc --grep
-//  --spot --replace --pcre --context
+//  Spot val-flags: -g -s -r -p -C --grep --spot --replace --pcre --context
+//  Indexing now happens via SPOTUpdate (keeper's UNPK emit hook), not the
+//  CLI — there are no --fork / --index / --hook flags any more.
 char const SPOT_CLI_VAL_FLAGS[] =
-    "-f\0-g\0-s\0-r\0-p\0-C\0"
-    "--fork\0--proc\0--grep\0--spot\0--replace\0--pcre\0--context\0";
+    "-g\0-s\0-r\0-p\0-C\0"
+    "--grep\0--spot\0--replace\0--pcre\0--context\0";
 
 // --- Helpers ---
 
@@ -38,12 +43,7 @@ static void spot_usage(void) {
     fprintf(stderr,
         "Usage: spot [--flags] [URI...]\n"
         "\n"
-        "  spot                               incremental index update\n"
-        "  spot -i | --index                  full reindex\n"
-        "  spot -f N | --fork N               parallel reindex on N cores\n"
-        "  spot -u | --uncommitted            index staged + unstaged changes\n"
-        "  spot -U | --untracked              also index untracked (new) files\n"
-        "  spot --hook                        post-commit incremental update\n"
+        "  spot status                        index stack summary\n"
         "  spot -s \"pattern\" .ext             code snippet search\n"
         "  spot -s \"pat\" -r \"repl\" .ext       code snippet search + replace\n"
         "  spot -g \"text\" [.ext]              grep (substring)\n"
@@ -53,6 +53,7 @@ static void spot_usage(void) {
         "Patterns: single-letter placeholders (a-z match one token/group,\n"
         "A-Z match multiple tokens). Two spaces = skip gap.\n"
         "\n"
+        "Indexing is driven by keeper (pack ingest) — no spot CLI flags.\n"
         "Diff/merge tools live in graf — see `graf --help`.\n"
     );
 }
@@ -100,29 +101,14 @@ ok64 SPOTExec(cli *c) {
                 nidxfiles, (unsigned long long)total);
         done;
     }
-    if ($eq(c->verb, v_get)) {
-        call(CAPOHook, reporoot);
-        done;
-    }
+    //  `spot get` — invoked by `be` after sniff/keeper checkouts and
+    //  commits.  Indexing is reactive (keeper's UNPK emit hook feeds
+    //  SPOTUpdate per pack object), so there's nothing to do here.
+    //  The dispatcher just needs a non-error exit.
+    if ($eq(c->verb, v_get)) done;
 
-    b8 do_index = CLIHas(c, "-i") || CLIHas(c, "--index");
-    b8 do_update = CLIHas(c, "--update");
     b8 do_status = CLIHas(c, "--status");
-    b8 is_hook = CLIHas(c, "--hook");
     b8 force_tlv = CLIHas(c, "-t") || CLIHas(c, "--tlv");
-    b8 do_uncommitted = CLIHas(c, "-u") || CLIHas(c, "--uncommitted");
-    b8 do_untracked = CLIHas(c, "-U") || CLIHas(c, "--untracked");
-    if (do_untracked) do_uncommitted = YES;
-
-    u32 nfork = 0;
-    CLIFlag(v, c, "-f");
-    if (!$empty(v)) nfork = (u32)atoi((char *)v[0]);
-    CLIFlag(v, c, "--fork");
-    if (!$empty(v)) nfork = (u32)atoi((char *)v[0]);
-
-    u32 proc = UINT32_MAX;
-    CLIFlag(v, c, "--proc");
-    if (!$empty(v)) proc = (u32)atoi((char *)v[0]);
 
     u32 grep_ctx = 3;
     CLIFlag(v, c, "-C");
@@ -204,7 +190,7 @@ ok64 SPOTExec(cli *c) {
     pid_t bro_pid = -1;
     b8 produces_hunks =
         (!$empty(grep_ndl) || !$empty(pcre_ndl) || !$empty(spot_ndl)) &&
-        !do_index && !is_hook && $empty(spot_rep);
+        $empty(spot_rep);
     if (produces_hunks) {
         if (force_tlv) {
             spot_out_fd = STDOUT_FILENO;
@@ -249,8 +235,6 @@ ok64 SPOTExec(cli *c) {
         CAPOStackClose(mmaps, nidxfiles);
         fprintf(stderr, "spot: %u index files, %llu entries\n",
                 nidxfiles, (unsigned long long)total);
-    } else if (do_update) {
-        ret = CAPOHook(reporoot);
     } else if (!$empty(grep_ndl)) {
         u8cs ext = {};
         u8cs gfiles[16] = {};
@@ -297,64 +281,6 @@ ok64 SPOTExec(cli *c) {
         a_dup(u8c, ndl, pcre_ndl);
         u8css gf = {gfiles, gfiles + gnf};
         ret = CAPOPcreGrep(ndl, ext, reporoot, grep_ctx, gf);
-    } else if (do_uncommitted) {
-        ret = CAPOUncommitted(reporoot, do_untracked);
-    } else if (is_hook) {
-        ret = CAPOHook(reporoot);
-    } else if (nfork > 0 && proc != UINT32_MAX) {
-        ret = CAPOReindexProc(reporoot, nfork, proc);
-    } else if (nfork > 0) {
-        a_path(capodir);
-        vcall("resolve_dir", CAPOResolveDir, capodir, reporoot);
-        a_dup(u8c, dirslice, u8bDataC(capodir));
-        vcall("mkdir_p", FILEMakeDirP, $path(capodir));
-
-        a_path(self);
-        a$rg(a0, 0);
-        a_cstr(spot_name, "spot");
-        HOMEResolveSibling(NULL, self, spot_name, a0);
-
-        pid_t pids[256];
-        u32 n = nfork;
-        if (n > 256) n = 256;
-
-        fprintf(stderr, "spot: forking %u workers\n", n);
-        a_dup(u8c, selfS, u8bDataC(self));
-        char nstr[256][16] = {};
-        char kstr[256][16] = {};
-        for (u32 k = 0; k < n; k++) {
-            snprintf(nstr[k], sizeof(nstr[k]), "%u", n);
-            snprintf(kstr[k], sizeof(kstr[k]), "%u", k);
-            u8cs wargs[] = {
-                u8slit("spot"),
-                u8slit("--fork"),
-                u8scstr(nstr[k]),
-                u8slit("--proc"),
-                u8scstr(kstr[k]),
-            };
-            u8css wargv = {wargs, wargs + 5};
-            vcall("spawn_worker", FILESpawn, selfS, wargv, NULL, NULL,
-                  &pids[k]);
-        }
-
-        int failures = 0;
-        for (u32 k = 0; k < n; k++) {
-            int rc = 0;
-            ok64 r = FILEReap(pids[k], &rc);
-            if (r != OK || rc != 0) {
-                fprintf(stderr, "spot: worker %u failed (status %d)\n",
-                        k, rc);
-                failures++;
-            }
-        }
-
-        if (failures > 0)
-            fprintf(stderr, "spot: %d workers failed\n", failures);
-
-        fprintf(stderr, "spot: compacting all runs\n");
-        vcall("compact_all", CAPOCompactAll, dirslice);
-        vcall("commit_write", CAPOCommitWrite, reporoot, dirslice);
-        fprintf(stderr, "spot: done\n");
     } else if (!$empty(spot_ndl)) {
         u8cs ext = {};
         u8cs sfiles[16] = {};
@@ -384,13 +310,11 @@ ok64 SPOTExec(cli *c) {
             u8css sf = {sfiles, sfiles + snf};
             ret = CAPOSpot(ndl, rep, ext, reporoot, sf);
         }
-    } else if (do_index) {
-        ret = CAPOReindex(reporoot);
     } else if (c->nuris > 0) {
         fprintf(stderr, "spot: file display moved to bro\n");
         ret = FAILSANITY;
     } else {
-        ret = CAPOHook(reporoot);
+        spot_usage();
     }
 
     // Cleanup bro pipe (globals)
@@ -410,14 +334,87 @@ ok64 SPOTExec(cli *c) {
 
 // --- Update: feed a single git object into spot's index ---
 //
-// Currently only blob objects contribute to the trigram/symbol
-// index. Tree/commit/tag objects are no-ops here (sniff and graf
-// handle those). `path` gives the repo-relative location the blob
-// lives at — the extension is used to pick the tokenizer.
+// Driven by keeper's UNPK emit hook (UNPK.h unpk_emit_fn) — one call
+// per resolved object, in commit-tree-blob order.
+//   COMMIT: compute the git object SHA-1 ("commit N\0body") and append
+//           it to .dogs/spot/COMMIT (rule 7 of DOG.md).
+//   TREE / TAG: no-op; UNPK has already resolved tree → path bindings
+//           and delivered each blob with its live path.
+//   BLOB: pick tokenizer from `path`'s extension, tokenize, append
+//           trigram + symbol postings to the in-memory scratch; flush
+//           to a new `.idx` run when the run fills up.
+// Read-only opens silently drop all updates.
 ok64 SPOTUpdate(u8 obj_type, u8cs blob, u8csc path) {
     sane(1);
-    (void)obj_type; (void)blob; (void)path;
-    // TODO: when obj_type == KEEP_OBJ_BLOB, extract ext from path
-    // and call CAPOIndexFile on the blob content.
-    done;
+    spotp s = &SPOT;
+    if (!s->rw) done;
+
+    a_dup(u8c, root_s, u8bDataC(s->h->root));
+    a_path(capodir);
+    call(CAPOResolveDir, capodir, root_s);
+    a_dup(u8c, dirslice, u8bDataC(capodir));
+
+    switch (obj_type) {
+
+    case DOG_OBJ_COMMIT: {
+        //  Git object hash: SHA-1 of "commit <size>\0" + body.
+        SHA1state st;
+        SHA1Open(&st);
+        char hdr[32] = {};
+        int hlen = snprintf(hdr, sizeof(hdr), "commit %zu",
+                            (size_t)$len(blob));
+        test(hlen > 0 && hlen + 1 < (int)sizeof(hdr), FAILSANITY);
+        u8cs hdr_slice = {(u8cp)hdr, (u8cp)hdr + hlen + 1};  // with NUL
+        u8cs body_slice = {blob[0], blob[1]};
+        SHA1Feed(&st, hdr_slice);
+        SHA1Feed(&st, body_slice);
+        sha1 sha = {};
+        SHA1Close(&st, &sha);
+
+        u8 hex[40] = {};
+        u8 *hp[2] = {hex, hex + 40};
+        u8cs bin = {sha.data, sha.data + 20};
+        call(HEXu8sFeedSome, hp, bin);
+        u8cs sha40 = {(u8cp)hex, (u8cp)hex + 40};
+        call(CAPOCommitAppend, dirslice, sha40);
+        done;
+    }
+
+    case DOG_OBJ_BLOB: {
+        if ($empty(path)) done;  // no ext → no tokenizer
+        size_t plen = (size_t)$len(path);
+        u8cs ext = {};
+        CAPOFindExt(ext, path[0], plen);
+        if ($empty(ext) || !CAPOKnownExt(ext)) done;
+
+        u8cs source = {blob[0], blob[1]};
+        call(CAPOIndexFile, s->entries, source, ext, path);
+
+        //  Flush when the scratch run hits CAPO_FLUSH_AT.  Dedup halves
+        //  the run often enough that early flushing wastes I/O; follow
+        //  the existing reindex policy (CAPO.c:486-503).  sDedup moves
+        //  the buffer's idle pointer back in place, so a delayed flush
+        //  leaves the scratch compacted.
+        size_t pending = u64bDataLen(s->entries);
+        if (pending >= CAPO_FLUSH_AT) {
+            u64sp data = u64bData(s->entries);
+            u64sSort(data);
+            u64sDedup(data);
+            size_t unique = $len(data);
+            if (unique * 2 > pending) {
+                u64cs run = {(u64cp)data[0], (u64cp)data[1]};
+                call(CAPOIndexWrite, dirslice, run, s->seqno);
+                s->seqno++;
+                u64bReset(s->entries);
+            }
+        }
+        done;
+    }
+
+    case DOG_OBJ_TREE:
+    case DOG_OBJ_TAG:
+    default:
+        (void)blob; (void)path;
+        done;
+    }
 }

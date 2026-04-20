@@ -62,20 +62,18 @@ ok64 GRAFOpen(home *h, b8 rw) {
 }
 
 // --- Update: feed a single git object into graf's DAG index ---
-//
-// TODO: when obj_type == KEEP_OBJ_COMMIT, thread the commit into the
-// DAG; for trees, record blob→path mapping.  For now this is a stub
-// so the DOG 4-fn surface is consistent across all dogs.
+
 ok64 GRAFUpdate(u8 obj_type, u8cs blob, u8csc path) {
     sane(1);
-    (void)obj_type; (void)blob; (void)path;
-    done;
+    return GRAFDagUpdate(obj_type, blob, path);
 }
 
 ok64 GRAFClose(void) {
     sane(1);
     if (!graf_is_open()) return OK;
     graf *g = &GRAF;
+    // Flush any pending ingest (runs the finish walk + compaction).
+    if (g->ing) GRAFDagFinish();
     dag_stack_close(&g->idx);
     if (g->arena[0]) u8bUnMap(g->arena);
     if (g->lock_fd >= 0) FILEClose(&g->lock_fd);

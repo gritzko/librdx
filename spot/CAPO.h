@@ -94,27 +94,16 @@ ok64 CAPOGrep(u8csc substring, u8csc ext, u8csc reporoot, u32 ctx_lines,
 ok64 CAPOPcreGrep(u8csc pattern, u8csc ext, u8csc reporoot, u32 ctx_lines,
                    u8css files);
 
-// Full reindex: all tracked files
-ok64 CAPOReindex(u8csc reporoot);
-
-// Parallel reindex: process K of N (indexes files where file# % N == K)
-// Uses seqno = N*batch + K + 1 to avoid collisions between procs
-ok64 CAPOReindexProc(u8csc reporoot, u32 nprocs, u32 proc);
-
-// Incremental index: changed files only
-ok64 CAPOHook(u8csc reporoot);
-
-// Index staged + unstaged changes; if untracked, also new files
-ok64 CAPOUncommitted(u8csc reporoot, b8 untracked);
-
 // Compact all .idx files into a single run
 ok64 CAPOCompactAll(u8csc dir);
 
 // Resolve spot index dir from reporoot (<reporoot>/.dogs/spot)
 ok64 CAPOResolveDir(path8b out, u8csc reporoot);
 
-// Write current HEAD sha to capodir/COMMIT
-ok64 CAPOCommitWrite(u8csc reporoot, u8csc capodir);
+// Append a 40-char hex commit SHA to capodir/COMMIT (streaming ingest).
+// No-op if sha40 already equals the tail entry; otherwise keeps the last
+// CAPO_MAX_SHAS entries.
+ok64 CAPOCommitAppend(u8csc capodir, u8csc sha40);
 
 // Read saved commit shas from capodir/COMMIT (one per line, oldest first).
 // Returns count of valid SHAs in *count (0 if file missing/empty).
@@ -167,8 +156,14 @@ typedef struct {
     int          out_fd;
     spot_emit_fn emit;
 
+    //  Ingestion scratch (rw only): postings accumulated by SPOTUpdate,
+    //  flushed to a new .idx run when len >= CAPO_FLUSH_AT or on close.
+    Bu64     entries;
+    u64      seqno;                 // next run seqno
+
     b8 color;
     b8 term;
+    b8 rw;
 } spot;
 
 typedef spot *spotp;
@@ -190,10 +185,11 @@ ok64 SPOTOpen(home *h, b8 rw);
 ok64 SPOTExec(cli *c);
 
 //  Feed a single git object into spot's trigram/symbol index.
-//  Currently: blob objects get indexed by CAPOIndexFile; other
-//  types are ignored.  obj_type uses KEEP_OBJ_* constants.
-//  `path` is the repo-relative path whose extension picks the
-//  tokenizer (empty for non-blob objects).
+//  obj_type uses DOG_OBJ_* (== git pack types).  For BLOB, `path`
+//  picks the tokenizer via extension and provides the path_hash
+//  used as the posting key.  TREE and TAG objects are no-ops
+//  (keeper resolves tree → path on its side).  For COMMIT, the
+//  object SHA is appended to .dogs/spot/COMMIT (rule 7).
 ok64 SPOTUpdate(u8 obj_type, u8cs blob, u8csc path);
 
 void SPOTClose(void);
