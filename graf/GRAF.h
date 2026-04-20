@@ -12,6 +12,9 @@
 // Hunk → bytes serializer: HUNKu8sFeed (TLV) or HUNKu8sFeedText (plain).
 typedef ok64 (*graf_emit_fn)(u8s into, hunk const *hk);
 
+// Forward decl for transient ingest state (see graf/DAG.c).
+typedef struct dag_ingest dag_ingest;
+
 // --- graf control struct (per DOG.md rule 8) ---
 
 typedef struct {
@@ -21,7 +24,12 @@ typedef struct {
     int          out_fd;     // output fd (-1 = uninitialized)
     graf_emit_fn emit;       // serializer (TLV or plain text)
     dag_stack    idx;        // DAG index (LSM sorted runs)
+    dag_ingest  *ing;        // lazily allocated on first GRAFUpdate
 } graf;
+
+// --- Internal helpers used by GRAFUpdate (implemented in DAG.c) ---
+ok64 GRAFDagUpdate(graf *g, u8 obj_type, u8cs blob, u8csc path);
+ok64 GRAFDagFinish(graf *g);
 
 // --- Public API (DOG 4-fn) ---
 
@@ -65,7 +73,8 @@ ok64 GRAFMerge(u8cs base_path, u8cs ours_path, u8cs theirs_path,
                u8cs outpath);
 
 // Token-level blame (reads blobs from keeper).
-ok64 GRAFBlame(keeper *k, u8cs filepath, u8cs reporoot);
+//   tip_h: 40-bit commit hashlet bounding the history (0 = no filter).
+ok64 GRAFBlame(keeper *k, u8cs filepath, u64 tip_h, u8cs reporoot);
 
 // Weave diff between two commits (reads blobs from keeper).
 ok64 GRAFWeaveDiff(keeper *k, u8cs filepath, u8cs reporoot,

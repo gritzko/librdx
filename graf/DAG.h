@@ -1,70 +1,68 @@
 #ifndef GRAF_DAG_H
 #define GRAF_DAG_H
 
-//  DAG: graf's git object-graph index.
+//  DAG: graf's object-graph index (event log of path touches).
 //
-//  An LSM-style index of belt128 records (16 bytes each) covering
-//  commit parentage, commit→tree, blob→prev_blob, and path→blob
-//  mappings.  Kept under <reporoot>/.dogs/graf/.  Used by graf to
-//  walk history (merge-base, ancestor, file lineage) cheaply during
-//  diff and merge.  Stores no object content.
+//  An LSM-style index of wh128 records (16 bytes each) covering
+//  commit parentage, commit→tree, and path-touch events.  Kept
+//  under <reporoot>/.dogs/graf/.  Used by graf to walk history
+//  and flag gens where a path may have changed.  Stores no
+//  content; actual blobs are retrieved via keeper using the
+//  full path at query time.
 //
 //  Layout:
-//      .dogs/graf/0000000001.idx   sorted belt128 runs (LSM)
-//      .dogs/graf/COMMIT           past HEAD shas, oldest first
-//      .dogs/graf/PATHS            append-only NUL-separated path log
+//      .dogs/graf/0000000001.idx   sorted wh128 runs (LSM)
+//      .dogs/graf/COMMIT           last-seen ref tips, oldest first
 //
-//  Entry format (belt128 = 2 × u64):
-//      a = type[4] | gen[20] | hashlet[40]   (or path_id for PATH_VER)
+//  Entry format (wh128 = 2 × wh64 = 16 bytes):
+//      a = type[4] | gen[20] | hashlet[40]
 //      b = type[4] | gen[20] | hashlet[40]
 //
-//  Entry types (low 4 bits of .a):
-//      1  COMMIT_PARENT   commit → parent commit
-//      2  COMMIT_TREE     commit → root tree hashlet
-//      3  COMMIT_GEN      commit → self (gen is the payload)
-//      4  PREV_BLOB       blob → predecessor blob
-//      5  PATH_VER        (gen, path_id) → (gen, blob)
-//      6  BLOB_COMMIT     blob → commit that introduced it
+//  Entry types (low 4 bits of .a.type):
+//      1  COMMIT_GEN     self-entry, gen → commit
+//                        a = (1, gen, commit_h), b = (1, gen, commit_h)
+//      2  COMMIT_PARENT  commit → parent commit
+//                        a = (2, gen, commit_h), b = (2, pgen, parent_h)
+//      3  COMMIT_TREE    commit → root tree hashlet
+//                        a = (3, gen, commit_h), b = (3, gen, tree_h)
+//      4  PATH_VER       path touched at a gen by a commit
+//                        a = (4, gen, path_hashlet), b = (4, gen, commit_h)
+//
+//  path_hashlet = RAPHash(full_path) & WHIFF_OFF_MASK (40 bits).
+//  Collisions possible; query-side verifies via keeper tree-walk.
 
 #include "abc/INT.h"
 #include "dog/SHA1.h"
 #include "dog/WHIFF.h"
 #include "keeper/KEEP.h"
 
-con ok64 DAGFAIL    = 0xd2903ca495;
-con ok64 DAGNOROOM  = 0xd2905d86d8616;
+con ok64 DAGFAIL     = 0xd2903ca495;
+con ok64 DAGNOROOM   = 0xd2905d86d8616;
+con ok64 DAGNOPATH   = 0xd29093a0586;
 
-// --- belt128: 16-byte index record (two wh64 words) ---
+// --- Entry types ---
 
-typedef struct belt128 {
-    u64 a;
-    u64 b;
-} belt128;
+#define DAG_COMMIT_GEN     1
+#define DAG_COMMIT_PARENT  2
+#define DAG_COMMIT_TREE    3
+#define DAG_PATH_VER       4
 
-typedef belt128 const belt128c;
-typedef belt128 *belt128p;
-typedef belt128 const *belt128cp;
-typedef belt128 const *belt128cs[2];
+// Reserved gen value used to mark "fresh-in-pack blob" in the
+// transient owner map.  Real gens start at 1; 0 is safe.
+#define DAG_GEN_FRESH      0
 
-// Entry types (low 4 bits of .a, same position as wh64Type)
-#define DAG_COMMIT_PARENT  1
-#define DAG_COMMIT_TREE    2
-#define DAG_COMMIT_GEN     3
-#define DAG_PREV_BLOB      4
-#define DAG_PATH_VER       5
-#define DAG_BLOB_COMMIT    6
-
-// belt128 a/b use the whiff layout: type[4] | id[20] | hashlet[40]
+// wh128 a/b use the wh64 layout: hashlet[40] | id[20] | type[4]
+// (type in low bits; hashlet in high bits — see dog/WHIFF.h).
 #define DAGPack    wh64Pack
 #define DAGType    wh64Type
 #define DAGGen     wh64Id
 #define DAGHashlet wh64Off
 
-fun belt128 DAGEntry(u8 atype, u32 agen, u64 ahash,
-                     u8 btype, u32 bgen, u64 bhash) {
-    return (belt128){
-        .a = wh64Pack(atype, agen, ahash),
-        .b = wh64Pack(btype, bgen, bhash)
+fun wh128 DAGEntry(u8 atype, u32 agen, u64 ahash,
+                   u8 btype, u32 bgen, u64 bhash) {
+    return (wh128){
+        .key = wh64Pack(atype, agen, ahash),
+        .val = wh64Pack(btype, bgen, bhash),
     };
 }
 
@@ -89,34 +87,14 @@ fun void DAGsha1ToHex(char *hex41, sha1 const *s) {
     hex41[40] = 0;
 }
 
-fun void DAGHashletToHex(char *out, u64 hashlet) {
-    u8s hex = {(u8p)out, (u8p)out + 10};
-    WHIFFHexFeed40(hex, hashlet);
-    out[10] = 0;
-}
-
-// --- Comparator: sort by (a, b) ---
-
-fun int belt128cmp(belt128cp x, belt128cp y) {
-    if (x->a < y->a) return -1;
-    if (x->a > y->a) return 1;
-    if (x->b < y->b) return -1;
-    if (x->b > y->b) return 1;
-    return 0;
-}
-
-fun b8 belt128Z(belt128cp x, belt128cp y) {
-    return x->a < y->a || (x->a == y->a && x->b < y->b);
-}
-
 // --- LSM stack for index lookups ---
 
 #include "abc/MSET.h"
 
 typedef struct {
-    belt128cs runs[MSET_MAX_LEVELS];
-    u8bp      maps[MSET_MAX_LEVELS];
-    u32       n;
+    wh128cs runs[MSET_MAX_LEVELS];
+    u8bp    maps[MSET_MAX_LEVELS];
+    u32     n;
 } dag_stack;
 
 ok64 dag_stack_open(dag_stack *st, u8cs dagdir);
@@ -124,27 +102,57 @@ void dag_stack_close(dag_stack *st);
 
 //  Find first entry matching (type, hashlet) in the stack.
 //  Returns NULL if not found.  Scans across type-interleaved entries.
-fun belt128cp DAGLookup(dag_stack const *st, u8 type, u64 hashlet) {
+fun wh128cp DAGLookup(dag_stack const *st, u8 type, u64 hashlet) {
     u64 key_lo = DAGPack(type, 0, hashlet);
     u64 key_hi = DAGPack(type, WHIFF_ID_MASK, hashlet);
     for (u32 r = 0; r < st->n; r++) {
-        belt128cp base = st->runs[r][0];
+        wh128cp base = st->runs[r][0];
         size_t len = (size_t)(st->runs[r][1] - base);
         size_t lo = 0, hi = len;
         while (lo < hi) {
             size_t mid = lo + (hi - lo) / 2;
-            if (base[mid].a < key_lo) lo = mid + 1;
+            if (base[mid].key < key_lo) lo = mid + 1;
             else hi = mid;
         }
-        while (lo < len && base[lo].a >= key_lo && base[lo].a <= key_hi) {
-            if (DAGType(base[lo].a) == type) return &base[lo];
+        while (lo < len && base[lo].key >= key_lo && base[lo].key <= key_hi) {
+            if (DAGType(base[lo].key) == type) return &base[lo];
             lo++;
         }
     }
     return NULL;
 }
 
-//  Incremental object-graph reindex from keeper's index.
-ok64 DAGHook(keeper *k, u8cs reporoot);
+// ==========================================================
+// Graph-navigation primitives
+// ==========================================================
+
+//  Generation number of a commit.  0 if not indexed.
+fun u32 DAGCommitGen(dag_stack const *idx, u64 commit_h) {
+    wh128cp rec = DAGLookup(idx, DAG_COMMIT_GEN, commit_h);
+    return rec ? DAGGen(rec->key) : 0;
+}
+
+//  Root-tree hashlet of a commit.  0 if not indexed.
+fun u64 DAGCommitTree(dag_stack const *idx, u64 commit_h) {
+    wh128cp rec = DAGLookup(idx, DAG_COMMIT_TREE, commit_h);
+    return rec ? DAGHashlet(rec->val) : 0;
+}
+
+//  Collect parent hashlets of a commit into out[0..cap).  Returns the
+//  total number of parents found; only the first min(count, cap) are
+//  written.  Root commits return 0.
+u32 DAGParents(dag_stack const *idx, u64 commit_h, u64 *out, u32 cap);
+
+//  BFS from `tip` over COMMIT_PARENT edges; populate `set` with all
+//  reachable commit hashlets (tip included).  `cutoff_gen` prunes the
+//  descent: commits with gen < cutoff_gen are admitted to the set but
+//  not expanded further.  Pass 0 for full walk.
+//  `set` must be a pre-allocated, power-of-two-sized Bwh128.  Pass
+//  tip=0 for a no-op (leaves set untouched).
+ok64 DAGAncestors(Bwh128 set, dag_stack const *idx,
+                  u64 tip, u32 cutoff_gen);
+
+//  Membership check on a set populated by DAGAncestors.
+b8 DAGAncestorsHas(Bwh128 set, u64 commit_h);
 
 #endif

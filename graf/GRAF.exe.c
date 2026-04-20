@@ -184,8 +184,12 @@ ok64 GRAFExec(graf *g, cli *c) {
     ok64 ret = OK;
 
     if ($eq(c->verb, v_get) || $eq(c->verb, v_index)) {
-        // Open-time flock on .dogs/graf/.lock already serializes writers.
-        ret = DAGHook(&k, reporoot);
+        // Indexing is now driven by keeper calling GRAFUpdate per
+        // object.  Stand-alone `graf index` is a no-op here — the
+        // index is built incrementally as keeper ingests packs.
+        fprintf(stderr,
+            "graf: index is built via DOGUpdate; no action\n");
+        ret = OK;
     } else if ($eq(c->verb, v_blame)) {
         if (c->nuris < 1) {
             fprintf(stderr, "graf: blame requires a file URI\n");
@@ -195,7 +199,10 @@ ok64 GRAFExec(graf *g, cli *c) {
         pid_t pager = graf_start_pager(c->tty_out);
         u8cs path = {};
         graf_uri_path(path, &c->uris[0]);
-        ret = GRAFBlame(&k, path, reporoot);
+        // tip_h=0 for now: unscoped blame (no ancestry filter).
+        // A ref-scoped entry point can resolve URI ?ref → commit
+        // hashlet and pass it here.
+        ret = GRAFBlame(&k, path, 0, reporoot);
         graf_stop_pager(pager);
 
     } else if ($eq(c->verb, v_weave)) {
