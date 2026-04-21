@@ -178,8 +178,7 @@ ok64 HOMEFollowWorktree(home *h, path8s gitfile) {
         if (gds[0][0] == '/') {
             o = PATHu8bFeed(gitdir, gds);
         } else {
-            a_dup(u8, gf, gitfile);
-            o = PATHu8bFeed(gitdir, gf);
+            o = PATHu8bFeed(gitdir, gitfile);
             if (o == OK) o = PATHu8bPop(gitdir);
             if (o == OK) o = PATHu8bPush(gitdir, gds);
         }

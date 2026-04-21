@@ -24,6 +24,7 @@ add_test(NAME BEworktree
 set_tests_properties(BEworktree PROPERTIES
     ENVIRONMENT "BIN=${DOG_BIN_DIR}")
 
+if (WITH_SSH)
 # history.sh — put/post, delete/post, edit/post, then checkout an
 # older commit by SHA (version handle = at.log tail).
 add_test(NAME BEhistory
@@ -34,7 +35,6 @@ set_tests_properties(BEhistory PROPERTIES
 
 # roundtrip.sh — full git <-> be flow: seed origin, clone over ssh,
 # make a worktree, edit, commit, push, diff.  Requires ssh localhost.
-if (WITH_SSH)
     add_test(NAME BEroundtrip
         COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/roundtrip.sh
         WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
