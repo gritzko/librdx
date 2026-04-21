@@ -137,8 +137,12 @@ static ok64 BEDispatch(cli *c, dog_step const *steps, u32 nsteps,
         // argv: dog verb [flags...] [URIs...]
         // cli.flags and cli.uris[].data already are u8cs slices.
         a_pad(u8cs, args, 2 + CLI_MAX_FLAGS * 2 + CLI_MAX_URIS);
-        u8csbFeed1(args, steps[i].dog);
-        u8csbFeed1(args, steps[i].verb);
+        // Local copies: const dog_step's u8cs fields are deeply const and
+        // can't be passed by value to the mutable-pointer Feed1 param.
+        a_dup(u8c, dog, steps[i].dog);
+        a_dup(u8c, verb, steps[i].verb);
+        u8csbFeed1(args, dog);
+        u8csbFeed1(args, verb);
         // Flags come as {flag, val} pairs; val is the empty-string
         // sentinel for booleans.  Forward the flag name always; only
         // forward its value if it's genuinely non-empty, otherwise the

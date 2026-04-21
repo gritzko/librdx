@@ -1286,7 +1286,7 @@ ok64 SPOTIngestNewCommits(void) {
     u32 rn = 0;
     REFSLoad(rarr, &rn, REFS_MAX_REFS, &refs_map, $path(keepdir));
 
-    spot_ingest_ctx ix = {.capodir = dirslice,
+    spot_ingest_ctx ix = {.capodir = {dirslice[0], dirslice[1]},
                           .flush_threshold = NULL,
                           .k = &KEEP};
 
