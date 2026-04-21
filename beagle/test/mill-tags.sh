@@ -13,6 +13,9 @@ export PATH="$BIN:$PATH"
 
 TMILL=${TMILL:-$HOME/tmp/mill-tags-$$}
 REPO=${REPO:-$HOME/src/git}
+#  Keeper URI paths are $HOME-relative: //host/src/git → $HOME/src/git.
+REPO_REL=${REPO#$HOME/}
+HOST=${HOST:-localhost}
 trap 'rm -rf "$TMILL"' EXIT
 
 TAGS=${TAGS:-"v2.8.4 v2.8.5 v2.8.6 v2.9.0 v2.9.0-rc0 v2.9.0-rc1 v2.9.0-rc2 v2.9.1 v2.9.2 v2.9.3 v2.9.4 v2.9.5"}
@@ -34,14 +37,30 @@ for TAG in $TAGS; do
     echo ""
     echo "=== $TAG ==="
 
-    # --- git checkout in background, be get in foreground ---
-    git -C "$TMILL/git01" checkout --quiet "refs/tags/${TAG}" &
-    GIT_PID=$!
-
     cd "$TMILL/be01"
-    be get "//localhost${REPO}?refs/tags/${TAG}" 2>&1 | grep -v "^keeper: round"
+    #  3-min timeout: a clean clone of ~/src/git takes ~1 min; anything
+    #  past 3x that is hung indexing, not slow IO.
+    #  Serialized: concurrent `git checkout` in git01 races against
+    #  be's ssh pipe to git-upload-pack and triggers keeper SIGPIPE
+    #  (exit 149).  Run be first, git reference checkout after.
+    BE_LOG="$TMILL/be-${TAG}.log"
+    set +e
+    timeout 180 be get "//${HOST}/${REPO_REL}?tags/${TAG}" > "$BE_LOG" 2>&1
+    BE_STATUS=$?
+    set -e
+    grep -v "^keeper: round" "$BE_LOG" || true
+    if [ "$BE_STATUS" -eq 124 ]; then
+        echo "FAIL: $TAG (be get timed out after 180s)"
+        FAIL=$((FAIL + 1))
+        continue
+    fi
+    if [ "$BE_STATUS" -ne 0 ]; then
+        echo "FAIL: $TAG (be get exit $BE_STATUS)"
+        FAIL=$((FAIL + 1))
+        continue
+    fi
 
-    wait $GIT_PID
+    git -C "$TMILL/git01" checkout --quiet "refs/tags/${TAG}"
 
     # --- rsync dry-run: full content comparison ---
     RDIFF=$(rsync -rlcn --delete \

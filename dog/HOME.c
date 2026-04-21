@@ -320,8 +320,11 @@ ok64 HOMEResolveSibling(home *h, path8b out, u8csc name, u8csc argv0) {
                     u8cs entry = {scan[0], scan[1]};
                     a_dup(u8c, probe, scan);
                     if (u8csFind(probe, ':') == OK) {
-                        entry[1] = probe[0] - 1;   // drop the ':'
-                        scan[0]  = probe[0];
+                        //  u8csFind advances probe[0] *to* the ':'.
+                        //  entry is half-open [scan_start, colon);
+                        //  advance scan past the ':' for next iter.
+                        entry[1] = probe[0];
+                        scan[0]  = probe[0] + 1;
                     } else {
                         scan[0]  = scan[1];
                     }
