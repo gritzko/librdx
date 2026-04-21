@@ -1,5 +1,5 @@
 //
-// JOIN - Token-level 3-way file merge (git merge driver)
+// JOIN - Token-level 3-way file merge primitive
 //
 // Tokenizes base/ours/theirs, hashes tokens with RAP,
 // runs Myers diff on hash arrays, walks lockstep to merge.

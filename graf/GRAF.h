@@ -49,8 +49,9 @@ ok64 GRAFOpen(home *h, b8 rw);
 //  Run one CLI invocation.
 ok64 GRAFExec(cli *c);
 
-//  Feed a single git object into graf's DAG index.
-//  obj_type uses KEEP_OBJ_* constants; `path` is repo-relative.
+//  Feed a single object (commit/tree/blob) into graf's DAG index.
+//  obj_type uses KEEP_OBJ_* constants; `path` is repo-relative
+//  (blobs only; trees/commits pass an empty path).
 ok64 GRAFUpdate(u8 obj_type, u8cs blob, u8csc path);
 
 //  Close singleton; idempotent.
@@ -79,6 +80,11 @@ ok64 GRAFDiff(u8cs old_path, u8cs new_path, u8cs name,
 // 3-way merge entry.
 ok64 GRAFMerge(u8cs base_path, u8cs ours_path, u8cs theirs_path,
                u8cs outpath);
+
+// Drive a full streaming ingest from keeper: iterate every object in
+// the keeper store (commits, trees, blobs), replay DOG.md §8 updates
+// into graf's DAG, and finalize with PATH_VER emission.  Idempotent.
+ok64 GRAFIndex(keeper *k);
 
 // Token-level blame (reads blobs from keeper).
 //   tip_h: 40-bit commit hashlet bounding the history (0 = no filter).
