@@ -113,17 +113,13 @@ static ok64 keep_scan_dir(u8csc dir, char const *ext,
 }
 
 static ok64 keep_scan_packs(keeper *k, u8csc keepdir) {
-    // New layout: log/*.pack
-    a_pad(u8, logdir, 1024);
-    u8bFeed(logdir, keepdir);
-    a_cstr(logsep, "/" KEEP_LOG_DIR);
-    u8bFeed(logdir, logsep);
-    PATHu8bTerm(logdir);
-    a_dup(u8c, ld, u8bData(logdir));
-    keep_scan_dir(ld, KEEP_PACK_EXT, k->packs, &k->npacks, KEEP_MAX_FILES);
-
-    // Old layout: keeper/*.packs
-    keep_scan_dir(keepdir, ".packs", k->packs, &k->npacks, KEEP_MAX_FILES);
+    //  Lockless-reader invariant: scan idx BEFORE packs.  Writer
+    //  publishes bytes-first then idx: any idx entry observed here
+    //  points into a pack file that existed before we listed packs,
+    //  so the referenced pack is guaranteed to be in k->packs[].
+    //  Scanning packs first would race: a pack created between the
+    //  two scans would bring in idx entries referencing packs not in
+    //  our mapping.
 
     // New layout: idx/*.idx
     a_pad(u8, idxdir, 1024);
@@ -138,6 +134,18 @@ static ok64 keep_scan_packs(keeper *k, u8csc keepdir) {
     keep_scan_dir(id, KEEP_IDX_EXT, idx_maps, &nidx, KEEP_MAX_LEVELS);
     // Old layout: keeper/*.idx
     keep_scan_dir(keepdir, KEEP_IDX_EXT, idx_maps, &nidx, KEEP_MAX_LEVELS);
+
+    // New layout: log/*.pack
+    a_pad(u8, logdir, 1024);
+    u8bFeed(logdir, keepdir);
+    a_cstr(logsep, "/" KEEP_LOG_DIR);
+    u8bFeed(logdir, logsep);
+    PATHu8bTerm(logdir);
+    a_dup(u8c, ld, u8bData(logdir));
+    keep_scan_dir(ld, KEEP_PACK_EXT, k->packs, &k->npacks, KEEP_MAX_FILES);
+
+    // Old layout: keeper/*.packs
+    keep_scan_dir(keepdir, ".packs", k->packs, &k->npacks, KEEP_MAX_FILES);
 
     for (u32 i = 0; i < nidx && k->nruns < KEEP_MAX_LEVELS; i++) {
         wh128cp base = (wh128cp)u8bDataHead(idx_maps[i]);
@@ -211,9 +219,13 @@ ok64 KEEPOpen(home *h, b8 rw) {
 
     // Worktree sharing: `.dogs/keeper` may be a symlink into another
     // repo, so two dogs in different worktrees can race on the pack
-    // store.  flock on `.dogs/keeper/.lock` serializes writers and
-    // shields readers from a half-appended pack.
-    {
+    // store.  flock on `.dogs/keeper/.lock` serializes writers only.
+    // Readers open lockless — the idx-before-packs scan order in
+    // keep_scan_packs plus idx-via-rename publication in
+    // KEEPPackClose give a consistent snapshot without any lock,
+    // so a reader never has to wait for a slow writer (e.g. a
+    // remote-replica import holding LOCK_EX for minutes).
+    if (rw) {
         a_pad(u8, lockpath, 1024);
         u8bFeed(lockpath, $path(keepdir));
         a_cstr(lockrel, "/.lock");
@@ -1032,12 +1044,29 @@ ok64 KEEPPackClose(keeper *k, keep_pack *p) {
     u8bFeed(idxpath, iext);
     PATHu8bTerm(idxpath);
 
+    //  Atomic publication: write to <seq>.idx.tmp then rename to
+    //  <seq>.idx.  Concurrent lockless readers (keep_scan_packs,
+    //  which keys on the ".idx" suffix) never observe a partially-
+    //  written run — the idx appears in the directory only after
+    //  the pack bytes it references are on disk.
+    a_pad(u8, idxtmppath, 1024);
+    u8bFeed(idxtmppath, $path(kdir));
+    u8bFeed(idxtmppath, idxdir);
+    u8bFeed1(idxtmppath, '/');
+    RONu8sFeedPad(u8bIdle(idxtmppath), (u64)idx_seq, KEEP_SEQNO_W);
+    ((u8 **)idxtmppath)[2] += KEEP_SEQNO_W;
+    u8bFeed(idxtmppath, iext);
+    a_cstr(tmpsuf, ".tmp");
+    u8bFeed(idxtmppath, tmpsuf);
+    PATHu8bTerm(idxtmppath);
+
     int ifd = -1;
-    call(FILECreate, &ifd, $path(idxpath));
+    call(FILECreate, &ifd, $path(idxtmppath));
     if (ifd >= 0) {
         u8cs raw = {(u8cp)sorted[0], (u8cp)sorted[1]};
         FILEFeedAll(ifd, raw);
         close(ifd);
+        call(FILERename, $path(idxtmppath), $path(idxpath));
     }
 
     // Mmap index
