@@ -26,8 +26,11 @@ static void capo_abrt_handler(int sig) {
 #include "abc/PRO.h"
 #include "abc/SORT.h"
 #include "dog/DEF.h"
+#include "dog/DOG.h"
 #include "dog/HOME.h"
 #include "dog/IGNO.h"
+#include "keeper/KEEP.h"
+#include "keeper/WALK.h"
 #include "spot/SPOT.h"
 
 // --- Language detection via tok/ ---
@@ -894,9 +897,9 @@ static ok64 capo_spot_file_cb(void *ctx, u8csc relpath, u8csc source,
 
     Bu32 toks = {};
     ok64 o = u32bMap(toks, $len(source) + 1);
-    if (o != OK) { FILEUnMap(mapped); return OK; }
+    if (o != OK) { if (mapped) FILEUnMap(mapped); return OK; }
     o = SPOTTokenize(toks, source, file_ext);
-    if (o != OK) { u32bUnMap(toks); FILEUnMap(mapped); return OK; }
+    if (o != OK) { u32bUnMap(toks); if (mapped) FILEUnMap(mapped); return OK; }
     {
         u32 *dts[2] = {u32bDataHead(toks), u32bIdleHead(toks)};
         a_dup(u8c,dext,file_ext);
@@ -926,23 +929,30 @@ static ok64 capo_spot_file_cb(void *ctx, u8csc relpath, u8csc source,
     signal(SIGABRT, SIG_DFL);
 
     if ($empty(sc->replace)) {
-        LESSDefer(mapped, toks);
+        if (mapped)
+            LESSDefer(mapped, toks);
+        else
+            u32bUnMap(toks);
     } else {
         u32bUnMap(toks);
-        FILEUnMap(mapped);
+        if (mapped) FILEUnMap(mapped);
     }
     return OK;
 }
 
 ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot,
-              u8css files) {
+              u8css files, uri const *ref) {
     sane($ok(needle) && $ok(ext) && $ok(reporoot));
 
     if (!CAPOKnownExt(ext)) return SPOTBAD;
+    if (ref != NULL && !$empty(replace)) {
+        fprintf(stderr, "spot: --replace with ?ref is not supported\n");
+        return SPOTBAD;
+    }
 
     Bu32 hashbuf1 = {};
     b8 has_trigrams = NO;
-    if ($len(files) == 0)
+    if ($len(files) == 0 && ref == NULL)
         CAPOTrigramFilter(hashbuf1, &has_trigrams, needle, reporoot);
 
     if ($empty(replace))
@@ -961,10 +971,22 @@ ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot,
     if (!$empty(ext)) $mv(opts.target_ext, ext);
     if (has_trigrams) $mv(opts.tri_hashes, u32bDataC(hashbuf1));
 
-    if ($len(files) > 0)
+    if (ref != NULL) {
+        home *h = SPOT.h;
+        ok64 ko = KEEPOpen(h, NO);
+        if (ko != OK && ko != KEEPOPEN) {
+            fprintf(stderr, "spot: keeper open failed: %s\n", ok64str(ko));
+            if (!BNULL(hashbuf1)) u32bUnMap(hashbuf1);
+            if ($empty(replace)) LESSArenaCleanup();
+            return ko;
+        }
+        CAPOScanRef(&KEEP, ref, &opts);
+        if (ko == OK) KEEPClose();
+    } else if ($len(files) > 0) {
         CAPOScanFiles(files, &opts);
-    else
+    } else {
         CAPOScan(reporoot, &opts);
+    }
 
     CAPOProgress(NULL);
 
@@ -1093,6 +1115,223 @@ ok64 CAPOScan(u8csc reporoot, CAPOScanOpts const *opts) {
     if (o == FILESKIP) o = OK;  // normal completion
     return o;
 }
+
+// --- Scan a historic ref via keeper: walk tree, pull matching-ext blobs ---
+//
+//  `target` is a parsed URI with `?ref` (or `#sha`) identifying the
+//  commit/tree to search.  For each regular-file entry whose extension
+//  is known (and matches opts->target_ext if set), the blob is pulled
+//  via KEEPGetExact and handed to opts->file_fn with mapped=NULL and
+//  fpbuf=NULL — the callback must not defer the buffer (no mmap to
+//  survive across hunks) and must not attempt on-disk replacement.
+typedef struct {
+    keeper             *k;
+    CAPOScanOpts const *opts;
+    ok64                last_err;
+} capo_ref_scan_ctx;
+
+static ok64 capo_ref_visit(u8cs path, u8 kind, u8cp esha,
+                            u8cs blob, void0p ctx) {
+    (void)blob;
+    capo_ref_scan_ctx *cx = (capo_ref_scan_ctx *)ctx;
+    if (kind != WALK_KIND_REG && kind != WALK_KIND_EXE) return OK;
+    if ($empty(path)) return OK;
+
+    size_t plen = (size_t)$len(path);
+    u8cs file_ext = {};
+    CAPOFindExt(file_ext, path[0], plen);
+    if ($empty(file_ext) || !CAPOKnownExt(file_ext)) return OK;
+    if (!$empty(cx->opts->target_ext) &&
+        !TOKSameLexer(file_ext, cx->opts->target_ext)) return OK;
+
+    sha1 bsha = {};
+    memcpy(bsha.data, esha, 20);
+
+    Bu8 bbuf = {};
+    if (u8bAllocate(bbuf, 1UL << 22) != OK) return OK;
+    u8 btype = 0;
+    ok64 gr = KEEPGetExact(cx->k, &bsha, bbuf, &btype);
+    if (gr != OK || btype != DOG_OBJ_BLOB) {
+        u8bFree(bbuf);
+        return OK;
+    }
+    u8cs source = {u8bDataHead(bbuf), u8bIdleHead(bbuf)};
+
+    //  NUL-terminate the path for CAPOProgress.
+    char pnul[FILE_PATH_MAX_LEN] = {};
+    size_t cp = plen < sizeof(pnul) - 1 ? plen : sizeof(pnul) - 1;
+    memcpy(pnul, path[0], cp);
+    CAPOProgress(pnul);
+
+    ok64 fo = cx->opts->file_fn(cx->opts->file_ctx, path, source,
+                                 file_ext, NULL, NULL);
+    u8bFree(bbuf);
+    if (fo != OK) cx->last_err = fo;
+    return OK;
+}
+
+ok64 CAPOScanRef(keeper *k, uri const *target,
+                  CAPOScanOpts const *opts) {
+    sane(k && target && opts && opts->file_fn);
+    capo_ref_scan_ctx cx = {k, opts, OK};
+    //  KEEPLsFiles takes a non-const uri*, but the function body only
+    //  reads from it.  Cast away const — the callee does not mutate.
+    ok64 o = KEEPLsFiles(k, (uricp)target, capo_ref_visit, &cx);
+    CAPOProgress(NULL);
+    if (cx.last_err != OK) return cx.last_err;
+    return o;
+}
+
+// --- Pack-add indexing: walk keeper's refs, index unseen commits ---
+//
+//  Called from `spot get` after `be get` pulls a pack into keeper.
+//  Enumerates every `?<40-hex>` terminal value in .dogs/keeper/REFS,
+//  skips those already in .dogs/spot/COMMIT, and for each new commit
+//  walks its tree via KEEPLsFiles — feeding every matching-extension
+//  blob through CAPOIndexFile.  Flushes runs opportunistically while
+//  the scratch fills and once at the end; the final residue is
+//  flushed in SPOTClose.
+
+#include "keeper/REFS.h"
+
+typedef struct {
+    u8csc         capodir;
+    u64 const    *flush_threshold;  // optional, unused for now
+    keeper       *k;
+} spot_ingest_ctx;
+
+static ok64 spot_ingest_maybe_flush(spot *s, u8csc dirslice) {
+    sane(s != NULL);
+    //  Mirrors the flush logic in SPOTUpdate: only flush when dedup
+    //  actually reduces the run enough to be worthwhile.
+    size_t pending = u64bDataLen(s->entries);
+    if (pending < CAPO_FLUSH_AT) done;
+    u64sp data = u64bData(s->entries);
+    u64sSort(data);
+    u64sDedup(data);
+    size_t unique = $len(data);
+    if (unique * 2 > pending) {
+        u64cs run = {(u64cp)data[0], (u64cp)data[1]};
+        call(CAPOIndexWrite, dirslice, run, s->seqno);
+        s->seqno++;
+        u64bReset(s->entries);
+    }
+    done;
+}
+
+static ok64 spot_ingest_visit(u8cs path, u8 kind, u8cp esha,
+                               u8cs blob, void0p ctx) {
+    (void)blob;
+    spot_ingest_ctx *ix = (spot_ingest_ctx *)ctx;
+    if (kind != WALK_KIND_REG && kind != WALK_KIND_EXE) return OK;
+    if ($empty(path)) return OK;
+
+    size_t plen = (size_t)$len(path);
+    u8cs ext = {};
+    CAPOFindExt(ext, path[0], plen);
+    if ($empty(ext) || !CAPOKnownExt(ext)) return OK;
+
+    sha1 bsha = {};
+    memcpy(bsha.data, esha, 20);
+
+    Bu8 bbuf = {};
+    if (u8bAllocate(bbuf, 1UL << 22) != OK) return OK;
+    u8 btype = 0;
+    ok64 go = KEEPGetExact(ix->k, &bsha, bbuf, &btype);
+    if (go != OK || btype != DOG_OBJ_BLOB) {
+        u8bFree(bbuf);
+        return OK;
+    }
+    u8cs content = {u8bDataHead(bbuf), u8bIdleHead(bbuf)};
+
+    CAPOIndexFile(SPOT.entries, content, ext, path);
+    u8bFree(bbuf);
+
+    spot_ingest_maybe_flush(&SPOT, ix->capodir);
+    return OK;
+}
+
+ok64 SPOTIngestNewCommits(void) {
+    sane(SPOT.h != NULL);
+    if (!SPOT.rw) {
+        fprintf(stderr, "spot: ingest requires rw open\n");
+        return FAILSANITY;
+    }
+    home *h = SPOT.h;
+
+    ok64 ko = KEEPOpen(h, NO);
+    if (ko != OK && ko != KEEPOPEN) return ko;
+
+    a_path(capodir);
+    a_dup(u8c, root_s, u8bDataC(h->root));
+    if (CAPOResolveDir(capodir, root_s) != OK) {
+        if (ko == OK) KEEPClose();
+        done;
+    }
+    a_dup(u8c, dirslice, u8bDataC(capodir));
+
+    char known_shas[CAPO_MAX_SHAS][44] = {};
+    u32 known_count = 0;
+    CAPOCommitRead(&known_count, dirslice, known_shas, CAPO_MAX_SHAS);
+
+    a_path(keepdir, u8bDataC(h->root), KEEP_DIR_S);
+    u8bp refs_map = NULL;
+    //  REFS_MAX_REFS is large (>1000); heap-allocate the array instead
+    //  of blowing the stack.
+    ref *rarr = (ref *)calloc(REFS_MAX_REFS, sizeof(ref));
+    if (rarr == NULL) {
+        if (ko == OK) KEEPClose();
+        return FAILSANITY;
+    }
+    u32 rn = 0;
+    REFSLoad(rarr, &rn, REFS_MAX_REFS, &refs_map, $path(keepdir));
+
+    spot_ingest_ctx ix = {.capodir = dirslice,
+                          .flush_threshold = NULL,
+                          .k = &KEEP};
+
+    u32 indexed_n = 0;
+    for (u32 i = 0; i < rn; i++) {
+        u8cs val = {rarr[i].val[0], rarr[i].val[1]};
+        //  Only terminal `?<40-hex>` values directly identify a commit;
+        //  alias chains get resolved by REFSResolve — we skip them here
+        //  and let the repeat-scan catch up when they terminate.
+        if (u8csLen(val) != 41 || val[0][0] != '?') continue;
+        char sha40[40];
+        memcpy(sha40, val[0] + 1, 40);
+        b8 seen = NO;
+        for (u32 j = 0; j < known_count; j++) {
+            if (memcmp(sha40, known_shas[j], 40) == 0) { seen = YES; break; }
+        }
+        if (seen) continue;
+
+        uri target = {};
+        target.fragment[0] = (u8cp)sha40;
+        target.fragment[1] = (u8cp)sha40 + 40;
+        target.data[0]     = (u8cp)sha40;
+        target.data[1]     = (u8cp)sha40 + 40;
+
+        ok64 lf = KEEPLsFiles(&KEEP, &target, spot_ingest_visit, &ix);
+        if (lf != OK) continue;
+
+        u8cs sha_s = {(u8cp)sha40, (u8cp)sha40 + 40};
+        CAPOCommitAppend(dirslice, sha_s);
+        if (known_count < CAPO_MAX_SHAS) {
+            memcpy(known_shas[known_count], sha40, 40);
+            known_count++;
+        }
+        indexed_n++;
+    }
+
+    free(rarr);
+    if (refs_map) u8bUnMap(refs_map);
+    if (ko == OK) KEEPClose();
+
+    if (indexed_n > 0)
+        fprintf(stderr, "spot: ingested %u new commit(s)\n", indexed_n);
+    done;
+}
+
 
 ok64 CAPOScanFiles(u8css files, CAPOScanOpts const *opts) {
     sane(opts != NULL && opts->file_fn != NULL);

@@ -76,6 +76,16 @@ ok64 CAPOScan(u8csc reporoot, CAPOScanOpts const *opts);
 // Walk explicit file list, call opts->file_fn per file.
 ok64 CAPOScanFiles(u8css files, CAPOScanOpts const *opts);
 
+#include "abc/URI.h"
+#include "keeper/KEEP.h"
+
+// Walk a historic ref's tree via keeper (KEEPLsFiles), pulling each
+// matching-ext blob, calling opts->file_fn with mapped=NULL.  Replace
+// mode is not supported (no on-disk path); callers must check and
+// reject spot --replace when the URI has a ref query.
+ok64 CAPOScanRef(keeper *k, uri const *target,
+                  CAPOScanOpts const *opts);
+
 // Pre-compute trigram candidate hash set from literal text.
 ok64 CAPOTrigramFilter(Bu32 hashbuf, b8 *has_trigrams,
                         u8csc text, u8csc reporoot);

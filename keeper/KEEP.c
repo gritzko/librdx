@@ -1099,35 +1099,51 @@ ok64 KEEPResolveTree(keeper *k, uricp target, sha1 *tree_sha) {
     }
 
     if (!u8csEmpty(target->query)) {
-        // Resolve ?ref via REFS
+        // Resolve ?ref via REFS.  REFSResolve handles full URIs
+        // (`//auth/path?ref`), alias chains, and the `refs/` / `heads/` /
+        // `tags/` normalisation users expect.  If the target URI has no
+        // authority, we fall back to a bare `?<query>` match (legacy).
         a_path(keepdir, u8bDataC(k->h->root), KEEP_DIR_S);
-        a_pad(u8, qbuf, 256);
-        u8bFeed1(qbuf, '?');
-        u8bFeed(qbuf, target->query);
-        a_dup(u8c, qkey, u8bData(qbuf));
-
-        u8bp rmap = NULL;
-        ref rarr[REFS_MAX_REFS];
-        u32 rn = 0;
-        REFSLoad(rarr, &rn, REFS_MAX_REFS, &rmap, $path(keepdir));
-
         b8 found = NO;
-        for (u32 i = 0; i < rn; i++) {
-            if (REFMatch(&rarr[i], qkey)) {
-                a_dup(u8c, val, rarr[i].val);
-                if (!u8csEmpty(val) && *val[0] == '?')
-                    u8csUsed(val, 1);
-                // val is hex SHA of commit
-                if (u8csLen(val) >= 40) {
-                    u8s sb = {commit_sha.data, commit_sha.data + 20};
-                    u8cs hx = {val[0], val[0] + 40};
-                    ok64 ho = HEXu8sDrainSome(sb, hx);
-                    if (ho == OK) found = YES;
-                }
-                break;
+
+        if (!u8csEmpty(target->authority) && !u8csEmpty(target->data)) {
+            a_pad(u8, arena_buf, 512);
+            uri resolved = {};
+            a_dup(u8c, in_uri, target->data);
+            ok64 ro = REFSResolve(&resolved, arena_buf, $path(keepdir), in_uri);
+            if (ro == OK && u8csLen(resolved.query) >= 40) {
+                u8s sb = {commit_sha.data, commit_sha.data + 20};
+                u8cs hx = {resolved.query[0], resolved.query[0] + 40};
+                if (HEXu8sDrainSome(sb, hx) == OK) found = YES;
             }
         }
-        if (rmap) u8bUnMap(rmap);
+
+        if (!found) {
+            a_pad(u8, qbuf, 256);
+            u8bFeed1(qbuf, '?');
+            u8bFeed(qbuf, target->query);
+            a_dup(u8c, qkey, u8bData(qbuf));
+
+            u8bp rmap = NULL;
+            ref rarr[REFS_MAX_REFS];
+            u32 rn = 0;
+            REFSLoad(rarr, &rn, REFS_MAX_REFS, &rmap, $path(keepdir));
+
+            for (u32 i = 0; i < rn; i++) {
+                if (REFMatch(&rarr[i], qkey)) {
+                    a_dup(u8c, val, rarr[i].val);
+                    if (!u8csEmpty(val) && *val[0] == '?')
+                        u8csUsed(val, 1);
+                    if (u8csLen(val) >= 40) {
+                        u8s sb = {commit_sha.data, commit_sha.data + 20};
+                        u8cs hx = {val[0], val[0] + 40};
+                        if (HEXu8sDrainSome(sb, hx) == OK) found = YES;
+                    }
+                    break;
+                }
+            }
+            if (rmap) u8bUnMap(rmap);
+        }
         if (!found) fail(KEEPNONE);
 
         // Get commit, extract tree SHA

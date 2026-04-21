@@ -61,7 +61,7 @@ ok64 GRAFOpen(home *h, b8 rw) {
     done;
 }
 
-// --- Update: feed a single git object into graf's DAG index ---
+// --- Update: feed a single object (commit/tree/blob) into graf's DAG index ---
 
 ok64 GRAFUpdate(u8 obj_type, u8cs blob, u8csc path) {
     sane(1);

@@ -1,6 +1,6 @@
 //  DAG: graf's object-graph index, streaming ingest.
 //
-//  Fed via GRAFUpdate one git object at a time.  Keeper drives the
+//  Fed via GRAFUpdate one object at a time.  Keeper drives the
 //  ingest in bulk (all-commits → all-trees → all-blobs) per pack;
 //  each DOGUpdate call dispatches to one of three handlers here.
 //  Finish runs at DOGClose, walks each new commit's tree top-down
@@ -84,18 +84,27 @@ static u64 dag_obj_hashlet(u8 obj_type, u8cs body) {
 #define DAG_MAX_TREE_ENTRIES 8192
 #define DAG_PATH_BUF_SZ 4096
 
-// Owner-map tag in key.type:
-#define DAG_OWN_COMMIT  1   // val.id = gen; key.off = commit_hashlet
+// Owner-map tag in key.type: only fresh-blob markers live here now.
+// commit→gen and tree_h→(offset,nent) moved to separate kv64 maps.
 #define DAG_OWN_FRESH   2   // key.off = blob_hashlet; val = 0
-#define DAG_TREE_TAG    3   // key.off = tree_hashlet; val.off = arena offset
 
 // --- Ingest state (opaque to callers) ---
+//
+//  Hash maps: `owner` is a wh128 set used only for "blob is fresh in
+//  this session" — val is always 0 so wh128's (key+val) equality
+//  works cleanly.  `commit_gen` and `tree_cache` carry non-zero
+//  payloads in val and therefore must use kv64, whose equality and
+//  hash are key-only.  Mixing key-payload wh128 with kv64 caused
+//  `owner_get_commit` and `tree_cache_get` to silently miss — the
+//  put-time hash differed from the get-time probe because wh128hash
+//  folds val in.
 
 struct dag_ingest {
-    Bwh128  owner;          // commit→gen + blob fresh markers
-    Bwh128  tree_cache;     // tree_h → arena offset
+    Bwh128  owner;          // set of fresh-in-session blob hashlets
+    Bkv64   tree_cache;     // tree_h → (nent << 32) | arena_offset
     Bu8     entries;        // packed tree entries
     Bkv64   commit_tree;    // commit_h → tree_h
+    Bkv64   commit_gen;     // commit_h → gen
 
     wh128  *batch;          // belt128 emit buffer
     size_t  batch_len;
@@ -438,9 +447,10 @@ static ok64 dag_ingest_alloc(dag_ingest **out, u8cs dagdir) {
     g->dagdir[1] = (u8p)g->dagdir_buf + dlen;
 
     if (wh128bAllocate(g->owner, DAG_OWNER_SIZE) != OK) goto fail;
-    if (wh128bAllocate(g->tree_cache, DAG_TREEC_SIZE) != OK) goto fail;
+    if (kv64bAllocate(g->tree_cache, DAG_TREEC_SIZE) != OK) goto fail;
     if (u8bMap(g->entries, DAG_ENTRIES_CAP) != OK) goto fail;
     if (kv64bAllocate(g->commit_tree, DAG_CTREE_SIZE) != OK) goto fail;
+    if (kv64bAllocate(g->commit_gen, DAG_CTREE_SIZE) != OK) goto fail;
 
     g->batch_cap = DAG_BATCH;
     g->batch = calloc(g->batch_cap, sizeof(wh128));
@@ -453,10 +463,11 @@ static ok64 dag_ingest_alloc(dag_ingest **out, u8cs dagdir) {
     done;
 
 fail:
-    if (g->owner[0])      wh128bFree(g->owner);
-    if (g->tree_cache[0]) wh128bFree(g->tree_cache);
-    if (g->entries[0])    u8bUnMap(g->entries);
-    if (g->commit_tree[0])kv64bFree(g->commit_tree);
+    if (g->owner[0])       wh128bFree(g->owner);
+    if (g->tree_cache[0])  kv64bFree(g->tree_cache);
+    if (g->entries[0])     u8bUnMap(g->entries);
+    if (g->commit_tree[0]) kv64bFree(g->commit_tree);
+    if (g->commit_gen[0])  kv64bFree(g->commit_gen);
     free(g->batch);
     free(g);
     return DAGFAIL;
@@ -464,10 +475,11 @@ fail:
 
 static void dag_ingest_free(dag_ingest *g) {
     if (!g) return;
-    if (g->owner[0])      wh128bFree(g->owner);
-    if (g->tree_cache[0]) wh128bFree(g->tree_cache);
-    if (g->entries[0])    u8bUnMap(g->entries);
-    if (g->commit_tree[0])kv64bFree(g->commit_tree);
+    if (g->owner[0])       wh128bFree(g->owner);
+    if (g->tree_cache[0])  kv64bFree(g->tree_cache);
+    if (g->entries[0])     u8bUnMap(g->entries);
+    if (g->commit_tree[0]) kv64bFree(g->commit_tree);
+    if (g->commit_gen[0])  kv64bFree(g->commit_gen);
     free(g->batch);
     free(g);
 }
@@ -500,39 +512,22 @@ static void dag_batch_maybe_flush(dag_ingest *g) {
     if (g->batch_len + 64 >= g->batch_cap) dag_flush_batch(g);
 }
 
-// --- Owner map ops ---
+// --- commit_gen map (kv64: key=commit_h, val=gen) ---
 
-// Insert (OWN_COMMIT, commit_h) → gen.
-static ok64 owner_put_commit(dag_ingest *g, u64 commit_h, u32 gen) {
-    wh128 rec = {
-        .key = wh64Pack(DAG_OWN_COMMIT, 0, commit_h),
-        .val = wh64Pack(0, gen, 0),
-    };
-    wh128s tab = {wh128bHead(g->owner), wh128bTerm(g->owner)};
-    return HASHwh128Put(tab, &rec);
+static ok64 commit_gen_put(dag_ingest *g, u64 commit_h, u32 gen) {
+    kv64 rec = {.key = commit_h, .val = (u64)gen};
+    kv64s tab = {kv64bHead(g->commit_gen), kv64bTerm(g->commit_gen)};
+    return HASHkv64Put(tab, &rec);
 }
 
-// Look up commit gen; returns 0 if absent.
-static u32 owner_get_commit(dag_ingest *g, u64 commit_h) {
-    wh128 probe = {
-        .key = wh64Pack(DAG_OWN_COMMIT, 0, commit_h),
-        .val = 0,   // ignored by line scan via key match only
-    };
-    // HASHx.Get requires exact cmp match, but val is 0 and stored has gen.
-    // Use _get semantics via scan: find any record with matching key.
-    wh128s tab = {wh128bHead(g->owner), wh128bTerm(g->owner)};
-    size_t n = $len(tab);
-    if (n == 0) return 0;
-    u64 hash = mix64(probe.key ^ probe.val);
-    size_t ndx = hash % n;
-    // Scan line.
-    for (u32 step = 0; step < 16; step++) {
-        wh128 *cell = wh128bDataHead(g->owner) + ((ndx + step) & (n - 1));
-        if (cell->key == 0 && cell->val == 0) return 0;
-        if (cell->key == probe.key) return DAGGen(cell->val);
-    }
-    return 0;
+static u32 commit_gen_get(dag_ingest *g, u64 commit_h) {
+    kv64 probe = {.key = commit_h, .val = 0};
+    kv64s tab = {kv64bHead(g->commit_gen), kv64bTerm(g->commit_gen)};
+    if (HASHkv64Get(&probe, tab) != OK) return 0;
+    return (u32)probe.val;
 }
+
+// --- Owner map ops (fresh-blob set only) ---
 
 // Insert (OWN_FRESH, blob_h) → presence.
 static ok64 owner_mark_fresh(dag_ingest *g, u64 blob_h) {
@@ -555,42 +550,31 @@ static b8 owner_is_fresh(dag_ingest *g, u64 blob_h) {
 }
 
 // --- Tree cache: tree_h → (arena offset, entry count) ---
-// Entry record packed in entries arena per tree:
-//   [u32 n_entries]
-//   repeated: { u8 kind (1=tree,0=blob), u8 name_len, u64 child_hashlet,
-//               char name[name_len] }
+//
+//  Entry record packed in `entries` arena per tree:
+//    [u32 n_entries]
+//    repeated: { u8 kind (1=tree,0=blob), u8 name_len,
+//                u64 child_hashlet, char name[name_len] }
+//
+//  Map type is kv64; val packs (nent << 32) | offset.  Offset fits
+//  in 32 bits by the arena's 16 MB cap, nent is capped at
+//  DAG_MAX_TREE_ENTRIES which is well under 2^32.
 
 static ok64 tree_cache_put(dag_ingest *g, u64 tree_h, u32 offset, u32 nent) {
-    wh128 rec = {
-        .key = wh64Pack(DAG_TREE_TAG, 0, tree_h),
-        .val = wh64Pack(0, nent, offset),
-    };
-    wh128s tab = {wh128bHead(g->tree_cache), wh128bTerm(g->tree_cache)};
-    return HASHwh128Put(tab, &rec);
+    kv64 rec = {.key = tree_h,
+                .val = ((u64)nent << 32) | (u64)offset};
+    kv64s tab = {kv64bHead(g->tree_cache), kv64bTerm(g->tree_cache)};
+    return HASHkv64Put(tab, &rec);
 }
 
-// Returns OK with *offset and *nent populated, or HASHNONE.
 static ok64 tree_cache_get(dag_ingest *g, u64 tree_h,
                             u32 *offset, u32 *nent) {
-    wh128s tab = {wh128bHead(g->tree_cache), wh128bTerm(g->tree_cache)};
-    size_t n = $len(tab);
-    if (n == 0) return HASHNONE;
-    wh128 probe = {
-        .key = wh64Pack(DAG_TREE_TAG, 0, tree_h),
-        .val = 0,
-    };
-    u64 hash = mix64(probe.key ^ probe.val);
-    size_t ndx = hash % n;
-    for (u32 step = 0; step < 16; step++) {
-        wh128 *cell = wh128bDataHead(g->tree_cache) + ((ndx + step) & (n - 1));
-        if (cell->key == 0 && cell->val == 0) return HASHNONE;
-        if (cell->key == probe.key) {
-            *offset = (u32)DAGHashlet(cell->val);
-            *nent = DAGGen(cell->val);
-            return OK;
-        }
-    }
-    return HASHNONE;
+    kv64 probe = {.key = tree_h, .val = 0};
+    kv64s tab = {kv64bHead(g->tree_cache), kv64bTerm(g->tree_cache)};
+    if (HASHkv64Get(&probe, tab) != OK) return HASHNONE;
+    *offset = (u32)(probe.val & 0xFFFFFFFFull);
+    *nent   = (u32)(probe.val >> 32);
+    return OK;
 }
 
 // --- Phase transitions ---
@@ -747,16 +731,17 @@ static ok64 dag_finish(dag_ingest *g) {
     sane(g);
     if (g->finished) done;
 
-    // Walk each commit's root tree.
-    kv64s tab = {kv64bHead(g->commit_tree), kv64bTerm(g->commit_tree)};
-    size_t n = $len(tab);
+    // Walk each commit's root tree.  commit_tree is a kv64 open-addressed
+    // hash; iterate the whole buffer and skip zero cells.
+    size_t n = (size_t)(kv64bTerm(g->commit_tree) - kv64bHead(g->commit_tree));
     u8 path_buf[DAG_PATH_BUF_SZ];
+    kv64 *base = kv64bHead(g->commit_tree);
     for (size_t i = 0; i < n; i++) {
-        kv64 *cell = kv64bDataHead(g->commit_tree) + i;
+        kv64 *cell = base + i;
         if (cell->key == 0 && cell->val == 0) continue;
         u64 commit_h = cell->key;
         u64 tree_h = cell->val;
-        u32 gen = owner_get_commit(g, commit_h);
+        u32 gen = commit_gen_get(g, commit_h);
         if (gen == 0) continue;
         dag_walk_tree(g, tree_h, gen, commit_h,
                       path_buf, DAG_PATH_BUF_SZ, 0);
@@ -830,7 +815,7 @@ ok64 GRAFDagUpdate(u8 obj_type, u8cs blob, u8csc path) {
         u32 parent_gens[16] = {};
         for (u32 i = 0; i < npar; i++) {
             parent_hs[i] = WHIFFHashlet40(&parents[i]);
-            u32 pg = owner_get_commit(g, parent_hs[i]);
+            u32 pg = commit_gen_get(g, parent_hs[i]);
             if (pg == 0) pg = dag_stack_commit_gen(&state->idx, parent_hs[i]);
             parent_gens[i] = pg;
             if (pg >= gen) gen = pg + 1;
@@ -850,7 +835,7 @@ ok64 GRAFDagUpdate(u8 obj_type, u8cs blob, u8csc path) {
         kv64 ct = {.key = commit_h, .val = tree_h};
         kv64s ctab = {kv64bHead(g->commit_tree), kv64bTerm(g->commit_tree)};
         HASHkv64Put(ctab, &ct);
-        owner_put_commit(g, commit_h, gen);
+        commit_gen_put(g, commit_h, gen);
 
         dag_batch_maybe_flush(g);
         done;
@@ -862,7 +847,11 @@ ok64 GRAFDagUpdate(u8 obj_type, u8cs blob, u8csc path) {
     }
 
     case DOG_OBJ_BLOB: {
-        if (u8csEmpty(path)) return DAGNOPATH;
+        //  Path is unused here — the finish-time tree walk recovers
+        //  every leaf's real path from its parent tree entries.  We
+        //  only need the blob's hashlet to mark it fresh so that the
+        //  walk emits PATH_VER for any leaf pointing at it.
+        (void)path;
         u64 blob_h = dag_obj_hashlet(DOG_OBJ_BLOB, blob);
         return dag_ingest_blob(g, blob_h);
     }

@@ -31,8 +31,9 @@ char const *const SPOT_CLI_VERBS[] = {
 };
 
 //  Spot val-flags: -g -s -r -p -C --grep --spot --replace --pcre --context
-//  Indexing now happens via SPOTUpdate (keeper's UNPK emit hook), not the
-//  CLI — there are no --fork / --index / --hook flags any more.
+//  Pack-add indexing happens in `spot get` (SPOTIngestNewCommits), which
+//  `be` invokes after `keeper get` / `sniff get`.  No --fork / --index /
+//  --hook flags — ingestion is driven by keeper's REFS.
 char const SPOT_CLI_VAL_FLAGS[] =
     "-g\0-s\0-r\0-p\0-C\0"
     "--grep\0--spot\0--replace\0--pcre\0--context\0";
@@ -101,11 +102,16 @@ ok64 SPOTExec(cli *c) {
                 nidxfiles, (unsigned long long)total);
         done;
     }
-    //  `spot get` — invoked by `be` after sniff/keeper checkouts and
-    //  commits.  Indexing is reactive (keeper's UNPK emit hook feeds
-    //  SPOTUpdate per pack object), so there's nothing to do here.
-    //  The dispatcher just needs a non-error exit.
-    if ($eq(c->verb, v_get)) done;
+    //  `spot get` — invoked by `be` after `keeper get`/`sniff get`
+    //  brings in fresh packs.  Walk keeper's refs and index every
+    //  commit we haven't recorded yet (pack-add indexing per
+    //  DOG.md rule 8 intent).  Safe to call repeatedly.
+    if ($eq(c->verb, v_get)) {
+        ok64 io = SPOTIngestNewCommits();
+        if (io != OK)
+            fprintf(stderr, "spot: ingest: %s\n", ok64str(io));
+        return io;
+    }
 
     b8 do_status = CLIHas(c, "--status");
     b8 force_tlv = CLIHas(c, "-t") || CLIHas(c, "--tlv");
@@ -136,8 +142,22 @@ ok64 SPOTExec(cli *c) {
 
     u8cs trail[16] = {};
     int ntrail = 0;
+    uri const *ref_uri = NULL;   // first URI with a real `?ref` query
     for (u32 ui = 0; ui < c->nuris && ntrail < 16; ui++) {
         uri *u = &c->uris[ui];
+        //  URILexer can classify a leading-dot arg like `.c` as the
+        //  "query" component even without a `?`.  A real ref URI has an
+        //  explicit `?` in its input text — require that for has_ref.
+        //  URILexer can classify a leading-dot arg like `.c` as the
+        //  "query" component even without a `?`.  A real ref URI has an
+        //  explicit `?` in its input text — require that for has_ref.
+        b8 has_ref = NO;
+        if (!u8csEmpty(u->query) && !u8csEmpty(u->data)) {
+            for (u8cp p = u->data[0]; p < u->data[1]; p++) {
+                if (*p == '?') { has_ref = YES; break; }
+            }
+        }
+        if (has_ref && ref_uri == NULL) ref_uri = u;
         if ($empty(spot_ndl) && $empty(grep_ndl) && $empty(pcre_ndl) &&
             !$empty(u->fragment)) {
             frag fr = {};
@@ -157,7 +177,9 @@ ok64 SPOTExec(cli *c) {
                     }
                 }
             }
-            if (!$empty(u->path)) {
+            //  u->path is the remote-side repo path for `//host/repo?ref`
+            //  URIs, not an in-worktree filter — skip it for ref searches.
+            if (!$empty(u->path) && !has_ref) {
                 u8cs gpath = {};
                 $mv(gpath, u->path);
                 if (!$empty(gpath) && *gpath[0] == '/') {
@@ -168,7 +190,7 @@ ok64 SPOTExec(cli *c) {
                     ntrail++;
                 }
             }
-        } else {
+        } else if (!has_ref) {
             u8cs dat = {};
             if (!$empty(u->path)) {
                 $mv(dat, u->path);
@@ -257,7 +279,7 @@ ok64 SPOTExec(cli *c) {
         }
         a_dup(u8c, ndl, grep_ndl);
         u8css gf = {gfiles, gfiles + gnf};
-        ret = CAPOGrep(ndl, ext, reporoot, grep_ctx, gf);
+        ret = CAPOGrep(ndl, ext, reporoot, grep_ctx, gf, ref_uri);
     } else if (!$empty(pcre_ndl)) {
         u8cs ext = {};
         u8cs gfiles[16] = {};
@@ -280,7 +302,7 @@ ok64 SPOTExec(cli *c) {
         }
         a_dup(u8c, ndl, pcre_ndl);
         u8css gf = {gfiles, gfiles + gnf};
-        ret = CAPOPcreGrep(ndl, ext, reporoot, grep_ctx, gf);
+        ret = CAPOPcreGrep(ndl, ext, reporoot, grep_ctx, gf, ref_uri);
     } else if (!$empty(spot_ndl)) {
         u8cs ext = {};
         u8cs sfiles[16] = {};
@@ -308,7 +330,7 @@ ok64 SPOTExec(cli *c) {
             a_dup(u8c, ndl, spot_ndl);
             a_dup(u8c, rep, spot_rep);
             u8css sf = {sfiles, sfiles + snf};
-            ret = CAPOSpot(ndl, rep, ext, reporoot, sf);
+            ret = CAPOSpot(ndl, rep, ext, reporoot, sf, ref_uri);
         }
     } else if (c->nuris > 0) {
         fprintf(stderr, "spot: file display moved to bro\n");
@@ -334,8 +356,13 @@ ok64 SPOTExec(cli *c) {
 
 // --- Update: feed a single git object into spot's index ---
 //
-// Driven by keeper's UNPK emit hook (UNPK.h unpk_emit_fn) — one call
-// per resolved object, in commit-tree-blob order.
+// Originally intended to be driven by keeper's UNPK emit hook
+// (UNPK.h unpk_emit_fn) — one call per resolved object, in commit-
+// tree-blob order.  Currently unused: `spot get` walks keeper's
+// REFS post-fetch via SPOTIngestNewCommits instead, which gets the
+// blob + its live path from WALKTreeLazy + KEEPGetExact.  Retained
+// so a future keeper that links spotlib can hook UNPK without API
+// changes.
 //   COMMIT: compute the git object SHA-1 ("commit N\0body") and append
 //           it to .dogs/spot/COMMIT (rule 7 of DOG.md).
 //   TREE / TAG: no-op; UNPK has already resolved tree → path bindings

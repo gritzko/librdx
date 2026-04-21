@@ -185,12 +185,10 @@ ok64 GRAFExec(cli *c) {
     ok64 ret = OK;
 
     if ($eq(c->verb, v_get) || $eq(c->verb, v_index)) {
-        // Indexing is now driven by keeper calling GRAFUpdate per
-        // object.  Stand-alone `graf index` is a no-op here — the
-        // index is built incrementally as keeper ingests packs.
-        fprintf(stderr,
-            "graf: index is built via DOGUpdate; no action\n");
-        ret = OK;
+        //  Pull every keeper object through graf's DOG.md §8 streaming
+        //  ingest: COMMIT → TREE → BLOB → finish.  Idempotent.
+        ret = GRAFIndex(&KEEP);
+
     } else if ($eq(c->verb, v_blame)) {
         if (c->nuris < 1) {
             fprintf(stderr, "graf: blame requires a file URI\n");
