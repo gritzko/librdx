@@ -284,6 +284,17 @@ ok64 KEEPGetByURI(keeper *k, uricp target, u8bp out) {
     //  expected to fall back to the filesystem.
     if ($empty(target->query) && $empty(target->fragment)) fail(KEEPFAIL);
 
+    //  //?hash — raw blob by hash, no tree descent.  URI has empty
+    //  authority and empty path; query is a hex SHA prefix.
+    if ($empty(target->path) && !$empty(target->query)) {
+        u8 btype = 0;
+        u64 hashlet = WHIFFHexHashlet60(target->query);
+        u8bReset(out);
+        call(KEEPGet, k, hashlet, u8csLen(target->query), out, &btype);
+        if (btype != DOG_OBJ_BLOB) fail(KEEPFAIL);
+        done;
+    }
+
     sha1 root_tree = {};
     call(KEEPResolveTree, k, target, &root_tree);
 
