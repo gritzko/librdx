@@ -167,7 +167,8 @@ static ok64 DELBuild(sha1 *tree_out, sniff *s, keeper *k,
     }
 
     u8cs tree_data = {u8bDataHead(tree), u8bIdleHead(tree)};
-    call(KEEPPackFeed, k, p, DOG_OBJ_TREE, tree_data, tree_out);
+    u8csc nopath = {NULL, NULL};
+    call(KEEPPackFeed, k, p, DOG_OBJ_TREE, tree_data, nopath, tree_out);
     u8bFree(tree);
     done;
 }

@@ -45,12 +45,15 @@ for TAG in $TAGS; do
     #  (exit 149).  Run be first, git reference checkout after.
     BE_LOG="$TMILL/be-${TAG}.log"
     set +e
-    timeout 180 be get "//${HOST}/${REPO_REL}?tags/${TAG}" > "$BE_LOG" 2>&1
+    #  10-min ceiling: the full chain is keeper fetch + sniff checkout
+    #  + spot reindex.  Spot's first-tag full reindex of ~3k git source
+    #  files is the slow leg; later tags are incremental.
+    timeout 600 be get "//${HOST}/${REPO_REL}?tags/${TAG}" > "$BE_LOG" 2>&1
     BE_STATUS=$?
     set -e
     grep -v "^keeper: round" "$BE_LOG" || true
     if [ "$BE_STATUS" -eq 124 ]; then
-        echo "FAIL: $TAG (be get timed out after 180s)"
+        echo "FAIL: $TAG (be get timed out after 600s)"
         FAIL=$((FAIL + 1))
         continue
     fi

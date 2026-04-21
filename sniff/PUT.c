@@ -171,7 +171,8 @@ static ok64 POSTBuild(sha1 *tree_out, sniff *s, keeper *k,
                     FILEClose(&fd);
                 }
                 u8cs blob = {u8bDataHead(content), u8bIdleHead(content)};
-                o = KEEPPackFeed(k, p, DOG_OBJ_BLOB, blob, &file_sha);
+                u8csc bpath = {full_rel[0], full_rel[1]};
+                o = KEEPPackFeed(k, p, DOG_OBJ_BLOB, blob, bpath, &file_sha);
                 u8bFree(content);
                 if (o != OK) { u8bFree(tree); return o; }
 
@@ -218,7 +219,8 @@ static ok64 POSTBuild(sha1 *tree_out, sniff *s, keeper *k,
     }
 
     u8cs tree_data = {u8bDataHead(tree), u8bIdleHead(tree)};
-    call(KEEPPackFeed, k, p, DOG_OBJ_TREE, tree_data, tree_out);
+    u8csc nopath = {NULL, NULL};
+    call(KEEPPackFeed, k, p, DOG_OBJ_TREE, tree_data, nopath, tree_out);
     u8bFree(tree);
     done;
 }

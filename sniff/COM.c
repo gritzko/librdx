@@ -169,7 +169,8 @@ static ok64 com_build_tree(sniff *s, keeper *k, keep_pack *p,
                     FILEClose(&fd);
                 }
                 u8cs blob = {u8bDataHead(content), u8bIdleHead(content)};
-                o = KEEPPackFeed(k, p, DOG_OBJ_BLOB, blob, &e->sha);
+                u8csc bpath = {full_rel[0], full_rel[1]};
+                o = KEEPPackFeed(k, p, DOG_OBJ_BLOB, blob, bpath, &e->sha);
                 u8bFree(content);
                 if (o != OK) return o;
             } else {
@@ -239,7 +240,8 @@ static ok64 com_build_tree(sniff *s, keeper *k, keep_pack *p,
     }
 
     u8cs tree_data = {u8bDataHead(tree), u8bIdleHead(tree)};
-    call(KEEPPackFeed, k, p, DOG_OBJ_TREE, tree_data, sha_out);
+    u8csc nopath = {NULL, NULL};
+    call(KEEPPackFeed, k, p, DOG_OBJ_TREE, tree_data, nopath, sha_out);
     u8bFree(tree);
     done;
 }
@@ -363,7 +365,8 @@ ok64 COMCommit(u8cs reporoot,
     u8bFeed1(com, '\n');
 
     u8cs com_data = {u8bDataHead(com), u8bIdleHead(com)};
-    call(KEEPPackFeed, k, &p, DOG_OBJ_COMMIT, com_data, sha_out);
+    u8csc nopath = {NULL, NULL};
+    call(KEEPPackFeed, k, &p, DOG_OBJ_COMMIT, com_data, nopath, sha_out);
     u8bFree(com);
 
     call(KEEPPackClose, k, &p);

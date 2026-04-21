@@ -15,8 +15,13 @@ add_library(snifflib STATIC
     ../abc/FSW.c)
 target_link_libraries(snifflib keeplib gitcompat dog abc-core)
 
+#  sniff-cli mirrors keeper-cli's indexer fan-out (see SNIFF.cli.c) so
+#  every object KEEPPackFeed writes during a local commit also reaches
+#  graf/spot via DOGUpdate.  graflib + spotlib are forward-resolved at
+#  generate-time even though their subdirs are added earlier in the
+#  top-level CMakeLists.
 add_executable(sniff-cli SNIFF.cli.c)
-target_link_libraries(sniff-cli snifflib)
+target_link_libraries(sniff-cli graflib spotlib snifflib)
 set_target_properties(sniff-cli PROPERTIES OUTPUT_NAME sniff RUNTIME_OUTPUT_DIRECTORY ${DOG_BIN_DIR})
 
 add_subdirectory(test)

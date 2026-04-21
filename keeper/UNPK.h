@@ -75,4 +75,12 @@ typedef struct {
 ok64 UNPKIndex(keeper *k, unpk_in const *in,
                Bwh128 out, unpk_stats *stats);
 
+//  Process-wide indexer hook.  When set, KEEPIngestFile threads these
+//  into UNPKIndex's emit so a CLI (or embedder) can fan every resolved
+//  object out to whatever indexes live in the same process — graf/spot
+//  etc.  NULL by default; the keeper library never installs anything
+//  itself, to avoid pulling graflib/spotlib into keeplib.
+extern unpk_emit_fn keep_indexer_emit;
+extern void        *keep_indexer_ctx;
+
 #endif

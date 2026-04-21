@@ -226,8 +226,11 @@ typedef struct {
 ok64 KEEPPackOpen(keeper *k, keep_pack *p);
 
 //  Feed one object.  sha_out receives the 20-byte git SHA-1.
+//  `path` is repo-relative for blobs (drives spot's tokenizer choice
+//  and graf's PATH_VER entries via the indexer fan-out), empty for
+//  commits/trees/tags.
 ok64 KEEPPackFeed(keeper *k, keep_pack *p,
-                  u8 type, u8csc content, sha1 *sha_out);
+                  u8 type, u8csc content, u8csc path, sha1 *sha_out);
 
 ok64 KEEPPackClose(keeper *k, keep_pack *p);
 

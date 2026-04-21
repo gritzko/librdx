@@ -168,8 +168,15 @@ ok64 UNPKIndex(keeper *k, unpk_in const *in,
     kv64s sha2idx = {NULL, NULL};
     b8  with_paths = (in->emit != NULL);
     if (with_paths) {
-        u64 tblsz = (u64)count * 2;
+        //  One entry per commit's root-tree, plus one per tree-entry
+        //  (a tree typically holds 5-50 entries) — sized at 8x count
+        //  to keep load factor low.  HASH probes within ABC_HASH_LINE
+        //  (=16) cells, so the allocation length must be a multiple of
+        //  16 or a final-line probe walks past the buffer end (caught
+        //  here by ASan as a heap-buffer-overflow before this fix).
+        u64 tblsz = (u64)count * 8;
         if (tblsz < 256) tblsz = 256;
+        tblsz = (tblsz + 15) & ~(u64)15;
         s2p = calloc(tblsz, sizeof(kv64));
         if (!s2p) with_paths = NO;
         else { sha2idx[0] = s2p; sha2idx[1] = s2p + tblsz; }

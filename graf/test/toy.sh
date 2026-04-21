@@ -97,6 +97,21 @@ ENTRIES=$(echo "$SOUT" | sed -n 's/.*run(s), \([0-9]*\) entries.*/\1/p')
 note "index holds ${ENTRIES} entries across 3 commits"
 
 # ------------------------------------------------------------------
+#  2a.  Indexes on disk — both graf and spot must have persisted
+#       index files under .dogs/ after three `be post`s + `graf index`.
+#       The lock file alone doesn't count; require ≥1 *.idx.
+# ------------------------------------------------------------------
+GRAF_IDX_N=$(find "$R/.dogs/graf" -maxdepth 1 -name '*.idx' 2>/dev/null | wc -l)
+[ "$GRAF_IDX_N" -ge 1 ] \
+    || fail "graf: no .idx under .dogs/graf/ (found only: $(ls -A "$R/.dogs/graf" 2>/dev/null | tr '\n' ' '))"
+note "graf has $GRAF_IDX_N index run(s) on disk"
+
+SPOT_IDX_N=$(find "$R/.dogs/spot" -maxdepth 1 -name '*.idx' 2>/dev/null | wc -l)
+[ "$SPOT_IDX_N" -ge 1 ] \
+    || fail "spot: no .idx under .dogs/spot/ (found only: $(ls -A "$R/.dogs/spot" 2>/dev/null | tr '\n' ' '))"
+note "spot has $SPOT_IDX_N index run(s) on disk"
+
+# ------------------------------------------------------------------
 #  3.  graf diff — token-level colored diff between v1 and v3.
 # ------------------------------------------------------------------
 echo "=== 3. graf diff v1.c v3.c ==="

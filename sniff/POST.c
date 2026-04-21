@@ -174,9 +174,12 @@ static ok64 repack_emit(keep_pack *mp, u8cs branch, repack_ctx *rc) {
         call(STAGEGet, branch, *th, 15, obuf, &otype);
         sha1 tmp = {};
         a_dup(u8c, body, u8bData(obuf));
-        call(KEEPPackFeed, k, mp, DOG_OBJ_TREE, body, &tmp);
+        u8csc nopath = {NULL, NULL};
+        call(KEEPPackFeed, k, mp, DOG_OBJ_TREE, body, nopath, &tmp);
     }
-    //  Blobs.
+    //  Blobs.  Repack from staging to main log; the original feed in
+    //  PUT/COM has already fan-out'd the indexer with the live path,
+    //  so pass empty here to avoid re-indexing under a wrong path.
     u64cp bh = u64bDataHead(rc->blobs);
     u64cp be = (u64cp)u8bIdleHead((u8bp)rc->blobs);
     for (; bh < be; bh++) {
@@ -185,7 +188,8 @@ static ok64 repack_emit(keep_pack *mp, u8cs branch, repack_ctx *rc) {
         call(STAGEGet, branch, *bh, 15, obuf, &otype);
         sha1 tmp = {};
         a_dup(u8c, body, u8bData(obuf));
-        call(KEEPPackFeed, k, mp, DOG_OBJ_BLOB, body, &tmp);
+        u8csc nopath = {NULL, NULL};
+        call(KEEPPackFeed, k, mp, DOG_OBJ_BLOB, body, nopath, &tmp);
     }
     u8bFree(obuf);
     done;
@@ -219,7 +223,8 @@ ok64 POSTCommit(u8cs reporoot,
             keep_pack sp = {};
             call(STAGEOpen, &sp, branch);
             u8cs empty = {};
-            call(KEEPPackFeed, k, &sp, DOG_OBJ_TREE, empty, &root_tree);
+            u8csc nopath = {NULL, NULL};
+            call(KEEPPackFeed, k, &sp, DOG_OBJ_TREE, empty, nopath, &root_tree);
             call(STAGEClose, &sp, branch);
             base = WHIFFHashlet40(&root_tree);
             SNIFFRecord(SNIFF_TREE, SNIFFRootIdx(), base);
@@ -303,7 +308,8 @@ ok64 POSTCommit(u8cs reporoot,
     call(KEEPPackOpen, k, &mp);
 
     a_dup(u8c, com_data, u8bData(com));
-    ok64 o = KEEPPackFeed(k, &mp, DOG_OBJ_COMMIT, com_data, sha_out);
+    u8csc nopath = {NULL, NULL};
+    ok64 o = KEEPPackFeed(k, &mp, DOG_OBJ_COMMIT, com_data, nopath, sha_out);
     u8bFree(com);
     if (o != OK) { KEEPPackClose(k, &mp); return o; }
 

@@ -117,12 +117,17 @@ static u32 BEReadDogs(char out[][64], u32 maxn) {
 // --- Verb dispatch: forward URI to dogs in order ---
 //
 // Each dog parses the URI and handles its part:
-//   get:    keeper (fetch) → sniff (checkout) → spot (index) → graf (index)
-//   put:    sniff (stage tree) → spot (index) → graf (index)
+//   get:    keeper (fetch) → sniff (checkout)
+//   put:    sniff (stage tree)
 //             [local only — no HEAD move, no ref push]
-//   delete: sniff (stage removal) → spot (index) → graf (index)
+//   delete: sniff (stage removal)
 //             [local only — same as put]
-//   post:   sniff (commit, HEAD move) → keeper (push ref) → spot → graf
+//   post:   sniff (commit, HEAD move) → keeper (push ref)
+//
+// spot and graf are NOT invoked as standalone steps here.  They
+// receive objects exclusively through keeper's streaming DOGUpdate
+// callbacks during fetch/push, so a separate reindex pass is redundant
+// (and raced against keeper's own writes).
 
 typedef struct {
     u8cs dog;
@@ -233,10 +238,6 @@ static ok64 BEGet(cli *c, b8 seq) {
     static dog_step const steps[] = {
         {u8slit("keeper"), u8slit("get"), NO},
         {u8slit("sniff"),  u8slit("get"), NO},
-        {u8slit("spot"),   u8slit("get"), NO},
-        // TEMP: graf-dag step commented out for head-to-head timing vs git
-        // {u8slit("graf"),   u8slit("get"), NO},  // foreground: surface
-        //                          // graf's stderr before the next prompt
     };
     u32 nsteps = sizeof(steps) / sizeof(steps[0]);
     // Skip keeper fetch if no remote (no authority)
@@ -268,15 +269,14 @@ static ok64 BEGet(cli *c, b8 seq) {
 }
 
 //  `be put` stages a new base tree locally — no commit object and no
-//  ref push.  Spot/graf re-index the worktree so search stays current.
+//  ref push.  spot/graf pick up the new blobs from sniff/keeper's
+//  DOGUpdate callbacks; no standalone reindex step is dispatched.
 static ok64 BEPut(cli *c, b8 seq) {
     sane(c);
     static dog_step const steps[] = {
         {u8slit("sniff"),  u8slit("put"), NO},
-        {u8slit("spot"),   u8slit("get"), NO},
-        {u8slit("graf"),   u8slit("get"), YES},
     };
-    return BEDispatch(c, steps, 3, seq);
+    return BEDispatch(c, steps, 1, seq);
 }
 
 //  `be delete` is the mirror of `be put`: stage tree without a file.
@@ -284,10 +284,8 @@ static ok64 BEDelete(cli *c, b8 seq) {
     sane(c);
     static dog_step const steps[] = {
         {u8slit("sniff"),  u8slit("delete"), NO},
-        {u8slit("spot"),   u8slit("get"),    NO},
-        {u8slit("graf"),   u8slit("get"),    YES},
     };
-    return BEDispatch(c, steps, 3, seq);
+    return BEDispatch(c, steps, 1, seq);
 }
 
 //  `be post`:
@@ -303,7 +301,7 @@ static ok64 BEPost(cli *c, b8 seq) {
     for (u32 fi = 0; fi + 1 < c->nflags; fi += 2) {
         if ($eq(c->flags[fi], mf)) { has_msg = YES; break; }
     }
-    dog_step steps[4];
+    dog_step steps[2];
     u32 nsteps = 0;
     if (has_msg) {
         steps[nsteps++] = (dog_step){u8slit("sniff"),  u8slit("post"), NO};
@@ -311,9 +309,6 @@ static ok64 BEPost(cli *c, b8 seq) {
     if (has_remote) {
         steps[nsteps++] = (dog_step){u8slit("keeper"), u8slit("post"), NO};
     }
-    // Re-index: spot and graf always.
-    steps[nsteps++] = (dog_step){u8slit("spot"),  u8slit("get"),  NO};
-    steps[nsteps++] = (dog_step){u8slit("graf"),  u8slit("get"),  YES};
     return BEDispatch(c, steps, nsteps, seq);
 }
 

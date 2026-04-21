@@ -25,6 +25,14 @@
 #include "abc/RON.h"
 #include "dog/DPATH.h"
 #include "dog/HOME.h"
+#include "UNPK.h"
+
+//  Indexer fan-out hook — see UNPK.h.  A CLI that wants spot/graf to
+//  track every object keeper writes installs these before performing
+//  any fetch/post; KEEPIngestFile (via UNPKIndex) and KEEPPackFeed
+//  both call through them.
+unpk_emit_fn keep_indexer_emit = NULL;
+void        *keep_indexer_ctx  = NULL;
 
 // wh128 templates for LSM index runs and waiter buffers
 #define X(M, name) M##wh128##name
@@ -232,12 +240,11 @@ ok64 KEEPOpen(home *h, b8 rw) {
 // ingestion prefer KEEPPackOpen/KEEPPackFeed/KEEPPackClose.
 ok64 KEEPUpdate(keeper *k, u8 obj_type, u8cs blob, u8csc path) {
     sane(k && $ok(blob));
-    (void)path;
     keep_pack p = {};
     call(KEEPPackOpen, k, &p);
     u8csc content = {blob[0], blob[1]};
     sha1 sha = {};
-    ok64 o = KEEPPackFeed(k, &p, obj_type, content, &sha);
+    ok64 o = KEEPPackFeed(k, &p, obj_type, content, path, &sha);
     KEEPPackClose(k, &p);
     return o;
 }
@@ -872,7 +879,7 @@ ok64 KEEPPackOpen(keeper *k, keep_pack *p) {
 }
 
 ok64 KEEPPackFeed(keeper *k, keep_pack *p,
-                  u8 type, u8csc content, sha1 *sha_out) {
+                  u8 type, u8csc content, u8csc path, sha1 *sha_out) {
     sane(k && p && p->log && type >= 1 && type <= 4);
 
     //  Intra-pack order invariant: commit → tree → blob → tag.  Only
@@ -915,6 +922,13 @@ ok64 KEEPPackFeed(keeper *k, keep_pack *p,
     wh128bPush(p->entries, &entry);
 
     p->nobjs++;
+
+    //  Indexer fan-out: same hook UNPKIndex uses on the fetch path.
+    //  Caller passes `path` for blobs (sniff knows it from the staged
+    //  tree entry) and an empty slice for trees/commits/tags.
+    if (keep_indexer_emit)
+        keep_indexer_emit(keep_indexer_ctx, type, sha_out, path, content);
+
     done;
 }
 
@@ -1042,10 +1056,11 @@ ok64 KEEPPut(keeper *k, u8csc *objects, wh64 *whiffs, u32 nobjs) {
     keep_pack p = {};
     call(KEEPPackOpen, k, &p);
 
+    u8csc nopath = {NULL, NULL};
     for (u32 i = 0; i < nobjs; i++) {
         u8 type = wh64Type(whiffs[i]);
         sha1 sha = {};
-        ok64 o = KEEPPackFeed(k, &p, type, objects[i], &sha);
+        ok64 o = KEEPPackFeed(k, &p, type, objects[i], nopath, &sha);
         if (o != OK) {
             if (p.log) FILEUnBook(p.log);
             wh128bFree(p.entries);
@@ -1340,8 +1355,6 @@ ok64 KEEPImport(keeper *k, u8cs pack_path) {
 // produced had the pack been built locally.  k->packs / k->runs are
 // updated so later KEEPGet / KEEPHas see the new objects.
 
-#include "UNPK.h"
-
 ok64 KEEPIngestFile(keeper *k, u8csc bytes) {
     sane(k && $ok(bytes));
     u64 file_len = u8csLen(bytes);
@@ -1410,8 +1423,8 @@ ok64 KEEPIngestFile(keeper *k, u8csc bytes) {
         .scan_end = file_len,
         .count = ph.count,
         .file_id = file_id,
-        .emit = NULL,
-        .emit_ctx = NULL,
+        .emit = keep_indexer_emit,
+        .emit_ctx = keep_indexer_ctx,
     };
     unpk_stats ust = {};
     call(UNPKIndex, k, &uin, entries, &ust);
@@ -2011,318 +2024,57 @@ got_pack:
     u8cp packbase = u8bDataHead(k->packs[k->npacks - 1]);
     u64 packlen = (u64)(u8bIdleHead(k->packs[k->npacks - 1]) - packbase);
 
-    // Scan pack: record offsets + types
+    //  Scan + index the pack via UNPKIndex — same code path as
+    //  KEEPIngestFile, so the per-object emit hook (graf/spot fan-out
+    //  installed by the keeper CLI) fires here too.  The earlier
+    //  in-line DFS/delta loop has been removed; UNPKIndex is the single
+    //  source of truth for pack scanning, including thin-pack REF_DELTA
+    //  resolution against earlier packs in the LSM.
     {
-        u64 *offsets = calloc(hdr.count, sizeof(u64));
-        u8 *types_arr = calloc(hdr.count, 1);
-        if (!offsets || !types_arr) { free(offsets); free(types_arr); goto sync_fail; }
+        Bwh128 entries = {};
+        if (wh128bAllocate(entries, (u64)hdr.count + 16) != OK)
+            goto sync_fail;
 
-        // Start scanning where new objects begin.
-        // Fresh pack has 12-byte header + objects + 20-byte SHA1 trailer.
-        // Appended data is raw objects, no header or trailer.
+        //  Fresh fetch starts at byte 12 (after PACK header) and ends
+        //  20 bytes early to skip git's trailing SHA-1.  Append mode:
+        //  pure object bytes from append_offset to packlen, no header
+        //  or trailer.
         u64 scan_start = appending ? append_offset : 12;
-        u64 data_end = appending ? packlen : (packlen >= 20 ? packlen - 20 : packlen);
-        u8cs scan = {packbase + scan_start, packbase + data_end};
-        u32 scanned = 0;
-        for (u32 i = 0; i < hdr.count; i++) {
-            offsets[i] = scan[0] - packbase;
-            pack_obj obj = {};
-            if (PACKDrainObjHdr(scan, &obj) != OK) {
-                fprintf(stderr, "keeper: scan hdr fail at %u off %llu remaining %llu\n",
-                        i, (unsigned long long)(scan[0] - packbase),
-                        (unsigned long long)$len(scan));
-                break;
-            }
-            types_arr[i] = obj.type;
-            u8bReset(k->buf1);
-            ok64 zr = ZINFInflate(u8bIdle(k->buf1), scan);
-            if (zr != OK) {
-                fprintf(stderr, "keeper: scan inflate fail at %u: %s type=%u "
-                        "size=%llu remaining=%llu\n",
-                        i, ok64str(zr), obj.type, (unsigned long long)obj.size,
-                        (unsigned long long)u8csLen(scan));
-                break;
-            }
-            scanned++;
-        }
-        if (scanned < hdr.count)
-            fprintf(stderr, "keeper: scan incomplete: %u/%u objects\n",
-                    scanned, hdr.count);
-
-        // DFS indexing: build delta dependency tree, walk depth-first.
-        // Each object inflated exactly once, max chain_depth in RAM.
-
-        pack_node *nodes = calloc(hdr.count + 1, sizeof(pack_node));  // 1-based
-        wh128 *sorted_entries = malloc(hdr.count * sizeof(wh128));
-        if (!nodes || !sorted_entries) {
-            free(nodes); free(sorted_entries);
-            free(offsets); free(types_arr);
+        u64 scan_end   = appending
+            ? packlen
+            : (packlen >= 20 ? packlen - 20 : packlen);
+        unpk_in uin = {
+            .pack       = {packbase, packbase + packlen},
+            .scan_start = scan_start,
+            .scan_end   = scan_end,
+            .count      = hdr.count,
+            .file_id    = file_id,
+            .emit       = keep_indexer_emit,
+            .emit_ctx   = keep_indexer_ctx,
+        };
+        unpk_stats ust = {};
+        ok64 ux = UNPKIndex(k, &uin, entries, &ust);
+        if (ux != OK) {
+            fprintf(stderr, "keeper: UNPKIndex failed: %s\n", ok64str(ux));
+            wh128bFree(entries);
             goto sync_fail;
         }
 
-        // Build tree: map offset → index for OFS_DELTA parent lookup
-        for (u32 i = 0; i < hdr.count; i++)
-            nodes[i + 1].offset = offsets[i];
-
-        // Phase 1: link OFS_DELTA by offset
-        for (u32 i = 0; i < hdr.count; i++) {
-            if (types_arr[i] != PACK_OBJ_OFS_DELTA) continue;
-            pack_obj obj = {};
-            u8cs from = {packbase + offsets[i], packbase + packlen};
-            if (PACKDrainObjHdr(from, &obj) != OK) continue;
-            u64 base_off = offsets[i] - obj.ofs_delta;
-            u32 lo = 0, hi = hdr.count;
-            while (lo < hi) {
-                u32 mid = lo + (hi - lo) / 2;
-                if (offsets[mid] < base_off) lo = mid + 1;
-                else hi = mid;
-            }
-            if (lo < hdr.count && offsets[lo] == base_off) {
-                u32 parent = lo + 1, me = i + 1;
-                nodes[me].sibling = nodes[parent].child;
-                nodes[parent].child = me;
-            }
-        }
-
-        // Resolve base objects, then single-pass DFS with sorted
-        // waiter buffer for REF_DELTA reverse index.
-        u32 total_indexed = 0;
-        u32 skipped = 0;
-        b8 *resolved = calloc(hdr.count + 1, 1);
-
-        // REF_DELTA waiters: sorted wh128 array {sha_prefix, 1-based idx}.
-        // Binary search + scan replaces hash table (no collisions).
-        Bwh128 waiters_buf = {};
-        wh128bAllocate(waiters_buf, hdr.count);
-
-        for (u32 i = 0; i < hdr.count; i++) {
-            if (types_arr[i] != PACK_OBJ_REF_DELTA) continue;
-            pack_obj obj = {};
-            u8cs from = {packbase + offsets[i], packbase + packlen};
-            if (PACKDrainObjHdr(from, &obj) != OK) {
-                fprintf(stderr, "keeper: waiter: hdr fail at %u\n", i);
-                skipped++; continue;
-            }
-            u64 sha_key = 0;
-            memcpy(&sha_key, obj.ref_delta[0], 8);
-            wh128 w = { .key = sha_key, .val = i + 1 };
-            wh128bPush(waiters_buf, &w);
-        }
-
-        // Sort waiters for binary search
-        a_dup(wh128, wsorted, wh128bData(waiters_buf));
-        wh128sSort(wsorted);
-        wh128cs waiters = {wsorted[0], wsorted[1]};
-
-        // Resolve base objects (types 1-4), drain waiters into DFS tree
-        u8bReset(k->buf1);
-        for (u32 i = 0; i < hdr.count; i++) {
-            if (types_arr[i] < 1 || types_arr[i] > 4) continue;
-            pack_obj obj = {};
-            u8cs from = {packbase + offsets[i], packbase + packlen};
-            if (PACKDrainObjHdr(from, &obj) != OK) { skipped++; continue; }
-            if (obj.size > u8bIdleLen(k->buf1)) { skipped++; continue; }
-            u8p cs = u8bIdleHead(k->buf1);
-            u8s into = {cs, u8bTerm(k->buf1)};
-            if (PACKInflate(from, into, obj.size) != OK) { skipped++; continue; }
-            sha1 sha = {};
-            { u8csc _c = {cs, cs + obj.size}; keep_git_sha1(&sha, obj.type, _c); }
-            u64 sha_key = 0;
-            memcpy(&sha_key, sha.data, 8);
-            sorted_entries[total_indexed].key =
-                keepKeyPack(types_arr[i], WHIFFHashlet60(&sha));
-            sorted_entries[total_indexed].val =
-                wh64Pack(KEEP_VAL_FLAGS, file_id, offsets[i]);
-            total_indexed++;
-            resolved[i + 1] = YES;
-            keep_drain_waiters(waiters, nodes, resolved, sha_key, i + 1);
-            // Don't advance buf1 — reuse space for next base
-        }
-
-        u32 base_count = total_indexed;
-        fprintf(stderr, "keeper: %u base objects resolved\n", base_count);
-
-        // Single-pass DFS: walk from each base with children.
-        // After resolving each child, drain its waiters from the
-        // sorted waiter buffer into the DFS tree.
-        sha1 sha = {};
-        #define MAX_CHAIN 64
-        struct { u8p d_start; u8p d_end; u32 node; u8 base_type; } stk[MAX_CHAIN];
-
-        for (u32 root_idx = 1; root_idx <= hdr.count; root_idx++) {
-            if (!nodes[root_idx].child) continue;
-            if (!resolved[root_idx]) continue;
-            if (types_arr[root_idx - 1] < 1 || types_arr[root_idx - 1] > 4) continue;
-
-            u8 root_type = types_arr[root_idx - 1];
-            u8bReset(k->buf1);
-            pack_obj obj = {};
-            u8cs from = {packbase + offsets[root_idx - 1], packbase + packlen};
-            if (PACKDrainObjHdr(from, &obj) != OK) { skipped++; continue; }
-            if (obj.size > u8bIdleLen(k->buf1)) { skipped++; continue; }
-            u8p cs = u8bIdleHead(k->buf1);
-            u8s rinto = {cs, u8bTerm(k->buf1)};
-            if (PACKInflate(from, rinto, obj.size) != OK) { skipped++; continue; }
-            u8bFed(k->buf1, obj.size);
-
-            int top = 0;
-            stk[0].d_start = cs;
-            stk[0].d_end = cs + obj.size;
-            stk[0].node = root_idx;
-            stk[0].base_type = root_type;
-
-            while (top >= 0) {
-                u32 cur = stk[top].node;
-                u32 child = nodes[cur].child;
-                if (!child) {
-                    if (top > 0)
-                        ((u8**)k->buf1)[2] = stk[top].d_start;
-                    top--;
-                    continue;
-                }
-
-                nodes[cur].child = nodes[child].sibling;
-
-                if (top + 1 >= MAX_CHAIN) {
-                    fprintf(stderr, "keeper: chain depth %d exceeded\n", MAX_CHAIN);
-                    skipped++; continue;
-                }
-
-                u8p base_s = stk[top].d_start;
-                u64 base_sz = (u64)(stk[top].d_end - stk[top].d_start);
-
-                pack_obj dobj = {};
-                u8cs dfrom = {packbase + offsets[child - 1], packbase + packlen};
-                ok64 _ho = PACKDrainObjHdr(dfrom, &dobj);
-                if (_ho != OK) {
-                    fprintf(stderr, "keeper: DFS hdr fail at offset %llu: %s\n",
-                            (unsigned long long)offsets[child - 1], ok64str(_ho));
-                    skipped++; continue;
-                }
-
-                if (dobj.size > KEEP_BUFSZ / 2) {
-                    fprintf(stderr, "keeper: object too large (%llu)\n",
-                            (unsigned long long)dobj.size);
-                    skipped++; continue;
-                }
-                u8s dinto = {objbuf, objbuf + KEEP_BUFSZ / 2};
-                ok64 _io = PACKInflate(dfrom, dinto, dobj.size);
-                if (_io != OK) {
-                    fprintf(stderr, "keeper: inflate fail: %s\n", ok64str(_io));
-                    skipped++; continue;
-                }
-
-                u8cs delta_sl = {objbuf, objbuf + dobj.size};
-                u8cs base_sl = {base_s, base_s + base_sz};
-                u8p rstart = u8bIdleHead(k->buf1);
-                u8g aout = {rstart, rstart, u8bTerm(k->buf1)};
-                ok64 _do = DELTApply(delta_sl, base_sl, aout);
-                if (_do != OK) {
-                    fprintf(stderr, "keeper: delta apply fail: %s\n", ok64str(_do));
-                    skipped++; continue;
-                }
-                u64 rsz = u8gLeftLen(aout);
-                u8bFed(k->buf1, rsz);
-
-                { u8csc _c = {rstart, rstart + rsz}; keep_git_sha1(&sha, stk[0].base_type, _c); }
-                sorted_entries[total_indexed].key =
-                    keepKeyPack(stk[0].base_type, WHIFFHashlet60(&sha));
-                sorted_entries[total_indexed].val =
-                    wh64Pack(KEEP_VAL_FLAGS, file_id, offsets[child - 1]);
-                total_indexed++;
-                resolved[child] = YES;
-
-                u64 sha_key = 0;
-                memcpy(&sha_key, sha.data, 8);
-                keep_drain_waiters(waiters, nodes, resolved, sha_key, child);
-
-                top++;
-                stk[top].d_start = rstart;
-                stk[top].d_end = rstart + rsz;
-                stk[top].node = child;
-                stk[top].base_type = stk[0].base_type;
-            }
-        }
-
+        u32 deltas = ust.indexed > ust.base_count
+                         ? ust.indexed - ust.base_count : 0;
+        fprintf(stderr, "keeper: %u base objects resolved\n", ust.base_count);
         fprintf(stderr, "keeper: DFS indexed %u deltas from %u bases\n",
-                total_indexed - base_count, base_count);
-
-        wh128bFree(waiters_buf);
-
-        // Cross-pack REF_DELTA resolution: unresolved deltas whose base
-        // is in a previously-fetched pack (thin pack support).
-        {
-            u32 cross_resolved = 0;
-            for (u32 i = 0; i < hdr.count; i++) {
-                if (resolved[i + 1]) continue;
-                if (types_arr[i] != PACK_OBJ_REF_DELTA) continue;
-
-                pack_obj obj = {};
-                u8cs from = {packbase + offsets[i], packbase + packlen};
-                if (PACKDrainObjHdr(from, &obj) != OK) continue;
-
-                // Look up base in full keeper index (previous packs)
-                u64 base_hashlet = WHIFFHashlet60((sha1cp)obj.ref_delta[0]);
-                u8 base_type = 0;
-                u8bReset(k->buf3);
-                ok64 go = KEEPGet(k, base_hashlet, 15, k->buf3, &base_type);
-                if (go != OK) continue;
-
-                // Inflate this delta
-                u8bReset(k->buf4);
-                if (obj.size > KEEP_BUFSZ / 2) continue;
-                u64 idle_before = u8bIdleLen(k->buf4);
-                if (ZINFInflate(u8bIdle(k->buf4), from) != OK) continue;
-                u64 produced = idle_before - u8bIdleLen(k->buf4);
-                if (produced == 0) continue;
-                u8bFed(k->buf4, produced);
-
-                // Apply delta
-                a_dup(u8c, delta_sl, u8bDataC(k->buf4));
-                a_dup(u8c, base_sl, u8bData(k->buf3));
-                u8p rstart = u8bIdleHead(k->buf1);
-                u8g aout = {rstart, rstart, u8bTerm(k->buf1)};
-                if (DELTApply(delta_sl, base_sl, aout) != OK) continue;
-                u64 rsz = u8gLeftLen(aout);
-
-                // Compute SHA
-                sha1 sha = {};
-                { u8csc _c = {rstart, rstart + rsz}; keep_git_sha1(&sha, base_type, _c); }
-                sorted_entries[total_indexed].key =
-                    keepKeyPack(base_type, WHIFFHashlet60(&sha));
-                sorted_entries[total_indexed].val =
-                    wh64Pack(KEEP_VAL_FLAGS, file_id, offsets[i]);
-                total_indexed++;
-                cross_resolved++;
-                resolved[i + 1] = YES;
-            }
-            if (cross_resolved > 0)
-                fprintf(stderr, "keeper: cross-pack: resolved %u REF_DELTAs\n",
-                        cross_resolved);
-        }
-
-        // Diagnostic: count unresolved by type
-        {
-            u32 unres_ofs = 0, unres_ref = 0, unres_base = 0, unres_noscan = 0;
-            for (u32 i = 0; i < hdr.count; i++) {
-                if (resolved[i + 1]) continue;
-                if (types_arr[i] == 0) unres_noscan++;
-                else if (types_arr[i] == PACK_OBJ_OFS_DELTA) unres_ofs++;
-                else if (types_arr[i] == PACK_OBJ_REF_DELTA) unres_ref++;
-                else unres_base++;
-            }
-            if (unres_ofs || unres_ref || unres_base || unres_noscan)
-                fprintf(stderr, "keeper: unresolved: %u ofs, %u ref, %u base, %u unscannable\n",
-                        unres_ofs, unres_ref, unres_base, unres_noscan);
-        }
-
-        free(resolved);
+                deltas, ust.base_count);
+        if (ust.cross > 0)
+            fprintf(stderr,
+                    "keeper: cross-pack: resolved %u REF_DELTAs\n",
+                    ust.cross);
         fprintf(stderr, "keeper: indexed %u objects (%u skipped)\n",
-                total_indexed, skipped);
+                ust.indexed, ust.skipped);
 
-        // Sort and dedup (wh128 dedup: same key+val only)
-        if (total_indexed > 0) {
-            wh128s sorted = {sorted_entries, sorted_entries + total_indexed};
+        //  Sort, dedup, persist as a new idx run.
+        if (wh128bDataLen(entries) > 0) {
+            a_dup(wh128, sorted, wh128bData(entries));
             wh128sSort(sorted);
             wh128sDedup(sorted);
             u32 nfinal = (u32)(sorted[1] - sorted[0]);
@@ -2344,17 +2096,18 @@ got_pack:
             if (fce != OK) {
                 fprintf(stderr, "keeper: idx create failed\n");
             } else if (fd >= 0) {
-                u8cs data = {(u8cp)sorted_entries, (u8cp)(sorted_entries + nfinal)};
+                u8cs data = {(u8cp)sorted[0],
+                             (u8cp)(sorted[0] + nfinal)};
                 FILEFeedAll(fd, data);
                 close(fd);
             }
 
-            // Mmap into keeper's runs
             u8bp mapped = NULL;
             if (FILEMapRO(&mapped, $path(idxpath)) == OK &&
                 k->nruns < KEEP_MAX_LEVELS) {
                 wh128cp base = (wh128cp)u8bDataHead(mapped);
-                size_t n = (u8bIdleHead(mapped) - u8bDataHead(mapped)) / sizeof(wh128);
+                size_t n = (u8bIdleHead(mapped) - u8bDataHead(mapped))
+                           / sizeof(wh128);
                 k->runs[k->nruns][0] = base;
                 k->runs[k->nruns][1] = base + n;
                 k->run_maps[k->nruns] = mapped;
@@ -2364,11 +2117,9 @@ got_pack:
             // TODO: compact LSM if 1/8 invariant violated
         }
 
-        free(sorted_entries);
-        free(nodes);
-        free(offsets);
-        free(types_arr);
+        wh128bFree(entries);
     }
+
 
 sync_done:
     if (packbuf) { FILETrimBook(packbuf); FILEUnBook(packbuf); }
