@@ -1529,6 +1529,11 @@ void SPOTClose(void) {
         if (CAPOResolveDir(capodir, root_s) == OK) {
             a_dup(u8c, dirslice, u8bDataC(capodir));
             CAPOFlushRun(s->entries, dirslice, &s->seqno);
+            //  Maintain the LSM 1/8 ladder: each fresh run on top of
+            //  comparable-sized older runs needs to merge them.  Without
+            //  this, every fetch dropped a new ~17MB run on disk and
+            //  the stack grew unbounded (12 tags → 12 same-size runs).
+            CAPOCompact(dirslice);
         }
         u64bUnMap(s->entries);
     }
