@@ -128,6 +128,12 @@ fun void sha1hexFromSha1(sha1hex *out, sha1 const *s) {
     HEXu8sFeedSome(hs, bs);
 }
 
+fun ok64 sha1FromSha1hex(sha1 *out, sha1hex const *h) {
+    u8s sb = {out->data, out->data + 20};
+    u8cs hx = {h->data, h->data + 40};
+    return HEXu8sDrainSome(sb, hx);
+}
+
 fun b8 sha1hexeq(sha1hexcp a, sha1hexcp b) {
     return memcmp(a->data, b->data, 40) == 0;
 }

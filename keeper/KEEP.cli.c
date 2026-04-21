@@ -29,6 +29,7 @@ static void keeper_indexer_fanout(void *ctx, u8 type,
     SPOTUpdate(type, content, path);
 }
 
+
 ok64 keepercli() {
     sane(1);
     call(FILEInit);

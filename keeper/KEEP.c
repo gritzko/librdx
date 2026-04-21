@@ -39,6 +39,14 @@ void        *keep_indexer_ctx  = NULL;
 #include "abc/QSORTx.h"
 #undef X
 
+// kv64 templates used by the upload-pack negotiation below:
+//   HEAP: priority queue over (log_offset_inverted, sha_table_index)
+//   HASH: visited-sha set, keyed by SHA hashlet60
+#define X(M, name) M##kv64##name
+#include "abc/HEAPx.h"
+#include "abc/HASHx.h"
+#undef X
+
 #define KEEP_BUFSZ (1ULL << 30)  // 1 GB working buffer (mmap'd, pages on demand)
 
 u8c *const KEEP_DIR_S[2] = {
@@ -1519,6 +1527,63 @@ static void keep_git_sha1(sha1 *out, u8 type, u8csc content) {
 // DFS tree node for pack indexing (used by KEEPSync)
 typedef struct { u64 offset; u32 child; u32 sibling; } pack_node;
 
+// ----------------------------------------------------------------
+//  Upload-pack negotiation helpers.  Plain (no multi_ack) mode: the
+//  walker streams `have <sha>` pkt-lines into a scratch buffer which
+//  gets drained to wfd periodically.  No ACK handshake mid-walk —
+//  server buffers everything and computes the pack cutoff once the
+//  caller follows up with `done`.
+// ----------------------------------------------------------------
+
+typedef struct {
+    u8s *ws;        // pkt-line scratch slice (head/term)
+    u8  *wbuf;      // base of scratch (for write-and-rewind)
+    int  wfd;
+    int  total;     // haves sent total
+    ok64 io_err;
+} keep_neg_ctx;
+
+//  Drain the pkt-line scratch buffer to wfd, then rewind it.
+static ok64 keep_sync_drain_buf(keep_neg_ctx *w) {
+    u64 wlen = w->ws[0][0] - w->wbuf;
+    u64 written = 0;
+    while (written < wlen) {
+        u64 chunk = wlen - written;
+        if (chunk > 32768) chunk = 32768;
+        ssize_t n = write(w->wfd, w->wbuf + written, chunk);
+        if (n <= 0) return KEEPFAIL;
+        written += (u64)n;
+    }
+    w->ws[0][0] = w->wbuf;
+    return OK;
+}
+
+//  Walker callback: append `have <sha>\n` to the scratch buffer.
+//  When the scratch is close to full, drain to wfd (no flush packet,
+//  no ACK read — server just buffers the haves and processes them on
+//  `done`).  Return non-OK to stop the walk.
+static ok64 keep_sync_have_cb(void *cb_ctx, sha1hex const *sha) {
+    keep_neg_ctx *w = (keep_neg_ctx *)cb_ctx;
+    if (w->io_err != OK) return FAILSANITY;
+
+    char pay[64];
+    int plen = snprintf(pay, sizeof(pay), "have %.40s\n", sha->data);
+    u8cs payload = {(u8cp)pay, (u8cp)pay + plen};
+    if (PKTu8sFeed(*w->ws, payload) != OK) {
+        //  Scratch full: drain what we have and retry.
+        if (keep_sync_drain_buf(w) != OK) {
+            w->io_err = KEEPFAIL;
+            return FAILSANITY;
+        }
+        if (PKTu8sFeed(*w->ws, payload) != OK) {
+            w->io_err = KEEPFAIL;
+            return FAILSANITY;
+        }
+    }
+    w->total++;
+    return OK;
+}
+
 // Drain one pkt-line from the ref advertisement, refilling buf via
 // FILEDrain on NODATA. adv is a const view tracking the parser cursor:
 // PKTu8sDrain advances adv[0]; this helper extends adv[1] to match the
@@ -1557,6 +1622,171 @@ static ok64 keep_sync_drain_pkt(int rfd, u8b buf, u8cs adv, u8csp line) {
         u8sJoin(u8bIdle(buf), fill);
         adv[1] = u8csTerm(u8bDataC(buf));
     }
+}
+
+//  Extract the parent SHAs from a commit object body.  Reads through
+//  headers via GITu8sDrainCommit (hand-rolled scanner — no Ragel), stops
+//  at the blank line that separates headers from message.  Writes up
+//  to `cap` parent sha1s into `out`, returns count in `*n`.
+static ok64 keep_commit_parents(u8cs body, sha1 *out, u32 *n, u32 cap) {
+    sane(out && n);
+    u8cs scan = {body[0], body[1]};
+    u8cs field = {}, value = {};
+    *n = 0;
+    while (GITu8sDrainCommit(scan, field, value) == OK) {
+        if ($empty(field)) break;  // blank line → commit message follows
+        if ($len(field) != 6 || memcmp(field[0], "parent", 6) != 0)
+            continue;
+        if ($len(value) < 40) continue;
+        if (*n >= cap) break;
+        u8s obin = {out[*n].data, out[*n].data + 20};
+        u8cs hex40 = {value[0], value[0] + 40};
+        if (HEXu8sDrainSome(obin, hex40) != OK) continue;
+        (*n)++;
+    }
+    done;
+}
+
+//  Extract the pointed-to object SHA from a tag body.  Tag bodies
+//  start with `object <hex>\n`.  Same header parser.
+static ok64 keep_tag_target(u8cs body, sha1 *out) {
+    sane(out);
+    u8cs scan = {body[0], body[1]};
+    u8cs field = {}, value = {};
+    while (GITu8sDrainCommit(scan, field, value) == OK) {
+        if ($empty(field)) break;
+        if ($len(field) != 6 || memcmp(field[0], "object", 6) != 0)
+            continue;
+        if ($len(value) < 40) return GITBADFMT;
+        u8s obin = {out->data, out->data + 20};
+        u8cs hex40 = {value[0], value[0] + 40};
+        return HEXu8sDrainSome(obin, hex40);
+    }
+    return GITBADFMT;
+}
+
+//  Priority-queue negotiation: BFS from seed SHAs, walking parent
+//  edges, sending each visited commit as a `have <sha>`.  Heap is
+//  ordered by keeper log offset (newest-ingested first) so recent
+//  commits flood the wire first — that's exactly the ordering git's
+//  own fetch-pack uses, and it lets the server converge to a common
+//  ancestor in one or two rounds for the typical incremental fetch.
+//
+//  Dedup is on pop (we may push a commit once per parent edge that
+//  reaches it).  Seed is the caller's static auto-have list.
+//
+//  Termination: heap empty (all reachable commits/tags enumerated).
+//  Final `done\n` sent by the caller.
+//  Look up a commit's log offset via keeper's LSM (via its 60-bit
+//  hashlet), stash the sha in shatab, push (~offset, idx) onto the
+//  heap.  Key = ~offset makes the default min-on-key heap yield
+//  newest-ingested first.  Caller owns shatab/heap.
+static ok64 keep_sync_push_sha(keeper *k, sha1 const *sha,
+                                sha1 *shatab, u32 *nshatab,
+                                u32 cap, Bkv64 heap_b) {
+    u64 hashlet60 = WHIFFHashlet60(sha);
+    u64 val = 0;
+    if (KEEPLookup(k, hashlet60, 15, &val) != OK) return NONE;
+    if (*nshatab >= cap) return NONE;
+    shatab[*nshatab] = *sha;
+    kv64 e = {.key = ~wh64Off(val), .val = (u64)*nshatab};
+    (*nshatab)++;
+    return HEAPkv64Push1(heap_b, e);
+}
+
+static ok64 keep_sync_parent_walk(keeper *k,
+                                    char const *const *haves,
+                                    keep_neg_ctx *w) {
+    sane(k && w);
+
+    //  Scratch alloc.  256k slots covers ~100k commits at 50% load.
+    #define NEG_CAP      (1U << 18)
+    #define NEG_MAX_SHAS (1U << 18)
+    Bkv64 heap_b    = {};
+    Bkv64 visited_b = {};
+    sha1 *shatab    = NULL;
+    u32   nshatab   = 0;
+    Bu8   body_b    = {};
+    ok64  ret       = OK;
+
+    if (kv64bAllocate(heap_b,    NEG_CAP) != OK) { ret = KEEPNOROOM; goto out; }
+    if (kv64bAllocate(visited_b, NEG_CAP) != OK) { ret = KEEPNOROOM; goto out; }
+    shatab = calloc(NEG_MAX_SHAS, sizeof(sha1));
+    if (!shatab)                               { ret = KEEPNOROOM; goto out; }
+    if (u8bAllocate(body_b, 1U << 20) != OK)   { ret = KEEPNOROOM; goto out; }
+
+    kv64s visited = {kv64bHead(visited_b), kv64bTerm(visited_b)};
+
+    //  Seed from auto-have list (server-advertised ref SHAs we have).
+    if (haves) {
+        for (int hi = 0; haves[hi]; hi++) {
+            sha1 seed = {};
+            u8s sb = {seed.data, seed.data + 20};
+            u8cs hex40 = {(u8cp)haves[hi], (u8cp)haves[hi] + 40};
+            if (HEXu8sDrainSome(sb, hex40) != OK) continue;
+            (void)keep_sync_push_sha(k, &seed, shatab, &nshatab,
+                                     NEG_MAX_SHAS, heap_b);
+        }
+    }
+
+    //  BFS loop.
+    sha1 parents[16];
+    while (!Bempty(heap_b)) {
+        if (w->io_err != OK) break;
+
+        kv64 top = {};
+        if (HEAPkv64Pop(&top, heap_b) != OK) break;
+        u32 idx = (u32)top.val;
+        if (idx >= nshatab) continue;
+        sha1 cur = shatab[idx];
+
+        //  Dedup on pop (visited set keyed by hashlet60).
+        u64 hashlet60 = WHIFFHashlet60(&cur);
+        kv64 vprobe = {.key = hashlet60, .val = 0};
+        if (HASHkv64Get(&vprobe, visited) == OK) continue;
+        kv64 ventry = {.key = hashlet60, .val = 1};
+        HASHkv64Put(visited, &ventry);
+
+        //  Emit have.
+        sha1hex sh = {};
+        sha1hexFromSha1(&sh, &cur);
+        if (keep_sync_have_cb(w, &sh) != OK) break;
+
+        //  Walk the object: commit → push parents, tag → push pointed-
+        //  to object (which recursively resolves to a commit on the
+        //  next iteration).  Anything else: nothing to chase.
+        u8bReset(body_b);
+        u8 type = 0;
+        if (KEEPGetExact(k, &cur, body_b, &type) != OK) continue;
+        u8cs body_s = {u8bDataHead(body_b), u8bIdleHead(body_b)};
+        if (type == DOG_OBJ_COMMIT) {
+            u32 np = 0;
+            if (keep_commit_parents(body_s, parents, &np, 16) != OK)
+                continue;
+            for (u32 i = 0; i < np; i++)
+                (void)keep_sync_push_sha(k, &parents[i], shatab, &nshatab,
+                                         NEG_MAX_SHAS, heap_b);
+        } else if (type == DOG_OBJ_TAG) {
+            sha1 target = {};
+            if (keep_tag_target(body_s, &target) != OK) continue;
+            (void)keep_sync_push_sha(k, &target, shatab, &nshatab,
+                                     NEG_MAX_SHAS, heap_b);
+        }
+    }
+
+    //  Final drain of any batched haves still in the scratch.
+    if (w->io_err == OK && (u64)(w->ws[0][0] - w->wbuf) > 0) {
+        if (keep_sync_drain_buf(w) != OK) w->io_err = KEEPFAIL;
+    }
+
+    if (w->io_err != OK) ret = w->io_err;
+
+out:
+    if (body_b[0])    u8bFree(body_b);
+    if (shatab)       free(shatab);
+    if (visited_b[0]) kv64bFree(visited_b);
+    if (heap_b[0])    kv64bFree(heap_b);
+    return ret;
 }
 
 // Drain REF_DELTA waiters: binary search + scan in sorted wh128 slice.
@@ -1743,25 +1973,50 @@ ok64 KEEPSync(keeper *k, u8cs remote, u8cs origin_uri,
 
     fprintf(stderr, "keeper: %u ref(s), HEAD=%.12s\n", nrefs, head_hex.data);
 
-    // Build want/have negotiation
+    // ----------------------------------------------------------------
+    //  upload-pack negotiation (git multi-round, multi_ack_detailed).
+    //
+    //    wants + flush
+    //    loop:
+    //      haves pulled newest-first off a priority queue (key = log
+    //      offset from keeper's LSM index, so commits we ingested last
+    //      pop first).  Dedup on pop via a visited set.  When popped,
+    //      send as `have <sha>\n`; on batch-fill, flush + read ACK
+    //      lines.  Also load the commit body, parse `parent <hex>`
+    //      headers and push each parent onto the queue.
+    //      Stops on: heap empty, `ACK <sha> ready`, or MAX_IN_VAIN
+    //      consecutive unACKed haves.
+    //    done
+    //
+    //  Seed set: the static auto-have list (`haves[]`) — server-
+    //  advertised ref SHAs whose object we already have locally.
+    //  That's where the graph walk starts; the parent-chain expansion
+    //  covers cases where our tips are ahead of the server's (so the
+    //  server needs to see an older common ancestor) or vice versa.
+    //  Pack-receive code below is unchanged.
+    // ----------------------------------------------------------------
+    int nhave_sent = 0;
+
     {
         #define NEGBUF (1 << 20)  // 1MB for want/have pkt-lines
         u8 *wbuf = malloc(NEGBUF);
         if (!wbuf) goto sync_fail;
         u8s ws = {wbuf, wbuf + NEGBUF};
         b8 first_want = YES;
+        //  No multi_ack_detailed: with it, the server sends back ACK
+        //  round-trips interleaved with our haves, which means we'd
+        //  have to read/handshake mid-walk to avoid pipe-buffer dead-
+        //  lock when the walk pushes tens of thousands of haves.
+        //  Sticking to the plain protocol: client sends all haves +
+        //  done, server computes cutoff once, sends pack.  No ACKs
+        //  mid-flight, no handshake state machine.
+        char const *first_caps = "no-progress";
 
         if (wants) {
-            // Specific wants: match by SHA or ref name against advertised.
-            // The `refs/` prefix is redundant on the CLI — a short name
-            // like `dogs-sniff` matches `refs/heads/dogs-sniff` via
-            // trailing-segment (`/<wi>` suffix) compare.  Preference
-            // order: exact > heads/tag under refs/heads or refs/tags >
-            // any other trailing match.
             for (int wi = 0; wants[wi]; wi++) {
                 sha1hex const *sha = NULL;
                 size_t wlen = strlen(wants[wi]);
-                sha1hex const *tail = NULL;  // first generic /tail match
+                sha1hex const *tail = NULL;
                 for (u32 j = 0; j < nrefs; j++) {
                     if (wlen == 40 && memcmp(refs[j].sha.data, wants[wi], 40) == 0) {
                         sha = &refs[j].sha; break;
@@ -1769,9 +2024,6 @@ ok64 KEEPSync(keeper *k, u8cs remote, u8cs origin_uri,
                     if (strcmp(refs[j].name, wants[wi]) == 0) {
                         sha = &refs[j].sha; break;
                     }
-                    // Short-name trailing match: refs[j].name ends with
-                    // `/<wi>`.  Only consider refs/heads/* and
-                    // refs/tags/* to avoid picking up refs/remotes/…
                     size_t nlen = strlen(refs[j].name);
                     if (nlen <= wlen + 1) continue;
                     if (refs[j].name[nlen - wlen - 1] != '/') continue;
@@ -1794,7 +2046,7 @@ ok64 KEEPSync(keeper *k, u8cs remote, u8cs origin_uri,
                 int plen;
                 if (first_want) {
                     plen = snprintf(pay, sizeof(pay),
-                        "want %.40s no-progress\n", sha->data);
+                        "want %.40s %s\n", sha->data, first_caps);
                     first_want = NO;
                 } else {
                     plen = snprintf(pay, sizeof(pay),
@@ -1804,13 +2056,12 @@ ok64 KEEPSync(keeper *k, u8cs remote, u8cs origin_uri,
                 PKTu8sFeed(ws, payload);
             }
         } else {
-            // Want all advertised refs
             for (u32 i = 0; i < nrefs; i++) {
                 char pay[256];
                 int plen;
                 if (first_want) {
                     plen = snprintf(pay, sizeof(pay),
-                        "want %.40s no-progress\n", refs[i].sha.data);
+                        "want %.40s %s\n", refs[i].sha.data, first_caps);
                     first_want = NO;
                 } else {
                     plen = snprintf(pay, sizeof(pay),
@@ -1829,36 +2080,47 @@ ok64 KEEPSync(keeper *k, u8cs remote, u8cs origin_uri,
 
         PKTu8sFeedFlush(ws);
 
-        // Send have lines
-        int nhave_sent = 0;
-        if (haves) {
-            for (int hi = 0; haves[hi]; hi++) {
-                char pay[256];
-                int plen = snprintf(pay, sizeof(pay),
-                    "have %.40s\n", haves[hi]);
-                u8cs payload = {(u8cp)pay, (u8cp)pay + plen};
-                PKTu8sFeed(ws, payload);
-                nhave_sent++;
+        // Helper: drain the wants-pkt-line buffer to the wire.
+        #define KEEP_FLUSH_BUF do {                                     \
+            u64 _wl = ws[0] - wbuf;                                     \
+            u64 _w = 0;                                                 \
+            while (_w < _wl) {                                          \
+                u64 _c = _wl - _w;                                      \
+                if (_c > 32768) _c = 32768;                             \
+                ssize_t _n = write(wfd, wbuf + _w, _c);                 \
+                if (_n <= 0) { free(wbuf); goto sync_fail; }            \
+                _w += (u64)_n;                                          \
+            }                                                           \
+            ws[0] = wbuf;                                               \
+        } while (0)
+        KEEP_FLUSH_BUF;
+
+        {
+            keep_neg_ctx wctx = {
+                .ws = &ws, .wbuf = wbuf,
+                .wfd = wfd,
+                .total = 0,
+                .io_err = OK,
+            };
+
+            ok64 neg_r = keep_sync_parent_walk(k, haves, &wctx);
+            if (neg_r != OK) {
+                free(wbuf); goto sync_fail;
             }
+            nhave_sent = wctx.total;
         }
+
         if (nhave_sent > 0)
             fprintf(stderr, "keeper: sent %d have(s)\n", nhave_sent);
 
+        // `done\n` ends negotiation; server starts sending the pack.
         u8 donepay[] = "done\n";
         u8cs donecs = {donepay, donepay + 5};
         PKTu8sFeed(ws, donecs);
+        KEEP_FLUSH_BUF;
 
-        // Write negotiation in chunks (pipe buffer is ~64K)
-        u64 wlen = ws[0] - wbuf;
-        u64 written = 0;
-        while (written < wlen) {
-            u64 chunk = wlen - written;
-            if (chunk > 32768) chunk = 32768;
-            ssize_t n = write(wfd, wbuf + written, chunk);
-            if (n <= 0) { free(wbuf); goto sync_fail; }
-            written += (u64)n;
-        }
         free(wbuf);
+        #undef KEEP_FLUSH_BUF
     }
     close(wfd);
     wfd = -1;

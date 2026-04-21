@@ -244,7 +244,12 @@ static ok64 keeper_get_remote(keeper *k, cli *c, uri *g) {
         }
     }
 
-    #define MAX_AUTO_HAVES 256
+    //  Auto-haves used to be capped at 256, but a typical git repo
+    //  has ~1k refs (heads + tags) and starving the negotiation made
+    //  the server resend almost the whole pack on every fetch (treadmill
+    //  saw 51MB / 116k objects per incremental tag).  Cap matches the
+    //  static want/have arrays below.
+    #define MAX_AUTO_HAVES MAX_WANTHAVE
     for (u32 i = 0; i < rn && nhaves < MAX_AUTO_HAVES; i++) {
         if (u8csEmpty(rarr[i].val) || *rarr[i].val[0] != '?') continue;
         u8cs val = {rarr[i].val[0] + 1, rarr[i].val[1]};
