@@ -5,6 +5,7 @@ set(CMAKE_C_STANDARD 23)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS on)
 
+find_package(ZLIB REQUIRED)
 
 include_directories(.. .)
 
@@ -27,7 +28,7 @@ list(APPEND SPOT_SOURCES
 
 add_library(spotlib STATIC ${SPOT_HEADERS} ${SPOT_SOURCES})
 target_compile_definitions(spotlib PRIVATE NDEBUG)
-target_link_libraries(spotlib dog abc-core)
+target_link_libraries(spotlib keeplib gitcompat dog abc-core ZLIB::ZLIB)
 
 add_custom_target(spot-version ALL
     COMMAND ${CMAKE_COMMAND}
@@ -41,7 +42,7 @@ add_executable(spot-cli CAPO.cli.c)
 target_compile_definitions(spot-cli PRIVATE NDEBUG)
 target_include_directories(spot-cli PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 add_dependencies(spot-cli spot-version bro-cli)
-target_link_libraries(spot-cli spotlib dog abc-core)
+target_link_libraries(spot-cli spotlib keeplib gitcompat dog abc-core ZLIB::ZLIB)
 set_target_properties(spot-cli PROPERTIES OUTPUT_NAME spot RUNTIME_OUTPUT_DIRECTORY ${DOG_BIN_DIR})
 
 add_subdirectory(test)

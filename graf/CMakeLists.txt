@@ -22,6 +22,7 @@ list(APPEND GRAF_SOURCES
     BLAME.c
     DAG.c
     DIFF.c
+    INDEX.c
     JOIN.c
     MERGE.c
     NEIL.c

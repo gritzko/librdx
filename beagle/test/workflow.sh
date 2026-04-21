@@ -29,8 +29,7 @@ want_file() {
 want_missing() { [ ! -e "$1" ] || fail "$1 should be gone"; }
 
 head_hex() {
-    awk -v p="file://$PWD" -F'\t' '$2==p {sha=$3} END {gsub(/^\?/,"",sha); print sha}' \
-        .dogs/keeper/refs
+    awk -F'\t' 'END {gsub(/^\?/,"",$3); print $3}' .dogs/sniff/at.log
 }
 
 # ------------------------------------------------------------------

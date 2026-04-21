@@ -38,9 +38,25 @@ the pipe. Otherwise it writes plain ASCII directly to stdout via
 | `CAPOIndexFile` | Tokenize one blob, emit trigram+symbol u64 postings |
 | `CAPOCommitAppend` | Append a commit SHA to `.dogs/spot/COMMIT` |
 
-Ingestion is driven by `SPOTUpdate` (DOG 4-fn), which keeper calls
-via the `unpk_emit_fn` hook once per resolved pack object.  There is
-no CLI-driven reindex, post-commit hook, or uncommitted-diff path.
+Ingestion is driven by `spot get` (→ `SPOTIngestNewCommits`), which
+`be` runs after `keeper get` / `sniff get`.  It walks every ref in
+`.dogs/keeper/REFS`, skips commit SHAs already in `.dogs/spot/COMMIT`,
+and for each new commit walks the tree via `KEEPLsFiles` + pulls
+blobs through `KEEPGetExact`, feeding `CAPOIndexFile` per blob.
+`spot get` opens spot rw (set by `spot` CLI when the verb is `get`).
+
+Historic search (`spot … ?ref`) goes through `CAPOScanRef`: resolves
+the ref via keeper, walks the tree, pulls each blob-of-matching-ext,
+and runs the usual grep/pcre/snippet callbacks on the blob content.
+`spot --replace` is refused when `?ref` is set (no on-disk file).
+
+Worktree search uses the trigram filter for speed: paths whose
+path-hash carries no needle-trigram entry are skipped.  Any file that
+shares a path with a previously-indexed blob passes the filter, so
+mutated-but-tracked files are covered (the index accumulates hashes
+across history).  Strictly-untracked brand-new files with novel
+trigrams would be skipped — sniff-changed-file enumeration could
+bypass the filter explicitly; not currently wired.
 
 ## Key functions (SPOT.h)
 

@@ -22,11 +22,10 @@ trap 'rm -rf "$TMP"' EXIT INT TERM
 fail() { echo "FAIL: $*" >&2; exit 1; }
 note() { echo "  - $*"; }
 
-# Current commit of the worktree at $1 = last SHA in keeper refs
-# keyed by `file:///<abs-path>`.
+# Current commit of the worktree at $1 = tail SHA in sniff/at.log.
+# Lines: <ron60-time>\t?<branch>\t?<sha>
 head_hex_of() {
-    awk -v p="file://$1" -F'\t' '$2==p {sha=$3} END {gsub(/^\?/,"",sha); print sha}' \
-        "$1/.dogs/keeper/refs"
+    awk -F'\t' 'END {gsub(/^\?/,"",$3); print $3}' "$1/.dogs/sniff/at.log"
 }
 
 # --- 1. primary ------------------------------------------------------

@@ -181,19 +181,19 @@ ok64 KEEPpackIncremental() {
     keep_pack p = {};
     call(KEEPPackOpen, &KEEP, &p);
 
-    // Feed blob: "hello world\n"
-    // git SHA-1 = 3b18e512dba79e4c8300dd08aeb37f8e728b8dad
+    //  Pre-compute the blob SHA so we can build the tree object
+    //  first (intra-pack order: commit→tree→blob→tag).
+    //  "hello world\n" — git SHA-1 = 3b18e512dba79e4c8300dd08aeb37f8e728b8dad.
     a_cstr(blob_content, "hello world\n");
     sha1 blob_sha = {};
-    call(KEEPPackFeed, &KEEP, &p, DOG_OBJ_BLOB, blob_content, &blob_sha);
+    KEEPObjSha(&blob_sha, DOG_OBJ_BLOB, blob_content);
 
-    // Verify blob SHA matches git
     u8 expected_blob_sha[20] = {
         0x3b,0x18,0xe5,0x12,0xdb,0xa7,0x9e,0x4c,0x83,0x00,
         0xdd,0x08,0xae,0xb3,0x7f,0x8e,0x72,0x8b,0x8d,0xad};
     want(memcmp(blob_sha.data, expected_blob_sha, 20) == 0);
 
-    // Build tree content: "100644 hello.txt\0" + 20-byte blob SHA
+    //  Build tree content: "100644 hello.txt\0" + 20-byte blob SHA.
     a_pad(u8, tree_buf, 256);
     a_cstr(tree_mode, "100644 hello.txt");
     u8bFeed(tree_buf, tree_mode);
@@ -203,7 +203,11 @@ ok64 KEEPpackIncremental() {
 
     a_dup(u8c, tree_content, u8bData(tree_buf));
     sha1 tree_sha = {};
+    //  Feed tree first (type 2), then blob (type 3) — monotone order.
     call(KEEPPackFeed, &KEEP, &p, DOG_OBJ_TREE, tree_content, &tree_sha);
+    sha1 blob_sha2 = {};
+    call(KEEPPackFeed, &KEEP, &p, DOG_OBJ_BLOB, blob_content, &blob_sha2);
+    want(memcmp(blob_sha.data, blob_sha2.data, 20) == 0);
 
     // Verify tree SHA matches git: 68aba62e560c0ebc3396e8ae9335232cd93a3f60
     u8 expected_tree_sha[20] = {

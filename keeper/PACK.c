@@ -8,6 +8,16 @@
 
 static a_cstr(PACK_MAGIC, "PACK");
 
+ok64 PACKu8sFeedHdr(u8s into, u32 count) {
+    sane(u8sOK(into));
+    call(u8sFeed, into, PACK_MAGIC);
+    u32 ver_be = flip32(2);
+    u32 cnt_be = flip32(count);
+    call(u8sFeed32, into, &ver_be);
+    call(u8sFeed32, into, &cnt_be);
+    done;
+}
+
 ok64 PACKDrainHdr(u8cs from, pack_hdr *hdr) {
     sane(u8csOK(from) && hdr);
     if ($size(from) < 12) return NODATA;

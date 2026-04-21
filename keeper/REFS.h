@@ -71,6 +71,12 @@ ok64 REFSResolve(urip resolved, u8bp arena, u8csc dir, u8csc uri);
 //  Record refs from a sync: array of ref records.
 ok64 REFSSyncRecord(u8csc dir, refcp arr, u32 nrefs);
 
+//  Append reflog bytes received from a peer, skipping any line whose
+//  (time, key, val) triple already exists in the local REFS.  Lines
+//  MUST be '\n'-terminated as produced by REFSAppend.  Dedup is
+//  gossip-friendly: ordering is not significant, only triple identity.
+ok64 REFSAppendTail(u8csc dir, u8csc bytes);
+
 //  Load all entries into ref array (latest per key).
 //  Returns count in *out_n.  Entries point into mmap (keep map alive).
 ok64 REFSLoad(refp arr, u32p out_n, u32 max, u8bp *map, u8csc dir);

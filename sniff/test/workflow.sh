@@ -32,11 +32,10 @@ want_missing() {
     [ ! -e "$1" ] || fail "$1 should be gone"
 }
 
-# Current worktree commit = last SHA recorded in keeper refs keyed
-# by `file://<abs-cwd>`.  See REF.md for the convention.
+# Current worktree commit = tail SHA in sniff/at.log.
+# Lines: <ron60-time>\t?<branch>\t?<sha>
 head_hex() {
-    awk -v p="file://$PWD" -F'\t' '$2==p {sha=$3} END {gsub(/^\?/,"",sha); print sha}' \
-        .dogs/keeper/refs
+    awk -F'\t' 'END {gsub(/^\?/,"",$3); print $3}' .dogs/sniff/at.log
 }
 
 # Single pack file under .dogs/keeper/log.  Count objects as a proxy

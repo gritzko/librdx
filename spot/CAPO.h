@@ -76,23 +76,29 @@ ok64 CAPOCompact(u8csc dir);
 // Next available sequence number (max existing + 1)
 ok64 CAPONextSeqno(u64p seqno, u8csc dir);
 
+#include "abc/URI.h"
+
 // Structural code search: needle is a code fragment, ext is file extension.
 // When replace is non-empty, matched regions are replaced and files rewritten.
+// When ref is non-NULL, search historic blobs at that ref via keeper
+// (replace is rejected in this mode — no on-disk path to rewrite).
 ok64 CAPOSpot(u8csc needle, u8csc replace, u8csc ext, u8csc reporoot,
-              u8css files);
+              u8css files, uri const *ref);
 
 // Substring grep across all AST leaves (including comments).
 // ext: optional language filter (empty = all parseable files).
 // ctx_lines: max context lines above/below the match (like diff -C).
+// ref: optional — when set, grep historic blobs at that ref via keeper.
 ok64 CAPOGrep(u8csc substring, u8csc ext, u8csc reporoot, u32 ctx_lines,
-              u8css files);
+              u8css files, uri const *ref);
 
 // Regex grep using Thompson NFA (abc/NFA.h).
 // pattern: regex string (supports . * + ? | () [] \d \w \s {n,m}).
 // Extracts literal substrings for trigram index filtering, then NFA-matches
 // candidate files line by line. Same output format as CAPOGrep.
+// ref: optional — when set, regex-grep historic blobs at that ref.
 ok64 CAPOPcreGrep(u8csc pattern, u8csc ext, u8csc reporoot, u32 ctx_lines,
-                   u8css files);
+                   u8css files, uri const *ref);
 
 // Compact all .idx files into a single run
 ok64 CAPOCompactAll(u8csc dir);
@@ -183,6 +189,13 @@ ok64 SPOTOpen(home *h, b8 rw);
 
 //  Run one CLI invocation.
 ok64 SPOTExec(cli *c);
+
+//  Walk every ref in keeper's REFS that points at a commit not yet
+//  recorded in `.dogs/spot/COMMIT`; index each blob in its tree via
+//  KEEPLsFiles + CAPOIndexFile, then append the commit SHA.  Requires
+//  a rw-opened SPOT.  Idempotent — later invocations skip already-
+//  indexed commits.  Invoked from `spot get` after a keeper fetch.
+ok64 SPOTIngestNewCommits(void);
 
 //  Feed a single git object into spot's trigram/symbol index.
 //  obj_type uses DOG_OBJ_* (== git pack types).  For BLOB, `path`

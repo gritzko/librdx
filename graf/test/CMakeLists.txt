@@ -8,3 +8,11 @@ add_test(NAME GRAFcli_diff_artifact
     COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/diff_test.sh
         $<TARGET_FILE:graf-cli>
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
+#  toy.sh — full-pipeline smoke test: be post x3, graf diff, merge,
+#  blame, weave, index/status.  Exercises dog/DOG.md §8 entry points.
+add_test(NAME GRAFtoy
+    COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/toy.sh
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_tests_properties(GRAFtoy PROPERTIES
+    ENVIRONMENT "BIN=${DOG_BIN_DIR}")

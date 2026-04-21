@@ -88,6 +88,15 @@ static void blame_compact_date(char *out, size_t outsz,
     }
 }
 
+//  graf stores 40-bit hashlets (top 40 bits of SHA-1); keeper stores
+//  60-bit hashlets (top 60 bits) in its LSM keys.  To resolve a graf
+//  hashlet in keeper, left-align into the 60-bit space and do a
+//  40-bit prefix match (hexlen=10).  For the small test repos that
+//  drive us today, 40-bit collisions are vanishingly rare; the
+//  caller further narrows false positives by checking obj_type.
+fun u64 blame_h40_to_h60_prefix(u64 h40) { return h40 << 20; }
+#define BLAME_HEXLEN_40 10
+
 // --- Fetch author + date from commit via keeper ---
 
 static void blame_fetch_author(blame_author *ba, keeper *k,
@@ -98,7 +107,8 @@ static void blame_fetch_author(blame_author *ba, keeper *k,
     Bu8 cbuf = {};
     if (u8bMap(cbuf, 1UL << 20) != OK) return;
     u8 obj_type = 0;
-    if (KEEPGet(k, commit_hashlet, 15, cbuf, &obj_type) != OK ||
+    if (KEEPGet(k, blame_h40_to_h60_prefix(commit_hashlet),
+                BLAME_HEXLEN_40, cbuf, &obj_type) != OK ||
         obj_type != DOG_OBJ_COMMIT) {
         u8bUnMap(cbuf);
         return;
@@ -174,7 +184,8 @@ static ok64 blame_blob_at_commit(u8bp buf, keeper *k,
     Bu8 cbuf = {};
     call(u8bAllocate, cbuf, 1UL << 20);
     u8 ct = 0;
-    ok64 o = KEEPGet(k, commit_hashlet, 15, cbuf, &ct);
+    ok64 o = KEEPGet(k, blame_h40_to_h60_prefix(commit_hashlet),
+                     BLAME_HEXLEN_40, cbuf, &ct);
     if (o != OK || ct != DOG_OBJ_COMMIT) { u8bFree(cbuf); return KEEPNONE; }
 
     // Parse "tree <40-hex>" from header.
@@ -276,9 +287,14 @@ ok64 GRAFBlame(keeper *k, u8cs filepath, u64 tip_h, u8cs reporoot) {
 
     call(GRAFArenaInit);
 
-    // Open DAG index.  keeper already holds a `home` — reuse it.
-    
-    call(GRAFOpen, k->h, NO);
+    //  Open the DAG index.  The CLI entry point may already have
+    //  opened graf in rw mode — GRAFOpen then returns GRAFOPEN (or
+    //  GRAFOPENRO on a downgrade attempt), which is NOT an error.
+    //  We only own the handle (and must close it ourselves) when the
+    //  open actually succeeded here.
+    ok64 go = GRAFOpen(k->h, NO);
+    b8 own_open = (go == OK);
+    if (go != OK && go != GRAFOPEN && go != GRAFOPENRO) return go;
 
     // Ancestry filter — thin wrapper over DAGAncestors.  tip_h == 0
     // leaves the set empty; blame_walk_history treats empty as "no
@@ -484,7 +500,7 @@ ok64 GRAFBlame(keeper *k, u8cs filepath, u64 tip_h, u8cs reporoot) {
     u8bUnMap(outbuf);
     WEAVEFree(&wv);
     if (wh128bHead(ancestors) != wh128bTerm(ancestors)) wh128bFree(ancestors);
-    GRAFClose();
+    if (own_open) GRAFClose();
     GRAFArenaCleanup();
     done;
 }

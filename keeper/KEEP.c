@@ -280,8 +280,12 @@ ok64 KEEPLookup(keeper *k, u64 hashlet60, size_t hexlen, u64p val) {
     u64 hmask = shift < 60 ? (WHIFF_HASHLET60_MASK >> shift) << shift : WHIFF_HASHLET60_MASK;
     u64 hpre = hashlet60 & hmask;
 
-    u64 key_lo = keepKeyPack(0, hpre);
-    u64 key_hi = keepKeyPack(0xf, hpre | (~hmask & WHIFF_HASHLET60_MASK));
+    //  Object lookup: restrict the type range to 1..4.  KEEP_TYPE_PACK
+    //  (0xF) bookmarks share the index but must never be returned as
+    //  objects.  See keeper/LOG.md.
+    u64 key_lo = keepKeyPack(KEEP_OBJ_COMMIT, hpre);
+    u64 key_hi = keepKeyPack(KEEP_OBJ_TAG,
+                             hpre | (~hmask & WHIFF_HASHLET60_MASK));
 
     for (u32 r = 0; r < k->nruns; r++) {
         wh128cp base = k->runs[r][0];
@@ -448,8 +452,9 @@ ok64 KEEPGetExact(keeper *k, sha1 const *sha, u8bp out, u8p out_type) {
     sane(k && sha && out);
 
     u64 hashlet60 = WHIFFHashlet60(sha);
-    u64 key_lo = keepKeyPack(0, hashlet60);
-    u64 key_hi = keepKeyPack(0xf, hashlet60);
+    //  Object lookup: skip KEEP_TYPE_PACK bookmarks (see LOG.md).
+    u64 key_lo = keepKeyPack(KEEP_OBJ_COMMIT, hashlet60);
+    u64 key_hi = keepKeyPack(KEEP_OBJ_TAG, hashlet60);
 
     for (u32 r = 0; r < k->nruns; r++) {
         wh128cp base = k->runs[r][0];
@@ -787,7 +792,14 @@ static void keep_feed_obj_hdr(u8bp buf, u8 type, u64 size) {
 ok64 KEEPPackOpen(keeper *k, keep_pack *p) {
     sane(k && p);
     zerop(p);
-    p->file_id = k->npacks + 1;
+    p->strict_order = YES;
+
+    //  Append-to-log: reuse the tail log file if it exists, else
+    //  create a fresh one.  Log files hold many concatenated packs
+    //  (stripped: one PACK header at offset 0, no trailers, no
+    //  per-pack headers).  See keeper/LOG.md.
+    b8 appending = (k->npacks > 0);
+    p->file_id = appending ? k->npacks : 1;
 
     call(wh128bAllocate, p->entries, KEEP_PACK_MAX_OBJS);
 
@@ -810,14 +822,51 @@ ok64 KEEPPackOpen(keeper *k, keep_pack *p) {
     u8bFeed(packpath, pext);
     PATHu8bTerm(packpath);
 
-    // FILEBook: reserve 1GB VA, create with 4KB initial
-    call(FILEBookCreate, &p->log, $path(packpath),
-         1ULL << 30, 4096);
-
-    // Write PACK header directly into mmap
-    u8 hdr_bytes[12] = {'P','A','C','K', 0,0,0,2, 0,0,0,0};
-    u8cs hdr_s = {hdr_bytes, hdr_bytes + 12};
-    u8bFeed(p->log, hdr_s);
+    if (appending) {
+        //  Existing tail file is mapped read-only in k->packs[];
+        //  replace that mapping with a FILEBook (writable mmap with
+        //  extendable file) so concurrent reads of already-written
+        //  objects still work while this pack is being appended.
+        if (k->packs[p->file_id - 1]) {
+            FILEUnMap(k->packs[p->file_id - 1]);
+            k->packs[p->file_id - 1] = NULL;
+        }
+        call(FILEBook, &p->log, $path(packpath), 16ULL << 30);
+        //  FILEBook sets b[3] to the page-aligned end of the map.  We
+        //  need b[2] at the **actual** file length (not the page-
+        //  aligned tail) so the next append lands right after the last
+        //  object.  And we must materialise real file bytes between
+        //  actual_sz and b[3] (the mmap's page-tail is anonymous until
+        //  ftruncate makes the file long enough) — otherwise writes
+        //  to that tail sit in anonymous pages and never hit disk.
+        size_t actual_sz = 0;
+        int book_fd = FILEBookedFD(p->log);
+        test(book_fd >= 0, FILENOBOOK);
+        call(FILESize, &actual_sz, &book_fd);
+        size_t mapped_sz = (size_t)(p->log[3] - p->log[0]);
+        if (mapped_sz > actual_sz) {
+            call(FILEResize, &book_fd, mapped_sz);
+        }
+        ((u8 **)p->log)[2] = p->log[0] + actual_sz;
+        p->pack_offset = u8bDataLen(p->log);
+        //  Expose the RW view to readers for the duration of the
+        //  pack build — any lookups into this file_id resolve via
+        //  the FILEBook'd buffer, not a stale RO mapping.
+        k->packs[p->file_id - 1] = p->log;
+    } else {
+        //  Fresh log file: reserve 1GB VA, start at 4KB.  Write the
+        //  one-and-only file-level PACK header (count=0, patched on
+        //  each KEEPPackClose).  PACKu8sFeedHdr already advances the
+        //  DATA/IDLE boundary by 12 via its three u8sFeed calls, so
+        //  no further u8bFed is needed — an earlier `u8bFed(12)`
+        //  here double-advanced and left a 12-byte zero gap between
+        //  the header and the first object, which later broke
+        //  UNPKIndex on sync ingest.
+        call(FILEBookCreate, &p->log, $path(packpath),
+             1ULL << 30, 4096);
+        call(PACKu8sFeedHdr, u8bIdle(p->log), 0);
+        p->pack_offset = 12;
+    }
 
     done;
 }
@@ -825,6 +874,13 @@ ok64 KEEPPackOpen(keeper *k, keep_pack *p) {
 ok64 KEEPPackFeed(keeper *k, keep_pack *p,
                   u8 type, u8csc content, sha1 *sha_out) {
     sane(k && p && p->log && type >= 1 && type <= 4);
+
+    //  Intra-pack order invariant: commit → tree → blob → tag.  Only
+    //  enforced for canonical (main-log) packs.  Staging packs toggle
+    //  `strict_order=NO` and feed objects in DFS order; their contents
+    //  are repacked canonically on `be post`.
+    if (p->strict_order) test(type >= p->last_type, ORDERBAD);
+    p->last_type = type;
 
     KEEPObjSha(sha_out, type, content);
 
@@ -837,14 +893,18 @@ ok64 KEEPPackFeed(keeper *k, keep_pack *p,
     a_dup(u8c, oh, u8bData(ohdr));
     u8bFeed(p->log, oh);
 
-    // Deflate content directly into log
+    // Deflate content directly into log.  ZINFDeflate writes into IDLE
+    // head (*u8bIdle advances by zs.total_out), which is the DATA/IDLE
+    // boundary b[2] — so it already advances the boundary.  Do NOT
+    // u8bFed again: an earlier second advance here left a gap of
+    // `total_out` zero bytes after every object on disk, which later
+    // broke UNPKIndex on sync-ingested packs (objects findable via the
+    // index but unparseable by forward scan).
     u64 clen = u8csLen(content);
     u64 need = clen + 256;
     call(FILEBookEnsure, p->log, need);
-    u64 idle_before = u8bIdleLen(p->log);
     a_dup(u8c, zsrc, content);
     call(ZINFDeflate, u8bIdle(p->log), zsrc);
-    u8bFed(p->log, idle_before - u8bIdleLen(p->log));
 
     // Build index entry
     u64 hashlet = WHIFFHashlet60(sha_out);
@@ -861,38 +921,73 @@ ok64 KEEPPackFeed(keeper *k, keep_pack *p,
 ok64 KEEPPackClose(keeper *k, keep_pack *p) {
     sane(k && p && p->log);
 
-    // Patch object count in header (offset 8, 4 bytes big-endian)
+    //  Update file-level PACK header count: add THIS pack's nobjs
+    //  to whatever was already there.  No per-pack headers, no
+    //  per-pack trailers.  See keeper/LOG.md.
     u8p hdr = u8bDataHead(p->log);
-    hdr[8]  = (u8)(p->nobjs >> 24);
-    hdr[9]  = (u8)(p->nobjs >> 16);
-    hdr[10] = (u8)(p->nobjs >> 8);
-    hdr[11] = (u8)(p->nobjs);
+    u32 old_count = ((u32)hdr[8] << 24) | ((u32)hdr[9] << 16) |
+                    ((u32)hdr[10] << 8) | (u32)hdr[11];
+    u32 new_count = old_count + p->nobjs;
+    hdr[8]  = (u8)(new_count >> 24);
+    hdr[9]  = (u8)(new_count >> 16);
+    hdr[10] = (u8)(new_count >> 8);
+    hdr[11] = (u8)(new_count);
 
-    // Compute trailing SHA-1 and append
+    //  Compute a pack hashlet over the stripped object bytes of THIS
+    //  pack (not the whole file).  Dog-native convention; git-compat
+    //  reconstruction in KEEPPush re-hashes over its own framed form.
     sha1 pack_sha = {};
-    a_dup(u8c, pack_data, u8bData(p->log));
-    SHA1Sum(&pack_sha, pack_data);
-    call(FILEBookEnsure, p->log, 20);
-    a_rawc(sha_s, pack_sha);
-    u8bFeed(p->log, sha_s);
+    u8cp file_base = u8bDataHead(p->log);
+    u64 file_len   = u8bDataLen(p->log);
+    u8cs pack_bytes = {file_base + p->pack_offset, file_base + file_len};
+    SHA1Sum(&pack_sha, pack_bytes);
 
-    // Trim file to actual data, keep mmap for reading
+    //  Persist the log, unmap the RW view, re-map RO for readers.
     call(FILETrimBook, p->log);
+    a_path(kdir, u8bDataC(k->h->root), KEEP_DIR_S);
+    a_pad(u8, packpath, 1024);
+    u8bFeed(packpath, $path(kdir));
+    a_cstr(logsep, "/" KEEP_LOG_DIR "/");
+    u8bFeed(packpath, logsep);
+    RONu8sFeedPad(u8bIdle(packpath), (u64)p->file_id, KEEP_SEQNO_W);
+    ((u8 **)packpath)[2] += KEEP_SEQNO_W;
+    a_cstr(pext2, KEEP_PACK_EXT);
+    u8bFeed(packpath, pext2);
+    PATHu8bTerm(packpath);
 
-    // Add to keeper's pack array
-    if (k->npacks < KEEP_MAX_FILES) {
-        k->packs[k->npacks] = p->log;
+    FILEUnBook(p->log);
+    p->log = NULL;
+
+    u8bp ro = NULL;
+    call(FILEMapRO, &ro, $path(packpath));
+    if (p->file_id > k->npacks) {
+        //  New file_id — append to k->packs[].
+        test(k->npacks < KEEP_MAX_FILES, KEEPNOROOM);
+        k->packs[k->npacks] = ro;
         k->npacks++;
-        p->log = NULL;  // ownership transferred
     } else {
-        FILEUnBook(p->log);
+        //  Appended into an existing file — replace its slot.
+        k->packs[p->file_id - 1] = ro;
+    }
+
+    //  Pack bookmark, per keeper/LOG.md layout:
+    //    key = wh64Pack(KEEP_TYPE_PACK, file_id, offset) — sorts by
+    //          (file_id, offset) so enumeration is a forward scan.
+    //    val = hashlet60 | flags4 (spread-packed, same encoding as
+    //          keepKeyPack maps type|hashlet).
+    {
+        u64 pack_hashlet = WHIFFHashlet60(&pack_sha);
+        wh128 bm = {
+            .key = wh64Pack(KEEP_TYPE_PACK, p->file_id, p->pack_offset),
+            .val = keepKeyPack(0, pack_hashlet),
+        };
+        wh128bPush(p->entries, &bm);
     }
 
     // Sort index entries, write .idx file
     a_dup(wh128, sorted, wh128bData(p->entries));
     wh128sSort(sorted);
 
-    a_path(kdir, u8bDataC(k->h->root), KEEP_DIR_S);
     a_cstr(idxdir, "/" KEEP_IDX_DIR);
     a_pad(u8, idxdirpath, 1024);
     u8bFeed(idxdirpath, $path(kdir));
@@ -904,7 +999,12 @@ ok64 KEEPPackClose(keeper *k, keep_pack *p) {
     u8bFeed(idxpath, $path(kdir));
     u8bFeed(idxpath, idxdir);
     u8bFeed1(idxpath, '/');
-    RONu8sFeedPad(u8bIdle(idxpath), (u64)p->file_id, KEEP_SEQNO_W);
+    //  Index seqno is the per-close run counter, not file_id —
+    //  multiple packs appended to the same log file each get their
+    //  own .idx run (LSM).  Old runs remain mapped; the LSM reader
+    //  searches all of them.
+    u32 idx_seq = k->nruns + 1;
+    RONu8sFeedPad(u8bIdle(idxpath), (u64)idx_seq, KEEP_SEQNO_W);
     ((u8 **)idxpath)[2] += KEEP_SEQNO_W;
     a_cstr(iext, KEEP_IDX_EXT);
     u8bFeed(idxpath, iext);
@@ -999,35 +1099,51 @@ ok64 KEEPResolveTree(keeper *k, uricp target, sha1 *tree_sha) {
     }
 
     if (!u8csEmpty(target->query)) {
-        // Resolve ?ref via REFS
+        // Resolve ?ref via REFS.  REFSResolve handles full URIs
+        // (`//auth/path?ref`), alias chains, and the `refs/` / `heads/` /
+        // `tags/` normalisation users expect.  If the target URI has no
+        // authority, we fall back to a bare `?<query>` match (legacy).
         a_path(keepdir, u8bDataC(k->h->root), KEEP_DIR_S);
-        a_pad(u8, qbuf, 256);
-        u8bFeed1(qbuf, '?');
-        u8bFeed(qbuf, target->query);
-        a_dup(u8c, qkey, u8bData(qbuf));
-
-        u8bp rmap = NULL;
-        ref rarr[REFS_MAX_REFS];
-        u32 rn = 0;
-        REFSLoad(rarr, &rn, REFS_MAX_REFS, &rmap, $path(keepdir));
-
         b8 found = NO;
-        for (u32 i = 0; i < rn; i++) {
-            if (REFMatch(&rarr[i], qkey)) {
-                a_dup(u8c, val, rarr[i].val);
-                if (!u8csEmpty(val) && *val[0] == '?')
-                    u8csUsed(val, 1);
-                // val is hex SHA of commit
-                if (u8csLen(val) >= 40) {
-                    u8s sb = {commit_sha.data, commit_sha.data + 20};
-                    u8cs hx = {val[0], val[0] + 40};
-                    ok64 ho = HEXu8sDrainSome(sb, hx);
-                    if (ho == OK) found = YES;
-                }
-                break;
+
+        if (!u8csEmpty(target->authority) && !u8csEmpty(target->data)) {
+            a_pad(u8, arena_buf, 512);
+            uri resolved = {};
+            a_dup(u8c, in_uri, target->data);
+            ok64 ro = REFSResolve(&resolved, arena_buf, $path(keepdir), in_uri);
+            if (ro == OK && u8csLen(resolved.query) >= 40) {
+                u8s sb = {commit_sha.data, commit_sha.data + 20};
+                u8cs hx = {resolved.query[0], resolved.query[0] + 40};
+                if (HEXu8sDrainSome(sb, hx) == OK) found = YES;
             }
         }
-        if (rmap) u8bUnMap(rmap);
+
+        if (!found) {
+            a_pad(u8, qbuf, 256);
+            u8bFeed1(qbuf, '?');
+            u8bFeed(qbuf, target->query);
+            a_dup(u8c, qkey, u8bData(qbuf));
+
+            u8bp rmap = NULL;
+            ref rarr[REFS_MAX_REFS];
+            u32 rn = 0;
+            REFSLoad(rarr, &rn, REFS_MAX_REFS, &rmap, $path(keepdir));
+
+            for (u32 i = 0; i < rn; i++) {
+                if (REFMatch(&rarr[i], qkey)) {
+                    a_dup(u8c, val, rarr[i].val);
+                    if (!u8csEmpty(val) && *val[0] == '?')
+                        u8csUsed(val, 1);
+                    if (u8csLen(val) >= 40) {
+                        u8s sb = {commit_sha.data, commit_sha.data + 20};
+                        u8cs hx = {val[0], val[0] + 40};
+                        if (HEXu8sDrainSome(sb, hx) == OK) found = YES;
+                    }
+                    break;
+                }
+            }
+            if (rmap) u8bUnMap(rmap);
+        }
         if (!found) fail(KEEPNONE);
 
         // Get commit, extract tree SHA
@@ -1212,6 +1328,148 @@ ok64 KEEPImport(keeper *k, u8cs pack_path) {
     FILEUnMap(idx_map);
 
     fprintf(stderr, "keeper: indexed %u objects\n", nentries);
+    done;
+}
+
+// --- Ingest: write received pack-file bytes into keeper's log + index ---
+//
+// One SYNC.md Q record carries a whole keeper log file (PACK header +
+// stripped object records, no git trailer).  We write it as a fresh
+// log/NNN.pack on disk, UNPK-index it, and emit one pack bookmark
+// at offset 12 — identical to what KEEPPackOpen/Close would have
+// produced had the pack been built locally.  k->packs / k->runs are
+// updated so later KEEPGet / KEEPHas see the new objects.
+
+#include "UNPK.h"
+
+ok64 KEEPIngestFile(keeper *k, u8csc bytes) {
+    sane(k && $ok(bytes));
+    u64 file_len = u8csLen(bytes);
+    if (file_len < 12) fail(KEEPFAIL);
+
+    // Parse PACK header → object count
+    pack_hdr ph = {};
+    a_dup(u8c, hscan, bytes);
+    call(PACKDrainHdr, hscan, &ph);
+    if (ph.count == 0) {
+        // An empty pack is legal but has nothing to index; still
+        // persist it so file_id accounting stays monotonic.
+    }
+
+    test(k->npacks < KEEP_MAX_FILES, KEEPNOROOM);
+    u32 file_id = k->npacks + 1;
+
+    // Build paths: log/NNN.pack and idx/NNN.idx
+    a_path(kdir, u8bDataC(k->h->root), KEEP_DIR_S);
+
+    a_pad(u8, logdir, 1024);
+    call(u8bFeed, logdir, $path(kdir));
+    a_cstr(logsep, "/" KEEP_LOG_DIR);
+    call(u8bFeed, logdir, logsep);
+    call(PATHu8bTerm, logdir);
+    call(FILEMakeDirP, $path(logdir));
+
+    a_pad(u8, idxdir, 1024);
+    call(u8bFeed, idxdir, $path(kdir));
+    a_cstr(idxsep, "/" KEEP_IDX_DIR);
+    call(u8bFeed, idxdir, idxsep);
+    call(PATHu8bTerm, idxdir);
+    call(FILEMakeDirP, $path(idxdir));
+
+    a_pad(u8, packpath, 1024);
+    call(u8bFeed, packpath, $path(kdir));
+    call(u8bFeed, packpath, logsep);
+    call(u8bFeed1, packpath, '/');
+    call(RONu8sFeedPad, u8bIdle(packpath), (u64)file_id, KEEP_SEQNO_W);
+    ((u8 **)packpath)[2] += KEEP_SEQNO_W;
+    a_cstr(pext, KEEP_PACK_EXT);
+    call(u8bFeed, packpath, pext);
+    call(PATHu8bTerm, packpath);
+
+    // Write received bytes to disk
+    {
+        int fd = -1;
+        call(FILECreate, &fd, $path(packpath));
+        call(FILEFeedAll, fd, bytes);
+        close(fd);
+    }
+
+    // mmap RO for UNPK + future reads
+    u8bp pack_map = NULL;
+    call(FILEMapRO, &pack_map, $path(packpath));
+
+    // Index the file.  scan_start=12 (after PACK header), scan_end=file_len
+    // (no trailer in stripped format).  file_id = our fresh slot.
+    Bwh128 entries = {};
+    call(wh128bAllocate, entries, (u64)ph.count + 16);
+    u8cs pack_view = {u8bDataHead(pack_map),
+                      u8bDataHead(pack_map) + file_len};
+    unpk_in uin = {
+        .pack = {pack_view[0], pack_view[1]},
+        .scan_start = 12,
+        .scan_end = file_len,
+        .count = ph.count,
+        .file_id = file_id,
+        .emit = NULL,
+        .emit_ctx = NULL,
+    };
+    unpk_stats ust = {};
+    call(UNPKIndex, k, &uin, entries, &ust);
+
+    // Pack bookmark: whole-file, first object starts at offset 12.
+    // hashlet = SHA-1 over the file bytes (PACK header + object bytes).
+    // This matches KEEPPackClose's convention.
+    sha1 pack_sha = {};
+    SHA1Sum(&pack_sha, bytes);
+    {
+        u64 pack_hashlet = WHIFFHashlet60(&pack_sha);
+        wh128 bm = {
+            .key = wh64Pack(KEEP_TYPE_PACK, file_id, 12),
+            .val = keepKeyPack(0, pack_hashlet),
+        };
+        call(wh128bPush, entries, &bm);
+    }
+
+    // Sort + dedup in place, write .idx run
+    a_dup(wh128, sorted, wh128bData(entries));
+    wh128sSort(sorted);
+    wh128sDedup(sorted);
+    u64 nent = wh128sLen(sorted);
+
+    a_pad(u8, idxpath, 1024);
+    call(u8bFeed, idxpath, $path(kdir));
+    call(u8bFeed, idxpath, idxsep);
+    call(u8bFeed1, idxpath, '/');
+    u32 idx_seq = k->nruns + 1;
+    call(RONu8sFeedPad, u8bIdle(idxpath), (u64)idx_seq, KEEP_SEQNO_W);
+    ((u8 **)idxpath)[2] += KEEP_SEQNO_W;
+    a_cstr(iext, KEEP_IDX_EXT);
+    call(u8bFeed, idxpath, iext);
+    call(PATHu8bTerm, idxpath);
+
+    {
+        int ifd = -1;
+        call(FILECreate, &ifd, $path(idxpath));
+        u8cs raw = {(u8cp)sorted[0], (u8cp)(sorted[0] + nent)};
+        call(FILEFeedAll, ifd, raw);
+        close(ifd);
+    }
+    wh128bFree(entries);
+
+    // Register pack mmap + idx mmap with keeper state
+    k->packs[k->npacks] = pack_map;
+    k->npacks++;
+
+    u8bp idx_map = NULL;
+    call(FILEMapRO, &idx_map, $path(idxpath));
+    test(k->nruns < KEEP_MAX_LEVELS, KEEPNOROOM);
+    wh128cp base = (wh128cp)u8bDataHead(idx_map);
+    u32 n = (u32)(u8bDataLen(idx_map) / sizeof(wh128));
+    k->runs[k->nruns][0] = base;
+    k->runs[k->nruns][1] = base + n;
+    k->run_maps[k->nruns] = idx_map;
+    k->nruns++;
+
     done;
 }
 
@@ -2161,18 +2419,8 @@ sync_done:
                     written++;                                             \
                 } while (0)
 
-            // Worktree's current commit pointer: `file:///<root>` →
-            // `?<HEAD-sha>`.  Lets `keeper post` (and anything else
-            // that wants "the current commit here") find a parent
-            // without relying on a synthetic ?HEAD.  sniff overwrites
-            // this on its own GETCheckout, so it stays current.
-            if (k->h != NULL && k->h->root[0] != NULL) {
-                APPEND_REF({
-                    a_cstr(scheme, "file://");
-                    u8bFeed(strbuf, scheme);
-                    u8bFeed(strbuf, u8bDataC(k->h->root));
-                }, refs[0].peeled.data);
-            }
+            //  Worktree pointer lives in sniff/at.log (see sniff/AT.md);
+            //  keeper no longer writes `file://<root>` refs here.
 
             // Remote-attributed entries for each refs/heads/* and
             // refs/tags/* (skip everything else, including upstream's

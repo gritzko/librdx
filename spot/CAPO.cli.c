@@ -21,10 +21,15 @@ ok64 capocli() {
         done;
     }
 
-    home h = {};
-    call(HOMEOpen, &h, c.repo, NO);
+    //  `spot get` ingests freshly-fetched packs into the trigram index,
+    //  so it must open the repo writeable.  Search verbs stay read-only.
+    a_cstr(v_get, "get");
+    b8 need_rw = $eq(c.verb, v_get);
 
-    call(SPOTOpen, &h, NO);
+    home h = {};
+    call(HOMEOpen, &h, c.repo, need_rw);
+
+    call(SPOTOpen, &h, need_rw);
     ok64 ret = SPOTExec(&c);
     SPOTClose();
     HOMEClose(&h);

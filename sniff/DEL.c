@@ -11,7 +11,10 @@
 #include "abc/PRO.h"
 #include "dog/DPATH.h"
 #include "keeper/GIT.h"
+#include "keeper/KEEP.h"
 #include "keeper/SHA1.h"
+
+#include "STAGE.h"
 
 // --- idx → sha1 lookup ---
 
@@ -188,12 +191,19 @@ static void del_auto_scan(u8p del_set, sniff *s, u8cs reporoot) {
 
 // --- Public API ---
 
-ok64 DELStage(sha1 *tree_out, keep_pack *p,
-              u8cs reporoot, u8cp del_set) {
-    sane(p && tree_out);
+ok64 DELStage(sha1 *tree_out, u8cs reporoot, u8cp del_set) {
+    sane(tree_out);
     sniff *s = &SNIFF; keeper *k = &KEEP; (void)s; (void)k;
 
-    call(SNIFFSort);
+    a_pad(u8, brbuf, 256);
+    call(STAGEBranch, brbuf);
+    a_dup(u8c, branch, u8bData(brbuf));
+    keep_pack pk = {};
+    keep_pack *p = &pk;
+    call(STAGEOpen, p, branch);
+
+    ok64 so = SNIFFSort();
+    if (so != OK) { STAGEClose(p, branch); return so; }
 
     u32 npath = SNIFFCount();
     u32 cap = npath + SNIFF_HASH_SIZE;
@@ -216,11 +226,7 @@ ok64 DELStage(sha1 *tree_out, keep_pack *p,
     sha1p sha_tab = sha1bHead(sha_mem);
 
     o = SNIFFCollectBaseTree(sha_tab, cap);
-    if (o != OK) {
-        sha1bFree(sha_mem);
-        if (u8bData(dset_mem)[0]) u8bFree(dset_mem);
-        return o;
-    }
+    (void)o;  // advisory — see PUT.c
 
     u8cs no_prefix = {};
     o = DELBuild(tree_out, s, k, p, sha_tab, cap, reporoot,
@@ -237,5 +243,7 @@ ok64 DELStage(sha1 *tree_out, keep_pack *p,
 
     sha1bFree(sha_mem);
     if (u8bData(dset_mem)[0]) u8bFree(dset_mem);
+    if (o == OK) o = STAGEClose(p, branch);
+    else STAGEClose(p, branch);
     return o;
 }

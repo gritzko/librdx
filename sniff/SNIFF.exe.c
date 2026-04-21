@@ -9,6 +9,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include "AT.h"
 #include "DEL.h"
 #include "GET.h"
 #include "POST.h"
@@ -453,28 +454,52 @@ ok64 SNIFFExec(cli *c) {
         CLIFlag(commit_msg, c, "-m");
         u8cs commit_author = {};
         CLIFlag(commit_author, c, "--author");
-        if (!$ok(commit_msg)) {
-            fprintf(stderr, "sniff: post/commit requires -m <message>\n");
+        if (!$ok(commit_author)) {
+            a_cstr(def, "sniff <sniff@dogs>");
+            commit_author[0] = def[0];
+            commit_author[1] = def[1];
+        }
+
+        //  Pick the first URI with a non-empty query as a label target
+        //  (e.g. `?heads/main`, `?tags/v0.0.1`).
+        uri *label_uri = NULL;
+        for (u32 i = 0; i < c->nuris; i++)
+            if (!$empty(c->uris[i].query)) { label_uri = &c->uris[i]; break; }
+
+        if (!$ok(commit_msg) && label_uri == NULL) {
+            fprintf(stderr, "sniff: post needs -m <msg> or ?<label>\n");
             ret = SNIFFFAIL;
         } else {
-            if (!$ok(commit_author)) {
-                a_cstr(def, "sniff <sniff@dogs>");
-                commit_author[0] = def[0];
-                commit_author[1] = def[1];
-            }
-
-            // Ensure mtimes are fresh so POSTCommit's auto-stage picks
-            // up dirty files when BASE == HEAD.tree.
+            //  Fresh mtime state for auto-stage.
             sniff_scan_new(reporoot);
             sniff_stat_all(reporoot, SNIFF_CHANGED);
 
-            keeper *k = &KEEP;
-            ret = OK;
-            if (ret == OK) {
+            a_pad(u8, hex, 40);
+            if ($ok(commit_msg)) {
+                //  Create a new commit.
                 sha1 sha = {};
                 ret = POSTCommit(reporoot,
                                  commit_msg, commit_author, &sha);
-                
+                if (ret == OK) {
+                    a_rawc(rs, sha);
+                    HEXu8sFeedSome(hex_idle, rs);
+                }
+            } else {
+                //  No -m: label points at the current at.log tail sha.
+                a_pad(u8, sbuf, 64);
+                a_pad(u8, bbuf, 256);
+                sniff_at tail = {.branch = bbuf, .sha = sbuf};
+                ret = SNIFFAtRead(&tail);
+                if (ret == OK) u8bFeed(hex, u8bDataC(tail.sha));
+            }
+            if (ret == OK && label_uri != NULL) {
+                a_dup(u8c, hex_in, u8bData(hex));
+                a_dup(u8c, ref_uri, label_uri->data);
+                ret = POSTSetLabel(ref_uri, hex_in);
+                if (ret == OK)
+                    fprintf(stderr, "sniff: label %.*s -> %.*s\n",
+                            (int)u8csLen(ref_uri), (char *)ref_uri[0],
+                            (int)u8bDataLen(hex), (char *)u8bDataHead(hex));
             }
         }
     } else if (is_put) {
@@ -494,25 +519,17 @@ ok64 SNIFFExec(cli *c) {
             }
         }
 
-        keeper *k = &KEEP;
-        ret = OK;
-        if (ret == OK) {
-            keep_pack p = {};
-            ret = KEEPPackOpen(k, &p);
+        {
+            sha1 tree = {};
+            ret = PUTStage(&tree, reporoot, cset);
             if (ret == OK) {
-                sha1 tree = {};
-                ret = PUTStage(&tree, &p, reporoot, cset);
-                KEEPPackClose(k, &p);
-                if (ret == OK) {
-                    a_pad(u8, hex, 40);
-                    a_rawc(ts, tree);
-                    HEXu8sFeedSome(hex_idle, ts);
-                    fprintf(stderr, "sniff: staged tree %.*s\n",
-                            (int)u8bDataLen(hex),
-                            (char *)u8bDataHead(hex));
-                }
+                a_pad(u8, hex, 40);
+                a_rawc(ts, tree);
+                HEXu8sFeedSome(hex_idle, ts);
+                fprintf(stderr, "sniff: staged tree %.*s\n",
+                        (int)u8bDataLen(hex),
+                        (char *)u8bDataHead(hex));
             }
-            
         }
         if (cset) u8bFree(csbuf);
     } else if (is_delete) {
@@ -529,25 +546,17 @@ ok64 SNIFFExec(cli *c) {
             }
         }
 
-        keeper *k = &KEEP;
-        ret = OK;
-        if (ret == OK) {
-            keep_pack p = {};
-            ret = KEEPPackOpen(k, &p);
+        {
+            sha1 tree = {};
+            ret = DELStage(&tree, reporoot, dset);
             if (ret == OK) {
-                sha1 tree = {};
-                ret = DELStage(&tree, &p, reporoot, dset);
-                KEEPPackClose(k, &p);
-                if (ret == OK) {
-                    a_pad(u8, hex, 40);
-                    a_rawc(ts, tree);
-                    HEXu8sFeedSome(hex_idle, ts);
-                    fprintf(stderr, "sniff: staged tree %.*s\n",
-                            (int)u8bDataLen(hex),
-                            (char *)u8bDataHead(hex));
-                }
+                a_pad(u8, hex, 40);
+                a_rawc(ts, tree);
+                HEXu8sFeedSome(hex_idle, ts);
+                fprintf(stderr, "sniff: staged tree %.*s\n",
+                        (int)u8bDataLen(hex),
+                        (char *)u8bDataHead(hex));
             }
-            
         }
         if (dset) u8bFree(dsbuf);
     } else if (is_checkout) {

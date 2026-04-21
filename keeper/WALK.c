@@ -246,9 +246,17 @@ ok64 KEEPLsFiles(keeper *k, uricp target,
     u8   target_kind = WALK_KIND_DIR;
 
     u8cs sub = {};
-    u8csMv(sub, target->path);
-    //  "." means repo root, same as empty path.
-    if (u8csLen(sub) == 1 && *sub[0] == '.') { sub[0] = sub[1]; }
+    //  When the URI has an authority, the `path` is the REMOTE-side
+    //  repo path (e.g. `/tmp/sv-keep/src`), not a subtree inside the
+    //  resolved tree — descending into it would always miss.  The
+    //  in-repo subpath, when needed, belongs after a `.git/` split
+    //  (see dog/DOG.md); we don't parse that here yet, so authority-
+    //  bearing URIs always walk the full tree.
+    if (u8csEmpty(target->authority)) {
+        u8csMv(sub, target->path);
+        //  "." means repo root, same as empty path.
+        if (u8csLen(sub) == 1 && *sub[0] == '.') { sub[0] = sub[1]; }
+    }
     call(lsf_descend, k, &root_tree, sub,
          prefix_buf, &target_sha, &target_kind);
 
