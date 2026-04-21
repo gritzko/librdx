@@ -44,10 +44,13 @@ ok64 GRAFOpen(home *h, b8 rw) {
     a_path(dir, root_s, rel);
 
     // Worktree sharing: `.dogs/graf` may be a symlink into a shared
-    // repo.  flock serializes writers, readers share.  The lock
-    // file's parent must exist regardless of rw.
+    // repo.  flock serializes writers only.  Readers open lockless
+    // — DAG index runs are immutable once published (dag_index_write
+    // uses tmp → rename) and dag_stack_open retries on ENOENT to
+    // ride out compaction unlinks, so a reader never has to wait
+    // for a writer.
     call(FILEMakeDirP, $path(dir));
-    {
+    if (rw) {
         a_cstr(lockrel, ".lock");
         a_path(lockpath, $path(dir), lockrel);
         call(FILECreate, &g->lock_fd, $path(lockpath));

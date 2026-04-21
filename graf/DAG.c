@@ -141,21 +141,37 @@ static ok64 dag_index_write(u8cs dagdir, wh128cs run, u64 seqno) {
     sane($ok(dagdir));
     if ($empty(run)) done;
 
+    a_cstr(idxext, DAG_IDX_EXT);
+    a_cstr(tmpsuf, ".tmp");
+
+    //  Atomic publication: write <seqno>.idx.tmp, rename to
+    //  <seqno>.idx.  Lockless readers in dag_stack_open filter by
+    //  the exact ".idx" suffix, so the tmp file is invisible to
+    //  them during the write window.
     a_pad(u8, path, FILE_PATH_MAX_LEN);
     call(u8bFeed, path, dagdir);
     call(u8bFeed1, path, '/');
     call(RONu8sFeedPad, u8bIdle(path), seqno, DAG_SEQNO_W);
     ((u8 **)path)[2] += DAG_SEQNO_W;
-    a_cstr(idxext, DAG_IDX_EXT);
     call(u8bFeed, path, idxext);
     call(PATHu8bTerm, path);
 
+    a_pad(u8, tmppath, FILE_PATH_MAX_LEN);
+    call(u8bFeed, tmppath, dagdir);
+    call(u8bFeed1, tmppath, '/');
+    call(RONu8sFeedPad, u8bIdle(tmppath), seqno, DAG_SEQNO_W);
+    ((u8 **)tmppath)[2] += DAG_SEQNO_W;
+    call(u8bFeed, tmppath, idxext);
+    call(u8bFeed, tmppath, tmpsuf);
+    call(PATHu8bTerm, tmppath);
+
     int fd = -1;
-    call(FILECreate, &fd, $path(path));
+    call(FILECreate, &fd, $path(tmppath));
     size_t bytes = $len(run) * sizeof(wh128);
     u8cs data = {(u8cp)run[0], (u8cp)run[0] + bytes};
     call(FILEFeedAll, fd, data);
     close(fd);
+    call(FILERename, $path(tmppath), $path(path));
     done;
 }
 
@@ -190,47 +206,69 @@ ok64 dag_stack_open(dag_stack *st, u8cs dagdir) {
     sane(st && $ok(dagdir));
     memset(st, 0, sizeof(*st));
 
-    a_path(dpat);
-    call(PATHu8bFeed, dpat, dagdir);
+    //  Lockless reader: list + mmap is racy against dag_compact,
+    //  which unlinks old runs after writing the new merged one.
+    //  If a just-listed run is missing at mmap time, the listing
+    //  is stale — drop what we have and relist.  After compaction
+    //  the merged run subsumes the unlinked ones, so a fresh scan
+    //  is correct.  Bounded retries guard a pathological writer.
+    ok64 last = OK;
+    for (u32 attempt = 0; attempt < 4; attempt++) {
+        dag_stack_close(st);
+        memset(st, 0, sizeof(*st));
 
-    DIR *d = opendir((char *)u8bDataHead(dpat));
-    if (!d) done;
+        a_path(dpat);
+        call(PATHu8bFeed, dpat, dagdir);
 
-    char names[MSET_MAX_LEVELS][64];
-    char *namep[MSET_MAX_LEVELS];
-    u32 count = 0;
-    struct dirent *e;
-    while ((e = readdir(d)) != NULL && count < MSET_MAX_LEVELS) {
-        size_t nlen = strlen(e->d_name);
-        if (nlen != DAG_SEQNO_W + 4) continue;
-        if (memcmp(e->d_name + DAG_SEQNO_W, DAG_IDX_EXT, 4) != 0) continue;
-        memcpy(names[count], e->d_name, nlen + 1);
-        namep[count] = names[count];
-        count++;
-    }
-    closedir(d);
+        DIR *d = opendir((char *)u8bDataHead(dpat));
+        if (!d) done;
 
-    // Sort by name (oldest first)
-    for (u32 i = 0; i + 1 < count; i++)
-        for (u32 j = i + 1; j < count; j++)
-            if (strcmp(namep[i], namep[j]) > 0) {
-                char *t = namep[i]; namep[i] = namep[j]; namep[j] = t;
+        char names[MSET_MAX_LEVELS][64];
+        char *namep[MSET_MAX_LEVELS];
+        u32 count = 0;
+        struct dirent *e;
+        while ((e = readdir(d)) != NULL && count < MSET_MAX_LEVELS) {
+            size_t nlen = strlen(e->d_name);
+            if (nlen != DAG_SEQNO_W + 4) continue;
+            if (memcmp(e->d_name + DAG_SEQNO_W, DAG_IDX_EXT, 4) != 0) continue;
+            memcpy(names[count], e->d_name, nlen + 1);
+            namep[count] = names[count];
+            count++;
+        }
+        closedir(d);
+
+        // Sort by name (oldest first)
+        for (u32 i = 0; i + 1 < count; i++)
+            for (u32 j = i + 1; j < count; j++)
+                if (strcmp(namep[i], namep[j]) > 0) {
+                    char *t = namep[i]; namep[i] = namep[j]; namep[j] = t;
+                }
+
+        b8 retry = NO;
+        for (u32 i = 0; i < count; i++) {
+            u8cs fn = {(u8cp)namep[i], (u8cp)namep[i] + strlen(namep[i])};
+            a_path(fpath, dagdir, fn);
+
+            u8bp mapped = NULL;
+            ok64 mo = FILEMapRO(&mapped, $path(fpath));
+            if (mo == FILENOENT) {
+                retry = YES;
+                break;
             }
-
-    for (u32 i = 0; i < count; i++) {
-        u8cs fn = {(u8cp)namep[i], (u8cp)namep[i] + strlen(namep[i])};
-        a_path(fpath, dagdir, fn);
-
-        u8bp mapped = NULL;
-        if (FILEMapRO(&mapped, $path(fpath)) != OK) continue;
-        wh128cp base = (wh128cp)u8bDataHead(mapped);
-        size_t nentries = (u8bIdleHead(mapped) - u8bDataHead(mapped)) / sizeof(wh128);
-        st->runs[st->n][0] = base;
-        st->runs[st->n][1] = base + nentries;
-        st->maps[st->n] = mapped;
-        st->n++;
+            if (mo != OK) { last = mo; continue; }
+            wh128cp base = (wh128cp)u8bDataHead(mapped);
+            size_t nentries = (u8bIdleHead(mapped) - u8bDataHead(mapped)) / sizeof(wh128);
+            st->runs[st->n][0] = base;
+            st->runs[st->n][1] = base + nentries;
+            st->maps[st->n] = mapped;
+            st->n++;
+        }
+        if (!retry) done;
+        last = FILENOENT;
     }
-    done;
+    dag_stack_close(st);
+    memset(st, 0, sizeof(*st));
+    return last;
 }
 
 void dag_stack_close(dag_stack *st) {

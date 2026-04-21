@@ -193,21 +193,38 @@ ok64 CAPOIndexWrite(u8csc dir, u64cs run, u64 seqno) {
     sane($ok(dir));
     if ($empty(run)) done;
 
+    a_cstr(idxext, CAPO_IDX_EXT);
+    a_cstr(tmpsuf, ".tmp");
+
+    //  Atomic publication: write to <seqno>.idx.tmp, rename to
+    //  <seqno>.idx.  Concurrent lockless readers (CAPOStackOpen)
+    //  only see a fully-written file — the directory-listing
+    //  filter in CAPOListIdxCB keys on the ".idx" suffix, so
+    //  the tmp file is invisible during the brief write window.
     a_pad(u8, path, FILE_PATH_MAX_LEN);
     call(u8bFeed, path, dir);
     call(u8bFeed1, path, '/');
     call(RONu8sFeedPad, u8bIdle(path), seqno, CAPO_SEQNO_WIDTH);
     call(u8bFed, path, CAPO_SEQNO_WIDTH);  // RONu8sFeedPad wrote into IDLE
-    a_cstr(idxext, CAPO_IDX_EXT);
     call(u8bFeed, path, idxext);
     call(PATHu8bTerm, path);
 
+    a_pad(u8, tmppath, FILE_PATH_MAX_LEN);
+    call(u8bFeed, tmppath, dir);
+    call(u8bFeed1, tmppath, '/');
+    call(RONu8sFeedPad, u8bIdle(tmppath), seqno, CAPO_SEQNO_WIDTH);
+    call(u8bFed, tmppath, CAPO_SEQNO_WIDTH);
+    call(u8bFeed, tmppath, idxext);
+    call(u8bFeed, tmppath, tmpsuf);
+    call(PATHu8bTerm, tmppath);
+
     int fd = -1;
-    call(FILECreate, &fd, $path(path));
+    call(FILECreate, &fd, $path(tmppath));
     size_t bytes = $len(run) * sizeof(u64);
     u8cs data = {(u8cp)run[0], (u8cp)run[0] + bytes};
     call(FILEFeedAll, fd, data);
     close(fd);
+    call(FILERename, $path(tmppath), $path(path));
     done;
 }
 
@@ -271,28 +288,59 @@ ok64 CAPONextSeqno(u64p seqno, u8csc dir) {
 
 ok64 CAPOStackOpen(u64css stack, u8bp *maps, u32p nfiles, u8csc dir) {
     sane($ok(stack) && maps != NULL && nfiles != NULL && $ok(dir));
-    *nfiles = 0;
 
-    char names[CAPO_MAX_LEVELS][64];
-    u32 count = CAPOListIdx(names, CAPO_MAX_LEVELS, dir);
+    //  Lockless reader: list + mmap is racy against a concurrent
+    //  CAPOCompact that unlinks the old runs after writing the new
+    //  merged one.  If a file we just listed has been unlinked
+    //  before we mmap it, the listing is stale — drop everything
+    //  and retry.  After compaction the new merged run subsumes
+    //  everything we might have missed, so a fresh scan is correct.
+    //  Bounded retries to guard against a pathological writer.
+    ok64 last = OK;
+    for (u32 attempt = 0; attempt < 4; attempt++) {
+        *nfiles = 0;
+        char names[CAPO_MAX_LEVELS][64];
+        u32 count = CAPOListIdx(names, CAPO_MAX_LEVELS, dir);
 
-    for (u32 i = 0; i < count; i++) {
-        u8cs fn = {(u8cp)names[i], (u8cp)names[i] + strlen(names[i])};
-        a_path(fpath, dir, fn);
+        b8 retry = NO;
+        for (u32 i = 0; i < count; i++) {
+            u8cs fn = {(u8cp)names[i], (u8cp)names[i] + strlen(names[i])};
+            a_path(fpath, dir, fn);
 
-        u8bp mapped = NULL;
-        call(FILEMapRO, &mapped, $path(fpath));
+            u8bp mapped = NULL;
+            ok64 mo = FILEMapRO(&mapped, $path(fpath));
+            if (mo == FILENOENT) {
+                //  Compaction race: this run was unlinked between
+                //  listing and mmap.  Unmap what we have and relist.
+                for (u32 j = 0; j < *nfiles; j++) {
+                    if (maps[j] != NULL) FILEUnMap(maps[j]);
+                    maps[j] = NULL;
+                }
+                *nfiles = 0;
+                retry = YES;
+                break;
+            }
+            if (mo != OK) { last = mo; goto fail; }
 
-        size_t nbytes = u8bIdleHead(mapped) - u8bDataHead(mapped);
-        size_t nentries = nbytes / sizeof(u64);
-        u64cp base = (u64cp)u8bDataHead(mapped);
+            size_t nbytes = u8bIdleHead(mapped) - u8bDataHead(mapped);
+            size_t nentries = nbytes / sizeof(u64);
+            u64cp base = (u64cp)u8bDataHead(mapped);
 
-        stack[0][*nfiles][0] = base;
-        stack[0][*nfiles][1] = base + nentries;
-        maps[*nfiles] = mapped;
-        (*nfiles)++;
+            stack[0][*nfiles][0] = base;
+            stack[0][*nfiles][1] = base + nentries;
+            maps[*nfiles] = mapped;
+            (*nfiles)++;
+        }
+        if (!retry) done;
+        last = FILENOENT;
     }
-    done;
+fail:
+    for (u32 j = 0; j < *nfiles; j++) {
+        if (maps[j] != NULL) FILEUnMap(maps[j]);
+        maps[j] = NULL;
+    }
+    *nfiles = 0;
+    return last;
 }
 
 ok64 CAPOStackClose(u8bp *maps, u32 nfiles) {
@@ -1467,18 +1515,22 @@ ok64 SPOTOpen(home *h, b8 rw) {
     s->term = (isatty(STDERR_FILENO) && isatty(STDOUT_FILENO)) ? YES : NO;
 
     // Worktree sharing: `.dogs/spot` may be a symlink.  flock on
-    // `.dogs/spot/.lock` serializes writers; readers share.  The
-    // lock file's parent must exist, so mkdir regardless of rw — a
-    // read-only spot on a fresh repo otherwise fails on FILECreate.
+    // `.dogs/spot/.lock` serializes writers only.  Readers open
+    // lockless — every `.idx` is published atomically via
+    // tmp → rename in CAPOIndexWrite, and CAPOStackOpen retries
+    // on ENOENT to ride out compaction unlinks, so a reader never
+    // has to wait for a writer.
     {
         a_dup(u8c, root_s, u8bDataC(h->root));
         a_cstr(rel, ".dogs/spot");
         a_path(dir, root_s, rel);
         call(FILEMakeDirP, $path(dir));
-        a_cstr(lockrel, ".lock");
-        a_path(lockpath, $path(dir), lockrel);
-        call(FILECreate, &s->lock_fd, $path(lockpath));
-        call(FILELock, &s->lock_fd, rw);
+        if (rw) {
+            a_cstr(lockrel, ".lock");
+            a_path(lockpath, $path(dir), lockrel);
+            call(FILECreate, &s->lock_fd, $path(lockpath));
+            call(FILELock, &s->lock_fd, rw);
+        }
     }
 
     call(u8bMap, s->arena, LESS_ARENA_SIZE);
