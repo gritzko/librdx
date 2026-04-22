@@ -1174,16 +1174,11 @@ ok64 KEEPPackClose(keeper *k, keep_pack *p) {
     //  which keys on the ".idx" suffix) never observe a partially-
     //  written run — the idx appears in the directory only after
     //  the pack bytes it references are on disk.
-    a_pad(u8, idxtmppath, 1024);
-    u8bFeed(idxtmppath, $path(kdir));
-    u8bFeed(idxtmppath, idxdir);
-    u8bFeed1(idxtmppath, '/');
-    RONu8sFeedPad(u8bIdle(idxtmppath), (u64)idx_seq, KEEP_SEQNO_W);
-    ((u8 **)idxtmppath)[2] += KEEP_SEQNO_W;
-    u8bFeed(idxtmppath, iext);
+    a_pad(u8, idxtmppath, FILE_PATH_MAX_LEN);
+    call(u8bFeed, idxtmppath, u8bDataC(idxpath));
     a_cstr(tmpsuf, ".tmp");
-    u8bFeed(idxtmppath, tmpsuf);
-    PATHu8bTerm(idxtmppath);
+    call(u8bFeed, idxtmppath, tmpsuf);
+    call(PATHu8bTerm, idxtmppath);
 
     int ifd = -1;
     call(FILECreate, &ifd, $path(idxtmppath));

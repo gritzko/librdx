@@ -55,9 +55,21 @@
 
 #include "abc/TEST.h"
 
+//  Canonical emit-tag alphabet (see dog/TOK.h): every dogenizer
+//  emits tokens tagged with one of
+//      D  comment / docstring (split via TOKSplitText)
+//      G  string literal
+//      H  preprocessor line
+//      L  number literal
+//      P  punctuation
+//      R  keyword (reserved word)
+//      S  symbol / identifier
+//      W  whitespace (emitted by *onSpace callbacks)
 static ok64 TOKFUZZcb(u8 tag, u8cs tok, void *ctx) {
-    must(tag == 'D' || tag == 'G' || tag == 'L' || tag == 'H' ||
-         tag == 'R' || tag == 'S' || tag == 'P', "bad tag");
+    (void)ctx;
+    must(tag == 'D' || tag == 'G' || tag == 'H' || tag == 'L' ||
+         tag == 'P' || tag == 'R' || tag == 'S' || tag == 'W',
+         "bad tag");
     must($ok(tok), "bad tok");
     must(!$empty(tok), "empty tok");
     return OK;
