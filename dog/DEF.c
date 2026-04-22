@@ -278,10 +278,11 @@ static void DEFRetag(u32 **toks, u32 idx, u8 tag) {
 
 // Try NFA pattern anchored at position i. Uses prefix match: stops as
 // soon as the pattern reaches MATCH state, no need for trailing .* .
-static u32 DEFTryMatch(nfau8cs nfa, u8c *enr, u32 len, u32 at) {
+// `ws` is caller-owned scratch (hoisted to blob scope — allocating
+// 48 KB on every DEFTryMatch call added up fast).
+static u32 DEFTryMatch(nfau8cs nfa, u8c *enr, u32 len, u32 at,
+                        u32 *ws[2]) {
     u8cs text = {enr + at, enr + len};
-    u32 wbuf[3 * 4096];
-    u32 *ws[2] = {wbuf, wbuf + sizeof(wbuf) / sizeof(wbuf[0])};
     u16 n = NFAu8States(nfa);
     if (n == 0 || $len(ws) < 3 * (u64)n) return 0;
     return NFAu8MatchPrefix(nfa, text, ws) ? 1 : 0;
@@ -411,30 +412,99 @@ static i64 DEFFindName(u8c *enr, u32 start, u32 len, u8 anchor, b8 after) {
 
 // --- Unified table-driven matcher ---
 
-#define DEF_MAX_RULES 8
-#define DEF_NFA_CAP 256
+#define DEF_MAX_RULES       8
+#define DEF_NFA_CAP         256
+#define DEF_MAX_RULE_CACHES 8
 
-static ok64 DEFMarkRules(u32 **toks, DEFenr *e, const DEFrule *rules, u8 tag) {
-    sane(e != NULL && rules != NULL);
+//  Compiled NFA cache, keyed by the `DEFrule *` pointer (rule-set
+//  identity, not per-language — several languages share KW_RULES
+//  etc.).  Populated lazily by `DEFGetCache`; reused across every
+//  blob that dispatches to the same ruleset.  Before this cache
+//  existed, `DEFMarkRules` recompiled all rules for every blob —
+//  ~140 k redundant NFA compilations during a full src/git clone.
+typedef struct {
+    const DEFrule *rules;                 // NULL → slot unused
+    u32            nrules;
+    b8             valid[DEF_MAX_RULES];
+    b8             fresh[DEF_MAX_RULES];
+    u8             anchor[DEF_MAX_RULES];
+    b8             after[DEF_MAX_RULES];
+    //  First-byte bitmap per rule: bit `c` set → rule might fire at a
+    //  position where `e->enr[i] == c`.  Derived from the regex head
+    //  ("[rs*<>]+..." → {r,s,*,<,>}; "fS[:{;]..." → {f}; etc.).  The
+    //  per-position inner loop short-circuits on miss, cutting most
+    //  of the ~3500 DEFTryMatch calls/blob that did nothing useful.
+    u8             firstset[DEF_MAX_RULES][32];
+    nfau8          nbuf[DEF_MAX_RULES][DEF_NFA_CAP];
+    nfau8c        *nfa0[DEF_MAX_RULES];
+    nfau8c        *nfa1[DEF_MAX_RULES];
+} DEFRuleCache;
+
+//  Derive the first-byte set for a rule regex, as a 256-bit bitmap
+//  (32 bytes).  Handles the subset our rules use: single literal,
+//  `[chars]` class (no ranges), `[^chars]` negation.  Unknown
+//  forms fall back to "any byte" (all bits set), preserving
+//  correctness at the cost of the fast-fail.
+//
+//  Special case: 'S' in the regex is the marker for the identifier
+//  to retag and is compiled as 's' into the NFA (see the S→s
+//  substitution in the compile loop), so the firstset for a rule
+//  starting with 'S' must also admit 's'.
+fun void DEFFSAdd(u8 out[32], u8 c) {
+    if (c == 'S') c = 's';
+    out[c >> 3] |= (u8)(1 << (c & 7));
+}
+
+static void DEFRuleFirstSet(const char *regex, u8 out[32]) {
+    memset(out, 0, 32);
+    if (!regex || !*regex) { memset(out, 0xff, 32); return; }
+
+    const char *p = regex;
+    if (*p == '[') {
+        p++;
+        b8 negate = NO;
+        if (*p == '^') { negate = YES; p++; }
+        u8 tmp[32] = {};
+        while (*p && *p != ']') {
+            DEFFSAdd(tmp, (u8)*p);
+            p++;
+        }
+        if (negate) {
+            for (u32 i = 0; i < 32; i++) out[i] = (u8)~tmp[i];
+        } else {
+            memcpy(out, tmp, 32);
+        }
+    } else {
+        DEFFSAdd(out, (u8)*p);
+    }
+}
+
+static DEFRuleCache DEF_RULE_CACHES[DEF_MAX_RULE_CACHES];
+static u32          DEF_RULE_CACHE_N;
+
+//  Lookup or populate the cache for `rules`.  Linear scan over the
+//  ≤8 registered rule-sets is cheap and only runs once per blob.
+static DEFRuleCache *DEFGetCache(const DEFrule *rules) {
+    for (u32 i = 0; i < DEF_RULE_CACHE_N; i++)
+        if (DEF_RULE_CACHES[i].rules == rules) return &DEF_RULE_CACHES[i];
+
+    if (DEF_RULE_CACHE_N >= DEF_MAX_RULE_CACHES) return NULL;
+    DEFRuleCache *c = &DEF_RULE_CACHES[DEF_RULE_CACHE_N];
 
     u32 nrules = 0;
-    while (rules[nrules].regex) nrules++;
-    if (nrules > DEF_MAX_RULES) nrules = DEF_MAX_RULES;
-
-    nfau8 nbufs[DEF_MAX_RULES][DEF_NFA_CAP];
-    nfau8c *nfa0[DEF_MAX_RULES], *nfa1[DEF_MAX_RULES];
-    u8 anchors[DEF_MAX_RULES];
-    b8 afters[DEF_MAX_RULES], freshs[DEF_MAX_RULES], valids[DEF_MAX_RULES];
+    while (rules[nrules].regex && nrules < DEF_MAX_RULES) nrules++;
+    c->nrules = nrules;
 
     u32 pb[4096];
     u32 *pws[2] = {pb, pb + 4096};
 
     for (u32 r = 0; r < nrules; r++) {
-        freshs[r] = rules[r].fresh;
-        valids[r] = NO;
-        DEFParseNameRule(rules[r].regex, &anchors[r], &afters[r]);
+        c->fresh[r] = rules[r].fresh;
+        c->valid[r] = NO;
+        DEFParseNameRule(rules[r].regex, &c->anchor[r], &c->after[r]);
+        DEFRuleFirstSet(rules[r].regex, c->firstset[r]);
 
-        // S → s for NFA compilation; strip trailing .* (prefix match)
+        // S → s for NFA compilation; strip trailing .* (prefix match).
         u8 pat[256];
         u32 plen = 0;
         for (const char *p = rules[r].regex; *p && plen < sizeof(pat) - 1; p++)
@@ -442,14 +512,36 @@ static ok64 DEFMarkRules(u32 **toks, DEFenr *e, const DEFrule *rules, u8 tag) {
         if (plen >= 2 && pat[plen - 2] == '.' && pat[plen - 1] == '*')
             plen -= 2;
 
-        nfau8g pr = {nbufs[r], nbufs[r] + DEF_NFA_CAP, nbufs[r]};
+        nfau8g pr = {c->nbuf[r], c->nbuf[r] + DEF_NFA_CAP, c->nbuf[r]};
         ok64 o = DEFCompile(pr, (u8cs){pat, pat + plen}, pws);
         if (o == OK) {
-            nfa0[r] = (nfau8c *)pr[2];
-            nfa1[r] = (nfau8c *)pr[0];
-            valids[r] = YES;
+            c->nfa0[r] = (nfau8c *)pr[2];
+            c->nfa1[r] = (nfau8c *)pr[0];
+            c->valid[r] = YES;
         }
     }
+
+    //  Publish last so a concurrent reader either sees the fully
+    //  populated cache or misses and allocates its own slot.  At
+    //  current use (sequential ingest) races are moot; this is a
+    //  cheap safety belt for future readers.
+    c->rules = rules;
+    DEF_RULE_CACHE_N++;
+    return c;
+}
+
+static ok64 DEFMarkRules(u32 **toks, DEFenr *e, const DEFrule *rules, u8 tag) {
+    sane(e != NULL && rules != NULL);
+
+    DEFRuleCache *c = DEFGetCache(rules);
+    if (!c) return OK;
+
+    u32 nrules = c->nrules;
+
+    //  Per-blob NFA simulation scratch.  NFAu8MatchPrefix needs
+    //  3 × nstates u32 slots; 12 KB covers any rule we have.
+    u32 wbuf[3 * 1024];
+    u32 *ws[2] = {wbuf, wbuf + sizeof(wbuf) / sizeof(wbuf[0])};
 
     b8 fresh = YES;
     for (u32 i = 0; i < e->len; i++) {
@@ -457,12 +549,17 @@ static ok64 DEFMarkRules(u32 **toks, DEFenr *e, const DEFrule *rules, u8 tag) {
         if (ch == ';' || ch == '{' || ch == '}') { fresh = YES; continue; }
         if (ch == '=' || ch == 'k') { fresh = NO; continue; }
 
+        //  First-byte fast-fail: skip rules whose bitmap says this
+        //  position can't start a match.  For non-letter bytes (most
+        //  of the stream) all rules are skipped without any NFA work.
         for (u32 r = 0; r < nrules; r++) {
-            if (!valids[r] || (freshs[r] && !fresh)) continue;
-            nfau8cs nfa = {nfa0[r], nfa1[r]};
-            if (!DEFTryMatch(nfa, e->enr, e->len, i)) continue;
+            if (!c->valid[r] || (c->fresh[r] && !fresh)) continue;
+            if (!(c->firstset[r][ch >> 3] & (1u << (ch & 7)))) continue;
 
-            i64 name = DEFFindName(e->enr, i, e->len, anchors[r], afters[r]);
+            nfau8cs nfa = {c->nfa0[r], c->nfa1[r]};
+            if (!DEFTryMatch(nfa, e->enr, e->len, i, ws)) continue;
+
+            i64 name = DEFFindName(e->enr, i, e->len, c->anchor[r], c->after[r]);
             if (name >= 0) DEFRetag(toks, e->map[name], tag);
             break;
         }
