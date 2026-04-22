@@ -32,8 +32,18 @@ extern b8 CAPO_TERM;   // stderr is a terminal
 #define CAPO_IDX_EXT ".idx"
 #define CAPO_SEQNO_WIDTH 10
 #define CAPO_MAX_LEVELS 24
+//  In-RAM sort-and-dedup scratch.  `CAPO_FLUSH_AT` is the trigger
+//  size: once data in `s->entries` reaches it, we sort + dedup in
+//  place, and — if the dedup leaves ≥ 50 % unique — flush to a new
+//  `.idx` run.  If < 50 % unique (highly redundant input) we keep
+//  the compacted scratch and let it refill.  Keeping the trigger
+//  small (1 M entries / 8 MB) bounds each sort's working set to
+//  stay cache-friendly; on dedup-heavy workloads (src/git ingest
+//  hits ~20 % unique) this means many small sorts instead of a few
+//  enormous ones.  `CAPO_SCRATCH_LEN` is the hard cap on scratch
+//  size (anonymous mmap) — generously oversized vs the trigger.
 #define CAPO_SCRATCH_LEN (1UL << 27)  // 128M u64 entries = 1GB
-#define CAPO_FLUSH_AT    (1UL << 24)  // flush at 16M entries (~128MB)
+#define CAPO_FLUSH_AT    (1UL << 20)  // 1M entries (~8MB)
 
 #define CAPOTriChar(c) (RON64_REV[(u8)(c)] != 0xff)
 

@@ -17,6 +17,12 @@ target_compile_options(TOK01test PRIVATE ${TEST_CXX_FLAGS})
 target_link_libraries(TOK01test dog abc-core)
 add_test(NAME TOK01test COMMAND TOK01test)
 
+add_executable(KEYWtest KEYW.c)
+target_link_options(KEYWtest PRIVATE ${TEST_LDD_FLAGS})
+target_compile_options(KEYWtest PRIVATE ${TEST_CXX_FLAGS})
+target_link_libraries(KEYWtest dog abc-core)
+add_test(NAME KEYWtest COMMAND KEYWtest)
+
 add_executable(BRCTtest BRCT.c)
 target_link_options(BRCTtest PRIVATE ${TEST_LDD_FLAGS})
 target_compile_options(BRCTtest PRIVATE ${TEST_CXX_FLAGS})
