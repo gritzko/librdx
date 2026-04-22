@@ -59,8 +59,10 @@
 //  emits tokens tagged with one of
 //      D  comment / docstring (split via TOKSplitText)
 //      G  string literal
-//      H  preprocessor line
+//      H  preprocessor / heading line
 //      L  number literal
+//      N  name (symbol in heading/definition context, e.g.
+//         MDTHeadingCb remaps S → N)
 //      P  punctuation
 //      R  keyword (reserved word)
 //      S  symbol / identifier
@@ -68,7 +70,8 @@
 static ok64 TOKFUZZcb(u8 tag, u8cs tok, void *ctx) {
     (void)ctx;
     must(tag == 'D' || tag == 'G' || tag == 'H' || tag == 'L' ||
-         tag == 'P' || tag == 'R' || tag == 'S' || tag == 'W',
+         tag == 'N' || tag == 'P' || tag == 'R' || tag == 'S' ||
+         tag == 'W',
          "bad tag");
     must($ok(tok), "bad tok");
     must(!$empty(tok), "empty tok");

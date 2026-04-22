@@ -2,11 +2,13 @@
 
 #include "abc/TEST.h"
 
-//  See dog/fuzz/TOK.c for the canonical tag alphabet.  D G H L P R S W.
+//  See dog/fuzz/TOK.c for the canonical tag alphabet.
+//  D G H L N P R S W.
 static ok64 TOK2FUZZcb(u8 tag, u8cs tok, void *ctx) {
     (void)ctx;
     must(tag == 'D' || tag == 'G' || tag == 'H' || tag == 'L' ||
-         tag == 'P' || tag == 'R' || tag == 'S' || tag == 'W',
+         tag == 'N' || tag == 'P' || tag == 'R' || tag == 'S' ||
+         tag == 'W',
          "bad tag");
     must($ok(tok), "bad tok");
     must(!$empty(tok), "empty tok");
