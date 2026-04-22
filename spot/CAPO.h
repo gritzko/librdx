@@ -33,7 +33,6 @@ extern b8 CAPO_TERM;   // stderr is a terminal
 #define CAPO_MAX_LEVELS 24
 #define CAPO_SCRATCH_LEN (1UL << 27)  // 128M u64 entries = 1GB
 #define CAPO_FLUSH_AT    (1UL << 24)  // flush at 16M entries (~128MB)
-#define CAPO_MAX_SHAS 16
 
 #define CAPOTriChar(c) (RON64_REV[(u8)(c)] != 0xff)
 
@@ -105,16 +104,6 @@ ok64 CAPOCompactAll(u8csc dir);
 
 // Resolve spot index dir from reporoot (<reporoot>/.dogs/spot)
 ok64 CAPOResolveDir(path8b out, u8csc reporoot);
-
-// Append a 40-char hex commit SHA to capodir/COMMIT (streaming ingest).
-// No-op if sha40 already equals the tail entry; otherwise keeps the last
-// CAPO_MAX_SHAS entries.
-ok64 CAPOCommitAppend(u8csc capodir, u8csc sha40);
-
-// Read saved commit shas from capodir/COMMIT (one per line, oldest first).
-// Returns count of valid SHAs in *count (0 if file missing/empty).
-ok64 CAPOCommitRead(u32p count, u8csc capodir,
-                    char shas[][44], u32 maxcount);
 
 // Check if extension is known to tok/ tokenizers
 b8 CAPOKnownExt(u8csc ext);
@@ -190,19 +179,12 @@ ok64 SPOTOpen(home *h, b8 rw);
 //  Run one CLI invocation.
 ok64 SPOTExec(cli *c);
 
-//  Walk every ref in keeper's REFS that points at a commit not yet
-//  recorded in `.dogs/spot/COMMIT`; index each blob in its tree via
-//  KEEPLsFiles + CAPOIndexFile, then append the commit SHA.  Requires
-//  a rw-opened SPOT.  Idempotent — later invocations skip already-
-//  indexed commits.  Invoked from `spot get` after a keeper fetch.
-ok64 SPOTIngestNewCommits(void);
-
 //  Feed a single git object into spot's trigram/symbol index.
 //  obj_type uses DOG_OBJ_* (== git pack types).  For BLOB, `path`
 //  picks the tokenizer via extension and provides the path_hash
-//  used as the posting key.  TREE and TAG objects are no-ops
-//  (keeper resolves tree → path on its side).  For COMMIT, the
-//  object SHA is appended to .dogs/spot/COMMIT (rule 7).
+//  used as the posting key.  COMMIT/TREE/TAG are no-ops: keeper
+//  resolves tree → path on its side and streams each blob through
+//  UNPKIndex's emit hook with its live path.
 ok64 SPOTUpdate(u8 obj_type, u8cs blob, u8csc path);
 
 void SPOTClose(void);

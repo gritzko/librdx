@@ -31,9 +31,9 @@ char const *const SPOT_CLI_VERBS[] = {
 };
 
 //  Spot val-flags: -g -s -r -p -C --grep --spot --replace --pcre --context
-//  Pack-add indexing happens in `spot get` (SPOTIngestNewCommits), which
-//  `be` invokes after `keeper get` / `sniff get`.  No --fork / --index /
-//  --hook flags — ingestion is driven by keeper's REFS.
+//  Pack-add indexing happens as keeper resolves objects (UNPKIndex's
+//  emit hook → SPOTUpdate).  `spot get` is a no-op left in place so
+//  that `be` can still invoke it unconditionally after a keeper fetch.
 char const SPOT_CLI_VAL_FLAGS[] =
     "-g\0-s\0-r\0-p\0-C\0"
     "--grep\0--spot\0--replace\0--pcre\0--context\0";
@@ -102,16 +102,12 @@ ok64 SPOTExec(cli *c) {
                 nidxfiles, (unsigned long long)total);
         done;
     }
-    //  `spot get` — invoked by `be` after `keeper get`/`sniff get`
-    //  brings in fresh packs.  Walk keeper's refs and index every
-    //  commit we haven't recorded yet (pack-add indexing per
-    //  DOG.md rule 8 intent).  Safe to call repeatedly.
-    if ($eq(c->verb, v_get)) {
-        ok64 io = SPOTIngestNewCommits();
-        if (io != OK)
-            fprintf(stderr, "spot: ingest: %s\n", ok64str(io));
-        return io;
-    }
+    //  `spot get` — invoked by `be` after `keeper get`/`sniff get`.
+    //  Indexing is already done per-object via UNPKIndex's emit hook
+    //  (keeper/KEEP.cli.c → SPOTUpdate); any pending scratch flushes
+    //  on SPOTClose.  This verb is kept as an explicit no-op so the
+    //  orchestrator's invocation pattern stays uniform across dogs.
+    if ($eq(c->verb, v_get)) done;
 
     b8 do_status = CLIHas(c, "--status");
     b8 force_tlv = CLIHas(c, "-t") || CLIHas(c, "--tlv");
@@ -356,92 +352,51 @@ ok64 SPOTExec(cli *c) {
 
 // --- Update: feed a single git object into spot's index ---
 //
-// Originally intended to be driven by keeper's UNPK emit hook
-// (UNPK.h unpk_emit_fn) — one call per resolved object, in commit-
-// tree-blob order.  Currently unused: `spot get` walks keeper's
-// REFS post-fetch via SPOTIngestNewCommits instead, which gets the
-// blob + its live path from WALKTreeLazy + KEEPGetExact.  Retained
-// so a future keeper that links spotlib can hook UNPK without API
-// changes.
-//   COMMIT: compute the git object SHA-1 ("commit N\0body") and append
-//           it to .dogs/spot/COMMIT (rule 7 of DOG.md).
-//   TREE / TAG: no-op; UNPK has already resolved tree → path bindings
-//           and delivered each blob with its live path.
+// Driven by keeper's UNPK emit hook (UNPK.h unpk_emit_fn) — one call
+// per resolved object, in commit-tree-blob order, with each blob
+// arriving alongside its live path (derived from the enclosing tree
+// by UNPK's side-map).  All indexing happens here; there is no
+// worktree walk.  Read-only opens silently drop all updates.
+//   COMMIT / TREE / TAG: no-op.
 //   BLOB: pick tokenizer from `path`'s extension, tokenize, append
-//           trigram + symbol postings to the in-memory scratch; flush
-//           to a new `.idx` run when the run fills up.
-// Read-only opens silently drop all updates.
+//         trigram + symbol postings to the in-memory scratch; flush
+//         to a new `.idx` run when the run fills up.
 ok64 SPOTUpdate(u8 obj_type, u8cs blob, u8csc path) {
     sane(1);
     spotp s = &SPOT;
     if (!s->rw) done;
+    if (obj_type != DOG_OBJ_BLOB) done;
 
-    a_dup(u8c, root_s, u8bDataC(s->h->root));
-    a_path(capodir);
-    call(CAPOResolveDir, capodir, root_s);
-    a_dup(u8c, dirslice, u8bDataC(capodir));
+    if ($empty(path)) done;  // no ext → no tokenizer
+    size_t plen = (size_t)$len(path);
+    u8cs ext = {};
+    CAPOFindExt(ext, path[0], plen);
+    if ($empty(ext) || !CAPOKnownExt(ext)) done;
 
-    switch (obj_type) {
+    u8cs source = {blob[0], blob[1]};
+    call(CAPOIndexFile, s->entries, source, ext, path);
 
-    case DOG_OBJ_COMMIT: {
-        //  Git object hash: SHA-1 of "commit <size>\0" + body.
-        SHA1state st;
-        SHA1Open(&st);
-        char hdr[32] = {};
-        int hlen = snprintf(hdr, sizeof(hdr), "commit %zu",
-                            (size_t)$len(blob));
-        test(hlen > 0 && hlen + 1 < (int)sizeof(hdr), FAILSANITY);
-        u8cs hdr_slice = {(u8cp)hdr, (u8cp)hdr + hlen + 1};  // with NUL
-        u8cs body_slice = {blob[0], blob[1]};
-        SHA1Feed(&st, hdr_slice);
-        SHA1Feed(&st, body_slice);
-        sha1 sha = {};
-        SHA1Close(&st, &sha);
-
-        u8 hex[40] = {};
-        u8 *hp[2] = {hex, hex + 40};
-        u8cs bin = {sha.data, sha.data + 20};
-        call(HEXu8sFeedSome, hp, bin);
-        u8cs sha40 = {(u8cp)hex, (u8cp)hex + 40};
-        call(CAPOCommitAppend, dirslice, sha40);
-        done;
-    }
-
-    case DOG_OBJ_BLOB: {
-        if ($empty(path)) done;  // no ext → no tokenizer
-        size_t plen = (size_t)$len(path);
-        u8cs ext = {};
-        CAPOFindExt(ext, path[0], plen);
-        if ($empty(ext) || !CAPOKnownExt(ext)) done;
-
-        u8cs source = {blob[0], blob[1]};
-        call(CAPOIndexFile, s->entries, source, ext, path);
-
-        //  Flush when the scratch run hits CAPO_FLUSH_AT.  Dedup halves
-        //  the run often enough that early flushing wastes I/O; follow
-        //  the existing reindex policy (CAPO.c:486-503).  sDedup moves
-        //  the buffer's idle pointer back in place, so a delayed flush
-        //  leaves the scratch compacted.
-        size_t pending = u64bDataLen(s->entries);
-        if (pending >= CAPO_FLUSH_AT) {
-            u64sp data = u64bData(s->entries);
-            u64sSort(data);
-            u64sDedup(data);
-            size_t unique = $len(data);
-            if (unique * 2 > pending) {
-                u64cs run = {(u64cp)data[0], (u64cp)data[1]};
-                call(CAPOIndexWrite, dirslice, run, s->seqno);
-                s->seqno++;
-                u64bReset(s->entries);
-            }
+    //  Flush when the scratch run hits CAPO_FLUSH_AT.  Dedup halves
+    //  the run often enough that early flushing wastes I/O; follow
+    //  the existing reindex policy (CAPO.c:486-503).  sDedup moves
+    //  the buffer's idle pointer back in place, so a delayed flush
+    //  leaves the scratch compacted.
+    size_t pending = u64bDataLen(s->entries);
+    if (pending >= CAPO_FLUSH_AT) {
+        u64sp data = u64bData(s->entries);
+        u64sSort(data);
+        u64sDedup(data);
+        size_t unique = $len(data);
+        if (unique * 2 > pending) {
+            a_dup(u8c, root_s, u8bDataC(s->h->root));
+            a_path(capodir);
+            call(CAPOResolveDir, capodir, root_s);
+            a_dup(u8c, dirslice, u8bDataC(capodir));
+            u64cs run = {(u64cp)data[0], (u64cp)data[1]};
+            call(CAPOIndexWrite, dirslice, run, s->seqno);
+            s->seqno++;
+            u64bReset(s->entries);
         }
-        done;
     }
-
-    case DOG_OBJ_TREE:
-    case DOG_OBJ_TAG:
-    default:
-        (void)blob; (void)path;
-        done;
-    }
+    done;
 }
