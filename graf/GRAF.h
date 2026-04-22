@@ -40,12 +40,21 @@ ok64 GRAFDagFinish(void);
 con ok64 GRAFFAIL    = 0x1c4a993ca495;
 con ok64 GRAFOPEN    = 0x41b28f619397;
 con ok64 GRAFOPENRO  = 0x41b28f6193976d8;
+//  GRAFOpenBranch: branch outside the Phase-3-supported set (trunk only).
+con ok64 GRAFNOBR    = 0x41b28f5d82db;
 
 // --- Public API (DOG 4-fn, singleton) ---
 
 //  Open graf state.  Returns OK (I opened), GRAFOPEN (already open
 //  compatible), GRAFOPENRO (ro/rw conflict), or a real error.
 ok64 GRAFOpen(home *h, b8 rw);
+
+//  Branch-aware Open (Phase 3 surface).  Normalizes `branch` via
+//  DPATHBranchNormFeed and registers it on the home singleton via
+//  HOMEOpenBranch before delegating to GRAFOpen.  Phase 3 accepts
+//  only the trunk (canonical form = empty); other branches return
+//  GRAFNOBR.  Mirrors `KEEPOpenBranch`.
+ok64 GRAFOpenBranch(home *h, u8cs branch, b8 rw);
 
 //  Run one CLI invocation.
 ok64 GRAFExec(cli *c);

@@ -19,23 +19,39 @@ Contract assumed by plain sync:
     be://host/path
 
 `be`/`keeper` dials `ssh host keeper --sync path` and talks TLV
-over the resulting pipe.  `path` is the remote repo root (the dir
-holding `.dogs/keeper/`).  Local `file://` transport skips ssh
-and spawns `keeper --sync path` directly.
+over the resulting pipe.  `path` is the remote store root (the
+`<store>` dir that holds trunk's pack logs and branch subdirs).
+Local `file://` transport skips ssh and spawns `keeper --sync path`
+directly.
+
+## Scope: one branch dir per session
+
+A sync session transfers **one branch dir** at a time: its pack
+logs, its `REFS`, and nothing else.  The session URI picks the
+branch via `?heads/<name>` or `?tags/<name>`; trunk is the default
+(`?` or `?heads/main`/`heads/master`/`heads/trunk`).  Syncing a
+whole multi-branch store is N sessions, one per branch the client
+asks for.
+
+Ancestor-chain dependencies (see `LOG.md` §"Delta-dependency DAG")
+mean: to unpack a non-trunk branch from scratch, the client needs
+trunk (and any intermediate dirs) already synced, so REF_DELTAs
+into ancestors resolve.  The client is responsible for ordering
+sessions parent-first.
 
 ## Watermarks
 
-Watermarks are **client-side only**.  The server keeps no memory
-of which client synced when; reflog gossip makes per-client state
-unnecessary.
+Watermarks are **client-side only** and **per-branch**.  The server
+keeps no memory of which client synced when; reflog gossip makes
+per-client state unnecessary.
 
 **MVP status:** watermarks are sent as zero (`W()` empty body) and
 the server always full-syncs.  Composite watermark persistence to
-REFS, delta-style incremental sync, and pack-level filtering are
-deferred — see "Out of scope" below.  The format below describes
-the eventual target:
+the branch's `REFS`, delta-style incremental sync, and pack-level
+filtering are deferred — see "Out of scope" below.  The format
+below describes the eventual target (one entry per (peer, branch)):
 
-    <time>  be://host/path  #(SSS,LLLL;SSS,LLLL;RRRR,RRRR)
+    <time>  be://host/path?heads/<branch>  #(SSS,LLLL;SSS,LLLL;RRRR,RRRR)
 
 The to-uri is a fragment-only URI.  All six numbers are written as
 lowercase hex (no `0x` prefix, no padding), produced by `sprintf`
@@ -44,9 +60,11 @@ pairs are:
 
     self_seq,self_len    client's own pack log tail at end of session
     peer_seq,peer_len    server's pack log tail the client observed
-    self_rlen,peer_rlen  reflog byte lengths at end of session
+    self_rlen,peer_rlen  branch REFS byte lengths at end of session
 
-Absent entry ⇒ unknown peer, full sync.
+`file_id`s (`SSS`) are store-global sequential, so a watermark is
+unambiguous across the whole store.  Absent entry for (peer, branch)
+⇒ unknown peer, full sync.
 
 ## TLV frame
 
@@ -68,12 +86,17 @@ All multi-byte integers are little-endian.
 | `E` | End      | either             | empty; terminates a list or the session      |
 | `X` | Error    | either             | ron60 ok64 code + optional utf8 message      |
 
-One Q carries one keeper log file (`.dogs/keeper/log/NNNNNNNNNN.pack`)
-verbatim — so the receiver can mmap it as a fresh log file and
-UNPK-index it with `scan_start=12, scan_end=file_len` (object count
-comes from the embedded PACK header).  Per-pack `L` bookmarks
-remain reserved for future delta-style incremental sync and are
-not emitted in MVP full-sync mode.
+One Q carries one keeper log file
+(`<store>/<branch-dir>/NNNNN.keeper`) verbatim — so the receiver
+can mmap it as a fresh log file and UNPK-index it with
+`scan_start=12, scan_end=file_len` (object count comes from the
+embedded PACK header).  The receiver places the file in the
+branch-dir position derived from the session URI and **allocates
+a fresh local `file_id`** (the next number in its own store-wide
+sequence); the sender's `file_id` is only kept for watermark
+bookkeeping.  Per-pack `L` bookmarks remain reserved for future
+delta-style incremental sync and are not emitted in MVP full-sync
+mode.
 
 ## Session flow
 
@@ -81,11 +104,11 @@ not emitted in MVP full-sync mode.
 
     C → S : H(1, 'G')
     C → S : W()                                 ; MVP: always empty → full sync
-    S → C : Q, Q, …, E                          ; one Q per log file
-    S → C : R, R, …, E                          ; whole reflog (dedup on ingest)
-    C     : for each Q, write new log/NNN.pack,
-            UNPK-index into a new idx/NNN.idx run
-    C     : dedup & append reflog entries to own REFS
+    S → C : Q, Q, …, E                          ; one Q per log file in branch dir
+    S → C : R, R, …, E                          ; branch REFS (dedup on ingest)
+    C     : for each Q, write <branch>/NNN.keeper (fresh local file_id),
+            UNPK-index into a new <branch>/NNN.idx run
+    C     : dedup & append reflog entries to own <branch>/REFS
 
 ### Post (`verb = 'P'`, client sends packs)
 
@@ -93,8 +116,8 @@ not emitted in MVP full-sync mode.
     C → S : W()                                 ; MVP: always empty → full sync
     C → S : Q, Q, …, E
     C → S : R, R, …, E
-    S     : ingest each Q as a new log/NNN.pack + idx run
-    S     : dedup & append reflog entries to own REFS
+    S     : ingest each Q as a new <branch>/NNN.keeper + idx run
+    S     : dedup & append reflog entries to own <branch>/REFS
     S → C : E                                   ; ack: post completed
 
 In both directions the **client** sends the watermark (always its

@@ -11,11 +11,11 @@
 #include "abc/PRO.h"
 #include "keeper/KEEP.h"
 
-//  <reporoot>/.dogs/sniff/at.log
+//  <reporoot>/.sniff/at.log
 static u8c *const AT_REL_S[2] = {
-    (u8c *)".dogs/sniff/" SNIFF_AT_FILE,
-    (u8c *)".dogs/sniff/" SNIFF_AT_FILE
-        + sizeof(".dogs/sniff/" SNIFF_AT_FILE) - 1,
+    (u8c *)".sniff/" SNIFF_AT_FILE,
+    (u8c *)".sniff/" SNIFF_AT_FILE
+        + sizeof(".sniff/" SNIFF_AT_FILE) - 1,
 };
 
 //  Fill `out_line` with the last complete line of `full` (trailing '\n'

@@ -1,6 +1,7 @@
 #ifndef DOG_DPATH_H
 #define DOG_DPATH_H
 
+#include "abc/BUF.h"
 #include "abc/INT.h"
 
 con ok64 DPATHFAIL = 0xd64a7513ca495;
@@ -33,6 +34,53 @@ fun ok64 DPATHVerify(u8csc name) {
     if (o != OK) return o;
     if (!$empty(tmp)) return DPATHBAD;
     return OK;
+}
+
+// --- Branch path normalization + ancestor test ---
+//
+// Canonical-form rules (for `.dogs/` sharding):
+//   * trunk              = "" (empty slice)
+//   * non-trunk branch   = path ending with '/', no leading '/'
+//   * trunk aliases      = "", "main", "master", "trunk",
+//                          "heads/main", "heads/master", "heads/trunk"
+//                          (stripped of leading '/' and trailing '/')
+//
+// Callers feed the canonical form into an interning buffer and then
+// compare by byte equality / prefix.
+
+// Feed the canonical form of `in` into `out`.  No bytes are fed for
+// trunk inputs.  Fails only if `out` runs out of room.
+fun ok64 DPATHBranchNormFeed(u8b out, u8cs in) {
+    a_dup(u8c, s, in);
+    // Trim surrounding path separators using typed slice movers.
+    while (!u8csEmpty(s) && *s[0] == '/') u8csUsed1(s);
+    while (!u8csEmpty(s) && *$last(s) == '/') u8csShed1(s);
+    if (u8csEmpty(s)) return OK;
+    // Trunk aliases: any of these names (bare or with heads/ prefix)
+    // normalize to the empty slice.
+    a_cstr(a0, "main");
+    a_cstr(a1, "master");
+    a_cstr(a2, "trunk");
+    a_cstr(a3, "heads/main");
+    a_cstr(a4, "heads/master");
+    a_cstr(a5, "heads/trunk");
+    if (u8csEq(s, a0) || u8csEq(s, a1) || u8csEq(s, a2) ||
+        u8csEq(s, a3) || u8csEq(s, a4) || u8csEq(s, a5))
+        return OK;
+    // Non-trunk: feed the stripped body plus a single trailing '/'.
+    ok64 o = u8bFeed(out, s);
+    if (o != OK) return o;
+    return u8bFeed1(out, '/');
+}
+
+// YES iff `anc` is an ancestor of or equal to `des`, both already in
+// canonical form (trunk = empty; non-trunk ends with '/').  Empty
+// `anc` (trunk) is an ancestor of everything.
+fun b8 DPATHBranchAncestor(u8cs anc, u8cs des) {
+    if (u8csLen(anc) > u8csLen(des)) return NO;
+    if (u8csEmpty(anc)) return YES;
+    u8cs head = {des[0], des[0] + u8csLen(anc)};
+    return u8csEq(anc, head);
 }
 
 #endif

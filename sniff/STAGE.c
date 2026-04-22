@@ -30,13 +30,13 @@
 
 //  .dogs/sniff relative to the worktree root.
 static u8c *const STAGE_REL_S[2] = {
-    (u8c *)".dogs/sniff",
-    (u8c *)".dogs/sniff" + sizeof(".dogs/sniff") - 1,
+    (u8c *)".sniff",
+    (u8c *)".sniff" + sizeof(".sniff") - 1,
 };
 
 ok64 STAGEDir(path8b out, u8cs reporoot, u8cs branch) {
     sane(out && $ok(reporoot) && $ok(branch));
-    //  <reporoot>/.dogs/sniff/<branch>/
+    //  <reporoot>/.sniff/<branch>/
     call(PATHu8bFeed, out, reporoot);
     call(PATHu8bAdd,  out, STAGE_REL_S);
     call(PATHu8bAdd,  out, branch);

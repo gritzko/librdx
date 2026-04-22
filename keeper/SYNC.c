@@ -320,9 +320,9 @@ static ok64 serve_get(keeper *k, int out_fd, sync_wm const *wm) {
     sane(k && out_fd >= 0 && wm);
     (void)wm;  // MVP: full sync, ignore watermark
 
-    //  One Q per local log file (mmapped in k->packs).
-    for (u32 i = 0; i < k->npacks; i++) {
-        call(send_pack_file, out_fd, k->packs[i]);
+    //  One Q per local log file (mmapped in k->shards[0].packs).
+    for (u32 i = 0; i < k->shards[0].npacks; i++) {
+        call(send_pack_file, out_fd, k->shards[0].packs[i]);
     }
     //  Terminate Q stream.
     {
@@ -562,8 +562,8 @@ ok64 SYNCPost(keeper *k, u8csc uri) {
     u8bFree(hdr);
 
     //  Q per local pack file.
-    for (u32 i = 0; i < k->npacks; i++) {
-        call(send_pack_file, wfd, k->packs[i]);
+    for (u32 i = 0; i < k->shards[0].npacks; i++) {
+        call(send_pack_file, wfd, k->shards[0].packs[i]);
     }
     {
         Bu8 tmp = {};

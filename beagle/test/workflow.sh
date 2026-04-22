@@ -29,7 +29,7 @@ want_file() {
 want_missing() { [ ! -e "$1" ] || fail "$1 should be gone"; }
 
 head_hex() {
-    awk -F'\t' 'END {gsub(/^\?/,"",$3); print $3}' .dogs/sniff/at.log
+    awk -F'\t' 'END {gsub(/^\?/,"",$3); print $3}' .sniff/at.log
 }
 
 # ------------------------------------------------------------------
@@ -73,7 +73,7 @@ note "HEAD=$C3"
 # Verify: fresh worktree + be get restores both files.
 D3b="$TMP/r3b"; mkdir -p "$D3b"; cd "$D3b"
 cp -r "$D3/.dogs" .
-rm -rf .dogs/sniff
+rm -rf .sniff
 "$BE" get "$C3" >/dev/null
 want_file a.txt "alpha"
 want_file b.txt "bravo"
@@ -94,7 +94,7 @@ note "HEAD=$C4"
 
 D4b="$TMP/r4b"; mkdir -p "$D4b"; cd "$D4b"
 cp -r "$D3b/.dogs" .
-rm -rf .dogs/sniff
+rm -rf .sniff
 "$BE" get "$C4" >/dev/null
 want_file a.txt "alpha-v2"
 want_file b.txt "bravo"
@@ -111,7 +111,7 @@ C5=$(head_hex)
 
 D5b="$TMP/r5b"; mkdir -p "$D5b"; cd "$D5b"
 cp -r "$D4b/.dogs" .
-rm -rf .dogs/sniff
+rm -rf .sniff
 "$BE" get "$C5" >/dev/null
 want_missing a.txt
 want_file b.txt "bravo"
@@ -132,7 +132,7 @@ C6=$(head_hex)
 
 D6b="$TMP/r6b"; mkdir -p "$D6b"; cd "$D6b"
 cp -r "$D5b/.dogs" .
-rm -rf .dogs/sniff
+rm -rf .sniff
 "$BE" get "$C6" >/dev/null
 want_missing a.txt
 want_file b.txt "bravo"

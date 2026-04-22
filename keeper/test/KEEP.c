@@ -76,8 +76,8 @@ ok64 KEEPempty() {
     call(HOMEOpen, &h, root, YES);
     
     call(KEEPOpen, &h, YES);
-    want(KEEP.npacks == 0);
-    want(KEEP.nruns == 0);
+    want(KEEP.shards[0].npacks == 0);
+    want(KEEP.shards[0].nruns == 0);
 
     a_cstr(_h, "abcdef");
     u64 hashlet = WHIFFHexHashlet60(_h);
@@ -107,7 +107,7 @@ ok64 KEEPput() {
     call(HOMEOpen, &h, root, YES);
     
     call(KEEPOpen, &h, YES);
-    want(KEEP.npacks == 0);
+    want(KEEP.shards[0].npacks == 0);
 
     // Store two blobs
     a_cstr(blob1, "hello world\n");
@@ -122,8 +122,8 @@ ok64 KEEPput() {
     };
 
     call(KEEPPut, &KEEP, objs, wh, 2);
-    want(KEEP.npacks == 1);
-    want(KEEP.nruns == 1);
+    want(KEEP.shards[0].npacks == 1);
+    want(KEEP.shards[0].nruns == 1);
 
     // Both whiffs should have valid types
     want(wh64Type(wh[0]) == DOG_OBJ_BLOB);
@@ -216,8 +216,8 @@ ok64 KEEPpackIncremental() {
     want(memcmp(tree_sha.data, expected_tree_sha, 20) == 0);
 
     call(KEEPPackClose, &KEEP, &p);
-    want(KEEP.npacks == 1);
-    want(KEEP.nruns == 1);
+    want(KEEP.shards[0].npacks == 1);
+    want(KEEP.shards[0].nruns == 1);
 
     // Retrieve blob by 7-char prefix (git default)
     u64 blob_hashlet = WHIFFHashlet60(&blob_sha);
@@ -252,6 +252,64 @@ ok64 KEEPpackIncremental() {
     done;
 }
 
+// --- Phase 1c: KEEPBranchDrop preconditions ---
+
+typedef struct {
+    char const *input;
+    ok64        expect;
+} BranchDropCase;
+
+ok64 KEEPBranchDropTable() {
+    sane(1);
+    call(FILEInit);
+
+    char tmpdir[] = "/tmp/keeper-drop-XXXXXX";
+    want(mkdtemp(tmpdir) != NULL);
+
+    a_cstr(root, tmpdir);
+    home h = {};
+    call(HOMEOpen, &h, root, YES);
+    call(KEEPOpen, &h, YES);
+
+    //  Trunk aliases must all refuse with KEEPTRUNK — none may be
+    //  dropped because trunk carries the paths registry, ALIAS, and
+    //  the root REFS.
+    BranchDropCase const cases[] = {
+        {"",              KEEPTRUNK},
+        {"main",          KEEPTRUNK},
+        {"master",        KEEPTRUNK},
+        {"trunk",         KEEPTRUNK},
+        {"heads/main",    KEEPTRUNK},
+        {"heads/master",  KEEPTRUNK},
+        {"heads/trunk",   KEEPTRUNK},
+        //  Phase 1c hard-caps nshards to 1; any non-trunk dir is
+        //  neither opened nor present on disk.
+        {"feature",       KEEPNOBR},
+        {"heads/feature", KEEPNOBR},
+        {"tags/v0.0.1",   KEEPNOBR},
+        {"feature/fix1",  KEEPNOBR},
+    };
+    for (size_t i = 0; i < sizeof(cases)/sizeof(cases[0]); i++) {
+        u8cs in = {(u8cp)cases[i].input,
+                   (u8cp)cases[i].input + strlen(cases[i].input)};
+        ok64 got = KEEPBranchDrop(&KEEP, in);
+        if (got != cases[i].expect) {
+            fprintf(stderr, "FAIL drop[%zu] '%s': got %s want %s\n",
+                    i, cases[i].input,
+                    ok64str(got), ok64str(cases[i].expect));
+            fail(TESTFAIL);
+        }
+    }
+
+    call(KEEPClose);
+    HOMEClose(&h);
+
+    char cmd[256];
+    snprintf(cmd, sizeof(cmd), "rm -rf %s", tmpdir);
+    system(cmd);
+    done;
+}
+
 ok64 maintest() {
     sane(1);
     fprintf(stderr, "WH64hashlet...\n");
@@ -264,6 +322,8 @@ ok64 maintest() {
     call(KEEPput);
     fprintf(stderr, "KEEPpackIncremental...\n");
     call(KEEPpackIncremental);
+    fprintf(stderr, "KEEPBranchDropTable...\n");
+    call(KEEPBranchDropTable);
     fprintf(stderr, "all passed\n");
     done;
 }

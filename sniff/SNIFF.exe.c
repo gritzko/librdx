@@ -304,6 +304,8 @@ static ok64 sniff_scan_cb(void0p arg, path8p path) {
 
     a_cstr(dogs, ".dogs");
     if ($len(rel) >= 5 && memcmp(rel[0], dogs[0], 5) == 0) return OK;
+    a_cstr(sniffd, ".sniff");
+    if ($len(rel) >= 6 && memcmp(rel[0], sniffd[0], 6) == 0) return OK;
 
     if (ctx->ig && IGNOMatch(ctx->ig, rel, NO)) return OK;
 

@@ -25,8 +25,8 @@ graf status                        index run/entry counts
 
 | File          | Purpose |
 |---------------|---------|
-| `GRAF.h`      | Singleton state, arena, `graf_emit`, public API |
-| `GRAF.c`      | `GRAFOpen` / `GRAFUpdate` / `GRAFClose`, arena init, `GRAFHunkEmit` |
+| `GRAF.h`      | Singleton state, arena, `graf_emit`, public API. Phase 3 adds `GRAFOpenBranch(h, branch, rw)` — trunk-only, returns `GRAFNOBR` for anything else |
+| `GRAF.c`      | `GRAFOpen` / `GRAFOpenBranch` / `GRAFUpdate` / `GRAFClose`, arena init, `GRAFHunkEmit` |
 | `GRAF.exe.c`  | `GRAFExec` — verb dispatch (diff / merge / blame / weave / status) |
 | `GRAF.cli.c`  | `main()` — parse argv, open singleton, call `GRAFExec` |
 | `DAG.{h,c}`   | LSM of `wh128` records under `.dogs/graf/` driven by `GRAFUpdate`. Types: COMMIT_GEN, COMMIT_PARENT, COMMIT_TREE, PATH_VER. PATH_VER keys on 40-bit `RAPHash(path)`; collisions verified by query-side keeper tree-walk. graf caches freshly-ingested blobs + trees per session; at `GRAFClose` it walks each new commit's root tree top-down and emits PATH_VER for leaves whose blob was freshly delivered. |

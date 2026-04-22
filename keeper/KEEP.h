@@ -3,15 +3,20 @@
 
 //  KEEP: local git object store.
 //
-//  Stores git pack objects in append-only log files under .dogs/keeper/.
+//  Stores git pack objects in append-only log files under .dogs/.
 //  Objects are looked up via an LSM index of wh128 entries:
 //    key = keepKeyPack(obj_type, hashlet60)  hashlet60[60] | type[4]
 //    val = wh64Pack(flags, file_id, offset)  offset[40] | file_id[20] | flags[4]
 //
-//  On disk (.dogs/keeper/):
-//    log/0000000001.pack — append-only pack log (FILEBook'd)
-//    idx/0000000001.idx  — sorted wh128 run (LSM)
-//    REFS                — URI→URI reflog
+//  On disk (.dogs/; Phase 1b flat layout, trunk-only):
+//    NNNNN.keeper — append-only pack log (FILEBook'd)
+//    NNNNN.idx    — sorted wh128 run (LSM)
+//    REFS         — URI→URI reflog
+//    paths.log    — store-wide path registry
+//
+//  `NNNNN` is the 5-hex-char wh64 file_id (20 bits).  Phase 1a keeps
+//  exactly one trunk shard; feature branches land in `<store>/<branch>/`
+//  subdirs in Phase 1c+.
 
 #include "abc/INT.h"
 #include "abc/KV.h"
@@ -31,7 +36,14 @@ con ok64 KEEPOPEN    = 0x50e399619397;
 //  Returned by KEEPOpen when caller requests rw on a ro-opened keeper.
 con ok64 KEEPOPENRO  = 0x50e3996193976d8;
 //  Intra-pack object order violation: commit→tree→blob→tag required.
-con ok64 ORDERBAD = 0x61b34e6cb28d;
+con ok64 ORDERBAD    = 0x61b34e6cb28d;
+//  KEEPOpenBranch: branch outside the Phase-0-supported set (trunk only).
+con ok64 KEEPNOBR  = 0x50e3995d82db;
+//  KEEPBranchDrop: refuses to drop the trunk shard.
+con ok64 KEEPTRUNK = 0x1438e65d6de5d4;
+//  KEEPBranchDrop: refuses a branch that still has descendants
+//  referencing it via REF_DELTA, or a live staging pack.
+con ok64 KEEPDIRTY = 0x1438e64d49b762;
 
 // --- 60-bit hashlet: index key format ---
 //
@@ -69,28 +81,38 @@ fun u64 keepKeyHashlet(u64 key) {
 
 #include "abc/MSET.h"
 
-#define KEEP_MAX_FILES  256
-#define KEEP_MAX_LEVELS MSET_MAX_LEVELS
-#define KEEP_DIR        ".dogs/keeper"
-#define KEEP_LOG_DIR    "log"
-#define KEEP_IDX_DIR    "idx"
-#define KEEP_PACK_EXT   ".pack"
-#define KEEP_IDX_EXT    ".idx"
-#define KEEP_SEQNO_W    10
+#define KEEP_MAX_FILES   256
+#define KEEP_MAX_LEVELS  MSET_MAX_LEVELS
+#define KEEP_MAX_SHARDS  16              // Phase 1a hard-caps usage to 1
+#define KEEP_DIR         ".dogs"
+#define KEEP_PACK_EXT    ".keeper"       // pack logs live next to indexes
+#define KEEP_IDX_EXT     ".idx"
+#define KEEP_SEQNO_W     5               // 20-bit wh64 file_id → 5 hex chars
+
+//  Per-branch object store.  Each shard owns the mmap'd pack log files
+//  and the LSM index runs for one branch-dir.  Phase 1a keeps the on-
+//  disk layout flat (single shard rooted at .dogs/); the branch
+//  slice is always the trunk (empty) until Phase 1b migrates files
+//  into branch subdirs.
+typedef struct {
+    u8cs    branch;                     // canonical branch path (slot 0 = trunk)
+    int     lock_fd;                    // flock on <shard>/.lock; -1 = none
+    u8bp    packs[KEEP_MAX_FILES];      // mmap'd log files
+    u32     npacks;
+    wh128cs runs[KEEP_MAX_LEVELS];      // LSM index runs
+    u8bp    run_maps[KEEP_MAX_LEVELS];
+    u32     nruns;
+} keeper_shard;
 
 typedef struct {
-    home  *h;                       // borrowed; owns root/arena/config/rw
-    int    lock_fd;                 // flock on .dogs/keeper/.lock; -1 = none
-    u8bp   packs[KEEP_MAX_FILES];   // mmap'd log files
-    u32    npacks;
-    wh128cs runs[KEEP_MAX_LEVELS];  // LSM index runs
-    u8bp   run_maps[KEEP_MAX_LEVELS];
-    u32    nruns;
-    Bu8    buf1;                    // working buffer for KEEPGet base inflate
-    Bu8    buf2;                    // working buffer for KEEPGet delta apply
-    Bu8    buf3;                    // working buffer for keep_resolve base
-    Bu8    buf4;                    // working buffer for keep_resolve delta
-    //  Path registry: .dogs/keeper/paths.log (newline-separated),
+    home         *h;                    // borrowed; owns root/arena/config/rw
+    keeper_shard  shards[KEEP_MAX_SHARDS];
+    u32           nshards;              // Phase 1a: always 1 on open
+    Bu8           buf1;                 // working buffer for KEEPGet base inflate
+    Bu8           buf2;                 // working buffer for KEEPGet delta apply
+    Bu8           buf3;                 // working buffer for keep_resolve base
+    Bu8           buf4;                 // working buffer for keep_resolve delta
+    //  Path registry: .dogs/paths.log (newline-separated),
     //  offsets[i] → start-byte of path i, hash(path) → i for dedup.
     //  Dir paths end with '/'.  Index 0 is reserved for the empty path.
     u8bp   paths_log;
@@ -98,7 +120,7 @@ typedef struct {
     Bkv64  paths_hash;
 } keeper;
 
-// Relative ".dogs/keeper" slice.  Call sites compose the full dir via
+// Relative ".dogs" slice.  Call sites compose the full dir via
 //   a_path(dir, u8bDataC(k->h->root), KEEP_DIR_S);
 // and use $path(dir) wherever a u8csc is needed.
 extern u8c *const KEEP_DIR_S[2];
@@ -117,6 +139,24 @@ extern keeper KEEP;
 //               propagate.  Caller's outer scope must re-architect.
 //    (other)    real error — propagate, no KEEPClose.
 ok64 KEEPOpen(home *h, b8 rw);
+
+//  Branch-aware Open (new Phase-0 surface).  Normalizes `branch` via
+//  DPATHBranchNormFeed and registers it on the home singleton via
+//  HOMEOpenBranch before delegating to KEEPOpen.  Phase 0 accepts
+//  only the trunk (canonical form = empty); other branches return
+//  KEEPNOBR.  Same return semantics as KEEPOpen on trunk inputs.
+ok64 KEEPOpenBranch(home *h, u8cs branch, b8 rw);
+
+//  Drop a branch-dir and all its files (Phase 1c surface).  `branch`
+//  is normalized via DPATHBranchNormFeed.  Preconditions:
+//    * Trunk (empty canonical branch) cannot be dropped — KEEPTRUNK.
+//    * No open shard may name a descendant of `branch` via REF_DELTA
+//      into its subtree — KEEPDIRTY.
+//    * No live staging pack (`stage.sniff`) may sit in the dir.
+//  Phase 1c hard-caps nshards to 1, so any non-trunk branch returns
+//  KEEPNOBR; full semantics light up as Phase 2+ opens sibling
+//  shards.
+ok64 KEEPBranchDrop(keeper *k, u8cs branch);
 
 //  Run one CLI invocation — same effect as `keeper ...`.
 ok64 KEEPExec(keeper *k, cli *c);
@@ -180,10 +220,11 @@ ok64 KEEPImport(keeper *k, u8cs pack_path);
 
 //  Ingest a keeper-native stripped pack file (one SYNC.md Q body):
 //  whole log file bytes = PACK header (12 B) + concatenated object
-//  records, no git trailer.  Writes a new log/NNN.pack, UNPK-indexes
+//  records, no git trailer.  Writes a new <kdir>/NNNNN.keeper, UNPK-indexes
 //  it, emits one pack bookmark at offset 12 (covering the whole
-//  file), writes idx/NNN.idx, maps both, and extends k->packs /
-//  k->runs.  Caller holds no resources beyond the `bytes` slice.
+//  file), writes idx/NNN.idx, maps both, and extends the trunk
+//  shard's packs[] / runs[].  Caller holds no resources beyond the
+//  `bytes` slice.
 ok64 KEEPIngestFile(keeper *k, u8csc bytes);
 
 //  Push one new commit object to `host:path` via git-receive-pack.
@@ -220,6 +261,7 @@ typedef struct {
     u64      pack_offset;           // byte offset in log where THIS pack's first object starts
     u8       last_type;             // for commit->tree->blob->tag ordering check
     b8       strict_order;          // enforce commit->tree->blob->tag (ORDERBAD)
+    u32      shard_idx;             // write shard (Phase 1c: always 0 = trunk)
     Bwh128   entries;               // index entries buffer
     Bu8      delta_base;            // scratch: inflated base content
     Bu8      delta_instr;           // scratch: encoded delta instructions

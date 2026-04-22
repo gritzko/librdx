@@ -4,7 +4,7 @@
 //  STAGE: per-branch staging pack.  See sniff/STAGE.md.
 //
 //  The staging log is a git-style pack store at
-//  `.dogs/sniff/<branch>/` that holds tree+blob objects produced by
+//  `.sniff/<branch>/` that holds tree+blob objects produced by
 //  `be put` / `be delete`.  On `be post`, reachable staged objects
 //  are re-packed canonically (commit→trees→blobs) and appended to
 //  keeper's main log; then STAGEDrop removes the staging dir.
@@ -15,12 +15,12 @@
 //  zero pack logic.
 //
 //  Layout mirrors keeper's main log:
-//      .dogs/sniff/<branch>/log/0000000001.pack
-//      .dogs/sniff/<branch>/idx/0000000001.idx
+//      .sniff/<branch>/log/0000000001.pack
+//      .sniff/<branch>/idx/0000000001.idx
 
 #include "keeper/KEEP.h"
 
-//  Resolve `<reporoot>/.dogs/sniff/<branch>/` into `out`.
+//  Resolve `<reporoot>/.sniff/<branch>/` into `out`.
 ok64 STAGEDir(path8b out, u8cs reporoot, u8cs branch);
 
 //  Resolve the current staging branch: read from at.log tail, or
@@ -51,7 +51,7 @@ ok64 STAGEGet(u8cs branch, u64 hashlet60, size_t hexlen,
 //  skipped.
 ok64 STAGEEach(u8cs branch, keep_cb cb, void *ctx);
 
-//  rm -rf .dogs/sniff/<branch>/.  Idempotent.
+//  rm -rf .sniff/<branch>/.  Idempotent.
 ok64 STAGEDrop(u8cs branch);
 
 #endif

@@ -1,6 +1,6 @@
 //  PATHS: keeper-side path registry.
 //
-//  `.dogs/keeper/paths.log` is a newline-separated append-only list of
+//  `.dogs/paths.log` is a newline-separated append-only list of
 //  repo-relative paths.  Each path's identity is its u32 index in the
 //  sequence.  Directory paths carry a trailing '/'.  Index 0 = empty
 //  path (repo root).
@@ -72,9 +72,8 @@ ok64 KEEPPathsOpen(keeper *k, b8 rw) {
     sane(k && k->h);
     a_dup(u8c, reporoot, u8bDataC(k->h->root));
     a_cstr(dogs, ".dogs");
-    a_cstr(keep, "keeper");
     a_cstr(fn, "paths.log");
-    a_path(pp, reporoot, dogs, keep, fn);
+    a_path(pp, reporoot, dogs, fn);
 
     ok64 o = FILEBook(&k->paths_log, $path(pp), KEEP_PATHS_BOOK);
     if (o != OK) {

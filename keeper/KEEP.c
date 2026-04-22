@@ -1,6 +1,6 @@
 //  KEEP: local git object store.
 //
-//  Stores git packfiles under .dogs/keeper/, indexed by u64→w64
+//  Stores git packfiles under .dogs/ (trunk-flat) indexed by u64→w64
 //  in LSM sorted runs of wh128 entries.
 //
 #include "KEEP.h"
@@ -56,7 +56,7 @@ u8c *const KEEP_DIR_S[2] = {
 
 // --- Helpers ---
 
-// Build <h->root>/.dogs/keeper/ into `out`.  The worktree root has
+// Build <h->root>/.dogs/ into `out`.  The worktree root has
 // already been resolved by HOMEOpen.
 static ok64 keep_resolve_dir(path8b out, home *h) {
     sane(out && h);
@@ -116,44 +116,24 @@ static ok64 keep_scan_packs(keeper *k, u8csc keepdir) {
     //  Lockless-reader invariant: scan idx BEFORE packs.  Writer
     //  publishes bytes-first then idx: any idx entry observed here
     //  points into a pack file that existed before we listed packs,
-    //  so the referenced pack is guaranteed to be in k->packs[].
+    //  so the referenced pack is guaranteed to be in k->shards[0].packs[].
     //  Scanning packs first would race: a pack created between the
     //  two scans would bring in idx entries referencing packs not in
     //  our mapping.
 
-    // New layout: idx/*.idx
-    a_pad(u8, idxdir, 1024);
-    u8bFeed(idxdir, keepdir);
-    a_cstr(idxsep, "/" KEEP_IDX_DIR);
-    u8bFeed(idxdir, idxsep);
-    PATHu8bTerm(idxdir);
-    a_dup(u8c, id, u8bData(idxdir));
-
     u8bp idx_maps[KEEP_MAX_LEVELS] = {};
     u32 nidx = 0;
-    keep_scan_dir(id, KEEP_IDX_EXT, idx_maps, &nidx, KEEP_MAX_LEVELS);
-    // Old layout: keeper/*.idx
     keep_scan_dir(keepdir, KEEP_IDX_EXT, idx_maps, &nidx, KEEP_MAX_LEVELS);
+    keep_scan_dir(keepdir, KEEP_PACK_EXT,
+                  k->shards[0].packs, &k->shards[0].npacks, KEEP_MAX_FILES);
 
-    // New layout: log/*.pack
-    a_pad(u8, logdir, 1024);
-    u8bFeed(logdir, keepdir);
-    a_cstr(logsep, "/" KEEP_LOG_DIR);
-    u8bFeed(logdir, logsep);
-    PATHu8bTerm(logdir);
-    a_dup(u8c, ld, u8bData(logdir));
-    keep_scan_dir(ld, KEEP_PACK_EXT, k->packs, &k->npacks, KEEP_MAX_FILES);
-
-    // Old layout: keeper/*.packs
-    keep_scan_dir(keepdir, ".packs", k->packs, &k->npacks, KEEP_MAX_FILES);
-
-    for (u32 i = 0; i < nidx && k->nruns < KEEP_MAX_LEVELS; i++) {
+    for (u32 i = 0; i < nidx && k->shards[0].nruns < KEEP_MAX_LEVELS; i++) {
         wh128cp base = (wh128cp)u8bDataHead(idx_maps[i]);
         u32 n = (u32)(u8bDataLen(idx_maps[i]) / sizeof(wh128));
-        k->runs[k->nruns][0] = base;
-        k->runs[k->nruns][1] = base + n;
-        k->run_maps[k->nruns] = idx_maps[i];
-        k->nruns++;
+        k->shards[0].runs[k->shards[0].nruns][0] = base;
+        k->shards[0].runs[k->shards[0].nruns][1] = base + n;
+        k->shards[0].run_maps[k->shards[0].nruns] = idx_maps[i];
+        k->shards[0].nruns++;
     }
     return OK;
 }
@@ -173,6 +153,23 @@ static b8 keep_is_rw = NO;
 
 // --- Open: mmap pack files + load index runs ---
 
+ok64 KEEPOpenBranch(home *h, u8cs branch, b8 rw) {
+    sane(h != NULL && $ok(branch));
+
+    // Phase 0 only accepts the trunk branch.  Canonical form = empty.
+    a_pad(u8, nb, 256);
+    call(DPATHBranchNormFeed, nb, branch);
+    if (u8bDataLen(nb) != 0) return KEEPNOBR;
+
+    // Register on the process-wide home singleton.  Idempotent — a
+    // compatible re-open is silently absorbed so subsequent
+    // DOGUpdate() calls can always read HOMEWriteBranch() as slot 0.
+    ok64 o = HOMEOpenBranch(h, branch, rw);
+    if (o != OK && o != HOMEOPEN) return o;
+
+    return KEEPOpen(h, rw);
+}
+
 ok64 KEEPOpen(home *h, b8 rw) {
     sane(h);
 
@@ -188,38 +185,24 @@ ok64 KEEPOpen(home *h, b8 rw) {
     keeper *k = &KEEP;
     zerop(k);
     k->h = h;
-    k->lock_fd = -1;
+    //  Phase 1b: one trunk shard rooted at .dogs/ (flat layout).
+    //  Shard branch slice stays empty (trunk) until Phase 1c+ introduces
+    //  feature-branch subdirs.
+    k->nshards = 1;
+    k->shards[0].lock_fd = -1;
     keep_is_rw = rw;
 
     a_path(dir);
     call(keep_resolve_dir, dir, h);
     a_path(keepdir, u8bDataC(k->h->root), KEEP_DIR_S);
 
-    // Lock file's parent must exist regardless of rw; log/idx only
-    // need creation in rw mode.
+    // Phase 1b flat layout: packs and indexes live directly in the
+    // keeper dir; no log/ or idx/ subdirs to create.
     call(FILEMakeDirP, $path(dir));
-    if (rw) {
-        {
-            a_pad(u8, logdir, 1024);
-            u8bFeed(logdir, $path(keepdir));
-            a_cstr(logrel, "/" KEEP_LOG_DIR);
-            u8bFeed(logdir, logrel);
-            PATHu8bTerm(logdir);
-            FILEMakeDirP($path(logdir));
-        }
-        {
-            a_pad(u8, idxdir, 1024);
-            u8bFeed(idxdir, $path(keepdir));
-            a_cstr(idxrel, "/" KEEP_IDX_DIR);
-            u8bFeed(idxdir, idxrel);
-            PATHu8bTerm(idxdir);
-            FILEMakeDirP($path(idxdir));
-        }
-    }
 
-    // Worktree sharing: `.dogs/keeper` may be a symlink into another
-    // repo, so two dogs in different worktrees can race on the pack
-    // store.  flock on `.dogs/keeper/.lock` serializes writers only.
+    // Worktree sharing: `.dogs/` is the store root; two processes can
+    // race on the pack store if they both open rw on the same repo.
+    // flock on `.dogs/.lock` serializes writers only.
     // Readers open lockless — the idx-before-packs scan order in
     // keep_scan_packs plus idx-via-rename publication in
     // KEEPPackClose give a consistent snapshot without any lock,
@@ -231,12 +214,12 @@ ok64 KEEPOpen(home *h, b8 rw) {
         a_cstr(lockrel, "/.lock");
         u8bFeed(lockpath, lockrel);
         PATHu8bTerm(lockpath);
-        call(FILECreate, &k->lock_fd, $path(lockpath));
-        call(FILELock, &k->lock_fd, rw);
+        call(FILECreate, &k->shards[0].lock_fd, $path(lockpath));
+        call(FILELock, &k->shards[0].lock_fd, rw);
     }
 
-    // Scan pack files: log/*.pack (new) + keeper/*.packs (old compat)
-    // Scan idx files: idx/*.idx (new) + keeper/*.idx (old compat)
+    // Scan pack + idx files living directly in <keepdir>.  Pre-Phase-1b
+    // stores under log/ + idx/ subdirs need `keeper migrate` first.
     call(keep_scan_packs, k, $path(keepdir));
 
     // Pre-allocate working buffers for KEEPGet (mmap, reset per call)
@@ -245,7 +228,7 @@ ok64 KEEPOpen(home *h, b8 rw) {
     call(u8bMap, k->buf3, KEEP_BUFSZ);
     call(u8bMap, k->buf4, KEEP_BUFSZ);
 
-    // Path registry (.dogs/keeper/paths.log); tolerant on open failure
+    // Path registry (.dogs/paths.log); tolerant on open failure
     // so existing stores without the file keep working read-only.
     ok64 po = KEEPPathsOpen(k, rw);
     if (po != OK && rw) return po;
@@ -275,19 +258,59 @@ ok64 KEEPClose(void) {
     sane(1);
     if (!keep_is_open()) return OK;
     keeper *k = &KEEP;
-    for (u32 i = 0; i < k->npacks; i++)
-        if (k->packs[i]) FILEUnMap(k->packs[i]);
-    for (u32 i = 0; i < k->nruns; i++)
-        if (k->run_maps[i]) FILEUnMap(k->run_maps[i]);
+    for (u32 i = 0; i < k->shards[0].npacks; i++)
+        if (k->shards[0].packs[i]) FILEUnMap(k->shards[0].packs[i]);
+    for (u32 i = 0; i < k->shards[0].nruns; i++)
+        if (k->shards[0].run_maps[i]) FILEUnMap(k->shards[0].run_maps[i]);
     if (k->buf1[0]) u8bUnMap(k->buf1);
     if (k->buf2[0]) u8bUnMap(k->buf2);
     if (k->buf3[0]) u8bUnMap(k->buf3);
     if (k->buf4[0]) u8bUnMap(k->buf4);
     KEEPPathsClose(k);
-    if (k->lock_fd >= 0) FILEClose(&k->lock_fd);
+    if (k->shards[0].lock_fd >= 0) FILEClose(&k->shards[0].lock_fd);
     zerop(k);
     keep_is_rw = NO;
     done;
+}
+
+// --- Delta-dependency DAG: shard ancestry ---
+//
+// A pack written into shard `dst_idx` may emit a REF_DELTA whose base
+// resolves in shard `src_idx` only when src is an ancestor of dst (or
+// the same shard).  "Ancestor" in canonical-form branch paths is a
+// byte-level prefix: trunk ("") is an ancestor of every branch;
+// "feature/" is an ancestor of "feature/fix1/" but not of "other/".
+// KEEPPackFeed's REF_DELTA path consults this before emitting; a
+// non-ancestor base triggers a silent fall-through to raw encoding.
+// Phase 1c keeps nshards=1 so the check trivially passes; the wiring
+// lights up once Phase 2 opens sibling shards.
+static b8 keep_shard_visible(keeper const *k, u32 dst_idx, u32 src_idx) {
+    if (dst_idx >= k->nshards || src_idx >= k->nshards) return NO;
+    u8cs src = {k->shards[src_idx].branch[0], k->shards[src_idx].branch[1]};
+    u8cs dst = {k->shards[dst_idx].branch[0], k->shards[dst_idx].branch[1]};
+    return DPATHBranchAncestor(src, dst);
+}
+
+// --- Drop-a-dir: Phase 1c API ---
+
+ok64 KEEPBranchDrop(keeper *k, u8cs branch) {
+    sane(k && $ok(branch));
+
+    a_pad(u8, nb, 256);
+    call(DPATHBranchNormFeed, nb, branch);
+
+    //  Trunk is never droppable — store root plus paths registry plus
+    //  ALIAS file live there.
+    if (u8bDataLen(nb) == 0) return KEEPTRUNK;
+
+    //  Phase 1c hard-caps nshards to 1 (trunk).  Non-trunk branches
+    //  don't exist yet on disk or in the open-shard stack, so the
+    //  drop is a no-op that reports KEEPNOBR.  Phase 2+ fills in:
+    //    * rmdir subtree under .dogs/<branch>/
+    //    * refuse if any open shard names a descendant (REF_DELTA
+    //      bases would dangle) — return KEEPDIRTY
+    //    * refuse if stage.sniff / WT marker still present
+    return KEEPNOBR;
 }
 
 // --- Lookup: hashlet → wh64 val ---
@@ -314,9 +337,9 @@ ok64 KEEPLookup(keeper *k, u64 hashlet60, size_t hexlen, u64p val) {
     u64 key_hi = keepKeyPack(KEEP_OBJ_TAG,
                              hpre | (~hmask & WHIFF_HASHLET60_MASK));
 
-    for (u32 r = 0; r < k->nruns; r++) {
-        wh128cp base = k->runs[r][0];
-        size_t len = (size_t)(k->runs[r][1] - base);
+    for (u32 r = 0; r < k->shards[0].nruns; r++) {
+        wh128cp base = k->shards[0].runs[r][0];
+        size_t len = (size_t)(k->shards[0].runs[r][1] - base);
         if (len == 0) continue;
         size_t lo = 0, hi = len;
         while (lo < hi) {
@@ -345,8 +368,8 @@ static ok64 KEEPGetPacked(keeper *k, u64 val, u8bp out, u8p out_type) {
     u32 file_id = wh64Id(val);
     u64 offset  = wh64Off(val);
 
-    if (file_id < 1 || file_id > k->npacks) return KEEPNONE;
-    u8bp pack_map = k->packs[file_id - 1];
+    if (file_id < 1 || file_id > k->shards[0].npacks) return KEEPNONE;
+    u8bp pack_map = k->shards[0].packs[file_id - 1];
     u8cp pack = u8bDataHead(pack_map);
     u64 packlen = (u64)(u8bIdleHead(pack_map) - pack);
 
@@ -483,9 +506,9 @@ ok64 KEEPGetExact(keeper *k, sha1 const *sha, u8bp out, u8p out_type) {
     u64 key_lo = keepKeyPack(KEEP_OBJ_COMMIT, hashlet60);
     u64 key_hi = keepKeyPack(KEEP_OBJ_TAG, hashlet60);
 
-    for (u32 r = 0; r < k->nruns; r++) {
-        wh128cp base = k->runs[r][0];
-        size_t len = (size_t)(k->runs[r][1] - base);
+    for (u32 r = 0; r < k->shards[0].nruns; r++) {
+        wh128cp base = k->shards[0].runs[r][0];
+        size_t len = (size_t)(k->shards[0].runs[r][1] - base);
         if (len == 0) continue;
 
         // Binary search for first entry >= key_lo
@@ -713,9 +736,9 @@ ok64 KEEPScan(keeper *k, u64 from_val, keep_cb cb, void *ctx) {
     u32 file_id = wh64Id(from_val);
     u64 offset  = wh64Off(from_val);
 
-    if (file_id < 1 || file_id > k->npacks) return KEEPNONE;
-    u8cp pack = u8bDataHead(k->packs[file_id - 1]);
-    u64 packlen = (u64)(u8bIdleHead(k->packs[file_id - 1]) - pack);
+    if (file_id < 1 || file_id > k->shards[0].npacks) return KEEPNONE;
+    u8cp pack = u8bDataHead(k->shards[0].packs[file_id - 1]);
+    u64 packlen = (u64)(u8bIdleHead(k->shards[0].packs[file_id - 1]) - pack);
 
     // Skip PACK header if at start
     if (offset == 0 && packlen >= 12) {
@@ -766,20 +789,33 @@ ok64 KEEPScan(keeper *k, u64 from_val, keep_cb cb, void *ctx) {
 
 // --- Pack writer: incremental API ---
 
-//  Write the "NNNNNNNNNN<ext>" leaf filename (ron60-padded seqno plus
+//  Feed `val` into `out` as exactly `width` lowercase hex digits,
+//  zero-padded on the left.  Same-width padding keeps byte-sorted
+//  filenames numerically ordered.
+static ok64 keep_hex_pad(u8b out, u32 val, u32 width) {
+    sane(u8bOK(out));
+    test(width <= 8, KEEPFAIL);  // u32 fits in 8 hex chars
+    a_cstr(digits, "0123456789abcdef");
+    for (int i = (int)width - 1; i >= 0; i--) {
+        call(u8bFeed1, out, digits[0][(val >> (i * 4)) & 0xf]);
+    }
+    done;
+}
+
+//  Write the "NNNNN<ext>" leaf filename (5-hex-char file_id plus
 //  extension) into `out`.  `ext` is the dotted extension slice
 //  (`KEEP_PACK_EXT` / `KEEP_IDX_EXT`, each including the leading dot).
+//  KEEP_SEQNO_W = 5 matches the wh64 val's 20-bit file_id field.
 static ok64 keep_leaf_name(path8b out, u32 seqno, u8csc ext) {
     sane(u8bOK(out));
-    call(RONu8sFeedPad, u8bIdle(out), (u64)seqno, KEEP_SEQNO_W);
-    u8bFed(out, KEEP_SEQNO_W);
+    call(keep_hex_pad, out, seqno, KEEP_SEQNO_W);
     call(u8bFeed, out, ext);
     done;
 }
 
-//  Compose "<kdir>/log/NNNNNNNNNN.pack" into `out` (reset first).
-//  `kdir` is the `.dogs/keeper` prefix (absolute or relative, no
-//  trailing slash).  `PATHu8bDup` preserves any leading '/' that a
+//  Compose "<kdir>/NNNNN.keeper" into `out` (reset first).
+//  `kdir` is the `.dogs` prefix (absolute or relative, no trailing
+//  slash).  `PATHu8bDup` preserves any leading '/' that a
 //  segment-wise `PATHu8bAdd` would eat as an empty prefix segment.
 static ok64 keep_pack_path(path8b out, u8csc kdir, u32 file_id) {
     sane(u8bOK(out) && !$empty(kdir));
@@ -787,21 +823,17 @@ static ok64 keep_pack_path(path8b out, u8csc kdir, u32 file_id) {
     a_cstr(ext, KEEP_PACK_EXT);
     call(keep_leaf_name, fname, file_id, ext);
     call(PATHu8bDup, out, kdir);
-    a_cstr(logdir, KEEP_LOG_DIR);
-    call(PATHu8bPush, out, logdir);
     call(PATHu8bPush, out, u8bDataC(fname));
     done;
 }
 
-//  Compose "<kdir>/idx/NNNNNNNNNN.idx" into `out` (reset first).
+//  Compose "<kdir>/NNNNN.idx" into `out` (reset first).
 static ok64 keep_idx_path(path8b out, u8csc kdir, u32 seqno) {
     sane(u8bOK(out) && !$empty(kdir));
     a_pad(u8, fname, KEEP_SEQNO_W + sizeof(KEEP_IDX_EXT));
     a_cstr(ext, KEEP_IDX_EXT);
     call(keep_leaf_name, fname, seqno, ext);
     call(PATHu8bDup, out, kdir);
-    a_cstr(idxdir, KEEP_IDX_DIR);
-    call(PATHu8bPush, out, idxdir);
     call(PATHu8bPush, out, u8bDataC(fname));
     done;
 }
@@ -871,30 +903,27 @@ ok64 KEEPPackOpen(keeper *k, keep_pack *p) {
     //  create a fresh one.  Log files hold many concatenated packs
     //  (stripped: one PACK header at offset 0, no trailers, no
     //  per-pack headers).  See keeper/LOG.md.
-    b8 appending = (k->npacks > 0);
-    p->file_id = appending ? k->npacks : 1;
+    b8 appending = (k->shards[0].npacks > 0);
+    p->file_id = appending ? k->shards[0].npacks : 1;
 
     call(wh128bAllocate, p->entries, KEEP_PACK_MAX_OBJS);
     call(u8bMap, p->delta_base,  KEEP_BUFSZ);
     call(u8bMap, p->delta_instr, KEEP_BUFSZ);
 
-    // Build paths: <kdir>/log/, <kdir>/log/NNNNNNNNNN.pack.
+    // Build path: <kdir>/NNNNNNNNNN.keeper (Phase 1b flat layout).
     a_path(kdir, u8bDataC(k->h->root), KEEP_DIR_S);
-    a_cstr(logdir, KEEP_LOG_DIR);
-    a_path(logpath, $path(kdir), logdir);
-    FILEMakeDirP($path(logpath));
 
     a_pad(u8, packpath, FILE_PATH_MAX_LEN);
     call(keep_pack_path, packpath, $path(kdir), p->file_id);
 
     if (appending) {
-        //  Existing tail file is mapped read-only in k->packs[];
+        //  Existing tail file is mapped read-only in k->shards[0].packs[];
         //  replace that mapping with a FILEBook (writable mmap with
         //  extendable file) so concurrent reads of already-written
         //  objects still work while this pack is being appended.
-        if (k->packs[p->file_id - 1]) {
-            FILEUnMap(k->packs[p->file_id - 1]);
-            k->packs[p->file_id - 1] = NULL;
+        if (k->shards[0].packs[p->file_id - 1]) {
+            FILEUnMap(k->shards[0].packs[p->file_id - 1]);
+            k->shards[0].packs[p->file_id - 1] = NULL;
         }
         call(FILEBook, &p->log, $path(packpath), 16ULL << 30);
         //  FILEBook sets b[3] to the page-aligned end of the map.  We
@@ -917,7 +946,7 @@ ok64 KEEPPackOpen(keeper *k, keep_pack *p) {
         //  Expose the RW view to readers for the duration of the
         //  pack build — any lookups into this file_id resolve via
         //  the FILEBook'd buffer, not a stale RO mapping.
-        k->packs[p->file_id - 1] = p->log;
+        k->shards[0].packs[p->file_id - 1] = p->log;
     } else {
         //  Fresh log file: reserve 1GB VA, start at 4KB.  Write the
         //  one-and-only file-level PACK header (count=0, patched on
@@ -984,7 +1013,7 @@ ok64 KEEPPackFeed(keeper *k, keep_pack *p,
     if (base_hashlet60 != 0) {
         //  Resolve the base into p->delta_base.  Prefer an OFS
         //  candidate in this pack (raw only); fall through to KEEPGet
-        //  which walks k->runs and resolves delta chains internally.
+        //  which walks k->shards[0].runs and resolves delta chains internally.
         b8  in_pack = NO;
         u64 in_pack_off = 0;
         u8  base_type = 0;
@@ -1012,6 +1041,17 @@ ok64 KEEPPackFeed(keeper *k, keep_pack *p,
             if (KEEPGet(k, base_hashlet60, 15, p->delta_base,
                         &base_type) != OK) {
                 u8bReset(p->delta_base);
+            } else {
+                //  DAG invariant: REF_DELTA bases must live in the
+                //  write shard or one of its ancestors.  Phase 1c
+                //  nshards=1 always resolves to shard 0 (trunk), so
+                //  this check trivially passes; it becomes real once
+                //  Phase 2 opens sibling shards and KEEPGet reports
+                //  which shard served the hit.
+                u32 base_shard = 0;
+                if (!keep_shard_visible(k, p->shard_idx, base_shard)) {
+                    u8bReset(p->delta_base);
+                }
             }
         }
 
@@ -1129,14 +1169,14 @@ ok64 KEEPPackClose(keeper *k, keep_pack *p) {
 
     u8bp ro = NULL;
     call(FILEMapRO, &ro, $path(packpath));
-    if (p->file_id > k->npacks) {
-        //  New file_id — append to k->packs[].
-        test(k->npacks < KEEP_MAX_FILES, KEEPNOROOM);
-        k->packs[k->npacks] = ro;
-        k->npacks++;
+    if (p->file_id > k->shards[0].npacks) {
+        //  New file_id — append to k->shards[0].packs[].
+        test(k->shards[0].npacks < KEEP_MAX_FILES, KEEPNOROOM);
+        k->shards[0].packs[k->shards[0].npacks] = ro;
+        k->shards[0].npacks++;
     } else {
         //  Appended into an existing file — replace its slot.
-        k->packs[p->file_id - 1] = ro;
+        k->shards[0].packs[p->file_id - 1] = ro;
     }
 
     //  Pack bookmark, per keeper/LOG.md layout:
@@ -1157,15 +1197,11 @@ ok64 KEEPPackClose(keeper *k, keep_pack *p) {
     a_dup(wh128, sorted, wh128bData(p->entries));
     wh128sSort(sorted);
 
-    a_cstr(idxdir, KEEP_IDX_DIR);
-    a_path(idxdirpath, $path(kdir), idxdir);
-    FILEMakeDirP($path(idxdirpath));
-
     //  Index seqno is the per-close run counter, not file_id —
     //  multiple packs appended to the same log file each get their
     //  own .idx run (LSM).  Old runs remain mapped; the LSM reader
     //  searches all of them.
-    u32 idx_seq = k->nruns + 1;
+    u32 idx_seq = k->shards[0].nruns + 1;
     a_pad(u8, idxpath, FILE_PATH_MAX_LEN);
     call(keep_idx_path, idxpath, $path(kdir), idx_seq);
 
@@ -1192,13 +1228,13 @@ ok64 KEEPPackClose(keeper *k, keep_pack *p) {
     // Mmap index
     u8bp imapped = NULL;
     if (FILEMapRO(&imapped, $path(idxpath)) == OK &&
-        k->nruns < KEEP_MAX_LEVELS) {
+        k->shards[0].nruns < KEEP_MAX_LEVELS) {
         wh128cp base = (wh128cp)u8bDataHead(imapped);
         u32 n = (u32)(u8bDataLen(imapped) / sizeof(wh128));
-        k->runs[k->nruns][0] = base;
-        k->runs[k->nruns][1] = base + n;
-        k->run_maps[k->nruns] = imapped;
-        k->nruns++;
+        k->shards[0].runs[k->shards[0].nruns][0] = base;
+        k->shards[0].runs[k->shards[0].nruns][1] = base + n;
+        k->shards[0].run_maps[k->shards[0].nruns] = imapped;
+        k->shards[0].nruns++;
     }
 
     wh128bFree(p->entries);
@@ -1440,7 +1476,7 @@ ok64 KEEPImport(keeper *k, u8cs pack_path) {
     fprintf(stderr, "keeper: importing %u objects\n", nobjects);
 
     // Determine file_id (1-based, matching filename NNNN.packs)
-    u32 file_id = k->npacks + 1;
+    u32 file_id = k->shards[0].npacks + 1;
     a_path(kdir, u8bDataC(k->h->root), KEEP_DIR_S);
     {
         a_pad(u8, dst, 1024);
@@ -1519,9 +1555,9 @@ ok64 KEEPImport(keeper *k, u8cs pack_path) {
 //
 // One SYNC.md Q record carries a whole keeper log file (PACK header +
 // stripped object records, no git trailer).  We write it as a fresh
-// log/NNN.pack on disk, UNPK-index it, and emit one pack bookmark
+// NNNNN.keeper on disk, UNPK-index it, and emit one pack bookmark
 // at offset 12 — identical to what KEEPPackOpen/Close would have
-// produced had the pack been built locally.  k->packs / k->runs are
+// produced had the pack been built locally.  k->shards[0].packs / k->shards[0].runs are
 // updated so later KEEPGet / KEEPHas see the new objects.
 
 ok64 KEEPIngestFile(keeper *k, u8csc bytes) {
@@ -1538,19 +1574,12 @@ ok64 KEEPIngestFile(keeper *k, u8csc bytes) {
         // persist it so file_id accounting stays monotonic.
     }
 
-    test(k->npacks < KEEP_MAX_FILES, KEEPNOROOM);
-    u32 file_id = k->npacks + 1;
+    test(k->shards[0].npacks < KEEP_MAX_FILES, KEEPNOROOM);
+    u32 file_id = k->shards[0].npacks + 1;
 
-    // Build paths: log/NNN.pack and idx/NNN.idx
+    // Build paths: NNN.keeper and NNN.idx (flat under <kdir>).
     a_path(kdir, u8bDataC(k->h->root), KEEP_DIR_S);
-
-    a_cstr(logdir_s, KEEP_LOG_DIR);
-    a_path(logdir, $path(kdir), logdir_s);
-    call(FILEMakeDirP, $path(logdir));
-
-    a_cstr(idxdir_s, KEEP_IDX_DIR);
-    a_path(idxdir, $path(kdir), idxdir_s);
-    call(FILEMakeDirP, $path(idxdir));
+    call(FILEMakeDirP, $path(kdir));
 
     a_pad(u8, packpath, FILE_PATH_MAX_LEN);
     call(keep_pack_path, packpath, $path(kdir), file_id);
@@ -1605,7 +1634,7 @@ ok64 KEEPIngestFile(keeper *k, u8csc bytes) {
     wh128sDedup(sorted);
     u64 nent = wh128sLen(sorted);
 
-    u32 idx_seq = k->nruns + 1;
+    u32 idx_seq = k->shards[0].nruns + 1;
     a_pad(u8, idxpath, 1024);
     call(keep_idx_path, idxpath, $path(kdir), idx_seq);
 
@@ -1619,18 +1648,18 @@ ok64 KEEPIngestFile(keeper *k, u8csc bytes) {
     wh128bFree(entries);
 
     // Register pack mmap + idx mmap with keeper state
-    k->packs[k->npacks] = pack_map;
-    k->npacks++;
+    k->shards[0].packs[k->shards[0].npacks] = pack_map;
+    k->shards[0].npacks++;
 
     u8bp idx_map = NULL;
     call(FILEMapRO, &idx_map, $path(idxpath));
-    test(k->nruns < KEEP_MAX_LEVELS, KEEPNOROOM);
+    test(k->shards[0].nruns < KEEP_MAX_LEVELS, KEEPNOROOM);
     wh128cp base = (wh128cp)u8bDataHead(idx_map);
     u32 n = (u32)(u8bDataLen(idx_map) / sizeof(wh128));
-    k->runs[k->nruns][0] = base;
-    k->runs[k->nruns][1] = base + n;
-    k->run_maps[k->nruns] = idx_map;
-    k->nruns++;
+    k->shards[0].runs[k->shards[0].nruns][0] = base;
+    k->shards[0].runs[k->shards[0].nruns][1] = base + n;
+    k->shards[0].run_maps[k->shards[0].nruns] = idx_map;
+    k->shards[0].nruns++;
 
     done;
 }
@@ -2318,8 +2347,8 @@ got_pack:
 
     // Open or create pack log file for appending.
     // Estimate VA reservation from object count (~256 bytes/obj).
-    b8 appending = (k->npacks > 0);
-    u32 file_id = appending ? k->npacks : 1;
+    b8 appending = (k->shards[0].npacks > 0);
+    u32 file_id = appending ? k->shards[0].npacks : 1;
     u64 pack_book = 16ULL << 30;  // 16GB VA reservation
     u8bp packbuf = NULL;
     u64 append_offset = 0;  // where new objects start in the log
@@ -2395,10 +2424,10 @@ got_pack:
 
     // Re-mmap the pack read-only into keeper
     // (on append, unmap the old RO mapping first)
-    if (appending && k->npacks > 0) {
-        FILEUnMap(k->packs[file_id - 1]);
-        k->packs[file_id - 1] = NULL;
-        k->npacks--;
+    if (appending && k->shards[0].npacks > 0) {
+        FILEUnMap(k->shards[0].packs[file_id - 1]);
+        k->shards[0].packs[file_id - 1] = NULL;
+        k->shards[0].npacks--;
     }
     {
         a_pad(u8, pp, 1024);
@@ -2406,14 +2435,14 @@ got_pack:
         if (keep_pack_path(pp, $path(kdir), file_id) == OK) {
             u8bp mapped = NULL;
             if (FILEMapRO(&mapped, $path(pp)) == OK) {
-                k->packs[k->npacks] = mapped;
-                k->npacks++;
+                k->shards[0].packs[k->shards[0].npacks] = mapped;
+                k->shards[0].npacks++;
             }
         }
     }
 
-    u8cp packbase = u8bDataHead(k->packs[k->npacks - 1]);
-    u64 packlen = (u64)(u8bIdleHead(k->packs[k->npacks - 1]) - packbase);
+    u8cp packbase = u8bDataHead(k->shards[0].packs[k->shards[0].npacks - 1]);
+    u64 packlen = (u64)(u8bIdleHead(k->shards[0].packs[k->shards[0].npacks - 1]) - packbase);
 
     //  Scan + index the pack via UNPKIndex — same code path as
     //  KEEPIngestFile, so the per-object emit hook (graf/spot fan-out
@@ -2471,7 +2500,7 @@ got_pack:
             u32 nfinal = (u32)(sorted[1] - sorted[0]);
 
             a_path(kdir, u8bDataC(k->h->root), KEEP_DIR_S);
-            u32 idx_id = k->nruns + 1;
+            u32 idx_id = k->shards[0].nruns + 1;
             a_pad(u8, idxpath, 1024);
             ok64 kpo = keep_idx_path(idxpath, $path(kdir), idx_id);
             if (kpo != OK) goto sync_fail;
@@ -2489,14 +2518,14 @@ got_pack:
 
             u8bp mapped = NULL;
             if (FILEMapRO(&mapped, $path(idxpath)) == OK &&
-                k->nruns < KEEP_MAX_LEVELS) {
+                k->shards[0].nruns < KEEP_MAX_LEVELS) {
                 wh128cp base = (wh128cp)u8bDataHead(mapped);
                 size_t n = (u8bIdleHead(mapped) - u8bDataHead(mapped))
                            / sizeof(wh128);
-                k->runs[k->nruns][0] = base;
-                k->runs[k->nruns][1] = base + n;
-                k->run_maps[k->nruns] = mapped;
-                k->nruns++;
+                k->shards[0].runs[k->shards[0].nruns][0] = base;
+                k->shards[0].runs[k->shards[0].nruns][1] = base + n;
+                k->shards[0].run_maps[k->shards[0].nruns] = mapped;
+                k->shards[0].nruns++;
             }
 
             // TODO: compact LSM if 1/8 invariant violated

@@ -54,9 +54,9 @@ static ok64 graf_collect(keeper *k, u8 want_type,
     if (!buf) return NOROOM;
     size_t n = 0;
 
-    for (u32 r = 0; r < k->nruns; r++) {
-        wh128cp base = k->runs[r][0];
-        size_t len = (size_t)(k->runs[r][1] - base);
+    for (u32 r = 0; r < k->shards[0].nruns; r++) {
+        wh128cp base = k->shards[0].runs[r][0];
+        size_t len = (size_t)(k->shards[0].runs[r][1] - base);
         for (size_t i = 0; i < len; i++) {
             u8 t = keepKeyType(base[i].key);
             if (t != want_type) continue;

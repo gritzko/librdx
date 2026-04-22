@@ -11,8 +11,13 @@
  7. Last-seen-commit tracking is in `.dogs/name/COMMIT`.
  8. The static lib has a `name` control struct and four uniform
     entry points:
-      - `ok64 DOGOpen(name* state, home* myhome, b8 rw)`
-           open state rooted at `home` (repo root), ro or rw
+      - `ok64 DOGOpen(u8cs branch, b8 rw)`
+           open the dog's shards for `branch` in the process-wide
+           home singleton.  May be called repeatedly with different
+           branches to compose a multi-branch view; the FIRST call
+           (across *all* dogs, process-wide) decides whether the
+           session is writable.  Later calls are downgraded to ro
+           regardless of `rw` — see "Branch sharding" below.
       - `ok64 DOGExec(name* state, cli* c)`
            execute a parsed CLI (verb + flags + URIs) against
            the open state; equivalent to invoking `name ...` as
@@ -20,8 +25,10 @@
       - `ok64 DOGUpdate(name* state, u8 obj_type, u8cs blob, u8csc path)`
            feed a single git object (type + raw blob) into the
            dog's index; payload-ingestion path used by fetch and
-           checkout
+           checkout.  Updates always land in `HOMEWriteBranch()` —
+           the branch that won slot 0 at the first rw open.
       - `ok64 DOGClose(name* state)`
+           close every shard opened by this dog.
  9. `be` links every dog's static lib directly — no subprocess
     fork/exec. It parses one CLI, opens the dogs it needs, calls
     `NAMEExec` on each in order, and closes them.

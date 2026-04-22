@@ -27,6 +27,7 @@ static void capo_abrt_handler(int sig) {
 #include "abc/SORT.h"
 #include "dog/DEF.h"
 #include "dog/DOG.h"
+#include "dog/DPATH.h"
 #include "dog/HOME.h"
 #include "dog/IGNO.h"
 #include "keeper/KEEP.h"
@@ -1252,6 +1253,16 @@ spot SPOT = {};
 
 static b8 spot_is_open(void) { return SPOT.h != NULL; }
 static b8 spot_is_rw = NO;
+
+ok64 SPOTOpenBranch(home *h, u8cs branch, b8 rw) {
+    sane(h != NULL && $ok(branch));
+    a_pad(u8, nb, 256);
+    call(DPATHBranchNormFeed, nb, branch);
+    if (u8bDataLen(nb) != 0) return SPOTNOBR;
+    ok64 o = HOMEOpenBranch(h, branch, rw);
+    if (o != OK && o != HOMEOPEN) return o;
+    return SPOTOpen(h, rw);
+}
 
 ok64 SPOTOpen(home *h, b8 rw) {
     sane(h != NULL);

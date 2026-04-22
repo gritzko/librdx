@@ -1,8 +1,16 @@
-#  git/ — Git compatibility layer
+#  keeper — git object store + compat layer
 
 Parsers for git wire protocol (pkt-line, packfile) and git objects
-(blob, tree, commit).  Includes .gitignore matching.  Uses zlib for
-pack decompression and OpenSSL for SHA-1 object IDs.
+(blob, tree, commit), plus keeper's append-only pack log and LSM
+index.  Uses zlib for pack decompression and OpenSSL for SHA-1
+object IDs.
+
+Store layout is **sharded by branch directory** (see `README.md`
+§"Storage layout" and `LOG.md`): each branch dir holds its own
+`NNNNN.keeper` + `NNNNN.idx` files plus `REFS` and optional `WT`.
+`file_id`s are store-global sequential.  Object resolution walks
+the dir chain child → parent → root; REF_DELTA bases are constrained
+to the same dir or an ancestor.
 
 ##  Headers
 
@@ -58,11 +66,49 @@ Types: `igno_pat` (pattern + flags), `igno` (up to 256 patterns).
   - `ZINF.c`    zlib inflate/deflate (~63 lines)
   - `WALK.c`    KEEP-backed tree walker (eager + lazy)
 
+### KEEP.h — branch-aware Open + per-shard state
+
+`KEEPOpenBranch(home *h, u8cs branch, b8 rw)` registers `branch` on
+the home singleton via `HOMEOpenBranch` and delegates to `KEEPOpen`.
+Phase 0 accepts only the trunk (canonical branch = empty slice); a
+non-trunk branch returns `KEEPNOBR`.
+
+Per-shard state is extracted into `keeper_shard`: `branch`,
+`lock_fd`, `packs[KEEP_MAX_FILES]`, `npacks`, `runs[KEEP_MAX_LEVELS]`,
+`run_maps[]`, `nruns`.  The singleton `keeper` carries
+`shards[KEEP_MAX_SHARDS]` + `nshards`, the home pointer, the paths
+registry, and scratch buffers.  Phase 1a opens exactly one trunk
+shard.
+
+Phase 1b flattens the on-disk layout and drops the `keeper/` subdir
+inside `.dogs/`: trunk pack logs live at `.dogs/NNNNN.keeper` and
+index runs at `.dogs/NNNNN.idx`, where `NNNNN` is the 5-hex-char
+wh64 `file_id` (20 bits).  `KEEP_PACK_EXT` = `.keeper`,
+`KEEP_SEQNO_W` = 5, `KEEP_DIR` = `.dogs`.
+
+Phase 1c adds the DAG-invariant scaffolding and the drop-a-dir
+surface:
+
+  * `keep_pack` gains `shard_idx` (always 0 in Phase 1c) — tags the
+    write shard on every emitted pack.
+  * `KEEPPackFeed`'s REF_DELTA path consults `keep_shard_visible`
+    before emitting; a base that isn't in the write shard or one of
+    its ancestors silently falls through to raw encoding.  nshards=1
+    keeps the check trivially passing until Phase 2 opens siblings.
+  * `KEEPBranchDrop(keeper *k, u8cs branch)` enforces the top-level
+    preconditions: trunk aliases (`""`, `main`, `master`, `trunk`,
+    plus their `heads/` forms) return `KEEPTRUNK`; unknown branches
+    return `KEEPNOBR`.  The full "refuse on live descendant /
+    live staging pack / live WT" semantics (`KEEPDIRTY`) will
+    light up once Phase 2 can actually open a sibling to drop.
+
 ### WALK.h — git object graph traversal
 
 Types: `walk` (walker state), `walk_fn` (visitor callback).
 
-  - `WALKOpen`         open walker on a belt directory (mmaps log+index)
+  - `WALKOpen`         open walker on a branch dir (mmaps that dir's
+                       logs + index runs; ancestor dirs resolved lazily
+                       via the keeper-wide lookup path)
   - `WALKClose`        close walker, unmap everything
   - `WALKGet`          get object by hashlet
   - `WALKGetSha`       get object by raw 20-byte SHA-1

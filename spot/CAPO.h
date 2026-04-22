@@ -13,6 +13,8 @@ con ok64 CAPONODIFF = 0x30a6585d83523cf;  // no usable saved commit → full rei
 //  Singleton-open return codes, matching keeper/sniff/graf convention.
 con ok64 SPOTOPEN   = 0x71961d619397;
 con ok64 SPOTOPENRO = 0x71961d6193976d8;
+//  SPOTOpenBranch: branch outside the Phase-3-supported set (trunk only).
+con ok64 SPOTNOBR   = 0x71961d5d82db;
 
 extern b8 CAPO_COLOR;  // stdout is a terminal with color
 extern b8 CAPO_TERM;   // stderr is a terminal
@@ -186,6 +188,13 @@ extern spot SPOT;
 //    SPOTOPENRO already ro and caller asked for rw.
 //    (other)    real error — propagate.
 ok64 SPOTOpen(home *h, b8 rw);
+
+//  Branch-aware Open (Phase 3 surface).  Normalizes `branch` via
+//  DPATHBranchNormFeed and registers it on the home singleton via
+//  HOMEOpenBranch before delegating to SPOTOpen.  Phase 3 accepts
+//  only the trunk (canonical form = empty); other branches return
+//  SPOTNOBR.  Mirrors `KEEPOpenBranch` / `GRAFOpenBranch`.
+ok64 SPOTOpenBranch(home *h, u8cs branch, b8 rw);
 
 //  Run one CLI invocation.
 ok64 SPOTExec(cli *c);

@@ -3,7 +3,7 @@
 
 //  SNIFF: file path registry + filesystem change log.
 //
-//  On disk (.dogs/sniff/):
+//  On disk (.sniff/):
 //    paths.log   newline-separated path strings, append-only, Book-mmap'd
 //    state.log   flat append-only log of wh64 entries
 //
@@ -37,7 +37,7 @@ con ok64 SNIFFOPEN   = 0x1c5d23cf619397;
 //  Returned by SNIFFOpen when open ro and caller asked for rw.
 con ok64 SNIFFOPENRO = 0xc5d23cf6193976d8;
 
-#define SNIFF_DIR       ".dogs/sniff"
+#define SNIFF_DIR       ".sniff"
 #define SNIFF_PATH_BOOK (256UL << 20)  // 256 MB VA for paths
 #define SNIFF_CHG_BOOK  (128UL << 20)  // 128 MB VA for changes
 #define SNIFF_HASH_SIZE (1 << 20)      // 1M slots
@@ -67,7 +67,7 @@ extern sniff SNIFF;
 
 // --- Public API (DOG 4-fn) ---
 
-//  Open .dogs/sniff/ state rooted at h->root.  Internally opens keeper
+//  Open .sniff/ state rooted at h->root.  Internally opens keeper
 //  too (singleton: nests naturally; pair with KEEPClose only if the
 //  keeper open returns OK, same contract as KEEPOpen).  Returns:
 //    OK          I opened &SNIFF; pair with SNIFFClose.

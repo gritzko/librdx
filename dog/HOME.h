@@ -5,16 +5,33 @@
 #include "abc/BUF.h"
 #include "abc/PATH.h"
 
-con ok64 NOHOME = 0x5d845858e;
-con ok64 NOCONF = 0x8e603bce7bc;
+con ok64 NOHOME    = 0x5d845858e;
+con ok64 NOCONF    = 0x8e603bce7bc;
+con ok64 HOMEOPEN  = 0x45858e619397;       // branch already open
+con ok64 HOMEROBR  = 0x45858e6d82db;       // rw asked after a ro open
+con ok64 HOMENOBR  = 0x45858e5d82db;       // no writable branch opened
+con ok64 HOMEMAX   = 0x116163962a1;        // open-branch capacity exhausted
 
-#define HOME_ARENA_SIZE (1ULL << 32)   // 4 GB VA, pages on demand
-#define HOME_CONFIG_MAX (1UL << 16)    // 64 KB is plenty for .dogs/config
+#define HOME_ARENA_SIZE         (1ULL << 32)   // 4 GB VA, pages on demand
+#define HOME_CONFIG_MAX         (1UL  << 16)   // 64 KB is plenty for .dogs/config
+#define HOME_OPEN_BRANCHES_MAX  16             // slot 0 + up to 15 merge parents
+#define HOME_BRANCHES_DATA_SIZE 1024           // interned branch path bytes
 
 // Per-invocation ambient state for every dog.  Owned by the top of
 // the call chain; each dog embeds a `home *base` in its state struct
 // and propagates it through DOGOpen.  All HOME functions take `home
 // *` as their first argument.
+//
+// Branch-sharding scaffolding (Phase 0):
+//   * `branches_data` is an interning buffer for canonical branch
+//     path bytes.  Each slice in `open_branches` points into it.
+//   * `open_branches` is a `u8csb` of normalized branch paths; slot
+//     0 is the writable branch (set on the first rw Open, frozen for
+//     the life of the process).  Remaining slots are ro branches
+//     opened for merge / read.
+//   * `write_frozen` is YES once slot 0 is held by an rw Open.  If
+//     the first Open was ro, `write_frozen` stays NO and no later
+//     Open can claim the write slot.
 typedef struct {
     path8b root;     // worktree root, NUL-termed
     u8b    config;   // mmap of <root>/.dogs/config (empty if none)
@@ -22,7 +39,13 @@ typedef struct {
                      // dog function must rewind the arena to its entry
                      // state before returning.  Use Bu8mark + Bu8rewind
                      // around any cross-dog call as a safety net.
-    b8     rw;
+    b8     rw;       // initial open mode; Phase 1 retires this in favour
+                     // of the per-branch rw tracked via open_branches.
+
+    u8b    branches_data;
+    u8cs   open_branches[HOME_OPEN_BRANCHES_MAX];
+    size_t open_branches_count;
+    b8     write_frozen;
 } home;
 
 // Initialize a `home` in place.  `at` is either an explicit repo root
@@ -70,5 +93,38 @@ ok64 HOMEGetConfig(home *h, u8s value, path8s needle);
 //   3. NOCONF (caller decides what to do)
 // Feeds the raw bytes into `out` and advances `out[0]` past them.
 ok64 HOMEHost(home *h, u8s out);
+
+// --- Branch-sharding (Phase 0 scaffolding) ---
+//
+// Opens `branch` in the process-wide home singleton.  Normalizes the
+// input (trunk aliases `""`, `main`, `master`, `trunk`, and their
+// `heads/` forms → `""`; non-trunk branches gain a trailing `/`) and
+// interns the canonical form into `h->branches_data`.  Appends a
+// slice to `h->open_branches`.
+//
+// Mode rule: the *first* call to this function decides whether the
+// session is writable.  If `rw=YES` on the first call, slot 0 is
+// claimed as the write branch and `h->write_frozen` is set; later
+// rw calls are refused with HOMEROBR.  If the first call was
+// `rw=NO`, no subsequent call can claim rw either.
+//
+// Returns:
+//   OK            newly opened
+//   HOMEOPEN      already open (same normalized branch)
+//   HOMEROBR  rw requested but the write slot is unavailable
+//                 (first open was ro, or a different branch owns it)
+//   HOMEMAX  open-branch capacity exhausted, or branches_data full
+ok64 HOMEOpenBranch(home *h, u8cs branch, b8 rw);
+
+// Feeds the writable branch slice into `out` (slice endpoints
+// pointing into `h->branches_data`).  Returns HOMENOBR if no
+// rw Open has happened in this process.
+ok64 HOMEWriteBranch(home const *h, u8cs out);
+
+// YES iff `branch` is an ancestor (prefix in canonical form) of any
+// currently-opened branch, or equals one.  Used by resolvers to
+// decide whether a flat-stack entry's home branch is in scope.
+// `branch` must already be canonical (trunk=`""`, else trailing `/`).
+b8 HOMEBranchVisible(home const *h, u8cs branch);
 
 #endif

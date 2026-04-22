@@ -9,6 +9,11 @@
 #define DOG_OBJ_BLOB   3
 #define DOG_OBJ_TAG    4
 
+// Shared error code for branch-scoped Open entry points that receive
+// a branch path outside the supported set.  Phase 0 accepts only the
+// trunk (canonical form = empty slice); later phases widen this.
+con ok64 DOGNOBR = 0xd6105d82db;
+
 // Parse a URI string with dog-specific normalization:
 //   1. Invoke abc/URILexer for strict RFC 3986 parsing.
 //   2. If the parsed URI has a scheme but no authority and its

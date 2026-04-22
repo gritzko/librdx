@@ -3,7 +3,7 @@
 
 //  AT: per-worktree branch + commit pointer.  See sniff/AT.md.
 //
-//  `.dogs/sniff/at.log` is an append-only log of checkout / commit
+//  `.sniff/at.log` is an append-only log of checkout / commit
 //  transitions.  Each line:
 //
 //      <ron60-time>\t?<branch>\t?<sha>\n

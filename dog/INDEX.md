@@ -12,7 +12,7 @@ but without the tree-sitter dependency.
 | BRCT.h  | Bracket matching and region detection on tokenized files |
 | DEF.h   | Mark symbol definitions (S→N) via enrichment + NFA patterns, see [DEF.md](DEF.md) |
 | HUNK.h  | Hunk TLV wire format (`HUNKu8sFeed`/`Drain`) + plain ASCII renderer (`HUNKu8sFeedText`), `HUNKu32sClip`, `HUNKu32bTokenize`, `HUNKu8sFormatTitle`, `HUNKu8sExt`, `HUNKcb` |
-| HOME.h  | Workspace finder: `HOMEFind` walks up to the nearest `.git`; `HOMEResolveSibling` finds tools next to the running binary |
+| HOME.h  | Workspace finder + branch-sharding scaffolding: `HOMEFind` walks up to the nearest `.git`, `HOMEResolveSibling` finds tools next to the running binary, `HOMEOpenBranch`/`HOMEWriteBranch`/`HOMEBranchVisible` track the process-wide open-branch stack (slot 0 = writable, frozen at first rw open). Branch paths canonicalised via `dog/DPATH` helpers `DPATHBranchNormFeed`/`DPATHBranchAncestor`. |
 
 ## Tag mapping
 

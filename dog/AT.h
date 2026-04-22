@@ -1,7 +1,7 @@
 #ifndef DOG_AT_H
 #define DOG_AT_H
 
-//  Read the tail line of `<reporoot>/.dogs/sniff/at.log`.
+//  Read the tail line of `<reporoot>/.sniff/at.log`.
 //  Line format: `<ron60-time>\t?<branch>\t?<sha>\n`.
 //
 //  On OK:

@@ -144,9 +144,108 @@ ok64 DPATHTestTable() {
     done;
 }
 
+typedef struct {
+    const char *input;
+    const char *canonical;  // expected normalized form
+} BranchNormCase;
+
+static const BranchNormCase BRANCH_NORM_CASES[] = {
+    // trunk aliases collapse to ""
+    {"",                   ""},
+    {"/",                  ""},
+    {"main",               ""},
+    {"main/",              ""},
+    {"/main",              ""},
+    {"master",             ""},
+    {"trunk",              ""},
+    {"heads/main",         ""},
+    {"heads/master",       ""},
+    {"heads/trunk",        ""},
+    {"heads/main/",        ""},
+    // non-trunk branches gain trailing '/'
+    {"feature",            "feature/"},
+    {"feature/",           "feature/"},
+    {"heads/feature",      "heads/feature/"},
+    {"feature/fix1",       "feature/fix1/"},
+    {"tags/v0.0.1",        "tags/v0.0.1/"},
+    // leading slashes stripped
+    {"/feature",           "feature/"},
+    {"//feature//",        "feature/"},
+};
+
+#define BRANCH_NORM_N (sizeof(BRANCH_NORM_CASES)/sizeof(BRANCH_NORM_CASES[0]))
+
+ok64 DPATHTestBranchNorm() {
+    sane(1);
+    for (size_t i = 0; i < BRANCH_NORM_N; i++) {
+        BranchNormCase const *tc = &BRANCH_NORM_CASES[i];
+        a_pad(u8, out, 256);
+        u8cs in = {(u8cp)tc->input, (u8cp)tc->input + strlen(tc->input)};
+        ok64 o = DPATHBranchNormFeed(out, in);
+        if (o != OK) {
+            fprintf(stderr, "FAIL norm[%zu] '%s': rc %s\n",
+                    i, tc->input, ok64str(o));
+            fail(TESTFAIL);
+        }
+        a_dup(u8c, got, u8bDataC(out));
+        size_t elen = strlen(tc->canonical);
+        if ((size_t)$len(got) != elen ||
+            (elen > 0 && memcmp(got[0], tc->canonical, elen) != 0)) {
+            fprintf(stderr, "FAIL norm[%zu] '%s': got '%.*s' want '%s'\n",
+                    i, tc->input, (int)$len(got),
+                    $empty(got) ? "" : (char *)got[0], tc->canonical);
+            fail(TESTFAIL);
+        }
+    }
+    done;
+}
+
+typedef struct {
+    const char *anc;
+    const char *des;
+    b8          expect;
+} BranchAncCase;
+
+static const BranchAncCase BRANCH_ANC_CASES[] = {
+    // trunk is ancestor of everything
+    {"",              "",                 YES},
+    {"",              "feature/",         YES},
+    {"",              "feature/fix1/",    YES},
+    // equal = ancestor
+    {"feature/",      "feature/",         YES},
+    // proper ancestor
+    {"feature/",      "feature/fix1/",    YES},
+    {"heads/",        "heads/main/",      YES},
+    // siblings / unrelated
+    {"feature/",      "other/",           NO},
+    {"feature/",      "featureful/",      NO},   // canonical-form prevents this false match
+    {"feature/fix1/", "feature/",         NO},   // descendant is not ancestor
+    // non-canonical would fool a raw prefix; canonical requires trailing '/'
+};
+
+#define BRANCH_ANC_N (sizeof(BRANCH_ANC_CASES)/sizeof(BRANCH_ANC_CASES[0]))
+
+ok64 DPATHTestBranchAncestor() {
+    sane(1);
+    for (size_t i = 0; i < BRANCH_ANC_N; i++) {
+        BranchAncCase const *tc = &BRANCH_ANC_CASES[i];
+        u8cs anc = {(u8cp)tc->anc, (u8cp)tc->anc + strlen(tc->anc)};
+        u8cs des = {(u8cp)tc->des, (u8cp)tc->des + strlen(tc->des)};
+        b8 got = DPATHBranchAncestor(anc, des);
+        if (got != tc->expect) {
+            fprintf(stderr, "FAIL ancestor[%zu] '%s' < '%s': got %d want %d\n",
+                    i, tc->anc, tc->des, got, tc->expect);
+            fail(TESTFAIL);
+        }
+    }
+    done;
+}
+
 ok64 DPATHtest() {
     sane(1);
     call(DPATHTestTable);
+    call(DPATHTestBranchNorm);
+    call(DPATHTestBranchAncestor);
     done;
 }
 

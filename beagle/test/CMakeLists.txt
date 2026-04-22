@@ -16,8 +16,8 @@ add_test(NAME BEworkflow
 set_tests_properties(BEworkflow PROPERTIES
     ENVIRONMENT "BIN=${DOG_BIN_DIR}")
 
-# worktree.sh — `be get <localdir>` clones a local primary via
-# symlinks (keeper/graf/spot) + real .dogs/sniff/.
+# worktree.sh — `be get <localdir>` clones a local primary.
+# Phase 2: single `.dogs` symlink + local `.sniff/` dir.
 add_test(NAME BEworktree
     COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/worktree.sh
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
@@ -34,7 +34,7 @@ set_tests_properties(BEhistory PROPERTIES
     ENVIRONMENT "BIN=${DOG_BIN_DIR}")
 
 # roundtrip.sh — full git <-> be flow: seed origin, clone over ssh,
-# make a worktree, edit, commit, push, diff.  Requires ssh localhost.
+# make a worktree, edit, commit, push, diff.
     add_test(NAME BEroundtrip
         COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/roundtrip.sh
         WORKING_DIRECTORY ${CMAKE_BINARY_DIR})

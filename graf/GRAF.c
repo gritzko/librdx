@@ -6,6 +6,7 @@
 #include "abc/FILE.h"
 #include "abc/PATH.h"
 #include "abc/PRO.h"
+#include "dog/DPATH.h"
 #include "dog/HOME.h"
 #include "dog/HUNK.h"
 
@@ -22,6 +23,16 @@ static b8 graf_is_open(void) { return GRAF.h != NULL; }
 static b8 graf_is_rw = NO;
 
 // --- GRAFOpen / GRAFClose ---
+
+ok64 GRAFOpenBranch(home *h, u8cs branch, b8 rw) {
+    sane(h != NULL && $ok(branch));
+    a_pad(u8, nb, 256);
+    call(DPATHBranchNormFeed, nb, branch);
+    if (u8bDataLen(nb) != 0) return GRAFNOBR;
+    ok64 o = HOMEOpenBranch(h, branch, rw);
+    if (o != OK && o != HOMEOPEN) return o;
+    return GRAFOpen(h, rw);
+}
 
 ok64 GRAFOpen(home *h, b8 rw) {
     sane(h);

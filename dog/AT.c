@@ -1,4 +1,4 @@
-//  dog/AT: standalone tail reader for `.dogs/sniff/at.log`.
+//  dog/AT: standalone tail reader for `.sniff/at.log`.
 //
 #include "AT.h"
 
@@ -16,10 +16,10 @@ con ok64 DOGATNONE = 0x50e3995d85ce;
 ok64 DOGAtTail(u8bp branch_out, u8bp sha_out, u8cs reporoot) {
     sane(branch_out && sha_out && $ok(reporoot));
 
-    //  Build path: <reporoot>/.dogs/sniff/at.log
+    //  Build path: <reporoot>/.sniff/at.log
     static u8c *const AT_REL_S[2] = {
-        (u8c *)".dogs/sniff/at.log",
-        (u8c *)".dogs/sniff/at.log" + sizeof(".dogs/sniff/at.log") - 1,
+        (u8c *)".sniff/at.log",
+        (u8c *)".sniff/at.log" + sizeof(".sniff/at.log") - 1,
     };
     a_path(apath, reporoot, AT_REL_S);
 

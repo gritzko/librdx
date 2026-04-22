@@ -62,9 +62,11 @@ note "clone has a.txt, b.txt"
 echo "=== 3. be get <clone> (worktree) ==="
 mkdir -p "$WT"; cd "$WT"
 "$BE" get --seq "$CLONE" >/dev/null 2>&1 || true
-[ -L "$WT/.dogs/keeper" ] || fail "worktree keeper not a symlink"
+[ -L "$WT/.dogs" ] || fail "worktree .dogs not a symlink"
+[ -d "$WT/.sniff" ] && [ ! -L "$WT/.sniff" ] \
+    || fail "worktree .sniff should be a real dir"
 [ -f a.txt ] && [ -f b.txt ] || fail "worktree missing checked-out files"
-note "worktree has symlinked keeper + checked-out files"
+note "worktree has .dogs symlink + local .sniff + checked-out files"
 
 # --- 4. edits in clone and worktree ---
 echo "=== 4. edits ==="
@@ -82,7 +84,7 @@ cd "$WT"
     || fail "be post -m failed"
 # Read the committed SHA from sniff/at.log tail.
 WT_SHA=$(awk -F'\t' 'END {gsub(/^\?/,"",$3); print $3}' \
-    "$WT/.dogs/sniff/at.log")
+    "$WT/.sniff/at.log")
 [ ${#WT_SHA} -eq 40 ] || fail "no 40-hex worktree commit recorded"
 [ "$WT_SHA" != "$SEED_SHA" ] || fail "worktree commit didn't advance"
 note "worktree commit=$WT_SHA"
@@ -105,7 +107,7 @@ git clone -q "$ORIGIN" "$VERIFY"
 # Compare just the tracked files, not .git vs .dogs.
 ( cd "$VERIFY" && git ls-files ) | sort > "$TMP/git.list"
 ( cd "$WT" && find . -type f \
-    -not -path './.dogs/*' -not -name '.be' \
+    -not -path './.dogs/*' -not -path './.sniff/*' -not -name '.be' \
     | sed 's|^\./||' ) | sort > "$TMP/wt.list"
 diff -u "$TMP/git.list" "$TMP/wt.list" || fail "file sets differ"
 while IFS= read -r f; do

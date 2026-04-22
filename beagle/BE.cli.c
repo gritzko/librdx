@@ -4,6 +4,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <sys/stat.h>
 
 #include "abc/FILE.h"
 #include "abc/PATH.h"
@@ -184,36 +185,35 @@ static ok64 BEGetWorktree(uri *u) {
     a_path(prim_dogs, prim_s, dotdogs);
     if (FILEisdir($path(prim_dogs)) != OK) done;
 
-    // Skip if cwd is already a repo (its own .dogs/ exists).
+    // Skip if cwd already has a .dogs (dir or symlink).
     a_path(cwd);
     call(FILEGetCwd, cwd);
     a_path(cwd_dogs);
     a_dup(u8c, cwd_s, u8bDataC(cwd));
     call(PATHu8bFeed, cwd_dogs, cwd_s);
     call(PATHu8bPush, cwd_dogs, dotdogs);
-    if (FILEisdir($path(cwd_dogs)) == OK) done;
+    {
+        struct stat sb;
+        if (lstat((char const *)*$path(cwd_dogs), &sb) == 0) done;
+    }
 
-    call(FILEMakeDirP, $path(cwd_dogs));
+    // Phase 2 worktree layout:
+    //   * `<wt>/.dogs` is a symlink to the primary's `.dogs/` — the
+    //     wt and primary share the entire store (keeper, graf, spot,
+    //     per-branch indexes, REFS, paths registry, ALIAS, lock).
+    //   * `<wt>/.sniff/` is a per-wt directory for sniff's at.log,
+    //     paths/state log, and staging packs — each wt tracks its
+    //     own checkout independently.
+    ok64 lo = FILESymLink($path(prim_dogs), $path(cwd_dogs));
+    if (lo != OK && lo != FILEEXIST) return lo;
 
-    // Real per-worktree dir.
-    a_cstr(sniff_name, "sniff");
-    a_path(sniff_path, $path(cwd_dogs), sniff_name);
+    a_cstr(sniff_rel, ".sniff");
+    a_path(sniff_path);
+    a_dup(u8c, cwd_for_sniff, u8bDataC(cwd));
+    call(PATHu8bFeed, sniff_path, cwd_for_sniff);
+    call(PATHu8bPush, sniff_path, sniff_rel);
     call(FILEMakeDirP, $path(sniff_path));
 
-    // Shared subdirs → symlinks into primary.  Ensure each target
-    // exists first: `be get` on a fresh ssh clone only populates the
-    // dogs it actually ran (keeper + sniff today; spot and graf may
-    // not have been invoked yet).  Without these mkdirs the symlinks
-    // would dangle and `be post`'s later graf/spot steps would
-    // ENOENT on their `.lock` file open.
-    u8cs shared[] = {u8slit("keeper"), u8slit("graf"), u8slit("spot")};
-    for (u32 i = 0; i < 3; i++) {
-        a_path(tgt, $path(prim_dogs), shared[i]);
-        a_path(lnk, $path(cwd_dogs),  shared[i]);
-        (void)FILEMakeDirP($path(tgt));
-        ok64 so = FILESymLink($path(tgt), $path(lnk));
-        if (so != OK && so != FILEEXIST) return so;
-    }
     fprintf(stderr, "be: worktree from %.*s\n",
             (int)$len(u->path), (char *)u->path[0]);
 

@@ -121,9 +121,8 @@ ok64 SNIFFOpen(home *h, b8 rw) {
     sniff_is_rw = rw;
 
     a_dup(u8c, reporoot, u8bDataC(h->root));
-    a_cstr(dogs, ".dogs");
-    a_cstr(sniffdir, "sniff");
-    a_path(dir, reporoot, dogs, sniffdir);
+    a_cstr(sniffdir, SNIFF_DIR);
+    a_path(dir, reporoot, sniffdir);
     if (rw) call(FILEMakeDirP, $path(dir));
 
     //  state.log: stream of 8-byte-aligned wh64 entries.  Scan by quad
@@ -139,7 +138,7 @@ ok64 SNIFFOpen(home *h, b8 rw) {
 
     {
         a_cstr(sf, "state.log");
-        a_path(cp, reporoot, dogs, sniffdir, sf);
+        a_path(cp, reporoot, sniffdir, sf);
         ok64 o = FILEBook(&s->changes, $path(cp), SNIFF_CHG_BOOK);
         if (o == OK) {
             SCAN_WH64_END(s->changes);

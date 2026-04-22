@@ -6,6 +6,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include "DPATH.h"
 #include "abc/FILE.h"
 #include "abc/PRO.h"
 #include "TOMLT.h"
@@ -108,6 +109,12 @@ ok64 HOMEOpen(home *h, u8cs at, b8 rw) {
     zerop(h);
     h->rw = rw;
 
+    // 0. Branch-sharding scaffolding: interning buffer + open-branch
+    // slice stack.  Empty until the first HOMEOpenBranch call.
+    call(u8bAllocate, h->branches_data, HOME_BRANCHES_DATA_SIZE);
+    h->open_branches_count = 0;
+    h->write_frozen = NO;
+
     // 1. Path buffer for root, 1 KB.
     call(u8bAllocate, h->root, FILE_PATH_MAX_LEN);
 
@@ -144,11 +151,71 @@ ok64 HOMEOpen(home *h, u8cs at, b8 rw) {
 
 ok64 HOMEClose(home *h) {
     sane(h != NULL);
-    if (h->config[0] != NULL) FILEUnMap(h->config);
-    if (h->arena[0]  != NULL) u8bUnMap(h->arena);
-    if (h->root[0]   != NULL) u8bFree(h->root);
+    if (h->config[0]        != NULL) FILEUnMap(h->config);
+    if (h->arena[0]         != NULL) u8bUnMap(h->arena);
+    if (h->root[0]          != NULL) u8bFree(h->root);
+    if (h->branches_data[0] != NULL) u8bFree(h->branches_data);
     zerop(h);
     done;
+}
+
+// --- Branch-sharding (Phase 0) ---
+
+ok64 HOMEOpenBranch(home *h, u8cs branch, b8 rw) {
+    sane(h != NULL && $ok(branch));
+
+    // Normalize into a scratch buffer first so we can dedup without
+    // polluting the interning store on a hit.
+    a_pad(u8, normbuf, 256);
+    call(DPATHBranchNormFeed, normbuf, branch);
+    a_dup(u8c, norm, u8bDataC(normbuf));
+
+    // Already open?
+    for (size_t i = 0; i < h->open_branches_count; i++) {
+        u8cs slot = {h->open_branches[i][0], h->open_branches[i][1]};
+        if (u8csEq(slot, norm)) {
+            if (rw && (i != 0 || !h->write_frozen))
+                return HOMEROBR;
+            return HOMEOPEN;
+        }
+    }
+
+    size_t before_n = h->open_branches_count;
+
+    // rw is only grantable on the very first open.
+    if (rw && before_n > 0) return HOMEROBR;
+
+    // Capacity checks: slot array + interning buffer.
+    if (before_n >= HOME_OPEN_BRANCHES_MAX) return HOMEMAX;
+    if (u8csLen(norm) > u8bIdleLen(h->branches_data))
+        return HOMEMAX;
+
+    // Intern the canonical bytes and append the resulting slice.
+    u8cp at = u8bIdleHead(h->branches_data);
+    call(u8bFeed, h->branches_data, norm);
+    h->open_branches[before_n][0] = at;
+    h->open_branches[before_n][1] = u8bIdleHead(h->branches_data);
+    h->open_branches_count = before_n + 1;
+
+    if (before_n == 0 && rw) h->write_frozen = YES;
+    done;
+}
+
+ok64 HOMEWriteBranch(home const *h, u8cs out) {
+    sane(h != NULL);
+    if (!h->write_frozen || h->open_branches_count == 0)
+        return HOMENOBR;
+    out[0] = h->open_branches[0][0];
+    out[1] = h->open_branches[0][1];
+    done;
+}
+
+b8 HOMEBranchVisible(home const *h, u8cs branch) {
+    for (size_t i = 0; i < h->open_branches_count; i++) {
+        u8cs slot = {h->open_branches[i][0], h->open_branches[i][1]};
+        if (DPATHBranchAncestor(branch, slot)) return YES;
+    }
+    return NO;
 }
 
 // --- Workspace finders ---
