@@ -24,6 +24,18 @@ target_compile_options(GITPACKtest PRIVATE ${TEST_CXX_FLAGS})
 target_link_libraries(GITPACKtest gitcompat abc-core)
 add_test(NAME GITPACKtest COMMAND GITPACKtest)
 
+add_executable(DELTtest DELT.c)
+target_link_options(DELTtest PRIVATE ${TEST_LDD_FLAGS})
+target_compile_options(DELTtest PRIVATE ${TEST_CXX_FLAGS})
+target_link_libraries(DELTtest gitcompat abc-core)
+add_test(NAME DELTtest COMMAND DELTtest)
+
+add_executable(DELTAROUNDtest DELTA_ROUND.c)
+target_link_options(DELTAROUNDtest PRIVATE ${TEST_LDD_FLAGS})
+target_compile_options(DELTAROUNDtest PRIVATE ${TEST_CXX_FLAGS})
+target_link_libraries(DELTAROUNDtest keeplib gitcompat dog abc-core)
+add_test(NAME DELTAROUNDtest COMMAND DELTAROUNDtest)
+
 if (WITH_SSH)
     add_executable(FETCHtest FETCH.c)
     target_link_options(FETCHtest PRIVATE ${TEST_LDD_FLAGS})

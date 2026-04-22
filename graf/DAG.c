@@ -32,9 +32,13 @@
 #include "dog/SHA1.h"
 #include "keeper/GIT.h"
 
-// Git object SHA-1: sha over "<type> <len>\0<body>".  Returns a
-// 40-bit hashlet (compatible with hex SHA refs in commit/tree bodies).
-static u64 dag_obj_hashlet(u8 obj_type, u8cs body) {
+// Resolve a 40-bit object hashlet.  Prefer the caller-supplied SHA
+// (the UNPK hot path has it) — falls back to computing it from the
+// object body for callers that don't (e.g. `graf index`'s manual
+// reindex walk at graf/INDEX.c).
+static u64 dag_obj_hashlet(u8 obj_type, sha1 const *sha, u8cs body) {
+    if (sha) return WHIFFHashlet40(sha);
+
     char hdr[32];
     char const *tn = "blob";
     switch (obj_type) {
@@ -800,7 +804,7 @@ static ok64 dag_finish(dag_ingest *g) {
 // state->ing to lazily allocate the ingest context.  Forward-decl
 // of struct graf comes from GRAF.h include above.
 
-ok64 GRAFDagUpdate(u8 obj_type, u8cs blob, u8csc path) {
+ok64 GRAFDagUpdate(u8 obj_type, sha1 const *sha, u8cs blob, u8csc path) {
     sane(1);
     graf *state = &GRAF;
     (void)path;  // graf derives paths from trees
@@ -842,7 +846,7 @@ ok64 GRAFDagUpdate(u8 obj_type, u8cs blob, u8csc path) {
         }
         if (!got_tree) return DAGFAIL;
 
-        u64 commit_h = dag_obj_hashlet(DOG_OBJ_COMMIT, blob);
+        u64 commit_h = dag_obj_hashlet(DOG_OBJ_COMMIT, sha, blob);
 
         u64 tree_h = WHIFFHashlet40(&tree_sha);
 
@@ -880,7 +884,7 @@ ok64 GRAFDagUpdate(u8 obj_type, u8cs blob, u8csc path) {
     }
 
     case DOG_OBJ_TREE: {
-        u64 tree_h = dag_obj_hashlet(DOG_OBJ_TREE, blob);
+        u64 tree_h = dag_obj_hashlet(DOG_OBJ_TREE, sha, blob);
         return dag_ingest_tree(g, blob, tree_h);
     }
 
@@ -890,7 +894,7 @@ ok64 GRAFDagUpdate(u8 obj_type, u8cs blob, u8csc path) {
         //  only need the blob's hashlet to mark it fresh so that the
         //  walk emits PATH_VER for any leaf pointing at it.
         (void)path;
-        u64 blob_h = dag_obj_hashlet(DOG_OBJ_BLOB, blob);
+        u64 blob_h = dag_obj_hashlet(DOG_OBJ_BLOB, sha, blob);
         return dag_ingest_blob(g, blob_h);
     }
 

@@ -144,12 +144,14 @@ ok64 DELTEncode(u8csc base, u8csc target, u8bp out) {
         done;
     }
 
-    // Build hash table: hash(4 bytes) → offset in base
-    // Only store the last occurrence per bucket (good enough)
+    // Build hash table: hash(4 bytes) → offset in base.  Index EVERY
+    // byte offset so small blobs (short repeats) still find matches;
+    // we only keep one occurrence per bucket, but forward + backward
+    // extension over the hit covers most realistic duplication.
     u32 *ht = calloc(DELT_HTSZ, sizeof(u32));
     if (!ht) fail(DELTFAIL);
     // 0 = empty, store offset+1
-    for (u64 i = 0; i + DELT_WINSZ <= base_sz; i += DELT_WINSZ) {
+    for (u64 i = 0; i + DELT_WINSZ <= base_sz; i++) {
         u32 h = delt_hash4(base[0] + i);
         ht[h] = (u32)i + 1;
     }
@@ -175,12 +177,6 @@ ok64 DELTEncode(u8csc base, u8csc target, u8bp out) {
             continue;
         }
 
-        // Flush pending inserts
-        if (tp > insert_start) {
-            u8cs ins = {insert_start, tp};
-            delt_feed_insert(out, ins);
-        }
-
         // Extend match forward
         u8cp bp = base[0] + boff + DELT_WINSZ;
         u8cp mp = tp + DELT_WINSZ;
@@ -188,37 +184,43 @@ ok64 DELTEncode(u8csc base, u8csc target, u8bp out) {
             mp++;
             bp++;
         }
-        u64 match_len = (u64)(mp - tp);
 
-        // Extend match backward
+        // Extend match backward, but not past insert_start — any bytes
+        // before that have already been flushed as literals, so copying
+        // them would double-emit.
         u8cp bs = base[0] + boff;
         u8cp ms = tp;
         while (ms > insert_start && bs > base[0] && *(ms - 1) == *(bs - 1)) {
             ms--;
             bs--;
         }
-        u64 back_ext = (u64)(tp - ms);
-        match_len += back_ext;
-        boff -= (u32)back_ext;
 
-        // If we extended backward past insert_start, adjust
-        if (back_ext > 0 && ms < insert_start) {
-            // shouldn't happen since ms > insert_start check above
-            ms = insert_start;
+        u64 match_len = (u64)(mp - ms);
+        u64 match_boff = (u64)boff - (u64)(tp - ms);
+
+        // Flush pending inserts preceding the (possibly back-extended)
+        // match start.
+        if (ms > insert_start) {
+            u8cs ins = {insert_start, ms};
+            delt_feed_insert(out, ins);
         }
 
-        delt_feed_copy(out, (u64)boff, match_len);
-        tp = ms + match_len;
+        // git copy size is 3 bytes max (0x10000 default if all zero);
+        // split huge matches into 0xffffff-byte chunks.
+        while (match_len > 0) {
+            u64 chunk = match_len > 0xffffffULL ? 0xffffffULL : match_len;
+            delt_feed_copy(out, match_boff, chunk);
+            match_boff += chunk;
+            match_len  -= chunk;
+        }
+        tp = mp;
         insert_start = tp;
     }
 
-    // Flush remaining inserts
-    if (tp < tend || insert_start < tend) {
-        u8cp end = tend;
-        if (insert_start < end) {
-            u8cs ins = {insert_start, end};
-            delt_feed_insert(out, ins);
-        }
+    // Flush remaining inserts (anything after the last copy).
+    if (insert_start < tend) {
+        u8cs ins = {insert_start, tend};
+        delt_feed_insert(out, ins);
     }
 
     free(ht);

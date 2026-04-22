@@ -82,8 +82,10 @@ ok64 SNIFFExec(cli *c);
 //  Feed a single git object (blob/tree/commit/tag) into sniff's
 //  index.  obj_type uses KEEP_OBJ_* constants from keeper/KEEP.h.
 //  `path` is the repo-relative path this object lives at (empty
-//  for commits/tags/top-level trees).
-ok64 SNIFFUpdate(u8 obj_type, u8cs blob, u8csc path);
+//  for commits/tags/top-level trees).  `sha` is the caller's
+//  pre-computed git-object SHA-1 (may be NULL; currently unused by
+//  sniff but carried through for parity with graf/spot).
+ok64 SNIFFUpdate(u8 obj_type, sha1 const *sha, u8cs blob, u8csc path);
 
 //  Close singleton.  Idempotent; no-op if not open.
 ok64 SNIFFClose(void);

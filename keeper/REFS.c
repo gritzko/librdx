@@ -314,11 +314,26 @@ ok64 REFSResolve(urip resolved, u8bp arena, u8csc dir, u8csc input) {
         cur[1] = u8bIdleHead(arena);
     }
 
+    //  Local-ref shorthands — `?ref`, `.?ref`, `//.?ref`.  The
+    //  variant-matcher below treats these as "any stored origin".
+    //  (DOGParseURI on `.?x` gives path=".", authority=""; on `?x`
+    //  both are empty; on `//.?x` authority="//.", host=".".)
+    b8 local_dot = NO;
+    if (!u8csEmpty(u.query)) {
+        if ($len(u.authority) == 1 && u.authority[0][0] == '.')
+            local_dot = YES;
+        else if (u8csEmpty(u.authority)) {
+            if (u8csEmpty(u.path) ||
+                ($len(u.path) == 1 && u.path[0][0] == '.'))
+                local_dot = YES;
+        }
+    }
+
     // Second try: normalise the query to the form keeper stores
     // (`?heads/<name>` or `?tags/<name>`).  Users may type `?refs/heads/x`
     // (strip `refs/`), `?x` (try adding `heads/` and `tags/`), or
     // already-normalised `?heads/x`.
-    if (!u8csEmpty(u.authority) && !u8csEmpty(u.query)) {
+    if ((!u8csEmpty(u.authority) || local_dot) && !u8csEmpty(u.query)) {
         u8cs variants[3] = {};
         u32 nv = 0;
         a_cstr(refs_pfx,  "refs/");
@@ -335,7 +350,12 @@ ok64 REFSResolve(urip resolved, u8bp arena, u8csc dir, u8csc input) {
                    ($len(u.query) > 5 && memcmp(u.query[0], tags_pfx[0], 5) == 0)) {
             // Already normalised — handled by direct-match above.
         } else {
-            // Bare name — try `heads/<name>` and `tags/<name>`.
+            // Bare name — try `<name>` as-is (covers `HEAD` and
+            // any other top-level key stored without a `heads/` /
+            // `tags/` prefix), then `heads/<name>` and `tags/<name>`.
+            variants[nv][0] = u.query[0];
+            variants[nv][1] = u.query[1];
+            nv++;
             u8bFeed(hbuf, heads_pfx);
             u8bFeed(hbuf, u.query);
             variants[nv][0] = u8bDataHead(hbuf);
@@ -347,7 +367,24 @@ ok64 REFSResolve(urip resolved, u8bp arena, u8csc dir, u8csc input) {
             variants[nv][1] = u8bIdleHead(tbuf);
             nv++;
         }
+        //  `.` authority means "any stored origin" — match on the
+        //  `?<variant>` suffix only.  Covers `keeper get .?master`
+        //  and `be get ?master` style shorthands after a clone.
+        //  `local_dot` generalises to include the bare `.?ref` shape
+        //  (where DOGParseURI put `.` into path, not authority).
+        b8 auth_is_dot = local_dot ||
+            ($len(u.authority) == 1 && u.authority[0][0] == '.');
+
         for (u32 vi = 0; vi < nv && u8csEmpty(resolved->query); vi++) {
+            //  Suffix we must see at the end of a stored key:
+            //  "?<variant>".  For non-`.` authorities we additionally
+            //  require the full key to equal the built `full_key`.
+            a_pad(u8, qbuf, 128);
+            u8bFeed1(qbuf, '?');
+            u8bFeed(qbuf, variants[vi]);
+            a_dup(u8c, qsuffix, u8bData(qbuf));
+            size_t qlen = u8csLen(qsuffix);
+
             a_pad(u8, fkey, 1024);
             a_cstr(slashes, "//");
             u8bFeed(fkey, slashes);
@@ -356,12 +393,21 @@ ok64 REFSResolve(urip resolved, u8bp arena, u8csc dir, u8csc input) {
                 u8csUsed(auth, 2);
             u8bFeed(fkey, auth);
             if (!u8csEmpty(u.path)) u8bFeed(fkey, u.path);
-            u8bFeed1(fkey, '?');
-            u8bFeed(fkey, variants[vi]);
+            u8bFeed(fkey, qsuffix);
             a_dup(u8c, full_key, u8bData(fkey));
 
             for (u32 i = 0; i < n; i++) {
-                if (!REFMatch(&arr[i], full_key)) continue;
+                b8 match = NO;
+                if (auth_is_dot) {
+                    size_t kl = $len(arr[i].key);
+                    if (kl >= qlen &&
+                        memcmp(arr[i].key[0] + (kl - qlen),
+                               qsuffix[0], qlen) == 0)
+                        match = YES;
+                } else {
+                    match = REFMatch(&arr[i], full_key);
+                }
+                if (!match) continue;
                 u8cs vfull = {arr[i].val[0], arr[i].val[1]};
                 if (!$empty(vfull) && vfull[0][0] == '?') {
                     u8cs out = {};

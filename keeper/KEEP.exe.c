@@ -423,6 +423,12 @@ static void post_resolve_remote(keeper *k, uri *g,
             break;
         }
     }
+
+    //  HOME-relative convention: strip the leading '/' the URI parser
+    //  leaves in `//host/path`, matching what `keeper_get` does before
+    //  handing off to KEEPSync — otherwise ssh sees an absolute path
+    //  that doesn't exist and git-receive-pack rejects it.
+    if (!u8csEmpty(path_out) && *path_out[0] == '/') path_out[0]++;
 }
 
 //  Extract the tree SHA-1 (as 40 hex chars) from a commit object body.

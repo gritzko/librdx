@@ -1,5 +1,5 @@
-#ifndef XX_PKT_H
-#define XX_PKT_H
+#ifndef KEEPER_PKT_H
+#define KEEPER_PKT_H
 
 //  PKT: git pkt-line framing (protocol v1/v2)
 //

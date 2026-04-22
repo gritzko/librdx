@@ -7,73 +7,61 @@
 #include "abc/HEX.h"
 #include "abc/PRO.h"
 
+//  Tree entry: <mode SP name>\0<20-byte-sha1>.  Find the NUL via
+//  u8csFind; slice before = "<mode> <name>"; the 20 bytes that follow
+//  are the raw SHA-1.
 ok64 GITu8sDrainTree(u8cs obj, u8csp file, u8csp sha1) {
     sane(u8csOK(obj) && file && sha1);
     if ($empty(obj)) return NODATA;
 
-    // tree entry: <mode> <filename>\0<20-byte-sha1>
     u8cp start = obj[0];
-    u8cp p = start;
-    u8cp e = obj[1];
+    u8cs scan = {obj[0], obj[1]};
+    if (u8csFind(scan, 0) != OK) return GITBADFMT;
 
-    // scan for the NUL separator
-    while (p < e && *p != 0) p++;
-    if (p >= e) return GITBADFMT;
-
-    // file = mode + name (everything before NUL)
     file[0] = start;
-    file[1] = p;
+    file[1] = scan[0];
+    u8csUsed(scan, 1);  // consume NUL
 
-    p++;  // skip NUL
+    if ((u64)u8csLen(scan) < GIT_SHA1_LEN) return GITBADFMT;
+    sha1[0] = scan[0];
+    sha1[1] = scan[0] + GIT_SHA1_LEN;
 
-    // need 20 bytes for SHA1
-    if (p + GIT_SHA1_LEN > e) return GITBADFMT;
-
-    sha1[0] = p;
-    sha1[1] = p + GIT_SHA1_LEN;
-
-    // advance input past this entry
-    obj[0] = p + GIT_SHA1_LEN;
-
+    obj[0] = sha1[1];  // advance past this entry
     done;
 }
 
+//  Commit header iterator:
+//    - blank line (leading '\n') → field empty, value = body, obj consumed.
+//    - otherwise one "<field> <value>\n" line per call.
 ok64 GITu8sDrainCommit(u8cs obj, u8csp field, u8csp value) {
     sane(u8csOK(obj) && field && value);
     if ($empty(obj)) return NODATA;
 
-    u8cp p = obj[0];
-    u8cp e = obj[1];
-
-    // blank line: body follows
-    if (*p == '\n') {
-        field[0] = p;
-        field[1] = p;  // empty field
-        p++;            // skip the blank line
-        value[0] = p;
-        value[1] = e;  // rest is the body
-        obj[0] = e;    // consumed everything
-        return OK;
+    if (*obj[0] == '\n') {
+        field[0] = field[1] = obj[0];        // empty field
+        u8csUsed(obj, 1);                    // skip blank line
+        value[0] = obj[0];
+        value[1] = obj[1];
+        obj[0] = obj[1];                     // body consumed whole
+        done;
     }
 
-    // header line: <field> <value>\n
-    u8cp fstart = p;
-    while (p < e && *p != ' ' && *p != '\n') p++;
-    field[0] = fstart;
-    field[1] = p;
+    //  End-of-line via u8csFind; the line (excluding '\n') is
+    //  [obj[0], nl).  Inside that line, find the mandatory space.
+    u8cs nl_scan = {obj[0], obj[1]};
+    b8   has_nl  = (u8csFind(nl_scan, '\n') == OK);
+    u8cp nl      = has_nl ? nl_scan[0] : obj[1];
 
-    if (p >= e || *p != ' ') return GITBADFMT;
-    p++;  // skip space
+    u8cs sp_scan = {obj[0], nl};
+    if (u8csFind(sp_scan, ' ') != OK) return GITBADFMT;
 
-    u8cp vstart = p;
-    while (p < e && *p != '\n') p++;
-    value[0] = vstart;
-    value[1] = p;
+    field[0] = obj[0];
+    field[1] = sp_scan[0];
+    value[0] = sp_scan[0] + 1;               // skip space
+    value[1] = nl;
 
-    if (p < e) p++;  // skip newline
-
-    obj[0] = p;
-
+    obj[0] = nl;
+    if (has_nl) u8csUsed(obj, 1);            // skip '\n'
     done;
 }
 
