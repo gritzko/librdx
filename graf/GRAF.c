@@ -63,9 +63,9 @@ ok64 GRAFOpen(home *h, b8 rw) {
 
 // --- Update: feed a single object (commit/tree/blob) into graf's DAG index ---
 
-ok64 GRAFUpdate(u8 obj_type, u8cs blob, u8csc path) {
+ok64 GRAFUpdate(u8 obj_type, sha1 const *sha, u8cs blob, u8csc path) {
     sane(1);
-    return GRAFDagUpdate(obj_type, blob, path);
+    return GRAFDagUpdate(obj_type, sha, blob, path);
 }
 
 ok64 GRAFClose(void) {

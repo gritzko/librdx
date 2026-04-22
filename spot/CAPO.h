@@ -6,6 +6,7 @@
 #include "abc/PATH.h"
 #include "abc/RON.h"
 #include "abc/RAP.h"
+#include "dog/SHA1.h"
 
 con ok64 CAPONOROOM = 0x30a6585d86d8616;
 con ok64 CAPONODIFF = 0x30a6585d83523cf;  // no usable saved commit → full reindex
@@ -184,8 +185,10 @@ ok64 SPOTExec(cli *c);
 //  picks the tokenizer via extension and provides the path_hash
 //  used as the posting key.  COMMIT/TREE/TAG are no-ops: keeper
 //  resolves tree → path on its side and streams each blob through
-//  UNPKIndex's emit hook with its live path.
-ok64 SPOTUpdate(u8 obj_type, u8cs blob, u8csc path);
+//  UNPKIndex's emit hook with its live path.  `sha` is the caller's
+//  pre-computed git-object SHA-1 (may be NULL; currently unused by
+//  spot but carried through for parity with graf/sniff).
+ok64 SPOTUpdate(u8 obj_type, sha1 const *sha, u8cs blob, u8csc path);
 
 void SPOTClose(void);
 

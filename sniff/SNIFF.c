@@ -168,8 +168,8 @@ ok64 SNIFFOpen(home *h, b8 rw) {
 //  Stub.  Keeper now owns path derivation during fetch (UNPK
 //  KEEPIntern's tree entries); sniff doesn't need a separate
 //  ingestion path.
-ok64 SNIFFUpdate(u8 obj_type, u8cs blob, u8csc path) {
-    (void)obj_type; (void)blob; (void)path;
+ok64 SNIFFUpdate(u8 obj_type, sha1 const *sha, u8cs blob, u8csc path) {
+    (void)obj_type; (void)sha; (void)blob; (void)path;
     sane(1);
     done;
 }

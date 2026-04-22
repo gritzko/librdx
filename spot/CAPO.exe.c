@@ -361,8 +361,9 @@ ok64 SPOTExec(cli *c) {
 //   BLOB: pick tokenizer from `path`'s extension, tokenize, append
 //         trigram + symbol postings to the in-memory scratch; flush
 //         to a new `.idx` run when the run fills up.
-ok64 SPOTUpdate(u8 obj_type, u8cs blob, u8csc path) {
+ok64 SPOTUpdate(u8 obj_type, sha1 const *sha, u8cs blob, u8csc path) {
     sane(1);
+    (void)sha;  // not used yet; carried for parity with graf/sniff.
     spotp s = &SPOT;
     if (!s->rw) done;
     if (obj_type != DOG_OBJ_BLOB) done;

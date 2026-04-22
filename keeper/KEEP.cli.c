@@ -24,9 +24,8 @@ static void keeper_indexer_fanout(void *ctx, u8 type,
                                    sha1 const *sha, u8csc path,
                                    u8cs content) {
     (void)ctx;
-    (void)sha;
-    GRAFUpdate(type, content, path);
-    SPOTUpdate(type, content, path);
+    GRAFUpdate(type, sha, content, path);
+    SPOTUpdate(type, sha, content, path);
 }
 
 
