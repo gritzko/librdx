@@ -211,12 +211,21 @@ static ok64 SNIFFGetURI(u8cs reporoot, uri *u) {
     a_path(keepdir, u8bDataC(k->h->root), KEEP_DIR_S);
 
     u8cs ref_to_resolve = {};
+    //  Stable backing for the synthesized `<uri>?HEAD` form below
+    //  (a_pad keeps the bytes alive for the rest of this frame).
+    a_pad(u8, head_form, 1024);
     if (!$empty(u->query)) {
         u8csMv(ref_to_resolve, u->data);
     } else if (!$empty(u->authority)) {
-        a_cstr(head_uri, "?HEAD");
-        ref_to_resolve[0] = head_uri[0];
-        ref_to_resolve[1] = head_uri[1];
+        //  Clone with no explicit `?branch`: look up
+        //  `<origin-uri>?HEAD` in REFS.  `?HEAD` alone has no
+        //  authority so REFSResolve's direct-match path couldn't
+        //  find it, and the fallback requires a non-empty query.
+        u8bFeed(head_form, u->data);
+        a_cstr(qhead, "?HEAD");
+        u8bFeed(head_form, qhead);
+        ref_to_resolve[0] = u8bDataHead(head_form);
+        ref_to_resolve[1] = u8bIdleHead(head_form);
     } else if (!$empty(u->path)) {
         a_pad(u8, src, 256);
         u8bFeed1(src, '?');

@@ -221,16 +221,32 @@ typedef struct {
     u8       last_type;             // for commit->tree->blob->tag ordering check
     b8       strict_order;          // enforce commit->tree->blob->tag (ORDERBAD)
     Bwh128   entries;               // index entries buffer
+    Bu8      delta_base;            // scratch: inflated base content
+    Bu8      delta_instr;           // scratch: encoded delta instructions
 } keep_pack;
 
 ok64 KEEPPackOpen(keeper *k, keep_pack *p);
 
-//  Feed one object.  sha_out receives the 20-byte git SHA-1.
+//  Feed one object.  `sha_out` receives the 20-byte git SHA-1.
 //  `path` is repo-relative for blobs (drives spot's tokenizer choice
 //  and graf's PATH_VER entries via the indexer fan-out), empty for
 //  commits/trees/tags.
+//
+//  If `base_hashlet60` is non-zero the writer tries to delta-compress
+//  `content` against the object with that hashlet:
+//    - Opportunistic OFS_DELTA when the base sits (raw) in this
+//      in-progress pack — saves the 20-byte ref header.
+//    - REF_DELTA otherwise — common case: a fresh pack usually holds
+//      one version per file and the previous version lives in an
+//      already-committed pack that KEEPGet resolves through any
+//      internal delta chain.
+//  Any mismatch (hashlet collision, delta not smaller than raw, base
+//  unreachable) falls silently back to a raw record.  The index
+//  entry always records the resolved object type.
 ok64 KEEPPackFeed(keeper *k, keep_pack *p,
-                  u8 type, u8csc content, u8csc path, sha1 *sha_out);
+                  u8 type, u8csc content,
+                  u8csc path, u64 base_hashlet60,
+                  sha1 *sha_out);
 
 ok64 KEEPPackClose(keeper *k, keep_pack *p);
 

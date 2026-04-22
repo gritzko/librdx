@@ -16,7 +16,12 @@ BIN=${BIN:-$(dirname "$0")/../../build-debug/bin}
 BE="$BIN/be"
 KEEPER="$BIN/keeper"
 
-TMP=${TMPDIR:-/tmp}/be-roundtrip-$$
+#  Keeper treats URI paths in `//host/path` as remote-HOME-relative
+#  (see keeper/KEEP.exe.c) so the working tmp dir must live under
+#  $HOME, not /tmp.  ssh ${USER}@localhost git-upload-pack 'be-…'
+#  only finds it if it's a sibling of the remote login's $HOME.
+TMP=$HOME/be-roundtrip-$$
+REL=be-roundtrip-$$                     # $TMP relative to $HOME
 trap 'rm -rf "$TMP"' EXIT INT TERM
 mkdir -p "$TMP"
 
@@ -24,6 +29,7 @@ fail() { echo "FAIL: $*" >&2; exit 1; }
 note() { echo "  - $*"; }
 
 ORIGIN="$TMP/origin.git"
+REL_ORIGIN="$REL/origin.git"            # HOME-relative form for ssh URIs
 SEED="$TMP/seed"
 CLONE="$TMP/clone"
 WT="$TMP/wt"
@@ -47,7 +53,7 @@ note "seed=$SEED_SHA"
 # --- 2. be get via ssh ---
 echo "=== 2. be get ssh://localhost:<origin>?master ==="
 mkdir -p "$CLONE"; cd "$CLONE"
-"$BE" get --seq "ssh://localhost$ORIGIN?master" >/dev/null 2>&1 \
+"$BE" get --seq "ssh://localhost/$REL_ORIGIN?master" >/dev/null 2>&1 \
     || fail "be get (clone) failed"
 [ -f a.txt ] && [ -f b.txt ] || fail "clone missing seed files"
 note "clone has a.txt, b.txt"
@@ -83,7 +89,7 @@ note "worktree commit=$WT_SHA"
 
 # --- 6. be post ssh://... → push ---
 echo "=== 6. be post ssh://localhost:<origin>?master ==="
-"$BE" post --seq "ssh://localhost$ORIGIN?master" 2>&1 \
+"$BE" post --seq "ssh://localhost/$REL_ORIGIN?master" 2>&1 \
     | grep -q "keeper: pushed" || fail "keeper push didn't happen"
 note "push reported"
 

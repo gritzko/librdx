@@ -9,7 +9,11 @@ set -e
 BIN=${BIN:-$(dirname "$0")/../../build-debug/bin}
 export PATH="$BIN:$PATH"
 
-TMILL=${TMILL:-$HOME/tmp/mill-$$}
+#  Keeper treats URI paths in `//host/path` as HOME-relative (see
+#  keeper/KEEP.exe.c); TMILL must live under $HOME and the URI must
+#  use the HOME-relative form, not the absolute path.
+TMILL_REL=${TMILL_REL:-tmp/mill-$$}
+TMILL=${TMILL:-$HOME/$TMILL_REL}
 trap 'rm -rf "$TMILL"' EXIT
 
 mkdir -p "$TMILL"
@@ -50,7 +54,7 @@ cd "$TMILL/be01"
 git init --quiet .
 mkdir -p .dogs/keeper
 
-be get "//localhost${TMILL}/origin" 2>&1
+be get "//localhost/${TMILL_REL}/origin" 2>&1
 
 # --- 4. Verify refs (new naming: stripped refs/ prefix, local ?master) ---
 KEEP_HEAD=$(keeper get ".?master" 2>/dev/null)

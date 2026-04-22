@@ -1,5 +1,5 @@
-#ifndef XX_PACK_H
-#define XX_PACK_H
+#ifndef KEEPER_PACK_H
+#define KEEPER_PACK_H
 
 //  PACK: git packfile parser
 //
@@ -46,7 +46,7 @@ typedef struct {
 //  Write the 12-byte git packfile header into `into`:
 //    "PACK" magic (4) + version=2 (4) + count (4)
 //  Advances `into` head by 12.  Caller pre-reserves room.
-//  Used when starting a new pack file.  Both keeper and sniff staging
+//  Used when starting a new pack log.  Both keeper and sniff staging
 //  call this — no raw header bytes should appear in any caller.
 ok64 PACKu8sFeedHdr(u8s into, u32 count);
 

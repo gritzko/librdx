@@ -1,5 +1,5 @@
-#ifndef XX_DELT_H
-#define XX_DELT_H
+#ifndef KEEPER_DELT_H
+#define KEEPER_DELT_H
 
 //  DELT: git delta instruction parser/applier
 //

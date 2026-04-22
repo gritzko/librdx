@@ -1,5 +1,5 @@
-#ifndef XX_ZINF_H
-#define XX_ZINF_H
+#ifndef KEEPER_ZINF_H
+#define KEEPER_ZINF_H
 
 //  ZINF: zlib inflate/deflate wrappers.
 //  Isolated from abc/BUF.h to avoid voidp/voidpc typedef clash with zlib.

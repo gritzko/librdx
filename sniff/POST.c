@@ -175,7 +175,7 @@ static ok64 repack_emit(keep_pack *mp, u8cs branch, repack_ctx *rc) {
         sha1 tmp = {};
         a_dup(u8c, body, u8bData(obuf));
         u8csc nopath = {NULL, NULL};
-        call(KEEPPackFeed, k, mp, DOG_OBJ_TREE, body, nopath, &tmp);
+        call(KEEPPackFeed, k, mp, DOG_OBJ_TREE, body, nopath, 0, &tmp);
     }
     //  Blobs.  Repack from staging to main log; the original feed in
     //  PUT/COM has already fan-out'd the indexer with the live path,
@@ -189,7 +189,7 @@ static ok64 repack_emit(keep_pack *mp, u8cs branch, repack_ctx *rc) {
         sha1 tmp = {};
         a_dup(u8c, body, u8bData(obuf));
         u8csc nopath = {NULL, NULL};
-        call(KEEPPackFeed, k, mp, DOG_OBJ_BLOB, body, nopath, &tmp);
+        call(KEEPPackFeed, k, mp, DOG_OBJ_BLOB, body, nopath, 0, &tmp);
     }
     u8bFree(obuf);
     done;
@@ -224,7 +224,7 @@ ok64 POSTCommit(u8cs reporoot,
             call(STAGEOpen, &sp, branch);
             u8cs empty = {};
             u8csc nopath = {NULL, NULL};
-            call(KEEPPackFeed, k, &sp, DOG_OBJ_TREE, empty, nopath, &root_tree);
+            call(KEEPPackFeed, k, &sp, DOG_OBJ_TREE, empty, nopath, 0, &root_tree);
             call(STAGEClose, &sp, branch);
             base = WHIFFHashlet40(&root_tree);
             SNIFFRecord(SNIFF_TREE, SNIFFRootIdx(), base);
@@ -309,7 +309,7 @@ ok64 POSTCommit(u8cs reporoot,
 
     a_dup(u8c, com_data, u8bData(com));
     u8csc nopath = {NULL, NULL};
-    ok64 o = KEEPPackFeed(k, &mp, DOG_OBJ_COMMIT, com_data, nopath, sha_out);
+    ok64 o = KEEPPackFeed(k, &mp, DOG_OBJ_COMMIT, com_data, nopath, 0, sha_out);
     u8bFree(com);
     if (o != OK) { KEEPPackClose(k, &mp); return o; }
 

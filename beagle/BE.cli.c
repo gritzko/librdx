@@ -200,11 +200,17 @@ static ok64 BEGetWorktree(uri *u) {
     a_path(sniff_path, $path(cwd_dogs), sniff_name);
     call(FILEMakeDirP, $path(sniff_path));
 
-    // Shared subdirs → symlinks into primary.
+    // Shared subdirs → symlinks into primary.  Ensure each target
+    // exists first: `be get` on a fresh ssh clone only populates the
+    // dogs it actually ran (keeper + sniff today; spot and graf may
+    // not have been invoked yet).  Without these mkdirs the symlinks
+    // would dangle and `be post`'s later graf/spot steps would
+    // ENOENT on their `.lock` file open.
     u8cs shared[] = {u8slit("keeper"), u8slit("graf"), u8slit("spot")};
     for (u32 i = 0; i < 3; i++) {
         a_path(tgt, $path(prim_dogs), shared[i]);
         a_path(lnk, $path(cwd_dogs),  shared[i]);
+        (void)FILEMakeDirP($path(tgt));
         ok64 so = FILESymLink($path(tgt), $path(lnk));
         if (so != OK && so != FILEEXIST) return so;
     }

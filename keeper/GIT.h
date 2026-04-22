@@ -1,5 +1,5 @@
-#ifndef XX_GIT_H
-#define XX_GIT_H
+#ifndef KEEPER_GIT_H
+#define KEEPER_GIT_H
 
 //  GIT: parsers for git objects (blob, tree, commit)
 //

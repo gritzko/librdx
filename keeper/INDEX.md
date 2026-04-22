@@ -71,9 +71,22 @@ Types: `walk` (walker state), `walk_fn` (visitor callback).
   - `WALKu8sModeKind`  classify git tree-entry mode → `WALK_KIND_*`
   - Commit-graph traversal lives in `graf/`, not here.
 
-### DELT.h — git delta instruction applier
+### DELT.h — git delta instruction applier + encoder
 
-  - `DELTApply`  apply delta instructions (copy/insert) to base object
+  - `DELTApply`   apply delta instructions (copy/insert) to base object
+  - `DELTEncode`  produce a git delta instruction stream for
+                  (base, target).  4-byte hash index over `base` with
+                  forward + bounded-backward extension.  Returns
+                  DELTFAIL when the delta is no smaller than the raw
+                  target (caller should emit raw instead).
+                  Exercised end-to-end via `test/DELTA_ROUND.c`:
+                  feeds a chain of blob versions with a hashlet60
+                  hint to `KEEPPackFeed`, splices the log into a git
+                  packfile, reads each version back via `git cat-file`.
+                  `KEEPPackFeed` emits OFS_DELTA when the base is a
+                  raw object in the same in-progress pack, else
+                  REF_DELTA against whatever `KEEPGet` resolves from
+                  committed runs (delta chains chased transparently).
 
 ##  CLI
 
@@ -92,6 +105,9 @@ Links: abc, ZLIB, OpenSSL::Crypto.
   - `test/GIT.c`    tree/commit parser tests (6 cases)
   - `test/PKT.c`    pkt-line drain/feed tests (8 cases)
   - `test/PACK.c`   packfile header/varint/inflate tests (7 cases)
+  - `test/DELT.c`   DELTEncode + DELTApply round-trip
+  - `test/DELTA_ROUND.c`  KEEPPackFeed with delta hints → valid git
+                           packfile → `git cat-file` per version
   - `test/IGNO.c`   gitignore pattern matching tests (3 cases)
   - `test/ZINF.c`   deflate/inflate round-trip chain (20 versions)
   - `test/FETCH.c`  treadmill: clone repo via ssh git-upload-pack,
