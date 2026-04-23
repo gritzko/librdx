@@ -190,6 +190,18 @@ ok64 RECVReadRequest(int in_fd, recv_reqp req) {
         req->count++;
     }
 
+    //  Preserve any bytes past `adv[0]` — they are the first bytes of
+    //  the packfile the client streamed right after the flush.  The
+    //  pipe reader may have pulled them in while filling buf for
+    //  pkt-line parsing; without this stash they would be lost when
+    //  buf is freed, and KEEPIngestFile would see a truncated pack.
+    if (rc == OK) {
+        u8cs leftover = {adv[0], u8bIdleHead(buf)};
+        if (!u8csEmpty(leftover)) {
+            ok64 to = u8bAllocate(req->tail, u8csLen(leftover));
+            if (to == OK) u8bFeed(req->tail, leftover);
+        }
+    }
     u8bFree(buf);
     if (rc != OK) RECVCloseRequest(req);
     return rc;
@@ -197,6 +209,9 @@ ok64 RECVReadRequest(int in_fd, recv_reqp req) {
 
 void RECVCloseRequest(recv_reqp req) {
     if (!req) return;
+    if (req->tail[0] != NULL) {
+        u8bFree(req->tail);
+    }
     if (req->upds) {
         free(req->upds);
         req->upds = NULL;
@@ -212,11 +227,20 @@ void RECVCloseRequest(recv_reqp req) {
 
 #define RECV_PACK_BUF (1u << 20)   // 1 MiB chunked drain
 
-ok64 RECVIngestPack(keeper *k, int in_fd) {
+ok64 RECVIngestPack(keeper *k, int in_fd, u8csc tail) {
     sane(k && in_fd >= 0);
 
     Bu8 buf = {};
     call(u8bMap, buf, 1ULL << 30);  // up to 1 GiB packfile
+
+    //  Consume any pre-buffered pack bytes first (see RECVReadRequest).
+    if (!u8csEmpty(tail)) {
+        if (u8bIdleLen(buf) < (size_t)u8csLen(tail)) {
+            u8bUnMap(buf);
+            return RECVFAIL;
+        }
+        u8bFeed(buf, tail);
+    }
 
     for (;;) {
         if (!u8bHasRoom(buf)) {
@@ -464,7 +488,8 @@ ok64 RECVServe(int in_fd, int out_fd, keeper *k, refadvcp adv) {
     //  for those, so consume it regardless).
     ok64 unpack_status = OK;
     if (req.count > 0) {
-        ok64 io = RECVIngestPack(k, in_fd);
+        u8csc rtail = {u8bDataHead(req.tail), u8bIdleHead(req.tail)};
+        ok64 io = RECVIngestPack(k, in_fd, rtail);
         if (io != OK) unpack_status = io;
     }
 

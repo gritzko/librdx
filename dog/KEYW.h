@@ -40,9 +40,9 @@
 #define KEYW_SLOTS 256
 #define KEYW_MAX   64
 
-con ok64 KEYWFAIL = 0x5c7f5d3ca495;   // general failure
-con ok64 KEYWFULL = 0x5c7f5d86d8616;  // > KEYW_MAX keywords
-con ok64 KEYWSHORT = 0x5c7f5d5d847;   // keyword < 2 bytes
+con ok64 KEYWFAIL = 0x50e8a03ca495;   // general failure
+con ok64 KEYWFULL = 0x50e8a03de555;  // > KEYW_MAX keywords
+con ok64 KEYWSHORT = 0x143a281c4586dd;   // keyword < 2 bytes
 
 typedef struct {
     u8          table[KEYW_SLOTS];  // 0 = empty; else 1-based idx into kws

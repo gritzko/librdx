@@ -335,6 +335,24 @@ ok64 POSTCommit(u8cs reporoot,
     a_dup(u8c, hex_in, u8bData(out_hex));
     (void)SNIFFAtAppend(branch, hex_in);
 
+    //  9. Advance keeper REFS for `?<branch> → ?<sha>`.  sniff's at.log
+    //  records the new tip for the worktree, but keeper's REFS is what
+    //  REFADV / WIREPush consult to resolve the local-side tip during
+    //  push; without this a `be post ssh://…?<branch>` still sees the
+    //  pre-commit sha and no-ops against the peer.
+    if (!u8csEmpty(branch)) {
+        a_path(keepdir, u8bDataC(k->h->root), KEEP_DIR_S);
+        a_pad(u8, keybuf, 256);
+        u8bFeed1(keybuf, '?');
+        u8bFeed(keybuf, branch);
+        a_dup(u8c, key, u8bData(keybuf));
+        a_pad(u8, valbuf, 64);
+        u8bFeed1(valbuf, '?');
+        u8bFeed(valbuf, u8bDataC(out_hex));
+        a_dup(u8c, val, u8bData(valbuf));
+        (void)REFSAppend($path(keepdir), key, val);
+    }
+
     fprintf(stderr, "sniff: commit %.*s\n",
             (int)u8bDataLen(out_hex), (char *)u8bDataHead(out_hex));
     done;

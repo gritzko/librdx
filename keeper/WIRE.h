@@ -120,8 +120,8 @@ ok64 WIREServeUpload(int in_fd, int out_fd, keeper *k, refadvcp adv);
 
 // --- client side (Phase 7) ---------------------------------------------
 
-con ok64 WIRECLIFAIL  = 0x812ce4395d3ca495;
-con ok64 WIRECLINOREF = 0x812ce4395d853ce;
+con ok64 WIRECLIFAIL  = 0x49b38c5523ca495;
+con ok64 WIRECLINOREF = 0x26ce31549761b38f;
 
 //  Spawn a git-protocol peer (ssh or local exec) and run a fetch
 //  conversation: drain refs advertisement, send wants/haves, read pack.

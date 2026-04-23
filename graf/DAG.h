@@ -38,7 +38,7 @@
 
 con ok64 DAGFAIL     = 0xd2903ca495;
 con ok64 DAGNOROOM   = 0xd2905d86d8616;
-con ok64 DAGNOPATH   = 0xd29093a0586;
+con ok64 DAGNOPATH   = 0xd2905d864a751;
 
 // --- Entry types ---
 

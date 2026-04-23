@@ -14,6 +14,7 @@
 #include "GET.h"
 #include "POST.h"
 #include "PUT.h"
+#include "dog/AT.h"
 #include "dog/CLI.h"
 #include "dog/IGNO.h"
 #include "keeper/REFS.h"
@@ -202,83 +203,146 @@ static ok64 sniff_checkout(u8cs reporoot, u8cs hex) {
 }
 
 // Checkout from a parsed URI: resolve ?ref via keeper REFS, then checkout.
+//
+//  Resolution strategy (keeper WIREFetch no longer records per-origin
+//  aliases — only `?heads/X → ?<sha>` and `?tags/X → ?<sha>`):
+//
+//    URI has ?query:
+//      1. Try REFSResolve on the full URI (picks up any legacy
+//         origin-qualified entries, plus the resolver's own
+//         authority+query variant matcher).
+//      2. Fallback: REFSResolve on a local-only `?<query>` (with a
+//         leading `refs/` stripped) — lets `?refs/tags/v1` / `?v1` /
+//         `?heads/main` all hit keeper's local refs file.
+//      3. Last resort: treat query as a raw 40-hex SHA (covers the
+//         `?<40hex>` URI that BEGetWorktree rewrites to).
+//
+//    URI has no ?query (fresh clone / re-clone):
+//      1. If sniff at.log has a branch, resolve `?heads/<branch>`.
+//      2. Else scan local REFS for a `?heads/*` entry, preferring
+//         master/main/trunk; its sha is the checkout target and its
+//         key becomes the at.log `source` so the branch is recorded.
+static ok64 sniff_get_by_refkey(u8cs reporoot, u8csc keepdir,
+                                 u8csc refkey) {
+    a_pad(u8, arena, 1024);
+    uri resolved = {};
+    ok64 o = REFSResolve(&resolved, arena, keepdir, refkey);
+    if (o != OK || $empty(resolved.query)) return KEEPNONE;
+    return GETCheckout(reporoot, resolved.query, refkey);
+}
+
 static ok64 SNIFFGetURI(u8cs reporoot, uri *u) {
     sniff *s = &SNIFF; (void)s;
     sane(u);
 
     keeper *k = &KEEP;
-    
     a_path(keepdir, u8bDataC(k->h->root), KEEP_DIR_S);
 
-    u8cs ref_to_resolve = {};
-    //  Stable backing for the synthesized `<uri>?HEAD` form below
-    //  (a_pad keeps the bytes alive for the rest of this frame).
-    a_pad(u8, head_form, 1024);
-    if (!$empty(u->query)) {
-        u8csMv(ref_to_resolve, u->data);
-    } else if (!$empty(u->authority)) {
-        //  Clone with no explicit `?branch`: look up
-        //  `<origin-uri>?HEAD` in REFS.  `?HEAD` alone has no
-        //  authority so REFSResolve's direct-match path couldn't
-        //  find it, and the fallback requires a non-empty query.
-        u8bFeed(head_form, u->data);
-        a_cstr(qhead, "?HEAD");
-        u8bFeed(head_form, qhead);
-        ref_to_resolve[0] = u8bDataHead(head_form);
-        ref_to_resolve[1] = u8bIdleHead(head_form);
-    } else if (!$empty(u->path)) {
+    //  Path-only URI (no authority, no query) → `be get <hex>` or
+    //  `be get <local-dir>` (the latter is rewritten by BEGetWorktree
+    //  to a query-only URI before we get here).
+    if ($empty(u->query) && $empty(u->authority) && !$empty(u->path)) {
         a_pad(u8, src, 256);
         u8bFeed1(src, '?');
         u8bFeed(src, u->path);
         a_dup(u8c, source, u8bData(src));
-        ok64 o = GETCheckout(reporoot, u->path, source);
-        
-        return o;
-    } else {
-        
-        fail(SNIFFFAIL);
-    }
-
-    a_pad(u8, arena, 512);
-    uri resolved = {};
-    ok64 o = REFSResolve(&resolved, arena, $path(keepdir), ref_to_resolve);
-    if (o == OK && !$empty(resolved.query)) {
-        a_pad(u8, src_alias, 256);
-        a_cstr(head_lit, "?HEAD");
-        if ($eq(ref_to_resolve, head_lit)) {
-            ref rarr2[REFS_MAX_REFS];
-            u32 rn2 = 0;
-            u8bp rmap2 = NULL;
-            REFSLoad(rarr2, &rn2, REFS_MAX_REFS, &rmap2, $path(keepdir));
-            for (u32 i = 0; i < rn2; i++) {
-                if (REFMatch(&rarr2[i], head_lit)) {
-                    a_dup(u8c, alias_v, rarr2[i].val);
-                    u8bFeed(src_alias, alias_v);
-                    break;
-                }
-            }
-            if (rmap2) u8bUnMap(rmap2);
-        }
-        u8cs source_to_record = {};
-        u8csMv(source_to_record, ref_to_resolve);
-        if (u8bDataLen(src_alias) > 0) {
-            a_dup(u8c, sa, u8bData(src_alias));
-            u8csMv(source_to_record, sa);
-        }
-        o = GETCheckout(reporoot, resolved.query,
-                        source_to_record);
-        
-        return o;
+        return GETCheckout(reporoot, u->path, source);
     }
 
     if (!$empty(u->query)) {
-        o = GETCheckout(reporoot, u->query,
-                        ref_to_resolve);
-        
-        return o;
+        //  Normalized query: drop a leading `refs/` so `?refs/heads/X`
+        //  and `?heads/X` both become `heads/X`.
+        u8cs qnorm = {u->query[0], u->query[1]};
+        a_cstr(refs_pfx, "refs/");
+        if ($len(qnorm) > 5 && memcmp(qnorm[0], refs_pfx[0], 5) == 0)
+            u8csUsed(qnorm, 5);
+
+        //  1. Origin-qualified resolution via the full URI.
+        a_pad(u8, arena1, 1024);
+        uri resolved = {};
+        ok64 o = REFSResolve(&resolved, arena1, $path(keepdir), u->data);
+        if (o == OK && !$empty(resolved.query)) {
+            a_pad(u8, src, 256);
+            u8bFeed1(src, '?');
+            u8bFeed(src, qnorm);
+            a_dup(u8c, source, u8bData(src));
+            return GETCheckout(reporoot, resolved.query, source);
+        }
+
+        //  2. Local `?<normalized-query>` resolution.
+        a_pad(u8, qbuf, 256);
+        u8bFeed1(qbuf, '?');
+        u8bFeed(qbuf, qnorm);
+        a_dup(u8c, qkey, u8bData(qbuf));
+        o = sniff_get_by_refkey(reporoot, $path(keepdir), qkey);
+        if (o == OK) return OK;
+
+        //  3. Raw hex fallback (`?<40hex>` after a worktree rewrite,
+        //  or an explicit SHA query).
+        return GETCheckout(reporoot, u->query, qkey);
     }
 
-    
+    //  No query.  Prefer the worktree's current branch recorded in
+    //  sniff/at.log; otherwise pick a default from local REFS.
+    a_pad(u8, at_branch, 256);
+    a_pad(u8, at_sha, 64);
+    a_dup(u8c, at_root, reporoot);
+    if (DOGAtTail(at_branch, at_sha, at_root) == OK &&
+        u8bDataLen(at_branch) > 0) {
+        a_pad(u8, qbuf, 256);
+        u8bFeed1(qbuf, '?');
+        u8bFeed(qbuf, u8bDataC(at_branch));
+        a_dup(u8c, qkey, u8bData(qbuf));
+        ok64 o = sniff_get_by_refkey(reporoot, $path(keepdir), qkey);
+        if (o == OK) return OK;
+    }
+
+    //  Scan REFS for a `?heads/*` entry to use as the default.
+    ref rarr[REFS_MAX_REFS] = {};
+    u32 rn = 0;
+    u8bp rmap = NULL;
+    if (REFSLoad(rarr, &rn, REFS_MAX_REFS, &rmap, $path(keepdir)) == OK &&
+        rn > 0) {
+        static char const *const prefs[] = {
+            "?heads/master", "?heads/main", "?heads/trunk",
+        };
+        ref *found = NULL;
+        for (u32 pi = 0; pi < 3 && !found; pi++) {
+            size_t plen = strlen(prefs[pi]);
+            for (u32 i = 0; i < rn; i++) {
+                if ($len(rarr[i].key) == plen &&
+                    memcmp(rarr[i].key[0], prefs[pi], plen) == 0) {
+                    found = &rarr[i];
+                    break;
+                }
+            }
+        }
+        if (!found) {
+            for (u32 i = 0; i < rn; i++) {
+                if ($len(rarr[i].key) >= 7 &&
+                    memcmp(rarr[i].key[0], "?heads/", 7) == 0) {
+                    found = &rarr[i];
+                    break;
+                }
+            }
+        }
+        if (found) {
+            u8cs vfull = {found->val[0], found->val[1]};
+            if ($len(vfull) == 41 && vfull[0][0] == '?') {
+                a_pad(u8, hexbuf, 64);
+                u8cs hexs = {vfull[0] + 1, vfull[1]};
+                u8bFeed(hexbuf, hexs);
+                a_dup(u8c, hex, u8bData(hexbuf));
+                a_pad(u8, srcbuf, 256);
+                u8bFeed(srcbuf, found->key);
+                a_dup(u8c, source, u8bData(srcbuf));
+                if (rmap) u8bUnMap(rmap);
+                return GETCheckout(reporoot, hex, source);
+            }
+        }
+        if (rmap) u8bUnMap(rmap);
+    }
+
     fail(SNIFFFAIL);
 }
 
