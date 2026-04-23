@@ -23,7 +23,9 @@ HOST=${HOST:-localhost}
 if [ -n "${TMILL:-}" ]; then
     KEEP_ON_EXIT=1
 else
-    TMILL=$HOME/tmp/mill-last10-$$
+    TMP=${TMP:-$HOME/tmp}
+    TEST_ID=${TEST_ID:-mill-last10}
+    TMILL=$TMP/$$/$TEST_ID
     KEEP_ON_EXIT=
 fi
 trap '[ -z "$KEEP_ON_EXIT" ] && rm -rf "$TMILL"; echo "workdir: $TMILL${KEEP_ON_EXIT:+ (kept)}"' EXIT

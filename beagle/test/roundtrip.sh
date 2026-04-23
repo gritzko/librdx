@@ -20,10 +20,12 @@ KEEPER="$BIN/keeper"
 #  (see keeper/KEEP.exe.c) so the working tmp dir must live under
 #  $HOME, not /tmp.  ssh ${USER}@localhost git-upload-pack 'be-…'
 #  only finds it if it's a sibling of the remote login's $HOME.
-TMP=$HOME/be-roundtrip-$$
-REL=be-roundtrip-$$                     # $TMP relative to $HOME
-trap 'rm -rf "$TMP"' EXIT INT TERM
+TMP=${TMP:-$HOME/tmp}
+TEST_ID=${TEST_ID:-BEroundtrip}
+TMP=$TMP/$$/$TEST_ID
+REL=${TMP#$HOME/}                       # $TMP relative to $HOME
 mkdir -p "$TMP"
+trap 'rm -rf "$TMP"' EXIT INT TERM
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
 note() { echo "  - $*"; }

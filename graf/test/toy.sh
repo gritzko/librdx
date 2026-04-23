@@ -34,9 +34,11 @@ for tool in "$BE" "$GRAF"; do
     [ -x "$tool" ] || { echo "FAIL: $tool not executable"; exit 1; }
 done
 
-TMP=${TMPDIR:-/tmp}/graf-toy-$$
-trap 'rm -rf "$TMP"' EXIT INT TERM
+TMP=${TMP:-$HOME/tmp}
+TEST_ID=${TEST_ID:-GRAFtoy}
+TMP=$TMP/$$/$TEST_ID
 mkdir -p "$TMP"
+trap 'rm -rf "$TMP"' EXIT INT TERM
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
 note() { echo "  - $*"; }

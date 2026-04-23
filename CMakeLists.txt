@@ -54,6 +54,11 @@ endif ()
 
 set(DOG_BIN_DIR ${CMAKE_BINARY_DIR}/bin)
 
+#  Root dir for toy-repo tests' scratch files.  Scripts compose
+#  `$TMP/$$/$TEST_ID/` under this for their per-run workspaces.
+set(DOG_TEST_TMP_ROOT "$ENV{HOME}/tmp" CACHE PATH
+    "Base dir for toy-repo test scratch files")
+
 set(TEST_CXX_FLAGS "-g")
 set(TEST_LDD_FLAGS "-g")
 set(BENCH_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -v")

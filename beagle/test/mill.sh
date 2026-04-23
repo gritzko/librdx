@@ -10,18 +10,19 @@ BIN=${BIN:-$(dirname "$0")/../../build-debug/bin}
 export PATH="$BIN:$PATH"
 
 #  Keeper treats URI paths in `//host/path` as HOME-relative (see
-#  keeper/KEEP.exe.c); TMILL must live under $HOME and the URI must
-#  use the HOME-relative form, not the absolute path.
-TMILL_REL=${TMILL_REL:-tmp/mill-$$}
-TMILL=${TMILL:-$HOME/$TMILL_REL}
-trap 'rm -rf "$TMILL"' EXIT
-
+#  keeper/KEEP.exe.c); $TMILL must live under $HOME and the URI must
+#  use the HOME-relative form.  CMake seeds TMP=$HOME/tmp by default.
+TMP=${TMP:-$HOME/tmp}
+TEST_ID=${TEST_ID:-mill}
+TMILL=$TMP/$$/$TEST_ID
+TMILL_REL=${TMILL#$HOME/}
 mkdir -p "$TMILL"
+trap 'rm -rf "$TMILL"' EXIT
 
 echo "=== mill: be get + verify ==="
 
 # --- 1. Create toy origin ---
-T=$(mktemp -d)
+T=$(mktemp -d -p "$TMILL")
 git init --quiet "$T"
 git -C "$T" config user.email "test@dogs"
 git -C "$T" config user.name "Test Dog"

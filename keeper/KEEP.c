@@ -926,22 +926,10 @@ ok64 KEEPPackOpen(keeper *k, keep_pack *p) {
             k->shards[0].packs[p->file_id - 1] = NULL;
         }
         call(FILEBook, &p->log, $path(packpath), 16ULL << 30);
-        //  FILEBook sets b[3] to the page-aligned end of the map.  We
-        //  need b[2] at the **actual** file length (not the page-
-        //  aligned tail) so the next append lands right after the last
-        //  object.  And we must materialise real file bytes between
-        //  actual_sz and b[3] (the mmap's page-tail is anonymous until
-        //  ftruncate makes the file long enough) — otherwise writes
-        //  to that tail sit in anonymous pages and never hit disk.
-        size_t actual_sz = 0;
-        int book_fd = FILEBookedFD(p->log);
-        test(book_fd >= 0, FILENOBOOK);
-        call(FILESize, &actual_sz, &book_fd);
-        size_t mapped_sz = (size_t)(p->log[3] - p->log[0]);
-        if (mapped_sz > actual_sz) {
-            call(FILEResize, &book_fd, mapped_sz);
-        }
-        ((u8 **)p->log)[2] = p->log[0] + actual_sz;
+        //  FILEBook ftruncates the file to the page-aligned map size
+        //  (so writes into the mmap's tail-of-page persist on disk-
+        //  backed FSs) and sets b[2] at the real content end, so
+        //  u8bDataLen below reports the pre-extension length.
         p->pack_offset = u8bDataLen(p->log);
         //  Expose the RW view to readers for the duration of the
         //  pack build — any lookups into this file_id resolve via
@@ -2370,8 +2358,7 @@ got_pack:
         if (appending) {
             ok64 o = FILEBook(&packbuf, $path(dst), pack_book);
             if (o != OK) goto sync_fail;
-            // Mark all existing data as DATA (FILEBook leaves it as IDLE)
-            ((u8 **)packbuf)[2] = packbuf[3];
+            // FILEBook sets b[2] to the real content end.
             append_offset = u8bDataLen(packbuf);
         } else {
             // New log — create
