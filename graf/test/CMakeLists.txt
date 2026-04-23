@@ -33,3 +33,19 @@ add_test(NAME GRAFmergeFromGit
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
 set_tests_properties(GRAFmergeFromGit PROPERTIES
     ENVIRONMENT "BIN=${DOG_BIN_DIR}")
+
+#  mill-merges.sh — 3-way merge treadmill against curated merges in
+#  ~/src/git.  Each case fetches the two parents via keeper (ssh
+#  localhost, same transport as mill-tags.sh) and compares
+#  `graf get <path>?<P1>&<P2>` against `git show <merge>:<path>`.
+#  Heavy (pulls real history) — ctest runs it only when explicitly
+#  selected.  Toggle via `-DGRAF_MILL_MERGES=ON` or set it in the
+#  environment.
+option(GRAF_MILL_MERGES "Register the graf merge-treadmill test" OFF)
+if (GRAF_MILL_MERGES)
+    add_test(NAME GRAFmillMerges
+        COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/mill-merges.sh
+        WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+    set_tests_properties(GRAFmillMerges PROPERTIES
+        ENVIRONMENT "BIN=${DOG_BIN_DIR}")
+endif()

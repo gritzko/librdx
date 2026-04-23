@@ -117,4 +117,12 @@ ok64 GRAFWeaveDiff(keeper *k, u8cs filepath, u8cs reporoot,
 // state via &GRAF — callers must have both singletons open.
 ok64 GRAFGet(u8b into, u8csc uri);
 
+// Latest common ancestor of two commits.  Intersects each tip's
+// `DAGAncestors` set, picks the member with the highest `gen`, then
+// recovers the full 20-byte commit sha via `KEEPGet`.  `out` left
+// zeroed when the DAG is empty or the tips share no indexed
+// ancestor; caller treats that as "unrelated histories" (refuse a
+// merge, fall back to ours, etc).
+ok64 GRAFLca(sha1 *out, sha1 const *a, sha1 const *b);
+
 #endif

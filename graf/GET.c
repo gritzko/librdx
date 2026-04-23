@@ -171,6 +171,34 @@ static u64 get_lca(u64 a_h40, u64 b_h40) {
     return best;
 }
 
+// Public wrapper: `sha1 *` in/out for callers outside graf (sniff's
+// PATCH uses this to classify modify/delete cases).  Returns OK with
+// `*out` all-zero when no shared ancestor is indexed.
+ok64 GRAFLca(sha1 *out, sha1 const *a, sha1 const *b) {
+    sane(out && a && b);
+    memset(out->data, 0, sizeof(out->data));
+
+    u64 a_h40 = WHIFFHashlet40(a);
+    u64 b_h40 = WHIFFHashlet40(b);
+    u64 lca_h = get_lca(a_h40, b_h40);
+    if (lca_h == 0) done;   // unrelated histories — leave out zero
+
+    //  Recover the full sha by fetching the commit body from keeper
+    //  and rehashing (identical to the trick `get_resolve_qref`
+    //  uses — KEEPObjSha("commit <len>\0<body>") is canonical).
+    Bu8 cbuf = {};
+    call(u8bAllocate, cbuf, 1UL << 20);
+    u8 ct = 0;
+    ok64 o = KEEPGet(&KEEP, DAGh40ToKeeperPrefix(lca_h),
+                     DAG_H40_HEXLEN, cbuf, &ct);
+    if (o != OK || ct != DOG_OBJ_COMMIT) { u8bFree(cbuf); done; }
+
+    a_dup(u8c, body, u8bData(cbuf));
+    KEEPObjSha(out, DOG_OBJ_COMMIT, body);
+    u8bFree(cbuf);
+    done;
+}
+
 // --- 2-way blob merge via JOIN (3-way with LCA as base) --------------
 
 static ok64 get_merge_2way(u8b into, u8cs path, get_tip const *tips) {

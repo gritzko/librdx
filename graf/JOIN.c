@@ -191,8 +191,22 @@ ok64 JOINMerge(u8bp out, JOINfile *base, JOINfile *ours, JOINfile *theirs) {
                 oi++;
                 ti++;
             } else {
-                call(join_emit, out, ours, oi);
-                oi++;
+                //  Divergent inserts — inline conflict markers:
+                //  >>>>theirs||||ours<<<<
+                u8cs mk_open  = u8slit(">>>>");
+                u8cs mk_mid   = u8slit("||||");
+                u8cs mk_close = u8slit("<<<<");
+                call(u8bFeed, out, mk_open);
+                while (ti < tn && (theirs->hashes[1][ti] & JOIN_IN)) {
+                    call(join_emit, out, theirs, ti);
+                    ti++;
+                }
+                call(u8bFeed, out, mk_mid);
+                while (oi < on && (ours->hashes[1][oi] & JOIN_IN)) {
+                    call(join_emit, out, ours, oi);
+                    oi++;
+                }
+                call(u8bFeed, out, mk_close);
             }
         } else if (o_in) {
             call(join_emit, out, ours, oi);

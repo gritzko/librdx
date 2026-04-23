@@ -12,8 +12,9 @@ add_library(snifflib STATIC
     AT.h AT.c
     STAGE.h STAGE.c
     GET.h GET.c POST.h POST.c PUT.h PUT.c DEL.h DEL.c
+    PATCH.h PATCH.c
     ../abc/FSW.c)
-target_link_libraries(snifflib keeplib gitcompat dog abc-core)
+target_link_libraries(snifflib graflib keeplib gitcompat dog abc-core)
 
 #  sniff-cli mirrors keeper-cli's indexer fan-out (see SNIFF.cli.c) so
 #  every object KEEPPackFeed writes during a local commit also reaches

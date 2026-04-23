@@ -12,6 +12,7 @@
 #include "AT.h"
 #include "DEL.h"
 #include "GET.h"
+#include "PATCH.h"
 #include "POST.h"
 #include "PUT.h"
 #include "dog/AT.h"
@@ -474,7 +475,7 @@ static void sniff_usage(void) {
 char const *const SNIFF_VERBS[] = {
     "index", "update", "status", "checkout",
     "commit", "watch", "stop", "list", "help",
-    "get", "post", "put", "delete", NULL
+    "get", "post", "put", "delete", "patch", NULL
 };
 
 char const SNIFF_VAL_FLAGS[] =
@@ -502,6 +503,7 @@ ok64 SNIFFExec(cli *c) {
     a_cstr(v_post, "post");
     a_cstr(v_put, "put");
     a_cstr(v_delete, "delete");
+    a_cstr(v_patch, "patch");
 
     if ($eq(c->verb, v_help) || CLIHas(c, "-h") || CLIHas(c, "--help")) {
         sniff_usage(); done;
@@ -520,6 +522,7 @@ ok64 SNIFFExec(cli *c) {
     b8 is_status = $eq(c->verb, v_status);
     b8 is_list = $eq(c->verb, v_list);
     b8 is_delete = $eq(c->verb, v_delete);
+    b8 is_patch = $eq(c->verb, v_patch);
     (void)is_index;
 
     ok64 ret = OK;
@@ -649,6 +652,28 @@ ok64 SNIFFExec(cli *c) {
                 else
                     u8csMv(hex, u->data);
                 ret = sniff_checkout(reporoot, hex);
+            }
+        }
+    } else if (is_patch) {
+        if (c->nuris < 1) {
+            fprintf(stderr,
+                "sniff: patch requires a URI (query = ref or sha)\n");
+            ret = SNIFFFAIL;
+        } else {
+            uri *u = &c->uris[0];
+            //  Accept `path?query` for single-file merge OR bare
+            //  `?query` for whole-wt merge.
+            if (!$empty(u->path) && !$empty(u->query)) {
+                a_dup(u8c, path, u->path);
+                a_dup(u8c, query, u->query);
+                ret = PATCHApplyFile(reporoot, path, query);
+            } else if (!$empty(u->query)) {
+                a_dup(u8c, query, u->query);
+                ret = PATCHApply(reporoot, query);
+            } else {
+                fprintf(stderr,
+                    "sniff: patch URI must have `?<ref|sha>`\n");
+                ret = SNIFFFAIL;
             }
         }
     } else if (is_watch) {

@@ -298,6 +298,22 @@ static ok64 BEDelete(cli *c, b8 seq) {
     return BEDispatch(c, steps, 1, seq);
 }
 
+//  `be patch <uri>` — 3-way merge `uri`'s target ref/sha into the
+//  worktree.  If the URI has an authority we first `keeper get` to
+//  fetch the target's reachable closure, then hand off to
+//  `sniff patch`.  See VERBS.md §PATCH.
+static ok64 BEPatch(cli *c, b8 seq) {
+    sane(c);
+    static dog_step const steps[] = {
+        {u8slit("keeper"), u8slit("get"),   NO},
+        {u8slit("sniff"),  u8slit("patch"), NO},
+    };
+    u32 nsteps = sizeof(steps) / sizeof(steps[0]);
+    uri *u = (c->nuris > 0) ? &c->uris[0] : NULL;
+    u32 start = (u != NULL && !$empty(u->authority)) ? 0 : 1;
+    return BEDispatch(c, steps + start, nsteps - start, seq);
+}
+
 //  `be post`:
 //    -m <msg>  → sniff makes a local commit (always).
 //    <uri>     → keeper pushes the current commit to that remote.
@@ -434,7 +450,7 @@ ok64 becli() {
     } else if ($eq(verb, v_diff)) {
         fprintf(stderr, "be: diff dispatch not yet implemented\n");
     } else if ($eq(verb, v_patch)) {
-        fprintf(stderr, "be: patch dispatch not yet implemented\n");
+        call(BEPatch, &c, seq);
     } else {
         fprintf(stderr, "be: verb '" U8SFMT "' not yet implemented\n",
                 u8sFmt(verb));
