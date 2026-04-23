@@ -68,11 +68,26 @@ static void wcli_sha_to_hex(u8 *out40, sha1 const *s) {
 
 //  Drain one pkt-line, refilling from in_fd via FILEDrain on NODATA.
 //  Returns OK / PKTFLUSH / PKTDELIM / WIRECLIFAIL.
+//
+//  When IDLE runs out we compact: bytes already consumed via `adv` head
+//  are reclaimed into IDLE so further reads have room.  Without this
+//  the fixed-size WCLI_BUF (64 KiB) overruns on large advertisements —
+//  vanilla git's `~/src/git` advertises ~1000 refs (≈100 KiB), enough
+//  to fail mid-parse; the parent then closes pipes and the upstream
+//  ssh git-upload-pack dies with SIGPIPE.
 static ok64 wcli_read_pkt(int in_fd, u8b buf, u8cs adv, u8csp line) {
     for (;;) {
         ok64 o = PKTu8sDrain(adv, line);
         if (o != NODATA) return o;
-        if (!u8bHasRoom(buf)) return WIRECLIFAIL;
+        if (!u8bHasRoom(buf)) {
+            size_t consumed = (size_t)(adv[0] - u8bDataC(buf)[0]);
+            if (consumed == 0) return WIRECLIFAIL;
+            u8bUsed(buf, consumed);
+            u8bShift(buf, 0);
+            adv[0] = u8bDataC(buf)[0];
+            adv[1] = u8csTerm(u8bDataC(buf));
+            if (!u8bHasRoom(buf)) return WIRECLIFAIL;
+        }
         u8s fill;
         u8sFork(u8bIdle(buf), fill);
         ok64 fr = FILEDrain(in_fd, fill);
