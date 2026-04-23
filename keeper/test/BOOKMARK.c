@@ -1,33 +1,40 @@
 //  BOOKMARK — pack bookmark index primitives.
 //
 //  Confirms that a pack-type index entry round-trips through
-//  keepKeyPack / wh64Pack / the key + val extractors, and that
-//  bookmarks sort after object entries sharing the same hashlet.
+//  wh64Pack / keepPackBmVal / the key + val extractors, and that
+//  bookmarks sort by (file_id, offset).
 
 #include "keeper/KEEP.h"
 
 #include "abc/PRO.h"
 #include "abc/TEST.h"
 
-//  Pack bookmark layout (LOG.md):
+//  Pack bookmark layout (LOG.md / WIRE.md Phase 0):
 //    key = wh64Pack(KEEP_TYPE_PACK, file_id, offset)
-//    val = keepKeyPack(flags, hashlet60)  — spread packing of 60-bit hashlet
+//    val = keepPackBmVal(obj_count32, byte_len32)
 ok64 BOOKMARKtest1() {
     sane(1);
-    u64 hashlet = 0x0123456789abcdefULL & WHIFF_HASHLET60_MASK;
     u32 file_id = 42;
     u64 offset  = 0x1234567890ULL & WHIFF_OFF_MASK;
+    u32 count   = 0x01020304;
+    u32 length  = 0xdeadbeef;
 
     wh128 e = {
         .key = wh64Pack(KEEP_TYPE_PACK, file_id, offset),
-        .val = keepKeyPack(0, hashlet),
+        .val = keepPackBmVal(count, length),
     };
 
     want(wh64Type(e.key)         == KEEP_TYPE_PACK);
     want(wh64Id(e.key)           == file_id);
     want(wh64Off(e.key)          == offset);
-    want(keepKeyType(e.val)      == 0);
-    want(keepKeyHashlet(e.val)   == hashlet);
+    want(keepPackBmCount(e.val)  == count);
+    want(keepPackBmLen(e.val)    == length);
+
+    //  Edge cases: zero count, max u32 length.
+    want(keepPackBmCount(keepPackBmVal(0, 0)) == 0);
+    want(keepPackBmLen(keepPackBmVal(0, 0))   == 0);
+    want(keepPackBmCount(keepPackBmVal(0xFFFFFFFFu, 1)) == 0xFFFFFFFFu);
+    want(keepPackBmLen(keepPackBmVal(1, 0xFFFFFFFFu))   == 0xFFFFFFFFu);
 
     done;
 }
@@ -36,15 +43,13 @@ ok64 BOOKMARKtest1() {
 //  offsets must sort by offset ascending.
 ok64 BOOKMARKtest2() {
     sane(1);
-    u64 h1 = 0x0fedcba987654321ULL & WHIFF_HASHLET60_MASK;
-    u64 h2 = 0x0123456789abcdefULL & WHIFF_HASHLET60_MASK;
     wh128 a = {
         .key = wh64Pack(KEEP_TYPE_PACK, 1, 12),    // first pack
-        .val = keepKeyPack(0, h1),
+        .val = keepPackBmVal(7, 1024),
     };
     wh128 b = {
         .key = wh64Pack(KEEP_TYPE_PACK, 1, 4096),  // later pack
-        .val = keepKeyPack(0, h2),
+        .val = keepPackBmVal(3, 8192),
     };
     want(wh128cmp(&a, &b) < 0);
     done;

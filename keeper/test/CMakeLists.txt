@@ -87,6 +87,59 @@ target_compile_options(SYNCFRAMEtest PRIVATE ${TEST_CXX_FLAGS})
 target_link_libraries(SYNCFRAMEtest keeplib gitcompat dog abc-core)
 add_test(NAME SYNCFRAMEtest COMMAND SYNCFRAMEtest)
 
+add_executable(PSTRtest PSTR.c)
+target_link_options(PSTRtest PRIVATE ${TEST_LDD_FLAGS})
+target_compile_options(PSTRtest PRIVATE ${TEST_CXX_FLAGS})
+target_link_libraries(PSTRtest keeplib gitcompat dog abc-core)
+add_test(NAME PSTRtest COMMAND PSTRtest)
+
+add_executable(REFADVtest REFADV.c)
+target_link_options(REFADVtest PRIVATE ${TEST_LDD_FLAGS})
+target_compile_options(REFADVtest PRIVATE ${TEST_CXX_FLAGS})
+target_link_libraries(REFADVtest keeplib gitcompat dog abc-core)
+add_test(NAME REFADVtest COMMAND REFADVtest)
+
+add_executable(WIREtest WIRE.c)
+target_link_options(WIREtest PRIVATE ${TEST_LDD_FLAGS})
+target_compile_options(WIREtest PRIVATE ${TEST_CXX_FLAGS})
+target_link_libraries(WIREtest keeplib gitcompat dog abc-core)
+add_test(NAME WIREtest COMMAND WIREtest)
+
+#  upload-pack CLI verb (WIRE.md Phase 5).  The test spawns the built
+#  `keeper` binary, so it depends on it being present in DOG_BIN_DIR.
+add_executable(UPLOADPACKtest UPLOADPACK.c)
+target_link_options(UPLOADPACKtest PRIVATE ${TEST_LDD_FLAGS})
+target_compile_options(UPLOADPACKtest PRIVATE ${TEST_CXX_FLAGS})
+target_link_libraries(UPLOADPACKtest keeplib gitcompat dog abc-core)
+add_dependencies(UPLOADPACKtest keeper-cli)
+add_test(NAME UPLOADPACKtest COMMAND UPLOADPACKtest)
+set_tests_properties(UPLOADPACKtest PROPERTIES
+    ENVIRONMENT "KEEPER_BIN=${DOG_BIN_DIR}/keeper")
+
+#  Client-side WIREFetch / WIREPush smoke (WIRE.md Phase 7).  Spawns
+#  the built keeper binary as the local upload-pack / receive-pack
+#  peer (file://… transport) and exercises end-to-end against a fresh
+#  keeper repo.
+add_executable(WIRECLIENTtest WIRE_CLIENT.c)
+target_link_options(WIRECLIENTtest PRIVATE ${TEST_LDD_FLAGS})
+target_compile_options(WIRECLIENTtest PRIVATE ${TEST_CXX_FLAGS})
+target_link_libraries(WIRECLIENTtest keeplib gitcompat dog abc-core)
+add_dependencies(WIRECLIENTtest keeper-cli)
+add_test(NAME WIRECLIENTtest COMMAND WIRECLIENTtest)
+set_tests_properties(WIRECLIENTtest PROPERTIES
+    ENVIRONMENT "KEEPER_BIN=${DOG_BIN_DIR}/keeper")
+
+#  receive-pack CLI verb (WIRE.md Phase 6).  Same harness pattern as
+#  UPLOADPACKtest: spawn the built keeper binary, drive its stdin/stdout.
+add_executable(RECEIVEPACKtest RECEIVEPACK.c)
+target_link_options(RECEIVEPACKtest PRIVATE ${TEST_LDD_FLAGS})
+target_compile_options(RECEIVEPACKtest PRIVATE ${TEST_CXX_FLAGS})
+target_link_libraries(RECEIVEPACKtest keeplib gitcompat dog abc-core)
+add_dependencies(RECEIVEPACKtest keeper-cli)
+add_test(NAME RECEIVEPACKtest COMMAND RECEIVEPACKtest)
+set_tests_properties(RECEIVEPACKtest PROPERTIES
+    ENVIRONMENT "KEEPER_BIN=${DOG_BIN_DIR}/keeper")
+
 #  End-to-end get/post loopback: keeper sync (server) vs.
 #  keeper get file:// (client).  Exercises the full TLV wire.
 add_test(NAME SYNCloopback

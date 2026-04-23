@@ -69,6 +69,19 @@ fun u64 keepKeyHashlet(u64 key) {
     return (wh64Off(key) << WHIFF_ID_BITS) | wh64Id(key);
 }
 
+// --- Pack bookmark val: obj_count32 | byte_len32 ---
+//
+//  PACK-typed index entries (key carries KEEP_TYPE_PACK + file_id +
+//  offset) repurpose the val field to carry the pack's logical shape,
+//  so pack-stream reconstruction is O(1) per pack and never has to
+//  rescan bytes.  The old hashlet60|flags4 layout (used by the
+//  retired TLV-based SYNC) is gone.  See keeper/WIRE.md Phase 0.
+fun u64 keepPackBmVal(u32 count, u32 byte_len) {
+    return ((u64)count << 32) | (u64)byte_len;
+}
+fun u32 keepPackBmCount(u64 val) { return (u32)(val >> 32); }
+fun u32 keepPackBmLen(u64 val)   { return (u32)val; }
+
 // --- Val format: same wh64 layout ---
 //  val = wh64Pack(flags, file_id, offset)
 //  flags[4] | file_id[20] | offset[40]
@@ -182,12 +195,13 @@ extern char const KEEP_CLI_VAL_FLAGS[];
 
 //  Pack bookmark index type.  Index entries whose key carries this
 //  type are bookmarks for whole packs, not objects:
-//    key = keepKeyPack(KEEP_TYPE_PACK, pack_hashlet60)
-//    val = wh64Pack(flags, file_id, offset_of_first_object)
-//  pack_hashlet60 is derived from the pack's trailing SHA-1 (git
-//  convention — hash covers PACK header + object bytes).  Sits
-//  outside the 1..4 object-type range so range queries for
-//  objects never see it.  See keeper/LOG.md.
+//    key = wh64Pack(KEEP_TYPE_PACK, file_id, offset_of_first_object)
+//    val = keepPackBmVal(obj_count32, byte_len32)
+//  obj_count is the number of git objects in the pack, byte_len is
+//  the pack's stripped byte length (offset..offset+byte_len lives in
+//  file_id).  Sits outside the 1..4 object-type range so range
+//  queries for objects never see it.  See keeper/LOG.md and
+//  keeper/WIRE.md.
 #define KEEP_TYPE_PACK  0xF
 
 //  Retrieve object by hashlet.  Inflates from pack, chases deltas.

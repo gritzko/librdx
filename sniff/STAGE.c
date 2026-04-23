@@ -145,16 +145,13 @@ static ok64 stage_map_idx(u8bp *out_map, wh128cs out_run, u8cs branch) {
 ok64 STAGEClose(keep_pack *p, u8cs branch) {
     sane(p && p->log && SNIFF.h && $ok(branch));
 
-    //  Pack bookmark.
-    sha1 pack_sha = {};
-    u8cp file_base = u8bDataHead(p->log);
+    //  Pack bookmark: val = (obj_count, stripped byte length) per
+    //  keeper/WIRE.md Phase 0 / keeper/LOG.md.
     u64 file_len = u8bDataLen(p->log);
-    u8cs pack_bytes = {file_base + p->pack_offset, file_base + file_len};
-    SHA1Sum(&pack_sha, pack_bytes);
-    u64 ph = WHIFFHashlet60(&pack_sha);
+    u64 pack_byte_len = file_len - p->pack_offset;
     wh128 bm = {
         .key = wh64Pack(KEEP_TYPE_PACK, p->file_id, p->pack_offset),
-        .val = keepKeyPack(0, ph),
+        .val = keepPackBmVal(p->nobjs, (u32)pack_byte_len),
     };
     wh128bPush(p->entries, &bm);
 

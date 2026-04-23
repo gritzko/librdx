@@ -28,6 +28,13 @@ Types: none (output via slices).
   - `PKTu8sFeed`       feed one pkt-line (4-hex prefix + payload)
   - `PKTu8sFeedFlush`  feed a flush packet (0000)
 
+### REFADV.h — git-protocol refs advertisement
+
+  - `REFADVOpen`     walk every dir's REFS; collect (sha, refname, dir) tuples
+  - `REFADVClose`    free arena + entries
+  - `REFADVTipDirs`  reverse-lookup: which dir(s) hold this sha as a tip?
+  - `REFADVEmit`     write the pkt-line advertisement (caps on first line + flush)
+
 ### PACK.h — packfile parser
 
 Types: `pack_hdr` (version, count), `pack_obj` (type, size, delta ref).
@@ -46,9 +53,78 @@ Types: `igno_pat` (pattern + flags), `igno` (up to 256 patterns).
   - `IGNOFree`   free resources
   - `IGNOMatch`  check if relative path should be ignored
 
-### SHA1.h — SHA-1 hash (OpenSSL wrapper)
+### SHA1.h — SHA-1 hash (sha1dc wrapper)
 
-  - `SHA1Sum`  compute 20-byte SHA-1 (isolated from ABC types)
+  - `SHA1Sum`                              one-shot 20-byte SHA-1
+  - `SHA1Open` / `SHA1Feed` / `SHA1Close`  streaming hash; PSTR.c
+                                           uses these to hash a
+                                           stitched packfile inline
+
+### PSTR.h — pack-stream encoder (WIRE.md Phase 2)
+
+Stitches an ordered list of `(fd, offset, length, count)` segments
+into one valid git packfile written to a single fd: fresh PACK
+header (sum of segment counts), concatenated segment bytes
+streamed via pread, fresh 20-byte SHA-1 trailer.  No object
+scanning, no inflation — `count` and `length` come from pack
+bookmarks (`keepPackBmCount`/`keepPackBmLen`).
+
+  - `pstr_seg`   `{int fd, u64 offset, u64 length, u32 count}`
+  - `PSTRWrite`  emit the stitched packfile to `out_fd`
+  - `PSTRFAIL`   error code (count overflow, short read, write fail)
+
+### WIRE.h — upload-pack want/have negotiator + client driver
+                  (WIRE.md Phases 4 & 7)
+
+Server side: reads a client request (wants/haves/caps) from a fd via
+pkt-line, resolves each want sha to a (dir, end-of-pack) pair (REFADV
+tip→dir lookup with LSM fallback), takes the max have-pack-end per dir
+as the watermark, and emits the ordered `pstr_seg` list ready for
+`PSTRWrite`.  Phase 1c covers the trunk shard only — the dir chain is
+always `[trunk]`, one segment per request.
+
+Client side (Phase 7, `WIRECLI.c`): spawns a peer via ssh
+(`//host/path`) or local exec (`file:///path`, `keeper://local/path`),
+drains the refs advertisement, sends wants/haves/done, ingests the
+returned packfile (`KEEPIngestFile`), and appends a fresh REFS tip.
+Push direction symmetrically spawns receive-pack, walks the local
+commit's reachable closure, builds a v2 packfile inline, sends one
+ref-update line + pack, drains unpack/per-ref status.
+
+  - `wire_req`           parsed wants[] + haves[] + caps bitmask
+  - `WIREReadRequest`    drain pkt-lines, populate wire_req
+  - `WIREBuildSegments`  resolve wants/haves → ordered pstr_seg list
+  - `WIREServeUpload`    one-shot: read request, build segs, write pack
+  - `WIREFetch`          client: spawn upload-pack peer, ingest pack,
+                          append REFS tip
+  - `WIREPush`           client: spawn receive-pack peer, send pack,
+                          drain status
+  - `WIREFAIL` / `WIREBADREQ` / `WIRENOWANT` / `WIRENOSHA`
+  - `WIRECLIFAIL` / `WIRECLINOREF`
+
+### RECV.h — receive-pack server (WIRE.md Phase 6)
+
+Symmetric to `WIRE.h` for the push direction.  Reads pkt-line
+ref-update commands from a fd, drains the raw packfile that
+follows the request flush, hands it to `KEEPIngestFile`
+(UNPK-indexed + linked into the trunk shard), then verifies
+fast-forward + appends each accepted update to REFS.  Per-update
+results plus the unpack status are emitted back over pkt-line.
+Refname → REFS-key convention: `refs/heads/<X>` → `?heads/<X>`,
+`refs/tags/<X>` → `?tags/<X>`, val = `?<40-hex-new-sha>`.  Phase 6
+MVP refuses ref deletion (new_sha all-zeros) with `RECVBADREF`;
+full delete semantics are a follow-up.
+
+  - `recv_req`           parsed updates[] + caps + arena
+  - `recv_update`        old_sha + new_sha + refname slice
+  - `recv_result`        per-update outcome (refname + ok64 result)
+  - `RECVReadRequest`    drain pkt-lines, populate recv_req
+  - `RECVCloseRequest`   release arena + updates array
+  - `RECVIngestPack`     drain raw pack bytes from fd → KEEPIngestFile
+  - `RECVApplyUpdates`   FF-check + REFSAppend per update
+  - `RECVEmitResponse`   write "unpack ok"/"ng" + per-ref status + flush
+  - `RECVServe`          one-shot: read request, ingest, apply, emit
+  - `RECVFAIL` / `RECVNOTFF` / `RECVBADREF` / `RECVBADREQ`
 
 ### ZINF.h — zlib inflate/deflate wrapper
 
@@ -62,9 +138,16 @@ Types: `igno_pat` (pattern + flags), `igno` (up to 256 patterns).
   - `PKT.c`     pkt-line framing (~77 lines)
   - `PACK.c`    packfile header/object/inflate (~101 lines)
   - `IGNO.c`    gitignore glob matching (~233 lines)
-  - `SHA1.c`    SHA-1 via OpenSSL EVP (~24 lines)
+  - `SHA1.c`    SHA-1 via sha1dc (header-only inlines)
   - `ZINF.c`    zlib inflate/deflate (~63 lines)
   - `WALK.c`    KEEP-backed tree walker (eager + lazy)
+  - `PSTR.c`    pack-stitcher streaming encoder (~85 lines)
+  - `WIRE.c`    upload-pack want/have negotiator + segment list builder
+  - `WIRECLI.c` client-side WIREFetch / WIREPush (transport spawn,
+                advert drain, want/have/done, pack ingest / build,
+                REFS update, push status drain)
+  - `RECV.c`    receive-pack server (request parser + pack ingest +
+                FF-check + REFS append + response emit)
 
 ### KEEP.h — branch-aware Open + per-shard state
 
@@ -136,14 +219,29 @@ Types: `walk` (walker state), `walk_fn` (visitor callback).
 
 ##  CLI
 
-  - `git-dl.cli.c`  download repo via git-upload-pack, save packfile
-                     + kv64 hash index (truncated SHA-1 → offset).
-                     Resolves OFS_DELTA and REF_DELTA chains.
+  - `git-dl.cli.c`  thin CLI wrapper around `WIREFetch` (Phase 7);
+                     opens an output keeper repo rw and fetches one ref
+                     from a given remote URI (`file://`, `//host/...`,
+                     `keeper://local/...`).
+  - `KEEP.cli.c`    `keeper` binary entry-point.  Verbs (registered in
+                     `KEEP_CLI_VERBS`): `get`, `put`, `post`, `status`,
+                     `import`, `verify`, `refs`, `alias`, `ls-files`,
+                     `sync`, `upload-pack`, `receive-pack`, `help`.
+                     `upload-pack <repo-path>` is the git-protocol
+                     drop-in for fetch: opens the named repo read-only,
+                     advertises refs, runs the WIRE negotiator on
+                     stdin/stdout (matches `git-upload-pack`'s ssh
+                     contract).  `receive-pack <repo-path>` is the push
+                     drop-in: opens rw, advertises refs, runs RECVServe
+                     on stdin/stdout (drains pack, FF-checks updates,
+                     appends to REFS, emits per-ref status).
 
 ##  Build
 
 Library `gitcompat` (static): GIT.c PKT.c PACK.c DELT.c ZINF.c SHA1.c IGNO.c.
-Library `keeplib` (static): KEEP.c KEEP.exe.c REFS.c WALK.c.
+Library `keeplib` (static): KEEP.c KEEP.exe.c REFS.c REFADV.c WALK.c
+                            UNPK.c PATHS.c SYNC.c PSTR.c WIRE.c
+                            WIRECLI.c RECV.c.
 Links: abc, ZLIB, OpenSSL::Crypto.
 
 ##  Tests
@@ -161,5 +259,35 @@ Links: abc, ZLIB, OpenSSL::Crypto.
   - `test/WALK.c`   WALKu8sModeKind table + WALKTree/WALKTreeLazy on synthetic KEEP
   - `test/ROUND.c`  full round-trip: create bare repo, clone via ssh,
                      edit+commit, push back, verify files match
+  - `test/REFADV.c` REFADVOpen/Emit/TipDirs round-trip on a temp
+                     keeper: empty REFS, single trunk ref, multi-ref
+  - `test/PSTR.c`   pack-stitcher: header-only (zero segs), single
+                     segment passthrough, multi-segment concat,
+                     round-trip header+SHA-1 verification, plus
+                     `git index-pack` on the stitched output
+                     (heads + tags), tip→dir lookup, pkt-line drain
+                     verification (5 cases)
   - `test/POST.c`   `keeper post ssh://…` — synthesize a commit and
                      push it via git-receive-pack; verify remote HEAD
+  - `test/WIRE.c`   want/have negotiator: empty request, single want,
+                     have-ff watermark, unknown-sha rejection, capability
+                     parsing, pkt-line round trip via pipe, end-to-end
+                     PSTR + `git index-pack` verification (7 cases)
+  - `test/UPLOADPACK.c` spawns the built `keeper upload-pack <repo>`
+                     binary over pipes, drives a flush-only smoke
+                     request (refs advert arrives with ≥ 1 ref) and
+                     an end-to-end want/done fetch (response validates
+                     via `git index-pack --stdin`).
+  - `test/RECEIVEPACK.c` spawns the built `keeper receive-pack <repo>`
+                     binary over pipes.  4 cases: flush-only smoke,
+                     single-ref create with a real `git pack-objects`
+                     pack, FF update against a seeded tip, non-FF
+                     rejection (REFS unchanged, `ng …
+                     non-fast-forward` on the wire).
+  - `test/WIRE_CLIENT.c` end-to-end smoke for `WIREFetch` / `WIREPush`
+                     against the built `keeper upload-pack` /
+                     `receive-pack` binaries via `file://…`:
+                     fetch smoke (server has commit + REFS, client
+                     fetches → REFS holds tip), push smoke (source
+                     pushes → destination REFS holds tip), round trip
+                     (A → B push, A → C fetch, all three agree).

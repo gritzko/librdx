@@ -42,5 +42,20 @@ set_tests_properties(BEhistory PROPERTIES
         ENVIRONMENT "BIN=${DOG_BIN_DIR}")
 endif()
 
+if (WITH_SSH)
+    # Toy-repo matrix (3 commits, v1+v2 tags, master tip).  Each script
+    # builds the same toy and rsync-compares git-side and keeper-side
+    # worktrees after the same operation.  -from-git uses a vanilla git
+    # server; -from-keeper seeds a keeper mirror first and serves it
+    # via `keeper upload-pack`.  Requires passwordless ssh to localhost.
+    foreach(toy blobs-from-git clone-from-git clone-from-keeper tags-from-git tags-from-keeper)
+        add_test(NAME ${toy}
+            COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/${toy}.sh
+            WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+        set_tests_properties(${toy} PROPERTIES
+            ENVIRONMENT "BIN=${DOG_BIN_DIR}")
+    endforeach()
+endif()
+
 # clone-git.sh and mill-tags.sh are manual heavyweight integration
 # scripts (require $HOME/src/git + ssh localhost); run directly.

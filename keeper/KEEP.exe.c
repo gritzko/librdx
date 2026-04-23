@@ -4,6 +4,7 @@
 #include "KEEP.h"
 #include "REFS.h"
 #include "SYNC.h"
+#include "WIRE.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -22,7 +23,9 @@
 
 char const *const KEEP_CLI_VERBS[] = {
     "get", "put", "post", "status", "import", "verify",
-    "refs", "alias", "ls-files", "sync", "help", NULL
+    "refs", "alias", "ls-files", "sync",
+    "upload-pack", "receive-pack",
+    "help", NULL
 };
 
 char const KEEP_CLI_VAL_FLAGS[] = "--want\0--have\0";
@@ -46,6 +49,8 @@ static void keep_usage(void) {
         "    refs                       list known refs\n"
         "    alias //name <uri>         add remote alias\n"
         "    ls-files [URI]             list files reachable from ref/sha\n"
+        "    upload-pack <repo-path>    git-upload-pack drop-in (stdin/stdout)\n"
+        "    receive-pack <repo-path>   git-receive-pack drop-in (stdin/stdout)\n"
         "    help                       this message\n"
     );
 }
@@ -170,21 +175,28 @@ static ok64 keeper_alias(keeper *k, uri *name_uri, uri *target_uri) {
 
 // --- Verb: get ---
 
-static ok64 keeper_get_remote(keeper *k, cli *c, uri *g) {
-    sane(k && g);
+//  Resolve an authority (e.g. `origin`) through `keeper alias` and
+//  build a transport URI of the form `[<scheme>:]//<host>/<path>` into
+//  `out` (caller pre-reset).  Drops query/fragment — those carry the
+//  ref/object selector, not the transport target.  No alias = use the
+//  URI's own scheme/host/path.  *rmap_out is the mmap holding ref data
+//  the slices borrow from; caller must u8bUnMap when done.
+static ok64 keeper_remote_uri(keeper *k, uri *g, u8b out, u8bp *rmap_out) {
+    sane(k && g && u8bOK(out));
     a_path(keepdir, u8bDataC(k->h->root), KEEP_DIR_S);
 
-    u8bp rmap = NULL;
     ref rarr[REFS_MAX_REFS];
     u32 rn = 0;
-    REFSLoad(rarr, &rn, REFS_MAX_REFS, &rmap, $path(keepdir));
+    REFSLoad(rarr, &rn, REFS_MAX_REFS, rmap_out, $path(keepdir));
 
     a_pad(u8, apad, 256);
     u8bFeed(apad, g->authority);
     a_dup(u8c, akey, u8bData(apad));
 
+    u8cs rscheme = {};
     u8cs rhost = {};
     u8cs rpath = {};
+    u8csMv(rscheme, g->scheme);
     u8csMv(rhost, g->host);
     u8csMv(rpath, g->path);
     for (u32 i = 0; i < rn; i++) {
@@ -193,6 +205,8 @@ static ok64 keeper_get_remote(keeper *k, cli *c, uri *g) {
             u8csc val = {rarr[i].val[0], rarr[i].val[1]};
             if (DOGParseURI(&resolved, val) == OK &&
                 !u8csEmpty(resolved.host)) {
+                if (!u8csEmpty(resolved.scheme))
+                    u8csMv(rscheme, resolved.scheme);
                 u8csMv(rhost, resolved.host);
                 u8csMv(rpath, resolved.path);
             }
@@ -200,77 +214,64 @@ static ok64 keeper_get_remote(keeper *k, cli *c, uri *g) {
         }
     }
 
-    a_pad(u8, rbuf, 1024);
-    u8bFeed(rbuf, rhost);
+    if (!u8csEmpty(rscheme)) {
+        u8bFeed(out, rscheme);
+        u8bFeed1(out, ':');
+    }
+    a_cstr(slashes, "//");
+    u8bFeed(out, slashes);
+    u8bFeed(out, rhost);
     if (!u8csEmpty(rpath)) {
-        u8bFeed1(rbuf, ' ');
-        //  URI path is HOME-relative for //host/path — strip the leading
-        //  '/' the parser leaves in so ssh sees a path relative to the
-        //  remote login's home.  Absolute paths need file:///…
-        if (*rpath[0] == '/') rpath[0]++;
-        u8bFeed(rbuf, rpath);
+        //  Make sure exactly one '/' separates host from path.  ssh
+        //  HOME-relative stripping is wcli_spawn's job (it knows the
+        //  transport).
+        if (*rpath[0] != '/') u8bFeed1(out, '/');
+        u8bFeed(out, rpath);
     }
-    a_dup(u8c, remote, u8bData(rbuf));
+    done;
+}
 
-    #define MAX_WANTHAVE 1024
-    static char want_shas[MAX_WANTHAVE][44];
-    static char have_shas[MAX_WANTHAVE][44];
-    char const *want_list[MAX_WANTHAVE + 1] = {};
-    char const *have_list[MAX_WANTHAVE + 1] = {};
-    int nwants = 0, nhaves = 0;
+//  `keeper get //remote[?ref]` — fetch via WIREFetch.  Empty ?ref means
+//  fast-forward the current worktree branch (per VERBS.md `be get //origin`).
+static ok64 keeper_get_remote(keeper *k, cli *c, uri *g) {
+    sane(k && g);
+    (void)c;
 
-    if (!u8csEmpty(g->query)) {
-        snprintf(want_shas[nwants], 44, "%.*s",
-                 (int)u8csLen(g->query), (char *)g->query[0]);
-        want_list[nwants] = want_shas[nwants];
-        nwants++;
+    u8bp rmap = NULL;
+    a_pad(u8, ubuf, FILE_PATH_MAX_LEN);
+    ok64 ru = keeper_remote_uri(k, g, ubuf, &rmap);
+    if (ru != OK) {
+        if (rmap) u8bUnMap(rmap);
+        return ru;
     }
+    a_dup(u8c, remote_uri, u8bData(ubuf));
 
-    for (u32 fi = 0; fi + 1 < c->nflags; fi += 2) {
-        a_cstr(wf, "--want");
-        a_cstr(hf, "--have");
-        if ($eq(c->flags[fi], wf) && nwants < MAX_WANTHAVE) {
-            snprintf(want_shas[nwants], 44, "%.*s",
-                     (int)u8csLen(c->flags[fi + 1]),
-                     (char *)c->flags[fi + 1][0]);
-            want_list[nwants] = want_shas[nwants];
-            nwants++;
-        } else if ($eq(c->flags[fi], hf) && nhaves < MAX_WANTHAVE) {
-            snprintf(have_shas[nhaves], 44, "%.*s",
-                     (int)u8csLen(c->flags[fi + 1]),
-                     (char *)c->flags[fi + 1][0]);
-            have_list[nhaves] = have_shas[nhaves];
-            nhaves++;
+    //  Default ref: current worktree branch (`be get //origin` semantics).
+    u8cs want_ref = {};
+    u8csMv(want_ref, g->query);
+
+    a_pad(u8, branch_buf, 256);
+    u8cs cur_branch = {};
+    if (u8csEmpty(want_ref)) {
+        a_pad(u8, at_branch, 256);
+        a_pad(u8, at_sha, 64);
+        a_dup(u8c, at_root, u8bDataC(k->h->root));
+        if (DOGAtTail(at_branch, at_sha, at_root) == OK &&
+            u8bDataLen(at_branch) > 0) {
+            //  Build "heads/<branch>" from worktree's current branch.
+            a_cstr(heads_pfx, "heads/");
+            u8bFeed(branch_buf, heads_pfx);
+            u8bFeed(branch_buf, u8bDataC(at_branch));
+            cur_branch[0] = u8bDataHead(branch_buf);
+            cur_branch[1] = u8bIdleHead(branch_buf);
+            want_ref[0] = cur_branch[0];
+            want_ref[1] = cur_branch[1];
         }
     }
 
-    //  Auto-haves used to be capped at 256, but a typical git repo
-    //  has ~1k refs (heads + tags) and starving the negotiation made
-    //  the server resend almost the whole pack on every fetch (treadmill
-    //  saw 51MB / 116k objects per incremental tag).  Cap matches the
-    //  static want/have arrays below.
-    #define MAX_AUTO_HAVES MAX_WANTHAVE
-    for (u32 i = 0; i < rn && nhaves < MAX_AUTO_HAVES; i++) {
-        if (u8csEmpty(rarr[i].val) || *rarr[i].val[0] != '?') continue;
-        u8cs val = {rarr[i].val[0] + 1, rarr[i].val[1]};
-        if (u8csLen(val) < 40) continue;
-        u64 hashlet = WHIFFHexHashlet60(val);
-        u64 dummy = 0;
-        if (KEEPLookup(k, hashlet, 15, &dummy) != OK) continue;
-        snprintf(have_shas[nhaves], 44, "%.*s",
-                 (int)u8csLen(val), (char *)val[0]);
-        have_list[nhaves] = have_shas[nhaves];
-        nhaves++;
-    }
-
+    ok64 fo = WIREFetch(k, remote_uri, want_ref);
     if (rmap) u8bUnMap(rmap);
-
-    a_pad(u8, oubuf, FILE_PATH_MAX_LEN);
-    call(DOGCanonURIKey, oubuf, g, NO);
-    a_dup(u8c, origin_uri, u8bData(oubuf));
-    return KEEPSync(k, remote, origin_uri,
-                    nwants > 0 ? want_list : NULL,
-                    nhaves > 0 ? have_list : NULL);
+    return fo;
 }
 
 static ok64 keeper_get_object(keeper *k, u8cs prefix) {
@@ -318,6 +319,24 @@ static ok64 keeper_get_ref(keeper *k, u8cs query) {
     return REFSNONE;
 }
 
+//  Blob projector: `keeper get <path>?<ref>` — resolves the path inside
+//  the ref's tree via KEEPGetByURI and writes the blob bytes to stdout.
+//  No sniff, no checkout, no worktree side effects.
+static ok64 keeper_get_blob(keeper *k, uri *g) {
+    sane(k && g);
+    Bu8 out = {};
+    call(u8bAlloc, out, 64UL << 20);
+    ok64 go = KEEPGetByURI(k, g, out);
+    if (go == OK) {
+        a_dup(u8c, data, u8bData(out));
+        write(STDOUT_FILENO, data[0], u8csLen(data));
+    } else {
+        fprintf(stderr, "keeper: blob not found: %s\n", ok64str(go));
+    }
+    u8bFree(out);
+    return go;
+}
+
 static ok64 keeper_get(keeper *k, cli *c) {
     sane(k && c);
     if (c->nuris == 0) {
@@ -330,10 +349,15 @@ static ok64 keeper_get(keeper *k, cli *c) {
         return keeper_get_remote(k, c, g);
     if (!u8csEmpty(g->fragment))
         return keeper_get_object(k, g->fragment);
+    //  path+query (no authority) is a blob projector: resolve `path` in
+    //  `?ref`'s tree and cat its bytes.  Disambiguates from a bare ref
+    //  resolution (query-only), which only prints the resolved sha.
+    if (!u8csEmpty(g->path) && !u8csEmpty(g->query))
+        return keeper_get_blob(k, g);
     if (!u8csEmpty(g->query))
         return keeper_get_ref(k, g->query);
 
-    fprintf(stderr, "keeper: get: need //remote, #hash, or ?ref\n");
+    fprintf(stderr, "keeper: get: need //remote, #hash, ?ref, or path?ref\n");
     return KEEPFAIL;
 }
 
@@ -442,15 +466,13 @@ static ok64 post_extract_tree_hex(u8 *out40, u8csc body) {
 
 //  Push the current worktree commit to a remote.  Nothing is staged
 //  locally (sniff already committed if anything was).  Flow:
-//    1. Resolve `file:///<root>` → `?<new-sha>` (current commit).
-//    2. Determine target branch from URI query (`?main`), falling
-//       back to whatever the fetch originally recorded for this
-//       worktree.
-//    3. Resolve `//host/path?heads/<branch>` → `?<old-sha>` (remote's
-//       current SHA as we last saw it).  Defaults to 40 zeros (create).
-//    4. Load the commit object bytes from keeper's store.
-//    5. git-receive-pack: push old → new over ssh.
-//    6. On success, advance `//host/path?heads/<branch>` locally.
+//    1. Determine target branch from URI query (`?main` / `?heads/X`)
+//       or fall back to the worktree's current branch.
+//    2. Build the transport URI from the URI's authority/scheme (with
+//       alias resolution).
+//    3. Hand off to WIREPush — it harvests our local tip via REFADV,
+//       speaks the git wire protocol to the peer's receive-pack, and
+//       on success the caller advances the cached peer-tip ref below.
 //  No URI → this verb is a no-op (sniff already wrote the commit).
 static ok64 keeper_post(keeper *k, cli *c) {
     sane(k && c);
@@ -462,7 +484,8 @@ static ok64 keeper_post(keeper *k, cli *c) {
     }
     a_path(keepdir, u8bDataC(k->h->root), KEEP_DIR_S);
 
-    // 1. Current worktree commit via sniff/at.log.
+    //  1. Worktree's current branch + tip (used both as the WIREPush
+    //     local_branch default and to record the new peer-side ref).
     a_pad(u8, at_branch, 256);
     a_pad(u8, at_sha, 64);
     a_dup(u8c, at_root, u8bDataC(k->h->root));
@@ -471,27 +494,52 @@ static ok64 keeper_post(keeper *k, cli *c) {
         fprintf(stderr, "keeper: post: worktree commit not set\n");
         return KEEPFAIL;
     }
-    u8 new_hex[40];
-    memcpy(new_hex, u8bDataHead(at_sha), 40);
 
-    // 2. Target branch must come from the URI (`?branch` or `?heads/X`).
-    //    No default — explicit branches avoid accidental pushes.
-    if (u8csEmpty(g->query)) {
-        fprintf(stderr, "keeper: post needs ?branch in the URI "
-                        "(e.g. ssh://host/path?main)\n");
-        return KEEPFAIL;
-    }
+    //  2. Target branch.  Prefer URI ?query; otherwise the current
+    //     worktree branch (per VERBS.md `be post //origin`).
     a_pad(u8, branch_buf, 256);
     {
         u8cs q = {g->query[0], g->query[1]};
         a_cstr(heads_pfx, "heads/");
-        if ($len(q) > 6 && memcmp(q[0], heads_pfx[0], 6) == 0)
-            u8csUsed(q, 6);
-        u8bFeed(branch_buf, q);
+        if (u8csEmpty(q)) {
+            u8bFeed(branch_buf, u8bDataC(at_branch));
+        } else {
+            if ($len(q) > 6 && memcmp(q[0], heads_pfx[0], 6) == 0)
+                u8csUsed(q, 6);
+            u8bFeed(branch_buf, q);
+        }
     }
     a_dup(u8c, branch, u8bData(branch_buf));
+    if (u8csEmpty(branch)) {
+        fprintf(stderr, "keeper: post: cannot determine branch to push\n");
+        return KEEPFAIL;
+    }
 
-    // 3. Remote's current SHA for that branch (40 zeros = new branch).
+    //  Build the WIREPush local_branch arg as "heads/<branch>".
+    a_pad(u8, lb_buf, 256);
+    a_cstr(heads_pfx_s, "heads/");
+    u8bFeed(lb_buf, heads_pfx_s);
+    u8bFeed(lb_buf, branch);
+    a_dup(u8c, local_branch, u8bData(lb_buf));
+
+    //  3. Build the remote transport URI (alias-resolved).
+    u8bp rmap = NULL;
+    a_pad(u8, ubuf, FILE_PATH_MAX_LEN);
+    ok64 ru = keeper_remote_uri(k, g, ubuf, &rmap);
+    if (ru != OK) {
+        if (rmap) u8bUnMap(rmap);
+        return ru;
+    }
+    a_dup(u8c, remote_uri, u8bData(ubuf));
+
+    //  4. Push.  WIREPush handles peer-tip advert + pack build + status.
+    ok64 pu = WIREPush(k, remote_uri, local_branch);
+    if (rmap) u8bUnMap(rmap);
+    if (pu != OK) return pu;
+
+    //  5. Advance local //host/path?heads/<branch> → ?<new-sha> so
+    //     subsequent fetches know the peer's tip.  Key uses the URI's
+    //     canonical form (matches what keeper_get_remote consults).
     a_pad(u8, rkey, 1280);
     call(DOGCanonURIKey, rkey, g, NO);
     u8bFeed1(rkey, '?');
@@ -499,58 +547,15 @@ static ok64 keeper_post(keeper *k, cli *c) {
     u8bFeed(rkey, heads_pfx2);
     u8bFeed(rkey, branch);
     a_dup(u8c, remote_key, u8bData(rkey));
-    u8 old_hex[40];
-    memset(old_hex, '0', 40);
-    a_pad(u8, arena_r, 256);
-    uri r_res = {};
-    if (REFSResolve(&r_res, arena_r, $path(keepdir), remote_key) == OK &&
-        $len(r_res.query) == 40) {
-        memcpy(old_hex, r_res.query[0], 40);
-    }
-
-    // 4. Load the new commit's raw bytes from local store.
-    u8cs new_cs = {new_hex, new_hex + 40};
-    u64 new_hashlet = WHIFFHexHashlet60(new_cs);
-    Bu8 cbuf = {};
-    call(u8bMap, cbuf, 1UL << 20);
-    u8 ctype = 0;
-    if (KEEPGet(k, new_hashlet, 15, cbuf, &ctype) != OK ||
-        ctype != KEEP_OBJ_COMMIT) {
-        u8bUnMap(cbuf);
-        fprintf(stderr, "keeper: post: commit %.12s not in store\n",
-                (char *)new_hex);
-        return KEEPFAIL;
-    }
-    u8csc com_data = {u8bDataHead(cbuf), u8bIdleHead(cbuf)};
-
-    // 5. git-receive-pack push.
-    u8cs rhost = {}, rpath = {};
-    u8bp rmap = NULL;
-    post_resolve_remote(k, g, rhost, rpath, &rmap);
-    a_pad(u8, refname_buf, 280);
-    a_cstr(refs_heads, "refs/heads/");
-    u8bFeed(refname_buf, refs_heads);
-    u8bFeed(refname_buf, branch);
-    u8bFeed1(refname_buf, 0);
-    u8csc old_hex_cs = {old_hex, old_hex + 40};
-    u8csc new_hex_cs = {new_hex, new_hex + 40};
-    ok64 pu = KEEPPush(k, rhost, rpath,
-                       (char const *)u8bDataHead(refname_buf),
-                       old_hex_cs, new_hex_cs, com_data);
-    u8bUnMap(cbuf);
-    if (rmap) u8bUnMap(rmap);
-    if (pu != OK) return pu;
-
-    // 6. Advance local //host/path?heads/<branch> → ?<new-sha>.
     a_pad(u8, vbuf, 64);
     u8bFeed1(vbuf, '?');
-    u8bFeed(vbuf, new_cs);
+    u8bFeed(vbuf, u8bDataC(at_sha));
     a_dup(u8c, v, u8bData(vbuf));
     REFSAppend($path(keepdir), remote_key, v);
 
-    fprintf(stdout, "keeper: pushed %.12s → %.12s on %.*s\n",
-            (char *)old_hex, (char *)new_hex,
-            (int)$len(branch), (char *)branch[0]);
+    fprintf(stdout, "keeper: pushed %.*s → %.*s\n",
+            (int)$len(branch), (char *)branch[0],
+            (int)u8bDataLen(at_sha), (char *)u8bDataHead(at_sha));
     done;
 }
 
@@ -581,22 +586,20 @@ ok64 KEEPExec(keeper *k, cli *c) {
     if ($eq(c->verb, v_status))  return keeper_status(k);
     if ($eq(c->verb, v_refs))    return keeper_refs(k);
 
-    //  Plain dog sync dispatch — scheme-based, before the legacy
-    //  `get //host` / `post ssh://...` paths so `be://` and `file://`
-    //  route to SYNCGet / SYNCPost.
+    //  `be://` and `file://` dispatch.  Phase 8: route through WIRE
+    //  (git wire protocol) so client and server are symmetric across
+    //  every transport.  The keeper-protocol case (`be://`, `keeper://`,
+    //  `file://`) execs `keeper upload-pack` / `receive-pack` on the
+    //  peer end via wcli_spawn.
     if (c->nuris >= 1) {
         uri *u = &c->uris[0];
-        a_cstr(be_sch, "be");
-        a_cstr(file_sch, "file");
-        b8 plain = $eq(u->scheme, be_sch) || $eq(u->scheme, file_sch);
-        if (plain && $eq(c->verb, v_get)) {
-            a_dup(u8c, uri_full, u->data);
-            return SYNCGet(k, uri_full);
-        }
-        if (plain && $eq(c->verb, v_post)) {
-            a_dup(u8c, uri_full, u->data);
-            return SYNCPost(k, uri_full);
-        }
+        a_cstr(be_sch,     "be");
+        a_cstr(file_sch,   "file");
+        a_cstr(keeper_sch, "keeper");
+        b8 plain = $eq(u->scheme, be_sch) || $eq(u->scheme, file_sch) ||
+                   $eq(u->scheme, keeper_sch);
+        if (plain && $eq(c->verb, v_get))  return keeper_get_remote(k, c, u);
+        if (plain && $eq(c->verb, v_post)) return keeper_post(k, c);
     }
 
     if ($eq(c->verb, v_get))     return keeper_get(k, c);

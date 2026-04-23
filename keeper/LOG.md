@@ -85,11 +85,13 @@ This means the stored bytes are not directly a valid git packfile,
 but can cheaply be made one. Dog-to-dog sync (see SYNC.md) ships
 stripped packs directly — both sides store the same way.
 
-Object count for reconstruction is recovered by walking the
-stripped byte range on demand (varint scan of object headers).
-Git-compat reconstruction is rare (only `KEEPPush` today), so the
-cost is paid per push, not per read.  No count is stored in the
-index. File/pack checksums are only kept as 60-bit *hashlets*.
+Object count for reconstruction is read straight from the pack
+bookmark's val (`obj_count32 | byte_len32` — see "Pack bookmarks"
+below), so per-pack reconstruction (e.g. for the wire encoder in
+`WIRE.md` Phase 2) is O(1) — no varint scan, no inflation.  The
+git-compat trailing SHA-1 is recomputed on the fly over the
+freshly framed bytes when an outgoing pack is sent on the wire.
+Per-object 60-bit hashlets in the LSM are untouched.
 
 ## Delta-dependency DAG
 
@@ -115,26 +117,33 @@ chain.  See "Drop-a-dir" below.
 Every pack appended to the log gets one wh128 index entry:
 
     key = file_id20 | offset40 | type4(PACK)
-    val = hashlet60 | flags4
+    val = obj_count32 | byte_len32
 
-`hashlet60` is derived from the pack's trailing SHA-1 in git's
-convention: the hash covers the full framed pack (12-byte PACK
-header + object bytes + no trailer yet).  For imported git packs,
-we copy the trailer as received.  For locally-built packs, we
-compute the same hash over the reconstructed framed form.  This
-keeps hashlets stable across git↔dog boundaries even though only
-dog↔dog transfers ship stripped bytes.
+`obj_count` is the number of git objects the pack contains;
+`byte_len` is the pack's stripped on-disk length, i.e. the number
+of bytes of object records that follow the bookmark's `offset` in
+`file_id`.  Together they let the wire encoder
+(`keeper/PSTR.c`, see `WIRE.md` Phase 2) emit a valid git packfile
+in O(1) per pack: sum the counts, write a fresh PACK header,
+sendfile each `[offset, offset+byte_len)` range, append a fresh
+SHA-1 trailer.  No varint scan, no inflation.
 
 `offset40` is the byte position where the pack's first object
 starts within the log file; bookmarks sort by (file_id, offset)
 naturally.
 
-Pack byte length is derived from the next bookmark's offset
-within the same log file.  For the last pack in a file, the
-length comes from the log file's current byte length (from the
-FILEBook header or the filesystem).  No sentinel is stored in the
-index itself — sentinels are a sync-protocol artefact emitted at
-enumeration time (see `SYNC.md`).
+The bookmark deliberately does **not** carry a per-pack hashlet.
+The retired TLV-based dog↔dog SYNC needed one for dedup
+negotiation; the new wire protocol (`WIRE.md`) negotiates over git
+sha1s via pkt-line want/have, so the per-pack hash is no longer
+useful.  Per-object hashlets in the LSM remain unchanged; the
+git-compat trailing SHA-1 is recomputed on the fly when an
+outgoing pack is framed for the wire.
+
+Pack byte length is recorded explicitly in the bookmark val (no
+need to look at the next bookmark or the file's current length —
+both are still consistent with the stored `byte_len`).  No
+sentinel is stored in the index itself.
 
 Pack bookmarks share the LSM with object entries; the type tag in
 the key's low 4 bits keeps them from colliding (objects use
@@ -168,12 +177,15 @@ to rebuild.
 
 ## Implications for sync
 
-See `keeper/SYNC.md`.  Sync scopes to a branch dir: Q records carry
-one `<branch>/NNNNN.keeper` file each, watermarks are per-branch.
-The pack bookmark carries exactly what plain dog sync needs: a
-globally meaningful hashlet for dedup negotiation, a
-(file_id, offset) locator for streaming, and derived length via
-the next bookmark / tail sentinel.
+See `keeper/WIRE.md` for the active wire protocol (git pkt-line,
+upload-pack / receive-pack compatible).  Sync scopes to a branch
+dir: a fetch ships a contiguous byte prefix of the dir's log
+(plus its ancestor dirs' logs up to the relevant watermark) as
+one freshly-framed git packfile.  Per-pack `(obj_count, byte_len)`
+in the bookmark is exactly what the encoder needs to sum object
+counts for the new PACK header and to sendfile each segment in
+one syscall.  The retired TLV-based `keeper/SYNC.md` and its
+per-pack hashlet are scheduled for removal in WIRE.md Phase 10.
 
 ## Current code vs. this spec
 

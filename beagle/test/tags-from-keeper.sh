@@ -1,0 +1,95 @@
+#!/bin/sh
+#  tags-from-keeper.sh — keeper and git each iterate v1 → v2 → master
+#  from a toy keeper repo, comparing worktrees at every step.
+#
+#  Builds the toy git repo, seeds it into a keeper mirror, then iterates
+#  v1 → v2 → master, fetching each ref into:
+#    - a be-clone via `be get be://localhost/...?<ref>`
+#    - a git-clone via `git fetch --upload-pack='keeper upload-pack' ...`
+#  rsync-comparing worktrees at every step.
+#
+#  Run: BIN=build-debug/bin sh beagle/test/tags-from-keeper.sh
+
+set -eu
+
+BIN=${BIN:-$(dirname "$0")/../../build-debug/bin}
+export PATH="$BIN:$PATH"
+export DOG_REMOTE_PATH="$BIN"
+
+TMP_REL=${TMP_REL:-tmp/tags-from-keeper-$$}
+TMP=${TMP:-$HOME/$TMP_REL}
+trap 'rm -rf "$TMP"' EXIT
+mkdir -p "$TMP"
+
+# --- 1. toy git source: 3 revs, v1, v2 tags, master tip ---
+SRC=$TMP/src
+git init --quiet --bare "$SRC"
+
+W=$(mktemp -d)
+git -c init.defaultBranch=master init --quiet "$W"
+git -C "$W" config user.email t@t
+git -C "$W" config user.name t
+git -C "$W" remote add origin "$SRC"
+
+echo rev1 >"$W/f.txt"
+git -C "$W" add f.txt
+git -C "$W" commit --quiet -m "rev 1"
+git -C "$W" tag v1
+echo rev2 >"$W/f.txt"
+git -C "$W" commit --quiet -am "rev 2"
+git -C "$W" tag v2
+echo rev3 >"$W/f.txt"
+git -C "$W" commit --quiet -am "rev 3"
+git -C "$W" push --quiet origin master --tags
+rm -rf "$W"
+
+SRC_REL=${SRC#$HOME/}
+
+# --- 2. seed keeper mirror ---
+KSRV=$TMP/keeper-srv
+mkdir -p "$KSRV"
+cd "$KSRV"
+git init --quiet .
+mkdir -p .dogs/keeper
+be get "//localhost/$SRC_REL"
+KSRV_REL=${KSRV#$HOME/}
+
+# --- 3. init both consumer roots ---
+mkdir -p "$TMP/be-clone"
+cd "$TMP/be-clone"
+git init --quiet .
+mkdir -p .dogs/keeper
+
+#  Reuse the bare git source for the git-clone's worktree shape, but
+#  point its `origin` at the keeper mirror with the upload-pack override
+#  so every fetch goes through `keeper upload-pack`.
+git clone --quiet --no-checkout --upload-pack='keeper upload-pack' \
+    "ssh://localhost/$KSRV" "$TMP/git-clone"
+
+# --- 4. iterate v1 → v2 → master ---
+FAIL=0
+for STEP in "v1 refs/tags/v1" "v2 refs/tags/v2" "master refs/heads/master"; do
+    NAME=${STEP%% *}
+    REF=${STEP##* }
+
+    cd "$TMP/be-clone"
+    be get "be://localhost/$KSRV_REL?$REF" >/dev/null
+
+    git -C "$TMP/git-clone" -c uploadpack='keeper upload-pack' \
+        fetch --quiet --no-tags origin \
+        "$REF:refs/keep/$NAME"
+    git -C "$TMP/git-clone" checkout --quiet "refs/keep/$NAME"
+
+    RDIFF=$(rsync -rlcn --delete \
+        --exclude='/.git/' --exclude='/.dogs/' --exclude='/.sniff/' \
+        "$TMP/git-clone/" "$TMP/be-clone/" 2>&1)
+    if [ -n "$RDIFF" ]; then
+        echo "FAIL: tags-from-keeper $NAME"
+        echo "$RDIFF" | head -10
+        FAIL=$((FAIL + 1))
+    else
+        echo "PASS: tags-from-keeper $NAME"
+    fi
+done
+
+exit $FAIL

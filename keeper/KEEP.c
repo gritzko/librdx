@@ -1149,14 +1149,11 @@ ok64 KEEPPackClose(keeper *k, keep_pack *p) {
     hdr[10] = (u8)(new_count >> 8);
     hdr[11] = (u8)(new_count);
 
-    //  Compute a pack hashlet over the stripped object bytes of THIS
-    //  pack (not the whole file).  Dog-native convention; git-compat
-    //  reconstruction in KEEPPush re-hashes over its own framed form.
-    sha1 pack_sha = {};
-    u8cp file_base = u8bDataHead(p->log);
-    u64 file_len   = u8bDataLen(p->log);
-    u8cs pack_bytes = {file_base + p->pack_offset, file_base + file_len};
-    SHA1Sum(&pack_sha, pack_bytes);
+    //  Capture this pack's byte length before unmapping; the pack
+    //  bookmark val carries (obj_count, byte_len) for O(1) wire
+    //  reconstruction (see keeper/WIRE.md Phase 0).
+    u64 file_len = u8bDataLen(p->log);
+    u64 pack_byte_len = file_len - p->pack_offset;
 
     //  Persist the log, unmap the RW view, re-map RO for readers.
     call(FILETrimBook, p->log);
@@ -1182,13 +1179,11 @@ ok64 KEEPPackClose(keeper *k, keep_pack *p) {
     //  Pack bookmark, per keeper/LOG.md layout:
     //    key = wh64Pack(KEEP_TYPE_PACK, file_id, offset) — sorts by
     //          (file_id, offset) so enumeration is a forward scan.
-    //    val = hashlet60 | flags4 (spread-packed, same encoding as
-    //          keepKeyPack maps type|hashlet).
+    //    val = obj_count32 | byte_len32 (see keepPackBmVal).
     {
-        u64 pack_hashlet = WHIFFHashlet60(&pack_sha);
         wh128 bm = {
             .key = wh64Pack(KEEP_TYPE_PACK, p->file_id, p->pack_offset),
-            .val = keepKeyPack(0, pack_hashlet),
+            .val = keepPackBmVal(p->nobjs, (u32)pack_byte_len),
         };
         wh128bPush(p->entries, &bm);
     }
@@ -1615,15 +1610,13 @@ ok64 KEEPIngestFile(keeper *k, u8csc bytes) {
     call(UNPKIndex, k, &uin, entries, &ust);
 
     // Pack bookmark: whole-file, first object starts at offset 12.
-    // hashlet = SHA-1 over the file bytes (PACK header + object bytes).
-    // This matches KEEPPackClose's convention.
-    sha1 pack_sha = {};
-    SHA1Sum(&pack_sha, bytes);
+    // val = (object count, stripped byte length).  byte_len excludes
+    // the 12-byte PACK header (the bookmark's key already points at
+    // offset 12).  Matches KEEPPackClose's convention.
     {
-        u64 pack_hashlet = WHIFFHashlet60(&pack_sha);
         wh128 bm = {
             .key = wh64Pack(KEEP_TYPE_PACK, file_id, 12),
-            .val = keepKeyPack(0, pack_hashlet),
+            .val = keepPackBmVal(ph.count, (u32)(file_len - 12)),
         };
         call(wh128bPush, entries, &bm);
     }
