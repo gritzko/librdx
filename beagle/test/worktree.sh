@@ -16,7 +16,10 @@ BIN=${BIN:-$(dirname "$0")/../../build-debug/bin}
 BE="$BIN/be"
 KEEPER="$BIN/keeper"
 
-TMP=${TMPDIR:-/tmp}/be-worktree-$$
+TMP=${TMP:-$HOME/tmp}
+TEST_ID=${TEST_ID:-BEworktree}
+TMP=$TMP/$$/$TEST_ID
+mkdir -p "$TMP"
 trap 'rm -rf "$TMP"' EXIT INT TERM
 
 fail() { echo "FAIL: $*" >&2; exit 1; }

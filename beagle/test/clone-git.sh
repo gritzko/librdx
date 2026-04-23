@@ -15,7 +15,9 @@ BIN=${BIN:-$(dirname "$0")/../../build-debug/bin}
 export PATH="$BIN:$PATH"
 
 REPO=${REPO:-$HOME/src/git}
-CLONE=${CLONE:-$HOME/tmp/clone}
+TMP=${TMP:-$HOME/tmp}
+TEST_ID=${TEST_ID:-clone-git}
+CLONE=${CLONE:-$TMP/$$/$TEST_ID}
 REF=${REF:-HEAD}
 NAME=${NAME:-$(basename "$REPO" .git)}
 

@@ -8,7 +8,10 @@
 
 REMOTE="${1:?usage: treadmill.sh <remote> [keeper-binary]}"
 KEEPER="${2:-keeper}"
-WORKDIR="${WORKDIR:-$(mktemp -d /tmp/keeper-treadmill-XXXXXX)}"
+TMP=${TMP:-$HOME/tmp}
+TEST_ID=${TEST_ID:-keeper-treadmill}
+WORKDIR="${WORKDIR:-$TMP/$$/$TEST_ID}"
+mkdir -p "$WORKDIR"
 HOST="${REMOTE%% *}"
 REPO="${REMOTE#* }"
 

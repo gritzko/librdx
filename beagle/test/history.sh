@@ -21,9 +21,11 @@ set -eu
 BIN=${BIN:-$(dirname "$0")/../../build-debug/bin}
 BE="$BIN/be"
 
-TMP=${TMPDIR:-/tmp}/be-history-$$
-trap 'rm -rf "$TMP"' EXIT INT TERM
+TMP=${TMP:-$HOME/tmp}
+TEST_ID=${TEST_ID:-BEhistory}
+TMP=$TMP/$$/$TEST_ID
 mkdir -p "$TMP"
+trap 'rm -rf "$TMP"' EXIT INT TERM
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
 note() { echo "  - $*"; }

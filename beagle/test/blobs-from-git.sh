@@ -20,10 +20,12 @@ BIN=${BIN:-$(dirname "$0")/../../build-debug/bin}
 export PATH="$BIN:$PATH"
 export DOG_REMOTE_PATH="$BIN"
 
-TMP_REL=${TMP_REL:-tmp/blobs-from-git-$$}
-TMP=${TMP:-$HOME/$TMP_REL}
-trap 'rm -rf "$TMP"' EXIT
+TMP=${TMP:-$HOME/tmp}
+TEST_ID=${TEST_ID:-blobs-from-git}
+TMP=$TMP/$$/$TEST_ID
+TMP_REL=${TMP#$HOME/}
 mkdir -p "$TMP"
+trap 'rm -rf "$TMP"' EXIT
 
 # --- 1. toy git source: 3 revs, two files, v1+v2 tags, master tip ---
 #  f.txt evolves at every commit; g.txt only changes at master.  Six

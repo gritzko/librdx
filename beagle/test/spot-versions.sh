@@ -30,7 +30,9 @@ export PATH="$BIN:$PATH"
 BE="$(command -v be   || echo $BIN/be)"
 SPOT="$(command -v spot || echo $BIN/spot)"
 
-TMP=${TMP:-$HOME/tmp/spot-versions-$$}
+TMP=${TMP:-$HOME/tmp}
+TEST_ID=${TEST_ID:-spot-versions}
+TMP=$TMP/$$/$TEST_ID
 HOST=${HOST:-localhost}
 SYMBOL=${SYMBOL:-MarkerXYZ}
 RENAMED=${RENAMED:-RenamedABC}

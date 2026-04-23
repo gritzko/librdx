@@ -25,8 +25,12 @@ export ASAN_OPTIONS="${ASAN_OPTIONS:-}:detect_leaks=0"
 
 HOST=${HOST:-localhost}
 
-TMP_REL=${TMP_REL:-tmp/sniff-patch-$$}
-TMP=${TMP:-$HOME/$TMP_REL}
+#  Per-run scratch dir: $TMP/<pid>/<test-id>/.  Base TMP and TEST_ID
+#  come from ctest (see sniff/test/CMakeLists.txt); standalone runs
+#  fall back to $HOME/tmp and the script's basename.
+TMP=${TMP:-$HOME/tmp}
+TEST_ID=${TEST_ID:-SNIFFpatch}
+TMP=$TMP/$$/$TEST_ID
 trap 'rm -rf "$TMP"' EXIT
 mkdir -p "$TMP"
 

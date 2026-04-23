@@ -14,7 +14,10 @@ BIN=${BIN:-$(dirname "$0")/../../build-debug/bin}
 BE="$BIN/be"
 export PATH="$BIN:$PATH"
 
-TMP=${TMPDIR:-/tmp}/be-workflow-$$
+TMP=${TMP:-$HOME/tmp}
+TEST_ID=${TEST_ID:-BEworkflow}
+TMP=$TMP/$$/$TEST_ID
+mkdir -p "$TMP"
 trap 'rm -rf "$TMP"' EXIT INT TERM
 
 fail() { echo "FAIL: $*" >&2; exit 1; }

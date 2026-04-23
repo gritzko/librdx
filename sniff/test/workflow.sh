@@ -15,7 +15,10 @@ BIN=${BIN:-$(dirname "$0")/../../build-debug/bin}
 SNIFF="$BIN/sniff"
 KEEPER="$BIN/keeper"
 
-TMP=${TMPDIR:-/tmp}/sniff-workflow-$$
+TMP=${TMP:-$HOME/tmp}
+TEST_ID=${TEST_ID:-SNIFFworkflow}
+TMP=$TMP/$$/$TEST_ID
+mkdir -p "$TMP"
 trap 'rm -rf "$TMP"' EXIT INT TERM
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
