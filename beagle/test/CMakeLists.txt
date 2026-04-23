@@ -48,7 +48,7 @@ if (WITH_SSH)
     # worktrees after the same operation.  -from-git uses a vanilla git
     # server; -from-keeper seeds a keeper mirror first and serves it
     # via `keeper upload-pack`.  Requires passwordless ssh to localhost.
-    foreach(toy blobs-from-git clone-from-git clone-from-keeper tags-from-git tags-from-keeper)
+    foreach(toy blobs-from-git tag-blobs-from-keeper clone-from-git clone-from-keeper tags-from-git tags-from-keeper)
         add_test(NAME ${toy}
             COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/${toy}.sh
             WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
