@@ -31,9 +31,9 @@
 #include "dog/SHA1.h"
 #include "dog/WHIFF.h"
 
-con ok64 UNPKFAIL    = 0x7de3e23ca495;
-con ok64 UNPKBADFMT  = 0x7de3e22ca34f59d;
-con ok64 UNPKNOROOM  = 0x7de3e25d86d8616;
+con ok64 UNPKFAIL    = 0x7976543ca495;
+con ok64 UNPKBADFMT  = 0x7976542ca34f59d;
+con ok64 UNPKNOROOM  = 0x7976545d86d8616;
 
 //  Per-object event delivered during UNPKIndex if `emit` is non-NULL.
 //  `path` is derived from tree walks within the pack: for a blob, the

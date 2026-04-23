@@ -1560,6 +1560,22 @@ ok64 KEEPIngestFile(keeper *k, u8csc bytes) {
     u64 file_len = u8csLen(bytes);
     if (file_len < 12) fail(KEEPFAIL);
 
+    //  Strip the git packfile SHA-1 trailer if present.  Real git packs
+    //  (from upload-pack) end with a 20-byte hash over all preceding
+    //  bytes; the keeper log format is stripped (no trailer), so we
+    //  persist only the object stream so PSTRWrite's re-emit doesn't
+    //  splice the original trailer into the middle of the outgoing
+    //  pack.
+    if (file_len >= 32) {
+        sha1 check = {};
+        u8csc body = {bytes[0], bytes[0] + (file_len - 20)};
+        SHA1Sum(&check, body);
+        if (memcmp(check.data, bytes[0] + (file_len - 20), 20) == 0)
+            file_len -= 20;
+    }
+    u8csc stripped = {bytes[0], bytes[0] + file_len};
+    bytes = stripped;
+
     // Parse PACK header → object count
     pack_hdr ph = {};
     a_dup(u8c, hscan, bytes);

@@ -27,7 +27,7 @@
 #include "dog/HOME.h"
 #include "keeper/KEEP.h"
 
-con ok64 GITDLFAIL = 0x39e8265d3ca495;
+con ok64 GITDLFAIL = 0x1049d3553ca495;
 
 ok64 gitdl() {
     sane(1);

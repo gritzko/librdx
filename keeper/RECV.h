@@ -34,10 +34,10 @@
 #include "keeper/KEEP.h"
 #include "keeper/REFADV.h"
 
-con ok64 RECVFAIL    = 0x6ce5d3ca495;
-con ok64 RECVNOTFF   = 0x6ce5d2c91c95995;
-con ok64 RECVBADREF  = 0x6ce5d1ad21c91c5;
-con ok64 RECVBADREQ  = 0x6ce5d2ca35b39a;
+con ok64 RECVFAIL    = 0x6ce31f3ca495;
+con ok64 RECVNOTFF   = 0x1b38c7d761d3cf;
+con ok64 RECVBADREF  = 0x6ce31f2ca35b38f;
+con ok64 RECVBADREQ  = 0x6ce31f2ca35b39a;
 
 #define RECV_MAX_UPDATES  64
 #define RECV_REQ_BUF      (1u << 16)
@@ -65,6 +65,10 @@ typedef struct {
     u32          count;      // populated entry count
     u8b          arena;      // backing for refname slices
     u32          caps;       // negotiated capabilities (RECV_CAP_*)
+    //  Any bytes that followed the flush but landed in the request
+    //  read-buffer are preserved here — they are the first bytes of
+    //  the pack and must be fed to RECVIngestPack before draining fd.
+    u8b          tail;
 } recv_req;
 
 typedef recv_req       *recv_reqp;
@@ -90,10 +94,12 @@ void RECVCloseRequest(recv_reqp req);
 
 //  Drain raw packfile bytes from in_fd and hand them to
 //  KEEPIngestFile.  Reads until EOF (no trailer-aware framing —
-//  receive-pack closes its write side after the pack).  An empty
-//  stream (e.g. delete-only updates, no objects) is allowed and
-//  returns OK with no on-disk state changed.
-ok64 RECVIngestPack(keeper *k, int in_fd);
+//  receive-pack closes its write side after the pack).  `tail` is any
+//  pre-buffered pack bytes that the pkt-line reader over-read past the
+//  request's flush; they are prepended to whatever is drained from fd.
+//  An empty stream (e.g. delete-only updates, no objects) is allowed
+//  and returns OK with no on-disk state changed.
+ok64 RECVIngestPack(keeper *k, int in_fd, u8csc tail);
 
 //  Fast-forward check + REFS update for each parsed update.
 //

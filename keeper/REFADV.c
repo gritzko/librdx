@@ -23,8 +23,10 @@ static u8c const REFADV_REFS_TAGS[]  = "refs/tags/";    // 10 chars
 static u8c const REFADV_TAGS_DIR[]   = "tags/";         // 5 chars
 
 //  Capability list — see WIRE.md Phase 3.
+//  No `side-band-64k`: without it git reads the raw pack after NAK
+//  exactly as WIREServeUpload emits it (PSTRWrite writes unframed).
 static u8c const REFADV_CAPS[] =
-    "multi_ack_detailed side-band-64k ofs-delta agent=dogs-keeper";
+    "multi_ack_detailed ofs-delta agent=dogs-keeper";
 
 //  Trunk-aliased branches (heads/<name> entries that resolve to the
 //  trunk dir, i.e. dir = "").  Mirrors the alias set enforced by

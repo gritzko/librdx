@@ -11,7 +11,7 @@
 
 //  Match keeper/KEEP.h's KEEPNONE without pulling the keeper header.
 //  Value mirrors the one in keeper/KEEP.h; keep in sync.
-con ok64 DOGATNONE = 0x50e3995d85ce;
+con ok64 DOGATNONE = 0xd61029d5d85ce;
 
 ok64 DOGAtTail(u8bp branch_out, u8bp sha_out, u8cs reporoot) {
     sane(branch_out && sha_out && $ok(reporoot));

@@ -1,9 +1,10 @@
 #!/bin/sh
-#  sync-loopback.sh — exercise plain dog sync end-to-end.
+#  sync-loopback.sh — exercise keeper fetch end-to-end over file:// .
 #
-#  Seeds repo A with one pack, runs `keeper sync` on A via pipes
-#  fed by `keeper get file:///path/to/A` from an empty repo B,
-#  verifies B received at least one pack and one reflog chunk.
+#  Seeds repo A with one commit, runs `keeper get file:///path/to/A`
+#  from an empty repo B (which spawns `keeper upload-pack` locally
+#  via WIRE), then verifies B can resolve the seed commit from its
+#  own store.
 
 set -e
 
@@ -22,14 +23,18 @@ cd "$A"
 echo "hello sync" >greeting.txt
 sniff          >/dev/null  # scan the worktree into sniff's index
 sniff post -m "initial" . >/dev/null  # commit → creates a keeper pack
+SEED_SHA=$(keeper refs 2>/dev/null \
+    | awk '/\?heads\/master[ \t]+→ / {print $3; exit}' \
+    | sed 's/^?//')
+[ -n "$SEED_SHA" ] || { echo "FAIL: no seed ref"; exit 1; }
 
 cd "$B"
 echo "=== sync B ← A ==="
-OUT=$(keeper get "file://$A" 2>&1)
-echo "$OUT"
+keeper get "file://$A" 2>&1
 
-case "$OUT" in
-    *"received 1 pack"*) echo "PASS: one pack received" ;;
-    *"received 0 pack"*) echo "FAIL: zero packs" ; exit 1 ;;
-    *)                    echo "FAIL: unexpected output" ; exit 1 ;;
-esac
+if keeper verify "#$SEED_SHA" >/dev/null 2>&1; then
+    echo "PASS: seed commit reachable in B"
+else
+    echo "FAIL: seed commit not reachable in B"
+    exit 1
+fi

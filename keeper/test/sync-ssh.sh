@@ -47,7 +47,7 @@ cd "$A"
 echo "alpha" > a.txt
 "$SNIFF"         >/dev/null 2>&1
 "$SNIFF" post -m seedA . >/dev/null 2>&1
-SEED_SHA=$("$KEEPER" refs 2>/dev/null | awk '/\t→ / {print $3}' | sed 's/^?//')
+SEED_SHA=$("$KEEPER" refs 2>/dev/null | awk '/\?heads\/master[ \t]+→ / {print $3; exit}' | sed 's/^?//')
 [ -n "$SEED_SHA" ] || fail "a01: no seed ref"
 note "a01 HEAD $SEED_SHA"
 
@@ -65,7 +65,7 @@ cd "$B"
 echo "bravo from B" > b.txt
 "$SNIFF"         >/dev/null 2>&1
 "$SNIFF" post -m fromB . >/dev/null 2>&1
-B_SHA=$("$KEEPER" refs 2>/dev/null | awk '/\t→ / {print $3}' | sed 's/^?//')
+B_SHA=$("$KEEPER" refs 2>/dev/null | awk '/\?heads\/master[ \t]+→ / {print $3; exit}' | sed 's/^?//')
 [ -n "$B_SHA" ] && [ "$B_SHA" != "$SEED_SHA" ] \
     || fail "b01: post produced no new commit"
 note "b01 new commit $B_SHA"
@@ -82,7 +82,7 @@ cd "$A"
 echo "charlie from A" > c.txt
 "$SNIFF"         >/dev/null 2>&1
 "$SNIFF" post -m fromA . >/dev/null 2>&1
-A_SHA=$("$KEEPER" refs 2>/dev/null | awk '/\t→ / {print $3}' | sed 's/^?//')
+A_SHA=$("$KEEPER" refs 2>/dev/null | awk '/\?heads\/master[ \t]+→ / {print $3; exit}' | sed 's/^?//')
 [ -n "$A_SHA" ] && [ "$A_SHA" != "$B_SHA" ] \
     || fail "a01: post produced no new commit"
 note "a01 new commit $A_SHA"
