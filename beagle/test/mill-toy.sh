@@ -15,7 +15,9 @@ export PATH="$BIN:$PATH"
 BE="$(command -v be || echo $BIN/be)"
 echo "# BE=$BE"
 
-TMILL=${TMILL:-$HOME/tmp/mill-toy-$$}
+TMP=${TMP:-$HOME/tmp}
+TEST_ID=${TEST_ID:-mill-toy}
+TMILL=${TMILL:-$TMP/$$/$TEST_ID}
 HOST=${HOST:-localhost}
 
 KEEP_WORK=""

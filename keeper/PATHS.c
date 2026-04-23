@@ -80,13 +80,10 @@ ok64 KEEPPathsOpen(keeper *k, b8 rw) {
         if (!rw) return o;
         call(FILEBookCreate, &k->paths_log, $path(pp),
              KEEP_PATHS_BOOK, 4096);
-    } else {
-        //  Trim tail of zero bytes left by FILEBook's page alignment.
-        u8p e = k->paths_log[3];
-        u8p b = k->paths_log[0];
-        while (e > b && e[-1] == 0) e--;
-        ((u8 **)k->paths_log)[2] = e;
     }
+    //  FILEBook sets b[2] at the real file-content end, so u8bDataLen
+    //  already reports the correct length and u8bFeed lands right
+    //  after the last byte.
 
     //  Allocate offsets + hash.
     call(u32bAllocate, k->paths_offs, 1u << 16);

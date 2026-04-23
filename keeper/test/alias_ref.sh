@@ -17,7 +17,10 @@ if [ ! -x "$KEEPER" ]; then
     exit 1
 fi
 
-TMPDIR=$(mktemp -d /tmp/keeper-alias-XXXXXX)
+TMP=${TMP:-$HOME/tmp}
+TEST_ID=${TEST_ID:-keeper-alias}
+TMPDIR=$TMP/$$/$TEST_ID
+mkdir -p "$TMPDIR"
 trap "rm -rf $TMPDIR" EXIT
 
 WORK="$TMPDIR/work"
