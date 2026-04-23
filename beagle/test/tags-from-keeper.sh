@@ -46,12 +46,17 @@ rm -rf "$W"
 SRC_REL=${SRC#$HOME/}
 
 # --- 2. seed keeper mirror ---
+#  `be get //origin` with no query only fetches HEAD; fetch each ref
+#  explicitly so the mirror carries master + both tags (the consumer
+#  tests below want every ref present in the mirror).
 KSRV=$TMP/keeper-srv
 mkdir -p "$KSRV"
 cd "$KSRV"
 git init --quiet .
 mkdir -p .dogs/keeper
-be get "//localhost/$SRC_REL"
+for REF in refs/heads/master refs/tags/v1 refs/tags/v2; do
+    be get "//localhost/$SRC_REL?$REF" >/dev/null
+done
 KSRV_REL=${KSRV#$HOME/}
 
 # --- 3. init both consumer roots ---
@@ -62,8 +67,9 @@ mkdir -p .dogs/keeper
 
 #  Reuse the bare git source for the git-clone's worktree shape, but
 #  point its `origin` at the keeper mirror with the upload-pack override
-#  so every fetch goes through `keeper upload-pack`.
-git clone --quiet --no-checkout --upload-pack='keeper upload-pack' \
+#  so every fetch goes through `keeper upload-pack`.  PATH= prefix
+#  injects the test BIN dir into the remote ssh's non-interactive shell.
+git clone --quiet --no-checkout --upload-pack="PATH='$BIN':\$PATH keeper upload-pack" \
     "ssh://localhost/$KSRV" "$TMP/git-clone"
 
 # --- 4. iterate v1 → v2 → master ---
@@ -75,9 +81,10 @@ for STEP in "v1 refs/tags/v1" "v2 refs/tags/v2" "master refs/heads/master"; do
     cd "$TMP/be-clone"
     be get "be://localhost/$KSRV_REL?$REF" >/dev/null
 
-    git -C "$TMP/git-clone" -c uploadpack='keeper upload-pack' \
-        fetch --quiet --no-tags origin \
-        "$REF:refs/keep/$NAME"
+    git -C "$TMP/git-clone" \
+        fetch --quiet --no-tags \
+        --upload-pack="PATH='$BIN':\$PATH keeper upload-pack" \
+        origin "$REF:refs/keep/$NAME"
     git -C "$TMP/git-clone" checkout --quiet "refs/keep/$NAME"
 
     RDIFF=$(rsync -rlcn --delete \

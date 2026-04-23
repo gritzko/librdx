@@ -28,7 +28,7 @@
 #include "dog/SHA1.h"
 #include "keeper/KEEP.h"
 
-con ok64 REFADVFAIL = 0x6c46e3993ca495;
+con ok64 REFADVFAIL = 0x6ce3ca35f3ca495;
 
 //  One advertised ref: the resolved tip sha + the refname (e.g.
 //  "refs/heads/main") + the dir slice (which dir's REFS this came

@@ -6,7 +6,7 @@
 #include "abc/PATH.h"
 
 con ok64 NOHOME    = 0x5d845858e;
-con ok64 NOCONF    = 0x8e603bce7bc;
+con ok64 NOCONF    = 0x5d83185cf;
 con ok64 HOMEOPEN  = 0x45858e619397;       // branch already open
 con ok64 HOMEROBR  = 0x45858e6d82db;       // rw asked after a ro open
 con ok64 HOMENOBR  = 0x45858e5d82db;       // no writable branch opened

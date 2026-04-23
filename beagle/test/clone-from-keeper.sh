@@ -55,7 +55,11 @@ be get "//localhost/$SRC_REL"
 KSRV_REL=${KSRV#$HOME/}
 
 # --- 3. git clones from the keeper mirror via upload-pack override ---
-git clone --quiet --upload-pack='keeper upload-pack' \
+#  The remote ssh login shell won't have BIN in PATH, so prepend it in
+#  the upload-pack command itself — git passes this string verbatim to
+#  the remote sh, which then evaluates the PATH= assignment before
+#  exec'ing keeper.
+git clone --quiet --upload-pack="PATH='$BIN':\$PATH keeper upload-pack" \
     "ssh://localhost/$KSRV" "$TMP/git-clone"
 
 # --- 4. keeper clones from the keeper mirror ---

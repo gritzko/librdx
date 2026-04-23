@@ -76,7 +76,7 @@ Select **where** the resource lives.
 | *(none)*| Local store, current branch dir. |
 | `ssh:`  | Remote host over ssh; use with `//host/path`. |
 | `https:`| Remote host over https. |
-| `be:`   | Peer dog over `keeper --sync` (`keeper/SYNC.md`). |
+| `be:`   | Peer dog over `keeper upload-pack` / `receive-pack` (`keeper/WIRE.md`). |
 | `file:` | **Local sibling worktree/store** at the given path (see §Worktree management).  Equivalent to passing the path directly, but makes "this is a local repo, wire me as a worktree" explicit. |
 
 ### View projectors
@@ -165,7 +165,7 @@ POST commits the current base tree or pushes it to a peer.
 | `be post file.c -m "msg"`          | Stage the one file then commit. |
 | `be post ?./fix -m "msg"`          | Commit to sub-branch `fix` off the current branch (create the dir if missing). |
 | `be post ?heads/feat/fix1 -m "…"`  | Same, absolute path. |
-| `be post //origin`                 | Push current branch's pack-log tail + REFS to origin (`keeper/SYNC.md` verb `P`).  Fast-forward only. |
+| `be post //origin`                 | Push current branch's pack-log tail + REFS to origin via git's receive-pack wire (`keeper/WIRE.md`).  Fast-forward only. |
 | `be post //origin?heads/feat`      | Push that branch specifically. |
 
 Rule: history is linear per branch — POST always appends one
@@ -198,7 +198,7 @@ removals; a ref URI drops the branch or tag dir.
 | `be delete src/`                    | Stage subtree removal. |
 | `be delete ?heads/feat/fix1`        | **Drop a branch dir.**  Leaf-only; refused if `WT` is live, descendants exist, or staging is open.  See `keeper/README.md` §"Delta-dependency DAG" and `sniff/AT.md` §"Drop-a-dir interaction". |
 | `be delete ?tags/v1.0`              | Drop a tag dir. |
-| `be delete //origin?heads/feat`     | Ask peer to drop remote branch (SYNC verb TBD — out of MVP). |
+| `be delete //origin?heads/feat`     | Push a delete (`<old-sha> 000…0 refs/heads/feat`) via `keeper receive-pack` — same wire git uses for `git push -d`. |
 
 ##  PATCH — cross-branch merge into the worktree
 
@@ -370,12 +370,13 @@ drop the branch.
     the wt's on-disk bytes (git-hash-object semantics).  The
     empty-ref form `sha1:file.c?` returns the tracked-blob sha
     via sniff's index.
-  - **`be delete //origin?heads/feat`** — wire format deferred
-    past `keeper/SYNC.md` MVP (currently only `G`/`P` verbs).
+  - **`be delete //origin?heads/feat`** — uses git's standard
+    delete-via-push (`<old> 000…0 refs/heads/feat`) over keeper's
+    receive-pack; behaviour unchanged from vanilla git.
   - **Bulk fetch (`?*`)** — ordering rule:
     parents-before-children, per the delta-dependency DAG
     (`keeper/README.md`); the client walks the ancestor chain
-    and runs N SYNC sessions.
+    and runs N upload-pack sessions (`keeper/WIRE.md`).
   - **Projector on non-`get` verbs** — treat as read-only even
     there (e.g. `be post sha1:?heads/feat` = "print what would be
     committed" without committing).  Not specified yet; keep the

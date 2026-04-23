@@ -3,7 +3,6 @@
 //
 #include "KEEP.h"
 #include "REFS.h"
-#include "SYNC.h"
 #include "WIRE.h"
 
 #include <stdio.h>
@@ -23,7 +22,7 @@
 
 char const *const KEEP_CLI_VERBS[] = {
     "get", "put", "post", "status", "import", "verify",
-    "refs", "alias", "ls-files", "sync",
+    "refs", "alias", "ls-files",
     "upload-pack", "receive-pack",
     "help", NULL
 };
@@ -259,9 +258,14 @@ static ok64 keeper_get_remote(keeper *k, cli *c, uri *g) {
         if (DOGAtTail(at_branch, at_sha, at_root) == OK &&
             u8bDataLen(at_branch) > 0) {
             //  Build "heads/<branch>" from worktree's current branch.
+            //  at.log may already carry the "heads/" prefix — strip it
+            //  first so we always emit a single prefix.
             a_cstr(heads_pfx, "heads/");
+            u8cs src = {u8bDataHead(at_branch), u8bIdleHead(at_branch)};
+            if ($len(src) > 6 && memcmp(src[0], heads_pfx[0], 6) == 0)
+                u8csUsed(src, 6);
             u8bFeed(branch_buf, heads_pfx);
-            u8bFeed(branch_buf, u8bDataC(at_branch));
+            u8bFeed(branch_buf, src);
             cur_branch[0] = u8bDataHead(branch_buf);
             cur_branch[1] = u8bIdleHead(branch_buf);
             want_ref[0] = cur_branch[0];
@@ -496,18 +500,24 @@ static ok64 keeper_post(keeper *k, cli *c) {
     }
 
     //  2. Target branch.  Prefer URI ?query; otherwise the current
-    //     worktree branch (per VERBS.md `be post //origin`).
+    //     worktree branch (per VERBS.md `be post //origin`).  Both
+    //     inputs get their `heads/` prefix stripped — the local_branch
+    //     build below re-adds it exactly once, so the WIREPush arg
+    //     ends up `heads/<name>` regardless of input shape.
     a_pad(u8, branch_buf, 256);
     {
-        u8cs q = {g->query[0], g->query[1]};
         a_cstr(heads_pfx, "heads/");
-        if (u8csEmpty(q)) {
-            u8bFeed(branch_buf, u8bDataC(at_branch));
+        u8cs src = {};
+        if (u8csEmpty(g->query)) {
+            src[0] = u8bDataHead(at_branch);
+            src[1] = u8bIdleHead(at_branch);
         } else {
-            if ($len(q) > 6 && memcmp(q[0], heads_pfx[0], 6) == 0)
-                u8csUsed(q, 6);
-            u8bFeed(branch_buf, q);
+            src[0] = g->query[0];
+            src[1] = g->query[1];
         }
+        if ($len(src) > 6 && memcmp(src[0], heads_pfx[0], 6) == 0)
+            u8csUsed(src, 6);
+        u8bFeed(branch_buf, src);
     }
     a_dup(u8c, branch, u8bData(branch_buf));
     if (u8csEmpty(branch)) {
@@ -628,13 +638,6 @@ ok64 KEEPExec(keeper *k, cli *c) {
             return KEEPFAIL;
         }
         return keeper_alias(k, &c->uris[0], &c->uris[1]);
-    }
-
-    a_cstr(v_sync, "sync");
-    if ($eq(c->verb, v_sync)) {
-        //  Server side of plain dog sync — read TLV from stdin,
-        //  emit TLV to stdout.  Stateless; one session per invocation.
-        return SYNCServe(k, 0, 1);
     }
 
     a_cstr(v_lsfiles, "ls-files");

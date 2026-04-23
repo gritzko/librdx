@@ -82,8 +82,9 @@ the concatenation of object records (varint header + zlib body,
 plus deltas).
 
 This means the stored bytes are not directly a valid git packfile,
-but can cheaply be made one. Dog-to-dog sync (see SYNC.md) ships
-stripped packs directly — both sides store the same way.
+but can cheaply be made one. Dog-to-dog sync (see WIRE.md) reframes
+on the fly via PSTR (PACK header + concatenated stripped bodies +
+fresh SHA-1 trailer).
 
 Object count for reconstruction is read straight from the pack
 bookmark's val (`obj_count32 | byte_len32` — see "Pack bookmarks"
@@ -170,10 +171,10 @@ the granularity of a **branch dir**:
 Readers holding mmaps of dropped files continue to work until they
 close; new lookups route around the missing dir.
 
-Peer watermarks (`SYNC.md`) pointing at dropped `file_id`s become
-stale — the affected peers fall back to full sync on next contact.
-This is acceptable: drops are user-initiated, watermarks are cheap
-to rebuild.
+Peer watermarks pointing at dropped `file_id`s become stale — the
+affected peers fall back to full sync on next contact via the standard
+have/want negotiation (`WIRE.md`).  This is acceptable: drops are
+user-initiated and watermarks rebuild cheaply.
 
 ## Implications for sync
 
@@ -184,8 +185,8 @@ dir: a fetch ships a contiguous byte prefix of the dir's log
 one freshly-framed git packfile.  Per-pack `(obj_count, byte_len)`
 in the bookmark is exactly what the encoder needs to sum object
 counts for the new PACK header and to sendfile each segment in
-one syscall.  The retired TLV-based `keeper/SYNC.md` and its
-per-pack hashlet are scheduled for removal in WIRE.md Phase 10.
+one syscall.  The TLV-based predecessor (`SYNC.md`) and its
+per-pack hashlet were removed once `WIRE.md` Phase 10 landed.
 
 ## Current code vs. this spec
 
@@ -202,5 +203,5 @@ file per pack (`p->file_id = k->shards[0].npacks + 1`), writes full
 PACK headers and trailers into each file, and does **not** emit
 pack bookmarks into the index.  Multi-pack-per-file and pack
 bookmark emission remain the next refactor — prerequisite for
-`SYNC.md` (Phase 0) and for sniff's branch-dir staging (see
+`WIRE.md` (Phase 0) and for sniff's branch-dir staging (see
 `sniff/STAGE.md`).

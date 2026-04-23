@@ -37,7 +37,7 @@ ok64 GRAFDagFinish(void);
 
 // --- Error / sentinel codes ---
 
-con ok64 GRAFFAIL    = 0x1c4a993ca495;
+con ok64 GRAFFAIL    = 0x41b28f3ca495;
 con ok64 GRAFOPEN    = 0x41b28f619397;
 con ok64 GRAFOPENRO  = 0x41b28f6193976d8;
 //  GRAFOpenBranch: branch outside the Phase-3-supported set (trunk only).

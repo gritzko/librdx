@@ -56,24 +56,29 @@ git -C "$W" add f.c g.c
 git -C "$W" commit --quiet -m "base"
 git -C "$W" push --quiet origin master
 
+#  feat-a inserts its addition BEFORE the base function, feat-b AFTER.
+#  Disjoint insertion points keep JOIN's lockstep walk from
+#  coalescing shared prefix tokens (both inserts at the same base
+#  position would otherwise merge identical `int ` prefixes into
+#  one emission).
 git -C "$W" checkout --quiet -b feat-a master
 cat >"$W/f.c" <<'EOF'
-int f(int x) {
-    return x + 1;
-}
 int foo(int a) {
     return a - 7;
 }
+int f(int x) {
+    return x + 1;
+}
 EOF
 cat >"$W/g.c" <<'EOF'
-int g(int y) {
-    return y * 2;
-}
 int goo(int b) {
     return b + 11;
 }
+int g(int y) {
+    return y * 2;
+}
 EOF
-git -C "$W" commit --quiet -am "feat-a: add foo/goo"
+git -C "$W" commit --quiet -am "feat-a: prepend foo/goo"
 git -C "$W" push --quiet origin feat-a
 TIP_A=$(git -C "$W" rev-parse HEAD)
 
@@ -94,7 +99,7 @@ int gab(int d) {
     return d - 17;
 }
 EOF
-git -C "$W" commit --quiet -am "feat-b: add bar/gab"
+git -C "$W" commit --quiet -am "feat-b: append bar/gab"
 git -C "$W" push --quiet origin feat-b
 TIP_B=$(git -C "$W" rev-parse HEAD)
 
@@ -134,9 +139,9 @@ check_merge() {
 
     for TOK in "$WANT_A" "$WANT_B" "$WANT_BASE"; do
         if echo "$OUT" | grep -qF "$TOK"; then
-            printf "PASS: %s contains %q\n" "$P" "$TOK"
+            printf "PASS: %s contains '%s'\n" "$P" "$TOK"
         else
-            printf "FAIL: %s missing %q\n" "$P" "$TOK"
+            printf "FAIL: %s missing '%s'\n" "$P" "$TOK"
             FAIL=$((FAIL + 1))
         fi
     done

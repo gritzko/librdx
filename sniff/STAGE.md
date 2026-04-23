@@ -35,7 +35,7 @@ rather than appending to the tail `NNNNN.keeper` means:
   * `be post` promotes the committed tree into a fresh canonical
     pack and deletes the staging files atomically — no holes in the
     main log.
-  * Dog-to-dog sync (`keeper/SYNC.md`) only ships `NNNNN.keeper`;
+  * Dog-to-dog sync (`keeper/WIRE.md`) ships canonical packs only;
     `stage.*` files are skipped by filename.
 
 ## Pack format inside a staging pack
@@ -132,9 +132,8 @@ the last pack on keeper open.
 
 ## Replication
 
-Staging files never participate in SYNC.  `keeper/SYNC.c` only
-streams `NNNNN.keeper` + `REFS`; `stage.*` names are excluded by
-convention.
+Staging files never participate in the wire protocol.  `keeper/WIRE.c`
+ships canonical packs only; `stage.*` names are excluded by convention.
 
 ## Concurrency
 
