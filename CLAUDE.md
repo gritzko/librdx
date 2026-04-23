@@ -30,6 +30,8 @@
       - utf8s for text slices, u8s for binary
       - use abc/PATH over manual path construction, starting with a_pad()
       - PRO.h can not be imported by public headers as it pollutes the namespace.
+      - note that ABC APIs like to *consume* slices; that is often signaled
+        through type (u8cs consumed, u8csc is not); use that
         To use PRO.h macros (call, done, etc) a function must start with sane() check.
         Also, the main() has to be MAIN(), TEST() or fuzz() to declare PRO.h globals.
 2.  Function naming convention: `MOD typ8 VerbStuff ()`, e.g. `HEXu8sFeed()` 
