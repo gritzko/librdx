@@ -240,7 +240,7 @@ Types: `walk` (walker state), `walk_fn` (visitor callback).
 
 Library `gitcompat` (static): GIT.c PKT.c PACK.c DELT.c ZINF.c SHA1.c IGNO.c.
 Library `keeplib` (static): KEEP.c KEEP.exe.c REFS.c REFADV.c WALK.c
-                            UNPK.c PATHS.c SYNC.c PSTR.c WIRE.c
+                            UNPK.c PATHS.c PSTR.c WIRE.c
                             WIRECLI.c RECV.c.
 Links: abc, ZLIB, OpenSSL::Crypto.
 

@@ -1548,8 +1548,8 @@ ok64 KEEPImport(keeper *k, u8cs pack_path) {
 
 // --- Ingest: write received pack-file bytes into keeper's log + index ---
 //
-// One SYNC.md Q record carries a whole keeper log file (PACK header +
-// stripped object records, no git trailer).  We write it as a fresh
+// A receive-pack ingest carries a whole pack file (PACK header +
+// object records, no git trailer).  We write it as a fresh
 // NNNNN.keeper on disk, UNPK-index it, and emit one pack bookmark
 // at offset 12 — identical to what KEEPPackOpen/Close would have
 // produced had the pack been built locally.  k->shards[0].packs / k->shards[0].runs are
@@ -2040,15 +2040,15 @@ ok64 KEEPSync(keeper *k, u8cs remote, u8cs origin_uri,
     // the advertisement EOFs at 0 bytes. (Pre-existing bug: refs was
     // declared after the goto site; sync_fail's free(refs) read
     // indeterminate memory and SEGV'd on every early-fail path.)
-    typedef struct { sha1hex sha; sha1hex peeled; char name[256]; } sync_ref;
-    sync_ref *refs = NULL;
+    typedef struct { sha1hex sha; sha1hex peeled; char name[256]; } push_ref;
+    push_ref *refs = NULL;
 
     // Read ref advertisement
-    #define SYNC_BUFSZ KEEP_BUFSZ  // same as KEEPGet buffers (1 GB mmap)
+    #define PUSH_BUFSZ KEEP_BUFSZ  // same as KEEPGet buffers (1 GB mmap)
     // mmap large buffers (virtual space only, pages on demand)
     Bu8 rbuf_b = {}, objbuf_b = {};
-    u8bMap(rbuf_b, SYNC_BUFSZ);
-    u8bMap(objbuf_b, SYNC_BUFSZ);
+    u8bMap(rbuf_b, PUSH_BUFSZ);
+    u8bMap(objbuf_b, PUSH_BUFSZ);
     u8p rbuf = u8bHead(rbuf_b);
     u8p buf1 = u8bHead(k->buf1);  // reuse keeper's pre-allocated buffers
     u8p buf2 = u8bHead(k->buf2);
@@ -2080,7 +2080,7 @@ ok64 KEEPSync(keeper *k, u8cs remote, u8cs origin_uri,
 
     // Drain remaining refs until flush.
     u32 ref_cap = 4096;
-    refs = malloc(ref_cap * sizeof(sync_ref));
+    refs = malloc(ref_cap * sizeof(push_ref));
     if (!refs) { u8bUnMap(rbuf_b); u8bUnMap(objbuf_b);
                  close(wfd); close(rfd);
                  kill(pid, SIGTERM); waitpid(pid, NULL, 0);
@@ -2121,7 +2121,7 @@ ok64 KEEPSync(keeper *k, u8cs remote, u8cs origin_uri,
             // Grow if needed
             if (nrefs >= ref_cap) {
                 ref_cap *= 2;
-                sync_ref *grown = realloc(refs, ref_cap * sizeof(sync_ref));
+                push_ref *grown = realloc(refs, ref_cap * sizeof(push_ref));
                 if (!grown) break;
                 refs = grown;
             }
@@ -2294,7 +2294,7 @@ ok64 KEEPSync(keeper *k, u8cs remote, u8cs origin_uri,
     u8bReset(rbuf_b);
     u64 rlen = 0;
     for (;;) {
-        ssize_t n = read(rfd, rbuf + rlen, SYNC_BUFSZ - rlen);
+        ssize_t n = read(rfd, rbuf + rlen, PUSH_BUFSZ - rlen);
         if (n <= 0) { if (rlen == 0) goto sync_fail; break; }
         rlen += (u64)n;
         // Stop once we see PACK magic in the buffer

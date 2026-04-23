@@ -3,7 +3,6 @@
 //
 #include "KEEP.h"
 #include "REFS.h"
-#include "SYNC.h"
 #include "WIRE.h"
 
 #include <stdio.h>
@@ -23,7 +22,7 @@
 
 char const *const KEEP_CLI_VERBS[] = {
     "get", "put", "post", "status", "import", "verify",
-    "refs", "alias", "ls-files", "sync",
+    "refs", "alias", "ls-files",
     "upload-pack", "receive-pack",
     "help", NULL
 };
@@ -628,13 +627,6 @@ ok64 KEEPExec(keeper *k, cli *c) {
             return KEEPFAIL;
         }
         return keeper_alias(k, &c->uris[0], &c->uris[1]);
-    }
-
-    a_cstr(v_sync, "sync");
-    if ($eq(c->verb, v_sync)) {
-        //  Server side of plain dog sync — read TLV from stdin,
-        //  emit TLV to stdout.  Stateless; one session per invocation.
-        return SYNCServe(k, 0, 1);
     }
 
     a_cstr(v_lsfiles, "ls-files");
