@@ -78,3 +78,9 @@ target_compile_options(HOMEtest PRIVATE ${TEST_CXX_FLAGS})
 target_link_libraries(HOMEtest dog abc-core)
 add_test(NAME HOMEtest COMMAND HOMEtest)
 
+add_executable(ULOGtest ULOG.c)
+target_link_options(ULOGtest PRIVATE ${TEST_LDD_FLAGS})
+target_compile_options(ULOGtest PRIVATE ${TEST_CXX_FLAGS})
+target_link_libraries(ULOGtest dog abc-core)
+add_test(NAME ULOGtest COMMAND ULOGtest)
+
