@@ -33,6 +33,7 @@ static void graf_usage(void) {
         "Usage: graf <verb> [flags] [URI...]\n"
         "\n"
         "  Verbs:\n"
+        "    get path?sha1&sha2[&...]     deterministic blob/tree merge\n"
         "    diff old new                 token-level colored diff\n"
         "    merge base ours theirs       3-way merge\n"
         "    blame file                   token-level blame\n"
@@ -180,14 +181,33 @@ ok64 GRAFExec(cli *c) {
         return FAILSANITY;
     }
 
-    
+
     call(KEEPOpen, g->h, YES);
     ok64 ret = OK;
 
-    if ($eq(c->verb, v_get) || $eq(c->verb, v_index)) {
+    if ($eq(c->verb, v_index)) {
         //  Pull every keeper object through graf's DOG.md §8 streaming
         //  ingest: COMMIT → TREE → BLOB → finish.  Idempotent.
         ret = GRAFIndex(&KEEP);
+
+    } else if ($eq(c->verb, v_get)) {
+        if (c->nuris < 1) {
+            fprintf(stderr, "graf: get requires a URI\n");
+            KEEPClose();
+            return FAILSANITY;
+        }
+        uri *u = &c->uris[0];
+        Bu8 out = {};
+        ret = u8bMap(out, 16UL << 20);
+        if (ret == OK) {
+            a_dup(u8c, uri_in, u->data);
+            ret = GRAFGet(out, uri_in);
+            if (ret == OK) {
+                a_dup(u8c, obytes, u8bData(out));
+                ret = FILEFeedAll(STDOUT_FILENO, obytes);
+            }
+            u8bUnMap(out);
+        }
 
     } else if ($eq(c->verb, v_blame)) {
         if (c->nuris < 1) {

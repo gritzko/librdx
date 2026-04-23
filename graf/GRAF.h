@@ -110,4 +110,11 @@ ok64 GRAFBlame(keeper *k, u8cs filepath, u64 tip_h, u8cs reporoot);
 ok64 GRAFWeaveDiff(keeper *k, u8cs filepath, u8cs reporoot,
                    u8cs from, u8cs to);
 
+// Deterministic URI-driven blob/tree merge (see graf/GET.md).
+//
+// URI grammar: `path?sha1&sha2&...&shaN`.  Trailing `/` on the path
+// selects tree mode (future task).  Reaches keeper via &KEEP and graf
+// state via &GRAF — callers must have both singletons open.
+ok64 GRAFGet(u8b into, u8csc uri);
+
 #endif

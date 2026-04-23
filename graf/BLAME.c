@@ -8,6 +8,7 @@
 //  pairwise token-level diff via DIFFu8cs.
 //
 #include "GRAF.h"
+#include "BLOB.h"
 #include "DAG.h"
 #include "TDIFF.h"
 #include "WEAVE.h"
@@ -26,13 +27,6 @@
 #include "dog/WHIFF.h"
 #include "keeper/GIT.h"
 #include "keeper/REFS.h"
-
-// --- Blob version in the chain ---
-
-typedef struct {
-    u64 commit_hashlet;
-    u32 gen;
-} blame_ver;
 
 #define BLAME_MAX_VERS 256
 #define BLAME_MAX_AUTHORS 256
@@ -88,15 +82,6 @@ static void blame_compact_date(char *out, size_t outsz,
     }
 }
 
-//  graf stores 40-bit hashlets (top 40 bits of SHA-1); keeper stores
-//  60-bit hashlets (top 60 bits) in its LSM keys.  To resolve a graf
-//  hashlet in keeper, left-align into the 60-bit space and do a
-//  40-bit prefix match (hexlen=10).  For the small test repos that
-//  drive us today, 40-bit collisions are vanishingly rare; the
-//  caller further narrows false positives by checking obj_type.
-fun u64 blame_h40_to_h60_prefix(u64 h40) { return h40 << 20; }
-#define BLAME_HEXLEN_40 10
-
 // --- Fetch author + date from commit via keeper ---
 
 static void blame_fetch_author(blame_author *ba, keeper *k,
@@ -107,8 +92,8 @@ static void blame_fetch_author(blame_author *ba, keeper *k,
     Bu8 cbuf = {};
     if (u8bMap(cbuf, 1UL << 20) != OK) return;
     u8 obj_type = 0;
-    if (KEEPGet(k, blame_h40_to_h60_prefix(commit_hashlet),
-                BLAME_HEXLEN_40, cbuf, &obj_type) != OK ||
+    if (KEEPGet(k, DAGh40ToKeeperPrefix(commit_hashlet),
+                DAG_H40_HEXLEN, cbuf, &obj_type) != OK ||
         obj_type != DOG_OBJ_COMMIT) {
         u8bUnMap(cbuf);
         return;
@@ -162,112 +147,10 @@ a_dup(u8c, scan, u8bDataC(cbuf));
     u8bUnMap(cbuf);
 }
 
-// Forward decls for helpers defined after GRAFBlame.
-static ok64 blame_tree_step(keeper *k, sha1 *cur, u8cs name);
+// Forward decl: ref-scoped blob fetch lives at end of file.
 static ok64 blame_read_blob(u8bp buf, keeper *k, u8cs ref, u8cs filepath);
 
 #define BLAME_ANC_SIZE  (1u << 18)   // 256K slots ≈ 4MB, power of 2
-
-// --- Resolve (commit_hashlet, filepath) → blob content ---
-//
-// Fetches the commit object by hashlet, parses its tree SHA from
-// the header, then descends the tree one path segment at a time
-// (same mechanism as blame_read_blob, but keyed by commit_h instead
-// of a ref string).  Returns KEEPNONE if the path is absent in this
-// commit's tree (e.g. hashlet collision or rename) — caller should
-// treat as "skip this version".
-
-static ok64 blame_blob_at_commit(u8bp buf, keeper *k,
-                                  u64 commit_hashlet, u8cs filepath) {
-    sane(buf && k);
-
-    Bu8 cbuf = {};
-    call(u8bAllocate, cbuf, 1UL << 20);
-    u8 ct = 0;
-    ok64 o = KEEPGet(k, blame_h40_to_h60_prefix(commit_hashlet),
-                     BLAME_HEXLEN_40, cbuf, &ct);
-    if (o != OK || ct != DOG_OBJ_COMMIT) { u8bFree(cbuf); return KEEPNONE; }
-
-    // Parse "tree <40-hex>" from header.
-    sha1 tree_sha = {};
-    b8 got_tree = NO;
-    {
-        a_dup(u8c, scan, u8bDataC(cbuf));
-        u8cs field = {}, value = {};
-        while (GITu8sDrainCommit(scan, field, value) == OK) {
-            if (u8csEmpty(field)) break;
-            a_cstr(ft, "tree");
-            if ($eq(field, ft) && u8csLen(value) >= 40) {
-                DAGsha1FromHex(&tree_sha, (char const *)value[0]);
-                got_tree = YES;
-                break;
-            }
-        }
-    }
-    u8bFree(cbuf);
-    if (!got_tree) return KEEPNONE;
-
-    sha1 cur = tree_sha;
-    u8cs rest = {filepath[0], filepath[1]};
-    while (!$empty(rest)) {
-        u8cp slash = rest[0];
-        while (slash < rest[1] && *slash != '/') slash++;
-        u8cs name = {rest[0], slash};
-        ok64 s = blame_tree_step(k, &cur, name);
-        if (s != OK) return s;
-        rest[0] = (slash < rest[1]) ? slash + 1 : slash;
-    }
-
-    u8 btype = 0;
-    call(KEEPGetExact, k, &cur, buf, &btype);
-    if (btype != DOG_OBJ_BLOB) return KEEPNONE;
-    done;
-}
-
-// --- Walk file history via DAG index (PATH_VER scan on path hashlet) ---
-//
-// PATH_VER: a = pack(PATH_VER, gen, path_hashlet40),
-//           b = pack(PATH_VER, gen, commit_hashlet40)
-// Scans all runs for matching path_hashlet, returns newest-first.
-// path_hashlet = RAPHash(filepath) & WHIFF_OFF_MASK — 40 bits;
-// collisions possible but verified by the caller (actual path must
-// exist in the commit's tree, else the candidate is dropped).
-
-// `ancestors` may be an empty-sized Bwh128 (no filter) or a populated
-// set; when populated, candidates whose commit is not in the set are
-// dropped.
-// `ancestors` empty → no filter; populated → drop non-ancestor hits.
-static u32 blame_walk_history(blame_ver *vers, u32 maxvers,
-                               dag_stack const *idx,
-                               u8cs filepath,
-                               Bwh128 ancestors) {
-    u64 path_h = RAPHash(filepath) & WHIFF_OFF_MASK;
-    b8 has_filter = wh128bHead(ancestors) != wh128bTerm(ancestors);
-    u32 count = 0;
-    for (u32 r = 0; r < idx->n && count < maxvers; r++) {
-        wh128cp base = idx->runs[r][0];
-        size_t len = (size_t)(idx->runs[r][1] - base);
-        for (size_t i = 0; i < len && count < maxvers; i++) {
-            if (DAGType(base[i].key) != DAG_PATH_VER) continue;
-            if (DAGHashlet(base[i].key) != path_h) continue;
-            u64 c_h = DAGHashlet(base[i].val);
-            if (has_filter && !DAGAncestorsHas(ancestors, c_h)) continue;
-            vers[count].gen = DAGGen(base[i].key);
-            vers[count].commit_hashlet = c_h;
-            count++;
-        }
-    }
-
-    // Sort by gen descending (newest first)
-    for (u32 i = 1; i < count; i++) {
-        for (u32 j = i; j > 0 && vers[j].gen > vers[j - 1].gen; j--) {
-            blame_ver tmp = vers[j];
-            vers[j] = vers[j - 1];
-            vers[j - 1] = tmp;
-        }
-    }
-    return count;
-}
 
 // --- Find author for a gen in the author table ---
 
@@ -305,15 +188,15 @@ ok64 GRAFBlame(keeper *k, u8cs filepath, u64 tip_h, u8cs reporoot) {
         DAGAncestors(ancestors, &GRAF.idx, tip_h, 0);
     }
 
-    blame_ver vers[BLAME_MAX_VERS];
-    u32 nvers = blame_walk_history(vers, BLAME_MAX_VERS, &GRAF.idx,
-                                    filepath, ancestors);
+    graf_pathver vers[BLAME_MAX_VERS];
+    u32 nvers = DAGPathVers(vers, BLAME_MAX_VERS, &GRAF.idx,
+                            filepath, ancestors);
 
     // Reverse to oldest first.  Byte-level dedup happens in the
     // fetch loop below (collision or unchanged-path commits produce
     // identical bytes and are skipped there).
     for (u32 i = 0; i < nvers / 2; i++) {
-        blame_ver tmp = vers[i];
+        graf_pathver tmp = vers[i];
         vers[i] = vers[nvers - 1 - i];
         vers[nvers - 1 - i] = tmp;
     }
@@ -342,8 +225,8 @@ ok64 GRAFBlame(keeper *k, u8cs filepath, u64 tip_h, u8cs reporoot) {
         // Resolve (commit, filepath) → blob via keeper.  Drops
         // false-positive PATH_VER hits (collisions, or commits
         // where the path doesn't actually exist).
-        ok64 fo = blame_blob_at_commit(*cur_blob, k,
-                                        vers[i].commit_hashlet, filepath);
+        ok64 fo = GRAFBlobAtCommit(*cur_blob, k,
+                                    vers[i].commit_hashlet, filepath);
         if (fo != OK) continue;
 
         // Byte-level dedup: if this blob is identical to the
@@ -507,35 +390,6 @@ ok64 GRAFBlame(keeper *k, u8cs filepath, u64 tip_h, u8cs reporoot) {
 
 // --- Weave diff: resolve (ref, filepath) → blob via path descent ---
 
-// Given the current tree SHA in `cur`, find the entry named `name` and
-// set `cur` to its raw SHA.  Returns KEEPNONE if not found, KEEPFAIL on
-// malformed tree.
-static ok64 blame_tree_step(keeper *k, sha1 *cur, u8cs name) {
-    sane(k && cur);
-    Bu8 tbuf = {};
-    call(u8bAllocate, tbuf, 1UL << 20);
-    u8 otype = 0;
-    ok64 o = KEEPGetExact(k, cur, tbuf, &otype);
-    if (o != OK) { u8bFree(tbuf); return o; }
-    if (otype != DOG_OBJ_TREE) { u8bFree(tbuf); fail(KEEPFAIL); }
-
-    u8cs body = {u8bDataHead(tbuf), u8bIdleHead(tbuf)};
-    u8cs field = {}, esha = {};
-    ok64 result = KEEPNONE;
-    while (GITu8sDrainTree(body, field, esha) == OK) {
-        u8cs scan = {field[0], field[1]};
-        if (u8csFind(scan, ' ') != OK) continue;
-        u8cs entry_name = {scan[0] + 1, field[1]};
-        if ($len(entry_name) != $len(name)) continue;
-        if (memcmp(entry_name[0], name[0], $len(name)) != 0) continue;
-        memcpy(cur->data, esha[0], 20);
-        result = OK;
-        break;
-    }
-    u8bFree(tbuf);
-    return result;
-}
-
 // Resolve `ref` + `filepath` to the blob content at that path.
 // Descends path segments one at a time (O(depth) tree loads) rather
 // than walking the full tree.
@@ -560,7 +414,7 @@ static ok64 blame_read_blob(u8bp buf, keeper *k, u8cs ref, u8cs filepath) {
         u8cp slash = rest[0];
         while (slash < rest[1] && *slash != '/') slash++;
         u8cs name = {rest[0], slash};
-        call(blame_tree_step, k, &cur, name);
+        call(GRAFTreeStep, k, &cur, name);
         rest[0] = (slash < rest[1]) ? slash + 1 : slash;
     }
 

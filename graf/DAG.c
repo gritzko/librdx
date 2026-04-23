@@ -378,6 +378,48 @@ ok64 DAGAncestors(Bwh128 set, dag_stack const *idx,
     done;
 }
 
+ok64 DAGAncestorsOfMany(Bwh128 set, dag_stack const *idx,
+                        u64 const *tips, u32 n) {
+    sane(idx);
+    for (u32 i = 0; i < n; i++) {
+        if (tips[i] == 0) continue;
+        call(DAGAncestors, set, idx, tips[i], 0);
+    }
+    done;
+}
+
+u32 DAGPathVers(graf_pathver *out, u32 maxvers,
+                dag_stack const *idx,
+                u8cs filepath,
+                Bwh128 ancestors) {
+    u64 path_h = RAPHash(filepath) & WHIFF_OFF_MASK;
+    b8 has_filter = wh128bHead(ancestors) != wh128bTerm(ancestors);
+    u32 count = 0;
+    for (u32 r = 0; r < idx->n && count < maxvers; r++) {
+        wh128cp base = idx->runs[r][0];
+        size_t len = (size_t)(idx->runs[r][1] - base);
+        for (size_t i = 0; i < len && count < maxvers; i++) {
+            if (DAGType(base[i].key) != DAG_PATH_VER) continue;
+            if (DAGHashlet(base[i].key) != path_h) continue;
+            u64 c_h = DAGHashlet(base[i].val);
+            if (has_filter && !DAGAncestorsHas(ancestors, c_h)) continue;
+            out[count].gen = DAGGen(base[i].key);
+            out[count].commit_hashlet = c_h;
+            count++;
+        }
+    }
+
+    // Sort by gen descending (newest first).
+    for (u32 i = 1; i < count; i++) {
+        for (u32 j = i; j > 0 && out[j].gen > out[j - 1].gen; j--) {
+            graf_pathver tmp = out[j];
+            out[j] = out[j - 1];
+            out[j - 1] = tmp;
+        }
+    }
+    return count;
+}
+
 // --- Compaction (merges multiple runs when newer is large vs older) ---
 
 static ok64 dag_compact(u8cs dagdir) {

@@ -152,7 +152,47 @@ u32 DAGParents(dag_stack const *idx, u64 commit_h, u64 *out, u32 cap);
 ok64 DAGAncestors(Bwh128 set, dag_stack const *idx,
                   u64 tip, u32 cutoff_gen);
 
+//  Union of DAGAncestors across `n` tips into `set`.  Each tip is
+//  walked independently; duplicates collapse on the common set.
+ok64 DAGAncestorsOfMany(Bwh128 set, dag_stack const *idx,
+                        u64 const *tips, u32 n);
+
 //  Membership check on a set populated by DAGAncestors.
 b8 DAGAncestorsHas(Bwh128 set, u64 commit_h);
+
+// --- hashlet width bridging ---
+//
+//  graf stores 40-bit hashlets (top 40 bits of SHA-1); keeper stores
+//  60-bit hashlets (top 60 bits) in its LSM keys.  To resolve a graf
+//  hashlet in keeper, left-align into the 60-bit space and do a
+//  40-bit prefix match (hexlen = 10).  For small repos 40-bit
+//  collisions are vanishingly rare; the caller further narrows by
+//  checking obj_type.
+
+#define DAG_H40_HEXLEN 10
+
+fun u64 DAGh40ToKeeperPrefix(u64 h40) { return h40 << 20; }
+
+// --- Per-path version walk ---
+//
+//  One PATH_VER hit: a commit at `gen` touched a path whose 40-bit
+//  hashlet matches the caller's `path_h40`.  Used by blame and
+//  GRAFGet to enumerate a file's history.
+
+typedef struct {
+    u64 commit_hashlet;
+    u32 gen;
+} graf_pathver;
+
+//  Scan every PATH_VER record whose key's hashlet matches
+//  `RAPHash(filepath) & WHIFF_OFF_MASK`.  When `ancestors` is
+//  populated (i.e. head != term), commits outside the set are
+//  dropped.  Empty `ancestors` = no filter.  Results land in `out`
+//  newest-first (gen descending), capped at `maxvers`.  Returns the
+//  number written.
+u32 DAGPathVers(graf_pathver *out, u32 maxvers,
+                dag_stack const *idx,
+                u8cs filepath,
+                Bwh128 ancestors);
 
 #endif
