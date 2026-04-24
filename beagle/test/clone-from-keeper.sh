@@ -72,7 +72,7 @@ mkdir -p .dogs/keeper
 be get "be://localhost/$KSRV_REL"
 
 # --- 5. compare worktrees ---
-RDIFF=$(rsync -rlcn --delete \
+RDIFF=$(rsync -rlcni --delete \
     --exclude='/.git/' --exclude='/.dogs/' --exclude='/.sniff' \
     "$TMP/git-clone/" "$TMP/be-clone/" 2>&1)
 if [ -n "$RDIFF" ]; then

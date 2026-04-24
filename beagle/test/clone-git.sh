@@ -49,7 +49,7 @@ fi
 
 # --- compare worktrees (rsync dry-run) ---
 echo "=== diff ==="
-RDIFF=$(rsync -rlcn --delete \
+RDIFF=$(rsync -rlcni --delete \
     --exclude='/.git/' --exclude='/.dogs/' \
     "$GIT_DIR/" "$DOGS_DIR/" 2>&1)
 

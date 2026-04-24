@@ -191,7 +191,7 @@ for M in $MERGES; do
 
     git -C "$REFCLONE" checkout --quiet --force "$M"
 
-    RDIFF=$(rsync -rlcn --delete \
+    RDIFF=$(rsync -rlcni --delete \
         --exclude='/.git/' --exclude='/.dogs/' --exclude='/.sniff' \
         "$REFCLONE/" "$WT/" 2>&1)
 
