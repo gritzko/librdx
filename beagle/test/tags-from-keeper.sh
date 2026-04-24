@@ -90,7 +90,7 @@ for STEP in "v1 refs/tags/v1" "v2 refs/tags/v2" "master refs/heads/master"; do
     git -C "$TMP/git-clone" checkout --quiet "refs/keep/$NAME"
 
     RDIFF=$(rsync -rlcn --delete \
-        --exclude='/.git/' --exclude='/.dogs/' --exclude='/.sniff/' \
+        --exclude='/.git/' --exclude='/.dogs/' --exclude='/.sniff' \
         "$TMP/git-clone/" "$TMP/be-clone/" 2>&1)
     if [ -n "$RDIFF" ]; then
         echo "FAIL: tags-from-keeper $NAME"

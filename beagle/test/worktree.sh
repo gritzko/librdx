@@ -1,14 +1,13 @@
 #!/bin/sh
 #  worktree.sh — worktree clone + commit-from-worktree flow.
 #
-#  Phase 2 model:
 #    * Primary repo holds `<repo>/.dogs/` (store: keeper packs + indexes,
-#      graf, spot) and `<repo>/.sniff/` (per-wt state: at.log, staging).
-#    * `be get <primary>` in a fresh dir creates the worktree as:
+#      graf, spot) and `<repo>/.sniff` (the primary's ULOG).
+#    * `be get <primary>` in a fresh dir creates the secondary wt as:
 #        <wt>/.dogs  — symlink to <primary>/.dogs/
-#        <wt>/.sniff/ — real local dir for this wt's sniff state
-#    * Both wts share the entire object store; each keeps its own HEAD
-#      via its local `.sniff/at.log`.
+#        <wt>/.sniff — local ULOG file for this wt's state
+#    * Both wts share the entire object store; each keeps its own
+#      HEAD in its local `.sniff` file.
 #
 set -eu
 
@@ -25,9 +24,13 @@ trap 'rm -rf "$TMP"' EXIT INT TERM
 fail() { echo "FAIL: $*" >&2; exit 1; }
 note() { echo "  - $*"; }
 
-# Tail SHA of a worktree's local .sniff/at.log.
+# Tail SHA of a worktree's .sniff ULOG.  Rows are
+# `<ts>\t<verb>\t<uri>`; the latest `post` row's URI fragment is the
+# commit sha.
 head_hex_of() {
-    awk -F'\t' 'END {gsub(/^\?/,"",$3); print $3}' "$1/.sniff/at.log"
+    awk -F'\t' '$2 == "post" { last = $3 } END {
+        n = index(last, "#"); if (n > 0) print substr(last, n + 1)
+    }' "$1/.sniff"
 }
 
 # --- 1. primary ------------------------------------------------------
@@ -39,7 +42,7 @@ SEED_HEAD=$(head_hex_of "$PRIM")
 [ -n "$SEED_HEAD" ] || fail "primary HEAD empty after post"
 note "primary HEAD=$SEED_HEAD"
 [ -d "$PRIM/.dogs" ] || fail "primary missing .dogs/"
-[ -d "$PRIM/.sniff" ] || fail "primary missing .sniff/"
+[ -f "$PRIM/.sniff" ] || fail "primary missing .sniff"
 ls "$PRIM/.dogs"/*.keeper >/dev/null 2>&1 \
     || fail "primary missing .dogs/*.keeper"
 
@@ -51,8 +54,8 @@ WT="$TMP/wt"; mkdir -p "$WT"; cd "$WT"
 tgt=$(readlink "$WT/.dogs")
 [ "$tgt" = "$PRIM/.dogs" ] \
     || fail ".dogs -> $tgt, expected $PRIM/.dogs"
-[ -d "$WT/.sniff" ] && [ ! -L "$WT/.sniff" ] \
-    || fail ".sniff should be a real dir"
+[ -f "$WT/.sniff" ] && [ ! -L "$WT/.sniff" ] \
+    || fail ".sniff should be a local file"
 note "wt: .dogs -> primary, .sniff local"
 
 # --- 3. shared store reachable through the symlink ------------------

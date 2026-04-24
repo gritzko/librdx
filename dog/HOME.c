@@ -115,14 +115,21 @@ ok64 HOMEOpen(home *h, u8cs at, b8 rw) {
     h->open_branches_count = 0;
     h->write_frozen = NO;
 
-    // 1. Path buffer for root, 1 KB.
+    // 1. Path buffers for wt and repo root, 1 KB each.
     call(u8bAllocate, h->root, FILE_PATH_MAX_LEN);
+    call(u8bAllocate, h->wt,   FILE_PATH_MAX_LEN);
 
     // 2. Resolve root: explicit → feed; implicit → HOMEFindDogs.
     if ($ok(at) && !u8csEmpty(at)) {
         call(PATHu8bFeed, h->root, at);
     } else {
         call(HOMEFindDogs, h);
+    }
+    //  Default wt = root (colocated).  SNIFFOpen refines h->root from
+    //  the `.sniff` repo row in secondary worktrees.
+    {
+        a_dup(u8c, r, u8bDataC(h->root));
+        call(PATHu8bFeed, h->wt, r);
     }
 
     // 3. Scratch arena — 4 GB VA, pages on demand.
@@ -154,6 +161,7 @@ ok64 HOMEClose(home *h) {
     if (h->config[0]        != NULL) FILEUnMap(h->config);
     if (h->arena[0]         != NULL) u8bUnMap(h->arena);
     if (h->root[0]          != NULL) u8bFree(h->root);
+    if (h->wt[0]            != NULL) u8bFree(h->wt);
     if (h->branches_data[0] != NULL) u8bFree(h->branches_data);
     zerop(h);
     done;
@@ -220,59 +228,11 @@ b8 HOMEBranchVisible(home const *h, u8cs branch) {
 
 // --- Workspace finders ---
 
-ok64 HOMEFollowWorktree(home *h, path8s gitfile) {
-    sane(h != NULL && $ok(gitfile) && !$empty(gitfile));
-
-    u8bp mapped = NULL;
-    call(FILEMapRO, &mapped, gitfile);
-    a_dup(u8c, content, u8bDataC(mapped));
-    a_cstr(prefix, "gitdir: ");
-    ok64 o = OK;
-    a_path(gitdir);
-
-    if ($len(content) <= $len(prefix)) { o = PATHBAD; goto out; }
-    {
-        u8cs pfx = {content[0], content[0] + $len(prefix)};
-        if (!$eq(pfx, prefix)) { o = PATHBAD; goto out; }
-    }
-    {
-        u8cp start = content[0] + $len(prefix);
-        u8cp end = content[1];
-        while (end > start && (*(end - 1) == '\n' || *(end - 1) == '\r'))
-            end--;
-        u8cs gds = {start, end};
-        if ($empty(gds)) { o = PATHBAD; goto out; }
-        if (gds[0][0] == '/') {
-            o = PATHu8bFeed(gitdir, gds);
-        } else {
-            o = PATHu8bFeed(gitdir, gitfile);
-            if (o == OK) o = PATHu8bPop(gitdir);
-            if (o == OK) o = PATHu8bPush(gitdir, gds);
-        }
-        if (o != OK) goto out;
-    }
-    o = FILEisdir($path(gitdir));
-    if (o != OK) goto out;
-    o = PATHu8bPop(gitdir);
-    if (o == OK) o = PATHu8bPop(gitdir);
-    if (o == OK) o = FILEisdir($path(gitdir));
-    if (o != OK) goto out;
-    o = PATHu8bPop(gitdir);
-    if (o != OK) goto out;
-    {
-        u8bReset(h->root);
-        a_dup(u8c, gd, u8bDataC(gitdir));
-        o = PATHu8bFeed(h->root, gd);
-    }
-out:
-    FILEUnMap(mapped);
-    return o;
-}
-
-// Walk up from cwd to the first dir containing .git OR .dogs.  Fills
-// h->root with the found path.  *is_worktree=YES iff a .git *file*
-// stopped the walk.
-static ok64 home_walk_up(home *h, b8 *is_worktree) {
+// Walk up from cwd to the first dir that looks like a sniff/keeper
+// anchor: either a `.sniff` regular file (a worktree) or a `.dogs`
+// subdirectory (the colocated store).  Fills h->root with the found
+// path.  Returns NOHOME if the walk reaches / without finding either.
+static ok64 home_walk_up(home *h) {
     sane(h != NULL);
 
     u8bReset(h->root);
@@ -280,20 +240,18 @@ static ok64 home_walk_up(home *h, b8 *is_worktree) {
     test(getcwd(cwdbuf, sizeof(cwdbuf)) != NULL, NOHOME);
     u8cs cwds = {(u8cp)cwdbuf, (u8cp)cwdbuf + strlen(cwdbuf)};
     call(PATHu8bFeed, h->root, cwds);
-    if (is_worktree) *is_worktree = NO;
 
-    a_cstr(dotgit,  ".git");
-    a_cstr(dotdogs, ".dogs");
+    a_cstr(dotsniff, ".sniff");
+    a_cstr(dotdogs,  ".dogs");
     for (;;) {
         struct stat sb = {};
         {
             a_path(probe);
             a_dup(u8c, cur, u8bDataC(h->root));
             call(PATHu8bFeed, probe, cur);
-            call(PATHu8bPush, probe, dotgit);
-            if (stat((char const *)*$path(probe), &sb) == 0) {
-                if (is_worktree)
-                    *is_worktree = (sb.st_mode & S_IFDIR) ? NO : YES;
+            call(PATHu8bPush, probe, dotsniff);
+            if (stat((char const *)*$path(probe), &sb) == 0 &&
+                (sb.st_mode & S_IFREG)) {
                 done;
             }
         }
@@ -317,25 +275,12 @@ static ok64 home_walk_up(home *h, b8 *is_worktree) {
 
 ok64 HOMEFind(home *h) {
     sane(h != NULL);
-    return home_walk_up(h, NULL);
+    return home_walk_up(h);
 }
 
 ok64 HOMEFindDogs(home *h) {
     sane(h != NULL);
-    b8 is_wt = NO;
-    call(home_walk_up, h, &is_wt);
-
-    if (!is_wt) done;
-
-    a_cstr(dotgit, ".git");
-    a_path(probe);
-    a_dup(u8c, cur, u8bDataC(h->root));
-    call(PATHu8bFeed, probe, cur);
-    call(PATHu8bPush, probe, dotgit);
-
-    ok64 fo = HOMEFollowWorktree(h, $path(probe));
-    (void)fo;   // failure leaves h->root as the worktree dir (fallback)
-    done;
+    return home_walk_up(h);
 }
 
 // --- Resolve sibling binary ---

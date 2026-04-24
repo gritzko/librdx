@@ -41,17 +41,14 @@ Dogs accept URIs of the form:
 
     [scheme:] [//authority] [path] [?ref] [#fragment]
 
-  - `//authority` — remote host or alias (`//origin`, `//github.com/user/repo.git`)
+  - `//authority` — remote host or alias (`//origin`, `//host/path/repo`)
   - `path` — repo-relative file or directory (always a real path)
-  - `?ref` — git ref: branch, tag, SHA, range (`?main`, `?HEAD~3`, `?main..feat`)
+  - `?ref` — branch, tag, SHA, range (`?main`, `?HEAD~3`, `?main..feat`)
   - `#fragment` — location or search within a file (parsed by dog/FRAG)
 
 Short refs like `?main` are ambiguous — resolved by trying
-refs/heads, refs/tags, then SHA prefix (same as git).
-Use `?refs/heads/main` or `?refs/tags/v1.0` to disambiguate.
-
-The `.git/` marker in the path splits the repo address from the
-file path: `//github.com/user/repo.git/src/foo.c?main`.
+`heads/`, then `tags/`, then SHA prefix.  Use `?heads/main` or
+`?tags/v1.0` to disambiguate.
 
 ##  Fragment syntax (dog/FRAG)
 

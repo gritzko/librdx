@@ -33,7 +33,14 @@ con ok64 HOMEMAX   = 0x116163962a1;        // open-branch capacity exhausted
 //     the first Open was ro, `write_frozen` stays NO and no later
 //     Open can claim the write slot.
 typedef struct {
-    path8b root;     // worktree root, NUL-termed
+    path8b root;     // repo root (where `.dogs/` lives), NUL-termed.
+                     // Colocated default: equals `wt`.  Secondary
+                     // worktrees override this from their `.sniff`
+                     // file's `repo` URI so keeper/graf/spot open the
+                     // shared store.
+    path8b wt;       // worktree root (where `.sniff` lives).  May
+                     // differ from `root` for secondary worktrees
+                     // sharing a primary store.
     u8b    config;   // mmap of <root>/.dogs/config (empty if none)
     u8b    arena;    // scratch: 4 GB VA, stack-like consumption.  Each
                      // dog function must rewind the arena to its entry
@@ -57,21 +64,14 @@ ok64 HOMEOpen(home *h, u8cs at, b8 rw);
 // Release arena, config mmap, and path buffer.
 ok64 HOMEClose(home *h);
 
-// Walk up from cwd to the workspace dir (first ancestor with .git or
-// .dogs).  Feeds the found path into h->root.  Returns NOHOME if none.
+// Walk up from cwd to the first ancestor directory containing `.dogs/`.
+// Feeds the found path into h->root.  Returns NOHOME if the walk
+// reaches / without finding one.
 ok64 HOMEFind(home *h);
 
-// Find the directory where .dogs/ should live:
-//   1. Walk up to .git or .dogs.
-//   2. If .git is a directory → use that dir.
-//   3. If .git is a file (worktree) → follow to the parent repo root.
-//   4. If step 3 fails → fall back to the worktree dir from step 1.
+// Alias of HOMEFind kept for callers that want intent-named lookup.
+// Finds the directory where `.dogs/` lives.
 ok64 HOMEFindDogs(home *h);
-
-// Follow a .git worktree file to the parent repo root.  On success
-// feeds the parent repo root (the dir containing the parent .git
-// directory) into h->root.  Any failure leaves h->root unchanged.
-ok64 HOMEFollowWorktree(home *h, path8s gitfile);
 
 // Resolve a peer binary into `out`: same directory as `argv0`
 // (preserving symlinks), or, if `argv0` has no '/', the PATH entry

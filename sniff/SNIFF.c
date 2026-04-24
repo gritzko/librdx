@@ -1,26 +1,20 @@
-//  SNIFF: file path registry + filesystem change log.
+//  SNIFF — worktree state singleton + path-registry wrappers.
 //
-//  Paths are owned by keeper (`.dogs/keeper/paths.log` via KEEPIntern /
-//  KEEPPath / KEEPPathCount).  Sniff owns state.log: a flat append-only
-//  stream of wh64 entries recording per-path state (BLOB/TREE hashlet,
-//  CHECKOUT mtime, CHANGED mtime).
-//
-//  Singleton: `sniff SNIFF` in BSS; SNIFFOpen populates, SNIFFClose
-//  tears down.  All helpers reach the singleton directly.
+//  The only cross-invocation state is `<wt>/.sniff` (dog/ULOG).
+//  The per-process in-RAM state is a path-index sort over keeper's
+//  registry, rebuilt lazily by callers (POST, DEL) that walk sorted
+//  paths to assemble tree objects.  Nothing else survives.
 //
 #include "SNIFF.h"
 
 #include <string.h>
 
 #include "abc/FILE.h"
-#include "abc/HEX.h"
 #include "abc/PATH.h"
 #include "abc/PRO.h"
-#include "keeper/GIT.h"
 #include "keeper/PATHS.h"
-#include "keeper/WALK.h"
 
-#include "STAGE.h"
+#include "AT.h"
 
 // --- Singleton ---
 
@@ -28,79 +22,58 @@ sniff SNIFF = {};
 
 static b8 sniff_is_open(void) { return SNIFF.h != NULL; }
 static b8 sniff_is_rw = NO;
-
-// On SNIFFOpen we may open keeper too; track whether we did so to
-// decide on SNIFFClose whether to KEEPClose it.
 static b8 sniff_opened_keep = NO;
 
-// Append a wh64 pair (BLOB + CHECKOUT) to changes.  Bootstrap path:
-// ls-files lists only regular files, so the base type is always BLOB.
-static ok64 sniff_write_pair(u32 idx, u64 hashlet, u64 checkout) {
-    sane(SNIFF.changes);
-    wh64 h = wh64Pack(SNIFF_BLOB, idx, hashlet);
-    wh64 c = wh64Pack(SNIFF_CHECKOUT, idx, checkout);
-    call(FILEBookEnsure, SNIFF.changes, 2 * sizeof(wh64));
-    u8p *idle = (u8p *)&SNIFF.changes[2];
-    memcpy(*idle, &h, sizeof(wh64));
-    *idle += sizeof(wh64);
-    memcpy(*idle, &c, sizeof(wh64));
-    *idle += sizeof(wh64);
-    done;
-}
+// --- Open / close ---
 
-// --- Bootstrap ---
-//
-//  Seed the path registry + state from `git ls-files -s` on the
-//  worktree.  Only runs on a fresh SNIFFOpen(rw) with zero paths in
-//  the keeper registry.
-static ok64 sniff_bootstrap(u8cs reporoot) {
-    sane($ok(reporoot));
-    a_pad(u8, cmd, 2 * FILE_PATH_MAX_LEN);
-    a_cstr(pre, "git -C ");
-    a_cstr(suf, " ls-files -s 2>/dev/null");
-    call(u8bFeed, cmd, pre);
-    call(u8bFeed, cmd, reporoot);
-    call(u8bFeed, cmd, suf);
-    call(u8bFeed1, cmd, 0);
-    FILE *fp = popen((char *)u8bDataHead(cmd), "r");
-    if (!fp) done;
+//  Write the initial `repo` row into a freshly-created at.log.  The
+//  URI anchors the wt to its store; default is colocated (`<wt>/.dogs/`).
+//  `wt_root` is the wt path (where `.sniff` lives).
+static ok64 sniff_write_repo_row(u8cs wt_root) {
+    sane(SNIFF.h);
+    //  Compose `file:///<wt_root>/.dogs/` via URI component fields;
+    //  ULOGAppend serializes through URIutf8Feed.
+    a_pad(u8, pathbuf, 2048);
+    a_cstr(slash, "/");
+    u8bFeed(pathbuf, wt_root);
+    //  Guarantee exactly one trailing slash before we append ".dogs/".
+    if (u8bDataLen(pathbuf) == 0 ||
+        u8bDataHead(pathbuf)[u8bDataLen(pathbuf) - 1] != '/')
+        u8bFeed(pathbuf, slash);
+    a_cstr(dogs, ".dogs/");
+    u8bFeed(pathbuf, dogs);
 
-    char line[1024];
-    u32 count = 0;
-    while (fgets(line, sizeof(line), fp)) {
-        size_t len = strlen(line);
-        while (len > 0 && (line[len - 1] == '\n' || line[len - 1] == '\r'))
-            line[--len] = 0;
-        if (len == 0) continue;
-
-        char *tab = strchr(line, '\t');
-        if (!tab) continue;
-        char *sha_start = strchr(line, ' ');
-        if (!sha_start || sha_start >= tab) continue;
-        sha_start++;
-
-        a_pad(u8, shabin, 8);
-        u8cs hex16 = {(u8cp)sha_start, (u8cp)sha_start};
-        if (tab - sha_start >= 16)
-            hex16[1] = (u8cp)sha_start + 16;
-        else
-            continue;
-        HEXu8sDrainSome(shabin_idle, hex16);
-
-        a$str(path, tab + 1);
-        u32 idx = KEEPIntern(&KEEP, path);
-
-        u64 hashlet = WHIFFHashlet40((sha1cp)u8bDataHead(shabin));
-        call(sniff_write_pair, idx, hashlet, 0);
-        count++;
+    uri urow = {};
+    a_cstr(scheme, "file");
+    urow.scheme[0] = scheme[0];
+    urow.scheme[1] = scheme[1];
+    {
+        a_dup(u8c, pb, u8bData(pathbuf));
+        urow.path[0] = pb[0];
+        urow.path[1] = pb[1];
     }
-    pclose(fp);
-    if (count > 0)
-        fprintf(stderr, "sniff: seeded %u path(s) from git\n", count);
-    done;
+    ron60 vrepo = SNIFFAtVerbRepo();
+    return ULOGAppend(&SNIFF.log, vrepo, &urow);
 }
 
-// --- Open ---
+//  Resolve the store root from the repo-row URI.  The URI's path is
+//  `/abs/path/.dogs/`; the store root is `/abs/path` (what h->root
+//  must point at so KEEPOpen finds `.dogs/` as a child).
+static void sniff_store_root_from_repo(u8cs uri_path, u8bp out) {
+    a_dup(u8c, p, uri_path);
+    //  Strip trailing slash.
+    if (!$empty(p) && p[1][-1] == '/') p[1]--;
+    //  Strip trailing ".dogs".
+    a_cstr(dogs, ".dogs");
+    if ($len(p) >= $len(dogs) &&
+        memcmp(p[1] - $len(dogs), dogs[0], $len(dogs)) == 0) {
+        p[1] -= $len(dogs);
+    }
+    //  Strip any remaining trailing slash (except for the root "/").
+    while ($len(p) > 1 && p[1][-1] == '/') p[1]--;
+    u8bReset(out);
+    u8bFeed(out, p);
+}
 
 ok64 SNIFFOpen(home *h, b8 rw) {
     sane(h);
@@ -110,76 +83,82 @@ ok64 SNIFFOpen(home *h, b8 rw) {
         return SNIFFOPEN;
     }
 
-    // Open keeper singleton (nests into outer caller's KEEPOpen if any).
-    ok64 kr = KEEPOpen(h, rw);
-    if (kr != OK && kr != KEEPOPEN) return kr;
-    sniff_opened_keep = (kr == OK);
-
     sniff *s = &SNIFF;
     zerop(s);
     s->h = h;
     sniff_is_rw = rw;
 
-    a_dup(u8c, reporoot, u8bDataC(h->root));
-    a_cstr(sniffdir, SNIFF_DIR);
-    a_path(dir, reporoot, sniffdir);
-    if (rw) call(FILEMakeDirP, $path(dir));
+    //  The ULOG lives at `<wt>/.sniff` — one plain file, the whole of
+    //  sniff's per-worktree state.  `h->wt` points at the worktree
+    //  root; for colocated setups it equals `h->root`.
+    a_dup(u8c, wt_root, u8bDataC(h->wt));
+    a_cstr(sniffname, SNIFF_FILE);
+    a_path(atpath, wt_root, sniffname);
+    ok64 uo = ULOGOpen(&s->log, $path(atpath));
+    if (uo != OK) { zerop(s); return uo; }
 
-    //  state.log: stream of 8-byte-aligned wh64 entries.  Scan by quad
-    //  to skip the FILEBook zero-filled tail past logical EOF.
-    #define SCAN_WH64_END(buf) do {                                \
-        u8p e = (u8p)(buf)[3];                                     \
-        u8p b = (u8p)(buf)[0];                                     \
-        size_t n = (size_t)(e - b) / sizeof(wh64);                 \
-        u64 *arr = (u64 *)b;                                       \
-        while (n > 0 && arr[n - 1] == 0) n--;                      \
-        ((u8 **)(buf))[2] = b + n * sizeof(wh64);                  \
-    } while (0)
-
-    {
-        a_cstr(sf, "state.log");
-        a_path(cp, reporoot, sniffdir, sf);
-        ok64 o = FILEBook(&s->changes, $path(cp), SNIFF_CHG_BOOK);
-        if (o == OK) {
-            SCAN_WH64_END(s->changes);
-        } else if (rw) {
-            call(FILEBookCreate, &s->changes, $path(cp),
-                 SNIFF_CHG_BOOK, 4096);
+    //  Row-0 `repo` anchor.  Bootstrap on a fresh log (writes the
+    //  colocated default `file:///<wt>/.dogs/`); honour an existing
+    //  anchor for secondary worktrees by redirecting h->root to the
+    //  store before keeper opens.
+    if (ULOGCount(&s->log) == 0) {
+        if (!rw) {
+            //  Read-only open against an empty log — there is no state
+            //  yet; leave the row unwritten and treat h->root as the
+            //  colocated default.
         } else {
-            fail(o);
+            ok64 wr = sniff_write_repo_row(wt_root);
+            if (wr != OK) { ULOGClose(&s->log); zerop(s); return wr; }
         }
     }
-    #undef SCAN_WH64_END
 
-    //  Bootstrap from git ls-files only on a fresh registry.
-    if (rw && KEEPPathCount(&KEEP) == 0) {
-        call(sniff_bootstrap, reporoot);
+    //  If we have a repo row, resolve the store path and redirect
+    //  h->root to it so keeper / graf / spot open the correct .dogs/.
+    //  (h->wt stays pointed at the worktree where `.sniff` lives.)
+    {
+        uri ru = {};
+        ok64 rr = SNIFFAtRepo(&ru);
+        if (rr == OK && !u8csEmpty(ru.path)) {
+            a_dup(u8c, up, ru.path);
+            a_pad(u8, storebuf, 2048);
+            sniff_store_root_from_repo(up, storebuf);
+            if (u8bDataLen(storebuf) > 0) {
+                u8bReset(h->root);
+                a_dup(u8c, sb, u8bData(storebuf));
+                call(PATHu8bFeed, h->root, sb);
+            }
+        }
     }
 
-    //  Ensure the root-dir path "/" is interned.  Its SNIFF_TREE
-    //  hashlet is the base tree (staged by PUT/DELETE, committed by
-    //  POST).
+    //  Now open keeper — h->root is the store root, colocated or
+    //  redirected as appropriate.
+    ok64 kr = KEEPOpen(h, rw);
+    if (kr != OK && kr != KEEPOPEN) {
+        ULOGClose(&s->log); zerop(s); return kr;
+    }
+    sniff_opened_keep = (kr == OK);
+
+    //  Reserve the root-dir "/" path at its stable index.
     if (rw) (void)SNIFFRootIdx();
-
     done;
 }
 
-//  Stub.  Keeper now owns path derivation during fetch (UNPK
-//  KEEPIntern's tree entries); sniff doesn't need a separate
-//  ingestion path.
-ok64 SNIFFUpdate(u8 obj_type, sha1 const *sha, u8cs blob, u8csc path) {
-    (void)obj_type; (void)sha; (void)blob; (void)path;
+ok64 SNIFFClose(void) {
     sane(1);
+    if (!sniff_is_open()) return OK;
+    sniff *s = &SNIFF;
+    ULOGClose(&s->log);
+    u32bFree(s->sorted);
+    zerop(s);
+    sniff_is_rw = NO;
+    if (sniff_opened_keep) {
+        sniff_opened_keep = NO;
+        KEEPClose();
+    }
     done;
 }
 
-// --- Intern / Path / Count (thin wrappers over keeper) ---
-
-ok64 SNIFFInternIdx(u8cs path, u32 *idx) {
-    sane(idx);
-    *idx = KEEPIntern(&KEEP, path);
-    done;
-}
+// --- Path registry (delegates to keeper) ---
 
 u32 SNIFFIntern(u8cs path) {
     return KEEPIntern(&KEEP, path);
@@ -200,10 +179,6 @@ u32 SNIFFRootIdx(void) {
     return SNIFFIntern(root);
 }
 
-u64 SNIFFBaseTree(void) {
-    return SNIFFGet(SNIFF_TREE, SNIFFRootIdx());
-}
-
 ok64 SNIFFPath(u8csp out, u32 index) {
     sane(out);
     return KEEPPath(&KEEP, index, out);
@@ -213,7 +188,7 @@ u32 SNIFFCount(void) {
     return KEEPPathCount(&KEEP);
 }
 
-// --- Sort ---
+// --- Sort (per-invocation) ---
 
 static int sniff_cmp_idx(void const *a, void const *b) {
     u8cs pa = {}, pb = {};
@@ -239,264 +214,4 @@ ok64 SNIFFSort(void) {
     }
     qsort(u32bDataHead(s->sorted), n, sizeof(u32), sniff_cmp_idx);
     done;
-}
-
-// --- Record / Get ---
-
-ok64 SNIFFRecord(u8 type, u32 index, u64 off) {
-    sane(SNIFF.changes);
-    wh64 entry = wh64Pack(type, index, off);
-    call(FILEBookEnsure, SNIFF.changes, sizeof(wh64));
-    u8p *idle = (u8p *)&SNIFF.changes[2];
-    memcpy(*idle, &entry, sizeof(wh64));
-    *idle += sizeof(wh64);
-    done;
-}
-
-u64 SNIFFGet(u8 type, u32 index) {
-    u64cp head = (u64cp)u8bDataHead(SNIFF.changes);
-    u64cp end  = (u64cp)u8bIdleHead(SNIFF.changes);
-    while (end > head) {
-        --end;
-        wh64 e = *end;
-        if (e != 0 && wh64Type(e) == type && wh64Id(e) == index)
-            return wh64Off(e);
-    }
-    return 0;
-}
-
-// --- Compact ---
-
-ok64 SNIFFCompact(void) {
-    sane(1);
-    sniff *s = &SNIFF;
-    u32 n = SNIFFCount();
-    if (n == 0) done;
-
-    typedef struct {
-        u32 idx; u64 hashlet; u64 checkout; u8 type;
-    } live_entry;
-    Bu8 ent_mem = {};
-    call(u8bAllocate, ent_mem, (u64)n * sizeof(live_entry));
-    live_entry *entries = (live_entry *)u8bHead(ent_mem);
-    u32 live = 0;
-
-    for (u32 i = 0; i < n; i++) {
-        u8cs p = {};
-        if (SNIFFPath(p, i) != OK) continue;
-        u8 t = SNIFFIsDir(i) ? SNIFF_TREE : SNIFF_BLOB;
-        u64 h = SNIFFGet(t, i);
-        u64 c = SNIFFGet(SNIFF_CHECKOUT, i);
-        if (h == 0 && c == 0) continue;
-        entries[live].idx = i;
-        entries[live].hashlet = h;
-        entries[live].checkout = c;
-        entries[live].type = t;
-        live++;
-    }
-
-    u8bReset(s->changes);
-    for (u32 i = 0; i < live; i++) {
-        wh64 h = wh64Pack(entries[i].type, entries[i].idx, entries[i].hashlet);
-        wh64 c = wh64Pack(SNIFF_CHECKOUT, entries[i].idx, entries[i].checkout);
-        call(FILEBookEnsure, s->changes, 2 * sizeof(wh64));
-        u8p *idle = (u8p *)&s->changes[2];
-        memcpy(*idle, &h, sizeof(wh64)); *idle += sizeof(wh64);
-        memcpy(*idle, &c, sizeof(wh64)); *idle += sizeof(wh64);
-    }
-
-    u8bFree(ent_mem);
-    done;
-}
-
-// --- Close ---
-
-ok64 SNIFFClose(void) {
-    sane(1);
-    if (!sniff_is_open()) return OK;
-    sniff *s = &SNIFF;
-    if (s->changes) { FILETrimBook(s->changes); FILEUnBook(s->changes); }
-    u32bFree(s->sorted);
-    zerop(s);
-    sniff_is_rw = NO;
-    //  If we opened the keeper as part of SNIFFOpen, close it too.
-    if (sniff_opened_keep) {
-        sniff_opened_keep = NO;
-        KEEPClose();
-    }
-    done;
-}
-
-// --- Parent-commit helpers ---
-
-ok64 SNIFFParentTreeSha(sha1 *tree_out, u8cs parent_hex) {
-    sane(tree_out && $ok(parent_hex));
-
-    size_t hexlen = $len(parent_hex);
-    if (hexlen > 15) hexlen = 15;
-    u64 hashlet = WHIFFHexHashlet60(parent_hex);
-
-    Bu8 cbuf = {};
-    call(u8bAllocate, cbuf, 1UL << 24);
-    u8 ctype = 0;
-    ok64 o = KEEPGet(&KEEP, hashlet, hexlen, cbuf, &ctype);
-    if (o != OK) { u8bFree(cbuf); return o; }
-
-    if (ctype == DOG_OBJ_TAG) {
-        u8cs body = {u8bDataHead(cbuf), u8bIdleHead(cbuf)};
-        u8cs field = {}, value = {};
-        sha1 tag_sha = {};
-        a_raw(tag_bin, tag_sha);
-        while (GITu8sDrainCommit(body, field, value) == OK) {
-            if ($empty(field)) break;
-            if ($len(field) == 6 && memcmp(field[0], "object", 6) == 0 &&
-                $len(value) >= 40) {
-                u8cs hex40 = {value[0], $atp(value, 40)};
-                HEXu8sDrainSome(tag_bin, hex40);
-                break;
-            }
-        }
-        u64 ch = WHIFFHashlet60(&tag_sha);
-        u8bReset(cbuf);
-        o = KEEPGet(&KEEP, ch, 15, cbuf, &ctype);
-        if (o != OK) { u8bFree(cbuf); return o; }
-    }
-    if (ctype != DOG_OBJ_COMMIT) { u8bFree(cbuf); fail(SNIFFFAIL); }
-
-    u8cs commit_body = {u8bDataHead(cbuf), u8bIdleHead(cbuf)};
-    o = GITu8sCommitTree(commit_body, tree_out->data);
-    u8bFree(cbuf);
-    return o;
-}
-
-typedef struct {
-    sha1 *shas;
-    u32   capacity;
-} collect_ctx;
-
-static ok64 collect_visit(u8cs path, u8 kind, u8cp esha, u8cs blob,
-                           void0p vctx) {
-    (void)blob;
-    collect_ctx *c = (collect_ctx *)vctx;
-    if (kind == WALK_KIND_SUB) return WALKSKIP;
-
-    u32 idx;
-    if (kind == WALK_KIND_DIR && $empty(path))
-        idx = SNIFFRootIdx();
-    else if (kind == WALK_KIND_DIR)
-        idx = SNIFFInternDir(path);
-    else
-        idx = SNIFFIntern(path);
-
-    if (idx < c->capacity)
-        memcpy(c->shas[idx].data, esha, 20);
-    return OK;
-}
-
-ok64 SNIFFCollectParentTree(u8cs parent_hex, sha1 *sha_tab, u32 capacity) {
-    sane(sha_tab);
-    if (!$ok(parent_hex) || $empty(parent_hex)) done;
-
-    sha1 tree_sha = {};
-    call(SNIFFParentTreeSha, &tree_sha, parent_hex);
-
-    collect_ctx ctx = {.shas = sha_tab, .capacity = capacity};
-    return WALKTreeLazy(&KEEP, tree_sha.data, collect_visit, &ctx);
-}
-
-//  Staging-aware tree walker.  Fetches a tree body from STAGE first
-//  (the branch's current base tree lives there between `be put` calls),
-//  falls back to the main keeper.  Recurses into subtrees with the
-//  same lookup order.  Only trees are traversed; blobs are recorded
-//  via the visitor and never dereferenced.
-static ok64 sniff_walk_tree(u8cs branch, sha1 const *tree_sha,
-                            u8cs path_rel, collect_ctx *ctx) {
-    sane(tree_sha && ctx);
-
-    Bu8 tbuf = {};
-    call(u8bAllocate, tbuf, 1UL << 20);
-    u8 otype = 0;
-    u64 hl60 = WHIFFHashlet60(tree_sha);
-    ok64 go = STAGEGet(branch, hl60, 15, tbuf, &otype);
-    if (go != OK || otype != DOG_OBJ_TREE) {
-        u8bReset(tbuf);
-        go = KEEPGetExact(&KEEP, tree_sha, tbuf, &otype);
-    }
-    if (go != OK || otype != DOG_OBJ_TREE) { u8bFree(tbuf); done; }
-
-    //  Visit the tree itself (mirror WALK's "visit root first" protocol).
-    u8cs empty_blob = {};
-    ok64 vo = collect_visit(path_rel, WALK_KIND_DIR,
-                             (u8cp)tree_sha->data, empty_blob, ctx);
-    if (vo != OK && vo != WALKSKIP) { u8bFree(tbuf); return vo; }
-
-    a_dup(u8c, obj, u8bData(tbuf));
-    u8cs file = {}, esha = {};
-    a_pad(u8, pbuf, 1024);
-    while (GITu8sDrainTree(obj, file, esha) == OK) {
-        u8cs scan = {file[0], file[1]};
-        if (u8csFind(scan, ' ') != OK) continue;
-        u8cs mode_s = {file[0], scan[0]};
-        u8cs name_s = {scan[0] + 1, file[1]};
-        u8 kind = WALKu8sModeKind(mode_s);
-        if (kind == 0) continue;
-
-        //  Compose <path_rel>/<name_s>.
-        u8bReset(pbuf);
-        if (!$empty(path_rel)) u8bFeed(pbuf, path_rel);
-        if (u8bDataLen(pbuf) > 0) u8bFeed1(pbuf, '/');
-        u8bFeed(pbuf, name_s);
-        a_dup(u8c, entry_path, u8bData(pbuf));
-
-        sha1 esha_b = {};
-        memcpy(esha_b.data, esha[0], 20);
-
-        if (kind == WALK_KIND_DIR) {
-            //  Trailing '/' so SNIFFInternDir hits the registered dir.
-            u8bFeed1(pbuf, '/');
-            a_dup(u8c, dir_path, u8bData(pbuf));
-            ok64 sr = sniff_walk_tree(branch, &esha_b, dir_path, ctx);
-            if (sr != OK && sr != WALKSKIP) { u8bFree(tbuf); return sr; }
-        } else {
-            vo = collect_visit(entry_path, kind, esha_b.data,
-                                empty_blob, ctx);
-            if (vo != OK && vo != WALKSKIP) { u8bFree(tbuf); return vo; }
-        }
-    }
-
-    u8bFree(tbuf);
-    done;
-}
-
-ok64 SNIFFCollectBaseTree(sha1 *sha_tab, u32 capacity) {
-    sane(sha_tab);
-    u64 base = SNIFFBaseTree();
-    if (base == 0) done;
-
-    //  Fetch root-tree body (staging first, then main).  Compute its
-    //  full sha so the recursive walker can visit it.
-    Bu8 tbuf = {};
-    call(u8bAllocate, tbuf, 1UL << 24);
-    u8 otype = 0;
-    a_pad(u8, brbuf, 256);
-    call(STAGEBranch, brbuf);
-    a_dup(u8c, branch, u8bData(brbuf));
-    ok64 o = STAGEGet(branch, base << 20, 10, tbuf, &otype);
-    if (o != OK || otype != DOG_OBJ_TREE) {
-        u8bReset(tbuf);
-        o = KEEPGet(&KEEP, base << 20, 10, tbuf, &otype);
-    }
-    if (o != OK || otype != DOG_OBJ_TREE) {
-        u8bFree(tbuf);
-        //  Base tree unreachable; callers treat this as advisory and
-        //  proceed with an empty sha_tab (subtrees rebuild from scratch).
-        done;
-    }
-    sha1 tree_sha = {};
-    KEEPObjSha(&tree_sha, DOG_OBJ_TREE, u8bDataC(tbuf));
-    u8bFree(tbuf);
-
-    collect_ctx ctx = {.shas = sha_tab, .capacity = capacity};
-    u8cs empty_path = {};
-    return sniff_walk_tree(branch, &tree_sha, empty_path, &ctx);
 }

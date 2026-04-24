@@ -202,7 +202,12 @@ ok64 ULOGOpen(ulogp l, path8s path) {
 ok64 ULOGClose(ulogp l) {
     sane(l);
     if (l->data) {
-        FILETrimBook(l->data);
+        //  Only trim when this handle dirtied the log.  A read-only
+        //  reader (e.g. DOGAtTail opening the same file the owner
+        //  sniff process has mmap'd rw) must not shrink the file —
+        //  doing so invalidates the writer's mmap and its subsequent
+        //  stores silently drop or SIGBUS.
+        if (l->dirty) FILETrimBook(l->data);
         FILEUnBook(l->data);
     }
     if (l->idx[0]) kv64bFree(l->idx);
@@ -217,8 +222,6 @@ ok64 ULOGAppendAt(ulogp l, ron60 ts, ron60 verb, uricp u) {
         kv64 const *last = ((kv64 const *)l->idx[0]) + (n - 1);
         if (ts <= last->key) fail(ULOGCLOCK);
     }
-    //  Ensure idle room for a generous per-row upper bound.  URIs can
-    //  be long; round up to 2 KiB.
     call(FILEBookEnsure, l->data, 2048);
 
     u64 off = (u64)u8bDataLen(l->data);
@@ -226,6 +229,7 @@ ok64 ULOGAppendAt(ulogp l, ron60 ts, ron60 verb, uricp u) {
 
     kv64 ent = {.key = ts, .val = off};
     call(kv64bPush, l->idx, &ent);
+    l->dirty = YES;
     done;
 }
 
@@ -343,5 +347,6 @@ ok64 ULOGTruncate(ulogp l, u32 keep_n) {
     u8 *data_base  = (u8 *)l->data[0];
     *data_idle = data_base + cut_off;
 
+    l->dirty = YES;
     done;
 }

@@ -1,19 +1,26 @@
 #!/bin/sh
 #  workflow.sh — sniff standalone get/put/post/delete integration test.
 #
-#  Drives the `sniff` CLI against a toy worktree with no remote: every
-#  scenario exercises the staged-tree model introduced in the PUT/POST
-#  rework.  Run either directly via
+#  Drives the `sniff` CLI against a toy worktree with no remote.  Each
+#  scenario verifies a ULOG + tree-walk commit cycle in the
+#  post-migration model:
 #
+#    * `sniff put <path>` / `sniff delete <path>` only append rows to
+#      `.sniff`; no staging pack, no tree object written yet.
+#    * `sniff post -m ...` walks the baseline + wt, applies the
+#      change-set rules (explicit put/delete, or implicit mtime-dirty),
+#      and emits one keeper pack `commit → trees → blobs`.
+#    * `sniff get <sha>` materialises the target tree and prunes
+#      anything on disk that was sniff-stamped but isn't in the new
+#      tree (files appear and disappear cleanly across checkouts).
+#
+#  Run:
 #      BIN=build-debug/bin sh sniff/test/workflow.sh
-#
-#  or through ctest (see sniff/test/CMakeLists.txt).
 #
 set -eu
 
 BIN=${BIN:-$(dirname "$0")/../../build-debug/bin}
 SNIFF="$BIN/sniff"
-KEEPER="$BIN/keeper"
 
 TMP=${TMP:-$HOME/tmp}
 TEST_ID=${TEST_ID:-SNIFFworkflow}
@@ -35,15 +42,14 @@ want_missing() {
     [ ! -e "$1" ] || fail "$1 should be gone"
 }
 
-# Current worktree commit = tail SHA in sniff/at.log.
-# Lines: <ron60-time>\t?<branch>\t?<sha>
+#  Current worktree commit = fragment of the latest `post` row in
+#  sniff/at.log.  Rows are `<ron60-ts>\t<verb>\t<uri>`; the commit sha
+#  is the URI's fragment (after `#`).
 head_hex() {
-    awk -F'\t' 'END {gsub(/^\?/,"",$3); print $3}' .sniff/at.log
+    awk -F'\t' '$2 == "post" { last = $3 } END {
+        n = index(last, "#"); if (n > 0) print substr(last, n + 1)
+    }' .sniff
 }
-
-# Pack log files at .dogs/NNNNN.keeper.  Count them as a proxy for
-# "did we write anything new?" — each KEEPPackFeed grows the pack.
-npacks() { ls .dogs/*.keeper 2>/dev/null | wc -l | tr -d ' '; }
 
 # ------------------------------------------------------------------
 # Scenario 1: empty dir -> write file -> post auto-stages -> commit
@@ -67,47 +73,47 @@ want_file README.md "hello"
 note "README.md restored from $H1"
 
 # ------------------------------------------------------------------
-# Scenario 3: two PUTs accumulate, then POST commits the staged tree
+# Scenario 3: two PUT rows accumulate, POST commits the change-set
 # ------------------------------------------------------------------
 echo "=== 3. put a; put b; post ==="
 D3="$TMP/r3"
 mkdir -p "$D3"; cd "$D3"
 echo alpha > a.txt
 echo bravo > b.txt
-T1=$("$SNIFF" put a.txt 2>&1 | awk '/staged tree/ {print $NF}')
-[ -n "$T1" ] || fail "no staged tree after put a"
-T2=$("$SNIFF" put b.txt 2>&1 | awk '/staged tree/ {print $NF}')
-[ -n "$T2" ] || fail "no staged tree after put b"
-[ "$T1" != "$T2" ] || fail "tree did not change between puts"
-note "tree after put a: $T1"
-note "tree after put b: $T2 (accumulated)"
+
+"$SNIFF" put a.txt >/dev/null
+awk -F'\t' '$2 == "put" && $3 == "a.txt"' .sniff | grep -q . \
+    || fail "no `put a.txt` row in ULOG"
+"$SNIFF" put b.txt >/dev/null
+awk -F'\t' '$2 == "put" && $3 == "b.txt"' .sniff | grep -q . \
+    || fail "no `put b.txt` row in ULOG"
+note "ULOG records two put rows"
 
 "$SNIFF" post -m "a+b" >/dev/null
 C3=$(head_hex)
 [ -n "$C3" ] || fail "HEAD unset"
 note "HEAD after post=$C3"
 
-# Checkout into fresh dir verifies both files really landed in the tree.
+#  Checkout into a fresh dir — both files must land.
 D3b="$TMP/r3b"
 mkdir -p "$D3b"; cd "$D3b"
-# Share the keeper store by copying .dogs/ from r3.
 cp -r "$D3/.dogs" .
-rm -rf .sniff  # fresh sniff state
 "$SNIFF" get "$C3" >/dev/null
 want_file a.txt "alpha"
 want_file b.txt "bravo"
 note "both files present after get"
 
 # ------------------------------------------------------------------
-# Scenario 4: modify + bare `sniff put` (no args) stages everything dirty
+# Scenario 4: bare `sniff put` is a no-op; bare `sniff post` commits
+# the implicit change-set (mtime ∉ stamp-set).
 # ------------------------------------------------------------------
-echo "=== 4. put with no args = stage all dirty ==="
+echo "=== 4. implicit all-dirty via bare post ==="
 cd "$D3b"
-sleep 1                               # mtime resolution
-echo alpha-two > a.txt                # modify
-T4=$("$SNIFF" put 2>&1 | awk '/staged tree/ {print $NF}')
-[ -n "$T4" ] || fail "no staged tree after bare put"
-note "staged tree=$T4"
+sleep 1                                 # force a distinct mtime
+echo alpha-two > a.txt                  # modify
+"$SNIFF" put >/dev/null                 # no-op: no args
+#  No new put/delete rows since the last post → POST falls into
+#  implicit mode: every mtime-dirty file is rewritten.
 "$SNIFF" post -m "modify a" >/dev/null
 C4=$(head_hex)
 [ "$C4" != "$C3" ] || fail "HEAD unchanged after modify+post"
@@ -115,51 +121,52 @@ note "new HEAD=$C4"
 
 D4b="$TMP/r4b"; mkdir -p "$D4b"; cd "$D4b"
 cp -r "$D3b/.dogs" .
-rm -rf .sniff
 "$SNIFF" get "$C4" >/dev/null
 want_file a.txt "alpha-two"
 want_file b.txt "bravo"
 note "modified content on disk after get"
 
 # ------------------------------------------------------------------
-# Scenario 5: `sniff delete foo` drops only foo; tree keeps the rest
+# Scenario 5: `sniff delete foo` drops only foo; POST unlinks the
+# file from disk and the subsequent get confirms it's gone.
 # ------------------------------------------------------------------
-echo "=== 5. delete foo ==="
+echo "=== 5. delete a.txt ==="
 cd "$D4b"
 "$SNIFF" delete a.txt >/dev/null
+awk -F'\t' '$2 == "delete" && $3 == "a.txt"' .sniff | grep -q . \
+    || fail "no \`delete a.txt\` row in ULOG"
 "$SNIFF" post -m "drop a" >/dev/null
+want_missing a.txt                      # POST must unlink
 C5=$(head_hex)
 note "HEAD after delete=$C5"
 
 D5b="$TMP/r5b"; mkdir -p "$D5b"; cd "$D5b"
 cp -r "$D4b/.dogs" .
-rm -rf .sniff
 "$SNIFF" get "$C5" >/dev/null
 want_missing a.txt
 want_file b.txt "bravo"
 note "a.txt pruned, b.txt preserved"
 
 # ------------------------------------------------------------------
-# Scenario 6: `sniff delete` with no args stages every missing file
+# Scenario 6: bare `sniff delete` is a no-op; hand-unlinking a tracked
+# file and a bare POST picks it up via the implicit rule (a missing
+# tracked file is a deletion).
 # ------------------------------------------------------------------
-echo "=== 6. delete with no args = stage all missing ==="
+echo "=== 6. implicit delete via vanished file ==="
 cd "$D5b"
-# Check out a state with two files first.
-"$SNIFF" get "$C3" >/dev/null
+"$SNIFF" get "$C3" >/dev/null           # restore two-file state
 want_file a.txt "alpha"
 want_file b.txt "bravo"
-rm a.txt                              # remove from disk; still tracked
-T6=$("$SNIFF" delete 2>&1 | awk '/staged tree/ {print $NF}')
-[ -n "$T6" ] || fail "no staged tree after bare delete"
+rm a.txt                                # vanish one without a `delete` row
+"$SNIFF" delete >/dev/null              # no-op (bare); sweep happens at post
 "$SNIFF" post -m "auto-delete" >/dev/null
 C6=$(head_hex)
 
 D6b="$TMP/r6b"; mkdir -p "$D6b"; cd "$D6b"
 cp -r "$D5b/.dogs" .
-rm -rf .sniff
 "$SNIFF" get "$C6" >/dev/null
 want_missing a.txt
 want_file b.txt "bravo"
-note "a.txt removed by auto-delete"
+note "a.txt removed by implicit-delete sweep"
 
 echo "=== all workflow scenarios passed ==="

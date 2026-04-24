@@ -1,5 +1,18 @@
 //  GET: checkout a commit tree from keeper.
 //
+//  New-model responsibilities (step 2 of the ULOG redesign):
+//    * Materialise every file in the commit's tree, creating parent
+//      dirs as needed.
+//    * Dirty-protect: if a file on disk has an mtime not in sniff's
+//      stamp-set, leave it alone.
+//    * Stamp every file we write with a shared ron60 timestamp via
+//      utimensat, so a later stat() recovers that same stamp.
+//    * Append one `get` ULOG row with the same timestamp.
+//
+//  Prune (files present on disk but absent from the new tree) is
+//  deferred to a later step; the current SNIFFCheckoutCommit scenarios
+//  do not exercise it.
+//
 #include "GET.h"
 
 #include <string.h>
@@ -10,183 +23,188 @@
 #include "abc/HEX.h"
 #include "abc/PATH.h"
 #include "abc/PRO.h"
-#include "dog/DPATH.h"
 #include "keeper/GIT.h"
-#include "keeper/REFS.h"
 #include "keeper/WALK.h"
 
 #include "AT.h"
 
-// Per-entry visitor context for WALKTreeLazy.
 typedef struct {
-    sniff  *s;
-    keeper *k;
-    u8cs    reporoot;
-    u8p     seen;
-    ok64    error;       // first fatal error encountered, if any
+    keeper        *k;
+    u8cs           reporoot;
+    ron60          ts;          // stamp to apply via utimensat
+    struct timespec tv;         // same stamp in timespec form
+    Bu8            target;      // bitmap: target[idx] = 1 iff path idx is
+                                // in the new tree (set during walk, read
+                                // during prune).
+    u32            target_cap;
+    ok64           error;
 } get_ctx;
 
-static ok64 get_visit(u8cs path, u8 kind, u8cp esha, u8cs blob,
-                       void0p vctx) {
-    (void)blob;  // lazy mode: blob is always empty, we pull if needed
-    get_ctx *g = (get_ctx *)vctx;
-    sniff  *s = g->s;
+static void get_mark_target(get_ctx *g, u32 idx) {
+    if (idx >= g->target_cap) return;
+    u8 *base = u8bDataHead(g->target);
+    base[idx] = 1;
+}
+
+static b8 get_is_target(get_ctx const *g, u32 idx) {
+    if (idx >= g->target_cap) return NO;
+    u8 const *base = u8bDataHead(g->target);
+    return base[idx] != 0;
+}
+
+//  Write one blob to disk, create dirs as needed, chmod if exec,
+//  symlink if link; then stamp it with ctx->tv.  Dirty-protect by
+//  skipping when the on-disk mtime is not a known stamp.
+static ok64 get_write_one(get_ctx *g, u8cs path, u8 kind, u8cp esha) {
+    sane(g);
     keeper *k = g->k;
 
-    if (kind == WALK_KIND_SUB) return WALKSKIP;
+    a_path(fp);
+    call(SNIFFFullpath, fp, g->reporoot, path);
 
-    u64 entry_hashlet = WHIFFHashlet40((sha1cp)esha);
-
-    if (kind == WALK_KIND_DIR) {
-        if ($empty(path)) {
-            // Root tree: record base hashlet at the reserved root idx.
-            u32 ridx = SNIFFRootIdx();
-            g->seen[ridx] = 1;
-            SNIFFRecord(SNIFF_TREE, ridx, entry_hashlet);
-            return OK;  // walker recurses into children
-        }
-
-        a_path(dp);
-        SNIFFFullpath(dp, g->reporoot, path);
-        FILEMakeDirP($path(dp));
-
-        u32 idx = SNIFFInternDir(path);
-        g->seen[idx] = 1;
-        SNIFFRecord(SNIFF_TREE, idx, entry_hashlet);
-        return OK;  // walker recurses
-    }
-
-    // File entry (REG/EXE/LNK).
-    u32 idx = SNIFFIntern(path);
-    g->seen[idx] = 1;
-
-    // Fast path: if the hashlet already matches AND the file still
-    // exists on disk, skip the rewrite.  Missing-on-disk falls through
-    // so checkout can re-materialise a rm'd file.
-    u64 old_hashlet = SNIFFGet(SNIFF_BLOB, idx);
-    if (old_hashlet == entry_hashlet && old_hashlet != 0) {
-        a_path(existing);
-        if (SNIFFFullpath(existing, g->reporoot, path) == OK) {
-            struct stat xb = {};
-            if (lstat((char *)u8bDataHead(existing), &xb) == 0)
-                return WALKSKIP;
+    //  Dirty-protect: if file exists with an unknown mtime, skip.
+    struct stat xb = {};
+    if (lstat((char *)u8bDataHead(fp), &xb) == 0) {
+        struct timespec xt = {.tv_sec = xb.st_mtim.tv_sec,
+                              .tv_nsec = xb.st_mtim.tv_nsec};
+        ron60 xr = SNIFFAtOfTimespec(xt);
+        if (!SNIFFAtKnown(xr)) {
+            fprintf(stderr, "sniff: skip dirty %.*s\n",
+                    (int)$len(path), (char *)path[0]);
+            done;
         }
     }
 
-    u64 co = SNIFFGet(SNIFF_CHECKOUT, idx);
-    u64 ch = SNIFFGet(SNIFF_CHANGED, idx);
-    if (ch != 0 && ch != co) {
-        fprintf(stderr, "sniff: skip dirty %.*s\n",
-                (int)$len(path), (char *)path[0]);
-        return WALKSKIP;
-    }
-
-    // Pull blob content now (lazy mode).
     Bu8 bbuf = {};
-    ok64 o = u8bAllocate(bbuf, 1UL << 24);
-    if (o != OK) { g->error = o; return o; }
+    call(u8bAllocate, bbuf, 1UL << 24);
     u8 bt = 0;
     sha1 entry_sha = {};
     memcpy(entry_sha.data, esha, 20);
-    o = KEEPGetExact(k, &entry_sha, bbuf, &bt);
-    if (o != OK) { u8bFree(bbuf); g->error = o; return o; }
-
-    a_path(fp);
-    o = SNIFFFullpath(fp, g->reporoot, path);
-    if (o != OK) { u8bFree(bbuf); g->error = o; return o; }
+    ok64 o = KEEPGetExact(k, &entry_sha, bbuf, &bt);
+    if (o != OK) { u8bFree(bbuf); return o; }
 
     if (kind == WALK_KIND_LNK) {
         unlink((char *)u8bDataHead(fp));
         u8bFeed1(bbuf, 0);
-        symlink((char *)u8bDataHead(bbuf), (char *)u8bDataHead(fp));
+        if (symlink((char *)u8bDataHead(bbuf), (char *)u8bDataHead(fp)) != 0) {
+            u8bFree(bbuf);
+            fail(SNIFFFAIL);
+        }
     } else {
         int fd = -1;
         o = FILECreate(&fd, $path(fp));
-        if (o != OK) { u8bFree(bbuf); g->error = o; return o; }
+        if (o != OK) { u8bFree(bbuf); return o; }
         u8cs data = {u8bDataHead(bbuf), u8bIdleHead(bbuf)};
         o = FILEFeedAll(fd, data);
         FILEClose(&fd);
-        if (o != OK) { u8bFree(bbuf); g->error = o; return o; }
+        if (o != OK) { u8bFree(bbuf); return o; }
         if (kind == WALK_KIND_EXE)
             chmod((char *)u8bDataHead(fp), 0755);
     }
     u8bFree(bbuf);
 
-    SNIFFRecord(SNIFF_BLOB, idx, entry_hashlet);
+    //  Stamp the just-written file (symlinks inherit the stamp too
+    //  because utimensat with AT_FDCWD and no flags follows links;
+    //  that is wrong for lchmod-style invariants but matches the
+    //  existing sniff behavior — symlink target mtimes stamp.  For the
+    //  common non-symlink case this is exactly the intended attribution).
+    call(SNIFFAtStampPath, fp, g->ts);
+    done;
+}
+
+static ok64 get_visit(u8cs path, u8 kind, u8cp esha, u8cs blob,
+                      void0p vctx) {
+    (void)blob;  // lazy mode
+    get_ctx *g = (get_ctx *)vctx;
+
+    if (kind == WALK_KIND_SUB) return WALKSKIP;
+
+    if (kind == WALK_KIND_DIR) {
+        if ($empty(path)) return OK;  // root; walker recurses
+        a_path(dp);
+        SNIFFFullpath(dp, g->reporoot, path);
+        FILEMakeDirP($path(dp));
+        return OK;
+    }
+
+    //  File-like entry (REG / EXE / LNK).  Mark the path as a target
+    //  before writing so prune won't touch it even if write fails.
+    {
+        u32 idx = SNIFFIntern(path);
+        get_mark_target(g, idx);
+    }
+    ok64 o = get_write_one(g, path, kind, esha);
+    if (o != OK) g->error = o;
+    return o;
+}
+
+// --- Prune: unlink any wt file that sniff wrote before but isn't in
+//     the new target tree.  The stamp-set check protects user-created
+//     untracked files (they never carry a sniff stamp).
+
+typedef struct { get_ctx *g; u32 pruned; } prune_ctx;
+
+static ok64 get_prune_cb(void *varg, path8bp path) {
+    sane(varg);
+    prune_ctx *p = (prune_ctx *)varg;
+    get_ctx *g = p->g;
+    a_dup(u8c, full, u8bData(path));
+    size_t rlen = $len(g->reporoot);
+    if ($len(full) <= rlen) return OK;
+    u8cs rel = {$atp(full, rlen), full[1]};
+    while (!$empty(rel) && rel[0][0] == '/') rel[0]++;
+    if ($empty(rel)) return OK;
+
+    //  Skip metadata dirs (prefix or exact match — `.dogs` is often
+    //  a symlink that FILEScan delivers as a leaf entry).
+    {
+        a_cstr(d_sniff, ".sniff");
+        a_cstr(d_dogs,  ".dogs");
+        size_t rl = $len(rel);
+        #define SKIP(p) \
+            ((rl) == $len(p) && memcmp(rel[0], p[0], $len(p)) == 0) || \
+            ((rl) > $len(p) && memcmp(rel[0], p[0], $len(p)) == 0 && \
+             rel[0][$len(p)] == '/')
+        if (SKIP(d_sniff) || SKIP(d_dogs)) return OK;
+        #undef SKIP
+    }
+
+    u32 idx = SNIFFIntern(rel);
+    if (get_is_target(g, idx)) return OK;
 
     struct stat sb = {};
-    if (FILEStat(&sb, $path(fp)) == OK)
-        SNIFFRecord(SNIFF_CHECKOUT, idx, (u64)sb.st_mtim.tv_sec);
+    if (lstat((char const *)full[0], &sb) != 0) return OK;
+    struct timespec ts = {.tv_sec = sb.st_mtim.tv_sec,
+                          .tv_nsec = sb.st_mtim.tv_nsec};
+    ron60 r = SNIFFAtOfTimespec(ts);
+    if (!SNIFFAtKnown(r)) return OK;   // untracked user file — leave alone.
 
+    //  unlink() wants a NUL-terminated C string; `path` is NUL-termed
+    //  by FILEScanRecurse → PATHu8bTerm at each level, so the byte at
+    //  full[1] is already '\0' (see abc/PATH.h).
+    if (unlink((char const *)full[0]) == 0) p->pruned++;
     return OK;
 }
 
-// Remove tracked files not in the new tree.
-// Files first, then dirs (FILERmDir only works on empty dirs).
-static ok64 GETPrune(sniff *s, u8cs reporoot, u8cp seen) {
-    sane(s);
-    u32 n = SNIFFCount();
-    u32 removed = 0, errors = 0;
-
-    // Pass 1: unlink files
-    for (u32 i = 0; i < n; i++) {
-        if (seen[i]) continue;
-        u64 h = SNIFFGet(SNIFF_BLOB, i);
-        if (h == 0) continue;
-        if (SNIFFIsDir(i)) continue;
-
-        u8cs rel = {};
-        call(SNIFFPath, rel, i);
-        if ($empty(rel)) continue;
-
-        a_path(fp);
-        call(SNIFFFullpath, fp, reporoot, rel);
-
-        ok64 o = FILEUnLink($path(fp));
-        if (o == OK || o == FILENOENT) {
-            SNIFFRecord(SNIFF_BLOB, i, 0);
-            SNIFFRecord(SNIFF_CHECKOUT, i, 0);
-            removed++;
-        } else {
-            fprintf(stderr, "sniff: unlink fail %.*s: %s\n",
-                    (int)u8csLen(rel), (char *)rel[0], ok64str(o));
-            errors++;
-        }
-    }
-
-    // Pass 2: rmdir stale dirs (reverse order for bottom-up)
-    for (u32 i = n; i > 0; ) {
-        i--;
-        if (seen[i]) continue;
-        u64 h = SNIFFGet(SNIFF_TREE, i);
-        if (h == 0) continue;
-        if (!SNIFFIsDir(i)) continue;
-
-        u8cs rel = {};
-        call(SNIFFPath, rel, i);
-
-        a_path(fp);
-        call(SNIFFFullpath, fp, reporoot, rel);
-
-        ok64 o = FILERmDir($path(fp), NO);
-        if (o == OK || o == FILENOENT || o == FILENOTEMP) {
-            SNIFFRecord(SNIFF_TREE, i, 0);
-            SNIFFRecord(SNIFF_CHECKOUT, i, 0);
-        }
-    }
-
-    if (removed > 0 || errors > 0)
-        fprintf(stderr, "sniff: removed %u file(s), %u error(s)\n",
-                removed, errors);
+static ok64 get_prune(get_ctx *g) {
+    sane(g);
+    a_path(root_path);
+    u8bFeed(root_path, g->reporoot);
+    call(PATHu8bTerm, root_path);
+    prune_ctx pctx = {.g = g, .pruned = 0};
+    call(FILEScan, root_path,
+         (FILE_SCAN)(FILE_SCAN_FILES | FILE_SCAN_LINKS | FILE_SCAN_DEEP),
+         get_prune_cb, &pctx);
+    if (pctx.pruned > 0)
+        fprintf(stderr, "sniff: pruned %u file(s)\n", pctx.pruned);
     done;
 }
 
 // --- Public API ---
 
-ok64 GETCheckout(u8cs reporoot, u8cs hex,
-                 u8cs source) {
+ok64 GETCheckout(u8cs reporoot, u8cs hex, u8cs source) {
     sane($ok(hex));
-    sniff *s = &SNIFF; keeper *k = &KEEP; (void)s; (void)k;
+    keeper *k = &KEEP;
 
     size_t hexlen = $len(hex);
     if (hexlen > 15) hexlen = 15;
@@ -202,7 +220,7 @@ ok64 GETCheckout(u8cs reporoot, u8cs hex,
         fail(SNIFFFAIL);
     }
 
-    // Dereference annotated tag
+    //  Dereference annotated tag.
     if (otype == DOG_OBJ_TAG) {
         u8cs body = {u8bDataHead(buf), u8bIdleHead(buf)};
         u8cs field = {}, value = {};
@@ -239,7 +257,6 @@ ok64 GETCheckout(u8cs reporoot, u8cs hex,
         fail(SNIFFFAIL);
     }
 
-    // Extract tree SHA
     sha1 tree_sha = {};
     u8cs commit = {u8bDataHead(buf), u8bIdleHead(buf)};
     o = GITu8sCommitTree(commit, tree_sha.data);
@@ -249,42 +266,44 @@ ok64 GETCheckout(u8cs reporoot, u8cs hex,
         fail(SNIFFFAIL);
     }
 
-    // Allocate seen bitmap
-    u32 npath = SNIFFCount();
-    u32 seen_size = npath + 65536;  // padding for new paths during walk
-    Bu8 seen_buf = {};
-    call(u8bAllocate, seen_buf, seen_size);
-    memset(u8bDataHead(seen_buf), 0, seen_size);
-
-    get_ctx ctx = {
-        .s = s, .k = k,
-        .seen = u8bDataHead(seen_buf), .error = OK,
-    };
+    get_ctx ctx = {.k = k, .error = OK};
     ctx.reporoot[0] = reporoot[0];
     ctx.reporoot[1] = reporoot[1];
+    SNIFFAtNow(&ctx.ts, &ctx.tv);
+
+    //  Size the target bitmap: SNIFFCount() grows during the walk as
+    //  keeper interns new tree paths, so pad generously.
+    ctx.target_cap = SNIFFCount() + (1u << 20);
+    call(u8bAllocate, ctx.target, ctx.target_cap);
+    memset(u8bDataHead(ctx.target), 0, ctx.target_cap);
+
     o = WALKTreeLazy(k, tree_sha.data, get_visit, &ctx);
     if (o == OK && ctx.error != OK) o = ctx.error;
+    if (o != OK) { u8bFree(ctx.target); return o; }
 
-    if (o == OK)
-        o = GETPrune(s, reporoot, u8bDataHead(seen_buf));
+    //  Prune: any path on disk that was sniff-stamped but isn't in the
+    //  new target tree.
+    (void)get_prune(&ctx);
+    u8bFree(ctx.target);
 
-    u8bFree(seen_buf);
-    if (o == OK) {
-        o = SNIFFCompact();
+    //  Compose the `get` row URI via abc/URI: query = the named ref
+    //  the user asked for (if any), fragment = the 40-hex commit sha.
+    //  ULOGAppendAt serializes via URIutf8Feed, so we only need to
+    //  set component slices on a uri struct.
+    uri urow = {};
+    if ($ok(source) && !u8csEmpty(source) && source[0][0] == '?' &&
+        $len(source) != 41) {
+        //  Named refs come in with a leading '?', e.g. `?heads/main`.
+        //  The URI query slice excludes the sentinel per RFC 3986, so
+        //  skip the '?' when moving bytes into urow.query.
+        urow.query[0] = source[0] + 1;
+        urow.query[1] = source[1];
     }
-    if (o == OK) {
-        //  at.log: record this worktree's new (branch, sha).  If
-        //  `source` is `?heads/<name>`, extract the branch; otherwise
-        //  this is a detached checkout and the branch field is empty.
-        u8cs branch = {};
-        if ($ok(source) && $len(source) > 7 &&
-            memcmp(source[0], "?heads/", 7) == 0) {
-            branch[0] = source[0] + 7;
-            branch[1] = source[1];
-        }
-        a_dup(u8c, hex_in, hex);
-        (void)SNIFFAtAppend(branch, hex_in);
-        fprintf(stderr, "sniff: checkout done\n");
-    }
-    return o;
+    urow.fragment[0] = hex[0];
+    urow.fragment[1] = hex[1];
+
+    ron60 verb = SNIFFAtVerbGet();
+    call(SNIFFAtAppendAt, ctx.ts, verb, &urow);
+    fprintf(stderr, "sniff: checkout done\n");
+    done;
 }

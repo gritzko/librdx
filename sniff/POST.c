@@ -1,12 +1,33 @@
-//  POST: wrap the current base tree into a commit object.
+//  POST: commit the current worktree state.
+//
+//  Inputs at commit time: the worktree on disk and the ULOG.  The most
+//  recent `get` / `post` / `patch` row names a baseline tree URI
+//  (single hash → keeper, multiple → graf — graf is not wired yet and
+//  defaults to keeper-single-hash-only for now).  `put` / `delete`
+//  rows since the last `post` are the explicit staging intent.
+//
+//  Per-file change-set at commit time:
+//    * path matches a `put <path>` row (since last post)   → rewrite
+//    * path matches a `delete <path>` row                  → drop
+//    * no explicit row for the path, any put/delete exists → carry
+//      over from baseline (or drop if missing from wt)
+//    * no put/delete rows at all since last post           → implicit
+//      all-dirty: mtime ∉ stamp-set → rewrite; missing → drop.
+//
+//  Pack layout: one keeper pack with `strict_order=NO`, fed in the
+//  order commit → trees → blobs (forward refs permitted).
 //
 #include "POST.h"
-#include "PUT.h"
 
 #include <string.h>
+#include <sys/stat.h>
 #include <time.h>
+#include <unistd.h>
+#include <fcntl.h>
 
+#include "abc/FILE.h"
 #include "abc/HEX.h"
+#include "abc/PATH.h"
 #include "abc/PRO.h"
 #include "keeper/GIT.h"
 #include "keeper/REFS.h"
@@ -14,264 +35,640 @@
 #include "keeper/WALK.h"
 
 #include "AT.h"
-#include "STAGE.h"
 
-// Compute full SHA1 of parent commit for the "parent" line.
-static ok64 POSTParentSha(sha1 *out, keeper *k, u8cs parent_hex) {
-    sane(out && k && $ok(parent_hex));
+// --- Per-path state ---
+//
+//  Parallel arrays keyed by the path-registry index (SNIFFIntern).
+//  Allocated once per POSTCommit invocation and freed at the end.
 
-    size_t hexlen = $len(parent_hex);
-    if (hexlen > 15) hexlen = 15;
-    u64 hashlet = WHIFFHexHashlet60(parent_hex);
+enum post_flag {
+    POST_IN_BASE  = 1 << 0,  // path had an entry in the baseline tree
+    POST_ON_DISK  = 1 << 1,  // path currently exists on disk
+    POST_EXPL_PUT = 1 << 2,  // explicit `put <path>` since last post
+    POST_EXPL_DEL = 1 << 3,  // explicit `delete <path>` since last post
+    POST_REWRITE  = 1 << 4,  // fate: pull content from wt, emit new blob
+    POST_KEEP     = 1 << 5,  // fate: reuse baseline sha
+    POST_DROP     = 1 << 6,  // fate: omit from new tree
+};
+
+typedef struct {
+    sha1   old_sha;     // from baseline (empty if POST_IN_BASE unset)
+    sha1   new_sha;     // final sha (empty if dropped)
+    u16    old_mode;    // from baseline
+    u16    new_mode;    // final
+    Bu8    content;     // blob content for rewrites (freed at end)
+} post_rec;
+
+typedef struct {
+    keeper     *k;
+    u8cs        reporoot;
+    post_rec   *rec;
+    u8         *flag;
+    u32         cap;
+    b8          any_pd;     // any put/delete rows since last post
+    ron60       last_post_ts;
+    ok64        error;
+} post_ctx;
+
+// --- git mode helpers ---
+
+static u16 post_mode_of_kind(u8 kind) {
+    switch (kind) {
+        case WALK_KIND_REG: return 0100644;
+        case WALK_KIND_EXE: return 0100755;
+        case WALK_KIND_LNK: return 0120000;
+        case WALK_KIND_DIR: return 040000;
+    }
+    return 0100644;
+}
+
+static void post_mode_feed(Bu8 tree, u16 mode) {
+    //  Git modes are printed in octal without leading zeros.  All four
+    //  values we emit are 5- or 6-digit strings.
+    char buf[8];
+    int n = snprintf(buf, sizeof(buf), "%o", (unsigned)mode);
+    u8cs m = {(u8cp)buf, (u8cp)buf + n};
+    u8bFeed(tree, m);
+}
+
+// --- ULOG scans ---
+
+static ok64 post_pd_cb(ron60 verb, u8cs path, ron60 ts, void *vctx) {
+    sane(vctx);
+    (void)ts;
+    post_ctx *c = (post_ctx *)vctx;
+    c->any_pd = YES;
+    u32 idx = SNIFFIntern(path);
+    if (idx >= c->cap) return OK;
+    if (verb == SNIFFAtVerbPut())    c->flag[idx] |= POST_EXPL_PUT;
+    if (verb == SNIFFAtVerbDelete()) c->flag[idx] |= POST_EXPL_DEL;
+    return OK;
+}
+
+// --- Baseline walk ---
+
+typedef struct {
+    post_ctx *c;
+} base_ctx;
+
+static ok64 post_base_visit(u8cs path, u8 kind, u8cp esha, u8cs blob,
+                             void0p vctx) {
+    sane(vctx);
+    (void)blob;
+    base_ctx *b = (base_ctx *)vctx;
+    post_ctx *c = b->c;
+    if (kind == WALK_KIND_SUB) return WALKSKIP;
+    if (kind == WALK_KIND_DIR) {
+        //  Root dir arrives with empty path; inner dirs get recorded
+        //  only if we plan to emit them (we'll derive that from the
+        //  set of files during tree-build).  We don't need per-dir
+        //  records here.
+        return OK;
+    }
+    u32 idx = SNIFFIntern(path);
+    if (idx >= c->cap) return OK;
+    c->flag[idx] |= POST_IN_BASE;
+    memcpy(c->rec[idx].old_sha.data, esha, 20);
+    c->rec[idx].old_mode = post_mode_of_kind(kind);
+    return OK;
+}
+
+static ok64 post_load_baseline(post_ctx *c, sha1 *root_out, b8 *has_out) {
+    sane(c && root_out && has_out);
+    *has_out = NO;
+
+    ron60 base_ts = 0, base_verb = 0;
+    uri base_u = {};
+    ok64 br = SNIFFAtBaseline(&base_ts, &base_verb, &base_u);
+    if (br == ULOGNONE) done;  // fresh repo
+    if (br != OK) return br;
+
+    //  Single-hash baseline: fragment is 40 hex chars.  Multi-hash
+    //  (patch merges) falls through with has_out=NO until graf
+    //  integration lands — safe fallback is "no baseline tree".
+    a_dup(u8c, frag, base_u.fragment);
+    if ($len(frag) != 40) done;
+
+    sha1 commit_sha = {};
+    a_raw(csha_bin, commit_sha);
+    HEXu8sDrainSome(csha_bin, frag);
 
     Bu8 cbuf = {};
     call(u8bAllocate, cbuf, 1UL << 24);
     u8 ctype = 0;
-    call(KEEPGet, k, hashlet, hexlen, cbuf, &ctype);
-
-    // Dereference tag
-    if (ctype == DOG_OBJ_TAG) {
-        u8cs body = {u8bDataHead(cbuf), u8bIdleHead(cbuf)};
-        u8cs field = {}, value = {};
-        sha1 tag_sha = {};
-        a_raw(tag_bin, tag_sha);
-        while (GITu8sDrainCommit(body, field, value) == OK) {
-            if ($empty(field)) break;
-            if ($len(field) == 6 && memcmp(field[0], "object", 6) == 0 &&
-                $len(value) >= 40) {
-                u8cs hex40 = {value[0], $atp(value, 40)};
-                HEXu8sDrainSome(tag_bin, hex40);
-                break;
-            }
-        }
-        u64 ch = WHIFFHashlet60(&tag_sha);
-        u8bReset(cbuf);
-        call(KEEPGet, k, ch, 15, cbuf, &ctype);
+    ok64 go = KEEPGetExact(c->k, &commit_sha, cbuf, &ctype);
+    if (go != OK || ctype != DOG_OBJ_COMMIT) {
+        u8bFree(cbuf);
+        done;
     }
-    if (ctype != DOG_OBJ_COMMIT) { u8bFree(cbuf); fail(SNIFFFAIL); }
 
-    // SHA1("commit <len>\0" + content)
-    size_t csz = u8bDataLen(cbuf);
-    char hdr[64];
-    int hlen = snprintf(hdr, sizeof(hdr), "commit %zu", csz);
-    Bu8 tmp = {};
-    call(u8bAllocate, tmp, (u64)hlen + 1 + csz);
-    u8cs hs = {(u8cp)hdr, (u8cp)hdr + hlen};
-    u8bFeed(tmp, hs);
-    u8bFeed1(tmp, 0);
-    u8bFeed(tmp, u8bDataC(cbuf));
-    a_dup(u8c, _d, u8bData(tmp));
-    SHA1Sum(out, _d);
-    u8bFree(tmp);
-    u8bFree(cbuf);
-    done;
-}
-
-// Resolve the worktree's current commit (parent for a new commit)
-// from sniff/at.log.  Writes 40 hex bytes into out_hex[0..40].
-// Returns NO if at.log is missing/empty.
-static b8 post_parent_hex(u8 *out_hex, keeper *k, u8cs reporoot) {
-    (void)k; (void)reporoot;
-    a_pad(u8, bbuf, 256);
-    a_pad(u8, sbuf, 64);
-    sniff_at tail = {.branch = bbuf, .sha = sbuf};
-    if (SNIFFAtRead(&tail) != OK) return NO;
-    if (u8bDataLen(tail.sha) != 40) return NO;
-    memcpy(out_hex, u8bDataHead(tail.sha), 40);
-    return YES;
-}
-
-// Resolve parent commit's tree hashlet for staging.  Returns 0 if
-// there's no parent (root commit) or resolution fails.
-static u64 post_parent_tree_hashlet(keeper *k, u8cs reporoot) {
-    u8 hex[40] = {};
-    if (!post_parent_hex(hex, k, reporoot)) return 0;
-    u8cs head = {hex, hex + 40};
     sha1 tree_sha = {};
-    if (SNIFFParentTreeSha(&tree_sha, head) != OK) return 0;
-    return WHIFFHashlet40(&tree_sha);
-}
+    u8cs body = {u8bDataHead(cbuf), u8bIdleHead(cbuf)};
+    ok64 to = GITu8sCommitTree(body, tree_sha.data);
+    u8bFree(cbuf);
+    if (to != OK) done;
 
-//  Canonical repack: walk the root tree and collect 60-bit hashlets of
-//  all staged (tree, blob) objects reachable from it.  Objects already
-//  in the main keeper (i.e. unchanged from the parent commit) are
-//  skipped — they remain addressable through keeper's existing idx.
-//  Hashlets are de-duplicated by linear scan (staged sets are small).
-typedef struct {
-    u8cs branch;
-    Bu64 trees;
-    Bu64 blobs;
-} repack_ctx;
+    base_ctx bctx = {.c = c};
+    ok64 wo = WALKTreeLazy(c->k, tree_sha.data, post_base_visit, &bctx);
+    if (wo != OK) return wo;
 
-static b8 u64b_contains(Bu64 buf, u64 v) {
-    u64cp h = u64bDataHead(buf);
-    u64cp e = (u64cp)u8bIdleHead((u8bp)buf);
-    for (; h < e; h++) if (*h == v) return YES;
-    return NO;
-}
-
-static ok64 repack_walk(repack_ctx *rc, sha1 const *tree_sha) {
-    sane(rc && tree_sha);
-    u64 tree_hl = WHIFFHashlet60(tree_sha);
-
-    //  If this tree is NOT in staging, it's already in main keeper —
-    //  skip entirely (its subtree is also in main).
-    u64 val = 0;
-    if (STAGELookup(rc->branch, tree_hl, 15, &val) != OK) done;
-
-    if (u64b_contains(rc->trees, tree_hl)) done;
-
-    Bu8 tbuf = {};
-    call(u8bAllocate, tbuf, 1UL << 20);
-    u8 otype = 0;
-    ok64 go = STAGEGet(rc->branch, tree_hl, 15, tbuf, &otype);
-    if (go != OK || otype != DOG_OBJ_TREE) { u8bFree(tbuf); done; }
-
-    u64bPush(rc->trees, &tree_hl);
-
-    a_dup(u8c, obj, u8bData(tbuf));
-    u8cs file = {}, esha = {};
-    while (GITu8sDrainTree(obj, file, esha) == OK) {
-        u8cs scan = {file[0], file[1]};
-        if (u8csFind(scan, ' ') != OK) continue;
-        u8cs mode_s = {file[0], scan[0]};
-        u8 kind = WALKu8sModeKind(mode_s);
-        if (kind == 0) continue;
-
-        sha1 esha_b = {};
-        memcpy(esha_b.data, esha[0], 20);
-        u64 entry_hl = WHIFFHashlet60(&esha_b);
-
-        if (kind == WALK_KIND_DIR) {
-            (void)repack_walk(rc, &esha_b);
-        } else if (kind == WALK_KIND_REG || kind == WALK_KIND_EXE ||
-                   kind == WALK_KIND_LNK) {
-            u64 bv = 0;
-            if (STAGELookup(rc->branch, entry_hl, 15, &bv) == OK &&
-                !u64b_contains(rc->blobs, entry_hl))
-                u64bPush(rc->blobs, &entry_hl);
-        }
-    }
-    u8bFree(tbuf);
+    *root_out = tree_sha;
+    *has_out = YES;
     done;
 }
 
-//  Emit every collected object to `mp` in canonical order: trees
-//  first, then blobs (commit was already fed by the caller).
-static ok64 repack_emit(keep_pack *mp, u8cs branch, repack_ctx *rc) {
-    sane(mp && rc);
-    keeper *k = &KEEP;
+// --- Worktree scan ---
 
-    Bu8 obuf = {};
-    call(u8bAllocate, obuf, 1UL << 20);
+static ok64 post_wt_callback(void *varg, path8bp path) {
+    sane(varg && path);
+    post_ctx *c = (post_ctx *)varg;
+    a_dup(u8c, full, u8bData(path));
 
-    //  Trees.
-    u64cp th = u64bDataHead(rc->trees);
-    u64cp te = (u64cp)u8bIdleHead((u8bp)rc->trees);
-    for (; th < te; th++) {
-        u8 otype = 0;
-        u8bReset(obuf);
-        call(STAGEGet, branch, *th, 15, obuf, &otype);
-        sha1 tmp = {};
-        a_dup(u8c, body, u8bData(obuf));
-        u8csc nopath = {NULL, NULL};
-        call(KEEPPackFeed, k, mp, DOG_OBJ_TREE, body, nopath, 0, &tmp);
+    //  Skip the reporoot prefix to get the relative path.
+    size_t rlen = $len(c->reporoot);
+    if ($len(full) <= rlen) return OK;
+    if (memcmp(full[0], c->reporoot[0], rlen) != 0) return OK;
+    u8cs rel = {$atp(full, rlen), full[1]};
+    //  Skip leading slash(es).
+    while (!$empty(rel) && rel[0][0] == '/') rel[0]++;
+    if ($empty(rel)) return OK;
+
+    //  Skip well-known metadata dirs — both as dir prefixes and as
+    //  exact top-level entries (`.dogs` in secondary worktrees is a
+    //  symlink, not a dir, and FILEScan reports it as a leaf).
+    {
+        a_cstr(d_sniff, ".sniff");
+        a_cstr(d_dogs,  ".dogs");
+        size_t rl = $len(rel);
+        #define SKIP(p) \
+            ((rl) == $len(p) && memcmp(rel[0], p[0], $len(p)) == 0) || \
+            ((rl) > $len(p) && memcmp(rel[0], p[0], $len(p)) == 0 && \
+             rel[0][$len(p)] == '/')
+        if (SKIP(d_sniff) || SKIP(d_dogs)) return OK;
+        #undef SKIP
     }
-    //  Blobs.  Repack from staging to main log; the original feed in
-    //  PUT/COM has already fan-out'd the indexer with the live path,
-    //  so pass empty here to avoid re-indexing under a wrong path.
-    u64cp bh = u64bDataHead(rc->blobs);
-    u64cp be = (u64cp)u8bIdleHead((u8bp)rc->blobs);
-    for (; bh < be; bh++) {
-        u8 otype = 0;
-        u8bReset(obuf);
-        call(STAGEGet, branch, *bh, 15, obuf, &otype);
-        sha1 tmp = {};
-        a_dup(u8c, body, u8bData(obuf));
-        u8csc nopath = {NULL, NULL};
-        call(KEEPPackFeed, k, mp, DOG_OBJ_BLOB, body, nopath, 0, &tmp);
+
+    //  lstat the file to capture mode + mtime.
+    struct stat lsb = {};
+    if (lstat((char const *)full[0], &lsb) != 0) return OK;
+
+    u16 mode;
+    if (S_ISLNK(lsb.st_mode))               mode = 0120000;
+    else if (lsb.st_mode & S_IXUSR)         mode = 0100755;
+    else                                    mode = 0100644;
+
+    u32 idx = SNIFFIntern(rel);
+    if (idx >= c->cap) return OK;
+
+    c->flag[idx] |= POST_ON_DISK;
+    c->rec[idx].new_mode = mode;
+
+    //  Stash mtime as ron60 for the change-set decision below.  We
+    //  reuse old_sha.data as scratch storage only if POST_IN_BASE is
+    //  unset — but cleaner to keep mtime in content.data slot.  For
+    //  now, recompute later from a fresh lstat at decide time.  (This
+    //  scan just marks presence + mode.)
+    (void)lsb;
+    return OK;
+}
+
+static ok64 post_scan_wt(post_ctx *c) {
+    sane(c);
+    a_path(root_path);
+    u8bFeed(root_path, c->reporoot);
+    call(PATHu8bTerm, root_path);
+    return FILEScan(root_path,
+                    (FILE_SCAN)(FILE_SCAN_FILES | FILE_SCAN_LINKS |
+                                FILE_SCAN_DEEP),
+                    post_wt_callback, c);
+}
+
+// --- Change-set resolution ---
+
+static ok64 post_decide(post_ctx *c, u32 idx) {
+    sane(c);
+    u8 f = c->flag[idx];
+    post_rec *r = &c->rec[idx];
+
+    //  Skip directory entries in the registry — they are reconstructed
+    //  during tree-build rather than selected here.
+    if (SNIFFIsDir(idx)) return OK;
+    if (!(f & (POST_IN_BASE | POST_ON_DISK))) return OK;
+
+    //  Explicit rules win.
+    if (f & POST_EXPL_DEL) {
+        c->flag[idx] |= POST_DROP;
+        return OK;
     }
-    u8bFree(obuf);
+    if (f & POST_EXPL_PUT) {
+        if (!(f & POST_ON_DISK)) {   // explicit put of a missing file
+            c->flag[idx] |= POST_DROP;
+            return OK;
+        }
+        c->flag[idx] |= POST_REWRITE;
+        return OK;
+    }
+
+    //  Missing from wt — only drop when implicit mode or baseline had it.
+    if (!(f & POST_ON_DISK)) {
+        if (c->any_pd) {
+            //  No explicit rule for this path and we are in selective
+            //  mode: keep the baseline entry unchanged.
+            if (f & POST_IN_BASE) c->flag[idx] |= POST_KEEP;
+        } else {
+            //  Implicit mode: a missing file is a deletion.
+            c->flag[idx] |= POST_DROP;
+        }
+        return OK;
+    }
+
+    //  On disk, no explicit rule.
+    if (c->any_pd) {
+        //  Selective mode: carry over baseline entry; a new on-disk
+        //  file that isn't mentioned goes unstaged (ignore).
+        if (f & POST_IN_BASE) c->flag[idx] |= POST_KEEP;
+        return OK;
+    }
+
+    //  Implicit mode: include dirty files (mtime ∉ stamp-set).
+    a_path(fp);
+    u8cs rel = {};
+    call(SNIFFPath, rel, idx);
+    call(SNIFFFullpath, fp, c->reporoot, rel);
+    struct stat sb = {};
+    if (lstat((char const *)u8bDataHead(fp), &sb) != 0) {
+        c->flag[idx] |= POST_DROP;
+        return OK;
+    }
+    struct timespec ts = {.tv_sec = sb.st_mtim.tv_sec,
+                          .tv_nsec = sb.st_mtim.tv_nsec};
+    ron60 mtime_r = SNIFFAtOfTimespec(ts);
+    if (SNIFFAtKnown(mtime_r)) {
+        //  Clean: keep baseline sha if present.
+        if (f & POST_IN_BASE) c->flag[idx] |= POST_KEEP;
+        //  Otherwise: untracked clean (shouldn't happen but ignore).
+    } else {
+        c->flag[idx] |= POST_REWRITE;
+    }
+    (void)r;
+    return OK;
+}
+
+// --- Hashing new blobs ---
+
+static ok64 post_hash_one(post_ctx *c, u32 idx) {
+    sane(c);
+    post_rec *r = &c->rec[idx];
+    u8 f = c->flag[idx];
+    if (!(f & POST_REWRITE)) done;
+
+    u8cs rel = {};
+    call(SNIFFPath, rel, idx);
+    a_path(fp);
+    call(SNIFFFullpath, fp, c->reporoot, rel);
+
+    struct stat lsb = {};
+    if (lstat((char const *)u8bDataHead(fp), &lsb) != 0) {
+        //  Disappeared between scan and hash — treat as drop.
+        c->flag[idx] &= ~POST_REWRITE;
+        c->flag[idx] |= POST_DROP;
+        done;
+    }
+
+    call(u8bAllocate, r->content, 1UL << 20);
+
+    if (S_ISLNK(lsb.st_mode)) {
+        char target[1024];
+        ssize_t tlen = readlink((char const *)u8bDataHead(fp),
+                                target, sizeof(target));
+        if (tlen > 0) {
+            u8cs tv = {(u8cp)target, (u8cp)target + tlen};
+            u8bFeed(r->content, tv);
+        }
+    } else {
+        int fd = -1;
+        ok64 oo = FILEOpen(&fd, $path(fp), O_RDONLY);
+        if (oo != OK) return oo;
+        FILEdrainall(u8bIdle(r->content), fd);
+        FILEClose(&fd);
+    }
+
+    KEEPObjSha(&r->new_sha, DOG_OBJ_BLOB, u8bDataC(r->content));
+    done;
+}
+
+// --- Tree building (bottom-up from sorted paths) ---
+
+typedef struct {
+    u32    lo, hi;    // sorted-index range
+    u8cs   prefix;    // directory prefix these entries live under (with trailing '/')
+} tree_range;
+
+//  Locate the end of the range whose sorted paths all start with
+//  `prefix` (exclusive).  Caller guarantees [lo..hi) is sorted.
+static u32 post_range_end(u32 lo, u32 hi, u8cs prefix) {
+    u32 end = lo;
+    while (end < hi) {
+        u8cs p = {};
+        u32 idx = *u32bDataAtP(SNIFF.sorted, end);
+        if (SNIFFPath(p, idx) != OK) { end++; continue; }
+        size_t plen = $len(prefix);
+        if ($len(p) < plen) break;
+        if (memcmp(p[0], prefix[0], plen) != 0) break;
+        end++;
+    }
+    return end;
+}
+
+static ok64 post_build_tree(post_ctx *c, u32 lo, u32 hi, u8cs prefix,
+                            sha1 *tree_out, Bu8 tree_buf,
+                            Bu8 tree_body_list, Bu8 tree_shas,
+                            u32 *emit_count) {
+    //  Recursively build a tree for paths in [lo, hi) under `prefix`.
+    //  Emits serialized tree body bytes (prefixed by u32 length) into
+    //  `tree_body_list` and corresponding shas into `tree_shas`.
+    sane(c && tree_out);
+
+    Bu8 tree = {};
+    call(u8bAllocate, tree, (u64)(hi - lo) * 80);
+
+    u32 i = lo;
+    while (i < hi) {
+        u32 idx = *u32bDataAtP(SNIFF.sorted, i);
+        u8cs rel = {};
+        if (SNIFFPath(rel, idx) != OK) { i++; continue; }
+
+        size_t plen = $len(prefix);
+        if ($len(rel) <= plen) { i++; continue; }
+        u8cs rest = {$atp(rel, plen), rel[1]};
+        if ($empty(rest)) { i++; continue; }
+
+        //  Find first '/' in rest to distinguish direct-child files
+        //  from entries in deeper subtrees.
+        u8c const *slash = NULL;
+        for (u8c const *p = rest[0]; p < rest[1]; p++) {
+            if (*p == '/') { slash = p; break; }
+        }
+
+        if (slash) {
+            //  Sub-directory of this tree: recurse over children.
+            u8cs dirname = {rest[0], slash};
+            a_pad(u8, subprefix, 2048);
+            u8bFeed(subprefix, prefix);
+            u8bFeed(subprefix, dirname);
+            u8bFeed1(subprefix, '/');
+            u8cs sub = {u8bDataHead(subprefix), subprefix[2]};
+
+            u32 sub_hi = post_range_end(i, hi, sub);
+
+            sha1 sub_sha = {};
+            ok64 so = post_build_tree(c, i, sub_hi, sub, &sub_sha,
+                                      tree_buf, tree_body_list,
+                                      tree_shas, emit_count);
+            if (so != OK) { u8bFree(tree); return so; }
+
+            if (!sha1empty(&sub_sha)) {
+                post_mode_feed(tree, 040000);
+                u8bFeed1(tree, ' ');
+                u8bFeed(tree, dirname);
+                u8bFeed1(tree, 0);
+                a_rawc(sr, sub_sha);
+                u8bFeed(tree, sr);
+            }
+            i = sub_hi;
+            continue;
+        }
+
+        //  Direct-child file entry.
+        u8 f = c->flag[idx];
+        if (f & POST_DROP) { i++; continue; }
+        if (!(f & (POST_KEEP | POST_REWRITE))) { i++; continue; }
+
+        sha1 entry_sha = (f & POST_REWRITE)
+            ? c->rec[idx].new_sha
+            : c->rec[idx].old_sha;
+        if (sha1empty(&entry_sha)) { i++; continue; }
+
+        u16 mode = (f & POST_REWRITE)
+            ? c->rec[idx].new_mode
+            : c->rec[idx].old_mode;
+        if (mode == 0) mode = 0100644;
+
+        post_mode_feed(tree, mode);
+        u8bFeed1(tree, ' ');
+        u8bFeed(tree, rest);
+        u8bFeed1(tree, 0);
+        a_rawc(er, entry_sha);
+        u8bFeed(tree, er);
+        i++;
+    }
+
+    if (u8bDataLen(tree) == 0) {
+        memset(tree_out, 0, sizeof(*tree_out));
+        u8bFree(tree);
+        done;
+    }
+
+    KEEPObjSha(tree_out, DOG_OBJ_TREE, u8bDataC(tree));
+
+    //  Record (len u32, body bytes) in tree_body_list, and sha in tree_shas.
+    u32 tlen = (u32)u8bDataLen(tree);
+    u8cs tl = {(u8cp)&tlen, (u8cp)&tlen + sizeof(u32)};
+    u8bFeed(tree_body_list, tl);
+    u8bFeed(tree_body_list, u8bDataC(tree));
+    a_rawc(tr, *tree_out);
+    u8bFeed(tree_shas, tr);
+    (*emit_count)++;
+
+    u8bFree(tree);
+    done;
+}
+
+// --- Empty-tree feed (handles "no files to commit" case) ---
+
+static ok64 post_feed_empty_tree(keeper *k, keep_pack *p, sha1 *out) {
+    u8cs empty = {};
+    u8csc nopath = {NULL, NULL};
+    return KEEPPackFeed(k, p, DOG_OBJ_TREE, empty, nopath, 0, out);
+}
+
+// --- Resolve parent commit sha for the commit body ---
+
+static ok64 post_parent_sha(keeper *k, u8cs parent_hex, sha1 *out) {
+    sane(out && $ok(parent_hex));
+    if ($len(parent_hex) != 40) fail(SNIFFFAIL);
+
+    a_raw(bin, *out);
+    HEXu8sDrainSome(bin, parent_hex);
+    //  Verify the commit actually lives in keeper (sanity check).
+    Bu8 tmp = {};
+    call(u8bAllocate, tmp, 1UL << 20);
+    u8 ctype = 0;
+    ok64 go = KEEPGetExact(k, out, tmp, &ctype);
+    u8bFree(tmp);
+    if (go != OK || ctype != DOG_OBJ_COMMIT) fail(SNIFFFAIL);
+    done;
+}
+
+// --- Baseline branch query (from ULOG) ---
+
+static ok64 post_baseline_branch(u8bp out, u8bp hex_out) {
+    sane(out && hex_out);
+    u8bReset(out);
+    u8bReset(hex_out);
+    ron60 ts = 0, verb = 0;
+    uri u = {};
+    ok64 r = SNIFFAtBaseline(&ts, &verb, &u);
+    if (r != OK) done;
+    if (!u8csEmpty(u.query)) u8bFeed(out, u.query);
+    a_dup(u8c, frag, u.fragment);
+    if ($len(frag) == 40) u8bFeed(hex_out, frag);
     done;
 }
 
 // --- Public API ---
 
-ok64 POSTCommit(u8cs reporoot,
-                u8cs message, u8cs author, sha1 *sha_out) {
-    sane($ok(message) && $ok(author));
-    sniff *s = &SNIFF; keeper *k = &KEEP; (void)s;
+ok64 POSTCommit(u8cs reporoot, u8cs message, u8cs author, sha1 *sha_out) {
+    sane($ok(message) && $ok(author) && sha_out);
+    keeper *k = &KEEP;
 
-    //  1. Resolve target branch (sniff/at.log tail or "heads/master").
+    //  1. Resolve baseline (branch, parent hex).  If no baseline, we're
+    //     making a root commit.
     a_pad(u8, brbuf, 256);
-    call(STAGEBranch, brbuf);
-    a_dup(u8c, branch, u8bData(brbuf));
+    a_pad(u8, phex, 64);
+    call(post_baseline_branch, brbuf, phex);
+    if (u8bDataLen(brbuf) == 0) {
+        a_cstr(def, "?heads/master");
+        u8bFeed(brbuf, def);
+    }
 
-    //  2. Auto-stage when nothing has been explicitly PUT/DELETEd.
-    u64 base = SNIFFBaseTree();
-    u64 head_tree = post_parent_tree_hashlet(k, reporoot);
+    //  Per-path arrays sized to current registry + head-room for
+    //  paths interned during wt scan.  The registry is shared with
+    //  keeper, so indices are globally stable once assigned.
+    u32 npath0 = SNIFFCount();
+    u32 cap = npath0 + (1u << 20);
+
+    post_rec *rec = NULL;
+    Bu8 rec_buf = {};
+    call(u8bAllocate, rec_buf, (u64)cap * sizeof(post_rec));
+    memset(u8bDataHead(rec_buf), 0, (u64)cap * sizeof(post_rec));
+    rec = (post_rec *)u8bDataHead(rec_buf);
+
+    Bu8 flag_buf = {};
+    call(u8bAllocate, flag_buf, cap);
+    memset(u8bDataHead(flag_buf), 0, cap);
+
+    post_ctx ctx = {
+        .k = k, .rec = rec,
+        .flag = u8bDataHead(flag_buf), .cap = cap,
+        .last_post_ts = SNIFFAtLastPostTs(),
+    };
+    ctx.reporoot[0] = reporoot[0];
+    ctx.reporoot[1] = reporoot[1];
+
+    //  2. Baseline walk.
+    sha1 base_tree_sha = {};
+    b8 have_base = NO;
+    ok64 lo = post_load_baseline(&ctx, &base_tree_sha, &have_base);
+    if (lo != OK) { u8bFree(rec_buf); u8bFree(flag_buf); return lo; }
+
+    //  3. Put/delete scan since last post.
+    call(SNIFFAtScanPutDelete, ctx.last_post_ts, post_pd_cb, &ctx);
+
+    //  4. Worktree scan.
+    call(post_scan_wt, &ctx);
+
+    //  5. Decide fate per path.
+    {
+        u32 n_now = SNIFFCount();
+        for (u32 i = 0; i < n_now && i < cap; i++) {
+            ok64 dr = post_decide(&ctx, i);
+            if (dr != OK) { u8bFree(rec_buf); u8bFree(flag_buf); return dr; }
+        }
+    }
+
+    //  5b. For every file explicitly deleted since last post, unlink
+    //      it from disk — otherwise `be delete foo && be post` leaves
+    //      foo on disk, and subsequent auto-stage passes would
+    //      re-add it.  This is the mtime-attribution fix for
+    //      BEhistory / the "deleted-file re-added" regression.
+    {
+        u32 n_now = SNIFFCount();
+        for (u32 i = 0; i < n_now && i < cap; i++) {
+            if (!(ctx.flag[i] & POST_EXPL_DEL)) continue;
+            if (!(ctx.flag[i] & POST_ON_DISK)) continue;
+            u8cs rel = {};
+            if (SNIFFPath(rel, i) != OK) continue;
+            a_path(fp);
+            if (SNIFFFullpath(fp, reporoot, rel) != OK) continue;
+            (void)FILEUnLink($path(fp));
+            ctx.flag[i] &= ~POST_ON_DISK;
+        }
+    }
+
+    //  6. Hash blobs for rewrite entries.
+    {
+        u32 n_now = SNIFFCount();
+        for (u32 i = 0; i < n_now && i < cap; i++) {
+            ok64 hr = post_hash_one(&ctx, i);
+            if (hr != OK) { u8bFree(rec_buf); u8bFree(flag_buf); return hr; }
+        }
+    }
+
+    //  7. Sort paths, then build trees bottom-up.
+    call(SNIFFSort);
+
     sha1 root_tree = {};
-    b8 have_root_sha = NO;
+    b8 have_root = NO;
+    Bu8 tree_bodies = {};
+    call(u8bAllocate, tree_bodies, 1UL << 20);
+    Bu8 tree_shas = {};
+    call(u8bAllocate, tree_shas, 4096);
+    u32 tree_count = 0;
 
-    if (base == 0 || base == head_tree) {
-        call(PUTStage, &root_tree, reporoot, NULL);
-        base = SNIFFBaseTree();
-        if (base == 0) {
-            //  Empty worktree: write an empty tree into the staging log
-            //  so the commit body can reference it and the repack walk
-            //  emits it.
-            keep_pack sp = {};
-            call(STAGEOpen, &sp, branch);
-            u8cs empty = {};
-            u8csc nopath = {NULL, NULL};
-            call(KEEPPackFeed, k, &sp, DOG_OBJ_TREE, empty, nopath, 0, &root_tree);
-            call(STAGEClose, &sp, branch);
-            base = WHIFFHashlet40(&root_tree);
-            SNIFFRecord(SNIFF_TREE, SNIFFRootIdx(), base);
+    {
+        u32 n_sorted = u32bDataLen(SNIFF.sorted);
+        u8cs no_prefix = {};
+        Bu8 tree_buf = {};
+        call(u8bAllocate, tree_buf, 256);
+        ok64 bo = post_build_tree(&ctx, 0, n_sorted, no_prefix,
+                                  &root_tree, tree_buf,
+                                  tree_bodies, tree_shas, &tree_count);
+        u8bFree(tree_buf);
+        if (bo != OK) {
+            u8bFree(tree_bodies); u8bFree(tree_shas);
+            u8bFree(rec_buf); u8bFree(flag_buf);
+            return bo;
         }
-        have_root_sha = !sha1empty(&root_tree);
+        have_root = !sha1empty(&root_tree);
     }
 
-    //  3. Resolve root_tree sha when a prior explicit PUT already set
-    //     base.  Prefer staging; fall back to main keeper (unchanged
-    //     subtree of the parent commit).
-    if (!have_root_sha) {
-        Bu8 tbuf = {};
-        call(u8bAllocate, tbuf, 1UL << 24);
-        u8 otype = 0;
-        ok64 go = STAGEGet(branch, base << 20, 10, tbuf, &otype);
-        if (go != OK || otype != DOG_OBJ_TREE) {
-            u8bReset(tbuf);
-            go = KEEPGet(k, base << 20, 10, tbuf, &otype);
-        }
-        if (go != OK || otype != DOG_OBJ_TREE) {
-            u8bFree(tbuf);
-            fail(SNIFFFAIL);
-        }
-        KEEPObjSha(&root_tree, DOG_OBJ_TREE, u8bDataC(tbuf));
-        u8bFree(tbuf);
+    //  8. If the result has no files, fall back to the empty-tree sha.
+    keep_pack p = {};
+    call(KEEPPackOpen, k, &p);
+    p.strict_order = NO;
+
+    if (!have_root) {
+        call(post_feed_empty_tree, k, &p, &root_tree);
     }
 
-    //  4. Resolve parent commit sha (if any).
+    //  9. Resolve parent commit sha (from baseline, if any).
     sha1 parent_sha = {};
     b8 has_parent = NO;
-    u8 parent_hex[40] = {};
-    if (post_parent_hex(parent_hex, k, reporoot)) {
-        u8cs head = {parent_hex, parent_hex + 40};
-        if (POSTParentSha(&parent_sha, k, head) == OK) has_parent = YES;
+    if (u8bDataLen(phex) == 40) {
+        a_dup(u8c, ph, u8bData(phex));
+        if (post_parent_sha(k, ph, &parent_sha) == OK) has_parent = YES;
     }
 
-    //  5. Build commit body (tree, optional parent, author, committer,
-    //     message).
+    //  10. Build commit body.
     Bu8 com = {};
     call(u8bAllocate, com, 4096);
-
     a_cstr(tree_label, "tree ");
     u8bFeed(com, tree_label);
-    a_pad(u8, tree_hex, 40);
+    a_pad(u8, thex, 40);
     a_rawc(tsha, root_tree);
-    HEXu8sFeedSome(tree_hex_idle, tsha);
-    u8bFeed(com, u8bDataC(tree_hex));
+    HEXu8sFeedSome(thex_idle, tsha);
+    u8bFeed(com, u8bDataC(thex));
     u8bFeed1(com, '\n');
 
     if (has_parent) {
@@ -285,9 +682,9 @@ ok64 POSTCommit(u8cs reporoot,
     }
 
     time_t now = time(NULL);
-    char ts[64];
-    int tslen = snprintf(ts, sizeof(ts), " %lld +0000\n", (long long)now);
-    u8cs ts_s = {(u8cp)ts, (u8cp)ts + tslen};
+    char tsb[64];
+    int tslen = snprintf(tsb, sizeof(tsb), " %lld +0000\n", (long long)now);
+    u8cs ts_s = {(u8cp)tsb, (u8cp)tsb + tslen};
 
     a_cstr(auth_label, "author ");
     u8bFeed(com, auth_label);
@@ -303,55 +700,140 @@ ok64 POSTCommit(u8cs reporoot,
     u8bFeed(com, message);
     u8bFeed1(com, '\n');
 
-    //  6. Canonical pack on MAIN keeper: commit → trees → blobs.
-    keep_pack mp = {};
-    call(KEEPPackOpen, k, &mp);
-
-    a_dup(u8c, com_data, u8bData(com));
+    //  11. Feed pack: commit first.
     u8csc nopath = {NULL, NULL};
-    ok64 o = KEEPPackFeed(k, &mp, DOG_OBJ_COMMIT, com_data, nopath, 0, sha_out);
+    a_dup(u8c, com_data, u8bData(com));
+    ok64 fo = KEEPPackFeed(k, &p, DOG_OBJ_COMMIT, com_data, nopath, 0, sha_out);
     u8bFree(com);
-    if (o != OK) { KEEPPackClose(k, &mp); return o; }
-
-    //  7. Walk staged reachable objects and emit trees, then blobs.
-    repack_ctx rc = {};
-    rc.branch[0] = branch[0]; rc.branch[1] = branch[1];
-    call(u64bAllocate, rc.trees, 1U << 14);
-    call(u64bAllocate, rc.blobs, 1U << 14);
-    o = repack_walk(&rc, &root_tree);
-    if (o == OK) o = repack_emit(&mp, branch, &rc);
-    u64bFree(rc.trees);
-    u64bFree(rc.blobs);
-    if (o != OK) { KEEPPackClose(k, &mp); return o; }
-
-    call(KEEPPackClose, k, &mp);
-
-    //  8. Drop staging dir; record new commit in at.log.
-    STAGEDrop(branch);
-
-    a_pad(u8, out_hex, 40);
-    a_rawc(osha, *sha_out);
-    HEXu8sFeedSome(out_hex_idle, osha);
-    a_dup(u8c, hex_in, u8bData(out_hex));
-    (void)SNIFFAtAppend(branch, hex_in);
-
-    //  9. Advance keeper REFS for `?<branch> → ?<sha>`.  sniff's at.log
-    //  records the new tip for the worktree, but keeper's REFS is what
-    //  REFADV / WIREPush consult to resolve the local-side tip during
-    //  push; without this a `be post ssh://…?<branch>` still sees the
-    //  pre-commit sha and no-ops against the peer.
-    if (!u8csEmpty(branch)) {
-        a_path(keepdir, u8bDataC(k->h->root), KEEP_DIR_S);
-        a_pad(u8, keybuf, 256);
-        u8bFeed1(keybuf, '?');
-        u8bFeed(keybuf, branch);
-        a_dup(u8c, key, u8bData(keybuf));
-        a_pad(u8, valbuf, 64);
-        u8bFeed1(valbuf, '?');
-        u8bFeed(valbuf, u8bDataC(out_hex));
-        a_dup(u8c, val, u8bData(valbuf));
-        (void)REFSAppend($path(keepdir), key, val);
+    if (fo != OK) {
+        KEEPPackClose(k, &p);
+        u8bFree(tree_bodies); u8bFree(tree_shas);
+        u8bFree(rec_buf); u8bFree(flag_buf);
+        return fo;
     }
+
+    //  12. Feed all rebuilt trees.
+    if (have_root) {
+        u8c *walk = u8bDataHead(tree_bodies);
+        u8c *end_walk = u8bIdleHead(tree_bodies);
+        while (walk < end_walk) {
+            u32 tlen = 0;
+            memcpy(&tlen, walk, sizeof(u32));
+            walk += sizeof(u32);
+            u8cs tbody = {walk, walk + tlen};
+            sha1 tsha_dummy = {};
+            ok64 to = KEEPPackFeed(k, &p, DOG_OBJ_TREE, tbody,
+                                   nopath, 0, &tsha_dummy);
+            walk += tlen;
+            if (to != OK) {
+                KEEPPackClose(k, &p);
+                u8bFree(tree_bodies); u8bFree(tree_shas);
+                u8bFree(rec_buf); u8bFree(flag_buf);
+                return to;
+            }
+        }
+    }
+
+    //  13. Feed all new blobs.
+    {
+        u32 n_now = SNIFFCount();
+        for (u32 i = 0; i < n_now && i < cap; i++) {
+            if (!(ctx.flag[i] & POST_REWRITE)) continue;
+            post_rec *r = &ctx.rec[i];
+            if (!u8bOK(r->content)) continue;
+            u8cs rel = {};
+            if (SNIFFPath(rel, i) != OK) continue;
+            u8csc bpath = {rel[0], rel[1]};
+            a_dup(u8c, body, u8bData(r->content));
+            sha1 bsha = {};
+            ok64 bo = KEEPPackFeed(k, &p, DOG_OBJ_BLOB, body,
+                                   bpath, 0, &bsha);
+            if (bo != OK) {
+                KEEPPackClose(k, &p);
+                u8bFree(tree_bodies); u8bFree(tree_shas);
+                u8bFree(rec_buf); u8bFree(flag_buf);
+                return bo;
+            }
+        }
+    }
+
+    call(KEEPPackClose, k, &p);
+
+    //  14. Advance keeper REFS for the branch (if we have one).
+    {
+        a_dup(u8c, branch, u8bData(brbuf));
+        if (!u8csEmpty(branch) && branch[0][0] == '?') {
+            a_path(keepdir, u8bDataC(k->h->root), KEEP_DIR_S);
+            a_pad(u8, valbuf, 64);
+            u8bFeed1(valbuf, '?');
+            a_pad(u8, out_hex, 40);
+            a_rawc(osha, *sha_out);
+            HEXu8sFeedSome(out_hex_idle, osha);
+            u8bFeed(valbuf, u8bDataC(out_hex));
+            a_dup(u8c, val, u8bData(valbuf));
+            (void)REFSAppend($path(keepdir), branch, val);
+        }
+    }
+
+    //  15. Append `post` ULOG row with stamp ts; futimens written
+    //      files so they become clean under the new stamp.  Row URI
+    //      is composed via abc/URI: query = branch ref (minus the
+    //      leading `?`), fragment = 40-hex of the new commit.
+    a_pad(u8, out_hex, 40);
+    {
+        a_rawc(osha, *sha_out);
+        HEXu8sFeedSome(out_hex_idle, osha);
+    }
+    uri urow = {};
+    {
+        a_dup(u8c, branch, u8bData(brbuf));
+        if (!u8csEmpty(branch) && branch[0][0] == '?') {
+            urow.query[0] = branch[0] + 1;
+            urow.query[1] = branch[1];
+        } else if (!u8csEmpty(branch)) {
+            urow.query[0] = branch[0];
+            urow.query[1] = branch[1];
+        }
+    }
+    {
+        a_dup(u8c, oh, u8bData(out_hex));
+        urow.fragment[0] = oh[0];
+        urow.fragment[1] = oh[1];
+    }
+
+    ron60 ts = 0;
+    struct timespec tv = {};
+    SNIFFAtNow(&ts, &tv);
+    ron60 verb = SNIFFAtVerbPost();
+    ok64 ar = SNIFFAtAppendAt(ts, verb, &urow);
+    (void)ar;
+
+    //  Stamp every file that survived into the new commit (rewrites +
+    //  keeps on disk) with the post row's timestamp.
+    {
+        u32 n_now = SNIFFCount();
+        for (u32 i = 0; i < n_now && i < cap; i++) {
+            u8 f = ctx.flag[i];
+            if (f & POST_DROP) continue;
+            if (!(f & POST_ON_DISK)) continue;
+            if (SNIFFIsDir(i)) continue;
+            u8cs rel = {};
+            if (SNIFFPath(rel, i) != OK) continue;
+            a_path(fp);
+            if (SNIFFFullpath(fp, reporoot, rel) != OK) continue;
+            (void)SNIFFAtStampPath(fp, ts);
+        }
+    }
+
+    //  16. Clean up.
+    {
+        u32 n_now = SNIFFCount();
+        for (u32 i = 0; i < n_now && i < cap; i++) {
+            if (u8bOK(ctx.rec[i].content)) u8bFree(ctx.rec[i].content);
+        }
+    }
+    u8bFree(tree_bodies); u8bFree(tree_shas);
+    u8bFree(rec_buf); u8bFree(flag_buf);
 
     fprintf(stderr, "sniff: commit %.*s\n",
             (int)u8bDataLen(out_hex), (char *)u8bDataHead(out_hex));

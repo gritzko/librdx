@@ -18,7 +18,10 @@
     # Safe byte: valid UTF-8 char, no slash, no backslash
     safe = (utf8_1 - [/\\]) | utf8_2 | utf8_3 | utf8_4 ;
 
-    # Dangerous exact names (case-insensitive)
+    # Dangerous exact names (case-insensitive).  The `.git` reject is
+    # a defensive guard at tree-entry boundaries for data ingested via
+    # keeper's UNPK (git pack imports), not a signal that our own
+    # workspace uses `.git` — it does not.
     dotgit  = '.' [gG][iI][tT] ;
     dotdogs = '.' [dD][oO][gG][sS] ;
     bad     = '.' | '..' | dotgit | dotdogs ;

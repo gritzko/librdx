@@ -1,123 +1,197 @@
-//  AT: per-worktree at.log.  See sniff/AT.md.
+//  AT — sniff's attribution log, layered over dog/ULOG.
 //
 #include "AT.h"
 #include "SNIFF.h"
 
+#include <string.h>
+#include <sys/stat.h>
 #include <fcntl.h>
-#include <unistd.h>
 
-#include "abc/FILE.h"
-#include "abc/PATH.h"
 #include "abc/PRO.h"
-#include "keeper/KEEP.h"
 
-//  <reporoot>/.sniff/at.log
-static u8c *const AT_REL_S[2] = {
-    (u8c *)".sniff/" SNIFF_AT_FILE,
-    (u8c *)".sniff/" SNIFF_AT_FILE
-        + sizeof(".sniff/" SNIFF_AT_FILE) - 1,
-};
-
-//  Fill `out_line` with the last complete line of `full` (trailing '\n'
-//  stripped).  Empty slice if file has no content.
-static void at_tail_line(u8cs out_line, u8cs full) {
-    out_line[0] = full[0];
-    out_line[1] = full[0];
-    u8cp base = full[0];
-    u64 n = (u64)(full[1] - base);
-    if (n == 0) return;
-    u64 end = n;
-    while (end > 0 && base[end - 1] == '\n') end--;
-    if (end == 0) return;
-    u64 start = end;
-    while (start > 0 && base[start - 1] != '\n') start--;
-    out_line[0] = base + start;
-    out_line[1] = base + end;
-}
-
-//  Parse a line: `<ron60>\t?<branch>\t?<sha>` (no trailing '\n').
-static ok64 at_parse(sniff_at *out, u8cs line) {
-    sane(out);
-    if (u8csEmpty(line)) fail(KEEPNONE);
-
-    a_dup(u8c, rest, line);
-    //  timestamp up to first '\t'
-    a_dup(u8c, scan, rest);
-    if (u8csFind(scan, '\t') != OK) fail(SNIFFFAIL);
-    u8cs ts_str = {rest[0], scan[0]};
-    rest[0] = scan[0] + 1;
-    ok64 time_val = 0;
-    a_dup(u8c, ts_dup, ts_str);
-    (void)RONutf8sDrain(&time_val, ts_dup);
-    out->time = time_val;
-
-    //  branch: '?' + chars + '\t'
-    if (u8csEmpty(rest) || *rest[0] != '?') fail(SNIFFFAIL);
-    u8csUsed(rest, 1);
-    a_dup(u8c, scan2, rest);
-    if (u8csFind(scan2, '\t') != OK) fail(SNIFFFAIL);
-    u8cs branch_slice = {rest[0], scan2[0]};
-    rest[0] = scan2[0] + 1;
-    u8bReset(out->branch);
-    u8bFeed(out->branch, branch_slice);
-
-    //  sha: '?' + 40 hex
-    if (u8csEmpty(rest) || *rest[0] != '?') fail(SNIFFFAIL);
-    u8csUsed(rest, 1);
-    if (u8csLen(rest) != 40) fail(SNIFFFAIL);
-    u8bReset(out->sha);
-    u8bFeed(out->sha, rest);
+//  Row-0 invariant guard: `repo` only at row 0, every other verb only
+//  at row ≥ 1.  Returns OK if the append is allowed.
+static ok64 at_check_row0(ron60 verb) {
+    sane(SNIFF.h);
+    ron60 vrepo = SNIFFAtVerbRepo();
+    u32 n = ULOGCount(&SNIFF.log);
+    if (n == 0 && verb != vrepo) fail(SNIFFFAIL);
+    if (n > 0 && verb == vrepo)  fail(SNIFFFAIL);
     done;
 }
 
-ok64 SNIFFAtRead(sniff_at *out) {
-    sane(out && out->branch && out->sha && SNIFF.h);
-
-    a_dup(u8c, root, u8bDataC(SNIFF.h->root));
-    a_path(apath, root, AT_REL_S);
-
-    u8bp map = NULL;
-    ok64 o = FILEMapRO(&map, $path(apath));
-    if (o != OK) fail(KEEPNONE);
-
-    a_dup(u8c, full, u8bData(map));
-    u8cs line = {};
-    at_tail_line(line, full);
-    if (u8csEmpty(line)) {
-        u8bUnMap(map);
-        fail(KEEPNONE);
-    }
-    o = at_parse(out, line);
-    u8bUnMap(map);
-    return o;
+ok64 SNIFFAtAppend(ron60 verb, uricp u) {
+    sane(SNIFF.h && u);
+    call(at_check_row0, verb);
+    return ULOGAppend(&SNIFF.log, verb, u);
 }
 
-ok64 SNIFFAtAppend(u8cs branch, u8cs sha) {
-    //  branch may be empty (detached); only its length matters.
-    sane($ok(sha) && SNIFF.h);
-    if (u8csLen(sha) != 40) fail(SNIFFFAIL);
-    (void)branch;
+ok64 SNIFFAtAppendAt(ron60 ts, ron60 verb, uricp u) {
+    sane(SNIFF.h && u);
+    call(at_check_row0, verb);
+    return ULOGAppendAt(&SNIFF.log, ts, verb, u);
+}
 
-    a_dup(u8c, root, u8bDataC(SNIFF.h->root));
-    a_path(apath, root, AT_REL_S);
+b8 SNIFFAtKnown(ron60 mtime) {
+    if (!SNIFF.h) return NO;
+    return ULOGHas(&SNIFF.log, mtime);
+}
 
-    int fd = open((char *)u8bDataHead(apath),
-                  O_WRONLY | O_CREAT | O_APPEND, 0644);
-    if (fd < 0) fail(SNIFFFAIL);
+// --- Verb constants (lazy-cached) ---
 
-    a_pad(u8, line, 256);
-    RONutf8sFeed(u8bIdle(line), RONNow());
-    u8bFeed1(line, '\t');
-    u8bFeed1(line, '?');
-    if (!u8csEmpty(branch)) u8bFeed(line, branch);
-    u8bFeed1(line, '\t');
-    u8bFeed1(line, '?');
-    u8bFeed(line, sha);
-    u8bFeed1(line, '\n');
+static ron60 at_v_repo   = 0;
+static ron60 at_v_get    = 0;
+static ron60 at_v_post   = 0;
+static ron60 at_v_patch  = 0;
+static ron60 at_v_put    = 0;
+static ron60 at_v_delete = 0;
 
-    a_dup(u8c, data, u8bData(line));
-    ok64 o = FILEFeed(fd, data);
-    close(fd);
-    if (o != OK) fail(SNIFFFAIL);
+ron60 SNIFFAtVerbRepo(void) {
+    if (at_v_repo == 0) { a_cstr(s, "repo"); at_v_repo = SNIFFAtVerbOf(s); }
+    return at_v_repo;
+}
+
+ron60 SNIFFAtVerbGet(void) {
+    if (at_v_get == 0) { a_cstr(s, "get"); at_v_get = SNIFFAtVerbOf(s); }
+    return at_v_get;
+}
+ron60 SNIFFAtVerbPost(void) {
+    if (at_v_post == 0) { a_cstr(s, "post"); at_v_post = SNIFFAtVerbOf(s); }
+    return at_v_post;
+}
+ron60 SNIFFAtVerbPatch(void) {
+    if (at_v_patch == 0) { a_cstr(s, "patch"); at_v_patch = SNIFFAtVerbOf(s); }
+    return at_v_patch;
+}
+ron60 SNIFFAtVerbPut(void) {
+    if (at_v_put == 0) { a_cstr(s, "put"); at_v_put = SNIFFAtVerbOf(s); }
+    return at_v_put;
+}
+ron60 SNIFFAtVerbDelete(void) {
+    if (at_v_delete == 0) { a_cstr(s, "delete"); at_v_delete = SNIFFAtVerbOf(s); }
+    return at_v_delete;
+}
+
+// --- Row-0 anchor lookup ---
+
+ok64 SNIFFAtRepo(urip u_out) {
+    sane(SNIFF.h && u_out);
+    if (ULOGCount(&SNIFF.log) == 0) return ULOGNONE;
+    ron60 ts = 0, verb = 0;
+    call(ULOGRow, &SNIFF.log, 0, &ts, &verb, u_out);
+    if (verb != SNIFFAtVerbRepo()) fail(SNIFFFAIL);
+    done;
+}
+
+// --- Baseline URI lookup ---
+
+ok64 SNIFFAtBaseline(ron60 *ts_out, ron60 *verb_out, urip u_out) {
+    sane(SNIFF.h && ts_out && verb_out && u_out);
+    ron60 vg = SNIFFAtVerbGet();
+    ron60 vp = SNIFFAtVerbPost();
+    ron60 vx = SNIFFAtVerbPatch();
+    u32 n = ULOGCount(&SNIFF.log);
+    for (u32 i = n; i > 0; i--) {
+        ron60 ts = 0, verb = 0;
+        uri u = {};
+        ok64 o = ULOGRow(&SNIFF.log, i - 1, &ts, &verb, &u);
+        if (o != OK) return o;
+        if (verb == vg || verb == vp || verb == vx) {
+            *ts_out = ts;
+            *verb_out = verb;
+            *u_out = u;
+            done;
+        }
+    }
+    return ULOGNONE;
+}
+
+// --- Last-post timestamp ---
+
+ron60 SNIFFAtLastPostTs(void) {
+    if (!SNIFF.h) return 0;
+    ron60 vp = SNIFFAtVerbPost();
+    ron60 ts = 0;
+    uri u = {};
+    ok64 o = ULOGFindVerb(&SNIFF.log, vp, &ts, &u);
+    if (o != OK) return 0;
+    return ts;
+}
+
+// --- Put/delete forward scan since floor ---
+
+// --- ron60 ↔ timespec helpers ---
+
+ron60 SNIFFAtOfTimespec(struct timespec tsp) {
+    struct tm tm = {};
+    time_t sec = tsp.tv_sec;
+    //  RONNow uses localtime, so match that for round-trip.
+    localtime_r(&sec, &tm);
+    u32 ms = (u32)(tsp.tv_nsec / 1000000);
+    if (ms > 999) ms = 999;
+    ron60 r = 0;
+    RONOfTime(&r, &tm, ms);
+    return r;
+}
+
+static struct timespec at_ts_of_ron60(ron60 r) {
+    struct tm tm = {};
+    u32 ms = 0;
+    struct timespec ts = {};
+    if (RONToTime(r, &tm, &ms) != OK) return ts;
+    //  RONNow wrote via localtime; reverse via mktime (local tz).
+    //  `tm_isdst = -1` tells mktime to auto-detect DST from the local
+    //  calendar; without it mktime assumes tm_isdst=0, which shifts
+    //  the computed time_t by one hour during DST, breaking the
+    //  ron60 ↔ timespec round-trip at the SNIFFAtKnown check.
+    tm.tm_isdst = -1;
+    time_t sec = mktime(&tm);
+    ts.tv_sec = sec;
+    ts.tv_nsec = (long)ms * 1000000L;
+    return ts;
+}
+
+void SNIFFAtNow(ron60 *ts_out, struct timespec *tv_out) {
+    ron60 now = RONNow();
+    //  Guard monotonicity against the ULOG tail.
+    if (SNIFF.h) {
+        ron60 tail_ts = 0, tail_verb = 0;
+        uri tu = {};
+        if (ULOGTail(&SNIFF.log, &tail_ts, &tail_verb, &tu) == OK) {
+            if (now <= tail_ts) now = tail_ts + 1;
+        }
+    }
+    *ts_out = now;
+    *tv_out = at_ts_of_ron60(now);
+}
+
+ok64 SNIFFAtStampPath(path8b path, ron60 ts) {
+    sane(path);
+    struct timespec tv = at_ts_of_ron60(ts);
+    struct timespec times[2] = { tv, tv };
+    char const *cp = (char const *)u8bDataHead(path);
+    if (utimensat(AT_FDCWD, cp, times, 0) != 0) fail(SNIFFFAIL);
+    done;
+}
+
+ok64 SNIFFAtScanPutDelete(ron60 floor, sniff_at_pd_cb cb, void *ctx) {
+    sane(SNIFF.h && cb);
+    u32 start = 0;
+    ok64 s = ULOGSeek(&SNIFF.log, floor, &start);
+    if (s != OK && s != ULOGNONE) return s;
+    u32 n = ULOGCount(&SNIFF.log);
+    ron60 vput = SNIFFAtVerbPut();
+    ron60 vdel = SNIFFAtVerbDelete();
+    for (u32 i = start; i < n; i++) {
+        ron60 ts = 0, verb = 0;
+        uri u = {};
+        ok64 o = ULOGRow(&SNIFF.log, i, &ts, &verb, &u);
+        if (o != OK) return o;
+        if (ts <= floor) continue;
+        if (verb != vput && verb != vdel) continue;
+        a_dup(u8c, path, u.path);
+        ok64 cr = cb(verb, path, ts, ctx);
+        if (cr != OK) return cr;
+    }
     done;
 }
