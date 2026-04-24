@@ -89,4 +89,18 @@ VERIFY="$TESTDIR/verify-canonical-refs.sh"
 sh "$VERIFY" "$KSRV"         || { echo "FAIL: keeper mirror refs not canonical"; exit 1; }
 sh "$VERIFY" "$TMP/be-clone" || { echo "FAIL: be-clone refs not canonical";    exit 1; }
 
+# --- 7. idempotency: a repeat `be get` against the keeper mirror must
+#         leave .dogs bit-identical.  Per keeper/LOG.md: the log is
+#         append-of-packs; a no-op fetch produces zero file changes.
+snapshot_dogs() { (cd "$1/.dogs" && find . -type f -not -name '.lock' \
+    | sort | xargs sha256sum); }
+SNAP1=$(snapshot_dogs "$TMP/be-clone")
+be get "be://localhost/$KSRV_REL"
+SNAP2=$(snapshot_dogs "$TMP/be-clone")
+if [ "$SNAP1" != "$SNAP2" ]; then
+    echo "FAIL: repeat be get changed files in .dogs"
+    diff <(printf '%s\n' "$SNAP1") <(printf '%s\n' "$SNAP2") | head -20
+    exit 1
+fi
+
 echo "PASS: clone-from-keeper"
