@@ -45,5 +45,10 @@ con ok64 PATCHCONFLICT = 0x483e0c619d50f3;  // conflicts recorded in wt
 con ok64 PATCHDIRTY    = 0x483e0c49b762;    // wt has dirty files that
                                              // would be clobbered
 con ok64 PATCHUNRELATED = 0x483e0c5d86d8;   // no shared ancestor
+con ok64 PATCHBUSY     = 0x483e0c6d23ca;    // merge already in progress —
+                                             // baseline is a `patch` row;
+                                             // complete with `be post` or
+                                             // abort by checking out the
+                                             // pre-patch commit
 
 #endif
