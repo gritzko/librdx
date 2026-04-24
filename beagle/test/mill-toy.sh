@@ -83,7 +83,7 @@ for TAG in $TAGS; do
     git -C "$TMILL/git01" checkout -q "refs/keep/$TAG"
     GIT_T=$(( $(date +%s) - T0 ))
 
-    RDIFF=$(rsync -rlcn --delete \
+    RDIFF=$(rsync -rlcni --delete \
         --exclude='/.git/' --exclude='/.dogs/' \
         "$TMILL/git01/" "$TMILL/be01/" 2>&1)
     BE_N=$(find "$TMILL/be01" -not -path '*/.dogs/*' -not -path '*/.git/*' \

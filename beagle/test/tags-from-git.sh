@@ -67,7 +67,7 @@ for STEP in "v1 refs/tags/v1" "v2 refs/tags/v2" "master refs/heads/master"; do
         "$REF:refs/keep/$NAME"
     git -C "$TMP/git-clone" checkout --quiet "refs/keep/$NAME"
 
-    RDIFF=$(rsync -rlcn --delete \
+    RDIFF=$(rsync -rlcni --delete \
         --exclude='/.git/' --exclude='/.dogs/' --exclude='/.sniff' \
         "$TMP/git-clone/" "$TMP/be-clone/" 2>&1)
     if [ -n "$RDIFF" ]; then

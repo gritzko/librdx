@@ -69,7 +69,7 @@ for TAG in $TAGS; do
     git -C "$TMILL/git01" checkout --quiet "refs/tags/${TAG}"
 
     # --- rsync dry-run: full content comparison ---
-    RDIFF=$(rsync -rlcn --delete \
+    RDIFF=$(rsync -rlcni --delete \
         --exclude='/.git/' --exclude='/.dogs/' \
         "$TMILL/git01/" "$TMILL/be01/" 2>&1)
 
