@@ -8,6 +8,7 @@
 #include <fcntl.h>
 
 #include "abc/PRO.h"
+#include "dog/QURY.h"
 
 //  Row-0 invariant guard: `repo` only at row 0, every other verb only
 //  at row ≥ 1.  Returns OK if the append is allowed.
@@ -206,4 +207,19 @@ ok64 SNIFFAtScanPutDelete(ron60 floor, sniff_at_pd_cb cb, void *ctx) {
         if (cr != OK) return cr;
     }
     done;
+}
+
+ok64 SNIFFAtQueryFirstSha(uricp u, u8 *out_hex40) {
+    sane(u && out_hex40);
+    a_dup(u8c, q, u->query);
+    while (!$empty(q)) {
+        qref spec = {};
+        if (QURYu8sDrain(q, &spec) != OK) break;
+        if (spec.type == QURY_NONE) break;
+        if (spec.type == QURY_SHA && $len(spec.body) == 40) {
+            memcpy(out_hex40, spec.body[0], 40);
+            done;
+        }
+    }
+    fail(ULOGNONE);
 }

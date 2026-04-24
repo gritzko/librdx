@@ -560,14 +560,16 @@ ok64 SNIFFExec(cli *c) {
                     HEXu8sFeedSome(hex_idle, rs);
                 }
             } else {
-                //  No -m: label points at the current baseline sha
-                //  (first 40 hex chars of the latest get/post/patch's
-                //  URI fragment).
+                //  No -m: label points at the current baseline sha —
+                //  the first 40-hex SHA spec in the latest
+                //  get/post/patch row's URI query (dog/QURY).
                 ron60 bts = 0, bverb = 0;
                 uri bu = {};
                 ret = SNIFFAtBaseline(&bts, &bverb, &bu);
-                if (ret == OK && $len(bu.fragment) >= 40) {
-                    u8cs h40 = {bu.fragment[0], bu.fragment[0] + 40};
+                u8 hex40[40];
+                if (ret == OK &&
+                    SNIFFAtQueryFirstSha(&bu, hex40) == OK) {
+                    u8cs h40 = {hex40, hex40 + 40};
                     u8bFeed(hex, h40);
                 } else {
                     ret = SNIFFFAIL;

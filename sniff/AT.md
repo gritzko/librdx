@@ -16,12 +16,19 @@ on-disk files are "clean" vs user-edited.
 | Verb | URI shape | Stamps files? |
 |------|-----------|---------------|
 | `repo`   | `file:///abs/path/.dogs/` (row 0 only; worktree → store anchor) | no |
-| `get`    | `[//origin/path]?heads/X#<sha>` (or `#<sha>` detached) | yes |
-| `post`   | `?heads/X#<sha>` (or `#<sha>` detached)               | yes |
-| `patch`  | `?heads/X#<ours>,<theirs>[,…]` (extends prior fragment) | yes |
+| `get`    | `[//origin/path]?heads/X&<sha>` (or `?<sha>` detached) | yes |
+| `post`   | `?heads/X&<sha>` (or `?<sha>` detached)               | yes |
+| `patch`  | `?heads/X&<ours>&<theirs>[…]` (extends prior query)   | yes |
 | `put`    | `<path>`                                              | no  |
 | `delete` | `<path>`                                              | no  |
 | `mod`    | `<path>`  (watch daemon hint — inotify observed edit) | no  |
+
+Version info — branch ref plus tip/merge-participant SHAs — lives in
+the URI **query** (`?`-side), parsed by `dog/QURY`.  The **fragment**
+(`#`-side) is reserved for content-locator syntax parsed by `dog/FRAG`
+(symbol / line / regex / spot).  Never mix SHAs into the fragment: a
+query like `bro ?heads/main#func:foo` only makes sense if the `#`-side
+is reserved for in-tree navigation.
 
 The `mod` rows are advisory: the `sniff watch` daemon appends one
 per file whose mtime drifts out of the ULOG stamp-set, dedup'd by
@@ -46,22 +53,24 @@ round-trips to exactly the row's `ts`, and `SNIFFAtKnown` answers YES.
 
 ## Branch tracking
 
-Whatever branch the wt is on is encoded in the URI query of the most
-recent `get` / `post` / `patch` row (`?heads/main`, `?heads/feat`,
-...).  A detached checkout's URI has no query, just `#<sha>`.
-`SNIFFAtBaseline` parses the latest such row; callers that need the
-branch read `u.query`, and callers that need the tip sha read
-`u.fragment`.
+Whatever branch the wt is on is encoded as the first REF spec in the
+query of the most recent `get` / `post` / `patch` row (`heads/main`,
+`heads/feat`, ...).  A detached checkout's query has only SHA specs
+and no ref.  `SNIFFAtBaseline` parses the latest such row; callers
+walk `u.query` with `QURYu8sDrain` to pull out the ref and SHA(s).
 
 ## Baseline URI
 
 The most recent `get` / `post` / `patch` row names the current
-baseline tree.  The URI's fragment is a comma-separated hash list:
+baseline tree.  The query chains one REF and one-or-more SHAs with
+`&` (dog/QURY grammar):
 
-* one hash → keeper has a plain commit tree at that sha.
+* one SHA → keeper has a plain commit tree at that sha.
 * two or more → graf reconstructs a merge tree from that hash list.
 
-`post` collapses back to one hash; `patch` always appends one more.
+`post` collapses back to one SHA; `patch` appends one more.  Readers
+that only need "current tip" take the first 40-hex SHA spec via
+`SNIFFAtQueryFirstSha(u, hex40)`.
 
 ## Stamp-set
 

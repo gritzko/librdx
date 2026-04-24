@@ -584,17 +584,18 @@ static ok64 resolve_target(sha1 *out, u8cs reporoot, u8cs target_query) {
 }
 
 //  Read the current worktree's branch tip from sniff's ULOG.  The
-//  baseline URI's fragment may hold one hash (single commit) or a
-//  comma-separated list (patch in progress); "ours" is always the
-//  first 40-hex segment.
+//  baseline URI's query carries one REF plus one or more SHAs
+//  (dog/QURY); "ours" is always the first 40-hex SHA spec — later
+//  SHAs are merge participants layered on top by prior `patch` rows.
 static ok64 resolve_ours(sha1 *out) {
     sane(out);
     ron60 ts = 0, verb = 0;
     uri u = {};
     call(SNIFFAtBaseline, &ts, &verb, &u);
-    if ($len(u.fragment) < 40) fail(PATCHFAIL);
+    u8 hex40[40];
+    if (SNIFFAtQueryFirstSha(&u, hex40) != OK) fail(PATCHFAIL);
     u8s sb = {out->data, out->data + 20};
-    u8cs head = {u.fragment[0], u.fragment[0] + 40};
+    u8cs head = {hex40, hex40 + 40};
     call(HEXu8sDrainSome, sb, head);
     done;
 }
@@ -688,31 +689,29 @@ ok64 PATCHApply(u8cs reporoot, u8cs target_query) {
         }
     }
 
-    //  Build the extended fragment bytes (`<old>,<new-hex>` or just
-    //  `<new-hex>` if there was no prior fragment).
-    a_pad(u8, frag_buf, 256);
-    if (!u8csEmpty(baseline_u.fragment)) {
-        u8cs oldfrag = {baseline_u.fragment[0], baseline_u.fragment[1]};
-        u8bFeed(frag_buf, oldfrag);
-        u8bFeed1(frag_buf, ',');
+    //  Extend the baseline query by appending the new tip as an
+    //  additional SHA spec: `<prior>&<new-hex>` (or just `<new-hex>`
+    //  if there was no prior query).  Per dog/QURY, refs and SHAs
+    //  coexist in the query `&`-chain, so `heads/main&<ours>` becomes
+    //  `heads/main&<ours>&<theirs>` after this pass.
+    a_pad(u8, qbuf, 512);
+    if (!u8csEmpty(baseline_u.query)) {
+        u8cs oldq = {baseline_u.query[0], baseline_u.query[1]};
+        u8bFeed(qbuf, oldq);
+        u8bFeed1(qbuf, '&');
     }
     a_pad(u8, thex, 40);
     a_rawc(tsha, thr_sha);
     HEXu8sFeedSome(thex_idle, tsha);
-    u8bFeed(frag_buf, u8bDataC(thex));
+    u8bFeed(qbuf, u8bDataC(thex));
 
-    //  Compose a new URI struct with (query from baseline, extended
-    //  fragment).  ULOGAppendAt calls URIutf8Feed under the hood to
-    //  serialize it — keeps the row canonical.
+    //  Compose the new `patch` row's URI — query only; fragment stays
+    //  empty.  ULOGAppendAt calls URIutf8Feed under the hood.
     uri urow = {};
-    if (!u8csEmpty(baseline_u.query)) {
-        urow.query[0] = baseline_u.query[0];
-        urow.query[1] = baseline_u.query[1];
-    }
     {
-        a_dup(u8c, f, u8bData(frag_buf));
-        urow.fragment[0] = f[0];
-        urow.fragment[1] = f[1];
+        a_dup(u8c, q, u8bData(qbuf));
+        urow.query[0] = q[0];
+        urow.query[1] = q[1];
     }
 
     ron60 ts = 0;

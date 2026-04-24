@@ -30,6 +30,7 @@
 #include "abc/PATH.h"
 #include "abc/PRO.h"
 #include "dog/IGNO.h"
+#include "dog/QURY.h"
 #include "keeper/GIT.h"
 #include "keeper/REFS.h"
 #include "keeper/SHA1.h"
@@ -169,19 +170,19 @@ static ok64 post_load_baseline(post_ctx *c, sha1 *root_out, b8 *has_out) {
     if (br == ULOGNONE) done;  // fresh repo
     if (br != OK) return br;
 
-    //  Baseline fragment is either `<sha>` (single-hash, from get/post)
-    //  or `<ours>,<theirs>[,...]` (post-patch N-hash URI, see AT.h).
-    //  For a squash-merge POST we only need the ours tree as the
-    //  baseline: patched files are mtime-dirty (PATCH does not stamp),
-    //  added files aren't in ours and fall into POST_REWRITE via the
-    //  implicit-dirty rule, and deleted files were unlinked by PATCH so
-    //  they vanish via the implicit-drop rule.
-    a_dup(u8c, frag, base_u.fragment);
-    if ($len(frag) < 40) done;
-    u8cs h40 = {frag[0], frag[0] + 40};
+    //  Baseline query carries the version info (see dog/QURY): one
+    //  branch REF plus 1-to-N SHAs.  For a squash-merge POST we only
+    //  need the ours tree as the baseline — patched files are
+    //  mtime-dirty (PATCH does not stamp), added files aren't in ours
+    //  and fall into POST_REWRITE via the implicit-dirty rule, and
+    //  deleted files were unlinked by PATCH so they vanish via the
+    //  implicit-drop rule.  So take the first SHA spec as "ours".
+    u8 hex40[40];
+    if (SNIFFAtQueryFirstSha(&base_u, hex40) != OK) done;
 
     sha1 commit_sha = {};
     a_raw(csha_bin, commit_sha);
+    u8cs h40 = {hex40, hex40 + 40};
     HEXu8sDrainSome(csha_bin, h40);
 
     Bu8 cbuf = {};
@@ -630,20 +631,22 @@ static ok64 post_baseline_branch(u8bp out, u8bp hex_out) {
     uri u = {};
     ok64 r = SNIFFAtBaseline(&ts, &verb, &u);
     if (r != OK) done;
-    //  Branches are written to REFS as `?heads/X`; the URI query slice
-    //  stores the bare `heads/X` (RFC 3986 — the `?` is the separator).
-    //  Prefix it here so downstream callers can treat `out` as a full
-    //  ref key ready to hand to REFSAppend.
-    if (!u8csEmpty(u.query)) {
-        u8bFeed1(out, '?');
-        u8bFeed(out, u.query);
-    }
-    //  Fragment is either `<sha>` or `<ours>,<theirs>[,...]`.  Take the
-    //  first 40-hex chunk as the parent commit — see post_load_baseline.
-    a_dup(u8c, frag, u.fragment);
-    if ($len(frag) >= 40) {
-        u8cs h40 = {frag[0], frag[0] + 40};
-        u8bFeed(hex_out, h40);
+
+    //  Split the baseline query into its first REF spec (branch name,
+    //  no leading `?`) and its first 40-hex SHA spec (parent commit).
+    //  Additional specs — extra SHAs from an in-progress merge — are
+    //  not relevant to the branch/parent lookup here.
+    a_dup(u8c, q, u.query);
+    while (!$empty(q)) {
+        qref spec = {};
+        if (QURYu8sDrain(q, &spec) != OK) break;
+        if (spec.type == QURY_NONE) break;
+        if (spec.type == QURY_REF && u8bDataLen(out) == 0) {
+            u8bFeed(out, spec.body);
+        } else if (spec.type == QURY_SHA && $len(spec.body) == 40 &&
+                   u8bDataLen(hex_out) == 0) {
+            u8bFeed(hex_out, spec.body);
+        }
     }
     done;
 }
@@ -660,7 +663,7 @@ ok64 POSTCommit(u8cs reporoot, u8cs message, u8cs author, sha1 *sha_out) {
     a_pad(u8, phex, 64);
     call(post_baseline_branch, brbuf, phex);
     if (u8bDataLen(brbuf) == 0) {
-        a_cstr(def, "?heads/master");
+        a_cstr(def, "heads/master");
         u8bFeed(brbuf, def);
     }
 
@@ -890,45 +893,52 @@ ok64 POSTCommit(u8cs reporoot, u8cs message, u8cs author, sha1 *sha_out) {
     call(KEEPPackClose, k, &p);
 
     //  14. Advance keeper REFS for the branch (if we have one).
-    {
-        a_dup(u8c, branch, u8bData(brbuf));
-        if (!u8csEmpty(branch) && branch[0][0] == '?') {
-            a_path(keepdir, u8bDataC(k->h->root), KEEP_DIR_S);
-            a_pad(u8, valbuf, 64);
-            u8bFeed1(valbuf, '?');
-            a_pad(u8, out_hex, 40);
-            a_rawc(osha, *sha_out);
-            HEXu8sFeedSome(out_hex_idle, osha);
-            u8bFeed(valbuf, u8bDataC(out_hex));
-            a_dup(u8c, val, u8bData(valbuf));
-            (void)REFSAppend($path(keepdir), branch, val);
-        }
-    }
-
-    //  15. Append `post` ULOG row with stamp ts; futimens written
-    //      files so they become clean under the new stamp.  Row URI
-    //      is composed via abc/URI: query = branch ref (minus the
-    //      leading `?`), fragment = 40-hex of the new commit.
+    //      `brbuf` is the bare ref (e.g. `heads/main`); REFS keys the
+    //      lookup by the query form `?heads/main`, and the stored
+    //      value mirrors that: `?<40hex>`.
     a_pad(u8, out_hex, 40);
     {
         a_rawc(osha, *sha_out);
         HEXu8sFeedSome(out_hex_idle, osha);
     }
-    uri urow = {};
     {
         a_dup(u8c, branch, u8bData(brbuf));
-        //  Strip a leading `?` sentinel — URI query slices store the
-        //  raw query without it.
-        if (!u8csEmpty(branch) && *branch[0] == '?') u8csUsed1(branch);
         if (!u8csEmpty(branch)) {
-            urow.query[0] = branch[0];
-            urow.query[1] = branch[1];
+            a_path(keepdir, u8bDataC(k->h->root), KEEP_DIR_S);
+
+            a_pad(u8, keybuf, 128);
+            u8bFeed1(keybuf, '?');
+            u8bFeed(keybuf, branch);
+            a_dup(u8c, refkey, u8bData(keybuf));
+
+            a_pad(u8, valbuf, 64);
+            u8bFeed1(valbuf, '?');
+            u8bFeed(valbuf, u8bDataC(out_hex));
+            a_dup(u8c, val, u8bData(valbuf));
+
+            (void)REFSAppend($path(keepdir), refkey, val);
         }
     }
+
+    //  15. Append `post` ULOG row with stamp ts; futimens written
+    //      files so they become clean under the new stamp.  Row URI
+    //      puts the ref and the new tip sha into the query, chained
+    //      as `<branch>&<40hex>` per dog/QURY; fragment stays empty
+    //      (reserved for dog/FRAG content-locator syntax).
+    a_pad(u8, qbuf, 256);
     {
-        a_dup(u8c, oh, u8bData(out_hex));
-        urow.fragment[0] = oh[0];
-        urow.fragment[1] = oh[1];
+        a_dup(u8c, branch, u8bData(brbuf));
+        if (!u8csEmpty(branch)) {
+            u8bFeed(qbuf, branch);
+            u8bFeed1(qbuf, '&');
+        }
+        u8bFeed(qbuf, u8bDataC(out_hex));
+    }
+    uri urow = {};
+    {
+        a_dup(u8c, q, u8bData(qbuf));
+        urow.query[0] = q[0];
+        urow.query[1] = q[1];
     }
 
     ron60 ts = 0;

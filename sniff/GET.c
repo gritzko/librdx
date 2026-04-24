@@ -277,23 +277,28 @@ ok64 GETCheckout(u8cs reporoot, u8cs hex, u8cs source) {
     (void)get_prune(&ctx);
     u8bFree(ctx.target);
 
-    //  Compose the `get` row URI via abc/URI: query = the named ref
-    //  the user asked for (if any), fragment = the 40-hex commit sha.
-    //  ULOGAppendAt serializes via URIutf8Feed, so we only need to
-    //  set component slices on a uri struct.
+    //  Compose the `get` row URI via abc/URI.  The query carries both
+    //  the named ref (if any) and the resolved 40-hex tip sha,
+    //  chained `ref&hex` per dog/QURY; the fragment is reserved for
+    //  content-locator syntax (dog/FRAG).
     uri urow = {};
+    a_pad(u8, qbuf, 128);
     if ($ok(source) && !u8csEmpty(source) && *source[0] == '?' &&
         $len(source) != 41) {
         //  Named refs come in with a leading '?', e.g. `?heads/main`.
         //  URI query slices exclude the sentinel per RFC 3986, so
-        //  drop the leading byte before copying the slice into urow.
+        //  drop the leading byte before copying the slice into qbuf.
         a_dup(u8c, q, source);
         u8csUsed1(q);
+        u8bFeed(qbuf, q);
+        u8bFeed1(qbuf, '&');
+    }
+    u8bFeed(qbuf, hex);
+    {
+        a_dup(u8c, q, u8bData(qbuf));
         urow.query[0] = q[0];
         urow.query[1] = q[1];
     }
-    urow.fragment[0] = hex[0];
-    urow.fragment[1] = hex[1];
 
     ron60 verb = SNIFFAtVerbGet();
     call(SNIFFAtAppendAt, ctx.ts, verb, &urow);
