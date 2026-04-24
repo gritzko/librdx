@@ -122,6 +122,13 @@ ok64 SNIFFAtStampPath(path8b path, ron60 ts);
 //  ULOG stamp-set.  Truncates nanoseconds to milliseconds.
 ron60 SNIFFAtOfTimespec(struct timespec ts);
 
+//  CLI's DOGNormalizeArg routes bare tokens (`a.txt`) into the URI's
+//  `query` slot rather than `path`, so `put`/`delete` see empty paths.
+//  This helper picks the best bytes to treat as the row's path:
+//  path → query → fragment → data.  Caller-owned `out` slice; after
+//  the call its head/tail point into the caller's URI struct.
+void SNIFFAtPathBytes(uri const *u, u8cs out);
+
 //  Iterate every put/delete row whose timestamp is strictly greater
 //  than `floor`, in chronological order (oldest first).  The callback
 //  receives the row's verb (SNIFFAtVerbPut / SNIFFAtVerbDelete), its

@@ -82,4 +82,17 @@ fun ok64 SNIFFFullpath(path8b out, u8cs reporoot, u8cs rel) {
 //  assemble tree objects bottom-up.
 ok64 SNIFFSort(void);
 
+//  YES iff `rel` names one of sniff/keeper's on-disk metadata
+//  entries (`.sniff`, `.dogs`) — either exactly or as a directory
+//  prefix.  All wt-scan callbacks route through this so metadata
+//  never leaks into commits / prune / status / mod rows.
+b8   SNIFFSkipMeta(u8cs rel);
+
+//  Resolve a path reported by FILEScan into a reporoot-relative
+//  slice.  Fills `rel_out` with the stripped slice (no leading '/').
+//  Returns NO when the absolute path is outside the reporoot or
+//  resolves to the wt root itself.  `full` is the NUL-terminated
+//  absolute path FILEScan delivers (via path8bp → u8bData).
+b8   SNIFFRelFromFull(u8csp rel_out, u8cs reporoot, u8cs full);
+
 #endif

@@ -37,8 +37,7 @@ static ok64 sniff_write_repo_row(u8cs wt_root) {
     a_cstr(slash, "/");
     u8bFeed(pathbuf, wt_root);
     //  Guarantee exactly one trailing slash before we append ".dogs/".
-    if (u8bDataLen(pathbuf) == 0 ||
-        u8bDataHead(pathbuf)[u8bDataLen(pathbuf) - 1] != '/')
+    if (u8bDataLen(pathbuf) == 0 || *u8bLast(pathbuf) != '/')
         u8bFeed(pathbuf, slash);
     a_cstr(dogs, ".dogs/");
     u8bFeed(pathbuf, dogs);
@@ -61,16 +60,14 @@ static ok64 sniff_write_repo_row(u8cs wt_root) {
 //  must point at so KEEPOpen finds `.dogs/` as a child).
 static void sniff_store_root_from_repo(u8cs uri_path, u8bp out) {
     a_dup(u8c, p, uri_path);
-    //  Strip trailing slash.
-    if (!$empty(p) && p[1][-1] == '/') p[1]--;
-    //  Strip trailing ".dogs".
+    //  Strip trailing slash, then the `.dogs` segment, then any
+    //  further slashes — all via the Sx.h shed primitives.
+    if (!$empty(p) && *u8csLast(p) == '/') u8csShed1(p);
     a_cstr(dogs, ".dogs");
-    if ($len(p) >= $len(dogs) &&
-        memcmp(p[1] - $len(dogs), dogs[0], $len(dogs)) == 0) {
-        p[1] -= $len(dogs);
-    }
-    //  Strip any remaining trailing slash (except for the root "/").
-    while ($len(p) > 1 && p[1][-1] == '/') p[1]--;
+    size_t dl = $len(dogs);
+    if ($len(p) >= dl && memcmp($atp(p, $len(p) - dl), dogs[0], dl) == 0)
+        for (size_t i = 0; i < dl; i++) u8csShed1(p);
+    while ($len(p) > 1 && *u8csLast(p) == '/') u8csShed1(p);
     u8bReset(out);
     u8bFeed(out, p);
 }
@@ -188,6 +185,37 @@ u32 SNIFFCount(void) {
     return KEEPPathCount(&KEEP);
 }
 
+// --- Shared wt-scan helpers ---
+
+b8 SNIFFSkipMeta(u8cs rel) {
+    a_cstr(d_sniff, ".sniff");
+    a_cstr(d_dogs,  ".dogs");
+    size_t rl = $len(rel);
+    u8cs const metas[2] = {{d_sniff[0], d_sniff[1]}, {d_dogs[0], d_dogs[1]}};
+    for (u32 i = 0; i < 2; i++) {
+        size_t ml = $len(metas[i]);
+        if (rl < ml) continue;
+        if (memcmp(rel[0], metas[i][0], ml) != 0) continue;
+        if (rl == ml) return YES;                       // exact entry
+        if (rl > ml && rel[0][ml] == '/') return YES;   // dir prefix
+    }
+    return NO;
+}
+
+b8 SNIFFRelFromFull(u8csp rel_out, u8cs reporoot, u8cs full) {
+    if (!rel_out) return NO;
+    size_t rlen = $len(reporoot);
+    if ($len(full) <= rlen) return NO;
+    if (memcmp(full[0], reporoot[0], rlen) != 0) return NO;
+    u8cs rel = {$atp(full, rlen), full[1]};
+    //  Skip leading slash(es) between reporoot and the first segment.
+    while (!$empty(rel) && *rel[0] == '/') u8csUsed1(rel);
+    if ($empty(rel)) return NO;
+    rel_out[0] = rel[0];
+    rel_out[1] = rel[1];
+    return YES;
+}
+
 // --- Sort (per-invocation) ---
 
 static int sniff_cmp_idx(void const *a, void const *b) {
@@ -207,11 +235,7 @@ ok64 SNIFFSort(void) {
         u32bFree(s->sorted);
         call(u32bAllocate, s->sorted, n);
     }
-    for (u32 i = 0; i < n; i++) {
-        u32 **idle = u32bIdle(s->sorted);
-        **idle = i;
-        ++*idle;
-    }
+    for (u32 i = 0; i < n; i++) u32bFeed1(s->sorted, i);
     qsort(u32bDataHead(s->sorted), n, sizeof(u32), sniff_cmp_idx);
     done;
 }

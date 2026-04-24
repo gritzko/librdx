@@ -541,22 +541,11 @@ static ok64 make_commit(sha1 *commit_out, keeper *k,
     done;
 }
 
-// --- Test: full round-trip (retired — to be rewritten in step 6) ---
-//
-//  Former coverage: initial commit → get → modify → put → post →
-//  delete → post → get.  Relied heavily on the deleted wh64 cache
-//  (SNIFF_BLOB / SNIFF_CHECKOUT etc.).  Step 6 replaces with a
-//  fresh table-driven test against the new GET/PUT/DELETE/POST
-//  signatures.  Empty stub below keeps the symbol resolvable.
-
-ok64 SNIFFRoundTripRetired() {
-    sane(1);
-    done;
-}
-
-//  Stashed original body kept behind `#if 0` so the rewrite has a
-//  reference; cleanup after step 6 replaces this test.
-#if 0
+#if 0   //  Pre-migration `SNIFFRoundTrip` kept as a reference while the
+        //  ULOG rewrite settles.  Covered initial commit → get → modify
+        //  → put → post → delete → post → get.  Relied on the deleted
+        //  wh64 cache.  When we rewrite round-trip coverage for the new
+        //  API, this block goes away.
 ok64 SNIFFRoundTrip_stash() {
     sane(1);
     call(FILEInit);
@@ -741,17 +730,8 @@ ok64 maintest() {
     call(SNIFFInternPath);
     fprintf(stderr, "SNIFFAtHelpers...\n");
     call(SNIFFAtHelpers);
-    //  SNIFFPersist is retired: SNIFF_BLOB/TREE/CHECKOUT/CHANGED no
-    //  longer persist across open/close.  The URI log (at.log) is now
-    //  the persistent state; wh64 entries live in an in-RAM cache,
-    //  rebuilt each invocation from the log + parent tree.
     fprintf(stderr, "SNIFFCheckoutCommit...\n");
     call(SNIFFCheckoutCommit);
-    //  SNIFFRoundTrip is retired during the ULOG-only migration.
-    //  Step 6 of the rewrite replaces it with fresh tests that exercise
-    //  GET/PUT/DELETE/POST under the new signatures.  Until then,
-    //  workflow.sh covers the CLI surface.
-    (void)SNIFFRoundTripRetired;
     fprintf(stderr, "all passed\n");
     done;
 }

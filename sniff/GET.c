@@ -1,6 +1,6 @@
 //  GET: checkout a commit tree from keeper.
 //
-//  New-model responsibilities (step 2 of the ULOG redesign):
+//  Responsibilities:
 //    * Materialise every file in the commit's tree, creating parent
 //      dirs as needed.
 //    * Dirty-protect: if a file on disk has an mtime not in sniff's
@@ -8,10 +8,8 @@
 //    * Stamp every file we write with a shared ron60 timestamp via
 //      utimensat, so a later stat() recovers that same stamp.
 //    * Append one `get` ULOG row with the same timestamp.
-//
-//  Prune (files present on disk but absent from the new tree) is
-//  deferred to a later step; the current SNIFFCheckoutCommit scenarios
-//  do not exercise it.
+//    * Prune: unlink any wt file that sniff wrote before but isn't
+//      in the new target tree (stamp-set check protects user files).
 //
 #include "GET.h"
 
@@ -149,25 +147,10 @@ static ok64 get_prune_cb(void *varg, path8bp path) {
     prune_ctx *p = (prune_ctx *)varg;
     get_ctx *g = p->g;
     a_dup(u8c, full, u8bData(path));
-    size_t rlen = $len(g->reporoot);
-    if ($len(full) <= rlen) return OK;
-    u8cs rel = {$atp(full, rlen), full[1]};
-    while (!$empty(rel) && rel[0][0] == '/') rel[0]++;
-    if ($empty(rel)) return OK;
 
-    //  Skip metadata dirs (prefix or exact match — `.dogs` is often
-    //  a symlink that FILEScan delivers as a leaf entry).
-    {
-        a_cstr(d_sniff, ".sniff");
-        a_cstr(d_dogs,  ".dogs");
-        size_t rl = $len(rel);
-        #define SKIP(p) \
-            ((rl) == $len(p) && memcmp(rel[0], p[0], $len(p)) == 0) || \
-            ((rl) > $len(p) && memcmp(rel[0], p[0], $len(p)) == 0 && \
-             rel[0][$len(p)] == '/')
-        if (SKIP(d_sniff) || SKIP(d_dogs)) return OK;
-        #undef SKIP
-    }
+    u8cs rel = {};
+    if (!SNIFFRelFromFull(&rel, g->reporoot, full)) return OK;
+    if (SNIFFSkipMeta(rel))                         return OK;
 
     u32 idx = SNIFFIntern(rel);
     if (get_is_target(g, idx)) return OK;
@@ -291,13 +274,15 @@ ok64 GETCheckout(u8cs reporoot, u8cs hex, u8cs source) {
     //  ULOGAppendAt serializes via URIutf8Feed, so we only need to
     //  set component slices on a uri struct.
     uri urow = {};
-    if ($ok(source) && !u8csEmpty(source) && source[0][0] == '?' &&
+    if ($ok(source) && !u8csEmpty(source) && *source[0] == '?' &&
         $len(source) != 41) {
         //  Named refs come in with a leading '?', e.g. `?heads/main`.
-        //  The URI query slice excludes the sentinel per RFC 3986, so
-        //  skip the '?' when moving bytes into urow.query.
-        urow.query[0] = source[0] + 1;
-        urow.query[1] = source[1];
+        //  URI query slices exclude the sentinel per RFC 3986, so
+        //  drop the leading byte before copying the slice into urow.
+        a_dup(u8c, q, source);
+        u8csUsed1(q);
+        urow.query[0] = q[0];
+        urow.query[1] = q[1];
     }
     urow.fragment[0] = hex[0];
     urow.fragment[1] = hex[1];

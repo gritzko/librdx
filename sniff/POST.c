@@ -184,29 +184,9 @@ static ok64 post_wt_callback(void *varg, path8bp path) {
     post_ctx *c = (post_ctx *)varg;
     a_dup(u8c, full, u8bData(path));
 
-    //  Skip the reporoot prefix to get the relative path.
-    size_t rlen = $len(c->reporoot);
-    if ($len(full) <= rlen) return OK;
-    if (memcmp(full[0], c->reporoot[0], rlen) != 0) return OK;
-    u8cs rel = {$atp(full, rlen), full[1]};
-    //  Skip leading slash(es).
-    while (!$empty(rel) && rel[0][0] == '/') rel[0]++;
-    if ($empty(rel)) return OK;
-
-    //  Skip well-known metadata dirs — both as dir prefixes and as
-    //  exact top-level entries (`.dogs` in secondary worktrees is a
-    //  symlink, not a dir, and FILEScan reports it as a leaf).
-    {
-        a_cstr(d_sniff, ".sniff");
-        a_cstr(d_dogs,  ".dogs");
-        size_t rl = $len(rel);
-        #define SKIP(p) \
-            ((rl) == $len(p) && memcmp(rel[0], p[0], $len(p)) == 0) || \
-            ((rl) > $len(p) && memcmp(rel[0], p[0], $len(p)) == 0 && \
-             rel[0][$len(p)] == '/')
-        if (SKIP(d_sniff) || SKIP(d_dogs)) return OK;
-        #undef SKIP
-    }
+    u8cs rel = {};
+    if (!SNIFFRelFromFull(&rel, c->reporoot, full)) return OK;
+    if (SNIFFSkipMeta(rel))                         return OK;
 
     //  lstat the file to capture mode + mtime.
     struct stat lsb = {};
@@ -222,13 +202,6 @@ static ok64 post_wt_callback(void *varg, path8bp path) {
 
     c->flag[idx] |= POST_ON_DISK;
     c->rec[idx].new_mode = mode;
-
-    //  Stash mtime as ron60 for the change-set decision below.  We
-    //  reuse old_sha.data as scratch storage only if POST_IN_BASE is
-    //  unset — but cleaner to keep mtime in content.data slot.  For
-    //  now, recompute later from a fresh lstat at decide time.  (This
-    //  scan just marks presence + mode.)
-    (void)lsb;
     return OK;
 }
 
@@ -248,7 +221,6 @@ static ok64 post_scan_wt(post_ctx *c) {
 static ok64 post_decide(post_ctx *c, u32 idx) {
     sane(c);
     u8 f = c->flag[idx];
-    post_rec *r = &c->rec[idx];
 
     //  Skip directory entries in the registry — they are reconstructed
     //  during tree-build rather than selected here.
@@ -310,7 +282,6 @@ static ok64 post_decide(post_ctx *c, u32 idx) {
     } else {
         c->flag[idx] |= POST_REWRITE;
     }
-    (void)r;
     return OK;
 }
 
@@ -381,12 +352,12 @@ static u32 post_range_end(u32 lo, u32 hi, u8cs prefix) {
 }
 
 static ok64 post_build_tree(post_ctx *c, u32 lo, u32 hi, u8cs prefix,
-                            sha1 *tree_out, Bu8 tree_buf,
-                            Bu8 tree_body_list, Bu8 tree_shas,
+                            sha1 *tree_out, Bu8 tree_body_list,
                             u32 *emit_count) {
     //  Recursively build a tree for paths in [lo, hi) under `prefix`.
     //  Emits serialized tree body bytes (prefixed by u32 length) into
-    //  `tree_body_list` and corresponding shas into `tree_shas`.
+    //  `tree_body_list`.  The caller replays the list later to feed
+    //  keeper in the pack's expected commit→trees→blobs order.
     sane(c && tree_out);
 
     Bu8 tree = {};
@@ -406,8 +377,9 @@ static ok64 post_build_tree(post_ctx *c, u32 lo, u32 hi, u8cs prefix,
         //  Find first '/' in rest to distinguish direct-child files
         //  from entries in deeper subtrees.
         u8c const *slash = NULL;
-        for (u8c const *p = rest[0]; p < rest[1]; p++) {
-            if (*p == '/') { slash = p; break; }
+        {
+            a_dup(u8c, scan, rest);
+            if (u8csFind(scan, '/') == OK) slash = scan[0];
         }
 
         if (slash) {
@@ -423,8 +395,7 @@ static ok64 post_build_tree(post_ctx *c, u32 lo, u32 hi, u8cs prefix,
 
             sha1 sub_sha = {};
             ok64 so = post_build_tree(c, i, sub_hi, sub, &sub_sha,
-                                      tree_buf, tree_body_list,
-                                      tree_shas, emit_count);
+                                      tree_body_list, emit_count);
             if (so != OK) { u8bFree(tree); return so; }
 
             if (!sha1empty(&sub_sha)) {
@@ -471,13 +442,12 @@ static ok64 post_build_tree(post_ctx *c, u32 lo, u32 hi, u8cs prefix,
 
     KEEPObjSha(tree_out, DOG_OBJ_TREE, u8bDataC(tree));
 
-    //  Record (len u32, body bytes) in tree_body_list, and sha in tree_shas.
+    //  Record (len u32, body bytes) in tree_body_list; the feeder
+    //  loop in POSTCommit parses them back out to hand to keeper.
     u32 tlen = (u32)u8bDataLen(tree);
     u8cs tl = {(u8cp)&tlen, (u8cp)&tlen + sizeof(u32)};
     u8bFeed(tree_body_list, tl);
     u8bFeed(tree_body_list, u8bDataC(tree));
-    a_rawc(tr, *tree_out);
-    u8bFeed(tree_shas, tr);
     (*emit_count)++;
 
     u8bFree(tree);
@@ -622,21 +592,15 @@ ok64 POSTCommit(u8cs reporoot, u8cs message, u8cs author, sha1 *sha_out) {
     b8 have_root = NO;
     Bu8 tree_bodies = {};
     call(u8bAllocate, tree_bodies, 1UL << 20);
-    Bu8 tree_shas = {};
-    call(u8bAllocate, tree_shas, 4096);
     u32 tree_count = 0;
 
     {
         u32 n_sorted = u32bDataLen(SNIFF.sorted);
         u8cs no_prefix = {};
-        Bu8 tree_buf = {};
-        call(u8bAllocate, tree_buf, 256);
         ok64 bo = post_build_tree(&ctx, 0, n_sorted, no_prefix,
-                                  &root_tree, tree_buf,
-                                  tree_bodies, tree_shas, &tree_count);
-        u8bFree(tree_buf);
+                                  &root_tree, tree_bodies, &tree_count);
         if (bo != OK) {
-            u8bFree(tree_bodies); u8bFree(tree_shas);
+            u8bFree(tree_bodies);
             u8bFree(rec_buf); u8bFree(flag_buf);
             return bo;
         }
@@ -707,7 +671,7 @@ ok64 POSTCommit(u8cs reporoot, u8cs message, u8cs author, sha1 *sha_out) {
     u8bFree(com);
     if (fo != OK) {
         KEEPPackClose(k, &p);
-        u8bFree(tree_bodies); u8bFree(tree_shas);
+        u8bFree(tree_bodies);
         u8bFree(rec_buf); u8bFree(flag_buf);
         return fo;
     }
@@ -727,7 +691,7 @@ ok64 POSTCommit(u8cs reporoot, u8cs message, u8cs author, sha1 *sha_out) {
             walk += tlen;
             if (to != OK) {
                 KEEPPackClose(k, &p);
-                u8bFree(tree_bodies); u8bFree(tree_shas);
+                u8bFree(tree_bodies);
                 u8bFree(rec_buf); u8bFree(flag_buf);
                 return to;
             }
@@ -750,7 +714,7 @@ ok64 POSTCommit(u8cs reporoot, u8cs message, u8cs author, sha1 *sha_out) {
                                    bpath, 0, &bsha);
             if (bo != OK) {
                 KEEPPackClose(k, &p);
-                u8bFree(tree_bodies); u8bFree(tree_shas);
+                u8bFree(tree_bodies);
                 u8bFree(rec_buf); u8bFree(flag_buf);
                 return bo;
             }
@@ -787,10 +751,10 @@ ok64 POSTCommit(u8cs reporoot, u8cs message, u8cs author, sha1 *sha_out) {
     uri urow = {};
     {
         a_dup(u8c, branch, u8bData(brbuf));
-        if (!u8csEmpty(branch) && branch[0][0] == '?') {
-            urow.query[0] = branch[0] + 1;
-            urow.query[1] = branch[1];
-        } else if (!u8csEmpty(branch)) {
+        //  Strip a leading `?` sentinel — URI query slices store the
+        //  raw query without it.
+        if (!u8csEmpty(branch) && *branch[0] == '?') u8csUsed1(branch);
+        if (!u8csEmpty(branch)) {
             urow.query[0] = branch[0];
             urow.query[1] = branch[1];
         }
@@ -832,7 +796,7 @@ ok64 POSTCommit(u8cs reporoot, u8cs message, u8cs author, sha1 *sha_out) {
             if (u8bOK(ctx.rec[i].content)) u8bFree(ctx.rec[i].content);
         }
     }
-    u8bFree(tree_bodies); u8bFree(tree_shas);
+    u8bFree(tree_bodies);
     u8bFree(rec_buf); u8bFree(flag_buf);
 
     fprintf(stderr, "sniff: commit %.*s\n",

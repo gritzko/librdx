@@ -57,7 +57,7 @@ ok64 sniffcli() {
 
     if (!need_state) return SNIFFExec(&c);
 
-    // rw for anything that mutates .dogs/sniff state.
+    // rw for anything that mutates the ULOG at `<wt>/.sniff` or the store.
     a_cstr(v_status, "status");
     a_cstr(v_list,   "list");
     b8 ro = $eq(c.verb, v_status) || $eq(c.verb, v_list);
