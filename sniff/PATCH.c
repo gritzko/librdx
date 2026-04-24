@@ -160,9 +160,8 @@ static ok64 fetch_merge(u8b into, u8cs path,
 
 //  Write `data` to `<reporoot>/<relpath>`.  `mode` is a git-style
 //  ascii mode string: `"100644"` / `"100755"` / `"120000"` (symlink).
-//  Creates parent dirs as needed.  Attribution (SNIFFAtKnown stamp)
-//  happens later in PATCHApply, after the whole walk — this helper
-//  just lays down the bytes.
+//  Creates parent dirs as needed.  Caller is responsible for stamping
+//  the file's mtime via stamp_wrote after a successful write.
 static ok64 write_blob(u8cs reporoot, u8csc relpath_in,
                        u8csc mode, u8csc data) {
     sane(!$empty(relpath_in));
@@ -227,15 +226,29 @@ static ok64 delete_blob(u8cs reporoot, u8csc relpath_in) {
 // --- Merge stats ---------------------------------------------------
 
 typedef struct {
-    u32 noop;
-    u32 take_theirs;
-    u32 merged;
-    u32 merged_conflict;   // merged bytes contained <<<<<<< markers
-    u32 added;
-    u32 deleted;
-    u32 mod_del_conflict;  // one side deleted, the other modified
-    u32 failed;
+    u32   noop;
+    u32   take_theirs;
+    u32   merged;
+    u32   merged_conflict;   // merged bytes contained <<<<<<< markers
+    u32   added;
+    u32   deleted;
+    u32   mod_del_conflict;  // one side deleted, the other modified
+    u32   failed;
+    //  The patch row's ts, picked up-front in PATCHApply and threaded
+    //  through the walk.  Every file write_blob lays down gets stamped
+    //  with this ts right after the write, so the ULOG row's ts and
+    //  the on-disk mtimes stay in lock-step (stamp-set invariant).
+    ron60 ts;
 } patch_stats;
+
+//  Stamp the just-written file with the patch row's ts.  Silent on
+//  error — callers are best-effort.
+static void stamp_wrote(u8cs reporoot, u8cs childpath, patch_stats *st) {
+    if (!st || $empty(childpath)) return;
+    a_path(fp);
+    if (SNIFFFullpath(fp, reporoot, childpath) != OK) return;
+    (void)SNIFFAtStampPath(fp, st->ts);
+}
 
 //  Scan `bytes` for conflict markers (JOIN emits a literal
 //  `<<<<<<<` at column 0).  Any hit → conflict.
@@ -393,7 +406,8 @@ static ok64 patch_walk(u8cs reporoot, u8cs dir_path,
             a_dup(u8c, bytes, u8bData(mbuf));
             ok64 wo = write_blob(reporoot, childpath,
                                  t->mode, bytes);
-            if (wo == OK) st->take_theirs++; else st->failed++;
+            if (wo == OK) { st->take_theirs++; stamp_wrote(reporoot, childpath, st); }
+            else          st->failed++;
             u8bReset(mbuf);
             continue;
         }
@@ -418,6 +432,7 @@ static ok64 patch_walk(u8cs reporoot, u8cs dir_path,
             ok64 wo = write_blob(reporoot, childpath,
                                  o->mode, bytes);
             if (wo == OK) {
+                stamp_wrote(reporoot, childpath, st);
                 if (conflict) {
                     fprintf(stderr,
                         "sniff: patch: CONFLICT (content) %.*s\n",
@@ -438,7 +453,8 @@ static ok64 patch_walk(u8cs reporoot, u8cs dir_path,
             a_dup(u8c, bytes, u8bData(mbuf));
             ok64 wo = write_blob(reporoot, childpath,
                                  t->mode, bytes);
-            if (wo == OK) st->added++; else st->failed++;
+            if (wo == OK) { st->added++; stamp_wrote(reporoot, childpath, st); }
+            else          st->failed++;
             u8bReset(mbuf);
             continue;
         }
@@ -455,6 +471,7 @@ static ok64 patch_walk(u8cs reporoot, u8cs dir_path,
             ok64 wo = write_blob(reporoot, childpath,
                                  o->mode, bytes);
             if (wo == OK) {
+                stamp_wrote(reporoot, childpath, st);
                 if (conflict) {
                     fprintf(stderr,
                         "sniff: patch: CONFLICT (add/add) %.*s\n",
@@ -497,6 +514,7 @@ static ok64 patch_walk(u8cs reporoot, u8cs dir_path,
                 ok64 wo = write_blob(reporoot, childpath,
                                      t->mode, bytes);
                 if (wo == OK) {
+                    stamp_wrote(reporoot, childpath, st);
                     fprintf(stderr,
                         "sniff: patch: CONFLICT (delete/modify, theirs written) %.*s\n",
                         (int)$len(childpath), (char *)childpath[0]);
@@ -670,7 +688,17 @@ ok64 PATCHApply(u8cs reporoot, u8cs target_query) {
         }
     }
 
-    patch_stats st = {};
+    //  Pick the patch row ts up-front.  SNIFFAtNow guarantees
+    //  monotonicity against the ULOG tail (tail_ts+1 on tie).  We thread
+    //  this ts through patch_walk and stamp each file SNIFFAtStampPath-
+    //  style immediately after writing, so the row's ts equals every
+    //  written file's mtime — the stamp-set invariant the rest of sniff
+    //  (status, POST, the watch daemon) relies on.
+    ron60 ts = 0;
+    struct timespec tv = {};
+    SNIFFAtNow(&ts, &tv);
+
+    patch_stats st = { .ts = ts };
     u8cs root = {NULL, NULL};   // empty dir_path → root tree
     call(patch_walk, reporoot, root,
          &lca_sha, &our_sha, &thr_sha, &st);
@@ -714,9 +742,6 @@ ok64 PATCHApply(u8cs reporoot, u8cs target_query) {
         urow.query[1] = q[1];
     }
 
-    ron60 ts = 0;
-    struct timespec tv = {};
-    SNIFFAtNow(&ts, &tv);
     ron60 verb = SNIFFAtVerbPatch();
     (void)SNIFFAtAppendAt(ts, verb, &urow);
 

@@ -70,6 +70,7 @@ typedef struct {
     u8         *flag;
     u32         cap;
     b8          any_pd;     // any put/delete rows since last post
+    b8          base_is_patch;  // baseline row is a `patch`, not get/post
     ron60       last_post_ts;
     ok64        error;
     //  Dir-level put/delete prefixes (trailing '/').  Expanded after
@@ -169,6 +170,7 @@ static ok64 post_load_baseline(post_ctx *c, sha1 *root_out, b8 *has_out) {
     ok64 br = SNIFFAtBaseline(&base_ts, &base_verb, &base_u);
     if (br == ULOGNONE) done;  // fresh repo
     if (br != OK) return br;
+    c->base_is_patch = (base_verb == SNIFFAtVerbPatch());
 
     //  Baseline query carries the version info (see dog/QURY): one
     //  branch REF plus 1-to-N SHAs.  For a squash-merge POST we only
@@ -413,6 +415,17 @@ static ok64 post_decide(post_ctx *c, u32 idx) {
         c->flag[idx] |= POST_DROP;
         return OK;
     }
+    //  Squash-merge case: baseline is a `patch` row, which stamps its
+    //  merge output with the row's own ts.  Those stamps make mtimes
+    //  "known", but the disk bytes are the merge result — NOT the
+    //  ours-tree baseline — so KEEP (use old_sha) would regress the
+    //  new commit's tree to pre-merge content.  Force REWRITE from
+    //  disk for every on-disk file.
+    if (c->base_is_patch) {
+        c->flag[idx] |= POST_REWRITE;
+        return OK;
+    }
+
     struct timespec ts = {.tv_sec = sb.st_mtim.tv_sec,
                           .tv_nsec = sb.st_mtim.tv_nsec};
     ron60 mtime_r = SNIFFAtOfTimespec(ts);
