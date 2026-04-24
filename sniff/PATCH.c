@@ -18,6 +18,7 @@
 #include "abc/HEX.h"
 #include "abc/PATH.h"
 #include "abc/PRO.h"
+#include "abc/URI.h"
 #include "dog/WHIFF.h"
 #include "graf/GRAF.h"
 #include "keeper/GIT.h"
@@ -47,10 +48,13 @@ static ok64 parse_tree(entry *out, u32 *nout, u32 cap, u8cs body) {
     u8cs obj = {body[0], body[1]};
     u8cs file = {}, esha = {};
     while (n < cap && GITu8sDrainTree(obj, file, esha) == OK) {
-        u8cs scan = {file[0], file[1]};
+        //  `file` is `<mode> <name>`.  csFind consumes `scan` up to
+        //  the space; mode is [file[0]..scan[0]), name is [scan[0]+1..file[1]).
+        a_dup(u8c, scan, file);
         if (u8csFind(scan, ' ') != OK) continue;
         u8cs mode_s = {file[0], scan[0]};
-        u8cs name_s = {scan[0] + 1, file[1]};
+        u8csUsed1(scan);                                  // skip the space
+        u8cs name_s = {scan[0], file[1]};
         if ($empty(name_s) || u8csLen(esha) != 20) continue;
         entry *e = &out[n++];
         e->name[0] = name_s[0]; e->name[1] = name_s[1];
@@ -89,91 +93,78 @@ fun b8 sha_eq(sha1 const *a, sha1 const *b) {
     return memcmp(a->data, b->data, 20) == 0;
 }
 
-// --- URI builders and graf fetch wrappers -------------------------
+// --- graf fetch wrappers -------------------------------------------
+//  URIs are assembled via abc/URI's `a_uri` macro so the `path?query`
+//  shape stays canonical.  Query is one 40-hex sha for a tip fetch or
+//  `<hex_a>&<hex_b>` for a 2-way merge fetch.
 
-//  Append 40 hex chars of `sha` to buf.
-static ok64 feed_hex(u8b buf, sha1 const *sha) {
-    sha1hex hex;
-    sha1hexFromSha1(&hex, sha);
-    u8cs hs = {hex.data, hex.data + 40};
-    return u8bFeed(buf, hs);
-}
-
-//  Build `<dir>/?<hex>` or `/?<hex>` when `dir` is empty.
-static ok64 uri_tree(u8b uri, u8cs dir, sha1 const *sha) {
-    sane(uri && sha);
-    if ($empty(dir)) {
-        call(u8bFeed1, uri, '/');
-    } else {
-        call(u8bFeed, uri, dir);
-        if ($len(dir) == 0 || dir[1][-1] != '/')
-            call(u8bFeed1, uri, '/');
-    }
-    call(u8bFeed1, uri, '?');
-    call(feed_hex, uri, sha);
-    done;
-}
-
-//  Build `<path>?<hex>`.  For a single-tip blob fetch.
-static ok64 uri_blob(u8b uri, u8cs path, sha1 const *sha) {
-    sane(uri && sha && !$empty(path));
-    call(u8bFeed, uri, path);
-    call(u8bFeed1, uri, '?');
-    call(feed_hex, uri, sha);
-    done;
-}
-
-//  Build `<path>?<hex_a>&<hex_b>` for a 2-way merge.
-static ok64 uri_merge(u8b uri, u8cs path,
-                      sha1 const *a, sha1 const *b) {
-    sane(uri && a && b && !$empty(path));
-    call(u8bFeed, uri, path);
-    call(u8bFeed1, uri, '?');
-    call(feed_hex, uri, a);
-    call(u8bFeed1, uri, '&');
-    call(feed_hex, uri, b);
-    done;
-}
-
-//  Fetch a tree body via graf.  Returns OK with `into` populated,
-//  or any GRAFFAIL / KEEPNONE variant on failure (caller treats
-//  those as "dir absent at that commit").
+//  Fetch a tree body via graf.  Path is `<dir>/` (or `/` at the root),
+//  query is the commit sha hex.  Returns OK with `into` populated, or
+//  any GRAFFAIL / KEEPNONE variant on failure (caller treats those as
+//  "dir absent at that commit").
 static ok64 fetch_tree(u8b into, u8cs dir, sha1 const *sha) {
     sane(into && sha);
     u8bReset(into);
-    a_pad(u8, uribuf, 1024);
-    call(uri_tree, uribuf, dir, sha);
-    a_dup(u8c, uri, u8bData(uribuf));
-    return GRAFGet(into, uri);
+
+    a_pad(u8, pbuf, 1024);
+    if ($empty(dir)) {
+        call(u8bFeed1, pbuf, '/');
+    } else {
+        call(u8bFeed, pbuf, dir);
+        if (*u8csLast(dir) != '/') call(u8bFeed1, pbuf, '/');
+    }
+    a_dup(u8c, path, u8bData(pbuf));
+
+    sha1hex hex;
+    sha1hexFromSha1(&hex, sha);
+    u8cs query = {hex.data, hex.data + 40};
+
+    a_uri(u, 0, 0, path, query, 0);
+    return GRAFGet(into, u);
 }
 
 static ok64 fetch_blob(u8b into, u8cs path, sha1 const *sha) {
-    sane(into && sha);
+    sane(into && sha && !$empty(path));
     u8bReset(into);
-    a_pad(u8, uribuf, 1024);
-    call(uri_blob, uribuf, path, sha);
-    a_dup(u8c, uri, u8bData(uribuf));
-    return GRAFGet(into, uri);
+
+    sha1hex hex;
+    sha1hexFromSha1(&hex, sha);
+    u8cs query = {hex.data, hex.data + 40};
+
+    a_uri(u, 0, 0, path, query, 0);
+    return GRAFGet(into, u);
 }
 
 static ok64 fetch_merge(u8b into, u8cs path,
                         sha1 const *ours, sha1 const *thrs) {
-    sane(into && ours && thrs);
+    sane(into && ours && thrs && !$empty(path));
     u8bReset(into);
-    a_pad(u8, uribuf, 1024);
-    call(uri_merge, uribuf, path, ours, thrs);
-    a_dup(u8c, uri, u8bData(uribuf));
-    return GRAFGet(into, uri);
+
+    sha1hex ha, hb;
+    sha1hexFromSha1(&ha, ours);
+    sha1hexFromSha1(&hb, thrs);
+
+    a_pad(u8, qbuf, 128);
+    u8cs ha_s = {ha.data, ha.data + 40};
+    u8cs hb_s = {hb.data, hb.data + 40};
+    call(u8bFeed,  qbuf, ha_s);
+    call(u8bFeed1, qbuf, '&');
+    call(u8bFeed,  qbuf, hb_s);
+    a_dup(u8c, query, u8bData(qbuf));
+
+    a_uri(u, 0, 0, path, query, 0);
+    return GRAFGet(into, u);
 }
 
 // --- Worktree writes -----------------------------------------------
 
-//  Write `data` to `<reporoot>/<relpath>`, chmod executable bit if
-//  mode is "100755", replace symlink target if mode is "120000".
-//  Updates sniff's SNIFF_BLOB / SNIFF_CHECKOUT entries.
+//  Write `data` to `<reporoot>/<relpath>`.  `mode` is a git-style
+//  ascii mode string: `"100644"` / `"100755"` / `"120000"` (symlink).
+//  Creates parent dirs as needed.  Attribution (SNIFFAtKnown stamp)
+//  happens later in PATCHApply, after the whole walk — this helper
+//  just lays down the bytes.
 static ok64 write_blob(u8cs reporoot, u8csc relpath_in,
-                       u8csc mode, u8csc data,
-                       sha1 const *entry_sha) {
+                       u8csc mode, u8csc data) {
     sane(!$empty(relpath_in));
     a_dup(u8c, relpath, relpath_in);
 
@@ -217,18 +208,11 @@ static ok64 write_blob(u8cs reporoot, u8csc relpath_in,
         if (is_exe) chmod((char *)u8bDataHead(fp), 0755);
     }
 
-    //  New-model attribution: the caller passes a ULOG-grade stamp via
-    //  `*stamp_ts` so every file patched in this run carries the same
-    //  mtime, and SNIFFAtKnown will mark them clean under the new
-    //  `patch` ULOG row appended at the end.
-    (void)entry_sha;
-    (void)SNIFFIntern(relpath);
     done;
 }
 
-//  Remove `<reporoot>/<relpath>` from disk and clear sniff registry
-//  entries.  Treats a missing file as success — the net state is the
-//  same as if we unlinked it.
+//  Remove `<reporoot>/<relpath>` from disk.  Treats a missing file as
+//  success — the net state is the same as if we'd unlinked it.
 static ok64 delete_blob(u8cs reporoot, u8csc relpath_in) {
     sane(!$empty(relpath_in));
     a_dup(u8c, relpath, relpath_in);
@@ -237,8 +221,6 @@ static ok64 delete_blob(u8cs reporoot, u8csc relpath_in) {
     call(SNIFFFullpath, fp, reporoot, relpath);
     ok64 o = FILEUnLink($path(fp));
     if (o != OK && o != FILENOENT) return o;
-
-    (void)SNIFFIntern(relpath);
     done;
 }
 
@@ -341,7 +323,7 @@ static ok64 patch_walk(u8cs reporoot, u8cs dir_path,
         a_path(childp);
         if (!$empty(dir_path)) {
             u8bFeed(childp, dir_path);
-            if (dir_path[1][-1] != '/') u8bFeed1(childp, '/');
+            if (*u8csLast(dir_path) != '/') u8bFeed1(childp, '/');
         }
         u8bFeed(childp, name);
         PATHu8bTerm(childp);
@@ -368,11 +350,11 @@ static ok64 patch_walk(u8cs reporoot, u8cs dir_path,
             //  whole subtree is a pure add/delete — for MVP skeleton
             //  we still descend with empty-stand-in.  Real add/delete
             //  handling comes with the structural-delete pass.
+            //  Pass the subtree shas unconditionally — absent sides
+            //  have zeroed sha1 and fetch_tree returns empty, which
+            //  the next level interprets as "dir absent on that side".
             ret = patch_walk(reporoot, childpath,
-                             l ? &lsub : &lsub,
-                             o ? &osub : &osub,
-                             t ? &tsub : &tsub,
-                             st);
+                             &lsub, &osub, &tsub, st);
             continue;
         }
 
@@ -410,7 +392,7 @@ static ok64 patch_walk(u8cs reporoot, u8cs dir_path,
             (void)fetch_blob(mbuf, childpath, thr);
             a_dup(u8c, bytes, u8bData(mbuf));
             ok64 wo = write_blob(reporoot, childpath,
-                                 t->mode, bytes, &t->sha);
+                                 t->mode, bytes);
             if (wo == OK) st->take_theirs++; else st->failed++;
             u8bReset(mbuf);
             continue;
@@ -434,7 +416,7 @@ static ok64 patch_walk(u8cs reporoot, u8cs dir_path,
             //  Write result using theirs' mode when ours == lca mode,
             //  else ours' mode.  MVP: always ours' mode.
             ok64 wo = write_blob(reporoot, childpath,
-                                 o->mode, bytes, &o->sha);
+                                 o->mode, bytes);
             if (wo == OK) {
                 if (conflict) {
                     fprintf(stderr,
@@ -455,7 +437,7 @@ static ok64 patch_walk(u8cs reporoot, u8cs dir_path,
             (void)fetch_blob(mbuf, childpath, thr);
             a_dup(u8c, bytes, u8bData(mbuf));
             ok64 wo = write_blob(reporoot, childpath,
-                                 t->mode, bytes, &t->sha);
+                                 t->mode, bytes);
             if (wo == OK) st->added++; else st->failed++;
             u8bReset(mbuf);
             continue;
@@ -471,7 +453,7 @@ static ok64 patch_walk(u8cs reporoot, u8cs dir_path,
             a_dup(u8c, bytes, u8bData(mbuf));
             b8 conflict = has_conflict_marker(bytes);
             ok64 wo = write_blob(reporoot, childpath,
-                                 o->mode, bytes, &o->sha);
+                                 o->mode, bytes);
             if (wo == OK) {
                 if (conflict) {
                     fprintf(stderr,
@@ -513,7 +495,7 @@ static ok64 patch_walk(u8cs reporoot, u8cs dir_path,
                 (void)fetch_blob(mbuf, childpath, &t->sha);
                 a_dup(u8c, bytes, u8bData(mbuf));
                 ok64 wo = write_blob(reporoot, childpath,
-                                     t->mode, bytes, &t->sha);
+                                     t->mode, bytes);
                 if (wo == OK) {
                     fprintf(stderr,
                         "sniff: patch: CONFLICT (delete/modify, theirs written) %.*s\n",
@@ -586,12 +568,10 @@ static ok64 resolve_target(sha1 *out, u8cs reporoot, u8cs target_query) {
         }
     }
 
-    //  Symbolic ref: look up via REFS.
+    //  Symbolic ref: look up via REFS.  Compose the lookup URI via
+    //  abc/URI — a query-only ref like `?heads/main`.
     a_path(keepdir, reporoot, KEEP_DIR_S);
-    a_pad(u8, qbuf, 256);
-    u8bFeed1(qbuf, '?');
-    u8bFeed(qbuf, target_query);
-    a_dup(u8c, qkey, u8bData(qbuf));
+    a_uri(qkey, 0, 0, 0, target_query, 0);
 
     a_pad(u8, arena, 512);
     uri resolved = {};
@@ -619,26 +599,12 @@ static ok64 resolve_ours(sha1 *out) {
     done;
 }
 
-//  Read the full baseline URI into `out_uri_buf` (unparsed bytes) so
-//  PATCHApply can append a new hash to its fragment.  Caller-owned
-//  buffer.  Returns empty on no baseline.
-static ok64 resolve_baseline_uri(u8bp out_uri_buf) {
-    sane(out_uri_buf);
-    u8bReset(out_uri_buf);
-    ron60 ts = 0, verb = 0;
-    uri u = {};
-    ok64 r = SNIFFAtBaseline(&ts, &verb, &u);
-    if (r != OK) return r;
-    (void)URIutf8Feed(u8bIdle(out_uri_buf), &u);
-    done;
-}
-
 // --- Public entries -------------------------------------------------
 
 //  Worktree scan: any file whose mtime is not in the ULOG stamp-set
 //  counts as dirty.  Mirrors `git merge`'s "your local changes would
-//  be overwritten" guard.  Pre-populates `.sniff`, `.dogs`, `.git`
-//  as skips — they are never considered dirty tracked files.
+//  be overwritten" guard.  Metadata entries (`.sniff`, `.dogs`) are
+//  skipped via SNIFFSkipMeta.
 
 typedef struct { u32 dirty; u8cs reporoot; } dirty_ctx;
 
@@ -648,23 +614,9 @@ static ok64 dirty_scan_cb(void *varg, path8bp path) {
     enum { MAX_DIRTY_REPORT = 8 };
 
     a_dup(u8c, full, u8bData(path));
-    size_t rlen = $len(c->reporoot);
-    if ($len(full) <= rlen) return OK;
-    u8cs rel = {$atp(full, rlen), full[1]};
-    while (!$empty(rel) && rel[0][0] == '/') rel[0]++;
-    if ($empty(rel)) return OK;
-
-    a_cstr(d_sniff, ".sniff");
-    a_cstr(d_dogs,  ".dogs");
-    {
-        size_t rl = $len(rel);
-        #define SKIP(p) \
-            ((rl) == $len(p) && memcmp(rel[0], p[0], $len(p)) == 0) || \
-            ((rl) > $len(p) && memcmp(rel[0], p[0], $len(p)) == 0 && \
-             rel[0][$len(p)] == '/')
-        if (SKIP(d_sniff) || SKIP(d_dogs)) return OK;
-        #undef SKIP
-    }
+    u8cs rel = {};
+    if (!SNIFFRelFromFull(&rel, c->reporoot, full)) return OK;
+    if (SNIFFSkipMeta(rel))                         return OK;
 
     struct stat sb = {};
     if (lstat((char const *)full[0], &sb) != 0) return OK;
@@ -802,7 +754,7 @@ ok64 PATCHApplyFile(u8cs reporoot, u8cs filepath, u8cs target_query) {
     //  Mode fallback: reuse whatever's on disk.  Not perfect (a
     //  newly-added file has no on-disk mode yet) — fine for MVP.
     a_cstr(default_mode, "100644");
-    ok64 wo = write_blob(reporoot, filepath, default_mode, bytes, NULL);
+    ok64 wo = write_blob(reporoot, filepath, default_mode, bytes);
     u8bFree(mbuf);
     if (wo != OK) return wo;
     if (conflict) {

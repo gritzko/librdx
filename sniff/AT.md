@@ -21,6 +21,16 @@ on-disk files are "clean" vs user-edited.
 | `patch`  | `?heads/X#<ours>,<theirs>[,…]` (extends prior fragment) | yes |
 | `put`    | `<path>`                                              | no  |
 | `delete` | `<path>`                                              | no  |
+| `mod`    | `<path>`  (watch daemon hint — inotify observed edit) | no  |
+
+The `mod` rows are advisory: the `sniff watch` daemon appends one
+per file whose mtime drifts out of the ULOG stamp-set, dedup'd by
+in-memory per-path-idx last-emitted-mtime.  POST may use them as a
+fast-path for locating the change-set, but still falls back to the
+authoritative wt-scan.  Daemon-generated rows race with foreground
+writers; do not run `sniff watch` concurrently with commits unless
+the ULOG writer path is protected by a `flock` — currently it is
+not (see `dog/ULOG.md` §"No concurrent writers").
 
 Row 0 must be `repo`; no other verb may appear at row 0, and `repo`
 must not appear elsewhere.  Walk-up discovery (`dog/HOME`) treats a

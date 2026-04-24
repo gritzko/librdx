@@ -72,9 +72,80 @@ static ok64 sniff_drain_cb(u8cs path, void *ctx) {
     (void)path; (void)ctx; return OK;
 }
 
+//  The watch daemon emits `mod <relpath>` ULOG rows for every file
+//  whose mtime is outside the ULOG stamp-set (i.e. user-edited since
+//  the last get/post/patch).  It scans the wt on every inotify batch
+//  and dedupes via an in-memory `path_idx → last_emitted_mtime` table
+//  so repeated events on the same already-dirty file don't flood the
+//  log.  The rows are advisory; POST's change-set resolver still does
+//  its own wt-scan as the authoritative check.
+
+typedef struct {
+    u8cs   reporoot;
+    u64   *last_mtime;   // indexed by path_idx
+    u32    cap;
+    u32    emitted;      // rows appended this scan (for logging)
+} watch_scan_ctx;
+
+static ok64 watch_scan_cb(void *varg, path8bp path) {
+    sane(varg && path);
+    watch_scan_ctx *w = (watch_scan_ctx *)varg;
+    a_dup(u8c, full, u8bData(path));
+
+    u8cs rel = {};
+    if (!SNIFFRelFromFull(&rel, w->reporoot, full)) return OK;
+    if (SNIFFSkipMeta(rel))                         return OK;
+
+    //  Skip the daemon's own pidfile — we don't log ourselves.
+    {
+        a_cstr(d_pid, ".sniff.pid");
+        if ($len(rel) == $len(d_pid) &&
+            memcmp(rel[0], d_pid[0], $len(d_pid)) == 0) return OK;
+    }
+
+    struct stat sb = {};
+    if (lstat((char const *)full[0], &sb) != 0) return OK;
+    struct timespec ts = {.tv_sec = sb.st_mtim.tv_sec,
+                          .tv_nsec = sb.st_mtim.tv_nsec};
+    ron60 mtime = SNIFFAtOfTimespec(ts);
+
+    //  Clean against some baseline → nothing to log.
+    if (SNIFFAtKnown(mtime)) return OK;
+
+    u32 idx = SNIFFIntern(rel);
+    if (idx >= w->cap) return OK;
+    if (w->last_mtime[idx] == (u64)mtime) return OK;  // dedup
+
+    //  Append one `mod <rel>` row via the usual URI-struct path.
+    uri urow = {};
+    urow.path[0] = rel[0];
+    urow.path[1] = rel[1];
+    ron60 vmod = SNIFFAtVerbMod();
+    if (SNIFFAtAppend(vmod, &urow) == OK) {
+        w->last_mtime[idx] = (u64)mtime;
+        w->emitted++;
+    }
+    return OK;
+}
+
+static ok64 watch_rescan(u8cs reporoot, u64 *last_mtime, u32 cap) {
+    sane($ok(reporoot) && last_mtime);
+    watch_scan_ctx wc = {.last_mtime = last_mtime, .cap = cap, .emitted = 0};
+    wc.reporoot[0] = reporoot[0];
+    wc.reporoot[1] = reporoot[1];
+    a_path(wp);
+    u8bFeed(wp, reporoot);
+    call(PATHu8bTerm, wp);
+    call(FILEScan, wp,
+         (FILE_SCAN)(FILE_SCAN_FILES | FILE_SCAN_LINKS | FILE_SCAN_DEEP),
+         watch_scan_cb, &wc);
+    done;
+}
+
+#define WATCH_CAP (1u << 18)   // 256 k paths, ~2 MB of last-mtime table
+
 static ok64 sniff_daemon(u8cs reporoot) {
     sane(1);
-    sniff *s = &SNIFF; (void)s;
     pid_t pid = fork();
     if (pid < 0) fail(SNIFFFAIL);
     if (pid > 0) {
@@ -94,6 +165,7 @@ static ok64 sniff_daemon(u8cs reporoot) {
     sigemptyset(&sa.sa_mask);
     sigaction(SIGTERM, &sa, NULL);
     sigaction(SIGINT, &sa, NULL);
+
     int wfd = -1;
     call(FSWInit, &wfd);
     { u8csc rp = {reporoot[0], reporoot[1]}; FSWDir(wfd, rp); }
@@ -103,14 +175,25 @@ static ok64 sniff_daemon(u8cs reporoot) {
         FILEScan(wp, (FILE_SCAN)(FILE_SCAN_DIRS | FILE_SCAN_DEEP),
                  sniff_watchdir_cb, &wctx);
     }
+
+    //  Per-path last-emitted-mtime table for `mod`-row dedup.
+    Bu8 mt_buf = {};
+    call(u8bAllocate, mt_buf, (u64)WATCH_CAP * sizeof(u64));
+    memset(u8bDataHead(mt_buf), 0, (u64)WATCH_CAP * sizeof(u64));
+    u64 *last_mtime = (u64 *)u8bDataHead(mt_buf);
+
+    //  Seed scan: emit mod rows for anything already dirty when the
+    //  daemon starts.
+    (void)watch_rescan(reporoot, last_mtime, WATCH_CAP);
+
     while (!sniff_quit) {
         ok64 o = FSWPoll(wfd, 1000);
         if (o != OK) continue;
         FSWDrain(wfd, sniff_drain_cb, NULL);
-        //  Watch daemon no longer needs to refresh a per-path mtime
-        //  cache — POST rescans the wt at commit time.  Kept here as
-        //  a drain-only loop so inotify events still get consumed.
+        (void)watch_rescan(reporoot, last_mtime, WATCH_CAP);
     }
+
+    u8bFree(mt_buf);
     FSWClose(wfd);
     sniff_rm_pid(reporoot);
     done;
@@ -152,23 +235,10 @@ static ok64 status_cb(void *varg, path8bp path) {
     sane(varg);
     status_ctx *c = (status_ctx *)varg;
     a_dup(u8c, full, u8bData(path));
-    size_t rlen = $len(c->reporoot);
-    if ($len(full) <= rlen) return OK;
-    u8cs rel = {$atp(full, rlen), full[1]};
-    while (!$empty(rel) && rel[0][0] == '/') rel[0]++;
-    if ($empty(rel)) return OK;
 
-    a_cstr(d_sniff, ".sniff");
-    a_cstr(d_dogs,  ".dogs");
-    {
-        size_t rl = $len(rel);
-        #define SKIP(p) \
-            ((rl) == $len(p) && memcmp(rel[0], p[0], $len(p)) == 0) || \
-            ((rl) > $len(p) && memcmp(rel[0], p[0], $len(p)) == 0 && \
-             rel[0][$len(p)] == '/')
-        if (SKIP(d_sniff) || SKIP(d_dogs)) return OK;
-        #undef SKIP
-    }
+    u8cs rel = {};
+    if (!SNIFFRelFromFull(&rel, c->reporoot, full)) return OK;
+    if (SNIFFSkipMeta(rel))                         return OK;
 
     struct stat sb = {};
     if (lstat((char const *)full[0], &sb) != 0) return OK;
@@ -200,16 +270,11 @@ static ok64 sniff_status(u8cs reporoot) {
 
 static ok64 sniff_checkout(u8cs reporoot, u8cs hex) {
     sane($ok(hex));
-    sniff *s = &SNIFF; (void)s;
-    keeper *k = &KEEP;
-    
     a_pad(u8, src, 256);
     u8bFeed1(src, '?');
     u8bFeed(src, hex);
     a_dup(u8c, source, u8bData(src));
-    ok64 o = GETCheckout(reporoot, hex, source);
-    
-    return o;
+    return GETCheckout(reporoot, hex, source);
 }
 
 // Checkout from a parsed URI: resolve ?ref via keeper REFS, then checkout.
@@ -242,9 +307,7 @@ static ok64 sniff_get_by_refkey(u8cs reporoot, u8csc keepdir,
 }
 
 static ok64 SNIFFGetURI(u8cs reporoot, uri *u) {
-    sniff *s = &SNIFF; (void)s;
     sane(u);
-
     keeper *k = &KEEP;
     a_path(keepdir, u8bDataC(k->h->root), KEEP_DIR_S);
 
@@ -343,9 +406,10 @@ static ok64 SNIFFGetURI(u8cs reporoot, uri *u) {
         }
         if (found) {
             u8cs vfull = {found->val[0], found->val[1]};
-            if ($len(vfull) == 41 && vfull[0][0] == '?') {
+            if ($len(vfull) == 41 && *vfull[0] == '?') {
                 a_pad(u8, hexbuf, 64);
-                u8cs hexs = {vfull[0] + 1, vfull[1]};
+                u8cs hexs = {vfull[0], vfull[1]};
+                u8csUsed1(hexs);
                 u8bFeed(hexbuf, hexs);
                 a_dup(u8c, hex, u8bData(hexbuf));
                 a_pad(u8, srcbuf, 256);
@@ -365,7 +429,6 @@ static ok64 SNIFFGetURI(u8cs reporoot, uri *u) {
 
 static ok64 sniff_list(void) {
     sane(1);
-    sniff *s = &SNIFF; (void)s;
     u32 n = SNIFFCount();
     for (u32 i = 0; i < n; i++) {
         u8cs path = {};
@@ -380,24 +443,29 @@ static ok64 sniff_list(void) {
 
 static void sniff_usage(void) {
     fprintf(stderr,
-            "Usage: sniff <command> [options] [files...]\n"
+            "Usage: sniff <command> [options] [URIs...]\n"
             "\n"
-            "  sniff index                 rebuild index\n"
-            "  sniff update                update mtimes\n"
-            "  sniff status                show dirty/deleted files\n"
-            "  sniff get <hex>             checkout commit (alias: checkout)\n"
-            "  sniff put [files]           stage files into a new base tree\n"
-            "  sniff delete [files]        stage deletions into base tree\n"
-            "  sniff post -m <msg>         commit base tree (alias: commit)\n"
-            "  sniff watch                 start watch daemon\n"
-            "  sniff stop                  stop watch daemon\n"
-            "  sniff list                  list all known paths\n"
+            "  sniff get <ref|sha>         checkout commit into the wt\n"
+            "                              (alias: checkout)\n"
+            "  sniff put <path>...         record `put` rows in the ULOG\n"
+            "  sniff delete <path>...      record `delete` rows in the ULOG\n"
+            "  sniff post -m <msg>         commit: walk baseline + wt,\n"
+            "                              resolve change-set, feed one pack\n"
+            "                              (alias: commit)\n"
+            "  sniff patch ?<ref|sha>      3-way merge the given ref/sha\n"
+            "                              into the wt via graf\n"
+            "  sniff status                list mtime-dirty files\n"
+            "  sniff list                  list paths the registry knows\n"
+            "  sniff watch                 start inotify daemon (fork;\n"
+            "                              pid at <wt>/.sniff.pid)\n"
+            "                              emits `mod <path>` rows\n"
+            "  sniff stop                  stop the watch daemon\n"
             "  sniff help                  this message\n"
             "\n"
-            "  Empty-set shortcuts:\n"
-            "    sniff put                 stage every file with changed mtime\n"
-            "    sniff delete              stage every tracked file missing from disk\n"
-            "    sniff post                auto-stages dirty when nothing was put/deleted\n"
+            "  Change-set rules at post time:\n"
+            "    explicit put/delete since last post wins;\n"
+            "    otherwise mtime ∉ ULOG stamp-set ⇒ include (implicit);\n"
+            "    missing files with explicit-delete OR in implicit mode ⇒ drop.\n"
             "\n"
             "  Flags:\n"
             "    -m <msg>       commit message\n"
@@ -413,7 +481,7 @@ char const *const SNIFF_VERBS[] = {
 };
 
 char const SNIFF_VAL_FLAGS[] =
-    "-m\0--parent\0--author\0";
+    "-m\0--author\0";
 
 // --- Entry: run the parsed CLI against the open state ---
 
@@ -425,7 +493,6 @@ ok64 SNIFFExec(cli *c) {
     $mv(reporoot, c->repo);
 
     a_cstr(v_help, "help");
-    a_cstr(v_index, "index");
     a_cstr(v_update, "update");
     a_cstr(v_status, "status");
     a_cstr(v_checkout, "checkout");
@@ -450,14 +517,12 @@ ok64 SNIFFExec(cli *c) {
     b8 is_checkout = $eq(c->verb, v_checkout) || $eq(c->verb, v_get);
     b8 is_post = $eq(c->verb, v_post) || $eq(c->verb, v_commit);
     b8 is_put = $eq(c->verb, v_put);
-    b8 is_index = $eq(c->verb, v_index);
     b8 is_update = $eq(c->verb, v_update);
     b8 is_watch = $eq(c->verb, v_watch);
     b8 is_status = $eq(c->verb, v_status);
     b8 is_list = $eq(c->verb, v_list);
     b8 is_delete = $eq(c->verb, v_delete);
     b8 is_patch = $eq(c->verb, v_patch);
-    (void)is_index;
 
     ok64 ret = OK;
 

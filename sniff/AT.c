@@ -37,6 +37,13 @@ b8 SNIFFAtKnown(ron60 mtime) {
     return ULOGHas(&SNIFF.log, mtime);
 }
 
+void SNIFFAtPathBytes(uri const *u, u8cs out) {
+    if (!u8csEmpty(u->path))     { out[0] = u->path[0];     out[1] = u->path[1];     return; }
+    if (!u8csEmpty(u->query))    { out[0] = u->query[0];    out[1] = u->query[1];    return; }
+    if (!u8csEmpty(u->fragment)) { out[0] = u->fragment[0]; out[1] = u->fragment[1]; return; }
+    out[0] = u->data[0]; out[1] = u->data[1];
+}
+
 // --- Verb constants (lazy-cached) ---
 
 static ron60 at_v_repo   = 0;
@@ -45,6 +52,7 @@ static ron60 at_v_post   = 0;
 static ron60 at_v_patch  = 0;
 static ron60 at_v_put    = 0;
 static ron60 at_v_delete = 0;
+static ron60 at_v_mod    = 0;
 
 ron60 SNIFFAtVerbRepo(void) {
     if (at_v_repo == 0) { a_cstr(s, "repo"); at_v_repo = SNIFFAtVerbOf(s); }
@@ -70,6 +78,10 @@ ron60 SNIFFAtVerbPut(void) {
 ron60 SNIFFAtVerbDelete(void) {
     if (at_v_delete == 0) { a_cstr(s, "delete"); at_v_delete = SNIFFAtVerbOf(s); }
     return at_v_delete;
+}
+ron60 SNIFFAtVerbMod(void) {
+    if (at_v_mod == 0) { a_cstr(s, "mod"); at_v_mod = SNIFFAtVerbOf(s); }
+    return at_v_mod;
 }
 
 // --- Row-0 anchor lookup ---

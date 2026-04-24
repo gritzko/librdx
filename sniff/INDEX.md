@@ -62,7 +62,7 @@ For each candidate path:
 | `sniff patch ?<ref>` | 3-way merge into wt |
 | `sniff status` | List mtime-dirty files (M) |
 | `sniff list` | List keeper-interned paths |
-| `sniff watch` | Start inotify drain loop (fork, pidfile) |
+| `sniff watch` | Start the inotify daemon (fork, pidfile at `.sniff.pid`).  Appends one `mod <relpath>` row to `.sniff` for every file whose mtime leaves the stamp-set.  Dedup'd per-path so repeated edits to the same file share one row until a commit stamps it clean. |
 | `sniff stop` | Stop the watch daemon |
 
 Flags: `-m <msg>` commit message, `--author <who>` author string.
