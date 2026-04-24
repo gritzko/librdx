@@ -101,11 +101,6 @@ static ok64 get_write_one(get_ctx *g, u8cs path, u8 kind, u8cp esha) {
     }
     u8bFree(bbuf);
 
-    //  Stamp the just-written file (symlinks inherit the stamp too
-    //  because utimensat with AT_FDCWD and no flags follows links;
-    //  that is wrong for lchmod-style invariants but matches the
-    //  existing sniff behavior — symlink target mtimes stamp.  For the
-    //  common non-symlink case this is exactly the intended attribution).
     call(SNIFFAtStampPath, fp, g->ts);
     done;
 }
