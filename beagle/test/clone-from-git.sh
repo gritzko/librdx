@@ -58,7 +58,7 @@ be get "//localhost/$SRC_REL"
 
 # --- 4. compare worktrees ---
 RDIFF=$(rsync -rlcn --delete \
-    --exclude='/.git/' --exclude='/.dogs/' --exclude='/.sniff/' \
+    --exclude='/.git/' --exclude='/.dogs/' --exclude='/.sniff' \
     "$TMP/git-clone/" "$TMP/be-clone/" 2>&1)
 if [ -n "$RDIFF" ]; then
     echo "FAIL: clone-from-git: worktrees differ"

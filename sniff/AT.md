@@ -1,122 +1,71 @@
-# sniff checkout: `.dogs` pointer + branch-dir `WT`
+# sniff attribution log — `<wt>/.sniff`
 
-A worktree's current branch is encoded by **two cooperating
-pointers**: a `.dogs` file inside the wt, and a `WT` file inside
-the branch directory on the store side.
+The worktree's authoritative per-wt state is the ULOG file at
+`<wt>/.sniff`.  It is a single plain append-only text file in
+`dog/ULOG.md` format:
 
-    <wt>/.dogs                 → /abs/store?heads/feature
-    <store>/heads/feature/WT   → /abs/wt
+    <ron60-ms>\t<verb>\t<uri>\n
 
-This replaces the former `.dogs/sniff/at.log` file (single authority
-per wt) with a **pair** of authorities — wt-side for "where is my
-store and what branch am I on", store-side for "who is the wt on
-this branch".  The two sides are kept in sync by every `be get`.
+and it holds everything the worktree needs to know about itself:
+which branch it's on, which commits/patches have touched it, which
+files are staged-but-not-committed, and (via row timestamps) which
+on-disk files are "clean" vs user-edited.
 
-## `<wt>/.dogs` (wt side)
+## Row vocabulary
 
-A regular file (not a directory).  One line, one URI:
+| Verb | URI shape | Stamps files? |
+|------|-----------|---------------|
+| `repo`   | `file:///abs/path/.dogs/` (row 0 only; worktree → store anchor) | no |
+| `get`    | `[//origin/path]?heads/X#<sha>` (or `#<sha>` detached) | yes |
+| `post`   | `?heads/X#<sha>` (or `#<sha>` detached)               | yes |
+| `patch`  | `?heads/X#<ours>,<theirs>[,…]` (extends prior fragment) | yes |
+| `put`    | `<path>`                                              | no  |
+| `delete` | `<path>`                                              | no  |
 
-    /abs/store?heads/feature
+Row 0 must be `repo`; no other verb may appear at row 0, and `repo`
+must not appear elsewhere.  Walk-up discovery (`dog/HOME`) treats a
+`.sniff` file in an ancestor as a worktree anchor and records its
+dir as `h->wt`; SNIFFOpen reads the `repo` URI to set `h->root`
+(the store path where `.dogs/` lives).  For colocated wts the two
+are the same directory.
 
-Contents:
+"Stamps files" means sniff calls `utimensat` on every file it wrote
+during the op with a `struct timespec` derived from the row's `ts`.
+A subsequent `lstat` converted back to ron60 (via `SNIFFAtOfTimespec`)
+round-trips to exactly the row's `ts`, and `SNIFFAtKnown` answers YES.
 
-  * Absolute path to the store root (the directory holding trunk's
-    pack logs and branch subdirs).
-  * `?heads/<name>` — the branch this wt is checked out on.  The
-    `heads/` or `tags/` prefix is optional (bare branch path also
-    accepted); the canonical form is what `be get` writes.
-  * Detached checkout: `?<hex-sha>` without a branch.  A detached
-    wt cannot stage (`be put`/`be delete`/`be post` are refused).
+## Branch tracking
 
-Readers determine the current branch dir by resolving the URI
-against the store: `<store>/heads/feature/` (with
-`heads/main|master|trunk` aliasing to `<store>/` itself).
+Whatever branch the wt is on is encoded in the URI query of the most
+recent `get` / `post` / `patch` row (`?heads/main`, `?heads/feat`,
+...).  A detached checkout's URI has no query, just `#<sha>`.
+`SNIFFAtBaseline` parses the latest such row; callers that need the
+branch read `u.query`, and callers that need the tip sha read
+`u.fragment`.
 
-A "traditional" co-located layout — store at `<repo>/.dogs/` and
-working files next to it in `<repo>/` — is a convention, not a
-special case; the same `.dogs` file sits inside the wt (here the
-file is the store's `.dogs/` **directory**, and a flat wt is
-recognised by finding a `.dogs/` dir instead of a `.dogs` file at
-the wt root).
+## Baseline URI
 
-## `<branch-dir>/WT` (store side)
+The most recent `get` / `post` / `patch` row names the current
+baseline tree.  The URI's fragment is a comma-separated hash list:
 
-A regular file.  One line, one path:
+* one hash → keeper has a plain commit tree at that sha.
+* two or more → graf reconstructs a merge tree from that hash list.
 
-    /abs/wt
+`post` collapses back to one hash; `patch` always appends one more.
 
-Contents:
+## Stamp-set
 
-  * Absolute path to the wt currently on this branch.
-  * Absent file = no wt checked out on this branch.
+`ULOGHas(mtime)` tests membership in `{row.ts : row ∈ log}`.
+Every `get` / `post` / `patch` adds exactly one stamp.  A file's
+on-disk mtime matches that set iff sniff wrote the file during one
+of those ops and nothing has edited it since.
 
-Rule enforced by `be get`: at most one wt per branch dir.  Trying
-to check out a branch whose `WT` names a different live wt is
-refused; the user must first close the other wt (which removes
-`WT`) or choose another branch.
+## Retired pointer-pair
 
-The back-pointer lets store-side tools find the live checkout
-without scanning: pushing a canonical pack from `be post` reads
-`WT` to know which wt's staging to drop.
-
-## Detached checkouts
-
-`be get ?<sha>` writes `<wt>/.dogs` with no branch component.  No
-`<sha-dir>/WT` file is created (there is no branch dir for a raw
-sha).  `be put` / `be delete` / `be post` refuse with "detached
-HEAD".  Re-attach with `be get ?heads/<name>`.
-
-## Replaces
-
-  * the old `.dogs/sniff/at.log` append-only file
-  * the old `.dogs/sniff/HEAD` single-line file
-  * the `file://<reporoot>` entries previously written into
-    `keeper/REFS` by `sniff/GET.c`, `sniff/POST.c`, `keeper/KEEP.c`
-
-None of those survives this migration.  Keeper's REFS (now
-`<branch-dir>/REFS`, per-branch) carries replicated refs only —
-never worktree state (see `keeper/REF.md`).
-
-## API (post-migration target)
-
-    ok64 SNIFFAt     (u8cs *store_out, u8cs *branch_out, u8cs *sha_out);
-    ok64 SNIFFAttach (u8cs store, u8cs branch, u8cs sha);
-    ok64 SNIFFDetach (u8cs store, u8cs sha);
-
-  * `SNIFFAt` reads the wt's `.dogs` pointer and returns the store
-    abspath, branch (empty for detached), and the current tip sha
-    (read from the branch's `REFS` tail, or taken directly from
-    `.dogs` for detached).
-  * `SNIFFAttach` writes `<wt>/.dogs` and `<branch-dir>/WT`
-    together (fsync'd in that order to keep the store-side pointer
-    accurate even if the wt side crashes first).
-  * `SNIFFDetach` writes `<wt>/.dogs` with a bare `?<sha>` and
-    removes any stale `WT` file for the prior branch.
-
-`SNIFFAt` callers: `sniff/GET.c` on every checkout, `sniff/POST.c`
-for parent-commit lookup, `beagle/BE.cli.c` for dispatch.
-
-## Staging precondition
-
-Staging (`be put` / `be delete` / `be post`) requires a non-empty
-branch component in `<wt>/.dogs`.  Detached checkouts cannot
-stage — the caller must `be get ?heads/<branch>` first.  See
-`sniff/STAGE.md`.
-
-## Format notes
-
-  * `.dogs` is plain text, one line, no trailing newline required.
-  * `WT` is plain text, one line, absolute path.
-  * Both files are rewritten wholesale on checkout; there is no
-    append-only history.  Historical tip progression is recoverable
-    from the branch's `REFS` (which is append-only, per-branch —
-    see `keeper/REF.md`).
-  * No file-level checksum; integrity is one-line parseability.
-
-## Drop-a-dir interaction
-
-Squash/rebase that drops a branch dir removes its `WT` along with
-everything else.  Precondition check: the operation refuses if
-`WT` names a live wt — close the wt first (which clears `WT`).
-This prevents orphaning a wt whose `.dogs` file still points at a
-vanished branch.
+An earlier plan replaced `.sniff` with two cooperating
+pointer files — `<wt>/.dogs` and `<branch-dir>/WT` — on the theory
+that per-branch single-wt and store-side back-pointers were worth
+the split.  That plan is not in the code; `.sniff` is the
+whole of the per-wt state and is expected to stay that way.  The
+`<store>/ALIAS` + per-branch `REFS` infrastructure on the keeper
+side is unchanged.

@@ -26,27 +26,6 @@
 #include "abc/PRO.h"
 #include "abc/UTF8.h"
 
-// --- Helpers ---
-
-static ok64 sniff_stat_all(u8cs reporoot, u8 type) {
-    sane(1);
-    sniff *s = &SNIFF; (void)s;
-    u32 n = SNIFFCount();
-    u32 count = 0;
-    for (u32 i = 0; i < n; i++) {
-        u8cs rel = {};
-        if (SNIFFPath(rel, i) != OK) continue;
-        a_path(fp);
-        if (SNIFFFullpath(fp, reporoot, rel) != OK) continue;
-        struct stat sb = {};
-        if (FILEStat(&sb, $path(fp)) != OK) continue;
-        SNIFFRecord(type, i, (u64)sb.st_mtim.tv_sec);
-        count++;
-    }
-    fprintf(stderr, "sniff: indexed %u file(s)\n", count);
-    done;
-}
-
 // --- Mode: Watch daemon ---
 
 static volatile sig_atomic_t sniff_quit = 0;
@@ -59,7 +38,7 @@ static void sniff_sighandler(int sig) {
 static ok64 sniff_write_pid(u8cs reporoot) {
     sane($ok(reporoot));
     a_path(pp, reporoot);
-    a_cstr(rel, "/" SNIFF_DIR "/pid");
+    a_cstr(rel, "/" SNIFF_FILE ".pid");
     call(u8bFeed, pp, rel);
     call(PATHu8bTerm, pp);
     FILE *fp = fopen((char *)u8bDataHead(pp), "w");
@@ -72,7 +51,7 @@ static ok64 sniff_write_pid(u8cs reporoot) {
 static ok64 sniff_rm_pid(u8cs reporoot) {
     sane($ok(reporoot));
     a_path(pp, reporoot);
-    a_cstr(rel, "/" SNIFF_DIR "/pid");
+    a_cstr(rel, "/" SNIFF_FILE ".pid");
     call(u8bFeed, pp, rel);
     call(PATHu8bTerm, pp);
     unlink((char *)u8bDataHead(pp));
@@ -128,7 +107,9 @@ static ok64 sniff_daemon(u8cs reporoot) {
         ok64 o = FSWPoll(wfd, 1000);
         if (o != OK) continue;
         FSWDrain(wfd, sniff_drain_cb, NULL);
-        sniff_stat_all(reporoot, SNIFF_CHANGED);
+        //  Watch daemon no longer needs to refresh a per-path mtime
+        //  cache — POST rescans the wt at commit time.  Kept here as
+        //  a drain-only loop so inotify events still get consumed.
     }
     FSWClose(wfd);
     sniff_rm_pid(reporoot);
@@ -140,7 +121,7 @@ static ok64 sniff_daemon(u8cs reporoot) {
 static ok64 sniff_stop(u8cs reporoot) {
     sane($ok(reporoot));
     a_path(pp, reporoot);
-    a_cstr(rel, "/" SNIFF_DIR "/pid");
+    a_cstr(rel, "/" SNIFF_FILE ".pid");
     call(u8bFeed, pp, rel);
     call(PATHu8bTerm, pp);
     FILE *fp = fopen((char *)u8bDataHead(pp), "r");
@@ -159,31 +140,59 @@ static ok64 sniff_stop(u8cs reporoot) {
 }
 
 // --- Mode: Status ---
+//
+//  wt scan + mtime-against-stamp-set dirtiness check.  No per-path
+//  cache, no "D" deletion markers (we don't know what "tracked" means
+//  without a baseline walk — to be revisited once status is actually
+//  exercised by tests).
+
+typedef struct { u8cs reporoot; u32 dirty; } status_ctx;
+
+static ok64 status_cb(void *varg, path8bp path) {
+    sane(varg);
+    status_ctx *c = (status_ctx *)varg;
+    a_dup(u8c, full, u8bData(path));
+    size_t rlen = $len(c->reporoot);
+    if ($len(full) <= rlen) return OK;
+    u8cs rel = {$atp(full, rlen), full[1]};
+    while (!$empty(rel) && rel[0][0] == '/') rel[0]++;
+    if ($empty(rel)) return OK;
+
+    a_cstr(d_sniff, ".sniff");
+    a_cstr(d_dogs,  ".dogs");
+    {
+        size_t rl = $len(rel);
+        #define SKIP(p) \
+            ((rl) == $len(p) && memcmp(rel[0], p[0], $len(p)) == 0) || \
+            ((rl) > $len(p) && memcmp(rel[0], p[0], $len(p)) == 0 && \
+             rel[0][$len(p)] == '/')
+        if (SKIP(d_sniff) || SKIP(d_dogs)) return OK;
+        #undef SKIP
+    }
+
+    struct stat sb = {};
+    if (lstat((char const *)full[0], &sb) != 0) return OK;
+    struct timespec ts = {.tv_sec = sb.st_mtim.tv_sec,
+                          .tv_nsec = sb.st_mtim.tv_nsec};
+    ron60 r = SNIFFAtOfTimespec(ts);
+    if (SNIFFAtKnown(r)) return OK;
+    printf("M %.*s\n", (int)$len(rel), (char *)rel[0]);
+    c->dirty++;
+    return OK;
+}
 
 static ok64 sniff_status(u8cs reporoot) {
     sane(1);
-    sniff *s = &SNIFF; (void)s;
-    u32 n = SNIFFCount();
-    u32 dirty = 0;
-    for (u32 i = 0; i < n; i++) {
-        u64 co = SNIFFGet(SNIFF_CHECKOUT, i);
-        if (co == 0) continue;
-        u8cs rel = {};
-        if (SNIFFPath(rel, i) != OK) continue;
-        a_path(fp);
-        if (SNIFFFullpath(fp, reporoot, rel) != OK) continue;
-        struct stat sb = {};
-        if (FILEStat(&sb, $path(fp)) != OK) {
-            printf("D %.*s\n", (int)$len(rel), (char *)rel[0]);
-            dirty++;
-            continue;
-        }
-        u64 now = (u64)sb.st_mtim.tv_sec;
-        if (now == co) continue;
-        printf("M %.*s\n", (int)$len(rel), (char *)rel[0]);
-        dirty++;
-    }
-    fprintf(stderr, "sniff: %u dirty file(s)\n", dirty);
+    status_ctx ctx = {.dirty = 0};
+    ctx.reporoot[0] = reporoot[0];
+    ctx.reporoot[1] = reporoot[1];
+    a_path(wp);
+    u8bFeed(wp, reporoot);
+    call(PATHu8bTerm, wp);
+    call(FILEScan, wp,
+         (FILE_SCAN)(FILE_SCAN_FILES | FILE_SCAN_LINKS | FILE_SCAN_DEEP),
+         status_cb, &ctx);
+    fprintf(stderr, "sniff: %u dirty file(s)\n", ctx.dirty);
     done;
 }
 
@@ -347,86 +356,6 @@ static ok64 SNIFFGetURI(u8cs reporoot, uri *u) {
     fail(SNIFFFAIL);
 }
 
-// --- Scan worktree for new files (commit-all) ---
-
-typedef struct {
-    sniff *s;
-    u8cs reporoot;
-    igno *ig;
-    u32 count;
-    u32 total;
-} scan_ctx;
-
-static ok64 sniff_scan_cb(void0p arg, path8p path) {
-    scan_ctx *ctx = (scan_ctx *)arg;
-
-    u8cs full = {u8bDataHead(path), u8bIdleHead(path)};
-    size_t rlen = $len(ctx->reporoot);
-    if ($len(full) <= rlen) return OK;
-    u8cs rel = {$atp(full, rlen), full[1]};
-    if ($at(rel, 0) == '/') ++rel[0];
-    if ($empty(rel)) return OK;
-
-    a_cstr(dogs, ".dogs");
-    if ($len(rel) >= 5 && memcmp(rel[0], dogs[0], 5) == 0) return OK;
-    a_cstr(sniffd, ".sniff");
-    if ($len(rel) >= 6 && memcmp(rel[0], sniffd[0], 6) == 0) return OK;
-
-    if (ctx->ig && IGNOMatch(ctx->ig, rel, NO)) return OK;
-
-    ctx->total++;
-    u32 idx = SNIFFIntern(rel);
-
-    a_path(fp);
-    if (SNIFFFullpath(fp, ctx->reporoot, rel) != OK) return OK;
-
-    struct stat lsb = {};
-    if (lstat((char *)u8bDataHead(fp), &lsb) != 0) return OK;
-    if (S_ISDIR(lsb.st_mode)) return OK;
-    if (S_ISLNK(lsb.st_mode)) {
-        // Symlinks are always trackable
-    } else {
-        Bu8 content = {};
-        if (u8bAllocate(content, 1UL << 20) != OK) return OK;
-        int fd = -1;
-        if (FILEOpen(&fd, $path(fp), O_RDONLY) != OK) {
-            u8bFree(content); return OK;
-        }
-        FILEdrainall(u8bIdle(content), fd);
-        FILEClose(&fd);
-
-        u8cs data = {u8bDataHead(content), u8bIdleHead(content)};
-        utf8cs utf = {(utf8cp)data[0], (utf8cp)data[1]};
-        ok64 valid = utf8sValid(utf);
-        u8bFree(content);
-        if (valid != OK) return OK;
-    }
-
-    SNIFFRecord(SNIFF_CHANGED, idx, (u64)lsb.st_mtim.tv_sec);
-
-    ctx->count++;
-    return OK;
-}
-
-static ok64 sniff_scan_new(u8cs reporoot) {
-    sane(1);
-    sniff *s = &SNIFF; (void)s;
-    igno ig = {};
-    IGNOLoad(&ig, reporoot);
-
-    scan_ctx ctx = {.s = s, .reporoot = {reporoot[0], reporoot[1]},
-                    .ig = ig.count > 0 ? &ig : NULL};
-    a_path(wp);
-    call(PATHu8bFeed, wp, reporoot);
-    call(FILEDeepScanFiles, wp, sniff_scan_cb, &ctx);
-
-    if (ctx.count > 0)
-        fprintf(stderr, "sniff: scanned %u, %u new\n",
-                ctx.total, ctx.count);
-    IGNOFree(&ig);
-    done;
-}
-
 // --- Mode: List ---
 
 static ok64 sniff_list(void) {
@@ -548,10 +477,8 @@ ok64 SNIFFExec(cli *c) {
             fprintf(stderr, "sniff: post needs -m <msg> or ?<label>\n");
             ret = SNIFFFAIL;
         } else {
-            //  Fresh mtime state for auto-stage.
-            sniff_scan_new(reporoot);
-            sniff_stat_all(reporoot, SNIFF_CHANGED);
-
+            //  POSTCommit does its own wt scan + change-set resolve;
+            //  no pre-pass needed anymore.
             a_pad(u8, hex, 40);
             if ($ok(commit_msg)) {
                 //  Create a new commit.
@@ -563,12 +490,18 @@ ok64 SNIFFExec(cli *c) {
                     HEXu8sFeedSome(hex_idle, rs);
                 }
             } else {
-                //  No -m: label points at the current at.log tail sha.
-                a_pad(u8, sbuf, 64);
-                a_pad(u8, bbuf, 256);
-                sniff_at tail = {.branch = bbuf, .sha = sbuf};
-                ret = SNIFFAtRead(&tail);
-                if (ret == OK) u8bFeed(hex, u8bDataC(tail.sha));
+                //  No -m: label points at the current baseline sha
+                //  (first 40 hex chars of the latest get/post/patch's
+                //  URI fragment).
+                ron60 bts = 0, bverb = 0;
+                uri bu = {};
+                ret = SNIFFAtBaseline(&bts, &bverb, &bu);
+                if (ret == OK && $len(bu.fragment) >= 40) {
+                    u8cs h40 = {bu.fragment[0], bu.fragment[0] + 40};
+                    u8bFeed(hex, h40);
+                } else {
+                    ret = SNIFFFAIL;
+                }
             }
             if (ret == OK && label_uri != NULL) {
                 a_dup(u8c, hex_in, u8bData(hex));
@@ -581,62 +514,13 @@ ok64 SNIFFExec(cli *c) {
             }
         }
     } else if (is_put) {
-        sniff_scan_new(reporoot);
-        sniff_stat_all(reporoot, SNIFF_CHANGED);
-
-        u8p cset = NULL;
-        u32 npaths = SNIFFCount();
-        Bu8 csbuf = {};
-        if (c->nuris > 0) {
-            call(u8bAllocate, csbuf, npaths);
-            memset(u8bDataHead(csbuf), 0, npaths);
-            cset = u8bDataHead(csbuf);
-            for (u32 f = 0; f < c->nuris; f++) {
-                u32 idx = SNIFFIntern(c->uris[f].data);
-                if (idx < npaths) cset[idx] = 1;
-            }
-        }
-
-        {
-            sha1 tree = {};
-            ret = PUTStage(&tree, reporoot, cset);
-            if (ret == OK) {
-                a_pad(u8, hex, 40);
-                a_rawc(ts, tree);
-                HEXu8sFeedSome(hex_idle, ts);
-                fprintf(stderr, "sniff: staged tree %.*s\n",
-                        (int)u8bDataLen(hex),
-                        (char *)u8bDataHead(hex));
-            }
-        }
-        if (cset) u8bFree(csbuf);
+        ret = PUTStage(c->nuris, c->uris);
+        if (ret == OK && c->nuris > 0)
+            fprintf(stderr, "sniff: staged %u put row(s)\n", c->nuris);
     } else if (is_delete) {
-        u32 npaths = SNIFFCount();
-        u8p dset = NULL;
-        Bu8 dsbuf = {};
-        if (c->nuris > 0) {
-            call(u8bAllocate, dsbuf, npaths);
-            memset(u8bDataHead(dsbuf), 0, npaths);
-            dset = u8bDataHead(dsbuf);
-            for (u32 f = 0; f < c->nuris; f++) {
-                u32 idx = SNIFFIntern(c->uris[f].data);
-                if (idx < npaths) dset[idx] = 1;
-            }
-        }
-
-        {
-            sha1 tree = {};
-            ret = DELStage(&tree, reporoot, dset);
-            if (ret == OK) {
-                a_pad(u8, hex, 40);
-                a_rawc(ts, tree);
-                HEXu8sFeedSome(hex_idle, ts);
-                fprintf(stderr, "sniff: staged tree %.*s\n",
-                        (int)u8bDataLen(hex),
-                        (char *)u8bDataHead(hex));
-            }
-        }
-        if (dset) u8bFree(dsbuf);
+        ret = DELStage(c->nuris, c->uris);
+        if (ret == OK && c->nuris > 0)
+            fprintf(stderr, "sniff: staged %u delete row(s)\n", c->nuris);
     } else if (is_checkout) {
         if (c->nuris < 1) {
             fprintf(stderr, "sniff: get/checkout requires a URI or hex\n");
@@ -683,10 +567,12 @@ ok64 SNIFFExec(cli *c) {
     } else if (is_list) {
         ret = sniff_list();
     } else if (is_update) {
-        ret = sniff_stat_all(reporoot, SNIFF_CHANGED);
+        //  No per-path mtime cache in the new model; `update` is a no-op.
+        //  Left in the verb table so existing scripts don't break.
+        ret = OK;
     } else {
-        // Default: index (record SNIFF_CHECKOUT mtimes)
-        ret = sniff_stat_all(reporoot, SNIFF_CHECKOUT);
+        // Default: index (no-op in the new model; retained for script compat).
+        ret = OK;
     }
 
     return ret;

@@ -1,24 +1,20 @@
 #ifndef SNIFF_DEL_H
 #define SNIFF_DEL_H
 
-//  DELETE: stage a tree with the specified paths removed.
+//  DELETE: record explicit removal intent in the ULOG.
 //
-//  Walks the sniff sorted path index, excluding every entry marked
-//  in `del_set`, and rebuilds only the subtrees that were affected.
-//  Unchanged subtrees are reused by hashlet.
+//  Append-only mirror of PUT: one `delete <path>` row per input URI.
+//  No tree work, no pack writes — POST resolves the effective tree
+//  at commit time.
 //
-//  Side-effects mirror PUT:
-//    * writes tree objects into `p`;
-//    * updates SNIFF_TREE for every rebuilt subtree (including root);
-//    * clears SNIFF_BLOB / SNIFF_CHECKOUT for deleted files.
+//  nuris==0 is a no-op (bare `delete` → POST includes every tracked
+//  file that's missing from disk, same sweep rule as PUT).
 //
-//  del_set: if NULL, auto-stage every tracked file that is missing
-//  from disk (the "DELETE no-args" CLI shape).
+//  Each `uri` in `uris` is used for its path component only.
 
 #include "SNIFF.h"
+#include "abc/URI.h"
 
-//  Writes tree objects to the current branch's staging pack (opened
-//  internally via STAGE).  No commit.
-ok64 DELStage(sha1 *tree_out, u8cs reporoot, u8cp del_set);
+ok64 DELStage(u32 nuris, uri const *uris);
 
 #endif

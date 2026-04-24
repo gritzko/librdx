@@ -65,8 +65,8 @@ echo "=== 3. be get <clone> (worktree) ==="
 mkdir -p "$WT"; cd "$WT"
 "$BE" get --seq "$CLONE" >/dev/null 2>&1 || true
 [ -L "$WT/.dogs" ] || fail "worktree .dogs not a symlink"
-[ -d "$WT/.sniff" ] && [ ! -L "$WT/.sniff" ] \
-    || fail "worktree .sniff should be a real dir"
+[ -f "$WT/.sniff" ] && [ ! -L "$WT/.sniff" ] \
+    || fail "worktree .sniff should be a real file"
 [ -f a.txt ] && [ -f b.txt ] || fail "worktree missing checked-out files"
 note "worktree has .dogs symlink + local .sniff + checked-out files"
 
@@ -84,9 +84,12 @@ echo "=== 5. be post -m (local commit) ==="
 cd "$WT"
 "$BE" post --seq -m "worktree commit" >/dev/null 2>&1 \
     || fail "be post -m failed"
-# Read the committed SHA from sniff/at.log tail.
-WT_SHA=$(awk -F'\t' 'END {gsub(/^\?/,"",$3); print $3}' \
-    "$WT/.sniff/at.log")
+# Read the committed SHA from the tail of .sniff.  Rows are
+# `<ts>\t<verb>\t<uri>` and the latest `post` row's URI fragment
+# (`...#<40hex>`) is the commit sha.
+WT_SHA=$(awk -F'\t' '$2 == "post" { last = $3 } END {
+    n = index(last, "#"); if (n > 0) print substr(last, n + 1)
+}' "$WT/.sniff")
 [ ${#WT_SHA} -eq 40 ] || fail "no 40-hex worktree commit recorded"
 [ "$WT_SHA" != "$SEED_SHA" ] || fail "worktree commit didn't advance"
 note "worktree commit=$WT_SHA"
@@ -109,7 +112,7 @@ git clone -q "$ORIGIN" "$VERIFY"
 # Compare just the tracked files, not .git vs .dogs.
 ( cd "$VERIFY" && git ls-files ) | sort > "$TMP/git.list"
 ( cd "$WT" && find . -type f \
-    -not -path './.dogs/*' -not -path './.sniff/*' -not -name '.be' \
+    -not -path './.dogs/*' -not -name '.sniff' -not -name '.be' \
     | sed 's|^\./||' ) | sort > "$TMP/wt.list"
 diff -u "$TMP/git.list" "$TMP/wt.list" || fail "file sets differ"
 while IFS= read -r f; do

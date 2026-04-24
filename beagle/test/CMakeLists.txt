@@ -17,7 +17,7 @@ set_tests_properties(BEworkflow PROPERTIES
     ENVIRONMENT "BIN=${DOG_BIN_DIR};TMP=${DOG_TEST_TMP_ROOT};TEST_ID=BEworkflow")
 
 # worktree.sh — `be get <localdir>` clones a local primary.
-# Phase 2: single `.dogs` symlink + local `.sniff/` dir.
+# Worktree layout: `.dogs` symlink to primary + local `.sniff` file.
 add_test(NAME BEworktree
     COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/worktree.sh
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR})

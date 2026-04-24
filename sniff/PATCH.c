@@ -217,12 +217,12 @@ static ok64 write_blob(u8cs reporoot, u8csc relpath_in,
         if (is_exe) chmod((char *)u8bDataHead(fp), 0755);
     }
 
-    u32 idx = SNIFFIntern(relpath);
-    u64 h40 = entry_sha ? WHIFFHashlet40(entry_sha) : 0;
-    SNIFFRecord(SNIFF_BLOB, idx, h40);
-    struct stat sb = {};
-    if (FILEStat(&sb, $path(fp)) == OK)
-        SNIFFRecord(SNIFF_CHECKOUT, idx, (u64)sb.st_mtim.tv_sec);
+    //  New-model attribution: the caller passes a ULOG-grade stamp via
+    //  `*stamp_ts` so every file patched in this run carries the same
+    //  mtime, and SNIFFAtKnown will mark them clean under the new
+    //  `patch` ULOG row appended at the end.
+    (void)entry_sha;
+    (void)SNIFFIntern(relpath);
     done;
 }
 
@@ -238,9 +238,7 @@ static ok64 delete_blob(u8cs reporoot, u8csc relpath_in) {
     ok64 o = FILEUnLink($path(fp));
     if (o != OK && o != FILENOENT) return o;
 
-    u32 idx = SNIFFIntern(relpath);
-    SNIFFRecord(SNIFF_BLOB, idx, 0);
-    SNIFFRecord(SNIFF_CHECKOUT, idx, 0);
+    (void)SNIFFIntern(relpath);
     done;
 }
 
@@ -605,55 +603,103 @@ static ok64 resolve_target(sha1 *out, u8cs reporoot, u8cs target_query) {
     done;
 }
 
-//  Read the current worktree's branch tip from sniff's AT log.
+//  Read the current worktree's branch tip from sniff's ULOG.  The
+//  baseline URI's fragment may hold one hash (single commit) or a
+//  comma-separated list (patch in progress); "ours" is always the
+//  first 40-hex segment.
 static ok64 resolve_ours(sha1 *out) {
     sane(out);
-    a_pad(u8, bbuf, 256);
-    a_pad(u8, sbuf, 64);
-    sniff_at tail = {.branch = bbuf, .sha = sbuf};
-    ok64 o = SNIFFAtRead(&tail);
-    if (o != OK) return PATCHFAIL;
-    if (u8bDataLen(tail.sha) != 40) fail(PATCHFAIL);
+    ron60 ts = 0, verb = 0;
+    uri u = {};
+    call(SNIFFAtBaseline, &ts, &verb, &u);
+    if ($len(u.fragment) < 40) fail(PATCHFAIL);
     u8s sb = {out->data, out->data + 20};
-    a_dup(u8c, hx, u8bData(tail.sha));
-    call(HEXu8sDrainSome, sb, hx);
+    u8cs head = {u.fragment[0], u.fragment[0] + 40};
+    call(HEXu8sDrainSome, sb, head);
+    done;
+}
+
+//  Read the full baseline URI into `out_uri_buf` (unparsed bytes) so
+//  PATCHApply can append a new hash to its fragment.  Caller-owned
+//  buffer.  Returns empty on no baseline.
+static ok64 resolve_baseline_uri(u8bp out_uri_buf) {
+    sane(out_uri_buf);
+    u8bReset(out_uri_buf);
+    ron60 ts = 0, verb = 0;
+    uri u = {};
+    ok64 r = SNIFFAtBaseline(&ts, &verb, &u);
+    if (r != OK) return r;
+    (void)URIutf8Feed(u8bIdle(out_uri_buf), &u);
     done;
 }
 
 // --- Public entries -------------------------------------------------
 
-//  Refuse the merge if the wt has any tracked file whose observed
-//  mtime (`SNIFF_CHANGED`) differs from the recorded clean mtime
-//  (`SNIFF_CHECKOUT`).  Mirrors `git merge`'s "your local changes
-//  would be overwritten" guard; the user stashes or commits first.
-//  Logs up to `MAX_DIRTY_REPORT` offending paths for clarity.
-static ok64 refuse_if_dirty(void) {
-    u32 n = SNIFFCount();
-    u32 dirty = 0;
+//  Worktree scan: any file whose mtime is not in the ULOG stamp-set
+//  counts as dirty.  Mirrors `git merge`'s "your local changes would
+//  be overwritten" guard.  Pre-populates `.sniff`, `.dogs`, `.git`
+//  as skips — they are never considered dirty tracked files.
+
+typedef struct { u32 dirty; u8cs reporoot; } dirty_ctx;
+
+static ok64 dirty_scan_cb(void *varg, path8bp path) {
+    sane(varg && path);
+    dirty_ctx *c = (dirty_ctx *)varg;
     enum { MAX_DIRTY_REPORT = 8 };
-    for (u32 i = 0; i < n; i++) {
-        u64 changed = SNIFFGet(SNIFF_CHANGED, i);
-        u64 clean   = SNIFFGet(SNIFF_CHECKOUT, i);
-        if (changed == 0 || changed == clean) continue;
-        dirty++;
-        if (dirty <= MAX_DIRTY_REPORT) {
-            u8cs p = {};
-            if (SNIFFPath(p, i) == OK && !$empty(p)) {
-                fprintf(stderr, "sniff: patch: dirty %.*s\n",
-                        (int)$len(p), (char *)p[0]);
-            }
-        }
+
+    a_dup(u8c, full, u8bData(path));
+    size_t rlen = $len(c->reporoot);
+    if ($len(full) <= rlen) return OK;
+    u8cs rel = {$atp(full, rlen), full[1]};
+    while (!$empty(rel) && rel[0][0] == '/') rel[0]++;
+    if ($empty(rel)) return OK;
+
+    a_cstr(d_sniff, ".sniff");
+    a_cstr(d_dogs,  ".dogs");
+    {
+        size_t rl = $len(rel);
+        #define SKIP(p) \
+            ((rl) == $len(p) && memcmp(rel[0], p[0], $len(p)) == 0) || \
+            ((rl) > $len(p) && memcmp(rel[0], p[0], $len(p)) == 0 && \
+             rel[0][$len(p)] == '/')
+        if (SKIP(d_sniff) || SKIP(d_dogs)) return OK;
+        #undef SKIP
     }
-    if (dirty == 0) return OK;
+
+    struct stat sb = {};
+    if (lstat((char const *)full[0], &sb) != 0) return OK;
+    struct timespec ts = {.tv_sec = sb.st_mtim.tv_sec,
+                          .tv_nsec = sb.st_mtim.tv_nsec};
+    ron60 r = SNIFFAtOfTimespec(ts);
+    if (SNIFFAtKnown(r)) return OK;
+    c->dirty++;
+    if (c->dirty <= MAX_DIRTY_REPORT)
+        fprintf(stderr, "sniff: patch: dirty %.*s\n",
+                (int)$len(rel), (char *)rel[0]);
+    return OK;
+}
+
+static ok64 refuse_if_dirty(u8cs reporoot) {
+    sane($ok(reporoot));
+    dirty_ctx ctx = {.dirty = 0};
+    ctx.reporoot[0] = reporoot[0];
+    ctx.reporoot[1] = reporoot[1];
+    a_path(root_path);
+    u8bFeed(root_path, reporoot);
+    call(PATHu8bTerm, root_path);
+    call(FILEScan, root_path,
+         (FILE_SCAN)(FILE_SCAN_FILES | FILE_SCAN_LINKS | FILE_SCAN_DEEP),
+         dirty_scan_cb, &ctx);
+    if (ctx.dirty == 0) return OK;
     fprintf(stderr, "sniff: patch: refusing merge — %u dirty file(s). "
-                    "stash or commit first.\n", dirty);
+                    "stash or commit first.\n", ctx.dirty);
     return PATCHDIRTY;
 }
 
 ok64 PATCHApply(u8cs reporoot, u8cs target_query) {
     sane($ok(reporoot) && $ok(target_query));
 
-    call(refuse_if_dirty);
+    call(refuse_if_dirty, reporoot);
 
     sha1 our_sha = {};
     call(resolve_ours, &our_sha);
@@ -676,7 +722,52 @@ ok64 PATCHApply(u8cs reporoot, u8cs target_query) {
     call(patch_walk, reporoot, root,
          &lca_sha, &our_sha, &thr_sha, &st);
 
-    SNIFFCompact();
+    //  Append a `patch` ULOG row whose fragment extends the prior
+    //  baseline fragment with the new `theirs` sha.  The row is
+    //  composed via abc/URI: parse baseline → edit fragment → feed.
+    uri baseline_u = {};
+    {
+        ron60 bts = 0, bverb = 0;
+        ok64 br = SNIFFAtBaseline(&bts, &bverb, &baseline_u);
+        if (br != OK) {
+            //  No prior baseline: treat `theirs` alone as the
+            //  fragment of a fresh URI.
+            memset(&baseline_u, 0, sizeof(baseline_u));
+        }
+    }
+
+    //  Build the extended fragment bytes (`<old>,<new-hex>` or just
+    //  `<new-hex>` if there was no prior fragment).
+    a_pad(u8, frag_buf, 256);
+    if (!u8csEmpty(baseline_u.fragment)) {
+        u8cs oldfrag = {baseline_u.fragment[0], baseline_u.fragment[1]};
+        u8bFeed(frag_buf, oldfrag);
+        u8bFeed1(frag_buf, ',');
+    }
+    a_pad(u8, thex, 40);
+    a_rawc(tsha, thr_sha);
+    HEXu8sFeedSome(thex_idle, tsha);
+    u8bFeed(frag_buf, u8bDataC(thex));
+
+    //  Compose a new URI struct with (query from baseline, extended
+    //  fragment).  ULOGAppendAt calls URIutf8Feed under the hood to
+    //  serialize it — keeps the row canonical.
+    uri urow = {};
+    if (!u8csEmpty(baseline_u.query)) {
+        urow.query[0] = baseline_u.query[0];
+        urow.query[1] = baseline_u.query[1];
+    }
+    {
+        a_dup(u8c, f, u8bData(frag_buf));
+        urow.fragment[0] = f[0];
+        urow.fragment[1] = f[1];
+    }
+
+    ron60 ts = 0;
+    struct timespec tv = {};
+    SNIFFAtNow(&ts, &tv);
+    ron60 verb = SNIFFAtVerbPatch();
+    (void)SNIFFAtAppendAt(ts, verb, &urow);
 
     fprintf(stderr,
             "sniff: patch: noop=%u take-theirs=%u merged=%u "

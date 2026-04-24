@@ -192,11 +192,11 @@ for M in $MERGES; do
     git -C "$REFCLONE" checkout --quiet --force "$M"
 
     RDIFF=$(rsync -rlcn --delete \
-        --exclude='/.git/' --exclude='/.dogs/' --exclude='/.sniff/' \
+        --exclude='/.git/' --exclude='/.dogs/' --exclude='/.sniff' \
         "$REFCLONE/" "$WT/" 2>&1)
 
     if [ -z "$RDIFF" ]; then
-        N=$(find "$WT" -not -path '*/.dogs/*' -not -path '*/.sniff/*' \
+        N=$(find "$WT" -not -path '*/.dogs/*' -not -name '.sniff' \
             -type f | wc -l)
         printf "PASS: %s (%s files match git checkout)\n" "$M" "$N"
     else

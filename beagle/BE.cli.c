@@ -197,22 +197,15 @@ static ok64 BEGetWorktree(uri *u) {
         if (lstat((char const *)*$path(cwd_dogs), &sb) == 0) done;
     }
 
-    // Phase 2 worktree layout:
+    // Worktree layout:
     //   * `<wt>/.dogs` is a symlink to the primary's `.dogs/` — the
     //     wt and primary share the entire store (keeper, graf, spot,
     //     per-branch indexes, REFS, paths registry, ALIAS, lock).
-    //   * `<wt>/.sniff/` is a per-wt directory for sniff's at.log,
-    //     paths/state log, and staging packs — each wt tracks its
-    //     own checkout independently.
+    //   * `<wt>/.sniff` is a plain file (the ULOG) — each wt tracks
+    //     its own checkout independently.  Created lazily by
+    //     SNIFFOpen on first rw access; BE doesn't need to touch it.
     ok64 lo = FILESymLink($path(prim_dogs), $path(cwd_dogs));
     if (lo != OK && lo != FILEEXIST) return lo;
-
-    a_cstr(sniff_rel, ".sniff");
-    a_path(sniff_path);
-    a_dup(u8c, cwd_for_sniff, u8bDataC(cwd));
-    call(PATHu8bFeed, sniff_path, cwd_for_sniff);
-    call(PATHu8bPush, sniff_path, sniff_rel);
-    call(FILEMakeDirP, $path(sniff_path));
 
     fprintf(stderr, "be: worktree from %.*s\n",
             (int)$len(u->path), (char *)u->path[0]);
