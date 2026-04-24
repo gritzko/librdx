@@ -332,16 +332,135 @@ static ok64 T_whitespace(void) {
     done;
 }
 
+// --- latest-per-key helpers & tests ----------------------------------
+
+typedef struct {
+    u32    n;
+    ron60  ts[16];
+    ron60  verb[16];
+    char   uri[16][128];
+} each_collect;
+
+static ok64 each_cb(ron60 ts, ron60 verb, uricp u, void *ctx) {
+    sane(ctx && u);
+    each_collect *c = (each_collect *)ctx;
+    if (c->n >= 16) fail(FAIL);
+    c->ts[c->n]   = ts;
+    c->verb[c->n] = verb;
+    a_pad(u8, buf, 128);
+    call(URIutf8Feed, u8bIdle(buf), u);
+    size_t L = u8bDataLen(buf);
+    if (L >= sizeof(c->uri[0])) L = sizeof(c->uri[0]) - 1;
+    memcpy(c->uri[c->n], u8bDataHead(buf), L);
+    c->uri[c->n][L] = 0;
+    c->n++;
+    done;
+}
+
+static ok64 T_each_latest(void) {
+    sane(1);
+    rm_tmp("/tmp/ulog-el.log");
+    LOGPATH(path, "/tmp/ulog-el.log");
+
+    ulog l = {};
+    call(ULOGOpen, &l, path);
+
+    //  Two keys, three revisions: main@1, feat@2, main@3, main@4, feat@5.
+    //  Plus one `get` row to verify verb filter (`set` only).
+    saved_uri m1 = {}, f2 = {}, m3 = {}, m4 = {}, f5 = {}, g6 = {};
+    call(parse_uri_lit, &m1, "?heads/main#?1111");
+    call(parse_uri_lit, &f2, "?heads/feat#?aaaa");
+    call(parse_uri_lit, &m3, "?heads/main#?3333");
+    call(parse_uri_lit, &m4, "?heads/main#?4444");
+    call(parse_uri_lit, &f5, "?heads/feat#?bbbb");
+    call(parse_uri_lit, &g6, "?heads/main#?6666");
+
+    ron60 set_v = verb_of("set"), get_v = verb_of("get");
+    call(ULOGAppendAt, &l, 1, set_v, saved_uri_for_append(&m1));
+    call(ULOGAppendAt, &l, 2, set_v, saved_uri_for_append(&f2));
+    call(ULOGAppendAt, &l, 3, set_v, saved_uri_for_append(&m3));
+    call(ULOGAppendAt, &l, 4, set_v, saved_uri_for_append(&m4));
+    call(ULOGAppendAt, &l, 5, set_v, saved_uri_for_append(&f5));
+    call(ULOGAppendAt, &l, 6, get_v, saved_uri_for_append(&g6));
+
+    //  Filter = `set`: expect (feat@5) then (main@4) — reverse order,
+    //  one row per key, get_v row skipped entirely.
+    each_collect c = {};
+    call(ULOGeachLatest, &l, set_v, each_cb, &c);
+    want(c.n == 2);
+    want(c.ts[0] == 5);
+    want(strcmp(c.uri[0], "?heads/feat#?bbbb") == 0);
+    want(c.ts[1] == 4);
+    want(strcmp(c.uri[1], "?heads/main#?4444") == 0);
+
+    //  No filter: the `get` row appears too — still its own (verb, key)
+    //  so it dedups independently of set's rows.
+    each_collect c_all = {};
+    call(ULOGeachLatest, &l, 0, each_cb, &c_all);
+    want(c_all.n == 3);        // get/main@6, set/feat@5, set/main@4
+    want(c_all.verb[0] == get_v);
+    want(c_all.ts[0] == 6);
+    want(c_all.verb[1] == set_v);
+    want(c_all.ts[1] == 5);
+    want(c_all.verb[2] == set_v);
+    want(c_all.ts[2] == 4);
+
+    call(ULOGClose, &l);
+    rm_tmp("/tmp/ulog-el.log");
+    done;
+}
+
+static ok64 T_compact_latest(void) {
+    sane(1);
+    rm_tmp("/tmp/ulog-cl.log");
+    LOGPATH(path, "/tmp/ulog-cl.log");
+
+    ulog l = {};
+    call(ULOGOpen, &l, path);
+
+    saved_uri s[5] = {};
+    call(parse_uri_lit, &s[0], "?heads/main#?1111");
+    call(parse_uri_lit, &s[1], "?heads/feat#?aaaa");
+    call(parse_uri_lit, &s[2], "?heads/main#?2222");  // shadowed
+    call(parse_uri_lit, &s[3], "?heads/feat#?bbbb");  // shadowed later
+    call(parse_uri_lit, &s[4], "?heads/feat#?cccc");
+
+    ron60 set_v = verb_of("set");
+    for (u32 i = 0; i < 5; i++)
+        call(ULOGAppendAt, &l, 10 + i, set_v, saved_uri_for_append(&s[i]));
+    want(ULOGCount(&l) == 5);
+
+    call(ULOGCompactLatest, &l, path, set_v);
+    want(ULOGCount(&l) == 2);
+
+    //  Survivors in ts order: main@12, feat@14.
+    ron60 ts = 0, v = 0;
+    uri u = {};
+    call(ULOGRow, &l, 0, &ts, &v, &u);
+    want(ts == 12);
+    want(uri_serializes_to(&u, "?heads/main#?2222"));
+    call(ULOGRow, &l, 1, &ts, &v, &u);
+    want(ts == 14);
+    want(uri_serializes_to(&u, "?heads/feat#?cccc"));
+
+    call(ULOGClose, &l);
+    rm_tmp("/tmp/ulog-cl.log");
+    rm_tmp("/tmp/ulog-cl.log.tmp");
+    done;
+}
+
 ok64 ULOGtest(void) {
     sane(1);
-    call(T_roundtrip);
-    call(T_persist);
-    call(T_seek);
-    call(T_clock);
-    call(T_findverb);
-    call(T_truncate);
-    call(T_stream);
-    call(T_whitespace);
+    fprintf(stderr, "T_roundtrip...\n");     call(T_roundtrip);
+    fprintf(stderr, "T_persist...\n");       call(T_persist);
+    fprintf(stderr, "T_seek...\n");          call(T_seek);
+    fprintf(stderr, "T_clock...\n");         call(T_clock);
+    fprintf(stderr, "T_findverb...\n");      call(T_findverb);
+    fprintf(stderr, "T_truncate...\n");      call(T_truncate);
+    fprintf(stderr, "T_stream...\n");        call(T_stream);
+    fprintf(stderr, "T_whitespace...\n");    call(T_whitespace);
+    fprintf(stderr, "T_each_latest...\n");   call(T_each_latest);
+    fprintf(stderr, "T_compact_latest...\n");call(T_compact_latest);
     done;
 }
 

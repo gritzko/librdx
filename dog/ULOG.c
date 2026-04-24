@@ -3,10 +3,15 @@
 //
 #include "ULOG.h"
 
+#include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
+#include "abc/BUF.h"
 #include "abc/FILE.h"
+#include "abc/PATH.h"
 #include "abc/PRO.h"
+#include "abc/RAP.h"
 
 // --- streaming primitives --------------------------------------------
 
@@ -202,11 +207,11 @@ ok64 ULOGOpen(ulogp l, path8s path) {
 ok64 ULOGClose(ulogp l) {
     sane(l);
     if (l->data) {
-        //  Only trim when this handle dirtied the log.  A read-only
-        //  reader (e.g. DOGAtTail opening the same file the owner
-        //  sniff process has mmap'd rw) must not shrink the file —
-        //  doing so invalidates the writer's mmap and its subsequent
-        //  stores silently drop or SIGBUS.
+        //  Trim only when this handle dirtied the log.  FILEBook's
+        //  reopen pads back to page-aligned so the next writer's
+        //  mmap is fully file-backed; a read-only reader closing
+        //  doesn't need to do anything and must not shrink the file
+        //  under an RW owner.
         if (l->dirty) FILETrimBook(l->data);
         FILEUnBook(l->data);
     }
@@ -325,6 +330,160 @@ ok64 ULOGFindLatest(ulogcp l, ulog_pred pred, void *ctx,
     fail(ULOGNONE);
 }
 
+// --- latest-per-key helpers ------------------------------------------
+
+//  Compute the key slice for row `i`: the URI bytes up to (but not
+//  including) the first `#`.  Walks the raw row text in the mmap —
+//  O(row length) — avoiding URIutf8Feed's component reassembly.
+static void ulog_row_key_bytes(ulogcp l, u32 i, u8csp out) {
+    kv64 const *a = (kv64 const *)l->idx[0];
+    u8cp base = (u8cp)l->data[0];
+    u8cp row  = base + a[i].val;
+    u8cp end  = (u8cp)l->data[2];  // idle head = first byte past data
+    u8cp nl = row;
+    while (nl < end && *nl != '\n') nl++;
+
+    //  Skip two tab/space-separated tokens (ts, verb) to reach the URI.
+    u8cp p = row;
+    int tok = 0;
+    while (tok < 2 && p < nl) {
+        while (p < nl && *p != '\t' && *p != ' ') p++;
+        while (p < nl && (*p == '\t' || *p == ' ')) p++;
+        tok++;
+    }
+    u8cp uri_begin = p;
+    //  Key ends at the first '#' or at end-of-line.
+    u8cp h = uri_begin;
+    while (h < nl && *h != '#') h++;
+
+    out[0] = uri_begin;
+    out[1] = h;
+}
+
+//  Linear-scan "seen" set of u64 hashes.  For N ≤ a few thousand
+//  unique keys the O(N²) total is trivially fast; bigger logs would
+//  want a proper hash table (HASHx).  Documented in ULOG.md.
+static b8 seen_contains(Bu64 seen, u64 h) {
+    u64 const *a = (u64 const *)seen[0];
+    u32 n = (u32)u64bDataLen(seen);
+    for (u32 j = 0; j < n; j++) if (a[j] == h) return YES;
+    return NO;
+}
+
+ok64 ULOGeachLatest(ulogcp l, ron60 verb_filter,
+                    ulog_each_fn cb, void *ctx) {
+    sane(l && cb);
+    u32 n = ULOGCount(l);
+    if (n == 0) done;
+
+    Bu64 seen = {};
+    call(u64bAllocate, seen, 1024);
+
+    ok64 rc = OK;
+    for (u32 i = n; i > 0; ) {
+        i--;
+        ron60 ts = 0, verb = 0;
+        uri u = {};
+        ok64 o = ULOGRow(l, i, &ts, &verb, &u);
+        if (o != OK) { rc = o; break; }
+        if (verb_filter && verb != verb_filter) continue;
+
+        u8cs key = {};
+        ulog_row_key_bytes(l, i, key);
+        //  Dedup key includes verb: seed the hash with verb so two
+        //  different verbs over the same URI-minus-fragment hash to
+        //  different slots.
+        u64 h = RAPHashSeed(key, (u64)verb);
+        if (seen_contains(seen, h)) continue;
+        u64bFeed1(seen, h);
+
+        rc = cb(ts, verb, &u, ctx);
+        if (rc != OK) break;
+    }
+
+    u64bFree(seen);
+    return rc;
+}
+
+// --- ULOGCompactLatest -----------------------------------------------
+
+//  Two-pass compaction: mark keep-bits on a reverse walk, then append
+//  kept rows forward into a fresh tmp log and rename over the original.
+ok64 ULOGCompactLatest(ulogp l, path8s path, ron60 verb_filter) {
+    sane(l && $ok(path));
+
+    u32 n = ULOGCount(l);
+    if (n == 0) done;
+
+    b8 *keep = (b8 *)calloc((size_t)n, 1);
+    if (!keep) fail(ULOGFAIL);
+
+    Bu64 seen = {};
+    ok64 allo = u64bAllocate(seen, 1024);
+    if (allo != OK) { free(keep); return allo; }
+
+    //  Pass 1: reverse walk, mark rows that survive compaction.
+    for (u32 i = n; i > 0; ) {
+        i--;
+        ron60 ts = 0, verb = 0;
+        uri u = {};
+        ok64 o = ULOGRow(l, i, &ts, &verb, &u);
+        if (o != OK) { u64bFree(seen); free(keep); return o; }
+
+        if (verb_filter && verb != verb_filter) {
+            keep[i] = 1;
+            continue;
+        }
+        u8cs key = {};
+        ulog_row_key_bytes(l, i, key);
+        //  Dedup key includes verb: seed the hash with verb so two
+        //  different verbs over the same URI-minus-fragment hash to
+        //  different slots.
+        u64 h = RAPHashSeed(key, (u64)verb);
+        if (seen_contains(seen, h)) continue;
+        u64bFeed1(seen, h);
+        keep[i] = 1;
+    }
+    u64bFree(seen);
+
+    //  Build `<path>.tmp`.
+    a_pad(u8, tmp_buf, FILE_PATH_MAX_LEN);
+    u8bFeed(tmp_buf, path);
+    a_cstr(tmp_suffix, ".tmp");
+    if (u8bFeed(tmp_buf, tmp_suffix) != OK) { free(keep); fail(ULOGFAIL); }
+    if (PATHu8bTerm(tmp_buf) != OK) { free(keep); fail(ULOGFAIL); }
+    a_dup(u8c, tmp_path, u8bDataC(tmp_buf));
+    (void)unlink((char const *)tmp_path[0]);
+
+    ulog tmp = {};
+    ok64 oo = ULOGOpen(&tmp, tmp_path);
+    if (oo != OK) { free(keep); return oo; }
+
+    //  Pass 2: forward walk, re-append kept rows into tmp.
+    for (u32 i = 0; i < n; i++) {
+        if (!keep[i]) continue;
+        ron60 ts = 0, verb = 0;
+        uri u = {};
+        ok64 o = ULOGRow(l, i, &ts, &verb, &u);
+        if (o != OK) { ULOGClose(&tmp); free(keep); return o; }
+        ok64 ao = ULOGAppendAt(&tmp, ts, verb, &u);
+        if (ao != OK) { ULOGClose(&tmp); free(keep); return ao; }
+    }
+    free(keep);
+    ULOGClose(&tmp);
+
+    //  Swap files: close source, rename tmp → path, reopen source.
+    ULOGClose(l);
+    ok64 ro = FILERename(tmp_path, path);
+    if (ro != OK) {
+        //  Best-effort recovery: try to reopen the original (still intact).
+        (void)ULOGOpen(l, path);
+        return ro;
+    }
+    call(ULOGOpen, l, path);
+    done;
+}
+
 ok64 ULOGTruncate(ulogp l, u32 keep_n) {
     sane(l);
     u32 n = ULOGCount(l);
@@ -342,10 +501,18 @@ ok64 ULOGTruncate(ulogp l, u32 keep_n) {
     kv64 *base = (kv64 *)l->idx[0];
     *idle_idx = base + keep_n;
 
-    //  Drop the tail bytes of the data book.
-    u8 **data_idle = u8bIdle(l->data);
+    //  Drop the tail bytes of the data book.  Zero the discarded
+    //  region so a reopen's `ulog_rebuild_idx` halts at the first NUL;
+    //  we deliberately do NOT ftruncate — keeping the backing file
+    //  page-aligned is what lets subsequent MAP_SHARED writes land on
+    //  strict filesystems (ext4 silently drops writes past EOF even
+    //  within a page-aligned mmap).
     u8 *data_base  = (u8 *)l->data[0];
-    *data_idle = data_base + cut_off;
+    u8 **data_idle = u8bIdle(l->data);
+    u8 *old_idle   = *data_idle;
+    u8 *new_idle   = data_base + cut_off;
+    if (new_idle < old_idle) memset(new_idle, 0, (size_t)(old_idle - new_idle));
+    *data_idle = new_idle;
 
     l->dirty = YES;
     done;

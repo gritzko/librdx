@@ -88,8 +88,29 @@ so there is no per-row allocation.
 | `ULOGHas(ts)` | O(log N) | membership — the "is this mtime one of our stamps?" check |
 | `ULOGFindVerb(verb)` | O(hits) | reverse scan for the latest row with that verb |
 | `ULOGFindLatest(pred)` | O(hits) | reverse scan until predicate holds |
+| `ULOGeachLatest(verb)`  | O(N + K²) | iterate unique (verb, URI-minus-fragment) keys, latest per key, reverse-chron order |
+| `ULOGCompactLatest(verb)` | O(N + K²) | rewrite via `<path>.tmp` + rename, keeping latest per key |
 | `ULOGTruncate(keep_n)` | O(1) | rewind book + shorten index; no rewrite |
 | `ULOGu8sFeed` / `ULOGu8sDrain` | O(1) per row | streaming codec for pipe / tail-f consumers |
+
+### Latest-per-key dedup
+
+`ULOGeachLatest` and `ULOGCompactLatest` treat the URI bytes up to
+the first `#` as a *key*, and the fragment as its *value*.  Two rows
+with the same non-fragment URI shadow each other; the latest wins.
+The dedup key is `rapidhash(verb ⊕ key-bytes)` — verbs are part of
+the key, so `get ?heads/main` and `set ?heads/main` are distinct.
+
+Collision risk at 64-bit hash: ≈ N²/2⁶⁵ per unique-key pair.  For a
+1M-key log that's ~10⁻⁸; adequate for reflog-scale workloads.  A
+future caller that needs byte-exact dedup can layer a secondary
+compare on top or swap in a proper hash table.
+
+The "keep-set" used during the walk is a linear-probe `Bu64`, so
+cost is O(N + K²) where K is the number of unique keys.  For
+realistic reflog sizes (K ≤ a few thousand) the K² term is a rounding
+error; larger logs should compact more often rather than relying on
+this primitive at scale.
 
 ## Failure modes
 

@@ -135,6 +135,34 @@ typedef b8 (*ulog_pred)(uricp u, void *ctx);
 ok64 ULOGFindLatest(ulogcp l, ulog_pred pred, void *ctx,
                     ron60 *ts_out, urip u_out);
 
+//  Iteration callback for `ULOGeachLatest`.  A non-OK return aborts
+//  the walk and is propagated out.
+typedef ok64 (*ulog_each_fn)(ron60 ts, ron60 verb, uricp u, void *ctx);
+
+//  Walk the log in reverse chronological order, invoking `cb` at most
+//  ONCE per unique (verb, URI-minus-fragment) key — always with the
+//  latest row bearing that key.  `verb_filter == 0` considers every
+//  verb; non-zero filters to matching rows only (others are invisible
+//  to both dedup and callback).
+//
+//  The key is the URI bytes up to (not including) the first `#`.  A
+//  row with no `#` keys on its whole URI.  Dedup compares
+//  `rapidhash(key)` — collisions are astronomically unlikely at
+//  realistic log sizes.
+ok64 ULOGeachLatest(ulogcp l, ron60 verb_filter,
+                    ulog_each_fn cb, void *ctx);
+
+//  Rewrite the log keeping only the latest row per
+//  (verb, URI-minus-fragment) key among rows whose verb matches
+//  `verb_filter` (or every row if `verb_filter == 0`).  Non-matching
+//  verbs — when a filter is set — are preserved verbatim.  Kept rows
+//  are re-emitted in timestamp order.
+//
+//  Atomic via `<path>.tmp` + rename(2).  On success `l` is closed
+//  and reopened against the compacted file; on failure `l` remains
+//  open against the original.
+ok64 ULOGCompactLatest(ulogp l, path8s path, ron60 verb_filter);
+
 //  Compaction — keep rows [0, keep_n), discard the rest.  Rewrites the
 //  book in place and truncates the index.  keep_n == ULOGCount() is a
 //  no-op; keep_n > ULOGCount() is ULOGFAIL.

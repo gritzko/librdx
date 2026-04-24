@@ -248,6 +248,10 @@ static ok64 SNIFFGetURI(u8cs reporoot, uri *u) {
     keeper *k = &KEEP;
     a_path(keepdir, u8bDataC(k->h->root), KEEP_DIR_S);
 
+    fprintf(stderr, "GURIDBG u.data=[%.*s] u.path=[%.*s] u.query=[%.*s]\n",
+            (int)$len(u->data), (char const *)u->data[0],
+            (int)$len(u->path), (char const *)u->path[0],
+            (int)$len(u->query), (char const *)u->query[0]);
     //  Path-only URI (no authority, no query) → `be get <hex>` or
     //  `be get <local-dir>` (the latter is rewritten by BEGetWorktree
     //  to a query-only URI before we get here).

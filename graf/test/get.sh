@@ -49,9 +49,12 @@ EOF
     note "v0.0.${V} posted"
 done
 
-SHA1=$(awk '/v0.0.1/ {sub(/^\?/, "", $3); print $3}' .dogs/refs)
-SHA2=$(awk '/v0.0.2/ {sub(/^\?/, "", $3); print $3}' .dogs/refs)
-SHA3=$(awk '/v0.0.3/ {sub(/^\?/, "", $3); print $3}' .dogs/refs)
+#  Ref rows are `<ts>\tset\t<key>#?<40-hex-sha>`; grab the 40-hex
+#  after the `#?` separator.
+awk_sha='/v0\.0\.'"X"'/ { n = index($3, "#?"); if (n) print substr($3, n + 2) }'
+SHA1=$(awk -F'\t' "${awk_sha/X/1}" .dogs/refs)
+SHA2=$(awk -F'\t' "${awk_sha/X/2}" .dogs/refs)
+SHA3=$(awk -F'\t' "${awk_sha/X/3}" .dogs/refs)
 [ -n "$SHA1" ] && [ -n "$SHA2" ] && [ -n "$SHA3" ] \
     || fail "could not read commit shas from .dogs/refs"
 note "shas: $SHA1 $SHA2 $SHA3"

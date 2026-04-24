@@ -96,9 +96,31 @@ matters.
 
 ## Compaction
 
-`REFSCompact` rewrites the file keeping only the latest row per
-key (newer rows shadow older ones during normal resolution
-anyway; compaction just trims history).  It reads the log via
-`REFSLoad`, sorts kept entries by timestamp to preserve ULOG
-monotonicity, and renames a fresh `refs.tmp` into place.
-Compaction is a local-only operation — no peer negotiation.
+`REFSCompact` delegates to `ULOGCompactLatest` — kept rows are
+replayed in timestamp order into `refs.tmp` and renamed over the
+live file atomically.  Newer rows already shadow older ones during
+normal resolution, so compaction only trims history; it never
+changes what `REFSResolve` or `REFSLoad` return.  Local-only
+operation — no peer negotiation.
+
+## Implementation: thin ULOG glue
+
+`keeper/REFS.c` is a thin wrapper over `dog/ULOG`:
+
+  - **`REFSAppend`**: lex the `from_uri` into a `uri` struct, plant
+    `?<sha>` as the fragment, hand to `ULOGAppendAt`.  Clamps the
+    timestamp to `max(RONNow(), tail + 1)` so rapid appends within
+    the same millisecond still land.  No build-then-reparse string
+    round-trip.
+  - **`REFSLoad` / `REFSEach`**: call `ULOGeachLatest` with the
+    `set` verb filter; the callback peels each row into the caller's
+    arena — `URIutf8Feed` with an empty fragment emits the key
+    bytes, then the stored fragment is copied verbatim as the val.
+  - **`REFSResolve`**: a predicate over `ULOGFindLatest` —
+    host-substring match against the row's authority plus
+    heads/tags-aware query match, most-recent wins.
+  - **`REFSCompact`**: one-liner over `ULOGCompactLatest(set)`.
+
+The 60-bit hashlet dedup in `ULOGeachLatest` means `REFSLoad` no
+longer walks the log's text or maintains its own seen-set; it
+allocates only the arena bytes it captures into.
