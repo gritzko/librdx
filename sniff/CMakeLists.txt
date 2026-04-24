@@ -12,6 +12,7 @@ add_library(snifflib STATIC
     AT.h AT.c
     GET.h GET.c POST.h POST.c PUT.h PUT.c DEL.h DEL.c
     PATCH.h PATCH.c
+    LS.h LS.c
     ../abc/FSW.c)
 target_link_libraries(snifflib graflib keeplib gitcompat dog abc-core)
 

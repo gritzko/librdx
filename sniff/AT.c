@@ -213,6 +213,11 @@ ok64 SNIFFAtQueryFirstSha(uricp u, u8 *out_hex40) {
     sane(u && out_hex40);
     a_dup(u8c, q, u->query);
     while (!$empty(q)) {
+        //  Skip empty specs (leading or consecutive `&`).  Canonical
+        //  trunk rows are shaped `&<sha>` — an empty first REF slot —
+        //  which QURYu8sDrain reports as QURYFAIL, not QURY_NONE.
+        //  Treat "`&` with nothing before it" as a skippable separator.
+        if (*q[0] == '&') { u8csUsed1(q); continue; }
         qref spec = {};
         if (QURYu8sDrain(q, &spec) != OK) break;
         if (spec.type == QURY_NONE) break;

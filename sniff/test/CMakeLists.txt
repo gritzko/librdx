@@ -16,6 +16,14 @@ add_test(NAME SNIFFsquash
 set_tests_properties(SNIFFsquash PROPERTIES
     ENVIRONMENT "BIN=${DOG_BIN_DIR};TMP=${DOG_TEST_TMP_ROOT};TEST_ID=SNIFFsquash")
 
+#  ls.sh — `sniff ls` / `be get ls:` smoke test (three plain-text
+#  modes + TLV framing sanity + non-destructive be routing).
+add_test(NAME SNIFFls
+    COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/ls.sh
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_tests_properties(SNIFFls PROPERTIES
+    ENVIRONMENT "BIN=${DOG_BIN_DIR};TMP=${DOG_TEST_TMP_ROOT};TEST_ID=SNIFFls")
+
 if (WITH_SSH)
     #  patch.sh — 3-way merge toys (sniff patch <ref>).  Needs ssh
     #  localhost (same transport as beagle/test/blobs-from-git.sh).

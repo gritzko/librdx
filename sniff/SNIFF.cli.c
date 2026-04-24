@@ -15,6 +15,7 @@
 #include "abc/FILE.h"
 #include "abc/PRO.h"
 #include "dog/CLI.h"
+#include "dog/DOG.h"
 #include "dog/SHA1.h"
 #include "graf/GRAF.h"
 #include "keeper/KEEP.h"
@@ -57,10 +58,14 @@ ok64 sniffcli() {
 
     if (!need_state) return SNIFFExec(&c);
 
-    // rw for anything that mutates the ULOG at `<wt>/.sniff` or the store.
+    // rw for anything that mutates the ULOG at `<wt>/.sniff` or the
+    // store.  View projectors (verbless `sniff <proj>:<URI>`) are
+    // always RO per VERBS.md §"View projectors are pure".
     a_cstr(v_status, "status");
     a_cstr(v_list,   "list");
-    b8 ro = $eq(c.verb, v_status) || $eq(c.verb, v_list);
+    b8 is_projector = $empty(c.verb) && c.nuris > 0 &&
+                      DOGIsProjector(c.uris[0].scheme);
+    b8 ro = $eq(c.verb, v_status) || $eq(c.verb, v_list) || is_projector;
     b8 rw = !ro;
 
     home h = {};

@@ -14,6 +14,27 @@
 // trunk (canonical form = empty slice); later phases widen this.
 con ok64 DOGNOBR = 0xd6105d82db;
 
+// --- View-projector schemes (VERBS.md §"View projectors") ---
+//
+// One shared table for the whole repo.  DOGParseURI uses it to skip
+// the scheme→authority promotion for projector schemes.  BE uses it
+// to dispatch `be <scheme>:<URI>` to the dog that produces that
+// projection.  Each dog's CLI recognises the schemes it owns and
+// dispatches internally.  Adding a projector = one row here + the
+// producing dog's internal dispatch branch; no further wiring.
+
+typedef struct {
+    char const *scheme;   // "ls", "tree", "sha1", ...
+    char const *dog;      // "sniff" | "keeper" | "graf"
+} DOGProjRoute;
+
+// YES iff `scheme` names a registered view-projector scheme.
+b8 DOGIsProjector(u8cs scheme);
+
+// Dog name that handles `scheme:` projections, or NULL if `scheme`
+// isn't a projector.  The returned cstr has static lifetime.
+char const *DOGProjectorDog(u8cs scheme);
+
 // Parse a URI string with dog-specific normalization:
 //   1. Invoke abc/URILexer for strict RFC 3986 parsing.
 //   2. If the parsed URI has a scheme but no authority and its
