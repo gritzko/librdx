@@ -8,7 +8,7 @@
 #
 set -e
 
-BIN=${BIN:-$(dirname "$0")/../../build-debug/bin}
+BIN=${BIN:-$(cd "$(dirname "$0")/../../build-debug/bin" && pwd)}
 export PATH="$BIN:$PATH"
 
 TMP=${TMP:-$HOME/tmp}
@@ -69,7 +69,7 @@ for TAG in $TAGS; do
 
     # --- rsync dry-run: full content comparison ---
     RDIFF=$(rsync -rlcni --delete \
-        --exclude='/.git/' --exclude='/.dogs/' \
+        --exclude='/.git/' --exclude='/.dogs/' --exclude='/.sniff' \
         "$TMILL/git01/" "$TMILL/be01/" 2>&1)
 
     BE_N=$(find "$TMILL/be01" -not -path '*/.dogs/*' -not -path '*/.git/*' -type f | wc -l)

@@ -183,7 +183,7 @@ ok64 SNIFFAtStampPath(path8b path, ron60 ts) {
     struct timespec tv = at_ts_of_ron60(ts);
     struct timespec times[2] = { tv, tv };
     char const *cp = (char const *)u8bDataHead(path);
-    if (utimensat(AT_FDCWD, cp, times, 0) != 0) fail(SNIFFFAIL);
+    if (utimensat(AT_FDCWD, cp, times, AT_SYMLINK_NOFOLLOW) != 0) fail(SNIFFFAIL);
     done;
 }
 
