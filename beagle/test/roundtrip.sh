@@ -85,10 +85,18 @@ cd "$WT"
 "$BE" post --seq -m "worktree commit" >/dev/null 2>&1 \
     || fail "be post -m failed"
 # Read the committed SHA from the tail of .sniff.  Rows are
-# `<ts>\t<verb>\t<uri>` and the latest `post` row's URI fragment
-# (`...#<40hex>`) is the commit sha.
+# `<ts>\t<verb>\t<uri>`; the latest `post` row's URI query carries
+# the commit sha as the last `&`-separated 40-hex spec (dog/QURY).
 WT_SHA=$(awk -F'\t' '$2 == "post" { last = $3 } END {
-    n = index(last, "#"); if (n > 0) print substr(last, n + 1)
+    q = last
+    sub(/^[^?]*\?/, "", q)
+    sub(/#.*$/, "", q)
+    n = split(q, parts, "&")
+    for (i = n; i > 0; i--) {
+        if (length(parts[i]) == 40 && parts[i] ~ /^[0-9a-f]+$/) {
+            print parts[i]; exit
+        }
+    }
 }' "$WT/.sniff")
 [ ${#WT_SHA} -eq 40 ] || fail "no 40-hex worktree commit recorded"
 [ "$WT_SHA" != "$SEED_SHA" ] || fail "worktree commit didn't advance"

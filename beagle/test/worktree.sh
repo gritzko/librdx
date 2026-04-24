@@ -25,11 +25,19 @@ fail() { echo "FAIL: $*" >&2; exit 1; }
 note() { echo "  - $*"; }
 
 # Tail SHA of a worktree's .sniff ULOG.  Rows are
-# `<ts>\t<verb>\t<uri>`; the latest `post` row's URI fragment is the
-# commit sha.
+# `<ts>\t<verb>\t<uri>`; the latest `post` row's URI query carries
+# the commit sha as the last `&`-separated 40-hex spec (dog/QURY).
 head_hex_of() {
     awk -F'\t' '$2 == "post" { last = $3 } END {
-        n = index(last, "#"); if (n > 0) print substr(last, n + 1)
+        q = last
+        sub(/^[^?]*\?/, "", q)
+        sub(/#.*$/, "", q)
+        n = split(q, parts, "&")
+        for (i = n; i > 0; i--) {
+            if (length(parts[i]) == 40 && parts[i] ~ /^[0-9a-f]+$/) {
+                print parts[i]; exit
+            }
+        }
     }' "$1/.sniff"
 }
 

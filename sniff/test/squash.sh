@@ -41,12 +41,24 @@ WT="$TMP/wt"
 mkdir -p "$WT"
 cd "$WT"
 
-#  Last sha recorded in .sniff (fragment of the most recent
-#  get/post/patch row — take the first 40 hex chars for multi-hash).
+#  Last sha recorded in .sniff — walk the query of the most recent
+#  get/post/patch row (dog/QURY: `&`-separated ref/SHA specs) and
+#  pick the first 40-hex SHA segment.  For a multi-SHA merge state
+#  that's the "ours" sha, matching resolve_ours / post_load_baseline.
 head_hex() {
     awk -F'\t' '$2=="post" || $2=="get" || $2=="patch" { last=$3 }
-                END { n=index(last,"#"); if (n>0) {
-                        f=substr(last,n+1); print substr(f,1,40) } }' .sniff
+                END {
+                    q = last
+                    sub(/^[^?]*\?/, "", q)
+                    sub(/#.*$/, "", q)
+                    n = split(q, parts, "&")
+                    for (i = 1; i <= n; i++) {
+                        if (length(parts[i]) == 40 &&
+                            parts[i] ~ /^[0-9a-f]+$/) {
+                            print parts[i]; exit
+                        }
+                    }
+                }' .sniff
 }
 
 #  Parent sha of a given commit, via `keeper get .#<hex>`.
