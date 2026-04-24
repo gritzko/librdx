@@ -22,9 +22,9 @@ KEEPER="$BIN/keeper"
 #  only finds it if it's a sibling of the remote login's $HOME.
 TMP=${TMP:-$HOME/tmp}
 TEST_ID=${TEST_ID:-BEroundtrip}
-TMP=$TMP/$$/$TEST_ID
+TMP=$TMP/$$-$TEST_ID
 REL=${TMP#$HOME/}                       # $TMP relative to $HOME
-mkdir -p "$TMP"
+mkdir -p "$TMP"; echo "Running in $PWD"
 trap 'rm -rf "$TMP"' EXIT INT TERM
 
 fail() { echo "FAIL: $*" >&2; exit 1; }

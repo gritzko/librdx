@@ -30,9 +30,9 @@ export DOG_REMOTE_PATH="$BIN"
 
 TMP=${TMP:-$HOME/tmp}
 TEST_ID=${TEST_ID:-tag-blobs-from-keeper}
-TMP=$TMP/$$/$TEST_ID
+TMP=$TMP/$$-$TEST_ID
 TMP_REL=${TMP#$HOME/}
-mkdir -p "$TMP"
+mkdir -p "$TMP"; echo "Running in $PWD"
 trap 'rm -rf "$TMP"' EXIT
 
 # --- 1. toy git source: 3 revs, two files, v1+v2 tags, master tip ---

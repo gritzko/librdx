@@ -18,8 +18,8 @@ export PATH="$BIN:$PATH"
 
 TMP=${TMP:-$HOME/tmp}
 TEST_ID=${TEST_ID:-BEworkflow}
-TMP=$TMP/$$/$TEST_ID
-mkdir -p "$TMP"
+TMP=$TMP/$$-$TEST_ID
+mkdir -p "$TMP"; echo "Running in $PWD"
 trap 'rm -rf "$TMP"' EXIT INT TERM
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
@@ -143,5 +143,133 @@ cp -r "$D5b/.dogs" .
 want_missing a.txt
 want_file b.txt "bravo"
 note "auto-delete took out a.txt"
+
+# ------------------------------------------------------------------
+# Scenario 7: be put dir/ — recursive stage of a nested subtree
+#
+#   Fresh repo, `be put lib/` must pull every file under lib/ into the
+#   commit (lib/a.txt and lib/sub/b.txt), while a sibling file at the
+#   root that was NOT put stays out (selective mode: only explicit
+#   targets are included on the first commit).
+# ------------------------------------------------------------------
+echo "=== 7. be put dir/ recurses into nested subtree ==="
+D7="$TMP/r7"; mkdir -p "$D7/lib/sub"; cd "$D7"
+echo alpha    > lib/a.txt
+echo bravo    > lib/sub/b.txt
+echo untracked > top.txt                 # not put → should not appear
+
+"$BE" put lib/ >/dev/null
+"$BE" post -m "put lib/" >/dev/null
+C7=$(head_hex)
+[ -n "$C7" ] || fail "HEAD unset after be post"
+note "HEAD=$C7"
+
+D7b="$TMP/r7b"; mkdir -p "$D7b"; cd "$D7b"
+cp -r "$D7/.dogs" .
+"$BE" get "$C7" >/dev/null
+want_file lib/a.txt     "alpha"
+want_file lib/sub/b.txt "bravo"
+want_missing top.txt
+note "nested subtree present, root-level non-put file absent"
+
+# ------------------------------------------------------------------
+# Scenario 8: be put new_dir/ respects the wt-root .gitignore (IGNO)
+#
+#   The dir-expansion pass reads a single `.gitignore` from the wt root
+#   (no nested cascade). Here `*.tmp` at the root must filter `*.tmp`
+#   files that `be put mk/` would otherwise include, at every depth.
+# ------------------------------------------------------------------
+echo "=== 8. be put new_dir/ skips wt-root .gitignore matches ==="
+D8="$TMP/r8"; mkdir -p "$D8/mk/sub"; cd "$D8"
+printf '*.tmp\n' > .gitignore            # wt-root — the only one read
+echo keep       > mk/keep.txt
+echo gone       > mk/ignored.tmp
+echo deep       > mk/sub/inner.txt
+echo deep-gone  > mk/sub/inner.tmp
+
+"$BE" put mk/ >/dev/null
+"$BE" post -m "put mk with igno" >/dev/null
+C8=$(head_hex)
+note "HEAD=$C8"
+
+D8b="$TMP/r8b"; mkdir -p "$D8b"; cd "$D8b"
+cp -r "$D8/.dogs" .
+"$BE" get "$C8" >/dev/null
+want_file    mk/keep.txt     "keep"
+want_file    mk/sub/inner.txt "deep"
+want_missing mk/ignored.tmp
+want_missing mk/sub/inner.tmp
+#  .gitignore lives at the wt root, not under mk/, so it isn't pulled
+#  in by `be put mk/` (different prefix) — nothing to assert about it
+#  here.
+note "*.tmp patterns honoured at every depth under mk/"
+
+# ------------------------------------------------------------------
+# Scenario 9: be put existing_dir/ stages only tracked files
+#
+#   Starting from a commit that has `src/foo.c`, modify foo.c and add a
+#   brand-new untracked `src/bar.c`.  `be put src/` must rewrite foo.c
+#   (tracked ⇒ part of the base tree) and leave bar.c out (untracked
+#   on disk ⇒ not in baseline ⇒ skipped).
+# ------------------------------------------------------------------
+echo "=== 9. be put existing_dir/ commits tracked files only ==="
+D9="$TMP/r9"; mkdir -p "$D9/src"; cd "$D9"
+echo v1 > src/foo.c
+echo top > README
+"$BE" put src/foo.c >/dev/null           # baseline: just src/foo.c
+"$BE" put README   >/dev/null
+"$BE" post -m "baseline" >/dev/null
+C9a=$(head_hex)
+note "baseline HEAD=$C9a"
+
+sleep 1
+echo v2 > src/foo.c                      # modify tracked
+echo stray > src/bar.c                   # add untracked
+"$BE" put src/ >/dev/null
+"$BE" post -m "tracked-only src/" >/dev/null
+C9b=$(head_hex)
+[ "$C9b" != "$C9a" ] || fail "HEAD unchanged after modify+put dir"
+note "updated HEAD=$C9b"
+
+D9c="$TMP/r9c"; mkdir -p "$D9c"; cd "$D9c"
+cp -r "$D9/.dogs" .
+"$BE" get "$C9b" >/dev/null
+want_file    src/foo.c "v2"
+want_file    README    "top"
+want_missing src/bar.c
+note "modified tracked file rewritten, untracked sibling stayed out"
+
+# ------------------------------------------------------------------
+# Scenario 10: be delete dir/ drops the entire subtree
+#
+#   Base commit has dd/a.txt, dd/inner/b.txt, and a sibling keep.txt.
+#   `be delete dd/` must drop every file under dd/ from the new commit
+#   AND unlink them from disk (POST already does that for explicit
+#   deletes of single paths — same contract for a dir target).
+# ------------------------------------------------------------------
+echo "=== 10. be delete dir/ prunes nested subtree ==="
+D10="$TMP/r10"; mkdir -p "$D10/dd/inner"; cd "$D10"
+echo a > dd/a.txt
+echo b > dd/inner/b.txt
+echo k > keep.txt
+"$BE" post -m "seed dd" >/dev/null       # implicit: all three land
+C10a=$(head_hex)
+note "baseline HEAD=$C10a"
+
+"$BE" delete dd/ >/dev/null
+"$BE" post -m "drop dd" >/dev/null
+C10b=$(head_hex)
+[ "$C10b" != "$C10a" ] || fail "HEAD unchanged after delete dir"
+want_missing dd/a.txt
+want_missing dd/inner/b.txt
+note "dd/ unlinked from worktree"
+
+D10c="$TMP/r10c"; mkdir -p "$D10c"; cd "$D10c"
+cp -r "$D10/.dogs" .
+"$BE" get "$C10b" >/dev/null
+want_file    keep.txt "k"
+want_missing dd/a.txt
+want_missing dd/inner/b.txt
+note "commit tree excludes the deleted subtree"
 
 echo "=== all be-dispatch scenarios passed ==="

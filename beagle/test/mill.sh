@@ -14,7 +14,7 @@ export PATH="$BIN:$PATH"
 #  use the HOME-relative form.  CMake seeds TMP=$HOME/tmp by default.
 TMP=${TMP:-$HOME/tmp}
 TEST_ID=${TEST_ID:-mill}
-TMILL=$TMP/$$/$TEST_ID
+TMILL=$TMP/$$-$TEST_ID
 TMILL_REL=${TMILL#$HOME/}
 mkdir -p "$TMILL"
 trap 'rm -rf "$TMILL"' EXIT

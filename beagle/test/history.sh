@@ -23,8 +23,8 @@ BE="$BIN/be"
 
 TMP=${TMP:-$HOME/tmp}
 TEST_ID=${TEST_ID:-BEhistory}
-TMP=$TMP/$$/$TEST_ID
-mkdir -p "$TMP"
+TMP=$TMP/$$-$TEST_ID
+mkdir -p "$TMP"; echo "Running in $PWD"
 trap 'rm -rf "$TMP"' EXIT INT TERM
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
