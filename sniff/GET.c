@@ -21,7 +21,9 @@
 #include "abc/HEX.h"
 #include "abc/PATH.h"
 #include "abc/PRO.h"
+#include "dog/HOME.h"
 #include "keeper/GIT.h"
+#include "keeper/REFS.h"
 #include "keeper/WALK.h"
 
 #include "AT.h"
@@ -297,6 +299,18 @@ ok64 GETCheckout(u8cs reporoot, u8cs hex, u8cs source) {
 
     ron60 verb = SNIFFAtVerbGet();
     call(SNIFFAtAppendAt, ctx.ts, verb, &urow);
+
+    //  Advance the keeper-side trunk tip: `?#<sha>` with verb `post`.
+    //  This is the local HEAD record — distinct from the peer-observed
+    //  rows written by keeper fetch (which carry the peer URI prefix).
+    //  Failure here is non-fatal: the worktree is already updated,
+    //  subsequent `be get` re-resolves via the peer-prefixed row.
+    {
+        a_path(keepdir, u8bDataC(KEEP.h->root), KEEP_DIR_S);
+        a_cstr(trunk_key, "?");
+        (void)REFSAppendVerb($path(keepdir), REFSVerbPost(), trunk_key, hex);
+    }
+
     fprintf(stderr, "sniff: checkout done\n");
     done;
 }

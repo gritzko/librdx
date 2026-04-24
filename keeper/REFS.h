@@ -68,9 +68,22 @@ fun int REFKeyCmp(refcp a, refcp b) {
 // --- Public API ---
 
 //  Append one (ref-key, sha) pair with a monotonic timestamp.
-//  `from_uri` is the ref key (`?heads/<X>`, `<origin>?heads/<X>`, `?HEAD`,
-//  …); `to_uri` is `?<40-hex-sha>` (the leading `?` is optional on input).
+//  `from_uri` is the canonical ref key (`?`, `?heads/<X>`,
+//  `<peer-uri>?heads/<X>`, …); `to_uri` is bare 40-hex (or empty
+//  for a deletion row).  Uses verb `get` — for remote observations
+//  (the common case called by wire code).  Local-move writers
+//  (sniff commit, keeper put, sniff checkout) use REFSAppendVerb
+//  with REFSVerbPost.
 ok64 REFSAppend(u8csc dir, u8csc from_uri, u8csc to_uri);
+
+//  Append with an explicit verb — `REFSVerbGet()` for remote
+//  observations, `REFSVerbPost()` for local moves.  See REF.md.
+ok64 REFSAppendVerb(u8csc dir, ron60 verb, u8csc from_uri, u8csc to_uri);
+
+//  Cached RON60 of the three verbs REFS knows about.
+ron60 REFSVerbGet(void);
+ron60 REFSVerbPost(void);
+ron60 REFSVerbSet(void);   //  legacy — only for reading old logs
 
 //  Resolve a URI by reverse-scanning the ULOG.  Host-substring match +
 //  refname/variant match; most-recent wins.  Fills `resolved`:

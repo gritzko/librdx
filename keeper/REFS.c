@@ -13,15 +13,36 @@
 #include "dog/DOG.h"
 #include "dog/ULOG.h"
 
-// --- verb (cached ron60 of "set") ---
+// --- verb RON60 constants (cached) ---
 
-static ron60 refs_verb_set(void) {
-    static ron60 cached = 0;
-    if (cached) return cached;
-    a_cstr(s, "set");
-    a_dup(u8c, dup, s);
-    RONutf8sDrain(&cached, dup);
-    return cached;
+//  Every REFS row carries one of these HTTP-shaped verbs:
+//    `get`  — remote observation (fetch, receive-pack).  Row says
+//             "at time T, peer's ref named K was at sha V".
+//    `post` — local move (sniff commit, keeper put, sniff checkout).
+//             Row says "at time T, this repo's ref K moved to V".
+//    Legacy `set` rows from older writers are still read, but new
+//    writes use `get`/`post`.
+
+static ron60 refs_verb_cached(char const *name, ron60 *cache) {
+    if (*cache) return *cache;
+    u8cs src = {(u8cp)name, (u8cp)name + strlen(name)};
+    RONutf8sDrain(cache, src);
+    return *cache;
+}
+
+ron60 REFSVerbGet(void) {
+    static ron60 c = 0;
+    return refs_verb_cached("get", &c);
+}
+
+ron60 REFSVerbPost(void) {
+    static ron60 c = 0;
+    return refs_verb_cached("post", &c);
+}
+
+ron60 REFSVerbSet(void) {
+    static ron60 c = 0;
+    return refs_verb_cached("set", &c);
 }
 
 // --- path builder ---
@@ -78,7 +99,7 @@ static ron60 refs_next_ts(ulogcp l) {
     return now > ts ? now : ts + 1;
 }
 
-ok64 REFSAppend(u8csc dir, u8csc from_uri, u8csc to_uri) {
+ok64 REFSAppendVerb(u8csc dir, ron60 verb, u8csc from_uri, u8csc to_uri) {
     sane($ok(dir) && $ok(from_uri) && $ok(to_uri));
     //  `from_uri` must be non-empty (the ref key is mandatory);
     //  `to_uri` may be empty — that's the deletion row (`?branch#`).
@@ -95,9 +116,17 @@ ok64 REFSAppend(u8csc dir, u8csc from_uri, u8csc to_uri) {
                                u8bIdleHead(fragb), u8bIdleLen(fragb), &fl);
     if (bo != OK) { ULOGClose(&l); return bo; }
 
-    ok64 o = ULOGAppendAt(&l, refs_next_ts(&l), refs_verb_set(), &u);
+    ok64 o = ULOGAppendAt(&l, refs_next_ts(&l), verb, &u);
     ULOGClose(&l);
     return o;
+}
+
+//  Back-compat shim: old callers without a verb parameter get `get`
+//  (the common case — remote observations from wire operations).
+//  Local-move writers (sniff POST, keeper put) use REFSAppendVerb
+//  directly with REFSVerbPost.
+ok64 REFSAppend(u8csc dir, u8csc from_uri, u8csc to_uri) {
+    return REFSAppendVerb(dir, REFSVerbGet(), from_uri, to_uri);
 }
 
 ok64 REFSSyncRecord(u8csc dir, refcp arr, u32 nrefs) {
@@ -107,6 +136,7 @@ ok64 REFSSyncRecord(u8csc dir, refcp arr, u32 nrefs) {
     call(ULOGOpen, &l, log_path);
 
     ron60 ts = refs_next_ts(&l);
+    ron60 verb_get = REFSVerbGet();
     for (u32 i = 0; i < nrefs; i++) {
         u8csc from = {arr[i].key[0], arr[i].key[1]};
         u8csc to   = {arr[i].val[0], arr[i].val[1]};
@@ -116,7 +146,7 @@ ok64 REFSSyncRecord(u8csc dir, refcp arr, u32 nrefs) {
         ok64 bo = refs_uri_for_row(&u, from, to,
                                    u8bIdleHead(fragb), u8bIdleLen(fragb), &fl);
         if (bo != OK) { ULOGClose(&l); return bo; }
-        ok64 ao = ULOGAppendAt(&l, ts++, refs_verb_set(), &u);
+        ok64 ao = ULOGAppendAt(&l, ts++, verb_get, &u);
         if (ao != OK) { ULOGClose(&l); return ao; }
     }
     ULOGClose(&l);
@@ -176,7 +206,11 @@ ok64 REFSLoad(refp arr, u32p out_n, u32 max, u8b arena, u8csc dir) {
     if (oo != OK) done;  // missing file ⇒ 0 refs, not an error
 
     refs_load_ctx ctx = {arr, 0, max, arena};
-    ok64 eo = ULOGeachLatest(&l, refs_verb_set(), refs_each_store, &ctx);
+    //  verb_filter=0: include `get`, `post`, and legacy `set` rows.
+    //  Dedup keys on the URI-minus-fragment, so peer-observed (get)
+    //  and local-move (post) rows dedup separately per their distinct
+    //  URI keys.
+    ok64 eo = ULOGeachLatest(&l, 0, refs_each_store, &ctx);
     ULOGClose(&l);
     if (eo != OK) return eo;
     *out_n = ctx.cnt;
@@ -384,7 +418,9 @@ ok64 REFSCompact(u8csc dir) {
     ok64 oo = ULOGOpen(&l, log_path);
     if (oo != OK) done;  // nothing to compact
 
-    ok64 co = ULOGCompactLatest(&l, log_path, refs_verb_set());
+    //  verb_filter=0: compact across get/post/set; keeps latest per
+    //  URI-minus-fragment key regardless of verb.
+    ok64 co = ULOGCompactLatest(&l, log_path, 0);
     ULOGClose(&l);
     return co;
 }

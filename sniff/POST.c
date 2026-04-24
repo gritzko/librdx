@@ -926,7 +926,7 @@ ok64 POSTCommit(u8cs reporoot, u8cs message, u8cs author, sha1 *sha_out) {
 
             a_dup(u8c, val, u8bDataC(out_hex));
 
-            (void)REFSAppend($path(keepdir), refkey, val);
+            (void)REFSAppendVerb($path(keepdir), REFSVerbPost(), refkey, val);
         }
     }
 
@@ -1008,6 +1008,6 @@ ok64 POSTSetLabel(u8cs ref_uri, u8cs sha_hex) {
     call(DOGCanonURIFeed, keybuf, &u);
     a_dup(u8c, key, u8bData(keybuf));
 
-    //  Val is bare 40-hex (canonical).
-    return REFSAppend($path(keepdir), key, sha_hex);
+    //  Val is bare 40-hex (canonical).  `post` verb — local ref move.
+    return REFSAppendVerb($path(keepdir), REFSVerbPost(), key, sha_hex);
 }

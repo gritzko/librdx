@@ -86,9 +86,18 @@ static ok64 refadv_each_cb(refcp r, void *vctx) {
     u8cs key = {r->key[0], r->key[1]};
     u8cs val = {r->val[0], r->val[1]};
 
-    b8  is_heads = refadv_starts_with(key, REFADV_PFX_HEADS,
+    //  Find the first `?` — the key may be either bare (`?heads/X`)
+    //  or peer-URI-prefixed (`ssh://host/path?heads/X`).  Everything
+    //  after that `?` is the query we want to classify.
+    u8cs q = {key[1], key[1]};
+    for (u8cp p = key[0]; p < key[1]; p++) {
+        if (*p == '?') { q[0] = p; q[1] = key[1]; break; }
+    }
+    if (q[0] == key[1]) done;  //  no `?` — skip
+
+    b8  is_heads = refadv_starts_with(q, REFADV_PFX_HEADS,
                                       sizeof(REFADV_PFX_HEADS));
-    b8  is_tags  = refadv_starts_with(key, REFADV_PFX_TAGS,
+    b8  is_tags  = refadv_starts_with(q, REFADV_PFX_TAGS,
                                       sizeof(REFADV_PFX_TAGS));
     if (!is_heads && !is_tags) done;
 
@@ -98,11 +107,11 @@ static ok64 refadv_each_cb(refcp r, void *vctx) {
     //  Strip the `?heads/` or `?tags/` prefix to get the bare name.
     u8cs name = {};
     if (is_heads) {
-        name[0] = key[0] + sizeof(REFADV_PFX_HEADS);
+        name[0] = q[0] + sizeof(REFADV_PFX_HEADS);
     } else {
-        name[0] = key[0] + sizeof(REFADV_PFX_TAGS);
+        name[0] = q[0] + sizeof(REFADV_PFX_TAGS);
     }
-    name[1] = key[1];
+    name[1] = q[1];
     if (u8csLen(name) == 0) done;
 
     if (adv->count >= REFADV_MAX_ENTRIES) done;

@@ -406,7 +406,8 @@ static ok64 keeper_put(keeper *k, cli *c) {
     if (!u8csEmpty(sha) && sha[0][0] == '?') u8csUsed(sha, 1);
     a_dup(u8c, to, sha);
 
-    ok64 o = REFSAppend($path(keepdir), from, to);
+    //  `keeper put` is a local-move verb (user setting a ref).
+    ok64 o = REFSAppendVerb($path(keepdir), REFSVerbPost(), from, to);
     if (o != OK) return o;
 
     fprintf(stdout, "keeper: %.*s → %.*s\n",
