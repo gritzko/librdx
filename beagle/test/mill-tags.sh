@@ -8,19 +8,20 @@
 #
 set -e
 
-BIN=${BIN:-$(dirname "$0")/../../build-debug/bin}
+BIN=${BIN:-$(cd "$(dirname "$0")/../../build-debug/bin" && pwd)}
 export PATH="$BIN:$PATH"
 
 TMP=${TMP:-$HOME/tmp}
 TEST_ID=${TEST_ID:-mill-tags}
 TMILL=${TMILL:-$TMP/$$-$TEST_ID}
 REPO=${REPO:-$HOME/src/git}
+NTAGS=${NTAGS:-12}
 #  Keeper URI paths are $HOME-relative: //host/src/git → $HOME/src/git.
 REPO_REL=${REPO#$HOME/}
 HOST=${HOST:-localhost}
 trap 'rm -rf "$TMILL"' EXIT
 
-TAGS=${TAGS:-"v2.8.4 v2.8.5 v2.8.6 v2.9.0 v2.9.0-rc0 v2.9.0-rc1 v2.9.0-rc2 v2.9.1 v2.9.2 v2.9.3 v2.9.4 v2.9.5"}
+TAGS=${TAGS:-$(git -C "$REPO" tag --sort=creatordate | tail -n "$NTAGS")}
 
 mkdir -p "$TMILL/be01" "$TMILL/git01"
 
