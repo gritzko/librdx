@@ -1,78 +1,104 @@
 # keeper refs format
 
-Keeper's ref state is split between a **per-branch reflog** in each
-branch dir and a **store-wide alias file** at the root:
+Each keeper branch dir has one append-only reflog file:
 
     <store>/
-        ALIAS                      host-level URI aliases
-        REFS                       trunk reflog
+        refs                       trunk reflog
         feature/
-            REFS                   feature branch reflog
+            refs                   feature branch reflog
         tags/v1.0/
-            REFS                   tag history
+            refs                   tag history
 
-One mapping per line:
+The file is a [dog/ULOG][U] — a plain-text append-only URI event log.
 
-    <ron60-time>\t<from-uri>\t<to-uri>\n
+  [U]: ../dog/ULOG.md
 
-e.g.
+## Row shape
 
-    26416FJreE\t?tags/v2.9.1\t?5c9159de87e41cf14ec5f2132afb5a06f35c26b3
+Every row is a standard ULOG row:
 
-## Per-branch `REFS`
+    <ron60-ms>\tset\t<from-uri>#?<40-hex-sha>\n
 
-`<branch-dir>/REFS` records the tip history of **this one branch**
-plus peer views of the same branch.  Two forms appear:
+  - **ts**   — RON60 millisecond timestamp, strictly monotonic
+    across the file (ULOG enforces; stale appends return
+    `ULOGCLOCK`).
+  - **verb** — literally `set`.  REFS only emits this one verb today;
+    the ULOG verb column is reserved so future revisions (delete,
+    move, …) can coexist without rewriting old rows.
+  - **uri**  — the (ref-key, sha) pair packed into a single URI so the
+    format fits ULOG: the key is everything before `#`, the sha rides
+    in the fragment as `?<40-hex>`.  URILexer parses it; REFSLoad
+    splits back on `#` to return `{key, val}` pairs.
 
-  - **Local tip** — the branch's own tip over time.  The branch
-    name is implicit from the dir, so the `from-uri` elides to `?`:
+Typical rows:
 
-        <time>\t?\t?<hex-sha>
+    26416FJreE\tset\t?heads/main#?5c9159de87e41cf14ec5f2132afb5a06f35c26b3
+    26416FJrfB\tset\t//origin/path?heads/feature#?68aba62e5c4e2f1a07d04a8e3b66c72b4f1a09e2d
+    26416FJrCC\tset\t//github#?https://github.com/torvalds/linux.git
 
-  - **Remote-tracking of the same branch** — fully-qualified
-    origin URI keyed with `heads/` or `tags/`:
+Keys in use:
 
-        <time>\t<origin-uri>?heads/<name>\t?<hex-sha>
-        <time>\t<origin-uri>?tags/<name>\t?<hex-sha>
+  - `?heads/<name>` / `?tags/<name>` / `?HEAD` — local refs in this
+    branch dir.  The key starts with `?` because in URI terms only
+    the query component is present.
+  - `<origin>?heads/<name>` / `<origin>?tags/<name>` — remote-tracking
+    views of the same branch seen on a peer.  `<origin>` is whatever
+    transport URI the user typed (`ssh://host/path`, `//host/path`,
+    `file:///abs`, `//alias`).
+  - `//<alias-host>` — host alias row.  The sha-shaped fragment is
+    a full URL; `REFSResolve` matches it via host-substring and
+    hands back the stored scheme/host/path to the transport layer.
+    (Aliases sit in the same file as refs; see
+    **Aliases without a sidecar** below.)
 
-For SSH and explicit-host transports the origin URI is what the
-user typed (`localhost:src/git`, `//localhost/path`, …).  For local
-path access, canonicalise to `file:///<absolute-path>`.
+## Per-branch scoping
 
-Cross-branch entries do **not** belong in a branch's REFS.  If a
-wt on `feature` learns origin's `main` tip, that record lives in
-the trunk's `REFS` (the dir that owns `main`), not in `feature/`.
-Placement rule: the entry's branch-part must match the owning dir.
+`<branch-dir>/refs` records **this one branch's** tip plus peer
+views of the same branch.  Cross-branch entries do not belong
+here: if a wt on `feature` learns origin's `main` tip, that row
+lives in the trunk's `refs` (the dir that owns `main`), not in
+`feature/`.  Placement rule: the entry's branch-part must match
+the owning dir.
 
 Resolution is scoped to the dir: looking up `?heads/feature` reads
-`feature/REFS` directly and does NOT walk up the dir chain.  Only
-alias resolution walks up.
+`feature/refs` directly and does **not** walk up the dir chain.
 
-## Store-wide `ALIAS`
+## Aliases without a sidecar
 
-`<store>/ALIAS` is an append-only alias file, resolved from any
-branch dir by walking up to the root.  Same line format; typical
-entries:
+There is no separate `ALIAS` file and no `alias` verb.  A row whose
+key carries an authority (`//github`, `//linux`) plays the alias
+role: `REFSResolve` does host-substring matching over each row's
+authority in one reverse pass, so `//github?master` matches
+`https://github.com/…?heads/master` on the same pass that resolves
+`?heads/master` for a local ref.  Most-recent row wins on
+ambiguity.
 
-    <time>\t//github\thttps://github.com/torvalds/linux.git
-    <time>\t//linux\tssh://git@kernel.org/pub/scm/linux/linux.git
-
-Aliases are host-level, not branch-scoped; keeping them in one
-root file avoids duplicating them under every branch and prevents
-silent loss when a branch dir is dropped.
+Because aliases are just rows in the dir's reflog, dropping a dir
+drops its alias rows too — exactly like its local tips.  Cross-host
+aliases that must survive a branch-dir drop belong in the root's
+`refs`.
 
 ## What's not in keeper's ref state
 
 **Worktree state** is not in keeper.  The per-wt branch pointer
 lives in the wt's `.dogs` file; the reverse pointer lives in the
-branch dir's `WT` file (see `sniff/AT.md`).  Keeper's REFS carry
+branch dir's `WT` file (see `sniff/AT.md`).  Keeper's refs carry
 only replicated refs (local + remote-attributed for the same
 branch) — never "which wt is where".
 
 ## Drop-a-dir and reflogs
 
-Squash/rebase/drop of a branch dir removes its `REFS` together
+Squash/rebase/drop of a branch dir removes its `refs` together
 with its packs.  Peer views of that branch held in that dir's
-`REFS` vanish too, which is exactly right: the dropped commits
+`refs` vanish too, which is exactly right: the dropped commits
 are gone, so the memory of where peers had them no longer
-matters.  Aliases in `<store>/ALIAS` are unaffected.
+matters.
+
+## Compaction
+
+`REFSCompact` rewrites the file keeping only the latest row per
+key (newer rows shadow older ones during normal resolution
+anyway; compaction just trims history).  It reads the log via
+`REFSLoad`, sorts kept entries by timestamp to preserve ULOG
+monotonicity, and renames a fresh `refs.tmp` into place.
+Compaction is a local-only operation — no peer negotiation.

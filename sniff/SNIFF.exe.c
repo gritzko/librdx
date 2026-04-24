@@ -301,8 +301,9 @@ static ok64 SNIFFGetURI(u8cs reporoot, uri *u) {
     //  Scan REFS for a `?heads/*` entry to use as the default.
     ref rarr[REFS_MAX_REFS] = {};
     u32 rn = 0;
-    u8bp rmap = NULL;
-    if (REFSLoad(rarr, &rn, REFS_MAX_REFS, &rmap, $path(keepdir)) == OK &&
+    Bu8 rarena = {};
+    call(u8bMap, rarena, (size_t)REFS_MAX_REFS * 320);
+    if (REFSLoad(rarr, &rn, REFS_MAX_REFS, rarena, $path(keepdir)) == OK &&
         rn > 0) {
         static char const *const prefs[] = {
             "?heads/master", "?heads/main", "?heads/trunk",
@@ -337,12 +338,12 @@ static ok64 SNIFFGetURI(u8cs reporoot, uri *u) {
                 a_pad(u8, srcbuf, 256);
                 u8bFeed(srcbuf, found->key);
                 a_dup(u8c, source, u8bData(srcbuf));
-                if (rmap) u8bUnMap(rmap);
+                u8bUnMap(rarena);
                 return GETCheckout(reporoot, hex, source);
             }
         }
-        if (rmap) u8bUnMap(rmap);
     }
+    u8bUnMap(rarena);
 
     fail(SNIFFFAIL);
 }

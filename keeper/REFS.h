@@ -1,10 +1,19 @@
 #ifndef KEEPER_REFS_H
 #define KEEPER_REFS_H
 
-//  REFS: URI→URI append-only reflog for keeper.
-//  See REF.md (next to this header) for the format spec.
-//  Resolution: chase from→to iteratively (max REFS_MAX_CHAIN).
-//  Compaction: collapse entries with same from-key, keep latest.
+//  REFS: ULOG-backed ref/tip reflog for keeper.
+//  See REF.md (next to this header) for the on-disk format.
+//
+//  Row shape: `<ron60-ts>\tset\t<ref-key>#?<40-hex-sha>\n` — a standard
+//  dog/ULOG row where the verb is `set` and the URI's fragment carries
+//  `?<sha>`.  REFSLoad re-serialises each row's URI via URIutf8Feed and
+//  splits on `#` so callers still see `{key, val}` pairs (val = `?<sha>`).
+//
+//  Resolution: REFSResolve does two things in one reverse pass — host
+//  substring match against the row's authority (so `//github?master`
+//  finds `https://github.com/…?heads/master`) and refname equality /
+//  heads|tags variant match against the row's query.  Most-recent row
+//  wins on ambiguity; there is no separate alias file / alias verb.
 
 #include "abc/INT.h"
 #include "abc/URI.h"
@@ -15,22 +24,21 @@ con ok64 REFSFAIL  = 0x6ce3dc3ca495;
 con ok64 REFSNONE  = 0x6ce3dc5d85ce;
 con ok64 REFSBAD   = 0x1b38f70b28d;
 
-#define REFS_FILE     "refs"
+#define REFS_FILE      "refs"
 #define REFS_MAX_CHAIN 8
 #define REFS_MAX_REFS  1024
 
-// --- ref record ---
-
-#define REF_ALIAS  1  // //name → full URL
-#define REF_SHA    2  // ?refname → ?sha
-#define REF_TAG    3  // tag ref
-#define REF_BRANCH 4  // branch ref
+//  Record kind.  Kept for REFADV's classification path; all rows emitted
+//  by REFSAppend are REF_SHA today.
+#define REF_SHA    2
+#define REF_TAG    3
+#define REF_BRANCH 4
 
 typedef struct {
     ron60 time;
-    u8cs  key;   // from-URI (see REF.md)
-    u8cs  val;   // to-URI   (see REF.md)
-    u8    type;
+    u8cs  key;   // URI bytes up to '#'  (e.g. ?heads/main, //host?heads/main, ?HEAD)
+    u8cs  val;   // URI fragment bytes   (`?<40-hex-sha>`)
+    u8    type;  // REF_SHA (future: REF_TAG / REF_BRANCH)
 } ref;
 
 typedef ref *refp;
@@ -59,33 +67,35 @@ fun int REFKeyCmp(refcp a, refcp b) {
 
 // --- Public API ---
 
-//  Append one from→to mapping with current timestamp.
+//  Append one (ref-key, sha) pair with a monotonic timestamp.
+//  `from_uri` is the ref key (`?heads/<X>`, `<origin>?heads/<X>`, `?HEAD`,
+//  …); `to_uri` is `?<40-hex-sha>` (the leading `?` is optional on input).
 ok64 REFSAppend(u8csc dir, u8csc from_uri, u8csc to_uri);
 
-//  Resolve a URI by chasing from→to chain.
-//  Resolves authority (alias) and query (ref) independently.
-//  Result parts written into `resolved` uri struct.
-//  `arena` provides scratch space for resolved strings.
+//  Resolve a URI by reverse-scanning the ULOG.  Host-substring match +
+//  refname/variant match; most-recent wins.  Fills `resolved`:
+//    * query    — terminal 40-hex SHA (for ref-returning queries)
+//    * scheme/host/path — origin bytes of the matched row (for the
+//      `//alias`-style transport-URI build done by keeper's get/post)
+//  `arena` is a writable byte buffer that backs the filled slices; must
+//  outlive the caller's use of `resolved`.
 ok64 REFSResolve(urip resolved, u8bp arena, u8csc dir, u8csc uri);
 
-//  Record refs from a sync: array of ref records.
+//  Bulk append: each entry contributes one `set` row.  Timestamps are
+//  assigned monotonically (the `time` field on input entries is
+//  ignored — ULOG enforces strict monotonicity per file).
 ok64 REFSSyncRecord(u8csc dir, refcp arr, u32 nrefs);
 
-//  Append reflog bytes received from a peer, skipping any line whose
-//  (time, key, val) triple already exists in the local REFS.  Lines
-//  MUST be '\n'-terminated as produced by REFSAppend.  Dedup is
-//  gossip-friendly: ordering is not significant, only triple identity.
-ok64 REFSAppendTail(u8csc dir, u8csc bytes);
+//  Load latest-per-key entries.  Key/val slices point into `arena` —
+//  caller owns `arena` and must keep it alive until done with `arr`.
+//  The ULOG file is closed before return.
+ok64 REFSLoad(refp arr, u32p out_n, u32 max, u8b arena, u8csc dir);
 
-//  Load all entries into ref array (latest per key).
-//  Returns count in *out_n.  Entries point into mmap (keep map alive).
-ok64 REFSLoad(refp arr, u32p out_n, u32 max, u8bp *map, u8csc dir);
-
-//  List current (latest) value for each known from-URI.
+//  Iterate latest (per key) entries; stops on first non-OK from `cb`.
 typedef ok64 (*refs_cb)(refcp r, void *ctx);
 ok64 REFSEach(u8csc dir, refs_cb cb, void *ctx);
 
-//  Compact: rewrite REFS keeping only latest entry per from-key.
+//  Compact: rewrite the ULOG keeping only the latest row per key.
 ok64 REFSCompact(u8csc dir);
 
 #endif

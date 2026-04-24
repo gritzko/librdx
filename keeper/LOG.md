@@ -12,13 +12,13 @@ branch is checked out) a worktree back-pointer:
         00001.keeper
         00003.keeper
         00001.idx
-        REFS
+        refs                    dog/ULOG reflog (see REF.md)
         WT
         feature/
             00002.keeper
             00004.keeper
             00001.idx
-            REFS
+            refs
 
 File numbering (`NNNNN`) is **store-wide and sequential** — pack
 logs in different branch dirs never share a number.  The physical

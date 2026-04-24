@@ -66,14 +66,14 @@ subdirectories, each path-like to mirror `?refname` URIs:
 ```
 <store>/                       trunk (aliases heads/main,
                                heads/master, heads/trunk → "")
-    ALIAS                      host-level URI aliases (append-only)
-    REFS                       trunk reflog (append-only)
+    refs                       trunk reflog (dog/ULOG; carries both
+                               local tips and host aliases)
     WT                         abspath of worktree on trunk (if any)
     NNNNN.keeper               trunk pack logs (append-only)
     NNNNN.idx                  trunk LSM index runs
     NNNNN.spot                 other dogs' per-branch artefacts
     feature/                   `?heads/feature`
-        REFS
+        refs
         WT
         NNNNN.keeper
         NNNNN.idx
@@ -203,36 +203,45 @@ existing packs.
 8.  REF_DELTA: look up base by hashlet (same walk as 2-3).
 9.  Chase delta chain, apply `DELTApply` bottom-up.
 
-##  REFS and aliases
+##  refs and aliases
 
-`<branch-dir>/REFS` is an append-only reflog scoped to that one
-branch.  Each line:
-
-```
-<ron60-timestamp>\t<from-uri>\t<to-uri>\n
-```
-
-The dir's own tip history uses elided local form (no branch in
-`from-uri`):
+`<branch-dir>/refs` is an append-only reflog scoped to that one
+branch.  The file is a `dog/ULOG` — plain-text rows of the form
 
 ```
-26416FJreE\t?\t?5c9159de87e41cf14ec5f2132afb5a06f35c26b3
+<ron60-ms>\tset\t<from-uri>#?<40-hex-sha>\n
 ```
 
-Remote-tracking of the same branch on peers uses fully-qualified
-origin URIs:
+The verb is always `set`; the key/val pair is packed into a single
+URI so it fits ULOG's `(ts, verb, uri)` shape (key before `#`, sha
+in the fragment).  `REFSLoad` splits back on `#` to return
+`{key, val}` pairs; ULOG enforces strict monotonicity of the
+timestamp column.  See `REF.md` for the full format.
+
+A local tip uses a query-only key:
 
 ```
-26416FJrfB\t//origin/path?heads/feature\t?68aba62e5…
+26416FJreE\tset\t?heads/main#?5c9159de87e41cf14ec5f2132afb5a06f35c26b3
 ```
 
-A branch's REFS is authoritative for its own tip — reflog
-resolution does NOT walk up.  Only **host-level aliases** walk up;
-they live in one `<store>/ALIAS` file at the root:
+Remote-tracking of the same branch uses a fully-qualified origin:
 
 ```
-26416FJrCC\t//github\thttps://github.com/torvalds/linux.git
+26416FJrfB\tset\t//origin/path?heads/feature#?68aba62e5…
 ```
+
+Host aliases ride in the same file — no sidecar `ALIAS` file.
+The fragment is a full URL rather than a sha; `REFSResolve` matches
+by host-substring in one reverse pass and hands the stored
+scheme/host/path back to the transport layer:
+
+```
+26416FJrCC\tset\t//github#?https://github.com/torvalds/linux.git
+```
+
+A branch's `refs` is authoritative for its own tips — resolution
+does NOT walk up the dir chain.  Aliases that must survive a
+branch-dir drop belong in the root's `refs`.
 
 Which commit the wt is currently checked out on is tracked by
 `sniff` (see `sniff/AT.md`), not by keeper.
@@ -248,5 +257,6 @@ Which commit the wt is currently checked out on is tracked by
 -   `keeper/ZINF.h` — zlib inflate/deflate
 -   `keeper/SHA1.h` — SHA-1 hashing
 -   `keeper/GIT.h` — commit/tree/blob parsing
--   `keeper/REFS.h` — URI reflog
+-   `keeper/REFS.h` — ULOG-backed URI reflog (see `REF.md`)
+-   `dog/ULOG.h` — append-only URI event log (refs file format)
 -   `dog/WHIFF.h` — wh64 tagged-word packing (val format)

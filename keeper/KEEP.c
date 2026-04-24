@@ -300,7 +300,7 @@ ok64 KEEPBranchDrop(keeper *k, u8cs branch) {
     call(DPATHBranchNormFeed, nb, branch);
 
     //  Trunk is never droppable — store root plus paths registry plus
-    //  ALIAS file live there.
+    //  the root-level `refs` (which carries host aliases) live there.
     if (u8bDataLen(nb) == 0) return KEEPTRUNK;
 
     //  Phase 1c hard-caps nshards to 1 (trunk).  Non-trunk branches
@@ -1325,10 +1325,11 @@ ok64 KEEPResolveTree(keeper *k, uricp target, sha1 *tree_sha) {
             u8bFeed(qbuf, target->query);
             a_dup(u8c, qkey, u8bData(qbuf));
 
-            u8bp rmap = NULL;
+            Bu8 rarena = {};
+            call(u8bMap, rarena, (size_t)REFS_MAX_REFS * 320);
             ref rarr[REFS_MAX_REFS];
             u32 rn = 0;
-            REFSLoad(rarr, &rn, REFS_MAX_REFS, &rmap, $path(keepdir));
+            REFSLoad(rarr, &rn, REFS_MAX_REFS, rarena, $path(keepdir));
 
             for (u32 i = 0; i < rn; i++) {
                 if (REFMatch(&rarr[i], qkey)) {
@@ -1343,7 +1344,7 @@ ok64 KEEPResolveTree(keeper *k, uricp target, sha1 *tree_sha) {
                     break;
                 }
             }
-            if (rmap) u8bUnMap(rmap);
+            u8bUnMap(rarena);
         }
         if (!found) fail(KEEPNONE);
 

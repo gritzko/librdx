@@ -7,7 +7,8 @@ object IDs.
 
 Store layout is **sharded by branch directory** (see `README.md`
 §"Storage layout" and `LOG.md`): each branch dir holds its own
-`NNNNN.keeper` + `NNNNN.idx` files plus `REFS` and optional `WT`.
+`NNNNN.keeper` + `NNNNN.idx` files plus `refs` (a `dog/ULOG`
+reflog — see `REF.md`) and optional `WT`.
 `file_id`s are store-global sequential.  Object resolution walks
 the dir chain child → parent → root; REF_DELTA bases are constrained
 to the same dir or an ancestor.

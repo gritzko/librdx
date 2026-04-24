@@ -87,6 +87,12 @@ target_compile_options(PSTRtest PRIVATE ${TEST_CXX_FLAGS})
 target_link_libraries(PSTRtest keeplib gitcompat dog abc-core)
 add_test(NAME PSTRtest COMMAND PSTRtest)
 
+add_executable(REFStest REFS.c)
+target_link_options(REFStest PRIVATE ${TEST_LDD_FLAGS})
+target_compile_options(REFStest PRIVATE ${TEST_CXX_FLAGS})
+target_link_libraries(REFStest keeplib gitcompat dog abc-core)
+add_test(NAME REFStest COMMAND REFStest)
+
 add_executable(REFADVtest REFADV.c)
 target_link_options(REFADVtest PRIVATE ${TEST_LDD_FLAGS})
 target_compile_options(REFADVtest PRIVATE ${TEST_CXX_FLAGS})

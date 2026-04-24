@@ -22,7 +22,7 @@
 
 char const *const KEEP_CLI_VERBS[] = {
     "get", "put", "post", "status", "import", "verify",
-    "refs", "alias", "ls-files",
+    "refs", "ls-files",
     "upload-pack", "receive-pack",
     "help", NULL
 };
@@ -46,7 +46,6 @@ static void keep_usage(void) {
         "    import <packfile>          import a git packfile\n"
         "    verify .#sha               verify object + recurse\n"
         "    refs                       list known refs\n"
-        "    alias //name <uri>         add remote alias\n"
         "    ls-files [URI]             list files reachable from ref/sha\n"
         "    upload-pack <repo-path>    git-upload-pack drop-in (stdin/stdout)\n"
         "    receive-pack <repo-path>   git-receive-pack drop-in (stdin/stdout)\n"
@@ -150,47 +149,18 @@ static ok64 keeper_refs(keeper *k) {
     done;
 }
 
-// --- Verb: alias ---
-
-static ok64 keeper_alias(keeper *k, uri *name_uri, uri *target_uri) {
-    sane(k && name_uri && target_uri);
-    a_path(keepdir, u8bDataC(k->h->root), KEEP_DIR_S);
-
-    a_pad(u8, fbuf, 256);
-    a_cstr(slashes, "//");
-    u8bFeed(fbuf, slashes);
-    u8bFeed(fbuf, name_uri->authority);
-    a_dup(u8c, from, u8bData(fbuf));
-
-    a_dup(u8c, target, target_uri->data);
-
-    ok64 o = REFSAppend($path(keepdir), from, target);
-    if (o != OK) return o;
-    fprintf(stdout, "keeper: alias %.*s → %.*s\n",
-            (int)u8csLen(from), (char *)from[0],
-            (int)u8csLen(target), (char *)target[0]);
-    done;
-}
-
 // --- Verb: get ---
 
-//  Resolve an authority (e.g. `origin`) through `keeper alias` and
-//  build a transport URI of the form `[<scheme>:]//<host>/<path>` into
-//  `out` (caller pre-reset).  Drops query/fragment — those carry the
-//  ref/object selector, not the transport target.  No alias = use the
-//  URI's own scheme/host/path.  *rmap_out is the mmap holding ref data
-//  the slices borrow from; caller must u8bUnMap when done.
-static ok64 keeper_remote_uri(keeper *k, uri *g, u8b out, u8bp *rmap_out) {
-    sane(k && g && u8bOK(out));
+//  Build a transport URI `[<scheme>:]//<host>/<path>` from `g` into
+//  `out`.  When `g`'s authority is a substring of any stored origin in
+//  REFS (e.g. `//github` matches `https://github.com/…?…`), that row's
+//  scheme/host/path win.  Drops query/fragment — those carry the
+//  ref/object selector, not the transport target.  `rarena_out` is a
+//  caller-owned buffer backing the resolved slices; caller u8bUnMap's
+//  it after finishing with the resolved URI bytes.
+static ok64 keeper_remote_uri(keeper *k, uri *g, u8b out, u8b rarena_out) {
+    sane(k && g && u8bOK(out) && u8bOK(rarena_out));
     a_path(keepdir, u8bDataC(k->h->root), KEEP_DIR_S);
-
-    ref rarr[REFS_MAX_REFS];
-    u32 rn = 0;
-    REFSLoad(rarr, &rn, REFS_MAX_REFS, rmap_out, $path(keepdir));
-
-    a_pad(u8, apad, 256);
-    u8bFeed(apad, g->authority);
-    a_dup(u8c, akey, u8bData(apad));
 
     u8cs rscheme = {};
     u8cs rhost = {};
@@ -198,18 +168,15 @@ static ok64 keeper_remote_uri(keeper *k, uri *g, u8b out, u8bp *rmap_out) {
     u8csMv(rscheme, g->scheme);
     u8csMv(rhost, g->host);
     u8csMv(rpath, g->path);
-    for (u32 i = 0; i < rn; i++) {
-        if (REFMatch(&rarr[i], akey)) {
-            uri resolved = {};
-            u8csc val = {rarr[i].val[0], rarr[i].val[1]};
-            if (DOGParseURI(&resolved, val) == OK &&
-                !u8csEmpty(resolved.host)) {
-                if (!u8csEmpty(resolved.scheme))
-                    u8csMv(rscheme, resolved.scheme);
-                u8csMv(rhost, resolved.host);
-                u8csMv(rpath, resolved.path);
-            }
-            break;
+
+    if (!u8csEmpty(g->authority)) {
+        uri resolved = {};
+        a_dup(u8c, in_uri, g->data);
+        if (REFSResolve(&resolved, rarena_out, $path(keepdir), in_uri) == OK
+            && !u8csEmpty(resolved.host)) {
+            if (!u8csEmpty(resolved.scheme)) u8csMv(rscheme, resolved.scheme);
+            u8csMv(rhost, resolved.host);
+            if (!u8csEmpty(resolved.path))   u8csMv(rpath, resolved.path);
         }
     }
 
@@ -236,11 +203,12 @@ static ok64 keeper_get_remote(keeper *k, cli *c, uri *g) {
     sane(k && g);
     (void)c;
 
-    u8bp rmap = NULL;
+    Bu8 rarena = {};
+    call(u8bMap, rarena, (size_t)REFS_MAX_REFS * 320);
     a_pad(u8, ubuf, FILE_PATH_MAX_LEN);
-    ok64 ru = keeper_remote_uri(k, g, ubuf, &rmap);
+    ok64 ru = keeper_remote_uri(k, g, ubuf, rarena);
     if (ru != OK) {
-        if (rmap) u8bUnMap(rmap);
+        u8bUnMap(rarena);
         return ru;
     }
     a_dup(u8c, remote_uri, u8bData(ubuf));
@@ -274,7 +242,7 @@ static ok64 keeper_get_remote(keeper *k, cli *c, uri *g) {
     }
 
     ok64 fo = WIREFetch(k, remote_uri, want_ref);
-    if (rmap) u8bUnMap(rmap);
+    u8bUnMap(rarena);
     return fo;
 }
 
@@ -418,47 +386,6 @@ static ok64 keeper_put(keeper *k, cli *c) {
 
 // --- Verb: post ---
 
-//  Resolve the URI's authority through `keeper alias` and return the
-//  effective host/path slices.  The returned slices either point into
-//  `g` (no alias) or into the mmap'd REFS file, which must outlive
-//  their use — hence *rmap_out is returned to the caller for unmap.
-static void post_resolve_remote(keeper *k, uri *g,
-                                u8cs host_out, u8cs path_out,
-                                u8bp *rmap_out) {
-    a_path(keepdir, u8bDataC(k->h->root), KEEP_DIR_S);
-
-    ref rarr[REFS_MAX_REFS];
-    u32 rn = 0;
-    REFSLoad(rarr, &rn, REFS_MAX_REFS, rmap_out, $path(keepdir));
-
-    a_pad(u8, apad, 256);
-    a_cstr(slashes, "//");
-    u8bFeed(apad, slashes);
-    u8bFeed(apad, g->authority);
-    a_dup(u8c, akey, u8bData(apad));
-
-    u8csMv(host_out, g->host);
-    u8csMv(path_out, g->path);
-    for (u32 i = 0; i < rn; i++) {
-        if (REFMatch(&rarr[i], akey)) {
-            uri resolved = {};
-            u8csc val = {rarr[i].val[0], rarr[i].val[1]};
-            if (DOGParseURI(&resolved, val) == OK &&
-                !u8csEmpty(resolved.host)) {
-                u8csMv(host_out, resolved.host);
-                u8csMv(path_out, resolved.path);
-            }
-            break;
-        }
-    }
-
-    //  HOME-relative convention: strip the leading '/' the URI parser
-    //  leaves in `//host/path`, matching what `keeper_get` does before
-    //  handing off to KEEPSync — otherwise ssh sees an absolute path
-    //  that doesn't exist and git-receive-pack rejects it.
-    if (!u8csEmpty(path_out) && *path_out[0] == '/') path_out[0]++;
-}
-
 //  Extract the tree SHA-1 (as 40 hex chars) from a commit object body.
 //  A git commit always starts with "tree <40hex>\n" per object format.
 static ok64 post_extract_tree_hex(u8 *out40, u8csc body) {
@@ -532,19 +459,20 @@ static ok64 keeper_post(keeper *k, cli *c) {
     u8bFeed(lb_buf, branch);
     a_dup(u8c, local_branch, u8bData(lb_buf));
 
-    //  3. Build the remote transport URI (alias-resolved).
-    u8bp rmap = NULL;
+    //  3. Build the remote transport URI (substring-resolved origin).
+    Bu8 rarena = {};
+    call(u8bMap, rarena, (size_t)REFS_MAX_REFS * 320);
     a_pad(u8, ubuf, FILE_PATH_MAX_LEN);
-    ok64 ru = keeper_remote_uri(k, g, ubuf, &rmap);
+    ok64 ru = keeper_remote_uri(k, g, ubuf, rarena);
     if (ru != OK) {
-        if (rmap) u8bUnMap(rmap);
+        u8bUnMap(rarena);
         return ru;
     }
     a_dup(u8c, remote_uri, u8bData(ubuf));
 
     //  4. Push.  WIREPush handles peer-tip advert + pack build + status.
     ok64 pu = WIREPush(k, remote_uri, local_branch);
-    if (rmap) u8bUnMap(rmap);
+    u8bUnMap(rarena);
     if (pu != OK) return pu;
 
     //  5. Advance local //host/path?heads/<branch> → ?<new-sha> so
@@ -582,7 +510,6 @@ ok64 KEEPExec(keeper *k, cli *c) {
     a_cstr(v_import, "import");
     a_cstr(v_verify, "verify");
     a_cstr(v_refs,   "refs");
-    a_cstr(v_alias,  "alias");
 
     if ($eq(c->verb, v_help) || CLIHas(c, "-h") || CLIHas(c, "--help")) {
         keep_usage(); done;
@@ -630,14 +557,6 @@ ok64 KEEPExec(keeper *k, cli *c) {
             return KEEPFAIL;
         }
         return keeper_verify(k, c->uris[0].fragment);
-    }
-
-    if ($eq(c->verb, v_alias)) {
-        if (c->nuris < 2 || u8csEmpty(c->uris[0].authority)) {
-            fprintf(stderr, "keeper: alias requires //name <uri>\n");
-            return KEEPFAIL;
-        }
-        return keeper_alias(k, &c->uris[0], &c->uris[1]);
     }
 
     a_cstr(v_lsfiles, "ls-files");

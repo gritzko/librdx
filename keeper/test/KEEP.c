@@ -272,8 +272,8 @@ ok64 KEEPBranchDropTable() {
     call(KEEPOpen, &h, YES);
 
     //  Trunk aliases must all refuse with KEEPTRUNK — none may be
-    //  dropped because trunk carries the paths registry, ALIAS, and
-    //  the root REFS.
+    //  dropped because trunk carries the paths registry plus the
+    //  root-level `refs` file (which also holds host aliases).
     BranchDropCase const cases[] = {
         {"",              KEEPTRUNK},
         {"main",          KEEPTRUNK},

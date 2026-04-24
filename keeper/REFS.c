@@ -1,238 +1,217 @@
+//  REFS — ULOG-backed ref/tip reflog for keeper.
+//  See REFS.h for the API and REF.md for the on-disk format.
+
 #include "REFS.h"
 
-#include "abc/POL.h"
+#include <string.h>
+#include <unistd.h>
+
+#include "abc/PATH.h"
 #include "abc/PRO.h"
-#include "dog/DOG.h"
-#include <stdlib.h>
-#include <time.h>
+#include "abc/RON.h"
+#include "abc/URI.h"
+#include "dog/ULOG.h"
 
-// --- Format one line: timestamp\tfrom\tto\n ---
+// --- verb (cached ron60 of "set") ---
 
-static ok64 refs_format_line(u8bp buf, refcp r) {
-    u8bReset(buf);
-    RONutf8sFeed(u8bIdle(buf), r->time);
-    u8bFeed1(buf, '\t');
-    u8bFeed(buf, r->key);
-    u8bFeed1(buf, '\t');
-    u8bFeed(buf, r->val);
-    u8bFeed1(buf, '\n');
-    return OK;
+static ron60 refs_verb_set(void) {
+    static ron60 cached = 0;
+    if (cached) return cached;
+    u8c raw[] = {'s', 'e', 't'};
+    u8cs s = {raw, raw + sizeof(raw)};
+    a_dup(u8c, dup, s);
+    RONutf8sDrain(&cached, dup);
+    return cached;
 }
 
-// --- Open REFS file for append ---
+// --- path builder ---
+//
+//  Expands to: path8b `name##_pbuf` holding `<dir>/refs`, plus a
+//  const slice view `name` (NUL-terminated) suitable for ULOGOpen.
 
-static int refs_open_append(u8csc dir) {
-    a_cstr(fname, REFS_FILE);
-    a_path(path, dir, fname);
-    return open((char *)u8bDataHead(path), O_WRONLY | O_CREAT | O_APPEND, 0644);
+#define REFS_LOG_PATH(name, dir)                                \
+    a_cstr(name##_fname, REFS_FILE);                            \
+    a_path(name##_pbuf, dir, name##_fname);                     \
+    a_dup(u8c, name, u8bDataC(name##_pbuf))
+
+// --- URI helpers ---
+
+//  Parse `input` with URILexer into `u_out`, running against the bytes
+//  of `dup` (a writable copy).  Leaves `u_out->data` pointing at the
+//  pre-lex bytes so URIutf8Feed can re-serialise later if needed.
+static ok64 refs_lex_uri(urip u_out, u8csc input) {
+    sane(u_out);
+    memset(u_out, 0, sizeof(*u_out));
+    u_out->data[0] = input[0];
+    u_out->data[1] = input[1];
+    call(URILexer, u_out);
+    //  URILexer consumes data; re-seed so URIutf8Feed can reproduce.
+    u_out->data[0] = input[0];
+    u_out->data[1] = input[1];
+    done;
 }
 
-// --- Append ---
+//  Build the URI bytes `<from>#?<sha>` into `out` (out must be empty).
+//  `to` is accepted with or without a leading `?`; the leading `?` is
+//  then re-emitted as the first byte of the fragment payload.
+static ok64 refs_build_row_uri(u8b out, u8csc from, u8csc to) {
+    sane(u8bOK(out));
+    u8cs sha = {to[0], to[1]};
+    if (!u8csEmpty(sha) && sha[0][0] == '?') u8csUsed(sha, 1);
+    u8bFeed(out, from);
+    u8bFeed1(out, '#');
+    u8bFeed1(out, '?');
+    u8bFeed(out, sha);
+    done;
+}
+
+// --- append helpers (shared by REFSAppend / REFSSyncRecord / REFSCompact) ---
+
+//  Read the log's current tail timestamp (0 if empty).  Caller has l open.
+static ron60 refs_tail_ts(ulog const *l) {
+    u32 n = ULOGCount(l);
+    if (n == 0) return 0;
+    ron60 ts = 0, verb = 0;
+    uri u = {};
+    if (ULOGTail(l, &ts, &verb, &u) != OK) return 0;
+    return ts;
+}
+
+//  Append a single (from, to) row at timestamp `ts` (clamped above
+//  the log's tail for monotonicity).  Returns the effective ts via
+//  `*ts_inout`.
+static ok64 refs_push_row(ulogp l, ron60 *ts_inout, u8csc from, u8csc to) {
+    sane(l && ts_inout);
+    a_pad(u8, urib, 2048);
+    call(refs_build_row_uri, urib, from, to);
+    a_dup(u8c, uri_bytes, u8bData(urib));
+
+    uri u = {};
+    call(refs_lex_uri, &u, uri_bytes);
+
+    ron60 ts = *ts_inout;
+    ron60 last = refs_tail_ts(l);
+    if (ts <= last) ts = last + 1;
+
+    call(ULOGAppendAt, l, ts, refs_verb_set(), &u);
+    *ts_inout = ts;
+    done;
+}
+
+// --- public: append ---
 
 ok64 REFSAppend(u8csc dir, u8csc from_uri, u8csc to_uri) {
     sane($ok(dir) && $ok(from_uri) && $ok(to_uri));
+    if (u8csEmpty(from_uri) || u8csEmpty(to_uri)) fail(REFSBAD);
 
-    int fd = refs_open_append(dir);
-    if (fd < 0) fail(REFSFAIL);
+    REFS_LOG_PATH(log_path, dir);
+    ulog l = {};
+    call(ULOGOpen, &l, log_path);
 
-    ref r = {.time = RONNow()};
-    r.key[0] = from_uri[0]; r.key[1] = from_uri[1];
-    r.val[0] = to_uri[0];  r.val[1] = to_uri[1];
-
-    a_pad(u8, line, 2048);
-    ok64 o = refs_format_line(line, &r);
-    if (o != OK) { close(fd); return o; }
-
-    a_dup(u8c, data, u8bData(line));
-    o = FILEFeed(fd, data);
-    close(fd);
-    if (o != OK) fail(REFSFAIL);
-
+    ron60 ts = RONNow();
+    ok64 o = refs_push_row(&l, &ts, from_uri, to_uri);
+    ULOGClose(&l);
+    if (o != OK) return o;
     done;
 }
-
-// --- Sync record: bulk append ref records ---
 
 ok64 REFSSyncRecord(u8csc dir, refcp arr, u32 nrefs) {
     sane($ok(dir) && nrefs > 0);
+    REFS_LOG_PATH(log_path, dir);
+    ulog l = {};
+    call(ULOGOpen, &l, log_path);
 
-    int fd = refs_open_append(dir);
-    if (fd < 0) fail(REFSFAIL);
-
-    a_pad(u8, line, 2048);
-
+    ron60 ts = RONNow();
     for (u32 i = 0; i < nrefs; i++) {
-        ok64 o = refs_format_line(line, &arr[i]);
-        if (o != OK) { close(fd); return o; }
-        a_dup(u8c, ldata, u8bData(line));
-        o = FILEFeed(fd, ldata);
-        if (o != OK) { close(fd); fail(REFSFAIL); }
+        u8csc from = {arr[i].key[0], arr[i].key[1]};
+        u8csc to   = {arr[i].val[0], arr[i].val[1]};
+        ok64 o = refs_push_row(&l, &ts, from, to);
+        if (o != OK) { ULOGClose(&l); return o; }
+        ts++;  // next row must exceed this one (refs_push_row clamps, too)
     }
-
-    close(fd);
+    ULOGClose(&l);
     done;
 }
 
-// --- Append received reflog tail with dedup ---
+// --- public: load / each ---
 
-ok64 REFSAppendTail(u8csc dir, u8csc bytes) {
-    sane($ok(dir));
-    if (u8csEmpty(bytes)) done;
-
-    // Load existing REFS into memory for dedup (compare whole line
-    // bytes — time+key+val+'\n' — since two different refs can share
-    // a key if recorded at different times).
-    a_cstr(fname, REFS_FILE);
-    a_path(path, dir, fname);
-    u8bp have_map = NULL;
-    u8cp have_head = NULL;
-    u8cp have_term = NULL;
-    ok64 mo = FILEMapRO(&have_map, $path(path));
-    if (mo == OK) {
-        have_head = u8bDataHead(have_map);
-        have_term = u8bIdleHead(have_map);
-    }
-
-    int fd = refs_open_append(dir);
-    if (fd < 0) { if (have_map) FILEUnMap(have_map); fail(REFSFAIL); }
-
-    a_dup(u8c, scan, bytes);
-    while (!u8csEmpty(scan)) {
-        a_dup(u8c, probe, scan);
-        u8cs line = {};
-        if (u8csFind(probe, '\n') == OK) {
-            line[0] = scan[0];
-            line[1] = probe[0] + 1;  // include '\n'
-            scan[0] = probe[0] + 1;
-        } else {
-            line[0] = scan[0];
-            line[1] = scan[1];
-            scan[0] = scan[1];
-        }
-        if (u8csLen(line) < 2) continue;
-
-        // Dedup: is this exact line already present anywhere?
-        b8 dup = NO;
-        if (have_head && have_term > have_head) {
-            u64 llen = u8csLen(line);
-            u8cp p = have_head;
-            while (p + llen <= have_term) {
-                if (memcmp(p, line[0], llen) == 0) { dup = YES; break; }
-                // advance to next line boundary
-                while (p < have_term && *p != '\n') p++;
-                if (p < have_term) p++;
-            }
-        }
-        if (dup) continue;
-
-        u8cs out = {line[0], line[1]};
-        ok64 fo = FILEFeed(fd, out);
-        if (fo != OK) { close(fd); if (have_map) FILEUnMap(have_map); fail(REFSFAIL); }
-    }
-
-    close(fd);
-    if (have_map) FILEUnMap(have_map);
-    done;
-}
-
-// --- Parse one line into ref record ---
-// Line: timestamp\tkey\tval (no trailing \n)
-
-static b8 refs_parse_line(refp out, u8csc line) {
-    if (u8csEmpty(line)) return NO;
-
-    a_dup(u8c, rest, line);
-
-    // find first \t → end of timestamp
-    if (u8csFind(rest, '\t') != OK) return NO;
-    u8cs ts_str = {line[0], rest[0]};
-    u8csUsed(rest, 1);
-
-    // find second \t → end of key
-    u8cp key_head = rest[0];
-    if (u8csFind(rest, '\t') != OK) return NO;
-    out->key[0] = key_head;
-    out->key[1] = rest[0];
-    u8csUsed(rest, 1);
-
-    // remainder is val
-    if (u8csEmpty(rest)) return NO;
-    u8csMv(out->val, rest);
-
-    // decode timestamp
-    a_dup(u8c, ts_dup, ts_str);
-    out->time = 0;
-    RONutf8sDrain(&out->time, ts_dup);
-
-    // classify
-    if (u8csLen(out->key) >= 2 &&
-        out->key[0][0] == '/' && out->key[0][1] == '/')
-        out->type = REF_ALIAS;
-    else
-        out->type = REF_SHA;
-
+//  Split a re-serialised URI on its `#` separator.  Returns NO if no
+//  fragment is present.
+static b8 refs_split_hash(u8cs uri_bytes, u8csp key_out, u8csp val_out) {
+    u8cp p = uri_bytes[0];
+    u8cp e = uri_bytes[1];
+    while (p < e && *p != '#') p++;
+    if (p == e) return NO;
+    key_out[0] = uri_bytes[0]; key_out[1] = p;
+    val_out[0] = p + 1;        val_out[1] = e;
     return YES;
 }
 
-// --- Dedup helper: find or insert ---
+ok64 REFSLoad(refp arr, u32p out_n, u32 max, u8b arena, u8csc dir) {
+    sane(arr && out_n && u8bOK(arena));
+    *out_n = 0;
 
-static void refs_upsert(refp arr, u32 *n, u32 max, refcp entry) {
-    for (u32 i = 0; i < *n; i++) {
-        if (REFMatch(&arr[i], entry->key)) {
-            if (entry->time >= arr[i].time) arr[i] = *entry;
-            return;
+    REFS_LOG_PATH(log_path, dir);
+    ulog l = {};
+    ok64 oo = ULOGOpen(&l, log_path);
+    if (oo != OK) done;  // missing / unreadable file ⇒ 0 refs, no error
+
+    u32 nrows = ULOGCount(&l);
+    u32 cnt = 0;
+
+    for (u32 i = 0; i < nrows; i++) {
+        ron60 ts = 0, verb = 0;
+        uri u = {};
+        if (ULOGRow(&l, i, &ts, &verb, &u) != OK) continue;
+        if (verb != refs_verb_set()) continue;
+
+        //  Re-serialise into arena, then split on '#'.
+        u8 *uri_head = u8bIdleHead(arena);
+        if (URIutf8Feed(u8bIdle(arena), &u) != OK) continue;
+        u8 *uri_term = u8bIdleHead(arena);
+        u8cs uri_bytes = {uri_head, uri_term};
+
+        u8cs key_s = {}, val_s = {};
+        if (!refs_split_hash(uri_bytes, key_s, val_s)) continue;
+
+        //  Upsert: replace existing entry with same key; later row wins.
+        b8 replaced = NO;
+        for (u32 j = 0; j < cnt; j++) {
+            if (REFMatch(&arr[j], key_s)) {
+                arr[j].time = ts;
+                arr[j].key[0] = key_s[0]; arr[j].key[1] = key_s[1];
+                arr[j].val[0] = val_s[0]; arr[j].val[1] = val_s[1];
+                arr[j].type = REF_SHA;
+                replaced = YES;
+                break;
+            }
+        }
+        if (!replaced && cnt < max) {
+            ref *e = &arr[cnt++];
+            e->time = ts;
+            e->key[0] = key_s[0]; e->key[1] = key_s[1];
+            e->val[0] = val_s[0]; e->val[1] = val_s[1];
+            e->type = REF_SHA;
         }
     }
-    if (*n < max) arr[(*n)++] = *entry;
-}
 
-// --- Load: scan file, collect latest per key ---
-
-ok64 REFSLoad(refp arr, u32p out_n, u32 max, u8bp *map, u8csc dir) {
-    sane(arr && out_n && map);
-
-    a_cstr(fname, REFS_FILE);
-    a_path(path, dir, fname);
-    ok64 o = FILEMapRO(map, $path(path));
-    if (o != OK) { *out_n = 0; return OK; }
-
-    u32 n = 0;
-    a_dup(u8c, scan, u8bData(*map));
-
-    while (!u8csEmpty(scan)) {
-        a_dup(u8c, probe, scan);
-        if (u8csFind(probe, '\n') == OK) {
-            u8cs line = {scan[0], probe[0]};
-            scan[0] = probe[0] + 1;
-
-            ref entry = {};
-            if (refs_parse_line(&entry, line))
-                refs_upsert(arr, &n, max, &entry);
-        } else {
-            // last line, no trailing \n
-            ref entry = {};
-            if (refs_parse_line(&entry, scan))
-                refs_upsert(arr, &n, max, &entry);
-            break;
-        }
-    }
-
-    *out_n = n;
+    ULOGClose(&l);
+    *out_n = cnt;
     done;
 }
-
-// --- Each ---
 
 ok64 REFSEach(u8csc dir, refs_cb cb, void *ctx) {
     sane($ok(dir) && cb != NULL);
 
-    u8bp map = NULL;
+    Bu8 arena = {};
+    call(u8bMap, arena, (size_t)REFS_MAX_REFS * 320);
+
     ref *arr = calloc(REFS_MAX_REFS, sizeof(ref));
-    if (!arr) fail(REFSFAIL);
+    if (!arr) { u8bUnMap(arena); fail(REFSFAIL); }
 
     u32 n = 0;
-    ok64 o = REFSLoad(arr, &n, REFS_MAX_REFS, &map, dir);
-    if (o != OK) { free(arr); return o; }
+    ok64 o = REFSLoad(arr, &n, REFS_MAX_REFS, arena, dir);
+    if (o != OK) { free(arr); u8bUnMap(arena); return o; }
 
     for (u32 i = 0; i < n; i++) {
         o = cb(&arr[i], ctx);
@@ -240,327 +219,213 @@ ok64 REFSEach(u8csc dir, refs_cb cb, void *ctx) {
     }
 
     free(arr);
-    if (map) u8bUnMap(map);
+    u8bUnMap(arena);
     done;
 }
 
-// --- Resolve ---
+// --- public: resolve ---
+
+//  Lower-level literal-prefix check.
+static b8 refs_starts_with(u8csc s, char const *pfx) {
+    size_t pl = strlen(pfx);
+    if ((size_t)$len(s) < pl) return NO;
+    return memcmp(s[0], pfx, pl) == 0;
+}
+
+//  Substring match: does haystack contain needle?  Empty needle matches.
+static b8 refs_host_match(u8csc host, u8csc needle) {
+    if (u8csEmpty(needle)) return YES;
+    size_t nl = u8csLen(needle);
+    size_t hl = u8csLen(host);
+    if (hl < nl) return NO;
+    for (size_t off = 0; off + nl <= hl; off++) {
+        if (memcmp(host[0] + off, needle[0], nl) == 0) return YES;
+    }
+    return NO;
+}
+
+//  Refname equality / heads|tags-prefix variant match.
+//    in_query="heads/master" matches r_query="heads/master".
+//    in_query="master"       matches r_query in {"master","heads/master","tags/master"}.
+//    in_query=""             matches any row (authority-only lookup).
+static b8 refs_query_match(u8csc in_query, u8csc r_query) {
+    if (u8csEmpty(in_query)) return YES;
+    if (u8csLen(in_query) == u8csLen(r_query) &&
+        memcmp(in_query[0], r_query[0], u8csLen(in_query)) == 0)
+        return YES;
+    //  Try heads/<in_query> and tags/<in_query>.
+    a_pad(u8, hbuf, 128);
+    a_cstr(heads_pfx, "heads/");
+    u8bFeed(hbuf, heads_pfx);
+    u8bFeed(hbuf, in_query);
+    a_dup(u8c, h, u8bData(hbuf));
+    if (u8csLen(h) == u8csLen(r_query) &&
+        memcmp(h[0], r_query[0], u8csLen(h)) == 0)
+        return YES;
+    a_pad(u8, tbuf, 128);
+    a_cstr(tags_pfx, "tags/");
+    u8bFeed(tbuf, tags_pfx);
+    u8bFeed(tbuf, in_query);
+    a_dup(u8c, t, u8bData(tbuf));
+    if (u8csLen(t) == u8csLen(r_query) &&
+        memcmp(t[0], r_query[0], u8csLen(t)) == 0)
+        return YES;
+    return NO;
+}
+
+//  Feed `src` into `arena` and capture the written slice into `out`.
+static ok64 refs_capture(u8bp arena, u8csc src, u8csp out) {
+    sane(arena && out);
+    u8 *head = u8bIdleHead(arena);
+    call(u8bFeed, arena, src);
+    out[0] = head;
+    out[1] = u8bIdleHead(arena);
+    done;
+}
 
 ok64 REFSResolve(urip resolved, u8bp arena, u8csc dir, u8csc input) {
     sane($ok(dir) && $ok(input) && resolved != NULL && arena != NULL);
+    memset(resolved, 0, sizeof(*resolved));
 
-    uri u = {};
-    call(DOGParseURI, &u, input);
+    uri in = {};
+    call(refs_lex_uri, &in, input);
 
-    // Canonical form for lookup: `//<authority><path>?<query>` with no
-    // scheme.  Both `ssh://host:x?ref` and `https://host:x?ref` reduce
-    // to `//host:x?ref`.  Keeper stores origin URIs in this same form.
-    a_pad(u8, canbuf, 1024);
-    if (!u8csEmpty(u.authority) || !u8csEmpty(u.host)) {
-        call(DOGCanonURIKey, canbuf, &u, YES);
-    } else {
-        u8bFeed(canbuf, input);
+    //  Normalise input query: strip leading `refs/`.
+    u8cs in_query = {in.query[0], in.query[1]};
+    if ($len(in_query) > 5 && memcmp(in_query[0], "refs/", 5) == 0)
+        u8csUsed(in_query, 5);
+
+    //  Host needle: prefer `in.host`, fall back to `in.authority` minus
+    //  leading `//`.  `.` is treated as "any host" (local refs).
+    u8cs host_needle = {};
+    b8   auth_is_dot = NO;
+    if (!u8csEmpty(in.host)) {
+        host_needle[0] = in.host[0];
+        host_needle[1] = in.host[1];
+        if (u8csLen(host_needle) == 1 && host_needle[0][0] == '.')
+            auth_is_dot = YES;
+    } else if (!u8csEmpty(in.authority)) {
+        u8cs a = {in.authority[0], in.authority[1]};
+        if ($len(a) >= 2 && a[0][0] == '/' && a[0][1] == '/')
+            u8csUsed(a, 2);
+        host_needle[0] = a[0];
+        host_needle[1] = a[1];
+        if (u8csLen(host_needle) == 1 && host_needle[0][0] == '.')
+            auth_is_dot = YES;
+    } else if (!u8csEmpty(in.path)) {
+        //  `.?ref` parses with path=`.` and empty authority.
+        if ($len(in.path) == 1 && in.path[0][0] == '.') auth_is_dot = YES;
     }
-    u8csc dropped = {u8bDataHead(canbuf), u8bIdleHead(canbuf)};
-
-    u8bp map = NULL;
-    ref *arr = calloc(REFS_MAX_REFS, sizeof(ref));
-    if (!arr) fail(REFSFAIL);
-
-    u32 n = 0;
-    ok64 o = REFSLoad(arr, &n, REFS_MAX_REFS, &map, dir);
-    if (o != OK) { free(arr); return o; }
-
-    // Direct-match chain: input canonicalised equals a stored ref key,
-    // whose value may be another URI-shaped key (`//auth?ref`) or a
-    // terminal `?<40-hex>` SHA.  Chase the alias chain up to
-    // REFS_MAX_CHAIN hops.  Keeper records remote refs under
-    // `//<host><path>?<branch>` and local refs under `//<auth>?<branch>`.
-    u8cs cur = {};
-    cur[0] = dropped[0];
-    cur[1] = dropped[1];
-    for (int hop = 0; hop < REFS_MAX_CHAIN && !u8csEmpty(cur); hop++) {
-        refp found = NULL;
-        for (u32 i = 0; i < n; i++) {
-            if (REFMatch(&arr[i], cur)) { found = &arr[i]; break; }
-        }
-        if (!found) break;
-        u8cs vfull = {found->val[0], found->val[1]};
-        if ($empty(vfull)) break;
-        // Terminal SHA: `?<40-hex>`.
-        if (vfull[0][0] == '?' && u8csLen(vfull) == 41) {
-            b8 is_sha = YES;
-            for (u8cp p = vfull[0] + 1; p < vfull[1]; p++) {
-                u8 ch = *p;
-                b8 hex = (ch >= '0' && ch <= '9') ||
-                         (ch >= 'a' && ch <= 'f') ||
-                         (ch >= 'A' && ch <= 'F');
-                if (!hex) { is_sha = NO; break; }
-            }
-            if (is_sha) {
-                u8bFeed(arena, vfull);
-                size_t vl = u8csLen(vfull);
-                resolved->query[0] = u8bIdleHead(arena) - vl + 1;
-                resolved->query[1] = u8bIdleHead(arena);
-                free(arr);
-                if (map) u8bUnMap(map);
-                done;
-            }
-        }
-        // Follow alias: next iteration matches the val as a new key.
-        u8bFeed(arena, vfull);
-        size_t vl = u8csLen(vfull);
-        cur[0] = u8bIdleHead(arena) - vl;
-        cur[1] = u8bIdleHead(arena);
+    if (auth_is_dot) {
+        host_needle[0] = NULL;
+        host_needle[1] = NULL;
     }
 
-    //  Local-ref shorthands — `?ref`, `.?ref`, `//.?ref`.  The
-    //  variant-matcher below treats these as "any stored origin".
-    //  (DOGParseURI on `.?x` gives path=".", authority=""; on `?x`
-    //  both are empty; on `//.?x` authority="//.", host=".".)
-    b8 local_dot = NO;
-    if (!u8csEmpty(u.query)) {
-        if ($len(u.authority) == 1 && u.authority[0][0] == '.')
-            local_dot = YES;
-        else if (u8csEmpty(u.authority)) {
-            if (u8csEmpty(u.path) ||
-                ($len(u.path) == 1 && u.path[0][0] == '.'))
-                local_dot = YES;
-        }
+    REFS_LOG_PATH(log_path, dir);
+    ulog l = {};
+    ok64 oo = ULOGOpen(&l, log_path);
+    if (oo != OK) fail(REFSNONE);
+
+    u32 nrows = ULOGCount(&l);
+    b8 found = NO;
+    for (u32 i = nrows; i > 0 && !found; ) {
+        i--;
+        ron60 ts = 0, verb = 0;
+        uri u = {};
+        if (ULOGRow(&l, i, &ts, &verb, &u) != OK) continue;
+        if (verb != refs_verb_set()) continue;
+
+        u8cs r_host  = {u.host[0],  u.host[1]};
+        u8cs r_query = {u.query[0], u.query[1]};
+        if (!refs_query_match(in_query, r_query)) continue;
+        if (!u8csEmpty(host_needle) && !refs_host_match(r_host, host_needle))
+            continue;
+
+        //  Fill resolved.query = terminal sha (strip leading `?`).
+        u8cs frag = {u.fragment[0], u.fragment[1]};
+        if (!u8csEmpty(frag) && frag[0][0] == '?') u8csUsed(frag, 1);
+        if (!u8csEmpty(frag))
+            call(refs_capture, arena, frag, resolved->query);
+
+        //  Fill scheme/host/path from the matched row (for transport URI
+        //  builders that previously leaned on `keeper alias`).
+        if (!u8csEmpty(u.scheme))
+            call(refs_capture, arena, u.scheme, resolved->scheme);
+        if (!u8csEmpty(r_host))
+            call(refs_capture, arena, r_host,  resolved->host);
+        if (!u8csEmpty(u.path))
+            call(refs_capture, arena, u.path,  resolved->path);
+
+        found = YES;
     }
-
-    // Second try: normalise the query to the form keeper stores
-    // (`?heads/<name>` or `?tags/<name>`).  Users may type `?refs/heads/x`
-    // (strip `refs/`), `?x` (try adding `heads/` and `tags/`), or
-    // already-normalised `?heads/x`.
-    if ((!u8csEmpty(u.authority) || local_dot) && !u8csEmpty(u.query)) {
-        u8cs variants[3] = {};
-        u32 nv = 0;
-        a_cstr(refs_pfx,  "refs/");
-        a_cstr(heads_pfx, "heads/");
-        a_cstr(tags_pfx,  "tags/");
-        a_pad(u8, hbuf, 512);
-        a_pad(u8, tbuf, 512);
-        if ($len(u.query) > 5 && memcmp(u.query[0], refs_pfx[0], 5) == 0) {
-            // `refs/x/y` → try `x/y` as-is
-            variants[nv][0] = u.query[0] + 5;
-            variants[nv][1] = u.query[1];
-            nv++;
-        } else if (($len(u.query) > 6 && memcmp(u.query[0], heads_pfx[0], 6) == 0) ||
-                   ($len(u.query) > 5 && memcmp(u.query[0], tags_pfx[0], 5) == 0)) {
-            // Already normalised — handled by direct-match above.
-        } else {
-            // Bare name — try `<name>` as-is (covers `HEAD` and
-            // any other top-level key stored without a `heads/` /
-            // `tags/` prefix), then `heads/<name>` and `tags/<name>`.
-            variants[nv][0] = u.query[0];
-            variants[nv][1] = u.query[1];
-            nv++;
-            u8bFeed(hbuf, heads_pfx);
-            u8bFeed(hbuf, u.query);
-            variants[nv][0] = u8bDataHead(hbuf);
-            variants[nv][1] = u8bIdleHead(hbuf);
-            nv++;
-            u8bFeed(tbuf, tags_pfx);
-            u8bFeed(tbuf, u.query);
-            variants[nv][0] = u8bDataHead(tbuf);
-            variants[nv][1] = u8bIdleHead(tbuf);
-            nv++;
-        }
-        //  `.` authority means "any stored origin" — match on the
-        //  `?<variant>` suffix only.  Covers `keeper get .?master`
-        //  and `be get ?master` style shorthands after a clone.
-        //  `local_dot` generalises to include the bare `.?ref` shape
-        //  (where DOGParseURI put `.` into path, not authority).
-        b8 auth_is_dot = local_dot ||
-            ($len(u.authority) == 1 && u.authority[0][0] == '.');
-
-        for (u32 vi = 0; vi < nv && u8csEmpty(resolved->query); vi++) {
-            //  Suffix we must see at the end of a stored key:
-            //  "?<variant>".  For non-`.` authorities we additionally
-            //  require the full key to equal the built `full_key`.
-            a_pad(u8, qbuf, 128);
-            u8bFeed1(qbuf, '?');
-            u8bFeed(qbuf, variants[vi]);
-            a_dup(u8c, qsuffix, u8bData(qbuf));
-            size_t qlen = u8csLen(qsuffix);
-
-            a_pad(u8, fkey, 1024);
-            a_cstr(slashes, "//");
-            u8bFeed(fkey, slashes);
-            u8cs auth = {u.authority[0], u.authority[1]};
-            if ($len(auth) >= 2 && auth[0][0] == '/' && auth[0][1] == '/')
-                u8csUsed(auth, 2);
-            u8bFeed(fkey, auth);
-            if (!u8csEmpty(u.path)) u8bFeed(fkey, u.path);
-            u8bFeed(fkey, qsuffix);
-            a_dup(u8c, full_key, u8bData(fkey));
-
-            for (u32 i = 0; i < n; i++) {
-                b8 match = NO;
-                if (auth_is_dot) {
-                    size_t kl = $len(arr[i].key);
-                    if (kl >= qlen &&
-                        memcmp(arr[i].key[0] + (kl - qlen),
-                               qsuffix[0], qlen) == 0)
-                        match = YES;
-                } else {
-                    match = REFMatch(&arr[i], full_key);
-                }
-                if (!match) continue;
-                u8cs vfull = {arr[i].val[0], arr[i].val[1]};
-                if (!$empty(vfull) && vfull[0][0] == '?') {
-                    u8cs out = {};
-                    u8csMv(out, vfull);
-                    u8csUsed(out, 1);
-                    u8bFeed(arena, out);
-                    size_t vlen = u8csLen(out);
-                    resolved->query[0] = u8bIdleHead(arena) - vlen;
-                    resolved->query[1] = u8bIdleHead(arena);
-                }
-                break;
-            }
-        }
-        if (!u8csEmpty(resolved->query)) {
-            free(arr);
-            if (map) u8bUnMap(map);
-            done;
-        }
-    }
-
-    // resolve authority (alias): //name → full URL
-    if (!u8csEmpty(u.authority)) {
-        a_pad(u8, keybuf, 256);
-        a_cstr(slashes, "//");
-        u8bFeed(keybuf, slashes);
-        u8bFeed(keybuf, u.authority);
-
-        for (int chain = 0; chain < REFS_MAX_CHAIN; chain++) {
-            a_dup(u8c, key, u8bData(keybuf));
-
-            refp found = NULL;
-            for (u32 i = 0; i < n; i++) {
-                if (REFMatch(&arr[i], key)) { found = &arr[i]; break; }
-            }
-            if (!found) break;
-
-            u8bFeed(arena, found->val);
-            size_t vlen = u8csLen(found->val);
-            u8cs aval = {u8bIdleHead(arena) - vlen, u8bIdleHead(arena)};
-
-            uri next = {};
-            u8csMv(next.data, aval);
-            ok64 oo = URILexer(&next);
-            if (oo != OK) break;
-
-            if (!u8csEmpty(next.scheme)) {
-                *resolved = next;
-                break;
-            }
-            u8bReset(keybuf);
-            u8bFeed(keybuf, found->val);
-        }
-    }
-
-    // resolve query (ref): ?refname → ?sha. Chain through aliases —
-    // e.g. `?HEAD → ?master`, `?master → ?<sha>` should resolve to
-    // the SHA, not stop at the alias. Stop when we hit a value that
-    // looks like a 40-char hex SHA (the terminal node) or a key with
-    // no further binding.
-    if (!u8csEmpty(u.query)) {
-        a_pad(u8, qbuf, 1024);
-        u8bFeed1(qbuf, '?');
-        u8bFeed(qbuf, u.query);
-
-        u8cs final_val = {};
-        for (int chain = 0; chain < REFS_MAX_CHAIN; chain++) {
-            a_dup(u8c, qkey, u8bData(qbuf));
-            refp found = NULL;
-            for (u32 i = 0; i < n; i++) {
-                if (REFMatch(&arr[i], qkey)) { found = &arr[i]; break; }
-            }
-            if (!found) break;
-            // Check if val[1..] is a 40-hex SHA — if so, we're done.
-            u8cs vfull = {found->val[0], found->val[1]};
-            if ($len(vfull) == 41 && vfull[0][0] == '?') {
-                b8 is_sha = YES;
-                for (int j = 1; j < 41; j++) {
-                    u8 c = vfull[0][j];
-                    if (!((c >= '0' && c <= '9') ||
-                          (c >= 'a' && c <= 'f') ||
-                          (c >= 'A' && c <= 'F'))) {
-                        is_sha = NO;
-                        break;
-                    }
-                }
-                if (is_sha) {
-                    u8csMv(final_val, vfull);
-                    break;
-                }
-            }
-            // Not a SHA — treat val as the next key and chain.
-            u8bReset(qbuf);
-            u8bFeed(qbuf, vfull);
-        }
-
-        if (!u8csEmpty(final_val)) {
-            // Strip leading '?' for the resolved->query slot.
-            u8cs out = {};
-            u8csMv(out, final_val);
-            if (out[0][0] == '?') u8csUsed(out, 1);
-            u8bFeed(arena, out);
-            size_t vlen = u8csLen(out);
-            resolved->query[0] = u8bIdleHead(arena) - vlen;
-            resolved->query[1] = u8bIdleHead(arena);
-        }
-    }
-
-    free(arr);
-    if (map) u8bUnMap(map);
+    ULOGClose(&l);
+    if (!found) fail(REFSNONE);
     done;
 }
 
-// --- Compact ---
+// --- public: compact ---
 
 ok64 REFSCompact(u8csc dir) {
     sane($ok(dir));
 
-    u8bp map = NULL;
+    Bu8 arena = {};
+    call(u8bMap, arena, (size_t)REFS_MAX_REFS * 320);
+
     ref *arr = calloc(REFS_MAX_REFS, sizeof(ref));
-    if (!arr) fail(REFSFAIL);
+    if (!arr) { u8bUnMap(arena); fail(REFSFAIL); }
 
     u32 n = 0;
-    ok64 o = REFSLoad(arr, &n, REFS_MAX_REFS, &map, dir);
-    if (o != OK) { free(arr); return o; }
+    ok64 lo = REFSLoad(arr, &n, REFS_MAX_REFS, arena, dir);
+    if (lo != OK) { free(arr); u8bUnMap(arena); return lo; }
+    if (n == 0) { free(arr); u8bUnMap(arena); done; }
 
-    if (n == 0) {
-        free(arr);
-        if (map) u8bUnMap(map);
-        done;
+    //  Sort kept entries by time so monotonicity holds on rewrite.
+    //  Insertion sort — N ≤ REFS_MAX_REFS and REFSCompact is rare.
+    for (u32 i = 1; i < n; i++) {
+        ref tmp = arr[i];
+        u32 j = i;
+        while (j > 0 && arr[j - 1].time > tmp.time) {
+            arr[j] = arr[j - 1];
+            j--;
+        }
+        arr[j] = tmp;
     }
 
-    a_cstr(tmpname, "refs.tmp");
-    a_cstr(fname, REFS_FILE);
-    a_path(tmppath, dir, tmpname);
-    int fd = -1;
-    o = FILECreate(&fd, $path(tmppath));
-    if (o != OK) { free(arr); if (map) u8bUnMap(map); fail(REFSFAIL); }
+    //  Build tmp path `<dir>/refs.tmp`, unlink any stale file, rewrite.
+    a_cstr(tmp_fname, "refs.tmp");
+    a_path(tmp_pbuf, dir, tmp_fname);
+    a_dup(u8c, tmp_path, u8bDataC(tmp_pbuf));
+    (void)unlink((char const *)tmp_path[0]);
 
-    a_pad(u8, line, 2048);
+    ulog nl = {};
+    ok64 to = ULOGOpen(&nl, tmp_path);
+    if (to != OK) { free(arr); u8bUnMap(arena); return to; }
+
     for (u32 i = 0; i < n; i++) {
-        ok64 oo = refs_format_line(line, &arr[i]);
-        if (oo != OK) { close(fd); free(arr); if (map) u8bUnMap(map); return oo; }
-        a_dup(u8c, ldata, u8bData(line));
-        oo = FILEFeed(fd, ldata);
-        if (oo != OK) { close(fd); free(arr); if (map) u8bUnMap(map); return oo; }
+        u8csc from = {arr[i].key[0], arr[i].key[1]};
+        u8csc to_v = {arr[i].val[0], arr[i].val[1]};
+        a_pad(u8, urib, 2048);
+        ok64 bo = refs_build_row_uri(urib, from, to_v);
+        if (bo != OK) { ULOGClose(&nl); free(arr); u8bUnMap(arena); return bo; }
+        a_dup(u8c, uri_bytes, u8bData(urib));
+
+        uri u = {};
+        if (refs_lex_uri(&u, uri_bytes) != OK) {
+            ULOGClose(&nl); free(arr); u8bUnMap(arena);
+            fail(REFSBAD);
+        }
+        ok64 ao = ULOGAppendAt(&nl, arr[i].time, refs_verb_set(), &u);
+        if (ao != OK) {
+            ULOGClose(&nl); free(arr); u8bUnMap(arena);
+            fail(REFSFAIL);
+        }
     }
-    close(fd);
+    ULOGClose(&nl);
+
     free(arr);
-    if (map) u8bUnMap(map);
+    u8bUnMap(arena);
 
-    a_path(fpath, dir, fname);
-    o = FILERename($path(tmppath), $path(fpath));
-    if (o != OK) fail(REFSFAIL);
-
+    REFS_LOG_PATH(log_path, dir);
+    call(FILERename, tmp_path, log_path);
     done;
 }
