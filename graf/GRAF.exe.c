@@ -140,21 +140,30 @@ ok64 GRAFExec(cli *c) {
         done;
     }
 
-    // --- diff: file-based, no keeper needed ---
+    // --- diff: dispatch on URI shape ---
+    //
+    //   2 URIs, no ?query on either → file-pair (no keeper needed)
+    //   1 URI with ?query           → URI-driven, falls through
+    //                                 to the keeper-open block below
 
     if ($eq(c->verb, v_diff)) {
-        if (c->nuris < 2) {
-            fprintf(stderr, "graf: diff requires 2 files: old new\n");
-            return FAILSANITY;
+        b8 has_query = (c->nuris >= 1 && !u8csEmpty(c->uris[0].query));
+        if (!has_query) {
+            if (c->nuris < 2) {
+                fprintf(stderr,
+                    "graf: diff requires 2 files, or 1 URI with ?ref\n");
+                return FAILSANITY;
+            }
+            pid_t pager = graf_start_pager(c->tty_out);
+            u8cs op = {}, np = {};
+            graf_uri_path(op, &c->uris[0]);
+            graf_uri_path(np, &c->uris[1]);
+            u8cs nomode = {};
+            ok64 ret = GRAFDiff(op, np, np, nomode, nomode);
+            graf_stop_pager(pager);
+            return ret;
         }
-        pid_t pager = graf_start_pager(c->tty_out);
-        u8cs op = {}, np = {};
-        graf_uri_path(op, &c->uris[0]);
-        graf_uri_path(np, &c->uris[1]);
-        u8cs nomode = {};
-        ok64 ret = GRAFDiff(op, np, np, nomode, nomode);
-        graf_stop_pager(pager);
-        return ret;
+        // fall through to keeper-open block below
     }
 
     // --- merge: file-based, no keeper needed ---
@@ -222,6 +231,44 @@ ok64 GRAFExec(cli *c) {
         // A ref-scoped entry point can resolve URI ?ref → commit
         // hashlet and pass it here.
         ret = GRAFBlame(&KEEP, path, 0, reporoot);
+        graf_stop_pager(pager);
+
+    } else if ($eq(c->verb, v_diff)) {
+        //  URI-driven diff.  Shape is already validated above
+        //  (c->nuris >= 1 && !empty(query)).  Split query on "..":
+        //    has "..", has path   → file ref-to-ref (via WeaveDiff)
+        //    has "..", no path    → tree ref-to-ref
+        //    no "..", has path    → file ref vs wt
+        //    no "..", no path     → tree ref vs wt
+        pid_t pager = graf_start_pager(c->tty_out);
+        uri *u = &c->uris[0];
+        u8cs wf = {}, wt = {};
+        a_dup(u8c, q, u->query);
+        u8cs dots = {(u8cp)"..", (u8cp)".." + 2};
+        b8 has_range = (u8csFindS(q, dots) == OK);
+        if (has_range) {
+            wf[0] = u->query[0];
+            wf[1] = q[0];
+            wt[0] = q[0] + 2;
+            wt[1] = u->query[1];
+        } else {
+            u8csMv(wt, u->query);
+        }
+        u8cs path = {};
+        u8csMv(path, u->path);
+        if (!$empty(path)) {
+            if (has_range) {
+                ret = GRAFWeaveDiff(&KEEP, path, reporoot, wf, wt);
+            } else {
+                ret = GRAFDiffFileWT(&KEEP, path, wt, reporoot);
+            }
+        } else {
+            if (has_range) {
+                ret = GRAFDiffTreeRefs(&KEEP, wf, wt, reporoot);
+            } else {
+                ret = GRAFDiffTreeWT(&KEEP, wt, reporoot);
+            }
+        }
         graf_stop_pager(pager);
 
     } else if ($eq(c->verb, v_weave)) {

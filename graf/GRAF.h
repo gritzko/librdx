@@ -110,6 +110,21 @@ ok64 GRAFBlame(keeper *k, u8cs filepath, u64 tip_h, u8cs reporoot);
 ok64 GRAFWeaveDiff(keeper *k, u8cs filepath, u8cs reporoot,
                    u8cs from, u8cs to);
 
+// URI-driven diff primitives.  `ref`/`from`/`to` are the `?`-less
+// bodies of a URI query (e.g. `tags/v1`, `heads/main`).  Each emits
+// one `--- <path> ---` hunk block per changed file through
+// GRAFHunkEmit, same format as GRAFDiff/GRAFWeaveDiff.
+//
+//   GRAFDiffFileWT   — single file: blob at `ref` vs worktree file.
+//   GRAFDiffTreeWT   — whole tree: walk `ref`, diff each file vs wt,
+//                      plus wt-only files as insertions.
+//   GRAFDiffTreeRefs — whole tree: walk both refs, pair by path,
+//                      orphans on either side become deletions
+//                      or insertions against empty.
+ok64 GRAFDiffFileWT(keeper *k, u8cs filepath, u8cs ref, u8cs reporoot);
+ok64 GRAFDiffTreeWT(keeper *k, u8cs ref, u8cs reporoot);
+ok64 GRAFDiffTreeRefs(keeper *k, u8cs from, u8cs to, u8cs reporoot);
+
 // Deterministic URI-driven blob/tree merge (see graf/GET.md).
 //
 // URI grammar: `path?sha1&sha2&...&shaN`.  Trailing `/` on the path

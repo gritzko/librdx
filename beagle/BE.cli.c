@@ -291,6 +291,22 @@ static ok64 BEDelete(cli *c, b8 seq) {
     return BEDispatch(c, steps, 1, seq);
 }
 
+//  `be diff <uri>` — delegate to graf.  For local URIs (no authority)
+//  graf reads objects straight from keeper's store; for a remote URI
+//  we `keeper get` first to materialize the reachable closure, same
+//  as `be patch`.
+static ok64 BEDiff(cli *c, b8 seq) {
+    sane(c);
+    static dog_step const steps[] = {
+        {u8slit("keeper"), u8slit("get"),  NO},
+        {u8slit("graf"),   u8slit("diff"), NO},
+    };
+    u32 nsteps = sizeof(steps) / sizeof(steps[0]);
+    uri *u = (c->nuris > 0) ? &c->uris[0] : NULL;
+    u32 start = (u != NULL && !$empty(u->authority)) ? 0 : 1;
+    return BEDispatch(c, steps + start, nsteps - start, seq);
+}
+
 //  `be patch <uri>` — 3-way merge `uri`'s target ref/sha into the
 //  worktree.  If the URI has an authority we first `keeper get` to
 //  fetch the target's reachable closure, then hand off to
@@ -441,7 +457,7 @@ ok64 becli() {
     } else if ($eq(verb, v_status)) {
         call(BEDefault);
     } else if ($eq(verb, v_diff)) {
-        fprintf(stderr, "be: diff dispatch not yet implemented\n");
+        call(BEDiff, &c, seq);
     } else if ($eq(verb, v_patch)) {
         call(BEPatch, &c, seq);
     } else {

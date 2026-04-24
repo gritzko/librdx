@@ -24,6 +24,7 @@
 #include "abc/PATH.h"
 #include "dog/CLI.h"
 #include "dog/HOME.h"
+#include "dog/IGNO.h"
 #include "dog/ULOG.h"
 #include "keeper/KEEP.h"
 
@@ -40,6 +41,7 @@ typedef struct {
     home   *h;       // borrowed
     ulog    log;     // <wt>/.sniff (persistent URI log)
     Bu32    sorted;  // per-process path-index sort (rebuilt each call)
+    igno    ignores; // wt-root .gitignore, loaded once at SNIFFOpen
 } sniff;
 
 extern sniff SNIFF;
