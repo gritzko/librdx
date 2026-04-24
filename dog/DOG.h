@@ -19,7 +19,11 @@ con ok64 DOGNOBR = 0xd6105d82db;
 //   2. If the parsed URI has a scheme but no authority and its
 //      path has no leading slash (i.e. the text is `word:path...`
 //      rather than `proto://host/path`), treat the scheme as a
-//      remote alias: move scheme → authority.
+//      remote alias: move scheme → authority.  View-projector
+//      schemes (`sha1:`, `blob:`, `tree:`, `commit:`, `log:`,
+//      `refs:`, `diff:`, `size:`, `type:`, `ls:` — see VERBS.md)
+//      are exempt: they stay as the scheme so `ls:subdir` and
+//      `tree:src/?heads/feat` round-trip intact.
 //   3. Non-numeric "ports" (`ssh://host:src/...` — `src` isn't a
 //      port) get glued back onto the front of the path.
 //   4. If the path's head-segment contains `@` (`user@host/rest`),

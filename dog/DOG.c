@@ -5,6 +5,26 @@
 #include "abc/B.h"
 #include "abc/PRO.h"
 
+//  Known view-projector schemes (VERBS.md §"View projectors").
+//  These are *never* transports — the scheme selects what shape of
+//  bytes to emit, so the scheme→authority promotion below must not
+//  eat them.  Match case-sensitively on the scheme slice.
+static char const *const DOG_PROJECTORS[] = {
+    "sha1", "blob", "tree", "commit", "log", "refs",
+    "diff", "size", "type", "ls",
+    NULL
+};
+
+static b8 dog_is_projector(u8cs scheme) {
+    if ($empty(scheme)) return NO;
+    size_t n = (size_t)$len(scheme);
+    for (char const *const *p = DOG_PROJECTORS; *p; p++) {
+        size_t pl = strlen(*p);
+        if (pl == n && memcmp(scheme[0], *p, pl) == 0) return YES;
+    }
+    return NO;
+}
+
 ok64 DOGParseURI(urip uri, u8csc text) {
     sane(uri != NULL);
     memset(uri, 0, sizeof(*uri));
@@ -16,8 +36,10 @@ ok64 DOGParseURI(urip uri, u8csc text) {
     // as scheme="host", path="path".  Promote scheme to authority
     // when authority is empty and the path has no leading slash
     // (proper RFC schemes have either an authority or a path
-    // starting with '/').
-    if (!$empty(uri->scheme) && $empty(uri->authority)) {
+    // starting with '/').  Projector schemes are exempt — `tree:src/`,
+    // `ls:subdir`, etc. keep `tree` / `ls` as the scheme.
+    if (!$empty(uri->scheme) && $empty(uri->authority)
+        && !dog_is_projector(uri->scheme)) {
         b8 rooted = !$empty(uri->path) && $at(uri->path, 0) == '/';
         if (!rooted) {
             u8csMv(uri->authority, uri->scheme);

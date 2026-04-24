@@ -60,6 +60,19 @@ static const ParseCase CASES[] = {
     // Numeric port left alone.
     {"ssh://host:22/repo",
         "ssh", "//host:22", "/repo", NULL, NULL},
+
+    // --- View-projector schemes: exempt from scheme→authority promotion ---
+    // `ls:`, `tree:`, `blob:`, `sha1:`, etc. stay as the scheme so
+    // `ls:subdir` and `tree:src/?heads/feat` are view projections, not
+    // scp-like remote paths.  See VERBS.md §"View projectors".
+    {"ls:",                   "ls", NULL, NULL,        NULL,         NULL},
+    {"ls:subdir",             "ls", NULL, "subdir",    NULL,         NULL},
+    {"ls:./subdir",           "ls", NULL, "./subdir",  NULL,         NULL},
+    {"ls:?heads/feat",        "ls", NULL, NULL,        "heads/feat", NULL},
+    {"ls:subdir?heads/feat",  "ls", NULL, "subdir",    "heads/feat", NULL},
+    {"tree:src/?heads/feat", "tree", NULL, "src/",     "heads/feat", NULL},
+    {"blob:file.c?abc",      "blob", NULL, "file.c",   "abc",        NULL},
+    {"sha1:?heads/feat",     "sha1", NULL, NULL,       "heads/feat", NULL},
 };
 
 #define NCASES (sizeof(CASES) / sizeof(CASES[0]))
@@ -174,6 +187,13 @@ static const CanonCase CANON_CASES[] = {
         "ssh://peer/src/repo?heads/feat#0123456789abcdef0123456789abcdef01234567"},
     // Deletion row: `?branch#` — non-empty query, empty-but-present fragment.
     {"?feature/fix1#",                     "?feature/fix1#"},
+    // View projectors round-trip with scheme preserved.  Trunk alias
+    // in a projector's ref still collapses to bare `?`.
+    {"ls:subdir",                          "ls:subdir"},
+    {"ls:?heads/feat",                     "ls:?heads/feat"},
+    {"ls:?heads/master",                   "ls:?"},
+    {"tree:src/?heads/feat",               "tree:src/?heads/feat"},
+    {"sha1:?heads/feat",                   "sha1:?heads/feat"},
 };
 
 #define NCANON (sizeof(CANON_CASES) / sizeof(CANON_CASES[0]))
