@@ -389,15 +389,22 @@ static ok64 keeper_put(keeper *k, cli *c) {
 
     a_path(keepdir, u8bDataC(k->h->root), KEEP_DIR_S);
 
+    //  Canonical key: build a query-only URI with the user's ref
+    //  name and canonicalise — strips `refs/` and collapses the
+    //  trunk aliases so `heads/master` / `master` / `refs/heads/main`
+    //  all become bare `?` (trunk).
+    uri uk = {};
+    uk.query[0] = ref_name[0];
+    uk.query[1] = ref_name[1];
     a_pad(u8, fbuf, 256);
-    u8bFeed1(fbuf, '?');
-    u8bFeed(fbuf, ref_name);
+    call(DOGCanonURIFeed, fbuf, &uk);
     a_dup(u8c, from, u8bData(fbuf));
 
-    a_pad(u8, tbuf, 256);
-    u8bFeed1(tbuf, '?');
-    u8bFeed(tbuf, sha_frag);
-    a_dup(u8c, to, u8bData(tbuf));
+    //  Canonical value: strip a leading `?` if the user supplied one
+    //  in the URI fragment; otherwise the sha is already bare.
+    u8cs sha = {sha_frag[0], sha_frag[1]};
+    if (!u8csEmpty(sha) && sha[0][0] == '?') u8csUsed(sha, 1);
+    a_dup(u8c, to, sha);
 
     ok64 o = REFSAppend($path(keepdir), from, to);
     if (o != OK) return o;
@@ -499,20 +506,23 @@ static ok64 keeper_post(keeper *k, cli *c) {
     u8bUnMap(rarena);
     if (pu != OK) return pu;
 
-    //  5. Advance local //host/path?heads/<branch> → ?<new-sha> so
-    //     subsequent fetches know the peer's tip.  Key uses the URI's
-    //     canonical form (matches what keeper_get_remote consults).
-    a_pad(u8, rkey, 1280);
-    call(DOGCanonURIKey, rkey, g, NO);
-    u8bFeed1(rkey, '?');
+    //  5. Advance local //host/path?heads/<branch> → <new-sha> so
+    //     subsequent fetches know the peer's tip.  Build a uri with
+    //     auth/path from `g` and query = `heads/<branch>`, then feed
+    //     canonical bytes — DOGCanonURIFeed drops the transport
+    //     scheme and collapses `heads/{master,main,trunk}` to empty.
+    a_pad(u8, qbuf, 256);
     a_cstr(heads_pfx2, "heads/");
-    u8bFeed(rkey, heads_pfx2);
-    u8bFeed(rkey, branch);
+    u8bFeed(qbuf, heads_pfx2);
+    u8bFeed(qbuf, branch);
+    uri gk = *g;
+    u8csMv(gk.query, u8bData(qbuf));
+    gk.fragment[0] = NULL;
+    gk.fragment[1] = NULL;
+    a_pad(u8, rkey, 1280);
+    call(DOGCanonURIFeed, rkey, &gk);
     a_dup(u8c, remote_key, u8bData(rkey));
-    a_pad(u8, vbuf, 64);
-    u8bFeed1(vbuf, '?');
-    u8bFeed(vbuf, u8bDataC(at_sha));
-    a_dup(u8c, v, u8bData(vbuf));
+    a_dup(u8c, v, u8bDataC(at_sha));
     REFSAppend($path(keepdir), remote_key, v);
 
     fprintf(stdout, "keeper: pushed %.*s → %.*s\n",

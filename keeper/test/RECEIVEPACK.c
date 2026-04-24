@@ -31,6 +31,7 @@
 #include "abc/HEX.h"
 #include "abc/PRO.h"
 #include "abc/TEST.h"
+#include "dog/DOG.h"
 #include "dog/HOME.h"
 
 #define GIT_UNSET "unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR " \
@@ -178,20 +179,16 @@ static ok64 seed_ref(char const *tmpdir, char const *refname,
     call(KEEPOpen, &h, YES);
     a_path(keepdir, u8bDataC(KEEP.h->root), KEEP_DIR_S);
 
+    //  Peer-observed ref: preserve name (only strip `refs/`).  Val
+    //  is bare 40-hex (canonical fragment form).
     a_pad(u8, kbuf, 256);
     u8bFeed1(kbuf, '?');
-    //  refname is "refs/heads/<X>" → key "?heads/<X>".
     char const *short_name = refname + 5;  // skip "refs/"
     u8csc s = {(u8cp)short_name, (u8cp)short_name + strlen(short_name)};
     u8bFeed(kbuf, s);
     a_dup(u8c, key, u8bData(kbuf));
 
-    a_pad(u8, vbuf, 64);
-    u8bFeed1(vbuf, '?');
-    u8csc hex_cs = {(u8cp)hex_40, (u8cp)hex_40 + 40};
-    u8bFeed(vbuf, hex_cs);
-    a_dup(u8c, val, u8bData(vbuf));
-
+    u8csc val = {(u8cp)hex_40, (u8cp)hex_40 + 40};
     call(REFSAppend, $path(keepdir), key, val);
 
     call(KEEPClose);

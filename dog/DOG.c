@@ -152,32 +152,82 @@ ok64 DOGNormalizeArg(urip u, u8csc arg) {
     done;
 }
 
-ok64 DOGCanonURIKey(u8bp out, urip u, b8 with_query) {
-    sane(out != NULL && u != NULL);
-    // Preserve `file:` — absolute local paths are ambiguous without
-    // it (`/etc/x` could be a filesystem path or a key-prefix).
-    // Transport schemes (ssh, https, git) are fungible and dropped.
-    b8 is_file = NO;
-    if (!u8csEmpty(u->scheme) && $len(u->scheme) == 4 &&
-        memcmp(u->scheme[0], "file", 4) == 0)
-        is_file = YES;
-    if (is_file) {
-        a_cstr(filepfx, "file://");
-        u8bFeed(out, filepfx);
-        if (!u8csEmpty(u->path)) {
-            if ($at(u->path, 0) != '/') u8bFeed1(out, '/');
-            u8bFeed(out, u->path);
+//  Presence vs emptiness for query / fragment slices:
+//    s[0] == NULL                  → component absent (no `?` / no `#`)
+//    s[0] != NULL, $empty(s)       → present-but-empty (bare `?` / `#`)
+//    non-empty                     → component with text
+//  Collapse/strip must preserve the present-but-empty state (point
+//  both endpoints at the tail of the original text), not wipe it to
+//  absent, or the row shape (`?#sha`, `?branch#`) is lost.
+ok64 DOGCanonURI(urip u) {
+    sane(u != NULL);
+
+    if (!u8csEmpty(u->query)) {
+        u8cs q = {u->query[0], u->query[1]};
+        if ($len(q) >= 5 && memcmp(q[0], "refs/", 5) == 0)
+            u8csUsed(q, 5);
+
+        b8 collapse = NO;
+        if ($len(q) == 12 && memcmp(q[0], "heads/master", 12) == 0)
+            collapse = YES;
+        else if ($len(q) == 10 && memcmp(q[0], "heads/main", 10) == 0)
+            collapse = YES;
+        else if ($len(q) == 11 && memcmp(q[0], "heads/trunk", 11) == 0)
+            collapse = YES;
+        else if ($len(q) ==  6 && memcmp(q[0], "master",       6) == 0)
+            collapse = YES;
+        else if ($len(q) ==  4 && memcmp(q[0], "main",         4) == 0)
+            collapse = YES;
+        else if ($len(q) ==  5 && memcmp(q[0], "trunk",        5) == 0)
+            collapse = YES;
+
+        if (collapse) {
+            u->query[0] = q[1];
+            u->query[1] = q[1];
+        } else {
+            u->query[0] = q[0];
+            u->query[1] = q[1];
         }
-    } else if (!u8csEmpty(u->authority) || !u8csEmpty(u->host)) {
+    }
+
+    //  Fragment: drop a leading `?` so the value slot is a bare
+    //  40-hex SHA (or empty = deletion).
+    if (!u8csEmpty(u->fragment)) {
+        u8cs f = {u->fragment[0], u->fragment[1]};
+        if ($len(f) >= 1 && *f[0] == '?')
+            u8csUsed1(f);
+        if ($empty(f)) {
+            u->fragment[0] = u->fragment[1];
+        } else {
+            u->fragment[0] = f[0];
+            u->fragment[1] = f[1];
+        }
+    }
+
+    done;
+}
+
+ok64 DOGCanonURIFeed(u8bp out, urip u) {
+    sane(out != NULL && u != NULL);
+    call(DOGCanonURI, u);
+
+    //  Emit scheme verbatim (if any): cross-scheme identity is the
+    //  job of the lookup-side host-substring matcher, not the
+    //  storage key.  Keeping the scheme preserves access method info
+    //  (ssh vs https vs file vs be://) for debugging and re-fetch.
+    if (!u8csEmpty(u->scheme)) {
+        u8bFeed(out, u->scheme);
+        u8bFeed1(out, ':');
+    }
+    if (!u8csEmpty(u->authority) || !u8csEmpty(u->host)) {
         a_cstr(slashes, "//");
         u8bFeed(out, slashes);
         u8cs auth = {u->authority[0], u->authority[1]};
         if ($len(auth) >= 2 && auth[0][0] == '/' && auth[0][1] == '/')
             u8csUsed(auth, 2);
         u8bFeed(out, auth);
-        // Ensure a single `/` separator: `host` + `/path` stays as-is,
-        // `host` + `path` gets a `/` inserted.  `ssh://host:x` and
-        // `ssh://host/x` thus produce identical keys.
+        //  `host`+`/path` stays as-is; `host`+`path` gets a `/`.
+        //  `ssh://host:x` and `ssh://host/x` thus produce the same key.
         if (!u8csEmpty(u->path)) {
             if ($at(u->path, 0) != '/') u8bFeed1(out, '/');
             u8bFeed(out, u->path);
@@ -185,9 +235,15 @@ ok64 DOGCanonURIKey(u8bp out, urip u, b8 with_query) {
     } else if (!u8csEmpty(u->path)) {
         u8bFeed(out, u->path);
     }
-    if (with_query && !u8csEmpty(u->query)) {
+    //  Presence check is [0] != NULL (empty-but-present still emits
+    //  the sigil so `?#sha` and `?branch#` round-trip).
+    if (u->query[0] != NULL) {
         u8bFeed1(out, '?');
-        u8bFeed(out, u->query);
+        if (!u8csEmpty(u->query)) u8bFeed(out, u->query);
+    }
+    if (u->fragment[0] != NULL) {
+        u8bFeed1(out, '#');
+        if (!u8csEmpty(u->fragment)) u8bFeed(out, u->fragment);
     }
     done;
 }

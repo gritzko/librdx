@@ -903,9 +903,10 @@ ok64 POSTCommit(u8cs reporoot, u8cs message, u8cs author, sha1 *sha_out) {
     call(KEEPPackClose, k, &p);
 
     //  14. Advance keeper REFS for the branch (if we have one).
-    //      `brbuf` is the bare ref (e.g. `heads/main`); REFS keys the
-    //      lookup by the query form `?heads/main`, and the stored
-    //      value mirrors that: `?<40hex>`.
+    //      `brbuf` is the bare ref (e.g. `heads/main`).  Build a
+    //      canonical key via DOGCanonURIFeed — collapses the trunk
+    //      aliases {master, main, trunk} (with or without `heads/`)
+    //      to bare `?`.  Value is bare 40-hex.
     a_pad(u8, out_hex, 40);
     {
         a_rawc(osha, *sha_out);
@@ -916,15 +917,14 @@ ok64 POSTCommit(u8cs reporoot, u8cs message, u8cs author, sha1 *sha_out) {
         if (!u8csEmpty(branch)) {
             a_path(keepdir, u8bDataC(k->h->root), KEEP_DIR_S);
 
+            uri uk = {};
+            uk.query[0] = branch[0];
+            uk.query[1] = branch[1];
             a_pad(u8, keybuf, 128);
-            u8bFeed1(keybuf, '?');
-            u8bFeed(keybuf, branch);
+            call(DOGCanonURIFeed, keybuf, &uk);
             a_dup(u8c, refkey, u8bData(keybuf));
 
-            a_pad(u8, valbuf, 64);
-            u8bFeed1(valbuf, '?');
-            u8bFeed(valbuf, u8bDataC(out_hex));
-            a_dup(u8c, val, u8bData(valbuf));
+            a_dup(u8c, val, u8bDataC(out_hex));
 
             (void)REFSAppend($path(keepdir), refkey, val);
         }
@@ -996,10 +996,18 @@ ok64 POSTSetLabel(u8cs ref_uri, u8cs sha_hex) {
 
     a_path(keepdir, u8bDataC(KEEP.h->root), KEEP_DIR_S);
 
-    a_pad(u8, tbuf, 64);
-    u8bFeed1(tbuf, '?');
-    u8bFeed(tbuf, sha_hex);
-    a_dup(u8c, to, u8bData(tbuf));
+    //  Canonicalise the caller-supplied ref URI (user input path:
+    //  command line `be post ?<label>`).  Lex → canonicalise → feed.
+    uri u = {};
+    u.data[0] = ref_uri[0];
+    u.data[1] = ref_uri[1];
+    call(URILexer, &u);
+    u.data[0] = ref_uri[0];
+    u.data[1] = ref_uri[1];
+    a_pad(u8, keybuf, 256);
+    call(DOGCanonURIFeed, keybuf, &u);
+    a_dup(u8c, key, u8bData(keybuf));
 
-    return REFSAppend($path(keepdir), ref_uri, to);
+    //  Val is bare 40-hex (canonical).
+    return REFSAppend($path(keepdir), key, sha_hex);
 }

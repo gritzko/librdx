@@ -13,6 +13,7 @@ set -eu
 
 BIN=${BIN:-$(dirname "$0")/../../build-debug/bin}
 BIN=$(cd "$BIN" && pwd)
+TESTDIR=$(cd "$(dirname "$0")" && pwd)
 export PATH="$BIN:$PATH"
 export DOG_REMOTE_PATH="$BIN"
 
@@ -66,4 +67,9 @@ if [ -n "$RDIFF" ]; then
     echo "$RDIFF" | head -10
     exit 1
 fi
+
+# --- 5. canonical refs check ---
+VERIFY="$TESTDIR/verify-canonical-refs.sh"
+sh "$VERIFY" "$TMP/be-clone" || { echo "FAIL: be-clone refs not canonical"; exit 1; }
+
 echo "PASS: clone-from-git"

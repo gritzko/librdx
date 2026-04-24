@@ -112,11 +112,11 @@ ok64 REFStest_load_dedup() {
     call(fixture_open, &fx, "/tmp/refs-ld-XXXXXX");
 
     //  Two keys × two revisions each, + one third key.
-    call(append, &fx, "?heads/main", "?1111111111111111111111111111111111111111");
-    call(append, &fx, "?heads/feat", "?aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
-    call(append, &fx, "?heads/main", "?2222222222222222222222222222222222222222");
-    call(append, &fx, "?tags/v1",    "?3333333333333333333333333333333333333333");
-    call(append, &fx, "?heads/feat", "?bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
+    call(append, &fx, "?heads/main", "1111111111111111111111111111111111111111");
+    call(append, &fx, "?heads/feat", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+    call(append, &fx, "?heads/main", "2222222222222222222222222222222222222222");
+    call(append, &fx, "?tags/v1",    "3333333333333333333333333333333333333333");
+    call(append, &fx, "?heads/feat", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
     want(count_rows(fx.dir_s) == 5);
 
     Bu8 arena = {};
@@ -130,10 +130,10 @@ ok64 REFStest_load_dedup() {
     ref const *f = find_key(arr, n, "?heads/feat");
     ref const *t = find_key(arr, n, "?tags/v1");
     want(m && f && t);
-    //  Latest val wins.
-    want(val_eq(m, "?2222222222222222222222222222222222222222"));
-    want(val_eq(f, "?bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"));
-    want(val_eq(t, "?3333333333333333333333333333333333333333"));
+    //  Latest val wins.  Vals are bare 40-hex.
+    want(val_eq(m, "2222222222222222222222222222222222222222"));
+    want(val_eq(f, "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"));
+    want(val_eq(t, "3333333333333333333333333333333333333333"));
 
     u8bUnMap(arena);
     fixture_close(&fx);
@@ -153,10 +153,13 @@ ok64 REFStest_resolve_table() {
     fixture fx = {};
     call(fixture_open, &fx, "/tmp/refs-rt-XXXXXX");
 
+    //  Peer names are preserved in wire-observed rows (canonicalisation
+    //  is for user CLI input, not the wire layer).  Local rows get the
+    //  short-ref fallback via refs_query_match.
     call(append, &fx, "?heads/main",
-         "?cafef00dcafef00dcafef00dcafef00dcafef00d");
+         "cafef00dcafef00dcafef00dcafef00dcafef00d");
     call(append, &fx, "https://github.com/torvalds/linux.git?heads/master",
-         "?deadbeefdeadbeefdeadbeefdeadbeefdeadbeef");
+         "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef");
 
     resolve_case const cases[] = {
         {"?heads/main",                "cafef00dcafef00dcafef00dcafef00dcafef00d", NULL},
@@ -197,11 +200,12 @@ ok64 REFStest_sync_compact() {
     fixture fx = {};
     call(fixture_open, &fx, "/tmp/refs-sc-XXXXXX");
 
-    //  SyncRecord path: bulk-append three fresh keys.
+    //  SyncRecord path: bulk-append three fresh keys.  Vals are bare
+    //  40-hex (canonical fragment form).
     ref entries[3] = {};
-    SL(k0, "?heads/main"); SL(v0, "?1111111111111111111111111111111111111111");
-    SL(k1, "?heads/feat"); SL(v1, "?2222222222222222222222222222222222222222");
-    SL(k2, "?tags/v1");    SL(v2, "?3333333333333333333333333333333333333333");
+    SL(k0, "?heads/main"); SL(v0, "1111111111111111111111111111111111111111");
+    SL(k1, "?heads/feat"); SL(v1, "2222222222222222222222222222222222222222");
+    SL(k2, "?tags/v1");    SL(v2, "3333333333333333333333333333333333333333");
     entries[0].key[0] = k0[0]; entries[0].key[1] = k0[1];
     entries[0].val[0] = v0[0]; entries[0].val[1] = v0[1];
     entries[1].key[0] = k1[0]; entries[1].key[1] = k1[1];
@@ -212,10 +216,10 @@ ok64 REFStest_sync_compact() {
     want(count_rows(fx.dir_s) == 3);
 
     //  Churn: two more revisions per key → 7 rows total.
-    call(append, &fx, "?heads/main", "?4444444444444444444444444444444444444444");
-    call(append, &fx, "?heads/feat", "?5555555555555555555555555555555555555555");
-    call(append, &fx, "?heads/main", "?6666666666666666666666666666666666666666");
-    call(append, &fx, "?heads/feat", "?7777777777777777777777777777777777777777");
+    call(append, &fx, "?heads/main", "4444444444444444444444444444444444444444");
+    call(append, &fx, "?heads/feat", "5555555555555555555555555555555555555555");
+    call(append, &fx, "?heads/main", "6666666666666666666666666666666666666666");
+    call(append, &fx, "?heads/feat", "7777777777777777777777777777777777777777");
     want(count_rows(fx.dir_s) == 7);
 
     call(REFSCompact, fx.dir_s);
@@ -232,9 +236,9 @@ ok64 REFStest_sync_compact() {
     ref const *f = find_key(arr, n, "?heads/feat");
     ref const *t = find_key(arr, n, "?tags/v1");
     want(m && f && t);
-    want(val_eq(m, "?6666666666666666666666666666666666666666"));
-    want(val_eq(f, "?7777777777777777777777777777777777777777"));
-    want(val_eq(t, "?3333333333333333333333333333333333333333"));
+    want(val_eq(m, "6666666666666666666666666666666666666666"));
+    want(val_eq(f, "7777777777777777777777777777777777777777"));
+    want(val_eq(t, "3333333333333333333333333333333333333333"));
     u8bUnMap(arena);
 
     fixture_close(&fx);
@@ -252,7 +256,7 @@ ok64 REFStest_monotonic_ts() {
     //  REFSAppend clamps past the tail, so all five must land.
     for (int i = 0; i < 5; i++) {
         char v[64];
-        snprintf(v, sizeof(v), "?%040d", i);
+        snprintf(v, sizeof(v), "%040d", i);
         call(append, &fx, "?heads/main", v);
     }
     want(count_rows(fx.dir_s) == 5);

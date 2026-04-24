@@ -32,8 +32,7 @@
  9. `be` links every dog's static lib directly — no subprocess
     fork/exec. It parses one CLI, opens the dogs it needs, calls
     `NAMEExec` on each in order, and closes them.
-10. `be` dispatches the HTTP-like verb vocabulary below to the
-    appropriate dogs.
+10. `be` dispatches the HTTP-like verb vocabulary below to other dogs.
 
 ##  URI convention
 
@@ -49,6 +48,62 @@ Dogs accept URIs of the form:
 Short refs like `?main` are ambiguous — resolved by trying
 `heads/`, then `tags/`, then SHA prefix.  Use `?heads/main` or
 `?tags/v1.0` to disambiguate.
+
+##  Query mini-language (dog/QURY)
+
+The `?query` slot names a ref, a sha, or a set/range of either.
+Grammar is a strict subset of `gitrevisions(7)`.
+
+    query   = spec ('&' spec)*            -- set (e.g. merge parents)
+            | spec '..' spec              -- range (for diffs)
+    spec    = path ancestry?              -- path-like ref or sha
+    path    = seg ('/' seg)*              -- branch/tag path or hex sha
+    ancestry = ('~' | '^') digit*         -- first/Nth parent walk
+
+### Canonical form
+
+Every query that enters a ULOG row (keeper REFS, sniff attribution
+log) is canonicalised via `dog/DOG:DOGCanonURI` before it is
+written.  The canonicaliser is an input filter, not a defensive
+check in writers; writers that construct queries internally are
+expected to produce canonical form directly.
+
+Rules applied to the query:
+
+  - Strip leading `refs/`: `refs/heads/X` → `heads/X`, `refs/tags/X` → `tags/X`.
+  - Collapse the trunk aliases to the empty query (the trunk):
+    `heads/master`, `heads/main`, `heads/trunk` — and bare
+    `master`, `main`, `trunk` — all become `?` (present-but-empty).
+  - Leave everything else untouched: `heads/feat`, `tags/v1.0`,
+    40-hex SHAs, ranges, sets.
+
+Rules applied to the fragment (the "value" slot in K/V usage):
+
+  - Strip a single leading `?` — values carried as `?<sha>` are
+    equivalent to bare `<sha>`.
+  - The fragment is either a bare 40-hex SHA or empty.
+
+### Trunk
+
+The default branch is called **trunk** and its canonical query is
+the empty string.  We do not use `HEAD` — that is a git term.  A
+trunk-move row is written as `?#<sha>` (present-but-empty query,
+non-empty fragment); a deletion row for some named branch is
+`?feature/fix1#` (present-but-empty fragment).
+
+For a remote git repo that uses `main` or `master`, keeper observes
+peer advertisements under `<peer>?heads/main#<sha>`; canonicalisation
+collapses that to `<peer>?#<sha>`.
+
+### What the mini-language does *not* cover
+
+Deliberately excluded from the subset:
+
+  - `@{upstream}` / `@{push}` / `@{N}` — reflog & remote-tracking
+    markers are not part of the dog model.
+  - `^{tree}` / `^{commit}` / `^{tag}` — peel operators; if you want
+    a tree, follow the commit yourself.
+  - `:/text` — commit-message search belongs in dog/FRAG, not QURY.
 
 ##  Fragment syntax (dog/FRAG)
 

@@ -14,6 +14,7 @@ set -e
 BIN=${BIN:-$(dirname "$0")/../../build-debug/bin}
 BIN=$(cd "$BIN" && pwd)
 export PATH="$BIN:$PATH"
+TESTDIR=$(cd "$(dirname "$0")" && pwd)
 
 REPO=${REPO:-$HOME/src/git}
 TMP=${TMP:-$HOME/tmp}
@@ -59,11 +60,15 @@ G2=$(find "$GIT_DIR" -not -path '*/.git/*' -type f | wc -l)
 echo "$DOGS_DIR (be get): $G1 files"
 echo "$GIT_DIR (git):    $G2 files"
 
-if [ -z "$RDIFF" ]; then
-    echo "PASS: worktrees identical at $REF"
-    exit 0
+if [ -n "$RDIFF" ]; then
+    echo "FAIL: worktrees differ"
+    echo "$RDIFF" | head -20
+    exit 1
 fi
 
-echo "FAIL: worktrees differ"
-echo "$RDIFF" | head -20
-exit 1
+# --- canonical refs check ---
+VERIFY="$TESTDIR/verify-canonical-refs.sh"
+sh "$VERIFY" "$DOGS_DIR" || { echo "FAIL: refs not canonical"; exit 1; }
+
+echo "PASS: worktrees identical at $REF"
+exit 0

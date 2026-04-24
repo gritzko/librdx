@@ -49,9 +49,9 @@ EOF
     note "v0.0.${V} posted"
 done
 
-#  Ref rows are `<ts>\tset\t<key>#?<40-hex-sha>`; grab the 40-hex
-#  after the `#?` separator.
-awk_sha='/v0\.0\.'"X"'/ { n = index($3, "#?"); if (n) print substr($3, n + 2) }'
+#  Ref rows are `<ts>\tset\t<key>#<40-hex-sha>`; grab the 40-hex
+#  after the `#` separator.
+awk_sha='/v0\.0\.'"X"'/ { n = index($3, "#"); if (n) print substr($3, n + 1) }'
 SHA1=$(awk -F'\t' "${awk_sha/X/1}" .dogs/refs)
 SHA2=$(awk -F'\t' "${awk_sha/X/2}" .dogs/refs)
 SHA3=$(awk -F'\t' "${awk_sha/X/3}" .dogs/refs)

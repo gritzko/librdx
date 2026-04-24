@@ -23,6 +23,7 @@
 #include "abc/PRO.h"
 #include "abc/POL.h"
 #include "abc/RON.h"
+#include "dog/DOG.h"
 #include "dog/DPATH.h"
 #include "dog/HOME.h"
 #include "UNPK.h"
@@ -2574,36 +2575,37 @@ sync_done:
 
             u32 written = 0;
 
-            // Helper: append one entry (key, val) into refarr+strbuf
-            #define APPEND_REF(KEY_FN_BODY, SHA_PTR)                       \
+            //  Helper: canonicalise the uri `UK` (query set by caller)
+            //  into strbuf as the ref key, then feed bare 40-hex val.
+            #define APPEND_REF(UK_FN_BODY, SHA_PTR)                        \
                 do {                                                       \
                     if (written >= cap) break;                             \
+                    uri _uk = {};                                          \
+                    UK_FN_BODY;                                            \
                     refarr[written].time = now;                            \
                     refarr[written].type = REF_SHA;                        \
                     refarr[written].key[0] = u8bIdleHead(strbuf);          \
-                    KEY_FN_BODY;                                           \
+                    if (DOGCanonURIFeed(strbuf, &_uk) != OK) break;        \
                     refarr[written].key[1] = u8bIdleHead(strbuf);          \
                     refarr[written].val[0] = u8bIdleHead(strbuf);          \
-                    u8bFeed1(strbuf, '?');                                 \
                     u8cs _sha = {(SHA_PTR), (SHA_PTR) + 40};               \
                     u8bFeed(strbuf, _sha);                                 \
                     refarr[written].val[1] = u8bIdleHead(strbuf);          \
                     written++;                                             \
                 } while (0)
 
-            //  Worktree pointer lives in sniff/at.log (see sniff/AT.md);
-            //  keeper no longer writes `file://<root>` refs here.
-
-            //  Remote's HEAD → SHA as `<origin>?HEAD`.  sniff's get
-            //  path looks this up when the user clones without a
-            //  `?branch` query; without it every `be get //host/path`
-            //  falls through to SNIFFFAIL.
-            if (!u8csEmpty(origin_uri) && nrefs > 0) {
-                APPEND_REF({
-                    u8bFeed(strbuf, origin_uri);
-                    a_cstr(qhead, "?HEAD");
-                    u8bFeed(strbuf, qhead);
-                }, refs[0].peeled.data);
+            //  Remote's canonical URI (auth/path from origin_uri's
+            //  parse) plus each advertised ref as the query; the
+            //  canonicaliser drops the transport scheme and collapses
+            //  trunk aliases.  `origin_uri` is already canonical, so
+            //  parse once and reuse the parse for each row.
+            uri ou = {};
+            if (!u8csEmpty(origin_uri)) {
+                ou.data[0] = origin_uri[0];
+                ou.data[1] = origin_uri[1];
+                (void)URILexer(&ou);
+                ou.data[0] = origin_uri[0];
+                ou.data[1] = origin_uri[1];
             }
 
             // Remote-attributed entries for each refs/heads/* and
@@ -2626,9 +2628,11 @@ sync_done:
                 u8cs strip_s = {(u8cp)stripped, (u8cp)stripped + stripped_len};
                 if (!u8csEmpty(origin_uri)) {
                     APPEND_REF({
-                        u8bFeed(strbuf, origin_uri);
-                        u8bFeed1(strbuf, '?');
-                        u8bFeed(strbuf, strip_s);
+                        u8csMv(_uk.scheme,    ou.scheme);
+                        u8csMv(_uk.authority, ou.authority);
+                        u8csMv(_uk.host,      ou.host);
+                        u8csMv(_uk.path,      ou.path);
+                        u8csMv(_uk.query,     strip_s);
                     }, refs[i].peeled.data);
                 }
             }

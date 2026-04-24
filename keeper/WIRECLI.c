@@ -26,6 +26,7 @@
 #include "abc/HEX.h"
 #include "abc/PRO.h"
 #include "abc/URI.h"
+#include "dog/DOG.h"
 #include "dog/SHA1.h"
 #include "keeper/GIT.h"
 #include "keeper/KEEP.h"
@@ -384,6 +385,23 @@ static ok64 wcli_match_advert(int rfd, u8b buf, u8csc want_ref,
             continue;
         }
 
+        //  Skip peer's own remote-tracking refs (`refs/remotes/*`) —
+        //  those are git-ism leakage, not real branches of the repo.
+        //  Only `refs/heads/*` and `refs/tags/*` are meaningful.
+        {
+            a_cstr(remotes_pfx, "refs/remotes/");
+            if (wcli_starts_with(name, remotes_pfx[0],
+                                 (size_t)$len(remotes_pfx)))
+                continue;
+            a_cstr(heads_pfx_s, "refs/heads/");
+            a_cstr(tags_pfx_s,  "refs/tags/");
+            if (!wcli_starts_with(name, heads_pfx_s[0],
+                                  (size_t)$len(heads_pfx_s)) &&
+                !wcli_starts_with(name, tags_pfx_s[0],
+                                  (size_t)$len(tags_pfx_s)))
+                continue;
+        }
+
         if (!first_seen) {
             first_sha = sha;
             first_name[0] = name[0];
@@ -529,22 +547,39 @@ static void wcli_strip_status(u8cs out, u8cs data) {
     }
 }
 
-//  Append `?heads/X` → `?<hex>` (or tags) to local REFS.
-static ok64 wcli_record_ref(keeper *k, u8csc want_ref, sha1 const *new_sha) {
+//  Append `<peer-uri>?<stripped-want-ref> → <40-hex>` to local REFS.
+//  Peer's scheme/authority/path land in the row so later lookups
+//  (`be get //peer`) can filter by host.  Peer ref name is preserved
+//  (wire operations are name-based; canonicalisation is for user CLI
+//  input).  Val is bare 40-hex.
+static ok64 wcli_record_ref(keeper *k, u8csc remote_uri, u8csc want_ref,
+                             sha1 const *new_sha) {
     sane(k);
     a_path(keepdir, u8bDataC(k->h->root), KEEP_DIR_S);
 
-    a_pad(u8, kbuf, 256);
-    call(wcli_refkey, kbuf, want_ref);
+    //  Parse remote_uri to pick up scheme/authority/path, then
+    //  overwrite its query with the `refs/`-stripped want_ref and
+    //  emit canonical bytes via DOGCanonURIFeed.
+    uri pu = {};
+    pu.data[0] = remote_uri[0];
+    pu.data[1] = remote_uri[1];
+    (void)URILexer(&pu);
+
+    a_cstr(refs_pfx, "refs/");
+    u8cs r = {want_ref[0], want_ref[1]};
+    if (wcli_starts_with(r, refs_pfx[0], (size_t)$len(refs_pfx)))
+        r[0] += (size_t)$len(refs_pfx);
+    u8csMv(pu.query, r);
+    pu.fragment[0] = NULL;
+    pu.fragment[1] = NULL;
+
+    a_pad(u8, kbuf, 512);
+    call(DOGCanonURIFeed, kbuf, &pu);
     a_dup(u8c, key, u8bData(kbuf));
 
-    a_pad(u8, vbuf, 64);
-    u8bFeed1(vbuf, '?');
     u8 hex[40];
     wcli_sha_to_hex(hex, new_sha);
-    u8csc hexs = {hex, hex + 40};
-    u8bFeed(vbuf, hexs);
-    a_dup(u8c, val, u8bData(vbuf));
+    u8csc val = {hex, hex + 40};
 
     return REFSAppend($path(keepdir), key, val);
 }
@@ -622,8 +657,9 @@ ok64 WIREFetch(keeper *k, u8csc remote_uri, u8csc want_ref) {
     }
     u8bUnMap(respbuf);
 
-    //  6.  Record the ref locally under the actually-matched name.
-    if (wcli_record_ref(k, matched_ref, &want_sha) != OK)
+    //  6.  Record the ref locally under the actually-matched name,
+    //  attributed to the peer URI.
+    if (wcli_record_ref(k, remote_uri, matched_ref, &want_sha) != OK)
         goto fetch_close;
 
     rv = OK;

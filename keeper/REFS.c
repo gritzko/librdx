@@ -10,6 +10,7 @@
 #include "abc/PRO.h"
 #include "abc/RON.h"
 #include "abc/URI.h"
+#include "dog/DOG.h"
 #include "dog/ULOG.h"
 
 // --- verb (cached ron60 of "set") ---
@@ -33,8 +34,10 @@ static ron60 refs_verb_set(void) {
 // --- append ---
 
 //  Populate a `uri` component-wise so URIutf8Feed re-emits
-//  `<from-uri>#?<sha>`.  `from` is lexed to pick up scheme/auth/path/
-//  query; `to` is planted directly in the fragment (leading `?` kept).
+//  `<from-uri>#<sha>`.  `from` is lexed to pick up scheme/auth/path/
+//  query; `to` lands in the fragment as bare 40-hex (or empty for a
+//  deletion row).  Callers MUST pass canonical `from` / `to` — this
+//  is a storage primitive, not a canonicaliser.
 static ok64 refs_uri_for_row(urip u_out, u8csc from, u8csc to,
                              u8 *frag_bytes, size_t frag_cap,
                              size_t *frag_len_out) {
@@ -49,15 +52,13 @@ static ok64 refs_uri_for_row(urip u_out, u8csc from, u8csc to,
     u_out->data[0] = from[0];
     u_out->data[1] = from[1];
 
-    //  Build the fragment payload into caller-owned storage: `?<sha>`.
-    //  Accept `to` with or without a leading `?`; always emit exactly
-    //  one.
-    u8cs sha = {to[0], to[1]};
-    if (!u8csEmpty(sha) && sha[0][0] == '?') u8csUsed(sha, 1);
-    size_t need = 1 + (size_t)$len(sha);
+    //  Copy `to` verbatim into caller-owned fragment storage.  Empty
+    //  `to` means a deletion row (`?branch#`) — represent as a
+    //  present-but-empty fragment slice so URIutf8Feed emits the
+    //  bare `#`.
+    size_t need = (size_t)$len(to);
     if (need > frag_cap) fail(REFSBAD);
-    frag_bytes[0] = '?';
-    memcpy(frag_bytes + 1, sha[0], (size_t)$len(sha));
+    if (need > 0) memcpy(frag_bytes, to[0], need);
     u_out->fragment[0] = frag_bytes;
     u_out->fragment[1] = frag_bytes + need;
     *frag_len_out = need;
@@ -79,7 +80,9 @@ static ron60 refs_next_ts(ulogcp l) {
 
 ok64 REFSAppend(u8csc dir, u8csc from_uri, u8csc to_uri) {
     sane($ok(dir) && $ok(from_uri) && $ok(to_uri));
-    if (u8csEmpty(from_uri) || u8csEmpty(to_uri)) fail(REFSBAD);
+    //  `from_uri` must be non-empty (the ref key is mandatory);
+    //  `to_uri` may be empty — that's the deletion row (`?branch#`).
+    if (u8csEmpty(from_uri)) fail(REFSBAD);
 
     REFS_LOG_PATH(log_path, dir);
     ulog l = {};
@@ -139,8 +142,10 @@ static ok64 refs_each_store(ron60 ts, ron60 verb, uricp u, void *ctx) {
 
     //  Key: URI with fragment elided, serialised straight into
     //  arena's IDLE (URIutf8Feed advances the idle slice in place).
+    //  NULL (not empty-non-NULL) so URIutf8Feed drops the `#`.
     uri ku = *u;
-    ku.fragment[0] = ku.fragment[1];  // empty the fragment slice
+    ku.fragment[0] = NULL;
+    ku.fragment[1] = NULL;
     u8 *kb = u8bIdleHead(c->arena);
     call(URIutf8Feed, u8bIdle(c->arena), &ku);
     u8 *ke = u8bIdleHead(c->arena);
@@ -208,6 +213,7 @@ typedef struct {
     u8cs host_needle;   // substring to match against row's host (or empty)
     u8cs in_query;      // query to match (heads|tags variant-aware)
     b8   auth_is_dot;   // input was `.?…` — accept any host
+    b8   query_wildcard;// input had no `?` at all — match any ref on host
 } match_ctx;
 
 static b8 refs_host_match(u8csc host, u8csc needle) {
@@ -220,11 +226,34 @@ static b8 refs_host_match(u8csc host, u8csc needle) {
     return NO;
 }
 
+//  True if the query string is a trunk alias per DOGCanonURI rules:
+//  empty, or `master`/`main`/`trunk`, or `heads/<those>`.  Used
+//  below to match any trunk-alias lookup against any trunk-alias
+//  stored row (so canonical `?` rows and legacy `?heads/main` rows
+//  answer the same `sniff get ?heads/master` query).
+static b8 refs_is_trunk_alias(u8csc q) {
+    size_t l = (size_t)u8csLen(q);
+    if (l == 0) return YES;
+    if (l == 6  && memcmp(q[0], "master",       6) == 0) return YES;
+    if (l == 4  && memcmp(q[0], "main",         4) == 0) return YES;
+    if (l == 5  && memcmp(q[0], "trunk",        5) == 0) return YES;
+    if (l == 12 && memcmp(q[0], "heads/master", 12) == 0) return YES;
+    if (l == 10 && memcmp(q[0], "heads/main",   10) == 0) return YES;
+    if (l == 11 && memcmp(q[0], "heads/trunk",  11) == 0) return YES;
+    return NO;
+}
+
 //  in_query="heads/X" matches r_query="heads/X".
-//  in_query="X"       matches r_query in {"X","heads/X","tags/X"}.
-//  in_query=""        matches any row.
+//  in_query="X"       matches r_query in {"X","heads/X","tags/X"}
+//                     (bare short-ref fallback).
+//  in_query=""        matches only trunk rows (r_query is a
+//                     trunk alias per refs_is_trunk_alias).
+//  Any trunk alias matches any other trunk alias — covers both
+//  the canonical `?` row and legacy `?heads/main` stored rows.
 static b8 refs_query_match(u8csc in_query, u8csc r_query) {
-    if (u8csEmpty(in_query)) return YES;
+    if (refs_is_trunk_alias(in_query) && refs_is_trunk_alias(r_query))
+        return YES;
+    if (u8csEmpty(in_query)) return NO;
     if (u8csLen(in_query) == u8csLen(r_query) &&
         memcmp(in_query[0], r_query[0], u8csLen(in_query)) == 0)
         return YES;
@@ -249,11 +278,18 @@ static b8 refs_match_pred(uricp u, void *ctx) {
     match_ctx *m = (match_ctx *)ctx;
     u8cs r_host  = {u->host[0],  u->host[1]};
     u8cs r_query = {u->query[0], u->query[1]};
-    if (!refs_query_match(m->in_query, r_query)) return NO;
-    if (!m->auth_is_dot &&
-        !u8csEmpty(m->host_needle) &&
-        !refs_host_match(r_host, m->host_needle)) return NO;
-    return YES;
+    //  Input had no `?` at all → match any ref whose host fits the
+    //  needle (fresh clone: `be get //peer` with no branch spec).
+    //  Otherwise apply the normal query match.
+    if (!m->query_wildcard &&
+        !refs_query_match(m->in_query, r_query)) return NO;
+    if (m->auth_is_dot) return YES;
+    if (!u8csEmpty(m->host_needle))
+        return refs_host_match(r_host, m->host_needle);
+    //  No host needle and not `.` — restrict to local rows (rows
+    //  without a host).  Otherwise a bare `?main` lookup would
+    //  randomly match a remote trunk observation.
+    return u8csEmpty(r_host);
 }
 
 static ok64 refs_capture_cs(u8bp arena, u8csc src, u8csp out) {
@@ -269,20 +305,22 @@ ok64 REFSResolve(urip resolved, u8bp arena, u8csc dir, u8csc input) {
     sane($ok(dir) && $ok(input) && resolved != NULL && arena != NULL);
     memset(resolved, 0, sizeof(*resolved));
 
-    //  Parse the input URI.
+    //  Parse the input URI.  Strip `refs/` from the query; the
+    //  variant fallback in refs_query_match (plus its trunk-alias
+    //  bidirectional match) handles canonicalisation equivalence
+    //  without us needing to rewrite the input.
     uri in = {};
     in.data[0] = input[0]; in.data[1] = input[1];
     call(URILexer, &in);
-
-    //  Strip a leading `refs/` from the query (`refs/heads/X` → `heads/X`).
     u8cs in_query = {in.query[0], in.query[1]};
     if ($len(in_query) > 5 && memcmp(in_query[0], "refs/", 5) == 0)
         u8csUsed(in_query, 5);
 
-    //  Derive a host needle from input.host / authority / path.
     match_ctx m = {};
-    m.in_query[0] = in_query[0];
-    m.in_query[1] = in_query[1];
+    //  Presence test (not emptiness): input `?` = match trunk only;
+    //  input with no `?` = match any ref on the host (wildcard).
+    m.query_wildcard = (in.query[0] == NULL);
+    u8csMv(m.in_query, in_query);
     if (!u8csEmpty(in.host)) {
         m.host_needle[0] = in.host[0];
         m.host_needle[1] = in.host[1];
@@ -303,11 +341,11 @@ ok64 REFSResolve(urip resolved, u8bp arena, u8csc dir, u8csc input) {
         m.host_needle[1] = NULL;
     }
 
-    //  No discriminator — bare-text input (no `?`, no `//`, no `.`)
-    //  would otherwise match any row via the documented "empty
-    //  in_query matches any row" rule.  Refuse instead of returning
-    //  an arbitrary HEAD.
-    if (u8csEmpty(m.in_query) && u8csEmpty(m.host_needle) && !m.auth_is_dot)
+    //  No discriminator — bare text with no URI sigils (`?`, `//`,
+    //  `.`) has nothing to match on.  Use presence (`[0] != NULL`)
+    //  not emptiness: a canonical trunk lookup has present-but-empty
+    //  query (`?` with nothing after) and is a legitimate request.
+    if (in.query[0] == NULL && u8csEmpty(m.host_needle) && !m.auth_is_dot)
         fail(REFSNONE);
 
     REFS_LOG_PATH(log_path, dir);

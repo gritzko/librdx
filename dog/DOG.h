@@ -41,15 +41,39 @@ con ok64 DOGNOBR = 0xd6105d82db;
 // Absolute local paths must use `file:///abs/path`.
 ok64 DOGParseURI(urip uri, u8csc text);
 
-// Canonicalise a parsed URI for ref-key comparison: feed
-// `//<authority><path>[?<query>]` into `out`.  Transport scheme
-// (ssh:, https:, git:) is dropped — `ssh://host/x` and
-// `https://host/x` produce the same key.  Bare `host:x` (DOGParseURI
-// already moved scheme→authority) gets the leading `//` added.
-// When `with_query` is YES the `?<query>` tail is included; NO
-// strips it (useful to build an origin-only key).  Inputs without
-// host/authority pass through via `path` only (no leading `//`).
-ok64 DOGCanonURIKey(u8bp out, urip u, b8 with_query);
+// Canonicalise a URI in place — the single chokepoint every
+// ULOG/REFS writer must go through so the on-disk form never
+// carries redundant or ambiguous spellings.
+//
+//   Query (slice mutated on `u`):
+//     - strip leading `refs/`
+//     - collapse `heads/master`, `heads/main`, `heads/trunk` to empty
+//     - collapse bare `master`, `main`, `trunk` to empty
+//     - the trunk is the empty query (`?` with nothing after)
+//     - `tags/*`, `heads/<other>`, SHAs, ranges, sets — left alone
+//
+//   Fragment (slice mutated on `u`):
+//     - strip a single leading `?` (value is bare 40-hex SHA or empty)
+//     - empty fragment means deletion / tombstone
+//
+//   Presence is preserved: a query/fragment that was in the input
+//   stays present-but-empty (non-NULL zero-length slice) rather than
+//   reverting to absent, so `?#<sha>` (trunk move) and `?branch#`
+//   (deletion) round-trip through the canonicaliser unchanged.
+//
+// Shape-only transform: slices are shrunk or pointed at their tail;
+// no reallocation, no validation of contents.  `u->data` is not
+// rewritten and will be out of sync with the mutated components.
+ok64 DOGCanonURI(urip u);
+
+// Emit the canonical byte form of a URI to `out`.  Thin wrapper:
+// calls DOGCanonURI to canonicalise in place, then serialises.
+// Transport schemes (ssh, https, git) are dropped as fungible;
+// `file:` is preserved.  Present-but-empty query/fragment emit a
+// bare `?` / `#` so `?#<sha>` (trunk move) and `?branch#` (deletion)
+// round-trip.  This is the single entry point every ULOG/REFS
+// writer goes through.
+ok64 DOGCanonURIFeed(u8bp out, urip u);
 
 // Classify a CLI arg: parse it as a URI, and when the parse is
 // degenerate (bare token, no structure), back-fill the URI's `query`

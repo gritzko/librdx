@@ -50,18 +50,16 @@ static b8 refadv_starts_with(u8csc s, u8c const *pfx, size_t plen) {
     return memcmp(s[0], pfx, plen) == 0;
 }
 
-//  Decode a `?<40-hex>` REFS value into a sha1.  Returns NO on shape
-//  mismatch (wrong length, missing leading '?', non-hex digit).
+//  Decode a REFS value into a sha1.  Canonical form is bare 40-hex;
+//  also accept legacy `?<40-hex>` (41 chars) for read-path tolerance.
 static b8 refadv_decode_terminal(sha1 *out, u8csc val) {
-    if (u8csLen(val) != 41) return NO;
-    if (val[0][0] != '?') return NO;
-    u8cs hex = {val[0] + 1, val[1]};
+    u8cs hex = {val[0], val[1]};
+    if (u8csLen(hex) == 41 && hex[0][0] == '?') u8csUsed(hex, 1);
+    if (u8csLen(hex) != 40) return NO;
     a_dup(u8c, hex_dup, hex);
     u8 buf[20] = {};
     u8s bin = {buf, buf + 20};
     if (HEXu8sDrainSome(bin, hex_dup) != OK) return NO;
-    //  After drain: bin[0] should be at buf+20 (all 20 bytes filled)
-    //  and hex_dup should be empty (all 40 hex chars consumed).
     if (bin[0] != buf + 20) return NO;
     if (!u8csEmpty(hex_dup)) return NO;
     memcpy(out->data, buf, 20);

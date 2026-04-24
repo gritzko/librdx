@@ -12,6 +12,7 @@
 #include "abc/FILE.h"
 #include "abc/HEX.h"
 #include "abc/PRO.h"
+#include "dog/DOG.h"
 #include "keeper/PKT.h"
 #include "keeper/REFS.h"
 
@@ -284,12 +285,11 @@ ok64 RECVIngestPack(keeper *k, int in_fd, u8csc tail) {
 
 // --- updates application ---
 
-//  Build the from-URI key for a given refname.  Maps:
-//    refs/heads/<X>   → "?heads/<X>"
-//    refs/tags/<X>    → "?tags/<X>"
-//  (alias preservation: "main"/"master"/"trunk" all keep their literal
-//  spelling — REFADV's tip→dir map already collapses them to the trunk
-//  shard, but the REFS key carries the alias the client used.)
+//  Build the from-URI key for a given refname.  Maps (peer names are
+//  preserved — the git wire protocol is name-based, canonicalisation
+//  is for local user input, not peer observations):
+//    refs/heads/<X>   → `?heads/<X>`
+//    refs/tags/<X>    → `?tags/<X>`
 //  Returns OK on success, RECVBADREF for unsupported refname shapes.
 static ok64 recv_build_key(u8b out, u8csc refname) {
     sane(u8bOK(out));
@@ -318,10 +318,9 @@ static ok64 recv_build_key(u8b out, u8csc refname) {
     return RECVBADREF;
 }
 
-//  Compose the to-URI value: "?<40-hex>".
+//  Compose the to-URI value: bare 40-hex (canonical fragment form).
 static ok64 recv_build_val(u8b out, sha1 const *sha) {
     sane(u8bOK(out));
-    u8bFeed1(out, '?');
     u8 hex[40];
     recv_sha_to_hex(hex, sha);
     u8csc hexs = {hex, hex + 40};

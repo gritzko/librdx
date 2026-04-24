@@ -152,7 +152,8 @@ SQUASH=$(head_hex)
 [ "$SQUASH" != "$MASTER1" ] || fail "no new commit after squash post"
 note "squash commit=$SQUASH"
 
-MASTER_REF=$(ref_tip "?heads/master")
+#  `?heads/master` canonicalises to bare `?` (trunk).
+MASTER_REF=$(ref_tip "?")
 [ "$MASTER_REF" = "$SQUASH" ] \
     || fail "heads/master not advanced to squash ($MASTER_REF vs $SQUASH)"
 note "heads/master -> $SQUASH"

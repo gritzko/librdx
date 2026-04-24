@@ -105,64 +105,78 @@ ok64 DOGTestDOGParseURI() {
     done;
 }
 
-// --- Canonical-key round-trip: input → DOGNormalizeArg → DOGCanonURIKey ---
+// --- Canonical round-trip: input → DOGNormalizeArg → DOGCanonURIFeed ---
 //
 // `expect` is what the canonical byte stream should be.  Covers the full
 // pipeline: classification (query/fragment/path), dog normalisations
 // (scheme→authority, port-fixup, @host split), and canonicalisation
-// (scheme-stripping for transports, `file:` preservation, `//`+path).
+// (scheme-stripping for transports, `file:` preservation, `//`+path,
+// `refs/` strip, trunk-name collapse, `?` strip from fragment).
 typedef struct {
     const char *input;
-    const char *expect;   // DOGCanonURIKey(norm_arg, with_query=YES)
+    const char *expect;   // DOGCanonURIFeed(norm_arg)
 } CanonCase;
 
 static const CanonCase CANON_CASES[] = {
-    // Pass-through URIs — scheme stripped (transports fungible).
-    {"ssh://localhost/src/repo?master",    "//localhost/src/repo?master"},
-    {"https://localhost/src/repo?master",  "//localhost/src/repo?master"},
-    {"git://localhost/src/repo?master",    "//localhost/src/repo?master"},
-    // `file:` preserved — local absolute paths need the prefix.
+    // Scheme preserved — ssh/https/git/file/be all pass through.
+    // `master` collapses to trunk (present-empty query).
+    {"ssh://localhost/src/repo?master",    "ssh://localhost/src/repo?"},
+    {"https://localhost/src/repo?master",  "https://localhost/src/repo?"},
+    {"git://localhost/src/repo?master",    "git://localhost/src/repo?"},
+    // `file:` preserved.
     {"file:///etc/passwd",                 "file:///etc/passwd"},
     // Scp-like form: `host:path`, non-numeric port glued back.
-    {"ssh://localhost:src/repo?master",    "//localhost/src/repo?master"},
-    {"localhost:src/repo?master",          "//localhost/src/repo?master"},
+    {"ssh://localhost:src/repo?master",    "ssh://localhost/src/repo?"},
+    {"localhost:src/repo?master",          "//localhost/src/repo?"},
     // User@host form — no `//`, promoted via the @-split rule.
-    {"gritzko@pm.me/proj?main",            "//gritzko@pm.me/proj?main"},
-    {"gritzko@pm.me?main",                 "//gritzko@pm.me?main"},
+    {"gritzko@pm.me/proj?main",            "//gritzko@pm.me/proj?"},
+    {"gritzko@pm.me?main",                 "//gritzko@pm.me?"},
     // Already canonical.
-    {"//localhost/src/repo?master",        "//localhost/src/repo?master"},
+    {"//localhost/src/repo?master",        "//localhost/src/repo?"},
     // Path-only.
     {"/absolute/path",                     "/absolute/path"},
-    // Bare ref name — classified as query.
-    {"master",                             "?master"},
-    // 40-hex SHA — classified as query.
+    // Bare ref name — classified as query; trunk alias collapses.
+    {"master",                             "?"},
+    {"main",                               "?"},
+    {"trunk",                              "?"},
+    // Non-trunk branch — kept.
+    {"feature",                            "?feature"},
+    // `refs/heads/<trunk-alias>` collapses.
+    {"?refs/heads/master",                 "?"},
+    {"?refs/heads/main",                   "?"},
+    {"?refs/heads/trunk",                  "?"},
+    // `heads/<trunk-alias>` collapses.
+    {"?heads/master",                      "?"},
+    {"?heads/main",                        "?"},
+    // `refs/` strip on non-trunk paths.
+    {"?refs/tags/v1.0",                    "?tags/v1.0"},
+    {"?refs/heads/feat",                   "?heads/feat"},
+    // `tags/<name>` kept.
+    {"?tags/v2.8.6",                       "?tags/v2.8.6"},
+    // 40-hex SHA — classified as query, no collapse.
     {"0123456789abcdef0123456789abcdef01234567",
         "?0123456789abcdef0123456789abcdef01234567"},
-    // Whitespace — classified as fragment (commit msg).  DOGCanonURIKey
-    // itself strips fragments; the test helper re-appends them so the
-    // full representation is observable.
+    // Whitespace — classified as fragment (commit msg).
     {"fix the typo",                       "#fix the typo"},
     // Bare fragment.
     {"#symbol",                            "#symbol"},
-    // Bare query.
+    // Bare query (version-like).
     {"?v2.8.6",                            "?v2.8.6"},
     // Numeric port preserved (real port, not a glued path).
-    {"ssh://host:22/repo",                 "//host:22/repo"},
+    {"ssh://host:22/repo",                 "ssh://host:22/repo"},
+    // Trunk-move row: `?#<sha>` — empty-but-present query, non-empty
+    // fragment with leading `?` stripped.
+    {"?#?0123456789abcdef0123456789abcdef01234567",
+        "?#0123456789abcdef0123456789abcdef01234567"},
+    // Remote branch observation: scheme + host + path + query +
+    // fragment round-trip.
+    {"ssh://peer/src/repo?heads/feat#?0123456789abcdef0123456789abcdef01234567",
+        "ssh://peer/src/repo?heads/feat#0123456789abcdef0123456789abcdef01234567"},
+    // Deletion row: `?branch#` — non-empty query, empty-but-present fragment.
+    {"?feature/fix1#",                     "?feature/fix1#"},
 };
 
 #define NCANON (sizeof(CANON_CASES) / sizeof(CANON_CASES[0]))
-
-// Canonical form for the test table: include query AND fragment so
-// a fragment-only input still produces something observable.
-static ok64 canon_for_test(u8bp out, urip u) {
-    sane(out && u);
-    call(DOGCanonURIKey, out, u, YES);
-    if (!u8csEmpty(u->fragment)) {
-        u8bFeed1(out, '#');
-        u8bFeed(out, u->fragment);
-    }
-    done;
-}
 
 ok64 DOGTestCanonical() {
     sane(1);
@@ -179,7 +193,7 @@ ok64 DOGTestCanonical() {
         }
 
         a_pad(u8, canbuf, 1024);
-        call(canon_for_test, canbuf, &u);
+        call(DOGCanonURIFeed, canbuf, &u);
 
         a_dup(u8c, got, u8bData(canbuf));
         a_cstr(want, tc->expect);
