@@ -188,11 +188,20 @@ u32 SNIFFCount(void) {
 // --- Shared wt-scan helpers ---
 
 b8 SNIFFSkipMeta(u8cs rel) {
+    //  `.git/` is ignored so worktrees can coexist with a host git
+    //  repo (test scaffolding, mill scripts, humans moving between
+    //  tools) without dog post slurping .git/HEAD, hooks, config…
+    //  into the tree.  DPATHVerify rejects `.git` as a tree entry
+    //  name anyway — if it leaked through, every subdir sibling
+    //  gets silently skipped at walk time.
     a_cstr(d_sniff, ".sniff");
     a_cstr(d_dogs,  ".dogs");
+    a_cstr(d_git,   ".git");
     size_t rl = $len(rel);
-    u8cs const metas[2] = {{d_sniff[0], d_sniff[1]}, {d_dogs[0], d_dogs[1]}};
-    for (u32 i = 0; i < 2; i++) {
+    u8cs const metas[3] = {{d_sniff[0], d_sniff[1]},
+                           {d_dogs[0],  d_dogs[1]},
+                           {d_git[0],   d_git[1]}};
+    for (u32 i = 0; i < 3; i++) {
         size_t ml = $len(metas[i]);
         if (rl < ml) continue;
         if (memcmp(rel[0], metas[i][0], ml) != 0) continue;

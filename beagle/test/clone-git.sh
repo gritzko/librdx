@@ -12,6 +12,7 @@
 set -e
 
 BIN=${BIN:-$(dirname "$0")/../../build-debug/bin}
+BIN=$(cd "$BIN" && pwd)
 export PATH="$BIN:$PATH"
 
 REPO=${REPO:-$HOME/src/git}
@@ -49,7 +50,7 @@ fi
 
 # --- compare worktrees (rsync dry-run) ---
 echo "=== diff ==="
-RDIFF=$(rsync -rlcn --delete \
+RDIFF=$(rsync -rlcni --delete \
     --exclude='/.git/' --exclude='/.dogs/' \
     "$GIT_DIR/" "$DOGS_DIR/" 2>&1)
 

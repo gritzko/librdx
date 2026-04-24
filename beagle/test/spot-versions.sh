@@ -26,6 +26,7 @@
 set -eu
 
 BIN=${BIN:-$(dirname "$0")/../../build-debug/bin}
+BIN=$(cd "$BIN" && pwd)
 export PATH="$BIN:$PATH"
 BE="$(command -v be   || echo $BIN/be)"
 SPOT="$(command -v spot || echo $BIN/spot)"

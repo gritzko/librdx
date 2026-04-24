@@ -25,6 +25,7 @@
 set -eu
 
 BIN=${BIN:-$(dirname "$0")/../../build-debug/bin}
+BIN=$(cd "$BIN" && pwd)
 export PATH="$BIN:$PATH"
 export DOG_REMOTE_PATH="$BIN"
 

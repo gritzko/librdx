@@ -13,6 +13,7 @@
 set -eu
 
 BIN=${BIN:-$(dirname "$0")/../../build-debug/bin}
+BIN=$(cd "$BIN" && pwd)
 BE="$BIN/be"
 export PATH="$BIN:$PATH"
 

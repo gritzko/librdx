@@ -7,6 +7,7 @@
 set -e
 
 BIN=${BIN:-$(dirname "$0")/../../build-debug/bin}
+BIN=$(cd "$BIN" && pwd)
 export PATH="$BIN:$PATH"
 
 #  Keeper treats URI paths in `//host/path` as HOME-relative (see
