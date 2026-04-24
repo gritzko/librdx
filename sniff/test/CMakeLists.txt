@@ -8,6 +8,14 @@ add_test(NAME SNIFFworkflow
 set_tests_properties(SNIFFworkflow PROPERTIES
     ENVIRONMENT "BIN=${DOG_BIN_DIR};TMP=${DOG_TEST_TMP_ROOT};TEST_ID=SNIFFworkflow")
 
+#  squash.sh — concurrent trunk + sub-branch edits folded back via
+#  `sniff patch` + `sniff post` (one linear commit on the parent).
+add_test(NAME SNIFFsquash
+    COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/squash.sh
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_tests_properties(SNIFFsquash PROPERTIES
+    ENVIRONMENT "BIN=${DOG_BIN_DIR};TMP=${DOG_TEST_TMP_ROOT};TEST_ID=SNIFFsquash")
+
 if (WITH_SSH)
     #  patch.sh — 3-way merge toys (sniff patch <ref>).  Needs ssh
     #  localhost (same transport as beagle/test/blobs-from-git.sh).

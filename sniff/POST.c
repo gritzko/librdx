@@ -143,15 +143,20 @@ static ok64 post_load_baseline(post_ctx *c, sha1 *root_out, b8 *has_out) {
     if (br == ULOGNONE) done;  // fresh repo
     if (br != OK) return br;
 
-    //  Single-hash baseline: fragment is 40 hex chars.  Multi-hash
-    //  (patch merges) falls through with has_out=NO until graf
-    //  integration lands — safe fallback is "no baseline tree".
+    //  Baseline fragment is either `<sha>` (single-hash, from get/post)
+    //  or `<ours>,<theirs>[,...]` (post-patch N-hash URI, see AT.h).
+    //  For a squash-merge POST we only need the ours tree as the
+    //  baseline: patched files are mtime-dirty (PATCH does not stamp),
+    //  added files aren't in ours and fall into POST_REWRITE via the
+    //  implicit-dirty rule, and deleted files were unlinked by PATCH so
+    //  they vanish via the implicit-drop rule.
     a_dup(u8c, frag, base_u.fragment);
-    if ($len(frag) != 40) done;
+    if ($len(frag) < 40) done;
+    u8cs h40 = {frag[0], frag[0] + 40};
 
     sha1 commit_sha = {};
     a_raw(csha_bin, commit_sha);
-    HEXu8sDrainSome(csha_bin, frag);
+    HEXu8sDrainSome(csha_bin, h40);
 
     Bu8 cbuf = {};
     call(u8bAllocate, cbuf, 1UL << 24);
@@ -490,9 +495,21 @@ static ok64 post_baseline_branch(u8bp out, u8bp hex_out) {
     uri u = {};
     ok64 r = SNIFFAtBaseline(&ts, &verb, &u);
     if (r != OK) done;
-    if (!u8csEmpty(u.query)) u8bFeed(out, u.query);
+    //  Branches are written to REFS as `?heads/X`; the URI query slice
+    //  stores the bare `heads/X` (RFC 3986 — the `?` is the separator).
+    //  Prefix it here so downstream callers can treat `out` as a full
+    //  ref key ready to hand to REFSAppend.
+    if (!u8csEmpty(u.query)) {
+        u8bFeed1(out, '?');
+        u8bFeed(out, u.query);
+    }
+    //  Fragment is either `<sha>` or `<ours>,<theirs>[,...]`.  Take the
+    //  first 40-hex chunk as the parent commit — see post_load_baseline.
     a_dup(u8c, frag, u.fragment);
-    if ($len(frag) == 40) u8bFeed(hex_out, frag);
+    if ($len(frag) >= 40) {
+        u8cs h40 = {frag[0], frag[0] + 40};
+        u8bFeed(hex_out, h40);
+    }
     done;
 }
 
