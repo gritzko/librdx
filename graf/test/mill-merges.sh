@@ -166,6 +166,18 @@ for M in $MERGES; do
     echo "=== $M  $SUBJ ==="
 
     set +e
+    #  Seed this wt's .dogs with the same ref Pass 1 used — the curated
+    #  merges are all reachable from it, so the follow-up `be get ?<sha>`
+    #  can resolve locally (git upload-pack rejects `want <sha>` without
+    #  allow-reachable-sha1-in-want).
+    (cd "$WT" && be get "//$HOST/$REPO_REL?$SEED_REF" >/dev/null 2>&1)
+    SEED_RC=$?
+    if [ "$SEED_RC" -ne 0 ]; then
+        printf "FAIL: be get ?%s (seed) exit %d\n" "$SEED_REF" "$SEED_RC"
+        PATCH_FAIL=$((PATCH_FAIL + 1))
+        set -e
+        continue
+    fi
     (cd "$WT" && be get "//$HOST/$REPO_REL?$P1" >/dev/null 2>&1)
     GET_RC=$?
     if [ "$GET_RC" -ne 0 ]; then
@@ -191,7 +203,7 @@ for M in $MERGES; do
 
     git -C "$REFCLONE" checkout --quiet --force "$M"
 
-    RDIFF=$(rsync -rlcn --delete \
+    RDIFF=$(rsync -rlcni --delete \
         --exclude='/.git/' --exclude='/.dogs/' --exclude='/.sniff' \
         "$REFCLONE/" "$WT/" 2>&1)
 

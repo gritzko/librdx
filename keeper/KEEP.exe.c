@@ -217,6 +217,30 @@ static ok64 keeper_get_remote(keeper *k, cli *c, uri *g) {
     u8cs want_ref = {};
     u8csMv(want_ref, g->query);
 
+    //  Local short-circuit for `?<40hex>` queries: plain git peers
+    //  reject `want <sha>` without uploadpack.allowReachableSHA1InWant,
+    //  so the supported flow is "seed with a named ref first, then
+    //  look up by sha".  If the object is already in the local store,
+    //  skip the wire round-trip entirely.
+    if ($len(want_ref) == 40) {
+        b8 all_hex = YES;
+        $for(u8c, p, want_ref) {
+            u8 c = *p;
+            if (!((c >= '0' && c <= '9') ||
+                  (c >= 'a' && c <= 'f') ||
+                  (c >= 'A' && c <= 'F'))) { all_hex = NO; break; }
+        }
+        if (all_hex) {
+            u8csc wr = {want_ref[0], want_ref[1]};
+            u64 hashlet = WHIFFHexHashlet60(wr);
+            u64 val = 0;
+            if (KEEPLookup(k, hashlet, 40, &val) == OK) {
+                u8bUnMap(rarena);
+                return OK;
+            }
+        }
+    }
+
     a_pad(u8, branch_buf, 256);
     u8cs cur_branch = {};
     if (u8csEmpty(want_ref)) {

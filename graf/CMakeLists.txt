@@ -24,6 +24,7 @@ list(APPEND GRAF_SOURCES
     BLOB.c
     DAG.c
     DIFF.c
+    DIFFREF.c
     GET.c
     INDEX.c
     JOIN.c

@@ -137,6 +137,14 @@ ok64 SNIFFOpen(home *h, b8 rw) {
 
     //  Reserve the root-dir "/" path at its stable index.
     if (rw) (void)SNIFFRootIdx();
+
+    //  Load wt-root .gitignore (single file, no nested cascade) into
+    //  `s->ignores`.  Absent file is not an error — IGNOMatch still
+    //  rejects .git/.dogs/.sniff unconditionally.
+    {
+        a_dup(u8c, wt_for_ig, u8bDataC(h->wt));
+        (void)IGNOLoad(&s->ignores, wt_for_ig);
+    }
     done;
 }
 
@@ -146,6 +154,7 @@ ok64 SNIFFClose(void) {
     sniff *s = &SNIFF;
     ULOGClose(&s->log);
     u32bFree(s->sorted);
+    IGNOFree(&s->ignores);
     zerop(s);
     sniff_is_rw = NO;
     if (sniff_opened_keep) {
@@ -187,28 +196,11 @@ u32 SNIFFCount(void) {
 
 // --- Shared wt-scan helpers ---
 
+//  One gate for every wt-scan callback: delegates to IGNOMatch, which
+//  rejects metadata (.git/.dogs/.sniff) unconditionally and applies
+//  any .gitignore patterns loaded into SNIFF.ignores at open time.
 b8 SNIFFSkipMeta(u8cs rel) {
-    //  `.git/` is ignored so worktrees can coexist with a host git
-    //  repo (test scaffolding, mill scripts, humans moving between
-    //  tools) without dog post slurping .git/HEAD, hooks, config…
-    //  into the tree.  DPATHVerify rejects `.git` as a tree entry
-    //  name anyway — if it leaked through, every subdir sibling
-    //  gets silently skipped at walk time.
-    a_cstr(d_sniff, ".sniff");
-    a_cstr(d_dogs,  ".dogs");
-    a_cstr(d_git,   ".git");
-    size_t rl = $len(rel);
-    u8cs const metas[3] = {{d_sniff[0], d_sniff[1]},
-                           {d_dogs[0],  d_dogs[1]},
-                           {d_git[0],   d_git[1]}};
-    for (u32 i = 0; i < 3; i++) {
-        size_t ml = $len(metas[i]);
-        if (rl < ml) continue;
-        if (memcmp(rel[0], metas[i][0], ml) != 0) continue;
-        if (rl == ml) return YES;                       // exact entry
-        if (rl > ml && rel[0][ml] == '/') return YES;   // dir prefix
-    }
-    return NO;
+    return IGNOMatch(&SNIFF.ignores, rel, NO);
 }
 
 b8 SNIFFRelFromFull(u8csp rel_out, u8cs reporoot, u8cs full) {

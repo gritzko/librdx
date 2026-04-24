@@ -8,20 +8,25 @@
 #
 set -e
 
+<<<<<<< HEAD
 BIN=${BIN:-$(dirname "$0")/../../build-debug/bin}
 BIN=$(cd "$BIN" && pwd)
+=======
+BIN=${BIN:-$(cd "$(dirname "$0")/../../build-debug/bin" && pwd)}
+>>>>>>> dogs-bro
 export PATH="$BIN:$PATH"
 
 TMP=${TMP:-$HOME/tmp}
 TEST_ID=${TEST_ID:-mill-tags}
 TMILL=${TMILL:-$TMP/$$-$TEST_ID}
 REPO=${REPO:-$HOME/src/git}
+NTAGS=${NTAGS:-12}
 #  Keeper URI paths are $HOME-relative: //host/src/git → $HOME/src/git.
 REPO_REL=${REPO#$HOME/}
 HOST=${HOST:-localhost}
 trap 'rm -rf "$TMILL"' EXIT
 
-TAGS=${TAGS:-"v2.8.4 v2.8.5 v2.8.6 v2.9.0 v2.9.0-rc0 v2.9.0-rc1 v2.9.0-rc2 v2.9.1 v2.9.2 v2.9.3 v2.9.4 v2.9.5"}
+TAGS=${TAGS:-$(git -C "$REPO" tag --sort=creatordate | tail -n "$NTAGS")}
 
 mkdir -p "$TMILL/be01" "$TMILL/git01"
 
@@ -70,7 +75,11 @@ for TAG in $TAGS; do
 
     # --- rsync dry-run: full content comparison ---
     RDIFF=$(rsync -rlcni --delete \
+<<<<<<< HEAD
         --exclude='/.git/' --exclude='/.dogs/' \
+=======
+        --exclude='/.git/' --exclude='/.dogs/' --exclude='/.sniff' \
+>>>>>>> dogs-bro
         "$TMILL/git01/" "$TMILL/be01/" 2>&1)
 
     BE_N=$(find "$TMILL/be01" -not -path '*/.dogs/*' -not -path '*/.git/*' -type f | wc -l)

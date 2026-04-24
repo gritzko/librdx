@@ -716,19 +716,16 @@ ok64 POSTCommit(u8cs reporoot, u8cs message, u8cs author, sha1 *sha_out) {
     //  4. Worktree scan.
     call(post_scan_wt, &ctx);
 
-    //  4b. Load wt-root .gitignore (single file, no nested cascade)
-    //      and expand dir-level put/delete rows into file-level flags.
-    igno ig = {};
-    b8 have_ig = (IGNOLoad(&ig, reporoot) == OK);
+    //  4b. Expand dir-level put/delete rows into file-level flags.
+    //      The wt-root .gitignore is already loaded into SNIFF.ignores
+    //      at SNIFFOpen time, so every op consults the same set.
     {
-        ok64 xr = post_expand_dir_rows(&ctx, have_ig ? &ig : NULL);
+        ok64 xr = post_expand_dir_rows(&ctx, &SNIFF.ignores);
         if (xr != OK) {
-            if (have_ig) IGNOFree(&ig);
             u8bFree(rec_buf); u8bFree(flag_buf);
             return xr;
         }
     }
-    if (have_ig) IGNOFree(&ig);
 
     //  5. Decide fate per path.
     {

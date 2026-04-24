@@ -213,9 +213,29 @@ void IGNOFree(ignop ig) {
     memset(ig, 0, sizeof(*ig));
 }
 
+//  Hardcoded metadata: .git / .dogs / .sniff are always ignored,
+//  whether or not a .gitignore is loaded.  Every dog's wt-scan
+//  callbacks pass through IGNOMatch, so this one check keeps
+//  internal state (git's .git, keeper's .dogs, sniff's .sniff ULOG)
+//  out of diff / status / post / patch worktree passes.
+static b8 igno_is_meta(u8cs rel) {
+    if ($empty(rel)) return NO;
+    static char const *const metas[] = {".git", ".dogs", ".sniff"};
+    size_t rl = (size_t)$len(rel);
+    for (u32 i = 0; i < sizeof(metas) / sizeof(metas[0]); i++) {
+        size_t ml = strlen(metas[i]);
+        if (rl < ml) continue;
+        if (memcmp(rel[0], metas[i], ml) != 0) continue;
+        if (rl == ml) return YES;              // exact
+        if (rel[0][ml] == '/') return YES;     // dir prefix
+    }
+    return NO;
+}
+
 b8 IGNOMatch(ignocp ig, u8cs rel_path, b8 is_dir) {
-    if (!ig || ig->count == 0) return NO;
     if ($empty(rel_path)) return NO;
+    if (igno_is_meta(rel_path)) return YES;
+    if (!ig || ig->count == 0) return NO;
 
     // Start with not ignored
     b8 ignored = NO;

@@ -69,6 +69,18 @@ keeper's object store. HEAD does not move.
 HEAD, advances HEAD, and updates refs. With a remote authority in the
 URI the keeper push step is included; without, it's purely local.
 
+### Diff — token-level diff across refs or against the worktree
+
+    be diff path/to/file.c?v1..v2    # one file, ref-to-ref
+    be diff path/to/file.c?v1        # one file, ref vs worktree
+    be diff ?v1..v2                  # whole tree, ref-to-ref
+    be diff ?v1                      # whole tree, ref vs worktree
+
+The URI shape picks the mode: a `?from..to` query diffs two refs, a
+bare `?ref` diffs that ref against the current worktree. Add a path
+for a single file, leave it off for the whole tree. Output is the
+same token-level unified hunk format `graf diff` emits on disk.
+
 ### A full workflow
 
     mkdir my-repo && cd my-repo
