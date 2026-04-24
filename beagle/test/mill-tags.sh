@@ -13,7 +13,7 @@ export PATH="$BIN:$PATH"
 
 TMP=${TMP:-$HOME/tmp}
 TEST_ID=${TEST_ID:-mill-tags}
-TMILL=${TMILL:-$TMP/$$/$TEST_ID}
+TMILL=${TMILL:-$TMP/$$-$TEST_ID}
 REPO=${REPO:-$HOME/src/git}
 #  Keeper URI paths are $HOME-relative: //host/src/git → $HOME/src/git.
 REPO_REL=${REPO#$HOME/}

@@ -17,7 +17,7 @@ echo "# BE=$BE"
 
 TMP=${TMP:-$HOME/tmp}
 TEST_ID=${TEST_ID:-mill-toy}
-TMILL=${TMILL:-$TMP/$$/$TEST_ID}
+TMILL=${TMILL:-$TMP/$$-$TEST_ID}
 HOST=${HOST:-localhost}
 
 KEEP_WORK=""

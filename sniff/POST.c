@@ -29,6 +29,7 @@
 #include "abc/HEX.h"
 #include "abc/PATH.h"
 #include "abc/PRO.h"
+#include "dog/IGNO.h"
 #include "keeper/GIT.h"
 #include "keeper/REFS.h"
 #include "keeper/SHA1.h"
@@ -59,6 +60,8 @@ typedef struct {
     Bu8    content;     // blob content for rewrites (freed at end)
 } post_rec;
 
+#define POST_MAX_DIR_ROWS 64
+
 typedef struct {
     keeper     *k;
     u8cs        reporoot;
@@ -68,6 +71,12 @@ typedef struct {
     b8          any_pd;     // any put/delete rows since last post
     ron60       last_post_ts;
     ok64        error;
+    //  Dir-level put/delete prefixes (trailing '/').  Expanded after
+    //  the wt scan so baseline / on-disk presence is known.
+    u8cs        dir_puts[POST_MAX_DIR_ROWS];
+    u32         n_dir_puts;
+    u8cs        dir_dels[POST_MAX_DIR_ROWS];
+    u32         n_dir_dels;
 } post_ctx;
 
 // --- git mode helpers ---
@@ -102,6 +111,23 @@ static ok64 post_pd_cb(ron60 verb, u8cs path, ron60 ts, void *vctx) {
     if (idx >= c->cap) return OK;
     if (verb == SNIFFAtVerbPut())    c->flag[idx] |= POST_EXPL_PUT;
     if (verb == SNIFFAtVerbDelete()) c->flag[idx] |= POST_EXPL_DEL;
+
+    //  Trailing-slash paths are dir markers; stash the prefix so the
+    //  expansion pass can walk baseline / wt under it.  Exact-path
+    //  flags above are harmless on dir indices — post_decide skips
+    //  them via SNIFFIsDir.
+    if (!$empty(path) && *u8csLast(path) == '/') {
+        if (verb == SNIFFAtVerbPut() && c->n_dir_puts < POST_MAX_DIR_ROWS) {
+            c->dir_puts[c->n_dir_puts][0] = path[0];
+            c->dir_puts[c->n_dir_puts][1] = path[1];
+            c->n_dir_puts++;
+        }
+        if (verb == SNIFFAtVerbDelete() && c->n_dir_dels < POST_MAX_DIR_ROWS) {
+            c->dir_dels[c->n_dir_dels][0] = path[0];
+            c->dir_dels[c->n_dir_dels][1] = path[1];
+            c->n_dir_dels++;
+        }
+    }
     return OK;
 }
 
@@ -214,6 +240,115 @@ static ok64 post_scan_wt(post_ctx *c) {
                     (FILE_SCAN)(FILE_SCAN_FILES | FILE_SCAN_LINKS |
                                 FILE_SCAN_DEEP),
                     post_wt_callback, c);
+}
+
+// --- Dir-level put/delete expansion ---
+//
+//  `be put dir/` and `be delete dir/` record one ULOG row with a
+//  trailing slash.  The expansion pass turns each such row into a
+//  set of file-level flag updates so post_decide can do its usual
+//  per-path logic.  Runs AFTER baseline load + wt scan so both
+//  sources of truth are available.
+//
+//  Rules (v1):
+//    * delete: flag every baseline path strictly under the prefix as
+//      POST_EXPL_DEL.  POST's unlink loop then drops them from disk.
+//    * put, existing dir (any baseline file under prefix): flag those
+//      baseline paths as POST_EXPL_PUT.  Untracked on-disk siblings
+//      under the same prefix stay unflagged and fall through
+//      post_decide's "selective, no explicit rule, not in base" case
+//      — i.e. ignored.
+//    * put, new dir (no baseline hit): walk the wt under the prefix
+//      and flag each non-ignored file as POST_EXPL_PUT.  IGNO is
+//      loaded once from the wt root (no nested cascade).
+
+//  True iff `p` lives strictly beneath `prefix` (prefix must end '/').
+fun b8 post_path_under(u8cs p, u8cs prefix) {
+    size_t plen = $len(prefix);
+    if (plen == 0) return NO;
+    if ($len(p) <= plen) return NO;
+    return memcmp(p[0], prefix[0], plen) == 0;
+}
+
+typedef struct {
+    post_ctx *c;
+    ignocp    ig;      // NULL if no .gitignore at wt root
+} wt_put_ctx;
+
+static ok64 post_expand_put_wt_cb(void *varg, path8bp path) {
+    sane(varg && path);
+    wt_put_ctx *w = (wt_put_ctx *)varg;
+    post_ctx *c = w->c;
+    a_dup(u8c, full, u8bData(path));
+
+    u8cs rel = {};
+    if (!SNIFFRelFromFull(&rel, c->reporoot, full)) return OK;
+    if (SNIFFSkipMeta(rel))                         return OK;
+    if (w->ig && IGNOMatch(w->ig, rel, NO))         return OK;
+
+    u32 idx = SNIFFIntern(rel);
+    if (idx >= c->cap) return OK;
+
+    //  Capture mode + on-disk flag here — the file may have been
+    //  interned only now (post_scan_wt sees it too, but scan order
+    //  isn't contractual with the registry).
+    struct stat lsb = {};
+    if (lstat((char const *)full[0], &lsb) == 0) {
+        u16 mode;
+        if (S_ISLNK(lsb.st_mode))           mode = 0120000;
+        else if (lsb.st_mode & S_IXUSR)     mode = 0100755;
+        else                                mode = 0100644;
+        c->rec[idx].new_mode = mode;
+        c->flag[idx] |= POST_ON_DISK;
+    }
+    c->flag[idx] |= POST_EXPL_PUT;
+    return OK;
+}
+
+static ok64 post_expand_dir_rows(post_ctx *c, ignocp ig) {
+    sane(c);
+
+    //  DELETE: baseline-only.
+    for (u32 di = 0; di < c->n_dir_dels; di++) {
+        a_dup(u8c, pfx, c->dir_dels[di]);
+        u32 n = SNIFFCount();
+        for (u32 i = 0; i < n && i < c->cap; i++) {
+            if (!(c->flag[i] & POST_IN_BASE)) continue;
+            if (SNIFFIsDir(i))                continue;
+            u8cs p = {};
+            if (SNIFFPath(p, i) != OK)        continue;
+            if (!post_path_under(p, pfx))     continue;
+            c->flag[i] |= POST_EXPL_DEL;
+        }
+    }
+
+    //  PUT: try baseline expansion first; fall through to wt walk
+    //  only when the prefix names a dir that wasn't tracked yet.
+    for (u32 di = 0; di < c->n_dir_puts; di++) {
+        a_dup(u8c, pfx, c->dir_puts[di]);
+        b8 any_base = NO;
+        u32 n = SNIFFCount();
+        for (u32 i = 0; i < n && i < c->cap; i++) {
+            if (!(c->flag[i] & POST_IN_BASE)) continue;
+            if (SNIFFIsDir(i))                continue;
+            u8cs p = {};
+            if (SNIFFPath(p, i) != OK)        continue;
+            if (!post_path_under(p, pfx))     continue;
+            c->flag[i] |= POST_EXPL_PUT;
+            any_base = YES;
+        }
+        if (any_base) continue;
+
+        //  New dir — walk the wt subtree with wt-root IGNO applied.
+        a_path(full);
+        if (SNIFFFullpath(full, c->reporoot, pfx) != OK) continue;
+        wt_put_ctx wc = {.c = c, .ig = ig};
+        (void)FILEScan(full,
+                       (FILE_SCAN)(FILE_SCAN_FILES | FILE_SCAN_LINKS |
+                                   FILE_SCAN_DEEP),
+                       post_expand_put_wt_cb, &wc);
+    }
+    done;
 }
 
 // --- Change-set resolution ---
@@ -547,6 +682,20 @@ ok64 POSTCommit(u8cs reporoot, u8cs message, u8cs author, sha1 *sha_out) {
 
     //  4. Worktree scan.
     call(post_scan_wt, &ctx);
+
+    //  4b. Load wt-root .gitignore (single file, no nested cascade)
+    //      and expand dir-level put/delete rows into file-level flags.
+    igno ig = {};
+    b8 have_ig = (IGNOLoad(&ig, reporoot) == OK);
+    {
+        ok64 xr = post_expand_dir_rows(&ctx, have_ig ? &ig : NULL);
+        if (xr != OK) {
+            if (have_ig) IGNOFree(&ig);
+            u8bFree(rec_buf); u8bFree(flag_buf);
+            return xr;
+        }
+    }
+    if (have_ig) IGNOFree(&ig);
 
     //  5. Decide fate per path.
     {

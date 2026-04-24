@@ -32,7 +32,7 @@ SPOT="$(command -v spot || echo $BIN/spot)"
 
 TMP=${TMP:-$HOME/tmp}
 TEST_ID=${TEST_ID:-spot-versions}
-TMP=$TMP/$$/$TEST_ID
+TMP=$TMP/$$-$TEST_ID
 HOST=${HOST:-localhost}
 SYMBOL=${SYMBOL:-MarkerXYZ}
 RENAMED=${RENAMED:-RenamedABC}

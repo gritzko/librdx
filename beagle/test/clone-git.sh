@@ -17,7 +17,7 @@ export PATH="$BIN:$PATH"
 REPO=${REPO:-$HOME/src/git}
 TMP=${TMP:-$HOME/tmp}
 TEST_ID=${TEST_ID:-clone-git}
-CLONE=${CLONE:-$TMP/$$/$TEST_ID}
+CLONE=${CLONE:-$TMP/$$-$TEST_ID}
 REF=${REF:-HEAD}
 NAME=${NAME:-$(basename "$REPO" .git)}
 

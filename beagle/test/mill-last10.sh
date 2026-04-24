@@ -25,7 +25,7 @@ if [ -n "${TMILL:-}" ]; then
 else
     TMP=${TMP:-$HOME/tmp}
     TEST_ID=${TEST_ID:-mill-last10}
-    TMILL=$TMP/$$/$TEST_ID
+    TMILL=$TMP/$$-$TEST_ID
     KEEP_ON_EXIT=
 fi
 trap '[ -z "$KEEP_ON_EXIT" ] && rm -rf "$TMILL"; echo "workdir: $TMILL${KEEP_ON_EXIT:+ (kept)}"' EXIT
