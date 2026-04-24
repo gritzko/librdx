@@ -19,6 +19,8 @@
 //    patch  `?heads/X#<ours>,<theirs>,...` (N-hash merge URI, graf-readable)
 //    put    `<path>`                       (explicit stage of one path)
 //    delete `<path>`                       (explicit stage of one removal)
+//    mod    `<path>`                       (daemon-observed modification;
+//                                           advisory hint for POST's change-set)
 //
 //  Row-0 invariant: every non-empty `.sniff` ULOG has a `repo` row
 //  at row 0 naming the store (the directory whose `.dogs/` subdir
@@ -79,6 +81,7 @@ ron60 SNIFFAtVerbPost  (void);
 ron60 SNIFFAtVerbPatch (void);
 ron60 SNIFFAtVerbPut   (void);
 ron60 SNIFFAtVerbDelete(void);
+ron60 SNIFFAtVerbMod   (void);
 
 //  Read row 0 — the `repo` anchor.  On OK, `u_out` is parsed via
 //  URILexer (slices point into the mmap, stable until ULOGClose);

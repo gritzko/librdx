@@ -72,6 +72,88 @@ static ok64 sniff_drain_cb(u8cs path, void *ctx) {
     (void)path; (void)ctx; return OK;
 }
 
+//  The watch daemon emits `mod <relpath>` ULOG rows for every file
+//  whose mtime is outside the ULOG stamp-set (i.e. user-edited since
+//  the last get/post/patch).  It scans the wt on every inotify batch
+//  and dedupes via an in-memory `path_idx → last_emitted_mtime` table
+//  so repeated events on the same already-dirty file don't flood the
+//  log.  The rows are advisory; POST's change-set resolver still does
+//  its own wt-scan as the authoritative check.
+
+typedef struct {
+    u8cs   reporoot;
+    u64   *last_mtime;   // indexed by path_idx
+    u32    cap;
+    u32    emitted;      // rows appended this scan (for logging)
+} watch_scan_ctx;
+
+static ok64 watch_scan_cb(void *varg, path8bp path) {
+    sane(varg && path);
+    watch_scan_ctx *w = (watch_scan_ctx *)varg;
+    a_dup(u8c, full, u8bData(path));
+
+    size_t rlen = $len(w->reporoot);
+    if ($len(full) <= rlen) return OK;
+    u8cs rel = {$atp(full, rlen), full[1]};
+    while (!$empty(rel) && rel[0][0] == '/') rel[0]++;
+    if ($empty(rel)) return OK;
+
+    //  Skip metadata entries — match POST's skip list, plus the
+    //  daemon's own `.sniff.pid` sibling so we don't log ourselves.
+    a_cstr(d_sniff, ".sniff");
+    a_cstr(d_dogs,  ".dogs");
+    a_cstr(d_pid,   ".sniff.pid");
+    {
+        size_t rl = $len(rel);
+        #define SKIP(p) \
+            ((rl) == $len(p) && memcmp(rel[0], p[0], $len(p)) == 0) || \
+            ((rl) > $len(p) && memcmp(rel[0], p[0], $len(p)) == 0 && \
+             rel[0][$len(p)] == '/')
+        if (SKIP(d_sniff) || SKIP(d_dogs) || SKIP(d_pid)) return OK;
+        #undef SKIP
+    }
+
+    struct stat sb = {};
+    if (lstat((char const *)full[0], &sb) != 0) return OK;
+    struct timespec ts = {.tv_sec = sb.st_mtim.tv_sec,
+                          .tv_nsec = sb.st_mtim.tv_nsec};
+    ron60 mtime = SNIFFAtOfTimespec(ts);
+
+    //  Clean against some baseline → nothing to log.
+    if (SNIFFAtKnown(mtime)) return OK;
+
+    u32 idx = SNIFFIntern(rel);
+    if (idx >= w->cap) return OK;
+    if (w->last_mtime[idx] == (u64)mtime) return OK;  // dedup
+
+    //  Append one `mod <rel>` row via the usual URI-struct path.
+    uri urow = {};
+    urow.path[0] = rel[0];
+    urow.path[1] = rel[1];
+    ron60 vmod = SNIFFAtVerbMod();
+    if (SNIFFAtAppend(vmod, &urow) == OK) {
+        w->last_mtime[idx] = (u64)mtime;
+        w->emitted++;
+    }
+    return OK;
+}
+
+static ok64 watch_rescan(u8cs reporoot, u64 *last_mtime, u32 cap) {
+    sane($ok(reporoot) && last_mtime);
+    watch_scan_ctx wc = {.last_mtime = last_mtime, .cap = cap, .emitted = 0};
+    wc.reporoot[0] = reporoot[0];
+    wc.reporoot[1] = reporoot[1];
+    a_path(wp);
+    u8bFeed(wp, reporoot);
+    call(PATHu8bTerm, wp);
+    call(FILEScan, wp,
+         (FILE_SCAN)(FILE_SCAN_FILES | FILE_SCAN_LINKS | FILE_SCAN_DEEP),
+         watch_scan_cb, &wc);
+    done;
+}
+
+#define WATCH_CAP (1u << 18)   // 256 k paths, ~2 MB of last-mtime table
+
 static ok64 sniff_daemon(u8cs reporoot) {
     sane(1);
     sniff *s = &SNIFF; (void)s;
@@ -94,6 +176,7 @@ static ok64 sniff_daemon(u8cs reporoot) {
     sigemptyset(&sa.sa_mask);
     sigaction(SIGTERM, &sa, NULL);
     sigaction(SIGINT, &sa, NULL);
+
     int wfd = -1;
     call(FSWInit, &wfd);
     { u8csc rp = {reporoot[0], reporoot[1]}; FSWDir(wfd, rp); }
@@ -103,14 +186,25 @@ static ok64 sniff_daemon(u8cs reporoot) {
         FILEScan(wp, (FILE_SCAN)(FILE_SCAN_DIRS | FILE_SCAN_DEEP),
                  sniff_watchdir_cb, &wctx);
     }
+
+    //  Per-path last-emitted-mtime table for `mod`-row dedup.
+    Bu8 mt_buf = {};
+    call(u8bAllocate, mt_buf, (u64)WATCH_CAP * sizeof(u64));
+    memset(u8bDataHead(mt_buf), 0, (u64)WATCH_CAP * sizeof(u64));
+    u64 *last_mtime = (u64 *)u8bDataHead(mt_buf);
+
+    //  Seed scan: emit mod rows for anything already dirty when the
+    //  daemon starts.
+    (void)watch_rescan(reporoot, last_mtime, WATCH_CAP);
+
     while (!sniff_quit) {
         ok64 o = FSWPoll(wfd, 1000);
         if (o != OK) continue;
         FSWDrain(wfd, sniff_drain_cb, NULL);
-        //  Watch daemon no longer needs to refresh a per-path mtime
-        //  cache — POST rescans the wt at commit time.  Kept here as
-        //  a drain-only loop so inotify events still get consumed.
+        (void)watch_rescan(reporoot, last_mtime, WATCH_CAP);
     }
+
+    u8bFree(mt_buf);
     FSWClose(wfd);
     sniff_rm_pid(reporoot);
     done;
