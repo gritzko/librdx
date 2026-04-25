@@ -5,24 +5,47 @@
 #include "abc/B.h"
 #include "abc/PRO.h"
 
-//  Known view-projector schemes (VERBS.md §"View projectors").
-//  These are *never* transports — the scheme selects what shape of
-//  bytes to emit, so the scheme→authority promotion below must not
-//  eat them.  Match case-sensitively on the scheme slice.
-static char const *const DOG_PROJECTORS[] = {
-    "sha1", "blob", "tree", "commit", "log", "refs",
-    "diff", "size", "type", "ls",
-    NULL
+//  Known view-projector schemes (VERBS.md §"View projectors") with
+//  the dog that implements each.  Shared source of truth: DOGParseURI
+//  uses the scheme column to exempt these from the scheme→authority
+//  promotion; BE (beagle/BE.cli.c) uses the dog column to dispatch
+//  `be <proj>:<URI>` to the right dog.  Projectors are *never*
+//  transports — the scheme selects what shape of bytes to emit.
+static DOGProjRoute const DOG_PROJECTORS[] = {
+    {"sha1",   "keeper"},
+    {"blob",   "keeper"},
+    {"tree",   "keeper"},
+    {"commit", "keeper"},
+    {"log",    "keeper"},
+    {"refs",   "keeper"},
+    {"size",   "keeper"},
+    {"type",   "keeper"},
+    {"diff",   "graf"},
+    {"ls",     "sniff"},
+    {NULL,     NULL}
 };
 
-static b8 dog_is_projector(u8cs scheme) {
-    if ($empty(scheme)) return NO;
+static DOGProjRoute const *dog_proj_lookup(u8cs scheme) {
+    if ($empty(scheme)) return NULL;
     size_t n = (size_t)$len(scheme);
-    for (char const *const *p = DOG_PROJECTORS; *p; p++) {
-        size_t pl = strlen(*p);
-        if (pl == n && memcmp(scheme[0], *p, pl) == 0) return YES;
+    for (DOGProjRoute const *p = DOG_PROJECTORS; p->scheme; p++) {
+        size_t pl = strlen(p->scheme);
+        if (pl == n && memcmp(scheme[0], p->scheme, pl) == 0) return p;
     }
-    return NO;
+    return NULL;
+}
+
+b8 DOGIsProjector(u8cs scheme) {
+    return dog_proj_lookup(scheme) != NULL;
+}
+
+char const *DOGProjectorDog(u8cs scheme) {
+    DOGProjRoute const *r = dog_proj_lookup(scheme);
+    return r ? r->dog : NULL;
+}
+
+static b8 dog_is_projector(u8cs scheme) {
+    return DOGIsProjector(scheme);
 }
 
 ok64 DOGParseURI(urip uri, u8csc text) {

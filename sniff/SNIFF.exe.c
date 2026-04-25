@@ -12,11 +12,13 @@
 #include "AT.h"
 #include "DEL.h"
 #include "GET.h"
+#include "LS.h"
 #include "PATCH.h"
 #include "POST.h"
 #include "PUT.h"
 #include "dog/AT.h"
 #include "dog/CLI.h"
+#include "dog/DOG.h"
 #include "dog/IGNO.h"
 #include "keeper/REFS.h"
 
@@ -407,6 +409,9 @@ static void sniff_usage(void) {
             "                              into the wt via graf\n"
             "  sniff status                list mtime-dirty files\n"
             "  sniff list                  list paths the registry knows\n"
+            "  sniff [--tlv] ls:[<URI>]    view projector (VERBS.md §View\n"
+            "                              projectors); verb-less; --tlv\n"
+            "                              emits HUNK TLV for `bro`\n"
             "  sniff watch                 start inotify daemon (fork;\n"
             "                              pid at <wt>/.sniff.pid)\n"
             "                              emits `mod <path>` rows\n"
@@ -472,6 +477,22 @@ ok64 SNIFFExec(cli *c) {
     b8 is_watch = $eq(c->verb, v_watch);
     b8 is_status = $eq(c->verb, v_status);
     b8 is_list = $eq(c->verb, v_list);
+
+    //  Verb-less projector invocation (VERBS.md §"View projectors"):
+    //  `sniff <proj>:<URI>` — no verb.  Scheme selects the projector;
+    //  dog/DOG.c owns the scheme→dog table so we dispatch only when
+    //  the URI's scheme resolves to this dog ("sniff").  Only `ls:`
+    //  today; the branch is widened row-by-row in DOG_PROJECTORS.
+    b8 is_projector = NO;
+    uri *proj_u = NULL;
+    if ($empty(c->verb) && c->nuris > 0) {
+        uri *pu = &c->uris[0];
+        char const *dog = DOGProjectorDog(pu->scheme);
+        if (dog != NULL && strcmp(dog, "sniff") == 0) {
+            is_projector = YES;
+            proj_u = pu;
+        }
+    }
     b8 is_delete = $eq(c->verb, v_delete);
     b8 is_patch = $eq(c->verb, v_patch);
 
@@ -589,6 +610,21 @@ ok64 SNIFFExec(cli *c) {
         ret = sniff_status(reporoot);
     } else if (is_list) {
         ret = sniff_list();
+    } else if (is_projector) {
+        //  URI scheme picks the projector; `--tlv` switches the
+        //  emitter from HUNKu8sFeedText to HUNKu8sFeed.
+        b8 tlv = CLIHas(c, "--tlv");
+        a_cstr(ls_s, "ls");
+        if ($eq(proj_u->scheme, ls_s)) {
+            ret = SNIFFLs(reporoot, proj_u, tlv);
+        } else {
+            //  Table says sniff owns this scheme but we don't have a
+            //  handler wired — should not happen once DOG_PROJECTORS
+            //  and this switch are kept in sync.  Fail loudly.
+            fprintf(stderr, "sniff: projector '%.*s:' not implemented\n",
+                    (int)$len(proj_u->scheme), (char *)proj_u->scheme[0]);
+            ret = SNIFFFAIL;
+        }
     } else if (is_update) {
         //  No per-path mtime cache in the new model; `update` is a no-op.
         //  Left in the verb table so existing scripts don't break.

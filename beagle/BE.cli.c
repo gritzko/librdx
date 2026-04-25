@@ -2,13 +2,16 @@
 #include "dog/CLI.h"
 #include "dog/FRAG.h"
 
+#include <errno.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 #include "abc/FILE.h"
 #include "abc/PATH.h"
 #include "abc/PRO.h"
+#include "dog/DOG.h"
 #include "dog/HOME.h"
 #include "dog/AT.h"
 #include "keeper/REFS.h"
@@ -75,6 +78,71 @@ static ok64 BERun(u8csc tool, u8css argv, b8 bg) {
     if (r != OK) return r;
     if (rc != 0) {
         fprintf(stderr, "be: " U8SFMT " exited %d\n", u8sFmt(tool), rc);
+        return BEDOGEXIT;
+    }
+    done;
+}
+
+// --- Run two tools as a producer → pager pipeline ---
+//
+//  Used to route view-projector output (e.g. `sniff ls --tlv`) into
+//  `bro` for paging and coloring.  Spawns both children, pumps bytes
+//  from producer's stdout into pager's stdin in the parent, then
+//  reaps both.  Returns the worse of the two exit codes.
+static ok64 BERunPipe(u8csc prod, u8css prod_argv,
+                      u8csc pager, u8css pager_argv) {
+    sane($ok(prod) && $ok(pager));
+    int to_pager_w = -1;
+    pid_t pager_pid = 0;
+    call(FILESpawn, pager, pager_argv, &to_pager_w, NULL, &pager_pid);
+
+    int from_prod_r = -1;
+    pid_t prod_pid = 0;
+    ok64 so = FILESpawn(prod, prod_argv, NULL, &from_prod_r, &prod_pid);
+    if (so != OK) {
+        //  Bro started but we can't produce.  Close its stdin so it
+        //  exits on EOF and we can reap cleanly.
+        close(to_pager_w);
+        int rc = 0; (void)FILEReap(pager_pid, &rc);
+        return so;
+    }
+
+    //  Parent pump: drain producer → feed pager.  Shallow, no framing;
+    //  HUNK TLV is self-framing so any chunk boundary is fine.
+    u8 buf[8192];
+    for (;;) {
+        ssize_t n = read(from_prod_r, buf, sizeof buf);
+        if (n < 0) {
+            if (errno == EINTR) continue;
+            break;
+        }
+        if (n == 0) break;
+        ssize_t off = 0;
+        while (off < n) {
+            ssize_t w = write(to_pager_w, buf + off, (size_t)(n - off));
+            if (w < 0) {
+                if (errno == EINTR) continue;
+                goto drain_done;
+            }
+            off += w;
+        }
+    }
+drain_done:
+    close(from_prod_r);
+    close(to_pager_w);
+
+    int prod_rc = 0;
+    int pager_rc = 0;
+    (void)FILEReap(prod_pid, &prod_rc);
+    (void)FILEReap(pager_pid, &pager_rc);
+    if (prod_rc != 0) {
+        fprintf(stderr, "be: " U8SFMT " exited %d\n",
+                u8sFmt(prod), prod_rc);
+        return BEDOGEXIT;
+    }
+    if (pager_rc != 0) {
+        fprintf(stderr, "be: " U8SFMT " exited %d\n",
+                u8sFmt(pager), pager_rc);
         return BEDOGEXIT;
     }
     done;
@@ -236,6 +304,57 @@ static ok64 BEGetWorktree(uri *u) {
     done;
 }
 
+//  View-projector routing (VERBS.md §"View projectors").
+//
+//  Invocation: `be <scheme>:<URI>` — no verb.  `be` is a scheme
+//  router; the dog that owns the scheme receives the URI verbatim
+//  (scheme and all) and dispatches internally.  The scheme→dog map
+//  lives in dog/DOG.c (`DOG_PROJECTORS`) — adding a projector = one
+//  row there + the producing dog's internal branch.
+//
+//  Output: always via `dog/HUNK` — TLV to a bro pipe on TTY, plain
+//  ASCII via `HUNKu8sFeedText` otherwise.  No dog needs its own
+//  color / pager / renderer code.
+static ok64 BEProjector(cli *c, uri *u) {
+    sane(c && u);
+
+    char const *dog_cstr = DOGProjectorDog(u->scheme);
+    if (dog_cstr == NULL) {
+        fprintf(stderr, "be: unknown projector '%.*s:'\n",
+                (int)$len(u->scheme), (char *)u->scheme[0]);
+        fail(BEFAIL);
+    }
+    a_cstr(dog_s, dog_cstr);
+
+    b8 tty = isatty(STDOUT_FILENO) ? YES : NO;
+
+    a_path(dogpath);
+    a$rg(a0, 0);
+    HOMEResolveSibling(NULL, dogpath, dog_s, a0);
+
+    //  Verbless: dog argv is just `<dog> [--tlv] <URI>`.  The dog
+    //  sees the URI with its projector scheme intact and dispatches
+    //  on u->scheme inside its own CLI.
+    a_cstr(tlv_flag, "--tlv");
+    a_pad(u8cs, dargs, 3);
+    u8csbFeed1(dargs, dog_s);
+    if (tty) u8csbFeed1(dargs, tlv_flag);
+    u8csbFeed1(dargs, u->data);
+    a_dup(u8cs, dargv, u8csbData(dargs));
+
+    if (!tty) return BERun(dog_s, dargv, NO);
+
+    //  TTY: pipe through bro.  Bro drains HUNK TLV from stdin (see
+    //  bro/BRO.c §BROPipeRun) and opens /dev/tty for keystrokes.
+    a_path(bropath);
+    a_cstr(bro_name, "bro");
+    HOMEResolveSibling(NULL, bropath, bro_name, a0);
+    a_pad(u8cs, bargs, 1);
+    u8csbFeed1(bargs, bro_name);
+    a_dup(u8cs, bargv, u8csbData(bargs));
+    return BERunPipe($path(dogpath), dargv, $path(bropath), bargv);
+}
+
 static ok64 BEGet(cli *c, b8 seq) {
     sane(c);
     static dog_step const steps[] = {
@@ -245,6 +364,7 @@ static ok64 BEGet(cli *c, b8 seq) {
     u32 nsteps = sizeof(steps) / sizeof(steps[0]);
     // Skip keeper fetch if no remote (no authority)
     uri *u = (c->nuris > 0) ? &c->uris[0] : NULL;
+
     u32 start = (u != NULL && !$empty(u->authority)) ? 0 : 1;
 
     // Local-path URI → worktree from a sibling repo.
@@ -424,12 +544,17 @@ ok64 becli() {
 
     b8 seq = CLIHas(&c, "--seq");
 
-    // No verb → view/search mode
+    // No verb → view/search mode.  Projector schemes (ls:, tree:, …)
+    // are verb-less by design per VERBS.md §"View projectors"; route
+    // them first so `be ls:?` doesn't get mistaken for a bare URI view.
     if ($empty(verb)) {
         u8cs spot = u8slit("spot");
         u8cs bro  = u8slit("bro");
-        if (u != NULL && (fr.type == FRAG_SPOT || fr.type == FRAG_PCRE ||
-                          fr.type == FRAG_IDENT)) {
+        if (u != NULL && DOGIsProjector(u->scheme)) {
+            call(BEProjector, &c, u);
+        } else if (u != NULL && (fr.type == FRAG_SPOT ||
+                                 fr.type == FRAG_PCRE ||
+                                 fr.type == FRAG_IDENT)) {
             // Search → spot.  u->data borrows from argv (NUL-terminated).
             a_pad(u8cs, args, 2);
             u8csbFeed1(args, spot);

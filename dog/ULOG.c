@@ -239,7 +239,16 @@ ok64 ULOGAppendAt(ulogp l, ron60 ts, ron60 verb, uricp u) {
 }
 
 ok64 ULOGAppend(ulogp l, ron60 verb, uricp u) {
-    return ULOGAppendAt(l, RONNow(), verb, u);
+    //  Clamp to max(RONNow(), tail+1) so rapid same-ms appends
+    //  still land instead of tripping ULOGCLOCK.  Mirrors the
+    //  pattern keeper/REFS.c uses in refs_next_ts().
+    ron60 now = RONNow();
+    size_t n = kv64bDataLen(l->idx);
+    if (n > 0) {
+        kv64 const *last = ((kv64 const *)l->idx[0]) + (n - 1);
+        if (now <= last->key) now = last->key + 1;
+    }
+    return ULOGAppendAt(l, now, verb, u);
 }
 
 u32 ULOGCount(ulogcp l) {
