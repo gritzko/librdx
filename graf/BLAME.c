@@ -216,8 +216,7 @@ ok64 GRAFBlame(keeper *k, u8cs filepath, u64 tip_h, u8cs reporoot) {
     Bu8 *cur_blob = &blob_a, *prev_blobp = &blob_b;
 
     u8cs ext = {};
-    HUNKu8sExt(ext, filepath[0], $len(filepath));
-    if (!$empty(ext) && *ext[0] == '.') ext[0]++;
+    PATHu8sExt(ext, filepath);
 
     b8 have_prev = NO;
     for (u32 i = 0; i < nvers; i++) {
@@ -431,8 +430,7 @@ ok64 GRAFWeaveDiff(keeper *k, u8cs filepath, u8cs reporoot,
     call(GRAFArenaInit);
 
     u8cs ext = {};
-    HUNKu8sExt(ext, filepath[0], $len(filepath));
-    if (!$empty(ext) && *ext[0] == '.') ext[0]++;
+    PATHu8sExt(ext, filepath);
 
     Bu8 from_buf = {}, to_buf = {};
     call(u8bMap, from_buf, 16UL << 20);

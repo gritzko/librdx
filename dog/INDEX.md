@@ -11,7 +11,7 @@ but without the tree-sitter dependency.
 | TOK.h   | Common callback typedef `TOKcb`, dispatch API `TOKLexer()`, `TOKSplitText()` |
 | BRCT.h  | Bracket matching and region detection on tokenized files |
 | DEF.h   | Mark symbol definitions (S→N) via enrichment + NFA patterns, see [DEF.md](DEF.md) |
-| HUNK.h  | Hunk TLV wire format (`HUNKu8sFeed`/`Drain`) + plain ASCII renderer (`HUNKu8sFeedText`), `HUNKu32sClip`, `HUNKu32bTokenize`, `HUNKu8sFormatTitle`, `HUNKu8sExt`, `HUNKcb` |
+| HUNK.h  | Hunk TLV wire format (`HUNKu8sFeed`/`Drain`) + plain ASCII renderer (`HUNKu8sFeedText`), `HUNKu32sClip`, `HUNKu32bTokenize`, `HUNKu8sMakeURI`, `HUNKcb` |
 | HOME.h  | Workspace finder + branch-sharding scaffolding: `HOMEFind` walks up to the nearest `.dogs` directory, `HOMEResolveSibling` finds tools next to the running binary, `HOMEOpenBranch`/`HOMEWriteBranch`/`HOMEBranchVisible` track the process-wide open-branch stack (slot 0 = writable, frozen at first rw open). Branch paths canonicalised via `dog/DPATH` helpers `DPATHBranchNormFeed`/`DPATHBranchAncestor`. |
 
 ## Tag mapping

@@ -67,13 +67,8 @@ static ok64 diffref_emit_pair(u8cs old_data, u8cs new_data, u8cs name) {
         done;
     }
 
-    u8cs ext = {};
-    HUNKu8sExt(ext, name[0], (size_t)$len(name));
     u8cs ext_nodot = {};
-    if (!$empty(ext) && *ext[0] == '.') {
-        ext_nodot[0] = ext[0] + 1;
-        ext_nodot[1] = ext[1];
-    }
+    PATHu8sExt(ext_nodot, name);
 
     char dispname[DIFFREF_PATH_MAX];
     size_t dlen = (size_t)$len(name);

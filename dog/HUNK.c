@@ -1,7 +1,5 @@
 #include "HUNK.h"
 
-#include <string.h>
-
 #include "abc/PRO.h"
 #include "dog/FRAG.h"
 #include "dog/TOK.h"
@@ -59,16 +57,6 @@ ok64 HUNKu8sDrain(u8cs from, hunk *hk) {
     done;
 }
 
-// For a byte at offset `pos`, return the active hili tag (or 0).
-static u8 hunk_hili_at(hunk const *hk, u32 pos) {
-    if ($empty(hk->hili)) return 0;
-    int n = (int)$len(hk->hili);
-    int i = 0;
-    while (i < n && tok32Offset(hk->hili[0][i]) <= pos) i++;
-    if (i >= n) return 0;
-    return tok32Tag(hk->hili[0][i]);
-}
-
 ok64 HUNKu8sFeedText(u8s into, hunk const *hk) {
     sane(u8sOK(into) && hk != NULL);
     if (!$empty(hk->uri)) {
@@ -78,36 +66,47 @@ ok64 HUNKu8sFeedText(u8s into, hunk const *hk) {
         a_cstr(sfx, " ---\n");
         u8sFeed(into, sfx);
     }
-    u32 tlen = (u32)$len(hk->text);
-    b8 has_hili = !$empty(hk->hili);
 
-    if (!has_hili) {
+    if ($empty(hk->text)) { u8sFeed1(into, '\n'); done; }
+
+    if ($empty(hk->hili)) {
         // Plain hunk (grep / search / cat): emit text verbatim.
-        if (tlen > 0) {
-            u8cs t = {hk->text[0], hk->text[1]};
-            u8sFeed(into, t);
-            if (hk->text[0][tlen - 1] != '\n') u8sFeed1(into, '\n');
-        }
+        u8cs t = {hk->text[0], hk->text[1]};
+        u8sFeed(into, t);
+        if (*$last(t) != '\n') u8sFeed1(into, '\n');
         u8sFeed1(into, '\n');
         done;
     }
 
     // Diff hunk: per-line '+' / '-' / ' ' prefix.
-    u32 i = 0;
-    while (i < tlen) {
-        u32 e = i;
-        while (e < tlen && hk->text[0][e] != '\n') e++;
+    // Single forward cursor over hili (sorted by offset, exclusive end).
+    u8c *base = hk->text[0];
+    int n_hili = (int)$len(hk->hili);
+    int hi_cur = 0;
+    a_dup(u8 const, cur, hk->text);
+    while (!$empty(cur)) {
+        u32 line_lo = (u32)(cur[0] - base);
+        u8cs scan = {cur[0], cur[1]};
+        b8 had_nl = (u8csFind(scan, '\n') == OK);
+        u8c *line_end = scan[0];
+        u32 line_hi = (u32)(line_end - base);
+
+        // Skip hili spans that ended at or before line start.
+        while (hi_cur < n_hili &&
+               tok32Offset(hk->hili[0][hi_cur]) <= line_lo) hi_cur++;
         u8 prefix = ' ';
-        for (u32 k = i; k < e; k++) {
-            u8 t = hunk_hili_at(hk, k);
-            if (t == 'I') { prefix = '+'; break; }
-            if (t == 'D') { prefix = '-'; break; }
+        for (int hj = hi_cur; hj < n_hili; hj++) {
+            u32 span_lo = (hj > 0) ? tok32Offset(hk->hili[0][hj - 1]) : 0;
+            if (span_lo >= line_hi) break;
+            u8 tag = tok32Tag(hk->hili[0][hj]);
+            if (tag == 'I') { prefix = '+'; break; }
+            if (tag == 'D') { prefix = '-'; break; }
         }
         u8sFeed1(into, prefix);
-        u8cs line = {hk->text[0] + i, hk->text[0] + e};
+        u8cs line = {cur[0], line_end};
         u8sFeed(into, line);
         u8sFeed1(into, '\n');
-        i = (e < tlen) ? e + 1 : e;
+        cur[0] = had_nl ? line_end + 1 : line_end;
     }
     u8sFeed1(into, '\n');
     done;
@@ -180,80 +179,15 @@ ok64 HUNKu32bTokenize(u32bp toks, u8csc source, u8csc ext) {
     done;
 }
 
-void HUNKu8sExt(u8cs out, u8cp path, size_t len) {
-    out[0] = NULL;
-    out[1] = NULL;
-    for (size_t i = len; i > 0; i--) {
-        if (path[i - 1] == '/') break;
-        if (path[i - 1] == '.') {
-            out[0] = path + i - 1;
-            out[1] = path + len;
-            break;
-        }
-    }
-}
-
-ok64 HUNKu8sFormatTitle(u8s into, char const *filepath, char const *funcname,
-                        u32 lineno) {
-    sane(into[0] != NULL);
-    u8p start = into[0];
-    if (filepath && funcname && funcname[0] && lineno > 0) {
-        call(u8sPrintf, into, "--- %s :: %s:%u ---", filepath, funcname, lineno);
-    } else if (filepath && funcname && funcname[0]) {
-        call(u8sPrintf, into, "--- %s :: %s ---", filepath, funcname);
-    } else if (filepath && lineno > 0) {
-        call(u8sPrintf, into, "--- %s:%u ---", filepath, lineno);
-    } else if (filepath) {
-        call(u8sPrintf, into, "--- %s ---", filepath);
-    } else if (funcname && funcname[0]) {
-        call(u8sPrintf, into, "--- %s ---", funcname);
-    } else {
-        done;
-    }
-
-    int hlen = (int)(into[0] - start);
-    if (hlen > HUNK_TITLE_MAX && filepath && funcname && funcname[0]) {
-        size_t plen = strlen(filepath);
-        int budget = HUNK_TITLE_MAX - 12 - (int)plen;
-        if (budget < 1) budget = 1;
-        into[0] = start;
-        call(u8sPrintf, into, "--- %s :: %.*s ---",
-             filepath, budget, funcname);
-        hlen = (int)(into[0] - start);
-    }
-    if (hlen > HUNK_TITLE_MAX && filepath) {
-        char const *p = filepath + strlen(filepath);
-        int budget = HUNK_TITLE_MAX - 12 - 3;
-        if (funcname && funcname[0]) {
-            size_t flen = strlen(funcname);
-            if (flen > 20) flen = 20;
-            budget -= (int)flen + 4;
-        }
-        if (budget < 8) budget = 8;
-        while (p > filepath && (int)(filepath + strlen(filepath) - p) < budget)
-            p--;
-        into[0] = start;
-        if (funcname && funcname[0]) {
-            int favail = HUNK_TITLE_MAX - 12 - 3 -
-                         (int)(filepath + strlen(filepath) - p);
-            if (favail < 1) favail = 1;
-            call(u8sPrintf, into, "--- ...%s :: %.*s ---",
-                 p, favail, funcname);
-        } else {
-            call(u8sPrintf, into, "--- ...%s ---", p);
-        }
-    }
-    done;
-}
-
 // Is `s` a plain FRAG ident: [A-Za-z_][A-Za-z0-9_]* ?
-static b8 hunk_is_ident(char const *s) {
-    if (!s || !*s) return NO;
-    u8 c = (u8)*s++;
+static b8 hunk_is_ident(u8cs s) {
+    if ($empty(s)) return NO;
+    size_t n = (size_t)$len(s);
+    u8 c = s[0][0];
     if (!((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '_'))
         return NO;
-    while (*s) {
-        c = (u8)*s++;
+    for (size_t i = 1; i < n; i++) {
+        c = s[0][i];
         if (!((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
               (c >= '0' && c <= '9') || c == '_'))
             return NO;
@@ -261,15 +195,15 @@ static b8 hunk_is_ident(char const *s) {
     return YES;
 }
 
-ok64 HUNKu8sMakeURI(u8s into, u8csc path, char const *symbol, u32 lineno) {
+ok64 HUNKu8sMakeURI(u8s into, u8csc path, u8csc symbol, u32 lineno) {
     sane(u8sOK(into));
     if (!$empty(path)) u8sFeed(into, path);
-    b8 has_sym = (symbol && symbol[0]);
+    b8 has_sym = !$empty(symbol);
     if (has_sym || lineno > 0)
         u8sFeed1(into, '#');
     if (has_sym) {
-        u8cs sym = {(u8cp)symbol, (u8cp)symbol + strlen(symbol)};
-        if (hunk_is_ident(symbol)) {
+        u8cs sym = {symbol[0], symbol[1]};
+        if (hunk_is_ident(sym)) {
             // Plain ident — emit verbatim
             u8sFeed(into, sym);
         } else {

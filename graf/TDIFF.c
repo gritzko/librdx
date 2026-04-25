@@ -118,8 +118,9 @@ static ok64 emit_whole_file(Bu8 arena, char const *dispname,
 
     if (dispname) {
         u8cs dp = {(u8cp)dispname, (u8cp)dispname + strlen(dispname)};
+        u8cs nosym = {};
         u8gp ug = u8aOpen(arena);
-        HUNKu8sMakeURI(u8gRest(ug), dp, NULL, 0);
+        HUNKu8sMakeURI(u8gRest(ug), dp, nosym, 0);
         u8cs uri_s = {};
         u8aClose(arena, uri_s);
         $mv(hk.uri, uri_s);
@@ -337,8 +338,13 @@ ok64 DIFFu8cs(Bu8 arena,
                     _dp[0] = (u8cp)dispname;                    \
                     _dp[1] = (u8cp)dispname + strlen(dispname); \
                 }                                               \
+                u8cs _fn = {};                                  \
+                if (_funcname[0]) {                             \
+                    _fn[0] = (u8cp)_funcname;                   \
+                    _fn[1] = (u8cp)_funcname + strlen(_funcname); \
+                }                                               \
                 u8gp _ug = u8aOpen(arena);                      \
-                HUNKu8sMakeURI(u8gRest(_ug), _dp, _funcname, 0); \
+                HUNKu8sMakeURI(u8gRest(_ug), _dp, _fn, 0);      \
                 u8cs _uri = {};                                 \
                 u8aClose(arena, _uri);                          \
                 $mv(cur_hunk->uri, _uri);                       \

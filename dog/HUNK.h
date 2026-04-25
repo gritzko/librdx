@@ -59,20 +59,11 @@ void HUNKu32sClip(Bu8 arena, u32cs out, u32cs toks, u32 lo, u32 hi);
 // (tag + end offset) appended to `toks`.
 ok64 HUNKu32bTokenize(u32bp toks, u8csc source, u8csc ext);
 
-// Find file extension (incl. leading dot) within a path slice.
-// Returns empty if no extension or path ends in '/'.
-void HUNKu8sExt(u8cs out, u8cp path, size_t len);
-
-// Format "--- path :: func:42 ---" hunk title with smart truncation.
-// filepath may be NULL, funcname may be empty (""), lineno 0 = omit.
-ok64 HUNKu8sFormatTitle(u8s into, char const *filepath, char const *funcname,
-                        u32 lineno);
-
 // Maximum visible width of a formatted hunk title.
 #define HUNK_TITLE_MAX 64
 
 // Compose a hunk URI into `into`: path#symbol:lineno
-// Any component may be NULL/empty/0 to omit.
-ok64 HUNKu8sMakeURI(u8s into, u8csc path, char const *symbol, u32 lineno);
+// Any component may be empty/0 to omit.
+ok64 HUNKu8sMakeURI(u8s into, u8csc path, u8csc symbol, u32 lineno);
 
 #endif

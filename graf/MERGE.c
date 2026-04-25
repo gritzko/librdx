@@ -25,13 +25,8 @@ ok64 GRAFMerge(u8cs base_path, u8cs ours_path, u8cs theirs_path,
     sane($ok(base_path) && $ok(ours_path) && $ok(theirs_path));
 
     // Detect extension from ours
-    u8cs ext = {};
-    HUNKu8sExt(ext, ours_path[0], (size_t)$len(ours_path));
     u8cs ext_nodot = {};
-    if (!$empty(ext) && ext[0][0] == '.') {
-        ext_nodot[0] = ext[0] + 1;
-        ext_nodot[1] = ext[1];
-    }
+    PATHu8sExt(ext_nodot, ours_path);
 
     // Read three files
     u8bp map_b = NULL, map_o = NULL, map_t = NULL;

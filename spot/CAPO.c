@@ -669,8 +669,13 @@ ok64 CAPOBuildHunk(u8csc source, u32cs htoks, u32 ctx_lo, u32 ctx_hi,
             fp[0] = (u8cp)filepath;
             fp[1] = (u8cp)filepath + strlen(filepath);
         }
+        u8cs fn = {};
+        if (funcname[0]) {
+            fn[0] = (u8cp)funcname;
+            fn[1] = (u8cp)funcname + strlen(funcname);
+        }
         u8gp ug = u8aOpen(less_arena);
-        HUNKu8sMakeURI(u8gRest(ug), fp, funcname, ln);
+        HUNKu8sMakeURI(u8gRest(ug), fp, fn, ln);
         u8cs uri_s = {};
         u8aClose(less_arena, uri_s);
         $mv(hk->uri, uri_s);
@@ -996,9 +1001,8 @@ static ok64 capo_scan_cb(void *arg, path8p path) {
     }
 
     // File: apply filters
-    size_t pathlen = (size_t)$len(data);
     u8cs file_ext = {};
-    HUNKu8sExt(file_ext, data[0], pathlen);
+    PATHu8sExt(file_ext, data);
     if ($empty(file_ext)) return OK;
     if (!CAPOKnownExt(file_ext)) return OK;
     if (!$empty(opts->target_ext)) {
@@ -1152,7 +1156,7 @@ ok64 CAPOScanFiles(u8css files, CAPOScanOpts const *opts) {
         memcpy(line, (*fp)[0], flen);
 
         u8cs file_ext = {};
-        HUNKu8sExt(file_ext, (u8cp)line, flen);
+        PATHu8sExt(file_ext, *fp);
         if ($empty(file_ext)) continue;
         if (!CAPOKnownExt(file_ext)) continue;
         if (!$empty(opts->target_ext)) {

@@ -74,8 +74,6 @@ bypass the filter explicitly; not currently wired.
 | `CAPOFindFunc` | Walk backward to find enclosing function name |
 | `CAPOGrepCtx` | Compute context line range around a byte position |
 
-(`CAPOFormatTitle` was lifted into `dog/HUNK.c` as `HUNKu8sFormatTitle`.)
-
 ## Index format
 
 Trigram index lives in `.dogs/spot/*.idx` (next to `.git`). Each entry is a u64:

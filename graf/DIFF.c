@@ -40,13 +40,8 @@ ok64 GRAFDiff(u8cs old_path, u8cs new_path, u8cs name,
     sane($ok(old_path) && $ok(new_path));
 
     // Detect extension (no leading dot) from logical name
-    u8cs ext = {};
-    HUNKu8sExt(ext, name[0], (size_t)$len(name));
     u8cs ext_nodot = {};
-    if (!$empty(ext) && ext[0][0] == '.') {
-        ext_nodot[0] = ext[0] + 1;
-        ext_nodot[1] = ext[1];
-    }
+    PATHu8sExt(ext_nodot, name);
 
     // Read both sides (either may be empty for new/deleted files)
     u8bp map_old = NULL, map_new = NULL;

@@ -208,8 +208,7 @@ static ok64 get_merge_2way(u8b into, u8cs path, get_tip const *tips) {
 
     //  Tokenizer extension from the file's name.
     u8cs ext = {};
-    HUNKu8sExt(ext, path[0], $len(path));
-    if (!$empty(ext) && *ext[0] == '.') ext[0]++;
+    PATHu8sExt(ext, path);
 
     Bu8 bbuf = {}, obuf = {}, tbuf = {};
     call(u8bMap, bbuf, GET_BLOB_MAX);
@@ -295,8 +294,7 @@ static ok64 get_weave_union(u8b into, u8cs path,
     //  Tokenizer extension driven by path's suffix — trailing '/'
     //  already routed to tree mode, so path ends on a file name.
     u8cs ext = {};
-    HUNKu8sExt(ext, path[0], $len(path));
-    if (!$empty(ext) && *ext[0] == '.') ext[0]++;
+    PATHu8sExt(ext, path);
 
     weave wv = {};
     call(WEAVEInit, &wv, 0);

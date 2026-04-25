@@ -394,13 +394,9 @@ ok64 BROListDir(u8csc dirpath) {
 b8 BROTokenize(hunk *hk, u8csc pathslice) {
     if (bro_state == NULL) return NO;
     u8cs ext = {};
-    HUNKu8sExt(ext, pathslice[0], (size_t)$len(pathslice));
-    u8cs ext_nodot = {};
-    if (!$empty(ext) && ext[0][0] == '.') {
-        ext_nodot[0] = ext[0] + 1;
-        ext_nodot[1] = ext[1];
-    }
-    if ($empty(ext_nodot) || !TOKKnownExt(ext_nodot)) return NO;
+    a_dup(u8c, ps, pathslice);
+    PATHu8sExt(ext, ps);
+    if ($empty(ext) || !TOKKnownExt(ext)) return NO;
 
     u32 srclen = (u32)$len(hk->text);
     if (u32bIdleLen(bro_state->toks) < (size_t)srclen + 1) return NO;
@@ -411,7 +407,7 @@ b8 BROTokenize(hunk *hk, u8csc pathslice) {
     u32 *end = u32bIdleHead(bro_state->toks);
 
     u32 *dts[2] = {begin, end};
-    DEFMark(dts, source, ext_nodot);
+    DEFMark(dts, source, ext);
     hk->toks[0] = (u32cp)begin;
     hk->toks[1] = (u32cp)end;
     return YES;
@@ -1269,11 +1265,13 @@ static void BRODispatchFragment(BROstate *st, char *frag,
         BROHunkLoc(&loc2, hk);
         if (!$empty(loc2.path)) {
             u8cs ext = {};
-            HUNKu8sExt(ext, loc2.path[0], (size_t)$len(loc2.path));
+            a_dup(u8c, lp, loc2.path);
+            PATHu8sExt(ext, lp);
             if (!$empty(ext)) {
                 size_t el = (size_t)$len(ext);
-                if (el < sizeof(argz)) {
-                    memcpy(argz, ext[0], el);
+                if (el + 1 < sizeof(argz)) {
+                    argz[0] = '.';
+                    memcpy(argz + 1, ext[0], el);
                     arg = argz;
                 }
             }
