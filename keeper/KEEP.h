@@ -232,13 +232,16 @@ ok64 KEEPVerify(keeper *k, u8cs hex_sha);
 //  Import a git packfile into the store.
 ok64 KEEPImport(keeper *k, u8cs pack_path);
 
-//  Ingest a keeper-native stripped pack file: whole log file bytes =
-//  PACK header (12 B) + concatenated object records, no git trailer.
-//  Writes a new <kdir>/NNNNN.keeper, UNPK-indexes
-//  it, emits one pack bookmark at offset 12 (covering the whole
-//  file), writes idx/NNN.idx, maps both, and extends the trunk
-//  shard's packs[] / runs[].  Caller holds no resources beyond the
-//  `bytes` slice.
+//  Ingest a received git pack: `bytes` is the whole pack (12-byte
+//  PACK header + object records + optional 20-byte SHA-1 trailer).
+//  Strips header + trailer, appends the object stream to the tail
+//  <kdir>/NNNNN.keeper, patches the log's file-level count,
+//  UNPK-indexes just the appended slice, emits one pack bookmark
+//  at the append offset, writes a fresh <NNN>.idx run, and extends
+//  the trunk shard's packs[] / runs[].  An empty pack (count == 0)
+//  is a no-op: zero file changes.  A new NNNNN.keeper file is only
+//  created when npacks == 0 (first-ever ingest in this shard).
+//  Caller holds no resources beyond the `bytes` slice.
 ok64 KEEPIngestFile(keeper *k, u8csc bytes);
 
 //  Push one new commit object to `host:path` via git-receive-pack.

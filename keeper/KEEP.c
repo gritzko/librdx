@@ -1546,26 +1546,25 @@ ok64 KEEPImport(keeper *k, u8cs pack_path) {
     done;
 }
 
-// --- Ingest: write received pack-file bytes into keeper's log + index ---
+// --- Ingest: append received pack-stream bytes to the tail log ---
 //
-// A receive-pack ingest carries a whole pack file (PACK header +
-// object records, no git trailer).  We write it as a fresh
-// NNNNN.keeper on disk, UNPK-index it, and emit one pack bookmark
-// at offset 12 — identical to what KEEPPackOpen/Close would have
-// produced had the pack been built locally.  k->shards[0].packs / k->shards[0].runs are
-// updated so later KEEPGet / KEEPHas see the new objects.
+// A receive-pack or upload-pack ingest carries a whole git pack
+// (PACK header + object records + SHA-1 trailer).  Keeper's log is
+// append-of-packs (see keeper/LOG.md): the tail NNNNN.keeper file
+// holds many concatenated packs, and new ones land at the tail.
+// We strip the 12-byte header and 20-byte trailer from the incoming
+// bytes, append the raw object stream to the current tail log,
+// patch the log's file-level PACK header count, UNPK-index just
+// the newly-appended slice, and emit one pack bookmark pointing at
+// the append offset.  An empty pack (count == 0) produces zero
+// file changes.
 
 ok64 KEEPIngestFile(keeper *k, u8csc bytes) {
     sane(k && $ok(bytes));
     u64 file_len = u8csLen(bytes);
     if (file_len < 12) fail(KEEPFAIL);
 
-    //  Strip the git packfile SHA-1 trailer if present.  Real git packs
-    //  (from upload-pack) end with a 20-byte hash over all preceding
-    //  bytes; the keeper log format is stripped (no trailer), so we
-    //  persist only the object stream so PSTRWrite's re-emit doesn't
-    //  splice the original trailer into the middle of the outgoing
-    //  pack.
+    //  Strip git's 20-byte SHA-1 trailer if present.
     if (file_len >= 32) {
         sha1 check = {};
         u8csc body = {bytes[0], bytes[0] + (file_len - 20)};
@@ -1573,50 +1572,95 @@ ok64 KEEPIngestFile(keeper *k, u8csc bytes) {
         if (memcmp(check.data, bytes[0] + (file_len - 20), 20) == 0)
             file_len -= 20;
     }
-    u8csc stripped = {bytes[0], bytes[0] + file_len};
-    bytes = stripped;
 
-    // Parse PACK header → object count
+    //  Parse PACK header → object count.
     pack_hdr ph = {};
-    a_dup(u8c, hscan, bytes);
-    call(PACKDrainHdr, hscan, &ph);
-    if (ph.count == 0) {
-        // An empty pack is legal but has nothing to index; still
-        // persist it so file_id accounting stays monotonic.
+    {
+        u8cs hscan = {bytes[0], bytes[0] + file_len};
+        call(PACKDrainHdr, hscan, &ph);
     }
 
-    test(k->shards[0].npacks < KEEP_MAX_FILES, KEEPNOROOM);
-    u32 file_id = k->shards[0].npacks + 1;
+    //  No-op ingest: zero-object pack = zero file changes.
+    if (ph.count == 0) done;
 
-    // Build paths: NNN.keeper and NNN.idx (flat under <kdir>).
+    //  Object-stream slice (header stripped; trailer already dropped).
+    u64 stream_len = file_len - 12;
+    u8csc stream = {bytes[0] + 12, bytes[0] + file_len};
+
     a_path(kdir, u8bDataC(k->h->root), KEEP_DIR_S);
     call(FILEMakeDirP, $path(kdir));
 
+    //  Append to existing tail log, or create the very first one.
+    b8  appending = (k->shards[0].npacks > 0);
+    u32 file_id = appending ? k->shards[0].npacks : 1;
     a_pad(u8, packpath, FILE_PATH_MAX_LEN);
     call(keep_pack_path, packpath, $path(kdir), file_id);
 
-    // Write received bytes to disk
+    u8bp log = NULL;
+    u64  pack_offset = 0;
+    if (appending) {
+        //  Swap the existing RO mapping for an RW FILEBook view for
+        //  the duration of the append.
+        if (k->shards[0].packs[file_id - 1]) {
+            FILEUnMap(k->shards[0].packs[file_id - 1]);
+            k->shards[0].packs[file_id - 1] = NULL;
+        }
+        call(FILEBook, &log, $path(packpath), 16ULL << 30);
+        pack_offset = u8bDataLen(log);
+    } else {
+        test(k->shards[0].npacks < KEEP_MAX_FILES, KEEPNOROOM);
+        call(FILEBookCreate, &log, $path(packpath), 1ULL << 30, 4096);
+        //  Lay down the one-and-only file-level PACK header with
+        //  count=0; patched below after the append.
+        call(PACKu8sFeedHdr, u8bIdle(log), 0);
+        pack_offset = 12;
+    }
+    k->shards[0].packs[file_id - 1] = log;
+
+    //  Append the object stream to the tail.
+    call(FILEBookEnsure, log, stream_len);
+    u8bFeed(log, stream);
+
+    //  Patch the file-level count: old_count + ph.count.  Matches
+    //  KEEPPackClose's convention.
     {
-        int fd = -1;
-        call(FILECreate, &fd, $path(packpath));
-        call(FILEFeedAll, fd, bytes);
-        close(fd);
+        u8p hdr = u8bDataHead(log);
+        u32 old_count = ((u32)hdr[8] << 24) | ((u32)hdr[9] << 16) |
+                        ((u32)hdr[10] << 8) | (u32)hdr[11];
+        u32 new_count = old_count + ph.count;
+        hdr[8]  = (u8)(new_count >> 24);
+        hdr[9]  = (u8)(new_count >> 16);
+        hdr[10] = (u8)(new_count >> 8);
+        hdr[11] = (u8)(new_count);
     }
 
-    // mmap RO for UNPK + future reads
-    u8bp pack_map = NULL;
-    call(FILEMapRO, &pack_map, $path(packpath));
+    u64 log_len = u8bDataLen(log);
+    u64 pack_byte_len = log_len - pack_offset;
 
-    // Index the file.  scan_start=12 (after PACK header), scan_end=file_len
-    // (no trailer in stripped format).  file_id = our fresh slot.
+    //  Persist + flip back to an RO mapping for readers.
+    call(FILETrimBook, log);
+    FILEUnBook(log);
+    log = NULL;
+
+    u8bp ro = NULL;
+    call(FILEMapRO, &ro, $path(packpath));
+    if (appending) {
+        k->shards[0].packs[file_id - 1] = ro;
+    } else {
+        k->shards[0].packs[k->shards[0].npacks] = ro;
+        k->shards[0].npacks++;
+    }
+
+    //  Index just the newly-appended slice of the log.  UNPK needs
+    //  the pack slice positioned at its final log location so
+    //  emitted offsets are log-absolute.
     Bwh128 entries = {};
     call(wh128bAllocate, entries, (u64)ph.count + 16);
-    u8cs pack_view = {u8bDataHead(pack_map),
-                      u8bDataHead(pack_map) + file_len};
+    u8cs log_view = {u8bDataHead(ro), u8bDataHead(ro) + log_len};
     unpk_in uin = {
-        .pack = {pack_view[0], pack_view[1]},
-        .scan_start = 12,
-        .scan_end = file_len,
+        .pack = {log_view[0], log_view[1]},
+        .scan_start = pack_offset,
+        .scan_end = log_len,
         .count = ph.count,
         .file_id = file_id,
         .emit = keep_indexer_emit,
@@ -1625,40 +1669,41 @@ ok64 KEEPIngestFile(keeper *k, u8csc bytes) {
     unpk_stats ust = {};
     call(UNPKIndex, k, &uin, entries, &ust);
 
-    // Pack bookmark: whole-file, first object starts at offset 12.
-    // val = (object count, stripped byte length).  byte_len excludes
-    // the 12-byte PACK header (the bookmark's key already points at
-    // offset 12).  Matches KEEPPackClose's convention.
+    //  Pack bookmark: key points at the append offset, val carries
+    //  (obj_count, byte_len) for O(1) wire reconstruction.
     {
         wh128 bm = {
-            .key = wh64Pack(KEEP_TYPE_PACK, file_id, 12),
-            .val = keepPackBmVal(ph.count, (u32)(file_len - 12)),
+            .key = wh64Pack(KEEP_TYPE_PACK, file_id, pack_offset),
+            .val = keepPackBmVal(ph.count, (u32)pack_byte_len),
         };
         call(wh128bPush, entries, &bm);
     }
 
-    // Sort + dedup in place, write .idx run
+    //  Sort + dedup, write .idx run atomically (tmp → rename).
     a_dup(wh128, sorted, wh128bData(entries));
     wh128sSort(sorted);
     wh128sDedup(sorted);
     u64 nent = wh128sLen(sorted);
 
     u32 idx_seq = k->shards[0].nruns + 1;
-    a_pad(u8, idxpath, 1024);
+    a_pad(u8, idxpath, FILE_PATH_MAX_LEN);
     call(keep_idx_path, idxpath, $path(kdir), idx_seq);
+
+    a_pad(u8, idxtmppath, FILE_PATH_MAX_LEN);
+    call(u8bFeed, idxtmppath, u8bDataC(idxpath));
+    a_cstr(tmpsuf, ".tmp");
+    call(u8bFeed, idxtmppath, tmpsuf);
+    call(PATHu8bTerm, idxtmppath);
 
     {
         int ifd = -1;
-        call(FILECreate, &ifd, $path(idxpath));
+        call(FILECreate, &ifd, $path(idxtmppath));
         u8cs raw = {(u8cp)sorted[0], (u8cp)(sorted[0] + nent)};
         call(FILEFeedAll, ifd, raw);
         close(ifd);
+        call(FILERename, $path(idxtmppath), $path(idxpath));
     }
     wh128bFree(entries);
-
-    // Register pack mmap + idx mmap with keeper state
-    k->shards[0].packs[k->shards[0].npacks] = pack_map;
-    k->shards[0].npacks++;
 
     u8bp idx_map = NULL;
     call(FILEMapRO, &idx_map, $path(idxpath));
