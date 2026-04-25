@@ -404,6 +404,13 @@ ok64 REFSResolve(urip resolved, u8bp arena, u8csc dir, u8csc input) {
         call(refs_capture_cs, arena, r_host, resolved->host);
     if (!u8csEmpty(u.path))
         call(refs_capture_cs, arena, u.path, resolved->path);
+    //  Matched row's `?query` (peer-side refname, e.g. `heads/main`)
+    //  → resolved->fragment.  Lets remote-target callers recover the
+    //  branch name when the input URI omits `?ref` (e.g.
+    //  `be post //sniff` after a prior `be get //sniff?heads/feat`).
+    u8cs r_query = {u.query[0], u.query[1]};
+    if (!u8csEmpty(r_query))
+        call(refs_capture_cs, arena, r_query, resolved->fragment);
 
     ULOGClose(&l);
     done;

@@ -300,15 +300,33 @@ ok64 GETCheckout(u8cs reporoot, u8cs hex, u8cs source) {
     ron60 verb = SNIFFAtVerbGet();
     call(SNIFFAtAppendAt, ctx.ts, verb, &urow);
 
-    //  Advance the keeper-side trunk tip: `?#<sha>` with verb `post`.
-    //  This is the local HEAD record — distinct from the peer-observed
-    //  rows written by keeper fetch (which carry the peer URI prefix).
-    //  Failure here is non-fatal: the worktree is already updated,
-    //  subsequent `be get` re-resolves via the peer-prefixed row.
+    //  Advance the keeper-side local-branch tip with verb `post`.
+    //  Key: `?heads/<branch>` when `source` carries a branch; bare `?`
+    //  (trunk) only when nothing in `source` names one.  Using the
+    //  literal branch is critical — REFADV walks `<store>/refs` for
+    //  `?heads/<X>` keys, and a bare-`?` row leaves the per-branch
+    //  local tip unadvertised, which silently short-circuits future
+    //  `WIREPush` calls.  Failure here is non-fatal: the worktree is
+    //  already updated, subsequent `be get` re-resolves via the
+    //  peer-prefixed row.
     {
         a_path(keepdir, u8bDataC(KEEP.h->root), KEEP_DIR_S);
-        a_cstr(trunk_key, "?");
-        (void)REFSAppendVerb($path(keepdir), REFSVerbPost(), trunk_key, hex);
+        a_pad(u8, key_buf, 128);
+        u8bFeed1(key_buf, '?');
+        if ($ok(source) && !u8csEmpty(source) && *source[0] == '?' &&
+            $len(source) != 41) {
+            a_dup(u8c, ref_q, source);
+            u8csUsed1(ref_q);  //  drop leading '?'
+            //  Strip a leading `refs/` if present so the key is the
+            //  same `?heads/<X>` form REFSAppendVerb / REFADV expect.
+            a_cstr(refs_pfx, "refs/");
+            if ($len(ref_q) > 5 &&
+                memcmp(ref_q[0], refs_pfx[0], 5) == 0)
+                u8csUsed(ref_q, 5);
+            u8bFeed(key_buf, ref_q);
+        }
+        a_dup(u8c, key_s, u8bData(key_buf));
+        (void)REFSAppendVerb($path(keepdir), REFSVerbPost(), key_s, hex);
     }
 
     fprintf(stderr, "sniff: checkout done\n");

@@ -338,7 +338,18 @@ static ok64 SNIFFGetURI(u8cs reporoot, uri *u) {
         if (o == OK && !$empty(resolved.query)) {
             a_pad(u8, src, 256);
             u8bFeed1(src, '?');
-            if (!$empty(u->query)) u8bFeed(src, u->query);
+            if (!$empty(u->query)) {
+                u8bFeed(src, u->query);
+            } else if (!$empty(resolved.fragment)) {
+                //  Fresh-clone path: user gave no `?ref` (e.g.
+                //  `be get ssh://sniff/src/dogs`).  Carry the matched
+                //  row's refname (`heads/<branch>`) into the at-log so
+                //  SNIFFAtBaseline → POSTCommit → keeper REFS chain
+                //  records branch-keyed local moves; otherwise REFADV
+                //  never advances `?heads/<branch>` past the fetched
+                //  tip and `WIREPush` short-circuits on stale equality.
+                u8bFeed(src, resolved.fragment);
+            }
             a_dup(u8c, source, u8bData(src));
             return GETCheckout(reporoot, resolved.query, source);
         }

@@ -89,6 +89,7 @@ static u16 post_mode_of_kind(u8 kind) {
         case WALK_KIND_EXE: return 0100755;
         case WALK_KIND_LNK: return 0120000;
         case WALK_KIND_DIR: return 040000;
+        case WALK_KIND_SUB: return 0160000;
     }
     return 0100644;
 }
@@ -145,7 +146,6 @@ static ok64 post_base_visit(u8cs path, u8 kind, u8cp esha, u8cs blob,
     (void)blob;
     base_ctx *b = (base_ctx *)vctx;
     post_ctx *c = b->c;
-    if (kind == WALK_KIND_SUB) return WALKSKIP;
     if (kind == WALK_KIND_DIR) {
         //  Root dir arrives with empty path; inner dirs get recorded
         //  only if we plan to emit them (we'll derive that from the
@@ -158,6 +158,16 @@ static ok64 post_base_visit(u8cs path, u8 kind, u8cp esha, u8cs blob,
     c->flag[idx] |= POST_IN_BASE;
     memcpy(c->rec[idx].old_sha.data, esha, 20);
     c->rec[idx].old_mode = post_mode_of_kind(kind);
+    if (kind == WALK_KIND_SUB) {
+        //  Gitlink (submodule).  Carry it through to the new tree
+        //  verbatim — POST is not in the business of advancing
+        //  submodule shas (that's what `git submodule update` does).
+        //  Without this entry, the wt scan + post_decide treat the
+        //  baseline gitlink as "missing on disk" and DROP it,
+        //  silently removing the submodule from history.
+        c->flag[idx] |= POST_KEEP;
+        return WALKSKIP;
+    }
     return OK;
 }
 
@@ -370,6 +380,16 @@ static ok64 post_decide(post_ctx *c, u32 idx) {
     if (SNIFFIsDir(idx)) return OK;
     if (!(f & (POST_IN_BASE | POST_ON_DISK))) return OK;
 
+    //  Gitlinks (submodule entries, mode 0160000) are carried through
+    //  verbatim — POST_KEEP was already set by post_base_visit.  The
+    //  on-disk presence rule below would otherwise see "no file at
+    //  path" (the gitlink references a different repo, not a file in
+    //  this one) and drop the entry.  Skip the rest of the logic.
+    if (c->rec[idx].old_mode == 0160000) {
+        c->flag[idx] |= POST_KEEP;
+        return OK;
+    }
+
     //  Explicit rules win.
     if (f & POST_EXPL_DEL) {
         c->flag[idx] |= POST_DROP;
@@ -433,9 +453,14 @@ static ok64 post_decide(post_ctx *c, u32 idx) {
         //  Clean: keep baseline sha if present.
         if (f & POST_IN_BASE) c->flag[idx] |= POST_KEEP;
         //  Otherwise: untracked clean (shouldn't happen but ignore).
-    } else {
+    } else if (f & POST_IN_BASE) {
+        //  Tracked + dirty → restage from disk.
         c->flag[idx] |= POST_REWRITE;
     }
+    //  Untracked + dirty in implicit mode: ignore.  Use `be put <path>`
+    //  to stage a new file explicitly — implicit `be post -m` only
+    //  touches files that were already in the baseline tree, so
+    //  side-checkouts (abc/, build/, scratch *.diff) don't leak in.
     return OK;
 }
 
@@ -636,6 +661,57 @@ static ok64 post_parent_sha(keeper *k, u8cs parent_hex, sha1 *out) {
 
 // --- Baseline branch query (from ULOG) ---
 
+#define POST_MAX_PARENTS 16
+
+//  Read the latest baseline (`get`/`post`/`patch`) row.  Fills `out`
+//  with the first REF spec from its query (the branch name), and
+//  `parents[]` with every 40-hex SHA spec — these are the parents the
+//  next commit must inherit.  `*nparents_out` is set to the count.
+//  `*had_baseline_out` is YES iff a baseline row exists (so callers
+//  can distinguish a fresh repo from a corrupt one).
+//
+//  Returns OK in both the "baseline exists" and "no baseline" cases —
+//  callers branch on `*had_baseline_out`.  Non-OK reflects ULOG /
+//  parse failures upstream.
+static ok64 post_collect_parents(u8bp out, sha1 *parents, u32 *nparents_out,
+                                 u32 cap, b8 *had_baseline_out) {
+    sane(out && parents && nparents_out && had_baseline_out);
+    u8bReset(out);
+    *nparents_out = 0;
+    *had_baseline_out = NO;
+    ron60 ts = 0, verb = 0;
+    uri u = {};
+    ok64 r = SNIFFAtBaseline(&ts, &verb, &u);
+    if (r == ULOGNONE) done;        // fresh repo — root commit allowed
+    if (r != OK) return r;
+    *had_baseline_out = YES;
+
+    a_dup(u8c, q, u.query);
+    while (!$empty(q)) {
+        qref spec = {};
+        if (QURYu8sDrain(q, &spec) != OK) break;
+        if (spec.type == QURY_NONE) {
+            //  Empty between separators (leading `&` or trailing).
+            //  Don't break — keep draining; the SHAs may be later.
+            if ($empty(q)) break;
+            continue;
+        }
+        if (spec.type == QURY_REF && u8bDataLen(out) == 0) {
+            u8bFeed(out, spec.body);
+        } else if (spec.type == QURY_SHA && $len(spec.body) == 40 &&
+                   *nparents_out < cap) {
+            sha1 ph = {};
+            u8s bin = {ph.data, ph.data + 20};
+            a_dup(u8c, hx, spec.body);
+            if (HEXu8sDrainSome(bin, hx) == OK && bin[0] == ph.data + 20)
+                parents[(*nparents_out)++] = ph;
+        }
+    }
+    done;
+}
+
+//  Legacy single-parent variant, kept for callers that only need the
+//  branch + first parent hex.
 static ok64 post_baseline_branch(u8bp out, u8bp hex_out) {
     sane(out && hex_out);
     u8bReset(out);
@@ -670,11 +746,29 @@ ok64 POSTCommit(u8cs reporoot, u8cs message, u8cs author, sha1 *sha_out) {
     sane($ok(message) && $ok(author) && sha_out);
     keeper *k = &KEEP;
 
-    //  1. Resolve baseline (branch, parent hex).  If no baseline, we're
-    //     making a root commit.
+    //  1. Resolve baseline (branch, parents).  Three cases:
+    //       * no baseline row at all  → root commit (0 parents, OK).
+    //       * baseline + 1+ parents   → normal / merge commit.
+    //       * baseline + 0 parents    → corrupt at-log; refuse.
+    //     The third case used to silently produce a parentless commit,
+    //     which on push replaces the peer's history with a single
+    //     dangling root.  See AT.md §"Baseline rule" + the patch row's
+    //     extending `<prior>&<theirs>` query for why a baseline row
+    //     should always carry at least one 40-hex SHA spec.
     a_pad(u8, brbuf, 256);
-    a_pad(u8, phex, 64);
-    call(post_baseline_branch, brbuf, phex);
+    sha1  parents[POST_MAX_PARENTS] = {};
+    u32   nparents = 0;
+    b8    had_baseline = NO;
+    ok64  br = post_collect_parents(brbuf, parents, &nparents,
+                                    POST_MAX_PARENTS, &had_baseline);
+    if (br != OK) return br;
+    if (had_baseline && nparents == 0) {
+        fprintf(stderr,
+                "sniff: post: baseline at-log row has no parent SHA — "
+                "refusing parentless commit (would orphan peer history "
+                "on push)\n");
+        return SNIFFFAIL;
+    }
     if (u8bDataLen(brbuf) == 0) {
         a_cstr(def, "heads/master");
         u8bFeed(brbuf, def);
@@ -795,12 +889,24 @@ ok64 POSTCommit(u8cs reporoot, u8cs message, u8cs author, sha1 *sha_out) {
         call(post_feed_empty_tree, k, &p, &root_tree);
     }
 
-    //  9. Resolve parent commit sha (from baseline, if any).
-    sha1 parent_sha = {};
-    b8 has_parent = NO;
-    if (u8bDataLen(phex) == 40) {
-        a_dup(u8c, ph, u8bData(phex));
-        if (post_parent_sha(k, ph, &parent_sha) == OK) has_parent = YES;
+    //  9. Verify each parent commit exists locally; refuse otherwise.
+    //     `parents[]` already holds the decoded sha1 bytes from the
+    //     baseline row's QURY scan; `post_parent_sha` re-runs the
+    //     keeper lookup as a sanity check.
+    for (u32 i = 0; i < nparents; i++) {
+        a_pad(u8, hx_buf, 40);
+        a_rawc(psha_in, parents[i]);
+        HEXu8sFeedSome(hx_buf_idle, psha_in);
+        a_dup(u8c, ph, u8bDataC(hx_buf));
+        sha1 ps = {};
+        if (post_parent_sha(k, ph, &ps) != OK) {
+            fprintf(stderr,
+                    "sniff: post: parent commit %.*s not found in keeper — "
+                    "refusing\n",
+                    (int)u8csLen(ph), (char const *)ph[0]);
+            return SNIFFFAIL;
+        }
+        parents[i] = ps;
     }
 
     //  10. Build commit body.
@@ -814,11 +920,11 @@ ok64 POSTCommit(u8cs reporoot, u8cs message, u8cs author, sha1 *sha_out) {
     u8bFeed(com, u8bDataC(thex));
     u8bFeed1(com, '\n');
 
-    if (has_parent) {
+    for (u32 i = 0; i < nparents; i++) {
         a_cstr(par_label, "parent ");
         u8bFeed(com, par_label);
         a_pad(u8, par_hex, 40);
-        a_rawc(psha, parent_sha);
+        a_rawc(psha, parents[i]);
         HEXu8sFeedSome(par_hex_idle, psha);
         u8bFeed(com, u8bDataC(par_hex));
         u8bFeed1(com, '\n');

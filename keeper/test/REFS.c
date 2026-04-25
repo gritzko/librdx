@@ -146,6 +146,7 @@ typedef struct {
     char const *query;
     char const *expect_sha;    // NULL = expect miss
     char const *expect_scheme; // optional, NULL to skip
+    char const *expect_refname;// optional, NULL to skip
 } resolve_case;
 
 ok64 REFStest_resolve_table() {
@@ -162,10 +163,13 @@ ok64 REFStest_resolve_table() {
          "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef");
 
     resolve_case const cases[] = {
-        {"?heads/main",                "cafef00dcafef00dcafef00dcafef00dcafef00d", NULL},
-        {"?main",                      "cafef00dcafef00dcafef00dcafef00dcafef00d", NULL},
-        {"//github?master",            "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef", "https"},
-        {"?heads/nonexistent",          NULL,                                      NULL},
+        {"?heads/main",                "cafef00dcafef00dcafef00dcafef00dcafef00d", NULL,    "heads/main"},
+        {"?main",                      "cafef00dcafef00dcafef00dcafef00dcafef00d", NULL,    "heads/main"},
+        {"//github?master",            "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef", "https", "heads/master"},
+        //  Authority-only lookup: `be post //github` recovers the refname
+        //  from the most recent matching row's `?query`.
+        {"//github",                   "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef", "https", "heads/master"},
+        {"?heads/nonexistent",          NULL,                                      NULL,    NULL},
     };
 
     for (size_t i = 0; i < sizeof(cases)/sizeof(*cases); i++) {
@@ -184,6 +188,11 @@ ok64 REFStest_resolve_table() {
                 size_t sl = strlen(cases[i].expect_scheme);
                 want((size_t)u8csLen(res.scheme) == sl);
                 want(memcmp(res.scheme[0], cases[i].expect_scheme, sl) == 0);
+            }
+            if (cases[i].expect_refname) {
+                size_t rl = strlen(cases[i].expect_refname);
+                want((size_t)u8csLen(res.fragment) == rl);
+                want(memcmp(res.fragment[0], cases[i].expect_refname, rl) == 0);
             }
         }
         u8bUnMap(arena);

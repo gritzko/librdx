@@ -687,11 +687,60 @@ fetch_close:
 //  Recursively collect tree + blob SHAs reachable from `tree_sha` into
 //  `out` (capacity `cap`).  Mirrors keep_walk_tree (KEEP.c) but lives
 //  here so WIRECLI doesn't depend on KEEP.c's static helpers.
+// --- have-set (sorted sha array; binary-search membership) ---
+
+typedef struct {
+    sha1 *items;
+    u32   n;
+    u32   cap;
+} sha_set;
+
+static b8 sha_set_has(sha_set const *s, sha1 const *q) {
+    if (!s || s->n == 0) return NO;
+    u32 lo = 0, hi = s->n;
+    while (lo < hi) {
+        u32 mid = (lo + hi) >> 1;
+        int c = sha1cmp(&s->items[mid], q);
+        if (c == 0) return YES;
+        if (c < 0) lo = mid + 1;
+        else       hi = mid;
+    }
+    return NO;
+}
+
+static void sha_set_add(sha_set *s, sha1 const *v) {
+    if (!s || s->n >= s->cap) return;
+    //  Insertion sort: find the position and shift.
+    u32 i = s->n;
+    while (i > 0 && sha1cmp(&s->items[i - 1], v) > 0) {
+        s->items[i] = s->items[i - 1];
+        i--;
+    }
+    if (i > 0 && sha1eq(&s->items[i - 1], v)) return;  //  dup
+    s->items[i] = *v;
+    s->n++;
+}
+
+//  Walk a tree's closure into `out` (skip-list-aware: a sha already
+//  present in `have` is not added and its sub-objects are not
+//  enumerated).  When `add_to_have` is non-NULL, also record visited
+//  shas into that set — used by the "collect have-set from peer_tip"
+//  pass before the local walk.
 static ok64 wpush_walk_tree(keeper *k, sha1 const *tree_sha,
-                            sha1 *out, u32 *n, u32 cap) {
-    sane(k && tree_sha && out && n);
-    if (*n >= cap) return WIRECLIFAIL;
-    out[(*n)++] = *tree_sha;
+                            sha1 *out, u32 *n, u32 cap,
+                            sha_set const *have, sha_set *add_to_have) {
+    sane(k && tree_sha && n);
+    if (have && sha_set_has(have, tree_sha)) done;
+    //  Dedup against `add_to_have` too — without this check, a merge
+    //  history (a commit reachable through two parent paths) re-walks
+    //  the same trees / blobs through every alternative path,
+    //  exploding O(N) into O(2^depth).
+    if (add_to_have && sha_set_has(add_to_have, tree_sha)) done;
+    if (out) {
+        if (*n >= cap) return WIRECLIFAIL;
+        out[(*n)++] = *tree_sha;
+    }
+    if (add_to_have) sha_set_add(add_to_have, tree_sha);
 
     Bu8 tbuf = {};
     ok64 mo = u8bMap(tbuf, 1UL << 20);
@@ -716,25 +765,45 @@ static ok64 wpush_walk_tree(keeper *k, sha1 const *tree_sha,
         if (is_submodule) continue;
         sha1 entry_sha = {};
         memcpy(entry_sha.data, sha[0], 20);
+        if (have && sha_set_has(have, &entry_sha)) continue;
+        if (add_to_have && sha_set_has(add_to_have, &entry_sha)) continue;
         if (is_tree) {
-            wpush_walk_tree(k, &entry_sha, out, n, cap);
+            wpush_walk_tree(k, &entry_sha, out, n, cap, have, add_to_have);
         } else {
-            if (*n >= cap) break;
-            out[(*n)++] = entry_sha;
+            if (out) {
+                if (*n >= cap) break;
+                out[(*n)++] = entry_sha;
+            }
+            if (add_to_have) sha_set_add(add_to_have, &entry_sha);
         }
     }
     u8bUnMap(tbuf);
     done;
 }
 
-//  Collect commit + tree + blob SHAs reachable from `commit_sha`.
-//  Does not follow parents (server diffs against its existing tips).
+//  Collect commit + tree + blob SHAs reachable from `commit_sha`,
+//  walking the parent chain too (so multi-commit FF pushes carry the
+//  intermediate commits).  When `have` is non-NULL, any sha (commit,
+//  tree, blob, or parent commit) already in the set is treated as
+//  closed: it is not added to `out` and its sub-graph is not
+//  enumerated — the assumption is the peer already has it.
+//
+//  When `add_to_have` is non-NULL (and `out` is NULL), the function
+//  populates the haveset instead — used for the peer-tip closure pass
+//  before the local walk.
 static ok64 wpush_walk_commit(keeper *k, sha1 const *commit_sha,
-                              sha1 *out, u32 *n, u32 cap) {
-    sane(k && commit_sha && out && n);
-    *n = 0;
-    if (*n >= cap) return WIRECLIFAIL;
-    out[(*n)++] = *commit_sha;
+                              sha1 *out, u32 *n, u32 cap,
+                              sha_set const *have, sha_set *add_to_have) {
+    sane(k && commit_sha && n);
+    if (have && sha_set_has(have, commit_sha)) done;
+    //  See wpush_walk_tree: without this check, a merge-history
+    //  closure re-walks ancestors through every alternate path.
+    if (add_to_have && sha_set_has(add_to_have, commit_sha)) done;
+    if (out) {
+        if (*n >= cap) return WIRECLIFAIL;
+        out[(*n)++] = *commit_sha;
+    }
+    if (add_to_have) sha_set_add(add_to_have, commit_sha);
 
     Bu8 cbuf = {};
     ok64 mo = u8bMap(cbuf, 1UL << 20);
@@ -751,9 +820,31 @@ static ok64 wpush_walk_commit(keeper *k, sha1 const *commit_sha,
         u8bUnMap(cbuf);
         return WIRECLIFAIL;
     }
+
+    //  Walk parents.  Each `parent <40-hex>` header line names another
+    //  commit that must also be in the pack unless the peer has it.
+    {
+        u8cs body = {u8bDataHead(cbuf), u8bIdleHead(cbuf)};
+        u8cs field = {}, value = {};
+        while (GITu8sDrainCommit(body, field, value) == OK) {
+            if ($empty(field)) break;
+            if ($len(field) == 6 && memcmp(field[0], "parent", 6) == 0 &&
+                $len(value) >= 40) {
+                sha1 par = {};
+                u8s bin = {par.data, par.data + 20};
+                u8cs hx = {value[0], value[0] + 40};
+                a_dup(u8c, hx_dup, hx);
+                if (HEXu8sDrainSome(bin, hx_dup) != OK) continue;
+                if (bin[0] != par.data + 20) continue;
+                if (have && sha_set_has(have, &par)) continue;
+                if (add_to_have && sha_set_has(add_to_have, &par)) continue;
+                wpush_walk_commit(k, &par, out, n, cap, have, add_to_have);
+            }
+        }
+    }
     u8bUnMap(cbuf);
 
-    return wpush_walk_tree(k, &tree_sha, out, n, cap);
+    return wpush_walk_tree(k, &tree_sha, out, n, cap, have, add_to_have);
 }
 
 //  Append a pack object header (type + size varint, big-endian-ish) to
@@ -979,20 +1070,34 @@ ok64 WIREPush(keeper *k, u8csc remote_uri, u8csc local_branch) {
     u8cs refname = {u8bDataHead(refname_buf), u8bIdleHead(refname_buf)};
 
     //  Spawn receive-pack on the peer.
+    fprintf(stderr, "wpush: spawning receive-pack, remote=%.*s\n",
+            (int)u8csLen(remote_uri), (char const *)remote_uri[0]);
     int wfd = -1, rfd = -1;
     pid_t pid = 0;
     ok64 so = wcli_spawn(remote_uri, "receive-pack", &wfd, &rfd, &pid);
-    if (so != OK) return WIRECLIFAIL;
+    if (so != OK) {
+        fprintf(stderr, "wpush: spawn failed (so=%llx)\n",
+                (unsigned long long)so);
+        return WIRECLIFAIL;
+    }
+    fprintf(stderr, "wpush: spawned ok, pid=%d\n", (int)pid);
 
     Bu8 advbuf = {};
     ok64 rv = WIRECLIFAIL;
-    if (u8bAllocate(advbuf, WCLI_BUF) != OK) goto push_close;
+    if (u8bAllocate(advbuf, WCLI_BUF) != OK) {
+        fprintf(stderr, "wpush: advbuf alloc failed\n");
+        goto push_close;
+    }
 
     //  Drain peer advert; capture old tip if peer already has the ref.
     sha1 peer_tip = {};
     b8   have_peer = NO;
-    if (wpush_peer_tip(rfd, advbuf, refname, &peer_tip, &have_peer) != OK)
+    if (wpush_peer_tip(rfd, advbuf, refname, &peer_tip, &have_peer) != OK) {
+        fprintf(stderr, "wpush: peer_tip drain failed\n");
         goto push_close;
+    }
+    fprintf(stderr, "wpush: peer advert drained, have_peer=%d\n",
+            (int)have_peer);
 
     //  Short-circuit: peer already at our tip — nothing to push.
     if (have_peer && sha1eq(&peer_tip, &local_tip)) {
@@ -1008,32 +1113,63 @@ ok64 WIREPush(keeper *k, u8csc remote_uri, u8csc local_branch) {
         goto push_close;
     }
 
-    //  Walk the local commit's reachable closure.
+    //  Build the have-set (objects the peer already has) when peer
+    //  advertised our branch.  Walking peer_tip's commit + tree
+    //  closure locally gives us every sha we don't need to ship —
+    //  cuts a 580-object full-snapshot pack down to the 5-10 objects
+    //  actually new in a typical FF.
+    sha_set haveset = {};
+    sha_set *have = NULL;
+    if (have_peer) {
+        haveset.items = calloc(WPUSH_MAX_OBJS, sizeof(sha1));
+        haveset.cap   = WPUSH_MAX_OBJS;
+        if (haveset.items) {
+            (void)wpush_walk_commit(k, &peer_tip, NULL, &(u32){0}, 0,
+                                    NULL, &haveset);
+            have = &haveset;
+        }
+    }
+
+    //  Walk the local commit's reachable closure, skipping anything
+    //  the peer already advertised (via `have`) and following the
+    //  parent chain so multi-commit FF pushes carry intermediate
+    //  commits.
     sha1 *shas = calloc(WPUSH_MAX_OBJS, sizeof(sha1));
-    if (!shas) goto push_close;
-    u32 nshas = 0;
-    if (wpush_walk_commit(k, &local_tip, shas, &nshas, WPUSH_MAX_OBJS) != OK ||
-        nshas == 0) {
-        free(shas);
+    if (!shas) {
+        if (haveset.items) free(haveset.items);
         goto push_close;
     }
+    u32 nshas = 0;
+    if (wpush_walk_commit(k, &local_tip, shas, &nshas, WPUSH_MAX_OBJS,
+                          have, NULL) != OK || nshas == 0) {
+        free(shas);
+        if (haveset.items) free(haveset.items);
+        goto push_close;
+    }
+    if (haveset.items) free(haveset.items);
+    fprintf(stderr, "wpush: walked %u objects\n", nshas);
 
     //  Build the pack.
     Bu8 packbuf = {};
     if (u8bAllocate(packbuf, 1ULL << 26) != OK) {
+        fprintf(stderr, "wpush: packbuf alloc failed\n");
         free(shas);
         goto push_close;
     }
     if (wpush_build_pack(k, shas, nshas, packbuf) != OK) {
+        fprintf(stderr, "wpush: build_pack failed\n");
         free(shas);
         u8bFree(packbuf);
         goto push_close;
     }
     free(shas);
+    fprintf(stderr, "wpush: pack built (%llu bytes)\n",
+            (unsigned long long)u8bDataLen(packbuf));
 
     //  Send the ref-update line + flush.
     if (wpush_send_update(wfd, &peer_tip, &local_tip, refname,
                           have_peer) != OK) {
+        fprintf(stderr, "wpush: send_update failed\n");
         u8bFree(packbuf);
         goto push_close;
     }
@@ -1042,12 +1178,16 @@ ok64 WIREPush(keeper *k, u8csc remote_uri, u8csc local_branch) {
         a_dup(u8c, pdata, u8bData(packbuf));
         ok64 wo = FILEFeedAll(wfd, pdata);
         u8bFree(packbuf);
-        if (wo != OK) goto push_close;
+        if (wo != OK) {
+            fprintf(stderr, "wpush: pack send failed\n");
+            goto push_close;
+        }
     }
     close(wfd); wfd = -1;
 
     //  Drain status.
     rv = wpush_drain_status(rfd, refname);
+    if (rv != OK) fprintf(stderr, "wpush: drain_status returned non-OK\n");
     close(rfd); rfd = -1;
 
 push_close:

@@ -87,9 +87,12 @@ ron60 REFSVerbSet(void);   //  legacy — only for reading old logs
 
 //  Resolve a URI by reverse-scanning the ULOG.  Host-substring match +
 //  refname/variant match; most-recent wins.  Fills `resolved`:
-//    * query    — terminal 40-hex SHA (for ref-returning queries)
+//    * query    — terminal 40-hex SHA (the matched row's `#fragment`)
 //    * scheme/host/path — origin bytes of the matched row (for the
 //      `//alias`-style transport-URI build done by keeper's get/post)
+//    * fragment — matched row's `?query` (peer-side refname, e.g.
+//      `heads/main`); lets `be post //host` recover the branch when
+//      the input URI omits `?ref`
 //  `arena` is a writable byte buffer that backs the filled slices; must
 //  outlive the caller's use of `resolved`.
 ok64 REFSResolve(urip resolved, u8bp arena, u8csc dir, u8csc uri);

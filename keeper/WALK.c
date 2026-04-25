@@ -47,12 +47,7 @@ static ok64 walk_tree_dive(keeper *k, sha1 const *tree_sha,
     ok64 result = OK;
 
     u8 const *tsp = (u8 const *)tree_sha;
-    fprintf(stderr, "WALKDBG tree_sha=%02x%02x%02x%02x%02x tree_len=%lld\n",
-            tsp[0], tsp[1], tsp[2], tsp[3], tsp[4],
-            (long long)$len(tree_s));
     while (GITu8sDrainTree(tree_s, file, esha) == OK) {
-        fprintf(stderr, "WALKDBG entry file=[%.*s]\n",
-                (int)$len(file), (char const *)file[0]);
         // Parse "<mode> <name>".
         u8cs scan = {file[0], file[1]};
         if (u8csFind(scan, ' ') != OK) continue;

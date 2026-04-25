@@ -458,16 +458,37 @@ static ok64 keeper_post(keeper *k, cli *c) {
         return KEEPFAIL;
     }
 
-    //  2. Target branch.  Prefer URI ?query; otherwise the current
-    //     worktree branch (per VERBS.md `be post //origin`).  Both
-    //     inputs get their `heads/` prefix stripped — the local_branch
+    //  2. Target branch.  Precedence:
+    //       a. explicit URI `?query`           — user said which ref.
+    //       b. refs-log host-prefix match      — `be post //sniff` after
+    //          a prior `be get ssh://sniff/...?heads/X` recovers
+    //          `heads/X` from `<store>/refs` via REFSResolve.
+    //       c. worktree current branch (DOGAtTail) — last-resort default.
+    //     Inputs get their `heads/` prefix stripped — the local_branch
     //     build below re-adds it exactly once, so the WIREPush arg
     //     ends up `heads/<name>` regardless of input shape.
+    a_pad(u8, peer_arena, 1024);
+    u8cs peer_refname = {};
+    if (u8csEmpty(g->query) && !u8csEmpty(g->authority)) {
+        uri resolved = {};
+        a_dup(u8c, in_uri, g->data);
+        if (REFSResolve(&resolved, peer_arena,
+                        $path(keepdir), in_uri) == OK) {
+            u8cs r_q = {resolved.fragment[0], resolved.fragment[1]};
+            if (!u8csEmpty(r_q)) {
+                peer_refname[0] = r_q[0];
+                peer_refname[1] = r_q[1];
+            }
+        }
+    }
     a_pad(u8, branch_buf, 256);
     {
         a_cstr(heads_pfx, "heads/");
         u8cs src = {};
-        if (u8csEmpty(g->query)) {
+        if (!u8csEmpty(peer_refname)) {
+            src[0] = peer_refname[0];
+            src[1] = peer_refname[1];
+        } else if (u8csEmpty(g->query)) {
             src[0] = u8bDataHead(at_branch);
             src[1] = u8bIdleHead(at_branch);
         } else {
@@ -508,15 +529,27 @@ static ok64 keeper_post(keeper *k, cli *c) {
     if (pu != OK) return pu;
 
     //  5. Advance local //host/path?heads/<branch> → <new-sha> so
-    //     subsequent fetches know the peer's tip.  Build a uri with
-    //     auth/path from `g` and query = `heads/<branch>`, then feed
-    //     canonical bytes — DOGCanonURIFeed drops the transport
-    //     scheme and collapses `heads/{master,main,trunk}` to empty.
+    //     subsequent fetches know the peer's tip.  Use the RESOLVED
+    //     transport URI (host+path from alias resolution), not `g`:
+    //     `be post //sniff` arrives with empty path, and recording a
+    //     pathless `//sniff?heads/X` row would mask the original
+    //     `ssh://sniff/src/dogs?heads/X` row in later REFSResolve
+    //     lookups, breaking subsequent pushes.  DOGCanonURIFeed drops
+    //     the transport scheme and collapses heads/{master,main,trunk}
+    //     to empty.
     a_pad(u8, qbuf, 256);
     a_cstr(heads_pfx2, "heads/");
     u8bFeed(qbuf, heads_pfx2);
     u8bFeed(qbuf, branch);
-    uri gk = *g;
+    uri gk = {};
+    {
+        a_dup(u8c, ru, remote_uri);
+        gk.data[0] = ru[0];
+        gk.data[1] = ru[1];
+        (void)URILexer(&gk);
+        gk.data[0] = ru[0];
+        gk.data[1] = ru[1];
+    }
     u8csMv(gk.query, u8bData(qbuf));
     gk.fragment[0] = NULL;
     gk.fragment[1] = NULL;
