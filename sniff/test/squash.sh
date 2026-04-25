@@ -115,6 +115,11 @@ note "feat tip after rewrite=$FEAT1"
 
 sleep 1
 echo "c line 1" > c.txt
+#  c.txt is untracked relative to FEAT1's baseline; implicit `sniff
+#  post -m` no longer auto-stages strangers (post_decide rule:
+#  "with no put/delete, post commits only tracked files").  Name the
+#  new path explicitly.
+sniff put c.txt >/dev/null
 sniff post -m "feat: add c" >/dev/null
 FEAT2=$(head_hex)
 [ "$FEAT2" != "$FEAT1" ] || fail "feat tip didn't advance"

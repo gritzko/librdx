@@ -71,6 +71,7 @@ typedef struct {
     u32         cap;
     b8          any_pd;     // any put/delete rows since last post
     b8          base_is_patch;  // baseline row is a `patch`, not get/post
+    b8          has_base;   // baseline row exists (any get/post/patch)
     ron60       last_post_ts;
     ok64        error;
     //  Dir-level put/delete prefixes (trailing '/').  Expanded after
@@ -180,6 +181,7 @@ static ok64 post_load_baseline(post_ctx *c, sha1 *root_out, b8 *has_out) {
     ok64 br = SNIFFAtBaseline(&base_ts, &base_verb, &base_u);
     if (br == ULOGNONE) done;  // fresh repo
     if (br != OK) return br;
+    c->has_base      = YES;
     c->base_is_patch = (base_verb == SNIFFAtVerbPatch());
 
     //  Baseline query carries the version info (see dog/QURY): one
@@ -404,8 +406,21 @@ static ok64 post_decide(post_ctx *c, u32 idx) {
         return OK;
     }
 
-    //  Missing from wt — only drop when implicit mode or baseline had it.
+    //  Missing from wt — only drop when implicit mode and the path is
+    //  visible to the wt scan.  Gitignored baseline files (e.g. `.be`,
+    //  `.gitignore`-listed) are filtered out by `post_wt_callback` →
+    //  `SNIFFSkipMeta`, so they never get POST_ON_DISK even though the
+    //  bytes are right there on disk.  Treating them as deletions
+    //  silently strips them from history.  Honor the gitignore by
+    //  keeping the baseline entry verbatim.
     if (!(f & POST_ON_DISK)) {
+        u8cs rel_chk = {};
+        if ((f & POST_IN_BASE) &&
+            SNIFFPath(rel_chk, idx) == OK &&
+            SNIFFSkipMeta(rel_chk)) {
+            c->flag[idx] |= POST_KEEP;
+            return OK;
+        }
         if (c->any_pd) {
             //  No explicit rule for this path and we are in selective
             //  mode: keep the baseline entry unchanged.
@@ -417,15 +432,20 @@ static ok64 post_decide(post_ctx *c, u32 idx) {
         return OK;
     }
 
-    //  On disk, no explicit rule.
-    if (c->any_pd) {
-        //  Selective mode: carry over baseline entry; a new on-disk
-        //  file that isn't mentioned goes unstaged (ignore).
-        if (f & POST_IN_BASE) c->flag[idx] |= POST_KEEP;
+    //  On disk, no explicit rule.  Selective and implicit modes share
+    //  the same logic here: tracked files get the auto-mtime check
+    //  (KEEP if clean, REWRITE if dirty), untracked files are ignored
+    //  unless `be put` named them (handled above as POST_EXPL_PUT).
+    //  In selective mode this is critical — without it, `be put X` on
+    //  one new file would silently drop in-flight modifications to
+    //  every other tracked file.
+    if (!(f & POST_IN_BASE) && c->any_pd) {
+        //  Untracked + selective mode + no put = ignore.  (Implicit
+        //  mode falls through to handle fresh-repo first-commit and
+        //  base-is-patch cases below.)
         return OK;
     }
 
-    //  Implicit mode: include dirty files (mtime ∉ stamp-set).
     a_path(fp);
     u8cs rel = {};
     call(SNIFFPath, rel, idx);
@@ -456,11 +476,17 @@ static ok64 post_decide(post_ctx *c, u32 idx) {
     } else if (f & POST_IN_BASE) {
         //  Tracked + dirty → restage from disk.
         c->flag[idx] |= POST_REWRITE;
+    } else if (!c->has_base) {
+        //  Fresh-repo first commit (no baseline exists yet): auto-stage
+        //  every dirty file.  Once any baseline lands, implicit
+        //  `be post -m` reverts to "tracked-only" semantics — a new
+        //  untracked file then needs an explicit `be put`.
+        c->flag[idx] |= POST_REWRITE;
     }
-    //  Untracked + dirty in implicit mode: ignore.  Use `be put <path>`
-    //  to stage a new file explicitly — implicit `be post -m` only
-    //  touches files that were already in the baseline tree, so
-    //  side-checkouts (abc/, build/, scratch *.diff) don't leak in.
+    //  Else: untracked + dirty + already-have-a-baseline → ignore in
+    //  implicit mode.  Side-checkouts (abc/, build/, scratch *.diff)
+    //  don't leak into commits that way; the user names them via
+    //  `be put <path>` if they really want to add new tracked paths.
     return OK;
 }
 

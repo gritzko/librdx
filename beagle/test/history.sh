@@ -60,6 +60,11 @@ note "v0.0.2 labeled"
 echo "=== 3. edit + add, tag v0.0.3 ==="
 echo "beta v3"  > other.txt
 echo "new file" > extra.txt
+#  extra.txt is untracked relative to v0.0.2; implicit `be post -m`
+#  no longer auto-stages strangers (post_decide rule: "with no
+#  put/delete, post commits only tracked files").  Modified tracked
+#  files (other.txt) still auto-stage in this selective-mode post.
+"$BE" put extra.txt >/dev/null
 "$BE" post -m v3 "?tags/v0.0.3" >/dev/null
 note "v0.0.3 labeled"
 
